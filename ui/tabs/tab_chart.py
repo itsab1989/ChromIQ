@@ -74,7 +74,7 @@ from ui.tab_header import TabHeader
 from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
 from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import TailFollowLog, add_log_row, fit_log_height, CollapsibleGroupBox, ElidingComboBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, WrappingCheckBox, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
+from ui.widgets import TailFollowLog, add_log_row, fit_log_height, CollapsibleGroupBox, ElidingComboBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, WrappingCheckBox, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_folder_twin_icon, set_ink, set_preset_icon
 from ui.warning_sign import inform, set_information_icon, set_question_icon
 from core.i18n import count_phrase, tr
 from core.text_io import read_text
@@ -4337,6 +4337,32 @@ class _CappedComboBox(NoScrollComboBox):
         self._set_popup_only_rows_enabled(True)
         super().showPopup()
         self.fit_popup()
+        self.show_current_row()
+
+    def show_current_row(self) -> None:
+        """Highlight the selected row and scroll the open list to it.
+
+        **WHEREVER IT IS IN ITS GROUP (challenge 3 of beta 42, B8-1032;
+        curated_presets.md C4).** Qt scrolls to the current row inside
+        ``super().showPopup()``, but two things move under it afterwards:
+        `fit_popup` shrinks the frame to :attr:`_MAX_ROWS`, which keeps the
+        scroll offset that suited the taller frame, and the rows a revealed
+        group un-hid a moment earlier are laid out lazily. Measured on screen:
+        the 33rd of 34 revealed rows stayed below the bottom edge with nothing
+        highlighted, while the first revealed row happened to be visible. So
+        the layout is settled first, and the row is scrolled to AFTER the
+        frame has its final height."""
+        view = self.view()
+        row = self.currentIndex()
+        if view is None or row < 0 or view.isRowHidden(row):
+            return
+        idx = self.model().index(row, self.modelColumn(), self.rootModelIndex())
+        view.doItemsLayout()
+        view.setCurrentIndex(idx)
+        sel = view.selectionModel()
+        if sel is not None:
+            sel.select(idx, sel.SelectionFlag.ClearAndSelect)
+        view.scrollTo(idx, view.ScrollHint.PositionAtCenter)
 
     def fit_popup(self, *, rows_changed: bool = False) -> None:
         """Cap the open list at :attr:`_MAX_ROWS` rows and anchor it under the
@@ -6356,13 +6382,16 @@ class TabChart(QWidget):
         # **THE GEAR: WHICH BUILT-INS THE LISTS SHOW.** Knut, #182 5818659478:
         # *"Add another small button between the 'Open this tab's presets
         # folder in Finder' and the help icon. Same size [...], but a symbol in
-        # side that indicates 'Settings'."* Same 28 px, same object name and
-        # the same themed-icon mechanism as its two neighbours, so it follows
-        # the appearance exactly as they do.
+        # side that indicates 'Settings'."* Same 28 px and object name as the
+        # folder button beside it, and THE SAME COLOUR (B8-1036): it was
+        # painted in the +/- grey while the folder beside it is the tab's
+        # pink (ACTION in Neutral). `set_folder_twin_icon` paints the gear in
+        # whatever colour the folder icon comes out in, and the theme walker
+        # repaints it with the folder on every appearance change.
         self._preset_shown_btn = QPushButton(w)
         self._preset_shown_btn.setObjectName("icon_btn")
         self._preset_shown_btn.setFixedSize(28, 28)
-        set_preset_icon(self._preset_shown_btn, "gear")
+        set_folder_twin_icon(self._preset_shown_btn, "gear", "folder_create")
         self._preset_shown_btn.setIconSize(QSize(14, 14))
         self._preset_shown_btn.setToolTip(
             tr("Choose which built-in presets are listed directly.\n"

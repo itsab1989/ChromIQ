@@ -181,13 +181,36 @@ def test_a_new_release_moves_only_what_the_person_never_touched(
     assert "a" not in shown, "a was never touched, so it follows the release"
 
 
-def test_a_recorded_answer_is_kept_even_when_the_default_agrees(
+def test_ticking_back_to_the_shipped_list_stores_nothing(
         fake_defaults, settings):
+    """Challenge 3 of beta 42 (B8-1033): the boxes ticked back by hand to
+    exactly the shipped list left every touched preset stored as the
+    person's own answer (62 on screen), so a later release's list would never
+    have reached them. Only a true difference is stored.
+
+    MUTATION, proved to land: keep a key already recorded (`or key in
+    existing`, the old rule) (red here and in the next test)."""
+    cp.store_choices(settings, {"a", "c"}, ["a", "b", "c"])
+    assert cp.user_choices(settings) == {"b": False, "c": True}
+    assert cp.store_choices(settings, {"a", "b"}, ["a", "b", "c"]) is True
+    assert cp.user_choices(settings) == {}
+    assert not settings.is_stored(cp.SETTING_KEY), (
+        "an empty answer is no answer: nothing may stay stored")
+    # …so a later release reaches every preset again
+    fake_defaults["keys"] = frozenset({"b", "c"})
+    assert cp.shown_keys(settings, ["a", "b", "c"]) == {"b", "c"}
+
+
+def test_an_answer_that_a_release_comes_to_agree_with_is_dropped_next_save(
+        fake_defaults, settings):
+    """A stored answer the shipped list now agrees with is no difference any
+    more: the next save forgets it, and the one real difference stays.
+    A beta-42 setting that recorded agreeing keys is cleaned the same way."""
+    settings.set(cp.SETTING_KEY, json.dumps({"a": True, "b": True,
+                                             "c": True, "gone": False}))
     cp.store_choices(settings, {"a", "b", "c"}, ["a", "b", "c"])
-    fake_defaults["keys"] = frozenset({"a", "b", "c"})
-    cp.store_choices(settings, {"a", "b", "c"}, ["a", "b", "c"])
-    fake_defaults["keys"] = frozenset({"a", "b"})
-    assert "c" in cp.shown_keys(settings, ["a", "b", "c"])
+    assert cp.user_choices(settings) == {"c": True, "gone": False}, (
+        "only c differs from the shipped a, b; an unknown key is kept")
 
 
 def test_a_corrupt_setting_reads_as_no_choice(settings):
@@ -352,6 +375,44 @@ def test_an_arrow_reaching_the_slot_is_put_back(make_tab):
     assert not cp.is_more_row(cb.currentData())
 
 
+def test_opening_the_list_shows_and_highlights_a_selection_deep_in_a_group(
+        make_tab, qapp):
+    """curated_presets.md C4: *"so the list shows where the selection is"*.
+    Challenge 3 of beta 42 (B8-1032): with the 33rd of 34 revealed rows
+    selected, the group opened but the list sat at its top and nothing was
+    highlighted. The LAST row under the longest arrow is used here.
+
+    MUTATION, proved to land: drop `show_current_row()` from `showPopup`
+    (red: the row is outside the viewport and not the view's current row)."""
+    tab = make_tab()
+    tab.show()
+    qapp.processEvents()
+    cb = tab._preset_combo
+    best, member = -1, -1
+    for arrow in _arrows(cb):
+        group = cb.itemData(arrow, cb.MORE_ROLE)
+        rows = [r for r in range(arrow + 1, cb.count())
+                if cb.itemData(r, cb.MEMBER_ROLE) == group]
+        if len(rows) > best:
+            best, member = len(rows), rows[-1]
+    assert best > cb._MAX_ROWS, "needs a group longer than the open list"
+    cb.setCurrentIndex(member)
+    cb.showPopup()
+    qapp.processEvents()
+    try:
+        view = cb.view()
+        assert not view.isRowHidden(member)
+        rect = view.visualRect(cb.model().index(member, 0))
+        assert rect.isValid() and view.viewport().rect().contains(rect), (
+            f"row {member} at {rect} is outside the open list "
+            f"{view.viewport().rect()}")
+        assert view.currentIndex().row() == member
+        assert view.selectionModel().isRowSelected(member, view.rootIndex())
+    finally:
+        cb.hidePopup()
+        tab.hide()
+
+
 def test_opening_the_list_on_a_hidden_selection_reveals_its_group(make_tab):
     tab = make_tab()
     cb = tab._preset_combo
@@ -485,4 +546,74 @@ def test_the_gear_sits_between_the_folder_button_and_the_help_icon(make_tab):
     from ui.tooltip_button import TooltipButton
     assert isinstance(help_btn, TooltipButton)
     assert gear.size() == tab._preset_reveal_btn.size()
-    assert gear.property("themed_preset_icon") == "gear"
+    assert gear.property("themed_folder_twin_icon") == "gear|folder_create"
+
+
+def _ink(icon):
+    """The average colour of an icon's opaque pixels."""
+    img = icon.pixmap(20, 20).toImage()
+    r = g = b = n = 0
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            if c.alpha() >= 200:
+                r, g, b, n = r + c.red(), g + c.green(), b + c.blue(), n + 1
+    assert n, "an empty icon"
+    return (r / n, g / n, b / n)
+
+
+@pytest.mark.parametrize("mode", ["light", "dark", "neutral"])
+def test_the_gear_has_the_folder_buttons_colour(make_tab, qapp, mode,
+                                                monkeypatch):
+    """Challenge 3 of beta 42 (B8-1036): the gear was painted in the +/-
+    grey beside the pink folder button. Same colour in every appearance,
+    and repainted by the theme walker. The appearance is answered by
+    `ui.theme.active_mode`, the one place every icon loader asks, so no
+    style sheet is applied to the whole application here (CLAUDE.md).
+
+    MUTATION, proved to land: `set_preset_icon(…, "gear")` back (red in all
+    three appearances)."""
+    import ui.theme as theme
+    from ui.widgets import apply_themed_icons
+    monkeypatch.setattr(theme, "active_mode", lambda *a, **k: mode)
+    tab = make_tab()
+    apply_themed_icons(tab)
+    gear = _ink(tab._preset_shown_btn.icon())
+    folder = _ink(tab._preset_reveal_btn.icon())
+    assert max(abs(a - b) for a, b in zip(gear, folder)) <= 12, (
+        mode, gear, folder)
+
+
+@pytest.mark.parametrize("lang", ["en", "de"])
+def test_the_gear_window_has_a_useful_smallest_size(qapp, lang, monkeypatch):
+    """Challenge 3 of beta 42 (B8-1035): no minimum size; at 420 x 360 the
+    list showed five rows (German three). At its smallest it now shows ten,
+    with the paragraphs whole above it.
+
+    MUTATION, proved to land: drop `_minimum()` from `_fit` (red)."""
+    import core.i18n as i18n
+    from ui.dialogs.builtin_presets_shown_dialog import BuiltinPresetsShownDialog
+    if lang != "en":
+        set_lang = getattr(i18n, "set_language", None)
+        if set_lang is None:
+            pytest.skip("no set_language in core.i18n")
+        set_lang(lang)
+    try:
+        groups = [(h, [(k, "", k) for (_c, _o, k) in e])
+                  for h, e in BUILTIN_PRESET_GROUPS]
+        dlg = BuiltinPresetsShownDialog(groups, set(), None)
+        dlg.show()
+        dlg.resize(1, 1)
+        qapp.processEvents()
+        assert dlg.width() >= 560
+        tree = dlg._tree
+        rows_visible = tree.viewport().height() // tree.sizeHintForRow(0)
+        assert rows_visible >= 10, (lang, rows_visible, dlg.size())
+        intro = dlg._intro
+        assert intro.height() >= intro.heightForWidth(intro.width()) - 1, (
+            "the paragraphs are cut at the smallest size")
+        dlg.close()
+        dlg.deleteLater()
+    finally:
+        if lang != "en":
+            i18n.set_language("en")

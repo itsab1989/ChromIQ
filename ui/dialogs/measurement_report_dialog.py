@@ -2528,7 +2528,8 @@ class MeasurementReportDialog(QDialog):
         # other places.
         self._profile_list.setStyleSheet(
             "QListWidget::item:selected {"
-            f" background: {SPEC_GREEN}; color: #0a0a0a; }}")
+            f" background: {SPEC_GREEN}; color: #0a0a0a; }}"
+            + self._list_tick_box_qss())
         self._profile_list.itemSelectionChanged.connect(self._update_source_buttons)
         #: run keys the user unticked — session-only, nothing on disk changes.
         self._hidden_runs: "set[str]" = set()
@@ -5176,6 +5177,7 @@ class MeasurementReportDialog(QDialog):
             self._settings_were_modified()
             and (not self._nothing_is_ticked()
                  or self._page_lost_what_it_covers()))
+        self._word_the_stale_line()
         # **THE PDF DOOR STAYS OPEN, AND THE PDF IS WHAT IS ON SCREEN
         # (B8-364).** Round 21 measured the fault: with the pulldown on `Colour
         # summary (one page)`, the red line up and the document still reading
@@ -5199,6 +5201,61 @@ class MeasurementReportDialog(QDialog):
         # better than greying the button did, because the reader can still hand
         # somebody the document they are looking at while they think about a
         # setting they have moved.
+
+    def _list_tick_box_qss(self) -> str:
+        """**THE LIST'S TICK BOXES, DRAWN LIKE EVERY OTHER TICK BOX (challenge
+        3 of beta 42, B8-1037).** The rows' boxes are item indicators, which
+        no rule of the app's style sheet reaches (it styles ``QCheckBox``), so
+        Fusion drew them from the palette: on the dark page an unticked box
+        was a dark square on a dark ground, all but invisible. Here they take
+        a clear edge on the appearance's own input ground, and a ticked box
+        the window's green (ACTION in Neutral) with a tick in it, so it still
+        reads on a selected row, which is green too."""
+        from core.resource_path import resource_path
+        from ui.theme import APPEARANCE_NEUTRAL, has_dark_ground, resolve_mode
+        mode = resolve_mode(self._settings.get("appearance", "auto"))
+        if mode == APPEARANCE_NEUTRAL:
+            from ui.neutral_styles import NM_ACTION, NM_BG_INPUT, NM_BORDER_HI
+            edge, ground, on, tick = (NM_BORDER_HI, NM_BG_INPUT, NM_ACTION,
+                                      "list_tick_light")
+        elif has_dark_ground(mode):
+            # Brighter than the app's #4a4a4a check-box edge: the list's
+            # ground is nearly black, and #4a4a4a is what "nearly invisible"
+            # was made of.
+            edge, ground, on, tick = ("#8a8a8a", BG_INPUT, SPEC_GREEN,
+                                      "list_tick_dark")
+        else:
+            from ui.light_styles import LM_BG_INPUT, LM_BORDER_HI
+            edge, ground, on, tick = (LM_BORDER_HI, LM_BG_INPUT, SPEC_GREEN,
+                                      "list_tick_dark")
+        img = str(resource_path(f"assets/{tick}.svg")).replace("\\", "/")
+        return (
+            " QListWidget::indicator { width: 14px; height: 14px;"
+            f" border: 1px solid {edge}; border-radius: 3px;"
+            f" background: {ground}; }}"
+            " QListWidget::indicator:checked {"
+            f" background: {on}; border-color: {on}; image: url({img}); }}")
+
+    def _word_the_stale_line(self) -> None:
+        """**THE RED LINE NEVER ASKS FOR A PRESS THAT CANNOT HAPPEN (challenge
+        3 of beta 42, B8-1034).** With Generate greyed (mixed kinds ticked,
+        a file outside a project…) it said *"Click 'Generate report'"* over a
+        button that refuses the click. B8-601 hid the line for the one case
+        of nothing ticked; every other greyed state kept the false sentence.
+        Now it says what is true: the settings changed, and Generate waits for
+        the reason printed directly above it (`_set_generate_why`)."""
+        label = getattr(self, "_stale_label", None)
+        if label is None:
+            return
+        gen = getattr(self, "_generate_btn", None)
+        greyed = gen is not None and not gen.isEnabled()
+        # Two literals, not a variable: the catalogue extractor cannot see
+        # what a tr(variable) will be asked for.
+        label.setText(
+            tr("⚠ Settings changed. “Generate report” is unavailable until "
+               "the reason shown above is resolved.") if greyed else
+            tr("⚠ Settings changed. Click “Generate report” to build the "
+               "report with them, or put the setting back."))
 
     def _refresh(self) -> None:
         """Repaint both the trend charts and the report body (they share the same
@@ -10008,6 +10065,8 @@ class MeasurementReportDialog(QDialog):
         self._generate_btn.setEnabled(live)
         self._set_generate_why("" if live else self._generate_btn.toolTip())
         self._grey_what_cannot_help(live)
+        # The red line's words follow the button (B8-1034).
+        self._word_the_stale_line()
         # **THE BOX THAT WIDENED THE REPORT IS GONE (B8-590), AND SO IS THE
         # RULE THAT FORCED IT OFF.** A one-measurement list needed "Show all
         # measurement runs" turned off and greyed (B8-392); a one-page summary
@@ -10060,13 +10119,17 @@ class MeasurementReportDialog(QDialog):
         if det is not None:
             # …and greyed with Generate (`_grey_what_cannot_help`).
             gen = getattr(self, "_generate_btn", None)
-            det.setEnabled(not one_page
-                           and (gen is None or gen.isEnabled()))
+            gen_live = gen is None or gen.isEnabled()
+            det.setEnabled(not one_page and gen_live)
             det.setToolTip(tr(
                 "The one-page colour summary has no per-run detail section: it "
                 "is one page about one measurement, to print and hand over "
                 "with a job. Choose another report type to see the detailed "
                 "data.") if one_page else "")
+            # …and why it is greyed when Generate is (B8-1034).
+            det.setProperty(self._GREYED_TIP, None)
+            if not gen_live and not one_page:
+                self._say_why_greyed(det, True)
         lst = getattr(self, "_profile_list", None)
         if lst is None:
             return
@@ -11801,12 +11864,49 @@ class MeasurementReportDialog(QDialog):
             w = getattr(self, name, None)
             if w is not None:
                 w.setEnabled(bool(live))
+                self._say_why_greyed(w, not live)
         # The detail box also answers to the one-page type, which greys it
         # on its own (`_show_that_a_one_page_summary_is_one_sheet`); only
         # the greying is added here.
         det = getattr(self, "_detail_check", None)
         if det is not None and not live:
             det.setEnabled(False)
+
+    #: Dynamic property: a control's own tooltip, kept while it is greyed.
+    _OWN_TIP = "_chromiq_tip_before_greyed"
+    #: Dynamic property: the tooltip this window put there while greyed.
+    _GREYED_TIP = "_chromiq_tip_while_greyed"
+
+    def _greyed_tooltip(self) -> str:
+        # Wrapped by hand: a plain-text tooltip is one line, and the reason
+        # ran 2600 px wide across the screen on the first photograph.
+        import textwrap
+        why = str(getattr(self, "_generate_why_full", "") or "")
+        head = tr("Greyed, because no report can be generated now.")
+        return (f"{head}\n\n" + textwrap.fill(why, 72)) if why else head
+
+    def _say_why_greyed(self, w, greyed: bool) -> None:
+        """**A GREYED CONTROL SAYS WHY IT IS GREYED (challenge 3 of beta 42,
+        B8-1034).** Report type, Judged against and "Show detailed data" kept
+        their ordinary tooltips (*"Changing it changes only the settings…"*)
+        while greyed with Generate, so nothing said why they would not open;
+        only the sentence under the buttons did. While greyed the tooltip is
+        the reason; the control's own tooltip is kept and put back with the
+        button. A tooltip the window wrote again meanwhile (the sync pass
+        rewrites both pulldowns' on every change) is the one kept."""
+        cur = w.toolTip()
+        mine = w.property(self._GREYED_TIP)
+        if greyed:
+            if cur != mine:
+                w.setProperty(self._OWN_TIP, cur)
+            tip = self._greyed_tooltip()
+            w.setProperty(self._GREYED_TIP, tip)
+            w.setToolTip(tip)
+        elif mine is not None:
+            if cur == mine:
+                w.setToolTip(str(w.property(self._OWN_TIP) or ""))
+            w.setProperty(self._GREYED_TIP, None)
+            w.setProperty(self._OWN_TIP, None)
 
     #: The four graphs a Printing record can carry, in tab order, with the
     #: words the sentence under its results names them by.

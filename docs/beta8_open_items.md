@@ -28160,3 +28160,100 @@ would reach.
 - fixed: the scanner window keeps its title on one line (its width floor holds the title's ink in every language, so nothing is cut); every other dialog masthead still wraps.
 - tests: tests/test_scanner_two_panel_layout.py::test_every_language_fits_a_1280_screen (all languages, --runslow; red in "no" without the switch), tests/test_a_long_dialog_heading_wraps_instead_of_being_cut.py still green.
 - evidence: test_every_language_fits_a_1280_screen
+### B8-1031 · FIXED, awaiting confirmation · The ISO report types still said "a printing condition you supply" while the values ship
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: challenge 3 of beta 42, #2 (`~/Desktop/ChromIQ-beta42-proof/challenge-3/`, de-l-03-type-help.png, en-c-01-types-open.png).
+- where: `workflow/measurement_report.py` (`REPORT_TYPE_MENU`, `REPORT_TYPE_MENU_HEADING` and the stale comment above the menu, which still said the ISO types could not be built for lack of permission).
+- fixed: the heading reads "For a published ISO standard" ("Für eine veröffentlichte ISO-Norm"); the two lines read "For a validation print, to be judged against the values of ISO 12647-8." and "For a contract proof, to be judged against the values of ISO 12647-7, the stricter of the two." Both stay true when a licence holder lays a file of their own over the shipped values (they are still the standard's values), and neither claims a print conforms. Not §M text (the pulldown is not a message window). German by hand; the twelve others carry the English under the beta rule; both i18n ledgers re-measured. §10 of `measurement_report_limits.md` amended (not confirmed).
+- tests: tests/test_a_greyed_generate_is_never_asked_for.py (`test_the_iso_types_do_not_say_the_user_supplies_the_values`). Mutation: the old heading back (red).
+- evidence: test_the_iso_types_do_not_say_the_user_supplies_the_values
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/ (t01 pulldown, t02 help; EN and DE; before and after).
+
+### B8-1032 · FIXED, awaiting confirmation · "Select preset" opened the selection's group but did not show the selection (curated_presets.md C4)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 3 of beta 42, #3 (en-p06/de-p06: the 33rd of 34 revealed rows off screen, nothing highlighted).
+- where: `ui/tabs/tab_chart.py` (`_CappedComboBox.showPopup`, new `show_current_row`).
+- fixed: after the frame is capped to 20 rows, the layout is settled, the selected row is made current and selected, and the list is scrolled to it (centred). Measured on screen: ColorMunki A3Plus-1176p, 34th of 35 revealed rows, is inside the list and highlighted.
+- tests: tests/test_curated_builtin_presets.py (`test_opening_the_list_shows_and_highlights_a_selection_deep_in_a_group`). Mutation: `show_current_row()` dropped from `showPopup` (red).
+- evidence: test_opening_the_list_shows_and_highlights_a_selection_deep_in_a_group
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/ (p02; EN and DE; before and after).
+
+### B8-1033 · FIXED, awaiting confirmation · Ticking the boxes back to the shipped list left 62 presets stored as the person's own answers
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 3 of beta 42, #4 (found.json after_reset_by_hand stored_n 62).
+- where: `core/curated_presets.py` (`choices_to_store`, `store_choices`).
+- fixed: only a true difference from the shipped list is stored. A box that agrees with the shipped default drops its key; when nothing is left the setting is removed (`AppSettings.unset`), exactly as before the window was first opened. A beta-42 setting holding agreeing keys is cleaned on its next save; a key this build does not know is kept. No "Restore shipped selection" button (that question is with Knut). This amends C5 of `docs/design/curated_presets.md` ("stays recorded once it has been"), which was awaiting confirmation; the amendment is marked not confirmed.
+- tests: tests/test_curated_builtin_presets.py (`test_ticking_back_to_the_shipped_list_stores_nothing`, `test_an_answer_that_a_release_comes_to_agree_with_is_dropped_next_save`; the old `test_a_recorded_answer_is_kept_even_when_the_default_agrees` retired with the rule). Mutation: the old `or key in existing` back (red).
+- evidence: test_ticking_back_to_the_shipped_list_stores_nothing
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/ (found.json after_reset_by_hand: stored_n 0, not stored; before: 62).
+
+### B8-1034 · FIXED, awaiting confirmation · With Generate greyed the red line said "Click 'Generate report'", and the greyed settings did not say why they were greyed
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 3 of beta 42, #5 (en-g-01-mixed-ticked.png).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_word_the_stale_line`, `_say_why_greyed`, `_greyed_tooltip`, `_grey_what_cannot_help`, `_show_that_a_one_page_summary_is_one_sheet`).
+- fixed: while Generate is greyed the red line reads "⚠ Settings changed. “Generate report” is unavailable until the reason shown above is resolved." (the reason is the line directly above it); with Generate live it reads as before. Report type, Judged against and "Show detailed data" carry the tooltip "Greyed, because no report can be generated now." followed by the reason, wrapped; their own tooltips come back with Generate. Not §M text. German by hand.
+- tests: tests/test_a_greyed_generate_is_never_asked_for.py (`test_the_red_line_never_asks_for_a_greyed_button`, `test_a_greyed_setting_says_why_and_gets_its_own_tooltip_back`). Mutations: the line always live (red); the greyed tooltip not set (red). Two belts stay green alone and say so in the tests' docstrings.
+- evidence: test_the_red_line_never_asks_for_a_greyed_button, test_a_greyed_setting_says_why_and_gets_its_own_tooltip_back
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/ (g01 to g04; EN and DE; before and after).
+
+### B8-1035 · FIXED, awaiting confirmation · The gear window had no minimum size; at 420 x 360 the list showed 5 rows (German 3)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 3 of beta 42, #6 (en-p04-gear-window-small.png).
+- where: `ui/dialogs/builtin_presets_shown_dialog.py` (`_minimum`, `MIN_WIDTH` 560, `MIN_ROWS` 10).
+- fixed: the smallest size is measured, not written down: the three paragraphs wrapped whole at 560 px, ten list rows and the Close button. Measured on screen at its smallest: 560 x 402 in English with 10 rows (German in the proof's found.json).
+- tests: tests/test_curated_builtin_presets.py (`test_the_gear_window_has_a_useful_smallest_size`, EN and DE). Mutation: `_minimum()` dropped (red in both).
+- evidence: test_the_gear_window_has_a_useful_smallest_size
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/ (p01; EN and DE; before and after).
+
+### B8-1036 · FIXED, awaiting confirmation · The presets gear was painted in the +/- grey beside the pink folder button
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 3 of beta 42, #7 (crop-de-dark-presets-row.png).
+- where: `ui/widgets.py` (`folder_icon_ink`, `load_folder_twin_icon`, `set_folder_twin_icon`, the theme walker `apply_themed_icons`); `ui/tabs/tab_chart.py` (the gear).
+- fixed: the gear's line art is painted in the colour the folder icon beside it comes out in (read off that icon), so it is the tab's pink in Light and Dark and ACTION in Neutral, and it is repainted with the folder on an appearance change.
+- tests: tests/test_curated_builtin_presets.py (`test_the_gear_has_the_folder_buttons_colour`, light, dark, neutral). Mutation: `set_preset_icon(…, "gear")` back (red in all three).
+- evidence: test_the_gear_has_the_folder_buttons_colour
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/ (f01 and crops; light, dark, neutral; before and after).
+
+### B8-1037 · FIXED, awaiting confirmation · Unticked boxes in the report's measurement list were nearly invisible on the dark page
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 3 of beta 42, #8 (de-l-00-open.png).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_list_tick_box_qss`); `assets/list_tick_dark.svg`, `assets/list_tick_light.svg` (new).
+- fixed: the list's item indicators, which no rule of the app's style sheet reached, are styled per appearance: a clear edge on the input ground (#8a8a8a on dark), a ticked box in the window's green (ACTION in Neutral) with a tick in it, so a ticked box still reads on a selected row.
+- tests: tests/test_a_greyed_generate_is_never_asked_for.py (`test_the_lists_tick_boxes_are_drawn_visibly`, dark and neutral). Mutation: the style dropped from the list (red in both).
+- evidence: test_the_lists_tick_boxes_are_drawn_visibly
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/ (l01; light, dark, neutral; before and after).
+
+### B8-1038 · OPEN · German at 760 px: the Report type ⓘ sits a line above its pulldown
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- register only, as asked.
+- found by: challenge 3 of beta 42, #8 (`~/Desktop/ChromIQ-beta42-proof/challenge-3/runs/de-dark/photographs/de-l-01-narrow.png`): with the window at 760 px in German, "Detaildaten für jeden Lauf anzeigen" wraps the row and the ⓘ of "Berichtstyp" is drawn about one line higher than the pulldown it explains; in English at the same width it stays beside it.
+
+### B8-1039 · OPEN · German names a run three ways: "Lauf", "Durchlauf" and "Durchgang"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- register only, not swept, as asked.
+- found by: challenge 3 of beta 42, #8 (`~/Desktop/ChromIQ-beta42-proof/challenge-3/runs/de-dark/photographs/watchdog-01.png` and the "Report shown" sentence "Aufzeichnung dieses Durchlaufs", beside "Für diesen Lauf bereits erzeugt").
+- measured (data/i18n/de.json, whole words in values, this tree): "Lauf" 233, "Laufs" 95, "Läufe" 34; "Durchgang" 48, "Durchgänge" 4; "Durchlauf" 21, "Durchläufe" 3. Part of "Durchgang" is a measuring pass (a read of the sheet), which is a different thing from a profile run and may rightly differ; which is which has not been sorted. A terminology decision for Basti (German is his), not a sweep.
+
+### B8-1040 · OPEN · The gear window's unticked boxes are as faint on the dark appearance as the report list's were
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the proof of B8-1037 (`~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/runs/after-de-dark/photographs/de-p01-gear-window-smallest.png`): the tree in "Built-in presets in the lists" draws its item tick boxes through Fusion from the palette, the same way the report list did, so on dark an unticked box is barely visible. Not changed here: B8-1037 was asked for the report's list, and the same rule for every item view (lists and trees app-wide) is a style-sheet decision that repaints every list in ChromIQ.

@@ -4516,6 +4516,61 @@ def set_preset_icon(btn: QPushButton, name: str) -> None:
     btn.setProperty("themed_preset_icon", name)
 
 
+def folder_icon_ink(name: str) -> "QColor | None":
+    """The colour :func:`load_folder_icon` paints *name* in, read off the icon
+    it returns (the average of its opaque pixels), so a glyph beside a folder
+    button can take exactly that colour in every appearance: the PNG's own hue
+    in Light and Dark, ACTION in Neutral, the dark ink on a pale ground."""
+    icon = load_folder_icon(name)
+    img = icon.pixmap(20, 20).toImage()
+    if img.isNull():
+        return None
+    r = g = b = n = 0
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            if c.alpha() >= 200:
+                r += c.red()
+                g += c.green()
+                b += c.blue()
+                n += 1
+    if not n:
+        return None
+    return QColor(round(r / n), round(g / n), round(b / n))
+
+
+def load_folder_twin_icon(glyph: str, folder: str) -> QIcon:
+    """The ``assets/<glyph>.svg`` line art painted in the colour of the folder
+    icon *folder* (:func:`folder_icon_ink`). Falls back to the preset loader's
+    grey when the folder has no readable colour."""
+    from core.resource_path import resource_path
+    from PyQt6.QtGui import QGuiApplication, QImage, QPainter
+    from PyQt6.QtSvg import QSvgRenderer
+    ink = folder_icon_ink(folder)
+    if ink is None:
+        return load_preset_icon(glyph)
+    dpr = QGuiApplication.primaryScreen().devicePixelRatio()
+    phys = round(20 * dpr)
+    img = QImage(phys, phys, QImage.Format.Format_ARGB32_Premultiplied)
+    img.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(img)
+    QSvgRenderer(str(resource_path(f"assets/{glyph}.svg"))).render(painter)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+    painter.fillRect(img.rect(), ink)
+    painter.end()
+    out = QPixmap.fromImage(img)
+    out.setDevicePixelRatio(dpr)
+    return QIcon(out)
+
+
+def set_folder_twin_icon(btn: QPushButton, glyph: str, folder: str) -> None:
+    """Set a glyph in the folder button *folder*'s colour on `btn`, and tag
+    it for live theme refresh (challenge 3 of beta 42, B8-1036: the presets
+    gear was painted in the +/- grey beside a pink folder button)."""
+    btn.setIcon(load_folder_twin_icon(glyph, folder))
+    btn.setProperty("themed_folder_twin_icon", f"{glyph}|{folder}")
+
+
 def apply_themed_icons(root: QWidget) -> None:
     """Reload every theme-aware icon under `root`.
 
@@ -4532,6 +4587,11 @@ def apply_themed_icons(root: QWidget) -> None:
         preset_name = btn.property("themed_preset_icon")
         if preset_name:
             btn.setIcon(load_preset_icon(str(preset_name)))
+            continue
+        twin = btn.property("themed_folder_twin_icon")
+        if twin and "|" in str(twin):
+            glyph, folder = str(twin).split("|", 1)
+            btn.setIcon(load_folder_twin_icon(glyph, folder))
             continue
         reveal_color = btn.property("themed_reveal_icon")
         if reveal_color:

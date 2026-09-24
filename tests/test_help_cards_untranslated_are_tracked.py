@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-24, challenge 3 fixes of beta 42 (B8-1031 to B8-1040: the ISO heading and the two ISO lines, the red line while Generate is greyed, the greyed controls' tooltip) rebased onto B8-1011 to B8-1016 and B8-1041. German by hand; the others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K34 (B8-1011 to B8-1016: M-REPORT-SCOPE-RUN-DELETED's title and two bodies, M-REPORT-NO-PAPER-PATCH's title and body, "Paper white" as a note's label) rebased onto K35 (B8-1021 to B8-1024). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 6 here and 5 in the echo budget ("Paper white" is under 25 characters). COUNTED off the rebased tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K35 (B8-1021 to B8-1024: the curated built-in presets, the gear button's window, the arrow rows, the Manual Presets help with the gear line). German by hand; the others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B8-1008 (the trend title names no printer) merged. COUNTED off the merged tree, BOTH ledgers.
@@ -1014,18 +1015,18 @@ _BUDGET = {
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
     "de": 13,
-    "es": 933,
-    "fr": 934,
-    "it": 933,
-    "ja": 933,
-    "nl": 933,
-    "no": 933,
-    "pl": 933,
-    "pt": 933,
-    "ru": 932,
-    "sv": 933,
-    "zh_CN": 932,
-    "uk": 1079,
+    "es": 938,
+    "fr": 939,
+    "it": 938,
+    "ja": 938,
+    "nl": 938,
+    "no": 938,
+    "pl": 938,
+    "pt": 938,
+    "ru": 937,
+    "sv": 938,
+    "zh_CN": 937,
+    "uk": 1081,
 }
 
 

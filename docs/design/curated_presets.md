@@ -75,6 +75,10 @@ In "Select preset":
   road is put back.
 * Opening the list while the selected preset is one under a closed arrow opens
   that arrow, so the list shows where the selection is.
+  *Amended (challenge 3 of beta 42, B8-1032, not confirmed):* and the list
+  is scrolled so the selected row is visible and highlighted wherever it is
+  in the group (it stayed at the top of the group while the 33rd of 34
+  revealed rows was selected).
 * Which arrows are open lasts while the app runs; it is not a setting.
 
 In the Built-in presets list (the ★/list button): the same rows and the same
@@ -113,3 +117,13 @@ function answers the order for both).
   differs from the shipped list, and stays recorded once it has been. A preset
   never touched follows whatever a later release ships; a preset touched keeps
   the person's answer. Closing the window without a change stores nothing.
+  *Amended (challenge 3 of beta 42, B8-1033, not confirmed):* only a TRUE
+  difference is stored. A preset is recorded exactly while its box differs
+  from the shipped list; a box that agrees with it again is forgotten, and
+  with nothing left the setting is removed. Ticking the boxes back to the
+  shipped list by hand had left all 62 stored as the person's answers, so a
+  later release's list would never have reached them. The cost, for Knut to
+  weigh: an answer that happens to agree with the shipped list is not kept,
+  so a later release that changes that preset moves it too. Whether the
+  window should also offer "Restore shipped selection" is his question and
+  was not built.

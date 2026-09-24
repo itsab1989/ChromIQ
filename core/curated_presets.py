@@ -16,13 +16,15 @@ Two sources decide what is ticked, and the second always wins:
 2. **What this person chose** in the window behind the gear button, stored in
    the setting :data:`SETTING_KEY` as ``{preset key: shown}``.
 
-**ONLY THE PERSON'S OWN DECISIONS ARE STORED, NEVER A COPY OF THE DEFAULTS.**
-That is what lets a later release change the shipped list without overwriting
-anyone: a preset the person never touched follows whatever the release ships,
-and a preset they did touch keeps their answer for good. :func:`store_choices`
-records a preset when its box differs from the shipped default, and keeps
-recording one it recorded before even if a later release's default happens to
-agree with it (the answer is still theirs). A person who opens the window and
+**ONLY THE PERSON'S OWN DIFFERENCES ARE STORED, NEVER A COPY OF THE
+DEFAULTS.** That is what lets a later release change the shipped list without
+overwriting anyone: a preset whose box differs from the shipped list keeps the
+person's answer, and every other preset follows whatever the release ships.
+:func:`store_choices` records a preset exactly while its box differs from the
+shipped default, and forgets it the moment the box agrees again (challenge 3
+of beta 42, B8-1033): ticking the boxes back to the shipped list by hand left
+all 62 of them stored as the person's own answers, so a later release's list
+would never have reached that person. A person who opens the window and
 closes it without changing anything stores nothing at all.
 
 The key of a preset is its identity (``docs/dev_builtin_presets.md``: *"the
@@ -129,21 +131,34 @@ def choices_to_store(ticked: Iterable[str], all_keys: Iterable[str],
     out = dict(existing)
     for key in all_keys:
         state = key in ticked
-        if state != is_shown_by_default(key) or key in existing:
+        if state != is_shown_by_default(key):
             out[key] = state
+        else:
+            # The same as the shipped list is no answer of the person's.
+            out.pop(key, None)
+    # A key this build does not know is left alone, harmlessly, in case the
+    # preset comes back.
     return out
 
 
 def store_choices(settings: Any, ticked: Iterable[str],
                   all_keys: Iterable[str]) -> bool:
     """Record the window's boxes as the person's choice. Returns whether
-    anything was written: nothing is, when nothing differs from the shipped
-    list and nothing was recorded before."""
+    anything was written: nothing is, when what is stored already says it."""
     existing = user_choices(settings)
     out = choices_to_store(ticked, all_keys, existing)
     if out == existing:
         return False
-    settings.set(SETTING_KEY, json.dumps(out, sort_keys=True))
+    if out:
+        settings.set(SETTING_KEY, json.dumps(out, sort_keys=True))
+        return True
+    # Nothing of the person's is left: no answer stored at all, exactly as
+    # before the window was first opened.
+    unset = getattr(settings, "unset", None)
+    if callable(unset):
+        unset(SETTING_KEY)
+    else:
+        settings.set(SETTING_KEY, "")
     return True
 
 

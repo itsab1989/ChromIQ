@@ -3279,13 +3279,13 @@ def recorded_report_type(report: "dict | None") -> str:
 #: entry: id, the English NAME, and the one line under it that says when to
 #: use it. English only in here; the window wraps both in `tr()`.
 #:
-#: `built` says whether ChromIQ can actually produce that document today. The
-#: two ISO types cannot: the figures they judge against are behind a paywall
-#: and ChromIQ has no permission to ship them. Knut, 2026-09-09: *"those
-#: metrics, compliance sets and report types that depend on information in
-#: documents that are behind the ISO paywall are marked as not yet implemented
-#: and a reason for it."* So they are SHOWN and cannot be chosen, which is the
-#: honest state, rather than hidden, which would say nothing at all.
+#: `built` says whether ChromIQ can produce that document today. All six can.
+#: The two ISO types were once SHOWN greyed because their standards' values
+#: could not be shipped (Knut, 2026-09-09: *"marked as not yet implemented
+#: and a reason for it"*); the values ship since K33 (§23, §30.6), so the
+#: only condition left is that they are LOADED, which `report_type_is_built`
+#: asks. A type whose values are missing is still shown greyed and says why,
+#: rather than hidden, which would say nothing at all.
 REPORT_TYPE_MENU: "tuple[tuple[str, str, str, bool], ...]" = (
     (REPORT_TYPE_SUMMARY, "Colour summary (one page)",
      "One page to print and hand over with a job.", True),
@@ -3312,9 +3312,15 @@ REPORT_TYPE_MENU: "tuple[tuple[str, str, str, bool], ...]" = (
     # against" pulldown's, as for every type. `report_type_is_built` adds
     # the one condition this flag cannot: the set's values must be loaded.
     (REPORT_TYPE_ISO_8, "Validation print check (ISO 12647-8)",
-     "Your print against a printing condition you supply.", True),
+     "For a validation print, to be judged against the values of "
+     "ISO 12647-8.", True),
+    # **NOT "A PRINTING CONDITION YOU SUPPLY" (challenge 3 of beta 42,
+    # B8-1031).** The values ship; a licence holder may lay a file of their
+    # own over them, and both are still "the values of ISO 12647-x". Neither
+    # line claims a print conforms: ChromIQ judges, it does not certify.
     (REPORT_TYPE_ISO_7, "Contract proof check (ISO 12647-7)",
-     "The same, at the strictest level the trade uses.", True),
+     "For a contract proof, to be judged against the values of "
+     "ISO 12647-7, the stricter of the two.", True),
 )
 
 #: Which read-only limit set an ISO report type is named after. Such a type
@@ -3334,11 +3340,13 @@ def iso_type_values_missing(type_id: str) -> bool:
     from workflow.compliance_sets import factory_limits, limit_bearing
     return not limit_bearing(factory_limits(sid))
 
-#: The heading that separates the two halves of the pulldown. The formal types
-#: judge against a printing condition the USER supplies; the four above judge
-#: against ChromIQ's own limit sets, and the heading does more work than any
-#: word inside a name could.
-REPORT_TYPE_MENU_HEADING = "Against a printing condition you supply"
+#: The heading that separates the two halves of the pulldown. The two formal
+#: types are made for a published ISO standard; the four above are ChromIQ's
+#: own documents, and the heading does more work than any word inside a name
+#: could. It said "Against a printing condition you supply" until the values
+#: began to ship (B8-1031): true of neither the shipped values nor a licence
+#: holder's own file laid over them, both of which are the standard's.
+REPORT_TYPE_MENU_HEADING = "For a published ISO standard"
 
 #: Above this id in `REPORT_TYPE_MENU`, the heading is drawn.
 REPORT_TYPE_MENU_SPLIT = REPORT_TYPE_ISO_8

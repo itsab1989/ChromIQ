@@ -107,7 +107,7 @@ class BuiltinPresetsShownDialog(QDialog):
         self._tree.itemChanged.connect(self._on_item_changed)
         lay.addWidget(self._tree, 1)
 
-        bb = QDialogButtonBox(self)
+        bb = self._buttons = QDialogButtonBox(self)
         self._close_btn = bb.addButton(
             tr("Close"), QDialogButtonBox.ButtonRole.RejectRole)
         bb.rejected.connect(self.reject)
@@ -118,8 +118,40 @@ class BuiltinPresetsShownDialog(QDialog):
         self._tree.setFocus()
         self._fit()
 
+    #: The narrowest the window may be made, and the fewest list rows it must
+    #: always show.
+    MIN_WIDTH = 560
+    MIN_ROWS = 10
+
+    def _minimum(self) -> None:
+        """**A SENSIBLE SMALLEST SIZE (challenge 3 of beta 42, B8-1035).** The
+        window had none: Qt's own minimum was 146 x 218 px, and measured at
+        420 x 360 the three paragraphs took 176 px (German 208) and left the
+        list five rows (German three). Now the list keeps :attr:`MIN_ROWS`
+        rows at the smallest size, with the paragraphs wrapped whole above
+        it, in whatever language: the height is measured from the paragraphs
+        at :attr:`MIN_WIDTH`, not written down."""
+        self.ensurePolished()
+        self._tree.ensurePolished()
+        row_h = self._tree.sizeHintForRow(0)
+        if row_h <= 0:
+            row_h = self._tree.fontMetrics().height() + 6
+        frame = 2 * self._tree.frameWidth() + 4
+        tree_min = row_h * self.MIN_ROWS + frame
+        self._tree.setMinimumHeight(tree_min)
+        lay = self.layout()
+        m = lay.contentsMargins()
+        text_w = self.MIN_WIDTH - m.left() - m.right()
+        intro_h = self._intro.heightForWidth(text_w)
+        if intro_h <= 0:
+            intro_h = self._intro.sizeHint().height()
+        min_h = (m.top() + m.bottom() + intro_h + tree_min
+                 + self._buttons.sizeHint().height() + 2 * lay.spacing())
+        self.setMinimumSize(self.MIN_WIDTH, min_h)
+
     # ------------------------------------------------------------------
     def _fit(self) -> None:
+        self._minimum()
         # 880: measured on screen at 720, the longest ColorMunki names
         # ("…-Hand Held · Full layout setup") were cut with an ellipsis.
         width, height = 880, 720
@@ -128,7 +160,8 @@ class BuiltinPresetsShownDialog(QDialog):
             avail = screen.availableGeometry()
             width = min(width, avail.width() - 40)
             height = min(height, avail.height() - 60)
-        self.resize(width, height)
+        self.resize(max(width, self.minimumWidth()),
+                    max(height, self.minimumHeight()))
 
     def _recount(self, group: QTreeWidgetItem) -> None:
         total = group.childCount()

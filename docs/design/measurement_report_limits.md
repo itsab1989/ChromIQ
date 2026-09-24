@@ -882,6 +882,13 @@ page), Full colour check, Grey and tone check, Printing record (not graded),
 and below a rule, Validation print check (ISO 12647-8) and Contract proof
 check (ISO 12647-7). The heading over that rule reads "Against a printing
 condition you supply".
+*Amended (challenge 3 of beta 42, B8-1031, not confirmed):* since the ISO
+values ship (§23, §30.6) the heading reads "For a published ISO standard",
+and the two lines under the ISO names read "For a validation print, to be
+judged against the values of ISO 12647-8." and "For a contract proof, to be
+judged against the values of ISO 12647-7, the stricter of the two." Both stay
+true when a licence holder lays a file of their own over the shipped values,
+and neither claims a print conforms.
 
 **The type belongs to the profile run,** as the limit set does, so every dated
 verification of a run produces the same kind of document and the dates stay
