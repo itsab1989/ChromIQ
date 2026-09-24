@@ -46,15 +46,14 @@ _REPO = Path(__file__).resolve().parents[1]
 #: ONE requirement (its surface candidates sit 2.1 device units off the nearest
 #: cube face, where the rule is 2.0), so it is the PASS half that must carry
 #: the star once the page count is right.
-#: The names carry the limit set that shows the pair since K15: ChromIQ's own
-#: sets ask nothing about the surface of the device cube, so the window shows
-#: this pair only under the set the tag names.
+#: From K15 the names carried "[judge with Custom ISO 12647-7]", because the
+#: window opened on ChromIQ default, which asks nothing about the surface of
+#: the device cube. Since B8-974 it opens on "All metrics", which asks it, so
+#: the generator adds no tag (`make_verification_preset_demos.where_label`).
 R11_FAIL = ("Verify R11 FAIL, 12 candidates, "
-            "every one 2.1 from the nearest face "
-            "[judge with Custom ISO 12647-7]")
+            "every one 2.1 from the nearest face")
 R11_PASS = ("Verify R11 PASS, the same 12, "
-            "every one exactly 2.0 from the nearest face "
-            "[judge with Custom ISO 12647-7]")
+            "every one exactly 2.0 from the nearest face")
 
 
 @pytest.fixture(scope="module")

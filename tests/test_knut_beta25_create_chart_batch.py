@@ -378,8 +378,14 @@ def test_nothing_this_window_shows_a_reader_says_row(window, qapp):
 def test_the_count_line_is_the_sentence_knut_wrote(window, qapp):
     """*"How about writing 'This report type and limit set asks to verify 9
     metrics of a chart during verification.'"* — his sentence, with the count
-    coming from the app."""
+    coming from the app.
+
+    His sentence is about a LIMIT SET, so a limit set is chosen: since B8-974
+    the window opens on "All metrics", which has a sentence of its own
+    (`test_all_metrics_is_the_default_and_counts_every_metric.py`)."""
     window._type_combo.setCurrentIndex(0)
+    window._set_combo.setCurrentIndex(
+        window._set_combo.findData("chromiq_default"))
     qapp.processEvents()
     n = len(PE.rows_asked(window.current_type(), window.current_set(), None))
     assert n > 1, "pick a combination that asks for more than one metric"

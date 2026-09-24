@@ -652,11 +652,16 @@ def opening_choice() -> "tuple[str, str]":
     it fills them (`PresetVerificationDialog.__init__`: the built types of
     `REPORT_TYPE_MENU`, then `selectable_set_ids`), so a change to either
     moves this with it.
+
+    Since B8-974 the first "Judged against" entry is "All metrics"
+    (`preset_eligibility.ALL_METRICS`), which asks every row a report of the
+    type can judge, so every pair shows at the opening choice and no preset
+    name carries a "[judge with ...]" tag any more.
     """
-    from workflow import compliance_sets as CS
     from workflow import measurement_report as MR
+    from workflow import preset_eligibility as PE
     tid = next(t for t, _n, _b, built in MR.REPORT_TYPE_MENU if built)
-    return tid, CS.selectable_set_ids({})[0]
+    return tid, PE.ALL_METRICS
 
 
 def shown_under(r: "Requirement") -> "tuple[str, str]":

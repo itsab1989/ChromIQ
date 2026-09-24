@@ -786,7 +786,8 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
-    # RE-MEASURED 2026-09-24, B42 Knut 5815346140: the Custom ISO columns are never filled from a values file; three texts in the Report limits window and M-THRESHOLDS-NOT-CERTIFICATION say so. German by hand. No count moves: the three old keys were already English in the eleven others, and so are the new ones. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B8-978 (Custom ISO columns, three texts re-keyed, all already English outside German) merged with B8-974 (All metrics). COUNTED off the merged tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B42 (B8-974): "All metrics" in the presets window, five keys in, and the FROM PROFILE GAMUT remedy says "metric" for "row" (its translations lost under the beta rule). German by hand, does not move; the eleven translated languages rise by exactly 6, Ukrainian (which carried that remedy in English already) by 5. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B42 (B8-965, B8-968): the Max strip length tooltips, two keys in and the (i) help text changed. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, the translation credit removed from Settings (Basti). COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B40-B (B8-940 to B8-952), the beta 40 challenge B text fixes: German by hand; the twelve others carry the new English under the beta rule. COUNTED off the tree with this file's own expression, BOTH ledgers.
@@ -1435,17 +1436,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1200,
-    "fr": 1222,
-    "it": 1211,
-    "ja": 1186,
-    "nl": 1227,
-    "no": 1212,
-    "pl": 1204,
-    "pt": 1202,
-    "ru": 1175,
-    "sv": 1213,
-    "zh_CN": 1180,
+    "es": 1206,
+    "fr": 1228,
+    "it": 1217,
+    "ja": 1192,
+    "nl": 1233,
+    "no": 1218,
+    "pl": 1210,
+    "pt": 1208,
+    "ru": 1181,
+    "sv": 1219,
+    "zh_CN": 1186,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1473,7 +1474,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1362,
+    "uk": 1367,
 }
 
 

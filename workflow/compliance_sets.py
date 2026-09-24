@@ -433,8 +433,8 @@ _D_SURFACE_GAMUT = (
 _R_REFERENCE = (
     "Build the verification chart with FROM PROFILE GAMUT on the Create Chart "
     "tab. That chart is made from your own profile and carries the aim values "
-    "this row is measured against, so the row can be judged. A chart made any "
-    "other way will keep reading N-A here however good the print is.")
+    "this metric is measured against, so the metric can be judged. A chart "
+    "made any other way will keep reading N-A here however good the print is.")
 _R_GREY_RAMP_DEVICE = (
     "Use a chart with a longer grey ramp: at least eight steps of neutral "
     "grey, running from white through to black and spread evenly between "

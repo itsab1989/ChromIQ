@@ -307,7 +307,8 @@ class Line:
     indent: int = 0
 
 
-def detail_lines(row: "PresetRow | None") -> "list[Line]":
+def detail_lines(row: "PresetRow | None", *,
+                 every_metric: bool = False) -> "list[Line]":
     """Everything the right-hand pane says about one chart, as data.
 
     **THE PANE'S CONTENT LEFT `_show_detail` SO THAT A SECOND WINDOW COULD
@@ -317,6 +318,10 @@ def detail_lines(row: "PresetRow | None") -> "list[Line]":
     information […] given in the right-side information panel"*. Same
     function, therefore: `_show_detail` renders this, and so does the popup,
     so the two can never come to describe the same chart differently.
+
+    *every_metric* is True while "Judged against" says "All metrics"
+    (B8-974): there is no limit set then, so the closing sentence may not
+    name one.
     """
     if row is None:
         return [Line(tr("Select a preset on the left to see what it can "
@@ -407,6 +412,9 @@ def detail_lines(row: "PresetRow | None") -> "list[Line]":
         from workflow.measurement_messages import M_VERIFY_UNCHECKED_METRICS
         for para in M_VERIFY_UNCHECKED_METRICS.render()[1].split("\n\n"):
             out.append(Line(para, info=True))
+    elif every_metric:
+        out.append(Line(tr("This chart answers every metric a report of this "
+                           "type can judge.")))
     else:
         out.append(Line(tr("This chart answers every metric this report type "
                            "and limit set ask of it.")))
@@ -510,7 +518,8 @@ def CURRENT_CHART_LABEL() -> str:      # noqa: N802 — it reads as a constant
 # The window
 # ---------------------------------------------------------------------------
 class PresetVerificationDialog(WorkAreaClamped, QDialog):
-    """The list of presets, marked against one report type and one limit set."""
+    """The list of presets, marked against one report type and one limit set,
+    or against every metric that report type can judge ("All metrics")."""
 
     def __init__(self, rows: "list[PresetRow]",
                  overrides: "dict | None" = None,
@@ -615,6 +624,18 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         picks.addSpacing(12)
         picks.addWidget(QLabel(tr("Judged against:"), self))
         self._set_combo = NoScrollComboBox(self)
+        # **"ALL METRICS" FIRST, AND THEREFORE WHAT THE WINDOW OPENS ON, EVERY
+        # TIME** (B8-974). Knut, #182 5814820283: *"The 'All Metrics' option
+        # should be the default when opening the window, as we do not know
+        # what the user will pick when later creating reports."* Nothing
+        # remembers the last choice: the pulldown is filled afresh on every
+        # open and a combo box starts on its first entry.
+        self._set_combo.addItem(tr("All metrics"), userData=PE.ALL_METRICS)
+        self._set_combo.setItemData(
+            0, tr("Every metric a report of this type can judge, whether or "
+                  "not a limit set puts a limit on it. Use it to see which "
+                  "chart answers the most."),
+            Qt.ItemDataRole.ToolTipRole)
         for sid in CS.selectable_set_ids(self._overrides):
             self._set_combo.addItem(CS.set_label(sid), userData=sid)
             self._set_combo.setItemData(
@@ -789,7 +810,14 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             # verdict belongs.
             self._current.starred = False
         asked = PE.rows_asked(type_id, set_id, self._overrides)
-        if not asked:
+        if asked and set_id == PE.ALL_METRICS:
+            self._asked_label.setText(count_phrase(
+                len(asked),
+                tr("All metrics: a report of this type can verify 1 metric of "
+                   "a chart, whichever limit set it is judged against."),
+                tr("All metrics: a report of this type can verify {n} metrics "
+                   "of a chart, whichever limit set it is judged against.")))
+        elif not asked:
             self._asked_label.setText(tr(
                 "This report type judges nothing, so no chart can fall short "
                 "of it."))
@@ -942,7 +970,8 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         verification pre-flight can show the same answer about the same chart.
         """
         self._clear_detail()
-        for line in detail_lines(row):
+        for line in detail_lines(
+                row, every_metric=self.current_set() == PE.ALL_METRICS):
             self._add(line.text, bold=line.bold, info=line.info,
                       indent=line.indent)
         self._detail_layout.addStretch()

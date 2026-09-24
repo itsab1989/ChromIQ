@@ -594,6 +594,42 @@ def clear_cache() -> None:
 # ---------------------------------------------------------------------------
 # What a (report type, limit set) combination asks of a chart
 # ---------------------------------------------------------------------------
+#: **"ALL METRICS", THE FIRST "JUDGED AGAINST" ENTRY OF THE PRESETS WINDOW**
+#: (B8-974). Knut, #182 5814820283: the "Metrics answered" count covered only
+#: the rows the chosen limit set switches on, and most sets leave many at
+#: "-", *"thus there is no way to actually see if any of the reports could
+#: fulfil ALL metrics"*. He asked for an entry that *"ignores the limit sets
+#: selected thresholds"* and checks every preset and the current chart
+#: *"against ALL metrics, to see which supports the most metrics"*, and for it
+#: to be the default *"as we do not know what the user will pick when later
+#: creating reports."* Not a limit set: nothing is judged against it and no
+#: report can be bound to it, so it lives here and never in `compliance_sets`.
+ALL_METRICS = "all_metrics"
+
+
+def rows_every_metric(type_id: str) -> "tuple[str, ...]":
+    """Every row a report of *type_id* can judge, whatever limit set it uses.
+
+    "Every metric" is every row ChromIQ can compute (``now`` / ``build`` /
+    ``ref``): an ``unmeasurable`` row can never carry a limit
+    (`compliance_sets.limit_bearing`), so no report judges it on any chart.
+    The report type still narrows ("Grey and tone check" is about three rows)
+    and the Printing record still judges nothing, exactly as in
+    :func:`rows_asked`; and ChromIQ's two repeatability rows stay out for the
+    same reason they are out of every set there (not a property of a chart).
+    On a Colour summary this is the same 18 the pre-flight counts over every
+    type and set (`rows_any_report_can_ask`), but it is derived from the rows,
+    not from the sets, so a user who empties a Custom column cannot shrink it.
+    """
+    if type_id == MR.REPORT_TYPE_RECORD:
+        return ()
+    only = MR.rows_for_report_type(type_id)
+    return tuple(r.id for r in CS.ROWS
+                 if r.status in ("now", "build", "ref")
+                 and (only is None or r.id in only)
+                 and r.id not in CS.POPULATION_MAY_BE_ABSENT)
+
+
 def rows_asked(type_id: str, set_id: str,
                overrides: "dict | None" = None) -> "tuple[str, ...]":
     """The row ids a report of that type, judged against that set, asks a
@@ -614,6 +650,8 @@ def rows_asked(type_id: str, set_id: str,
     rows there would mark every preset down for a document that grades none of
     them.
     """
+    if set_id == ALL_METRICS:
+        return rows_every_metric(type_id)
     if type_id == MR.REPORT_TYPE_RECORD:
         return ()
     limited = CS.limit_bearing(CS.effective_limits(set_id, overrides))
@@ -791,10 +829,16 @@ def assess_rows(chart: "str | Path | None",
 def assess(chart: "str | Path | None", type_id: str, set_id: str,
            overrides: "dict | None" = None,
            recipe: "dict | None" = None) -> Assessment:
-    """One chart against one combination. Never raises."""
+    """One chart against one combination. Never raises.
+
+    Under :data:`ALL_METRICS` there is no one set to take the evenness limit
+    from, so it is the loosest any selectable set puts on the row, which is
+    what the pre-flight's set-independent question uses too (`assess_any`).
+    """
+    limits = (loosest_limits(overrides) if set_id == ALL_METRICS
+              else CS.effective_limits(set_id, overrides))
     return assess_rows(chart, rows_asked(type_id, set_id, overrides),
-                       limits=CS.effective_limits(set_id, overrides),
-                       recipe=recipe)
+                       limits=limits, recipe=recipe)
 
 
 # ---------------------------------------------------------------------------

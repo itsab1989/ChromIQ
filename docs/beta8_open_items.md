@@ -27707,3 +27707,17 @@ would reach.
 - fixed: a Custom column always starts from Knut's industry figures, then ChromIQ's own numbers; any values file, shipped or the user's own, fills only the read-only ISO column. The window's texts no longer say the Custom column starts from supplied figures. German by hand; the eleven others were already English on these keys.
 - tests: tests/test_compliance_sets.py::test_a_licence_holders_own_file_never_fills_a_custom_column (red on the old code); two older tests changed to the new rule.
 - proof: ~/Desktop/ChromIQ-beta42-proof/custom-iso-industry/ (before/, after/: photograph, limits.json; drive.py, run.sh, fake_user_values.json).
+### B8-974 · FIXED, awaiting confirmation · "Which presets can be used for verification?" could not show which chart answers every metric: "All metrics", the default
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5814820283 (2026-09-24). Also answers question (2) of the K15 demo-pack entry (whether the window should open on a choice that asks every metric). Spec: `docs/design/measurement_report_limits.md` §27, awaiting confirmation.
+- where: `workflow/preset_eligibility.py` (`ALL_METRICS`, `rows_every_metric`, `rows_asked`, `assess`); `ui/dialogs/preset_verification_dialog.py` (`_build`, `refresh`, `detail_lines(every_metric=)`, `_show_detail`); `workflow/compliance_sets.py` (`_R_REFERENCE`); `scripts/make_verification_preset_demos.py` (`opening_choice`).
+- found by: Knut. Measured on screen before: the window opened on ChromIQ default, which asks 9 metrics, and said 152 of 185 presets answer "every metric asked".
+- cause: "Metrics answered" counted only the rows the chosen limit set puts a number on, and every set leaves some at "-".
+- fixed: "All metrics" is the first "Judged against" entry and the window opens on it every time (not remembered). It counts every metric a report of the chosen type can judge (every computable row except the two repeatability rows): 18 on a Colour summary or Full colour check, 3 on Grey and tone check, none on a Printing record. The column reads "n of 18 metrics"; the count line and the detail pane's closing sentence name no limit set. The FROM PROFILE GAMUT lever said "this row", which now showed on opening; it says "metric". The verification demo presets no longer carry "[judge with Custom ISO 12647-7]" in their names, because every pair shows at the opening choice now (the pack must be rebuilt for the shipped names to change).
+- German by hand; the twelve others carry the English under the beta rule (the changed lever loses its eleven translations); both ledgers re-measured.
+- tests: tests/test_all_metrics_is_the_default_and_counts_every_metric.py. Mutations, each red: the entry removed (3 red), the entry added after the limit sets (3 red), `rows_asked(..., ALL_METRICS)` returning ChromIQ default's rows (3 red).
+- evidence: test_judged_against_offers_all_metrics, test_the_window_opens_on_all_metrics_every_time, test_all_metrics_asks_every_metric_not_the_rows_a_set_switches_on, test_the_column_total_is_every_metric
+- proof: ~/Desktop/ChromIQ-beta42-proof/all-metrics/ (before-en, before-de, after-en, after-de; REPORT.md).
+- open for Knut: with All metrics no preset answers all 18 (0 of 185; built-ins reach 15), because the three reference metrics need a FROM PROFILE GAMUT chart. Whether "All metrics" should also ignore the Report type pulldown (today Grey and tone check still narrows it to 3).

@@ -539,7 +539,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
-    # RE-MEASURED 2026-09-24, B42 Knut 5815346140: the Custom ISO columns are never filled from a values file; three texts in the Report limits window and M-THRESHOLDS-NOT-CERTIFICATION say so. German by hand. No count moves: the three old keys were already English in the eleven others, and so are the new ones. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B8-978 (Custom ISO columns, three texts re-keyed, all already English outside German) merged with B8-974 (All metrics). COUNTED off the merged tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B42 (B8-974): "All metrics" in the presets window, five keys in, and the FROM PROFILE GAMUT remedy says "metric" for "row" (its translations lost under the beta rule). German by hand, does not move; the eleven translated languages rise by exactly 6, Ukrainian (which carried that remedy in English already) by 5. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B42 (B8-965, B8-968): the Max strip length tooltips, two keys in and the (i) help text changed. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, the translation credit removed from Settings (Basti). COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B40-B (B8-940 to B8-952), the beta 40 challenge B text fixes: German by hand; the twelve others carry the new English under the beta rule. COUNTED off the tree with this file's own expression, BOTH ledgers.
@@ -1007,18 +1008,18 @@ _BUDGET = {
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
     "de": 13,
-    "es": 896,
-    "fr": 897,
-    "it": 896,
-    "ja": 896,
-    "nl": 896,
-    "no": 896,
-    "pl": 896,
-    "pt": 896,
-    "ru": 895,
-    "sv": 896,
-    "zh_CN": 895,
-    "uk": 1044,
+    "es": 901,
+    "fr": 902,
+    "it": 901,
+    "ja": 901,
+    "nl": 901,
+    "no": 901,
+    "pl": 901,
+    "pt": 901,
+    "ru": 900,
+    "sv": 901,
+    "zh_CN": 900,
+    "uk": 1048,
 }
 
 

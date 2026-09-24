@@ -5578,3 +5578,73 @@ zu lesen" (Knut: *"use your recommendation, then if Sebastian says
 differently you can alter it"*); the owner decides.
 
 **Status:** agreed; built for beta 40 (B8-900 to B8-909), NOT confirmed.
+
+## 27. "All metrics" in "Which presets can be used for verification?" (#182, 2026-09-24, beta 42)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Asked for by:** Knut, #182
+[5814820283](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5814820283)
+(2026-09-24): *"The Judged against options visible in 'Which presets can be
+used for verification?' window should have an option 'All Metrics' that
+ignores the limit sets selected thresholds and will then check the presets and
+the current chart loaded against ALL metrics, to see which supports the most
+metrics. The 'All Metrics' option should be the default when opening the
+window, as we do not know what the user will pick when later creating
+reports."* It also answers question (2) of the K15 demo-pack entry in the
+register: the window now opens on a choice that asks every metric. Nothing in
+this document said which choice the window opens on, so nothing here is
+contradicted. Register: B8-974.
+
+* **Rule:** "Judged against" in that window offers **All metrics** as its FIRST
+  entry, above every selectable limit set, and the window opens on it every
+  time. The last choice is not remembered: the pulldown is filled afresh on
+  each open.
+* **What it counts:** every metric a report of the chosen report type can
+  judge, whether or not any limit set puts a limit on it. That is every row
+  ChromIQ can compute (status now, build or ref), which on a Colour summary or
+  Full colour check is **18**, the same 18 the Measure tab's pre-flight names
+  (§19.5). Derived from the rows, never from the sets, so emptying a Custom
+  column cannot shrink it. Left out, as under every limit set: the rows ChromIQ
+  cannot measure at all (no set can put a limit on them, §2), and the two
+  repeatability rows (§15), which are not a property of a chart.
+* **What it keeps:** the Report type pulldown still narrows. Grey and tone
+  check asks its 3 metrics; a Printing record judges nothing ("Nothing is
+  judged"). The evenness rows are judged against the loosest limit any set
+  puts on them, as in the pre-flight (§16.4).
+* **What it shows:** the "Metrics answered" column reads "n of 18 metrics" for
+  every chart, the line under the pulldowns reads *"All metrics: a report of
+  this type can verify 18 metrics of a chart, whichever limit set it is judged
+  against."*, and a chart that answers them all is told *"This chart answers
+  every metric a report of this type can judge."* (no limit set named). Every
+  limit set still gives the counts it gave before.
+* **Measured on screen** (Report-Limits-Every-Limit-Set, run1, Verification):
+  before, the window opened on ChromIQ default, "9 metrics", the current chart
+  "7 of 9", and 152 of 185 presets "answering every metric asked"; after, it
+  opens on All metrics, "18 metrics", the current chart "13 of 18", the
+  built-in presets 13 to 15 of 18, and **0** of 185 answer all 18: the three
+  reference metrics need a chart built FROM PROFILE GAMUT, which no preset is.
+* **Also changed with it:** the FROM PROFILE GAMUT lever of the three
+  reference metrics said "this row" and "the row", which this window (Knut,
+  beta 25) never says; it now says "metric". It was already visible under the
+  Custom ISO sets and became visible on opening.
+* **Built:** `workflow/preset_eligibility.py::ALL_METRICS`,
+  `rows_every_metric`, `rows_asked`, `assess`;
+  `ui/dialogs/preset_verification_dialog.py::PresetVerificationDialog._build`,
+  `refresh`, `_show_detail`, `detail_lines(every_metric=)`;
+  `workflow/compliance_sets.py::_R_REFERENCE`;
+  `scripts/make_verification_preset_demos.py::opening_choice`.
+* **Verified by:** `tests/test_all_metrics_is_the_default_and_counts_every_metric.py`
+  (`test_judged_against_offers_all_metrics`,
+  `test_the_window_opens_on_all_metrics_every_time`,
+  `test_all_metrics_asks_every_metric_not_the_rows_a_set_switches_on`,
+  `test_all_metrics_still_follows_the_report_type`,
+  `test_the_column_total_is_every_metric`,
+  `test_the_detail_pane_names_no_limit_set_under_all_metrics`), each proved
+  red on its mutation.
+* **Proof:** `~/Desktop/ChromIQ-beta42-proof/all-metrics/` (on screen, EN and
+  DE, before and after).
+
+**Status:** built for beta 42 (B8-974), NOT confirmed.
