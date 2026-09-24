@@ -325,6 +325,9 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Set-Compare/run2: New report starts on the run's own default (ChromIQ tight)",
         "Report-Limits-Threshold-Series/run1: \"Judged against\" and Edit limits change only the report, nothing is written before Generate report",
     ]),
+    ("§29", "A row ChromIQ cannot measure reads", [
+        "Report-Limits-Threshold-Series/run1: Edit limits, scroll to \"Not evaluated by ChromIQ\": every column reads ✕, ChromIQ's own three included, and the \"This report\" column too",
+    ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
     ]),

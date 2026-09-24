@@ -27837,7 +27837,7 @@ would reach.
 - severity: MINOR
 - status: FIXED
 - note: Knut, #182 5815435713 (2026-09-24). Spec: `docs/design/measurement_report_limits.md` §29 (amends the §2 cell rule), awaiting confirmation.
-- where: `workflow/compliance_sets.py` (`mark_unmeasurable`, `factory_limits`); `ui/dialogs/thresholds_dialog.py` (`_limits_of`, the "This report" column).
+- where: `workflow/compliance_sets.py` (`mark_unmeasurable`, `factory_limits`); `ui/dialogs/thresholds_dialog.py` (`_limits_of`, the "This report" column); `scripts/make_release_demo_package.py` (`RULE_DEMOS`, the §29 index row's demonstration).
 - found by: Knut. Measured on screen before (EN and DE): 42 of the 84 cells of the twelve unmeasurable rows read "–": every row in ChromIQ default, tight and Quick check, and each row a standard does not limit in its ISO and Custom columns.
 - cause: `factory_limits` gave `✕` only where a standard limits the row (D16); a ChromIQ set, and a standard's column on a row that standard does not limit, fell through to "no limit".
 - fixed: a row with status "unmeasurable" reads `✕` in every set, and in a report's own column (a copy stored before shows `✕` and is not rewritten). No verdict, word or count moves: those rows never carry a value. A stored "–" is not called "(edited)". The help text, legend and title help are true as written; no string changed, so no translation work.
