@@ -1,5 +1,50 @@
 # Changelog
 
+## v4.3.0-beta.40
+
+**Knut's K31 rulings: a report owns its settings, and one name per metric.**
+
+### Changed
+
+- **A report is the only thing there is.** A report of several measurements
+  is one file that carries every verdict; nothing is written into the dates'
+  own folders any more. The report ChromIQ writes after a measurement is that
+  date's own report.
+- **The limit set belongs to the report.** "Judged against" and "Edit
+  limits..." change only the report you are working on, and nothing is saved
+  until Generate report. Every measurement in a report is judged against the
+  same set, however far back it goes.
+- **"Unlock this run's limits" is gone**, together with the run lock and the
+  Preferences option that allowed unlocking. A saved report keeps its own set
+  and verdicts until it is updated, so an old series stays comparable. A new
+  report starts from the Preferences defaults, or from a profile run's own
+  "Default for this run" in Edit limits.
+- **Update works from any window**: a selected report is rewritten where it
+  lives, and a new report is saved where its ticked measurements decide.
+  When an update would widen a date's only report of its own, that report is
+  kept and the wider report is written as a new one.
+- **Version 1 metric names everywhere**, with the unit in every graph name;
+  on a sheet split by the profile's gamut the judged figures say "within
+  gamut", and the Overview shows "Within and beyond the gamut together".
+- **Evenness** says how it was judged, and its help explains which readings
+  it uses.
+- **The 30 to 70 % tone ramp** needs roughly evenly spaced steps, like the
+  grey ramp.
+- **FROM PROFILE GAMUT charts answer the grey rows** from their neutral aims.
+
+### Fixed
+
+- A number changed in the "This report" column of Edit limits is applied
+  when only one profile run is loaded.
+- An old verdict record from an earlier beta never stands in for a date's own
+  report, and a date's last report of its own cannot be deleted.
+- The report window's buttons wrap onto a second row at the smallest window
+  width instead of overlapping, in English and German.
+- A report reads the project it recorded when that project still exists, not
+  another project of the same name.
+- Report Scope counts dated verifications as measurements.
+- Long English names of expert check boxes show in full.
+
 ## v4.3.0-beta.39
 
 **Knut's rulings of 23 September: calibration reports, reports across runs and
