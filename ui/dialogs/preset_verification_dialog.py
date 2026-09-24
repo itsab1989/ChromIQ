@@ -816,13 +816,16 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
     def _on_type_changed(self, *_a) -> None:
         """**K36-1 (Knut, #182 5820871320)**, the same rule as the report
         window: choosing an ISO report type moves "Judged against" to its
-        standard's set, and while it is chosen only "All metrics" and the
+        standard's set unless it is already one of the four ISO sets, and while it is chosen only "All metrics" and the
         four ISO sets can be chosen; the others are greyed and say why."""
         tid = self.current_type()
         iso = MR.REPORT_TYPE_ISO_SET.get(tid)
         self._set_combo.blockSignals(True)
         try:
-            if iso:
+            # KEPT WHEN ALREADY ALLOWED (Knut, #182 5822758830, answer 4):
+            # an ISO set stays, even the other standard's; only a set the
+            # type refuses moves to the type's own ISO 12647 set.
+            if iso and not MR.set_allowed_for_type(tid, self.current_set()):
                 i = self._set_combo.findData(iso)
                 if i >= 0:
                     self._set_combo.setCurrentIndex(i)

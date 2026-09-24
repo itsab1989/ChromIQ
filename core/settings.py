@@ -1479,11 +1479,57 @@ class AppSettings:
                 val = float(val)
             except ValueError:
                 val = fallback
+        if key == "compliance_default_set":
+            # K36-1 (B8-1072): a pair written before the rule, or by a path
+            # that did not ask it, is repaired to the standard's set here.
+            held = self._default_set_held(str(val or ""))
+            if held != str(val or ""):
+                log.warning("the default limit set %r cannot stand beside the "
+                            "default report type %r (K36-1); it is now %r",
+                            val, self.get("report_default_type", ""), held)
+                self._qs.setValue(key, held)
+                val = held
         return val
+
+    def _default_set_held(self, set_id: str,
+                          type_id: "str | None" = None) -> str:
+        """*set_id* held to the default report type (K36-1, Knut #182
+        5820871320): an ISO type is judged against an ISO set, so beside one
+        any other set becomes the type's own standard's set."""
+        try:
+            from workflow.measurement_report import set_held_to_type
+            if type_id is None:
+                type_id = str(self.get("report_default_type", "") or "")
+            return set_held_to_type(str(type_id or ""), set_id)
+        except Exception:      # noqa: BLE001 — never break a read over this
+            log.debug("could not hold the default set to the type",
+                      exc_info=True)
+            return set_id
 
     def set(self, key: str, value: Any) -> None:
         log.debug("settings.set %s = %r", key, value)
+        # **NO WRITE LEAVES AN ISO DEFAULT TYPE BESIDE A NON-ISO DEFAULT SET
+        # (K36-1, challenge 4 of beta 42, B8-1072).** Guarded here, at the
+        # one door every writer goes through, and not only in the windows
+        # that offer the choice: a window that forgot to ask wrote the pair.
+        if key == "compliance_default_set":
+            held = self._default_set_held(str(value or ""))
+            if held != str(value or ""):
+                log.warning("refused %r as the default limit set beside the "
+                            "default report type %r (K36-1); wrote %r",
+                            value, self.get("report_default_type", ""), held)
+                value = held
         self._qs.setValue(key, value)
+        if key == "report_default_type":
+            _raw = str(self._qs.value("compliance_default_set",
+                                      DEFAULTS["compliance_default_set"])
+                       or "")
+            held = self._default_set_held(_raw, str(value or ""))
+            if held != _raw:
+                log.warning("the default report type %r moved the default "
+                            "limit set from %r to %r (K36-1)",
+                            value, _raw, held)
+                self._qs.setValue("compliance_default_set", held)
 
     def is_stored(self, key: str) -> bool:
         """Has this key ever been WRITTEN, as opposed to answered by a default?

@@ -28369,3 +28369,81 @@ would reach.
 - status: OPEN
 - note: Knut, 5820871320 (K36-6). Analysis in spec §32.6: judged in absolute Lab (B8-1014) such a sheet reads 1.6 to 2.9 ΔE00 higher on the averages and up to 5 on the ramps for papers of L* 94 to 96, and "Average ΔE00, all patches" turns PASS to FAIL on 10 or 11 of 12 demo sheets under Custom ISO 12647-7. A manufacturer's brightness figure cannot be used; a published L*a*b* only under matching conditions. Recommended (e), the profile's media white, with a numbered note; (b) only without a readable profile. Not built.
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/analysis/k36_6*.
+
+### B8-1071 · FIXED, awaiting confirmation · Editing any number in Report limits / Edit limits un-greyed the "Default for new reports" radios an ISO default type holds
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: challenge 4 of beta 42, M1. With Preferences' "Report type, default" on Contract proof check, nudging one number re-enabled ChromIQ default / tight / Quick check in "Default for new reports" (both doors), and a click wrote `report_default_type=t6_contract_proof` beside `compliance_default_set=chromiq_quick`; the report window then showed "Judged against: Quick check" under "New report…" with the "saved with another set" line for a report never saved. `_write_overrides` re-enabled the radios from `selectable_set_ids` alone; it now asks `_hold_radio_to_type` again. `_on_default_toggled` and `_on_run_default_toggled` also refuse (and log) a set the type does not allow, so a radio switched on from code writes and records nothing. "Default for this run" was not re-enabled by an edit; it is now tested after one.
+- where: `ui/dialogs/thresholds_dialog.py` (`_write_overrides`, `_on_default_toggled`, `_on_run_default_toggled`).
+- tests: tests/test_challenge4_beta42_the_iso_hold_survives.py (mutations: the hold dropped from `_write_overrides`, red; either click refusal removed, red).
+- evidence: test_an_edited_number_leaves_the_iso_hold_on_every_default_radio
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge4-fixes/
+
+### B8-1072 · FIXED, awaiting confirmation · No write can leave an ISO default report type beside a non-ISO default limit set; a bad pair on disk is repaired when read
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: challenge 4 of beta 42, M1, the guard at the write itself. `AppSettings.set` holds `compliance_default_set` to the stored `report_default_type` (and writing an ISO type moves a refused stored set), logging a warning each time; `AppSettings.get` repairs a refused pair already on disk to the type's standard's set, logged. Preferences' Save now writes the type before the set, since the set is held to the type already stored. An allowed ISO set is kept (Knut, 5822758830, B8-1075).
+- where: `core/settings.py` (`AppSettings.get`, `set`, `_default_set_held`); `ui/dialogs/settings_dialog.py` (Save order).
+- tests: tests/test_challenge4_beta42_the_iso_hold_survives.py (mutations: the `set` guard removed, red; the `get` repair removed, red).
+- evidence: test_the_settings_store_never_writes_an_iso_type_beside_another_set
+
+### B8-1073 · FIXED, awaiting confirmation · Walking Preferences' "Report type, default" past an ISO type silently replaced the default limit set
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: challenge 4 of beta 42, M2. `activated` fires for every wheel notch and arrow key, so two notches down and two up left ISO 12647-8 as the buffered default set on Full colour check, and OK wrote it. Basti's option (a): the set an ISO type moves is remembered and put back when the type leaves the ISO types; an ISO set the type kept (B8-1075) needs nothing put back. The type help says so (German by hand).
+- where: `ui/dialogs/settings_dialog.py` (`_on_default_type_chosen`, `_load_settings`, the type help).
+- tests: tests/test_challenge4_beta42_the_iso_hold_survives.py (mutations: the put-back removed, red; the set moved on every ISO type, red).
+- evidence: test_walking_the_preferences_type_past_an_iso_type_changes_nothing
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge4-fixes/
+
+### B8-1074 · FIXED, awaiting confirmation · The same walk in the report window left "Judged against" on the ISO set
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: challenge 4 of beta 42, M2 (report window). The set an ISO type moved, with the report's own edited numbers, is remembered and put back when the type leaves the ISO types, so a walk down and back leaves both pulldowns and the red line exactly as before. Forgotten when a document starts or stops speaking for the controls. The "Judged against" help says so (German by hand).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_on_type_chosen`, `_forget_sticky_settings`, `_PAIRING_HELP`).
+- tests: tests/test_challenge4_beta42_the_iso_hold_survives.py (mutations: the put-back removed, red; the set moved on every ISO type, red); tests/test_k36_knuts_5820871320.py re-pointed (Full colour check after an ISO type now restores the set it replaced).
+- evidence: test_walking_the_report_window_type_past_an_iso_type_changes_nothing
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge4-fixes/
+
+### B8-1075 · FIXED, awaiting confirmation · An ISO report type keeps "Judged against" when it is already one of the four ISO sets
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5822758830, answer 4: *"Keep whatever was in the "Judged against", as long as it is one of the 4 that are allowed. If selected "Judged against" are one of the other types not allowed, then the "Judged against" is set to the matching ISO 12647 type that belongs to the Report type (not the custom ISO)."* The report window, Preferences' default type and the presets window moved the set to the type's read-only set always; now only a refused set moves. The new report start, the automatic report, the pre-flight and the settings repair already used `set_held_to_type`, which keeps an allowed set. Spec §32.1 amended.
+- where: `ui/dialogs/measurement_report_dialog.py::_on_type_chosen`; `ui/dialogs/settings_dialog.py::_on_default_type_chosen`; `ui/dialogs/preset_verification_dialog.py::_on_type_changed`.
+- tests: tests/test_challenge4_beta42_the_iso_hold_survives.py (mutation: the presets window moves on every ISO type, red; and the two walk tests above).
+- evidence: test_knut_an_allowed_iso_set_is_kept
+
+### B8-1076 · FIXED, awaiting confirmation · README and landing page: a calibration gets no ISO type, the beta sentence names no fixed beta, and four smaller wordings
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: challenge 4 of beta 42, M3 and m5. README and docs/index.html said "a verification or a calibration gets the judged types"; since K36-2 a calibration gets them without the two ISO types. The landing page's link read "4.3.0 beta 41" and "Everything marked NEW IN 4.3 on this page is in that beta", untrue of beta 41 (no gear list, ISO types unbuilt); the link text is now "The newest 4.3 beta" (its tag still follows core/version.py) and the sentence says an earlier beta may lack some of it. README's "in beta now" likewise. Smaller: "half / twice" now says ΔE00 limits; the mid-tone ramps are judged only under ISO 12647-8 and the two Custom ISO sets; "PASS or FAIL" now names INFO and N-A.
+- where: `README.md`, `docs/index.html`.
+- tests: tests/test_challenge4_beta42_the_iso_hold_survives.py (mutations: the old calibration sentence, red; a beta number in the link text, red).
+- evidence: test_the_readme_and_the_site_say_a_calibration_gets_no_iso_type, test_the_sites_beta_link_names_no_beta_number
+
+### B8-1077 · OPEN · Ukrainian, Measure tab at a 1150 px window: "Save as default" runs past the panel edge and the preview's page buttons are cut
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: challenge 4 of beta 42, m3. "ЗБЕРЕГТИ ЗА ЗАМОВЧУВАННЯМ" runs under the panel edge; the preview's "ПОПЕРЕДН" and "НАСТУПНА" are cut. Not the option rows changed in bca004fd, which fit. Probably inherited; to be checked against beta 41. Not fixed in this round.
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge-4/runs/uk-s6/photographs/uk-s6-05-measure-tab-1150.png
+
+### B8-1078 · OPEN · The greyed, ticked "Show detailed data" box draws as a solid dark square in the light appearance
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: challenge 4 of beta 42, m4. Visible in every report-window photograph of that round; a reader may take it for a tick box in some third state. Not fixed in this round.
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge-4/runs/*/photographs/ (report window)
+
+### B8-1079 · OPEN, question for Knut · Should "Default for this run" be greyed by the Preferences type in a profiling window?
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: challenge 4 of beta 42. In Edit limits… opened from a Profiling window, where a new report is a Printing record, the "Default for this run" radios are still greyed by Preferences' "Report type, default" when that is an ISO type (§32.1 says so, so this is a question, not a fault). Question for Knut: should that row follow the Preferences type there, or be free, since a profile run's own reports are never of an ISO type?
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge-4/runs/en-s1/driver-report.json (`s1_el_rundef_radios`)

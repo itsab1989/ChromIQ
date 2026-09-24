@@ -2022,8 +2022,10 @@ _PAIRING_HELP = (
     "ISO set: the read-only one, which holds that standard's published "
     "values, or the Custom ISO set of the same number, the industry-practice "
     "alternative you can tune. For those two types that is a rule: choosing "
-    "one sets “Judged against” to its standard's set, and only the four ISO "
-    "sets can be chosen beside it; the others are greyed. Every other type "
+    "one keeps “Judged against” when it is one of the four ISO sets and "
+    "otherwise sets it to that type's own ISO set, and only the four ISO "
+    "sets can be chosen beside it; the others are greyed. Choosing another "
+    "type then puts back the set the ISO type replaced. Every other type "
     "can be judged against any set, and the pairs above are the usual "
     "habits, not rules.")
 #: The minimum width of the "Judged against" and "Report type" help windows
@@ -7956,6 +7958,8 @@ class MeasurementReportDialog(QDialog):
         """
         self._sticky_type = ""
         self._sticky_set = ""
+        # the set an ISO type moved belongs to the document it was moved in
+        self._set_before_iso_type = None
 
     def _document_settings(self) -> "dict | None":
         """The loaded document's own settings, while they are still what is on
@@ -10422,9 +10426,38 @@ class MeasurementReportDialog(QDialog):
         # then move among the four ISO sets; the others are greyed.
         from workflow.measurement_report import REPORT_TYPE_ISO_SET
         iso_set = REPORT_TYPE_ISO_SET.get(type_id)
-        if iso_set and iso_set != self._report_limits().set_id:
-            self._report_own_limits = None
-            self._settings_touched(type_id=type_id, set_id=iso_set)
+        # **A STEP IS NOT A CHOICE (challenge 4 of beta 42, B8-1074).** The
+        # pulldown takes every wheel notch and arrow key as a choice, so
+        # walking it past an ISO type moved "Judged against" and left it
+        # moved. The set an ISO type moves (and the report's own edited
+        # numbers with it) is remembered, and put back when the type leaves
+        # the ISO types (Basti's option a).
+        #
+        # **AN ALLOWED SET IS KEPT (Knut, #182 5822758830, answer 4).** An
+        # ISO type moves "Judged against" only when it is not one of the four
+        # ISO sets, and then to the type's own ISO 12647 set; one of the four
+        # stays, the other standard's included. A set it did not move needs
+        # nothing put back.
+        from workflow.measurement_report import set_allowed_for_type
+        if iso_set:
+            shown_set = str(self._report_limits().set_id or "")
+            if not set_allowed_for_type(type_id, shown_set):
+                if current not in REPORT_TYPE_ISO_SET \
+                        and getattr(self, "_set_before_iso_type",
+                                    None) is None:
+                    self._set_before_iso_type = (
+                        shown_set, getattr(self, "_report_own_limits", None))
+                self._report_own_limits = None
+                self._settings_touched(type_id=type_id, set_id=iso_set)
+                return
+            self._settings_touched(type_id=type_id)
+            return
+        back = getattr(self, "_set_before_iso_type", None)
+        self._set_before_iso_type = None
+        if current in REPORT_TYPE_ISO_SET and back and back[0] \
+                and back[0] != self._report_limits().set_id:
+            self._report_own_limits = back[1]
+            self._settings_touched(type_id=type_id, set_id=back[0])
             return
         self._settings_touched(type_id=type_id)
 

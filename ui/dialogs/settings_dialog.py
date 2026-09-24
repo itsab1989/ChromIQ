@@ -4189,8 +4189,11 @@ class SettingsDialog(QDialog):
                "project. A verification is never a Printing record, so that "
                "type cannot be chosen here. A profiling measurement's report "
                "is always the Printing record, whatever this is set to.\n\n"
-               "Choosing one of the two ISO types also makes its "
-               "standard's set the default limit set in Report limits…. "
+               "Choosing one of the two ISO types keeps the default limit "
+               "set when it is one of the four ISO sets, and otherwise makes "
+               "the type's own ISO set the default limit set in Report "
+               "limits…; choosing another type again puts back the set it "
+               "replaced. "
                "While an ISO type is the default, the default limit set is "
                "one of the four ISO sets (ISO 12647-7, ISO 12647-8, Custom "
                "ISO 12647-7, Custom ISO 12647-8), and the others cannot be "
@@ -5049,6 +5052,11 @@ class SettingsDialog(QDialog):
             _i = max(0, self._report_type_default_combo.findData(
                 "t2_full_colour_check"))
         self._report_type_default_combo.setCurrentIndex(_i)
+        # B8-1073: what `_on_default_type_chosen` compares a step against,
+        # and the set an ISO type moved, to put back when it leaves them.
+        self._default_type_last = str(
+            self._report_type_default_combo.currentData() or "")
+        self._set_before_iso_type = None
         self._report_details_default_check.setChecked(
             bool(s.get("report_default_show_details", True)))
         # The shipped default is shown in the UI language; a prefix the user
@@ -6154,6 +6162,15 @@ class SettingsDialog(QDialog):
         from core.settings import store_compliance_overrides
         buf = getattr(self, "_compliance_buffer", None) or {}
         store_compliance_overrides(s, buf.get("overrides") or {})
+        # #182 (Knut, B8-388). An empty currentData is the pulldown's heading
+        # row, which is disabled and cannot be the current one; guarded anyway,
+        # because a stored empty id would read back as "no type at all".
+        # THE TYPE FIRST, THEN THE SET (B8-1072): `AppSettings.set` holds the
+        # set to the type already stored, so a set written before its type
+        # would be held to the OLD type.
+        _tid = str(self._report_type_default_combo.currentData() or "")
+        if _tid:
+            s.set("report_default_type", _tid)
         # K36-1: an ISO default type keeps an ISO default set
         from workflow.measurement_report import set_held_to_type
         s.set("compliance_default_set", set_held_to_type(
@@ -6161,12 +6178,6 @@ class SettingsDialog(QDialog):
             str(buf.get("default_set") or "chromiq_default")))
         if "columns" in buf:
             s.set("compliance_columns_shown", str(buf.get("columns") or ""))
-        # #182 (Knut, B8-388). An empty currentData is the pulldown's heading
-        # row, which is disabled and cannot be the current one; guarded anyway,
-        # because a stored empty id would read back as "no type at all".
-        _tid = str(self._report_type_default_combo.currentData() or "")
-        if _tid:
-            s.set("report_default_type", _tid)
         s.set("report_default_show_details",
               bool(self._report_details_default_check.isChecked()))
         from core.settings import report_title_to_store
@@ -7054,12 +7065,12 @@ class SettingsDialog(QDialog):
 
     def _on_default_type_chosen(self, index: int) -> None:
         """K36-1: an ISO report type chosen as the default makes its
-        standard's set the default limit set (buffered, written on Save)."""
+        standard's set the default limit set (buffered, written on Save),
+        unless the default set is already one of the four ISO sets."""
         from workflow.measurement_report import REPORT_TYPE_ISO_SET
         tid = str(self._report_type_default_combo.itemData(index) or "")
-        sid = REPORT_TYPE_ISO_SET.get(tid)
-        if not sid:
-            return
+        was = str(getattr(self, "_default_type_last", "") or "")
+        self._default_type_last = tid
         buf = getattr(self, "_compliance_buffer", None)
         if buf is None:
             from core.settings import compliance_overrides_of
@@ -7068,7 +7079,32 @@ class SettingsDialog(QDialog):
                 "default_set": str(self._settings.get(
                     "compliance_default_set", "chromiq_default")),
             }
-        buf["default_set"] = sid
+        sid = REPORT_TYPE_ISO_SET.get(tid)
+        # **A STEP IS NOT A CHOICE (challenge 4 of beta 42, B8-1073).**
+        # `activated` fires for every wheel notch and arrow key, so walking
+        # the pulldown past an ISO type replaced the default set and left it
+        # replaced on a non-ISO type. The set an ISO type moves is remembered
+        # (Basti's option a) and put back when the type leaves the ISO types.
+        # While an ISO type is chosen only ISO sets can be chosen, so the
+        # remembered set is the last one chosen beside a non-ISO type.
+        # AN ALLOWED SET IS KEPT (Knut, #182 5822758830, answer 4): one of
+        # the four ISO sets stays, the other standard's included; any other
+        # set moves to the type's own ISO 12647 set, and only that is
+        # remembered.
+        if sid:
+            from workflow.measurement_report import set_allowed_for_type
+            _now = str(buf.get("default_set") or "")
+            if not set_allowed_for_type(tid, _now):
+                if was not in REPORT_TYPE_ISO_SET \
+                        and getattr(self, "_set_before_iso_type",
+                                    None) is None:
+                    self._set_before_iso_type = _now
+                buf["default_set"] = sid
+            return
+        back = getattr(self, "_set_before_iso_type", None)
+        if was in REPORT_TYPE_ISO_SET and back:
+            buf["default_set"] = back
+        self._set_before_iso_type = None
 
     def _restore_defaults(self) -> None:
         self._settings.reset_to_defaults()

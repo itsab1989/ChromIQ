@@ -6424,26 +6424,43 @@ greyed while having selected Validation print check or Contract proof check.
 Then the user still has room for playing around with limit values."*
 
 * Choosing "Validation print check (ISO 12647-8)" or "Contract proof check
-  (ISO 12647-7)" sets "Judged against" to that standard's read-only set
-  (ISO 12647-8:2021 values, ISO 12647-7:2016 values), always, and drops the
-  report's own edited numbers as any change of set does (K30).
+  (ISO 12647-7)" KEEPS "Judged against" when it is one of the four ISO sets
+  below, the other standard's included; otherwise it sets it to that
+  standard's read-only set (ISO 12647-8:2021 values, ISO 12647-7:2016
+  values), never the Custom one, and drops the report's own edited numbers
+  as any change of set does (K30). **Amended by Knut, #182
+  [5822758830](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5822758830)
+  (2026-09-24), answer 4, built for beta 42 (B8-1075), not confirmed:**
+  *"Keep whatever was in the "Judged against", as long as it is one of the 4
+  that are allowed. If selected "Judged against" are one of the other types
+  not allowed, then the "Judged against" is set to the matching ISO 12647
+  type that belongs to the Report type (not the custom ISO)."* It read
+  "always" before, and moved a Custom ISO set to the read-only one.
 * While such a type is chosen, "Judged against" offers only ISO 12647-7,
   ISO 12647-8, Custom ISO 12647-7 and Custom ISO 12647-8; ChromIQ default,
   ChromIQ tight and Quick check are shown greyed, each with the tooltip
   *"Not with the report type “{type}”: it is judged against one of the four
   ISO limit sets (…). Choose another report type to judge against this
   set."* The user may move among the four. Choosing any other type makes
-  every set choosable again and leaves the set where it is.
+  every set choosable again and leaves the set where it is, **except that
+  a set an ISO type MOVED is put back** (challenge 4 of beta 42, B8-1073,
+  B8-1074, Basti's option (a), not confirmed): the pulldown takes every
+  wheel notch and arrow key as a choice, so walking it past an ISO type
+  replaced the set for good. The set the ISO type replaced (in the report
+  window with the report's own edited numbers) is remembered and restored
+  when the type leaves the two ISO types; a set the ISO type kept needs
+  nothing restored. The same in Preferences' "Report type, default".
 * **Every place both are chosen together:**
 
 | place | what pairs with what | behaviour |
 |---|---|---|
 | Measurement Report window | "Report type" with "Judged against" | as above |
 | Edit limits…, row "Used for this report" | the report's type | the three ChromIQ radios greyed with the same tooltip |
-| Edit limits… and Preferences' Report limits…, row "Default for new reports"; Edit limits…, row "Default for this run" | Preferences' "Report type, default" | greyed the same way while that default is an ISO type |
-| Preferences, Reports, "Report type, default" | the default limit set | choosing an ISO type makes its standard's set the default set (buffered, written by Save); Save keeps an ISO default set beside an ISO default type |
-| "Which presets can be used for verification?" | its Report type with its Judged against | choosing an ISO type moves Judged against to its standard's set; ChromIQ's three sets greyed; "All metrics" stays choosable (it is not a set). This refines §30.1's "individually change" for the two ISO types only |
-| a new report ("New report…"), the report written after a measurement, the verification pre-flight | Preferences' type with the run's own default set, else Preferences' set | an ISO type with a non-ISO starting set starts on the type's standard's set (`set_held_to_type`, `limits_held_to_type`); nothing is written onto the run |
+| Edit limits… and Preferences' Report limits…, row "Default for new reports"; Edit limits…, row "Default for this run" | Preferences' "Report type, default" | greyed the same way while that default is an ISO type, and still greyed after any number in the window is edited (B8-1071: an edit re-enabled them) |
+| Preferences, Reports, "Report type, default" | the default limit set | choosing an ISO type keeps an ISO default set and otherwise makes its standard's set the default set (buffered, written by Save), remembering the set it replaced for when the type leaves the ISO types; Save keeps an ISO default set beside an ISO default type |
+| the settings store itself (`AppSettings`, B8-1072) | `report_default_type` with `compliance_default_set` | no write leaves an ISO default type beside a non-ISO default set: the set is held to the type on every write (logged), and a pair already on disk is repaired to the standard's set when it is read (logged) |
+| "Which presets can be used for verification?" | its Report type with its Judged against | choosing an ISO type keeps one of the four ISO sets and otherwise moves Judged against to its standard's set; ChromIQ's three sets greyed; "All metrics" stays choosable (it is not a set). This refines §30.1's "individually change" for the two ISO types only |
+| a new report ("New report…"), the report written after a measurement, the verification pre-flight | Preferences' type with the run's own default set, else Preferences' set | an ISO type with a non-ISO starting set starts on the type's standard's set, and an ISO starting set is kept (`set_held_to_type`, `limits_held_to_type`); nothing is written onto the run |
 
 * **A saved report that combines an ISO type with another set** (every
   report written before this rule could): it opens as it was saved, the two

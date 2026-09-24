@@ -1493,8 +1493,17 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             return
         rb = self.sender()
         col = rb.property("set_id") if rb is not None else None
-        if col:
-            self.run_default_chosen = str(col)
+        if not col:
+            return
+        from workflow.measurement_report import set_allowed_for_type
+        if not set_allowed_for_type(self._default_type, col):
+            # K36-1 (B8-1071): greyed beside an ISO default type, and a
+            # click from code is not recorded either.
+            log.warning("refused %s as this run's default set beside the "
+                        "default report type %s (K36-1)", col,
+                        self._default_type)
+            return
+        self.run_default_chosen = str(col)
 
     def _on_default_toggled(self, on: bool) -> None:
         if not on:
@@ -1504,6 +1513,14 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         if not col:
             return
         if self._read_only_here():
+            self._restore_default_radio()
+            return
+        from workflow.measurement_report import set_allowed_for_type
+        if not set_allowed_for_type(self._default_type, col):
+            # K36-1 (B8-1071): the radio is greyed; a click from code or a
+            # style that ignores the flag must not write the pair either.
+            log.warning("refused %s as the default set beside the default "
+                        "report type %s (K36-1)", col, self._default_type)
             self._restore_default_radio()
             return
         self._default_set = col
@@ -1528,8 +1545,16 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._overrides_last_seen = self._prefs_now()[1]
         # a Custom column inherits nothing from its parent's overrides, but the
         # selectable set of columns can change when a column is emptied
+        #
+        # **AND THE K36-1 HOLD IS ASKED AGAIN (challenge 4 of beta 42,
+        # B8-1071).** This re-enabled every "Default for new reports" radio
+        # from `selectable_set_ids` alone, so the first number edited under an
+        # ISO default type made ChromIQ's three sets clickable beside it, and
+        # a click wrote a pair K36-1 says cannot exist.
+        _selectable = set(selectable_set_ids(self._overrides))
         for col, rb in self._default_radios.items():
-            rb.setEnabled(col in set(selectable_set_ids(self._overrides)))
+            rb.setEnabled(col in _selectable)
+            self._hold_radio_to_type(rb, col, self._default_type)
 
     def _refill_column(self, col: str) -> None:
         self._syncing = True

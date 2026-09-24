@@ -114,9 +114,10 @@ def test_choosing_an_iso_type_sets_its_standards_set_and_greys_the_rest(
         # and a greyed entry chosen by a keyboard is put back
         dlg._on_set_chosen(dlg._set_combo.findData("chromiq_tight"))
         assert dlg._report_limits().set_id == "custom_iso_12647_7"
-        # back to a non-ISO type: every set again, the set is left alone
+        # back to a non-ISO type: every set again, and the set the ISO type
+        # replaced is put back (challenge 4 of beta 42, B8-1074)
         _pick(dlg._type_combo, mr.REPORT_TYPE_FULL, qapp)
-        assert dlg._report_limits().set_id == "custom_iso_12647_7"
+        assert dlg._report_limits().set_id == "chromiq_default"
         assert _set_item(dlg, "chromiq_tight")[0]
     finally:
         _close(dlg)

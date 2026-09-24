@@ -32,13 +32,14 @@ ArgyllCMS does all the colour science; ChromIQ gives it a calm, guided interface
 so you never have to memorise a single flag.
 
 > [!TIP]
-> **What is new in 4.3** (in beta now, not yet in the 4.2 download): the
+> **What is new in 4.3** (in the 4.3 betas, not yet in the 4.2 download): the
 > [Measurement Report](#measurement-report-new-in-43) with six report types,
 > limit sets that include the published values of ISO 12647-7 and ISO 12647-8,
 > trend graphs and PDF reports; 185 built-in chart presets (154 in 4.2) with a
 > gear button to choose which are listed; and a Ukrainian translation. The
-> current beta is on the
-> [releases page](https://github.com/itsab1989/ChromIQ/releases).
+> newest beta on the
+> [releases page](https://github.com/itsab1989/ChromIQ/releases) carries all
+> of it; an earlier beta may lack some.
 
 > [!NOTE]
 > **New to printer profiling?** That's exactly who ChromIQ is for. Every screen
@@ -527,17 +528,21 @@ on their own, outside the five-step flow:
 Any measurement becomes a **Measurement Report**, from the Measure tab or from
 **Tools ▸ Measurement report (accuracy & drift)**. Choose what kind of document
 you need and which set of limits it is judged against. ChromIQ measures every
-metric your chart can answer, marks each one PASS or FAIL against its limit,
-and names the ones this chart cannot answer, and why.
+metric your chart can answer and marks each one PASS or FAIL against its
+limit (INFO where a set gives it no limit), and marks N-A, with the reason,
+the ones this chart cannot answer.
 
 - **Six report types**: Colour summary (one page), Full colour check, Grey and
   tone check, Printing record (not graded), Validation print check
   (ISO 12647-8) and Contract proof check (ISO 12647-7). The run type decides
   what is offered: the sheet a profile was built from gets a printing record;
-  a verification or a calibration gets the judged types.
+  a verification gets the judged types, the two ISO types among them; a
+  calibration gets the judged types without the two ISO types, and can still
+  be judged against an ISO limit set.
 - **Limit sets**, in the **Report limits** window:
   - ChromIQ's own: **ChromIQ default** (2.0 on the averages, 3.0 on the
-    maxima), **ChromIQ tight** (half of that) and **Quick check** (twice it);
+    maxima), **ChromIQ tight** (half of those ΔE00 limits) and **Quick
+    check** (twice them), each with grey-balance limits of its own;
   - **ISO 12647-7:2016 values** (contract proofs) and **ISO 12647-8:2021
     values** (validation prints), the standards' published tolerance values,
     read-only;
@@ -547,8 +552,9 @@ and names the ones this chart cannot answer, and why.
 
   One report uses one limit set for every measurement in it.
 - **Grey balance, tone ramps and evenness**: the grey ramp is judged for
-  colour cast, the mid-tone ramps with it, and the sheet is split into nine
-  areas and compared, so a band or an uneven dry-down shows up as a number.
+  colour cast (the mid-tone ramps with it under ISO 12647-8 and the two Custom
+  ISO sets), and the sheet is split into nine areas and compared, so a band or
+  an uneven dry-down shows up as a number.
 - **Trend graphs**: every judged metric over time, across your dated
   verifications, each with its own limit line.
 - **Save report as PDF**: the whole report, or the one-page summary to hand
