@@ -5463,8 +5463,6 @@
  "using the image's embedded profile": "das eingebettete Profil des Bildes wird verwendet",
  "using your own values": "mit deinen eigenen Werten",
  "verification chart": "Verifizierungskarte",
- "verification run": "Verifizierungslauf",
- "verification runs": "Verifizierungsläufe",
  "verifications/<date>/{name}-verify.ti3 and its verifications/<date>/reports/report_*.json — one dated check, kept as history and never built into a profile; plus verifications/<date>/chart/, a copy of the chart that check was measured with, saved the moment the measurement starts": "verifications/<date>/{name}-verify.ti3 und die zugehörige verifications/<date>/reports/report_*.json — eine datierte Prüfung, als Vorgeschichte behalten und niemals in ein Profil eingebaut; dazu verifications/<date>/chart/, eine Kopie des Charts, mit dem diese Prüfung gemessen wurde, angelegt im Moment des Messbeginns",
  "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut": "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, dieselben Chart-Dateien, die auch ein Profilierungs-Chart bekommt; dazu verifications/{name}-verify.control-strip.json, die die Messfelder benennt, die als Kontrollstreifen einspringen; dazu verifications/{name}-verify-reference.ti3, wenn das Chart mit „Aus dem Profil-Gamut“ entstanden ist",
  "verified — every patch holds the colour the chart asked for": "bestätigt — jedes Messfeld trägt die Farbe, die das Chart angefordert hat",

@@ -5463,8 +5463,6 @@
  "using the image's embedded profile": "за допомогою вбудованого профілю зображення",
  "using your own values": "using your own values",
  "verification chart": "перевірочна таблиця",
- "verification run": "запуск перевірки",
- "verification runs": "виконується перевірка",
  "verifications/<date>/{name}-verify.ti3 and its verifications/<date>/reports/report_*.json — one dated check, kept as history and never built into a profile; plus verifications/<date>/chart/, a copy of the chart that check was measured with, saved the moment the measurement starts": "verifications/<date>/{name}-verify.ti3 і його verifications/<date>/reports/report_*.json — одна датована перевірка, яка зберігається як історія й ніколи не додається до профілю; plus verifications/<date>/chart/, копія діаграми, за допомогою якої було проведено вимірювання, збережена в момент початку вимірювання",
  "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut": "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut",
  "verified — every patch holds the colour the chart asked for": "перевірено — кожен патч має колір, який вимагає діаграма",

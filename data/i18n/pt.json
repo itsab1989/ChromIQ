@@ -5463,8 +5463,6 @@
  "using the image's embedded profile": "a usar o perfil incorporado da imagem",
  "using your own values": "using your own values",
  "verification chart": "carta de verificação",
- "verification run": "verificação",
- "verification runs": "verificações",
  "verifications/<date>/{name}-verify.ti3 and its verifications/<date>/reports/report_*.json — one dated check, kept as history and never built into a profile; plus verifications/<date>/chart/, a copy of the chart that check was measured with, saved the moment the measurement starts": "verifications/<data>/{name}-verify.ti3 e o seu verifications/<data>/reports/report_*.json — uma verificação datada, guardada como histórico e nunca incorporada num perfil; mais verifications/<data>/chart/, uma cópia da carta com que essa verificação foi medida, guardada no momento em que a medição começa",
  "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut": "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut",
  "verified — every patch holds the colour the chart asked for": "verificado — cada campo tem a cor que a carta pediu",

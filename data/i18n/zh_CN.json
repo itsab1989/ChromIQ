@@ -5463,8 +5463,6 @@
  "using the image's embedded profile": "使用图像的嵌入配置文件",
  "using your own values": "using your own values",
  "verification chart": "验证色卡",
- "verification run": "验证",
- "verification runs": "验证",
  "verifications/<date>/{name}-verify.ti3 and its verifications/<date>/reports/report_*.json — one dated check, kept as history and never built into a profile; plus verifications/<date>/chart/, a copy of the chart that check was measured with, saved the moment the measurement starts": "verifications/<日期>/{name}-verify.ti3 及其 verifications/<日期>/reports/report_*.json — 一次带日期的检查，作为历史保存，绝不会被用来生成配置文件；此外还有 verifications/<日期>/chart/，即那次检查测量时所用色卡的副本，在测量开始的那一刻保存",
  "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut": "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut",
  "verified — every patch holds the colour the chart asked for": "已验证 —— 每个色块都是色卡要求的颜色",

@@ -5463,8 +5463,6 @@
  "using the image's embedded profile": "画像の埋め込みプロファイルを使用",
  "using your own values": "using your own values",
  "verification chart": "検証チャート",
- "verification run": "検証",
- "verification runs": "検証",
  "verifications/<date>/{name}-verify.ti3 and its verifications/<date>/reports/report_*.json — one dated check, kept as history and never built into a profile; plus verifications/<date>/chart/, a copy of the chart that check was measured with, saved the moment the measurement starts": "verifications/<日付>/{name}-verify.ti3 と、その verifications/<日付>/reports/report_*.json — 日付付きのチェック1件分で、履歴として保管され、プロファイルに組み込まれることは決してありません。さらに verifications/<日付>/chart/ には、そのチェックを測定したときのチャートのコピーが、測定が始まった瞬間に保存されます",
  "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut": "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut",
  "verified — every patch holds the colour the chart asked for": "確認済み — すべてのパッチがチャートの指定した色を保持しています",

@@ -106,7 +106,7 @@ def test_the_page_and_its_heading_are_about_the_same_sheet(two_dated, qapp):
     _cover_the_whole_history(dlg)
     assert len(dlg._runs_for_report()) == 2, "the history really is loaded"
     txt = _text(dlg._view.toHtml())
-    assert "1 verification run" in txt
+    assert "1 measurement" in txt       # B8-928: a date is a measurement
     assert "No. of Measurements: 1" in txt
 
 

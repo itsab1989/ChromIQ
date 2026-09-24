@@ -10939,11 +10939,13 @@ class MeasurementReportDialog(QDialog):
                  "instrument": Counter(g["instruments"]).most_common(1)[0][0]}
                 for g in groups.values()]
 
+        # **A DATED VERIFICATION IS A MEASUREMENT, NOT A RUN (B8-928).**
+        # Three dates of one profile run read "· 3 verification runs" while
+        # the list header and the running header of the same report said
+        # "3 measurements"; there was one profile run.
         def _count_label(n: int) -> str:
-            if calibration:
+            if calibration or verification:
                 return tr("measurement") if n == 1 else tr("measurements")
-            if verification:
-                return tr("verification run") if n == 1 else tr("verification runs")
             return tr("run") if n == 1 else tr("runs")
 
         items = "".join(

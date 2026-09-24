@@ -5463,8 +5463,6 @@
  "using the image's embedded profile": "bruker bildets innebygde profil",
  "using your own values": "using your own values",
  "verification chart": "verifiseringskart",
- "verification run": "verifisering",
- "verification runs": "verifiseringer",
  "verifications/<date>/{name}-verify.ti3 and its verifications/<date>/reports/report_*.json — one dated check, kept as history and never built into a profile; plus verifications/<date>/chart/, a copy of the chart that check was measured with, saved the moment the measurement starts": "verifications/<dato>/{name}-verify.ti3 og tilhørende verifications/<dato>/reports/report_*.json — én datert sjekk, tatt vare på som historikk og aldri bygget inn i en profil; pluss verifications/<dato>/chart/, en kopi av kartet den sjekken ble målt med, lagret i det øyeblikket målingen starter",
  "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut": "verifications/{name}-verify.ti1 / .ti2 / .cht / .channels.json / _01.tif …, the same chart files a profiling chart gets; plus verifications/{name}-verify.control-strip.json, which names the patches that stand in for a control strip; plus verifications/{name}-verify-reference.ti3 when the chart came From Profile Gamut",
  "verified — every patch holds the colour the chart asked for": "bekreftet — hvert målefelt bærer fargen kartet ba om",
