@@ -151,7 +151,9 @@ def test_the_pairing_help_matches_the_shipped_ramp_limits():
 
 def test_the_chart_help_says_the_grey_steps_are_evenly_spaced():
     from ui.dialogs.measurement_report_dialog import _CHART_HELP
-    assert "roughly evenly spaced grey steps" in _CHART_HELP
+    # K31-B (B8-904): "at least eight grey steps from white to black,
+    # spread roughly evenly", with a FROM PROFILE GAMUT chart's neutral aims.
+    assert "grey steps from white to black, spread roughly evenly" in _CHART_HELP
     assert "the two read-only ones and the two Custom ones" in _CHART_HELP
     body = _glossary("Grey ramp")
     assert "roughly evenly spaced" in body
@@ -166,9 +168,14 @@ def test_the_report_scope_entry_names_every_tag():
 
 
 def test_bound_and_report_limits_entries_say_what_a_report_across_places_does():
-    assert "binds no run" in _glossary("Bound (a run's limits)")
-    assert "its first column is “This report”" in _glossary(
-        "Report limits (window)")
+    # K31 (B8-893, B8-894): "Bound (a run's limits)" and the lock are gone;
+    # the Dictionary entry is "A report's limit set", and it says what the
+    # beta 39 entry said of a report across places for EVERY report.
+    body = _glossary("A report's limit set")
+    assert "whichever profile run or project the measurement comes from" in body
+    assert "A profile run holds no limits of its own" in body
+    assert "its first column, “This report”, holds the report's own limits" \
+        in _glossary("Report limits (window)")
 
 
 def test_a_rename_and_a_run_delete_say_the_reports_follow(english_keys):
@@ -183,14 +190,14 @@ def test_a_rename_and_a_run_delete_say_the_reports_follow(english_keys):
 @pytest.mark.parametrize("phrase", [
     # the window guide
     "  • Calibration: with Run type Calibration, the window opens on",
-    "is judged against its own set instead",
+    "The set belongs to the report: every measurement ticked in it",   # K31
     "directly with “Add Profile's Measurements…”",
     # Report shown
     "Every report generated for the measurements in the list",
-    "changes only when the update covers different measurements",
+    "follows the measurements it covers: a report of one date",   # K31
     "An update never leaves a measurement out behind your back",
     # Judged against
-    "the choice here is the report's own",
+    "whichever profile run or project it comes from",   # K31
     # Saving and finding the report
     "A calibration (Run type Calibration): the project's cal/reports folder",
     "otherwise the reports folder of your ChromIQ folder",
@@ -209,7 +216,7 @@ def test_a_rename_and_a_run_delete_say_the_reports_follow(english_keys):
     "across every measurement ticked in it",
     "those of the profiling and calibration reports",
     # Report limits
-    "the first column is “This report”: the report's own limits",
+    "The first column is “This report”: the limits of the report",   # K31
     "“Reference values…” at the top of this window",
     "? means the set limits that row but no number has been supplied",
     # file guide

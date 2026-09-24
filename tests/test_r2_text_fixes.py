@@ -363,7 +363,9 @@ def test_r2_16_the_run_delete_windows_say_lauf(word):
 @pytest.mark.parametrize("key,word", [
     ("{project}, run {run}, {when}: {why}", "Durchgang"),
     ("Already generated for this run: {names}", "Durchlauf"),
-    ("Default for new runs", "Durchläufe"),
+    # K31 (B8-893): "Default for new runs" became "Default for new
+    # reports" and "Default for this run"; the run's own row says Lauf.
+    ("Default for this run", "Durchlauf"),
     ("Delete run {n}", "Durchgang"),
 ])
 def test_r2_16_the_photographed_lines_say_lauf(key, word):
@@ -385,7 +387,13 @@ def test_r2_16_no_english_run_in_german_text_changed_since_ae4d79e6():
                 "the measurement is either the run's own profiling sheet, "
                 "which is not graded, or a file with no reference values, "
                 "and the report says which."):
-        assert not re.search(r"\bRuns?\b", DE[key]), DE[key]
+        # K31-B (B8-903) grew the first of these by a "within gamut"
+        # paragraph, so the key is the sentence the R2 fix changed and
+        # whatever follows it.
+        keys = [k for k in DE if k.startswith(key)]
+        assert keys, key[:60]
+        for k in keys:
+            assert not re.search(r"\bRuns?\b", DE[k]), DE[k]
 
 
 def test_r2_16_the_renumbering_sentence_has_german_word_order():
