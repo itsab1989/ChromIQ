@@ -1221,7 +1221,9 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         if shipped_iso_sets():
             # #182 S-2, §23. "which ChromIQ does not hold" stops being true
             # the day a set ships, and the Custom columns still do not start
-            # from it: Knut's researched figures stay their starting numbers.
+            # from it: Knut's researched figures stay their starting numbers,
+            # and since 2026-09-24 (#182 5815346140) a user's own file does
+            # not replace them either.
             custom = tr(
                 "The two Custom columns start from limits researched from "
                 "industry practice, and from ChromIQ's own numbers on the rows "
@@ -1229,11 +1231,11 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "measure has a limit to be judged against. Neither source is "
                 "the published tolerances of ISO 12647-7 or ISO 12647-8: "
                 "where ChromIQ ships those, they are in the read-only ISO "
-                "column, and a Custom column does not start from them. If you "
-                "hold either standard, use \u201cReference values\u2026\u201d "
-                "at the top of this window to supply its figures from your own "
-                "copy, and the Custom column starts from those instead. Every "
-                "limit here is yours to change.")
+                "column, and a Custom column does not start from them. "
+                "Figures you supply from your own copy with "
+                "\u201cReference values\u2026\u201d at the top of this window "
+                "go into that read-only column too, never into a Custom one. "
+                "Every limit here is yours to change.")
         else:
             custom = tr(
                 "The two Custom columns start from limits researched from "
@@ -1243,9 +1245,9 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "published tolerances of ISO 12647-7 or ISO 12647-8, which "
                 "ChromIQ does not hold. If you hold either standard, use "
                 "\u201cReference values\u2026\u201d at the top of this window "
-                "to supply its figures from your own copy, and the Custom "
-                "column starts from those instead. Every limit here is yours "
-                "to change.")
+                "to supply its figures from your own copy: they go into the "
+                "read-only ISO column, never into a Custom one. Every limit "
+                "here is yours to change.")
         cannot = [tr(r.label) for r in ROWS if r.status == "unmeasurable"]
         title, body = M_THRESHOLDS_NOT_CERTIFICATION.render(rows=", ".join(cannot))
         return legend + "\n" + foot + "\n\n" + custom + "\n\n" + title + "\n" + body

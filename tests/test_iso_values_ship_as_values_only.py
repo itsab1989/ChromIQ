@@ -186,8 +186,10 @@ def test_a_licence_holders_number_wins_its_row_and_a_null_keeps_the_shipped_one(
     assert set(cs.limit_bearing(ro8)) == _judgeable("iso_12647_8")
     # their -7 figure fills that read-only column, which ships nothing
     assert set(cs.limit_bearing(cs.factory_limits("iso_12647_7"))) == {row}
-    # and a Custom column starts from THEIR number, not from a shipped one
-    assert cs.factory_limits("custom_iso_12647_8")[row].number == 1.25
+    # and a Custom column starts from Knut's industry defaults, not from any
+    # file (Knut, #182 5815346140: "alternative limit sets to the standards")
+    assert cs.factory_limits("custom_iso_12647_8")[row] == \
+        cs.custom_defaults("iso_12647_8")[row]
     assert cs.factory_limits("custom_iso_12647_8")[kept] == \
         cs.custom_defaults("iso_12647_8")[kept]
     assert cs.supplied_iso_rows("iso_12647_8") == frozenset({row})

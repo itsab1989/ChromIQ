@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-24, B42 Knut 5815346140: the Custom ISO columns are never filled from a values file; three texts in the Report limits window and M-THRESHOLDS-NOT-CERTIFICATION say so. German by hand. No count moves: the three old keys were already English in the eleven others, and so are the new ones. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B42 (B8-965, B8-968): the Max strip length tooltips, two keys in and the (i) help text changed. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, the translation credit removed from Settings (Basti). COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B40-B (B8-940 to B8-952), the beta 40 challenge B text fixes: German by hand; the twelve others carry the new English under the beta rule. COUNTED off the tree with this file's own expression, BOTH ledgers.

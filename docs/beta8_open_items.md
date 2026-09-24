@@ -27695,3 +27695,15 @@ would reach.
 - tests: tests/test_a_long_dialog_heading_wraps_instead_of_being_cut.py (14 languages, pixels). Mutations: the editor floor removed (es, pt red), the editor heading not wrapping (pt red), `dialog_masthead` not wrapping (14 red).
 - evidence: test_the_patch_set_editor_heading_is_whole_in_every_language, test_a_dialog_masthead_wraps_when_the_window_is_narrow, test_a_tab_heading_stays_on_one_line
 - proof: ~/Desktop/ChromIQ-beta42-proof/challenge-fixes/ (before/heading-*, after/heading-*).
+
+### B8-978 · FIXED, awaiting confirmation · A licence holder's own values file turned both Custom ISO columns into copies of the ISO columns
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Knut, #182 5815346140 (2026-09-24): the Custom ISO 12647-7 and -8 sets are "alternative limit sets to the standards", never copies; their defaults are his researched industry limits (§2a).
+- where: `workflow/compliance_sets.py` (`factory_limits`, `custom_default_counts`); `ui/dialogs/thresholds_dialog.py` (the Custom columns paragraph, both branches); `workflow/measurement_messages.py` M-THRESHOLDS-NOT-CERTIFICATION (PROPOSED, revised); `docs/design/measurement_report_limits.md` §2a; `docs/design/unified_measurement_management.md` §M-PROPOSED.
+- found by: Knut on his own machine, which has a user values file; reproduced on screen with a made-up user file (9.9 on every answered row): both Custom columns read 9.90.
+- cause: §2a's first source, "a licence holder's own values file", took precedence over `_CUSTOM_INDUSTRY` on every row the file answered.
+- fixed: a Custom column always starts from Knut's industry figures, then ChromIQ's own numbers; any values file, shipped or the user's own, fills only the read-only ISO column. The window's texts no longer say the Custom column starts from supplied figures. German by hand; the eleven others were already English on these keys.
+- tests: tests/test_compliance_sets.py::test_a_licence_holders_own_file_never_fills_a_custom_column (red on the old code); two older tests changed to the new rule.
+- proof: ~/Desktop/ChromIQ-beta42-proof/custom-iso-industry/ (before/, after/: photograph, limits.json; drive.py, run.sh, fake_user_values.json).

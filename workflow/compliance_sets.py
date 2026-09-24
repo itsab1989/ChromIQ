@@ -1316,19 +1316,12 @@ def custom_default_counts(set_id: str) -> "dict[str, int]":
     if s is None or s.kind != "custom" or not s.parent:
         return zero
     sources = custom_default_sources(s.parent)
-    # ASK THE FILE, DO NOT INFER FROM THE NUMBER. Deciding "supplied" by
-    # comparing the limit with the default would miscount the one case that
-    # matters most: a licence holder whose own figure happens to EQUAL a
-    # default would be reported as not having supplied it, and the window
-    # would then name our sources and not theirs.
-    supplied = supplied_iso_rows(s.parent)
+    # ``supplied`` stays in the answer and is always 0 since 2026-09-24: no
+    # values file answers for a Custom row any more (see `factory_limits`).
     out = dict(zero)
     for rid in limit_bearing(factory_limits(set_id)):
         out["total"] += 1
-        if rid in supplied:
-            out["supplied"] += 1
-        else:
-            out[sources.get(rid, "chromiq")] += 1
+        out[sources.get(rid, "chromiq")] += 1
     return out
 
 #: What went wrong with the file the ENVIRONMENT VARIABLE names, as
@@ -1717,10 +1710,8 @@ def factory_limits(set_id: str) -> "dict[str, Limit]":
         # A CUSTOM SET ARRIVES WITH A NUMBER ON EVERY ROW CHROMIQ CAN MEASURE.
         # Knut, 2026-09-11, asked for the two Custom columns to be usable:
         # every cell of both read ``?`` or ``–``, so the columns judged nothing.
-        # The read-only ISO columns keep exactly what the data file gives them,
-        # which is nothing today; only the Custom sets take the defaults, and
-        # only where the data file supplied no real number, so a licence
-        # holder who points ChromIQ at their own file still starts from theirs.
+        # The read-only ISO columns keep exactly what the data file gives
+        # them; only the Custom sets take the defaults (see below).
         #
         # THE DEFAULTS ARE PER COLUMN, because Knut's researched figures are.
         # `source` is the PARENT id here, which is exactly the key his file
@@ -1731,24 +1722,25 @@ def factory_limits(set_id: str) -> "dict[str, Limit]":
         # row means ChromIQ does not know WHICH patches the row is about, so a
         # number there would be a limit nothing is ever compared with.
         #
-        # AND ONLY A USER'S OWN FILE ANSWERS FOR A CUSTOM ROW, never the
-        # shipped one. §2a's first source is "a licence holder's own values
-        # file"; the figures ChromIQ ships for a standard belong in the
-        # read-only column beside this one, and Knut asked for his researched
-        # figures as the Custom columns' starting numbers. So a shipped
-        # figure is replaced here by the default, exactly as "?" is.
+        # NO VALUES FILE ANSWERS FOR A CUSTOM ROW, NOT EVEN THE USER'S OWN.
+        # Until 2026-09-24 a licence holder's own file took precedence here,
+        # and on Knut's machine that turned both Custom columns into copies of
+        # the read-only ISO columns beside them. Knut, #182, 5815346140:
+        # *"they should no longer be copies from the ISO 12647-7 and ISO
+        # 12647-8 limit sets, but rather alternative limit sets to the
+        # standards. Set the default limits for Custom ISO 12647-7 and Custom
+        # ISO 12647-8 to the industry limits previously decided."* A file,
+        # shipped or the user's own, fills the read-only column; the Custom
+        # column always starts from `custom_defaults`, and the user changes
+        # it in the window.
         if s.kind == "custom":
-            mine = supplied_iso_rows(source)
-            for rid, lim in custom_defaults(source).items():
+            defaults = custom_defaults(source)
+            for rid in list(out):
                 row = ROW_BY_ID.get(rid)
-                if row is None or row.status not in ("now", "build", "ref"):
-                    continue
-                if rid in mine and out.get(rid, Limit.none()).is_numeric:
-                    continue            # the user's own file answered this row
-                out[rid] = lim
-            for rid, lim in list(out.items()):
-                if lim.is_numeric and rid not in mine \
-                        and rid not in custom_defaults(source):
+                if rid in defaults and row is not None \
+                        and row.status in ("now", "build", "ref"):
+                    out[rid] = defaults[rid]
+                elif out[rid].is_numeric:
                     out[rid] = Limit.unknown()
     return out
 

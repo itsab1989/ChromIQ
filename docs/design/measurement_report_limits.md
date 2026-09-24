@@ -241,18 +241,30 @@ Knut, #182, 2026-09-21:
 > values. I would like these to be set as default for the two Custom ISO
 > 12647 columns."*
 
-**A Custom column now draws its starting numbers from three places, in this
-order of precedence.** Where more than one could answer a row, the earlier one
-wins.
+**A Custom column draws its starting numbers from two places, in this order
+of precedence.** Where both could answer a row, the earlier one wins.
 
-1. **A licence holder's own values file**, for the rows their copy of the
-   standard answers. Unchanged.
-2. **Knut's researched industry figures** (`compliance_sets::_CUSTOM_INDUSTRY`),
+1. **Knut's researched industry figures** (`compliance_sets::_CUSTOM_INDUSTRY`),
    given PER COLUMN because his file follows each standard's own structure.
-3. **ChromIQ's own numbers** (`compliance_sets::_CUSTOM_CHROMIQ_FILL`), for
+2. **ChromIQ's own numbers** (`compliance_sets::_CUSTOM_CHROMIQ_FILL`), for
    the rows his research does not cover, so that Knut's 2026-09-11 rule still
    holds: every metric ChromIQ can measure arrives with a limit to be judged
    against.
+
+**No values file fills a Custom column, not even a licence holder's own.**
+Until 2026-09-24 a licence holder's own file came first, and on a machine that
+has one both Custom columns became copies of the read-only ISO columns beside
+them. Knut, #182 5815346140, 2026-09-24:
+
+> *"we recently said that the industry limits that I set as defaults for the
+> Custom ISO 12648-7 and Custom ISO 12648-8 limit sets should be used, thus
+> they should no longer be copies from the ISO 12648-7 and ISO 12648-8 limit
+> sets, but rather alternative limit sets to the standards. Set the default
+> limits for Custom ISO 12648-7 and Custom ISO 12648-8 to the industry limits
+> previously decided."*
+
+A values file, shipped or the user's own, fills only the read-only ISO column.
+Pinned by `tests/test_compliance_sets.py::test_a_licence_holders_own_file_never_fills_a_custom_column`.
 
 Measured against the repository's own empty values file, Custom ISO 12647-7
 carries 10 researched figures and 8 ChromIQ numbers; Custom ISO 12647-8

@@ -190,8 +190,10 @@ def test_a_filled_data_file_lights_the_iso_cells(tmp_path, monkeypatch):
         assert f["ramps_30_70_dl_max"] == Limit.should(1.0)
         assert f["all_de00_p95"].kind == "unknown"       # still not supplied
         assert "not_a_row" not in f
-        # the Custom child starts from the parent's numbers
-        assert factory_limits("custom_iso_12647_8")["all_de00_avg"] == Limit.value(9.9)
+        # the Custom child does NOT copy the parent: it starts from the
+        # industry defaults (Knut, #182 5815346140)
+        assert factory_limits("custom_iso_12647_8")["all_de00_avg"] == \
+            cs.custom_defaults("iso_12647_8")["all_de00_avg"]
         assert "iso_12647_8" in selectable_set_ids({})
         assert "custom_iso_12647_8" in selectable_set_ids({})
     finally:
@@ -726,20 +728,33 @@ def test_the_read_only_iso_columns_are_untouched_by_the_placeholders(
         cs.reset_iso_cache()
 
 
-def test_a_licence_holders_own_file_wins_over_the_placeholder(tmp_path, monkeypatch):
-    """A tester who owns the standard still starts from THEIR numbers."""
+def test_a_licence_holders_own_file_never_fills_a_custom_column(tmp_path, monkeypatch):
+    """The Custom columns are alternatives to the standards, never copies.
+
+    Knut, #182 5815346140 (2026-09-24): *"they should no longer be copies
+    from the ISO 12647-7 and ISO 12647-8 limit sets, but rather alternative
+    limit sets to the standards. Set the default limits for Custom ISO
+    12647-7 and Custom ISO 12647-8 to the industry limits previously
+    decided."* A user's own values file lights the read-only column and
+    nothing in the Custom one. Red on its mutation: let `factory_limits`
+    keep a user's number on a Custom row again, and 9.9 comes back.
+    """
     p = tmp_path / "iso.json"
-    p.write_text(json.dumps({"iso_12647_8": {"all_de00_avg": 9.9}}),
+    p.write_text(json.dumps({"iso_12647_8": {"all_de00_avg": 9.9},
+                             "iso_12647_7": {"all_de00_avg": 9.9}}),
                  encoding="utf-8")
     monkeypatch.setenv(cs.ISO_DATA_ENV, str(p))
     cs.reset_iso_cache()
     try:
-        f = factory_limits("custom_iso_12647_8")
-        assert f["all_de00_avg"] == Limit.value(9.9), \
-            "the placeholder overwrote a number the user's own file supplied"
-        # a row their file did not answer still gets ChromIQ's own number
-        assert f["all_de00_p95"] == \
-            cs.custom_defaults("iso_12647_8")["all_de00_p95"]
+        assert factory_limits("iso_12647_8")["all_de00_avg"] == Limit.value(9.9)
+        for parent in ("iso_12647_7", "iso_12647_8"):
+            f = cs.limit_bearing(factory_limits("custom_" + parent))
+            want = {rid: lim for rid, lim in cs.custom_defaults(parent).items()
+                    if cs.ROW_BY_ID[rid].status in ("now", "build", "ref")}
+            assert f == want, parent
+            for rid, lim in cs._CUSTOM_INDUSTRY[parent].items():
+                assert f[rid] == lim, (parent, rid)
+            assert cs.custom_default_counts("custom_" + parent)["supplied"] == 0
     finally:
         monkeypatch.delenv(cs.ISO_DATA_ENV, raising=False)
         cs.reset_iso_cache()
