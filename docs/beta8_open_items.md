@@ -27593,14 +27593,18 @@ would reach.
 - status: OPEN
 - note: beta 42, for Basti/Knut. Rule: Sebastian, #93, 2026-06-29 (commit 3cbb0a9b, `_apply_mode_defaults`: "ColorMunki Extra-high density mirrors Guided's triple density exactly: 5 mm margins"), which predates the ColorMunki built-in family (2026-08-16) whose margins Knut set on paper. Measured on screen (A3+ 616p): T34 R24 B18 L14 -> 5/5/5/5 on Extra-high; back to High or Hand-held keeps 5/5/5/5, so the same visible density gives a different chart depending on the detour (patch-first High: strip 226.8 mm before, 257.2 after). At 5 mm the preset shows 2 warnings (strip letters on the first row of patches; stamp over the patches). Not changed. Options: (a) keep; (b) seed only when the boxes still hold the instrument's default margins, never a preset's or typed ones; (c) seed, and give the previous margins back when leaving Extra-high; (d) never seed. Recommendation: (b).
 
-### B8-966 · OPEN · Density does nothing in "Prioritise chart area" with columns and rows pinned, Hand-held included
+### B8-966 · DEFERRED · Density does nothing in "Prioritise chart area" with columns and rows pinned, Hand-held included
 - blocks release: no
-- status: OPEN
+- status: DEFERRED
+- decided by: Basti, 2026-09-24 ("966 and 967 are deferred for now")
+- because: the owner looked at it on screen and chose to keep today's behaviour for now: with a pinned grid the grid decides the patch size, the panel help already says so, and a warning or a floor can follow later if users stumble on it.
 - note: beta 42, for Knut. Measured (A3+ 616p, by_grid 44 x 14): Hand-held, High and Extra-high all build 44 strips of 14 at 10.29 x 21.46 mm, one page. Guided (patch-first) and Manual patch-first give 3 / 2 / 1 pages for the same patch set. The panel's own help says so ("unless you pin both columns and rows, which fixes the grid outright"), so it is documented behaviour, but a Hand-held chart with 10.3 mm strips cannot be read by hand. The i1Pro / i1Pro 3 Plus Clip-border Off ("Off, more patches") gives the identical chart in both layout modes on their presets too, because the clip band lives inside the 26 / 28 mm left margin. Not changed. Options: (a) keep; (b) the density sets a floor on the strip width (28 / 13.7 / 10.4 mm) that a pinned grid may not go below; (c) keep the grid and warn when strips are narrower than the density reads. Recommendation: (c).
 
-### B8-967 · OPEN · In "Prioritise patch size" the strips stop well short of the margins: the instrument's run-up and trailer are added to them
+### B8-967 · DEFERRED · In "Prioritise patch size" the strips stop well short of the margins: the instrument's run-up and trailer are added to them
 - blocks release: no
-- status: OPEN
+- status: DEFERRED
+- decided by: Basti, 2026-09-24 ("966 and 967 are deferred for now")
+- because: the owner looked at it on screen and chose to keep today's behaviour for now: the run-up and trailer added to the top margin is printtarg's model and matches Guided, so changing it only in the manual layout would split the two.
 - note: beta 42, for Knut. `workflow/layout_engine/geometry.py::compute`: top = margin + label band + run-up (`margin_t + txhi + lcar`), bottom = max(margin, trailer); whole patches only, the rest split top and bottom (centre alignment). ColorMunki rig: run-up 20, trailer 25, label 7 -> A3+ with T34/B18: patches from 69.1 mm to 33.1 mm above the bottom, strip 226.8 mm in 329; at 5 mm 39.4 / 32.5, 257.2 mm; Extra-high (run-up 10, trailer 10) 29.1 / 17.1. Same shape on every strip instrument measured: i1Pro top 57.0 for T38, i1Pro 3 Plus 77.2 for T40, CR30 28.4 for T17, SpectroScan 13.0 for T8. The comment says margins are "floored" by the leader; the top is added, only the bottom is floored. It matches Guided (same pages per density). "Use instrument margins" switches to margins-are-law (strip 272.4 mm). Not changed. Options: (a) keep (printtarg's model, Guided parity); (b) floor the top like the bottom; (c) keep and show the run-up/trailer reserve in the Measured panel and the Margins help. Recommendation: (c), and (b) only with Guided moved too.
 
 ### B8-968 · OPEN · "Max strip length" is editable in "Prioritise chart area" and has no effect there
