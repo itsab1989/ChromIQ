@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -2925,6 +2926,121 @@ def rewrap_button_label(btn, room_px: int) -> bool:
     if not btn.toolTip():
         btn.setToolTip(" ".join(words))
     return True
+
+
+class ReflowRow(QWidget):
+    """Groups of widgets on ONE line while the line has room for them, and on
+    as many lines as they need when it does not (B8-927).
+
+    Measured on screen at the Measurement Report window's 760 px minimum
+    width: German "Messungen eines Profils hinzufügen…", "…entfernen…" and
+    "Liste leeren" asked 759 px of a 694 px row, the four action buttons
+    857 of 716 (English 719 of 716), and the window's hard minimum let the
+    layout squeeze them onto each other: "Ausgewählten Bericht…" under
+    "Bericht als PDF speich…". A button never shrinks below the width its
+    text asks for here; a group that does not fit starts the next line.
+
+    A GROUP never splits (a check box and its info icon stay together). The
+    lines are decided on every resize from the width the row is GIVEN, which
+    at a hard window minimum is less than a one-line layout asks for; the
+    sizes the layouts above see are then the real lines' own.
+    """
+
+    def __init__(self, parent: QWidget | None = None, *,
+                 spacing: int = 6, gap: "int | None" = None,
+                 line_spacing: int = 6) -> None:
+        super().__init__(parent)
+        self._groups: list[list[QWidget]] = []
+        self._spacing = spacing                   # inside a group
+        self._gap = spacing if gap is None else max(gap, spacing)
+        self._line_spacing = line_spacing
+        self._split_now: "list[list[int]] | None" = None
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(line_spacing)
+
+    def add_group(self, *widgets: QWidget) -> None:
+        for w in widgets:
+            w.setParent(self)
+        self._groups.append(list(widgets))
+        self._split_now = None
+        self._arrange(self._split(self._room()))
+
+    def _room(self) -> int:
+        # before it is shown a widget's width means nothing: one line, and
+        # the first resize decides
+        return max(self.width(), 1) if self.isVisible() else 1 << 20
+
+    # -- measuring ---------------------------------------------------------
+    def _group_width(self, g: list) -> int:
+        # the width a layout gives the widget: its hint, or its own minimum
+        # where that is larger (an info icon is 22 px fixed and hints 21)
+        ws = [max(w.sizeHint().width(), w.minimumWidth())
+              for w in g if not w.isHidden()]
+        return sum(ws) + self._spacing * max(len(ws) - 1, 0)
+
+    def event(self, ev) -> bool:  # noqa: D401
+        # A child's hint changed (a style polished it, a text changed): the
+        # widest group and the line breaks may have moved with it.
+        if ev.type() == QEvent.Type.LayoutRequest:
+            self.updateGeometry()
+            self._arrange(self._split(self._room()))
+        return super().event(ev)
+
+    def _split(self, width: int) -> "list[list[int]]":
+        lines: "list[list[int]]" = []
+        used = 0
+        for i, g in enumerate(self._groups):
+            gw = self._group_width(g)
+            if lines and used + self._gap + gw <= width:
+                lines[-1].append(i)
+                used += self._gap + gw
+            else:
+                lines.append([i])
+                used = gw
+        return lines
+
+    def minimumSizeHint(self) -> QSize:  # type: ignore[override]
+        """As narrow as the widest GROUP, so a layout above may hand the row
+        less than one line needs (and it wraps); as tall as the lines it is
+        on now."""
+        h = super().minimumSizeHint()
+        widest = max((self._group_width(g) for g in self._groups), default=0)
+        return QSize(widest, h.height())
+
+    def lines(self) -> int:
+        """How many lines the groups are on now."""
+        return len(self._split_now or [])
+
+    # -- placing -----------------------------------------------------------
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._arrange(self._split(self.width()))
+
+    def _arrange(self, split: "list[list[int]]") -> None:
+        if split == self._split_now:
+            return
+        self._split_now = split
+        v = self.layout()
+        while v.count():
+            item = v.takeAt(0)
+            sub = item.layout()
+            if sub is not None:
+                while sub.count():
+                    sub.takeAt(0)
+                sub.deleteLater()
+        for line in split:
+            h = QHBoxLayout()
+            h.setContentsMargins(0, 0, 0, 0)
+            h.setSpacing(self._spacing)
+            for n, gi in enumerate(line):
+                if n:
+                    h.addSpacing(self._gap - self._spacing)
+                for w in self._groups[gi]:
+                    h.addWidget(w)
+            h.addStretch(1)
+            v.addLayout(h)
+        self.updateGeometry()
 
 
 class ElidingCheckBox(QCheckBox):

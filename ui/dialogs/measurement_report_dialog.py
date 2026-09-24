@@ -1914,6 +1914,23 @@ def _recommended_limit_note() -> str:
     return " ".join(body.split())
 
 
+def _reflow_row(layout, sizes, parent, **kw):
+    """The widgets of the one-line *layout*, in order, as a `ReflowRow` of
+    groups of *sizes* widgets each (B8-927): at a width that cannot hold them
+    on one line the later groups start a second one, instead of being drawn
+    over each other. Spacer items in *layout* are dropped."""
+    from ui.widgets import ReflowRow
+    ws = [layout.itemAt(i).widget() for i in range(layout.count())]
+    ws = [w for w in ws if w is not None]
+    assert sum(sizes) == len(ws), (sizes, len(ws))
+    row = ReflowRow(parent, **kw)
+    i = 0
+    for n in sizes:
+        row.add_group(*ws[i:i + n])
+        i += n
+    return row
+
+
 class MeasurementReportDialog(QDialog):
     def __init__(self, settings, parent=None, initial_ti3=None) -> None:
         super().__init__(parent)
@@ -2209,8 +2226,11 @@ class MeasurementReportDialog(QDialog):
                "instruments or a chart is missing cube corners.")
             + "\n\n" + _report_across_projects_help(),
             self, color=SPEC_GREEN))
-        add_row.addStretch(1)
-        box_v.addLayout(add_row)
+        # **ON TWO LINES WHEN ONE CANNOT HOLD THEM (B8-927).** German asks
+        # 759 px for the three buttons and the icon, and the frame has 694 at
+        # the window's 760 px minimum: they were drawn over each other.
+        self._add_reflow = _reflow_row(add_row, (1, 1, 2), self)
+        box_v.addWidget(self._add_reflow)
 
         #: **THE LIST IS NAMED ON HIS MOCKUP AND WAS NOT NAMED HERE.** Every
         #: other control in the frame carries a label; the list of measurements
@@ -2623,7 +2643,11 @@ class MeasurementReportDialog(QDialog):
         self._saved_row = shown_grid
         top_v.addLayout(shown_grid)
         top_v.addWidget(self._settings_box)
-        top_v.addLayout(actions_row)
+        # **ON TWO LINES WHEN ONE CANNOT HOLD THEM (B8-927).** Measured at
+        # the 760 px minimum: English asked 719 px of 716, German 857, and
+        # "Ausgewählten Bericht…" sat under "Bericht als PDF speich…".
+        self._actions_reflow = _reflow_row(actions_row, (1, 1, 1, 2), self)
+        top_v.addWidget(self._actions_reflow)
         # **WHY GENERATE IS GREYED, ON A ROW OF ITS OWN (re-challenge R2 of
         # beta 39, #10).** Beside the four buttons it had what was left of the
         # row, which at the window's default width was room for four to six
@@ -2812,7 +2836,13 @@ class MeasurementReportDialog(QDialog):
         # are unchanged; `_already_row` was reserved above, in the grid that
         # aligns it with the box.
         self._already_row.addWidget(self._type_blurb, 1)
-        settings_grid.addLayout(type_tail, 0, 2)
+        # **THE DETAIL BOX GOES UNDER THE TYPE'S ICON WHEN THE ROW IS SHORT
+        # (B8-927).** At the 760 px minimum it had 205 of the 220 px its
+        # English name asks (216 of 243 in German) and was cut.
+        self._type_tail_reflow = _reflow_row(type_tail, (1, 2), self,
+                                             gap=32)
+        settings_grid.addWidget(self._type_tail_reflow, 0, 2,
+                                Qt.AlignmentFlag.AlignVCenter)
 
         self._judged_label = QLabel(tr("Judged against:"), self)
         settings_grid.addWidget(self._judged_label, 1, 0)
@@ -4187,6 +4217,14 @@ class MeasurementReportDialog(QDialog):
             QTimer.singleShot(0, self._keep_the_list_inside_the_window)
         return super().event(ev)
 
+    def _trend_charts(self) -> list:
+        return [c for c in (getattr(self, "_trend_de", None),
+                            getattr(self, "_trend_white", None),
+                            getattr(self, "_trend_black", None),
+                            getattr(self, "_trend_corners", None),
+                            *getattr(self, "_trend_groups", {}).values())
+                if c is not None]
+
     def _keep_the_list_inside_the_window(self) -> None:
         """After the window is on screen, what grows later (the list rebuilt
         for a report picked, a sentence that wraps) must not grow the layout
@@ -4212,8 +4250,17 @@ class MeasurementReportDialog(QDialog):
         cap = self.maximumHeight()
         if cap >= 16777215:
             return
+        if not hasattr(self, "_chart_floor0"):
+            self._chart_floor0 = {}
+        charts = self._trend_charts()
+        # a chart that yielded (the last rung, B8-927) is given its height
+        # back before the list gets a row back
+        shrunk = any(c.minimumHeight() < self._chart_floor0.get(id(c), 0)
+                     for c in charts)
         current = getattr(self, "_list_rows_shown", 2)
         wanted = min(max(len(self._list_rows), 1), self._LIST_VISIBLE_ROWS)
+        if shrunk:
+            wanted = min(wanted, current)
         # the layout's need with the list taken out, so every row count can be
         # tried without laying the window out once per try, and the list is
         # set once, which keeps this from answering its own relayout
@@ -4230,6 +4277,34 @@ class MeasurementReportDialog(QDialog):
             rows -= 1
         if rows != current:
             self._size_profile_list(rows=rows)
+        # **AND THE VIEW'S NEXT RUNG OF `showEvent`'s LADDER (B8-927).** A
+        # row that wraps at a narrow width (`ReflowRow`) grows the layout
+        # after the window is on screen: measured at the 760 px minimum,
+        # 1051 px (English) against a 1039 px ceiling with the list at two
+        # rows and the view at 150, and Qt squeezed the frame. The report view
+        # scrolls, so it yields to 120, the floor `showEvent` gives it. The
+        # trend charts are not asked: a squeezed chart stops being a graph.
+        over = self._layout_need() - cap
+        if over > 0 and view is not None and view.minimumHeight() > 120:
+            view.setMinimumHeight(max(120, view.minimumHeight() - over))
+            over = self._layout_need() - cap
+        # ...and only then the trend charts, by what is still missing and no
+        # lower than 100 px (`showEvent`'s first chart rung). When there is
+        # room again they get it back before the list gets a row back (see
+        # `shrunk` above), so a chart never pays for a list row.
+        if over > 0 and getattr(self, "_list_rows_shown", 2) <= 2:
+            for c in charts:
+                floor0 = self._chart_floor0.setdefault(id(c),
+                                                       c.minimumHeight())
+                want = max(min(100, floor0), c.minimumHeight() - over)
+                if want != c.minimumHeight():
+                    c.setMinimumHeight(want)
+        elif over < 0 and shrunk:
+            for c in charts:
+                floor0 = self._chart_floor0.get(id(c), c.minimumHeight())
+                want = min(floor0, c.minimumHeight() - over)
+                if want != c.minimumHeight():
+                    c.setMinimumHeight(want)
         floor = min(self._layout_need(), cap)
         if floor != self.minimumHeight():
             self.setMinimumHeight(floor)
@@ -9528,6 +9603,23 @@ class MeasurementReportDialog(QDialog):
             self._set_saved_hint(self._saved_hint_full)
         if getattr(self, "_generate_why_full", ""):
             self._set_generate_why(self._generate_why_full)
+        # **AND AGAIN ONCE THE LAYOUT HAS RUN (B8-927).** The two lines beside
+        # "Report shown" are fitted to their label's OWN width, and during
+        # this event that is still the old one: narrowed to the 760 px
+        # minimum, the German hint was fitted to two lines of the wider label
+        # and then drawn in the narrower one on three, the first and last cut
+        # in half (photographed before and after). The layout has given the
+        # label its new width by the next turn of the event loop.
+        if not getattr(self, "_rewrap_queued", False):
+            self._rewrap_queued = True
+            QTimer.singleShot(0, self._rewrap_beside_the_pulldown)
+
+    def _rewrap_beside_the_pulldown(self) -> None:
+        self._rewrap_queued = False
+        if getattr(self, "_saved_note_full", ""):
+            self._set_saved_note(self._saved_note_full)
+        if getattr(self, "_saved_hint_full", ""):
+            self._set_saved_hint(self._saved_hint_full)
 
     # -- reasons a row was not computed, as sentences --------------------------
     def _reason_sentence(self, code: "str | None", r: "dict | None" = None,
