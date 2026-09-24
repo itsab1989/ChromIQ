@@ -370,6 +370,7 @@ def dialog_masthead(
     side: int = 22,
     top: int = 18,
     bottom: int = 12,
+    wrap_title: bool = True,
 ):
     """Build the standard ChromIQ dialog masthead: an inset :class:`TabHeader`
     (uppercase eyebrow + large serif title, optional ⓘ) above a full-width
@@ -396,7 +397,7 @@ def dialog_masthead(
     header = TabHeader(
         eyebrow, title, accent, parent,
         tooltip_title=tooltip_title, tooltip_body=tooltip_body,
-        tooltip_color=accent, wrap_title=True,
+        tooltip_color=accent, wrap_title=wrap_title,
     )
     head.addWidget(header, 1, Qt.AlignmentFlag.AlignVCenter)
     # WHERE IN THE RUN THIS WINDOW BELONGS, taken from the accent it already

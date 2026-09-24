@@ -28149,3 +28149,14 @@ would reach.
 - where: `scripts/make_report_limit_demos.py` (`apply_design`, `paper_white_lines`).
 - tests: tests/test_the_release_demo_package.py (release tier: every measurable row tripped and passed from two angles); tests/test_the_demo_pack_says_what_its_own_data_shows.py::test_the_readme_explains_every_paper_that_is_not_the_pack_s.
 - evidence: test_every_measurable_row_is_tripped_and_passed_from_two_angles, test_the_readme_explains_every_paper_that_is_not_the_pack_s
+
+### B8-1041 · FIXED, awaiting confirmation · The scanner window's height floor rose to 642 px in Norwegian once dialog headings wrap
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- note: found by the K34 agent's `--runslow` gate on 2026-09-24; present since B8-973 (70568037) made every dialog masthead wrap between words.
+- where: `ui/tab_header.py::dialog_masthead(wrap_title=)`, `ui/dialogs/tools_dialogs.py::_ToolDialogBase.WRAP_TITLE`, `ui/dialogs/scanin_dialog.py::ScannerProfileDialog.WRAP_TITLE`.
+- cause: at the window's width floor the Norwegian title "Lag profil med skanner eller kamera" wrapped onto a second line, and the height floor became 642 px, over the 640 px a 1920x1080 laptop at 150 % leaves.
+- fixed: the scanner window keeps its title on one line (its width floor holds the title's ink in every language, so nothing is cut); every other dialog masthead still wraps.
+- tests: tests/test_scanner_two_panel_layout.py::test_every_language_fits_a_1280_screen (all languages, --runslow; red in "no" without the switch), tests/test_a_long_dialog_heading_wraps_instead_of_being_cut.py still green.
+- evidence: test_every_language_fits_a_1280_screen

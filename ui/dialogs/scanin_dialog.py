@@ -625,6 +625,11 @@ class ScannerProfileDialog(_ToolDialogBase):
     TITLE       = tr("Build profile with scanner or camera")
     EYEBROW     = tr("MEASURE · SCANNER / CAMERA PROFILE")
     ACCENT      = SPEC_GREEN
+    # ONE LINE OF TITLE, because this window's HEIGHT floor has 2 px to spare
+    # on a 1920x1080 laptop at 150 % (B8-1041): a wrapped Norwegian title
+    # made the floor 642 px against 640. The title's width fits the window's
+    # own width floor in every language, so nothing is cut (B8-962).
+    WRAP_TITLE  = False
     RUN_LABEL   = tr("Build profile with scanner or camera")
     BUSY_BAR_IDLE_LABEL = tr("Ready")   # always-visible bar; animates while running
     # The width this window OPENS at. It is not the floor: the floor is read

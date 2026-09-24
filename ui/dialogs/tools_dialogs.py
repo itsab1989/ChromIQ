@@ -297,6 +297,10 @@ class _ToolDialogBase(WorkAreaClamped, QDialog):
     TITLE: str      = ""
     EYEBROW: str    = ""    # uppercase masthead eyebrow above the title
     ACCENT: str     = SPEC_MAGENTA   # masthead accent (stroke + ⓘ tint)
+    #: Whether the masthead title may wrap onto a second line (B8-973). A
+    #: window whose HEIGHT floor is tight turns it off: its title then holds
+    #: the window's minimum width at one line instead (B8-1041).
+    WRAP_TITLE: bool = True
     DESCRIPTION: str = ""
     HELP: str       = ""    # extended ⓘ popup text; falls back to DESCRIPTION
     RUN_LABEL: str  = tr("Run")
@@ -333,7 +337,7 @@ class _ToolDialogBase(WorkAreaClamped, QDialog):
         head, self._header, stripe = dialog_masthead(
             self, self.EYEBROW, self.TITLE,
             tooltip_title=self.TITLE, tooltip_body=self.HELP or self.DESCRIPTION,
-            accent=self._accent)
+            accent=self._accent, wrap_title=self.WRAP_TITLE)
         outer.addLayout(head)
         outer.addWidget(stripe)
 
