@@ -1912,8 +1912,10 @@ _WHEN_HELP = (
     "profiling measurement: the sheet a profile was built from, recorded and "
     "not graded. A file outside a project can have it too. "
     "The two ISO types are for a print that has to answer to a "
-    "printing condition somebody else supplied; they are greyed today, and "
-    "pointing at the greyed entry says why.")
+    "printing condition somebody else supplied: Validation print check for "
+    "a validation print, Contract proof check for a contract proof. Either "
+    "can be chosen while that standard's values are loaded, as they are "
+    "when ChromIQ is installed; if one is greyed, pointing at it says why.")
 _PAIRING_HELP = (
     "Which limit set suits which type. Full colour check and Colour summary "
     "are the everyday pair for ChromIQ default, the set for checking a profile "
@@ -1930,10 +1932,38 @@ _PAIRING_HELP = (
     "Printing record grades nothing: every row it can compute reads INFO "
     "whichever set is beside it, though the document still names the set it "
     "would otherwise have used. The two ISO types belong with the matching "
-    "ISO set: the read-only one where ChromIQ ships that standard's values, "
-    "or the Custom ISO set you have typed them into from your own copy of the "
-    "standard. Any set can be chosen with any type; the "
+    "ISO set: the read-only one, which holds that standard's published "
+    "values, or the Custom ISO set of the same number, the industry-practice "
+    "alternative you can tune. Any set can be chosen with any type; the "
     "pairs above are the usual habits, not rules.")
+#: The minimum width of the "Judged against" and "Report type" help windows
+#: (K33, B8-992). Measured on screen before: both opened 616 x 971 px on a
+#: 1728 x 1079 screen, the body scrolling. At 900 a line holds about 130
+#: characters, still well inside a laptop screen, and the window is about as
+#: wide as the Measurement Report window it is opened from.
+JUDGED_AGAINST_HELP_WIDTH = 900
+
+#: **WHEN EACH STANDARD'S SETS ARE THE RIGHT CHOICE** (K33, B8-993). Knut,
+#: #182 5816565326: *"I cannot find any recommendation of what type of
+#: situation the ISO limit sets normally would be used for."* Shown in the
+#: "Judged against" help and in the Report limits window's title help. It
+#: says what each standard is FOR and never that a print conforms to one.
+_ISO_USE_HELP = (
+    "When to judge against which set. ISO 12647-7 is the standard for "
+    "contract proofs: a hard-copy proof made on a proofing system, which the "
+    "printer and the customer agree shows the colour the job will have. "
+    "Choose “ISO 12647-7:2016 values” when a print has to stand in for such "
+    "a proof. ISO 12647-8 is the standard for validation prints: a print that "
+    "shows the intended colour of a job, less strictly than a contract proof, "
+    "for example to approve a layout or a design. Choose “ISO 12647-8:2021 "
+    "values” for those. The two Custom ISO sets are an alternative to the "
+    "standards' own numbers: they start from limits researched from industry "
+    "practice, and every limit in them can be changed, so you can tune them "
+    "to what you and your customer agree. ChromIQ's own sets are for your own "
+    "printer: ChromIQ default for checking a profile you built, ChromIQ tight "
+    "for critical work, and Quick check for a routine health check. Whichever "
+    "you choose, ChromIQ measures and reports how close the print came; it "
+    "does not certify that a print conforms to a standard.")
 _CHART_HELP = (
     "And the chart you printed decides what any of it can say. A row is judged "
     "only when the sheet carries the patches that row needs: at least eight "
@@ -2942,7 +2972,9 @@ class MeasurementReportDialog(QDialog):
                "cannot produce it yet, or the kind of measurement does not "
                "allow it. Pointing at the greyed entry says which.")
             + _types_and_pairing_help(),
-            self, min_width=460, color=SPEC_GREEN))
+            # as wide as the "Judged against" help beside it (K33, B8-992):
+            # it was the same 616 x 971 px tower
+            self, min_width=JUDGED_AGAINST_HELP_WIDTH, color=SPEC_GREEN))
         #: What the chosen type is for, or, on a type that cannot be produced,
         #: what is missing. It rides on the SAME row, elided, with the whole
         #: sentence as its tooltip: a word-wrapped label of its own is what
@@ -3028,8 +3060,14 @@ class MeasurementReportDialog(QDialog):
                "file) is judged against the set chosen here for this session "
                "only; nothing is stored for it.")
             + _sets_help()
+            + "\n\n" + tr(_ISO_USE_HELP)
             + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP),
-            self, min_width=460, color=SPEC_GREEN))
+            # **WIDER, SO IT IS NOT A TOWER** (K33, B8-992). Knut, #182
+            # 5816565326: *"The help text window for Judged against is very
+            # tall, so the window should be made wider."* 460 px opened it
+            # 616 x 971 on a 1079 px screen, scrolling; see
+            # `JUDGED_AGAINST_HELP_WIDTH`.
+            self, min_width=JUDGED_AGAINST_HELP_WIDTH, color=SPEC_GREEN))
         judged_row.addStretch(1)
         settings_grid.addLayout(judged_row, 1, 2)
         # The tail column takes the slack, so the two pulldowns keep the width
@@ -9443,6 +9481,9 @@ class MeasurementReportDialog(QDialog):
         self._type_combo.clear()
         model = self._type_combo.model()
         for tid, name, blurb, built in REPORT_TYPE_MENU:
+            # K33: the ISO types also need their values loaded
+            from workflow.measurement_report import report_type_is_built as _is_built
+            built = _is_built(tid)
             if tid == REPORT_TYPE_MENU_SPLIT:
                 # A HEADING THAT LOOKS LIKE A REFUSED CHOICE IS NOT A HEADING.
                 # Photographed on screen: greyed and unadorned, it sat in the
@@ -9892,22 +9933,29 @@ class MeasurementReportDialog(QDialog):
     def _not_built_line(type_id: str) -> str:
         """Why a type cannot be chosen yet. One sentence, and it names the
         reason rather than the word "unavailable"."""
-        from workflow.compliance_sets import shipped_iso_sets
-        from workflow.measurement_report import REPORT_TYPE_ISO_7, REPORT_TYPE_ISO_8
-        # #182 S-2 (§23): the paywall reason is only the reason while that
-        # standard's values do not ship. Once they do, what is left is the
-        # document itself, which is not built.
-        own_set = {REPORT_TYPE_ISO_7: "iso_12647_7",
-                   REPORT_TYPE_ISO_8: "iso_12647_8"}.get(type_id)
-        if own_set and own_set not in shipped_iso_sets():
-            return tr("Not available yet: the figures this report judges "
-                      "against are published in a standard ChromIQ may not "
-                      "include.")
+        from workflow.measurement_report import iso_type_values_missing
+        # #182 S-2 (§23) and K33 (B8-994): the two ISO types are built, and
+        # offered whenever their standard's values are loaded. The one reason
+        # left for refusing one is that its values are NOT loaded: the
+        # shipped file is missing or unreadable and nobody supplied their own.
+        if iso_type_values_missing(type_id):
+            return MeasurementReportDialog._iso_values_missing_line()
         return tr("Not available yet: this report is still being built.")
+
+    @staticmethod
+    def _iso_values_missing_line() -> str:
+        """Why an ISO report type is greyed: its standard's values are not
+        loaded (K33, B8-994). The demo pack's README quotes it."""
+        return tr("Not available: no values of this standard are loaded. "
+                  "They ship with ChromIQ; if they are missing, supply them "
+                  "with “Reference values…” in the Report limits window.")
 
     def _type_blurb_for(self, type_id: str) -> str:
         from workflow.measurement_report import REPORT_TYPE_MENU
         for tid, _name, blurb, built in REPORT_TYPE_MENU:
+            # K33: the ISO types also need their values loaded
+            from workflow.measurement_report import report_type_is_built as _is_built
+            built = _is_built(tid)
             if tid == type_id:
                 return tr(blurb) if built else self._not_built_line(tid)
         return ""

@@ -205,6 +205,13 @@ def _columns_paragraph() -> str:
     return own + " " + iso + " " + _custom_columns_sentence()
 
 
+def _iso_use_paragraph() -> str:
+    """When to judge against which set (K33, B8-993): the Measurement Report
+    window's "Judged against" help paragraph, one text in two places."""
+    from ui.dialogs.measurement_report_dialog import _ISO_USE_HELP
+    return tr(_ISO_USE_HELP)
+
+
 def _iso_columns_sentence() -> str:
     """The two read-only ISO columns, one clause each, once a set SHIPS.
 
@@ -455,7 +462,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "grouped by the patches a limit is written over; where a "
                 "statistic ChromIQ computes is also limited by a standard, it "
                 "is one row, so the sets can be read side by side.")
-            + "\n\n" + _columns_paragraph() + "\n\n" + tr(
+            + "\n\n" + _columns_paragraph()
+            # K33 (B8-993): when each standard's sets are the right choice,
+            # the same paragraph as the "Judged against" help.
+            + "\n\n" + _iso_use_paragraph() + "\n\n" + tr(
                 "A number in brackets is a limit the set recommends rather "
                 "than requires. It is judged and reported exactly like any "
                 "other limit; the brackets, and the raised number after the "

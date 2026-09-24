@@ -660,8 +660,11 @@ def opening_choice() -> "tuple[str, str]":
     """
     from workflow import measurement_report as MR
     from workflow import preset_eligibility as PE
-    tid = next(t for t, _n, _b, built in MR.REPORT_TYPE_MENU if built)
-    return tid, PE.ALL_METRICS
+    # Since K33 (B8-996) the first "Report type" entry is "Any"
+    # (`preset_eligibility.ANY_REPORT_TYPE`), so the window opens on the
+    # widest question in both pulldowns.
+    del MR
+    return PE.ANY_REPORT_TYPE, PE.ALL_METRICS
 
 
 def shown_under(r: "Requirement") -> "tuple[str, str]":
@@ -688,8 +691,9 @@ def shown_under(r: "Requirement") -> "tuple[str, str]":
     from workflow import measurement_report as MR
     from workflow import preset_eligibility as PE
     opening = opening_choice()
-    types = [opening[0]] + [t for t, _n, _b, built in MR.REPORT_TYPE_MENU
-                            if built and t != opening[0]]
+    types = [opening[0]] + [t for t, _n, _b, _built in MR.REPORT_TYPE_MENU
+                            if MR.report_type_is_built(t)
+                            and t != opening[0]]
     # After the opening set, the set that asks the MOST, so every tagged pair
     # names the same one and a reader changes the pulldown once, not three
     # times. `sorted` is stable, so a tie keeps the window's own order.

@@ -606,6 +606,33 @@ def clear_cache() -> None:
 #: report can be bound to it, so it lives here and never in `compliance_sets`.
 ALL_METRICS = "all_metrics"
 
+#: **"ANY", THE FIRST "REPORT TYPE" ENTRY OF THE PRESETS WINDOW** (K33,
+#: B8-996). Knut, #182 5816565326, asked whether "All metrics" should ignore
+#: the report type too: *"No, the Report type should instead also have an
+#: option called "Any", which is the default, set together with "All metrics"
+#: as default for judged against. Report type and judged against shall still
+#: be able to individually change if desired."* Not a report type: nothing is
+#: ever generated as "Any", so it lives here and never in
+#: `measurement_report.REPORT_TYPE_MENU`. It asks what ANY report a
+#: verification can be made into would ask: the union, in table order, over
+#: the types ChromIQ can produce for a verification measurement.
+ANY_REPORT_TYPE = "any_report_type"
+
+
+def _types_any_stands_for() -> "tuple[str, ...]":
+    """The report types "Any" unions over: every type ChromIQ can produce
+    that a verification measurement may be made into (the Printing record is
+    a profiling sheet's report and asks nothing)."""
+    return tuple(t for t in MR.report_types_for_kind(MR.KIND_VERIFICATION)
+                 if MR.report_type_is_built(t))
+
+
+def _union_in_table_order(groups) -> "tuple[str, ...]":
+    seen: "set[str]" = set()
+    for g in groups:
+        seen.update(g)
+    return tuple(r.id for r in CS.ROWS if r.id in seen)
+
 
 def rows_every_metric(type_id: str) -> "tuple[str, ...]":
     """Every row a report of *type_id* can judge, whatever limit set it uses.
@@ -621,6 +648,9 @@ def rows_every_metric(type_id: str) -> "tuple[str, ...]":
     type and set (`rows_any_report_can_ask`), but it is derived from the rows,
     not from the sets, so a user who empties a Custom column cannot shrink it.
     """
+    if type_id == ANY_REPORT_TYPE:
+        return _union_in_table_order(
+            rows_every_metric(t) for t in _types_any_stands_for())
     if type_id == MR.REPORT_TYPE_RECORD:
         return ()
     only = MR.rows_for_report_type(type_id)
@@ -652,6 +682,9 @@ def rows_asked(type_id: str, set_id: str,
     """
     if set_id == ALL_METRICS:
         return rows_every_metric(type_id)
+    if type_id == ANY_REPORT_TYPE:
+        return _union_in_table_order(
+            rows_asked(t, set_id, overrides) for t in _types_any_stands_for())
     if type_id == MR.REPORT_TYPE_RECORD:
         return ()
     limited = CS.limit_bearing(CS.effective_limits(set_id, overrides))
@@ -748,6 +781,9 @@ def rows_any_report_can_ask(overrides: "dict | None" = None) -> "tuple[str, ...]
                                              report_type_is_built)
     seen: "set[str]" = set()
     for tid, _name, _blurb, built in REPORT_TYPE_MENU:
+        # K33: the ISO types also need their values loaded
+        from workflow.measurement_report import report_type_is_built as _is_built
+        built = _is_built(tid)
         if not built:
             continue
         for sd in SETS:

@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-24, K33 (B8-992 to B8-999: the presets window's intro, Any and its count lines, the repeatability note, Sort by and its two entries, the ISO-use paragraph, the Custom blurbs, the refusal of an ISO type without values, the two report help paragraphs). German by hand; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K32 (B8-981 to B8-990: the Printing record's graph sentence, the empty window's three sentences, the reordered Update / Create New bodies) merged onto B8-974 and B8-978. German by hand; each of the others carries the English under the beta rule. COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B8-978 (Custom ISO columns, three texts re-keyed, all already English outside German) merged with B8-974 (All metrics). COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B42 (B8-974): "All metrics" in the presets window, five keys in, and the FROM PROFILE GAMUT remedy says "metric" for "row" (its translations lost under the beta rule). German by hand, does not move; the eleven translated languages rise by exactly 6, Ukrainian (which carried that remedy in English already) by 5. COUNTED off the tree, BOTH ledgers.
@@ -1009,18 +1010,18 @@ _BUDGET = {
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
     "de": 13,
-    "es": 905,
-    "fr": 906,
-    "it": 905,
-    "ja": 905,
-    "nl": 905,
-    "no": 905,
-    "pl": 905,
-    "pt": 905,
-    "ru": 904,
-    "sv": 905,
-    "zh_CN": 904,
-    "uk": 1052,
+    "es": 916,
+    "fr": 917,
+    "it": 916,
+    "ja": 916,
+    "nl": 916,
+    "no": 916,
+    "pl": 916,
+    "pt": 916,
+    "ru": 915,
+    "sv": 916,
+    "zh_CN": 915,
+    "uk": 1062,
 }
 
 

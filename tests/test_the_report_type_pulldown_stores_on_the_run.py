@@ -218,16 +218,21 @@ def test_choosing_a_type_writes_nothing_to_the_run(tmp_path, qapp):
 
 
 def test_a_greyed_type_cannot_be_stored_even_when_the_handler_is_reached(
-        tmp_path, qapp):
+        tmp_path, qapp, monkeypatch):
     """A GUARDED WRITE BEHIND AN UNGUARDED CONTROL is the shape that came back
     in three separate challenge rounds. The entry is greyed, and the handler
     refuses it anyway, because a keyboard, a style or a later refactor that
     ignores the flag must not be able to store a type ChromIQ cannot produce.
 
+    Since K33 (B8-994) the ISO types are greyed only when no values of their
+    standard are loaded, so that state is made here.
+
     MUTATION: drop the `report_type_is_built` check in the handler and this
     goes red.
     """
+    from tests.helpers.iso_files import use_empty_shipped_iso
     from workflow.run_compliance import run_report_type
+    use_empty_shipped_iso(tmp_path, monkeypatch)
     dlg, run = _dialog(tmp_path, qapp)
     try:
         i = _ids(dlg).index(REPORT_TYPE_ISO_7)
@@ -242,6 +247,11 @@ def test_a_greyed_type_cannot_be_stored_even_when_the_handler_is_reached(
             "the pulldown was left naming a type the run is not on"
     finally:
         dlg.close()
+        # the values cache outlives the monkeypatch: put the shipped state
+        # back for the tests after this one
+        from workflow import compliance_sets as cs
+        monkeypatch.undo()
+        cs.reset_iso_cache()
 
 
 # RETIRED BY K31 (beta 40): `test_a_run_that_moved_while_the_window_sat_there_is_not_written_to`.
@@ -642,9 +652,14 @@ def test_a_verification_never_offers_the_printing_record(tmp_path, qapp):
     try:
         assert dlg._window_kind() == "verification"
         assert "Printing record (not graded)" not in _enabled_texts(dlg)
+        # K33 (B8-994): the two ISO types are offered to a verification now
+        # that their values ship.
         assert _enabled_texts(dlg) == ["Colour summary (one page)",
                                        "Full colour check",
-                                       "Grey and tone check"], _enabled_texts(dlg)
+                                       "Grey and tone check",
+                                       "Validation print check (ISO 12647-8)",
+                                       "Contract proof check (ISO 12647-7)"
+                                       ], _enabled_texts(dlg)
         i = dlg._type_combo.findData(REPORT_TYPE_RECORD)
         tip = dlg._type_combo.itemData(i, Qt.ItemDataRole.ToolTipRole)
         assert "report of a profiling measurement" in tip, tip

@@ -3080,11 +3080,37 @@ REPORT_TYPE_MENU: "tuple[tuple[str, str, str, bool], ...]" = (
      "left out.", True),
     (REPORT_TYPE_RECORD, "Printing record (not graded)",
      "A record of what was printed and measured, with nothing judged.", True),
+    # **BUILT SINCE K33 (B8-994), AND OFFERED ONLY WHILE THEIR STANDARD'S
+    # VALUES ARE THERE.** Knut, #182 5816565326: *"for run type
+    # verification, the report type options often do not allow selecting
+    # the "Validation print check" or "Contract proof check". These should
+    # be available now."* The values ship (§23), so the paywall reason is
+    # gone. What such a report IS: the Full colour check document, headed
+    # with its own name; which set it is judged against is the "Judged
+    # against" pulldown's, as for every type. `report_type_is_built` adds
+    # the one condition this flag cannot: the set's values must be loaded.
     (REPORT_TYPE_ISO_8, "Validation print check (ISO 12647-8)",
-     "Your print against a printing condition you supply.", False),
+     "Your print against a printing condition you supply.", True),
     (REPORT_TYPE_ISO_7, "Contract proof check (ISO 12647-7)",
-     "The same, at the strictest level the trade uses.", False),
+     "The same, at the strictest level the trade uses.", True),
 )
+
+#: Which read-only limit set an ISO report type is named after. Such a type
+#: can be produced only while that set holds values (`report_type_is_built`).
+REPORT_TYPE_ISO_SET: "dict[str, str]" = {
+    REPORT_TYPE_ISO_8: "iso_12647_8",
+    REPORT_TYPE_ISO_7: "iso_12647_7",
+}
+
+
+def iso_type_values_missing(type_id: str) -> bool:
+    """True when *type_id* is an ISO type whose standard's values are not
+    loaded (neither shipped nor supplied), so it cannot be produced."""
+    sid = REPORT_TYPE_ISO_SET.get(type_id)
+    if sid is None:
+        return False
+    from workflow.compliance_sets import factory_limits, limit_bearing
+    return not limit_bearing(factory_limits(sid))
 
 #: The heading that separates the two halves of the pulldown. The formal types
 #: judge against a printing condition the USER supplies; the four above judge
@@ -3117,10 +3143,16 @@ def rows_for_report_type(type_id: str) -> "tuple[str, ...] | None":
 
 
 def report_type_is_built(type_id: str) -> bool:
-    """Whether ChromIQ can produce that document today."""
+    """Whether ChromIQ can produce that document today.
+
+    The menu's flag, and for the two ISO types one more condition: their
+    standard's values must be loaded (`iso_type_values_missing`). A report
+    saved as one of them on a machine that has the values renders as the full
+    report on one that has not, exactly as an unbuilt type does.
+    """
     for tid, _name, _blurb, built in REPORT_TYPE_MENU:
         if tid == type_id:
-            return built
+            return built and not iso_type_values_missing(tid)
     return False
 
 

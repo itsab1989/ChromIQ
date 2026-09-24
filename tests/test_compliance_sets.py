@@ -594,7 +594,11 @@ def test_chromiqs_own_half_of_the_defaults_is_anybody_elses_published_figure():
 #: the new digest with the snippet in the failure message and put it here in
 #: the same commit that changes the table.
 _INDUSTRY_DIGEST = \
-    "0b25b5f204508717fd553e800cf3cfad0f61f10a64a401d86a5a47864d3630d4"
+    "f86d413758e31a423cc4e6a95dce0d1c1ea55ec01e1d67caf3909c65817d11ea"
+#: (Changed 2026-09-24 on Knut's instruction, K33, #182 5816565326: his second
+#: set of figures, added to both columns where a row took ChromIQ's own
+#: number; where it would have replaced a figure of 2026-09-21 the earlier
+#: one is kept. `test_knuts_k33_figures_fill_only_the_rows_that_took_ours`.)
 
 #: Which rows Knut's research covers per column, from his file of 2026-09-21.
 #: They differ between the columns because his file follows each standard's
@@ -605,13 +609,56 @@ _INDUSTRY_ROWS = {
         "all_de00_avg", "all_de00_p95", "cmy_solids_dhab_max",
         "control_strip_de00_avg", "control_strip_de00_max",
         "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
-        "outer_gamut_226_de00_avg", "solids_de00_max", "substrate_de00_max"),
+        "outer_gamut_226_de00_avg", "solids_de00_max", "substrate_de00_max",
+        # K33, 2026-09-24
+        "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
+        "surface_gamut_de00_avg", "ramps_30_70_dl_max"),
     "iso_12647_8": (
         "all_de00_avg", "all_de00_p95", "control_strip_de00_avg",
         "control_strip_de00_p95", "grey_balance_neutral_ramp_avg",
         "grey_balance_neutral_ramp_max", "ramps_30_70_dl_max",
-        "substrate_de00_max", "surface_gamut_de00_avg"),
+        "substrate_de00_max", "surface_gamut_de00_avg",
+        # K33, 2026-09-24
+        "solids_de00_max", "cmy_solids_dhab_max", "best95_de00_avg",
+        "worst5_de00_avg", "all_de00_max", "outer_gamut_226_de00_avg"),
 }
+
+#: Knut's K33 figures, #182 5816565326 (2026-09-24), by the row each of his
+#: labels names ("Maximum deltaE00, solid colours" = 3,00 and so on), for
+#: BOTH Custom columns.
+_K33 = {"solids_de00_max": 3.0, "cmy_solids_dhab_max": 2.5,
+        "best95_de00_avg": 2.0, "worst5_de00_avg": 2.0, "all_de00_max": 2.0,
+        "outer_gamut_226_de00_avg": 2.5, "surface_gamut_de00_avg": 3.0,
+        "ramps_30_70_dl_max": 2.0}
+#: Where a K33 figure differs from his own figure of 2026-09-21 for that
+#: column: the earlier one is kept, and the choice is put to him.
+_K33_KEPT_EARLIER = {("iso_12647_7", "solids_de00_max"): 2.0,
+                     ("iso_12647_7", "outer_gamut_226_de00_avg"): 4.0,
+                     ("iso_12647_8", "surface_gamut_de00_avg"): 4.0}
+
+
+def test_knuts_k33_figures_fill_only_the_rows_that_took_ours():
+    """K33: his eight figures reach both Custom columns as RESEARCHED figures,
+    except where one would overwrite his own earlier research, which stays.
+
+    Red on its mutations: drop a K33 row from either column (it falls back to
+    ChromIQ's fill and the source check fails); let a K33 figure overwrite
+    one of the three kept ones (the kept-earlier check fails).
+    """
+    for parent in cs.ISO_SET_IDS:
+        src = cs.custom_default_sources(parent)
+        lim = cs.custom_defaults(parent)
+        for rid, number in _K33.items():
+            assert src[rid] == "industry", (parent, rid)
+            want = _K33_KEPT_EARLIER.get((parent, rid), number)
+            assert lim[rid] == cs.Limit.value(want), (parent, rid, lim[rid])
+    # After it, only five rows of each column start from ChromIQ's own
+    # numbers: one control-strip row, both repeatability rows and both
+    # evenness rows, none of which either set of his figures covers.
+    for parent in cs.ISO_SET_IDS:
+        ours = sorted(r for r, s in cs.custom_default_sources(parent).items()
+                      if s == "chromiq")
+        assert len(ours) == 5, (parent, ours)
 
 
 def test_the_researched_industry_figures_are_exactly_what_knut_delivered():

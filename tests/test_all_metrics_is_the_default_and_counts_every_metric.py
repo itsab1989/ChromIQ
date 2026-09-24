@@ -167,7 +167,9 @@ def test_the_column_total_is_every_metric(qapp, rows):
         assert dlg._asked_label.text() == tr(
             "All metrics: a report of this type can verify {n} metrics of a "
             "chart, whichever limit set it is judged against.").format(
-                n=total)
+                n=total) + " " + tr(
+            "ChromIQ's two repeatability metrics are not counted here: they "
+            "depend on measuring the chart again, not on the chart.")
         # the same preset reads a SMALLER total under ChromIQ default
         it0, r0 = checked[0]
         dlg._set_combo.setCurrentIndex(

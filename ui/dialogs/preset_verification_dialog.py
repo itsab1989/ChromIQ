@@ -86,6 +86,12 @@ log = logging.getLogger(__name__)
 #: sort indicator a header may draw.
 _HEADER_PAD = 28
 
+#: The two "Sort by" choices (K33-8, B8-999). The first is the order the list
+#: has always had, the Create Chart Preset pulldown's own; the second sorts
+#: each group by how many of the counted metrics a preset's chart answers.
+SORT_PULLDOWN = "pulldown_order"
+SORT_MOST_ANSWERED = "most_answered"
+
 
 # ---------------------------------------------------------------------------
 # One row of the list
@@ -598,12 +604,21 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         outer.setContentsMargins(16, 14, 16, 14)
         outer.setSpacing(10)
 
+        # **SAYS WHAT THE TWO FIELDS DO, IN PLAIN WORDS** (K33, B8-997).
+        # Knut, #182 5816565326: *"the intro sentence shall say what the
+        # fields to, even if the default is set to show any and all metrics.
+        # However, the sentence is hard to read and understand, so the
+        # wording should be rephrased for easier understanding."* The old
+        # sentence ran "the metrics a report of this type judged against
+        # this limit set asks to verify on a chart" as one noun phrase.
         intro = QLabel(tr(
-            "Every preset ChromIQ ships, and your own, against the metrics a "
-            "report of this type judged against this limit set asks to verify "
-            "on a chart. Nothing is hidden: click a preset to see what it can "
-            "answer and what it cannot, and double-click it to close this "
-            "window and load it in Create Chart."), self)
+            "Every preset ChromIQ ships, and your own, with the number of "
+            "metrics its chart can answer. The two fields below choose which "
+            "metrics are counted: the ones a report of that type, judged "
+            "against that limit set, would check. “Any” and “All metrics” "
+            "count every metric a report can check. Click a preset to see "
+            "what it can and cannot answer; double-click it to load it in "
+            "Create Chart and close this window."), self)
         intro.setWordWrap(True)
         intro.setObjectName("info")
         outer.addWidget(intro)
@@ -613,8 +628,19 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         picks.setSpacing(8)
         picks.addWidget(QLabel(tr("Report type:"), self))
         self._type_combo = NoScrollComboBox(self)
+        # **"ANY" FIRST, AND THEREFORE WHAT THE WINDOW OPENS ON** (K33,
+        # B8-996), beside "All metrics" in the other pulldown. Knut, #182
+        # 5816565326: *"the Report type should instead also have an option
+        # called "Any", which is the default, set together with "All
+        # metrics" as default for judged against. Report type and judged
+        # against shall still be able to individually change if desired."*
+        self._type_combo.addItem(tr("Any"), userData=PE.ANY_REPORT_TYPE)
+        self._type_combo.setItemData(
+            0, tr("Every metric any report of a verification can check, "
+                  "whichever report type you choose later."),
+            Qt.ItemDataRole.ToolTipRole)
         for tid, name, blurb, built in MR.REPORT_TYPE_MENU:
-            if not built:
+            if not MR.report_type_is_built(tid):
                 continue
             self._type_combo.addItem(tr(name), userData=tid)
             self._type_combo.setItemData(
@@ -650,7 +676,39 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
 
         self._only_star = QCheckBox(
             tr("Show only the presets made for verification"), self)
-        outer.addWidget(self._only_star)
+        # **"SORT BY", RIGHT OF THE TICK BOX** (K33-8, B8-999). Knut, #182
+        # 5817191535: the default is today's order, named for what it really
+        # is; a second choice puts the presets answering the most metrics
+        # first; presets stay under their group names and are sorted within
+        # each group. Today's order is NOT alphabetical: it is the Create
+        # Chart Preset pulldown's own (`BUILTIN_PRESET_GROUPS`), the ready-made
+        # "by Pharmacist" charts first, then the rest from the smallest sheet
+        # up, and your own presets alphabetically.
+        star_row = QHBoxLayout()
+        star_row.setSpacing(8)
+        star_row.addWidget(self._only_star)
+        star_row.addSpacing(24)
+        star_row.addWidget(QLabel(tr("Sort by:"), self))
+        self._sort_combo = NoScrollComboBox(self)
+        self._sort_combo.addItem(tr("Preset pulldown order"),
+                                 userData=SORT_PULLDOWN)
+        self._sort_combo.setItemData(
+            0, tr("The order of the Preset pulldown in Create Chart, which is "
+                  "not alphabetical: in each group the ready-made charts "
+                  "“by Pharmacist” come first, then the others from the "
+                  "smallest sheet up and, on one sheet size, by patch size "
+                  "and count. Your own presets are listed alphabetically."),
+            Qt.ItemDataRole.ToolTipRole)
+        self._sort_combo.addItem(tr("Most metrics answered first"),
+                                 userData=SORT_MOST_ANSWERED)
+        self._sort_combo.setItemData(
+            1, tr("In each group, the presets whose chart answers the most "
+                  "of the metrics counted above come first. Presets that "
+                  "answer the same number keep the Preset pulldown order."),
+            Qt.ItemDataRole.ToolTipRole)
+        star_row.addWidget(self._sort_combo)
+        star_row.addStretch(1)
+        outer.addLayout(star_row)
 
         star_note = QLabel(tr(
             "★ marks a chart made for verification: one printed page, "
@@ -742,6 +800,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         self._type_combo.currentIndexChanged.connect(self._on_choice_changed)
         self._set_combo.currentIndexChanged.connect(self._on_choice_changed)
         self._only_star.toggled.connect(self._on_choice_changed)
+        self._sort_combo.currentIndexChanged.connect(self._on_sort_changed)
 
     # -- the current choice ----------------------------------------------
     def current_type(self) -> str:
@@ -753,6 +812,28 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
     # -- slots (bound methods, never lambdas) ----------------------------
     def _on_choice_changed(self, *_a) -> None:
         self.refresh()
+
+    def _on_sort_changed(self, *_a) -> None:
+        """Re-sort only: the assessments do not change with the order."""
+        self._fill_tree()
+
+    def current_sort(self) -> str:
+        return str(self._sort_combo.currentData() or SORT_PULLDOWN)
+
+    def _sorted_members(self, members: list) -> list:
+        """*members* of one group in the order "Sort by" asks for.
+
+        Python's sort is stable, so presets that answer the same number keep
+        the Preset pulldown order among themselves; a preset that could not be
+        checked answers nothing and goes last.
+        """
+        if self.current_sort() != SORT_MOST_ANSWERED:
+            return members
+
+        def answered(r):
+            a = r.assessment
+            return len(a.answered) if a is not None and a.checked else -1
+        return sorted(members, key=lambda r: -answered(r))
 
     def _on_selected(self, current, _previous=None) -> None:
         self._show_detail(current.data(0, Qt.ItemDataRole.UserRole)
@@ -810,13 +891,38 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             # verdict belongs.
             self._current.starred = False
         asked = PE.rows_asked(type_id, set_id, self._overrides)
-        if asked and set_id == PE.ALL_METRICS:
+        any_type = type_id == PE.ANY_REPORT_TYPE
+        # **WHY 18 AND NOT 20** (K33, B8-995). Knut counted more metrics than
+        # this line names. ChromIQ can compute twenty; the two repeatability
+        # rows are not a property of a chart (`rows_every_metric`), so they
+        # are left out of every count in this window, and the line now says
+        # so where a reader compares it with the Report limits table.
+        not_counted = tr("ChromIQ's two repeatability metrics are not "
+                         "counted here: they depend on measuring the chart "
+                         "again, not on the chart.")
+        if asked and set_id == PE.ALL_METRICS and any_type:
+            self._asked_label.setText(count_phrase(
+                len(asked),
+                tr("All metrics: a report of any type can verify 1 metric of "
+                   "a chart, whichever limit set it is judged against."),
+                tr("All metrics: a report of any type can verify {n} metrics "
+                   "of a chart, whichever limit set it is judged against."))
+                + " " + not_counted)
+        elif asked and set_id == PE.ALL_METRICS:
             self._asked_label.setText(count_phrase(
                 len(asked),
                 tr("All metrics: a report of this type can verify 1 metric of "
                    "a chart, whichever limit set it is judged against."),
                 tr("All metrics: a report of this type can verify {n} metrics "
-                   "of a chart, whichever limit set it is judged against.")))
+                   "of a chart, whichever limit set it is judged against."))
+                + " " + not_counted)
+        elif asked and any_type:
+            self._asked_label.setText(count_phrase(
+                len(asked),
+                tr("A report of any type, judged against this limit set, asks "
+                   "to verify 1 metric of a chart during verification."),
+                tr("A report of any type, judged against this limit set, asks "
+                   "to verify {n} metrics of a chart during verification.")))
         elif not asked:
             self._asked_label.setText(tr(
                 "This report type judges nothing, so no chart can fall short "
@@ -885,8 +991,9 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             sep.setFlags(Qt.ItemFlag.NoItemFlags)
             self._style_separator(sep)
         for group in dict.fromkeys(r.group for r in self._rows):
-            members = [r for r in self._rows
-                       if r.group == group and (r.starred or not only)]
+            members = self._sorted_members(
+                [r for r in self._rows
+                 if r.group == group and (r.starred or not only)])
             if not members:
                 continue
             head = QTreeWidgetItem(self._tree, [group, "", "", ""])

@@ -4135,6 +4135,9 @@ class SettingsDialog(QDialog):
         _type_row.addWidget(QLabel(tr("Report type, default:"), self))
         self._report_type_default_combo = QComboBox(self)
         for tid, name, _blurb, built in REPORT_TYPE_MENU:
+            # K33: the ISO types also need their values loaded
+            from workflow.measurement_report import report_type_is_built as _is_built
+            built = _is_built(tid)
             if tid == REPORT_TYPE_MENU_SPLIT:
                 self._report_type_default_combo.addItem(
                     tr(REPORT_TYPE_MENU_HEADING), "")

@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-24, K33 (B8-992 to B8-999: the presets window's intro, Any and its count lines, the repeatability note, Sort by and its two entries, the ISO-use paragraph, the Custom blurbs, the refusal of an ISO type without values, the two report help paragraphs). German by hand; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K32 (B8-981 to B8-990: the Printing record's graph sentence, the empty window's three sentences, the reordered Update / Create New bodies) merged onto B8-974 and B8-978. German by hand; each of the others carries the English under the beta rule. COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B8-978 (Custom ISO columns, three texts re-keyed, all already English outside German) merged with B8-974 (All metrics). COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B42 (B8-974): "All metrics" in the presets window, five keys in, and the FROM PROFILE GAMUT remedy says "metric" for "row" (its translations lost under the beta rule). German by hand, does not move; the eleven translated languages rise by exactly 6, Ukrainian (which carried that remedy in English already) by 5. COUNTED off the tree, BOTH ledgers.
@@ -1437,17 +1438,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1210,
-    "fr": 1232,
-    "it": 1221,
-    "ja": 1196,
-    "nl": 1237,
-    "no": 1222,
-    "pl": 1214,
-    "pt": 1212,
-    "ru": 1185,
-    "sv": 1223,
-    "zh_CN": 1190,
+    "es": 1224,
+    "fr": 1246,
+    "it": 1235,
+    "ja": 1210,
+    "nl": 1251,
+    "no": 1236,
+    "pl": 1228,
+    "pt": 1226,
+    "ru": 1199,
+    "sv": 1237,
+    "zh_CN": 1204,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1475,7 +1476,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1371,
+    "uk": 1384,
 }
 
 

@@ -328,6 +328,12 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ("§29", "A row ChromIQ cannot measure reads", [
         "Report-Limits-Threshold-Series/run1: Edit limits, scroll to \"Not evaluated by ChromIQ\": every column reads ✕, ChromIQ's own three included, and the \"This report\" column too",
     ]),
+    ("§30", "K33:", [
+        "Report-Limits-Every-Limit-Set/run1, Run type Verification: Create Chart > \"Which presets can be used for verification?\" opens on \"Any\" and \"All metrics\"; change either pulldown alone",
+        "Report-Limits-Every-Limit-Set/run1: Measurement Report, the Report type pulldown offers Validation print check and Contract proof check; the runs of the two read-only ISO sets are made into them",
+        "Report-Limits-Every-Limit-Set/run1: Measurement Report, the (i) beside \"Judged against\": a wide window, and the paragraph on when to use which set",
+        "Report-Limits-Custom-Columns/run1: Edit limits, the two Custom columns start from Knut's K33 figures (15 researched, 5 ChromIQ's own, each)",
+    ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
     ]),

@@ -683,13 +683,17 @@ def _lab_to_xyz100(lab) -> tuple:
 
 from workflow.ti3_analysis import ciede2000                  # noqa: E402
 
-#: The four documents ChromIQ can produce. T5 and T6 are declared in the app so
-#: the pulldown can show them and refuse them, and they are deliberately absent
-#: here: a demo cannot exercise a document the app cannot produce, and nothing
-#: in this generator may need a tolerance value out of either standard.
+#: The documents ChromIQ can produce. Since K33 (B8-994) that includes T5 and
+#: T6 while their standard's values are loaded, which they are as ChromIQ
+#: ships; the read-only ISO sets' matrix runs are made into them.
 from workflow.measurement_report import (                    # noqa: E402
-    REPORT_TYPE_FULL, REPORT_TYPE_GREY, REPORT_TYPE_ISO_8, REPORT_TYPE_MENU,
-    REPORT_TYPE_MENU_HEADING, REPORT_TYPE_RECORD, REPORT_TYPE_SUMMARY)
+    REPORT_TYPE_FULL, REPORT_TYPE_GREY, REPORT_TYPE_ISO_7, REPORT_TYPE_ISO_8,
+    REPORT_TYPE_MENU, REPORT_TYPE_MENU_HEADING, REPORT_TYPE_RECORD,
+    REPORT_TYPE_SUMMARY, report_type_is_built)
+
+#: Which report type a read-only ISO set's matrix run is made into (K33).
+_ISO_REPORT_TYPE = {"iso_12647_8": REPORT_TYPE_ISO_8,
+                    "iso_12647_7": REPORT_TYPE_ISO_7}
 
 
 def not_built_line() -> str:
@@ -703,7 +707,8 @@ def not_built_line() -> str:
     measurement.
     """
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    return MeasurementReportDialog._not_built_line(REPORT_TYPE_ISO_8)
+    # K33: the one reason left for greying an ISO type is missing values.
+    return MeasurementReportDialog._iso_values_missing_line()
 
 
 def _de(lab_a, lab_b) -> float:
@@ -4482,7 +4487,12 @@ PROJECTS = [
                     f"inside on the next.",
                     CHART_SMALL, CHART_MEDIUM, set_id,
                     matrix_dates(set_id, "ordinary"),
-                    edited_limits=matrix_edited_limits(set_id)),
+                    edited_limits=matrix_edited_limits(set_id),
+                    # K33 (B8-994): the two ISO report types can be produced
+                    # now, so the read-only ISO sets' ordinary runs are made
+                    # into the document named after their standard.
+                    report_type=_ISO_REPORT_TYPE.get(set_id,
+                                                     REPORT_TYPE_FULL)),
             RunPlan(f"{_SET_WORD[set_id]}, every row a From-profile-gamut "
                     f"chart can answer{_that_it_limits(set_id)}: over on one "
                     f"date, inside on the next.",
@@ -6320,8 +6330,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("carry their own edited limit column that relaxes the companion rows, so")
     a("the row of interest crosses on its own and can be looked at alone.")
     a("")
-    a("THE REPORT TYPES, AND WHY ONLY FOUR OF THE SIX ARE IN HERE")
-    a("---------------------------------------------------------")
+    a("THE REPORT TYPES, ALL SIX")
+    a("-------------------------")
     a("")
     a("THIS SECTION USED TO SAY REPORT TYPES WERE NOT IN THE PACKAGE AND")
     a("COULD NOT BE: \"a design at the moment, not a feature: nothing in this")
@@ -6330,44 +6340,44 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("here rather than quietly deleted, because anybody holding an older copy")
     a("of this file is being told something false by it.")
     a("")
-    a("The pulldown offers six documents. FOUR CAN BE PRODUCED. The Printing")
-    a("record is the report of every run's own profiling measurement; the")
-    a("other three are a verification's, and each has a run of its own in")
-    a("Report-Limits-Report-Types:")
+    a("The pulldown offers six documents. The Printing record is the")
+    a("report of every run's own profiling measurement; the others are a")
+    a("verification's. Colour summary, Full colour check and Grey and tone")
+    a("check each have runs of their own in Report-Limits-Report-Types:")
     a("")
-    for tid, name, blurb, built in REPORT_TYPE_MENU:
-        if built:
+    for tid, name, blurb, _built in REPORT_TYPE_MENU:
+        if report_type_is_built(tid) and tid not in _ISO_REPORT_TYPE.values():
             a(f"  {name}")
             a(f"      {blurb}")
     a("")
-    a("TWO CANNOT, and no measurement can change that. These are the two:")
+    # K33 (B8-994): the two ISO documents are built and offered while their
+    # standard's values are loaded. The sentence asks which is true of the
+    # tree that built this package rather than saying either for ever.
+    a("The two ISO documents, under the heading")
+    a(f"\"{REPORT_TYPE_MENU_HEADING}\":")
     a("")
-    for tid, name, blurb, built in REPORT_TYPE_MENU:
-        if not built:
+    for tid, name, blurb, _built in REPORT_TYPE_MENU:
+        if tid in _ISO_REPORT_TYPE.values():
             a(f"  {name}")
             a(f"      {blurb}")
     a("")
-    # #182 S-2 (spec 23): the values of both standards ship, values only,
-    # and the two documents are still not built. The sentence asks which is
-    # true rather than saying either for ever.
-    from workflow.compliance_sets import shipped_iso_sets as _shipped
-    if _shipped():
-        a("The figures they judge against ship with ChromIQ as values only")
-        a("(the read-only ISO 12647 columns), but the two documents themselves")
-        a("are not built yet, so ChromIQ cannot write either of them. They")
+    if all(report_type_is_built(t) for t in _ISO_REPORT_TYPE.values()):
+        a("can be produced (since beta 42, K33): the values of both standards")
+        a("ship with ChromIQ, values only, in the read-only ISO 12647 columns.")
+        a("Each is the Full colour check document headed with its own name;")
+        a("which limit set it is judged against is the \"Judged against\"")
+        a("pulldown's, as for every type. In Report-Limits-Every-Limit-Set the")
+        a("ordinary-chart runs of the two read-only ISO sets are made into them.")
+        a("If the values file is missing or unreadable, the entries are shown")
+        a("greyed with the reason:")
+        a("")
+        a(f"  \"{not_built_line()}\"")
     else:
-        a("The figures they judge against are published in standards ChromIQ")
-        a("does not ship, so ChromIQ cannot write either document. They")
-    a("are SHOWN in the pulldown and refused there rather than hidden, under a")
-    a("heading that says what they need, and the entry carries the reason:")
-    a("")
-    a(f"  \"{REPORT_TYPE_MENU_HEADING}\"")
-    a(f"  \"{not_built_line()}\"")
-    a("")
-    a("So what this package can demonstrate about those two is that they are")
-    a("offered, that they are refused, and that they say why. There is nothing")
-    a("else to demonstrate: a demo cannot exercise a document the app cannot")
-    a("produce.")
+        a("cannot be produced by the ChromIQ that built this package, because")
+        a("no values of their standards are loaded. They are shown greyed, and")
+        a("the entry carries the reason:")
+        a("")
+        a(f"  \"{not_built_line()}\"")
     a("")
     a("WHICH RUN COVERS WHICH TYPE AND WHICH LIMIT SET")
     a("----------------------------------------------")

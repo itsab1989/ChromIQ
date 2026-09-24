@@ -383,7 +383,9 @@ def test_the_count_line_is_the_sentence_knut_wrote(window, qapp):
     His sentence is about a LIMIT SET, so a limit set is chosen: since B8-974
     the window opens on "All metrics", which has a sentence of its own
     (`test_all_metrics_is_the_default_and_counts_every_metric.py`)."""
-    window._type_combo.setCurrentIndex(0)
+    # Index 1: since K33 the first entry is "Any", which has a sentence of
+    # its own; his sentence is about one report type.
+    window._type_combo.setCurrentIndex(1)
     window._set_combo.setCurrentIndex(
         window._set_combo.findData("chromiq_default"))
     qapp.processEvents()

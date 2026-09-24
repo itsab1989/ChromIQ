@@ -220,9 +220,12 @@ def test_the_custom_blurbs_name_every_place_the_numbers_come_from():
     for sid, std in (("custom_iso_12647_7", "ISO 12647-7:2016"),
                      ("custom_iso_12647_8", "ISO 12647-8:2021")):
         blurb = SET_BY_ID[sid].blurb
-        assert f"published figures of {std}" in blurb, sid
-        assert "where a licence holder has supplied them" in blurb, sid
-        assert "where nobody has" in blurb, sid
+        # K33 (B8-998): since B8-978 no values file fills a Custom column,
+        # so the blurb names the standard only as what it is an alternative
+        # to, and no longer promises "the published figures ... where a
+        # licence holder has supplied them".
+        assert f"an alternative to {std}" in blurb, sid
+        assert "licence holder" not in blurb, sid
         assert "researched from industry practice" in blurb, sid
         assert "ChromIQ's own" in blurb, sid
         # …and it says whose those two are NOT

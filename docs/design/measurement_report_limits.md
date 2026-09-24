@@ -122,6 +122,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §26 | K31 metrics: the "How evenness was judged" line and the evenness help text; rule A on the 30 to 70 % tone ramp; version 1 names everywhere, "within gamut" on a split sheet; "Within and beyond the gamut together"; a FROM PROFILE GAMUT chart's neutral aims as its grey steps | 2026-09-23, 5801677743 | agreed; built for beta 40 (B8-900 to B8-909), NOT confirmed |
 | §20 | Rulings not built, or built without a test or proof (G1 to G13) | 2026-09-22 to 2026-09-23 | gaps, listed one by one |
 | §29 | A row ChromIQ cannot measure reads ✕ in every limit set, never "–" | 2026-09-24, 5815435713 | agreed; built for beta 42 (B8-979), NOT confirmed |
+| §30 | K33: "Any" beside "All metrics", the presets window's intro, why 18 and not 21, Knut's figures in both Custom ISO sets, the ISO report types offered, a wider "Judged against" help that says when to use which set | 2026-09-24, 5816565326 | ruled by Knut; built for beta 42 (B8-992 to B8-998), NOT confirmed; three figures and the count put back to him |
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
@@ -267,9 +268,37 @@ them. Knut, #182 5815346140, 2026-09-24:
 A values file, shipped or the user's own, fills only the read-only ISO column.
 Pinned by `tests/test_compliance_sets.py::test_a_licence_holders_own_file_never_fills_a_custom_column`.
 
-Measured against the repository's own empty values file, Custom ISO 12647-7
-carries 10 researched figures and 8 ChromIQ numbers; Custom ISO 12647-8
-carries 9 and 9. Both columns carry 18 limits, one on every measurable row.
+**Knut's second set of figures (K33, 2026-09-24, awaiting confirmation).**
+Knut, #182
+[5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326):
+*"I suggest adding thresholds to the both the Custom ISO limit sets so that all
+metrics are included, as follows: "Maximum deltaE00, solid colours" = 3,00;
+"Maximum deltaH\*ab, cyan, magenta and yellow solids" = 2,50; "Average
+deltaE00, lowest 95%" = 2,00; "Average deltaE00, highest 5%" = 2,00; "Maximum
+deltaE00, all patches" = 2,00; "Average deltaE00, outer-gamut patches" = 2,50;
+"Average deltaE00, surface-gamut patches" = 3,00; "Maximum deltaL\*,
+single-colour ramps" = 2,00."* Each label is a row's English label. They join
+source 1, for both columns, on every row where the column took ChromIQ's own
+number. **Where a new figure would replace one of his own figures of
+2026-09-21, the earlier figure is kept and the choice is his** (§30.2):
+
+| Column | Row | Kept (2026-09-21) | Proposed (K33) |
+|---|---|---|---|
+| Custom ISO 12647-7 | Maximum ΔE00, solid colours | 2.0 | 3.00 |
+| Custom ISO 12647-7 | Average ΔE00, outer-gamut patches | 4.0 | 2.50 |
+| Custom ISO 12647-8 | Average ΔE00, surface-gamut patches | 4.0 | 3.00 |
+
+Two proposed figures equal what the column already held from 2026-09-21
+(ΔH\*ab 2.5 in -7, the ramp row 2.0 in -8) and change nothing.
+
+Measured against the repository's values file (which fills only the read-only
+columns), each Custom column now carries **15 researched figures and 5 ChromIQ
+numbers**, 20 limits, one on every row ChromIQ can measure. Before K33 the
+split was 10 and 10 (-7) and 9 and 11 (-8); this paragraph said "10 and 8, 9
+and 9, 18 limits", which had not counted the two repeatability rows. The five
+rows neither set of his figures covers are one control-strip row (the 95th
+percentile in -7, the maximum in -8), ChromIQ's two repeatability rows and the
+two evenness rows.
 
 **NEITHER SOURCE 2 NOR SOURCE 3 IS A STANDARD'S PUBLISHED VALUE, AND THE APP
 SAYS SO.** The Report limits window's description of its columns is generated
@@ -912,7 +941,9 @@ What is on disk is left alone so that later ChromIQ still finds the choice.
 **Not built here:** T5 and T6. ~~Their figures are published in standards
 ChromIQ has no permission to include (§9, S-2).~~ *(§23: once a standard's
 values ship, the greyed entry says only that the report is still being built;
-while they do not, it still names the figures.)*
+while they do not, it still names the figures.)* **Amended by §30.6 (K33,
+2026-09-24, awaiting confirmation):** T5 and T6 are built and offered while
+their standard's values are loaded.
 
 ### ⏳ FIXED 2026-09-12: a limit-set change rewrote the TYPE of every saved report
 
@@ -5605,6 +5636,11 @@ register: the window now opens on a choice that asks every metric. Nothing in
 this document said which choice the window opens on, so nothing here is
 contradicted. Register: B8-974.
 
+* **Amended by §30 (K33, 2026-09-24):** the Report type pulldown opens on
+  **Any** beside All metrics, so the window's default counts what any report
+  of a verification can judge; both pulldowns still change on their own. The
+  count line under All metrics now also says that the two repeatability
+  metrics are not counted (§30.3).
 * **Rule:** "Judged against" in that window offers **All metrics** as its FIRST
   entry, above every selectable limit set, and the window opens on it every
   time. The last choice is not remembered: the pulldown is filled afresh on
@@ -5841,3 +5877,165 @@ it is recorded rather than put to him as a fault.
   DE, before and after).
 
 **Status:** built for beta 42 (B8-979), NOT confirmed.
+
+## 30. K33: "Any" and "Sort by" in the presets window, why 18 and not 21, Knut's figures in both Custom ISO sets, the ISO report types offered, and a wider "Judged against" help (#182, 2026-09-24, beta 42)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326),
+[5817191535](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817191535)
+and 5817448879 (2026-09-24). Where he described the behaviour, the description
+is his ruling; what was BUILT waits for his confirmation. Proof:
+`~/Desktop/ChromIQ-beta42-proof/knut-k33/` (on screen, EN and DE, before and
+after; REPORT.md). Register: B8-992 to B8-999.
+
+**30.1 "Any", the default Report type of the presets window (B8-996).** Knut:
+*"the Report type should instead also have an option called "Any", which is
+the default, set together with "All metrics" as default for judged against.
+Report type and judged against shall still be able to individually change if
+desired."* "Any" is the first Report type entry and the window opens on it
+beside All metrics, every time. It counts what any report a verification can
+be made into would judge: the union, in table order, over the report types
+ChromIQ can produce for a verification (the Printing record, a profiling
+sheet's report, asks nothing). Under All metrics that is 18, the same as Full
+colour check; under a limit set it is that set's rows over every such type.
+Nothing is ever generated as "Any". The count line reads *"All metrics: a
+report of any type can verify 18 metrics of a chart, whichever limit set it is
+judged against."* or, under a limit set, *"A report of any type, judged
+against this limit set, asks to verify n metrics of a chart during
+verification."* Amends §27.
+
+**30.2 Knut's figures in both Custom ISO sets (B8-998).** Recorded in §2a with
+his words and the row each of his labels names. Added where the row took
+ChromIQ's own number. Kept where his new figure would replace his own figure
+of 2026-09-21, **for him to decide**: Custom ISO 12647-7 solid colours 2.0
+(proposed 3.00) and outer-gamut patches 4.0 (proposed 2.50); Custom ISO
+12647-8 surface-gamut patches 4.0 (proposed 3.00). Each Custom column now
+starts from 15 researched figures and 5 of ChromIQ's own, 20 limits. **Every
+row ChromIQ can measure already had a limit in some set before this change**
+(the two Custom columns carried all 20), and still does. Noted for him, not
+changed: with "Maximum ΔE00, all patches" at 2.00, the rows it bounds
+("Average ΔE00, all patches" 2.0, "Average ΔE00, highest 5 %" 2.00, and the
+95th percentile 4.0) can never be the row that fails on their own, because a
+maximum of 2.0 keeps every average and percentile at or under 2.0.
+
+**30.3 Why the window counts 18 and Knut counts 21 (B8-995).** Knut: *"When I
+count all the metrics what are supported, it is 21 metrics. It seems all
+metrics are not selected for any of the current limit sets, and I guess this
+is what limits the 18 above."* Measured, not guessed:
+
+* ChromIQ's row table has 32 rows. 12 are "ChromIQ cannot measure" and read ✕
+  in every set (§29). **20 can be computed.**
+* All metrics does not depend on any limit set (§27), so adding limits cannot
+  move it. Before K33 the two Custom columns already put a limit on all 20.
+* Of the 20, the window leaves out ChromIQ's two repeatability rows (§15),
+  "Maximum ΔE00, repeat patches on one sheet" and "Maximum ΔE00, the same
+  chart measured again": they depend on a measurement being repeated, not on
+  the chart, so no preset can be better or worse at them. 20 − 2 = **18**.
+* **No 21st metric exists** in ChromIQ's table: every other row is one ChromIQ
+  cannot measure. So 21 cannot be reached by counting what a report can judge;
+  it could be 20 plus one of the ✕ rows (the spot-colour row sits among the
+  solids and looks like one). **Question for Knut:** which 21 he counted.
+* What changed: the count line under All metrics now says so in the window,
+  *"ChromIQ's two repeatability metrics are not counted here: they depend on
+  measuring the chart again, not on the chart."* The count stays 18.
+
+**30.4 The intro sentence (B8-997).** Knut: *"the intro sentence shall say
+what the fields [do], even if the default is set to show any and all metrics.
+However, the sentence is hard to read and understand, so the wording should be
+rephrased for easier understanding."* Now: *"Every preset ChromIQ ships, and
+your own, with the number of metrics its chart can answer. The two fields below
+choose which metrics are counted: the ones a report of that type, judged
+against that limit set, would check. “Any” and “All metrics” count every metric
+a report can check. Click a preset to see what it can and cannot answer;
+double-click it to load it in Create Chart and close this window."* German by
+hand.
+
+**30.5 "Sort by" (B8-999).** Knut, 5817191535, and 5817448879 (it must work
+the same whether the check box is ticked or not). Right of "Show only the
+presets made for verification": **Preset pulldown order** (the default) and
+**Most metrics answered first**. Today's order was measured, not assumed: it
+is the Create Chart Preset pulldown's own order, which is **not
+alphabetical**: in each group the ready-made charts "by Pharmacist" first,
+then the rest from the smallest sheet up and, on one sheet size, by patch size
+and count; your own presets alphabetically. The second choice sorts each group
+by how many of the counted metrics a preset's chart answers, most first; a tie
+keeps the pulldown order; a preset that cannot be checked goes last. Groups
+never move and a preset never leaves its group; the current chart stays first.
+It sorts the list as filtered, ticked or not. Not remembered: the window opens
+on the pulldown order.
+
+**30.6 The ISO report types are offered (B8-994).** Knut: *"for run type
+verification, the report type options often do not allow selecting the
+"Validation print check" or "Contract proof check". These should be available
+now."* Measured on screen before the change, on every verification run of
+every demo project (86 runs, 17 projects): the two were greyed in **every**
+window, with *"Not available yet: this report is still being built."* The
+cause was not a per-chart condition: both were declared unbuilt in
+`REPORT_TYPE_MENU` (§10, "Not built here: T5 and T6"). Now:
+
+* Both are built, and offered for a verification or a calibration **while
+  their standard's values are loaded** (shipped, or supplied by the user). No
+  per-chart condition was found that should grey them: a chart that cannot
+  answer a row the chosen set limits already shows it N-A, with the strip
+  saying why (M-REPORT-CHART-MISMATCH), as for every type.
+* What such a report is: the Full colour check document, headed "Report type:
+  Validation print check (ISO 12647-8)" or "… Contract proof check (ISO
+  12647-7)". Which set it is judged against is the "Judged against" pulldown's,
+  as for every type; the help's existing words stand: the ISO types belong with
+  the matching ISO set, "the pairs above are the usual habits, not rules".
+  **Question for Knut:** should choosing one of them also switch "Judged
+  against" to its standard's set?
+* With no values of that standard loaded, the entry is greyed and says:
+  *"Not available: no values of this standard are loaded. They ship with
+  ChromIQ; if they are missing, supply them with “Reference values…” in the
+  Report limits window."*
+* The release demo pack makes the ordinary-chart runs of the two read-only
+  ISO sets in Report-Limits-Every-Limit-Set into these two types.
+* Amends §10 ("Not built here: T5 and T6") and the "When you would reach for
+  each" help, which said they were greyed.
+
+**30.7 The "Judged against" help (B8-992, B8-993).** Knut: *"The help text
+window for Judged against is very tall, so the window should be made wider.
+Also, I cannot find any recommendation of what type of situation the ISO limit
+sets normally would be used for."*
+
+* The "Judged against" and "Report type" help windows open 900 px wide (they
+  opened 616 × 971 px on a 1728 × 1079 screen). Measured, the part that has to
+  be scrolled: "Judged against" 414 px → 254 px in English, 574 → 382 in German,
+  with a paragraph added; "Report type" 398 → 110 and 622 → 206.
+* A paragraph "When to judge against which set" in the "Judged against" help
+  and in the Report limits window's title help: ISO 12647-7 for contract proofs
+  (a hard-copy proof on a proofing system that printer and customer agree
+  shows the job's colour), ISO 12647-8 for validation prints (the intended
+  colour, less strictly than a contract proof, for example to approve a layout
+  or a design), the two Custom ISO sets as an alternative from industry
+  practice you can tune, ChromIQ's own three sets for your own printer, and
+  that ChromIQ does not certify that a print conforms to a standard.
+* Found while there and corrected: the two Custom ISO sets' own descriptions
+  still said they start "from the published figures … where a licence holder
+  has supplied them", which stopped being true with B8-978.
+
+* **Built:** `workflow/preset_eligibility.py::ANY_REPORT_TYPE`,
+  `rows_every_metric`, `rows_asked`;
+  `ui/dialogs/preset_verification_dialog.py` (`_build`, `refresh`,
+  `_sorted_members`, `SORT_PULLDOWN`, `SORT_MOST_ANSWERED`);
+  `workflow/measurement_report.py` (`REPORT_TYPE_MENU`, `REPORT_TYPE_ISO_SET`,
+  `iso_type_values_missing`, `report_type_is_built`);
+  `ui/dialogs/measurement_report_dialog.py` (`_ISO_USE_HELP`,
+  `JUDGED_AGAINST_HELP_WIDTH`, `_not_built_line`, `_iso_values_missing_line`);
+  `ui/dialogs/thresholds_dialog.py::_iso_use_paragraph`;
+  `workflow/compliance_sets.py::_CUSTOM_INDUSTRY` and the two Custom `SetDef`
+  blurbs; `scripts/make_report_limit_demos.py`,
+  `scripts/make_verification_preset_demos.py::opening_choice`.
+* **Verified by:** `tests/test_any_report_type_is_the_default_beside_all_metrics.py`,
+  `tests/test_the_presets_window_sorts_within_each_group.py`,
+  `tests/test_the_iso_report_types_are_offered_when_their_values_are_loaded.py`,
+  `tests/test_the_judged_against_help_is_wide_and_says_when_to_use_each_set.py`,
+  `tests/test_compliance_sets.py::test_knuts_k33_figures_fill_only_the_rows_that_took_ours`,
+  each proved red on its mutation.
+
+**Status:** built for beta 42 (B8-992 to B8-999), NOT confirmed.

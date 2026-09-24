@@ -27870,3 +27870,89 @@ would reach.
 - where: `workflow/measurement_messages.py` (twelve `approved=True`); `docs/design/unified_measurement_management.md` (§M, §M-PROPOSED, the "Awaiting review" note); `tests/test_message_catalogue.py::AWAITING_APPROVAL`.
 - tests: tests/test_message_catalogue.py (69 passed): the approved twelve are headed APPROVED and sit in §M, the six still proposed sit in §M-PROPOSED, the note names exactly the proposed set.
 - evidence: test_nothing_is_quietly_proposed, test_the_awaiting_review_section_holds_exactly_the_proposed_messages, test_an_approved_message_is_not_still_headed_proposed
+
+### B8-992 · FIXED, awaiting confirmation · The "Judged against" help window was a tower: now 900 px wide
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5816565326: "The help text window for Judged against is very tall, so the window should be made wider." Spec §30.7.
+- where: `ui/dialogs/measurement_report_dialog.py` (`JUDGED_AGAINST_HELP_WIDTH`, the "Judged against" and "Report type" ⓘ).
+- measured on screen before: both 616 x 971 px on a 1728 x 1079 screen. After: 900 px wide; the part to scroll went 414 → 254 px (EN) and 574 → 382 (DE) for "Judged against" although a paragraph was added (B8-993), and 398 → 110 / 622 → 206 for "Report type".
+- tests: tests/test_the_judged_against_help_is_wide_and_says_when_to_use_each_set.py::test_the_help_window_opens_wide. Mutation: width back to 460 (red).
+- evidence: test_the_help_window_opens_wide
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k33/ (before-en, before-de, after-en, after-de: *-05-judged-against-help.png, *-06-report-type-help.png).
+
+### B8-993 · FIXED, awaiting confirmation (text) · When to judge against which set: a paragraph in the "Judged against" help and the Report limits help
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5816565326: "I cannot find any recommendation of what type of situation the ISO limit sets normally would be used for." Spec §30.7. ISO 12647-7 for contract proofs, ISO 12647-8 for validation prints, the Custom ISO sets as a tunable industry-practice alternative, ChromIQ's own sets for your own printer; "ChromIQ ... does not certify that a print conforms to a standard". German by hand (Du-Form, a help text). No em dash.
+- also: the two Custom ISO `SetDef` blurbs still said they start "from the published figures ... where a licence holder has supplied them", false since B8-978; reworded, German by hand. The "When you would reach for each" and "Which limit set suits which type" help paragraphs said the ISO types are greyed and that a Custom set holds figures typed from your own copy; both corrected.
+- where: `ui/dialogs/measurement_report_dialog.py::_ISO_USE_HELP`, `_WHEN_HELP`, `_PAIRING_HELP`; `ui/dialogs/thresholds_dialog.py::_iso_use_paragraph`; `workflow/compliance_sets.py` (Custom `SetDef` blurbs).
+- tests: test_the_paragraph_is_in_both_helps, test_the_paragraph_says_what_each_set_is_for_and_claims_nothing; tests/test_a_custom_column_is_not_a_standards_column.py (the blurb test, changed to the B8-978 rule). Mutation: paragraph dropped from the limits window (red).
+- evidence: test_the_paragraph_is_in_both_helps, test_the_paragraph_says_what_each_set_is_for_and_claims_nothing
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k33/ (after-*: *-05-judged-against-help.png, *-08-report-limits-help.png).
+
+### B8-994 · FIXED, awaiting confirmation · "Validation print check" and "Contract proof check" were never selectable: built, and offered while their values are loaded
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Knut, #182 5816565326: "for run type verification, the report type options often do not allow selecting the "Validation print check" or "Contract proof check". These should be available now." Spec §30.6 (amends §10).
+- measured on screen before: every verification run of the demo pack (86 runs in 17 projects, driven one by one): both types greyed in every window, tooltip "Not available yet: this report is still being built." Not a per-chart condition: `REPORT_TYPE_MENU` declared both unbuilt.
+- fixed: both built; `report_type_is_built` adds one condition, that the standard's values are loaded (shipped or supplied); the document is the Full colour check headed with its own name; the set is the "Judged against" pulldown's. Without values: greyed, "Not available: no values of this standard are loaded. They ship with ChromIQ; if they are missing, supply them with “Reference values…” in the Report limits window." (German by hand). Preferences > Reports' default-type pulldown offers them the same way. The demo pack's read-only ISO matrix runs are made into them; its README section rewritten.
+- where: `workflow/measurement_report.py` (`REPORT_TYPE_MENU`, `REPORT_TYPE_ISO_SET`, `iso_type_values_missing`, `report_type_is_built`); `ui/dialogs/measurement_report_dialog.py` (`_sync_type_combo`, `_type_blurb_for`, `_not_built_line`, `_iso_values_missing_line`); `ui/dialogs/settings_dialog.py`; `workflow/preset_eligibility.py`; `scripts/make_report_limit_demos.py`.
+- tests: tests/test_the_iso_report_types_are_offered_when_their_values_are_loaded.py (7). Mutations: T5's built flag back to False (red); the values condition dropped (red, and tests/test_a_type_this_build_cannot_produce_is_never_honoured.py red). Six older tests pinned "never built" and now pin the no-values state or the new list, reason written beside each.
+- evidence: test_offered_for_a_verification_with_the_shipped_values, test_greyed_with_the_reason_when_no_values_are_loaded, test_a_saved_report_of_one_reads_back_as_that_type
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k33/ (before-sweep, after-sweep: every run's offered types; *-04-report-type-open.png).
+- open for Knut: should choosing one of them also switch "Judged against" to its standard's set?
+
+### B8-995 · ANSWERED, awaiting confirmation · "All metrics" counts 18, Knut counts 21: what the difference is
+- blocks release: no
+- severity: MINOR
+- status: ANSWERED
+- note: Knut, #182 5816565326. Measured: 32 rows, 12 ChromIQ cannot measure (✕ everywhere, §29), 20 computable; All metrics leaves out the two repeatability rows (not a property of a chart, §15): 18. All metrics ignores limit sets (§27), and before K33 both Custom columns already limited all 20, so adding limits cannot change it. No 21st computable row exists. The count line now says the two repeatability metrics are not counted. Spec §30.3.
+- where: `ui/dialogs/preset_verification_dialog.py::refresh`.
+- tests: tests/test_all_metrics_is_the_default_and_counts_every_metric.py::test_the_column_total_is_every_metric; tests/test_any_report_type_is_the_default_beside_all_metrics.py (the line under Any). Mutation: the sentence dropped (red).
+- evidence: test_the_column_total_is_every_metric
+- open for Knut: which 21 he counted (20 plus one ✕ row, perhaps the spot-colour row among the solids?).
+
+### B8-996 · FIXED, awaiting confirmation · "Any" in the presets window's Report type, the default beside "All metrics"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5816565326 (answer to our question 1). Spec §30.1, amends §27.
+- where: `workflow/preset_eligibility.py` (`ANY_REPORT_TYPE`, `rows_every_metric`, `rows_asked`); `ui/dialogs/preset_verification_dialog.py` (`_build`, `refresh`); `scripts/make_verification_preset_demos.py::opening_choice`.
+- tests: tests/test_any_report_type_is_the_default_beside_all_metrics.py. Mutations: the entry removed (red); `rows_asked(ANY, ...)` returning nothing (red).
+- evidence: test_any_is_the_first_report_type_and_the_window_opens_on_any_and_all_metrics, test_any_asks_the_union_of_the_verification_types, test_the_two_pulldowns_change_independently
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k33/ (*-01-presets-opened.png, *-02-presets-report-type-open.png).
+
+### B8-997 · FIXED, awaiting confirmation (text) · The presets window's intro sentence, rephrased
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5816565326 (answer to our question 2). Spec §30.4. German by hand.
+- where: `ui/dialogs/preset_verification_dialog.py::_build`.
+- tests: test_the_intro_says_what_the_two_fields_do_in_plain_words. Mutation: the old phrase back (red).
+- evidence: test_the_intro_says_what_the_two_fields_do_in_plain_words
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k33/ (before-*, after-*: *-01-presets-opened.png).
+
+### B8-998 · FIXED, awaiting confirmation · Knut's K33 figures in both Custom ISO sets; three kept from his earlier research, for him to decide
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5816565326. Spec §2a and §30.2. Added: -7 best95, worst5, all max, surface gamut, ramps; -8 solids, ΔH*ab, best95, worst5, all max, outer gamut. Kept (his 2026-09-21 figure, K33 differs): -7 solids 2.0 (3.00 proposed), -7 outer gamut 4.0 (2.50), -8 surface gamut 4.0 (3.00). Each column: 15 researched, 5 ChromIQ's own, 20 limits (were 10/10 and 9/11). The window's source sentence is generated and names the same two sources.
+- where: `workflow/compliance_sets.py::_CUSTOM_INDUSTRY`.
+- tests: tests/test_compliance_sets.py::test_knuts_k33_figures_fill_only_the_rows_that_took_ours, and the digest and row sets of test_the_researched_industry_figures_are_exactly_what_knut_delivered (updated). Mutation: a K33 figure overwriting a kept one (red).
+- evidence: test_knuts_k33_figures_fill_only_the_rows_that_took_ours
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k33/ (*-07-report-limits.png; custom_counts in each driver-report.json).
+- open for Knut: the three kept figures; and "Maximum ΔE00, all patches" 2.00 makes the average, highest-5 % and 95th-percentile limits unable to fail on their own.
+
+### B8-999 · FIXED, awaiting confirmation · "Sort by" in the presets window: Preset pulldown order (default), Most metrics answered first
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5817191535 and 5817448879 (works the same ticked or not). Spec §30.5. The default order measured: the Create Chart Preset pulldown's own, not alphabetical. German by hand.
+- where: `ui/dialogs/preset_verification_dialog.py` (`_build`, `_sorted_members`, `_on_sort_changed`, `SORT_PULLDOWN`, `SORT_MOST_ANSWERED`).
+- tests: tests/test_the_presets_window_sorts_within_each_group.py (both check-box states). Mutations: the default sorted alphabetically (red); the key reversed (red).
+- evidence: test_the_default_is_the_pulldown_order_and_the_list_is_unchanged, test_most_answered_sorts_within_each_group, test_the_pulldown_sits_right_of_the_tick_box
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k33/ (after-en, after-de: *-02b-sort-by-open.png, *-02c-sorted-most-answered.png, *-02d-same-group-pulldown-order.png).

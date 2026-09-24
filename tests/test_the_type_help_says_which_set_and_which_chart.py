@@ -168,7 +168,9 @@ def test_the_help_says_the_things_a_reader_came_for():
                  # for this run: …" or "No report has been generated for this
                  # run yet." and never mentions the ISO types. The reason is
                  # the disabled row's own tooltip, inside the open list.
-                 "pointing at the greyed entry says why"),
+                 # K33: the ISO types can be chosen now; the reason for
+                 # one that is greyed is still the entry's own tooltip.
+                 "if one is greyed, pointing at it says why"),
         # how the chart decides what can be said at all
         "chart": ("eight grey steps from white to black, spread roughly evenly", "single-ink or grey ramp",
                   "FROM PROFILE GAMUT", "aim value", "N-A",
@@ -371,11 +373,16 @@ def test_the_three_claims_nothing_was_reading_out_of_the_code():
         "paragraph still says eight")
     assert "eight grey steps from white to black, spread roughly evenly" in h["chart"]
 
-    # 2. "The two ISO types … they are greyed today"
-    unbuilt = [name for _tid, name, _b, built in REPORT_TYPE_MENU if not built]
-    assert len(unbuilt) == 2 and all("ISO" in n for n in unbuilt), (
-        f"the help says TWO ISO types are greyed; the menu greys {unbuilt}")
-    assert "The two ISO types" in h["when"] and "greyed today" in h["when"]
+    # 2. "The two ISO types … Either can be chosen while that standard's
+    #    values are loaded" (K33, B8-994; until then "greyed today")
+    from workflow.measurement_report import report_type_is_built
+    unbuilt = [name for tid, name, _b, _x in REPORT_TYPE_MENU
+               if not report_type_is_built(tid)]
+    assert unbuilt == [], (
+        f"the help says the ISO types can be chosen; the menu greys {unbuilt}")
+    assert "The two ISO types" in h["when"]
+    assert "greyed today" not in h["when"]
+    assert "while that standard's values are loaded" in h["when"]
 
     # 3. "Printing record grades nothing: every row it can compute reads INFO"
     lim = effective_limits("chromiq_default", {})

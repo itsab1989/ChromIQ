@@ -302,52 +302,47 @@ def test_the_readme_no_longer_says_report_types_cannot_be_selected(gen):
 
 
 def test_the_readme_lists_the_built_and_unbuilt_types_from_the_app(gen):
-    """Both halves of the pulldown, and neither typed.
+    """Every type in the pulldown, with its own line, and neither typed.
 
-    MUTATION: flip `built` to False on "Grey and tone check" in
-    REPORT_TYPE_MENU and this goes red, because the name moves from the list
-    of documents that have a run to the list of documents that cannot exist.
+    Since K33 (B8-994) all six can be produced while the ISO values are
+    loaded, so the README lists the four ChromIQ documents and then the two
+    ISO ones under the menu's own heading, and says they can be produced.
+
+    MUTATION: drop the ISO loop from readme() and this goes red.
     """
-    from workflow.measurement_report import REPORT_TYPE_MENU
+    from workflow.measurement_report import (REPORT_TYPE_ISO_SET,
+                                             REPORT_TYPE_MENU,
+                                             REPORT_TYPE_MENU_HEADING)
 
     text = _fake_readme(gen)
-    head = text.index("THE REPORT TYPES, AND WHY ONLY FOUR")
+    head = text.index("THE REPORT TYPES, ALL SIX")
     section = text[head:head + 4000]
-    built_at = section.index("FOUR CAN BE PRODUCED")
-    unbuilt_at = section.index("TWO CANNOT")
-    assert built_at < unbuilt_at
-
-    for _tid, name, blurb, built in REPORT_TYPE_MENU:
+    iso_at = section.index(REPORT_TYPE_MENU_HEADING)
+    for tid, name, blurb, _built in REPORT_TYPE_MENU:
         assert name in section, f"{name} is missing from the README"
         assert blurb in section, f"the line under {name} is missing"
         where = section.index(name)
-        if built:
-            assert built_at < where < unbuilt_at, (
-                f"{name} can be produced but is listed under TWO CANNOT")
+        if tid in REPORT_TYPE_ISO_SET:
+            assert where > iso_at, f"{name} is not under the ISO heading"
         else:
-            assert where > unbuilt_at, (
-                f"{name} cannot be produced but is listed as one that can")
+            assert where < iso_at, f"{name} is listed under the ISO heading"
+    assert "can be produced (since beta 42, K33)" in section
 
 
 def test_the_readme_quotes_the_window_s_own_refusal_sentence(gen):
-    """The reason a greyed type gives, taken from the window rather than typed
-    beside it.
+    """The reason a greyed ISO type gives, taken from the window rather than
+    typed beside it.
 
     MUTATION: replace `not_built_line()` in readme() with the sentence spelled
     out and this goes red, because no literal in readme() may hold it.
     """
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    from workflow.measurement_report import (REPORT_TYPE_ISO_7,
-                                             REPORT_TYPE_ISO_8)
 
     said = gen.not_built_line()
-    assert said == MeasurementReportDialog._not_built_line(REPORT_TYPE_ISO_8)
-    assert said == MeasurementReportDialog._not_built_line(REPORT_TYPE_ISO_7), (
-        "the two unbuilt types now give different reasons; the README quotes "
-        "one of them and would be quoting it for both")
+    assert said == MeasurementReportDialog._iso_values_missing_line()
     assert said in _fake_readme(gen)
 
-    typed = [t for t in _literals(gen.readme) if "Not available yet" in t]
+    typed = [t for t in _literals(gen.readme) if "Not available" in t]
     assert not typed, (
         "readme() types the refusal sentence instead of asking the window "
         "for it: " + "; ".join(repr(t) for t in typed))

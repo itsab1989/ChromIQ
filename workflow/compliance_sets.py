@@ -939,24 +939,26 @@ SETS: "tuple[SetDef, ...]" = (
     # figures respectively. It is worded for both states now.
     SetDef("custom_iso_12647_7", "Custom ISO 12647-7", "custom", True,
            parent="iso_12647_7",
+           # K33 (B8-998): "where a licence holder has supplied them"
+           # stopped being true with B8-978 (no values file fills a
+           # Custom column); this blurb was missed then.
            blurb="Every metric ChromIQ can measure, for judging against "
-                 "figures you set yourself. It starts from the published "
-                 "figures of ISO 12647-7:2016 where a licence holder has "
-                 "supplied them, and where nobody has, from limits "
+                 "figures you set yourself: an alternative to ISO 12647-7:2016 "
+                 "drawn from industry practice. It starts from limits "
                  "researched from industry practice and from ChromIQ's own "
-                 "numbers, neither of which is that standard's. Every limit "
-                 "in it is yours to change, the rows that start empty "
-                 "included."),
+                 "numbers, neither of which is that standard's published "
+                 "figures, and every limit in it is yours to change."),
     SetDef("custom_iso_12647_8", "Custom ISO 12647-8", "custom", True,
            parent="iso_12647_8",
+           # K33 (B8-998): "where a licence holder has supplied them"
+           # stopped being true with B8-978 (no values file fills a
+           # Custom column); this blurb was missed then.
            blurb="Every metric ChromIQ can measure, for judging against "
-                 "figures you set yourself. It starts from the published "
-                 "figures of ISO 12647-8:2021 where a licence holder has "
-                 "supplied them, and where nobody has, from limits "
+                 "figures you set yourself: an alternative to ISO 12647-8:2021 "
+                 "drawn from industry practice. It starts from limits "
                  "researched from industry practice and from ChromIQ's own "
-                 "numbers, neither of which is that standard's. Every limit "
-                 "in it is yours to change, the rows that start empty "
-                 "included."),
+                 "numbers, neither of which is that standard's published "
+                 "figures, and every limit in it is yours to change."),
 )
 SET_BY_ID: "dict[str, SetDef]" = {s.id: s for s in SETS}
 
@@ -1205,6 +1207,18 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         "all_de00_avg": Limit.value(2.0),                # ΔE00
         "all_de00_p95": Limit.value(4.0),                # ΔE00
         "outer_gamut_226_de00_avg": Limit.value(4.0),    # ΔE00
+        # KNUT'S SECOND SET OF FIGURES (K33, #182 5816565326, 2026-09-24),
+        # proposed for BOTH Custom columns "so that all metrics are
+        # included". Added only where the row took ChromIQ's own fill
+        # number. Where his new figure would REPLACE one from his research
+        # of 2026-09-21 above, the earlier figure is kept and the question is
+        # his (§2a): solids 3.00 over 2.0 and outer gamut 2.50 over 4.0 here.
+        # The ΔH*ab row already read 2.5 here, as he now proposes.
+        "best95_de00_avg": Limit.value(2.0),             # ΔE00
+        "worst5_de00_avg": Limit.value(2.0),             # ΔE00
+        "all_de00_max": Limit.value(2.0),                # ΔE00
+        "surface_gamut_de00_avg": Limit.value(3.0),      # ΔE00
+        "ramps_30_70_dl_max": Limit.value(2.0),          # ΔL*
     },
     "iso_12647_8": {
         "substrate_de00_max": Limit.value(2.0),          # ΔE00
@@ -1216,6 +1230,15 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         "all_de00_p95": Limit.value(4.0),                # ΔE00
         "surface_gamut_de00_avg": Limit.value(4.0),      # ΔE00
         "ramps_30_70_dl_max": Limit.value(2.0),          # ΔL*
+        # K33 (see the note in the block above). Kept from 2026-09-21 where
+        # his new figure differs: surface gamut 4.0, not 3.00. The ramp row
+        # already read 2.0, as he now proposes.
+        "solids_de00_max": Limit.value(3.0),             # ΔE00
+        "cmy_solids_dhab_max": Limit.value(2.5),         # ΔH*ab
+        "best95_de00_avg": Limit.value(2.0),             # ΔE00
+        "worst5_de00_avg": Limit.value(2.0),             # ΔE00
+        "all_de00_max": Limit.value(2.0),                # ΔE00
+        "outer_gamut_226_de00_avg": Limit.value(2.5),    # ΔE00
     },
 }
 

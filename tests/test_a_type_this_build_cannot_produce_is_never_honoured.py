@@ -31,14 +31,30 @@ from workflow import measurement_report as mr
 from workflow.run_compliance import (run_report_type)
 from tests.helpers.legacy_run_meta import (set_run_report_type)
 
-UNBUILT = [t[0] for t in mr.REPORT_TYPE_MENU if not t[3]]
-BUILT = [t[0] for t in mr.REPORT_TYPE_MENU if t[3]]
+#: SINCE K33 (B8-994) THE TWO ISO TYPES ARE BUILT, and can be produced while
+#: their standard's values are loaded. What this file guards is still real:
+#: on a ChromIQ with no values loaded (the shipped file missing or unreadable,
+#: nobody's own supplied) they cannot be produced, and a run or a saved report
+#: carrying one must not be honoured. So every test here runs in that state
+#: (`_no_iso_values`), and the two ISO types are the ones it cannot make.
+UNBUILT = list(mr.REPORT_TYPE_ISO_SET)
+BUILT = [t[0] for t in mr.REPORT_TYPE_MENU if t[0] not in UNBUILT]
+
+
+@pytest.fixture(autouse=True)
+def _no_iso_values(tmp_path, monkeypatch):
+    from tests.helpers.iso_files import use_empty_shipped_iso
+    use_empty_shipped_iso(tmp_path, monkeypatch)
+    yield
+    from workflow import compliance_sets as cs
+    cs.reset_iso_cache()
 
 
 def test_there_are_types_this_build_cannot_produce():
     """The whole test hangs on this being a real distinction."""
-    assert UNBUILT, "nothing to guard — has a type been built without updating this?"
-    assert BUILT
+    assert UNBUILT and all(not mr.report_type_is_built(t) for t in UNBUILT), (
+        "with no ISO values loaded the two ISO types must not be producible")
+    assert BUILT and all(mr.report_type_is_built(t) for t in BUILT)
 
 
 # RETIRED BY K31 (beta 40): `test_the_run_refuses_to_store_one`.
