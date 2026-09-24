@@ -36,7 +36,7 @@ def ink(recipe, ti1: Path, tag: str) -> dict:
     from workflow.layout_engine.chart import build_from_recipe
 
     def render(text, suffix):
-        base = Path(tempfile.mkdtemp(prefix=f"adv17-{tag}-{suffix}-"))
+        base = Path(tempfile.mkdtemp(prefix=f"chromiq-adv17-{tag}-{suffix}-"))
         res, _used = build_from_recipe(
             str(ti1), str(base / "s"),
             replace(recipe, chart_text=text, randomize=True,

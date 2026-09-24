@@ -1,5 +1,5 @@
 import os, sys, json, shutil, tempfile, pathlib
-SBOX = tempfile.mkdtemp(prefix="r6-sandbox-")
+SBOX = tempfile.mkdtemp(prefix="chromiq-r6-sandbox-")
 os.environ["CHROMIQ_SETTINGS_FILE"] = os.path.join(SBOX, "settings.ini")
 os.environ["CHROMIQ_PRESETS_DIR"]   = os.path.join(SBOX, "presets")
 sys.path.insert(0, "/Users/Basti/develop/ChromIQ")
@@ -44,7 +44,7 @@ CASES = [
     ("runs",               "a folder named after the folder it migrates into"),
     ("mychart",            "control: a name matching a real chart stem"),
 ]
-base = Path(tempfile.mkdtemp(prefix="r6-task1-"))
+base = Path(tempfile.mkdtemp(prefix="chromiq-r6-task1-"))
 for name, why in CASES:
     root = base / name
     build_flat(root, name)
@@ -106,7 +106,7 @@ HOSTILE = [
 ]
 task2_fail = []
 for value, why in HOSTILE:
-    root = Path(tempfile.mkdtemp(prefix="r6-task2-")) / "proj"
+    root = Path(tempfile.mkdtemp(prefix="chromiq-r6-task2-")) / "proj"
     build_flat(root, "proj")
     before = listing(root)
     rule = is_a_plain_folder_name(value)

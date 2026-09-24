@@ -203,7 +203,7 @@ def main() -> int:
     src = sorted(Path(work).rglob("*.ti2"))
     ti2 = None
     if src:
-        elsewhere = Path(tempfile.mkdtemp(prefix="adv23g-elsewhere-"))
+        elsewhere = Path(tempfile.mkdtemp(prefix="chromiq-adv23g-elsewhere-"))
         for f in src[0].parent.glob(src[0].stem + "*"):
             if f.is_file():
                 shutil.copy2(f, elsewhere / f.name)

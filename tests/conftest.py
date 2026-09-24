@@ -1728,7 +1728,7 @@ def demo_projects_root(tmp_path_factory):
     # half-built tree can never be picked up — by another worker racing us, or
     # by a later run after this one was interrupted.
     cached.parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(prefix="demo-build-", dir=str(cached.parent)))
+    staging = Path(tempfile.mkdtemp(prefix="chromiq-demo-build-", dir=str(cached.parent)))
     try:
         _build_demo_projects(staging)
         (staging / ".complete").write_text(_demo_cache_key(), encoding="utf-8")

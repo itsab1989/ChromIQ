@@ -107,7 +107,7 @@ def main() -> int:
     if src is None:
         note("No cached Demo-Full-RGB. Run the test suite once to build it.")
         return 2
-    work = Path(tempfile.mkdtemp(prefix="chal35-pertarget-"))
+    work = Path(tempfile.mkdtemp(prefix="chromiq-chal35-pertarget-"))
     shutil.copytree(src, work / src.name)
     note(f"subject: {work / src.name}")
 

@@ -49,7 +49,7 @@ def rerender(ti1: Path, recipe, text: str, tag: str):
     re-renders differ in the text and in nothing else."""
     from dataclasses import replace
     from workflow.layout_engine.chart import build_from_recipe
-    base = Path(tempfile.mkdtemp(prefix=f"adv23c-{tag}-"))
+    base = Path(tempfile.mkdtemp(prefix=f"chromiq-adv23c-{tag}-"))
     res, _ = build_from_recipe(str(ti1), str(base / "s"),
                                replace(recipe, chart_text=text,
                                        seed_fixed=True, seed=987654321))

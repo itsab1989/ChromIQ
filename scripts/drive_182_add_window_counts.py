@@ -50,7 +50,7 @@ def main() -> int:
 
     # The chart is COPIED: an on-screen driver may never write in the owner's
     # own project folder.
-    work = Path(tempfile.mkdtemp(prefix="add-counts-"))
+    work = Path(tempfile.mkdtemp(prefix="chromiq-add-counts-"))
     chart = work / SRC_TI2.name
     shutil.copy2(SRC_TI2, chart)
 

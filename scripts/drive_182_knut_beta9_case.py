@@ -93,7 +93,7 @@ def render(recipe, ti1: Path, tag: str, **over):
     from PIL import Image
 
     from workflow.layout_engine.chart import build_from_recipe
-    base = Path(tempfile.mkdtemp(prefix=f"k9-{tag}-"))
+    base = Path(tempfile.mkdtemp(prefix=f"chromiq-k9-{tag}-"))
     res, used = build_from_recipe(str(ti1), str(base / "s"),
                                   replace(recipe, **over) if over else recipe)
     page = sorted(base.glob("s*.tif"))[0]

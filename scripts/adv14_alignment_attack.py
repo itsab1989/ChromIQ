@@ -90,7 +90,7 @@ def ink_mm(recipe, ti1: Path, tag: str):
     from workflow.layout_engine.chart import build_from_recipe
 
     def _r(r, suffix):
-        base = Path(tempfile.mkdtemp(prefix=f"adv14-{tag}-{suffix}-"))
+        base = Path(tempfile.mkdtemp(prefix=f"chromiq-adv14-{tag}-{suffix}-"))
         res, used = build_from_recipe(str(ti1), str(base / "s"), r)
         page = sorted(base.glob("s*.tif"))[0]
         return np.asarray(Image.open(page).convert("L")).astype(np.int16), res

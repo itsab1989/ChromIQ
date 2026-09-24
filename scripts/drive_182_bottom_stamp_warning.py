@@ -92,7 +92,7 @@ def stamp_ink_mm(recipe, ti1: Path, tag: str) -> "dict | None":
     from workflow.layout_engine.chart import build_from_recipe
 
     def _render(r, suffix):
-        base = Path(tempfile.mkdtemp(prefix=f"stampink-{tag}-{suffix}-"))
+        base = Path(tempfile.mkdtemp(prefix=f"chromiq-stampink-{tag}-{suffix}-"))
         res, used = build_from_recipe(str(ti1), str(base / "s"), r)
         page = sorted(base.glob("s*.tif"))[0]
         return np.asarray(Image.open(page).convert("L")).astype(np.int16), res, used

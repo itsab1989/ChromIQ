@@ -119,7 +119,7 @@ def main() -> int:
     if src is None:
         note("No cached Demo-Full-RGB. Run the test suite once to build it.")
         return 2
-    work = Path(tempfile.mkdtemp(prefix="chal36-restore-"))
+    work = Path(tempfile.mkdtemp(prefix="chromiq-chal36-restore-"))
     shutil.copytree(src, work / src.name)
     note(f"subject: {work / src.name}   (a COPY; ~/ChromIQ is never touched)")
 

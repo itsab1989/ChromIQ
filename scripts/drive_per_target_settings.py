@@ -122,7 +122,7 @@ def main() -> int:      # noqa: PLR0915, PLR0912
     if src is None:
         print("No cached Demo-Full-RGB. Run the test suite once to build it.")
         return 2
-    work = Path(tempfile.mkdtemp(prefix="per-target-drive-"))
+    work = Path(tempfile.mkdtemp(prefix="chromiq-per-target-drive-"))
     shutil.copytree(src, work / src.name)
     print(f"subject: {work / src.name}")
 

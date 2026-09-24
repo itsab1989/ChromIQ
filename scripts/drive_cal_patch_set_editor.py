@@ -89,7 +89,7 @@ def main() -> int:
               "once to build the demo-project cache, then retry.")
         return 2
 
-    work = Path(tempfile.mkdtemp(prefix="cal-patchset-"))
+    work = Path(tempfile.mkdtemp(prefix="chromiq-cal-patchset-"))
     shutil.copytree(src, work / src.name)
     print(f"subject: {src}\n     -> {work / src.name}")
 

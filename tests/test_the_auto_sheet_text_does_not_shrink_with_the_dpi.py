@@ -98,12 +98,19 @@ def _auto_text_ink_mm(dpi: int) -> "tuple[float, float]":
     r.stamp_command = False
 
     def render(text):
-        base = Path(tempfile.mkdtemp(prefix=f"autotext-{dpi}-"))
-        build_from_recipe(str(TI1), str(base / "s"),
-                          replace(r, chart_text=text, randomize=True,
-                                  seed_fixed=True, seed=1))
-        page = sorted(base.glob("s*.tif"))[0]
-        return np.asarray(Image.open(page).convert("L")).astype(np.int16)
+        # **A FOLDER THAT REMOVES ITSELF.** This was `mkdtemp(prefix=
+        # "autotext-…")`, which nothing ever deleted and the suite's sweep
+        # cannot see (it takes `chromiq*` by name): 5,544 folders and 5.3 GB
+        # of page TIFFs in `$TMPDIR` on 2026-09-24, one pair per run.
+        with tempfile.TemporaryDirectory(
+                prefix=f"chromiq-test-autotext-{dpi}-") as d:
+            base = Path(d)
+            build_from_recipe(str(TI1), str(base / "s"),
+                              replace(r, chart_text=text, randomize=True,
+                                      seed_fixed=True, seed=1))
+            page = sorted(base.glob("s*.tif"))[0]
+            with Image.open(page) as im:
+                return np.asarray(im.convert("L")).astype(np.int16)
 
     on, off = render(r.chart_text), render(" ")
     assert on.shape == off.shape, "the geometry moved between the two renders"

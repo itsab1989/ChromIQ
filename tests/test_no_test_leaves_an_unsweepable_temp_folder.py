@@ -48,20 +48,44 @@ def _bare_mkdtemp_calls(path: Path):
         name = fn.attr if isinstance(fn, ast.Attribute) else getattr(fn, "id", "")
         if name != "mkdtemp":
             continue
-        if any(k.arg == "prefix" for k in node.keywords) or node.args:
+        pre = next((k.value for k in node.keywords if k.arg == "prefix"),
+                   None)
+        if pre is None and node.args:
+            continue                         # positional: not ours to guess
+        if pre is not None and _sweepable(pre):
             continue
         out.append(node.lineno)
     return out
+
+
+def _sweepable(prefix_node) -> bool:
+    """Whether a ``prefix=`` expression makes a name the sweep takes BY NAME.
+
+    **A PREFIX IS NOT ENOUGH, IT HAS TO BE THE SWEEP'S.** This guard used to
+    accept any ``prefix=``, while `_sweep_stale_temp_dirs` takes only
+    ``chromiq[-_]*`` by name. `mkdtemp(prefix="autotext-…")` in one test
+    therefore passed here and was never swept: 5,544 folders and 5.3 GB of
+    page TIFFs on 2026-09-24, and 18 driver scripts had the same hole."""
+    if isinstance(prefix_node, ast.Constant) and isinstance(
+            prefix_node.value, str):
+        head = prefix_node.value
+    elif isinstance(prefix_node, ast.JoinedStr) and prefix_node.values and \
+            isinstance(prefix_node.values[0], ast.Constant):
+        head = str(prefix_node.values[0].value)
+    else:
+        return False                         # computed: cannot be proved
+    return head.startswith(("chromiq-", "chromiq_"))
 
 
 @pytest.mark.parametrize("path", sorted(
     p for p in (_ROOT / "tests").glob("test_*.py")
     if p.name not in _EXEMPT))
 def test_no_test_file_makes_a_temp_folder_the_sweep_cannot_see(path):
-    """MUTATION: write `tempfile.mkdtemp()` in any test file and this goes red."""
+    """MUTATION: write `tempfile.mkdtemp()`, or `mkdtemp(prefix="x-")`, in any
+    test file and this goes red."""
     bad = _bare_mkdtemp_calls(path)
     assert not bad, (
-        f"{path.name} calls mkdtemp() with no prefix at line(s) "
+        f"{path.name} calls mkdtemp() with no chromiq- prefix at line(s) "
         f"{', '.join(str(n) for n in bad)}. That makes a `tmpXXXXXXXX` folder "
         "the sweep may not recognise by name, so it survives every run and "
         "every gate. Use the `tmp_path` fixture, or "

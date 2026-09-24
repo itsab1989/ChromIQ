@@ -54,7 +54,7 @@ def _ti1(path: Path, n: int) -> Path:
 
 
 def main() -> int:
-    tmp = Path(tempfile.mkdtemp(prefix="hexmanifest-"))
+    tmp = Path(tempfile.mkdtemp(prefix="chromiq-hexmanifest-"))
     ti1 = _ti1(tmp / "m.ti1", 400)
     rows = 0
     for instr in ("CR30", "SS"):

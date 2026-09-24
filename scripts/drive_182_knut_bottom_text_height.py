@@ -93,7 +93,7 @@ def text_ink_mm(recipe, ti1: Path, tag: str) -> dict:
     from workflow.layout_engine.chart import build_from_recipe
 
     def render(text, suffix):
-        base = Path(tempfile.mkdtemp(prefix=f"bt-{tag}-{suffix}-"))
+        base = Path(tempfile.mkdtemp(prefix=f"chromiq-bt-{tag}-{suffix}-"))
         res, used = build_from_recipe(
             str(ti1), str(base / "s"),
             replace(recipe, chart_text=text, randomize=True,
