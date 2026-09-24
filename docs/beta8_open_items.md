@@ -27562,3 +27562,48 @@ would reach.
 - tests: tests/test_a_serif_heading_keeps_its_last_letter.py (every TabHeader title, 14 languages, pixels of the rendered label; mutations: size hints back to QLabel's, and the beta 41 `ui/tab_header.py`: 14 red each)
 - evidence: test_every_heading_has_air_after_its_last_letter
 - proof: ~/Desktop/ChromIQ-beta41-proof/heading-last-letter/ (photographs/{before,after}-*, *.json, zoom-update-before-vs-after.png, zoom-patchcube-before-vs-after.png).
+
+### B8-963 · FIXED, awaiting confirmation · Extra-high density wrote 5 mm into margin boxes locked by "Use instrument margins"
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: beta 42
+- where: `ui/dialogs/layout_options_panel.py` (`_apply_mode_defaults`).
+- found by: the assessment of Basti's density/margins report of 2026-09-24, driving the A3+ 616p ColorMunki preset on screen.
+- measured before (on screen, `before/cm-cross-instrm-then-extrahigh`): tick "Use instrument margins" -> boxes locked at T33 R6 B10 L6, strip 283.5 mm; pick Extra-high -> boxes still locked and ticked but reading 5/5/5/5, chart built at 5 mm, strip 316.6 mm. The tooltip on the locked boxes says they are locked to the instrument's minimums; nothing a person can do puts those values back without unticking.
+- fixed: the Extra-high seed (Sebastian, #93) leaves the four boxes alone while they are locked. After (on screen, `after/cm-cross-instrm-then-extrahigh`, `after/cm-cross-patch-instrm-extrahigh`): Extra-high keeps T33 R6 B10 L6 and the build uses them; unticking still gives back T34 R24 B18 L14. The unlocked seed is unchanged (see B8-965).
+- tests: tests/test_a_density_change_keeps_locked_margins.py (mutation "the lock guard removed": 1 red)
+- evidence: test_extra_high_does_not_write_into_locked_instrument_margins, test_unlocked_extra_high_still_seeds_guideds_margins
+- proof: ~/Desktop/ChromIQ-beta42-proof/density-and-margins/ (before/, after/, test-runs/).
+
+### B8-964 · FIXED, awaiting confirmation · The build log named an area grid a patch-first chart never used
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 42
+- where: `ui/tabs/tab_chart.py` (`_log_chart_build`, `_recipe_mode_word`).
+- found by: Basti's log of 2026-09-24 10:48: "manual panel: 483x329, 44x14 grid" on every build whatever the density, read as "density changes nothing". In patch-first the same panel built 32 strips of 15 (High), 15 of 15 (Hand-held), 31 of 20 (Extra-high) and still logged 44x14.
+- fixed: the line names the instrument, paper, layout mode and the Mode pulldown (density / clip border / patch shape), and prints the columns x rows only in area-first; in patch-first it says the grid comes from the patch size.
+- tests: tests/test_a_density_change_keeps_locked_margins.py (mutation "grid printed in every mode": 1 red)
+- evidence: test_the_build_log_names_the_grid_only_where_it_is_used
+- proof: ~/Desktop/ChromIQ-beta42-proof/density-and-margins/after/*/driver-notes.txt (LOG lines).
+
+### B8-965 · OPEN · Picking Extra-high density replaces a preset's (or typed) margins with 5 mm, and going back does not restore them
+- blocks release: no
+- status: OPEN
+- note: beta 42, for Basti/Knut. Rule: Sebastian, #93, 2026-06-29 (commit 3cbb0a9b, `_apply_mode_defaults`: "ColorMunki Extra-high density mirrors Guided's triple density exactly: 5 mm margins"), which predates the ColorMunki built-in family (2026-08-16) whose margins Knut set on paper. Measured on screen (A3+ 616p): T34 R24 B18 L14 -> 5/5/5/5 on Extra-high; back to High or Hand-held keeps 5/5/5/5, so the same visible density gives a different chart depending on the detour (patch-first High: strip 226.8 mm before, 257.2 after). At 5 mm the preset shows 2 warnings (strip letters on the first row of patches; stamp over the patches). Not changed. Options: (a) keep; (b) seed only when the boxes still hold the instrument's default margins, never a preset's or typed ones; (c) seed, and give the previous margins back when leaving Extra-high; (d) never seed. Recommendation: (b).
+
+### B8-966 · OPEN · Density does nothing in "Prioritise chart area" with columns and rows pinned, Hand-held included
+- blocks release: no
+- status: OPEN
+- note: beta 42, for Knut. Measured (A3+ 616p, by_grid 44 x 14): Hand-held, High and Extra-high all build 44 strips of 14 at 10.29 x 21.46 mm, one page. Guided (patch-first) and Manual patch-first give 3 / 2 / 1 pages for the same patch set. The panel's own help says so ("unless you pin both columns and rows, which fixes the grid outright"), so it is documented behaviour, but a Hand-held chart with 10.3 mm strips cannot be read by hand. The i1Pro / i1Pro 3 Plus Clip-border Off ("Off, more patches") gives the identical chart in both layout modes on their presets too, because the clip band lives inside the 26 / 28 mm left margin. Not changed. Options: (a) keep; (b) the density sets a floor on the strip width (28 / 13.7 / 10.4 mm) that a pinned grid may not go below; (c) keep the grid and warn when strips are narrower than the density reads. Recommendation: (c).
+
+### B8-967 · OPEN · In "Prioritise patch size" the strips stop well short of the margins: the instrument's run-up and trailer are added to them
+- blocks release: no
+- status: OPEN
+- note: beta 42, for Knut. `workflow/layout_engine/geometry.py::compute`: top = margin + label band + run-up (`margin_t + txhi + lcar`), bottom = max(margin, trailer); whole patches only, the rest split top and bottom (centre alignment). ColorMunki rig: run-up 20, trailer 25, label 7 -> A3+ with T34/B18: patches from 69.1 mm to 33.1 mm above the bottom, strip 226.8 mm in 329; at 5 mm 39.4 / 32.5, 257.2 mm; Extra-high (run-up 10, trailer 10) 29.1 / 17.1. Same shape on every strip instrument measured: i1Pro top 57.0 for T38, i1Pro 3 Plus 77.2 for T40, CR30 28.4 for T17, SpectroScan 13.0 for T8. The comment says margins are "floored" by the leader; the top is added, only the bottom is floored. It matches Guided (same pages per density). "Use instrument margins" switches to margins-are-law (strip 272.4 mm). Not changed. Options: (a) keep (printtarg's model, Guided parity); (b) floor the top like the bottom; (c) keep and show the run-up/trailer reserve in the Measured panel and the Margins help. Recommendation: (c), and (b) only with Guided moved too.
+
+### B8-968 · OPEN · "Max strip length" is editable in "Prioritise chart area" and has no effect there
+- blocks release: no
+- status: OPEN
+- note: beta 42, for Knut. 150 mm on every preset measured (CM, i1Pro, i1Pro 3 Plus, CR30, SpectroScan) changed nothing in area-first; in patch-first it caps the strip and back to auto restores the same chart. By design in the code (`geometry.py`: "Only area-first fills past the ruler and flags a too-long strip"), but the box does not say so. Options: (a) keep; (b) grey it out in area-first with a tooltip; (c) honour it in area-first. Recommendation: (b).

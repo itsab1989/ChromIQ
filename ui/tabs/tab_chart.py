@@ -1616,6 +1616,20 @@ class _Ti1Preset:
         return _sortable_builtin_name(self.file_group, self.name, self.suffix)
 
 
+def _recipe_mode_word(rec: dict) -> str:
+    """What the layout panel's Mode pulldown holds, in the words of the build
+    log line (B8-964): the ColorMunki density, the i1Pro clip border, or the
+    SpectroScan / CR30 patch shape."""
+    inst = str(rec.get("instrument") or "")
+    if inst == "CM":
+        return f"density {int(rec.get('cm_density') or 1)}"
+    if inst in ("i1", "p3"):
+        return "clip border " + ("on" if rec.get("clip_border") else "off")
+    if inst in ("SS", "CR30"):
+        return "hexagons" if rec.get("hflag") else "rectangles"
+    return "mode default"
+
+
 def _cm_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                patches: int, pages: int, white: int, black: int, *,
                margin_left: float = 14.0,
@@ -24950,10 +24964,22 @@ class TabChart(QWidget):
             # produced the bug. So log both, labelled, and let a reader see the
             # gap.
             mode = self._current_mode()
+            # THE GRID IS AN AREA-FIRST SETTING, AND ONLY THERE A FACT (B8-964).
+            # This line used to print the area columns x rows whatever the
+            # layout mode, so a patch-first chart built as 32 strips of 15
+            # was logged as "44x14 grid" at every density, and Basti read
+            # that as "density changes nothing". Say which layout mode and
+            # which density/mode the panel holds, and print the grid only
+            # where the layout uses it.
+            lay = str(rec.get("layout_mode") or "patch_first")
+            grid = (f"{rec.get('area_cols')}x{rec.get('area_rows')} grid"
+                    if lay == "area_first" else
+                    "grid from patch size (area grid unused)")
             log.info("chart build (%s) in %s: patch set %s | manual panel: %s, "
-                     "%sx%s grid, margins T%s R%s B%s L%s",
+                     "%s, %s, %s, %s, margins T%s R%s B%s L%s",
                      trigger, mode, getattr(ti1_path, "name", ti1_path),
-                     rec.get("paper"), rec.get("area_cols"), rec.get("area_rows"),
+                     rec.get("instrument"), rec.get("paper"), lay,
+                     _recipe_mode_word(rec), grid,
                      rec.get("margin_top"), rec.get("margin_right"),
                      rec.get("margin_bottom"), rec.get("margin_left"))
             if mode != "manual":

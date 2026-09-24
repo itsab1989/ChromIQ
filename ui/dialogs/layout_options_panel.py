@@ -2673,8 +2673,18 @@ class LayoutOptionsPanel(QWidget):
         if (self.instr.currentData() == "CM"
                 and self.mode.currentData() == "extrahigh"):
             self._loading = True
-            for k in ("t", "r", "b", "l"):
-                self.margins[k].setValue(5.0)
+            # A LOCKED BOX IS NOT SEEDED (B8-963). With "Use instrument
+            # margins" ticked the four boxes are disabled and say they are
+            # locked to the instrument's minimums; writing 5 mm into them
+            # anyway built the chart at 5 mm while the tick and the tooltip
+            # still promised the instrument's margins, and nobody could type
+            # them back. The lock is the user's explicit choice and wins over
+            # this default; unticking still restores what was there before.
+            locked = (hasattr(self, "use_instr_margins")
+                      and self.use_instr_margins.isChecked())
+            if not locked:
+                for k in ("t", "r", "b", "l"):
+                    self.margins[k].setValue(5.0)
             self._border = 5.0                       # base margin, = Guided
             # Guided centres the patch block (the small extra gap below the strip
             # labels Sebastian liked); match it here.
