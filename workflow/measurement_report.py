@@ -1886,7 +1886,8 @@ def resolve_recorded_folder(d: "str | Path", homes, *,
     2. a report naming ONE project (*one_project*) whose files live in one
        home: that home, because a report of one project is only ever filed
        inside that project (`document_home`); None when it is not there;
-    3. only when the recorded folder no longer holds a project (B8-955):
+    3. only when the recorded folder no longer holds a project, or a
+       home's original stands beside it (a copied pack, K25) (B8-955):
        a project of the recorded name beside a home (a report across
        projects names its other projects that way); 3b, the one project
        beside a home that answers to the name; 3c, the one project in the
@@ -1928,11 +1929,19 @@ def resolve_recorded_folder(d: "str | Path", homes, *,
     # dates. B8-926 guarded 3c only; a Finder copy beside the home ("Q
     # copy", or renamed to Q) still won through 3 and 3b. The rewrite side
     # (`core.report_refs.refers_here`) already refused such a reference.
+    #
+    # **UNLESS THE HOME WAS COPIED FROM BESIDE IT (K25).** A copied pack
+    # (P, Q and reports/ copied together, the originals kept) records the
+    # ORIGINAL Q, which is still there, and the copy's own Q beside the copy
+    # of P is the one meant. That is told apart by the recorded folder's
+    # neighbours: a project beside the recorded Q that answers to a home's
+    # name, and is not that home, is the home's original, so the two were
+    # together where the report was written and the home's neighbour is Q.
     try:
         still_there = (recorded / "project.json").is_file()
     except OSError:
         still_there = False
-    if still_there:
+    if still_there and not _copied_from_beside(recorded, homes):
         return d
     for h in homes:
         beside = h.parent / recorded.name
@@ -1969,6 +1978,27 @@ def resolve_recorded_folder(d: "str | Path", homes, *,
     if len(found) == 1 and _ok(found[0] / rel):
         return found[0] / rel
     return d
+
+
+def _copied_from_beside(recorded: Path, homes) -> bool:
+    """Whether a home's original stands beside *recorded*: a project folder
+    in *recorded*'s parent that answers to one of the home's names
+    (`names_of_project`) and is not the home itself (B8-955, K25). Never
+    raises."""
+    for h in homes:
+        try:
+            names = names_of_project(h)
+        except Exception:                              # noqa: BLE001
+            continue
+        for n in names:
+            twin = recorded.parent / n
+            try:
+                if (twin / "project.json").is_file() and not \
+                        os.path.samefile(str(twin), str(h)):
+                    return True
+            except OSError:
+                continue
+    return False
 
 
 def _projects_in_the_chromiq_folder(name: str, homes) -> "list[Path]":

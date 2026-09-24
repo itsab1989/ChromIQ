@@ -122,3 +122,16 @@ def test_the_window_reads_the_recorded_project_not_the_copy_beside(
         dlg.close()
     assert any(o.startswith(str(q.root)) for o in origins), origins
     assert not any(o.startswith(str(twin)) for o in origins), origins
+
+
+def test_a_copied_pack_still_reads_its_own_copy(tmp_path, chromiq_folder_is):
+    """K25 kept: P and Q copied together (the originals kept): the home's
+    original stands beside the recorded Q, so the copy's own Q is meant."""
+    from workflow.measurement_report import resolve_recorded_folder
+    _mk(tmp_path, "P")
+    q = _mk(tmp_path, "Q")
+    moved = tmp_path / "moved"
+    p2 = _mk(moved, "P")
+    q2 = _mk(moved, "Q")
+    chromiq_folder_is(moved)
+    assert resolve_recorded_folder(q / "runs/run1", [p2]) == q2 / "runs/run1"
