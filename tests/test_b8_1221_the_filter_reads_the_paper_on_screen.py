@@ -119,9 +119,11 @@ def _popup_groups(tab) -> list:
 
 
 def _groups_on(paper: str) -> list:
+    """The groups with a built-in on *paper*: every group, Scanner too since
+    Knut's ruling of 2026-09-25 (#182 5840692243, K48)."""
     return [h for h, e in TC.BUILTIN_PRESET_GROUPS
-            if h == SCANNER or any(cp.paper_matches(TC.builtin_preset_paper(k),
-                                                   paper) for *_x, k in e)]
+            if any(cp.paper_matches(TC.builtin_preset_paper(k), paper)
+                   for *_x, k in e)]
 
 
 def test_manual_with_the_engine_reads_the_layout_panels_paper(tab, qapp):
@@ -147,7 +149,8 @@ def test_custom_in_the_layout_panel_lists_the_custom_size_presets(tab, qapp):
     a custom size is not showing"*. Either half of the fix alone mends this
     one, so the mutation that proves it is BOTH reverted, which is the beta 43
     code: the filter reading -p and -p left on the paper before, 5 x 7 in,
-    which lists Scanner only (red)."""
+    which lists no group at all since Scanner is filtered too (K48; before it,
+    Scanner only) (red)."""
     _panel_paper(tab, "127x178")
     qapp.processEvents()
     _panel_paper(tab, "__custom__", (100, 150))
@@ -303,9 +306,8 @@ def test_knuts_start_then_a_preset_on_another_paper(qapp):
             else:
                 s.set(k, v)
 
-
 # ---------------------------------------------------------------------------
-# B8-1227: Knut's workaround rule (#182 5839418461)
+# K48 (Knut, #182 5840677938), which replaces B8-1227's workaround rule
 # ---------------------------------------------------------------------------
 CM = "ColorMunki / i1Studio / ColorChecker Studio"
 I1 = "i1Pro / i1Pro 2 / i1Pro 3"
@@ -317,14 +319,16 @@ def _on_paper(group: str, paper: str) -> list:
             if cp.paper_matches(TC.builtin_preset_paper(k), paper)]
 
 
-def test_a_group_with_none_ticked_on_the_paper_lists_them_directly(tab, qapp):
-    """Knut: *"if nothing is shown of a selected paper, but presets for that
-    paper does exist, then they should show in the preset list, even if they
-    were not specified as default"*. On A3 Landscape none of ColorMunki's 8
-    presets is ticked by default: both lists show all 8 directly, with no
-    arrow; i1Pro, which has ticked ones there, keeps its arrow.
-    MUTATION: drop the rule from `_apply_preset_collapse` (red: pulldown) or
-    from `_open_builtin_preset_overlay` (red: popup)."""
+def test_a_group_with_none_ticked_on_the_paper_shows_its_heading_and_arrow(
+        tab, qapp):
+    """Knut, K48: *"maybe leave it like it was, just make sure that "N more
+    presets" is shown, even if no paper of the selected size has been ticked
+    to show directly in lists"*. On A3 Landscape none of ColorMunki's 8
+    presets is ticked by default: both lists show its heading and "▸ 8 more
+    presets" and list none of them directly; i1Pro keeps its ticked ones and
+    its arrow. B8-1227 listed ColorMunki's 8 directly.
+    MUTATION: put B8-1227's rule back in `_apply_preset_collapse` (red:
+    pulldown) or in `_open_builtin_preset_overlay` (red: popup)."""
     shown = cp.shown_keys(tab._settings, TC.BUILTIN_PRESET_KEYS)
     cm = _on_paper(CM, "420x297")
     assert cm and not set(cm) & shown, "the case: none of them ticked"
@@ -334,24 +338,27 @@ def test_a_group_with_none_ticked_on_the_paper_lists_them_directly(tab, qapp):
     qapp.processEvents()
     cb = tab._preset_combo
     view = cb.view()
-    # the closed pulldown, and then the open one
-    for opened in (False, True):
-        if opened:
-            tab._reveal_current_preset_group()
-        for k in cm:
-            assert not view.isRowHidden(cb.findData(k)), (opened, k)
-        arrow = tab._preset_arrow_row(CM)
-        assert arrow < 0 or view.isRowHidden(arrow)
-        i1_arrow = tab._preset_arrow_row(I1)
-        assert not view.isRowHidden(i1_arrow)
-        assert cb.itemData(i1_arrow, TC.Qt.ItemDataRole.UserRole + 44) \
-            == len(set(i1) - shown)
+    tab._reveal_current_preset_group()
+    assert CM in _groups_listed(tab)
+    for k in cm:
+        assert view.isRowHidden(cb.findData(k)), k
+    arrow = tab._preset_arrow_row(CM)
+    assert arrow >= 0 and not view.isRowHidden(arrow)
+    assert cb.itemData(arrow, TC.Qt.ItemDataRole.UserRole + 44) == len(cm)
+    i1_arrow = tab._preset_arrow_row(I1)
+    assert not view.isRowHidden(i1_arrow)
+    assert cb.itemData(i1_arrow, TC.Qt.ItemDataRole.UserRole + 44) \
+        == len(set(i1) - shown)
+    # Opening the arrow shows exactly those 8.
+    tab._on_preset_more_row(arrow, "open")
+    for k in cm:
+        assert not view.isRowHidden(cb.findData(k)), k
     tab._open_builtin_preset_overlay()
     pop = tab._builtin_preset_popup
     try:
         groups = {h: [k for _l, k in e] for h, e in pop._groups}
-        assert sorted(groups[CM]) == sorted(cm)
-        assert CM not in pop._more
+        assert groups[CM] == []
+        assert sorted(k for _l, k in pop._more[CM]) == sorted(cm)
         assert sorted(k for _l, k in pop._more[I1]) == sorted(set(i1) - shown)
     finally:
         pop.close()

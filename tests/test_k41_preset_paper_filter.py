@@ -16,7 +16,11 @@ What these tests hold:
   any size the Paper field does not name is Custom;
 * OFF: the pulldown and the Built-in presets list are exactly what they were;
 * ON: only presets on the paper of the mode shown (Guided "Paper size",
-  Manual "Paper"), live as the paper or the mode changes; Scanner always;
+  Manual "Paper"), live as the paper or the mode changes; Scanner too
+  since Knut's ruling of 2026-09-25 (#182 5840692243: *"I also think the
+  Scanner presets now should obey the same filtering according to paper
+  size."*), which withdrew "The presets under headings Scanner are always
+  shown" above;
   a group left empty shows no heading; the arrow counts what it still holds;
   a person's own presets NEVER (Knut, #182 5833232475: "This feature only
   apply build-in presets"; B8-1134 filtered them until then);
@@ -42,7 +46,7 @@ from core.file_manager import FileManager                       # noqa: E402
 from core.settings import AppSettings                           # noqa: E402
 from data.patch_db import PAPER_LABELS                          # noqa: E402
 from ui.tabs.tab_chart import (                                 # noqa: E402
-    BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS, PAPER_FILTER_ALWAYS_SHOWN,
+    BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS,
     TabChart, builtin_preset_paper, paper_filter_groups,
 )
 
@@ -163,11 +167,16 @@ def test_every_built_in_has_a_paper_and_orientation_is_part_of_it():
     assert cp.paper_matches("", "A4")
 
 
-def test_scanner_is_the_only_group_never_filtered_and_red_river_is_filtered():
-    assert PAPER_FILTER_ALWAYS_SHOWN == {SCANNER}
+def test_every_group_is_filtered_scanner_and_red_river_too():
+    """Scanner ships A4 Landscape and Letter Landscape only (K48: filtered
+    since Knut's ruling of 2026-09-25). MUTATION: exempt Scanner again in
+    ``paper_filter_groups`` (red)."""
     groups = dict(paper_filter_groups(BUILTIN_PRESET_GROUPS, "420x297"))
     assert RED_RIVER not in groups          # Red River ships A4 and Letter only
-    assert len(groups[SCANNER]) == len(dict(BUILTIN_PRESET_GROUPS)[SCANNER])
+    assert SCANNER not in groups            # nor Scanner, A4R and LetterR
+    groups = dict(paper_filter_groups(BUILTIN_PRESET_GROUPS, "A4R"))
+    assert groups[SCANNER] and all(builtin_preset_paper(k) == "A4R"
+                                   for _c, _o, k in groups[SCANNER])
     groups = dict(paper_filter_groups(BUILTIN_PRESET_GROUPS, "A4"))
     assert all(builtin_preset_paper(k) == "A4"
                for _c, _o, k in groups[RED_RIVER])
@@ -202,12 +211,12 @@ def test_on_manual_lists_only_the_paper_selected(tab, settings, qapp):
     builtins = keys & BUILTIN_PRESET_KEYS
     assert builtins
     for key in builtins:
-        assert (_group_of(key) == SCANNER
-                or builtin_preset_paper(key) == "A4"), key
-    # Every A4 built-in is there, and every Scanner one.
+        assert builtin_preset_paper(key) == "A4", key
+    # Every A4 built-in is there, and no Scanner one (they are A4R, K48).
+    assert not {k for _c, _o, k in dict(BUILTIN_PRESET_GROUPS)[SCANNER]} & keys
     for heading, entries in BUILTIN_PRESET_GROUPS:
         for _c, _o, key in entries:
-            if heading == SCANNER or builtin_preset_paper(key) == "A4":
+            if builtin_preset_paper(key) == "A4":
                 assert key in keys, key
     # A person's own presets: never filtered, whatever paper they store
     # (Knut, #182 5833232475). MUTATION: give an own preset its stored paper
@@ -237,7 +246,7 @@ def test_custom_lists_every_custom_size_preset(tab, settings):
               if builtin_preset_paper(k) not in PAPER_LABELS}
     assert custom and custom <= keys
     for key in keys & BUILTIN_PRESET_KEYS:
-        assert key in custom or _group_of(key) == SCANNER, key
+        assert key in custom, key
     assert {MY_A4, MY_LETTER, MY_CUSTOM, MY_NO_PAPER} <= keys
 
 
@@ -284,7 +293,7 @@ def test_an_empty_group_shows_no_heading_and_the_arrow_counts_what_is_left(
     cr30 = next(h for h, _e in BUILTIN_PRESET_GROUPS if h.startswith("CR30"))
     assert cr30 not in texts
     assert RED_RIVER not in texts
-    assert SCANNER in texts
+    assert SCANNER not in texts             # K48: A4R and LetterR only
     # No two separators in a row, and none at the end.
     blanks = [i for i, t in enumerate(texts) if t == ""]
     assert all(b + 1 not in blanks for b in blanks)
@@ -294,12 +303,10 @@ def test_an_empty_group_shows_no_heading_and_the_arrow_counts_what_is_left(
         group = cb.itemData(row, cb.MORE_ROLE)
         if not group or view.isRowHidden(row):
             continue
-        # Scanner is never filtered by paper (K41), so its arrow counts every
-        # hidden scanner preset; every other group counts only this paper's.
+        # Every group counts only this paper's presets, Scanner too (K48).
         members = [r for r in range(cb.count())
                    if cb.itemData(r, cb.MEMBER_ROLE) == group
-                   and (group == SCANNER
-                        or builtin_preset_paper(cb.itemData(r)) == "420x297")]
+                   and builtin_preset_paper(cb.itemData(r)) == "420x297"]
         assert f"{len(members)} more preset" in cb.itemText(row), group
 
 
@@ -367,13 +374,12 @@ def test_the_built_in_presets_list_is_filtered_too(tab, settings, qapp):
     popup = tab._builtin_preset_popup
     try:
         headings = [h for h, _e in popup._groups]
-        assert SCANNER in headings and RED_RIVER not in headings
+        assert SCANNER not in headings and RED_RIVER not in headings
         for heading, entries in popup._groups:
             rest = popup._more.get(heading, [])
             assert entries or rest, heading
             for _label, key in list(entries) + list(rest):
-                assert (heading == SCANNER
-                        or builtin_preset_paper(key) == "420x297"), key
+                assert builtin_preset_paper(key) == "420x297", key
     finally:
         popup.close()
     _filter(settings, False)

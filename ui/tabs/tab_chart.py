@@ -3906,25 +3906,22 @@ def builtin_preset_paper(key: str) -> str:
     return ""
 
 
-#: The group the paper filter never hides (Knut: *"The presets under headings
-#: Scanner are always shown."*).
-PAPER_FILTER_ALWAYS_SHOWN = frozenset({_group_heading("Scanner")})
-
-
 def paper_filter_groups(groups: list, selected: str) -> list:
     """``groups`` (heading, [entry, …]) with every built-in not on the Paper
     field entry ``selected`` left out, and a group left empty left out with its
-    heading. An entry's key is its LAST item. The Scanner group is never
-    filtered. ``selected`` "" (the filter off) returns ``groups`` as they are.
+    heading. An entry's key is its LAST item. Every group is filtered, Scanner
+    too (Knut's ruling of 2026-09-25, #182 5840692243: *"I also think the
+    Scanner presets now should obey the same filtering according to paper
+    size."*; until then Scanner was never filtered, K41). ``selected`` "" (the
+    filter off) returns ``groups`` as they are.
     """
     if not selected:
         return groups
     from core.curated_presets import paper_matches
     out = []
     for heading, entries in groups:
-        if heading not in PAPER_FILTER_ALWAYS_SHOWN:
-            entries = [e for e in entries
-                       if paper_matches(builtin_preset_paper(e[-1]), selected)]
+        entries = [e for e in entries
+                   if paper_matches(builtin_preset_paper(e[-1]), selected)]
         if entries:
             out.append((heading, entries))
     return out
@@ -4501,8 +4498,8 @@ class _CappedComboBox(NoScrollComboBox):
     #: arrow): the group's heading. What the paper filter hides a group by.
     GROUP_ROLE = Qt.ItemDataRole.UserRole + 45
     #: On a preset the paper filter may hide: the paper (printtarg ``-p``
-    #: code) it lays its chart out on. Absent on the Scanner presets and on a
-    #: person's preset that stores no paper, which are always listed.
+    #: code) it lays its chart out on (Scanner's too since K48). Absent on a
+    #: person's preset, which is never filtered.
     PAPER_ROLE = Qt.ItemDataRole.UserRole + 46
     # (The paper-filter note was a row here, NOTE_ROLE, until B8-1226 pinned
     # it under the list as :class:`_PresetListNote`: see :meth:`set_note`.)
@@ -10715,15 +10712,13 @@ class TabChart(QWidget):
 
     def _mark_preset_group_rows(self, start: int, group: str) -> None:
         """Tag the rows of one built-in group from ``start`` on with its
-        heading, and each preset among them with its paper, unless the group
-        is one the paper filter never hides."""
+        heading, and each preset among them with its paper (Scanner's too
+        since Knut's ruling of 2026-09-25, #182 5840692243)."""
         cb = self._preset_combo
-        always = group in PAPER_FILTER_ALWAYS_SHOWN
         for row in range(start, cb.count()):
             cb.setItemData(row, group, cb.GROUP_ROLE)
             key = cb.itemData(row)
-            if not always and isinstance(key, str) \
-                    and not cb.itemData(row, cb.MORE_ROLE):
+            if isinstance(key, str) and not cb.itemData(row, cb.MORE_ROLE):
                 paper = builtin_preset_paper(key)
                 if paper:
                     cb.setItemData(row, paper, cb.PAPER_ROLE)
@@ -10891,8 +10886,6 @@ class TabChart(QWidget):
 
         listed: dict[str, int] = {}      # group -> presets it still lists
         rest_left: dict[str, int] = {}   # group -> presets left under its arrow
-        ticked_on_paper: dict[str, int] = {}
-        rest_on_paper: dict[str, int] = {}
         for row in range(cb.count()):
             grp = cb.itemData(row, cb.GROUP_ROLE)
             if not grp or cb.itemData(row, cb.MORE_ROLE) \
@@ -10901,31 +10894,19 @@ class TabChart(QWidget):
             if filtered(row):
                 continue
             listed[grp] = listed.get(grp, 0) + 1
-            on_paper = bool(selected) and paper_matches(
-                cb.itemData(row, cb.PAPER_ROLE), selected)
             if cb.itemData(row, cb.MEMBER_ROLE):
                 rest_left[grp] = rest_left.get(grp, 0) + 1
-                if on_paper:
-                    rest_on_paper[grp] = rest_on_paper.get(grp, 0) + 1
-            elif on_paper:
-                ticked_on_paper[grp] = ticked_on_paper.get(grp, 0) + 1
-        # KNUT'S WORKAROUND RULE (#182 5839418461, B8-1227): with the filter
-        # on, a group that has presets on the paper but none of them ticked
-        # lists them directly, as if ticked, for this paper only, so its
-        # heading never stands over nothing but an arrow. Not Scanner, which
-        # the filter never touches.
-        shown_all = {g for g, n in rest_on_paper.items()
-                     if selected and n and not ticked_on_paper.get(g)
-                     and g not in PAPER_FILTER_ALWAYS_SHOWN}
-        for g in shown_all:
-            rest_left[g] = 0
+        # A GROUP WITH PRESETS ON THE PAPER AND NONE OF THEM TICKED shows its
+        # heading and "▸ N more presets", nothing listed directly (Knut, #182
+        # 5840677938, K48: *"maybe leave it like it was, just make sure that
+        # "N more presets" is shown"*). This replaces B8-1227, which listed
+        # such presets directly as if ticked.
         for row in range(cb.count()):
             member = cb.itemData(row, cb.MEMBER_ROLE)
             group = cb.itemData(row, cb.MORE_ROLE)
             grp = cb.itemData(row, cb.GROUP_ROLE)
             if member:
-                hidden = (member not in opened and member not in shown_all) \
-                    or filtered(row)
+                hidden = member not in opened or filtered(row)
                 view.setRowHidden(row, hidden)
                 item = model.item(row)
                 if item is not None:
@@ -11498,11 +11479,10 @@ class TabChart(QWidget):
         selected = self._preset_paper_selected()
         for instr, entries in paper_filter_groups(
                 BUILTIN_PRESET_GROUPS, selected):
+            # None ticked on this paper: the heading and "▸ N more presets"
+            # only, as in "Select preset" (Knut, #182 5840677938, K48; this
+            # replaces B8-1227's listing them directly).
             top, rest = split_group(entries, shown)
-            if selected and not top and instr not in PAPER_FILTER_ALWAYS_SHOWN:
-                # Knut's workaround rule (#182 5839418461, B8-1227): presets
-                # on this paper, none ticked: list them directly.
-                top, rest = rest, []
             groups.append((instr, [(_marked_overlay_label(key, overlay_label), key)
                                    for (_combo, overlay_label, key) in top]))
             if rest:

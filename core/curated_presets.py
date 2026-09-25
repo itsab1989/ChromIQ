@@ -443,6 +443,10 @@ def _read_rows(reader, known: Iterable[str]) -> TableReading:
 # filtered [...] If the Paper size setting is Custom [...] all the presets
 # using the Custom Paper size setting will be shown."*
 #
+# SCANNER IS FILTERED TOO since Knut's ruling of 2026-09-25 (#182 5840692243,
+# K48): *"I also think the Scanner presets now should obey the same filtering
+# according to paper size."* The "always shown" above no longer holds.
+#
 # A preset's paper is the printtarg ``-p`` code it lays the chart out on,
 # which every built-in carries and a person's own preset stores as
 # ``printtarg_-p``. The pulldowns list each ORIENTATION as its own entry

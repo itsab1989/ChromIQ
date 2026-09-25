@@ -106,9 +106,14 @@ from userdrive import Drive                                   # noqa: E402
 
 OURS = {"BuiltinPresetsShownDialog"}
 #: Judge by Knut's workaround rule (#182 5839418461, B8-1227): a group with
-#: presets on the paper and none ticked lists them directly. B8_1227=0 judges
-#: by C7 as beta 43 shipped it (the "before" matrix was judged so).
-RULE_1227 = os.environ.get("B8_1227", "1") == "1"
+#: presets on the paper and none ticked lists them directly. B8_1227=0 (the
+#: default since K48, #182 5840677938, which withdrew that rule: such a group
+#: shows its heading and "N more presets") judges by C7.
+RULE_1227 = os.environ.get("B8_1227", "0") == "1"
+#: The groups the paper filter never hides. Scanner was one until Knut's ruling
+#: of 2026-09-25 (#182 5840692243); B8_SCANNER_ALWAYS=1 judges by the old rule.
+PAPER_FILTER_ALWAYS_SHOWN = frozenset(
+    {"Scanner"} if os.environ.get("B8_SCANNER_ALWAYS", "0") == "1" else ())
 
 
 def _install_watchdog(d) -> None:
@@ -196,8 +201,7 @@ def script(d):
     import core.curated_presets as cp
     from PyQt6.QtCore import Qt
     from ui.tabs.tab_chart import (
-        BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS, PAPER_FILTER_ALWAYS_SHOWN,
-        builtin_preset_paper)
+        BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS, builtin_preset_paper)
     rec = d.record
     rec.update({"language": LANG, "phase": PHASE, "engine": ENGINE,
                 "matrix": []})

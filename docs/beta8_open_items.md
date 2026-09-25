@@ -28723,7 +28723,7 @@ would reach.
 - note: Knut, #182 5832303551 and 5832436639. "Select preset" and the Built-in presets list follow the Paper field of the mode on screen (Guided "Paper size", Manual "Paper"), live on a paper change and on a Guided/Manual switch. A preset's paper is the printtarg -p code it lays its chart out on (a Full-layout-setup preset's `paper`, a "by Pharmacist" bundle's paper folder); every built-in has one. ORIENTATION IS PART OF THE PAPER: both pulldowns list A3 Portrait (`A3`) and A3 Landscape (`420x297`) as two entries, so the match is exact. Custom (Manual's "Custom (enter dimensions)") lists every preset on a size the Paper field does not name (the 10 x 15 and 13 x 18 cm cards: 21 built-ins), whatever the Custom boxes hold. Scanner is always listed in full; Red River Paper is filtered. The ticks and the "▸ N more presets" arrows still apply within what is left, Custom included (5832436639): N counts only the unticked presets on that paper. A group with nothing left shows no heading, separator or arrow, in both lists. OFF, both lists are exactly what they were. A filtered preset is hidden and disabled in "Select preset" like one under a closed arrow, never removed, so no row index moves under a preset's own handler and every key still resolves (a stored selection, the verification window's double-click).
 - where: `ui/tabs/tab_chart.py` (`builtin_preset_paper`, `PAPER_FILTER_ALWAYS_SHOWN`, `paper_filter_groups`, `_preset_paper_selected`, `_mark_preset_group_rows`, `_on_preset_paper_changed`, `_apply_preset_collapse`, `_open_builtin_preset_overlay`, `_CappedComboBox.GROUP_ROLE` / `PAPER_ROLE`); `core/curated_presets.py` (`paper_class`, `paper_matches`, `CUSTOM_PAPER`).
 - tests: tests/test_k41_preset_paper_filter.py (12 mutations, each red: paper_matches always true; headings never hidden; the arrow count not recomputed; the selected row not exempt; Scanner filtered; Manual's paper in both modes; the box not handed on OK; Close storing the box; a filtered-in preset shown whatever its arrow; the Built-in presets list not filtered; a person's preset carrying no paper; no live refilter).
-- evidence: test_on_manual_lists_only_the_paper_selected, test_a3_portrait_and_landscape_are_two_papers, test_custom_lists_every_custom_size_preset, test_custom_keeps_the_ticks_and_the_arrow, test_an_empty_group_shows_no_heading_and_the_arrow_counts_what_is_left, test_guided_filters_by_its_own_paper_size_and_the_mode_switch_is_live, test_off_the_pulldown_is_what_it_was_whatever_the_paper, test_the_built_in_presets_list_is_filtered_too, test_scanner_is_the_only_group_never_filtered_and_red_river_is_filtered
+- evidence: test_on_manual_lists_only_the_paper_selected, test_a3_portrait_and_landscape_are_two_papers, test_custom_lists_every_custom_size_preset, test_custom_keeps_the_ticks_and_the_arrow, test_an_empty_group_shows_no_heading_and_the_arrow_counts_what_is_left, test_guided_filters_by_its_own_paper_size_and_the_mode_switch_is_live, test_off_the_pulldown_is_what_it_was_whatever_the_paper, test_the_built_in_presets_list_is_filtered_too, test_every_group_is_filtered_scanner_and_red_river_too (renamed when K48 filtered Scanner too, B8-1241)
 - proof: ~/Desktop/ChromIQ-beta43-proof/k41-paper-filter/ (en, de: 01 to 16; REPORT.md)
 
 ### B8-1133 · FIXED, awaiting confirmation · The filter never changes what is loaded: the selected preset stays selected and listed
@@ -29170,14 +29170,15 @@ would reach.
 - tests: tests/test_k46_preset_list_note_and_settings_name.py, red on hiding the pinned note.
 - evidence: test_the_note_is_pinned_under_the_list_scrolled_to_the_top, test_the_list_above_the_note_still_scrolls_to_its_last_row, test_the_built_in_presets_note_is_pinned_under_the_rows, test_a_click_on_the_note_is_swallowed
 
-### B8-1227 · FIXED, awaiting confirmation · Knut #182 5839418461: a group with presets on the paper but none ticked listed them only under its arrow
+### B8-1227 · SUPERSEDED · Knut #182 5839418461: a group with presets on the paper but none ticked listed them only under its arrow
 - blocks release: no
 - severity: MINOR
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-1237
 - note: Knut's workaround rule: with the filter on, a group whose presets on the selected paper are all unticked lists them directly, as if ticked, for that paper only, in both lists; Scanner excluded. With the shipped ticks: ColorMunki on A3 Landscape (0 of 8) and A3+ Portrait (0 of 3). Measured first: such a group did NOT vanish on beta 43, it showed its heading and "N more presets"; the group Knut saw vanish at 4 x 6 in has no preset on 4 x 6 in at all (B8-1225, C7).
 - where: `ui/tabs/tab_chart.py` (`_apply_preset_collapse`, `_open_builtin_preset_overlay`).
 - tests: tests/test_b8_1221_the_filter_reads_the_paper_on_screen.py, red on dropping the rule from either list.
-- evidence: test_a_group_with_none_ticked_on_the_paper_lists_them_directly, test_the_rule_is_for_the_paper_only
+- evidence: withdrawn by Knut in K48 (#182 5840677938); its test is now test_a_group_with_none_ticked_on_the_paper_shows_its_heading_and_arrow (B8-1237)
 
 ### B8-1228 · FIXED, awaiting confirmation · "Save as Defaults" on a Custom paper opened the next session on A2, in Guided and in Manual
 - blocks release: no
@@ -29240,3 +29241,65 @@ would reach.
 - status: OPEN
 - note: (1) Build (b2) of B8-1235? (2) A row with values and no limit (a FROM PROFILE GAMUT chart's paper and solid rows under ChromIQ default) keeps its tab hidden by §17 item 3; should such a graph be shown with the "no limit applies" note? (3) The Control strip tab with three lines, and the no-limit note kept out of §M as a graph caption: as built?
 - where: spec 41.5.
+
+### B8-1237 · FIXED, awaiting confirmation · Knut #182 5840677938 (K48-1): a group with presets on the paper and none ticked shows its heading and "▸ N more presets", nothing listed directly
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut: *"maybe leave it like it was, just make sure that "N more presets" is shown, even if no paper of the selected size has been ticked to show directly in lists"*. B8-1227's rule (list such presets directly, as if ticked) is taken out of both lists; the group keeps its heading and its arrow, N counting its presets on that paper, and opening the arrow shows them. On screen (`~/Desktop/ChromIQ-beta44-proof/knut-k48/`, scene 4): A3 Landscape, ColorMunki's heading and "8 more presets" in both lists (beta 43 plus B8-1227: its 8 presets listed directly). Spec: `docs/design/curated_presets.md` C7, the row struck and amended.
+- where: `ui/tabs/tab_chart.py` (`_apply_preset_collapse`, `_open_builtin_preset_overlay`).
+- tests: tests/test_b8_1221_the_filter_reads_the_paper_on_screen.py, red on B8-1227's rule put back in either list (scratch mutations M4, M5).
+- evidence: test_a_group_with_none_ticked_on_the_paper_shows_its_heading_and_arrow, test_the_rule_is_for_the_paper_only
+
+### B8-1238 · FIXED, awaiting confirmation · Knut #182 5840677938 (K48-2): Custom 210 x 297 showed A3 Landscape's lists
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: His screenshot (`~/Desktop/ChromIQ-beta44-proof/knut-k48/custom-a4.png`, the Built-in presets list on Custom 210 x 297, identical to `a3l.png`) is beta 43's B8-1222: the filter read printtarg's hidden Paper, which Custom never reached, so it stayed on A3 Landscape. Neither a stale popup (the list is built anew each time it opens) nor Custom matched by size (`paper_class` makes every size the paper list does not name one class, "custom"). Fixed by d9b86846 (B8-1221 to B8-1223) and driven again on screen for K48 on the tip before and after this change: A3 Landscape, then Custom 210 x 297: both lists show i1Pro's custom-size presets (4 ticked, "17 more presets"), whatever the boxes say (`~/Desktop/ChromIQ-beta44-proof/knut-k48/` scene 5). Knut's rule (*"All Custom papers should then show (disregarding any setting in the Custom size input boxes), if they have a tick in the settings window, else only the "N more presets" is showing"*) is what C7 already says; noted there.
+- where: `ui/tabs/tab_chart.py` (`_manual_paper_on_screen`, `_preset_paper_selected`), `core/curated_presets.py` (`paper_class`).
+- tests: tests/test_k48_preset_lists_scanner_custom_and_the_gear_help.py (Custom 210 x 297, 100 x 150 and 500 x 500 after A3 Landscape, both lists); reading the hidden Paper again is red in the B8-1221 tests.
+- evidence: test_custom_after_a3_landscape_lists_the_custom_size_presets, test_custom_in_the_layout_panel_lists_the_custom_size_presets
+
+### B8-1239 · FIXED, awaiting confirmation · Knut #182 5840677938 (K48-3): the gear window's help states when a preset shows in the two lists
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: The window's own help ("How the built-in preset lists work") now lists the rule: the filter by the selected paper (every group, Scanner too, orientation counts), Custom whatever the boxes say, ticked presets directly and the rest under "▸ N more presets", a group with none ticked (heading and arrow only), a group with none for the paper (not shown), the filter off. The paper filter's own help is brought to the same rule ("Scanner presets are always shown" gone). Help text, not §M message text. Two keys replaced by two in all 13 catalogues: German by hand (Du-Form), the twelve others the English under the beta rule; both ledgers (`_IDENTICAL_TO_KEY`, `_BUDGET`) do not move (the twelve carried the old English already). No em dash. Photographed: `~/Desktop/ChromIQ-beta44-proof/knut-k48/`after/photographs/7-window-help.png, 7-paper-filter-help.png.
+- where: `ui/dialogs/builtin_presets_shown_dialog.py`, `data/i18n/*.json`.
+- tests: tests/test_k48_preset_lists_scanner_custom_and_the_gear_help.py, red on "The Scanner presets are always shown" put back (M7).
+- evidence: test_the_gear_help_states_the_rule, test_the_german_help_is_by_hand_and_says_the_same
+
+### B8-1240 · FIXED, awaiting confirmation · Knut #182 5840677938 (K48-4): the gear window's two info icons had a square frame and another background
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Cause: the style sheets draw the app's flat ⓘ by its object name (`QToolButton#tooltip_btn`: no border, transparent), and this window renamed its two icons (`builtin_presets_shown_help`, `builtin_presets_paper_filter_help`), so neither rule reached them and Fusion drew them as framed tool buttons. The names are no longer changed (nothing else used them); a scan of `ui/` finds no other ⓘ renamed. On screen before and after: `~/Desktop/ChromIQ-beta44-proof/knut-k48/`before/photographs/7-gear-window.png (framed), after/… (flat, like every other ⓘ).
+- where: `ui/dialogs/builtin_presets_shown_dialog.py`.
+- tests: tests/test_k48_preset_lists_scanner_custom_and_the_gear_help.py, red on either icon renamed again (M1).
+- evidence: test_the_gear_windows_info_icons_are_the_apps_flat_icons, test_no_window_renames_an_info_icon
+
+### B8-1241 · FIXED, awaiting confirmation · Knut's ruling of 2026-09-25 (#182 5840692243, K48 addendum): the Scanner presets follow the paper filter like every other group
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: *"I also think the Scanner presets now should obey the same filtering according to paper size."* The Scanner exception (`PAPER_FILTER_ALWAYS_SHOWN`, K41) is removed from both lists: its presets on the selected paper, ticked ones directly, the rest under "▸ N more presets", Custom as B8-1238. All six Scanner presets are A4 Landscape (3) or Letter Landscape (3), so any other paper lists no Scanner group. On screen (`~/Desktop/ChromIQ-beta44-proof/knut-k48/`): A3 Landscape shows no A4 or Letter scanner preset (scene 4); A4 Landscape shows Scanner with its 3 A4 Landscape presets, 1 ticked and "2 more presets" (scene 6). Tests that pinned the exception rewritten (K41, B8-1221); the older drivers `drive_k41_preset_paper_filter.py` and `drive_b8_1221_paper_filter_matrix.py` no longer import the constant (the matrix judges by the new rule, `B8_SCANNER_ALWAYS=1` for the old). Spec C7 records the ruling.
+- where: `ui/tabs/tab_chart.py` (`paper_filter_groups`, `_mark_preset_group_rows`, `_apply_preset_collapse`, `_open_builtin_preset_overlay`), `core/curated_presets.py` (comment).
+- tests: tests/test_k48_preset_lists_scanner_custom_and_the_gear_help.py and tests/test_k41_preset_paper_filter.py, red on Scanner exempted again in either place (M2, M3).
+- evidence: test_a3_landscape_lists_no_scanner_preset, test_a4_landscape_lists_only_its_own_scanner_presets, test_every_group_is_filtered_scanner_and_red_river_too
+
+### B8-1242 · DEFERRED · Knut #182 5840677938 (K48-5): the 10 x 15 cm and 13 x 18 cm cards are not listed under 4 x 6 in and 5 x 7 in
+- blocks release: no
+- severity: MINOR
+- status: DEFERRED
+- decided by: Knut, #182 5840677938 (2026-09-25)
+- because: Knut answered C7's question "not for now": the photo-card presets stay Custom presets and are listed on Custom only. He leans towards listing them under the nearest named size later (10 x 15 cm under 4 x 6 in, 13 x 18 cm under 5 x 7 in); recorded in `docs/design/curated_presets.md` C7 as awaiting his decision. Nothing built.
+- where: `core/curated_presets.py` (`paper_class`, `paper_matches`) is where it would go.
+
+### B8-1243 · FIXED, awaiting confirmation · Knut #182 5840677938 (K48-6): case 2 of his first log (fresh start, A4: "Select preset" showed CM and i1Pro only while the list showed everything; the filter toggled made it the opposite) does not happen on the tip
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: His first log (`~/Desktop/ChromIQ-beta44-proof/knut-preset-filter-bug/chromiq.log`) is beta 43: the two lists read the paper from two places (B8-1221). Driven on screen on the tip, fresh sandbox, no project, i1Pro, Manual, engine on, A4: filter on, off through the gear window's OK, on again; after every step "Select preset" and the Built-in presets list list the same groups and the same presets, and those the rule gives (`~/Desktop/ChromIQ-beta44-proof/knut-k48/` scenes 1 to 3: filter on i1Pro 6 + 19 more, i1Pro 3 Plus 4 + 5, ColorMunki 4 + 12, CR30 4 + 9, Red River 1 + 2; off every group incl. Scanner). Fixed by d9b86846.
+- where: `ui/tabs/tab_chart.py` (`_preset_paper_selected`, `_manual_paper_on_screen`).
+- tests: tests/test_b8_1221_the_filter_reads_the_paper_on_screen.py and tests/test_k48_preset_lists_scanner_custom_and_the_gear_help.py (both lists compared with the rule).
+- evidence: test_knuts_start_then_a_preset_on_another_paper, test_manual_with_the_engine_reads_the_layout_panels_paper, test_a3_landscape_lists_no_scanner_preset

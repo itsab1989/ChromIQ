@@ -130,11 +130,13 @@ def script(d):
     import core.curated_presets as cp
     from data.patch_db import PAPER_LABELS
     from ui.tabs.tab_chart import (
-        BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS, PAPER_FILTER_ALWAYS_SHOWN,
-        builtin_preset_paper)
+        BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS, builtin_preset_paper)
     rec = d.record
     rec.update({"language": LANG, "checks": [], "scenes": {}})
-    scanner = next(iter(PAPER_FILTER_ALWAYS_SHOWN))
+    # The Scanner checks below describe K41's rule (Scanner never filtered),
+    # which Knut withdrew on 2026-09-25 (#182 5840692243); see
+    # scripts/drive_b8_1221_paper_filter_matrix.py for the rule since.
+    scanner = next(h for h, _e in BUILTIN_PRESET_GROUPS if h == "Scanner")
     headings = [h for h, _e in BUILTIN_PRESET_GROUPS]
 
     def check(what, ok, detail=""):

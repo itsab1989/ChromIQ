@@ -137,26 +137,45 @@ class BuiltinPresetsShownDialog(QDialog):
         from ui.tooltip_button import TooltipButton
         self._help = TooltipButton(
             tr("How the built-in preset lists work"),
+            # THE RULES FOR WHEN A PRESET SHOWS (Knut, #182 5840677938 and
+            # 5840692243, K48): the paper filter, the ticks, "N more", Custom
+            # and Scanner, all in one place.
             tr("“Settings for built-in presets” chooses which built-in "
                "presets “Select preset” and the Built-in presets list show "
                "directly. It always lists every built-in preset with its "
                "tick; the paper filter does not change what it lists."
-               "\n\nTicks: a "
-               "ticked preset is listed directly. The other presets of its "
-               "group are still there, under “▸ N more presets” after the "
-               "group's last ticked preset: click it, or select it and "
-               "press the Right arrow key, to show them. A group's own box "
-               "ticks or clears the whole group.\n\nOK keeps the ticks and "
-               "the paper filter. Close, Escape and the window's close box "
-               "leave both lists as they were.\n\nExport list saves this "
-               "table as a CSV file, with the ticks as they are now. "
-               "Import list sets the ticks from such a file; OK keeps "
-               "them.\n\nPaper filter: while it is ticked (the default), "
-               "both lists show only the built-in presets for the paper "
-               "selected in Create Chart. Its own help icon says the "
-               "details.\n\nYour own presets are never changed by any of "
-               "this: they are always listed, at the top."), self)
-        self._help.setObjectName("builtin_presets_shown_help")
+               "\n\nWhen a built-in preset is shown in those two lists:"
+               "\n\n•  Paper filter on (the default): only the presets for "
+               "the paper selected in Create Chart, Guided's Paper size or "
+               "Manual's Paper, whichever mode is shown. Every group follows "
+               "it, Scanner too. The orientation counts: A3 Portrait and A3 "
+               "Landscape are two papers."
+               "\n\n•  Custom paper: every preset laid out on a size the "
+               "paper list does not name, whatever the width and height "
+               "boxes say."
+               "\n\n•  A ticked preset for that paper is listed directly. The "
+               "group's other presets for that paper wait under “▸ N more "
+               "presets”: click it, or select it and press the Right arrow "
+               "key, to show them."
+               "\n\n•  A group with presets for that paper but none of them "
+               "ticked shows its heading and “▸ N more presets” only. A group "
+               "with no preset for that paper is not shown."
+               "\n\n•  Paper filter off: every built-in preset, the ticked "
+               "ones directly and the rest under “▸ N more presets”."
+               "\n\nA group's own box ticks or clears the whole group. OK "
+               "keeps the ticks and the paper filter. Close, Escape and the "
+               "window's close box leave both lists as they were."
+               "\n\nExport list saves this table as a CSV file, with the "
+               "ticks as they are now. Import list sets the ticks from such "
+               "a file; OK keeps them."
+               "\n\nYour own presets are never changed by any of this: they "
+               "are always listed, at the top."), self)
+        # NOT RENAMED (Knut, #182 5840677938, K48): the style sheets draw
+        # the app's flat ⓘ by its object name, QToolButton#tooltip_btn
+        # (no frame, no fill). This window gave its two icons names of
+        # their own, so neither rule reached them and they were drawn as
+        # framed tool buttons. Reach them as `_help` and
+        # `_paper_filter_help`.
         top = self._top = QHBoxLayout()
         top.setContentsMargins(0, 0, 0, 0)
         top.addWidget(self._intro, 1)
@@ -218,24 +237,24 @@ class BuiltinPresetsShownDialog(QDialog):
                "presets for the paper selected in Create Chart: Guided's "
                "Paper size or Manual's Paper, whichever mode is shown. "
                "They follow the paper as you change it.\n\nIt applies to "
-               "built-in presets only. Your own presets are never "
-               "filtered, and neither is the list in “Settings for built-in "
-               "presets”, which always "
+               "built-in presets only, in every group, Scanner included. "
+               "Your own presets are never filtered, and neither is the "
+               "list in “Settings for built-in presets”, which always "
                "shows every built-in preset with its tick.\n\nA preset's "
                "paper is the paper its chart is laid out on, and the "
                "orientation counts: A3 Portrait shows only the portrait A3 "
-               "presets, A3 Landscape only the landscape ones.\n\nThe "
-               "Scanner presets are always shown. With Custom (enter "
-               "dimensions), every preset laid out on a size the paper "
-               "list does not name is shown.\n\nThe ticks and the arrows "
-               "still apply within what the filter leaves: the ticked "
-               "presets of that paper are listed directly, and “▸ N more "
-               "presets” opens the rest of that paper's presets. A group "
-               "with none left for the paper is not shown.\n\nUntick the "
-               "box to list every built-in preset whatever the paper. OK "
-               "keeps the choice; Close discards it."), self)
-        self._paper_filter_help.setObjectName(
-            "builtin_presets_paper_filter_help")
+               "presets, A3 Landscape only the landscape ones.\n\nWith a "
+               "Custom paper, every preset laid out on a size the paper "
+               "list does not name is shown, whatever the width and height "
+               "boxes say.\n\nThe ticks and the arrows still apply within "
+               "what the filter leaves: the ticked presets of that paper "
+               "are listed directly, and “▸ N more presets” opens the rest "
+               "of that paper's presets. A group with presets for the paper "
+               "but none of them ticked shows its heading and “▸ N more "
+               "presets” only; a group with none for the paper is not "
+               "shown.\n\nUntick the box to list every built-in preset "
+               "whatever the paper. OK keeps the choice; Close discards "
+               "it."), self)
         box_row = QHBoxLayout()
         box_row.setContentsMargins(0, 0, 0, 0)
         box_row.addWidget(self._paper_filter)
