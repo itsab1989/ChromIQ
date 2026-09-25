@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-25, K40 (Knut #182 5832026677: B8-1121 to B8-1125: the presets window's Working… state, Still being checked, the layout and printtarg reason lines, the tone row's two neutral-aim reasons in the window and the report, its help, lever, the report's chart help and the Dictionary's Grey ramp). 16 keys in, 3 out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 13 here and 8 in the echo budget. COUNTED off the tree rebased onto ae9594cb (K41), BOTH ledgers.
     # RE-MEASURED 2026-09-25, K39 (Knut #182 5831246553: B8-1111 to B8-1114, M-REPORT-WORKED-OUT-EARLIER without "Update works the report out again.", M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW and M-REPORT-NEW-REPORT-SETTINGS titles and bodies, the "New report…" tooltip, and the audit's rewordings: "the profile runs it is drawn from", the colorimetric-missing paragraphs, the Paper white graph's reason). 10 keys in, 6 out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 5 (5 of the 6 retired keys were English echoes there). COUNTED off the tree rebased onto 1c4995c2, BOTH ledgers.
     # RE-MEASURED 2026-09-25, B8-1097 (Basti: the gear window gets OK and Close; its third paragraph now says "OK keeps your choice; Close leaves the lists as they were."). One key replaced by one: German by hand, does not move; the twelve others carried the old sentence in English already (K35, beta rule), so each loses one English echo and gains one and does not move. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-25, challenge 5 of beta 42 fixes (B8-1091 to B8-1095: M-REPORT-WORKED-OUT-EARLIER, title and body, and the two true reasons an empty trend graph gives). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 4. COUNTED off the tree, BOTH ledgers.
@@ -1030,18 +1031,18 @@ _BUDGET = {
     # (both keys are 25 characters or more) under the beta rule. COUNTED
     # off the tree, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 991,
-    "fr": 992,
-    "it": 991,
-    "ja": 991,
-    "nl": 991,
-    "no": 991,
-    "pl": 991,
-    "pt": 991,
-    "ru": 990,
-    "sv": 991,
-    "zh_CN": 990,
-    "uk": 1134,
+    "es": 999,
+    "fr": 1000,
+    "it": 999,
+    "ja": 999,
+    "nl": 999,
+    "no": 999,
+    "pl": 999,
+    "pt": 999,
+    "ru": 998,
+    "sv": 999,
+    "zh_CN": 998,
+    "uk": 1142,
 }
 
 

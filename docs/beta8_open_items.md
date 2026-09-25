@@ -28646,10 +28646,12 @@ would reach.
 - tests: tests/test_k39_preset_list_export_import.py, tests/test_curated_builtin_presets.py.
 - evidence: test_the_export_goes_through_from_table_to_the_same_ticks, test_the_shipped_beta42_table_reads_the_same_in_the_window_and_the_script, test_a_spreadsheet_saved_with_semicolons_and_cp1252_is_read
 
-### B8-1104 · OPEN · Knut asks why the verification demo presets do not cover every metric (K39-8): answered, a covering demo needs his rule decision
+### B8-1104 · SUPERSEDED · Knut asks why the verification demo presets do not cover every metric (K39-8): answered, a covering demo needs his rule decision
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-1124
+- answered: Knut, #182 5832026677 (2026-09-25): the window must lay each preset out behind the scenes (B8-1121); "Yes" to the ramps row on neutral aims (B8-1123); "yes" to a covering demo project (B8-1124).
 - note: Knut, #182 5831246553: *"Why does not the demo projects in the "Create Chart presets (verification demos)" contain tests to check all requirements and for all 21 the metrics available for the limit sets?"* Answered with no code change (the text is in `~/Desktop/ChromIQ-beta43-proof/k39-export-import/REPORT.md`, K39-8). Measured: the limit sets have 32 rows, 20 computable (5 now, 12 build, 3 ref) and 12 that cannot be measured; "Which presets can be used for verification?" counts 18 (the 20 less the two repeatability rows, `CS.POPULATION_MAY_BE_ABSENT`); no count of 21 exists in the code. Since B8-1098 each Custom set carries a limit on all 20 computable rows (16 researched, 4 ChromIQ), so a 21st metric can only be a ✕ row; the likeliest are "Maximum ΔE00, spot colours" (ISO 12647-7 2.5, -8 3.5) and "Maximum ΔE00, print to print and day to day" (2.0, 2.5). The 33 demo presets each change one rule for its FAIL/PASS pair; the control answers 13 of 18, and every demo misses the three reference rows (a preset can never be FROM PROFILE GAMUT) and the two evenness rows (a printtarg preset has no page layout yet). A FROM PROFILE GAMUT chart of 648 patches on one A4 page, built headless, answered 17 of 18; the 18th, the 30-70 % ramps row, reads device single-ink or device-grey steps, which a FROM PROFILE GAMUT chart gets only if its profile happens to put greys on R=G=B. Open for Knut: whether the ramps row should use neutral aims on a FROM PROFILE GAMUT chart as the grey rows already do (K31 option (a)), and whether a covering demo project is wanted.
 - where: `scripts/make_verification_preset_demos.py`; `workflow/preset_eligibility.py` (`rows_every_metric`); `workflow/compliance_sets.py` (`ROWS`, `POPULATION_MAY_BE_ABSENT`).
 
@@ -28741,3 +28743,49 @@ would reach.
 - tests: tests/test_k41_preset_paper_filter.py.
 - evidence: test_on_manual_lists_only_the_paper_selected, test_custom_lists_every_custom_size_preset
 - proof: ~/Desktop/ChromIQ-beta43-proof/k41-paper-filter/ (the two sandboxed presets "My A4 preset (driver)" and "My preset without a paper (driver)")
+
+### B8-1121 · FIXED, awaiting confirmation · "Which presets can be used for verification?" lays every preset out behind the scenes and judges its evenness rows (K40-1)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5832026677: "the presets are mostly created with ChromIQ layout engine, not printtarg. Also, each preset has all layout information, so the "Which presets can be used for verification" must layout that preset behind the scenes, if needed, so that the window can judge it." Every preset now reaches the evenness rows with the layout Generate gives it: a built-in's engine recipe (as before), the recipe a "Full layout setup" ENGINE preset builds when selected (two of them read "laid out later" until now), a user preset's stored `layout_recipe`, or, for a preset saved with the engine off, printtarg itself, run on a copy of the patch set in a temporary folder with the arguments `ChartCreator._build_printtarg_args` builds from the preset's rows, its `.ti2` and page image read by the report's own `chart_grid` and the folder removed. On one background thread (`workflow/preset_layout.py`), with the tab's not-yet-warmed presets too: the window opens at once, such rows read "Working…" with their metrics "Still being checked", the figures line says how many, and each row is redrawn by itself when its answer arrives (a timer reads one integer; the thread touches no Qt object). Cached by the patch set's bytes, the printtarg arguments and the printtarg binary. printtarg missing or refusing: both evenness rows say why (`evenness_layout_no_tool`, `evenness_layout_refused` with printtarg's own line); neither takes the star. Timings and per-preset counts in the proof's REPORT.md. Spec §36.1 (supersedes the "laid out later" clause of §16.4).
+- where: `workflow/preset_layout.py`; `workflow/preset_eligibility.py`; `workflow/chart_creator.py` (`printtarg_layout_argv`, `engine_build_kwargs`); `ui/tabs/tab_chart.py` (`builtin_preset_layout`, `fls_engine_recipe`, `verification_preset_rows`, `_open_preset_verification_window`); `ui/dialogs/preset_verification_dialog.py`; `data/i18n/*.json` (German by hand).
+- tests: tests/test_k40_presets_laid_out_and_the_tone_row_on_aims.py, tests/test_the_demo_presets_pair_on_every_requirement.py.
+- evidence: test_a_printtarg_preset_is_laid_out_by_printtarg_and_judged, test_the_layout_is_the_page_printtarg_writes, test_the_arguments_are_the_ones_generate_builds, test_every_built_in_preset_reaches_the_window_with_its_layout, test_a_user_preset_row_carries_its_layout, test_the_window_never_waits_and_says_working, test_a_preset_nobody_has_checked_yet_is_checked_behind_the_scenes, test_a_preset_printtarg_refuses_says_why_in_printtargs_words, test_no_printtarg_says_so, test_the_layout_is_cached_by_content_not_by_name
+- proof: ~/Desktop/ChromIQ-beta43-proof/knut-k40/
+
+### B8-1122 · FIXED, awaiting confirmation · The 31 demo verification presets could never be printed: their .ti1 held only the colour table
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: found by B8-1121 the first time the window laid them out: printtarg refused every one, "Input file doesn't contain two or three tables", which is what Generate would have said on loading any of them. `make_verification_preset_demos.write_ti1` now writes printtarg's two other tables (the density extremes, white first, and the device combinations, as `i1profiler_import.write_ti1` writes them, with no CREATED stamp). Laid out, each demo is 3 i1Pro strips on A4, so both evenness rows read "No page of this chart has at least 9 strips and 9 rows" on every one of them: the pack's second constant (it was "laid out later"). Per preset the counts are unchanged: the control and every PASS side but R02 and R08 answer 13 of 18.
+- where: `scripts/make_verification_preset_demos.py` (`write_ti1`, `CONSTANTS`, `UNREACHABLE`, `SHOWN_BY_BUILTINS`, `layout`, `assess`, `in_the_window`); `tests/test_the_demo_presets_pair_on_every_requirement.py`.
+- tests: tests/test_the_demo_presets_pair_on_every_requirement.py.
+- evidence: test_the_unreachable_four_really_are_unreachable_here, test_the_package_accounts_for_every_reason_the_window_can_show
+
+### B8-1123 · FIXED, awaiting confirmation · The 30 to 70 % tone row of a FROM PROFILE GAMUT chart takes its neutral aims (K40-2)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5832026677: "Yes" to "Should row 20 (ramps 30 % to 70 %) use the neutral aims on a FROM PROFILE GAMUT chart, as the grey-balance rows do?". On a chart with a colorimetric reference the grey axis of `ramps_block` is the patches whose aim is neutral (hypot(a*, b*) < 1.0, never a corner), each at the tone value 100 − aim L* (our construction, for Knut to confirm, B8-1125), the count, span and spacing rules unchanged, ΔL* against each aim; device greys do not count there; R, G, B stay device axes; every other chart unchanged. Two reasons (`ramp_too_few_neutral_aims`, `ramp_neutral_aims_bunched`, which names the lightness), a patch shortfall in the presets window, the lever a larger chart. Help icon, lever, the report's chart help paragraph, the Dictionary's "Grey ramp", the report's N-A sentences and the window's lines say it; German by hand. Measured: on a 216-patch chart through the demo profile "no tone ramp" before, answered after (tone 32.4, 48.2, 65.0); the K31 challenge A charts answered before and after. Spec §36.2.
+- where: `workflow/measurement_report.py` (`ramps_block`, `build_report`, `REASON_RAMP_TOO_FEW_NEUTRAL_AIMS`, `REASON_RAMP_NEUTRAL_AIMS_BUNCHED`); `workflow/preset_eligibility.py` (`_perfect_print`, `PATCH_SHORTFALL_REASONS`); `workflow/compliance_sets.py` (`_D_RAMPS`, `_R_RAMPS_DEVICE`, `_R_RAMPS_AIMS`, `RAMP_AIM_REASONS`, `remedy_for`); `ui/dialogs/preset_verification_dialog.py`; `ui/dialogs/measurement_report_dialog.py` (`_reason_sentence`, `_CHART_HELP`); `ui/dialogs/welcome_dialog.py`; `scripts/i18n_extract.py`; `data/i18n/*.json`.
+- tests: tests/test_k40_presets_laid_out_and_the_tone_row_on_aims.py.
+- evidence: test_neutral_aims_between_l30_and_l70_are_the_grey_axis, test_device_greys_do_not_count_on_such_a_chart, test_bunched_aims_are_named_by_their_lightness, test_the_corners_are_never_steps, test_every_other_chart_is_unchanged, test_the_report_and_the_window_read_the_aims, test_the_lever_on_such_a_chart_is_a_larger_chart, test_the_help_text_states_the_rule
+- proof: ~/Desktop/ChromIQ-beta43-proof/knut-k40/
+
+### B8-1124 · FIXED, awaiting confirmation · A demo project whose one FROM PROFILE GAMUT chart answers every metric: Report-Limits-Every-Metric (K40-3)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5832026677: "yes" to a demo project with such a chart in the demo package. `scripts/make_every_metric_demo.py`, built into the release package (README section, COVERAGE rows, the project list `--verify` requires, a spec index mapping): run1's profile from an ordinary 210-patch chart on the baryta paper class; a FROM PROFILE GAMUT chart of 632 colours, 8 of them twice, and the 8 corners (648 patches), laid out by the layout engine with the built-in A4-648p i1Pro preset, 24 strips by 27 rows, 69 % of the page. It answers 18 of 18 in the presets window and both repeatability metrics. Judged against Custom ISO 12647-8 (the set that limits all 20): 2026-11-02 19 PASS and "the same chart measured again" N-A, 2026-11-09 20 PASS, 2026-11-16 20 FAIL; the build stops when a date reads otherwise. Readings synthetic (aims plus a designed residual); solids and black between ideal and prediction, overprints on the prediction (§34); printing recorded raw. Spec §36.3.
+- where: `scripts/make_every_metric_demo.py`; `scripts/make_release_demo_package.py` (`build`, `verify`, `PROJECT_PURPOSE`, `package_readme`, `RULE_DEMOS`); `tests/test_the_release_demo_package.py`.
+- tests: tests/test_the_release_demo_package.py (release tier).
+- evidence: test_one_project_answers_every_metric_passed_and_failed, test_the_built_package_verifies
+- proof: ~/Desktop/ChromIQ-beta43-proof/knut-k40/
+
+### B8-1125 · OPEN, for Knut · K40 questions: the tone value of a neutral aim, the demo presets' evenness ceiling
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: (1) The tone row places a neutral aim at the tone value 100 − its L* (B8-1123), the grey rows' own reading of an aim turned into a tone value the way a device grey's is; the alternative is a tone value relative to the chart's own white and black (100 × (L*white − L*) / (L*white − L*black)), which moves the band towards the dark end on a paper whose black is light. Which does Knut want? (2) Laid out, each demo verification preset is 3 strips of an i1Pro A4 page, so the pack's 31 demos still stop at 13 of 18: the evenness rows need a page of 9 by 9 covering 60 % with about 30 patches in each ninth, and the FAIL/PASS pairs are built on 78 patches. The FROM PROFILE GAMUT project of B8-1124 is where all 18 are shown; should the preset pack gain a larger demo as well? (3) printtarg shuffles its patches on every run, so a printtarg preset's estimated evenness noise can move in the last digit between sessions (its page grid and coverage do not).
+- where: spec §36.

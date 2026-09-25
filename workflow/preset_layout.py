@@ -1,0 +1,427 @@
+"""Lay a preset out behind the scenes, so its evenness rows can be judged.
+
+Knut, #182 5832026677 (2026-09-25), on "Which presets can be used for
+verification?":
+
+    *"the presets are mostly created with ChromIQ layout engine, not
+    printtarg. Also, each preset has all layout information, so the "Which
+    presets can be used for verification" must layout that preset behind the
+    scenes, if needed, so that the window can judge it."*
+
+The two evenness rows need the PAGE a chart is printed on: how many strips and
+rows each page has, and how much of the paper the patches cover
+(`measurement_report.chart_grid`, §16). A `.ti1` carries neither. A preset
+carries everything that decides them, and there are exactly two ways ChromIQ
+lays a sheet out, so there are exactly two ways to answer:
+
+* **the layout engine** (a preset with a layout recipe, which is most of the
+  built-ins and every user preset saved with the engine on): its own
+  arithmetic predicts the page without writing a file
+  (`preset_eligibility._predicted_grid`). That is fast and has been in the
+  window since beta 37; this module only makes sure every engine preset
+  reaches it with its recipe, the user's own presets included.
+* **printtarg** (a preset saved with the engine off): printtarg IS the layout,
+  so it is run, on a copy of the preset's patch set in a temporary folder,
+  with the argument list a Generate click would build
+  (`chart_creator.printtarg_layout_argv`), and the `.ti2` and page images it
+  writes are read by the report's own `chart_grid`. Nothing about the page is
+  predicted, and nothing is written anywhere but that temporary folder, which
+  is gone when the layout has been read.
+
+**NEVER IN THE WINDOW'S OWN THREAD.** Running printtarg takes a subprocess and
+measuring its page images takes a fraction of a second more, per preset. A
+window listing 185 presets may not wait for that, so a printtarg layout is
+queued to ONE background thread and the evenness rows read "being laid out"
+until it is done (`REASON_LAYING_OUT`). The thread touches no Qt object: the
+window asks :func:`generation` on a timer and re-reads what changed.
+
+**CACHED BY THE PRESET'S CONTENT, NOT ITS NAME.** The key is the patch set's
+bytes (hashed), the printtarg argument list and the printtarg binary's own
+size and time, so a preset re-saved with the same patches and settings is not
+laid out twice, a changed one is laid out again, and an Argyll upgrade lays
+everything out again. The cache lives for the session.
+
+No Qt in here.
+"""
+from __future__ import annotations
+
+import atexit
+import hashlib
+import logging
+import queue
+import shutil
+import subprocess
+import tempfile
+import threading
+import time
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+#: The recipe key that marks a PRINTTARG layout spec, as opposed to a layout
+#: engine recipe. `preset_eligibility` passes a preset's layout through one
+#: ``recipe`` argument either way, and this key is how the two are told apart.
+PRINTTARG_ARGV = "printtarg_argv"
+ARGYLL_BIN = "argyll_bin"
+
+#: The evenness rows of a printtarg preset whose layout is still being worked
+#: out in the background. Transient: the window shows "working" and re-reads
+#: the row when the layout arrives.
+REASON_LAYING_OUT = "evenness_laying_out"
+#: printtarg could not be found where Preferences says ArgyllCMS is.
+REASON_LAYOUT_NO_TOOL = "evenness_layout_no_tool"
+#: printtarg ran and refused the preset (its settings, or its patch set), or
+#: did not finish. The reason's detail carries printtarg's own sentence.
+REASON_LAYOUT_REFUSED = "evenness_layout_refused"
+
+#: How long one printtarg layout may take. Measured idle on this host: 0.05 to
+#: 0.4 s for the one-page presets, about 1.5 s for a 14-page one. Budgeted for
+#: a loaded machine, as CLAUDE.md asks of every subprocess timeout.
+PRINTTARG_TIMEOUT_S = 120
+
+_LOCK = threading.Lock()
+#: key -> the grid `chart_grid` read off the laid-out chart, or a failure
+#: ``{"reason": ..., "detail": ...}``.
+_RESULTS: "dict[tuple, dict]" = {}
+#: keys queued or being laid out right now
+_PENDING: "set[tuple]" = set()
+#: bumped every time a layout finishes, so a window can poll one integer
+_GENERATION = 0
+#: seconds each finished layout took, for the timing the brief asks for
+_TIMINGS: "dict[tuple, float]" = {}
+_QUEUE: "queue.Queue[tuple | None]" = queue.Queue()
+_WORKER: "threading.Thread | None" = None
+_STOP = threading.Event()
+
+
+# ---------------------------------------------------------------------------
+# What a preset's layout IS
+# ---------------------------------------------------------------------------
+def is_printtarg_spec(recipe: "dict | None") -> bool:
+    """Whether *recipe* is a printtarg layout spec rather than an engine
+    recipe."""
+    return isinstance(recipe, dict) and PRINTTARG_ARGV in recipe
+
+
+def printtarg_spec(argv: "list[str]", argyll_bin: "str | Path") -> dict:
+    """The spec :func:`grid_for` lays a printtarg preset out from."""
+    return {PRINTTARG_ARGV: [str(a) for a in argv],
+            ARGYLL_BIN: str(argyll_bin)}
+
+
+def params_for_user_preset(data: dict, settings_get) -> "object":
+    """A :class:`~workflow.chart_creator.ChartParams` for a Create Chart
+    preset saved with the layout engine OFF, read the way the tab reads it.
+
+    Only the fields that decide the PAGE: the ten printtarg rows
+    `TabChart._collect_manual` maps by name, the two expert rows that move the
+    capacity (`chart_creator._extra_printtarg_affects_layout`: -A and -n), the
+    16-bit choice, triple density, and the two clip settings that force -L.
+    A row the preset does not carry takes the value a fresh Create Chart tab
+    shows, which is `ChartParams`' own default (the same numbers as
+    `data/parameters.yaml`).
+    """
+    from workflow.chart_creator import ChartParams
+
+    def get(flag: str, default):
+        v = data.get(f"printtarg_{flag}")
+        return default if v is None else v
+
+    p = ChartParams(is_manual=True)
+    p.instrument = str(get("-i", p.instrument))
+    p.paper = str(get("-p", p.paper))
+    p.tiff_dpi = int(get("-t", p.tiff_dpi) or p.tiff_dpi)
+    p.tiff_16bit = bool(data.get("tiff_16bit", p.tiff_16bit))
+    p.double_density = bool(get("-h", p.double_density))
+    p.disable_left_border = bool(get("-L", p.disable_left_border))
+    p.patch_scale = float(get("-a", p.patch_scale) or p.patch_scale)
+    p.margin_mm = int(get("-m", p.margin_mm))
+    p.no_randomise = bool(get("-r", p.no_randomise))
+    p.bw_spacers = bool(get("-b", p.bw_spacers))
+    p.no_strip_limit = bool(get("-P", p.no_strip_limit))
+    p.triple_density = (bool(data.get("triple_density", False))
+                        and p.instrument == "CM")
+    extra: "list[str]" = []
+    if data.get("printtarg_-A_enabled") and data.get("printtarg_-A") is not None:
+        try:
+            scale = float(data["printtarg_-A"])
+        except (TypeError, ValueError):
+            scale = 1.0
+        p.spacer_scale = scale
+        extra += ["-A", f"{scale:g}"]
+    if bool(data.get("printtarg_-n", False)):
+        p.no_spacers = True
+        extra.append("-n")
+    if extra:
+        import shlex
+        p.extra_printtarg_args = shlex.join(extra)
+    p.left_clip_info = bool(data.get("left_clip_info", False))
+    p.chromiq_clip_style = bool(settings_get("i1pro_chromiq_clip_style", False))
+    return p
+
+
+def layout_for_user_preset(data: "dict | None", settings_get) -> "dict | None":
+    """The ``recipe`` argument `preset_eligibility` should judge a user
+    preset with: its engine recipe, or a printtarg spec, or None.
+
+    * saved with the engine on: the recipe it stores (``layout_recipe``),
+      which is what loading it switches the engine on for;
+    * an instrument only the engine can lay out (the CR30): the engine
+      recipe Generate would build from the same fields;
+    * anything else: printtarg, which is what Generate runs for it.
+    """
+    if not isinstance(data, dict):
+        return None
+    lr = data.get("layout_recipe")
+    if isinstance(lr, dict) and lr:
+        return dict(lr)
+    from workflow.chart_creator import (ENGINE_ONLY_INSTRUMENTS,
+                                        engine_build_kwargs,
+                                        printtarg_layout_argv)
+    try:
+        params = params_for_user_preset(data, settings_get)
+        if params.instrument in ENGINE_ONLY_INSTRUMENTS:
+            from workflow.layout_engine.presets import LayoutRecipe
+            kw = engine_build_kwargs(params)
+            r = LayoutRecipe.from_build_kwargs(kw)
+            r.instrument, r.paper = params.instrument, params.paper
+            return r.to_dict()
+        argv = printtarg_layout_argv(params)
+    except (TypeError, ValueError) as exc:
+        log.info("preset layout settings cannot be read: %s", exc)
+        return None
+    from core.platform_paths import default_argyll_bin_dir
+    return printtarg_spec(argv, settings_get("argyll_bin_path",
+                                             default_argyll_bin_dir()))
+
+
+# ---------------------------------------------------------------------------
+# The cache and the background thread
+# ---------------------------------------------------------------------------
+def _printtarg_binary(spec: dict) -> Path:
+    from core.resource_path import argyll_binary
+    return Path(spec.get(ARGYLL_BIN) or "") / argyll_binary("printtarg")
+
+
+def layout_key(chart: Path, spec: dict) -> tuple:
+    """What a printtarg layout depends on: the patch set's bytes, the
+    arguments, and the printtarg binary itself."""
+    try:
+        digest = hashlib.sha1(Path(chart).read_bytes()).hexdigest()
+    except OSError:
+        digest = ""
+    exe = _printtarg_binary(spec)
+    try:
+        st = exe.stat()
+        tool = (str(exe), st.st_mtime_ns, st.st_size)
+    except OSError:
+        tool = (str(exe), 0, 0)
+    return (digest, tuple(spec.get(PRINTTARG_ARGV) or ()), tool)
+
+
+def generation() -> int:
+    """A number that changes every time a background layout finishes."""
+    return _GENERATION
+
+
+def pending() -> int:
+    """How many layouts and assessments are queued or running."""
+    with _LOCK:
+        return len(_PENDING) + len(_REQUESTED)
+
+
+def seconds_taken(chart: Path, spec: dict) -> "float | None":
+    """How long the finished layout of this chart and spec took, or None."""
+    with _LOCK:
+        return _TIMINGS.get(layout_key(chart, spec))
+
+
+def state(chart: Path, spec: dict) -> tuple:
+    """``("done", key)`` once this layout is known, else ``("pending", key)``.
+    Part of `preset_eligibility`'s cache key, so an answer given while the
+    layout was being worked out is never served after it arrives."""
+    key = layout_key(chart, spec)
+    with _LOCK:
+        return ("done" if key in _RESULTS else "pending", key)
+
+
+def grid_for(chart: "str | Path", spec: dict, *, wait: bool = False) -> dict:
+    """The page grid of *chart* laid out by printtarg under *spec*.
+
+    Known already: returned. Otherwise, with *wait*, laid out here and now
+    (scripts, tests, a background thread); without it, queued to the
+    background thread and ``{"reason": REASON_LAYING_OUT}`` returned at once.
+    Never raises.
+    """
+    global _GENERATION
+    chart = Path(chart)
+    key = layout_key(chart, spec)
+    with _LOCK:
+        hit = _RESULTS.get(key)
+    if hit is not None:
+        return hit
+    if not wait:
+        _schedule(key, chart, spec)
+        return {"reason": REASON_LAYING_OUT}
+    t0 = time.monotonic()
+    res = lay_out_with_printtarg(chart, spec)
+    with _LOCK:
+        _RESULTS[key] = res
+        _TIMINGS[key] = time.monotonic() - t0
+        _PENDING.discard(key)
+        _GENERATION += 1
+    return res
+
+
+def _schedule(key: tuple, chart: Path, spec: dict) -> None:
+    with _LOCK:
+        if key in _PENDING or key in _RESULTS:
+            return
+        _PENDING.add(key)
+        _start_worker()
+    _QUEUE.put(("layout", chart, dict(spec), None))
+
+
+def _start_worker() -> None:
+    """Called with `_LOCK` held."""
+    global _WORKER
+    if _WORKER is None or not _WORKER.is_alive():
+        _STOP.clear()
+        _WORKER = threading.Thread(target=_work, name="chromiq-preset-layout",
+                                   daemon=True)
+        _WORKER.start()
+
+
+#: Whole assessments queued to the same thread (see :func:`request`), by the
+#: caller's own key, so one is never queued twice.
+_REQUESTED: "set[tuple]" = set()
+
+
+def request(key: tuple, work) -> None:
+    """Run ``work()`` on the background thread, once per *key* until it has
+    run. The presets window hands it the part of a preset's assessment its
+    own thread may not wait for (`preset_eligibility.request_values`); what
+    *work* computes lands in the caller's own cache, and :func:`generation`
+    moves when it is done."""
+    with _LOCK:
+        if key in _REQUESTED:
+            return
+        _REQUESTED.add(key)
+        _start_worker()
+    _QUEUE.put(("call", None, None, (key, work)))
+
+
+def _work() -> None:
+    global _GENERATION
+    while not _STOP.is_set():
+        try:
+            job = _QUEUE.get(timeout=0.5)
+        except queue.Empty:
+            continue
+        if job is None:
+            return
+        kind, chart, spec, call = job
+        if kind == "call":
+            key, work = call
+            try:
+                work()
+            except Exception as exc:      # noqa: BLE001 - one preset only
+                log.info("checking a preset behind the scenes failed: %s", exc)
+            with _LOCK:
+                _REQUESTED.discard(key)
+                _GENERATION += 1
+            continue
+        try:
+            grid_for(chart, spec, wait=True)
+        except Exception as exc:      # noqa: BLE001 - one preset is never fatal
+            log.warning("laying %s out behind the scenes failed: %s", chart, exc)
+            with _LOCK:
+                _RESULTS[layout_key(chart, spec)] = {
+                    "reason": REASON_LAYOUT_REFUSED, "detail": str(exc)}
+                _PENDING.discard(layout_key(chart, spec))
+                _GENERATION += 1
+
+
+def _stop_worker() -> None:
+    """At exit: let a layout that is running finish and remove its folder,
+    rather than leave a temporary folder behind."""
+    _STOP.set()
+    _QUEUE.put(None)
+    w = _WORKER
+    if w is not None and w.is_alive():
+        w.join(timeout=5.0)
+
+
+atexit.register(_stop_worker)
+
+
+def clear_cache() -> None:
+    """Forget every layout (the tests)."""
+    global _GENERATION
+    with _LOCK:
+        _RESULTS.clear()
+        _TIMINGS.clear()
+        _REQUESTED.clear()
+        _GENERATION += 1
+
+
+# ---------------------------------------------------------------------------
+# Laying it out
+# ---------------------------------------------------------------------------
+def lay_out_with_printtarg(chart: Path, spec: dict) -> dict:
+    """Run printtarg on a copy of *chart* in a temporary folder and read the
+    page grid off what it wrote, with the report's own `chart_grid`.
+
+    Returns that grid (``pages``, ``rows``, ``slot`` … and the page
+    ``coverage``), with ``laid_out_by`` and ``pages_laid_out`` added, or
+    ``{"reason": REASON_LAYOUT_NO_TOOL | REASON_LAYOUT_REFUSED, "detail":
+    str}``. The folder is removed before this returns, whatever happened.
+
+    **What this does NOT reproduce, on purpose:** ChromIQ's own
+    post-processing of a printtarg page (the stamped notes, and on an i1Pro
+    with the ChromIQ clip style the clip band painted in after the patches
+    are moved right). None of it changes a page's strips or rows; the clip
+    band moves the patch block sideways without changing its size, which is
+    what the coverage is computed from.
+    """
+    from workflow import measurement_report as MR
+    exe = _printtarg_binary(spec)
+    if not exe.is_file():
+        return {"reason": REASON_LAYOUT_NO_TOOL, "detail": str(exe.parent)}
+    argv = [str(a) for a in spec.get(PRINTTARG_ARGV) or ()]
+    with tempfile.TemporaryDirectory(prefix="chromiq-preset-layout-") as tmp:
+        folder = Path(tmp)
+        try:
+            shutil.copyfile(chart, folder / "chart.ti1")
+        except OSError as exc:
+            return {"reason": REASON_LAYOUT_REFUSED, "detail": str(exc)}
+        try:
+            r = subprocess.run([str(exe), *argv, "chart"], cwd=str(folder),
+                               capture_output=True, text=True, encoding="utf-8",
+                               errors="replace", stdin=subprocess.DEVNULL,
+                               timeout=PRINTTARG_TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            return {"reason": REASON_LAYOUT_REFUSED,
+                    "detail": f"printtarg did not finish within "
+                              f"{PRINTTARG_TIMEOUT_S} s"}
+        except OSError as exc:
+            return {"reason": REASON_LAYOUT_NO_TOOL, "detail": str(exc)}
+        ti2 = folder / "chart.ti2"
+        if r.returncode != 0 or not ti2.is_file():
+            return {"reason": REASON_LAYOUT_REFUSED,
+                    "detail": refusal_sentence((r.stdout or "") + "\n"
+                                               + (r.stderr or ""))}
+        grid = dict(MR.chart_grid(ti2))
+        grid["laid_out_by"] = "printtarg"
+        grid["pages_laid_out"] = len(list(folder.glob("chart*.tif")))
+        return grid
+
+
+def refusal_sentence(output: str) -> str:
+    """printtarg's own one line out of its output (`chart_creator.
+    printtarg_said`, the line a Generate click logs). Its words, quoted by the
+    window as printtarg's: ChromIQ's longer explanation of a refusal is a
+    Generate window's, with buttons to go with it, and too long for a line in
+    a list."""
+    from workflow.chart_creator import printtarg_said
+    return printtarg_said(output) or "printtarg wrote no chart"

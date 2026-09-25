@@ -1742,7 +1742,9 @@ GLOSSARY += [
         "aim colour is neutral instead, because the profile prints a neutral "
         "grey with slightly unequal red, green and blue. The tone row needs "
         "less: a single-ink or grey ramp with at least three roughly evenly "
-        "spaced steps between 30 % and 70 %.")),
+        "spaced steps between 30 % and 70 %; on a chart built with “From "
+        "profile gamut” that grey ramp is its neutral aims between L* 70 and "
+        "L* 30.")),
     (tr("Control strip"),
      tr("In printing, the narrow band of standard patches along the edge of a "
         "sheet that a press operator measures. ChromIQ has no such band, so "

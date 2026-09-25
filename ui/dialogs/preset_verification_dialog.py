@@ -131,6 +131,9 @@ class PresetRow:
     #: for an engine preset `PE._predicted_grid` computes it from this, with
     #: the engine's own arithmetic and no file written.
     recipe: "dict | None" = None
+    #: True while this preset's answer is being worked out on the background
+    #: thread (K40-1): the row reads "Working…" and is re-read when it arrives.
+    pending: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +189,18 @@ def reason_line(code: str) -> str:
             tr("The neutral aims on this chart are bunched together: it has "
                "no {n} of them roughly evenly spaced from its black to its "
                "white.").format(n=MR.GREY_MIN_LEVELS),
+        # K40-2 (Knut, #182 5832026677): the tone row of such a chart takes
+        # its neutral aims too, placed at 100 minus their L*.
+        MR.REASON_RAMP_TOO_FEW_NEUTRAL_AIMS:
+            tr("This chart was built with From Profile Gamut, and it carries "
+               "fewer than {n} distinct neutral aims between L* 30 and L* 70, "
+               "spanning at least {span}, to serve as its mid-tone "
+               "ramp.").format(n=MR.RAMP_MIN_STEPS,
+                               span=f"{MR.RAMP_MIN_SPAN:g}"),
+        MR.REASON_RAMP_NEUTRAL_AIMS_BUNCHED:
+            tr("The neutral aims of this chart between L* 30 and L* 70 are "
+               "bunched together: it has no {n} of them roughly evenly "
+               "spaced.").format(n=MR.RAMP_MIN_STEPS),
         MR.REASON_NEUTRAL_AIMS_NO_WHITE:
             tr("The neutral aims on this chart do not reach its lightest "
                "colours."),
@@ -243,7 +258,30 @@ def reason_line(code: str) -> str:
             tr("This preset's page layout is decided when the chart is "
                "built, so whether each page has at least {k} strips and {k} "
                "rows is not known yet.").format(k=MR.EVENNESS_MIN_GRID),
+        # K40-1 (Knut, #182 5832026677): a printtarg preset is laid out
+        # behind the scenes. While that runs the metric is not missing, it is
+        # being checked; when printtarg cannot do it, the line says so and
+        # the pane quotes printtarg (`detail_lines`).
+        PE.REASON_EVENNESS_LAYING_OUT:
+            tr("ChromIQ is laying this preset's page out to check it. The "
+               "answer appears here in a moment."),
+        PE.REASON_EVENNESS_LAYOUT_NO_TOOL:
+            tr("printtarg, which lays this preset's page out, was not found "
+               "in the ArgyllCMS folder set in Preferences, so where its "
+               "patches will sit on the page is not known."),
+        PE.REASON_EVENNESS_LAYOUT_REFUSED:
+            tr("printtarg, which lays this preset's page out, could not lay "
+               "it out, so where its patches will sit on the page is not "
+               "known."),
     }.get(code, tr("ChromIQ cannot check this metric on this chart."))
+
+
+#: The reasons that are about laying a preset out behind the scenes (K40-1).
+#: No lever of the metric's own help fits them: a larger chart does not make
+#: printtarg appear, and a row still being laid out is short of nothing.
+_LAYOUT_REASONS = frozenset({PE.REASON_EVENNESS_LAYING_OUT,
+                             PE.REASON_EVENNESS_LAYOUT_NO_TOOL,
+                             PE.REASON_EVENNESS_LAYOUT_REFUSED})
 
 
 #: **A SHEET THAT IS ALREADY AN IMAGE CANNOT BE BUILT FROM PROFILE GAMUT.**
@@ -333,6 +371,12 @@ def detail_lines(row: "PresetRow | None", *,
         return [Line(tr("Select a preset on the left to see what it can "
                         "answer."), info=True)]
     out: "list[Line]" = [Line(row.label, bold=True)]
+    if row.pending:
+        # K40-1: worked out behind the scenes; nothing to say about it yet
+        out.append(Line(tr("ChromIQ is still checking this preset, laying "
+                           "its page out where it needs to. The answer "
+                           "appears here in a moment."), info=True))
+        return out
     # NEVER "0 patches · 0 pages". A zero here means ChromIQ does not know,
     # and printing it as a number is a false statement about the preset:
     # measured on a user preset saved without its patch set, the pane said
@@ -397,12 +441,30 @@ def detail_lines(row: "PresetRow | None", *,
         out.append(Line(tr("This chart can answer"), bold=True))
         out += [Line("✓  " + tr(PE.row_label(rid)), indent=6)
                 for rid in a.answered]
-    if a.missing:
+    # K40-1: a metric whose page is still being laid out behind the scenes
+    # is not one the chart "cannot answer" yet; it is listed on its own.
+    working = [(rid, why) for rid, why in a.missing
+               if why == PE.REASON_EVENNESS_LAYING_OUT]
+    missing = [(rid, why) for rid, why in a.missing
+               if why != PE.REASON_EVENNESS_LAYING_OUT]
+    if working:
+        out.append(Line(tr("Still being checked"), bold=True))
+        for rid, _why in working:
+            out.append(Line("…  " + tr(PE.row_label(rid)), indent=6))
+        out.append(Line(reason_line(PE.REASON_EVENNESS_LAYING_OUT),
+                        info=True, indent=22))
+    if missing:
         out.append(Line(tr("This chart cannot answer"), bold=True))
-        for rid, why in a.missing:
+        said = PE.layout_failure_detail(row.chart, row.recipe)
+        for rid, why in missing:
             out.append(Line("✕  " + tr(PE.row_label(rid)), indent=6))
             out.append(Line(reason_line(why), info=True, indent=22))
-            remedy = PE.row_remedy(rid, why)
+            if why == PE.REASON_EVENNESS_LAYOUT_REFUSED and said:
+                # printtarg's own words, quoted as its own
+                out.append(Line(tr("printtarg said: “{said}”").format(
+                    said=said), info=True, indent=22))
+            remedy = ("" if why in _LAYOUT_REASONS
+                      else PE.row_remedy(rid, why))
             if remedy:
                 out.append(Line(tr(remedy), info=True, indent=22))
         # **WHAT THE REPORT DOES WITH THESE ROWS, AND THE ONE LEVER OVER IT.**
@@ -418,6 +480,8 @@ def detail_lines(row: "PresetRow | None", *,
         from workflow.measurement_messages import M_VERIFY_UNCHECKED_METRICS
         for para in M_VERIFY_UNCHECKED_METRICS.render()[1].split("\n\n"):
             out.append(Line(para, info=True))
+    elif working:
+        pass
     elif every_metric:
         out.append(Line(tr("This chart answers every metric a report of this "
                            "type can judge.")))
@@ -531,8 +595,16 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                  overrides: "dict | None" = None,
                  parent: "QWidget | None" = None,
                  select: "str | None" = None,
-                 current: "PresetRow | None" = None) -> None:
+                 current: "PresetRow | None" = None,
+                 background: bool = False) -> None:
         """*select* is the label of the preset to open on.
+
+        *background* (K40-1, Knut #182 5832026677: *"It must never block the
+        window"*): a preset whose answer is not known yet is worked out on
+        `preset_layout`'s background thread and reads "Working…" until it
+        arrives, instead of the window computing it before it opens. The app
+        opens the window this way (`TabChart._open_preset_verification_window`);
+        a caller that wants every answer at once leaves it False.
 
         *current* is the chart the Create Chart tab currently holds, shown as
         the first line of the list above a separator that cannot be clicked
@@ -566,6 +638,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             self._current.is_current_chart = True
             self._current.label = CURRENT_CHART_LABEL()
         self._overrides = overrides
+        self._background = bool(background)
         #: Set by a double-click, read by the caller once `exec` has returned:
         #: the Create Chart pulldown key of the preset to load. Knut, beta 25.
         self.chosen_key: "str | None" = None
@@ -918,6 +991,18 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         """Re-assess every preset against the current choice and redraw."""
         type_id, set_id = self.current_type(), self.current_set()
         for row in self._rows + ([self._current] if self._current else []):
+            # K40-1: a preset whose answer is not known yet goes to the
+            # background thread and reads "Working…"; the reader's own chart
+            # (the first line) is always answered at once.
+            row.pending = bool(
+                self._background and not row.is_current_chart
+                and row.chart is not None
+                and not PE.values_ready(row.chart, row.recipe))
+            if row.pending:
+                PE.request_values(row.chart, row.recipe)
+                row.assessment = PE.UNCHECKED
+                row.starred = False
+                continue
             row.assessment = PE.assess(row.chart, type_id, set_id,
                                        self._overrides, recipe=row.recipe)
             row.starred = PE.made_for_verification(
@@ -980,6 +1065,127 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                    "metrics of a chart during verification.")))
         self._fill_tree()
         self._fill_figures()
+        self._watch_layouts()
+
+    # -- presets laid out behind the scenes (K40-1) ------------------------
+    def _watch_layouts(self) -> None:
+        """Poll for printtarg layouts the background thread is working on.
+
+        **A TIMER AND AN INTEGER, NO SIGNAL FROM THE THREAD.** The thread in
+        `workflow.preset_layout` touches no Qt object at all; this asks
+        `preset_layout.generation()` five times a second and re-reads the rows
+        that were waiting when it moves. A bound method, never a closure (see
+        CLAUDE.md on the scroll-bar segfault)."""
+        from PyQt6.QtCore import QTimer
+        waiting = [r for r in self._all_rows() if self._is_waiting(r)]
+        timer = getattr(self, "_layout_timer", None)
+        if not waiting:
+            if timer is not None:
+                timer.stop()
+            return
+        if timer is None:
+            timer = QTimer(self)
+            timer.setInterval(200)
+            timer.timeout.connect(self._poll_layouts)
+            self._layout_timer = timer
+        self._layout_seen = None
+        if not timer.isActive():
+            timer.start()
+
+    def _all_rows(self) -> "list[PresetRow]":
+        return self._rows + ([self._current] if self._current else [])
+
+    @staticmethod
+    def _is_waiting(r: "PresetRow") -> bool:
+        return r.pending or (r.assessment.checked
+                             and PE.is_being_laid_out(r.assessment))
+
+    def _still_laying_out(self) -> bool:
+        return any(self._is_waiting(r) for r in self._all_rows())
+
+    def _poll_layouts(self) -> None:
+        """Re-assess the rows whose layout has arrived, and redraw them."""
+        from workflow import preset_layout as PL
+        gen = PL.generation()
+        if gen == getattr(self, "_layout_seen", None):
+            return
+        self._layout_seen = gen
+        type_id, set_id = self.current_type(), self.current_set()
+        changed = []
+        for row in self._all_rows():
+            if not self._is_waiting(row):
+                continue
+            if row.pending:
+                if not PE.values_ready(row.chart, row.recipe):
+                    # asked again (a no-op while it is queued): a chart that
+                    # changed on disk meanwhile is worked out anew
+                    PE.request_values(row.chart, row.recipe)
+                    continue
+                row.pending = False
+            elif not PE.layout_is_ready(row.chart, row.recipe):
+                continue
+            row.assessment = PE.assess(row.chart, type_id, set_id,
+                                       self._overrides, recipe=row.recipe)
+            if not row.is_current_chart:
+                row.starred = PE.made_for_verification(
+                    row.chart, row.patches, row.pages,
+                    relayoutable=row.relayoutable, recipe=row.recipe)
+            changed.append(row)
+        if not changed:
+            return
+        still = self._still_laying_out()
+        if not still and (self.current_sort() == SORT_MOST_ANSWERED
+                          or self._only_star.isChecked()):
+            # the order, or what the tick box shows, moves with the counts
+            self._fill_tree()
+        else:
+            self._redraw_rows(changed)
+        self._fill_figures()
+        if not still:
+            self._layout_timer.stop()
+
+    def _redraw_rows(self, rows: "list[PresetRow]") -> None:
+        """Rewrite the items of *rows* in place, and the detail pane if one of
+        them is the row shown there."""
+        want = {id(r) for r in rows}
+        cur = self._tree.currentItem()
+        cur_row = cur.data(0, Qt.ItemDataRole.UserRole) if cur is not None else None
+        stack = [self._tree.topLevelItem(i)
+                 for i in range(self._tree.topLevelItemCount())]
+        bold = self._tree.font()
+        bold.setBold(True)
+        while stack:
+            item = stack.pop()
+            stack += [item.child(j) for j in range(item.childCount())]
+            row = item.data(0, Qt.ItemDataRole.UserRole)
+            if not isinstance(row, PresetRow) or id(row) not in want:
+                continue
+            for col, text in enumerate(self._columns(row)):
+                item.setText(col, text)
+            if row.starred or row.is_current_chart:
+                item.setFont(0, bold)
+        if isinstance(cur_row, PresetRow) and id(cur_row) in want:
+            self._show_detail(cur_row)
+
+    def wait_for_layouts(self, timeout_s: float = 120.0) -> bool:
+        """Block until every preset laid out behind the scenes has arrived
+        and been redrawn. For tests and on-screen drivers only; the window
+        itself never waits. True when nothing is left waiting."""
+        import time as _time
+        from PyQt6.QtWidgets import QApplication
+        end = _time.monotonic() + timeout_s
+        while _time.monotonic() < end:
+            QApplication.processEvents()
+            self._layout_seen = None
+            self._poll_layouts()
+            if not self._still_laying_out():
+                return True
+            _time.sleep(0.05)
+        return False
+
+    def waiting_count(self) -> int:
+        """How many rows read "Working…" right now."""
+        return sum(1 for r in self._all_rows() if self._is_waiting(r))
 
     def _style_separator(self, sep) -> None:
         """Make the row under the current chart LOOK like a rule, not a gap.
@@ -1063,8 +1269,14 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
     def _columns(self, row: PresetRow) -> "list[str]":
         name = ("★  " + row.label) if row.starred else row.label
         a = row.assessment
-        if not a.checked:
+        if row.pending:
+            verdict = tr("Working…")
+        elif not a.checked:
             verdict = tr("Cannot be checked")
+        elif PE.is_being_laid_out(a):
+            # K40-1: Knut asked for "a clear 'working…' state per row until
+            # done"; a count now would be a count of what is known so far.
+            verdict = tr("Working…")
         elif not a.asked:
             verdict = tr("Nothing is judged")
         else:
@@ -1079,11 +1291,15 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         shown = [r for r in self._rows
                  if r.starred or not self._only_star.isChecked()]
         s = PE.summarise(shown)
-        self._figures.setText(
-            tr("Presets listed: {listed}     Made for verification: "
-               "{starred}     Answering every metric asked: {complete}").format(
-                   listed=s["listed"], starred=s["starred"],
-                   complete=s["complete"]))
+        text = tr("Presets listed: {listed}     Made for verification: "
+                  "{starred}     Answering every metric asked: {complete}"
+                  ).format(listed=s["listed"], starred=s["starred"],
+                           complete=s["complete"])
+        # K40-1: the counts above grow while presets are still being checked
+        waiting = sum(1 for r in shown if self._is_waiting(r))
+        if waiting:
+            text += "     " + tr("Still being checked: {n}").format(n=waiting)
+        self._figures.setText(text)
 
     # -- the detail pane -------------------------------------------------
     def _clear_detail(self) -> None:

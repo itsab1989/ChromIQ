@@ -125,6 +125,9 @@ def _compliance_set_keys() -> set[str]:
     out |= set(cs.IN_GAMUT_LABELS.values())
     out.add(cs._R_GREY_RAMP_DEVICE)
     out.add(cs._R_GREY_RAMP_AIMS)
+    # K40-2: the same two halves of the tone row's lever
+    out.add(cs._R_RAMPS_DEVICE)
+    out.add(cs._R_RAMPS_AIMS)
     for st in cs.SETS:
         out.add(st.label)
         if st.blurb:

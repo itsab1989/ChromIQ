@@ -18,6 +18,9 @@ What it builds, into ``<parent>/ChromIQ-Demo-Projects_v<APP_VERSION>/``:
 * ``Report-Limits-Evenness`` (`make_evenness_demo`) and
   ``Report-Notes-Every-Reason`` (`make_notes_demo`), which until K29 were in
   no release asset at all;
+* ``Report-Limits-Every-Metric`` (`make_every_metric_demo`, K40-3): one FROM
+  PROFILE GAMUT chart that answers every metric, the two repeatability
+  metrics included, passed on two dates and failed on a third;
 * ONE ``README.txt``, and ``COVERAGE.md`` / ``coverage-matrix.json``: every
   rule of the spec index, every metric row, threshold, verdict word, N-A
   reason, report type, run type, report location, message and help-worthy
@@ -348,6 +351,10 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ("§34", "K37 (i):", [
         "Report-Limits-Second-Route/run2: New report…, every date, Judged against Custom ISO 12647-7: the two control-strip rows carry M-REPORT-STRIP-CORNERS-PREDICTED, the cube-corner table keeps the ideal values",
         "Report-Limits-Every-Limit-Set/run4 and Report-Limits-Second-Route/run4 (ChromIQ tight): the strip's largest difference stays over on the dates that bring every other row back, and the dates say why",
+    ]),
+    ("§36", "K40:", [
+        "Report-Limits-Every-Metric/run1, Run type Verification: Create Chart > \"Which presets can be used for verification?\": the current chart answers 18 of 18; a printtarg preset of your own reads \"Working…\" until it is laid out",
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Custom ISO 12647-8: every metric PASS, PASS, FAIL; the tone row read on the neutral aims",
     ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
@@ -933,6 +940,7 @@ PROJECT_PURPOSE = {
     "Report-Limits-Second-Route": "every cell of the limit-set matrix again, on a different chart and paper",
     "Report-Limits-Renamed": "a project renamed after a report across projects was written",
     "Report-Limits-Evenness": "evenness across the sheet: judged, too small, too noisy, too little of the page",
+    "Report-Limits-Every-Metric": "one From Profile Gamut chart that answers every metric: all twenty passed, then all twenty failed",
     "Report-Notes-Every-Reason": "every reason a row can read N-A, and older report shapes",
 }
 
@@ -1031,6 +1039,14 @@ def package_readme(m: dict, limit_readme: str, notes_lines: "list[str]",
     a("")
     doc = (even_doc or "").strip().split("\n    python", 1)[0]
     L.append(doc)
+    a("")
+    a("")
+    a("=" * 72)
+    a("Report-Limits-Every-Metric")
+    a("=" * 72)
+    a("")
+    from make_every_metric_demo import __doc__ as every_doc
+    L.append((every_doc or "").strip().split("\n    python", 1)[0])
     a("")
     a("")
     a("=" * 72)
@@ -1150,6 +1166,7 @@ def build(parent: Path) -> "tuple[Path, int, list[str]]":
     """Build the package into *parent*. Returns (folder, the limit
     generator's exit code, the matrix faults)."""
     import make_evenness_demo as even
+    import make_every_metric_demo as every
     import make_notes_demo as notes
     g = _gen()
     parent = Path(parent).resolve()
@@ -1160,6 +1177,7 @@ def build(parent: Path) -> "tuple[Path, int, list[str]]":
     # THE TWO SMALLER GENERATORS FIRST, so the limit generator's own coverage
     # (which reads every Report-Limits-* folder) sees the evenness rows judged.
     even.build(root)
+    every.build(root)
     _nroot, notes_lines = notes.build(root)
     rc = g.main([str(root)])
     limit_readme = (root / "README.txt").read_text(encoding="utf-8")
@@ -1213,7 +1231,8 @@ def verify(path: Path) -> "list[str]":
             return [f"no such folder: {root}"]
         g = _gen()
         gaps = list(g.verify_pack(root))
-        for name in ("Report-Limits-Evenness", "Report-Notes-Every-Reason"):
+        for name in ("Report-Limits-Evenness", "Report-Notes-Every-Reason",
+                     "Report-Limits-Every-Metric"):
             if not (root / name / "project.json").is_file():
                 gaps.append(f"project missing: {name}")
         for name in ("README.txt", "COVERAGE.md", "coverage-matrix.json",

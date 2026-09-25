@@ -2571,3 +2571,39 @@ class ChartCreator:
                 f.unlink()
             except OSError:
                 pass
+
+
+# ---------------------------------------------------------------------------
+# The two layout builders, asked without a run (#182 K40-1)
+# ---------------------------------------------------------------------------
+class _NoRun:
+    """What :meth:`ChartCreator._build_printtarg_args` and
+    :meth:`ChartCreator._engine_build_kwargs` need of a creator, and nothing
+    more: a chart stem, which the caller throws away. The binary search above
+    already asks the printtarg builder this way (``[:-1]``)."""
+
+    class _Stem:
+        @staticmethod
+        def chart_stem(cal_target: bool = False) -> str:   # noqa: ARG004
+            return "chart"
+
+    _file_mgr = _Stem()
+
+
+def printtarg_layout_argv(params: ChartParams) -> "list[str]":
+    """printtarg's argument list for *params*, without the chart stem.
+
+    **THE SAME BUILDER A GENERATE CLICK RUNS**, not a copy of it: the presets
+    window lays a printtarg preset out behind the scenes (Knut, #182
+    5832026677: *"the window must layout that preset behind the scenes, if
+    needed, so that the window can judge it"*), and a second argument builder
+    would be a second opinion about the page the chart is printed on.
+    """
+    return ChartCreator._build_printtarg_args(_NoRun(), params)[:-1]
+
+
+def engine_build_kwargs(params: ChartParams) -> dict:
+    """The layout engine's build arguments for *params*, asked without a run:
+    :meth:`ChartCreator._engine_build_kwargs`, which reads nothing of the
+    creator itself."""
+    return ChartCreator._engine_build_kwargs(_NoRun(), params)

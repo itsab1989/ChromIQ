@@ -2252,7 +2252,8 @@ _CHART_HELP = (
     "grey steps from white to black, spread roughly evenly, for the grey rows "
     "(on a chart built with FROM PROFILE GAMUT these are its neutral aims), a "
     "single-ink or grey ramp with three roughly evenly spaced steps through "
-    "the mid-tones for the tone row, and, for the paper and solid "
+    "the mid-tones for the tone row (on such a chart its neutral aims between "
+    "L* 30 and L* 70 are that grey ramp too), and, for the paper and solid "
     "rows, a chart built with FROM PROFILE GAMUT on the Create Chart tab. That "
     "one picks its colours from what your own profile can actually print and "
     "carries an aim value for each of them, which is the thing those rows are "
@@ -11102,6 +11103,23 @@ class MeasurementReportDialog(QDialog):
                     tol=_level_text(_MR.GREY_SPACING_TOL),
                     n=_MR.GREY_MIN_LEVELS,
                     level=_level_text(gb.get('missing_level'))),
+            # K40-2 (Knut, #182 5832026677): the tone row of such a chart
+            # takes its neutral aims too, at the tone value 100 minus L*.
+            "ramp_too_few_neutral_aims": tr(
+                "the measured chart was built from the profile's gamut and "
+                "has fewer than {n} distinct neutral aims between L* 30 and "
+                "L* 70, spanning at least {span}, to serve as its mid-tone "
+                "ramp").format(n=_MR.RAMP_MIN_STEPS,
+                               span=_level_text(_MR.RAMP_MIN_SPAN)),
+            "ramp_neutral_aims_bunched": tr(
+                "the neutral aims of the measured chart between L* 30 and "
+                "L* 70 are bunched together: none lies within {tol} of the "
+                "lightness L* {level}, and {n} roughly evenly spaced ones are "
+                "needed").format(
+                    tol=_level_text(_MR.RAMP_SPACING_TOL),
+                    n=_MR.RAMP_MIN_STEPS,
+                    level=_level_text((r.get('ramps_30_70') or {}).get(
+                        'missing_level'))),
             "neutral_aims_no_white": tr(
                 "the neutral aims of the measured chart do not reach within "
                 "{reach} L* of its lightest aim").format(

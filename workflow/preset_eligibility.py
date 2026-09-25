@@ -136,6 +136,9 @@ PATCH_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_NEUTRAL_AIMS_BUNCHED,
     MR.REASON_NEUTRAL_AIMS_NO_WHITE,
     MR.REASON_NEUTRAL_AIMS_NO_BLACK,
+    # K40-2: the tone row of such a chart, on its neutral aims
+    MR.REASON_RAMP_TOO_FEW_NEUTRAL_AIMS,
+    MR.REASON_RAMP_NEUTRAL_AIMS_BUNCHED,
     MR.REASON_SMALL_SAMPLE,              # under 20 patches: no highest 5 %
     MR.REASON_TOO_FEW_SURFACE_PATCHES,   # under 10 on the cube surface
     MR.REASON_TOO_FEW_OUTER_PATCHES,     # under 20 in the top chroma quarter
@@ -160,6 +163,16 @@ OTHER_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
 #: meet it, since every measured sheet was laid out, so it lives here and not
 #: among the report's own codes.
 REASON_EVENNESS_LAID_OUT_LATER = "evenness_laid_out_later"
+
+#: **K40-1 (Knut, #182 5832026677): A PRINTTARG PRESET IS LAID OUT BEHIND THE
+#: SCENES** (:mod:`workflow.preset_layout`), so "laid out later" is left only
+#: for a caller that passes no layout at all. These three are what that can
+#: say instead: still being laid out (transient, the window shows it as
+#: working), printtarg not found, or printtarg refusing the preset. All three
+#: are about the tools and the preset's files, not its size.
+from workflow.preset_layout import (REASON_LAYING_OUT as REASON_EVENNESS_LAYING_OUT,  # noqa: E402
+                                    REASON_LAYOUT_NO_TOOL as REASON_EVENNESS_LAYOUT_NO_TOOL,
+                                    REASON_LAYOUT_REFUSED as REASON_EVENNESS_LAYOUT_REFUSED)
 
 #: **EVENNESS ACROSS THE SHEET: A THIRD KIND OF SHORTFALL, THE LAYOUT'S.**
 #: (Knut, 2026-09-22.) A page grid under 9 by 9, an area with no patch, or too
@@ -189,6 +202,10 @@ OTHER_SHORTFALL_REASONS = OTHER_SHORTFALL_REASONS | frozenset({
     MR.REASON_EVENNESS_NO_POSITIONS,
     REASON_EVENNESS_LAID_OUT_LATER,
     MR.REASON_EVENNESS_NO_PAGE_GEOMETRY,
+    # K40-1: a printtarg preset laid out behind the scenes
+    REASON_EVENNESS_LAYING_OUT,
+    REASON_EVENNESS_LAYOUT_NO_TOOL,
+    REASON_EVENNESS_LAYOUT_REFUSED,
 })
 
 #: **CHROMIQ'S OWN TWO REPEATABILITY ROWS ARE NOT IN EITHER SET ABOVE, because
@@ -241,22 +258,30 @@ def is_patch_shortfall(reason: "str | None") -> bool:
 # ---------------------------------------------------------------------------
 # The stand-in report
 # ---------------------------------------------------------------------------
-def _evenness_grid_for(chart: Path, recipe: "dict | None") -> dict:
+def _evenness_grid_for(chart: Path, recipe: "dict | None",
+                       lay_out: bool = False) -> dict:
     """Where every patch of *chart* will sit, or the reason nobody knows yet.
 
     * a laid-out chart (a ``.ti2``, or a ``.ti1`` with its ``.ti2`` beside it,
       as the prebuilt bundles ship): read by the report's own
       :func:`~workflow.measurement_report.chart_grid`, exactly;
+    * a preset laid out by PRINTTARG (K40-1): printtarg run on a copy of it,
+      behind the scenes (:mod:`workflow.preset_layout`), and the ``.ti2`` it
+      wrote read by the same ``chart_grid``. Without *lay_out* the layout is
+      queued to a background thread and the answer until it arrives is
+      "being laid out";
     * a preset with an engine layout recipe: the engine's own layout
       arithmetic (:func:`_predicted_grid`), with no file written;
-    * anything else, a printtarg preset that has never been built: printtarg
-      decides the grid when it runs, so the answer is "laid out later".
+    * anything else, a caller that passed no layout: "laid out later".
     """
     if chart.suffix.lower() == ".ti2":
         return MR.chart_grid(chart)
     beside = chart.with_suffix(".ti2")
     if beside.is_file():
         return MR.chart_grid(beside)
+    from workflow import preset_layout as PL
+    if PL.is_printtarg_spec(recipe):
+        return PL.grid_for(chart, recipe, wait=lay_out)
     if recipe:
         try:
             return _predicted_grid(chart, recipe)
@@ -305,7 +330,8 @@ def _predicted_grid(chart: Path, recipe: dict) -> dict:
     return grid
 
 
-def _estimated_evenness(chart: Path, recipe: "dict | None") -> dict:
+def _estimated_evenness(chart: Path, recipe: "dict | None",
+                        lay_out: bool = False) -> dict:
     """The evenness block a TYPICAL print of *chart* would give.
 
     The grid is exact where the chart is laid out (see
@@ -315,7 +341,7 @@ def _estimated_evenness(chart: Path, recipe: "dict | None") -> dict:
     from a fixed seed, and the report's own arithmetic runs on them. The block
     says it is an estimate.
     """
-    grid = _evenness_grid_for(chart, recipe)
+    grid = _evenness_grid_for(chart, recipe, lay_out)
     if "reason" in grid:
         block = MR.evenness_from_residuals(grid, {})
     else:
@@ -328,7 +354,8 @@ def _estimated_evenness(chart: Path, recipe: "dict | None") -> dict:
     return block
 
 
-def _perfect_print(chart: Path, recipe: "dict | None" = None) -> dict:
+def _perfect_print(chart: Path, recipe: "dict | None" = None,
+                   lay_out: bool = False) -> dict:
     """The report a flawless print of *chart*, measured as a verification
     sheet, would produce. Every block comes from :mod:`measurement_report`.
 
@@ -380,12 +407,18 @@ def _perfect_print(chart: Path, recipe: "dict | None" = None) -> dict:
         "reference_source": "colorimetric" if colorimetric else "design",
         "de00": MR._stats([0.0] * n),
         "grey_balance": grey,
-        "ramps_30_70": MR.ramps_block(rgb100, lab, ref, data.sample_ids),
+        # K40-2: a FROM PROFILE GAMUT chart's tone ramp takes its neutral
+        # aims too, measured (flawlessly) at those aims
+        "ramps_30_70": (MR.ramps_block(
+            rgb100, grey_lab, ref, data.sample_ids, neutral_aims=aims,
+            corner_ids=set(_declared_corners(chart)[0] or ()))
+            if aims is not None
+            else MR.ramps_block(rgb100, lab, ref, data.sample_ids)),
         "gamut_populations": MR.gamut_populations_block(
             rgb100, lab, ref, data.sample_ids),
         "control_strip": MR.control_strip_block(
             lab, ref, data.sample_ids, _declaration_it_would_get(chart)),
-        "evenness": _estimated_evenness(chart, recipe),
+        "evenness": _estimated_evenness(chart, recipe, lay_out),
     }
     if colorimetric:
         # The three reference rows are computed from this block and nothing
@@ -513,7 +546,8 @@ _PATCHES: "dict[tuple, int]" = {}
 
 
 def chart_row_values(chart: "str | Path",
-                     recipe: "dict | None" = None) -> "dict[str, dict]":
+                     recipe: "dict | None" = None, *,
+                     lay_out: bool = False) -> "dict[str, dict]":
     """``{row_id: {"value", "reason", …}}`` for a chart that is not printed yet.
 
     The report's own :func:`~workflow.measurement_report.row_values`, over the
@@ -521,24 +555,128 @@ def chart_row_values(chart: "str | Path",
     this chart can answer; a row with a ``reason`` is one it cannot, and the
     reason is the report's own code.
 
+    *recipe* is the preset's layout: an engine recipe, or a printtarg spec
+    (:func:`workflow.preset_layout.layout_for_user_preset`). A printtarg
+    layout nobody has worked out yet is queued to the background and its two
+    evenness rows read "being laid out"; with *lay_out* it is worked out here
+    and now instead (scripts, tests, and the background thread itself).
+
     Raises :class:`~workflow.ti3_analysis.Ti3ParseError` when the file cannot
     be read as a chart at all.
     """
+    from workflow import preset_layout as PL
     p = Path(chart)
     try:
-        st = p.stat()
-        key = (str(p.resolve()), st.st_mtime_ns, st.st_size,
-               _reference_stamp(p), _layout_stamp(p),
-               # the recipe decides the predicted page grid of a preset that
-               # is not laid out yet, so two recipes are two answers
-               repr(sorted((recipe or {}).items())))
+        key = _values_key(p, recipe)
     except OSError as exc:
         raise Ti3ParseError(str(exc)) from exc
     hit = _CACHE.get(key)
     if hit is None:
-        hit = MR.row_values(_perfect_print(p, recipe))
-        _CACHE[key] = hit
+        hit = MR.row_values(_perfect_print(p, recipe, lay_out))
+        if not (PL.is_printtarg_spec(recipe) and lay_out):
+            _CACHE[key] = hit
+        else:
+            # laid out just now: file it under the key that says so
+            _CACHE[key[:-1] + (PL.state(p, recipe),)] = hit
     return hit
+
+
+def _values_key(p: Path, recipe: "dict | None") -> tuple:
+    """The key :func:`chart_row_values` files an answer under. Raises OSError
+    when the chart cannot be read."""
+    from workflow import preset_layout as PL
+    st = p.stat()
+    return (str(p.resolve()), st.st_mtime_ns, st.st_size,
+            _reference_stamp(p), _layout_stamp(p),
+            # the recipe decides the predicted page grid of a preset that
+            # is not laid out yet, so two recipes are two answers
+            repr(sorted((recipe or {}).items())),
+            # …and a printtarg layout that has arrived since is a new
+            # answer: "being laid out" must never be served after it
+            PL.state(p, recipe) if PL.is_printtarg_spec(recipe) else ())
+
+
+def values_ready(chart: "str | Path | None", recipe: "dict | None") -> bool:
+    """Whether this chart's answer is known already, laid out and all, so a
+    window can show it without computing anything. A chart that cannot be
+    read is "ready": asking it again gives the same "cannot be checked"
+    at once."""
+    if chart is None:
+        return True
+    try:
+        key = _values_key(Path(chart), recipe)
+    except OSError:
+        return True
+    return key in _CACHE or key in _UNREADABLE
+
+
+def request_values(chart: "str | Path", recipe: "dict | None") -> None:
+    """Work this chart's answer out on the background thread (K40-1), laying
+    it out first where printtarg lays it out. The presets window asks this
+    for every preset whose answer is not known yet, shows it as working, and
+    re-reads it when `preset_layout.generation()` moves."""
+    from workflow import preset_layout as PL
+    p = Path(chart)
+    key = ("values", str(p), repr(sorted((recipe or {}).items())))
+    PL.request(key, _Compute(p, recipe))
+
+
+class _Compute:
+    """A callable for the background thread (a class, not a closure, so the
+    job names what it holds)."""
+
+    def __init__(self, chart: Path, recipe: "dict | None") -> None:
+        self.chart, self.recipe = chart, recipe
+
+    def __call__(self) -> None:
+        try:
+            chart_row_values(self.chart, self.recipe, lay_out=True)
+        except Exception:      # noqa: BLE001 - "cannot be checked" is an answer
+            # an unreadable chart is an answer too, and the window must stop
+            # showing it as working: `assess` gives "cannot be checked" at once
+            try:
+                _UNREADABLE.add(_values_key(self.chart, self.recipe))
+            except OSError:
+                pass
+
+
+#: Keys of charts the background thread could not read, so `values_ready`
+#: answers for them and the window stops showing them as working.
+_UNREADABLE: "set[tuple]" = set()
+
+
+def is_being_laid_out(assessment: "Assessment") -> bool:
+    """Whether an assessment is still waiting for a background layout: the
+    window shows such a row as working, not as short of anything."""
+    return any(why == REASON_EVENNESS_LAYING_OUT
+               for _rid, why in assessment.missing)
+
+
+def layout_is_ready(chart: "str | Path | None",
+                    recipe: "dict | None") -> bool:
+    """False while this preset's printtarg layout is still being worked out
+    behind the scenes; True for every other preset."""
+    from workflow import preset_layout as PL
+    if chart is None or not PL.is_printtarg_spec(recipe):
+        return True
+    p = Path(chart)
+    if p.suffix.lower() == ".ti2" or p.with_suffix(".ti2").is_file():
+        return True
+    return PL.state(p, recipe)[0] == "done"
+
+
+def layout_failure_detail(chart: "str | Path | None",
+                          recipe: "dict | None") -> str:
+    """printtarg's own words when it could not lay this preset out, or the
+    folder it was looked for in; "" for every other preset."""
+    from workflow import preset_layout as PL
+    if chart is None or not PL.is_printtarg_spec(recipe):
+        return ""
+    p = Path(chart)
+    if PL.state(p, recipe)[0] != "done":
+        return ""
+    got = PL.grid_for(p, recipe)
+    return str(got.get("detail") or "") if "reason" in got else ""
 
 
 def _layout_stamp(chart: Path) -> tuple:
@@ -587,6 +725,9 @@ def clear_cache() -> None:
     """Forget every assessed chart (the tests, and a re-read on demand)."""
     _CACHE.clear()
     _PATCHES.clear()
+    _UNREADABLE.clear()
+    from workflow import preset_layout
+    preset_layout.clear_cache()
     from workflow import page_coverage
     page_coverage.clear_cache()
 

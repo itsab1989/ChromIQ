@@ -80,9 +80,11 @@ STRICT = (MR.REPORT_TYPE_FULL, "custom_iso_12647_7")
 #: has a colorimetric reference. Excluded wherever a claim is checked.
 CONSTANT = MR.REASON_NEEDS_REFERENCE_FILE
 #: …and a second one since the evenness rows became computable (#182,
-#: 2026-09-22): every demo is a printtarg preset, whose page grid does not
-#: exist until printtarg runs, so both evenness rows read "laid out later".
-CONSTANT_LAYOUT = PE.REASON_EVENNESS_LAID_OUT_LATER
+#: 2026-09-22). It was "laid out later" until K40-1 (Knut, 5832026677), when
+#: the window began to lay every preset out behind the scenes: every demo is
+#: a 78-patch printtarg preset, which printtarg lays out as 3 i1Pro strips on
+#: A4, under the 9 by 9 page both evenness rows need.
+CONSTANT_LAYOUT = MR.REASON_EVENNESS_GRID_TOO_SMALL
 CONSTANTS = (CONSTANT, CONSTANT_LAYOUT)
 
 
@@ -124,6 +126,10 @@ def _read_ti1(path: Path):
                  "END_DATA"):
             mode = {"BEGIN_DATA_FORMAT": "format", "END_DATA_FORMAT": "header",
                     "BEGIN_DATA": "data", "END_DATA": "done"}[s]
+            if mode == "done":
+                # the patch list is the FIRST table; since K40-1 the demos
+                # carry printtarg's two further tables after it
+                break
             continue
         if mode == "format":
             fields = s.split()
@@ -354,6 +360,9 @@ def dialog(qapp, installed):
         PVD.PresetVerificationDialog.exec = real_exec
     assert opened, "clicking the real button opened no window"
     dlg = opened[0]
+    # K40-1: the demos are printtarg presets, laid out behind the scenes; a
+    # user reads the window once that is done, so the fixture waits for it.
+    assert dlg.wait_for_layouts(180.0), "the background layouts never finished"
     # WHAT A USER SEES FIRST, kept before the fixture moves anything: this
     # file judged every pair under STRICT and never looked at the choice the
     # window opens on, which is where Knut looked (K15).

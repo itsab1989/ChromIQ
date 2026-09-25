@@ -60,7 +60,8 @@ def test_every_live_ruling_in_the_spec_index_names_its_demonstration():
 def test_every_project_a_demonstration_names_is_one_the_package_builds():
     pkg, gen = _pkg(), _gen()
     present = {n for n, _p in gen.PROJECTS} | {
-        "Report-Limits-Evenness", "Report-Notes-Every-Reason"}
+        "Report-Limits-Evenness", "Report-Notes-Every-Reason",
+        "Report-Limits-Every-Metric"}
     rows = pkg.rule_map(pkg.spec_index_rows(), present)
     wrong = [(r["section"], r["missing_projects"]) for r in rows
              if r["missing_projects"]]
@@ -271,3 +272,42 @@ def test_every_paper_class_reaches_the_paper_white_line(built_package):
         assert labs, pc.id
         assert all(max(abs(x - y) for x, y in zip(lab, pc.lab)) < 0.15
                    for lab in labs), (pc.id, labs)
+
+
+@pytest.mark.slow
+def test_one_project_answers_every_metric_passed_and_failed(built_package):
+    """K40-3 (Knut, #182 5832026677: "yes"): Report-Limits-Every-Metric's one
+    FROM PROFILE GAMUT chart answers every metric the presets window counts
+    (18 of 18), and its three dates judge all twenty ChromIQ can compute:
+    PASS, PASS, FAIL, with only "the same chart measured again" N-A on the
+    first. The tone row is read on the chart's neutral aims (K40-2).
+
+    MUTATION, proven red: ``neutral_aims=None`` in `build_report`'s call of
+    `ramps_block` (no "source" on the grey axis); and the project left out of
+    `make_release_demo_package.build` (the project is missing)."""
+    from workflow import measurement_report as MR
+    from workflow import preset_eligibility as PE
+    from workflow.compliance_sets import ROWS
+    root = built_package / "Report-Limits-Every-Metric"
+    assert (root / "project.json").is_file()
+    run = root / "runs" / "run1"
+    chart = next((run / "verifications").glob("*.ti2"))
+    PE.clear_cache()
+    a = PE.assess(chart, PE.ANY_REPORT_TYPE, PE.ALL_METRICS)
+    assert len(a.asked) == 18 and not a.missing, a.missing
+    computable = [r.id for r in ROWS if r.status in ("now", "build", "ref")]
+    assert len(computable) == 20
+    reps = sorted(run.glob("verifications/*/reports/report_*.json"))
+    assert len(reps) == 3, reps
+    want = ("PASS", "PASS", "FAIL")
+    for k, (p, word) in enumerate(zip(reps, want)):
+        rep = json.loads(p.read_text(encoding="utf-8"))
+        assert rep["reference_source"] == "colorimetric"
+        assert rep["ramps_30_70"]["axes"]["grey"].get("source") == "neutral_aims"
+        rows = {r["row_id"]: r for r in MR.recorded_verdict(rep)["rows"]}
+        for rid in computable:
+            expect = word
+            if k == 0 and rid == "repeat_measurement_de00_max":
+                expect = "N-A"
+            assert rows[rid]["word"] == expect, (p.parts[-3], rid, rows[rid])
+

@@ -128,6 +128,34 @@ def write_ti1(path: Path, patches: "list[tuple[float, float, float]]",
         lines.append(f'{i} {rgb[0]:.4f} {rgb[1]:.4f} {rgb[2]:.4f} '
                      f'{x:.4f} {y:.4f} {z:.4f}')
     lines += ['END_DATA', '']
+    # **THE TWO TABLES printtarg NEEDS, WHICH EVERY DEMO LACKED UNTIL K40-1.**
+    # A preset's patch set is laid out by printtarg when the preset is loaded
+    # and generated, and printtarg refuses a .ti1 that holds only the colours
+    # ("Input file doesn't contain two or three tables"). Measured when the
+    # presets window started laying presets out behind the scenes (Knut,
+    # #182 5832026677): all 31 demos were refused, so not one of them could
+    # have been printed. The density extremes (targen's second table, white
+    # first, which printtarg reads as its spacer palette and label decision)
+    # and the device combinations (its third), as
+    # `workflow.i1profiler_import.write_ti1` writes them, with no CREATED
+    # stamp so the file is the same on every build.
+    from workflow.i1profiler_import import (_DENSITY_EXTREMES,
+                                            _DEVICE_COMBINATIONS)
+    for keyword, rows in (("DENSITY_EXTREME_VALUES", _DENSITY_EXTREMES),
+                          ("DEVICE_COMBINATION_VALUES", _DEVICE_COMBINATIONS)):
+        lines += ['CTI1   ', '',
+                  'DESCRIPTOR "Argyll Calibration Target chart information 1"',
+                  'ORIGINATOR "ChromIQ demo package"',
+                  f'{keyword} "{len(rows)}"', '',
+                  'NUMBER_OF_FIELDS 7', 'BEGIN_DATA_FORMAT',
+                  'INDEX RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z',
+                  'END_DATA_FORMAT', '', f'NUMBER_OF_SETS {len(rows)}',
+                  'BEGIN_DATA']
+        for i, rgb in enumerate(rows):
+            x, y, z = aim_xyz(rgb)
+            lines.append(f'{i} {rgb[0]:.4f} {rgb[1]:.4f} {rgb[2]:.4f} '
+                         f'{x:.4f} {y:.4f} {z:.4f}')
+        lines += ['END_DATA', '']
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines), encoding="utf-8")
 
@@ -828,18 +856,33 @@ UNREACHABLE: "dict[str, str]" = {
     "neutral_aims_bunched": "As the code above.",
     "neutral_aims_no_white": "As the code above.",
     "neutral_aims_no_black": "As the code above.",
+    # K40-2: the 30 to 70 % tone row of such a chart, on its neutral aims.
+    "ramp_too_few_neutral_aims": "As the code above.",
+    "ramp_neutral_aims_bunched": "As the code above.",
     "no_device_values":
         "A measurement file with no device columns (B8-845). Every preset is "
         "a chart of device values, and the stand-in report is built from "
         "them, so no preset can carry this code.",
-    # EVENNESS ACROSS THE SHEET (#182, 2026-09-22). One of these is the
-    # state of every demo here, and the other six need a page grid, which a
-    # printtarg preset does not have until printtarg runs.
+    # EVENNESS ACROSS THE SHEET (#182, 2026-09-22). Since K40-1 the window
+    # lays every preset out behind the scenes, so one of these is the state
+    # of every demo here and the rest need a page no 78-patch chart has.
     "evenness_laid_out_later":
-        "It is the STATE OF EVERY DEMO HERE, like the reference code above. "
-        "These are printtarg presets, and printtarg decides a chart's page "
-        "grid when it runs, so the window cannot say yet whether a page will "
-        "have 9 strips and 9 rows.",
+        "Only a caller that hands the window no layout at all. Since K40-1 "
+        "the window gives every preset the layout Generate would give it "
+        "(the layout engine's arithmetic, or printtarg run behind the "
+        "scenes), so no preset in the window reads it.",
+    "evenness_laying_out":
+        "Transient: a printtarg preset whose layout the background thread "
+        "has not finished yet. The window shows the row as working and "
+        "re-reads it when the layout arrives, so a finished window never "
+        "shows it.",
+    "evenness_layout_no_tool":
+        "Needs ArgyllCMS's printtarg to be missing from the folder "
+        "Preferences names. A demo cannot remove it.",
+    "evenness_layout_refused":
+        "Needs printtarg to refuse a preset. Every demo here was refused "
+        "until K40-1 (their .ti1 held only the colours, without the two "
+        "tables printtarg needs); since the tables are written, none is.",
     "evenness_no_layout":
         "Needs a MEASURED sheet with no chart file beside it. A preset is a "
         "chart file.",
@@ -847,9 +890,9 @@ UNREACHABLE: "dict[str, str]" = {
         "Needs a laid-out chart whose patch locations cannot be read, which a "
         "printtarg preset is not until it is laid out.",
     "evenness_grid_too_small":
-        "Needs the page grid, which a printtarg preset does not have until it "
-        "is laid out. The built-in ENGINE presets do have one, and the window "
-        "shows this code on the small ones (SHOWN_BY_BUILTINS).",
+        "It is the STATE OF EVERY DEMO HERE since K40-1, like the reference "
+        "code above: laid out by printtarg on A4 for an i1Pro, 78 patches "
+        "fill 3 strips, and both evenness rows want 9 strips and 9 rows.",
     "evenness_empty_area":
         "Needs a page of at least 9 by 9 whose patches leave a ninth of it "
         "empty, which a chart filled strip by strip cannot do.",
@@ -875,7 +918,7 @@ UNREACHABLE: "dict[str, str]" = {
 #: any demo here, so they stay in UNREACHABLE; the test asserts they really
 #: appear, which is stronger than asserting they do not.
 SHOWN_BY_BUILTINS: "frozenset[str]" = frozenset({
-    "evenness_grid_too_small", "evenness_noisy_pairwise",
+    "evenness_noisy_pairwise",
     "evenness_noisy_from_mean", "evenness_page_coverage_too_small",
 })
 
@@ -952,25 +995,42 @@ def build(dest: Path) -> "list[tuple[Demo, Path | None]]":
 #: The one code every preset carries and no preset causes. Excluded everywhere
 #: a claim is checked, because it is the background and not the picture.
 CONSTANT = "needs_reference_file"
-#: …and, since the evenness rows became computable (#182, 2026-09-22), the
-#: second such code: every demo here is a printtarg preset, whose page grid
-#: exists only once printtarg runs, so both evenness rows read "laid out
-#: later" on every one of them. The background again, not the picture; the
-#: evenness boundaries are demonstrated on laid-out charts instead (the
-#: report demo pack's Report-Limits-Evenness project and
-#: tests/test_evenness_across_the_sheet.py).
-CONSTANTS = (CONSTANT, "evenness_laid_out_later")
+#: …and, since the evenness rows became computable (#182, 2026-09-22), a
+#: second such code. It was "laid out later" until K40-1, because the window
+#: did not lay a printtarg preset out. The evenness boundaries are
+#: demonstrated on laid-out charts (the report demo pack's
+#: Report-Limits-Evenness project and tests/test_evenness_across_the_sheet.py).
+#:
+#: **K40-1 (Knut, #182 5832026677): THE WINDOW NOW LAYS EACH DEMO OUT**, with
+#: printtarg behind the scenes, exactly as Generate would lay it out, so the
+#: second constant is no longer "laid out later" but what that layout shows:
+#: 78 patches fill 3 i1Pro strips on an A4 page, and both evenness rows want
+#: 9 strips and 9 rows. Still the background, and still not the picture.
+CONSTANTS = (CONSTANT, "evenness_grid_too_small")
+
+
+def layout() -> dict:
+    """The layout every demo here is judged with: the one the presets
+    window gives a preset saved with these settings
+    (`preset_layout.layout_for_user_preset`), printtarg from ArgyllCMS's
+    usual folder or from ``CHROMIQ_ARGYLL_BIN``."""
+    from core.platform_paths import default_argyll_bin_dir
+    from workflow.preset_layout import layout_for_user_preset
+    argyll = os.environ.get("CHROMIQ_ARGYLL_BIN", default_argyll_bin_dir())
+    settings = {"argyll_bin_path": argyll}
+    return layout_for_user_preset(payload(True),
+                                  lambda k, d=None: settings.get(k, d))
 
 
 def assess(chart: "Path | None") -> "dict[str, str]":
     """``{row_id: reason}`` for every row this chart cannot answer, through the
-    app's own eligibility path."""
+    app's own eligibility path, laid out as the window lays it out."""
     from workflow import preset_eligibility as PE
     from workflow.ti3_analysis import Ti3ParseError
     if chart is None:
         return {"": "no chart"}
     try:
-        values = PE.chart_row_values(chart)
+        values = PE.chart_row_values(chart, layout(), lay_out=True)
     except (Ti3ParseError, OSError) as exc:
         return {"": f"unreadable: {exc}"}
     return {rid: (v.get("reason") or "")
@@ -998,8 +1058,16 @@ def in_the_window(chart: "Path | None", r: "Requirement") -> "dict[str, str]":
     """What the WINDOW withholds from *chart*, under the choice requirement
     *r*'s pair names: `preset_eligibility.assess`, the window's own call."""
     from workflow import preset_eligibility as PE
+    from workflow.ti3_analysis import Ti3ParseError
     tid, sid = shown_under(r)
-    a = PE.assess(chart, tid, sid)
+    if chart is not None:
+        try:
+            # laid out first, here and now, as the window's own background
+            # thread would have done by the time anybody reads the row
+            PE.chart_row_values(chart, layout(), lay_out=True)
+        except (Ti3ParseError, OSError):
+            pass
+    a = PE.assess(chart, tid, sid, recipe=layout())
     return {rid: why for rid, why in a.missing if why not in CONSTANTS}
 
 

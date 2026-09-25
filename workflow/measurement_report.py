@@ -1463,7 +1463,11 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
             rgb100, lab, ref, data.sample_ids,
             neutral_aims=ref if ref_source == "colorimetric" else None,
             corner_ids=corner_ids)
-        report["ramps_30_70"] = ramps_block(rgb100, lab, ref, data.sample_ids)
+        # K40-2: …and the grey axis of its 30 to 70 % tone ramp too.
+        report["ramps_30_70"] = ramps_block(
+            rgb100, lab, ref, data.sample_ids,
+            neutral_aims=ref if ref_source == "colorimetric" else None,
+            corner_ids=corner_ids)
         # #182 S2w (Knut, 2026-09-18): the two gamut populations ChromIQ now
         # defines for itself. Written even when the chart cannot supply them,
         # with the reason, exactly as the two blocks above are.
@@ -4259,6 +4263,13 @@ REASON_RAMP_STEPS_BUNCHED = "ramp_steps_bunched"
 #: patches come from the profile, not from a grey step setting. Spelled again
 #: in `compliance_sets.GREY_AIM_REASONS`, which cannot import this module.
 REASON_TOO_FEW_NEUTRAL_AIMS = "too_few_neutral_aims"
+#: **K40-2 (Knut, #182 5832026677: "Yes")**: on a FROM PROFILE GAMUT chart the
+#: 30 to 70 % tone row's grey axis is the chart's neutral AIMS, as the grey
+#: rows' steps are (K31 option a). Two reasons of their own, for the same
+#: reason the grey rows have theirs: "raise Single Channel Steps or Grey Axis
+#: Steps" is a lever such a chart does not have, and its level is an L*.
+REASON_RAMP_TOO_FEW_NEUTRAL_AIMS = "ramp_too_few_neutral_aims"
+REASON_RAMP_NEUTRAL_AIMS_BUNCHED = "ramp_neutral_aims_bunched"
 REASON_NEUTRAL_AIMS_BUNCHED = "neutral_aims_bunched"
 REASON_NEUTRAL_AIMS_NO_WHITE = "neutral_aims_no_white"
 REASON_NEUTRAL_AIMS_NO_BLACK = "neutral_aims_no_black"
@@ -4635,9 +4646,22 @@ def grey_balance_block(rgb100, lab, ref: "dict[str, tuple]",
 
 
 def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
-                sample_ids: "list[str]") -> dict:
+                sample_ids: "list[str]",
+                neutral_aims: "dict[str, tuple] | None" = None,
+                corner_ids: "set[str] | None" = None) -> dict:
     """The 30 to 70 % tone-ramp block of a report (ISO 12647-8:2021 4.2.7 is
-    the row that reads it; a *should*)."""
+    the row that reads it; a *should*).
+
+    *neutral_aims* is given for a chart built FROM PROFILE GAMUT, whose
+    colorimetric reference it is (K40-2, Knut #182 5832026677: "Yes", the
+    way the grey rows take them, K31 option a). The GREY axis is then the
+    patches whose AIM is neutral (``hypot(a*, b*)`` under
+    `NEUTRAL_AIM_CHROMA_MAX`, the eight *corner_ids* never), each placed at
+    the tone value ``100 - L*`` of its aim, so the band 30 to 70 % is the
+    aims from L* 70 down to L* 30, and the count, span and spacing rules are
+    asked of those levels unchanged. The ΔL* is each step's measured L*
+    against its aim. The R, G and B axes stay device axes, as on every chart.
+    """
     rgb = np.asarray(rgb100, dtype=float)
     axes: dict = {}
     overall_max = None
@@ -4645,9 +4669,22 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
     #: K31 rule A: the first axis that has the steps and the span but not
     #: their spacing, and the tone value no step is near, for the N-A note.
     bunched: "tuple[str, float | None] | None" = None
+    corners = {str(c) for c in (corner_ids or ())}
     for name, ch, others in (("R", 0, (1, 2)), ("G", 1, (0, 2)), ("B", 2, (0, 1)),
                              ("grey", None, ())):
-        if ch is None:
+        aim_of = ref
+        if ch is None and neutral_aims is not None:
+            # K40-2: the neutral aims, placed by 100 - their aim's L*
+            aim_of = neutral_aims
+            members = [i for i, sid in enumerate(sample_ids)
+                       if sid not in corners
+                       and neutral_aims.get(sid) is not None
+                       and math.hypot(float(neutral_aims[sid][1]),
+                                      float(neutral_aims[sid][2]))
+                       < NEUTRAL_AIM_CHROMA_MAX]
+            tv_of = (lambda i: 100.0                     # noqa: E731
+                     - float(neutral_aims[sample_ids[i]][0]))
+        elif ch is None:
             members = [i for i in range(len(sample_ids))
                        if float(rgb[i].max() - rgb[i].min()) <= GREY_SPREAD_TOL]
             tv_of = lambda i: 100.0 - float(rgb[i].mean())   # noqa: E731
@@ -4674,12 +4711,14 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
                 picked = sorted(round(v, 1) for v in got)
         dls = []
         for i in band:
-            r = ref.get(sample_ids[i]) if ref else None
+            r = aim_of.get(sample_ids[i]) if aim_of else None
             if r is not None:
                 dls.append(abs(float(lab[i][0]) - float(r[0])))
         axis = {"steps": distinct, "span": round(span, 1), "eligible": eligible,
                 "picked": picked,
                 "max_dl": round(float(max(dls)), 3) if (eligible and dls) else None}
+        if ch is None and neutral_aims is not None:
+            axis["source"] = "neutral_aims"
         axes[name] = axis
         if eligible and dls:
             any_eligible = True
@@ -4688,6 +4727,23 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
            "reason": None if any_eligible else REASON_NO_RAMP,
            "spacing_tol": RAMP_SPACING_TOL,
            "max_dl": round(float(overall_max), 3) if overall_max is not None else None}
+    if not any_eligible and neutral_aims is not None:
+        # K40-2: on a FROM PROFILE GAMUT chart the lever is a larger chart,
+        # never a step setting, so the reason says which of the aims' rules
+        # was not met, and a bunched grey axis names its LIGHTNESS
+        out["neutral_aims"] = True
+        if bunched is not None and bunched[0] == "grey":
+            out["reason"] = REASON_RAMP_NEUTRAL_AIMS_BUNCHED
+            out["bunched_axis"] = "grey"
+            out["missing_level"] = (None if bunched[1] is None
+                                    else round(100.0 - bunched[1], 1))
+        elif bunched is not None:
+            out["reason"] = REASON_RAMP_STEPS_BUNCHED
+            out["bunched_axis"] = bunched[0]
+            out["missing_level"] = bunched[1]
+        else:
+            out["reason"] = REASON_RAMP_TOO_FEW_NEUTRAL_AIMS
+        return out
     if not any_eligible and bunched is not None:
         out["reason"] = REASON_RAMP_STEPS_BUNCHED
         out["bunched_axis"] = bunched[0]

@@ -126,6 +126,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §31 | K34: a deleted profile run named in Report Scope; a failed folder rename brings the choices back; "Report shown" by the report's own date; the paper patch, N-A without one; a FROM PROFILE GAMUT chart's reference paper is its profile's media white | 2026-09-24, 5817809396 | recommendations accepted by Knut; built for beta 42 (B8-1011 to B8-1016), NOT confirmed; two message texts proposed |
 | §33 | K37: a white-mapped sheet whose chart has no paper patch is judged against the paper white of the profile it was printed through, with a numbered note; absolute Lab with a note on each row only when no profile can be read | 2026-09-24, 5822758830 | recommendation (e) accepted by Knut; built for beta 42 (B8-1081 to B8-1084), NOT confirmed; two message texts proposed |
 | §34 | K37 (i): on a FROM PROFILE GAMUT chart the control strip compares its seven ink and black corner patches with the profile's prediction, the cube-corner table keeps the ideal values, and a note says so | 2026-09-24, 5823088098 (our 5823015844) | approved by Knut; built for beta 42 (B8-1085 to B8-1088), NOT confirmed; two message texts proposed |
+| §36 | K40: every preset laid out behind the scenes for the evenness rows (printtarg or the layout engine, a "Working…" row, never a blocked window); the tone row of a FROM PROFILE GAMUT chart on its neutral aims; a demo project whose one chart answers every metric | 2026-09-25, 5832026677 | ruled by Knut; built for beta 43 (B8-1121 to B8-1125), NOT confirmed; the tone value of a neutral aim (100 − L\*) is ours to confirm |
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
@@ -3310,8 +3311,10 @@ measured noise.
   laid-out chart (the pre-flight's chart, the window's first line, the
   prebuilt bundles that ship a `.ti2`) and for a built-in ENGINE preset, whose
   grid the layout engine's own arithmetic predicts without writing a file
-  (held to a real build by a test). A printtarg preset has no grid until
-  printtarg runs and says so (`evenness_laid_out_later`). The noise cannot be
+  (held to a real build by a test). ~~A printtarg preset has no grid until
+  printtarg runs and says so (`evenness_laid_out_later`).~~ **SUPERSEDED by
+  K40-1 (§36.1):** every preset is laid out behind the scenes the way
+  Generate lays it out, a printtarg preset by printtarg itself. The noise cannot be
   known before printing, so these two windows use an **estimate for a typical
   print**: a residual of 1.1 per L\*, a\*, b\* component, calibrated so the
   estimate reproduces the F1 real sheet's noise (1.41 at 30 patches per area),
@@ -5672,6 +5675,8 @@ chart's neutral AIMS as its grey steps."*).
   take its neutral aims too (and by which tone value: an L\* is not a tone
   value) is left for Knut. Measured on the challenge A charts, the tone row is
   answered by the device greys of the middle band (spread 0.4 to 1.0).
+  **ANSWERED by K40-2 (Knut, 5832026677: "Yes"), §36.2:** the tone row's grey
+  axis is the neutral aims on such a chart, placed at 100 − L\*.
 * The demo package: the FROM PROFILE GAMUT runs of the report demo projects
   now design their greys on the neutral aims (`grey_stat_indices`), because
   the report began to judge rows it had read N-A on them.
@@ -7293,3 +7298,171 @@ goes into its `ALLOWED` table with the reason, never into the pattern.
   (each test red on the mutation in its docstring).
 * **Proof:** `~/Desktop/ChromIQ-beta43-proof/k39-report/` (on screen, EN
   and DE, before and after).
+
+## 36. K40: every preset laid out behind the scenes, the tone row on a FROM PROFILE GAMUT chart's neutral aims, and a demo project that answers every metric (#182, 2026-09-25, beta 43)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5832026677](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5832026677)
+(2026-09-25), answering the K39-8 analysis
+(`~/Desktop/ChromIQ-beta43-proof/k39-export-import/REPORT.md`):
+
+> *"the presets are mostly created with ChromIQ layout engine, not printtarg.
+> Also, each preset has all layout information, so the "Which presets can be
+> used for verification" must layout that preset behind the scenes, if
+> needed, so that the window can judge it."*
+
+and to its two questions, *"Yes"* (row 20 on a FROM PROFILE GAMUT chart uses
+the neutral aims, as the grey rows do) and *"yes"* (a demo project with such a
+chart). The rulings are his; what was BUILT from them waits for his
+confirmation. This section SUPERSEDES the "laid out later" clause of §16.4 and
+answers the question left open in §26.5. Register B8-1121 to B8-1125. Proof:
+`~/Desktop/ChromIQ-beta43-proof/knut-k40/` (on screen, EN and DE, before and
+after; REPORT.md).
+
+**36.1 K40-1: every preset reaches the evenness rows with its own layout.**
+A preset is judged with the layout Generate would give it, and nothing else:
+
+| the preset | its layout | how the page is known |
+|---|---|---|
+| a built-in with a layout-engine recipe | the recipe | the engine's own arithmetic (`_predicted_grid`), as since beta 37 |
+| a built-in "Full layout setup" ENGINE preset | the recipe selecting it builds (`tab_chart.fls_engine_recipe`) | the same; until K40-1 two of them read "laid out later" |
+| a built-in printtarg preset without a `.ti2` beside it (none ships today) | printtarg | laid out behind the scenes, as below |
+| a user preset saved with the engine on | the `layout_recipe` it stores | the engine's arithmetic |
+| a user preset saved with the engine off | printtarg, with the arguments Generate builds from the preset's own rows (`chart_creator.printtarg_layout_argv` over `ChartCreator._build_printtarg_args`) | printtarg run on a copy of the patch set in a temporary folder; its `.ti2` and page images read by the report's own `chart_grid` (strips, rows, the 60 % coverage from the page image), then the folder removed |
+| a chart with a `.ti2` beside it (the prebuilt bundles, the current chart) | that `.ti2` | `chart_grid`, as before |
+
+* **Never in the window's thread** (*"It must never block the window"*). A
+  printtarg layout, and any preset whose answer the tab's idle warming has not
+  reached yet, is worked out on one background thread
+  (`workflow/preset_layout.py`). Until it arrives the row reads **"Working…"**,
+  its metrics are listed under **"Still being checked"** with *"ChromIQ is
+  laying this preset's page out to check it. The answer appears here in a
+  moment."*, the figures line adds **"Still being checked: n"**, and the row is
+  redrawn by itself when the answer arrives (a timer reads one integer; the
+  thread touches no Qt object). The reader's own chart, the first line, is
+  answered at once. No dialog is ever shown.
+* **Cached by content.** The key is the patch set's bytes, the printtarg
+  arguments and the printtarg binary, so a preset renamed or re-saved unchanged
+  is not laid out again, and an Argyll upgrade lays everything out again. The
+  cache lives for the session.
+* **When the layout cannot be computed** the two evenness rows say why, as
+  other unanswerable rows do: *"printtarg, which lays this preset's page out,
+  was not found in the ArgyllCMS folder set in Preferences, so where its
+  patches will sit on the page is not known."* (`evenness_layout_no_tool`), or
+  *"… could not lay it out …"* (`evenness_layout_refused`) followed by
+  *printtarg said: "…"* with printtarg's own line. Neither offers the metric's
+  own lever (a larger chart does not make printtarg appear). Both are file and
+  tool reasons: they never take the star.
+* **What the behind-the-scenes layout does not reproduce:** ChromIQ's own
+  post-processing of a printtarg page (the stamped notes; on an i1Pro with the
+  ChromIQ clip style the band painted in after the patches are moved right).
+  None of it changes a page's strips or rows, and the clip band moves the patch
+  block sideways without changing its size. printtarg also shuffles the
+  patches on each run, so the places differ from the sheet later printed; the
+  page grid and the coverage do not.
+* **Measured** (this host, 2026-09-25; `knut-k40/REPORT.md`): a printtarg
+  layout costs 0.41 to 0.52 s per one-page preset (median 0.45 s: the 300 dpi
+  page image and its measurement); the 31 demo verification presets 14.0 s in
+  all, on the background thread. On screen, with the demo presets installed
+  and nothing warmed (220 presets): before, the window took 6.3 s to open and
+  opened fully answered; after, it opens in 1.4 s with 164 rows "Working…"
+  and is fully answered about 19 s later, with no click. Built-ins: 154
+  answer 15 of 18 (was 152), 14 answer 14, 17 answer 13; none reads "laid out
+  later" (was 2).
+* **Found by it** (B8-1122): the 31 demo verification presets could never have
+  been printed. Their `.ti1` held only the colour table, and printtarg refuses
+  that (*"Input file doesn't contain two or three tables"*); the window said so
+  the first time it laid them out. The demo pack now writes printtarg's two
+  other tables, and every demo is laid out: 3 i1Pro strips on A4, so both
+  evenness rows read "fewer than 9 strips" on each (the pack's new constant).
+
+**36.2 K40-2: the 30 to 70 % tone row on a FROM PROFILE GAMUT chart.**
+On a chart that carries a colorimetric reference (the report's
+`reference_source == "colorimetric"`; the chart's `-reference.ti3` in the
+presets window), the tone row's GREY axis is the chart's neutral aims, as the
+grey rows' steps are (§26.5):
+
+* a step is a patch whose AIM is neutral, ``hypot(a*, b*) <
+  NEUTRAL_AIM_CHROMA_MAX`` = 1.0; the eight cube corners never;
+* **our construction, to confirm:** each is placed at the tone value
+  **100 − its aim's L\***, so the band 30 % to 70 % is the aims from L\* 70 down
+  to L\* 30, and the count (3 distinct steps), span (20) and spacing (rule A, 4)
+  rules are asked of those levels unchanged. §26.5 left open *"by which tone
+  value: an L\* is not a tone value"*; this is the grey rows' own reading
+  (an aim placed by its L\* on a 0 to 100 scale), turned into a tone value the
+  way a device grey's is (100 − level);
+* its ΔL\* is each step's measured L\* against its own aim;
+* device greys (R = G = B) do not count on such a chart, as for the grey rows;
+  the R, G and B axes stay device axes, as on every chart;
+* two reasons of their own, because "raise Single Channel Steps or Grey Axis
+  Steps" is not a lever such a chart has: `ramp_too_few_neutral_aims` and
+  `ramp_neutral_aims_bunched` (which names the LIGHTNESS no aim is near). The
+  presets window files both as a patch shortfall, and the lever the help icon
+  offers for them is a larger chart
+  (`compliance_sets.remedy_for`, `_R_RAMPS_AIMS`);
+* every other chart is unchanged.
+
+Measured: on the K31 challenge A charts (100 and 400 patches) the row was
+answered by device greys before and is answered by the neutral aims after; on
+a 216-patch chart through the demo profile below, "no tone ramp" before and
+answered after (3 of 10 aims picked at tone 32.4, 48.2 and 65.0).
+
+The metric's help icon states the rule (EN, and German by hand), and so do its
+lever, the report's help paragraph on what a chart must carry, the Dictionary's
+"Grey ramp", the report's N-A sentences (which name no part of the app, §35) and
+the presets window's lines.
+
+**36.3 K40-3: Report-Limits-Every-Metric, one chart that answers every
+metric.** Built by `scripts/make_every_metric_demo.py`, in the release package
+beside the other projects (README and COVERAGE entries):
+
+* run1's profile is built from an ordinary 210-patch chart on the baryta paper
+  class; its verification chart is built FROM PROFILE GAMUT through that
+  profile by ChromIQ's own module: 632 colours, **8 of them printed twice**,
+  and the 8 cube corners, 648 patches, laid out by the layout engine with the
+  built-in "A4-648p-1page-Portrait-w7.5mm" i1Pro preset (24 strips by 27 rows,
+  69 % of the page covered);
+* it answers **18 of 18** in the presets window, and the two repeatability
+  metrics as well: it repeats 8 colours, and it is measured three times;
+* judged against **Custom ISO 12647-8**, the one set that limits all twenty:
+  2026-11-02 everything inside its limit (19 PASS, "the same chart measured
+  again" N-A on a first measurement), 2026-11-09 the same chart measured again
+  (20 PASS), 2026-11-16 everything over its limit (20 FAIL). The build stops
+  when a date's report reads otherwise;
+* the readings are synthetic (the report's own aims plus a designed residual);
+  a solid and the black sit between their ideal value and the profile's
+  prediction, the overprints on the prediction (§34);
+* the printing is recorded **raw**: the Print tab forces Raw for a converted
+  chart (§3.1a), and such a sheet is still graded.
+
+* **Built:** `workflow/preset_layout.py`; `workflow/preset_eligibility.py`
+  (`_evenness_grid_for`, `chart_row_values(lay_out=)`, `values_ready`,
+  `request_values`, `is_being_laid_out`, `layout_is_ready`,
+  `layout_failure_detail`, the three `REASON_EVENNESS_LAYOUT*` codes,
+  `_perfect_print`); `workflow/chart_creator.py` (`printtarg_layout_argv`,
+  `engine_build_kwargs`); `ui/tabs/tab_chart.py` (`builtin_preset_layout`,
+  `fls_engine_recipe`, `verification_preset_rows`,
+  `_open_preset_verification_window`); `ui/dialogs/preset_verification_dialog.py`
+  (`reason_line`, `detail_lines`, `_columns`, `_watch_layouts`,
+  `_poll_layouts`, `wait_for_layouts`, `background=`);
+  `workflow/measurement_report.py` (`ramps_block(neutral_aims=, corner_ids=)`,
+  the two `REASON_RAMP_*` codes, `build_report`); `workflow/compliance_sets.py`
+  (`_D_RAMPS`, `_R_RAMPS_DEVICE`, `_R_RAMPS_AIMS`, `remedy_for`);
+  `ui/dialogs/measurement_report_dialog.py` (`_reason_sentence`,
+  `_CHART_HELP`); `ui/dialogs/welcome_dialog.py`;
+  `scripts/make_verification_preset_demos.py`;
+  `scripts/make_every_metric_demo.py`; `scripts/make_release_demo_package.py`;
+  `data/i18n/*.json`.
+* **Verified by:** `tests/test_k40_presets_laid_out_and_the_tone_row_on_aims.py`
+  (each test red on the mutation in its docstring,
+  `knut-k40/mutations.txt`), `tests/test_the_demo_presets_pair_on_every_requirement.py`,
+  `tests/test_the_release_demo_package.py::test_one_project_answers_every_metric_passed_and_failed`
+  (release tier).
+* **Proof:** `~/Desktop/ChromIQ-beta43-proof/knut-k40/`.
+
+**Status:** built for beta 43 (B8-1121 to B8-1125), NOT confirmed; the tone
+value of a neutral aim (100 − L\*) is our construction and is put to Knut.

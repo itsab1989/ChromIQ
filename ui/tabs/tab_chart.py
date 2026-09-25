@@ -4065,6 +4065,77 @@ def _preset_sheet_count(data: dict, chart: "Path | None", settings) -> int:
     return math.ceil(patches / per_sheet)
 
 
+def _builtin_chart_params(p: "_Ti1Preset"):
+    """The ChartParams a built-in preset's own printtarg fields describe, the
+    ones `TabChart._fls_engine_recipe` has always built from."""
+    from workflow.chart_creator import ChartParams
+    return ChartParams(
+        instrument=p.instrument, paper=p.paper, is_manual=True,
+        tiff_dpi=KNUT_DPI, tiff_16bit=p.tiff_16bit,
+        patch_scale=p.patch_scale, margin_mm=p.margin,
+        triple_density=p.triple_density, double_density=p.double_density,
+        disable_left_border=p.suppress_left_clip,
+        no_strip_limit=p.no_strip_limit)
+
+
+def fls_engine_recipe(p: "_Ti1Preset"):
+    """The layout-engine recipe for a Full-layout-setup ENGINE preset,
+    derived from the preset's own printtarg fields.
+
+    Built from the exact same mapping the engine build uses
+    (`ChartCreator._engine_build_kwargs`), so the engine reproduces
+    printtarg byte-for-byte (verified for all 11 engine presets). We add the
+    explicit per-edge ``margins`` (the mapping only emits ``border``) so the
+    recipe round-trip keeps the preset's margin instead of defaulting to
+    6 mm. A module function since K40-1, so the presets window can lay such a
+    preset out without a tab (`builtin_preset_layout`)."""
+    from workflow.chart_creator import engine_build_kwargs
+    from workflow.layout_engine.presets import LayoutRecipe
+    kw = engine_build_kwargs(_builtin_chart_params(p))
+    kw["margins"] = (float(p.margin),) * 4
+    kw["dpi"] = KNUT_DPI
+    r = LayoutRecipe.from_build_kwargs(kw)
+    r.instrument, r.paper = p.instrument, p.paper
+    return r
+
+
+def builtin_preset_layout(p: "_Ti1Preset | None", settings) -> "dict | None":
+    """How a built-in preset is laid out, as the ``recipe`` the presets
+    window judges it with (#182 K40-1, Knut 5832026677: *"each preset has all
+    layout information, so the window must layout that preset behind the
+    scenes, if needed"*).
+
+    * a layout-engine preset: its recipe;
+    * a Full-layout-setup ENGINE preset: the recipe selecting it builds
+      (:func:`fls_engine_recipe`). Until K40-1 the window was handed no
+      recipe for these, so two of them read "laid out later";
+    * a printtarg preset: a printtarg spec (`workflow.preset_layout`), laid
+      out behind the scenes when its chart has no ``.ti2`` beside it.
+    """
+    if p is None:
+        return None
+    if getattr(p, "layout_recipe", None):
+        return dict(p.layout_recipe)
+    try:
+        if getattr(p, "engine", False):
+            return fls_engine_recipe(p).to_dict()
+        from core.platform_paths import default_argyll_bin_dir
+        from workflow.chart_creator import printtarg_layout_argv
+        from workflow.preset_layout import printtarg_spec
+        params = _builtin_chart_params(p)
+        if p.spacer_scale is not None:
+            params.extra_printtarg_args = f"-A {p.spacer_scale:g}"
+        params.chromiq_clip_style = bool(
+            settings.get("i1pro_chromiq_clip_style", False))
+        return printtarg_spec(printtarg_layout_argv(params),
+                              settings.get("argyll_bin_path",
+                                           default_argyll_bin_dir()))
+    except Exception as exc:      # noqa: BLE001 - a row, never an error
+        log.info("built-in preset %s has no layout the window can use: %s",
+                 getattr(p, "slug", "?"), exc)
+        return None
+
+
 #: How long one tick of the preset warming may run before it gives the event
 #: loop back (K32). A single chart with page TIFFs can still take longer; the
 #: budget only stops a tick from starting on the NEXT one.
@@ -4095,6 +4166,7 @@ def verification_preset_rows(settings) -> list:
     """
     from ui.dialogs.preset_verification_dialog import PresetRow
     from workflow.preset_eligibility import patch_count
+    from workflow.preset_layout import layout_for_user_preset
 
     rows: list = []
     for instr, entries in BUILTIN_PRESET_GROUPS:
@@ -4114,11 +4186,10 @@ def verification_preset_rows(settings) -> list:
                 group=instr, label=overlay_label, chart=chart,
                 patches=patch_count(chart) if chart else 0,
                 pages=pages, builtin=True, key=key,
-                # the engine recipe, so the evenness rows can be told the
-                # page grid this preset will be laid out on (#182)
-                recipe=(dict(p.layout_recipe)
-                        if p is not None and getattr(p, "layout_recipe", None)
-                        else None),
+                # the preset's layout, so the evenness rows can be told the
+                # page grid it will be laid out on (#182; K40-1 adds the
+                # Full-layout-setup engine presets and printtarg)
+                recipe=builtin_preset_layout(p, settings),
                 # **A PREBUILT-FILES PRESET SHIPS ITS PAGES AS TIFFs.** Knut,
                 # beta 25: *"these charts do not have a proper layout and come
                 # with pre-made tif files"*, so the sheet cannot be laid out
@@ -4138,7 +4209,13 @@ def verification_preset_rows(settings) -> list:
             group=tr("Custom presets"), label=str(name), chart=chart,
             patches=patch_count(chart) if chart else 0,
             pages=_preset_sheet_count(data, chart, settings),
-            builtin=False, key=str(name)))
+            builtin=False, key=str(name),
+            # K40-1 (Knut, #182 5832026677): a user preset carries its whole
+            # layout too, so the window lays it out the way Generate would:
+            # its engine recipe, or printtarg behind the scenes. Until then
+            # every user preset's evenness rows read "laid out later".
+            recipe=(layout_for_user_preset(data, settings.get)
+                    if chart is not None else None)))
     return rows + sorted(own, key=lambda r: r.label.lower())
 
 
@@ -10959,10 +11036,14 @@ class TabChart(QWidget):
         _QGA.setOverrideCursor(_Qt.CursorShape.BusyCursor)
         try:
             rows = verification_preset_rows(self._settings)
+            # K40-1 (Knut, #182 5832026677): "It must never block the
+            # window". A preset whose answer is not known yet (the idle
+            # warming below has not reached it, or printtarg has to lay it
+            # out) is worked out on a background thread and reads "Working…".
             dlg = PresetVerificationDialog(
                 rows, compliance_overrides_of(self._settings), self,
                 select=self._chosen_preset_label(),
-                current=self.current_chart_row())
+                current=self.current_chart_row(), background=True)
         finally:
             _QGA.restoreOverrideCursor()
         dlg.exec()
@@ -13778,21 +13859,7 @@ class TabChart(QWidget):
         explicit per-edge ``margins`` (the mapping only emits ``border``) so the
         recipe round-trip keeps the preset's margin instead of defaulting to
         6 mm."""
-        from workflow.chart_creator import ChartParams
-        from workflow.layout_engine.presets import LayoutRecipe
-        params = ChartParams(
-            instrument=p.instrument, paper=p.paper, is_manual=True,
-            tiff_dpi=KNUT_DPI, tiff_16bit=p.tiff_16bit,
-            patch_scale=p.patch_scale, margin_mm=p.margin,
-            triple_density=p.triple_density, double_density=p.double_density,
-            disable_left_border=p.suppress_left_clip,
-            no_strip_limit=p.no_strip_limit)
-        kw = self._creator._engine_build_kwargs(params)
-        kw["margins"] = (float(p.margin),) * 4
-        kw["dpi"] = KNUT_DPI
-        r = LayoutRecipe.from_build_kwargs(kw)
-        r.instrument, r.paper = p.instrument, p.paper
-        return r
+        return fls_engine_recipe(p)
 
     def _seed_builtin_chart_notes(self, p: "_Ti1Preset") -> None:
         """Put the preset's Chart Notes and stamp choice into the Output box.

@@ -399,7 +399,16 @@ _D_RAMPS = (
     "grey ramp's rule, applied to this band, so that three readings bunched "
     "at one end cannot stand for the whole mid-tone range. A ramp with more "
     "steps is fine; ChromIQ picks the steps that fit. The report names the "
-    "tone value that no step is near.")
+    "tone value that no step is near.\n\n"
+    # K40-2 (Knut, #182 5832026677: "Yes"): on a FROM PROFILE GAMUT chart the
+    # grey axis is its neutral aims, as the grey rows' steps are (K31).
+    "On a chart built with FROM PROFILE GAMUT the grey axis is the chart's "
+    "neutral aims instead, as on the grey rows: the patches whose aim colour "
+    "is neutral, each placed at the tone value 100 minus its aim's L*, so "
+    "the band is the aims from L* 70 down to L* 30, and the same three rules "
+    "are asked of them. Each of those patches is measured against its own "
+    "aim. Such a chart prints the profile's own numbers, so its red, green "
+    "and blue ramps are read as on any chart but seldom have steps to read.")
 #: **CHROMIQ'S OWN POPULATION, UNDER A HEADING THAT NO LONGER NAMES A
 #: STANDARD.** These two rows were never missing a detection method; they were
 #: missing the DEFINITION of the patches they are about, which the standards
@@ -461,7 +470,7 @@ _R_WORST5 = (
     "profile cannot print are set aside first, so a small chart of difficult "
     "colours can still fall short. On a chart this small the other four "
     "accuracy rows are still judged.")
-_R_RAMPS = (
+_R_RAMPS_DEVICE = (
     "Use a chart with a tone ramp through the mid-tones: three steps between "
     "30 % and 70 % of one single ink, or of grey, spread evenly rather than "
     "bunched together, is enough. The built-in presets have one; a patch set "
@@ -469,6 +478,14 @@ _R_RAMPS = (
     "Channel Steps (-s) or Grey Axis Steps (-g) so that the ramp has steps "
     "near the low end, the middle and the high end of 30 to 70 %, then "
     "generate the chart again.")
+#: K40-2: the lever on a FROM PROFILE GAMUT chart, whose grey axis is its
+#: neutral aims (the grey rows' `_R_GREY_RAMP_AIMS`, for this band).
+_R_RAMPS_AIMS = (
+    "On a chart built with FROM PROFILE GAMUT the grey steps of this ramp "
+    "come from the profile, not from a step setting, so build the chart "
+    "again with more patches: about one patch in eight is a neutral aim, and "
+    "a larger chart carries more of them between L* 30 and L* 70.")
+_R_RAMPS = _R_RAMPS_DEVICE + "\n\n" + _R_RAMPS_AIMS
 _R_CONTROL_STRIP = (
     "Declare the strip on the chart. Put a file beside the chart named after "
     "it with \".control-strip.json\" on the end, holding the strip's name and "
@@ -853,6 +870,10 @@ GREY_AIM_REASONS = frozenset({"too_few_neutral_aims", "neutral_aims_bunched",
 GREY_DEVICE_REASONS = frozenset({"no_greys", "too_few_steps",
                                  "grey_steps_bunched", "no_white",
                                  "no_black"})
+#: …and the same two halves for the 30 to 70 % tone row (K40-2).
+RAMP_AIM_REASONS = frozenset({"ramp_too_few_neutral_aims",
+                              "ramp_neutral_aims_bunched"})
+RAMP_DEVICE_REASONS = frozenset({"no_ramp", "ramp_steps_bunched"})
 
 
 def remedy_for(row_id: str, reason: "str | None" = None) -> str:
@@ -867,6 +888,11 @@ def remedy_for(row_id: str, reason: "str | None" = None) -> str:
             return _R_GREY_RAMP_AIMS
         if reason in GREY_DEVICE_REASONS:
             return _R_GREY_RAMP_DEVICE
+    if row.remedy == _R_RAMPS:
+        if reason in RAMP_AIM_REASONS:
+            return _R_RAMPS_AIMS
+        if reason in RAMP_DEVICE_REASONS:
+            return _R_RAMPS_DEVICE
     return row.remedy
 
 
