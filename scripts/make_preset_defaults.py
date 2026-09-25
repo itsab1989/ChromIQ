@@ -26,7 +26,9 @@ docstring says exactly how each word is read.
 key rides along as a fourth column so the answers come back to the right
 preset even if a name is edited or re-sorted in a spreadsheet. ``--from-table``
 reads a ``.csv`` in that shape: "yes" (any case, or "y", "x", "1") ticks, and
-any other answer or an empty cell does not. A row whose key ChromIQ does not
+any other answer or an empty cell does not. (The gear window's Import list is
+stricter: it reports an empty or unreadable answer and leaves that preset's
+tick as it was, because there the tick already means something.) A row whose key ChromIQ does not
 know is reported and refused rather than dropped, since that is a table from
 another version. When the table comes back, the file's ``source`` says so and
 ``tests/test_curated_builtin_presets.py`` stops holding it to the beta rule.
@@ -34,7 +36,6 @@ another version. When the table comes back, the file's ``source`` says so and
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import os
 import sys
@@ -47,8 +48,17 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 OUT = ROOT / "data" / "preset_defaults.json"
 BETA_SOURCE = "beta rule: core.curated_presets.beta_selection"
 TABLE_SOURCE = "table: the answers of Knut's users"
-_YES = {"yes", "y", "x", "1", "ja", "true"}
-_HEADER = ["Name of preset", "Include as default [yes/no]", "Comments", "Key"]
+# THE FORMAT IS NOT DEFINED HERE. Since beta 43 the gear window in Create
+# Chart exports and imports this same table (Knut, #182 5831246553), so both
+# write and read it through ``core.curated_presets`` (``write_table``,
+# ``read_table``, ``TABLE_HEADER``): a file the window exports is a file
+# ``--from-table`` reads, and the other way round.
+from core.curated_presets import (  # noqa: E402
+    TABLE_ENCODING, TABLE_HEADER, read_table,
+    write_table as _write_table_rows,
+)
+
+_HEADER = TABLE_HEADER[1:]
 
 
 def _facts() -> list[dict]:
@@ -94,33 +104,19 @@ def write_table(path: Path) -> None:
             lines.append(f"| {f['name']} |  |  |")
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return
-    with path.open("w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
-        w.writerow(["Group", *_HEADER])
-        for f in facts:
-            w.writerow([f["group"], f["name"], "", "", f["key"]])
+    with path.open("w", newline="", encoding=TABLE_ENCODING) as fh:
+        _write_table_rows(fh, facts)
 
 
 def from_table(path: Path) -> dict:
     facts = _facts()
-    known = {f["key"] for f in facts}
-    ticked: list[str] = []
-    unknown: list[str] = []
-    with path.open(newline="", encoding="utf-8-sig") as fh:
-        for row in csv.DictReader(fh):
-            key = (row.get("Key") or "").strip()
-            if not key:
-                continue
-            if key not in known:
-                unknown.append(key)
-                continue
-            answer = (row.get(_HEADER[1]) or "").strip().lower()
-            if answer in _YES:
-                ticked.append(key)
-    if unknown:
+    reading = read_table(path.read_bytes(), [f["key"] for f in facts])
+    if reading.unknown:
         raise SystemExit("keys this ChromIQ does not know, refusing the "
-                         "table:\n  " + "\n  ".join(unknown))
-    order = [f["key"] for f in facts if f["key"] in set(ticked)]
+                         "table:\n  " + "\n  ".join(
+                             k for _line, k, _name in reading.unknown))
+    ticked = {k for k, on in reading.answers.items() if on}
+    order = [f["key"] for f in facts if f["key"] in ticked]
     return document(order, facts, TABLE_SOURCE)
 
 

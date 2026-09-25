@@ -160,3 +160,42 @@ function answers the order for both).
   so a later release that changes that preset moves it too. Whether the
   window should also offer "Restore shipped selection" is his question and
   was not built.
+
+### C6. Export list and Import list (Knut, #182 5831246553, beta 43, B8-1101 to B8-1103)
+
+⏳ **Awaiting confirmation. Confirmed by:** *nobody yet.* Verified by driving
+the real app on screen, English and German (proof in
+`~/Desktop/ChromIQ-beta43-proof/k39-export-import/`), which proves what the
+app does; whether it is what it should do is Knut's or Sebastian's call.
+
+Knut's request: *"one "Export list" and one "Import list". The export button
+saves a csv file of the table with the current settings. The import button
+imports the same type of file back into the app and updates the checked
+settings. file dialogs open in the ChromIQ default folder. The saved filename
+should have a pre-defined name that explains what this list is. The import file
+dialog is filtered to only accept csv file type, as was exported. Closing the
+window then updates what is shown in the pulldown."*
+
+| What | Behaviour |
+|---|---|
+| Where | two buttons at the bottom LEFT, "Export list" then "Import list"; OK and Close stay the pair at the bottom right (C3a) |
+| The window's text | a fourth paragraph: "Export list saves this table as a CSV file, with the ticks as they are now. Import list sets the ticks from such a file. Like any change here, an imported list is kept only by OK; Close discards it." |
+| Export | writes the ticks AS SHOWN, unsaved changes included, one row per built-in in the pulldown's order |
+| The file | exactly the table `scripts/make_preset_defaults.py --table` writes: columns Group, Name of preset, Include as default [yes/no], Comments, Key; the answer column filled "yes" or "no". UTF-8 with a byte-order mark (so a spreadsheet shows the "·" in the names). Both the window and the script write and read it through `core/curated_presets.py`, so an exported file goes through `--from-table` and a filled-in table comes back through Import list |
+| The name offered | "ChromIQ built-in presets shown.csv", the same in every language (the file travels between people) |
+| Both file windows | open in the ChromIQ folder (`custom_output_path`, else ~/ChromIQ: the folder projects go in); filtered to "CSV files (*.csv)"; a name typed without ".csv" gets it |
+| Import, matching | by the Key column; the columns are found by their header, so their order does not matter; a comma or a semicolon separates them (a spreadsheet in a decimal-comma language saves "CSV" with semicolons); UTF-8 or the Windows code page |
+| Import, answers | yes, y, x, 1, ja, true tick; no, n, nein, nei, 0, false clear; any case |
+| Import, reported and skipped | a key this ChromIQ does not have; a row with no key; an empty answer; an answer that is neither yes nor no. The last two leave that preset's tick as it was |
+| Import, not named | a built-in the file does not name keeps its tick |
+| Not a table | a file without the Key or the answer column: "This file is not a list of built-in presets. Nothing was changed." |
+| The summary | a message after every import: "The window now shows the ticks from the list." then Ticked: N, Unticked: M, Skipped: K, and "Not in the file, so left as they were: L" when L > 0; one line per problem with its line number (the first ten; the rest under the details); "Nothing is stored yet: OK keeps these ticks, Close discards them."; its button is "Back to the list", not a second OK |
+| A status line | above the buttons, after an export ("Saved the list to {path}.") and an import ("Imported {path}. OK keeps these ticks; Close discards them.") |
+| Applying | an import changes only the window. **OK stores it and rebuilds both lists; Close, Escape and the close box discard it**, as every change in the window (C3a). Knut wrote "closing the window then updates"; since B8-1097 the window has OK and Close by Basti's decision, so OK is what applies |
+| Comments | a Comments cell read by an import is written back by the next export from the same window |
+
+`scripts/make_preset_defaults.py --from-table` keeps its own, looser reading
+of an answer (anything but a yes is "not ticked", an empty cell included),
+because it builds the shipped list from a blank table, where an empty cell
+means "not chosen". The window reports those cells instead, because there a
+tick already means something.

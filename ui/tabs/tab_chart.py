@@ -10521,9 +10521,14 @@ class TabChart(QWidget):
         from core.curated_presets import shown_keys
         from ui.dialogs.builtin_presets_shown_dialog import (
             BuiltinPresetsShownDialog)
+        # The table Export list writes is the one make_preset_defaults.py
+        # writes (its names are the facts'), and both file windows open in
+        # the ChromIQ folder (Knut, #182 5831246553, B8-1101).
         dlg = BuiltinPresetsShownDialog(
             self._curated_dialog_groups(),
-            shown_keys(self._settings, BUILTIN_PRESET_KEYS), self)
+            shown_keys(self._settings, BUILTIN_PRESET_KEYS), self,
+            facts=builtin_preset_facts(),
+            folder=self._file_mgr.root_dir())
         self._builtin_presets_shown_dialog = dlg
         try:
             if dlg.exec() == QDialog.DialogCode.Accepted:

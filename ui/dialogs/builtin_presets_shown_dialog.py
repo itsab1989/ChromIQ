@@ -28,15 +28,35 @@ a preset the pulldown does not have or in a different order.
 A group's own box ticks or clears the whole group (a tri-state box, partly
 ticked while the group is mixed), and its second column counts what is ticked,
 because a group of 74 presets does not show its own total on one screen.
+
+**EXPORT LIST AND IMPORT LIST (Knut, #182 5831246553, beta 43, B8-1101).**
+*"one "Export list" and one "Import list". The export button saves a csv file
+of the table with the current settings. The import button imports the same
+type of file back into the app and updates the checked settings."* Both sit at
+the bottom LEFT, so OK and Close stay the pair at the right. The file is the
+table ``scripts/make_preset_defaults.py --table`` writes for Knut's users,
+written and read by :mod:`core.curated_presets` for both, so an exported file
+goes through ``--from-table`` and a filled-in table comes back through Import
+list. Export writes the boxes AS SHOWN, unsaved changes included. Import sets
+the boxes and nothing else: like every other change in this window, OK keeps
+it and Close discards it (Knut wrote "closing the window then updates"; the
+window has had OK and Close since B8-1097, so it is OK that applies). A row is
+matched by its key; a key this ChromIQ does not have, a row with no key, and an
+empty or unreadable yes/no are reported and change nothing, and a preset the
+file does not name keeps its box. Both file windows open in the ChromIQ folder
+(``custom_output_path``, else ~/ChromIQ), the same folder projects go in.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QDialog, QHBoxLayout, QHeaderView, QLabel,
+    QAbstractItemView, QDialog, QHBoxLayout, QHeaderView, QLabel, QMessageBox,
     QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
+from core import curated_presets as cp
 from core.i18n import tr
 
 _KEY_ROLE = Qt.ItemDataRole.UserRole + 1
@@ -48,11 +68,27 @@ def _count_text(shown: int, total: int) -> str:
 
 class BuiltinPresetsShownDialog(QDialog):
     """``groups`` is ``[(heading, [(label, tooltip, key), …]), …]``; ``shown``
-    the keys ticked when the window opens."""
+    the keys ticked when the window opens. ``facts`` are the rows the table
+    names (:func:`ui.tabs.tab_chart.builtin_preset_facts`); without them the
+    table is written from ``groups``. ``folder`` is where the two file windows
+    open; without it, the ChromIQ folder."""
+
+    #: How many problem lines the import summary lists before "and N more".
+    SUMMARY_LINES = 10
 
     def __init__(self, groups: list[tuple[str, list[tuple[str, str, str]]]],
-                 shown: set[str], parent: QWidget | None = None) -> None:
+                 shown: set[str], parent: QWidget | None = None, *,
+                 facts: list[dict] | None = None,
+                 folder: Path | str | None = None) -> None:
         super().__init__(parent)
+        self._facts = facts if facts is not None else [
+            {"group": heading, "name": label, "key": key}
+            for heading, entries in groups for (label, _tip, key) in entries]
+        self._folder = Path(folder) if folder else None
+        #: Comments read by Import list, written back by Export list, so a
+        #: table's comments survive a round trip through the window.
+        self._comments: dict[str, str] = {}
+        self._last_box: QMessageBox | None = None
         self.setObjectName("builtin_presets_shown_dialog")
         self.setWindowTitle(tr("Built-in presets in the lists"))
         self.setModal(True)
@@ -72,7 +108,11 @@ class BuiltinPresetsShownDialog(QDialog):
                  "to show them.") + "\n\n"
             + tr("Your own presets are not affected and always stay at the "
                  "top. OK keeps your choice; Close leaves the lists as they "
-                 "were."),
+                 "were.") + "\n\n"
+            + tr("Export list saves this table as a CSV file, with the ticks "
+                 "as they are now. Import list sets the ticks from such a "
+                 "file. Like any change here, an imported list is kept only "
+                 "by OK; Close discards it."),
             self)
         self._intro.setWordWrap(True)
         self._intro.setObjectName("builtin_presets_shown_intro")
@@ -117,12 +157,38 @@ class BuiltinPresetsShownDialog(QDialog):
         self._tree.itemChanged.connect(self._on_item_changed)
         lay.addWidget(self._tree, 1)
 
-        # OK, then Close, at the bottom right, placed by hand (see the module
-        # docstring: a QDialogButtonBox would let the style reorder them).
+        # What the last export or import did, in one line, above the buttons.
+        self._status = QLabel(self)
+        self._status.setObjectName("builtin_presets_shown_status")
+        self._status.setWordWrap(True)
+        self._status.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._status.hide()
+        lay.addWidget(self._status)
+
+        # Export list and Import list at the bottom LEFT; OK, then Close, at
+        # the bottom right, placed by hand (see the module docstring: a
+        # QDialogButtonBox would let the style reorder them).
         bb = self._buttons = QWidget(self)
         bb.setObjectName("builtin_presets_shown_buttons")
         row = QHBoxLayout(bb)
         row.setContentsMargins(0, 0, 0, 0)
+        self._export_btn = QPushButton(tr("Export list"), bb)
+        self._export_btn.setObjectName("builtin_presets_shown_export")
+        self._export_btn.setAutoDefault(False)
+        self._export_btn.setToolTip(
+            tr("Save this table as a CSV file, with the ticks as they are "
+               "now."))
+        self._export_btn.clicked.connect(self._on_export)
+        self._import_btn = QPushButton(tr("Import list"), bb)
+        self._import_btn.setObjectName("builtin_presets_shown_import")
+        self._import_btn.setAutoDefault(False)
+        self._import_btn.setToolTip(
+            tr("Set the ticks from a CSV file saved with Export list. OK "
+               "keeps them; Close discards them."))
+        self._import_btn.clicked.connect(self._on_import)
+        row.addWidget(self._export_btn)
+        row.addWidget(self._import_btn)
         row.addStretch(1)
         self._ok_btn = QPushButton(tr("OK"), bb)
         self._ok_btn.setObjectName("builtin_presets_shown_ok")
@@ -168,7 +234,11 @@ class BuiltinPresetsShownDialog(QDialog):
         intro_h = self._intro.heightForWidth(text_w)
         if intro_h <= 0:
             intro_h = self._intro.sizeHint().height()
-        min_h = (m.top() + m.bottom() + intro_h + tree_min
+        status_h = 0
+        if not self._status.isHidden():
+            status_h = (self._status.heightForWidth(text_w)
+                        + lay.spacing())
+        min_h = (m.top() + m.bottom() + intro_h + tree_min + status_h
                  + self._buttons.sizeHint().height() + 2 * lay.spacing())
         self.setMinimumSize(self.MIN_WIDTH, min_h)
 
@@ -224,3 +294,178 @@ class BuiltinPresetsShownDialog(QDialog):
                                     else Qt.CheckState.Unchecked)
                     return True
         return False
+
+    def _items(self):
+        for g in self._groups:
+            for i in range(g.childCount()):
+                yield g.child(i)
+
+    # ------------------------------------------------------------------
+    # Export list / Import list
+    # ------------------------------------------------------------------
+    def folder(self) -> Path:
+        """Where the two file windows open: the ChromIQ folder."""
+        if self._folder is not None:
+            return self._folder
+        from ui.widgets import chromiq_root_dir
+        return chromiq_root_dir()
+
+    def export_to(self, path: Path | str) -> None:
+        """Write the table with the boxes as they are NOW. Raises OSError."""
+        with Path(path).open("w", newline="",
+                             encoding=cp.TABLE_ENCODING) as fh:
+            cp.write_table(fh, self._facts, self.ticked(), self._comments)
+
+    def import_from(self, path: Path | str) -> "cp.TableReading":
+        """Set the boxes from a table and answer what was found. Only the
+        boxes change; nothing is stored until OK. Raises OSError, or
+        :class:`core.curated_presets.TableError` for a file that is not a
+        table (and then no box has changed)."""
+        raw = Path(path).read_bytes()
+        known = [str(c.data(0, _KEY_ROLE)) for c in self._items()]
+        reading = cp.read_table(raw, known)
+        for c in self._items():
+            key = str(c.data(0, _KEY_ROLE))
+            if key in reading.answers:
+                c.setCheckState(0, Qt.CheckState.Checked
+                                if reading.answers[key]
+                                else Qt.CheckState.Unchecked)
+        self._comments.update(reading.comments)
+        return reading
+
+    def _ask_save_path(self) -> str:
+        from ui.widgets import save_file_dialog
+        return save_file_dialog(
+            self, tr("Export list"), tr("CSV files (*.csv)"),
+            str(self.folder() / cp.EXPORT_FILENAME))
+
+    def _ask_open_path(self) -> str:
+        from ui.widgets import open_file_dialog
+        folder = self.folder()
+        return open_file_dialog(
+            self, tr("Import list"), tr("CSV files (*.csv)"),
+            start_dir=str(folder) if folder.is_dir() else "")
+
+    def _exec_box(self, box: QMessageBox) -> None:
+        """Every message this window shows goes through here: one door for a
+        driver and for a test."""
+        self._last_box = box
+        box.exec()
+
+    def _message(self, icon, title: str, text: str, info: str = "",
+                 details: str = "", button: str = "") -> None:
+        box = QMessageBox(self)
+        box.setObjectName("builtin_presets_shown_message")
+        box.setIcon(icon)
+        box.setWindowTitle(title)
+        box.setText(text)
+        if info:
+            box.setInformativeText(info)
+        if details:
+            box.setDetailedText(details)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        if button:
+            # Not "OK": beside a sentence about the window's own OK, a second
+            # OK that only closes this message would read as the same one.
+            box.button(QMessageBox.StandardButton.Ok).setText(button)
+        self._exec_box(box)
+
+    def _set_status(self, text: str) -> None:
+        self._status.setText(text)
+        self._status.show()
+        self._minimum()
+
+    def _on_export(self) -> None:
+        path = self._ask_save_path()
+        if not path:
+            return
+        if not path.lower().endswith(".csv"):
+            path += ".csv"
+        try:
+            self.export_to(path)
+        except OSError as exc:
+            self._message(QMessageBox.Icon.Warning, tr("Export list"),
+                          tr("The list could not be saved."), str(exc))
+            return
+        self._set_status(tr("Saved the list to {path}.").format(path=path))
+
+    def _on_import(self) -> None:
+        path = self._ask_open_path()
+        if not path:
+            return
+        try:
+            reading = self.import_from(path)
+        except cp.TableError:
+            self._message(
+                QMessageBox.Icon.Warning, tr("Import list"),
+                tr("This file is not a list of built-in presets. Nothing "
+                   "was changed."),
+                tr("It needs the columns {key} and {answer}, as Export list "
+                   "writes them.").format(key=cp.TABLE_KEY,
+                                          answer=cp.TABLE_ANSWER))
+            return
+        except OSError as exc:
+            self._message(QMessageBox.Icon.Warning, tr("Import list"),
+                          tr("The file could not be read. Nothing was "
+                             "changed."), str(exc))
+            return
+        self._show_import_summary(reading)
+        self._set_status(
+            tr("Imported {path}. OK keeps these ticks; Close discards "
+               "them.").format(path=path))
+
+    def import_summary(self, reading: "cp.TableReading"
+                       ) -> tuple[str, list[str]]:
+        """``(the counts, one line per problem)`` for the import summary."""
+        ticked = sum(1 for v in reading.answers.values() if v)
+        unticked = len(reading.answers) - ticked
+        named = (set(reading.answers) | {k for _l, k, _n in reading.blank}
+                 | {k for _l, k, _n, _a in reading.invalid})
+        missing = sum(1 for c in self._items()
+                      if str(c.data(0, _KEY_ROLE)) not in named)
+        counts = [tr("Ticked: {count}").format(count=ticked),
+                  tr("Unticked: {count}").format(count=unticked),
+                  tr("Skipped: {count}").format(count=reading.skipped)]
+        if missing:
+            counts.append(tr("Not in the file, so left as they were: "
+                             "{count}").format(count=missing))
+        problems: list[tuple[int, str]] = []
+        for line, key, _name in reading.unknown:
+            problems.append((line, tr(
+                "Line {line}: “{key}” is not a built-in preset of this "
+                "ChromIQ. Skipped.").format(line=line, key=key)))
+        for line, name in reading.no_key:
+            problems.append((line, tr(
+                "Line {line}: {name}: no key, so the row cannot be "
+                "matched. Skipped.").format(line=line, name=name or "?")))
+        for line, _key, name in reading.blank:
+            problems.append((line, tr(
+                "Line {line}: {name}: no yes or no. Its tick is "
+                "unchanged.").format(line=line, name=name)))
+        for line, _key, name, answer in reading.invalid:
+            problems.append((line, tr(
+                "Line {line}: {name}: “{answer}” is not yes or no. Its tick "
+                "is unchanged.").format(line=line, name=name,
+                                        answer=answer)))
+        problems.sort(key=lambda p: p[0])
+        return "\n".join(counts), [text for _line, text in problems]
+
+    def _show_import_summary(self, reading: "cp.TableReading") -> None:
+        counts, problems = self.import_summary(reading)
+        info = counts
+        if problems:
+            shown = problems[: self.SUMMARY_LINES]
+            info += "\n\n" + "\n".join(shown)
+            if len(problems) > len(shown):
+                info += "\n" + tr("And {count} more, listed under the "
+                                   "details.").format(
+                    count=len(problems) - len(shown))
+        info += "\n\n" + tr("Nothing is stored yet: OK keeps these ticks, "
+                               "Close discards them.")
+        self._message(
+            QMessageBox.Icon.Warning if problems
+            else QMessageBox.Icon.Information,
+            tr("Import list"),
+            tr("The window now shows the ticks from the list."),
+            info, "\n".join(problems) if len(problems) > self.SUMMARY_LINES
+            else "", button=tr("Back to the list"))

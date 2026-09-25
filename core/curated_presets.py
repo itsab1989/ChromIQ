@@ -233,3 +233,158 @@ def beta_selection(facts: list[dict]) -> list[str]:
             widths.add(pick.get("width") or 0.0)
             chosen.add(pick["key"])
     return [f["key"] for f in facts if f["key"] in chosen]
+
+
+# ---------------------------------------------------------------------------
+# The table: one CSV format for the script and for the window
+# ---------------------------------------------------------------------------
+#
+# Knut, #182 5831246553: *"one "Export list" and one "Import list". The export
+# button saves a csv file of the table with the current settings. The import
+# button imports the same type of file back into the app and updates the
+# checked settings."* The table is the one ``scripts/make_preset_defaults.py
+# --table`` has written for his users since beta 42, so a file the window
+# exports is a file ``--from-table`` reads, and a table his users filled in is
+# a file the window imports. ONE format, written and read here, by both.
+
+#: The columns, in order. Knut's three (name, the yes/no answer, comments)
+#: with the group in front for the reader and the key behind, which is the
+#: preset's identity and what a row is matched by.
+TABLE_HEADER = ["Group", "Name of preset", "Include as default [yes/no]",
+                "Comments", "Key"]
+TABLE_NAME = TABLE_HEADER[1]
+TABLE_ANSWER = TABLE_HEADER[2]
+TABLE_COMMENTS = TABLE_HEADER[3]
+TABLE_KEY = TABLE_HEADER[4]
+
+#: Answers that tick, and answers that clear (any case). Anything else, an
+#: empty cell included, is not an answer.
+TABLE_YES = frozenset({"yes", "y", "x", "1", "ja", "true"})
+TABLE_NO = frozenset({"no", "n", "nein", "nei", "0", "false"})
+
+#: The name the window offers when it saves the table. English in every
+#: language, on purpose: the file travels between people (Knut's users send
+#: theirs back to him), and its name should say the same thing to all of them.
+EXPORT_FILENAME = "ChromIQ built-in presets shown.csv"
+
+#: How the table is written: UTF-8 with a byte-order mark, which is what makes
+#: a spreadsheet read the "·" in the names as a "·". Every reader here accepts
+#: the file with or without it.
+TABLE_ENCODING = "utf-8-sig"
+
+
+def write_table(fh, facts: list[dict], ticked: Iterable[str] | None = None,
+                comments: dict[str, str] | None = None) -> None:
+    """Write the table to the text stream ``fh`` (opened with ``newline=""``).
+
+    ``facts`` as :func:`ui.tabs.tab_chart.builtin_preset_facts` gives them
+    (``group``, ``name``, ``key``), one row each in that order. ``ticked``
+    None leaves the answer column empty, for people to fill in; a set of keys
+    writes "yes" or "no" on every row."""
+    import csv
+    ticked = None if ticked is None else set(ticked)
+    comments = comments or {}
+    w = csv.writer(fh)
+    w.writerow(TABLE_HEADER)
+    for f in facts:
+        answer = "" if ticked is None else (
+            "yes" if f["key"] in ticked else "no")
+        w.writerow([f["group"], f["name"], answer,
+                    comments.get(f["key"], ""), f["key"]])
+
+
+class TableError(ValueError):
+    """The file is not a preset table at all (no Key or no answer column)."""
+
+
+class TableReading:
+    """What :func:`read_table` found. ``line`` is the file's own line number
+    (the header is line 1)."""
+
+    def __init__(self) -> None:
+        #: ``{key: True/False}`` for every known key answered yes or no.
+        self.answers: dict[str, bool] = {}
+        #: ``{key: text}`` for every known key with a comment.
+        self.comments: dict[str, str] = {}
+        #: ``[(line, key, name)]``: keys this ChromIQ does not have.
+        self.unknown: list[tuple[int, str, str]] = []
+        #: ``[(line, key, name)]``: a known key whose answer is empty.
+        self.blank: list[tuple[int, str, str]] = []
+        #: ``[(line, key, name, answer)]``: an answer that is neither yes nor no.
+        self.invalid: list[tuple[int, str, str, str]] = []
+        #: ``[(line, name)]``: a row with no key, which cannot be matched.
+        self.no_key: list[tuple[int, str]] = []
+
+    @property
+    def skipped(self) -> int:
+        return (len(self.unknown) + len(self.blank) + len(self.invalid)
+                + len(self.no_key))
+
+
+def _decode(raw: bytes) -> str:
+    """UTF-8, with or without a byte-order mark; else the Windows code page a
+    spreadsheet's plain "CSV" is saved in. The keys are ASCII, so every row
+    is matched either way; only a name could come out differently."""
+    for codec in ("utf-8-sig", "cp1252"):
+        try:
+            return raw.decode(codec)
+        except UnicodeDecodeError:
+            continue
+    # cp1252 leaves five bytes undefined; Latin-1 defines all 256.
+    return raw.decode("latin-1")
+
+
+def read_table(raw: bytes | str, known: Iterable[str]) -> TableReading:
+    """Read a table. ``known`` is every built-in key this ChromIQ has.
+
+    A comma or a semicolon separates the columns: a spreadsheet set to a
+    language that writes a decimal comma saves its "CSV" with semicolons.
+    Columns are found by their header, so their order does not matter.
+    Raises :class:`TableError` when the header has no Key or no answer
+    column, since then no row in the file can be matched or read."""
+    import csv
+    import io
+    text = _decode(raw) if isinstance(raw, bytes) else raw.lstrip("﻿")
+    first = text.split("\n", 1)[0]
+    delim = ";" if first.count(";") > first.count(",") else ","
+    reader = csv.reader(io.StringIO(text, newline=""), delimiter=delim)
+    try:
+        header = [h.strip() for h in next(reader)]
+    except StopIteration:
+        raise TableError("empty file") from None
+    if TABLE_KEY not in header or TABLE_ANSWER not in header:
+        raise TableError("no Key or answer column")
+    col = {h: i for i, h in enumerate(header)}
+    known = set(known)
+    out = TableReading()
+
+    def cell(row: list[str], name: str) -> str:
+        i = col.get(name)
+        return row[i].strip() if i is not None and i < len(row) else ""
+
+    for row in reader:
+        line = reader.line_num
+        if not any(c.strip() for c in row):
+            continue
+        key = cell(row, TABLE_KEY)
+        name = cell(row, TABLE_NAME)
+        if not key:
+            out.no_key.append((line, name))
+            continue
+        if key not in known:
+            out.unknown.append((line, key, name))
+            continue
+        comment = cell(row, TABLE_COMMENTS)
+        if comment:
+            out.comments[key] = comment
+        answer = cell(row, TABLE_ANSWER)
+        low = answer.lower()
+        if low in TABLE_YES:
+            out.answers[key] = True
+        elif low in TABLE_NO:
+            out.answers[key] = False
+        elif not answer:
+            out.blank.append((line, key, name))
+        else:
+            out.invalid.append((line, key, name, answer))
+    return out

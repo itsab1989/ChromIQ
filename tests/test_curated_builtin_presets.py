@@ -529,13 +529,14 @@ def test_the_window_lists_every_built_in_under_the_pulldowns_headings(
         g.setCheckState(0, Qt.CheckState.Checked)
         assert len(dlg.ticked()) == g.childCount()
         assert g.text(1) == f"{g.childCount()} of {g.childCount()} shown"
-        # Two buttons, OK and Close (Basti, 2026-09-25, B8-1097; this said
-        # "only a Close button" under Knut's K35 rule, which it replaced).
+        # OK and Close (Basti, 2026-09-25, B8-1097; this said "only a Close
+        # button" under Knut's K35 rule, which it replaced), and since beta
+        # 43 Export list and Import list (Knut, #182 5831246553, B8-1101).
         from PyQt6.QtWidgets import QPushButton
         from core.i18n import tr
         buttons = [b for b in dlg.findChildren(QPushButton) if b.isVisibleTo(dlg)]
-        assert sorted(b.text() for b in buttons) == sorted([tr("OK"),
-                                                            tr("Close")])
+        assert sorted(b.text() for b in buttons) == sorted(
+            [tr("OK"), tr("Close"), tr("Export list"), tr("Import list")])
     finally:
         dlg.deleteLater()
 

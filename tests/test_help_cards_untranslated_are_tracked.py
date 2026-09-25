@@ -1018,19 +1018,24 @@ _BUDGET = {
     # the retired English echoes), German falls by one (the Report limits
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
+    # RE-MEASURED 2026-09-25, K39-7 (B8-1101 to B8-1104, Knut #182 5831246553):
+    # Export list and Import list, 23 keys in, none out. German by hand, does
+    # not move; each of the twelve others rises by exactly 17 (the new keys of
+    # 25 characters or more) under the beta rule. COUNTED off the tree, BOTH
+    # ledgers in the same commit.
     "de": 13,
-    "es": 967,
-    "fr": 968,
-    "it": 967,
-    "ja": 967,
-    "nl": 967,
-    "no": 967,
-    "pl": 967,
-    "pt": 967,
-    "ru": 966,
-    "sv": 967,
-    "zh_CN": 966,
-    "uk": 1110,
+    "es": 984,
+    "fr": 985,
+    "it": 984,
+    "ja": 984,
+    "nl": 984,
+    "no": 984,
+    "pl": 984,
+    "pt": 984,
+    "ru": 983,
+    "sv": 984,
+    "zh_CN": 983,
+    "uk": 1127,
 }
 
 
