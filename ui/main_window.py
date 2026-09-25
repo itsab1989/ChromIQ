@@ -932,6 +932,12 @@ class MainWindow(QMainWindow):
         # behaves the same wherever it is opened. See that function for why BOTH
         # rules are needed and why `padding-left: 0px` is not cosmetic.
         _sheet += combo_popup_qss(color)
+        # K44 (Knut, #182 5833983335): a window or pop-up opened from this tab
+        # fills the button Return presses in the TAB's accent, the colour
+        # `tint_dialog_primary` gives its #primary. A tab's own buttons are
+        # never a default (only a QDialog has one), so this reaches only them.
+        from ui.theme import default_button_qss
+        _sheet += default_button_qss(color, _mode)
 
         # The stylesheet is a pure function of (index, theme); a set stylesheet
         # stays applied and cascades to children added later, so on a revisit for

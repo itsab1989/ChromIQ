@@ -110,6 +110,23 @@ def make_light_palette() -> QPalette:
 # QSS stylesheet
 # -----------------------------------------------------------------------
 
+# The window's default button, filled (K44). Built here, before the sheet,
+# from this appearance's own tokens: see ui/default_button.py.
+from ui.default_button import default_fill_qss as _default_fill_qss
+_DEFAULT_QSS = _default_fill_qss(
+    accent=ACCENT_BLUE,
+    label="#ffffff",
+    hover=ACCENT_HOVER,
+    dis_bg="#b8cef8",
+    dis_border="#b8cef8",
+    dis_fg="#7890c0",
+    plain_bg=LM_BG_WIDGET,
+    plain_border=LM_BORDER_HI,
+    plain_fg=LM_TEXT_MAIN,
+    plain_hover_bg="#e4e0da",
+    plain_hover_border="#a0a09a",
+)
+
 LIGHT_STYLESHEET = f"""
 /* -- Base ---------------------------------------------------------- */
 /* No `background` on QWidget — that would paint over each GroupBox's
@@ -182,6 +199,12 @@ QPushButton:disabled {{
     color: {LM_TEXT_FAINT};
     border-color: {LM_BORDER};
 }}
+/* THE BUTTON RETURN PRESSES IS FILLED IN THE ACCENT (Knut, #182 5833776276,
+ * 5833983335): one standard for every window and pop-up, the #primary look.
+ * `:default` is Qt's isDefault(), the button Return presses; ui/default_button.py
+ * keeps it from moving with focus and holds the rules. A window with its own
+ * accent re-fills it in that accent. */
+{_DEFAULT_QSS}
 /* The graph tab bar's scroll arrows (ui/peek_tab_bar.py) get the outline
  * every other button has (Knut, #182 5832746557). Disabled keeps the faint
  * edge of a disabled button, so a greyed arrow still reads as greyed. */

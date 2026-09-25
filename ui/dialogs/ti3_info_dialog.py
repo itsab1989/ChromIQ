@@ -355,6 +355,11 @@ class Ti3InfoDialog(QDialog):
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
+        # K44 (Knut, #182 5833983335): the button Return presses is drawn
+        # filled. Qt made the first button created the default here, a
+        # file chooser; this window has no main action for Return (C9).
+        from ui.dialogs.no_default_button import no_default_button
+        no_default_button(self)
         # Give the details as much of the 720 px comfort floor as THIS screen
         # affords: everything-but-the-details keeps its overlap-free minimum,
         # and the details floor is what's left under 90 % of the screen — so

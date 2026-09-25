@@ -28861,3 +28861,47 @@ would reach.
 - tests: tests/test_k42_preset_groups_follow_the_instrument_pulldown.py (mutations, each red: the current row filtered too; no refilter on a paper change).
 - evidence: test_a_paper_change_after_loading_lists_the_new_paper_and_keeps_the_loaded
 
+
+### B8-1151 · FIXED, awaiting confirmation · A window with no coloured button fills the button Return presses, in the window's accent
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5833776276: the Update / Create New question makes Create New the default, *"but there is no indication"*; and 5833983335: some windows colour their main button, the device-link window a frame, *"all windows and pop-up windows then should follow the same standard."* Rule set by Basti, 2026-09-25: (1) a window that already has coloured buttons keeps them exactly as they are; (2) only a window with no coloured button gets its default (Qt's `isDefault()`, the button Return presses) filled, the `#primary` look; (3) a destructive question keeps Cancel as its default and draws it plain (B8-1153). The fill is the window's accent: the masthead's for a tool window (`neutral_controls_qss(..., popup=accent)` appends `default_button_qss`), the tab's for a window opened from a tab (the per-tab sheet in `MainWindow`), the application's otherwise; ACTION in Neutral. Newly filled: Preferences (OK), the gear window (OK, Create Chart magenta), the report's Update / Create New question (Create New, the report window's green), and the main action of Average, Merge, the three Convert tools, Verify and Verify profile once their inputs are chosen (greyed until then, in the greyed-primary look the device-link window already had: that "frame" is its #primary greyed, a fill once enabled, so it counts as coloured and is unchanged). Same size as any button: the fill changes colours only (the label is bold in Menlo, a monospace face, so no width moves).
+- where: `ui/default_button.py` (new), `ui/theme.py` (`app_accent`, `default_button_qss`), `ui/light_styles.py`, `ui/styles.py`, `ui/neutral_styles.py` (`_DEFAULT_QSS`), `ui/dialogs/tools_dialogs.py` (`neutral_controls_qss`), `ui/main_window.py` (per-tab sheet); spec measurement_report_limits.md §38.
+- tests: tests/test_the_default_button_is_filled_in_the_accent.py (painted pixels, three appearances), tests/test_k44_default_button_audit.py (every audited window, three appearances, against the tree before K44); mutations each red, listed in the proof REPORT.md.
+- evidence: test_the_default_is_filled_in_the_app_accent, test_a_window_with_an_accent_fills_it_in_its_own, test_a_window_without_colour_now_fills_the_button_return_presses, test_the_fill_is_the_windows_own_accent
+- proof: ~/Desktop/ChromIQ-beta43-proof/k44-default-button/ (on screen, EN, Light, Dark and Neutral, before and after)
+
+### B8-1152 · FIXED, awaiting confirmation · The default no longer moves with the keyboard focus
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: A QPushButton in a QDialog is `autoDefault`: while it has focus it borrows the default, so a fill would have jumped to Cancel on a Tab. As a window is shown, after Qt has settled its default and `defer_clear_button_focus` has dropped any button focus (B8-1042), `freeze_default` takes `autoDefault` off every other button. Return presses the filled button whatever has focus; Space still presses the focused one. What Return pressed at open is unchanged.
+- where: `ui/default_button.py` (`freeze_default`), `ui/widgets.py` (`DialogFocusFilter`, `defer_freeze_default`).
+- tests: tests/test_the_default_button_is_filled_in_the_accent.py (mutation: freeze a no-op, red), tests/test_k44_default_button_audit.py.
+- evidence: test_the_fill_does_not_follow_the_focus, test_the_default_does_not_move_with_focus
+
+### B8-1153 · FIXED, awaiting confirmation · Windows that already colour buttons are unchanged; a safe default is drawn plain
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Basti, 2026-09-25: *"those should both stay this way"* (Build Profile and Check & Refine pop-ups with two coloured buttons). As a window is shown, `mark_safe_buttons` marks (a) a button-box Reject or No button (Cancel, No, Close, Keep, Go back) and (b) every uncoloured button of a window that already colours one (`#primary`, or `mark_coloured`: the Close-project question's accent button, the patch set editor's Apply / Save, the scan pop-out's Done). A marked default keeps the ordinary look. Measured unchanged against the tree before K44, all three appearances: Read single patches, Create device-link, Apply a device-link, scanner target, scanner profile, the patch set editor, Profile Built, Calibration Applied, Calibration File Created, Profile Quality Assessment, Close this project?.
+- where: `ui/default_button.py` (`mark_safe_buttons`, `mark_coloured`, `SAFE_DEFAULT`), `ui/widgets.py` (`accent_message_box_button`), `ui/dialogs/ti2_relayout_dialog.py`, `ui/dialogs/scanin_dialog.py`; `tests/data/k44_already_coloured_before.json`.
+- tests: tests/test_k44_default_button_audit.py, tests/test_the_default_button_is_filled_in_the_accent.py (mutations each red: the safe rule dropped; marking a no-op; role-only marking; `mark_coloured` a no-op; Apply / Save not marked).
+- evidence: test_a_window_already_coloured_is_exactly_as_before, test_a_destructive_question_draws_its_safe_default_plain, test_a_primary_window_gains_no_second_fill, test_a_safe_default_keeps_the_ordinary_look
+
+### B8-1154 · FIXED, awaiting confirmation · Four windows no longer make a file chooser the button Return presses
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Profile info, Measurement info, Soft-proof and Translate set no default, so Qt made the first button built the default: a folder button (Return opened a file chooser) or Export…. With K44 that button would have been filled. They now call `no_default_button` when shown, as the Measurement Report and Report limits windows do (C9): no default, nothing filled. Whether one of them should have a main action for Return is put to Knut (B8-1155).
+- where: `ui/dialogs/profile_info_dialog.py`, `ui/dialogs/ti3_info_dialog.py`, `ui/dialogs/softproof_dialog.py`, `ui/dialogs/translation_dialog.py` (`showEvent`).
+- tests: tests/test_k44_default_button_audit.py (mutations, each red: soft-proof, translate).
+- evidence: test_every_window_has_a_coloured_button_but_the_listed_ones
+
+### B8-1155 · OPEN, for Knut · K44: the windows where the coloured button and Return disagree, and the destructive questions whose default is the action
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: Left exactly as they were (Basti's rule), and listed for a decision. (1) Coloured button is not what Return presses: Confirm Abort (Return presses "Yes, stop"; "No, keep measuring" is coloured); the averaging windows All Strips Read and Measurement Complete (Return presses "Use last read only" / "Measure again"; "Average && build" is coloured); Profile Quality Assessment (Confirm); Profile Built, Calibration Applied, Calibration File Created (Done); the patch set editor (Load patch set…, a file chooser; Apply / Save is coloured); the scan pop-out (Rotate 90°; Done is coloured); Close this project? (Cancel; Close project is coloured). (2) Destructive questions whose default is the action, not Cancel: Delete Preset (four tabs), Preset already exists (Overwrite), Restore the chart…, Apply or save this patch set (Overwrite), a new chart over a run's work (Generate the new chart), replacing a measurement (Measure anyway), rebuild over verifications when no duplicate is possible (Build here anyway), stuck print jobs (Clear && Print), the profile-engine opt-in (Enable), the translation "Different language" Yes/No (no default set). Under K44 the ones built without a coloured button now show that default filled. (3) Neutral Preferences: Restore Factory Defaults has always been an ACTION fill; OK now is too. (4) Welcome: Return presses "Support ChromIQ" (the first button built). (5) Should Profile info, Measurement info, Soft-proof or Translate have a main action for Return (B8-1154)?
+- where: spec measurement_report_limits.md §38; proof REPORT.md lists each window.

@@ -345,6 +345,50 @@ def accent_for(colour: str, mode: "str | None" = None) -> str:
     return colour
 
 
+def app_accent(mode: "str | None" = None) -> str:
+    """The APPLICATION's accent in ``mode``: the value its own style sheet
+    paints a focus ring, an untinted ``#primary`` fill and a default button's
+    fill with. Blue in Light, cyan in Dark, ACTION in Neutral."""
+    return by_mode(light_styles.ACCENT_BLUE, styles.ACCENT,
+                   neutral_styles.NM_ACTION, mode)
+
+
+def default_button_qss(accent: str, mode: "str | None" = None) -> str:
+    """A window's rules for its DEFAULT button, filled in its own accent.
+
+    The application sheets fill the default button (the one Return presses)
+    in :func:`app_accent`. A window that has its own accent (a masthead, a
+    tab) appends this so the fill takes that colour instead (Knut, #182
+    5833776276, 5833983335). The label, hover and disabled values are the
+    ones :func:`ui.widgets.tint_dialog_primary` gives a ``#primary`` button
+    in a dialog, so a filled default and a tinted primary are one look.
+    """
+    from ui.default_button import default_fill_qss
+    from ui.widgets import primary_hover, primary_label
+    mode = mode or active_mode()
+    accent = accent_for(accent, mode)
+    if mode == APPEARANCE_NEUTRAL:
+        nm = neutral_styles
+        dis = ("transparent", nm.NM_DISABLED, nm.NM_DISABLED)
+        plain = (nm.NM_BG_WIDGET, nm.NM_BORDER, nm.NM_TEXT_MAIN,
+                 nm.NM_BG_HOVER, nm.NM_BORDER_HI)
+    elif mode == APPEARANCE_LIGHT:
+        ls = light_styles
+        dis = ("#e8e6e1", accent, "#a8a4a0")
+        plain = (ls.LM_BG_WIDGET, ls.LM_BORDER_HI, ls.LM_TEXT_MAIN,
+                 "#e4e0da", "#a0a09a")
+    else:
+        dis = ("#1e1e1e", accent, "#484848")
+        plain = (styles.NEUTRAL_BTN, styles.BORDER_HI, styles.TEXT_MAIN,
+                 styles.NEUTRAL_BTN_HOVER, "#606060")
+    return default_fill_qss(
+        accent=accent, label=primary_label(mode),
+        hover=primary_hover(accent, mode),
+        dis_bg=dis[0], dis_border=dis[1], dis_fg=dis[2],
+        plain_bg=plain[0], plain_border=plain[1], plain_fg=plain[2],
+        plain_hover_bg=plain[3], plain_hover_border=plain[4])
+
+
 def ink_for(colour: str, mode: "str | None" = None, *,
             level: str = "main") -> str:
     """The value to paint where ``colour`` is TEXT.

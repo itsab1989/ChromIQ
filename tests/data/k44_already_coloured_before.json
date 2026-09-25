@@ -1,0 +1,263 @@
+{
+ "light": {
+  "tool/spot_read": [
+   [
+    "Start session",
+    "#56d6a5",
+    null
+   ]
+  ],
+  "tool/ti2_relayout": [
+   [
+    "Apply / Save…",
+    "#e8e6e1",
+    "#ff4573"
+   ]
+  ],
+  "tool/device_link": [
+   [
+    "Create device-link",
+    "#e8e6e1",
+    "#37bcd6"
+   ]
+  ],
+  "tool/devicelink_apply": [
+   [
+    "Apply  save",
+    "#e8e6e1",
+    "#ffb42d"
+   ]
+  ],
+  "tool/scanner_target": [
+   [
+    "Create the files",
+    "#e8e6e1",
+    "#56d6a5"
+   ]
+  ],
+  "tool/scanner_profile": [
+   [
+    "Build profile with scanner or camera",
+    "#e8e6e1",
+    "#56d6a5"
+   ]
+  ],
+  "Profile Built": [
+   [
+    "Install on this Mac",
+    "#37bcd6",
+    null
+   ],
+   [
+    "← Use as Pre-conditioning",
+    "#37bcd6",
+    null
+   ],
+   [
+    "Check Profile Quality →",
+    "#37bcd6",
+    null
+   ]
+  ],
+  "Calibration Applied": [
+   [
+    "Install on this Mac",
+    "#37bcd6",
+    null
+   ]
+  ],
+  "Calibration File Created": [
+   [
+    "← Go to Create Chart",
+    "#37bcd6",
+    null
+   ]
+  ],
+  "Profile Quality Assessment (Good, refine offered)": [
+   [
+    "← Use as Pre-conditioning",
+    "#9f82ff",
+    null
+   ],
+   [
+    "← Guide Me Through Refinement",
+    "#9f82ff",
+    null
+   ]
+  ]
+ },
+ "dark": {
+  "tool/spot_read": [
+   [
+    "Start session",
+    "#56d6a5",
+    null
+   ]
+  ],
+  "tool/ti2_relayout": [
+   [
+    "Apply / Save…",
+    "#1e1e1e",
+    "#ff4573"
+   ]
+  ],
+  "tool/device_link": [
+   [
+    "Create device-link",
+    "#1e1e1e",
+    "#37bcd6"
+   ]
+  ],
+  "tool/devicelink_apply": [
+   [
+    "Apply  save",
+    "#1e1e1e",
+    "#ffb42d"
+   ]
+  ],
+  "tool/scanner_target": [
+   [
+    "Create the files",
+    "#1e1e1e",
+    "#56d6a5"
+   ]
+  ],
+  "tool/scanner_profile": [
+   [
+    "Build profile with scanner or camera",
+    "#1e1e1e",
+    "#56d6a5"
+   ]
+  ],
+  "Profile Built": [
+   [
+    "Install on this Mac",
+    "#37bcd6",
+    null
+   ],
+   [
+    "← Use as Pre-conditioning",
+    "#37bcd6",
+    null
+   ],
+   [
+    "Check Profile Quality →",
+    "#37bcd6",
+    null
+   ]
+  ],
+  "Calibration Applied": [
+   [
+    "Install on this Mac",
+    "#37bcd6",
+    null
+   ]
+  ],
+  "Calibration File Created": [
+   [
+    "← Go to Create Chart",
+    "#37bcd6",
+    null
+   ]
+  ],
+  "Profile Quality Assessment (Good, refine offered)": [
+   [
+    "← Use as Pre-conditioning",
+    "#9f82ff",
+    null
+   ],
+   [
+    "← Guide Me Through Refinement",
+    "#9f82ff",
+    null
+   ]
+  ]
+ },
+ "neutral": {
+  "tool/spot_read": [
+   [
+    "Start session",
+    "#101010",
+    null
+   ]
+  ],
+  "tool/ti2_relayout": [
+   [
+    "Apply / Save…",
+    "#000000",
+    "#101010"
+   ]
+  ],
+  "tool/device_link": [
+   [
+    "Create device-link",
+    "#000000",
+    "#101010"
+   ]
+  ],
+  "tool/devicelink_apply": [
+   [
+    "Apply  save",
+    "#000000",
+    "#101010"
+   ]
+  ],
+  "tool/scanner_target": [
+   [
+    "Create the files",
+    "#000000",
+    "#101010"
+   ]
+  ],
+  "tool/scanner_profile": [
+   [
+    "Build profile with scanner or camera",
+    "#000000",
+    "#101010"
+   ]
+  ],
+  "Profile Built": [
+   [
+    "Install on this Mac",
+    "#101010",
+    null
+   ],
+   [
+    "← Use as Pre-conditioning",
+    "#101010",
+    null
+   ],
+   [
+    "Check Profile Quality →",
+    "#101010",
+    null
+   ]
+  ],
+  "Calibration Applied": [
+   [
+    "Install on this Mac",
+    "#101010",
+    null
+   ]
+  ],
+  "Calibration File Created": [
+   [
+    "← Go to Create Chart",
+    "#101010",
+    null
+   ]
+  ],
+  "Profile Quality Assessment (Good, refine offered)": [
+   [
+    "← Use as Pre-conditioning",
+    "#101010",
+    null
+   ],
+   [
+    "← Guide Me Through Refinement",
+    "#101010",
+    null
+   ]
+  ]
+ }
+}

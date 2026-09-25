@@ -7531,3 +7531,53 @@ also happens on other report types, do the same there."*
 * **Verified by:** `tests/test_the_one_page_summary_prints_on_one_page.py`
   (`test_the_pass_sentence_is_the_last_paragraph_of_the_result`, window and
   PDF; the page is still one page with it).
+
+
+## 38. K44: the button Return presses is filled (#182, 2026-09-25, beta 43)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Asked by:** Knut, #182
+[5833776276](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5833776276)
+(Create New is the default of the Update / Create New question, 27.1, *"but
+there is no indication"*) and
+[5833983335](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5833983335)
+(*"all windows and pop-up windows then should follow the same standard"*).
+**Rule set by:** Basti, 2026-09-25. What was BUILT waits for Knut's
+confirmation. Register: B8-1151 to B8-1155. Proof:
+`~/Desktop/ChromIQ-beta43-proof/k44-default-button/` (on screen, EN, Light,
+Dark and Neutral, before and after).
+
+**38.1 The standard, for every window and pop-up.**
+
+* A window that already colours one or more buttons keeps them exactly as
+  they are: no colour removed, nothing recoloured, and no second fill.
+* A window with no coloured button has its default button, the one Return
+  presses, drawn filled: the look of a tab's main action (`#primary`), in the
+  window's accent. The accent is the window's masthead colour; for a window
+  opened from a tab, the tab's colour; otherwise the application's (blue in
+  Light, cyan in Dark). In Neutral it is ACTION. A greyed main action shows
+  the greyed primary look and fills when it becomes available.
+* A destructive question whose safe default is Cancel (or No, Keep, Go back)
+  keeps Cancel as the default and draws it like any button.
+* The default does not move with the keyboard focus: Return presses the
+  filled button whatever has focus; Space presses the focused one.
+* In the Update / Create New question (27.1), Create New is filled in the
+  report window's green.
+* The Measurement Report and Report limits windows have no default (C9) and
+  fill nothing.
+
+**38.2 Put to Knut (B8-1155):** windows where the coloured button is not the
+one Return presses, destructive questions whose default is the action,
+Neutral's Preferences (Restore Factory Defaults and OK both ACTION-filled),
+and four windows that now have no default (Profile info, Measurement info,
+Soft-proof, Translate).
+
+* **Built:** `ui/default_button.py`, `ui/theme.py` (`default_button_qss`),
+  the three style sheets, `ui/dialogs/tools_dialogs.py`
+  (`neutral_controls_qss`), `ui/main_window.py` (per-tab sheet),
+  `ui/widgets.py` (`DialogFocusFilter`).
+* **Verified by:** `tests/test_the_default_button_is_filled_in_the_accent.py`,
+  `tests/test_k44_default_button_audit.py`.

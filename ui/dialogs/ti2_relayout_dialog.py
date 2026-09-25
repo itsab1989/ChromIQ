@@ -5895,6 +5895,10 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             "here) — or Save As exports the full chart, this layout included, "
             "to a folder you pick without leaving the editor."))
         self._apply_btn.clicked.connect(self._save_and_apply)
+        # K44: this window already colours its main action, so it stays as
+        # it is and gains no second fill (Basti, 2026-09-25).
+        from ui.default_button import mark_coloured
+        mark_coloured(self._apply_btn)
         self._close_btn = QPushButton(tr("Close"), bar)
         self._close_btn.setToolTip(
             tr("Close the editor without saving. If the layout has unsaved "

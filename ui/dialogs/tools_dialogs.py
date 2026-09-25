@@ -123,6 +123,12 @@ def neutral_controls_qss(color: str, popup: str | None = None,
     # and a coloured focus ring in the third.
     color = accent_for(color, mode)
     popup_qss = combo_popup_qss(*_popup_pair(popup, mode)) if popup else ""
+    # THE BUTTON RETURN PRESSES, FILLED IN THE WINDOW'S OWN ACCENT (Knut,
+    # #182 5833776276, 5833983335). ``popup`` is the masthead's accent; a
+    # window that passes none (Preferences) keeps the application's fill.
+    if popup:
+        from ui.theme import default_button_qss
+        popup_qss += default_button_qss(popup, mode)
     return (popup_qss +
         f"QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{"
         f" border-color: {color}; }}"

@@ -1097,6 +1097,10 @@ def accent_message_box_button(btn) -> None:
         f"QPushButton:hover {{ background: {hover}; border-color: {hover}; }}"
         f"QPushButton:pressed {{ background: {hover}; }}"
     )
+    # K44: a window with a coloured button keeps it as it is, and gains no
+    # second fill on its default (Basti, 2026-09-25).
+    from ui.default_button import mark_coloured
+    mark_coloured(btn)
 
 
 def widen_message_box(box, px: int = 660) -> None:
@@ -3409,7 +3413,34 @@ class DialogFocusFilter(QObject):
         if (event.type() == QEvent.Type.Show
                 and isinstance(obj, QWidget) and obj.isWindow()):
             defer_clear_button_focus(obj)
+            # K44: the default button is FILLED, so it must stop following the
+            # focus (QDialog autoDefault). Queued AFTER the clears above, so no
+            # button holds a focus-borrowed default when it runs, and once more
+            # after the last one for buttons a window adds as it settles.
+            defer_freeze_default(obj)
         return False
+
+
+def defer_freeze_default(win: QWidget) -> None:
+    """Mark *win*'s safe buttons now (:func:`ui.default_button.mark_safe_buttons`)
+    and run :func:`ui.default_button.freeze_default` once the shown window has
+    settled its default (after Qt's own pick and the focus clears). Only a
+    QDialog has a default button, so nothing else is touched."""
+    from PyQt6.QtCore import QTimer
+    from PyQt6.QtWidgets import QDialog
+    if not isinstance(win, QDialog):
+        return
+    from PyQt6 import sip as _sip
+
+    from ui.default_button import freeze_default, mark_safe_buttons
+    mark_safe_buttons(win)
+
+    def _run() -> None:
+        if not _sip.isdeleted(win) and win.isVisible():
+            mark_safe_buttons(win)
+            freeze_default(win)
+    for _delay in (0, 160):
+        QTimer.singleShot(_delay, _run)
 
 
 def reapply_groupbox_surface(root: QWidget) -> None:

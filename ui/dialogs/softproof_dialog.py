@@ -745,6 +745,11 @@ class SoftproofDialog(QDialog):
     # ------------------------------------------------------------------
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
+        # K44 (Knut, #182 5833983335): the button Return presses is drawn
+        # filled. Qt made the first button created the default here, a
+        # file chooser; this window has no main action for Return (C9).
+        from ui.dialogs.no_default_button import no_default_button
+        no_default_button(self)
         pin_min_height(
             self, min_width=1180, min_height=600,
             wrap_labels=(self._body, self._banner, self._status),

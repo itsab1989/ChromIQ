@@ -5102,6 +5102,10 @@ class ScannerProfileDialog(_ToolDialogBase):
         note.setStyleSheet("color:#8a8a8a; font-size:11px;")
         done = QPushButton(tr("Done"), self._popout)
         done.clicked.connect(self._popout.close)
+        # K44: this window already colours Done, so it stays as it is and
+        # gains no second fill (Basti, 2026-09-25).
+        from ui.default_button import mark_coloured
+        mark_coloured(done)
         for _b in (rot, rst):
             _b.setStyleSheet(_COMPACT_BTN)
         # The pop-out is its own window, so it doesn't inherit the dialog's green
