@@ -239,8 +239,13 @@ def test_the_parking_mechanism_is_still_wired(qapp, tmp_path):
         combo = tab._preset_combo
         # …and the ColorMunki A3 TC9.24, a different chart entirely, is
         # untouched by that removal.
+        # Not PARKED: listed, and without the parking label. (Whether it is
+        # enabled while the list is closed depends on the curated list since
+        # K35: a preset under a closed "N more presets" arrow is disabled too,
+        # and Knut's shipped list of 2026-09-25 does not tick this one.)
         j = combo.findData(TC924_CM_A3_PRESET_KEY)
-        assert j > 0 and combo.model().item(j).isEnabled()
+        assert j > 0
+        assert "temporarily unavailable" not in combo.itemText(j).lower()
         assert all("temporarily unavailable" not in combo.itemText(i).lower()
                    for i in range(combo.count()))
     finally:

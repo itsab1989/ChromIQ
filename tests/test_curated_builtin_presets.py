@@ -65,6 +65,12 @@ def _settings(path: Path) -> AppSettings:
 def settings(tmp_path):
     s = _settings(tmp_path / "s.ini")
     s.set("custom_output_path", str(tmp_path / "out"))
+    # THESE TESTS ARE ABOUT THE TICKS, NOT THE PAPER FILTER (K41, ON by
+    # default since K42): with it on, a ticked preset for another paper is
+    # hidden, and which ticked preset comes first depends on the shipped list
+    # (Knut's 51 since 2026-09-25). The filter has its own tests.
+    from core.curated_presets import PAPER_FILTER_KEY
+    s.set(PAPER_FILTER_KEY, False)
     return s
 
 

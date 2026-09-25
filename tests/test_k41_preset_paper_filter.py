@@ -274,9 +274,12 @@ def test_an_empty_group_shows_no_heading_and_the_arrow_counts_what_is_left(
         group = cb.itemData(row, cb.MORE_ROLE)
         if not group or view.isRowHidden(row):
             continue
+        # Scanner is never filtered by paper (K41), so its arrow counts every
+        # hidden scanner preset; every other group counts only this paper's.
         members = [r for r in range(cb.count())
                    if cb.itemData(r, cb.MEMBER_ROLE) == group
-                   and builtin_preset_paper(cb.itemData(r)) == "420x297"]
+                   and (group == SCANNER
+                        or builtin_preset_paper(cb.itemData(r)) == "420x297")]
         assert f"{len(members)} more preset" in cb.itemText(row), group
 
 
