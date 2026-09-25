@@ -984,7 +984,9 @@ type being pointed at.
   statistics with the verdict, sixteen example colours taken from the chart
   that was measured and spread across what the printer can make, the eight cube
   corners, and the sentence that ChromIQ measures against published values and
-  does not certify. No customer or job name (Knut, 2026-09-11: *"No customer
+  does not certify. *(§37.2, K42-2, not confirmed: under a limit set
+  named after a standard that sentence is the caveat's "A PASS means …", and
+  it is the last paragraph of the Result section, not the foot of the page.)* No customer or job name (Knut, 2026-09-11: *"No customer
   of job name per today"*). It is about ONE measurement, the one the window is
   on, so the tick that widens every other report to the whole history is
   disabled while it is chosen.
@@ -5875,6 +5877,9 @@ tab-bar arrows and the right edge of the window. The graphs belong to the
 generated report, so "(this printer)" can be removed, giving more space for
 the tabs."* The title is "Trend over time" (German "Verlauf über die Zeit"),
 beside the tab bar, over the PDF's graphs and in the welcome window's help.
+**Amended by Knut, #182 5832746557 (K42-1, beta 43, B8-1141 and B8-1142),
+not confirmed:** see §37.1: the arrows have the outline of every other button
+and are Qt's own scroll-button width again, about half of beta 42's.
 
 **27.7 Nothing measured, nothing listed.** Opened on a selection with nothing
 of its own kind measured, the Measurement Report's list is empty and nothing
@@ -7466,3 +7471,63 @@ beside the other projects (README and COVERAGE entries):
 
 **Status:** built for beta 43 (B8-1121 to B8-1125), NOT confirmed; the tone
 value of a neutral aim (100 − L\*) is our construction and is put to Knut.
+
+
+## 37. K42: the graph tab arrows, and where the one-page summary says what a PASS means (#182, 2026-09-25, beta 43)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5832746557](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5832746557)
+(2026-09-25, testing beta 42). His description is the ruling; what was BUILT
+waits for his confirmation. Register: B8-1141 to B8-1143. Proof:
+`~/Desktop/ChromIQ-beta43-proof/k42/` (on screen, EN and DE, before and
+after).
+
+**37.1 The graph tab arrows (amends §28's 27.6).** *"the arrow-buttons to the
+right of the tabs do not have an outline like all other buttons controls.
+Also, the arrow buttons are now much wider than they were. Reduce the width of
+the arrow buttons to what they were before, approx. half the width they are in
+beta 42."*
+
+* Each arrow has the outline an ordinary button has in the same appearance
+  (light, dark, neutral): the same edge colour, a disabled button's fainter
+  edge on a greyed arrow. A greyed arrow keeps its greyed triangle (B8-1002).
+* Each arrow is Qt's own scroll-button width (16 px), which is what the arrows
+  were before the bar drew its own; beta 42 made each one as wide as the bar
+  is tall less 4 px. Height as before. The row still runs from the left edge
+  to the arrows with no gap (B8-1008).
+* **Built:** `ui/peek_tab_bar.py` (`_arrow_width`, `ARROW_OBJECT_NAME`), the
+  `QToolButton#peek_tab_arrow` rules in `ui/styles.py`, `ui/light_styles.py`,
+  `ui/neutral_styles.py`.
+* **Verified by:** `tests/test_k42_tab_arrows_outlined_and_narrow.py`,
+  `tests/test_c2_a_greyed_tab_arrow_looks_greyed.py`,
+  `tests/test_k32_peek_tab_bar.py`.
+
+**37.2 What a PASS means ends the Result, not the page (amends §10's T1).**
+*"This text should not be at the end, but as an explanation for the results in
+the Results section. Move that text to the end of the Results section. IF this
+also happens on other report types, do the same there."*
+
+* On the Colour summary (one page), under a limit set named after a standard,
+  "A PASS means that the measured values are inside these limits. It is not
+  proof that the print meets the standard, and where these limits are wider
+  than the standard's own it says nothing about the standard." is the last
+  paragraph of the Result section (after the result line, its sentence and
+  the evenness paragraph when there is one), in the window and the PDF. It no
+  longer closes the page. The text is unchanged.
+* Under a set named after no standard, the page still ends with "This page
+  says what was measured and what it was compared against; it does not
+  certify." (Knut asked only about the PASS sentence.)
+* The other five types were checked, window and PDF: none ends with the
+  sentence. The Full colour check, the Grey and tone check and the two ISO
+  types print the whole caveat among the notes under the Report Results table,
+  so it is inside the results section already, followed there by the numbered
+  notes; the Printing record grades nothing and does not print it. They are
+  unchanged.
+* **Built:** `ui/dialogs/measurement_report_dialog.py` (`_one_page_html`).
+* **Verified by:** `tests/test_the_one_page_summary_prints_on_one_page.py`
+  (`test_the_pass_sentence_is_the_last_paragraph_of_the_result`, window and
+  PDF; the page is still one page with it).

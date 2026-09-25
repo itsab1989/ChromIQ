@@ -15021,6 +15021,18 @@ class MeasurementReportDialog(QDialog):
         # page did not give would be the unasked-for sentence this page's
         # length rule exists to keep out.
         out.append(self._one_page_evenness_html(r))
+        # -- AND WHAT A PASS MEANS, AS THE LAST WORD OF THE RESULT (K42-2,
+        # Knut #182 5832746557): *"This text should not be at the end, but as
+        # an explanation for the results in the Results section. Move that
+        # text to the end of the Results section."* It closed the page, under
+        # the cube corners, where it explained nothing near it. Why it is the
+        # caveat's second half and why it replaces the general line is said
+        # at the foot of this method, where the general line still stands.
+        from workflow.compliance_sets import STANDARD_CAVEAT_PROOF
+        _standard = self._names_a_standard(r)
+        if _standard:
+            out.append(f"<div style='color:{_C['dim']};margin-top:6px'>"
+                       + html.escape(tr(STANDARD_CAVEAT_PROOF)) + "</div>")
 
         # -- the colours, from the chart that was measured
         picked = r.get("summary_patches") or []
@@ -15083,13 +15095,16 @@ class MeasurementReportDialog(QDialog):
         # ONE QUESTION, ASKED ONCE. `_names_a_standard` is the full test,
         # including the stored label a live column used to drop (round 40a F6),
         # and this page must not ask a narrower version of it.
-        from workflow.compliance_sets import STANDARD_CAVEAT_PROOF
-        _standard = self._names_a_standard(r)
-        out.append(f"<div style='color:{_C['dim']};margin-top:10px'>"
-                   + html.escape(tr(STANDARD_CAVEAT_PROOF) if _standard else tr(
-                       "This page says what was measured and what it was "
-                       "compared against; it does not certify."))
-                   + "</div>")
+        # **AND IT STANDS IN THE RESULT, NOT HERE (K42-2).** `_standard` was
+        # asked above, where the caveat is now printed as the Result's last
+        # paragraph; this foot keeps only the general line, for a column that
+        # names no standard.
+        if not _standard:
+            out.append(f"<div style='color:{_C['dim']};margin-top:10px'>"
+                       + html.escape(tr(
+                           "This page says what was measured and what it was "
+                           "compared against; it does not certify."))
+                       + "</div>")
         return "".join(out)
 
     #: How many patches the example-colour table stacks in one column before it

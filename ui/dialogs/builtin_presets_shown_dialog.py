@@ -116,9 +116,12 @@ class BuiltinPresetsShownDialog(QDialog):
                  "under an arrow, placed after the group's last ticked preset: "
                  "click the arrow, or select it and press the Right arrow key, "
                  "to show them.") + "\n\n"
-            + tr("Your own presets are not affected and always stay at the "
-                 "top. OK keeps your choice; Close leaves the lists as they "
-                 "were.") + "\n\n"
+            # K42-3 (Knut, #182 5833232475): the paper filter applies to
+            # built-in presets only, and the window says so here.
+            + tr("Your own presets are not affected: neither the ticks nor "
+                 "the paper filter below changes them, and they always "
+                 "stay at the top. OK keeps your choice; Close leaves the "
+                 "lists as they were.") + "\n\n"
             + tr("Export list saves this table as a CSV file, with the ticks "
                  "as they are now. Import list sets the ticks from such a "
                  "file. Like any change here, an imported list is kept only "
@@ -126,7 +129,35 @@ class BuiltinPresetsShownDialog(QDialog):
             self)
         self._intro.setWordWrap(True)
         self._intro.setObjectName("builtin_presets_shown_intro")
-        lay.addWidget(self._intro)
+        # A HELP ICON FOR THE WHOLE WINDOW (Knut, #182 5833232475), beside
+        # the paragraphs, through the app's own ⓘ.
+        from ui.tooltip_button import TooltipButton
+        self._help = TooltipButton(
+            tr("How the built-in preset lists work"),
+            tr("This window chooses which built-in presets “Select preset” "
+               "and the Built-in presets list show directly. It always "
+               "lists every built-in preset with its tick; the paper "
+               "filter does not change what this window lists.\n\nTicks: a "
+               "ticked preset is listed directly. The other presets of its "
+               "group are still there, under “▸ N more presets” after the "
+               "group's last ticked preset: click it, or select it and "
+               "press the Right arrow key, to show them. A group's own box "
+               "ticks or clears the whole group.\n\nOK keeps the ticks and "
+               "the paper filter. Close, Escape and the window's close box "
+               "leave both lists as they were.\n\nExport list saves this "
+               "table as a CSV file, with the ticks as they are now. "
+               "Import list sets the ticks from such a file; OK keeps "
+               "them.\n\nPaper filter: while it is ticked (the default), "
+               "both lists show only the built-in presets for the paper "
+               "selected in Create Chart. Its own help icon says the "
+               "details.\n\nYour own presets are never changed by any of "
+               "this: they are always listed, at the top."), self)
+        self._help.setObjectName("builtin_presets_shown_help")
+        top = self._top = QHBoxLayout()
+        top.setContentsMargins(0, 0, 0, 0)
+        top.addWidget(self._intro, 1)
+        top.addWidget(self._help, 0, Qt.AlignmentFlag.AlignTop)
+        lay.addLayout(top)
 
         self._tree = QTreeWidget(self)
         self._tree.setObjectName("builtin_presets_shown_tree")
@@ -173,14 +204,39 @@ class BuiltinPresetsShownDialog(QDialog):
             self)
         self._paper_filter.setObjectName("builtin_presets_paper_filter")
         self._paper_filter.setChecked(bool(paper_filter))
-        self._paper_filter.setToolTip(
-            tr("When ticked, “Select preset” and the Built-in presets list "
-               "show only the presets for the paper size selected in Create "
-               "Chart, in Guided or Manual, whichever is shown. Your own "
-               "presets are filtered too; one saved without a paper size is "
-               "always shown, and so are the Scanner presets. With a custom "
-               "paper size, every preset on a custom size is shown."))
-        lay.addWidget(self._paper_filter)
+        # ITS OWN HELP ICON, ON ITS RIGHT (Knut, #182 5833232475), in place
+        # of the tooltip it had in B8-1131.
+        from ui.tooltip_button import TooltipButton
+        self._paper_filter_help = TooltipButton(
+            tr("The paper filter"),
+            tr("While this box is ticked (the default), “Select preset” "
+               "and the Built-in presets list show only the built-in "
+               "presets for the paper selected in Create Chart: Guided's "
+               "Paper size or Manual's Paper, whichever mode is shown. "
+               "They follow the paper as you change it.\n\nIt applies to "
+               "built-in presets only. Your own presets are never "
+               "filtered, and neither is this window's list, which always "
+               "shows every built-in preset with its tick.\n\nA preset's "
+               "paper is the paper its chart is laid out on, and the "
+               "orientation counts: A3 Portrait shows only the portrait A3 "
+               "presets, A3 Landscape only the landscape ones.\n\nThe "
+               "Scanner presets are always shown. With Custom (enter "
+               "dimensions), every preset laid out on a size the paper "
+               "list does not name is shown.\n\nThe ticks and the arrows "
+               "still apply within what the filter leaves: the ticked "
+               "presets of that paper are listed directly, and “▸ N more "
+               "presets” opens the rest of that paper's presets. A group "
+               "with none left for the paper is not shown.\n\nUntick the "
+               "box to list every built-in preset whatever the paper. OK "
+               "keeps the choice; Close discards it."), self)
+        self._paper_filter_help.setObjectName(
+            "builtin_presets_paper_filter_help")
+        box_row = QHBoxLayout()
+        box_row.setContentsMargins(0, 0, 0, 0)
+        box_row.addWidget(self._paper_filter)
+        box_row.addWidget(self._paper_filter_help)
+        box_row.addStretch(1)
+        lay.addLayout(box_row)
 
         # What the last export or import did, in one line, above the buttons.
         self._status = QLabel(self)
@@ -256,7 +312,10 @@ class BuiltinPresetsShownDialog(QDialog):
         lay = self.layout()
         m = lay.contentsMargins()
         text_w = self.MIN_WIDTH - m.left() - m.right()
-        intro_h = self._intro.heightForWidth(text_w)
+        # the paragraphs share their row with the window's help icon
+        intro_w = (text_w - self._help.sizeHint().width()
+                   - max(0, self._top.spacing()))
+        intro_h = self._intro.heightForWidth(intro_w)
         if intro_h <= 0:
             intro_h = self._intro.sizeHint().height()
         status_h = 0
@@ -264,7 +323,8 @@ class BuiltinPresetsShownDialog(QDialog):
             status_h = (self._status.heightForWidth(text_w)
                         + lay.spacing())
         min_h = (m.top() + m.bottom() + intro_h + tree_min + status_h
-                 + self._paper_filter.sizeHint().height()
+                 + max(self._paper_filter.sizeHint().height(),
+                       self._paper_filter_help.sizeHint().height())
                  + self._buttons.sizeHint().height() + 3 * lay.spacing())
         self.setMinimumSize(self.MIN_WIDTH, min_h)
 

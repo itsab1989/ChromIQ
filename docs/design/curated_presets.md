@@ -51,6 +51,14 @@ button; see B8-1023 for the one other string that names Finder.
   paragraph ended "Your choice is kept when you close this window." until
   C3a below; it now ends "OK keeps your choice; Close leaves the lists as they
   were."
+  **Amended (K42-3, Knut #182 5832746557 and 5833232475, beta 43,
+  B8-1144, awaiting confirmation):** the paper filter (C7) applies to
+  built-in presets only, and the third paragraph says so: *"Your own presets are not affected: neither the ticks nor the paper filter below changes them, and they always stay at the top. OK keeps your choice; Close leaves the lists as they were."* German by hand (Du-Form): *"Deine eigenen Presets sind nicht betroffen: Weder die Häkchen noch der Papierfilter unten ändern etwas an ihnen, und sie stehen immer oben. OK übernimmt deine Auswahl, Schließen lässt die Listen, wie sie waren."* The window has a help
+  icon (ⓘ) beside its paragraphs for the whole feature (ticks, the
+  "▸ N more presets" arrows, OK and Close, Export list and Import list,
+  the paper filter, own presets); the box has its own, on its right (C7).
+  The window's own list is not affected by the box: it always lists every
+  built-in preset with its tick.
 * Every built-in preset, and only built-ins, under the pulldown's own headings
   in the pulldown's own order, each with a tick box. A heading has a box of its
   own that ticks or clears its whole group (partly ticked when mixed) and says
@@ -228,17 +236,38 @@ apply, exactly as on any other paper.
 
 | What | Behaviour |
 |---|---|
-| The box | "Filter preset-dropdown list according to selected paper size" (German "Presetliste im Aufklappmenü nach gewählter Papiergröße filtern"), under the list, above the buttons. Its tooltip says what it does (the two lists, the mode shown, own presets, Scanner, Custom) |
-| Stored | the setting `builtin_presets_paper_filter`, default off. **OK stores it, Close, Escape and the close box discard it**, like the ticks (C3a). The box opens as stored |
+| The box | "Filter preset-dropdown list according to selected paper size" (German "Presetliste im Aufklappmenü nach gewählter Papiergröße filtern"), under the list, above the buttons. ~~Its tooltip says what it does~~ **Amended (Knut, 5833232475, B8-1145):** a help icon (ⓘ) on its right says what it does and what it applies to: built-in presets only, both pulldown lists, the paper of Guided or Manual, orientation, Scanner always shown, Custom, and the ticks and arrows still applying within the filtered list |
+| Stored | the setting `builtin_presets_paper_filter`, ~~default off~~ **default ON (Knut, 5833232475: *"It should be default ON"*, B8-1145): a person who never touched the box has it on, and a stored off is kept.** **OK stores it, Close, Escape and the close box discard it**, like the ticks (C3a). The box opens as stored |
+| The window's own list | **not affected by the box** (Knut, 5833232475): it always lists every built-in preset with its tick, whatever the box and the paper |
 | OFF | both lists exactly as before: the ticks and the arrows, nothing else |
 | ON: which paper | the Paper field of the mode on screen: Guided's "Paper size", Manual's "Paper" (the gamut module lays out through Manual's). Live: the lists follow a change of paper and a switch between Guided and Manual at once |
-| ON: a preset's paper | the printtarg `-p` code it lays its chart out on, the one selecting it puts in Manual's Paper field: a Full-layout-setup preset's own `paper`, a "by Pharmacist" bundle's paper folder. Every built-in has one |
-| ON: orientation | part of the paper. Both pulldowns list each orientation as its own entry (A3 Portrait is `A3`, A3 Landscape is `420x297`, A4 Landscape `A4R`), so the match is exact: A3 Portrait lists only portrait A3 presets |
+| ON: a preset's paper | the printtarg `-p` code it lays its chart out on, the one selecting it puts in Manual's Paper field: a Full-layout-setup preset's own `paper`, a "by Pharmacist" bundle's paper folder. Every built-in has one. *Knut, 5833232475, asked: "Yes"* |
+| ON: orientation | part of the paper. Both pulldowns list each orientation as its own entry (A3 Portrait is `A3`, A3 Landscape is `420x297`, A4 Landscape `A4R`), so the match is exact: A3 Portrait lists only portrait A3 presets. *Knut, 5833232475, asked: "Correct"* |
 | ON: Custom | Manual's "Custom (enter dimensions)": every preset on a size the Paper field does not name (the 10 × 15 and 13 × 18 cm cards), whatever its dimensions and whatever the Custom boxes hold. Guided has no Custom entry |
 | ON: Scanner | always listed in full, whatever the paper |
 | ON: Red River Paper | filtered like every other group |
-| ON: ticks and arrows | still apply within what is left: per group the ticked presets on that paper, then "▸ N more presets" over the unticked ones on that paper, N counting only those. Custom included (5832436639) |
+| ON: ticks and arrows | still apply within what is left: per group the ticked presets on that paper, then "▸ N more presets" over the unticked ones on that paper, N counting only those; opening the arrow shows the rest of that paper's presets (Knut, 5833232475: *"Same function as before"*). Custom included (5832436639) |
 | ON: an empty group | no heading, no separator, no arrow, in both lists |
-| ON: the person's own presets | filtered too, by the paper each stores (Manual's Paper field when it was saved, `printtarg_-p`); one that stores no paper is always listed. They stay at the top |
-| The selected preset | never changed by the filter. When the paper moves away from it, it stays selected and loaded, and stays listed in its group (with its heading) in "Select preset", so the closed pulldown and the open list show what is loaded; once another preset is chosen, it leaves the list the next time the list opens. The Built-in presets list has no selection and lists only the paper's presets |
+| ON: the person's own presets | ~~filtered too, by the paper each stores (Manual's Paper field when it was saved, `printtarg_-p`); one that stores no paper is always listed. They stay at the top~~ **Amended (Knut, 5833232475: *"No. This feature only apply build-in presets"*, B8-1145): never filtered. Every one of them is listed, at the top, whatever the paper; the window's third paragraph and both help icons say so** |
+| The selected preset | never changed by the filter. When the paper moves away from it, it stays selected and loaded, and stays listed in its group (with its heading) in "Select preset", so the closed pulldown and the open list show what is loaded; once another preset is chosen, it leaves the list the next time the list opens. The Built-in presets list has no selection and lists only the paper's presets *Knut, 5833490026: "sure, but if a user changes the paper size after a preset is loaded, we must assume the user intends to change the size, so the preset list will change to show presets with the newly selected paper. But the previously selected preset [...] stays loaded and stays visible in the pulldown until you choose another preset." That is what is built; pinned by `tests/test_k42_preset_groups_follow_the_instrument_pulldown.py` (B8-1147)* |
 | Every key | stays an entry of "Select preset": a filtered preset is hidden and disabled like one under a closed arrow, never removed, so a stored selection and the "Which presets can be used for verification" double-click still find it |
+
+### C8. The groups come in the Instrument pulldown's order (Knut, #182 5833490026, beta 43, B8-1146)
+
+⏳ **Awaiting confirmation. Confirmed by:** *nobody yet.* Verified by driving
+the real app on screen, English and German (proof in
+`~/Desktop/ChromIQ-beta43-proof/k42/`).
+
+Knut: *"The sequence of the groups of presets, which are related to specific
+instruments, should be placed in the "Select preset" and the "built-in
+presets" button in the same sequence as in the dropdown list of the
+Instrument field. So, "Colormunki / i1Studio..." heading with its presets
+should not come first, but third. "i1Pro / i1Pro 2 ..." heading with its
+presets come first, etc. Scanner and Red River Paper always come at the end
+like before."*
+
+| What | Behaviour |
+|---|---|
+| The order | i1Pro / i1Pro 2 / i1Pro 3, i1Pro 3 Plus, ColorMunki / i1Studio / ColorChecker Studio, CR30 (ChnSpec), then Scanner, then Red River Paper. The person's own presets stay on top, with no heading |
+| Where it comes from | the Instrument pulldown's own source, `INSTRUMENT_LABELS` in `data/patch_db.py` (what Guided's Instrument field lists, in its order); Manual's Instrument field (`printtarg -i` in `data/parameters.yaml`) lists the same codes in the same order, and a test holds the two together. No second list: `instrument_group_rank` in `ui/tabs/tab_chart.py` ranks each group by its instrument's place there, and a group that is not an instrument goes last, keeping its place |
+| Every list | sorted once, in the registry `BUILTIN_PRESET_GROUPS`, so every list follows: "Select preset", the Built-in presets list, the gear window's list and its Export list CSV, "Compare with profile", "Which presets can be used for verification?" (its "Preset pulldown order" keeps the groups in this order), and `scripts/make_preset_defaults.py --table`. `data/preset_defaults.json` was rewritten in the new order; it ticks the same 62 presets |

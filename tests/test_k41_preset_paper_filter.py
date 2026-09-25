@@ -18,7 +18,9 @@ What these tests hold:
 * ON: only presets on the paper of the mode shown (Guided "Paper size",
   Manual "Paper"), live as the paper or the mode changes; Scanner always;
   a group left empty shows no heading; the arrow counts what it still holds;
-  a person's preset by its stored paper, one without a paper always;
+  a person's own presets NEVER (Knut, #182 5833232475: "This feature only
+  apply build-in presets"; B8-1134 filtered them until then);
+* the box is ON by default and a stored OFF is kept (Knut, 5833232475);
 * the selected preset stays selected and listed, and every key still
   resolves in the pulldown;
 * the box: shown in the window as stored, OK stores it, Close discards it.
@@ -109,6 +111,12 @@ def _manual_paper(tab, code: str) -> None:
     tab._set_manual_value("printtarg", "-p", code)
 
 
+def _a_builtin_on(paper: str) -> str:
+    """A built-in preset laid out on *paper*, outside the Scanner group."""
+    return next(k for h, e in BUILTIN_PRESET_GROUPS if h != SCANNER
+                for _c, _o, k in e if builtin_preset_paper(k) == paper)
+
+
 def _filter(settings, on: bool) -> None:
     settings.set(cp.PAPER_FILTER_KEY, on)
 
@@ -181,9 +189,10 @@ def test_on_manual_lists_only_the_paper_selected(tab, settings, qapp):
         for _c, _o, key in entries:
             if heading == SCANNER or builtin_preset_paper(key) == "A4":
                 assert key in keys, key
-    # A person's presets: by their stored paper; none stored, always.
-    assert MY_A4 in keys and MY_NO_PAPER in keys
-    assert MY_LETTER not in keys and MY_CUSTOM not in keys
+    # A person's own presets: never filtered, whatever paper they store
+    # (Knut, #182 5833232475). MUTATION: give an own preset its stored paper
+    # as PAPER_ROLE again (B8-1134's code) and this goes red.
+    assert {MY_A4, MY_LETTER, MY_CUSTOM, MY_NO_PAPER} <= keys
 
 
 def test_a3_portrait_and_landscape_are_two_papers(tab, settings):
@@ -209,7 +218,7 @@ def test_custom_lists_every_custom_size_preset(tab, settings):
     assert custom and custom <= keys
     for key in keys & BUILTIN_PRESET_KEYS:
         assert key in custom or _group_of(key) == SCANNER, key
-    assert MY_CUSTOM in keys and MY_A4 not in keys
+    assert {MY_A4, MY_LETTER, MY_CUSTOM, MY_NO_PAPER} <= keys
 
 
 def test_custom_keeps_the_ticks_and_the_arrow(tab, settings, qapp):
@@ -285,18 +294,21 @@ def test_guided_filters_by_its_own_paper_size_and_the_mode_switch_is_live(
     tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("A4"))
     qapp.processEvents()
     assert tab._preset_paper_selected() == "A4"
+    a4, letter = _a_builtin_on("A4"), _a_builtin_on("Letter")
     guided = _listed_keys(tab)
-    assert MY_A4 in guided and MY_LETTER not in guided
+    assert a4 in guided and letter not in guided
     tab._stack.setCurrentIndex(1)                     # Manual's page
     qapp.processEvents()
     assert tab._preset_paper_selected() == "Letter"
     manual = _listed_keys(tab)
-    assert MY_LETTER in manual and MY_A4 not in manual
+    assert letter in manual and a4 not in manual
     tab._stack.setCurrentIndex(0)                     # Guided's page
-    assert MY_A4 in _listed_keys(tab)
+    assert a4 in _listed_keys(tab)
     # Live on Guided's own paper size.
     tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("Letter"))
-    assert MY_LETTER in _listed_keys(tab) and MY_A4 not in _listed_keys(tab)
+    assert letter in _listed_keys(tab) and a4 not in _listed_keys(tab)
+    # and a person's own presets in every one of these states
+    assert {MY_A4, MY_LETTER} <= _listed_keys(tab)
 
 
 def test_the_selected_preset_stays_selected_and_listed(tab, settings, qapp):
@@ -385,32 +397,43 @@ def test_the_box_is_stored_by_ok_and_discarded_by_close(tab, settings, qapp):
     """MUTATION, proved to land: the box stored whatever ``exec`` returned
     (red on Close); the box not handed to the caller on OK (red)."""
     _manual_paper(tab, "420x297")
-    done = _drive(tab, qapp, box=True, end="close")
-    assert done["shown_as"] is False
+    # ON by default (Knut, #182 5833232475: "It should be default ON")
+    done = _drive(tab, qapp, box=False, end="close")
+    assert done["shown_as"] is True
     assert done["text"] == ("Filter preset-dropdown list according to "
                             "selected paper size")
-    assert cp.paper_filter_on(settings) is False
-    assert RED_RIVER in [t for t, _d in _listed(tab)]
-
-    done = _drive(tab, qapp, box=True, end="ok")
     assert cp.paper_filter_on(settings) is True
     assert RED_RIVER not in [t for t, _d in _listed(tab)]
 
     done = _drive(tab, qapp, box=False, end="ok")
-    assert done["shown_as"] is True
     assert cp.paper_filter_on(settings) is False
     assert RED_RIVER in [t for t, _d in _listed(tab)]
+
+    done = _drive(tab, qapp, box=True, end="ok")
+    assert done["shown_as"] is False
+    assert cp.paper_filter_on(settings) is True
+    assert RED_RIVER not in [t for t, _d in _listed(tab)]
 
 
 def test_the_setting_survives_a_restart(tmp_path, qapp):
     ini = tmp_path / "restart.ini"
     s = AppSettings()
     s._qs = QSettings(str(ini), QSettings.Format.IniFormat)
-    s.set(cp.PAPER_FILTER_KEY, True)
+    # A STORED OFF IS KEPT across a restart, now that ON is the default
+    s.set(cp.PAPER_FILTER_KEY, False)
     s._qs.sync()
     s2 = AppSettings()
     s2._qs = QSettings(str(ini), QSettings.Format.IniFormat)
-    assert cp.paper_filter_on(s2) is True
+    assert cp.paper_filter_on(s2) is False
+
+
+def test_the_box_is_on_for_someone_who_never_touched_it(tmp_path, qapp):
+    """Knut, #182 5833232475: *"It should be default ON."* MUTATION: the
+    default back to False in core/settings.py (red), or in
+    ``paper_filter_on`` (red)."""
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "fresh.ini"), QSettings.Format.IniFormat)
+    assert cp.paper_filter_on(s) is True
 
 
 def test_the_german_box_is_translated_by_hand():

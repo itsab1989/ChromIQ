@@ -203,6 +203,24 @@ QPushButton:disabled {{
     border-color: {BORDER};
     background: #222222;
 }}
+/* The graph tab bar's scroll arrows (ui/peek_tab_bar.py) get the outline
+ * every other button has (Knut, #182 5832746557). Disabled keeps the faint
+ * edge of a disabled button, so a greyed arrow still reads as greyed. */
+QToolButton#peek_tab_arrow {{
+    background: {NEUTRAL_BTN};
+    border: 1px solid {BORDER_HI};
+    border-radius: 3px;
+    padding: 0;
+}}
+QToolButton#peek_tab_arrow:hover {{
+    background: {NEUTRAL_BTN_HOVER};
+    border-color: #606060;
+}}
+QToolButton#peek_tab_arrow:pressed {{ background: #2a2a2a; }}
+QToolButton#peek_tab_arrow:disabled {{
+    border-color: {BORDER};
+    background: #222222;
+}}
 /* #primary color is overridden per-tab via setStyleSheet in main_window */
 QPushButton#primary {{
     background: {ACCENT};

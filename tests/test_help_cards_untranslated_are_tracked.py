@@ -1030,19 +1030,25 @@ _BUDGET = {
     # hand, does not move; each of the twelve others rises by exactly 2
     # (both keys are 25 characters or more) under the beta rule. COUNTED
     # off the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-25, K42-3 (B8-1144, Knut #182 5832746557 and
+    # 5833232475): the gear window's paragraph replaced by one, two help
+    # icons in (their titles and bodies), the box's tooltip out. German
+    # by hand, does not move; each of the twelve others rises by exactly
+    # 2 under the beta rule (5 keys in, 2 out; the counter does not count
+    # "The paper filter", too short). COUNTED off the tree, BOTH ledgers.
     "de": 13,
-    "es": 999,
-    "fr": 1000,
-    "it": 999,
-    "ja": 999,
-    "nl": 999,
-    "no": 999,
-    "pl": 999,
-    "pt": 999,
-    "ru": 998,
-    "sv": 999,
-    "zh_CN": 998,
-    "uk": 1142,
+    "es": 1001,
+    "fr": 1002,
+    "it": 1001,
+    "ja": 1001,
+    "nl": 1001,
+    "no": 1001,
+    "pl": 1001,
+    "pt": 1001,
+    "ru": 1000,
+    "sv": 1001,
+    "zh_CN": 1000,
+    "uk": 1144,
 }
 
 

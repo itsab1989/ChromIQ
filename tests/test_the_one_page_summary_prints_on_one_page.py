@@ -256,3 +256,37 @@ def test_the_colour_table_fits_across_the_page_in_every_language(code, qapp):
             f"wide and the page is {_PAGE_W:.0f}")
     finally:
         i18n.set_language(before)
+
+
+# ===========================================================================
+# K42-2: WHAT A PASS MEANS ENDS THE RESULT, NOT THE PAGE
+# ===========================================================================
+# Knut, #182 5832746557, on beta 42: *"This text should not be at the end, but
+# as an explanation for the results in the Results section. Move that text to
+# the end of the Results section."* Register B8-1143.
+@pytest.mark.parametrize("for_pdf", [True, False], ids=["pdf", "window"])
+def test_the_pass_sentence_is_the_last_paragraph_of_the_result(
+        a_run, qapp, for_pdf):
+    """MUTATION: print the sentence after the cube corners again (where it
+    was in beta 42) and this goes red; so does printing it twice."""
+    import html as _html
+    import re
+    dlg, run = a_run
+    _set(dlg, run, mr.REPORT_TYPE_SUMMARY)
+    _bound(dlg, run, "custom_iso_12647_7")
+    body = dlg._report_body_html(dlg._runs_for_document(), for_pdf=for_pdf)
+    text = " ".join(_html.unescape(re.sub(r"<[^>]+>", " ", body)).split())
+    proof = ("A PASS means that the measured values are inside these limits. "
+             "It is not proof that the print meets the standard, and where "
+             "these limits are wider than the standard's own it says nothing "
+             "about the standard.")
+    assert text.count(proof) == 1, text.count(proof)
+    at = text.index(proof)
+    result = text.index(" Result ")
+    nxt = text.index("Example colours")
+    assert result < at < nxt, (
+        "the PASS sentence is not inside the Result section", result, at, nxt)
+    # the last paragraph OF the Result: nothing of the Result follows it
+    assert text[at + len(proof):nxt].strip() == "", text[at:nxt]
+    # and the page no longer ends with it
+    assert not text.rstrip().endswith(proof)

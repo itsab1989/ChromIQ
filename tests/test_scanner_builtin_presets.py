@@ -230,6 +230,12 @@ def test_the_parking_mechanism_is_still_wired(qapp, tmp_path):
 
     tab, _s = _make_tab(qapp, tmp_path)
     try:
+        # THE PARKING RULE ALONE: since Knut's #182 5833232475 the paper
+        # filter is ON by default and hides (and disables) an A3 preset on
+        # the default A4 paper, which is not what "parked" means here.
+        from core.curated_presets import PAPER_FILTER_KEY
+        _s.set(PAPER_FILTER_KEY, False)
+        tab._apply_preset_collapse()
         combo = tab._preset_combo
         # …and the ColorMunki A3 TC9.24, a different chart entirely, is
         # untouched by that removal.

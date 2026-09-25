@@ -28706,6 +28706,7 @@ would reach.
 - proof: tests/test_report_text_names_no_part_of_the_app.py (ALLOWED)
 
 ### B8-1131 · FIXED, awaiting confirmation · The gear window has "Filter preset-dropdown list according to selected paper size"; OK stores it, Close discards it
+- amended: by B8-1145 (Knut, #182 5833232475): default ON, and a help icon on the box's right in place of its tooltip.
 - blocks release: no
 - severity: MINOR
 - status: FIXED
@@ -28735,6 +28736,7 @@ would reach.
 - evidence: test_the_selected_preset_stays_selected_and_listed
 
 ### B8-1134 · FIXED, awaiting confirmation · The person's own presets are filtered by the paper they store; one without a paper is always listed
+- superseded: by B8-1145 (Knut, #182 5833232475: "No. This feature only apply build-in presets"). Own presets are no longer filtered; this entry describes beta 43's first cut.
 - blocks release: no
 - severity: MINOR
 - status: FIXED
@@ -28789,3 +28791,73 @@ would reach.
 - status: OPEN
 - note: (1) The tone row places a neutral aim at the tone value 100 − its L* (B8-1123), the grey rows' own reading of an aim turned into a tone value the way a device grey's is; the alternative is a tone value relative to the chart's own white and black (100 × (L*white − L*) / (L*white − L*black)), which moves the band towards the dark end on a paper whose black is light. Which does Knut want? (2) Laid out, each demo verification preset is 3 strips of an i1Pro A4 page, so the pack's 31 demos still stop at 13 of 18: the evenness rows need a page of 9 by 9 covering 60 % with about 30 patches in each ninth, and the FAIL/PASS pairs are built on 78 patches. The FROM PROFILE GAMUT project of B8-1124 is where all 18 are shown; should the preset pack gain a larger demo as well? (3) printtarg shuffles its patches on every run, so a printtarg preset's estimated evenness noise can move in the last digit between sessions (its page grid and coverage do not).
 - where: spec §36.
+
+### B8-1141 · FIXED, awaiting confirmation · The graph tab bar's arrows have the outline every other button has
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5832746557 (K42-1), testing beta 42: *"the arrow-buttons to the right of the tabs do not have an outline like all other buttons controls."* The arrows were auto-raised tool buttons, which draw no frame until the pointer is over them. They are no longer auto-raised and carry the object name `peek_tab_arrow`; each of the three style sheets gives `QToolButton#peek_tab_arrow` the edge, fill, hover and pressed look of its own QPushButton, and on a disabled arrow the disabled button's fainter edge. B8-1002's greyed triangle is kept (its test is unchanged and green).
+- where: `ui/peek_tab_bar.py` (`ARROW_OBJECT_NAME`, `__init__`); `ui/styles.py`, `ui/light_styles.py`, `ui/neutral_styles.py` (`QToolButton#peek_tab_arrow`).
+- tests: tests/test_k42_tab_arrows_outlined_and_narrow.py (mutations, each red: no object name; auto-raised again; the dark, the light (disabled) and the neutral rule without a border); tests/test_c2_a_greyed_tab_arrow_looks_greyed.py.
+- evidence: test_both_arrows_have_an_outline_live_and_greyed, test_the_outline_is_the_one_a_push_button_has
+- proof: ~/Desktop/ChromIQ-beta43-proof/k42/ (EN and DE, light and dark, before and after; REPORT.md)
+
+### B8-1142 · FIXED, awaiting confirmation · The graph tab bar's arrows are Qt's own scroll-button width again, half of beta 42's
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5832746557 (K42-1): *"Reduce the width of the arrow buttons to what they were before, approx. half the width they are in beta 42."* Beta 42 made each arrow as wide as the bar is tall less 4 px (33 logical px, 66 device px on the Measurement Report's 37 px bar). Before PeekTabBar (beta 41) the arrows were Qt's own scroll buttons, whose width is the style's `PM_TabBarScrollButtonWidth`, 16 px; each arrow is now that width (16 logical px, 32 device px), at least 14, and as tall as before. The row still runs from the left edge to the arrows (B8-1008; tests/test_k32_peek_tab_bar.py unchanged and green).
+- where: `ui/peek_tab_bar.py` (`_arrow_width`, `_arrow_height`, `_place_arrows`, `minimumSizeHint`, `peek_state`'s `arrow_rects`).
+- tests: tests/test_k42_tab_arrows_outlined_and_narrow.py (mutations, each red: beta 42's width; the two arrows on top of each other).
+- evidence: test_the_arrows_are_qts_own_width_about_half_of_beta_42
+- proof: ~/Desktop/ChromIQ-beta43-proof/k42/ (the widths measured on screen in REPORT.md)
+
+### B8-1143 · FIXED, awaiting confirmation · On the one-page summary, what a PASS means is the last paragraph of the Result, not the end of the page
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5832746557 (K42-2): the Colour summary (one page) ended with "A PASS means that the measured values are inside these limits. It is not proof …"; *"Move that text to the end of the Results section. IF this also happens on other report types, do the same there."* Under a set named after a standard the sentence is now the last paragraph of the Result section (after the result line, its sentence and the evenness paragraph), in the window and the PDF; text unchanged; the page is still one page. Under a set named after no standard the page still ends with "This page says what was measured … it does not certify." All six types driven on screen, window and PDF: no other type ends with the sentence. The Full colour check, Grey and tone check and the two ISO types print the whole caveat among the notes under the Report Results table (inside the results section, before the numbered notes); the Printing record does not print it. Those five are unchanged.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_one_page_html`).
+- tests: tests/test_the_one_page_summary_prints_on_one_page.py (mutations, each red: the sentence back at the foot of the page as in beta 42; printed in both places).
+- evidence: test_the_pass_sentence_is_the_last_paragraph_of_the_result (window and PDF), test_it_is_still_one_page_with_the_caveat_on_it
+- proof: ~/Desktop/ChromIQ-beta43-proof/k42/ (each type, window and PDF page, EN and DE, before and after)
+
+### B8-1144 · FIXED, awaiting confirmation · The gear window's paragraph about your own presets is true: they are unaffected by the ticks and by the paper filter
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5832746557 (K42-3, window text) and 5833232475. "Your own presets are not affected and always stay at the top." had become false with B8-1134 (own presets filtered by their stored paper). Knut then ruled that the filter applies to built-in presets only and that the window must say so (B8-1145), so the paragraph now reads: "Your own presets are not affected: neither the ticks nor the paper filter below changes them, and they always stay at the top. OK keeps your choice; Close leaves the lists as they were." German by hand (Du-Form, no em dash): "Deine eigenen Presets sind nicht betroffen: Weder die Häkchen noch der Papierfilter unten ändern etwas an ihnen, und sie stehen immer oben. OK übernimmt deine Auswahl, Schließen lässt die Listen, wie sie waren." (A first cut that described own presets as filtered was replaced by this before any commit.)
+- where: `ui/dialogs/builtin_presets_shown_dialog.py`; `data/i18n/*.json`; docs/design/curated_presets.md C3.
+- tests: tests/test_k42_own_presets_paragraph_is_true_with_the_filter.py (mutation: the paragraph reworded back, red), tests/test_i18n.py, tests/test_help_cards_untranslated_are_tracked.py (both ledgers re-measured: +3 identical and +2 echo in each of the twelve, German unmoved).
+- evidence: test_the_window_says_own_presets_are_unaffected_by_ticks_and_filter, test_the_german_is_translated_by_hand_in_du_form
+- proof: ~/Desktop/ChromIQ-beta43-proof/k42/ (gear window, EN and DE, before and after)
+
+### B8-1145 · FIXED, awaiting confirmation · The paper filter is ON by default, applies to built-in presets only, and has two help icons; the window's own list is never filtered
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5833232475, on K41's four choices. (a) *"It should be default ON."* The setting `builtin_presets_paper_filter` defaults to True; a stored False is kept. (b) *"No. This feature only apply build-in presets"*: B8-1134's filtering of the person's own presets is removed (an own preset carries no paper role, so the filter cannot see it); every own preset is listed at the top whatever the paper. (c) The window says so (B8-1144). (d) A help icon beside the window's paragraphs explains the whole feature: ticks, "▸ N more presets", OK and Close, Export list and Import list, the paper filter, own presets. (e) A help icon on the box's right says what it does and applies to: built-in presets only, both pulldown lists, Guided's Paper size or Manual's Paper, orientation, Scanner always, Custom, and the ticks and arrows within what is left; it replaces the box's tooltip. Knut confirmed that orientation counts and that a preset's paper is its layout paper (both already so). He also asked that with the filter on the arrow is still shown and opens the rest of that paper's presets (already so, B8-1132; driven again on screen), and that the box does not change the window's own list: it does not, the window always lists every built-in with its tick (tested and driven). German by hand for all five texts.
+- where: `core/settings.py` (default), `core/curated_presets.py` (`paper_filter_on`), `ui/tabs/tab_chart.py` (`_populate_preset_combo`: `_user_preset_paper` removed), `ui/dialogs/builtin_presets_shown_dialog.py` (`_help`, `_paper_filter_help`, `_minimum`), `data/i18n/*.json`, docs/design/curated_presets.md C3 and C7.
+- tests: tests/test_k41_preset_paper_filter.py (updated: own presets never filtered, default ON, a stored OFF kept; mutations, each red: own presets filtered by stored paper again; the default OFF again), tests/test_k42_own_presets_paragraph_is_true_with_the_filter.py (mutations, each red: no window help icon; the box's icon on its left), tests/test_curated_builtin_presets.py (the overlay's split measured with the filter off; the smallest size counts the help icon).
+- evidence: test_on_manual_lists_only_the_paper_selected, test_custom_lists_every_custom_size_preset, test_guided_filters_by_its_own_paper_size_and_the_mode_switch_is_live, test_the_box_is_stored_by_ok_and_discarded_by_close, test_the_box_is_on_for_someone_who_never_touched_it, test_the_setting_survives_a_restart, test_a_help_icon_for_the_window_and_one_right_of_the_box, test_the_box_does_not_change_the_windows_own_list
+- proof: ~/Desktop/ChromIQ-beta43-proof/k42/ (gear window with both help texts, the pulldown with the filter on by default and an arrow opened, EN and DE)
+
+### B8-1146 · FIXED, awaiting confirmation · The preset groups come in the order of the Instrument pulldown, in every preset list
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5833490026: the instrument groups in "Select preset" and the Built-in presets list come in the order of the Create Chart Instrument field: i1Pro first, i1Pro 3 Plus, ColorMunki third (it was first), CR30; Scanner and Red River Paper last as before; own presets on top. The order is read from the Instrument pulldown's source (`INSTRUMENT_LABELS`, data/patch_db.py; Manual's printtarg -i in data/parameters.yaml lists the same codes in the same order, pinned by a test), not a second list, and applied once to the registry `BUILTIN_PRESET_GROUPS`, so every list follows (Basti's one-order rule): "Select preset", the Built-in presets list, the gear window and its Export list CSV, "Compare with profile", "Which presets can be used for verification?" (its "Preset pulldown order"), scripts/make_preset_defaults.py --table. K40's per-preset layout (workflow/preset_layout.py) does not walk the groups. data/preset_defaults.json rewritten in the new order, same 62 presets ticked.
+- where: `ui/tabs/tab_chart.py` (`instrument_group_rank`, the sort after `BUILTIN_PRESET_GROUPS`); `data/preset_defaults.json`; docs/design/curated_presets.md C8.
+- tests: tests/test_k42_preset_groups_follow_the_instrument_pulldown.py (mutation: the sort removed, red in 3 tests); tests/test_the_patch_distribution_pulldown_matches_create_chart.py::test_the_group_order_is_pinned_in_both_lists (re-pinned to the new order, with the reason); tests/test_curated_builtin_presets.py::test_the_shipped_file_is_what_the_beta_rule_gives.
+- evidence: test_the_registry_follows_the_instrument_pulldown, test_guided_and_manual_instrument_fields_list_the_same_order, test_every_preset_list_walks_that_order
+- proof: ~/Desktop/ChromIQ-beta43-proof/k42/ (the pulldown, the Built-in presets list and the gear window, EN and DE)
+
+### B8-1147 · FIXED, awaiting confirmation · A paper change after a preset is loaded lists the new paper's presets; the loaded preset stays loaded and listed until another is chosen
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5833490026, confirming B8-1133 as built: *"if a user changes the paper size after a preset is loaded, we must assume the user intends to change the size, so the preset list will change to show presets with the newly selected paper. But the previously selected preset that is shown in the "Select preset" field, yes, it stays loaded and stays visible in the pulldown until you choose another preset."* No code change; a test now pins both halves, live on the paper change.
+- where: `ui/tabs/tab_chart.py` (`_on_preset_paper_changed`, `_apply_preset_collapse`).
+- tests: tests/test_k42_preset_groups_follow_the_instrument_pulldown.py (mutations, each red: the current row filtered too; no refilter on a paper change).
+- evidence: test_a_paper_change_after_loading_lists_the_new_paper_and_keeps_the_loaded
+

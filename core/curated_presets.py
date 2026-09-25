@@ -422,9 +422,10 @@ CUSTOM_PAPER = "custom"
 
 def paper_filter_on(settings: Any) -> bool:
     try:
-        v = settings.get(PAPER_FILTER_KEY, False)
+        # ON unless the person stored OFF (Knut, #182 5833232475)
+        v = settings.get(PAPER_FILTER_KEY, True)
     except Exception:      # noqa: BLE001 — a settings fake without get()
-        return False
+        return True
     if isinstance(v, str):
         return v.strip().lower() in ("true", "1", "yes")
     return bool(v)

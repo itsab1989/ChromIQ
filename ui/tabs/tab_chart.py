@@ -3821,6 +3821,33 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
 ]
 
 
+def instrument_group_rank(heading: str) -> int:
+    """Where a built-in group stands: THE ORDER OF THE CREATE CHART
+    "INSTRUMENT" PULLDOWN (Knut, #182 5833490026: *"The sequence of the groups
+    of presets, which are related to specific instruments, should be placed in
+    the "Select preset" and the "built-in presets" button in the same sequence
+    as in the dropdown list of the Instrument field [...] Scanner and Red
+    River Paper always come at the end like before."*).
+
+    Read from `INSTRUMENT_LABELS` (data/patch_db.py), which is what Guided's
+    Instrument pulldown lists, in its order; a group named after an
+    instrument carries that instrument's own label (`INSTRUMENT_GROUP_LABELS`).
+    Manual's Instrument field (data/parameters.yaml, printtarg -i) lists the
+    same codes in the same order, and a test holds the two together. A group
+    that is not an instrument (Scanner, Red River Paper) ranks after every
+    instrument, keeping its place among the others."""
+    order = list(INSTRUMENT_LABELS.values())
+    return order.index(heading) if heading in order else len(order)
+
+
+# ONE ORDER FOR EVERY PRESET LIST (Basti's rule): sorted HERE, in the registry
+# itself, so the pulldown, the Built-in presets list, the gear window, its CSV,
+# "Compare with profile", "Which presets can be used for verification?" and
+# scripts/make_preset_defaults.py --table all walk the same order. A stable
+# sort: groups that rank alike (the non-instrument ones) keep their order.
+BUILTIN_PRESET_GROUPS.sort(key=lambda g: instrument_group_rank(g[0]))
+
+
 #: One paper, two spellings: the "by Pharmacist" photo cards name the card in
 #: centimetres, Knut's in millimetres, and the A3+ bundle writes "A3+" where
 #: his family writes "A3Plus". Folded so each is ONE paper size to the curated
@@ -10471,14 +10498,6 @@ class TabChart(QWidget):
             code = combo.currentData() if combo is not None else ""
         return paper_class(code)
 
-    @staticmethod
-    def _user_preset_paper(data: Any) -> str:
-        """The paper a person's own preset stores (Manual's Paper field when it
-        was saved), or "" when it stores none."""
-        if isinstance(data, dict):
-            return str(data.get("printtarg_-p") or "")
-        return ""
-
     def _mark_preset_group_rows(self, start: int, group: str) -> None:
         """Tag the rows of one built-in group from ``start`` on with its
         heading, and each preset among them with its paper, unless the group
@@ -10522,13 +10541,11 @@ class TabChart(QWidget):
                 label = f"▶  {name}" if (isinstance(presets[name], dict)
                                          and presets[name].get("auto_run")) else name
                 self._preset_combo.addItem(label, userData=name)
-                # The paper filter (#182 5832303551): a person's own preset is
-                # filtered by the paper it stores; one storing none never is.
-                paper = self._user_preset_paper(presets[name])
-                if paper:
-                    self._preset_combo.setItemData(
-                        self._preset_combo.count() - 1, paper,
-                        self._preset_combo.PAPER_ROLE)
+                # NEVER FILTERED BY PAPER (Knut, #182 5833232475: *"This
+                # feature only apply build-in presets"*). B8-1134 filtered a
+                # person's own preset by the paper it stored; that is gone, so
+                # an own preset carries no PAPER_ROLE and the filter cannot
+                # see it.
         # Built-in presets, pinned below the user's own and grouped by the
         # instrument they target. Groups (and the order within each) follow the
         # shared BUILTIN_PRESET_GROUPS registry verbatim — no re-sorting — so the
@@ -10684,7 +10701,8 @@ class TabChart(QWidget):
                     "button.").format(group=group), Qt.ItemDataRole.ToolTipRole)
             elif isinstance(cb.itemData(row), str) and (
                     grp or cb.itemData(row, cb.PAPER_ROLE)):
-                # A ticked built-in, or a person's own preset.
+                # A ticked built-in (a person's own preset has no paper
+                # and no group, so it never reaches here).
                 hidden = filtered(row)
                 view.setRowHidden(row, hidden)
                 item = model.item(row)

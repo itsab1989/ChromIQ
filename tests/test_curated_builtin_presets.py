@@ -654,6 +654,10 @@ def test_the_overlay_has_the_same_split_and_the_arrow_works_by_keyboard(
         make_tab, monkeypatch):
     from ui.builtin_preset_popup import BuiltinPresetPopup
     tab = make_tab()
+    # THE TICKS ALONE: the paper filter is ON by default since Knut's #182
+    # 5833232475, and what it hides is tests/test_k41_preset_paper_filter.py's
+    tab._settings.set(cp.PAPER_FILTER_KEY, False)
+    tab._apply_preset_collapse()
     captured = {}
     monkeypatch.setattr(BuiltinPresetPopup, "show_under",
                         lambda self, anchor: captured.setdefault("p", self))

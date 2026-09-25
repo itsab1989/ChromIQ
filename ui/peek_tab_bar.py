@@ -56,6 +56,13 @@ DEAD_ARROW_INK = 0.28
 #: The arrow's triangle, in logical pixels.
 ARROW_ICON = 10
 
+#: The object name the three style sheets give the arrows' outline by
+#: (Knut, #182 5832746557: the arrows had "no outline like all other buttons").
+ARROW_OBJECT_NAME = "peek_tab_arrow"
+
+#: The narrowest an arrow may be, whatever the style says.
+ARROW_MIN_WIDTH = 14
+
 
 def arrow_colours(pal: QPalette) -> "tuple[QColor, QColor]":
     """``(live, greyed)`` ink for the scroll arrows under *pal*.
@@ -111,7 +118,13 @@ class PeekTabBar(QTabBar):
         self._left_btn = QToolButton(self)
         self._right_btn = QToolButton(self)
         for b in (self._left_btn, self._right_btn):
-            b.setAutoRaise(True)
+            # NOT auto-raised: an auto-raised tool button draws no frame
+            # until the pointer is over it, and Knut (#182 5832746557) asked
+            # for the outline every other button has. The outline itself is
+            # the style sheets' `QToolButton#peek_tab_arrow` rule, one per
+            # appearance, beside each sheet's QPushButton rule.
+            b.setObjectName(ARROW_OBJECT_NAME)
+            b.setAutoRaise(False)
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
             b.setArrowType(Qt.ArrowType.NoArrow)
             b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
@@ -142,6 +155,15 @@ class PeekTabBar(QTabBar):
                 for i in vis]
 
     def _arrow_width(self) -> int:
+        """Qt's own scroll-button width, which is what the arrows were before
+        this bar painted its own (Knut, #182 5832746557: *"Reduce the width of
+        the arrow buttons to what they were before, approx. half the width
+        they are in beta 42"*). Beta 42 made each arrow as wide as the bar is
+        tall less 4 px, a square of 26 to 33 px."""
+        return max(ARROW_MIN_WIDTH, self.style().pixelMetric(
+            QStyle.PixelMetric.PM_TabBarScrollButtonWidth, None, self))
+
+    def _arrow_height(self) -> int:
         return max(16, self.height() - 4)
 
     def _overflows(self) -> bool:
@@ -232,10 +254,10 @@ class PeekTabBar(QTabBar):
 
     def _place_arrows(self) -> None:
         over = self._overflows()
-        aw = self._arrow_width()
-        y = max(0, (self.height() - aw) // 2)
-        self._right_btn.setGeometry(self.width() - aw, y, aw, aw)
-        self._left_btn.setGeometry(self.width() - 2 * aw, y, aw, aw)
+        aw, ah = self._arrow_width(), self._arrow_height()
+        y = max(0, (self.height() - ah) // 2)
+        self._right_btn.setGeometry(self.width() - aw, y, aw, ah)
+        self._left_btn.setGeometry(self.width() - 2 * aw - 1, y, aw, ah)
         self._left_btn.setVisible(over)
         self._right_btn.setVisible(over)
         if over:
@@ -312,7 +334,7 @@ class PeekTabBar(QTabBar):
         """Not the width of every tab: the window may be narrower than that,
         which is what the arrows are for."""
         full = super().sizeHint()
-        return QSize(min(full.width(), 2 * max(16, full.height() - 4) + 120),
+        return QSize(min(full.width(), 2 * self._arrow_width() + 120),
                      full.height())
 
     def tabLayoutChange(self) -> None:  # noqa: N802
@@ -441,5 +463,7 @@ class PeekTabBar(QTabBar):
                            self._right_btn.isVisible()
                            and self._right_btn.isEnabled()),
                 "arrows_shown": self._left_btn.isVisible(),
+                "arrow_rects": (self._left_btn.geometry().getRect(),
+                                self._right_btn.geometry().getRect()),
                 "arrow_ink": getattr(self, "_arrow_ink", None),
                 "area": self._area()}

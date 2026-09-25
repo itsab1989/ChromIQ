@@ -278,16 +278,22 @@ def _headings(combo, first: int) -> list[str]:
 def test_the_group_order_is_pinned_in_both_lists(qapp, settings):
     """Basti, beta 41: a CR30 headline like every other instrument, CR30
     directly before Scanner ("put them before scanner presets"), Red River
-    Paper last, in Create Chart and in the compare list alike."""
+    Paper last, in Create Chart and in the compare list alike.
+
+    **RE-PINNED FOR KNUT, #182 5833490026 (B8-1146):** the instrument groups
+    come in the order of the Create Chart Instrument pulldown, so i1Pro
+    first, i1Pro 3 Plus, then ColorMunki (which was first until beta 43),
+    then CR30; Scanner and Red River Paper stay last. CR30 is still directly
+    before Scanner, because it is the last instrument with presets."""
     from core.argyll_runner import ArgyllRunner
     from core.file_manager import FileManager
     from core.preset_store import load_presets
     from ui.dialogs.patch_cube_dialog import PatchCubeDialog
     from ui.tabs import tab_chart as TC
 
-    expected = [TC.INSTRUMENT_GROUP_LABELS["ColorMunki"],
-                TC.INSTRUMENT_GROUP_LABELS["i1Pro"],
+    expected = [TC.INSTRUMENT_GROUP_LABELS["i1Pro"],
                 TC.INSTRUMENT_GROUP_LABELS["i1Pro 3 Plus"],
+                TC.INSTRUMENT_GROUP_LABELS["ColorMunki"],
                 TC.INSTRUMENT_GROUP_LABELS["CR30"],
                 "Scanner",
                 "Red River Paper"]
