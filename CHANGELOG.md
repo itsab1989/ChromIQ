@@ -1,5 +1,34 @@
 # Changelog
 
+## v4.3.0-beta.43
+
+**Export and import of the preset list, a paper-size filter, one standard for the main button, and report text that names no part of the app.**
+
+### New
+
+- **Settings for built-in presets** (the gear in Create Chart > Manual > Presets) has **OK** and **Close**: OK keeps your ticks, Close leaves everything as it was. **Export list** and **Import list** save and read the list as a CSV file, so a selection can be shared and handed back.
+- **Filter preset-dropdown list according to selected paper size**, on by default: both preset lists show only the built-in presets for the paper chosen in Create Chart, with Scanner always shown. Your own presets are never filtered. A note at the bottom of each list says whether the filter is on and where to change it.
+- The preset groups follow the order of the Instrument pulldown, in every list.
+- The shipped selection is Knut's: 53 of the 185 built-in presets are shown directly, the rest wait under "▸ N more presets".
+- **"Which presets can be used for verification?"** lays every preset out in the background, so the two evenness rows are judged too, and the window never freezes while it works.
+- A new demo project, **Report-Limits-Every-Metric**, answers all 18 metrics and both repeatability rows.
+- On a FROM PROFILE GAMUT chart, the 30 to 70 % ramps row uses the chart's neutral aims.
+
+### Changed
+
+- **One standard for the main button:** in a window that had no coloured button, the button Return presses is now filled in the window's colour. Windows that already had coloured buttons are unchanged. A destructive action is never newly filled, and in every delete or overwrite question **Cancel is the default** and the keyboard focus never starts on the destructive button.
+- **Report text names no part of the app**: the notes, Report Scope and the reading guide speak in general terms.
+- **"New report…"** keeps the report shown until Generate report; choosing the earlier report again restores its own settings. A question with its own wording appears when this version works a saved report out differently.
+- The graph tab arrows are half as wide again and have an outline.
+- In the one-page summary, "A PASS means…" closes the Result section.
+- The Custom ISO sets carry Knut's figures on 18 of their 20 limits, including his evenness figures; the three disputed figures are 3.00.
+
+### Fixed
+
+- A button focused in a window that was not active could still be pressed with the space bar.
+- The scanner window's height fits a 1920 × 1080 screen at 150 % in Norwegian again.
+- Import list refuses unreadable files, reports keys listed twice, and its status line always says what happened.
+
 ## v4.3.0-beta.42
 
 **Knut's rulings on the Measurement Report, ISO report types that are judged against ISO limits, and a curated preset list.**
