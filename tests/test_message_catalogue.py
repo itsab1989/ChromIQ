@@ -218,13 +218,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # FROM PROFILE GAMUT sheet's strip corners
                                  # against the profile's prediction; the note
                                  # our post promised, in our words.
-                                 # K39-2 and K39-3 (Knut, #182 5831246553):
-                                 # the unchanged question when this version
-                                 # works the report out differently ("Yes"),
-                                 # and the red line after "New report…".
-                                 # His behaviour, our words.
-                                 "M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW",
-                                 "M-REPORT-NEW-REPORT-SETTINGS",
+                                 # (K39-2 and K39-3,
+                                 # M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW
+                                 # and M-REPORT-NEW-REPORT-SETTINGS, were
+                                 # APPROVED by Knut in 5832385126 and left
+                                 # this set.)
                                  # (Challenge 5 of beta 42, M1, B8-1091:
                                  # M-REPORT-WORKED-OUT-EARLIER was APPROVED
                                  # by Knut in 5831246553 once its UI

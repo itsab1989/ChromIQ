@@ -2877,7 +2877,7 @@ M_REPORT_WORKED_OUT_DIFFERENTLY_UPDATE_OR_NEW = _m(
     "1. Create new report with the same settings.\n"
     "2. Update selected report, worked out again by this version of ChromIQ.\n"
     "3. Cancel",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (#182 K39-3, Knut 5831246553): the red line under the settings
 # after "New report…" is chosen. His rule: choosing it does NOT change the
@@ -2890,7 +2890,7 @@ M_REPORT_NEW_REPORT_SETTINGS = _m(
     "Settings loaded for a new report",
     "New report: change the settings as wanted, then press “Generate "
     "report” to make it. The report shown stays as it is until then.",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (#182, Knut D11/D24): the note at the foot of the Report limits
 # window ----------------------------------------------------------------------

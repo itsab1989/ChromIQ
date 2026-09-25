@@ -28694,9 +28694,11 @@ would reach.
 - evidence: test_new_report_keeps_the_page_loads_the_defaults_and_says_so, test_choosing_the_previous_report_again_brings_back_its_own_settings, test_new_report_chosen_from_the_keyboard_is_the_same, test_delete_right_after_new_report_deletes_nothing, test_the_first_page_and_an_empty_list, test_a_calibration_window_keeps_its_page_too, test_the_pdf_after_new_report_is_the_report_shown
 - proof: ~/Desktop/ChromIQ-beta43-proof/k39-report/ (scenes fresh, empty, cal)
 
-### B8-1114 · OPEN, for Knut · Window texts beside the report that still name controls, kept as window text
+### B8-1114 · ANSWERED by Knut (window text may name controls, 5832385126) · Window texts beside the report that still name controls, kept as window text
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: DEFERRED
+- decided by: Knut, 2026-09-25, #182 5832385126 ("yes that is right")
+- because: these texts are shown only in the window and never printed, so they are window text and may name controls
 - note: K39-1 audit. By the rule (report text only) these stay, and the last three are in the guard's allow-list with their reasons; listed for Knut's eye in case he counts any of them as report text. (1) The empty page, shown only when there is nothing to report on and never saved or printed: "Measure its chart on the Measure tab, or add measurements with “Add Profile's Measurements…”." (and its two variants). (2) Two placeholders of an empty trend graph, shown only in the window, for graphs the PDF never prints: "Choose a report type or a limit set that judges them to see their trend." and "Add another measurement, or tick more of the measurements in the list above. “Select all” ticks every one of them." (3) The hover text of a saved COND cell, a tooltip never printed: "Generate the report again to have it judged by today's rule." The red line, the question boxes and the reasons under "Generate report" are window text by the rule.
 - proof: tests/test_report_text_names_no_part_of_the_app.py (ALLOWED)
