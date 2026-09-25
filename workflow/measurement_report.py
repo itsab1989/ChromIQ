@@ -3237,11 +3237,23 @@ def list_project_reports(run_dir: str | Path) -> list[Path]:
 
 #: The rows that get a trend tab of their own (#182 K20/K21, Knut
 #: 5787117741 and 5787380408). Grouped in the dialog, at most two per tab.
+#:
+#: **EVERY ROW A LIMIT SET CAN LIMIT AND CHROMIQ CAN MEASURE (K47, Knut #182
+#: 5840152058).** Knut: every data line with a threshold gets its dotted line
+#: and its sentence. Until K47 four such rows had no graph at all, although
+#: the ISO and Custom sets limit them: the control strip's maximum (ISO
+#: 12647-7 judges it, the graph plotted only the average and the 95th
+#: percentile), the two solid-colour rows and the two selected-patch
+#: averages. `tests/test_k47_every_limited_row_has_a_graph.py` holds this
+#: tuple to every computable row a set limits.
 TREND_ROW_IDS: "tuple[str, ...]" = (
     "substrate_de00_max",
+    "solids_de00_max", "cmy_solids_dhab_max",
     "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
     "ramps_30_70_dl_max",
     "control_strip_de00_avg", "control_strip_de00_p95",
+    "control_strip_de00_max",
+    "outer_gamut_226_de00_avg", "surface_gamut_de00_avg",
     "repeat_patches_de00_max", "repeat_measurement_de00_max",
     "uniformity_sd", "uniformity_de00_max_from_mean",
 )

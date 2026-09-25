@@ -129,6 +129,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §36 | K40: every preset laid out behind the scenes for the evenness rows (printtarg or the layout engine, a "Working…" row, never a blocked window); the tone row of a FROM PROFILE GAMUT chart on its neutral aims; a demo project whose one chart answers every metric | 2026-09-25, 5832026677 | ruled by Knut; built for beta 43 (B8-1121 to B8-1125), NOT confirmed; the tone value of a neutral aim (100 − L\*) is ours to confirm |
 | §39 | K43: the tone value of a FROM PROFILE GAMUT chart's neutral aims, between the chart's own paper and its darkest neutral aim (ISO 20654's SCTV for a neutral), superseding §36.2's 100 − L\*; larger demo presets (R16, L1) that reach the evenness rows; one printtarg seed (182) for every demo | 2026-09-25, 5833695633 | decided by us on his instruction ("Make a decision based on well founded reasoning"); built for beta 44 (B8-1211 to B8-1215), NOT confirmed |
 | §40 | K45: the PDF's page layout: "How to read this report" set at most 0.2 pt tighter when that saves the page it spilled onto; every limit line of the Colour accuracy graph described under it (all rows it limits, a P95 line of its own where the set needs one), in the PDF and the window; "For information (no limit applies)" on a page of its own unless the colour section ran over | 2026-09-25, 5834422633 | asked by Knut; built for beta 44 (B8-1201 to B8-1204), NOT confirmed; how 0.2 pt is set put to him |
+| §41 | K47: every row a set limits has a data line, a limit line and a sentence (the control strip's maximum, the two solid-colour rows, the outer- and surface-gamut averages); a graph with no limit says so under it; what the paper-white and solid rows are compared with, and the analysis of a default reference | 2026-09-25, 5840152058 | ruled by Knut; built for beta 44 (B8-1232 to B8-1234), NOT confirmed; the reference question analysed and put back to him (B8-1235, B8-1236) |
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
@@ -7811,6 +7812,10 @@ next page, thus preventing the mostly empty page."*
   lay out to the same width). The step is therefore taken as the room the
   smaller size takes: every letter's advance and every line's height in the
   frame are scaled by 8.8/9 (or 8.9/9); the letters themselves stay 9 pt.
+  **Accepted by Knut** (#182
+  [5840152058](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5840152058),
+  2026-09-25), asked *"Is that acceptable?"*: *"OK"*. This answers B8-1204
+  item 1 (register B8-1231). The rest of §40 still awaits his confirmation.
 * Measured: German Grey and tone check of Report-Limits-Threshold-Series
   (2 measurements) 11 pages before, 10 after; of Report-Limits-Evenness run 8
   (4 measurements) 15 before, 14 after; both at 0.2 pt. In both the German
@@ -7899,3 +7904,172 @@ front of 'For information (no limit applies)')"*.
   (`test_for_information_starts_a_fresh_page`,
   `test_no_break_when_the_colour_section_already_ran_over`,
   `test_the_saved_pdf_starts_every_for_information_on_a_fresh_page`).
+
+
+## 41. K47: every limited row has a graph line, a graph with no limit says so, and what the paper-white and solid rows are compared with (#182, 2026-09-25, beta 44)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5840152058](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5840152058)
+(2026-09-25), answering the three questions left by K45 (B8-1204). What was
+BUILT from it waits for his confirmation. Register: B8-1231 to B8-1236.
+Proof: `~/Desktop/ChromIQ-beta44-proof/k47/` (on screen, EN and DE, before
+and after; REPORT.md holds the analysis of 41.4 as it is to be posted).
+
+**41.1 0.2 pt as spacing: accepted (B8-1231).** Knut: *"OK"*. Recorded in
+§40.1; B8-1204 item 1 is answered.
+
+**41.2 A graph with no limit says so under it (B8-1232).** Knut: *"If this
+is not noted other places, then a short note could say so under the
+graphs."* Checked first: nothing near a graph said it. The detailed data's
+heading "For information (no limit applies)" covers the paper white and
+darkest black lines, the cube corners and the worst patches, pages away from
+the graphs and naming none of them; "How to read this report" says nothing
+about the graphs; a Printing record's sentence under its results says it
+carries no graph of a judged metric, and a Grey and tone check says nothing.
+So:
+
+* Every DRAWN graph (two or more dates with a value) that has no limit line
+  carries, under it in the PDF and in the window's key, one general
+  sentence, with no line mark:
+
+  > No limit applies to what this graph shows, so it has no limit line. It
+  > shows the trend only.
+
+  German: *"Für das, was diese Grafik zeigt, gilt kein Grenzwert, daher hat
+  sie keine Grenzwertlinie. Sie zeigt nur den Verlauf."*
+* Today that is Paper white (L\*), Darkest black (L\*) and Cube corners
+  (ΔE00) on every report, and Colour accuracy (ΔE00) on a report that judges
+  no colour-accuracy row (Grey and tone check, Printing record). A graph with
+  a limit line never carries it; a graph of one date carries nothing (it
+  draws no trend, and the PDF prints no such graph).
+* It names no control of the app (§35). It is a graph caption like the K25
+  and K45 sentences, not a window message, so it is not in the §M catalogue;
+  if Knut wants it there, it moves.
+* **Built:** `ui/dialogs/measurement_report_dialog.py` (`no_limit_note`,
+  `_TrendChart.descriptions`, `_trend_key_html`, `_refresh_trend_key`).
+* **Verified by:** `tests/test_k47_every_limited_row_has_a_graph.py`
+  (`test_a_drawn_graph_with_no_limit_line_says_so`,
+  `test_a_graph_with_a_limit_line_carries_no_such_note`,
+  `test_a_graph_of_one_date_carries_no_note`,
+  `test_the_pdf_prints_the_note_without_a_line_mark`,
+  `test_the_note_names_no_control_of_the_app`);
+  `tests/test_k45_report_pdf_layout.py::test_the_window_shows_the_key_under_the_graph_in_front`
+  (amended: the Darkest black key shows the note).
+
+**41.3 Every limited row has a data line, a limit line and a sentence
+(B8-1233, B8-1234).** Knut: *"If the Control strip graph has data-lines in
+the graph, where each have their own threshold (or maybe even uses the same
+threshold) then the graph shall have both dotted horizontal lines (same
+implementation as other graphs) in the graph and a sentence below it for the
+threshold."* Applied to every graph and every set: each computable row that
+any of the seven sets (three ChromIQ, two ISO, two Custom) can limit is now
+plotted by some graph. Before, five were limited and never plotted:
+
+| row | limited by | graph (new tab in **bold**) | line word |
+|---|---|---|---|
+| Maximum ΔE00, control strip | ISO 12647-7, both Custom | Control strip (ΔE00), beside Avg and P95 | Max |
+| Maximum ΔE00, solid colours | ISO 12647-7, both Custom | **Solid colours (ΔE00)** | Max |
+| Maximum ΔH\*ab, cyan, magenta and yellow solids | ISO 12647-7, both Custom | **Hue of the solids (ΔH\*ab)** | Max |
+| Average ΔE00, outer-gamut patches | ISO 12647-7, both Custom | **Outer and surface gamut (ΔE00)** | Outer |
+| Average ΔE00, surface-gamut patches | ISO 12647-8, both Custom | **Outer and surface gamut (ΔE00)** | Shell |
+
+* The rule of §17 item 3 is unchanged: a tab is shown only while one of its
+  rows is judged, and only its judged rows are plotted, each with its own
+  dotted line at its own limit and its own sentence. So under ISO 12647-7 the
+  Control strip graph plots Avg and Max, under ISO 12647-8 Avg and P95 (as
+  before), under both Custom sets all three (Max and P95 at the same 4.0: two
+  lines, as Knut allowed).
+* **The one exception to "at most two metrics per tab" (§17) is the Control
+  strip, by this ruling.** Every other tab keeps at most two, and one unit
+  per tab: the two solid-colour rows are in different units (ΔE00 and
+  ΔH\*ab), so each has its own tab, after Cube corners. "Outer and surface
+  gamut" follows Control strip.
+* The Control strip graph's description now names its three kinds: *"The
+  colour difference (ΔE00) of the control-strip patches, per date: their
+  average, the value 95 % of them stay under and their maximum, each where a
+  limit applies to it."* The new tabs carry descriptions of two lines at most
+  (measured, EN and DE, by the existing two-line test).
+* The trend series carries the five rows (`TREND_ROW_IDS`), computed from
+  each measurement when the window reads it, so saved reports plot them too.
+* **Built:** `workflow/measurement_report.py` (`TREND_ROW_IDS`),
+  `ui/dialogs/measurement_report_dialog.py` (`_TREND_GROUPS`, `_LIMIT_NOTES`,
+  `_TREND_ABOUT`).
+* **Verified by:** `tests/test_k47_every_limited_row_has_a_graph.py`
+  (`test_every_row_any_set_limits_has_a_graph`,
+  `test_iso_12647_7_judges_the_strip_maximum_and_its_tab_plots_it`,
+  `test_the_trend_series_carries_the_new_rows`,
+  `test_each_judged_strip_row_has_a_data_line_a_limit_line_and_a_sentence`
+  (ISO 12647-7, Custom, ISO 12647-8),
+  `test_a_solid_row_judged_brings_its_tab`);
+  `tests/test_trend_graphs_for_judged_metrics.py::test_every_group_holds_at_most_two_related_rows_that_exist`
+  (amended for the strip's three).
+
+**41.4 What "measured against a different reference" means (B8-1235,
+analysis, no change).** Knut: *"does that mean that the measurements are
+checked agains references like the FOGRA reference files? What happens when no
+reference file is specified, should not another default reference be used?
+... It sounds strange that a metric as simple as ISO paper-white and solid
+limits cannot be shown or checked if no reference is supplied. If there is no
+reference, does the metric not get a judgement then? But the measurements are
+still plotted in a graph to show trend?"*
+
+What the code does today:
+
+* **In every set** the three rows ("ΔE00, paper white against the reference
+  paper", "Maximum ΔE00, solid colours", "Maximum ΔH\*ab, cyan, magenta and
+  yellow solids") are compared with ONE thing: the chart's own colorimetric
+  reference, the aims stored beside a FROM PROFILE GAMUT chart
+  (`row_values`, `reference_source == "colorimetric"`). The set decides only
+  the number: ChromIQ's three sets put none on these rows; ISO 12647-7 3.0,
+  3.0 and 2.5; ISO 12647-8 only the paper (3.0); Custom 12647-7 and -8 2.0,
+  3.0 and 2.5.
+* **FROM PROFILE GAMUT chart:** the paper against the profile's media white
+  (§31.5); the cyan, magenta, yellow and black solids against the IDEAL sRGB
+  corners (§32.5, Knut's *"no"* to profile-predicted corners; §34 moved only
+  the control strip to the prediction).
+* **Ordinary verification chart:** no reference; all three rows N-A,
+  *"this row needs a reference for the printing condition, and the measured
+  chart has no aim for it"*. Nothing is guessed.
+* **Fogra reference sets:** shipped and updatable, with the rule of what they
+  may fill (`reference_sets.can_fill`: the paper row yes, the solid rows
+  never, CMYK offset inks having no partner on an RGB printer), but not
+  connected to any report. No row is judged against them.
+* **When not judged, the measurements are still plotted:** the paper's L\*
+  in Paper white (L\*) and the solids in Cube corners (ΔE00, against the
+  chart's own aims), on every report of two or more dates, now with the 41.2
+  note. The new tabs of 41.3 are shown when their row is judged; a row with
+  a value and no limit (a FROM PROFILE GAMUT chart under ChromIQ default)
+  keeps its tab hidden, by §17 item 3.
+
+Measured for this analysis (REPORT.md): through two vendor profiles of real
+printers (Canon PRO-300 on Photo Rag Baryta, Epson SC-P8500 on Premium
+Semigloss), the printer's own solids lie 11.1 to 35.6 ΔE00 and 21.0 to 50.2
+ΔH\*ab from the ideal sRGB corners (limits 3.0 and 2.5). So on a real
+printer the two solid rows fail on every FROM PROFILE GAMUT sheet, however
+well it prints; the demo pack never showed it because its synthetic
+profiles are shaped like sRGB (2.9 to 3.7 ΔE00). §34.3 already warned of it.
+
+Options compared in REPORT.md: (a) as today; (b1) the ISO set's printing
+condition (FOGRA51/52) as the default; (b2) the profile's own prediction as
+the characterization data of the condition being verified; (c) the chart's
+design aims; (d) N-A with a note. **Recommendation, NOT built, for Knut:**
+(b2). The paper row against the profile's media white on every verification
+sheet with a paper patch and a known profile (the lookup §33 uses); the two
+solid rows against the profile's prediction where the sheet printed its
+solids raw (a FROM PROFILE GAMUT chart, a raw print), as §34 does for the
+strip, the cube-corner table keeping its ideal values; N-A with a named note
+where no profile can be read or the solids were printed through the profile.
+Not built because it reverses his §32.5 "no" for the two solid rows and
+changes what the paper row judges on every ordinary chart.
+
+**41.5 Asked, not built (B8-1236).** (1) Should (b2) be built? (2) Should a
+graph of a row with values but no limit be shown, with the 41.2 note, which
+would change §17 item 3? (3) The Control strip's three lines, and the note's
+place outside §M: as built, or otherwise?
+
+**Status:** 41.1 accepted; 41.2 and 41.3 built for beta 44 (B8-1232 to
+B8-1234), NOT confirmed; 41.4 and 41.5 with Knut.

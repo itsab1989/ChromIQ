@@ -237,14 +237,31 @@ _METRIC_LINE = {
 #: the graph names a metric exactly as the results table does; the WORD is the
 #: short name of its dotted line, which has to fit the 40 px axis margin.
 #:
-#: The control strip plots its average and its 95th percentile, not its
-#: largest: the 95th percentile is the same kind of number as the largest
-#: without jumping on one misread patch, and one spike is what stretches a
-#: 0-anchored axis and flattens the small drift a trend is for.
+#: The control strip plotted its average and its 95th percentile, not its
+#: maximum: the 95th percentile is the same kind of number without jumping on
+#: one misread patch. Since K47 the maximum is plotted too, while it is
+#: judged, because ISO 12647-7 judges it and a judged row with no line is
+#: what Knut ruled out.
+#:
+#: **K47 (Knut, #182 5840152058): EVERY LIMITED ROW HAS A DATA LINE.** *"If
+#: the Control strip graph has data-lines in the graph, where each have their
+#: own threshold (or maybe even uses the same threshold) then the graph shall
+#: have both dotted horizontal lines ... and a sentence below it for the
+#: threshold."* So the strip's maximum joins its tab (ISO 12647-7 judges the
+#: maximum, not the 95th percentile, and the tab drew only the average), and
+#: is the one tab that can hold three rows: a Custom set limits all three.
+#: The rule of 5787117741 still decides everything else: a row is plotted
+#: only while it is judged, and every row a set can limit now has a tab.
+#: The two solid-colour rows carry different units, so each has its own.
 _TREND_GROUPS = (
     # K31 (version 1): every tab name carries its unit.
     ("paper_diff", lambda: tr("Paper white difference (ΔE00)"), (
         ("substrate_de00_max", lambda: tr("Max"), "#8a8a8a"),)),
+    # K47: the two rows judged on the solid ink corners, after Cube corners.
+    ("solids", lambda: tr("Solid colours (ΔE00)"), (
+        ("solids_de00_max", lambda: tr("Max"), "#c9a227"),)),
+    ("solid_hue", lambda: tr("Hue of the solids (ΔH*ab)"), (
+        ("cmy_solids_dhab_max", lambda: tr("Max"), "#b36bd6"),)),
     ("grey", lambda: tr("Grey balance (ΔCh)"), (
         ("grey_balance_neutral_ramp_avg", lambda: tr("Avg"), "#56d6a5"),
         ("grey_balance_neutral_ramp_max", lambda: tr("Max"), "#e0574b"))),
@@ -252,7 +269,13 @@ _TREND_GROUPS = (
         ("ramps_30_70_dl_max", lambda: tr("Max"), "#37bcd6"),)),
     ("strip", lambda: tr("Control strip (ΔE00)"), (
         ("control_strip_de00_avg", lambda: tr("Avg"), "#56d6a5"),
-        ("control_strip_de00_p95", lambda: tr("P95"), "#9f82ff"))),
+        ("control_strip_de00_p95", lambda: tr("P95"), "#9f82ff"),
+        # K47: the maximum, the row ISO 12647-7 judges.
+        ("control_strip_de00_max", lambda: tr("Max"), "#e0574b"))),
+    # K47: the two averages over selected patches of the chart.
+    ("gamut_edge", lambda: tr("Outer and surface gamut (ΔE00)"), (
+        ("outer_gamut_226_de00_avg", lambda: tr("Outer"), "#e0864b"),
+        ("surface_gamut_de00_avg", lambda: tr("Shell"), "#37bcd6"))),
     ("repeat", lambda: tr("Repeatability (ΔE00)"), (
         ("repeat_patches_de00_max", lambda: tr("Sheet"), "#37bcd6"),
         ("repeat_measurement_de00_max", lambda: tr("Again"), "#e0864b"))),
@@ -318,6 +341,9 @@ _LIMIT_NOTES = {
         "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
         "ramps_30_70_dl_max", "control_strip_de00_avg",
         "control_strip_de00_p95", "repeat_patches_de00_max",
+        # K47: the rows that gained a line.
+        "control_strip_de00_max", "solids_de00_max", "cmy_solids_dhab_max",
+        "outer_gamut_226_de00_avg", "surface_gamut_de00_avg",
         "repeat_measurement_de00_max", "uniformity_sd",
         "uniformity_de00_max_from_mean")
 }
@@ -351,9 +377,22 @@ _TREND_ABOUT = {
     "tone": lambda: tr(
         "The maximum lightness difference (ΔL*) on the single-colour and grey "
         "ramps between 30 % and 70 %, per date."),
+    # K47: the maximum joined the average and the 95th percentile, and a
+    # set limits one, two or all three of them.
     "strip": lambda: tr(
         "The colour difference (ΔE00) of the control-strip patches, per date: "
-        "their average and the value 95 % of them stay under."),
+        "their average, the value 95 % of them stay under and their maximum, "
+        "each where a limit applies to it."),
+    "solids": lambda: tr(
+        "How far the solid colours lie from the reference (ΔE00), per date: "
+        "the maximum over the solids the sheet carries."),
+    "solid_hue": lambda: tr(
+        "How far the hue of the cyan, magenta and yellow solids lies from the "
+        "reference (ΔH*ab), per date: the maximum of the three."),
+    "gamut_edge": lambda: tr(
+        "How far the most saturated colours lie from their aim values "
+        "(ΔE00), per date: the average over the outer-gamut patches and over "
+        "the surface-gamut patches."),
     "repeat": lambda: tr(
         "How far apart the same colour measures (ΔE00), per date: repeated "
         "patches on one sheet, and the same chart measured again."),
@@ -1617,6 +1656,15 @@ def _trend_about_html(text: str) -> str:
             f"margin:2px 0 4px'>" + html.escape(text) + "</div>")
 
 
+def no_limit_note() -> str:
+    """The sentence under a drawn graph that has no limit line (K47, Knut
+    #182 5840152058). General, so it is true of every such graph: the paper
+    white and darkest black L*, the cube corners, and colour accuracy on a
+    report that judges no colour-accuracy row."""
+    return tr("No limit applies to what this graph shows, so it has no "
+              "limit line. It shows the trend only.")
+
+
 def _trend_key_html(descriptions: list) -> str:
     """Under a graph in the PDF: each limit line's word and each red x, with
     the text its tooltip shows on screen. A line is keyed by a short dotted
@@ -1625,6 +1673,12 @@ def _trend_key_html(descriptions: list) -> str:
         return ""
     rows = []
     for kind, col, text in descriptions:
+        if kind == "note":
+            # K47: a graph with no limit says so, with no mark: there is no
+            # line for a mark to stand for.
+            rows.append(f"<div style='color:{_LIGHT_REPORT['dim']}'>"
+                        + html.escape(text) + "</div>")
+            continue
         mark = ("\u00d7" if kind == "mark" else "\u2508\u2508")
         rows.append(
             f"<div style='color:{_LIGHT_REPORT['dim']}'>"
@@ -1975,6 +2029,14 @@ class _TrendChart(QWidget):
                 note = note + " " + tr("Outside the range of values shown.")
             out.append(("line", QColor(tcol) if tcol is not None else grey,
                         note))
+        # K47 (Knut, #182 5840152058, on a graph with no limit: *"If this is
+        # not noted other places, then a short note could say so under the
+        # graphs."*). Nothing near a graph said it: the detailed data's "For
+        # information (no limit applies)" is pages away and names no graph.
+        # So a drawn graph with no limit line says why it has none.
+        if (len(self._series) >= 2 and self._metrics
+                and not any(k == "line" for k, _c, _t in out)):
+            out.insert(0, ("note", grey, no_limit_note()))
         for _k, _i, _v, text in self.withheld_marks():
             out.append(("mark", QColor(_WITHHELD_RED), text))
         return out
@@ -15579,8 +15641,9 @@ class MeasurementReportDialog(QDialog):
         chart = self._trend_tabs.currentWidget()
         # A graph with fewer than two dates draws no line, only the reason
         # it draws nothing, and the PDF prints no such graph; so no key.
-        lines = ([(col, text) for kind, col, text in chart.descriptions()
-                  if kind == "line"]
+        # K47: and a graph with no limit line says so, as in the PDF.
+        lines = ([(kind, col, text) for kind, col, text
+                  in chart.descriptions() if kind in ("line", "note")]
                  if isinstance(chart, _TrendChart) and chart.has_trend()
                  else [])
         if not lines or not self._trend_tabs.isVisibleTo(self):
@@ -15588,9 +15651,10 @@ class MeasurementReportDialog(QDialog):
             key.setVisible(False)
             return
         key.setText("<br>".join(
-            f"<span style='color:{col.name()};font-weight:bold'>"
-            "\u2508\u2508</span>&nbsp;&nbsp;" + html.escape(text)
-            for col, text in lines))
+            (html.escape(text) if kind == "note" else
+             f"<span style='color:{col.name()};font-weight:bold'>"
+             "\u2508\u2508</span>&nbsp;&nbsp;" + html.escape(text))
+            for kind, col, text in lines))
         key.setVisible(True)
 
     # ------------------------------------------------------------------

@@ -382,7 +382,7 @@ def test_a_judged_row_no_grey_line_stands_for_gets_its_own(qapp, tmp_path):
 
 def test_the_window_shows_the_key_under_the_graph_in_front(qapp, tmp_path):
     """Under the tab in front, the same sentences the PDF prints under that
-    graph; a graph with no limit shows none.
+    graph; a graph with no limit shows the K47 note that it has none.
 
     MUTATION, proven red: drop `_refresh_trend_key` from `_update_trends`
     (the key stays empty); or drop its ``has_trend()`` test (a graph of one
@@ -398,7 +398,10 @@ def test_the_window_shows_the_key_under_the_graph_in_front(qapp, tmp_path):
             assert mrd.html.escape(line) in text
         assert not dlg._trend_key.isHidden()
         tabs.setCurrentIndex(tabs.indexOf(dlg._trend_black))
-        assert dlg._trend_key.isHidden()
+        # K47 (Knut #182 5840152058): a graph with no limit now says so
+        # under it, and says nothing else.
+        assert not dlg._trend_key.isHidden()
+        assert dlg._trend_key.text() == mrd.html.escape(mrd.no_limit_note())
         # a graph of one date draws no line, so it has no key either
         tabs.setCurrentIndex(tabs.indexOf(dlg._trend_de))
         assert not dlg._trend_key.isHidden()

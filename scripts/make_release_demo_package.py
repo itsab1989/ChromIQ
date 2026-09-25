@@ -365,6 +365,10 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Threshold-Series/run1, Run type Verification, in German: New report…, the first two dates, Grey and tone check, ChromIQ default: Save report as PDF…, \"So ist dieser Bericht zu lesen\" ends on page 2 (10 pages; 11 without K45), and each \"Zur Information (es gilt kein Grenzwert)\" starts a page",
         "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: under the Colour accuracy graph, in the window and the PDF, Avg names three rows and Max two; Contract proof check: a grey P95 line and its sentence",
     ]),
+    ("§41", "K47:", [
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Contract proof check judged against ISO 12647-7:2016 values: the Control strip graph plots Avg and Max, each with its dotted line and sentence; the new Solid colours, Hue of the solids and Outer and surface gamut graphs; judged against Custom ISO 12647-7: Avg, P95 and Max",
+        "Report-Limits-Threshold-Series/run1: New report…, the first two dates, Grey and tone check: under Colour accuracy, Paper white, Darkest black and Cube corners, \"No limit applies to what this graph shows, so it has no limit line. It shows the trend only.\"",
+    ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
     ]),

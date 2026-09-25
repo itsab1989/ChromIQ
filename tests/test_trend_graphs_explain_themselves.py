@@ -215,7 +215,10 @@ def test_every_tab_places_its_words_by_the_accuracy_rule(qapp, key):
     rows = dict((k, r) for k, _t, r in mrd._TREND_GROUPS)[key]
     words = [w() for _rid, w, _c in rows]
     # axis 0 .. 2.24 (data max 2.0 * 1.12): numbers at 0, 1.12, 2.24
-    far = [(0.5 + 0.8 * j, w, QColor("#3070c0")) for j, w in enumerate(words)]
+    # K47: the strip tab holds three words, and a third at 2.1 would land on
+    # the axis number 2.24; three are spread between the numbers instead.
+    heights = (0.5, 1.3) if len(words) <= 2 else (0.45, 0.75, 1.6)
+    far = [(heights[j], w, QColor("#3070c0")) for j, w in enumerate(words)]
     near = [(1.12 + 0.02 * j, w, QColor("#3070c0")) for j, w in enumerate(words)]
     notes = [f"note {w}" for w in words]
     for lines, inside in ((far, False), (near, True)):

@@ -120,12 +120,17 @@ def test_every_group_holds_at_most_two_related_rows_that_exist():
     """At most two metrics per tab, real rows, one unit per tab, and every
     trend row belongs to exactly one tab.
 
-    MUTATION, proven red: add ``("control_strip_de00_max", ...)`` as a third
-    entry of the "strip" group; or put ``ramps_30_70_dl_max`` (ΔL*) into the
+    **ONE EXCEPTION, KNUT'S (K47, #182 5840152058):** the control strip's
+    tab holds its average, its 95th percentile and its maximum, since a set
+    may limit all three and every limited row has its line.
+
+    MUTATION, proven red: add ``("ramps_30_70_dl_max", ...)`` as a third
+    entry of the "grey" group; or put ``ramps_30_70_dl_max`` (ΔL*) into the
     grey group (ΔCh)."""
     seen = []
     for key, title, rows in mrd._TREND_GROUPS:
-        assert 1 <= len(rows) <= 2, f"{key}: {len(rows)} metrics on one tab"
+        most = 3 if key == "strip" else 2
+        assert 1 <= len(rows) <= most, f"{key}: {len(rows)} metrics on one tab"
         units = {ROW_BY_ID[rid].unit for rid, _w, _c in rows}
         assert len(units) == 1, f"{key} mixes units {units}"
         seen += [rid for rid, _w, _c in rows]

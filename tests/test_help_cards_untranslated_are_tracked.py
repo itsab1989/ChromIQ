@@ -1038,19 +1038,26 @@ _BUDGET = {
     # by hand, does not move; each of the twelve others rises by exactly
     # 2 under the beta rule (5 keys in, 2 out; the counter does not count
     # "The paper filter", too short). COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, K47 (B8-1231 to B8-1236, Knut #182
+    # 5840152058): three graph tabs, two line words, four graph
+    # descriptions and the note under a graph with no limit, 10 keys in,
+    # the control strip's old description out. German by hand, does not
+    # move; each of the twelve others rises by exactly 6 under the beta
+    # rule (7 new keys of 25 characters or more, less the one retired).
+    # COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 1008,
-    "fr": 1009,
-    "it": 1008,
-    "ja": 1008,
-    "nl": 1008,
-    "no": 1008,
-    "pl": 1008,
-    "pt": 1008,
-    "ru": 1007,
-    "sv": 1008,
-    "zh_CN": 1007,
-    "uk": 1151,
+    "es": 1014,
+    "fr": 1015,
+    "it": 1014,
+    "ja": 1014,
+    "nl": 1014,
+    "no": 1014,
+    "pl": 1014,
+    "pt": 1014,
+    "ru": 1013,
+    "sv": 1014,
+    "zh_CN": 1013,
+    "uk": 1157,
 }
 
 

@@ -29109,12 +29109,14 @@ would reach.
 - evidence: test_for_information_starts_a_fresh_page, test_no_break_when_the_colour_section_already_ran_over, test_the_saved_pdf_starts_every_for_information_on_a_fresh_page
 - proof: ~/Desktop/ChromIQ-beta44-proof/k45-pdf-layout/ (compare.md, pages/*)
 
-### B8-1204 · OPEN, for Knut · Three things K45 leaves to him
+### B8-1204 · SUPERSEDED, answered by Knut · Three things K45 leaves to him
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-1236
 - note: (1) HOW 0.2 PT IS SET. Qt rounds every font to a whole pixel before laying text out, and one pixel of the report is 0.75 pt, so 8.8 pt text cannot be printed as a font size (measured: 12 px and 11.73 px lay out identically; 11 px is 6 % narrower, nearly four times the 0.2 pt he allowed). B8-1201 therefore scales the room the text takes (every letter's advance and every line's height by 8.8/9); the letters stay 9 pt and a PDF reader reports 9 pt. The alternative, a real 8.25 pt (one pixel), is outside his limit. (2) The Colour accuracy graph on a Grey and tone check or a Printing record judges no colour-accuracy row, so it has no line and no description (spec 40.2); if he wants a sentence saying "no limit applies to this graph in this report", it is a new text for §M. (3) Two limits have no graph of their own: ISO 12647-7 judges "Maximum ΔE00, control strip" (5.0) while the Control strip graph plots the average and the 95th percentile (his K20/K21 pairing), and the ISO sets' paper-white and solid-colour limits are against the printing condition's reference, not the chart design the Paper white (L*) and Cube corners graphs plot, so no line was drawn on those graphs.
 - where: `ui/pdf_layout.py` (`tighten_to_close_a_page`), `ui/dialogs/measurement_report_dialog.py` (`_TREND_GROUPS`, `_accuracy_line_plan`).
+- answered: Knut, #182 5840152058 (K47): item (1) "OK" (B8-1231); item (2) a note under a graph with no limit (B8-1232); item (3) the strip maximum and every limited row plotted (B8-1233, B8-1234), the reference question analysed (B8-1235); what is still open with him is B8-1236.
 
 ### B8-1221 · FIXED, awaiting confirmation · Knut #182 5838170697: with the ChromIQ layout engine on, the paper filter read printtarg's HIDDEN Paper widget, so both preset lists showed another paper's presets
 - blocks release: yes
@@ -29183,3 +29185,56 @@ would reach.
 - status: OPEN
 - note: Found by the matrix, not fixed here (the lists follow the paper shown correctly). Manual, layout engine on, Custom 130 x 180 mm, Save as Defaults: the store holds `chart_paper=130x180` and the engine recipe's paper `130x180`, and the next start shows A2 (the first entry) in both Paper fields. Guided has no Custom entry, so `_restore_settings` finds no `130x180` and leaves the combo where the rebuild put it; the panel's restore of the saved recipe does not reach Custom either. Proof: `before/en-engine-on-restart/matrix.json`.
 - where: `ui/tabs/tab_chart.py` (`_on_save_defaults`, `_restore_settings`, `_init_manual_layout_panel`), `ui/dialogs/layout_options_panel.py` (`set_recipe`).
+
+### B8-1231 · FIXED, accepted by Knut · K47-1: 0.2 pt taken as spacing (B8-1204 item 1)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5840152058, asked whether "0.2 pt smaller" may be applied as the room 0.2 pt smaller text would take (letter spacing and line height tightened, the letters staying 9 pt): "OK". Recorded in spec 40.1 as accepted by him. No code change; the behaviour is B8-1201's, and its guard is the one named here.
+- where: spec measurement_report_limits.md 40.1, 41.1; `ui/pdf_layout.py` (`tighten_to_close_a_page`).
+- tests: tests/test_k45_report_pdf_layout.py
+- evidence: test_never_more_than_two_tenths_of_a_point
+
+### B8-1232 · FIXED, awaiting confirmation · K47-2: a drawn graph with no limit line says so under it, in the PDF and the window
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5840152058: "If this is not noted other places, then a short note could say so under the graphs." Checked: nothing near a graph said it (the detailed data's "For information (no limit applies)" is pages away and names no graph; the guide says nothing about graphs). Every drawn graph without a limit line (Paper white L*, Darkest black L*, Cube corners, and Colour accuracy on a report that judges no colour-accuracy row) now carries "No limit applies to what this graph shows, so it has no limit line. It shows the trend only." under it, without a line mark, in the PDF and in the window's key. German by hand. A graph caption, not a §M message, like the K25 and K45 sentences (spec 41.2 says so, for Knut to overrule).
+- where: `ui/dialogs/measurement_report_dialog.py` (`no_limit_note`, `_TrendChart.descriptions`, `_trend_key_html`, `_refresh_trend_key`), `data/i18n/*.json`, `tests/test_i18n.py` and `tests/test_help_cards_untranslated_are_tracked.py` (the ledgers); spec 41.2.
+- tests: tests/test_k47_every_limited_row_has_a_graph.py, tests/test_k45_report_pdf_layout.py. Mutations, each red: no note; a note whatever the lines; a note on a graph of one date; the note printed with a line mark; a control named in the note; the window key dropping the note.
+- evidence: test_a_drawn_graph_with_no_limit_line_says_so, test_a_graph_with_a_limit_line_carries_no_such_note, test_a_graph_of_one_date_carries_no_note, test_the_pdf_prints_the_note_without_a_line_mark, test_the_note_names_no_control_of_the_app, test_the_window_shows_the_key_under_the_graph_in_front
+- proof: ~/Desktop/ChromIQ-beta44-proof/k47/ (REPORT.md)
+
+### B8-1233 · FIXED, awaiting confirmation · K47-3a: the Control strip graph plots the strip's maximum, with its line and sentence, whenever the set judges it
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5840152058: every data line with a threshold gets its dotted line and a sentence. ISO 12647-7 judges "Maximum ΔE00, control strip" (5.0), not the 95th percentile, and the graph plotted only the average and P95, so under ISO 12647-7 it drew the average alone. The maximum is now the third row of the strip tab ("Max"), plotted while judged: ISO 12647-7 Avg and Max, ISO 12647-8 Avg and P95 (unchanged), both Custom sets all three (P95 and Max at one 4.0, two lines as Knut allowed). The one tab allowed three rows (spec 41.3). The graph's description names the three kinds.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_TREND_GROUPS`, `_LIMIT_NOTES`, `_TREND_ABOUT`), `workflow/measurement_report.py` (`TREND_ROW_IDS`); spec 41.3.
+- tests: tests/test_k47_every_limited_row_has_a_graph.py, tests/test_trend_graphs_for_judged_metrics.py, tests/test_trend_graphs_explain_themselves.py. Mutations, each red: the maximum out of the strip group; the maximum out of `TREND_ROW_IDS`.
+- evidence: test_iso_12647_7_judges_the_strip_maximum_and_its_tab_plots_it, test_each_judged_strip_row_has_a_data_line_a_limit_line_and_a_sentence, test_the_trend_series_carries_the_new_rows
+- proof: ~/Desktop/ChromIQ-beta44-proof/k47/ (REPORT.md)
+
+### B8-1234 · FIXED, awaiting confirmation · K47-3a: every row a set can limit has a graph; three new tabs for the solids and the outer and surface gamut
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: The audit Knut's rule asks for, over all seven sets: besides the strip maximum (B8-1233) four computable rows were limited and never plotted: "Maximum ΔE00, solid colours", "Maximum ΔH*ab, cyan, magenta and yellow solids" (ISO 12647-7, both Custom), "Average ΔE00, outer-gamut patches" (ISO 12647-7, both Custom), "Average ΔE00, surface-gamut patches" (ISO 12647-8, both Custom). New tabs, shown while their row is judged, each line with its limit and sentence: "Solid colours (ΔE00)" and "Hue of the solids (ΔH*ab)" (one unit per tab) after Cube corners, "Outer and surface gamut (ΔE00)" (words Outer, Shell) after Control strip. A test now holds every computable row any set limits to a graph.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_TREND_GROUPS`, `_TREND_ABOUT`, `_LIMIT_NOTES`), `workflow/measurement_report.py` (`TREND_ROW_IDS`); spec 41.3.
+- tests: tests/test_k47_every_limited_row_has_a_graph.py. Mutations, each red: the "solids" group out; the "solid_hue" group out.
+- evidence: test_every_row_any_set_limits_has_a_graph, test_a_solid_row_judged_brings_its_tab
+- proof: ~/Desktop/ChromIQ-beta44-proof/k47/ (REPORT.md)
+
+### B8-1235 · OPEN, for Knut · K47-3b: the paper-white and solid rows have a reference only on a FROM PROFILE GAMUT chart, and there the solids aim at ideal sRGB
+- blocks release: no
+- severity: MAJOR
+- status: OPEN
+- note: Analysis for Knut, #182 5840152058, in spec 41.4 and the proof's REPORT.md. In every set the three rows are compared with the chart's colorimetric reference only (FROM PROFILE GAMUT); on every other chart they read N-A; the Fogra sets are connected to no report. On a FROM PROFILE GAMUT chart the solids aim at the ideal sRGB corners (§32.5): through two real vendor profiles the printer's own solids lie 11.1 to 35.6 ΔE00 and 21.0 to 50.2 ΔH*ab from them, so both solid rows fail on every such sheet of a real printer under ISO 12647-7 and both Custom sets, however well it prints. ISO 12647-7's own text compares with the characterization data of the printing condition simulated. Recommended, NOT built: (b2), the profile's own prediction as that characterization data (paper against the profile's media white on every sheet with a paper patch; solids against the profile's prediction where they were printed raw). Not built because it reverses Knut's §32.5 "no" and changes what the paper row judges on every ordinary chart.
+- where: `workflow/measurement_report.py` (`row_values`, `corners_block`, `profile_corner_predictions`, `paper_reference_of`), `workflow/gamut_target.py` (`_corner_ideal_labs`), `workflow/reference_sets.py` (`can_fill`); spec 41.4.
+
+### B8-1236 · OPEN, for Knut · K47: three questions K47 leaves to him
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: (1) Build (b2) of B8-1235? (2) A row with values and no limit (a FROM PROFILE GAMUT chart's paper and solid rows under ChromIQ default) keeps its tab hidden by §17 item 3; should such a graph be shown with the "no limit applies" note? (3) The Control strip tab with three lines, and the no-limit note kept out of §M as a graph caption: as built?
+- where: spec 41.5.
