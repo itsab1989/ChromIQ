@@ -28593,3 +28593,13 @@ would reach.
 - tests: tests/test_message_catalogue.py (the §M text and the code agree; the four left AWAITING_APPROVAL), tests/test_i18n.py, tests/test_help_cards_untranslated_are_tracked.py.
 - evidence: test_the_revision_note_names_what_awaits_review
 - proof: ~/Desktop/ChromIQ-beta42-proof/challenge5-fixes/ (after-* runs of scenes e, sg-e, sg-b, pg-noprof)
+
+### B8-1097 · FIXED, awaiting confirmation · The gear window's Close stored the ticks; it now has OK and Close, and Close discards
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Basti (owner), 2026-09-25, replacing Knut's K35 rule ("The window has only a Close button. Closing the window will automatically apply the changes.", #182 5818659478). The window behind the gear in Create Chart > Manual > Presets now has two buttons at the bottom right, OK to the left of Close. OK is the default button (Return): it stores the ticks, rebuilds both preset lists and closes. Close, Escape and the window's close box close with nothing stored: the ticks are discarded and the setting and lists are unchanged. The two buttons are placed by hand in a row, not in a QDialogButtonBox, because a button box orders by the style's SH_DialogButtonLayout and the macOS and GNOME layouts put OK last; the order is proved under all four of Qt's layouts. The texts reuse the "OK" and "Close" keys. The third paragraph of the window's text said "Your choice is kept when you close this window"; it now says "OK keeps your choice; Close leaves the lists as they were." (German by hand; the twelve others carried the old sentence in English already, so both ledgers are unchanged: one English echo out, one in). `docs/design/curated_presets.md` C3 marks the old rule superseded and C3a records the decision, awaiting confirmation.
+- where: `ui/dialogs/builtin_presets_shown_dialog.py`; `ui/tabs/tab_chart.py` (`_open_builtin_presets_shown`); `data/i18n/*.json`; `docs/design/curated_presets.md` C3, C3a, C5.
+- tests: tests/test_curated_builtin_presets.py (OK stores and a restart keeps it; Close, Escape and the close box store nothing; Return is OK; OK left of Close at the bottom right under the Windows, macOS, KDE and GNOME button layouts), tests/test_i18n.py, tests/test_help_cards_untranslated_are_tracked.py.
+- evidence: test_close_escape_and_the_close_box_store_nothing
+- proof: ~/Desktop/ChromIQ-beta43-proof/presets-ok-close/ (before-en, before-de, after-en, after-de; REPORT.md)

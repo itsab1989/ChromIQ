@@ -45,14 +45,45 @@ button; see B8-1023 for the one other string that names Finder.
 * Three paragraphs: ticked presets are listed directly in "Select preset" and in
   the Built-in presets list (the middle of the three buttons at the top of
   Create Chart); the others wait under an arrow after the group's last ticked
-  preset; the person's own presets are not affected and stay on top, and the
-  choice is kept on close.
+  preset; the person's own presets are not affected and stay on top. The third
+  paragraph ended "Your choice is kept when you close this window." until
+  C3a below; it now ends "OK keeps your choice; Close leaves the lists as they
+  were."
 * Every built-in preset, and only built-ins, under the pulldown's own headings
   in the pulldown's own order, each with a tick box. A heading has a box of its
   own that ticks or clears its whole group (partly ticked when mixed) and says
   "N of M shown".
-* Only a Close button. Close, Escape and the window's close box all store the
-  boxes as they are, and both lists are rebuilt at once.
+* ~~Only a Close button. Close, Escape and the window's close box all store the
+  boxes as they are, and both lists are rebuilt at once.~~ **SUPERSEDED on
+  2026-09-25 by Basti's decision, C3a below.** This was Knut's K35 wording
+  (*"The window has only a Close button. Closing the window will automatically
+  apply the changes."*, #182 5818659478).
+
+### C3a. OK and Close (Basti, owner, 2026-09-25, B8-1097)
+
+⏳ **Awaiting confirmation. Confirmed by:** *nobody yet.* Basti decided it; the
+behaviour below is what the app does since B8-1097, proved on screen in
+`~/Desktop/ChromIQ-beta43-proof/presets-ok-close/`, and awaits his
+confirmation of the result (and Knut's, whose K35 rule it replaces).
+
+Basti's decision, replacing Knut's "only a Close button; closing applies":
+
+| Way out | What happens |
+|---|---|
+| **OK** (the default button, so Return on the list is OK) | the ticks are stored and both lists are rebuilt; the window closes |
+| **Close** | the window closes; the ticks are discarded; the setting and both lists are unchanged |
+| Escape | as Close |
+| the window's close box | as Close |
+
+* Two buttons at the bottom right, **OK to the LEFT of Close**, on macOS,
+  Windows and Linux alike. They are placed by hand in a row of their own, not
+  in a `QDialogButtonBox`: a button box orders by the style's
+  `SH_DialogButtonLayout`, and the macOS and GNOME layouts put the accept
+  button last (Close, OK). The shipped app pins the Windows layout through
+  `WinButtonLayoutStyle` (`main.py`), so a button box would have come out
+  right in the app, but the window no longer depends on that.
+* The texts are the existing catalogue keys "OK" and "Close" (German "OK",
+  "Schließen").
 
 ### C4. The two lists
 
@@ -117,6 +148,8 @@ function answers the order for both).
   differs from the shipped list, and stays recorded once it has been. A preset
   never touched follows whatever a later release ships; a preset touched keeps
   the person's answer. Closing the window without a change stores nothing.
+  *(Since C3a: OK without a change stores nothing; Close, Escape and the
+  close box never store anything.)*
   *Amended (challenge 3 of beta 42, B8-1033, not confirmed):* only a TRUE
   difference is stored. A preset is recorded exactly while its box differs
   from the shipped list; a box that agrees with it again is forgotten, and

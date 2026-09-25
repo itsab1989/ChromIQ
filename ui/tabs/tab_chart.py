@@ -10514,9 +10514,9 @@ class TabChart(QWidget):
     def _open_builtin_presets_shown(self) -> None:
         """The gear button: choose which built-ins the two lists show.
 
-        Knut: *"The window has only a Close button. Closing the window will
-        automatically apply the changes."* So whatever ends the window, its
-        boxes are stored and both lists rebuilt from them.
+        Basti, 2026-09-25 (B8-1097), replacing Knut's "only a Close button;
+        closing applies": OK stores the boxes and rebuilds both lists; Close,
+        Escape and the close box end the window with nothing stored.
         """
         from core.curated_presets import shown_keys
         from ui.dialogs.builtin_presets_shown_dialog import (
@@ -10525,9 +10525,11 @@ class TabChart(QWidget):
             self._curated_dialog_groups(),
             shown_keys(self._settings, BUILTIN_PRESET_KEYS), self)
         self._builtin_presets_shown_dialog = dlg
-        dlg.exec()
-        self._apply_builtin_presets_shown(dlg.ticked())
-        self._builtin_presets_shown_dialog = None
+        try:
+            if dlg.exec() == QDialog.DialogCode.Accepted:
+                self._apply_builtin_presets_shown(dlg.ticked())
+        finally:
+            self._builtin_presets_shown_dialog = None
 
     def _apply_builtin_presets_shown(self, ticked: set) -> None:
         from core.curated_presets import store_choices

@@ -19,7 +19,10 @@ What these tests hold:
 * the pulldown: user presets on top, then per group the ticked ones, an arrow,
   the rest hidden and disabled; the arrow opens by click and by keyboard with
   the list staying open, and it is never selected as a preset;
-* the window: ticks in, ticks out, stored on close, kept across a restart;
+* the window: ticks in, ticks out, stored by OK and kept across a restart;
+  Close, Escape and the close box store nothing (Basti, 2026-09-25, B8-1097,
+  replacing Knut's "closing applies"); OK sits left of Close whatever the
+  style's own button order, and is the default button;
 * the Built-in presets list: the same split, and the same arrow by keyboard;
 * the gear button sits between the folder button and the help icon.
 """
@@ -431,22 +434,68 @@ def test_opening_the_list_on_a_hidden_selection_reveals_its_group(make_tab):
 # The window, and a restart
 # ---------------------------------------------------------------------------
 
+def _drive_the_window(tab, qapp, *, tick: dict, end: str) -> None:
+    """Open the gear window through the tab, for real (its own ``exec``),
+    change the boxes in ``tick`` and end it the way ``end`` names: "ok" (the
+    OK button), "return" (the Return key on the list, which is OK as the
+    default button), "close" (the Close button), "escape", or "closebox"
+    (the window's own close box, which is a close event)."""
+    from PyQt6.QtCore import QTimer
+    done = {}
+
+    def act():
+        dlg = tab._builtin_presets_shown_dialog
+        if dlg is None or not dlg.isVisible():
+            QTimer.singleShot(10, act)
+            return
+        for key, on in tick.items():
+            assert dlg.set_ticked(key, on)
+        done["dlg"] = dlg
+        if end == "ok":
+            dlg._ok_btn.click()
+        elif end == "return":
+            dlg._tree.setFocus()
+            QTest.keyClick(dlg._tree, Qt.Key.Key_Return)
+        elif end == "close":
+            dlg._close_btn.click()
+        elif end == "escape":
+            QTest.keyClick(dlg._tree, Qt.Key.Key_Escape)
+        elif end == "closebox":
+            dlg.close()
+        # A watchdog: if the ending did not end it, the test must not hang.
+        # Parented to the window and stopped below, so it can never fire into
+        # a later test after the window is gone.
+        dog = done["dog"] = QTimer(dlg)
+        dog.setSingleShot(True)
+        dog.timeout.connect(lambda: (done.__setitem__("hung", True),
+                                     dlg.done(99)))
+        dog.start(2000)
+
+    QTimer.singleShot(0, act)
+    tab._open_builtin_presets_shown()
+    if "dog" in done:
+        done["dog"].stop()
+    assert "dlg" in done
+    assert not done.get("hung"), f"{end!r} did not end the window"
+
+
 def test_the_window_stores_the_choice_and_a_restart_keeps_it(
-        make_tab, settings, tmp_path, monkeypatch):
-    from ui.dialogs.builtin_presets_shown_dialog import BuiltinPresetsShownDialog
+        make_tab, settings, tmp_path, qapp):
+    """OK stores the boxes and rebuilds the lists (Basti, 2026-09-25,
+    B8-1097). This test used to end the window with Close and expect the
+    change stored, which was Knut's "closing applies" (K35); Close now
+    discards, so it is ended with OK.
+
+    MUTATIONS, proved to land: OK connected to ``reject`` (red); the caller
+    storing nothing on Accepted (red)."""
     tab = make_tab()
     cb = tab._preset_combo
     shown = cp.shown_keys(settings, BUILTIN_PRESET_KEYS)
     hidden_key = next(k for k in sorted(BUILTIN_PRESET_KEYS) if k not in shown)
     shown_key = next(iter(sorted(shown)))
 
-    def fake_exec(dlg):
-        assert dlg.ticked() == shown
-        assert dlg.set_ticked(hidden_key, True)
-        assert dlg.set_ticked(shown_key, False)
-        return 0                                   # Close
-    monkeypatch.setattr(BuiltinPresetsShownDialog, "exec", fake_exec)
-    tab._open_builtin_presets_shown()
+    _drive_the_window(tab, qapp, tick={hidden_key: True, shown_key: False},
+                      end="ok")
 
     assert cp.user_choices(settings) == {hidden_key: True, shown_key: False}
     view = cb.view()
@@ -480,11 +529,119 @@ def test_the_window_lists_every_built_in_under_the_pulldowns_headings(
         g.setCheckState(0, Qt.CheckState.Checked)
         assert len(dlg.ticked()) == g.childCount()
         assert g.text(1) == f"{g.childCount()} of {g.childCount()} shown"
-        # Only a Close button.
+        # Two buttons, OK and Close (Basti, 2026-09-25, B8-1097; this said
+        # "only a Close button" under Knut's K35 rule, which it replaced).
         from PyQt6.QtWidgets import QPushButton
+        from core.i18n import tr
         buttons = [b for b in dlg.findChildren(QPushButton) if b.isVisibleTo(dlg)]
-        assert len(buttons) == 1
+        assert sorted(b.text() for b in buttons) == sorted([tr("OK"),
+                                                            tr("Close")])
     finally:
+        dlg.deleteLater()
+
+
+@pytest.mark.parametrize("end", ["close", "escape", "closebox"])
+def test_close_escape_and_the_close_box_store_nothing(
+        make_tab, settings, qapp, end):
+    """Basti, 2026-09-25 (B8-1097): Close discards the ticks, and Escape and
+    the window's close box behave like Close. The lists and the setting are
+    as they were.
+
+    MUTATION, proved to land: the caller storing ``ticked()`` whatever
+    ``exec`` returned (Knut's old "closing applies"): red for all three."""
+    tab = make_tab()
+    cb = tab._preset_combo
+    shown = cp.shown_keys(settings, BUILTIN_PRESET_KEYS)
+    hidden_key = next(k for k in sorted(BUILTIN_PRESET_KEYS) if k not in shown)
+    shown_key = next(iter(sorted(shown)))
+    before = settings.get("builtin_presets_shown")
+
+    _drive_the_window(tab, qapp, tick={hidden_key: True, shown_key: False},
+                      end=end)
+
+    assert cp.user_choices(settings) == {}
+    assert settings.get("builtin_presets_shown") == before
+    assert cp.shown_keys(settings, BUILTIN_PRESET_KEYS) == shown
+    view = cb.view()
+    assert view.isRowHidden(cb.findData(hidden_key))
+    assert not view.isRowHidden(cb.findData(shown_key))
+
+
+def test_return_is_ok(make_tab, settings, qapp):
+    """OK is the default button: Return on the list stores the ticks.
+
+    MUTATION, proved to land: ``setDefault(True)`` moved from OK to Close
+    (red: Return then discards)."""
+    tab = make_tab()
+    shown = cp.shown_keys(settings, BUILTIN_PRESET_KEYS)
+    hidden_key = next(k for k in sorted(BUILTIN_PRESET_KEYS) if k not in shown)
+    _drive_the_window(tab, qapp, tick={hidden_key: True}, end="return")
+    assert cp.user_choices(settings) == {hidden_key: True}
+
+
+class _LayoutStyle:
+    """A proxy style that answers ``SH_DialogButtonLayout`` as it is told,
+    the way macOS (MacLayout, 1), KDE (2) or GNOME (3) would. The shipped app
+    pins 0 (WinLayout) through ``WinButtonLayoutStyle``."""
+
+    @staticmethod
+    def make(layout: int):
+        from PyQt6.QtWidgets import QProxyStyle, QStyle
+
+        class S(QProxyStyle):
+            def styleHint(self, hint, option=None, widget=None,
+                          returnData=None):
+                if hint == QStyle.StyleHint.SH_DialogButtonLayout:
+                    return layout
+                return super().styleHint(hint, option, widget, returnData)
+        return S("Fusion")
+
+
+@pytest.mark.parametrize("layout", [0, 1, 2, 3],
+                         ids=["win", "mac", "kde", "gnome"])
+def test_ok_is_left_of_close_at_the_bottom_right_on_every_layout(
+        qapp, layout):
+    """Basti, 2026-09-25 (B8-1097): OK then Close, bottom right, on macOS,
+    Windows and Linux. A QDialogButtonBox orders by the style's
+    ``SH_DialogButtonLayout`` and puts the accept button LAST on macOS and
+    GNOME, so the row is placed by hand; this asks every layout Qt has.
+
+    MUTATIONS, proved to land: the two ``addWidget`` lines swapped (red on
+    every layout); the row put back into a QDialogButtonBox with OK as
+    AcceptRole and Close as RejectRole (red on mac and gnome); the stretch
+    removed (red: the buttons sit at the left)."""
+    from ui.dialogs.builtin_presets_shown_dialog import BuiltinPresetsShownDialog
+    style = _LayoutStyle.make(layout)
+    groups = [(h, [(k, "", k) for (_c, _o, k) in e])
+              for h, e in BUILTIN_PRESET_GROUPS[:2]]
+    dlg = BuiltinPresetsShownDialog(groups, set(), None)
+    from PyQt6.QtWidgets import QWidget
+    dlg.setStyle(style)
+    for w in dlg.findChildren(QWidget):
+        w.setStyle(style)
+    assert dlg._ok_btn.style() is style
+    try:
+        dlg.show()
+        qapp.processEvents()
+        ok, close = dlg._ok_btn, dlg._close_btn
+        from PyQt6.QtCore import QPoint, QRect
+        ok_r = QRect(ok.mapTo(dlg, QPoint(0, 0)), ok.size())
+        close_r = QRect(close.mapTo(dlg, QPoint(0, 0)), close.size())
+        assert ok_r.right() < close_r.left(), (layout, ok_r, close_r)
+        assert abs(ok_r.top() - close_r.top()) <= 2
+        # bottom right: Close ends at the layout's right margin, and both
+        # sit below the list.
+        right_margin = dlg.layout().contentsMargins().right()
+        assert dlg.width() - 1 - close_r.right() <= right_margin + 2, (
+            dlg.width(), close_r)
+        # ...and at the RIGHT: the pair is a pair of buttons, not a bar
+        # across the window (without the stretch they share its width).
+        assert ok_r.left() > dlg.width() // 2, (dlg.width(), ok_r)
+        tree_bottom = dlg._tree.geometry().bottom()
+        assert ok_r.top() > tree_bottom
+        assert ok.isDefault() and not close.isDefault()
+    finally:
+        dlg.close()
         dlg.deleteLater()
 
 

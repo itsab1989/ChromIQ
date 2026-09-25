@@ -6,13 +6,22 @@ a checkmark-box in front of the preset name. The window shall have text
 explaining that all marked built-in presets will be shown in the pulldown list
 for 'Select preset' and when clicking on the Built-in presets button [...] and
 all other presets for the group they belong to, are still available, but are
-available in a collapsable arrow."* And: *"The window has only a Close button.
-Closing the window will automatically apply the changes."*
+available in a collapsable arrow."*
 
-So there is no Cancel and no OK. Every way out (the Close button, Escape, the
-window's own close box) hands back the same thing, :meth:`ticked`, and the
-caller stores it (:func:`core.curated_presets.store_choices`) and rebuilds both
-lists. The groups and their order are the pulldown's own
+**OK AND CLOSE (Basti, owner, 2026-09-25, B8-1097).** Knut had asked for *"only
+a Close button. Closing the window will automatically apply the changes."*
+Basti replaced that: the window has two buttons at the bottom right, **OK** to
+the left of **Close**. OK is the default button (Return); it accepts, and the
+caller then stores :meth:`ticked` (:func:`core.curated_presets.store_choices`)
+and rebuilds both lists. Close, Escape and the window's own close box all
+reject, and the caller stores nothing: the ticks are discarded.
+
+The two buttons are placed by hand in a plain row, not in a
+``QDialogButtonBox``: a button box orders its buttons by the style's
+``SH_DialogButtonLayout``, which is the Windows order only while
+``main.py``'s ``WinButtonLayoutStyle`` is in front of the style (macOS's and
+GNOME's own layouts put the accept button LAST). A row of our own is OK then
+Close whatever the style says. The groups and their order are the pulldown's own
 (``BUILTIN_PRESET_GROUPS``), handed in by the caller, so this window cannot list
 a preset the pulldown does not have or in a different order.
 
@@ -24,8 +33,8 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QDialog, QDialogButtonBox, QHeaderView, QLabel,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
+    QAbstractItemView, QDialog, QHBoxLayout, QHeaderView, QLabel,
+    QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from core.i18n import tr
@@ -62,7 +71,8 @@ class BuiltinPresetsShownDialog(QDialog):
                  "click the arrow, or select it and press the Right arrow key, "
                  "to show them.") + "\n\n"
             + tr("Your own presets are not affected and always stay at the "
-                 "top. Your choice is kept when you close this window."),
+                 "top. OK keeps your choice; Close leaves the lists as they "
+                 "were."),
             self)
         self._intro.setWordWrap(True)
         self._intro.setObjectName("builtin_presets_shown_intro")
@@ -107,10 +117,23 @@ class BuiltinPresetsShownDialog(QDialog):
         self._tree.itemChanged.connect(self._on_item_changed)
         lay.addWidget(self._tree, 1)
 
-        bb = self._buttons = QDialogButtonBox(self)
-        self._close_btn = bb.addButton(
-            tr("Close"), QDialogButtonBox.ButtonRole.RejectRole)
-        bb.rejected.connect(self.reject)
+        # OK, then Close, at the bottom right, placed by hand (see the module
+        # docstring: a QDialogButtonBox would let the style reorder them).
+        bb = self._buttons = QWidget(self)
+        bb.setObjectName("builtin_presets_shown_buttons")
+        row = QHBoxLayout(bb)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.addStretch(1)
+        self._ok_btn = QPushButton(tr("OK"), bb)
+        self._ok_btn.setObjectName("builtin_presets_shown_ok")
+        self._ok_btn.setDefault(True)
+        self._ok_btn.clicked.connect(self.accept)
+        self._close_btn = QPushButton(tr("Close"), bb)
+        self._close_btn.setObjectName("builtin_presets_shown_close")
+        self._close_btn.setAutoDefault(False)
+        self._close_btn.clicked.connect(self.reject)
+        row.addWidget(self._ok_btn)
+        row.addWidget(self._close_btn)
         lay.addWidget(bb)
 
         if self._groups:

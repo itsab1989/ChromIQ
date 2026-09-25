@@ -8,7 +8,8 @@
 ``first`` drives a fresh sandbox: the Presets frame with its gear, the "Select
 preset" pulldown with the first arrow closed, opened with the Right arrow key
 and closed with Left, the Built-in presets list the same way, the window behind
-the gear (one preset ticked, one cleared, closed with its Close button) and the
+the gear (one preset ticked, one cleared, ended with OK: since B8-1097 Close
+discards, see scripts/drive_b8_1097_presets_ok_close.py) and the
 pulldown after it. ``restart`` is a second process on the SAME sandbox
 settings: the choice must still be there. ``before`` photographs the frame, the
 pulldown and the list on a tree without the feature.
@@ -288,13 +289,14 @@ def script(d):
             dlg._tree.scrollToItem(g.child(i))
     yield 600
     d.shot(dlg, f"{LANG}-09-window-one-ticked-one-cleared")
-    dlg._close_btn.click()
+    ok = getattr(dlg, "_ok_btn", None) or dlg._close_btn   # B8-1097
+    ok.click()
     d._modal_closed()
     yield 1500
 
     ch = user_choices(d.settings)
     rec["stored_choice"] = ch
-    check("Close stored exactly the two changes",
+    check("OK (Close before B8-1097) stored exactly the two changes",
           ch == {tick_key: True, untick_key: False}, str(ch))
     row = cb.findData(tick_key)
     check("the ticked preset is now listed directly", not view.isRowHidden(row))
