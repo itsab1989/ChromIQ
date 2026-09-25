@@ -28970,12 +28970,12 @@ would reach.
 - evidence: test_opening_and_closing_the_window_never_queues_a_chart_twice
 - proof: ~/Desktop/ChromIQ-beta43-proof/challenge1-fixes/ (runs/after-pv-en, after-pv-de-dark: found.json pv_closed_* and pv_reopened_*)
 
-### B8-1166 · FIXED, awaiting confirmation · The shipped built-in preset selection is Knut's (51 of 185), no longer the beta rule's 62
+### B8-1166 · FIXED, awaiting confirmation · The shipped built-in preset selection is Knut's (53 of 185), no longer the beta rule's 62
 - blocks release: no
 - severity: MINOR
 - status: FIXED
 - note: Knut, #182 5835722977 (2026-09-25): three screenshots of the "Settings for built-in presets" window with the presets he wants shown ticked; "If any option is not in the view of the images shown, then they are deselected. Add these as the selected options for beta 43."
 - where: `data/preset_defaults.json` (written by `scripts/make_preset_defaults.py --from-table`, source "the answers of Knut's users"); the screenshots and the transcription are in ~/Desktop/ChromIQ-beta43-proof/knut-preset-defaults/.
-- fixed: ColorMunki 12, i1Pro 16, i1Pro 3 Plus 11, CR30 8, Scanner 2, Red River Paper 2 = 51 ticked. Four photo-card labels in the screenshots read "×" where the preset names read "x"; matched by key.
+- fixed: ColorMunki 12, i1Pro 16, i1Pro 3 Plus 11, CR30 8, Scanner 2, Red River Paper 2 = 51 ticked; his edit of the same comment added i1Pro A3-1404p-1page-Landscape and A3-2808p-2pages-Landscape, so 53. Four photo-card labels in the screenshots read "×" where the preset names read "x"; matched by key.
 - tests: tests/test_curated_builtin_presets.py (its fixture now switches the paper filter off, since those tests are about the ticks), tests/test_k41_preset_paper_filter.py (the Scanner arrow counts every hidden scanner preset), tests/test_scanner_builtin_presets.py (a preset under a closed arrow is not "parked").
 - evidence: test_the_parking_mechanism_is_still_wired
