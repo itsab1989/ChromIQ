@@ -2857,6 +2857,41 @@ M_REPORT_UNCHANGED_UPDATE_OR_NEW = _m(
     "3. Cancel",
     approved=True)
 
+# --- PROPOSED (#182 K39-2, Knut 5831246553): Generate report pressed with a
+# saved report selected and NOTHING changed, where this version works that
+# report out differently from the version that saved it, so an Update changes
+# its results (B8-1093: "Nothing was changed" was followed by FAIL turning
+# into PASS). Asked of "Should that question have its own wording for this
+# case, for example 'This version works the selected report out
+# differently'?", Knut answered "Yes." The window decides by comparing the
+# rows an Update would write with the page (`_update_would_change_the_report`).
+# The same three buttons, in the same order, Create New first and the default.
+M_REPORT_WORKED_OUT_DIFFERENTLY_UPDATE_OR_NEW = _m(
+    "M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW",
+    "This version works the selected report out differently",
+    "Nothing was changed in the settings of the selected report, but this "
+    "version of ChromIQ works it out differently from the version that "
+    "saved it: an update changes some of its results, or the notes that "
+    "explain them.\n\n"
+    "What do you want to do?\n\n"
+    "1. Create new report with the same settings.\n"
+    "2. Update selected report, worked out again by this version of ChromIQ.\n"
+    "3. Cancel",
+    approved=False)
+
+# --- PROPOSED (#182 K39-3, Knut 5831246553): the red line under the settings
+# after "New report…" is chosen. His rule: choosing it does NOT change the
+# report on the page; the defaults of a new report are loaded into the
+# controls, and a red line tells the user to change the settings as wanted and
+# then press Generate report to make the new report. Window text, so it may
+# name the button. Only the body is shown, after a warning sign.
+M_REPORT_NEW_REPORT_SETTINGS = _m(
+    "M-REPORT-NEW-REPORT-SETTINGS",
+    "Settings loaded for a new report",
+    "New report: change the settings as wanted, then press “Generate "
+    "report” to make it. The report shown stays as it is until then.",
+    approved=False)
+
 # --- PROPOSED (#182, Knut D11/D24): the note at the foot of the Report limits
 # window ----------------------------------------------------------------------
 M_THRESHOLDS_NOT_CERTIFICATION = _m(
@@ -3228,19 +3263,23 @@ M_REPORT_STRIP_CORNERS_IDEAL = _m(
     "usual.",
     approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
 
-# --- PROPOSED: a saved report worked out by an earlier version (challenge 5 of
-# beta 42, M1, B8-1091). Its verdicts are kept (§6); a rule introduced since
+# --- APPROVED: a saved report worked out by an earlier version (challenge 5
+# of beta 42, M1, B8-1091). Its verdicts are kept (§6); a rule introduced since
 # (K34's paper patch, K37's paper white from the profile and the strip corners
 # against the profile's prediction) would work some of its rows out
 # differently, and the rebuilt notes would contradict the kept words. The page
 # shows the report as it was saved and says so, once.
+# K39-1 (Knut, #182 5831246553): approved except "Update works the report out
+# again.", because report text never names a feature, an action or a button of
+# the app. The last sentence now speaks of the topic in general terms.
 M_REPORT_WORKED_OUT_EARLIER = _m(
     "M-REPORT-WORKED-OUT-EARLIER",
     "Worked out by an earlier version",
     "This report was worked out by an earlier version of ChromIQ and is "
     "shown as it was saved. This version works some of its rows out "
-    "differently; Update works the report out again.",
-    approved=False)
+    "differently. A newer report of the same measurements would be worked "
+    "out the current way.",
+    approved=True)   # Knut, #182 5831246553 (the UI reference removed)
 
 #: The two remedies of M-REPORT-DELETE-FAILED (re-challenge R2, #8). "Copy
 #: the project" is only a remedy for a report that lives in a project; a
@@ -3321,6 +3360,8 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_CHART_MISMATCH_NO_GREY,
     M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
     M_REPORT_UPDATE_OR_NEW, M_REPORT_UNCHANGED_UPDATE_OR_NEW,
+    M_REPORT_WORKED_OUT_DIFFERENTLY_UPDATE_OR_NEW,
+    M_REPORT_NEW_REPORT_SETTINGS,
     M_REPORT_ONE_PAGE_ONE_DATE,
     M_REPORT_UPDATE_NOT_FOUND, M_REPORT_UPDATE_LEAVES_OUT,
     M_REPORT_UPDATE_NOTHING_LEFT,

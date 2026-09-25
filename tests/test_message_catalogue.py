@@ -218,11 +218,18 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # FROM PROFILE GAMUT sheet's strip corners
                                  # against the profile's prediction; the note
                                  # our post promised, in our words.
-                                 # Challenge 5 of beta 42 (M1, B8-1091): a
-                                 # saved report shown as it was saved, when a
-                                 # later rule would work it out differently.
-                                 # Our words.
-                                 "M-REPORT-WORKED-OUT-EARLIER",
+                                 # K39-2 and K39-3 (Knut, #182 5831246553):
+                                 # the unchanged question when this version
+                                 # works the report out differently ("Yes"),
+                                 # and the red line after "New report…".
+                                 # His behaviour, our words.
+                                 "M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW",
+                                 "M-REPORT-NEW-REPORT-SETTINGS",
+                                 # (Challenge 5 of beta 42, M1, B8-1091:
+                                 # M-REPORT-WORKED-OUT-EARLIER was APPROVED
+                                 # by Knut in 5831246553 once its UI
+                                 # reference was removed, K39-1, and left
+                                 # this set.)
                                  # #182, 2026-09-19: Knut overruled his own
                                  # K.1 ("Generate report always creates a new
                                  # report"). Pressed with a report selected and

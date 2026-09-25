@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-25, K39 (Knut #182 5831246553: B8-1111 to B8-1114, M-REPORT-WORKED-OUT-EARLIER without "Update works the report out again.", M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW and M-REPORT-NEW-REPORT-SETTINGS titles and bodies, the "New report…" tooltip, and the audit's rewordings: "the profile runs it is drawn from", the colorimetric-missing paragraphs, the Paper white graph's reason). 10 keys in, 6 out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 5 (5 of the 6 retired keys were English echoes there). COUNTED off the tree rebased onto 1c4995c2, BOTH ledgers.
     # RE-MEASURED 2026-09-25, B8-1097 (Basti: the gear window gets OK and Close; its third paragraph now says "OK keeps your choice; Close leaves the lists as they were."). One key replaced by one: German by hand, does not move; the twelve others carried the old sentence in English already (K35, beta rule), so each loses one English echo and gains one and does not move. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-25, challenge 5 of beta 42 fixes (B8-1091 to B8-1095: M-REPORT-WORKED-OUT-EARLIER, title and body, and the two true reasons an empty trend graph gives). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 4. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K37 (B8-1081 to B8-1088: M-REPORT-PAPER-WHITE-FROM-PROFILE, M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE, M-REPORT-STRIP-CORNERS-PREDICTED and M-REPORT-STRIP-CORNERS-IDEAL, titles and bodies, and the (e) line of "How the colours were judged"). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 9. COUNTED off the tree, BOTH ledgers.
@@ -1024,18 +1025,18 @@ _BUDGET = {
     # 25 characters or more) under the beta rule. COUNTED off the tree, BOTH
     # ledgers in the same commit.
     "de": 13,
-    "es": 984,
-    "fr": 985,
-    "it": 984,
-    "ja": 984,
-    "nl": 984,
-    "no": 984,
-    "pl": 984,
-    "pt": 984,
-    "ru": 983,
-    "sv": 984,
-    "zh_CN": 983,
-    "uk": 1127,
+    "es": 989,
+    "fr": 990,
+    "it": 989,
+    "ja": 989,
+    "nl": 989,
+    "no": 989,
+    "pl": 989,
+    "pt": 989,
+    "ru": 988,
+    "sv": 989,
+    "zh_CN": 988,
+    "uk": 1132,
 }
 
 

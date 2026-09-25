@@ -232,15 +232,15 @@ def test_the_total_is_what_the_project_records_not_what_is_loaded(tmp_path,
             body = _plain(dlg._report_body_html(dlg._runs_for_report(),
                                                 for_pdf=False))
             m = re.search(r"covers (\d+) of the (\d+) measurements recorded "
-                          r"for (this profile run|the \d+ profile runs it was "
-                          r"chosen from)", body)
+                          r"for (this profile run|the \d+ profile runs it is "
+                          r"drawn from)", body)
             said.append((int(m.group(1)), int(m.group(2)), m.group(3))
                         if m else None)
         # which ticked rows the document KEEPS is the limit-set rule's
         # business, not this test's: the totals and the wording are.
         assert [x if x is None else x[1:] for x in said] == [
-            None, (2, "the 2 profile runs it was chosen from"),
-            (3, "the 3 profile runs it was chosen from")], said
+            None, (2, "the 2 profile runs it is drawn from"),
+            (3, "the 3 profile runs it is drawn from")], said
     finally:
         dlg.close()
 
@@ -363,7 +363,7 @@ def test_a_document_drawn_from_two_projects_does_not_call_them_one(tmp_path,
         # out here, so the sentence must be there, and it must be plural.
         m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
                       r"(this project|the projects it is drawn from|"
-                      r"this profile run|the \d+ profile runs it was chosen "
+                      r"this profile run|the \d+ profile runs it is drawn "
                       r"from|the profile runs of the projects it is drawn "
                       r"from)", body)
         assert m is not None, (
@@ -443,7 +443,7 @@ def test_two_spellings_of_one_folder_are_one_project(tmp_path, qapp):
                                             for_pdf=False))
         m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
                       r"(this project|the projects it is drawn from|"
-                      r"this profile run|the \d+ profile runs it was chosen "
+                      r"this profile run|the \d+ profile runs it is drawn "
                       r"from|the profile runs of the projects it is drawn "
                       r"from)", body)
         assert m is not None, (
@@ -551,8 +551,8 @@ def test_a_renamed_project_is_still_ONE_project(tmp_path, qapp):
         for where, text in (("before the rename", before), ("after it", body)):
             m = re.search(r"covers (\d+) of the (\d+) measurements recorded "
                           r"for (this project|the projects it is drawn from|"
-                          r"this profile run|the \d+ profile runs it was "
-                          r"chosen from|the profile runs of the projects it "
+                          r"this profile run|the \d+ profile runs it is "
+                          r"drawn from|the profile runs of the projects it "
                           r"is drawn from)",
                           text)
             if m is None:
@@ -677,7 +677,7 @@ def test_two_cases_of_one_name_are_one_project(tmp_path, qapp):
         # verification count of the runs in the list, as K14 defines it.
         m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
                       r"(this project|the projects it is drawn from|"
-                      r"this profile run|the \d+ profile runs it was chosen "
+                      r"this profile run|the \d+ profile runs it is drawn "
                       r"from|the profile runs of the projects it is drawn "
                       r"from)", body)
         assert m is not None, (

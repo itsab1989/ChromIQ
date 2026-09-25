@@ -1806,9 +1806,12 @@ class _TrendChart(QWidget):
                       "has nothing to draw. Choose a report type or a limit "
                       "set that judges them to see their trend.")
         if getattr(self, "_n_given", 0) >= 2:
-            return tr("Fewer than two of the ticked measurements have a "
-                      "value for this graph, so it draws no trend. The "
-                      "notes under the results say why a value is missing.")
+            # K39-1: this graph is printed in the PDF, so it names no part
+            # of the window ("the ticked measurements").
+            return tr("Fewer than two of the measurements in this report "
+                      "have a value for this graph, so it draws no trend. "
+                      "The notes under the results say why a value is "
+                      "missing.")
         return tr("A trend graph needs at least two measurements. "
                   "Add another measurement, or tick more of the measurements "
                   "in the list above. “Select all” ticks every one of "
@@ -5378,10 +5381,15 @@ class MeasurementReportDialog(QDialog):
         # file changed on disk. The page is kept for those, so the line is
         # the only thing saying the report on screen is no longer the list's,
         # whatever is ticked.
+        # K39-3: after "New report…" the line is up whatever the settings
+        # are, until a report is drawn: the page is still the report shown
+        # before it, and the reader is told to set up the new one and press
+        # Generate report (Knut, #182 5831246553).
         self._stale_label.setVisible(
-            self._settings_were_modified()
-            and (not self._nothing_is_ticked()
-                 or self._page_lost_what_it_covers()))
+            bool(getattr(self, "_new_report_pending", False))
+            or (self._settings_were_modified()
+                and (not self._nothing_is_ticked()
+                     or self._page_lost_what_it_covers())))
         self._word_the_stale_line()
         # **THE PDF DOOR STAYS OPEN, AND THE PDF IS WHAT IS ON SCREEN
         # (B8-364).** Round 21 measured the fault: with the pulldown on `Colour
@@ -5454,6 +5462,12 @@ class MeasurementReportDialog(QDialog):
             return
         gen = getattr(self, "_generate_btn", None)
         greyed = gen is not None and not gen.isEnabled()
+        if getattr(self, "_new_report_pending", False):
+            # K39-3: "New report…" was chosen over a report on the page.
+            from workflow.measurement_messages import (
+                M_REPORT_NEW_REPORT_SETTINGS)
+            label.setText("⚠ " + M_REPORT_NEW_REPORT_SETTINGS.render()[1])
+            return
         # Two literals, not a variable: the catalogue extractor cannot see
         # what a tr(variable) will be asked for.
         label.setText(
@@ -5515,6 +5529,9 @@ class MeasurementReportDialog(QDialog):
         if getattr(self, "_keep_page", 0) and self._page_shows_a_report():
             self._show_stale_banner()
             return
+        # A REPORT IS DRAWN, so a "New report…" waiting for Generate is over
+        # (K39-3): the red line is asked again from here.
+        self._new_report_pending = False
         if not self._nothing_is_ticked():
             self._doc_built_with = self._doc_settings()
             self._page_covers = self._coverage_now()
@@ -5725,6 +5742,10 @@ class MeasurementReportDialog(QDialog):
             self._runs_as_drawn = None
         self._doc_moved_as_built = bool(
             getattr(self, "_doc_settings_moved", False))
+        # Which saved report the page is (K39-3, `_as_the_document_was_built`).
+        self._doc_as_built = (getattr(self, "_loaded_doc_id", ""),
+                              getattr(self, "_loaded_doc", None),
+                              getattr(self, "_doc_created", ""))
 
     def _refresh_trend(self) -> None:
         """Repaint the trend charts from the report's current run set."""
@@ -5993,6 +6014,17 @@ class MeasurementReportDialog(QDialog):
         return SCOPE_MULTIPLE_DATES
 
     def _on_generate_report(self) -> None:
+        """One press of Generate report (`_generate_once`), with each
+        measurement worked out again from disk AT MOST ONCE (K39-2): the
+        question after the press compares that working with the page, and
+        the write that follows uses the same rows (`_worked_out_again`)."""
+        self._press_cache = {}
+        try:
+            self._generate_once()
+        finally:
+            self._press_cache = None
+
+    def _generate_once(self) -> None:
         """Save a report of the type now chosen, for the run now shown.
 
         **Knut, 2026-09-11.** A run may hold reports of several types: *"the
@@ -6348,9 +6380,21 @@ class MeasurementReportDialog(QDialog):
                     or self._differs_from_the_saved_report()
                     or self._fit_to_kind(self._report_type_now())
                     != self._report_type_now())
-        title, body = M.CATALOGUE[
-            "M-REPORT-UPDATE-OR-NEW" if modified
-            else "M-REPORT-UNCHANGED-UPDATE-OR-NEW"].render()
+        # **K39-2 (Knut, #182 5831246553, "Yes"): NOTHING CHANGED, AND STILL
+        # AN UPDATE WOULD CHANGE THE REPORT.** On a report an earlier version
+        # worked out (B8-1091), "Nothing was changed for the selected report"
+        # was followed by an Update that turned FAIL into PASS. So the window
+        # asks the question the press will answer: the rows this version
+        # works out from disk, judged against the report's own set, compared
+        # with the rows on the page (`_update_would_change_the_report`).
+        if modified:
+            mid = "M-REPORT-UPDATE-OR-NEW"
+        elif self._update_would_change_the_report():
+            mid = "M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW"
+        else:
+            mid = "M-REPORT-UNCHANGED-UPDATE-OR-NEW"
+        self._update_or_new_asked = mid
+        title, body = M.CATALOGUE[mid].render()
         box = QMessageBox(self)
         set_question_icon(box)
         box.setWindowTitle(title)
@@ -6385,6 +6429,73 @@ class MeasurementReportDialog(QDialog):
         if clicked is new:
             return "new"
         return "cancel"
+
+    @staticmethod
+    def _results_signature(rows: list, overall) -> tuple:
+        """What a reader of the results reads off *rows*: each row's name,
+        its word and its number as printed (two decimals), and the overall
+        word. Two workings with one signature print the same results."""
+        out = []
+        for x in rows or []:
+            v = x.get("value")
+            try:
+                v = round(float(v), 2) if v is not None else None
+            except (TypeError, ValueError):
+                v = str(v)
+            out.append((str(x.get("row_id") or x.get("key") or ""),
+                        str(x.get("word") or ""), v))
+        return (tuple(sorted(out)), str(overall or ""))
+
+    def _update_would_change_the_report(self) -> bool:
+        """Would an Update of the selected report, with nothing changed,
+        print other results than the page shows (K39-2)?
+
+        ASKED OF THE PRESS ITSELF, not guessed: each measurement the Update
+        would write is worked out again from disk exactly as the write does
+        (`_worked_out_again`, cached for the press), judged against the
+        report's own limits (`stamp_verdict`), and its rows, words and
+        numbers compared with the rows the page was drawn from
+        (`_runs_as_drawn`). A change in how the rows are explained counts
+        too: that is B8-1091's test (`_worked_out_differently`), which is
+        also what puts M-REPORT-WORKED-OUT-EARLIER on the page. False when
+        nothing can be compared (never a reason to refuse the press)."""
+        from workflow.measurement_report import stamp_verdict
+        try:
+            lim = self._report_limits()
+            drawn_rows = getattr(self, "_runs_as_drawn", None)
+            if drawn_rows is None:
+                drawn_rows = self._runs_for_report()
+            drawn = {self._run_key(r): r for r in drawn_rows
+                     if isinstance(r, dict)}
+            for r in self._runs_for_document():
+                if not isinstance(r, dict):
+                    continue
+                page = drawn.get(self._run_key(r), r)
+                if page.get(WORKED_OUT_EARLIER_KEY):
+                    return True
+                new = self._worked_out_again(r)
+                if new is r:
+                    continue            # nothing on disk to work it out from
+                rep = dict(new)
+                stamp_verdict(rep, lim.limits, set_id=lim.set_id,
+                              set_label=lim.label_en, edited=lim.edited)
+                if _worked_out_differently(
+                        {k: v for k, v in page.items() if k != RECORD_KEY},
+                        rep):
+                    return True
+                was = self._results_signature(
+                    self._verdict_rows(page)[0],
+                    (page.get("verdict") or {}).get("overall"))
+                now = self._results_signature(
+                    self._verdict_rows(rep)[0],
+                    (rep.get("verdict") or {}).get("overall"))
+                if was != now:
+                    return True
+        except Exception:                              # noqa: BLE001
+            log.debug("could not compare the Update with the page",
+                      exc_info=True)
+            return False
+        return False
 
     def _write_the_document(self, ctx, reports: list,
                             updating: "dict | None" = None, *,
@@ -6812,8 +6923,19 @@ class MeasurementReportDialog(QDialog):
         # when it was drawn (M2, B8-1092; see `_remember_how_it_was_built`).
         held_moved = getattr(self, "_doc_settings_moved", False)
         held_rows = getattr(self, "_runs_forced", None)
+        # …AND WHICH SAVED REPORT THE PAGE IS (K39-3): after "New report…"
+        # the page is still the report shown before it, while the window
+        # already holds the new report's defaults. What the body reads of the
+        # selected report (its deleted runs, its creation) is the page's.
+        held_doc = (getattr(self, "_loaded_doc_id", ""),
+                    getattr(self, "_loaded_doc", None),
+                    getattr(self, "_doc_created", ""))
+        doc_as_built = getattr(self, "_doc_as_built", None)
         try:
             _put(tuple(built))
+            if doc_as_built is not None:
+                (self._loaded_doc_id, self._loaded_doc,
+                 self._doc_created) = doc_as_built
             if state:
                 (self._type_as_built, self._limits_cache,
                  self._limits_by_origin, self._limits) = (
@@ -6832,6 +6954,8 @@ class MeasurementReportDialog(QDialog):
             self._report_own_limits = held_own
             self._doc_settings_moved = held_moved
             self._runs_forced = held_rows
+            (self._loaded_doc_id, self._loaded_doc,
+             self._doc_created) = held_doc
             _put(before)
             for w, was in blocked:
                 w.blockSignals(was)
@@ -8784,8 +8908,8 @@ class MeasurementReportDialog(QDialog):
             combo.addItem(tr("New report…"), NEW_REPORT_KEY)
             combo.setItemData(
                 0, tr("Start a new report from the defaults in Preferences ▸ "
-                      "Reports. Nothing is written until you press Generate "
-                      "report."),
+                      "Reports. The report shown stays on the page, and "
+                      "nothing is written, until you press Generate report."),
                 Qt.ItemDataRole.ToolTipRole)
             # **GROUPED BY WHERE THE MEASUREMENTS COME FROM (K25).** Knut,
             # 2026-09-23: the names stay, *"but are grouped according to which
@@ -9075,7 +9199,7 @@ class MeasurementReportDialog(QDialog):
         self._pick_just_loaded = key
         QTimer.singleShot(0, self._forget_the_pick)
         if key == NEW_REPORT_KEY:
-            self._start_new_report()
+            self._start_new_report(chosen=True)
             return
         self._load_document(key)
 
@@ -9107,7 +9231,7 @@ class MeasurementReportDialog(QDialog):
         # one state in which a click on it is needed most: the list named a
         # report the page was not showing, and picking it did nothing.
         if key == NEW_REPORT_KEY:
-            self._start_new_report()
+            self._start_new_report(chosen=True)
         else:
             self._load_document(key)
 
@@ -9148,7 +9272,7 @@ class MeasurementReportDialog(QDialog):
             "measurements": [],
         }
 
-    def _start_new_report(self) -> None:
+    def _start_new_report(self, *, chosen: bool = False) -> None:
         """"New report…" was chosen: load the Preferences defaults (B8-388).
 
         Nothing on disk is read, written, deleted or renamed by this: it is the
@@ -9156,7 +9280,34 @@ class MeasurementReportDialog(QDialog):
         from the list. The user may then change anything, and Generate report
         writes a NEW document, which is Knut's K.1 (*"It is better that
         existing reports are not overwritten"*) unchanged.
+
+        **K39-3 (Knut, #182 5831246553): CHOSEN BY THE READER, IT DOES NOT
+        CHANGE THE REPORT ON THE PAGE.** *"Selecting "New report…" will not
+        change whatever report is currently visible, but loads the default
+        settings for "New report…", and should then also show a red text
+        message telling user to modify settings as desired and then press
+        Generate Report to apply and make a new report. Generate Report will
+        then update the viewed report on screen."* So with *chosen* (a pick
+        in "Report shown", by mouse or keyboard) and a report on the page,
+        the defaults go into the controls and the list, the page and its
+        graphs are kept (`_keeping_the_page`), and the red line says
+        M-REPORT-NEW-REPORT-SETTINGS until a report is drawn. The doors that
+        must replace the page (a delete that took the report shown, a
+        Generate that found its report gone) pass no *chosen* and draw, as
+        before. Choosing the previous report again loads it with its own
+        stored settings (`_load_document`), which is his last sentence.
         """
+        keep = chosen and self._page_shows_a_report()
+        if keep:
+            self._new_report_pending = True
+            with self._keeping_the_page():
+                self._enter_the_new_report()
+            return
+        self._enter_the_new_report()
+
+    def _enter_the_new_report(self) -> None:
+        """The body of `_start_new_report`: the defaults, the rows picked
+        again, and the repaint (which `_keeping_the_page` may hold)."""
         self._drop_borrowed_sources()        # recheck R1
         self._load_the_defaults()
         # A NEW REPORT IS ABOUT THE NEWEST FILE OF EACH MEASUREMENT, so the
@@ -12316,6 +12467,21 @@ class MeasurementReportDialog(QDialog):
         origin = str(r.get("_origin_dir") or "")
         if not origin:
             return r
+        # ONE WORKING PER MEASUREMENT PER PRESS (K39-2): the question after
+        # the press and the write both ask, and must be given the same rows.
+        cache = getattr(self, "_press_cache", None)
+        ck = (repr(self._run_key(r)), origin, str(r.get("ti3") or ""))
+        if isinstance(cache, dict) and ck in cache:
+            hit = cache[ck]
+            return r if hit is None else dict(hit)
+        new = self._worked_out_again_from_disk(r, origin)
+        if isinstance(cache, dict):
+            cache[ck] = None if new is r else dict(new)
+        return new
+
+    def _worked_out_again_from_disk(self, r: dict, origin: str) -> dict:
+        """The body of `_worked_out_again`, uncached."""
+        from workflow.measurement_report import build_report
         # The name the report records; the window's own file when it is in
         # this folder (a target renamed since keeps the old name in its
         # reports, `_measurement_for`).
@@ -13073,8 +13239,11 @@ class MeasurementReportDialog(QDialog):
                 note = (tr("This report covers {n} of the {total} measurements "
                            "recorded for this profile run.")
                         if _nr <= 1 else
+                        # K39-1: "it was chosen from" named the choosing
+                        # done in the window; the report says what it is
+                        # drawn from, as the other lines here do.
                         tr("This report covers {n} of the {total} measurements "
-                           "recorded for the {runs} profile runs it was chosen "
+                           "recorded for the {runs} profile runs it is drawn "
                            "from."))
             elif _kind == "verification":
                 note = tr("This report covers {n} of the {total} measurements "
@@ -13101,7 +13270,9 @@ class MeasurementReportDialog(QDialog):
         an earlier version saved, and this version would work it out
         differently (challenge 5 of beta 42, M1, B8-1091): the page is the
         record (§6), its notes are the record's, and the reader is told once
-        that Update works it out again (M-REPORT-WORKED-OUT-EARLIER). Empty
+        that a newer report would be worked out the current way
+        (M-REPORT-WORKED-OUT-EARLIER; K39-1: report text names no button,
+        Knut 5831246553). Empty
         for a new report, whose rows are this version's. Never raises."""
         try:
             if not any(isinstance(r, dict) and r.get(WORKED_OUT_EARLIER_KEY)
@@ -15696,12 +15867,14 @@ class MeasurementReportDialog(QDialog):
                     "when it was made, and that reference file cannot be "
                     "found. Comparing against anything else would produce "
                     "confident-looking numbers measured against the wrong "
-                    "yardstick, so ChromIQ shows none at all."))
+                    "yardstick, so none are shown."))
+                # K39-1 (Knut, #182 5831246553): report text names no
+                # action of the app ("reopen this report", "generate the
+                # verification chart again"); it says what is missing.
                 + "<br><br>" + html.escape(tr(
-                    "If the file was moved, put it back next to the chart in "
-                    "the run's “verifications” folder and reopen this report. "
-                    "If it is gone for good, generate the verification chart "
-                    "again — a fresh chart brings a fresh reference with it."))
+                    "The reference file belongs next to the chart in the "
+                    "run's “verifications” folder and is not there. A chart "
+                    "made again carries a reference of its own."))
                 + "</p>")
         else:
             parts.append(f"<p style='color:{_C['faint']}'>" + html.escape(tr(

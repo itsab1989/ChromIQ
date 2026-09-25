@@ -101,7 +101,10 @@ def _window(s, ti3, qapp):
     dlg._detail_check.setChecked(True)
     qapp.processEvents()
     assert dlg._hidden_runs == set(), dlg._hidden_runs
-    dlg._render()
+    # K39-3 (Knut, #182 5831246553): "New report…" keeps the report shown,
+    # page and graphs, until Generate; these checks read the page a new
+    # report of everything draws, so it is drawn here without writing one.
+    dlg._refresh()
     qapp.processEvents()
     return dlg
 

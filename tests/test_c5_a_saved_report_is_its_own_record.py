@@ -292,10 +292,13 @@ def test_an_old_saved_report_explains_its_own_words(tmp_path, qapp,
             not in page
         assert page.count(M.M_REPORT_WORKED_OUT_EARLIER.render()[0]) == 1
         assert " ".join(earlier.split()) in " ".join(page.split())
-        # New report…: this version's working, and no line
+        # New report…: this version's working, and no line. K39-3 (Knut,
+        # 5831246553): choosing it keeps the report shown on the page until
+        # Generate, so the rows a new report is drawn from are asked.
         dlg._saved_combo.setCurrentIndex(0)
         qapp.processEvents()
-        assert earlier not in dlg._view.toPlainText()
+        assert dlg._view.toPlainText() == page
+        assert dlg._worked_out_earlier_html(dlg._runs_for_report()) == ""
     finally:
         dlg.close()
 
@@ -371,7 +374,9 @@ def test_an_empty_graph_gives_the_true_reason(qapp):
     c.set_data(pts, [])
     assert "judges none of this graph's rows" in c.empty_reason()
     c.set_data(pts, [("x", QColor("red"), lambda pt: None)])
-    assert "Fewer than two of the ticked measurements" in c.empty_reason()
+    # K39-1: printed in the PDF, so it names no part of the window
+    assert "Fewer than two of the measurements in this report" in \
+        c.empty_reason()
     c.set_data(pts[:1], [("x", QColor("red"), lambda pt: 1.0)])
     assert "needs at least two measurements" in c.empty_reason()
 

@@ -874,6 +874,14 @@ rebuilt report's kept verdict is shown with the report's own record, not with
 the rebuild's explanations (§33.6's amendment), and only Generate works a
 report out again from disk (§28.10's amendment).
 
+**Amended (K39, Knut 5831246553, 2026-09-25, not confirmed):** the line that
+says so, M-REPORT-WORKED-OUT-EARLIER, is approved without its last sentence
+("Update works the report out again."), which named a button; it now ends
+*"A newer report of the same measurements would be worked out the current
+way."* (§35). And with nothing changed, Generate report asks whether to
+update in words that say when an Update would change such a report (§28,
+27.12).
+
 ## 7. Settings migration
 
 **⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
@@ -4250,6 +4258,22 @@ proposed in `unified_measurement_management.md`.
 * **Proof:** `~/Desktop/ChromIQ-beta36-proof/final-challenge/`,
   `~/Desktop/ChromIQ-beta37-proof/challenge-B/`, `~/Desktop/ChromIQ-beta37-proof/fixes/`.
 * **Status:** agreed; the built result is confirmed. **Confirmed by:** Knut, 2026-09-23 (#182 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
+* **Sharpened by Knut, 2026-09-25 (K39-1,
+  [5831246553](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5831246553)):**
+  *"This part "Update works the report out again." is not according to
+  rules for report text and notifications in the report. It refers to
+  features, actions or buttons in the app interface, which shall never be
+  part of the notes or the report text. Make sure all reports and notes do
+  not directly mention such things, but if helpful for a user or customer to
+  understand instead mentions topics in a general term without referring to
+  features, actions or buttons in the app interface."* So report text (the
+  page in the window, the PDF, Report Scope, the notes, the reading guide,
+  the graphs, and every §M message printed in a report) names no feature,
+  action, button, menu, tab, window or pulldown of the app; where it helps,
+  it speaks of the topic in general terms. Window text (dialogs, tooltips,
+  status lines, the red line, the empty page) still may. The rule is ruled;
+  the audit and what was changed for it are §35, **awaiting confirmation**
+  (the confirmation above covers §19.1 as it stood on 2026-09-23).
 
 ### 19.2 An N-A note names what the measured chart lacks (K22)
 
@@ -6010,6 +6034,78 @@ from outside a project can no longer be looked at against another limit set
 before saving its PDF. Keep that (his rule as written), or let such a
 window redraw on a setting change, since it holds no saved report to keep?
 
+**27.11 "New report…" keeps the report shown (K39-3, Knut, #182
+[5831246553](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5831246553),
+2026-09-25; built for beta 43, B8-1113, NOT confirmed).** Asked whether
+"New report…" should read the measurements again, since it shows no saved
+report, Knut answered:
+
+> *"No. Selecting "New report…" will not change whatever report is
+> currently visible, but loads the default settings for "New report…", and
+> should then also show a red text message telling user to modify settings as
+> desired and then press Generate Report to apply and make a new report.
+> Generate Report will then update the viewed report on screen. However, if a
+> user selects "New report…", and then goes back to selecting the previously
+> selected report, then that report reloads, as normal when selecting a
+> report. This implies that, if a user had made changes to the settings,
+> those are reverted to what the report has stored when the report is
+> re-selected."*
+
+What the window does (`_start_new_report(chosen=True)`, `_new_report_pending`,
+`_show_stale_banner`, `_word_the_stale_line`):
+
+* **Chosen by the reader** in "Report shown", with the mouse or the keyboard
+  (Up, Down), over a page that shows a report: the Preferences defaults of a
+  new report go into the controls (type, "Judged against", "Show detailed
+  data"; every measurement of the list ticked, as before), the page, its
+  graphs and Save report as PDF… stay the report shown (the PDF also keeps
+  that report's Report Scope and creation line), Delete Selected Report is
+  greyed ("New report…" is not a report), and the red line reads
+  M-REPORT-NEW-REPORT-SETTINGS (§M-PROPOSED): *"⚠ New report: change the
+  settings as wanted, then press “Generate report” to make it. The report
+  shown stays as it is until then."* It is up whatever the settings are,
+  until a report is drawn.
+* **Generate report** then writes the new report and draws it; the line
+  goes.
+* **The previous report chosen again** reloads as any report does: its own
+  stored settings come back (a change made after "New report…" is gone), its
+  page is drawn, the line goes.
+* **"New report…" when the list holds no report**: the window opens on
+  "New report…" with its page drawn from the defaults and no red line
+  (nothing was chosen); choosing "New report…" again keeps that page and
+  shows the line.
+* **A calibration window** behaves the same.
+* **The doors that must replace the page** are unchanged: a delete that
+  took the report shown and lands on "New report…" draws (the deleted report
+  may not stay on screen), and so does a Generate that found its report
+  gone from the list.
+* **The page under "New report…" is still the window's reading** of each
+  measurement, and only Generate works them out again from disk (B8-1094),
+  which answers the second question of B8-1093 ("No").
+
+**27.12 The unchanged question has a variant for a report this version works
+out differently (K39-2, Knut, #182
+[5831246553](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5831246553):
+"Yes"; built for beta 43, B8-1112, NOT confirmed).** With a saved report
+selected and nothing changed, Generate report asks
+M-REPORT-UNCHANGED-UPDATE-OR-NEW (approved) only when an Update would print
+the same results. The window works each measurement the Update would write
+out again from disk, exactly as the Update does (`_worked_out_again`, once
+per press), judges it against the report's own limit set, and compares each
+row's name, word and number (two decimals) and the Overall word with the
+rows the page was drawn from; a change in how the rows are explained
+(B8-1091's `_worked_out_differently`, the test behind
+M-REPORT-WORKED-OUT-EARLIER) counts too
+(`_update_would_change_the_report`). When they differ it asks
+M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW (§M-PROPOSED), *"This version
+works the selected report out differently"*, with the same numbered list and
+the same buttons: Create New, Update, Cancel from the left, Create New the
+default. A changed setting still asks M-REPORT-UPDATE-OR-NEW.
+
+**Proof (27.11, 27.12):** `~/Desktop/ChromIQ-beta43-proof/k39-report/` (on
+screen, EN and DE, before and after). **Verified by:**
+`tests/test_k39_update_question_and_new_report.py`.
+
 **Proof:** `~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/` (on screen, EN
 and DE, before and after). **Verified by:**
 `tests/test_c2_the_page_changes_only_with_generate.py` (six tests, one per
@@ -6925,9 +7021,12 @@ white-mapped sheet with no paper patch saved before K37 keeps its absolute
 numbers, its "Paper white" line carries the approved M-REPORT-NO-PAPER-PATCH
 (true of it), and the (e) note and line are not shown. Where this version
 would work the report out differently, Report Scope says so once,
-M-REPORT-WORKED-OUT-EARLIER (PROPOSED): *"This report was worked out by an
+M-REPORT-WORKED-OUT-EARLIER (proposed then; APPROVED by Knut, 5831246553,
+without its last sentence, K39-1, §35): *"This report was worked out by an
 earlier version of ChromIQ and is shown as it was saved. This version works
-some of its rows out differently; Update works the report out again."* A
+some of its rows out differently. A newer report of the same measurements
+would be worked out the current way."* (It ended *"; Update works the report
+out again."*, which named a button.) A
 report of several dates records, beside each verdict, the yardstick and the
 rule blocks (`judged_block`) from now on. A new report and every live
 judgement use this version's working. Measured on screen,
@@ -7109,3 +7208,88 @@ the run's OWN limit, ChromIQ default's.)
 message texts proposed.
 
 **Words approved, reworded (Knut, #182 [5824834975](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5824834975), 2026-09-25):** he approves M-REPORT-STRIP-CORNERS-PREDICTED and M-REPORT-STRIP-CORNERS-IDEAL once "sheet" is made clear (he could not tell whether it meant the measured chart, a metric or the report). The bodies quoted above are the words he was shown; the approved bodies name the measurement instead ("The chart of this measurement …", "In this measurement …") and end *"Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual."* The current words are in §M of `unified_measurement_management.md`. M-REPORT-NO-PAPER-PATCH was reworded the same way; its approval (5820871320) is kept. The behaviour is unchanged and still awaits confirmation.
+
+
+## 35. K39: report text names no feature, action or button of the app (#182, 2026-09-25, beta 43)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5831246553](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5831246553)
+(2026-09-25), on M-REPORT-WORKED-OUT-EARLIER:
+
+> *"This part "Update works the report out again." is not according to rules
+> for report text and notifications in the report. It refers to features,
+> actions or buttons in the app interface, which shall never be part of the
+> notes or the report text. Make sure all reports and notes do not directly
+> mention such things, but if helpful for a user or customer to understand
+> instead mentions topics in a general term without referring to features,
+> actions or buttons in the app interface. Besides this, the message is
+> approved."*
+
+The rule is his and is recorded in §19.1. What follows is what was done for
+it; the rewordings wait for his confirmation. Register B8-1111 and B8-1114.
+
+**35.1 What counts as report text.** The page of the Measurement Report
+window, the PDF, Report Scope, Report Results and its numbered notes, the
+Overview, "How to read this report", the detailed section, the graphs and
+the lines printed with them, the metric names and blurbs, the standard
+caveat, the summary reasons, and every §M message printed in a report (the
+catalogue marks them "window and PDF" or "report text"; M-REPORT-PATCH-
+COUNTS-DIFFER is printed too). Window text may name controls: the question
+boxes, the red line, the reasons under "Generate report", tooltips, the
+settings help, and the empty page (which is shown only when there is no
+report, and is never saved or printed).
+
+**35.2 How it was audited.** (a) Every `tr()` literal of the functions that
+compose the report (`REPORT_FUNCTIONS` in the guard test below) was read.
+(b) The page and the PDF body were composed for 107 measurements of the
+beta 41 demo pack (`~/Desktop/ChromIQ-beta42-proof/challenge-2/pack/`, a
+copy), for every saved report in "Report shown" and for "New report…" with
+every measurement ticked under every report type and limit set the window
+offers, detail on: 3,397 distinct sentences, each searched for the words of
+the app's interface. (c) The German of every such text was searched for the
+German words of the interface.
+
+**35.3 What was changed (old → new).**
+
+| where | old | new |
+|---|---|---|
+| Report Scope, M-REPORT-WORKED-OUT-EARLIER (§M, APPROVED with this change, 5831246553) | "This report was worked out by an earlier version of ChromIQ and is shown as it was saved. This version works some of its rows out differently; Update works the report out again." | "This report was worked out by an earlier version of ChromIQ and is shown as it was saved. This version works some of its rows out differently. A newer report of the same measurements would be worked out the current way." |
+| Report Scope, the count of a verification report across profile runs | "This report covers {n} of the {total} measurements recorded for the {runs} profile runs it was chosen from." | "This report covers {n} of the {total} measurements recorded for the {runs} profile runs it is drawn from." |
+| Detailed data, a FROM PROFILE GAMUT chart whose reference file is missing, first paragraph | "… measured against the wrong yardstick, so ChromIQ shows none at all." | "… measured against the wrong yardstick, so none are shown." |
+| the same, second paragraph | "If the file was moved, put it back next to the chart in the run's “verifications” folder and reopen this report. If it is gone for good, generate the verification chart again — a fresh chart brings a fresh reference with it." | "The reference file belongs next to the chart in the run's “verifications” folder and is not there. A chart made again carries a reference of its own." |
+| a trend graph with fewer than two values (printed in the PDF, B8-1084) | "Fewer than two of the ticked measurements have a value for this graph, so it draws no trend. The notes under the results say why a value is missing." | "Fewer than two of the measurements in this report have a value for this graph, so it draws no trend. The notes under the results say why a value is missing." |
+
+German by hand for each. No other approved §M message printed in a report
+names the app, so none went back to awaiting approval.
+
+**35.4 Kept, as window text** (B8-1114, for Knut's eye): the empty page's
+three sentences ("… Measure its chart on the Measure tab, or add measurements
+with “Add Profile's Measurements…”."); two placeholders of an empty graph that
+the PDF never prints ("Choose a report type or a limit set that judges them to
+see their trend.", "Add another measurement, or tick more of the measurements
+in the list above. “Select all” ticks every one of them."); the hover text of
+a saved COND cell ("Generate the report again to have it judged by today's
+rule.").
+
+**35.5 The guard.** `tests/test_report_text_names_no_part_of_the_app.py`
+scans the four sources of report text (the report functions' `tr()` literals,
+the tables they print from, the §M messages printed in a report, and the
+rendered page and PDF body of a graded report, a Printing record and a saved
+report worked out earlier) and the German of each, for the controls by name
+("Generate", "Update", "Create New", "Edit limits", "Preferences", "Report
+shown", "New report…", the list's buttons, the tabs), the words for controls
+(button, tab, menu, pulldown, tick box, dialog) and the verbs a reader
+operates them with (click, press the …, tick, choose, reopen). An exception
+goes into its `ALLOWED` table with the reason, never into the pattern.
+
+* **Built:** `workflow/measurement_messages.py`,
+  `ui/dialogs/measurement_report_dialog.py` (`_scope_html`,
+  `_run_detail_html`, `_TrendChart.empty_reason`), `data/i18n/*.json`.
+* **Verified by:** `tests/test_report_text_names_no_part_of_the_app.py`
+  (each test red on the mutation in its docstring).
+* **Proof:** `~/Desktop/ChromIQ-beta43-proof/k39-report/` (on screen, EN
+  and DE, before and after).

@@ -461,6 +461,12 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-REPORT-WORKED-OUT-EARLIER": [
         "not reachable from this package: every report in it is written by this version; open a report saved by beta 41 or earlier on a FROM PROFILE GAMUT date (for example Report-Limits-Second-Route/run2 from the beta 41 package)",
     ],
+    "M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW": [
+        "not reachable from this package: every report in it is written by this version; select a report saved by beta 41 or earlier on a FROM PROFILE GAMUT date (for example Report-Limits-Second-Route/run2, 2029-03-26, from the beta 41 package), change nothing, and press Generate report",
+    ],
+    "M-REPORT-NEW-REPORT-SETTINGS": [
+        "Report-Limits-Report-Types/run1: with a saved report shown, choose “New report…” in “Report shown” (the page stays; the red line comes up)",
+    ],
     "M-REPORT-UPDATE-NOTHING-LEFT": [
         "Report-Limits-Report-Folders/run1: delete the .ti3 of the 2026-12-08 date, then Update the 2026-12-08 10:00 One date report",
     ],

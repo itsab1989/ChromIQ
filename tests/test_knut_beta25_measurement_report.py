@@ -254,11 +254,14 @@ def test_a_new_report_still_shows_this_windows_own_clock(a_saved_report, qapp):
     dlg._saved_combo.setCurrentIndex(i)
     dlg._saved_combo.activated.emit(i)
     qapp.processEvents()
-    now = re.search(r"Created: (\S+ \S+)", _plain(dlg))
-    assert now, "the New report state has no Created line at all"
-    assert now.group(1) == dlg._created.replace("T", " "), (
-        f"New report says {now.group(1)!r}, the window opened at "
-        f"{dlg._created!r} (the loaded report said {was!r})")
+    # K39-3 (Knut, #182 5831246553): "New report…" keeps the report shown on
+    # the page until Generate, so the page still says what it said; nothing
+    # is loaded any more, so the next page drawn (the new report) carries
+    # the window's own clock, not the last document's.
+    assert re.search(r"Created: (\S+ \S+)", _plain(dlg)).group(1) == was
+    assert dlg._doc_created == "", (
+        f"New report still holds the loaded report's creation "
+        f"{dlg._doc_created!r} (the window opened at {dlg._created!r})")
 
 
 # ---------------------------------------------------------------------------
