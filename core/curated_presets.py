@@ -388,3 +388,64 @@ def read_table(raw: bytes | str, known: Iterable[str]) -> TableReading:
         else:
             out.invalid.append((line, key, name, answer))
     return out
+
+
+# ---------------------------------------------------------------------------
+# The paper filter (Knut, #182 5832303551, beta 43)
+# ---------------------------------------------------------------------------
+#
+# *"Add a checkbox in the window named "Filter preset-dropdown list according
+# to selected paper size". When OFF, all presets are listed [...] according to
+# what is selected to be shown in the settings window. When ON, the dropdown
+# lists for "Select preset" and the "built-in presets" button show only the
+# presets related to the selection in "Paper" field in Create Chart (either
+# "Paper size" in Guided or "Paper" in Manual mode) [...] The presets under
+# headings Scanner are always shown. The Red River Paper presets area also
+# filtered [...] If the Paper size setting is Custom [...] all the presets
+# using the Custom Paper size setting will be shown."*
+#
+# A preset's paper is the printtarg ``-p`` code it lays the chart out on,
+# which every built-in carries and a person's own preset stores as
+# ``printtarg_-p``. The pulldowns list each ORIENTATION as its own entry
+# ("A3 Portrait" is ``A3``, "A3 Landscape" is ``420x297``), so orientation is
+# part of the paper and the match is exact. Any code the paper list does not
+# name (``100x150``, a person's ``210x280``) is what the Paper field shows as
+# "Custom (enter dimensions)", and matches Custom whatever its dimensions.
+
+#: The setting: True filters both lists by the paper selected in Create Chart.
+PAPER_FILTER_KEY = "builtin_presets_paper_filter"
+
+#: What :func:`paper_class` answers for every size the paper list does not
+#: name: the Paper field's own "custom" entry.
+CUSTOM_PAPER = "custom"
+
+
+def paper_filter_on(settings: Any) -> bool:
+    try:
+        v = settings.get(PAPER_FILTER_KEY, False)
+    except Exception:      # noqa: BLE001 — a settings fake without get()
+        return False
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "1", "yes")
+    return bool(v)
+
+
+def paper_class(code: Any) -> str:
+    """The Paper field entry a ``-p`` code is shown as: the code itself when
+    the paper list names it, :data:`CUSTOM_PAPER` for any other size, and ""
+    for no paper at all."""
+    from data.patch_db import PAPER_LABELS
+    code = str(code or "").strip()
+    if not code:
+        return ""
+    return code if code in PAPER_LABELS else CUSTOM_PAPER
+
+
+def paper_matches(preset_paper: Any, selected: str) -> bool:
+    """True when a preset on ``preset_paper`` belongs in a list filtered to the
+    Paper field entry ``selected`` (a :func:`paper_class`). A preset with no
+    paper is always shown; so is every preset when nothing is selected."""
+    mine = paper_class(preset_paper)
+    if not mine or not selected:
+        return True
+    return mine == selected

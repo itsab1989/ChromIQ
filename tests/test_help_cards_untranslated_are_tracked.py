@@ -1024,19 +1024,24 @@ _BUDGET = {
     # not move; each of the twelve others rises by exactly 17 (the new keys of
     # 25 characters or more) under the beta rule. COUNTED off the tree, BOTH
     # ledgers in the same commit.
+    # RE-MEASURED 2026-09-25, K41 (B8-1131 to B8-1134, Knut #182 5832303551):
+    # the paper filter's box and tooltip, 2 keys in, none out. German by
+    # hand, does not move; each of the twelve others rises by exactly 2
+    # (both keys are 25 characters or more) under the beta rule. COUNTED
+    # off the tree, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 989,
-    "fr": 990,
-    "it": 989,
-    "ja": 989,
-    "nl": 989,
-    "no": 989,
-    "pl": 989,
-    "pt": 989,
-    "ru": 988,
-    "sv": 989,
-    "zh_CN": 988,
-    "uk": 1132,
+    "es": 991,
+    "fr": 992,
+    "it": 991,
+    "ja": 991,
+    "nl": 991,
+    "no": 991,
+    "pl": 991,
+    "pt": 991,
+    "ru": 990,
+    "sv": 991,
+    "zh_CN": 990,
+    "uk": 1134,
 }
 
 

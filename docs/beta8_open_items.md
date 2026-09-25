@@ -28702,3 +28702,42 @@ would reach.
 - because: these texts are shown only in the window and never printed, so they are window text and may name controls
 - note: K39-1 audit. By the rule (report text only) these stay, and the last three are in the guard's allow-list with their reasons; listed for Knut's eye in case he counts any of them as report text. (1) The empty page, shown only when there is nothing to report on and never saved or printed: "Measure its chart on the Measure tab, or add measurements with “Add Profile's Measurements…”." (and its two variants). (2) Two placeholders of an empty trend graph, shown only in the window, for graphs the PDF never prints: "Choose a report type or a limit set that judges them to see their trend." and "Add another measurement, or tick more of the measurements in the list above. “Select all” ticks every one of them." (3) The hover text of a saved COND cell, a tooltip never printed: "Generate the report again to have it judged by today's rule." The red line, the question boxes and the reasons under "Generate report" are window text by the rule.
 - proof: tests/test_report_text_names_no_part_of_the_app.py (ALLOWED)
+
+### B8-1131 · FIXED, awaiting confirmation · The gear window has "Filter preset-dropdown list according to selected paper size"; OK stores it, Close discards it
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5832303551: *"Add a checkbox in the window named "Filter preset-dropdown list according to selected paper size"."* The box sits under the list, above Export list / Import list and OK / Close, with Knut's words as its text and a tooltip saying what it does. It is the setting `builtin_presets_paper_filter` (default off) and goes like the ticks (B8-1097): OK stores it and re-lays both lists, Close, Escape and the close box discard it; the box opens as stored. German by hand (Du-Form): "Presetliste im Aufklappmenü nach gewählter Papiergröße filtern"; both ledgers re-measured (+2 identical, +2 echo in each of the twelve, German unmoved). Spec `docs/design/curated_presets.md` C7.
+- where: `ui/dialogs/builtin_presets_shown_dialog.py` (`_paper_filter`, `paper_filter`); `ui/tabs/tab_chart.py` (`_open_builtin_presets_shown`, `_apply_builtin_presets_shown`); `core/curated_presets.py` (`PAPER_FILTER_KEY`, `paper_filter_on`); `core/settings.py`; `data/i18n/*.json`.
+- tests: tests/test_k41_preset_paper_filter.py, tests/test_i18n.py, tests/test_help_cards_untranslated_are_tracked.py.
+- evidence: test_the_box_is_stored_by_ok_and_discarded_by_close, test_the_setting_survives_a_restart, test_the_german_box_is_translated_by_hand
+- proof: ~/Desktop/ChromIQ-beta43-proof/k41-paper-filter/ (en, de: 03 and 04; REPORT.md)
+
+### B8-1132 · FIXED, awaiting confirmation · With the filter on, both preset lists show only the presets on the paper selected in Create Chart
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5832303551 and 5832436639. "Select preset" and the Built-in presets list follow the Paper field of the mode on screen (Guided "Paper size", Manual "Paper"), live on a paper change and on a Guided/Manual switch. A preset's paper is the printtarg -p code it lays its chart out on (a Full-layout-setup preset's `paper`, a "by Pharmacist" bundle's paper folder); every built-in has one. ORIENTATION IS PART OF THE PAPER: both pulldowns list A3 Portrait (`A3`) and A3 Landscape (`420x297`) as two entries, so the match is exact. Custom (Manual's "Custom (enter dimensions)") lists every preset on a size the Paper field does not name (the 10 x 15 and 13 x 18 cm cards: 21 built-ins), whatever the Custom boxes hold. Scanner is always listed in full; Red River Paper is filtered. The ticks and the "▸ N more presets" arrows still apply within what is left, Custom included (5832436639): N counts only the unticked presets on that paper. A group with nothing left shows no heading, separator or arrow, in both lists. OFF, both lists are exactly what they were. A filtered preset is hidden and disabled in "Select preset" like one under a closed arrow, never removed, so no row index moves under a preset's own handler and every key still resolves (a stored selection, the verification window's double-click).
+- where: `ui/tabs/tab_chart.py` (`builtin_preset_paper`, `PAPER_FILTER_ALWAYS_SHOWN`, `paper_filter_groups`, `_preset_paper_selected`, `_mark_preset_group_rows`, `_on_preset_paper_changed`, `_apply_preset_collapse`, `_open_builtin_preset_overlay`, `_CappedComboBox.GROUP_ROLE` / `PAPER_ROLE`); `core/curated_presets.py` (`paper_class`, `paper_matches`, `CUSTOM_PAPER`).
+- tests: tests/test_k41_preset_paper_filter.py (12 mutations, each red: paper_matches always true; headings never hidden; the arrow count not recomputed; the selected row not exempt; Scanner filtered; Manual's paper in both modes; the box not handed on OK; Close storing the box; a filtered-in preset shown whatever its arrow; the Built-in presets list not filtered; a person's preset carrying no paper; no live refilter).
+- evidence: test_on_manual_lists_only_the_paper_selected, test_a3_portrait_and_landscape_are_two_papers, test_custom_lists_every_custom_size_preset, test_custom_keeps_the_ticks_and_the_arrow, test_an_empty_group_shows_no_heading_and_the_arrow_counts_what_is_left, test_guided_filters_by_its_own_paper_size_and_the_mode_switch_is_live, test_off_the_pulldown_is_what_it_was_whatever_the_paper, test_the_built_in_presets_list_is_filtered_too, test_scanner_is_the_only_group_never_filtered_and_red_river_is_filtered
+- proof: ~/Desktop/ChromIQ-beta43-proof/k41-paper-filter/ (en, de: 01 to 16; REPORT.md)
+
+### B8-1133 · FIXED, awaiting confirmation · The filter never changes what is loaded: the selected preset stays selected and listed
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: decided here, Knut's call to confirm. When the paper moves away from the selected preset (or the filter is switched on over it), it stays selected and loaded, and stays listed in its group, with the group's heading, in "Select preset", so the closed pulldown and the open list show what is loaded. Once another preset is chosen, it leaves the list the next time the list opens. The Built-in presets list has no selection and lists only the paper's presets.
+- where: `ui/tabs/tab_chart.py` (`_apply_preset_collapse`: the current row is never filtered; `_reveal_current_preset_group` re-applies on every opening, so a preset kept only because it was selected leaves the list at the next opening after another is chosen; the combo stays on `activated` only, #175).
+- tests: tests/test_k41_preset_paper_filter.py.
+- evidence: test_the_selected_preset_stays_selected_and_listed
+
+### B8-1134 · FIXED, awaiting confirmation · The person's own presets are filtered by the paper they store; one without a paper is always listed
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: decided here, Knut's call to confirm. Knut's text speaks of what the lists show, and "Select preset" lists the person's own presets at its top, so they are filtered too, by the paper each stores (`printtarg_-p`, Manual's Paper field when it was saved; a custom size matches Custom). A preset that stores no paper is always listed. The window's third paragraph ("Your own presets are not affected ...") is about the ticks and is unchanged; the box's tooltip says own presets are filtered.
+- where: `ui/tabs/tab_chart.py` (`_user_preset_paper`, `_populate_preset_combo`).
+- tests: tests/test_k41_preset_paper_filter.py.
+- evidence: test_on_manual_lists_only_the_paper_selected, test_custom_lists_every_custom_size_preset
+- proof: ~/Desktop/ChromIQ-beta43-proof/k41-paper-filter/ (the two sandboxed presets "My A4 preset (driver)" and "My preset without a paper (driver)")

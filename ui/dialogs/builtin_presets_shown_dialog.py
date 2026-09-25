@@ -45,6 +45,14 @@ matched by its key; a key this ChromIQ does not have, a row with no key, and an
 empty or unreadable yes/no are reported and change nothing, and a preset the
 file does not name keeps its box. Both file windows open in the ChromIQ folder
 (``custom_output_path``, else ~/ChromIQ), the same folder projects go in.
+
+**THE PAPER FILTER (Knut, #182 5832303551, beta 43, B8-1131).** *"Add a
+checkbox in the window named "Filter preset-dropdown list according to
+selected paper size"."* It sits under the list, above the buttons. Like the
+ticks, OK stores it (the setting
+:data:`core.curated_presets.PAPER_FILTER_KEY`) and Close discards it; what it
+does to the two lists is in ``ui/tabs/tab_chart.py``
+(``_apply_preset_collapse``, ``paper_filter_groups``).
 """
 from __future__ import annotations
 
@@ -52,7 +60,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
-    QAbstractItemView, QDialog, QHBoxLayout, QHeaderView, QLabel, QMessageBox,
+    QAbstractItemView, QCheckBox, QDialog, QHBoxLayout, QHeaderView, QLabel,
+    QMessageBox,
     QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
@@ -79,7 +88,8 @@ class BuiltinPresetsShownDialog(QDialog):
     def __init__(self, groups: list[tuple[str, list[tuple[str, str, str]]]],
                  shown: set[str], parent: QWidget | None = None, *,
                  facts: list[dict] | None = None,
-                 folder: Path | str | None = None) -> None:
+                 folder: Path | str | None = None,
+                 paper_filter: bool = False) -> None:
         super().__init__(parent)
         self._facts = facts if facts is not None else [
             {"group": heading, "name": label, "key": key}
@@ -156,6 +166,21 @@ class BuiltinPresetsShownDialog(QDialog):
             self._recount(g)
         self._tree.itemChanged.connect(self._on_item_changed)
         lay.addWidget(self._tree, 1)
+
+        # Knut, #182 5832303551: the paper filter, kept by OK like the ticks.
+        self._paper_filter = QCheckBox(
+            tr("Filter preset-dropdown list according to selected paper size"),
+            self)
+        self._paper_filter.setObjectName("builtin_presets_paper_filter")
+        self._paper_filter.setChecked(bool(paper_filter))
+        self._paper_filter.setToolTip(
+            tr("When ticked, “Select preset” and the Built-in presets list "
+               "show only the presets for the paper size selected in Create "
+               "Chart, in Guided or Manual, whichever is shown. Your own "
+               "presets are filtered too; one saved without a paper size is "
+               "always shown, and so are the Scanner presets. With a custom "
+               "paper size, every preset on a custom size is shown."))
+        lay.addWidget(self._paper_filter)
 
         # What the last export or import did, in one line, above the buttons.
         self._status = QLabel(self)
@@ -239,7 +264,8 @@ class BuiltinPresetsShownDialog(QDialog):
             status_h = (self._status.heightForWidth(text_w)
                         + lay.spacing())
         min_h = (m.top() + m.bottom() + intro_h + tree_min + status_h
-                 + self._buttons.sizeHint().height() + 2 * lay.spacing())
+                 + self._paper_filter.sizeHint().height()
+                 + self._buttons.sizeHint().height() + 3 * lay.spacing())
         self.setMinimumSize(self.MIN_WIDTH, min_h)
 
     # ------------------------------------------------------------------
@@ -282,6 +308,11 @@ class BuiltinPresetsShownDialog(QDialog):
                 if c.checkState(0) == Qt.CheckState.Checked:
                     out.add(str(c.data(0, _KEY_ROLE)))
         return out
+
+    def paper_filter(self) -> bool:
+        """Whether "Filter preset-dropdown list according to selected paper
+        size" is ticked now."""
+        return self._paper_filter.isChecked()
 
     def set_ticked(self, key: str, on: bool) -> bool:
         """Tick or clear one preset, as a click on its box would. For drivers

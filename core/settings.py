@@ -31,6 +31,10 @@ DEFAULTS: dict[str, Any] = {
     # "the shipped list" (data/preset_defaults.json). See
     # core/curated_presets.py for why a copy of the defaults is never stored.
     "builtin_presets_shown":     "",
+    # The gear window's "Filter preset-dropdown list according to selected
+    # paper size" (Knut, #182 5832303551): True lists only the presets on the
+    # paper Create Chart has selected (core/curated_presets.py).
+    "builtin_presets_paper_filter": False,
     "chart_double_density":      False,
     "chart_disable_left_border": False,
     # Print info into the i1Pro left clip strip (auto-applies in guided when

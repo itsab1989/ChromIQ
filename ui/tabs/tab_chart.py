@@ -3863,6 +3863,44 @@ def builtin_preset_facts() -> list[dict]:
     return out
 
 
+def builtin_preset_paper(key: str) -> str:
+    """The printtarg ``-p`` code a built-in lays its chart out on: the one
+    selecting it puts in Manual's Paper field. A Full-layout-setup preset
+    carries it as ``paper``; a prebuilt bundle's is read from its asset path
+    (:meth:`TabChart._prebuilt_paper_code`). What the paper filter matches
+    (Knut, #182 5832303551)."""
+    p = KNUT_PRESETS_BY_KEY.get(key)
+    if p is not None:
+        return str(p.paper or "")
+    if key in PREBUILT_PRESETS:
+        return TabChart._prebuilt_paper_code(key)
+    return ""
+
+
+#: The group the paper filter never hides (Knut: *"The presets under headings
+#: Scanner are always shown."*).
+PAPER_FILTER_ALWAYS_SHOWN = frozenset({_group_heading("Scanner")})
+
+
+def paper_filter_groups(groups: list, selected: str) -> list:
+    """``groups`` (heading, [entry, …]) with every built-in not on the Paper
+    field entry ``selected`` left out, and a group left empty left out with its
+    heading. An entry's key is its LAST item. The Scanner group is never
+    filtered. ``selected`` "" (the filter off) returns ``groups`` as they are.
+    """
+    if not selected:
+        return groups
+    from core.curated_presets import paper_matches
+    out = []
+    for heading, entries in groups:
+        if heading not in PAPER_FILTER_ALWAYS_SHOWN:
+            entries = [e for e in entries
+                       if paper_matches(builtin_preset_paper(e[-1]), selected)]
+        if entries:
+            out.append((heading, entries))
+    return out
+
+
 def _marked_overlay_label(key: str, label: str) -> str:
     """The ★-overlay row for a built-in: its overlay label plus the "Full layout
     setup" marker when the preset carries one. The eleven prebuilt ("by
@@ -4239,6 +4277,13 @@ class _CappedComboBox(NoScrollComboBox):
     MORE_ROLE = Qt.ItemDataRole.UserRole + 42
     #: On a preset that waits under an arrow: the heading of its group.
     MEMBER_ROLE = Qt.ItemDataRole.UserRole + 43
+    #: On every row of a built-in group (its separator, heading, presets and
+    #: arrow): the group's heading. What the paper filter hides a group by.
+    GROUP_ROLE = Qt.ItemDataRole.UserRole + 45
+    #: On a preset the paper filter may hide: the paper (printtarg ``-p``
+    #: code) it lays its chart out on. Absent on the Scanner presets and on a
+    #: person's preset that stores no paper, which are always listed.
+    PAPER_ROLE = Qt.ItemDataRole.UserRole + 46
 
     #: ``(row, action)`` for an arrow row, where action is "toggle" (a click,
     #: Return, Enter or Space), "open" (Right), "close" (Left), or "parent"
@@ -5161,6 +5206,15 @@ class TabChart(QWidget):
         # the targen section only — the layout half is shared, not copied).
         self._embed_gamut_module()
         left_layout.addWidget(self._stack, stretch=1)
+        # The paper filter (Knut, #182 5832303551): the pulldown follows the
+        # paper selected in Create Chart, live, in whichever mode is shown.
+        # Bound methods, never lambdas (CLAUDE.md, the fade-scroll crash).
+        self._stack.currentChanged.connect(self._on_preset_paper_changed)
+        self._paper_combo.currentIndexChanged.connect(
+            self._on_preset_paper_changed)
+        if self._manual_paper_pw is not None:
+            self._manual_paper_pw.value_changed.connect(
+                self._on_preset_paper_changed)
 
         # #133 Q11 (a pre-existing gap): while Run type = Verification and the
         # run has no profile, Guided/Manual say so in a non-blocking info box —
@@ -6960,6 +7014,10 @@ class TabChart(QWidget):
         self._preset_combo.more_row_triggered.connect(self._on_preset_more_row)
         self._preset_combo.popup_about_to_show.connect(
             self._reveal_current_preset_group)
+        # (No `currentIndexChanged` here: the combo is on `activated` only,
+        # #175. A preset the paper filter kept listed only because it was
+        # selected leaves the list at its next opening, which re-applies the
+        # filter: `_reveal_current_preset_group`.)
         self._preset_add_btn.clicked.connect(self._on_preset_save)
         self._preset_del_btn.clicked.connect(self._on_preset_delete)
         self._manual_target_name_edit.textChanged.connect(self._check_for_cal_file)
@@ -10317,6 +10375,59 @@ class TabChart(QWidget):
         )
         return f"{body}\n\n{note}" if note else body
 
+    # ------------------------------------------------------------------
+    # The paper filter (Knut, #182 5832303551, beta 43)
+    # ------------------------------------------------------------------
+    def _preset_paper_selected(self) -> str:
+        """The Paper field entry both lists are filtered to, as
+        :func:`core.curated_presets.paper_class` spells it: Guided's "Paper
+        size" or Manual's "Paper", whichever mode is shown (the gamut module
+        lays out through Manual's). "" while the filter is off."""
+        from core.curated_presets import paper_class, paper_filter_on
+        if not paper_filter_on(self._settings):
+            return ""
+        if self._current_mode() == "manual":
+            pw = getattr(self, "_manual_paper_pw", None)
+            code = pw.get_raw_value() if pw is not None else ""
+        else:
+            combo = getattr(self, "_paper_combo", None)
+            code = combo.currentData() if combo is not None else ""
+        return paper_class(code)
+
+    @staticmethod
+    def _user_preset_paper(data: Any) -> str:
+        """The paper a person's own preset stores (Manual's Paper field when it
+        was saved), or "" when it stores none."""
+        if isinstance(data, dict):
+            return str(data.get("printtarg_-p") or "")
+        return ""
+
+    def _mark_preset_group_rows(self, start: int, group: str) -> None:
+        """Tag the rows of one built-in group from ``start`` on with its
+        heading, and each preset among them with its paper, unless the group
+        is one the paper filter never hides."""
+        cb = self._preset_combo
+        always = group in PAPER_FILTER_ALWAYS_SHOWN
+        for row in range(start, cb.count()):
+            cb.setItemData(row, group, cb.GROUP_ROLE)
+            key = cb.itemData(row)
+            if not always and isinstance(key, str) \
+                    and not cb.itemData(row, cb.MORE_ROLE):
+                paper = builtin_preset_paper(key)
+                if paper:
+                    cb.setItemData(row, paper, cb.PAPER_ROLE)
+
+    def _on_preset_paper_changed(self, *_args) -> None:
+        """The paper, the mode or the selected preset changed: show the rows
+        the paper filter lets through now. Only hides and shows rows, so it
+        is safe inside a preset's own handler; nothing is re-selected."""
+        if getattr(self, "_preset_combo", None) is None:
+            return
+        if not self._preset_paper_selected() \
+                and not getattr(self, "_preset_paper_was_filtered", False):
+            return
+        self._apply_preset_collapse()
+
     def _populate_preset_combo(self, presets: dict, select_name: str | None = None) -> None:
         self._preset_combo.blockSignals(True)
         self._preset_combo.clear()
@@ -10334,6 +10445,13 @@ class TabChart(QWidget):
                 label = f"▶  {name}" if (isinstance(presets[name], dict)
                                          and presets[name].get("auto_run")) else name
                 self._preset_combo.addItem(label, userData=name)
+                # The paper filter (#182 5832303551): a person's own preset is
+                # filtered by the paper it stores; one storing none never is.
+                paper = self._user_preset_paper(presets[name])
+                if paper:
+                    self._preset_combo.setItemData(
+                        self._preset_combo.count() - 1, paper,
+                        self._preset_combo.PAPER_ROLE)
         # Built-in presets, pinned below the user's own and grouped by the
         # instrument they target. Groups (and the order within each) follow the
         # shared BUILTIN_PRESET_GROUPS registry verbatim — no re-sorting — so the
@@ -10355,6 +10473,7 @@ class TabChart(QWidget):
         for instr, entries in groups:
             if instr == USER_PRESET_GROUP:
                 continue
+            group_start = self._preset_combo.count()
             self._preset_combo.insertSeparator(self._preset_combo.count())
             # A real heading, in the Instrument field's own words (Knut,
             # 2026-08-18): the overlay has always shown one, the dropdown
@@ -10367,6 +10486,7 @@ class TabChart(QWidget):
                     combo_label, key, self._builtin_tooltip(key),
                     disabled=key in DISABLED_BUILTIN_PRESET_KEYS)
             if not rest:
+                self._mark_preset_group_rows(group_start, instr)
                 continue
             self._preset_combo.addItem("", userData=MORE_ROW_PREFIX + instr)
             arrow = self._preset_combo.count() - 1
@@ -10382,13 +10502,16 @@ class TabChart(QWidget):
                     combo_label, key, self._builtin_tooltip(key),
                     disabled=key in DISABLED_BUILTIN_PRESET_KEYS)
                 cb.setItemData(cb.count() - 1, instr, cb.MEMBER_ROLE)
-        self._apply_preset_collapse()
+            self._mark_preset_group_rows(group_start, instr)
         if select_name is not None:
             # Match by userData (the bare name), not the shown text, which may
             # carry a ▶ prefix for auto-run presets.
             idx = self._preset_combo.findData(select_name)
             if idx >= 0:
                 self._preset_combo.setCurrentIndex(idx)
+        # AFTER the selection: the paper filter never hides the preset that is
+        # selected (#182 5832303551).
+        self._apply_preset_collapse()
         self._preset_combo.blockSignals(False)
         self._last_preset_index = self._preset_combo.currentIndex()
         self._preset_del_btn.setEnabled(
@@ -10428,18 +10551,49 @@ class TabChart(QWidget):
         view = cb.view()
         model = cb.model()
         opened = self._open_preset_groups()
+        # THE PAPER FILTER (Knut, #182 5832303551). A preset on another paper
+        # is hidden and disabled like one under a closed arrow, and stays an
+        # entry of the combo, so every key still resolves through findData and
+        # no row index moves under a handler. The selected preset is never
+        # hidden by it. A group with nothing left shows no heading.
+        from core.curated_presets import paper_matches
+        selected = self._preset_paper_selected()
+        self._preset_paper_was_filtered = bool(selected)
+        current = cb.currentIndex()
+
+        def filtered(row: int) -> bool:
+            if not selected or row == current:
+                return False
+            paper = cb.itemData(row, cb.PAPER_ROLE)
+            return bool(paper) and not paper_matches(paper, selected)
+
+        listed: dict[str, int] = {}      # group -> presets it still lists
+        rest_left: dict[str, int] = {}   # group -> presets left under its arrow
+        for row in range(cb.count()):
+            grp = cb.itemData(row, cb.GROUP_ROLE)
+            if not grp or cb.itemData(row, cb.MORE_ROLE) \
+                    or not isinstance(cb.itemData(row), str):
+                continue
+            if filtered(row):
+                continue
+            listed[grp] = listed.get(grp, 0) + 1
+            if cb.itemData(row, cb.MEMBER_ROLE):
+                rest_left[grp] = rest_left.get(grp, 0) + 1
         for row in range(cb.count()):
             member = cb.itemData(row, cb.MEMBER_ROLE)
             group = cb.itemData(row, cb.MORE_ROLE)
+            grp = cb.itemData(row, cb.GROUP_ROLE)
             if member:
-                hidden = member not in opened
+                hidden = member not in opened or filtered(row)
                 view.setRowHidden(row, hidden)
                 item = model.item(row)
                 if item is not None:
                     item.setEnabled(not hidden and cb.itemData(row)
                                     not in DISABLED_BUILTIN_PRESET_KEYS)
             elif group:
-                count = int(cb.itemData(row, Qt.ItemDataRole.UserRole + 44) or 0)
+                count = rest_left.get(group, 0)
+                cb.setItemData(row, count, Qt.ItemDataRole.UserRole + 44)
+                view.setRowHidden(row, count == 0)
                 is_open = group in opened
                 cb.setItemText(row, self._more_row_text(count, is_open))
                 state = tr("expanded") if is_open else tr("collapsed")
@@ -10451,6 +10605,18 @@ class TabChart(QWidget):
                     "arrow key hides them again. Choose which ones are listed "
                     "directly with the gear button beside the presets folder "
                     "button.").format(group=group), Qt.ItemDataRole.ToolTipRole)
+            elif isinstance(cb.itemData(row), str) and (
+                    grp or cb.itemData(row, cb.PAPER_ROLE)):
+                # A ticked built-in, or a person's own preset.
+                hidden = filtered(row)
+                view.setRowHidden(row, hidden)
+                item = model.item(row)
+                if item is not None:
+                    item.setEnabled(not hidden and cb.itemData(row)
+                                    not in DISABLED_BUILTIN_PRESET_KEYS)
+            elif grp:
+                # The group's separator and heading.
+                view.setRowHidden(row, listed.get(grp, 0) == 0)
 
     def _preset_arrow_row(self, group: str) -> int:
         cb = self._preset_combo
@@ -10499,7 +10665,9 @@ class TabChart(QWidget):
         opened = self._open_preset_groups()
         if member and member not in opened:
             opened.add(member)
-            self._apply_preset_collapse()
+        # Always, not only when an arrow opened: the paper filter keeps the
+        # selected preset listed, whatever set the selection (#182 5832303551).
+        self._apply_preset_collapse()
 
     def _curated_dialog_groups(self) -> list:
         """The window's groups: the pulldown's headings and order, each row the
@@ -10517,8 +10685,11 @@ class TabChart(QWidget):
         Basti, 2026-09-25 (B8-1097), replacing Knut's "only a Close button;
         closing applies": OK stores the boxes and rebuilds both lists; Close,
         Escape and the close box end the window with nothing stored.
+
+        The paper filter's box (Knut, #182 5832303551) goes the same way: OK
+        stores it, Close discards it.
         """
-        from core.curated_presets import shown_keys
+        from core.curated_presets import paper_filter_on, shown_keys
         from ui.dialogs.builtin_presets_shown_dialog import (
             BuiltinPresetsShownDialog)
         # The table Export list writes is the one make_preset_defaults.py
@@ -10528,17 +10699,24 @@ class TabChart(QWidget):
             self._curated_dialog_groups(),
             shown_keys(self._settings, BUILTIN_PRESET_KEYS), self,
             facts=builtin_preset_facts(),
-            folder=self._file_mgr.root_dir())
+            folder=self._file_mgr.root_dir(),
+            paper_filter=paper_filter_on(self._settings))
         self._builtin_presets_shown_dialog = dlg
         try:
             if dlg.exec() == QDialog.DialogCode.Accepted:
-                self._apply_builtin_presets_shown(dlg.ticked())
+                self._apply_builtin_presets_shown(
+                    dlg.ticked(), paper_filter=dlg.paper_filter())
         finally:
             self._builtin_presets_shown_dialog = None
 
-    def _apply_builtin_presets_shown(self, ticked: set) -> None:
-        from core.curated_presets import store_choices
+    def _apply_builtin_presets_shown(self, ticked: set, *,
+                                     paper_filter: "bool | None" = None) -> None:
+        from core.curated_presets import (
+            PAPER_FILTER_KEY, paper_filter_on, store_choices)
         store_choices(self._settings, ticked, BUILTIN_PRESET_KEYS)
+        if paper_filter is not None \
+                and bool(paper_filter) != paper_filter_on(self._settings):
+            self._settings.set(PAPER_FILTER_KEY, bool(paper_filter))
         current = self._preset_combo.currentData()
         self._populate_preset_combo(
             self._load_presets_from_settings(),
@@ -10925,7 +11103,10 @@ class TabChart(QWidget):
         shown = shown_keys(self._settings, BUILTIN_PRESET_KEYS)
         groups = []
         more: dict[str, list[tuple[str, str]]] = {}
-        for instr, entries in BUILTIN_PRESET_GROUPS:
+        # The paper filter (#182 5832303551): only the presets on the paper
+        # selected now; a group left empty is not listed at all.
+        for instr, entries in paper_filter_groups(
+                BUILTIN_PRESET_GROUPS, self._preset_paper_selected()):
             top, rest = split_group(entries, shown)
             groups.append((instr, [(_marked_overlay_label(key, overlay_label), key)
                                    for (_combo, overlay_label, key) in top]))

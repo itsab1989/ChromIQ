@@ -10,7 +10,9 @@
 > (`_populate_preset_combo`, `_on_preset_more_row`,
 > `_open_builtin_presets_shown`, `_CappedComboBox`),
 > `ui/builtin_preset_popup.py`, `scripts/make_preset_defaults.py`,
-> `data/preset_defaults.json`. Tests: `tests/test_curated_builtin_presets.py`.
+> `data/preset_defaults.json`. Tests: `tests/test_curated_builtin_presets.py`,
+> `tests/test_k39_preset_list_export_import.py`,
+> `tests/test_k41_preset_paper_filter.py` (the paper filter, C7).
 
 ## ⏳ Awaiting confirmation
 
@@ -199,3 +201,44 @@ of an answer (anything but a yes is "not ticked", an empty cell included),
 because it builds the shipped list from a blank table, where an empty cell
 means "not chosen". The window reports those cells instead, because there a
 tick already means something.
+
+### C7. The paper filter (Knut, #182 5832303551 and 5832436639, beta 43, B8-1131 to B8-1134)
+
+⏳ **Awaiting confirmation. Confirmed by:** *nobody yet.* Verified by driving
+the real app on screen, English and German (proof in
+`~/Desktop/ChromIQ-beta43-proof/k41-paper-filter/`), which proves what the app
+does; whether it is what it should do is Knut's or Sebastian's call.
+
+Knut's request: *"Add a checkbox in the window named "Filter preset-dropdown
+list according to selected paper size". When OFF, all presets are listed in
+the dropdown lists for "Select preset" and the "built-in presets" button,
+according to what is selected to be shown in the settings window. When ON,
+the dropdown lists for "Select preset" and the "built-in presets" button show
+only the presets related to the selection in "Paper" field in Create Chart
+(either "Paper size" in Guided or "Paper" in Manual mode), and according to
+what is selected to be shown in the settings window. The presets under
+headings Scanner are always shown. The Red River Paper presets area also
+filtered, as the presets are specific for a Paper size. If the Paper size
+setting is Custom, then the the Custom Size fields are specifying the paper
+size, but since we do not hold custom size presets for all possible sized,
+all the presets using the Custom Paper size setting will be shown in the
+dropdown lists for "Select preset" and the "built-in presets" button."* And
+(5832436639): on Custom the ticks and the "▸ N more presets" arrows still
+apply, exactly as on any other paper.
+
+| What | Behaviour |
+|---|---|
+| The box | "Filter preset-dropdown list according to selected paper size" (German "Presetliste im Aufklappmenü nach gewählter Papiergröße filtern"), under the list, above the buttons. Its tooltip says what it does (the two lists, the mode shown, own presets, Scanner, Custom) |
+| Stored | the setting `builtin_presets_paper_filter`, default off. **OK stores it, Close, Escape and the close box discard it**, like the ticks (C3a). The box opens as stored |
+| OFF | both lists exactly as before: the ticks and the arrows, nothing else |
+| ON: which paper | the Paper field of the mode on screen: Guided's "Paper size", Manual's "Paper" (the gamut module lays out through Manual's). Live: the lists follow a change of paper and a switch between Guided and Manual at once |
+| ON: a preset's paper | the printtarg `-p` code it lays its chart out on, the one selecting it puts in Manual's Paper field: a Full-layout-setup preset's own `paper`, a "by Pharmacist" bundle's paper folder. Every built-in has one |
+| ON: orientation | part of the paper. Both pulldowns list each orientation as its own entry (A3 Portrait is `A3`, A3 Landscape is `420x297`, A4 Landscape `A4R`), so the match is exact: A3 Portrait lists only portrait A3 presets |
+| ON: Custom | Manual's "Custom (enter dimensions)": every preset on a size the Paper field does not name (the 10 × 15 and 13 × 18 cm cards), whatever its dimensions and whatever the Custom boxes hold. Guided has no Custom entry |
+| ON: Scanner | always listed in full, whatever the paper |
+| ON: Red River Paper | filtered like every other group |
+| ON: ticks and arrows | still apply within what is left: per group the ticked presets on that paper, then "▸ N more presets" over the unticked ones on that paper, N counting only those. Custom included (5832436639) |
+| ON: an empty group | no heading, no separator, no arrow, in both lists |
+| ON: the person's own presets | filtered too, by the paper each stores (Manual's Paper field when it was saved, `printtarg_-p`); one that stores no paper is always listed. They stay at the top |
+| The selected preset | never changed by the filter. When the paper moves away from it, it stays selected and loaded, and stays listed in its group (with its heading) in "Select preset", so the closed pulldown and the open list show what is loaded; once another preset is chosen, it leaves the list the next time the list opens. The Built-in presets list has no selection and lists only the paper's presets |
+| Every key | stays an entry of "Select preset": a filtered preset is hidden and disabled like one under a closed arrow, never removed, so a stored selection and the "Which presets can be used for verification" double-click still find it |
