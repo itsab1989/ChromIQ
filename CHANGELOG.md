@@ -1,5 +1,47 @@
 # Changelog
 
+## v4.3.0-beta.42
+
+**Knut's rulings on the Measurement Report, ISO report types that are judged against ISO limits, and a curated preset list.**
+
+### New
+
+- **A curated preset list.** A gear button in Create Chart > Manual > Presets opens a list of every built-in preset with a tick box. Ticked presets show directly in "Select preset" and in the Built-in presets list; the rest of each group waits under "▸ N more presets". Your own saved presets stay at the top. 62 of the 185 built-in presets are shown by default in this beta.
+- **Validation print check and Contract proof check can be generated.** They are judged against ISO 12647-8 or ISO 12647-7, or the matching Custom ISO set. Choosing one of them moves "Judged against" to that standard's set unless one of the four ISO sets is already chosen. Calibration runs do not offer these two types.
+- **"All metrics" and "Any"** in "Which presets can be used for verification?", both the default, and a **Sort by** pulldown (preset pulldown order, or most metrics answered first).
+- **The Dictionary defines profile run, verification run and calibration run**, and the help cards and reports use those words.
+- **Report Scope says when a profile run the report covered has since been deleted.**
+- **Paper white is the patch printed with no ink.** A chart without one reads N-A with a note. A sheet printed with a white-mapping intent is then judged against the paper white recorded in its profile.
+- **On a FROM PROFILE GAMUT chart the control strip compares its corner patches with the profile's prediction**, while the cube-corner table keeps the ideal values. A FROM PROFILE GAMUT chart's paper is compared with the profile's own paper white.
+- "When to judge against which set" in the Judged against help.
+
+### Changed
+
+- **The report page changes only when you press Generate report** (or pick another report, or delete one). Adding, removing or unticking measurements and changing settings show the red "settings changed" line instead. New measurement sets come in unticked. While Generate report is greyed out, the settings that cannot help are greyed too, and every greyed item says why.
+- **The Update / Create New question** lists Create New first, and Create New is the default.
+- **The two Custom ISO sets start from Knut's industry limits**, never from a values file, and carry his new figures for eight more metrics.
+- **A metric ChromIQ cannot measure reads ✕ in every limit set.**
+- The graph tabs run from the left edge to the arrows, show part of the hidden tabs, and grey the arrow at each end. The graphs are titled "Trend over time".
+- The Overview table shows at least four dates side by side on screen.
+- The limit words on the graphs sit beside their own line.
+- Reports inside a heading of "Report shown" are ordered by their own date, newest first.
+- After a failed folder rename the three choices come back.
+- Extra-high density no longer replaces margins or an alignment you or a preset chose, and "Max strip length" is greyed out in "Prioritise chart area".
+- Measure tab: each option keeps its label on one line and its ⓘ beside it, in every language.
+
+### Fixed
+
+- Switching Run type to Verification no longer freezes the window for about 3 seconds.
+- A Printing record lists the rows of the limit set it is judged against.
+- A verification run with no dated measurement opens with an empty list.
+- Headings keep their last letter, and long dialog headings wrap between words.
+- The three report-title boxes in Preferences > Reports share one left edge.
+- A button that a window had focused while it was in the background could still be pressed with the space bar.
+- **A saved report shows what it was saved with.** Its notes and explanations are the ones that were true when it was saved; where this version would work it out differently, Report Scope says so, and Update works it out again.
+- **Save report as PDF writes exactly the page on screen**, also after a setting was touched while the page was kept.
+- **Generate report reads the measurement, its print record and the run's profile again**, so a changed print record or a missing profile shows in the new report.
+- An empty trend graph says why it is empty.
+
 ## v4.3.0-beta.41
 
 **Pulldowns look the same everywhere, and every preset list has one order.**
