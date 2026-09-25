@@ -3131,14 +3131,19 @@ def deleted_runs_label(entries: "list[tuple[str, str]]",
 # attached to that sheet's "Paper white" line. A report can hold sheets of
 # several charts, so the words name the sheet and say that the rest of the
 # report is not affected.
+#
+# **"SHEET" WAS STILL UNCLEAR (Knut, 5824834975, on the four K37 notes that
+# share these words).** Reworded 2026-09-25 in the report's own vocabulary:
+# the measurement ("Detailed data per measurement"), which is what the note is
+# decided for. The approval above is kept; §M records the rewording.
 M_REPORT_NO_PAPER_PATCH = _m(
     "M-REPORT-NO-PAPER-PATCH",
     "This chart has no paper patch",
-    "The chart of this measured sheet has no patch printed with no ink, so "
-    "the paper white of this sheet could not be measured. Every colour on "
-    "this sheet is therefore judged as measured, in absolute Lab, and none "
-    "relative to the paper. Only the sheets that carry this note are "
-    "affected, not the rest of the report.",
+    "The chart of this measurement has no patch printed with no ink, so "
+    "this measurement has no paper white of its own. Every colour of this "
+    "measurement is therefore judged as measured, in absolute Lab, and none "
+    "relative to the paper. Only the measurements that carry this note are "
+    "judged this way; the report's other measurements are judged as usual.",
     approved=True)   # Knut, #182 5820871320
 
 
@@ -3159,15 +3164,16 @@ M_REPORT_NO_PAPER_PATCH = _m(
 M_REPORT_PAPER_WHITE_FROM_PROFILE = _m(
     "M-REPORT-PAPER-WHITE-FROM-PROFILE",
     "Paper white taken from the profile",
-    "The chart of this measured sheet has no patch printed with no ink, so "
-    "the paper white of this sheet could not be measured. The sheet was "
-    "printed with an intent that maps white to the paper, so its colours are "
-    "judged relative to the paper white recorded in the profile {profile} "
-    "(L* {L}, a* {a}, b* {b}), which is the paper that profile was made for. "
-    "If this sheet's paper differs from it (another batch, or paper that has "
-    "aged), the results can be off by a little. Only the sheets that carry "
-    "this note are affected, not the rest of the report.",
-    approved=False)
+    "The chart of this measurement has no patch printed with no ink, so "
+    "this measurement has no paper white of its own. The chart was printed "
+    "with an intent that maps white to the paper, so the colours of this "
+    "measurement are judged relative to the paper white recorded in the "
+    "profile {profile} (L* {L}, a* {a}, b* {b}), which is the paper that "
+    "profile was made for. If the measured paper differs from it (another "
+    "batch, or paper that has aged), the results can be off by a little. "
+    "Only the measurements that carry this note are judged this way; the "
+    "report's other measurements are judged as usual.",
+    approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
 
 # (b) No profile could be read, so the sheet stays in absolute Lab. The note
 # travels with every row whose verdict that moves (the colour-difference,
@@ -3178,15 +3184,17 @@ M_REPORT_PAPER_WHITE_FROM_PROFILE = _m(
 M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE = _m(
     "M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE",
     "Judged without a paper white",
-    "This sheet was printed with an intent that maps white to the paper, so "
-    "its colours should be judged relative to its paper white. Its chart has "
-    "no patch printed with no ink, and no profile could be read to take the "
-    "paper white from, so these rows are judged as measured, in absolute "
-    "Lab. The paper's own lightness and tint then count against every colour, "
-    "so these results can read worse than the print is (on typical papers by "
-    "about 1.5 to 3 ΔE00 on the averages), and a limit can fail for that "
-    "reason alone. Only the sheets that carry this note are affected.",
-    approved=False)
+    "The chart of this measurement was printed with an intent that maps "
+    "white to the paper, so its colours should be judged relative to its "
+    "paper white. The chart has no patch printed with no ink, and no "
+    "profile could be read to take the paper white from, so these rows of "
+    "this measurement are judged as measured, in absolute Lab. The paper's "
+    "own lightness and tint then count against every colour, so these "
+    "results can read worse than the print is (on typical papers by about "
+    "1.5 to 3 ΔE00 on the averages), and a limit can fail for that reason "
+    "alone. Only the measurements that carry this note are judged this way; "
+    "the report's other measurements are judged as usual.",
+    approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
 
 # --- PROPOSED (#182 K37 (i), Knut 5823088098 "Yes do so", on our
 # 5823015844): on a FROM PROFILE GAMUT chart the control strip's seven ink
@@ -3196,24 +3204,42 @@ M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE = _m(
 M_REPORT_STRIP_CORNERS_PREDICTED = _m(
     "M-REPORT-STRIP-CORNERS-PREDICTED",
     "A corner patch is compared two ways",
-    "On this sheet the chart's solid ink, overprint and black patches are "
-    "compared two ways. In the cube-corner table each is compared with its "
-    "ideal value, which shows how far this printer's colour is from the ideal "
-    "one. In the control-strip rows each is compared with the colour the "
-    "profile predicts for it, like every other patch of this chart, which "
-    "shows how accurately it was printed.",
-    approved=False)
+    "In this measurement the chart's solid ink, overprint and black patches "
+    "are compared two ways. In the cube-corner table each is compared with "
+    "its ideal value, which shows how far this printer's colour is from the "
+    "ideal one. In the control-strip rows each is compared with the colour "
+    "the profile predicts for it, like every other patch of this chart, "
+    "which shows how accurately it was printed. Only the measurements that "
+    "carry this note are judged this way; the report's other measurements "
+    "are judged as usual.",
+    approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
 
 # ...and when no profile can be read to ask: today's comparison stays.
 M_REPORT_STRIP_CORNERS_IDEAL = _m(
     "M-REPORT-STRIP-CORNERS-IDEAL",
     "Corner patches compared with their ideal values",
-    "No profile could be read to predict the colours of this sheet's solid "
-    "ink, overprint and black patches, so in the control-strip rows they are "
-    "compared with their ideal values, as in the cube-corner table. That "
-    "difference is mostly how far this printer's colours are from the ideal "
-    "ones, not a printing error, so these rows can read worse than the print "
-    "is. Only the sheets that carry this note are affected.",
+    "No profile could be read to predict the colours of this measurement's "
+    "solid ink, overprint and black patches, so in the control-strip rows "
+    "they are compared with their ideal values, as in the cube-corner "
+    "table. That difference is mostly how far this printer's colours are "
+    "from the ideal ones, not a printing error, so these rows can read "
+    "worse than the print is. Only the measurements that carry this note "
+    "are judged this way; the report's other measurements are judged as "
+    "usual.",
+    approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
+
+# --- PROPOSED: a saved report worked out by an earlier version (challenge 5 of
+# beta 42, M1, B8-1091). Its verdicts are kept (§6); a rule introduced since
+# (K34's paper patch, K37's paper white from the profile and the strip corners
+# against the profile's prediction) would work some of its rows out
+# differently, and the rebuilt notes would contradict the kept words. The page
+# shows the report as it was saved and says so, once.
+M_REPORT_WORKED_OUT_EARLIER = _m(
+    "M-REPORT-WORKED-OUT-EARLIER",
+    "Worked out by an earlier version",
+    "This report was worked out by an earlier version of ChromIQ and is "
+    "shown as it was saved. This version works some of its rows out "
+    "differently; Update works the report out again.",
     approved=False)
 
 #: The two remedies of M-REPORT-DELETE-FAILED (re-challenge R2, #8). "Copy
@@ -3304,6 +3330,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_PAPER_WHITE_FROM_PROFILE,
     M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE,
     M_REPORT_STRIP_CORNERS_PREDICTED, M_REPORT_STRIP_CORNERS_IDEAL,
+    M_REPORT_WORKED_OUT_EARLIER,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

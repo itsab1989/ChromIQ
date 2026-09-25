@@ -28490,10 +28490,13 @@ would reach.
 - evidence: test_e_judges_a_sheet_with_no_paper_patch_against_the_runs_profile
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/analysis/k37_measure.py, k37_measure.txt
 
-### B8-1084 · OPEN · The Paper white (L*) graph with no paper white on any date says "needs at least two measurements"
+### B8-1084 · FIXED, awaiting confirmation (with B8-1095) · The Paper white (L*) graph with no paper white on any date says "needs at least two measurements"
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- fixed: challenge 5 of beta 42, as B8-1095: two or more measurements given and fewer than two with a value now say so. The graph's placeholder is not a §M message.
+- tests: tests/test_c5_a_saved_report_is_its_own_record.py::test_an_empty_graph_gives_the_true_reason
+- evidence: test_an_empty_graph_gives_the_true_reason
 - note: Seen on screen in K37 (and already so since B8-1014 for any chart with no paper patch): two dates are ticked, neither records a paper white, and the graph shows the generic placeholder "A trend graph needs at least two measurements. Add another measurement, or tick more…", which is not the reason. New wording would go through §M-PROPOSED; not changed here.
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/after-e-en/photographs/en-05-paper-white-graph.png
 
@@ -28533,3 +28536,60 @@ would reach.
 - status: OPEN
 - note: Spec §34.3. With 1.5 on "Solid colours, largest" and 1.5 on the strip's largest difference, and the ideal and predicted solid 3.0 to 4.9 ΔE00 apart on the demo profiles, no patch meets both. The demo keeps the solid row inside and designs the strip's largest difference over on those two runs (Every-Limit-Set/run4, Second-Route/run4), with a sentence on each date. On a real printer the same will hold more strongly: its solids against the ideal sRGB primaries. Worth Knut's eye; no change asked.
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/analysis/rebuilt-subset/generator-build.txt
+
+### B8-1091 · FIXED, awaiting confirmation · A saved report opened again explained its kept verdict with notes from the rebuild
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: challenge 5 of beta 42, M1. A report saved before K37 (or K34) is rebuilt when read (`ALWAYS_BUILT_BLOCKS`) and its saved words are kept (§6), but the notes, "How the colours were judged" and the numbers came from the rebuild. Border-Conditions/run1 2026-12-01 kept FAIL, FAIL (absolute Lab, max 3.53) under note 6 "judged relative to the paper white recorded in the profile"; Second-Route/run2 2029-03-26 kept its strip rows under a rebuilt `strip_corner_aims = profile`. Beside a kept verdict the page is now drawn from the RECORD: the saved report, completed with the blocks it never had, never overwritten by them, and without a rule block it lacks (`paper_patch`, `paper_white_used`, `strip_corner_aims`). Where this version would work it out differently, Report Scope says so once: M-REPORT-WORKED-OUT-EARLIER (PROPOSED). The approved M-REPORT-NO-PAPER-PATCH is back on the Border-Conditions sheet, where it is true. A report of several dates now records the yardstick and the rule blocks beside each verdict (`judged_block`). "New report…" and every live judgement use this version's working, as before.
+- where: `ui/dialogs/measurement_report_dialog.py` (`RULE_BLOCKS`, `_the_saved_record`, `_worked_out_differently`, `_as_recorded`, `_judged_by_the_document`, `_gather_runs`, `_worked_out_earlier_html`); `workflow/measurement_report.py` (`JUDGED_EXPLANATION_KEYS`, `judged_block`); `workflow/measurement_messages.py` (M-REPORT-WORKED-OUT-EARLIER).
+- tests: tests/test_c5_a_saved_report_is_its_own_record.py (mutations: the saved report does not win, red; the rule blocks borrowed from the rebuild, red; never "worked out differently", red; the page not drawn from the record, red; `judged_block` without the explanation, red).
+- evidence: test_an_old_saved_report_explains_its_own_words
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge5-fixes/
+
+### B8-1092 · FIXED, awaiting confirmation · With a setting touched, "Save report as PDF" judged the rows again and wrote other verdicts than the page
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: challenge 5 of beta 42, M2. The c2 snapshot (`_the_page_as_drawn`) swaps the measurements and `_as_the_document_was_built` restores the four settings, but touching a control sets `_doc_settings_moved`, which silences `_document_settings()`, so `_judged_by_the_document` judged every row live against today's numbers: the page FAIL, FAIL, Overall FAIL; the PDF after ticking only "Show detailed data" PASS, PASS, Overall PASS (Border-Conditions); the strip rows FAIL with a note the page did not have (Second-Route). The root: the PDF re-derived the verdicts instead of printing the page's. Now the rows the page was drawn from (the same objects, with their verdicts) are kept at every draw (`_runs_as_drawn`) and handed back inside the export (`_runs_forced`), and whether the document spoke for the controls is restored with them.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_remember_how_it_was_built`, `_as_the_document_was_built`, `_runs_for_report`).
+- tests: tests/test_c5_a_saved_report_is_its_own_record.py::test_the_pdf_says_what_the_page_says (five steps: touch a setting, untick, add, remove, Clear List; the verdict words read out of the written PDF), ::test_the_pdf_prints_the_rows_the_page_was_drawn_from (mutations: both halves removed, red on two steps and the lock; the rows alone removed, red).
+- evidence: test_the_pdf_says_what_the_page_says
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge5-fixes/
+
+### B8-1093 · OPEN, question for Knut · After Update on an old report the verdict can flip right after "Nothing was changed for the selected report"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: challenge 5 of beta 42, M3. The approved M-REPORT-UNCHANGED-UPDATE-OR-NEW says "Nothing was changed for the selected report" and offers "Update selected report, worked out again by this version of ChromIQ". On a report an earlier version worked out (B8-1091), Update then changes the words: Border-Conditions/run1 2026-12-01 Overall FAIL becomes PASS (max 3.53 to 2.26, absolute to relative to the profile's paper white); on the beta 41 pack 24 FROM PROFILE GAMUT strip rows go PASS to FAIL. The text is approved and is NOT changed. Question for Knut: should the question have a variant for the case where this version works the report out differently (the page already carries M-REPORT-WORKED-OUT-EARLIER then), for example a headline that says the settings are unchanged but the way the report is worked out has changed? Second question (from B8-1094): "New report…" before Generate shows the window's reading of each date, so after a print record is written or a profile is renamed the page changes on the press; should "New report…" work the dates out again too, since it shows nothing saved?
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge-5/runs/e-oldsaved/driver-report.json; ~/Desktop/ChromIQ-beta42-proof/challenge5-fixes/
+
+### B8-1094 · FIXED, awaiting confirmation · Generate wrote a report from what the window had read, not from the disk
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: challenge 5 of beta 42, M4. A saved report that is not stale IS the window's row, and a stale one was rebuilt when the window opened, so Create New and Update wrote those cached inputs: a print record written since (Strip-And-Gamut/run4) never reached the new report (M-REPORT-PAPER-WHITE-FROM-PROFILE not raised, even by Update), nor a profile renamed away since (M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE, and Profile-Gamut/run1 still wrote "compared with the colour the profile predicts" with no profile on disk). Generate now works each measurement out again from its file (`_worked_out_again`: the measurement, its print record, the run's profile), keeps its date, and judges that. Opening a saved report stays a record (§6). The package's recipes now say "Generate report" after "New report…" (the page under "New report…" before the press is still worked out from what the window read, as the coordinator's rule "only Generate works it out again" says; put to Knut as the second question of B8-1093).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_worked_out_again`, `_write_the_document`); `scripts/make_release_demo_package.py` (`MESSAGE_DEMOS`, `RULE_DEMOS`).
+- tests: tests/test_c5_a_saved_report_is_its_own_record.py::test_generate_works_the_measurement_out_again (mutation: the window's row stamped instead, red).
+- evidence: test_generate_works_the_measurement_out_again
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge5-fixes/
+
+### B8-1095 · FIXED, awaiting confirmation · An empty trend graph said "needs at least two measurements" when that was not the reason
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: challenge 5 of beta 42, minor, and B8-1084. The Control strip graph of Second-Route/run2 under Full colour check + ChromIQ default, three dates ticked, said "A trend graph needs at least two measurements": the type judges no strip row and the graph had nothing to draw (the tab is hidden, and a driver's `setCurrentIndex` still showed its page). A graph with no judged row now says "This report judges none of this graph's rows, so it has nothing to draw. …"; a graph given two or more measurements of which fewer than two carry its value (B8-1084, Paper white on sheets with no paper patch) says "Fewer than two of the ticked measurements have a value for this graph, so it draws no trend. …"; the old sentence stays for one measurement. German by hand; both ledgers re-measured (+4 with M-REPORT-WORKED-OUT-EARLIER).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_TrendChart.empty_reason`, `set_data`).
+- tests: tests/test_c5_a_saved_report_is_its_own_record.py::test_an_empty_graph_gives_the_true_reason (mutation: the generic sentence always, red).
+- evidence: test_an_empty_graph_gives_the_true_reason
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge5-fixes/
+
+### B8-1096 · FIXED, awaiting confirmation · The four K37 notes and M-REPORT-NO-PAPER-PATCH said "sheet", which Knut could not place
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5824834975: he approves M-REPORT-PAPER-WHITE-FROM-PROFILE, M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE, M-REPORT-STRIP-CORNERS-PREDICTED and M-REPORT-STRIP-CORNERS-IDEAL once "sheet" is made clear; he could not tell whether it meant the measured chart, a metric or the report ("Only the sheets that carry this note are affected, not the rest of the report"). The note is decided per measurement (one dated measurement of the chart), so the bodies now name the measurement, as "Detailed data per measurement" does ("The chart of this measurement …", "In this measurement …", "this measurement's solid ink …") and end "Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual." M-REPORT-NO-PAPER-PATCH used the same phrase and is reworded the same way; its approval (5820871320) is kept and the rewording is recorded under it in §M for Knut. The four are marked APPROVED in §M with 5824834975, conditional on this rewording. German by hand; both ledgers re-measured (no change: each old key is replaced by one new one).
+- where: `workflow/measurement_messages.py`; `data/i18n/*.json`; `docs/design/unified_measurement_management.md` §M; `docs/design/measurement_report_limits.md` §33, §34.
+- tests: tests/test_message_catalogue.py (the §M text and the code agree; the four left AWAITING_APPROVAL), tests/test_i18n.py, tests/test_help_cards_untranslated_are_tracked.py.
+- evidence: test_the_revision_note_names_what_awaits_review
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge5-fixes/ (after-* runs of scenes e, sg-e, sg-b, pg-noprof)

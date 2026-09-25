@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-25, challenge 5 of beta 42 fixes (B8-1091 to B8-1095: M-REPORT-WORKED-OUT-EARLIER, title and body, and the two true reasons an empty trend graph gives). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 4. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K37 (B8-1081 to B8-1088: M-REPORT-PAPER-WHITE-FROM-PROFILE, M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE, M-REPORT-STRIP-CORNERS-PREDICTED and M-REPORT-STRIP-CORNERS-IDEAL, titles and bodies, and the (e) line of "How the colours were judged"). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 9. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K36 (B8-1061 to B8-1068: the ISO report type holds "Judged against" to the four ISO sets and its refusal lines, the Preferences type help, the Dictionary's profile run, verification run and calibration run, the Run type entry, the help cards' and the report's run words, M-REPORT-NO-PAPER-PATCH reworded). German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree rebased onto 3d05ec2b (challenge 3 fixes, B8-1051 to B8-1053, the 4.3 landing page), BOTH ledgers.
     # RE-MEASURED 2026-09-24, challenge 3 fixes of beta 42 (B8-1031 to B8-1040: the ISO heading and the two ISO lines, the red line while Generate is greyed, the greyed controls' tooltip) rebased onto B8-1011 to B8-1016 and B8-1041. German by hand; the others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
@@ -1017,18 +1018,18 @@ _BUDGET = {
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
     "de": 13,
-    "es": 963,
-    "fr": 964,
-    "it": 963,
-    "ja": 963,
-    "nl": 963,
-    "no": 963,
-    "pl": 963,
-    "pt": 963,
-    "ru": 962,
-    "sv": 963,
-    "zh_CN": 962,
-    "uk": 1106,
+    "es": 967,
+    "fr": 968,
+    "it": 967,
+    "ja": 967,
+    "nl": 967,
+    "no": 967,
+    "pl": 967,
+    "pt": 967,
+    "ru": 966,
+    "sv": 967,
+    "zh_CN": 966,
+    "uk": 1110,
 }
 
 

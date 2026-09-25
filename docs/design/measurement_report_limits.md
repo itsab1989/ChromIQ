@@ -839,6 +839,11 @@ flag), `verdict.rows[].word`, `verdict.overall`, `verdict.summary`,
 saved before the words existed shows the recorded pass/fail as words; one with
 no verdict at all is graded live against the run's set and says so.
 
+**Amended (challenge 5 of beta 42, B8-1091 and B8-1094, not confirmed):** a
+rebuilt report's kept verdict is shown with the report's own record, not with
+the rebuild's explanations (§33.6's amendment), and only Generate works a
+report out again from disk (§28.10's amendment).
+
 ## 7. Settings migration
 
 **⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
@@ -5910,6 +5915,28 @@ What the window does now (built for beta 42, B8-1001; NOT confirmed):
   verification's dates (the way K32 adds it) no longer greys Generate. Its
   tooltip now says "ticked together … Untick one kind, or remove it".
 
+**Amended (challenge 5 of beta 42, B8-1092, not confirmed): the PDF prints
+the page's own rows.** The snapshot above kept the measurements, and the
+four settings were put back for the export, and still the PDF judged the rows
+again: touching one control drops the loaded document's claim on the
+controls, and the export then judged every row live against today's numbers
+(measured: the page FAIL, FAIL, Overall FAIL; the PDF after ticking only
+"Show detailed data" PASS, PASS, Overall PASS). Each time the page is drawn
+the rows it was drawn from are kept, with their verdicts, and the export
+prints exactly those, with the document's claim as it stood when the page
+was drawn. Verified after each of: a setting touched, a tick, Add Profile's
+Measurements, Remove Profile's Measurements and Clear List, by the verdict
+words read out of the written PDF
+(`tests/test_c5_a_saved_report_is_its_own_record.py`).
+
+**Amended (challenge 5 of beta 42, B8-1094, not confirmed): Generate works
+the report out again from disk.** Create New and Update read each ticked
+measurement, its print record and the run's profile again at the press, and
+judge that; they no longer write what the window read when it opened (a
+saved report that was not stale, or one rebuilt then). Opening a saved report
+stays a record (§6). The page under "New report…" before the press is still
+the window's reading (question for Knut, B8-1093).
+
 **Every condition that greys Generate report, and the reason shown under it**
 (`_sync_type_combo`; the reason is the button's tooltip and the line under
 it, `_set_generate_why`). For Knut's question:
@@ -6855,6 +6882,25 @@ raises each (`MESSAGE_DEMOS`).
 out again from its measurement when the window reads it (`ALWAYS_BUILT_BLOCKS`,
 §6; the saved verdict carried across untouched).
 
+**Amended (challenge 5 of beta 42, B8-1091, not confirmed): beside its kept
+verdict such a report is shown as it was SAVED.** Rebuilding it computes the
+blocks it never had; it does not explain its words. The page of a saved
+report is drawn from its record: the saved report, completed with the blocks
+it lacks, never overwritten by them, and WITHOUT a rule block it did not
+record (`paper_patch`, `paper_white_used`, `strip_corner_aims`), because that
+block would explain the kept words by a rule they were not worked out by. So a
+white-mapped sheet with no paper patch saved before K37 keeps its absolute
+numbers, its "Paper white" line carries the approved M-REPORT-NO-PAPER-PATCH
+(true of it), and the (e) note and line are not shown. Where this version
+would work the report out differently, Report Scope says so once,
+M-REPORT-WORKED-OUT-EARLIER (PROPOSED): *"This report was worked out by an
+earlier version of ChromIQ and is shown as it was saved. This version works
+some of its rows out differently; Update works the report out again."* A
+report of several dates records, beside each verdict, the yardstick and the
+rule blocks (`judged_block`) from now on. A new report and every live
+judgement use this version's working. Measured on screen,
+`~/Desktop/ChromIQ-beta42-proof/challenge5-fixes/`.
+
 * **Built:** `workflow/measurement_report.py` (`profile_paper_white`,
   `_run_profile_white`, `paper_reference_of` on the shared reader,
   `PAPER_WHITE_*`, `paper_white_used`, the yardstick in `build_report`,
@@ -6871,6 +6917,8 @@ out again from its measurement when the window reads it (`ALWAYS_BUILT_BLOCKS`,
 
 **Status:** built for beta 42 (B8-1081 to B8-1084), NOT confirmed; two
 message texts and the "How the colours were judged" line proposed.
+
+**Words approved, reworded (Knut, #182 [5824834975](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5824834975), 2026-09-25):** he approves M-REPORT-PAPER-WHITE-FROM-PROFILE and M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE once "sheet" is made clear (he could not tell whether it meant the measured chart, a metric or the report). The bodies quoted above are the words he was shown; the approved bodies name the measurement instead ("The chart of this measurement …", "In this measurement …") and end *"Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual."* The current words are in §M of `unified_measurement_management.md`. M-REPORT-NO-PAPER-PATCH was reworded the same way; its approval (5820871320) is kept. The behaviour is unchanged and still awaits confirmation.
 
 
 ## 34. K37 (i): on a FROM PROFILE GAMUT chart the control strip compares its corner patches with the profile's prediction (#182, 2026-09-24, beta 42)
@@ -6927,6 +6975,15 @@ unchanged: it already aims at the profile's colour.
 * The report records `strip_corner_aims` (from, profile, which ids); a report
   saved before is worked out again when the window reads it
   (`ALWAYS_BUILT_BLOCKS`, §6).
+  **Amended (challenge 5 of beta 42, B8-1091, not confirmed):** beside its
+  kept verdict such a report is shown as it was saved (§33.6's amendment):
+  its strip rows keep their saved words and notes, no rebuilt
+  `strip_corner_aims` is shown with them, and Report Scope carries
+  M-REPORT-WORKED-OUT-EARLIER where this version compares the corners with
+  the profile's prediction. A report generated with no profile on disk
+  compares them with the ideal values and says so
+  (M-REPORT-STRIP-CORNERS-IDEAL), because Generate reads the run's profile
+  again at the press (B8-1094).
 
 **34.2 The note (B8-1086).** On such a sheet the three control-strip rows,
 wherever they carry a verdict, carry one numbered note,
@@ -7018,3 +7075,5 @@ the run's OWN limit, ChromIQ default's.)
 
 **Status:** built for beta 42 (B8-1085 to B8-1088), NOT confirmed; two
 message texts proposed.
+
+**Words approved, reworded (Knut, #182 [5824834975](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5824834975), 2026-09-25):** he approves M-REPORT-STRIP-CORNERS-PREDICTED and M-REPORT-STRIP-CORNERS-IDEAL once "sheet" is made clear (he could not tell whether it meant the measured chart, a metric or the report). The bodies quoted above are the words he was shown; the approved bodies name the measurement instead ("The chart of this measurement …", "In this measurement …") and end *"Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual."* The current words are in §M of `unified_measurement_management.md`. M-REPORT-NO-PAPER-PATCH was reworded the same way; its approval (5820871320) is kept. The behaviour is unchanged and still awaits confirmation.

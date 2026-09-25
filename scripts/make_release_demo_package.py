@@ -342,7 +342,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "a Finder duplicate of any project beside a folder that already has the new name: the rename fails, and the choices come back",
     ]),
     ("§33", "K37:", [
-        "Report-Limits-Strip-And-Gamut/run4: add a relative-intent print record to its 2028-11-23 date (see M-REPORT-PAPER-WHITE-FROM-PROFILE below): judged against the run's profile's paper white, Paper white N-A with that note",
+        "Report-Limits-Strip-And-Gamut/run4: add a relative-intent print record to its 2028-11-23 date (see M-REPORT-PAPER-WHITE-FROM-PROFILE below), then New report…, Generate report: judged against the run's profile's paper white, Paper white N-A with that note",
         "the same, with run4's profile renamed away: absolute Lab, M-REPORT-NO-PAPER-PATCH on the line and M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE on the colour rows",
     ]),
     ("§34", "K37 (i):", [
@@ -441,10 +441,10 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     # chart without a paper patch (Strip-And-Gamut/run4 ships with no print
     # record, on purpose), so each needs one step outside ChromIQ first.
     "M-REPORT-PAPER-WHITE-FROM-PROFILE": [
-        "Report-Limits-Strip-And-Gamut/run4: write {\"colour\": \"through-profile\", \"intent\": \"relative\", \"route\": \"chromiq\", \"profile\": \"Report-Limits-Strip-And-Gamut.icc\"} as Report-Limits-Strip-And-Gamut-verify.print.json into the 2028-11-23 date's chart/ folder; New report…, detailed data: Paper white reads N-A with this note, naming the run's profile",
+        "Report-Limits-Strip-And-Gamut/run4: write {\"colour\": \"through-profile\", \"intent\": \"relative\", \"route\": \"chromiq\", \"profile\": \"Report-Limits-Strip-And-Gamut.icc\"} as Report-Limits-Strip-And-Gamut-verify.print.json into the 2028-11-23 date's chart/ folder; New report…, detailed data, Generate report (it reads the print record again; the saved reports need not be deleted): Paper white reads N-A with this note, naming the run's profile",
     ],
     "M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE": [
-        "the same, then rename run4's Report-Limits-Strip-And-Gamut.icc: the colour rows of that date carry this note",
+        "the same, then rename run4's Report-Limits-Strip-And-Gamut.icc and Generate report again (New report…): the colour rows of that date carry this note",
     ],
     # K37 (i) (Knut, 5823088098): every FROM PROFILE GAMUT date shows the
     # first where its strip rows carry a verdict.
@@ -453,7 +453,13 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
         "Report-Limits-Profile-Gamut/run1: New report…, Judged against ISO 12647-7, the control-strip rows carry this note",
     ],
     "M-REPORT-STRIP-CORNERS-IDEAL": [
-        "Report-Limits-Profile-Gamut/run1: rename run1's Report-Limits-Profile-Gamut.icc, then New report…, Judged against ISO 12647-7",
+        "Report-Limits-Profile-Gamut/run1: rename run1's Report-Limits-Profile-Gamut.icc, then New report…, Judged against ISO 12647-7, Generate report",
+    ],
+    # Challenge 5 of beta 42 (B8-1091): only a report saved by an earlier
+    # version shows it, and every report in this package is written by this
+    # one.
+    "M-REPORT-WORKED-OUT-EARLIER": [
+        "not reachable from this package: every report in it is written by this version; open a report saved by beta 41 or earlier on a FROM PROFILE GAMUT date (for example Report-Limits-Second-Route/run2 from the beta 41 package)",
     ],
     "M-REPORT-UPDATE-NOTHING-LEFT": [
         "Report-Limits-Report-Folders/run1: delete the .ti3 of the 2026-12-08 date, then Update the 2026-12-08 10:00 One date report",

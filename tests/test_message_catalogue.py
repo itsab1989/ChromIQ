@@ -211,14 +211,18 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # (b) absolute Lab with a note only when no
                                  # profile can be read. His behaviour, our
                                  # words.
-                                 "M-REPORT-PAPER-WHITE-FROM-PROFILE",
-                                 "M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE",
+                                 # (The four K37 notes were APPROVED by Knut
+                                 # in 5824834975 once "sheet" was reworded,
+                                 # and left this set.)
                                  # K37 (i) (Knut, 5823088098 "Yes do so"): a
                                  # FROM PROFILE GAMUT sheet's strip corners
                                  # against the profile's prediction; the note
                                  # our post promised, in our words.
-                                 "M-REPORT-STRIP-CORNERS-PREDICTED",
-                                 "M-REPORT-STRIP-CORNERS-IDEAL",
+                                 # Challenge 5 of beta 42 (M1, B8-1091): a
+                                 # saved report shown as it was saved, when a
+                                 # later rule would work it out differently.
+                                 # Our words.
+                                 "M-REPORT-WORKED-OUT-EARLIER",
                                  # #182, 2026-09-19: Knut overruled his own
                                  # K.1 ("Generate report always creates a new
                                  # report"). Pressed with a report selected and

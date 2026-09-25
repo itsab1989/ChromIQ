@@ -807,6 +807,117 @@ ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = (
 )
 
 
+#: **THE BLOCKS THAT SAY HOW A VERDICT WAS WORKED OUT, AND WHICH A RULE
+#: INTRODUCED SINCE (challenge 5 of beta 42, M1, B8-1091).** A report saved
+#: before one of them existed is rebuilt when it is read (the tuple above),
+#: and its saved verdict is kept (§6). The rebuilt block describes how THIS
+#: version works the sheet out, which is not how the kept verdict was worked
+#: out: a Border-Conditions sheet saved before K37 kept FAIL, FAIL (absolute
+#: Lab) under a note saying it was judged relative to its profile's paper
+#: white, and a Second-Route sheet kept its strip rows under a rebuilt
+#: `strip_corner_aims` of "the profile's prediction". So beside a kept
+#: verdict these are taken ONLY from what the saved report recorded; a block
+#: it did not record is left out, and the page says, once, that an earlier
+#: version worked the report out (`_worked_out_earlier_html`).
+RULE_BLOCKS: "tuple[str, ...]" = (
+    "paper_patch", "paper_white_used", "strip_corner_aims")
+
+#: Everything a saved report records about HOW its colours were judged. Beside
+#: a kept verdict these come from the record, never from a rebuild; a report of
+#: several dates records them per measurement in its `JUDGED_KEY` block.
+EXPLANATION_BLOCKS: "tuple[str, ...]" = (
+    "yardstick", "yardstick_no_paper", "paper_white", "printing",
+    "colorimetric") + RULE_BLOCKS
+
+#: Session key: the row as its saved report recorded it (`_the_saved_record`),
+#: shown wherever the row's verdict is the kept one.
+RECORD_KEY = "_record"
+#: Session key: this version works the row out differently from the earlier
+#: version that saved it (`_worked_out_differently`).
+WORKED_OUT_EARLIER_KEY = "_worked_out_earlier"
+
+
+def _worked_out_differently(saved: dict, rebuilt: dict) -> bool:
+    """Would THIS version explain *saved*'s verdict differently from the
+    earlier version that wrote it? Asked only of the rule blocks *saved*
+    lacks (M1, B8-1091):
+
+    * no `paper_white_used`: before K37 a white-mapped sheet with no paper
+      patch was judged in absolute Lab; now it is judged relative to its
+      profile's paper white when a profile can be read ((e), §33);
+    * no `strip_corner_aims`: before K37 (i) a FROM PROFILE GAMUT chart's
+      corner rungs were compared with their ideal values; now with the
+      profile's prediction when a profile can be read (§34);
+    * no `paper_patch`: before beta 42 the paper white was the lightest
+      reading; now it is the patch printed with no ink (§31.4), which is a
+      different patch, or none."""
+    from workflow.measurement_report import (CORNER_AIMS_FROM_PROFILE,
+                                             PAPER_WHITE_FROM_PROFILE)
+    if not isinstance(saved, dict) or not isinstance(rebuilt, dict):
+        return False
+    if "paper_white_used" not in saved and (
+            (rebuilt.get("paper_white_used") or {}).get("from")
+            == PAPER_WHITE_FROM_PROFILE):
+        return True
+    if "strip_corner_aims" not in saved and (
+            (rebuilt.get("strip_corner_aims") or {}).get("from")
+            == CORNER_AIMS_FROM_PROFILE):
+        return True
+    if "paper_patch" not in saved:
+        if rebuilt.get("paper_patch") is False:
+            return True
+
+        def _where(p):
+            if not isinstance(p, dict):
+                return None
+            lab = p.get("lab")
+            return (str(p.get("loc") or ""),
+                    tuple(round(float(v), 1) for v in lab)
+                    if isinstance(lab, (list, tuple)) else None)
+        if _where(saved.get("paper_white")) != _where(
+                rebuilt.get("paper_white")):
+            return True
+    return False
+
+
+def _the_saved_record(saved: dict, rebuilt: dict) -> "dict | None":
+    """The row a SAVED report is shown as beside its kept verdict (M1,
+    B8-1091), or None when it kept no verdict (it is then judged live, from
+    the rebuilt report, as before).
+
+    §6: a saved report is a record; the rebuild computes the blocks it never
+    had and re-grades nothing. So the record is the saved report itself,
+    completed with the blocks it lacks, and never overwritten by them: its
+    numbers, its yardstick, its print record and its paper white are the
+    ones its verdict was worked out from. A rule block it lacks
+    (`RULE_BLOCKS`) is NOT taken from the rebuild, because that block would
+    explain the kept verdict by a rule it was not worked out by; where this
+    version would work it out differently the record carries
+    `WORKED_OUT_EARLIER_KEY`, and the page says so once.
+
+    A report of an older SCHEMA (no ``avg_all``) cannot lend its metric
+    block, so there the rebuild's numbers stand and only what the report
+    recorded about how it was judged (`EXPLANATION_BLOCKS`) is kept."""
+    from workflow.measurement_report import REPORT_SCHEMA, recorded_verdict
+    if not isinstance(saved, dict) or recorded_verdict(saved) is None:
+        return None
+    rec = dict(rebuilt or {})
+    if saved.get("schema", 0) >= REPORT_SCHEMA \
+            and (saved.get("de00") or {}).get("avg_all") is not None:
+        rec.update(saved)
+    else:
+        rec.update({k: saved[k] for k in
+                    ("pass_thresholds", "verdict", "compliance",
+                     "report_type", "document", "created")
+                    + EXPLANATION_BLOCKS if k in saved})
+    for k in RULE_BLOCKS:
+        if k not in saved:
+            rec.pop(k, None)
+    if _worked_out_differently(saved, rebuilt or {}):
+        rec[WORKED_OUT_EARLIER_KEY] = True
+    return rec
+
+
 def _h2(text: str, *, page_break: bool = False) -> str:
     """A main section heading, matching 'Trend over time' etc.
 
@@ -1652,6 +1763,10 @@ class _TrendChart(QWidget):
             return (any(acc(pt) is not None for _, _, acc in metrics)
                     or any(f is not None and f(pt) for f in self._withheld))
         self._series = [p for p in (series or []) if has_any(p)]
+        #: How many measurements the graph was GIVEN, before the dates with
+        #: nothing to draw were dropped: the empty graph's reason depends on
+        #: it (challenge 5 of beta 42, B8-1095; B8-1084).
+        self._n_given = len(series or [])
         self._metrics = metrics
         self._dark = dark
         self._y_max = y_max
@@ -1675,6 +1790,29 @@ class _TrendChart(QWidget):
         # chart — a per-widget setVisible here fought the tab stack and made all
         # three pages paint on top of each other before layout settled.
         self.update()
+
+    def empty_reason(self) -> str:
+        """Why this graph draws no trend, in the one reason that is true
+        (challenge 5 of beta 42, B8-1095, the pattern of B8-1084).
+
+        "Needs at least two measurements" was printed whatever the cause, so
+        the Control strip graph of a Full colour check said it over three
+        ticked dates: the type judges no strip row, and the graph had no
+        line to draw at all. And a graph given two or more dates of which
+        fewer than two carry its value (Paper white on sheets with no paper
+        patch, B8-1084) was told to add measurements it already had."""
+        if not getattr(self, "_metrics", None):
+            return tr("This report judges none of this graph's rows, so it "
+                      "has nothing to draw. Choose a report type or a limit "
+                      "set that judges them to see their trend.")
+        if getattr(self, "_n_given", 0) >= 2:
+            return tr("Fewer than two of the ticked measurements have a "
+                      "value for this graph, so it draws no trend. The "
+                      "notes under the results say why a value is missing.")
+        return tr("A trend graph needs at least two measurements. "
+                  "Add another measurement, or tick more of the measurements "
+                  "in the list above. “Select all” ticks every one of "
+                  "them.")
 
     def has_trend(self) -> bool:
         return len(self._series) >= 2
@@ -1845,10 +1983,7 @@ class _TrendChart(QWidget):
             p.drawText(
                 QRectF(L + 10, T, w - 20, h),
                 Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
-                tr("A trend graph needs at least two measurements. "
-                   "Add another measurement, or tick more of the measurements "
-                   "in the list above. “Select all” ticks every one of "
-                   "them."))
+                self.empty_reason())
             p.end()
             return
         vmin, vmax = self._y_range()
@@ -3603,10 +3738,21 @@ class MeasurementReportDialog(QDialog):
                                 ("pass_thresholds", "verdict", "compliance",
                                  "report_type", "document")
                                 if k in rep}
+                        saved_rep = rep
                         rep = build_report(run_ti3, argyll_bin=self._argyll_bin())
                         if created:
                             rep["created"] = created
+                        # …AND THE RECORD ITSELF, FOR WHEREVER ITS KEPT
+                        # VERDICT IS SHOWN (challenge 5 of beta 42, M1,
+                        # B8-1091). `rep` is this version's working of the
+                        # measurement, what a NEW report is judged from; the
+                        # saved report's own page is drawn from what it
+                        # recorded, so its notes and its "How the colours
+                        # were judged" line cannot contradict its words.
+                        record = _the_saved_record(saved_rep, dict(rep))
                         rep.update(kept)
+                        if record is not None:
+                            rep[RECORD_KEY] = record
                     except Exception:  # noqa: BLE001
                         pass
             # Session-only: where this run lives on disk. Saved reports carry
@@ -5558,6 +5704,27 @@ class MeasurementReportDialog(QDialog):
         )
         # ...AND THE REPORT'S OWN LIMITS (K30), which are not a widget either.
         self._own_limits_as_built = getattr(self, "_report_own_limits", None)
+        # **AND THE ROWS THE PAGE WAS DRAWN FROM, WITH THEIR VERDICTS
+        # (challenge 5 of beta 42, M2, B8-1092).** The wrapper put the four
+        # settings back and still the PDF re-judged: touching one control sets
+        # `_doc_settings_moved`, which silences `_document_settings()`, and
+        # `_judged_by_the_document` then judged every row live against today's
+        # numbers instead of showing the words the saved report was drawn
+        # with. Measured on a report saved before K37 (Border-Conditions run 1,
+        # 2026-12-01): the page FAIL, FAIL, Overall FAIL; after ticking only
+        # "Show detailed data" the PDF PASS, PASS, Overall PASS. So the rows
+        # themselves are kept, exactly as the page judged them, and the PDF
+        # prints those (`_runs_for_report` hands them back inside the
+        # wrapper), together with whether the loaded document still spoke for
+        # the controls when the page was drawn. The SAME objects, not copies:
+        # `_is_judged_now` recognises a row judged live by its identity.
+        try:
+            self._runs_as_drawn = list(self._runs_for_report())
+        except Exception:      # noqa: BLE001 — never a blocker for the page
+            log.debug("could not keep the page's rows", exc_info=True)
+            self._runs_as_drawn = None
+        self._doc_moved_as_built = bool(
+            getattr(self, "_doc_settings_moved", False))
 
     def _refresh_trend(self) -> None:
         """Repaint the trend charts from the report's current run set."""
@@ -6370,8 +6537,10 @@ class MeasurementReportDialog(QDialog):
         several = len({m["dir"] for m in members}) > 1
         # A TYPE THE KIND ALLOWS (round 2B, #8): what is WRITTEN is fitted.
         _tid = self._fit_to_kind(self._report_type_now())
-        #: The row of each measurement, for the verdicts of a document file.
-        by_key = {self._run_key(r): r for r in self._runs_for_document()}
+        #: The row of each measurement, for the verdicts of a document file,
+        #: WORKED OUT AGAIN FROM DISK (M4, B8-1094; see `_worked_out_again`).
+        by_key = {self._run_key(r): self._worked_out_again(r)
+                  for r in self._runs_for_document()}
         doc_members = members
         if several:
             doc_members = []
@@ -6455,7 +6624,7 @@ class MeasurementReportDialog(QDialog):
             failed.extend(str(p) for p in sorted(_stuck))
         elif one is not None:
             try:
-                rep = dict(one)
+                rep = dict(by_key.get(one_key) or self._worked_out_again(one))
                 for k in [k for k in rep if k.startswith("_")]:
                     rep.pop(k, None)
                 stamp_verdict(rep, lim.limits, set_id=lim.set_id,
@@ -6639,6 +6808,10 @@ class MeasurementReportDialog(QDialog):
                 getattr(self, "_limits_by_origin", None),
                 self._limits)
         held_own = getattr(self, "_report_own_limits", None)
+        # The page's own rows and whether the document spoke for the controls
+        # when it was drawn (M2, B8-1092; see `_remember_how_it_was_built`).
+        held_moved = getattr(self, "_doc_settings_moved", False)
+        held_rows = getattr(self, "_runs_forced", None)
         try:
             _put(tuple(built))
             if state:
@@ -6647,11 +6820,18 @@ class MeasurementReportDialog(QDialog):
                      state[0], dict(state[1]), dict(state[2]), state[3])
                 self._report_own_limits = getattr(
                     self, "_own_limits_as_built", None)
+            self._doc_settings_moved = bool(
+                getattr(self, "_doc_moved_as_built", held_moved))
+            drawn = getattr(self, "_runs_as_drawn", None)
+            if drawn is not None:
+                self._runs_forced = list(drawn)
             yield
         finally:
             (self._type_as_built, self._limits_cache,
              self._limits_by_origin, self._limits) = held
             self._report_own_limits = held_own
+            self._doc_settings_moved = held_moved
+            self._runs_forced = held_rows
             _put(before)
             for w, was in blocked:
                 w.blockSignals(was)
@@ -11943,7 +12123,15 @@ class MeasurementReportDialog(QDialog):
 
         The same list drives the window and the PDF, so they always match
         (worst-patch count included, Knut).
+
+        **INSIDE A PDF OF THE PAGE, THE PAGE'S OWN ROWS (M2, B8-1092).** Set
+        only by `_as_the_document_was_built` and cleared in its `finally`: the
+        rows exactly as the page judged them when it was drawn, so a control
+        touched since cannot make the PDF judge them again.
         """
+        forced = getattr(self, "_runs_forced", None)
+        if forced is not None:
+            return list(forced)
         ticked = [r for r in (self._history or [])
                   if self._run_key(r) not in self._hidden_runs]
         if ticked:
@@ -12026,14 +12214,19 @@ class MeasurementReportDialog(QDialog):
                                     r.get("_origin_dir") or "")
                  if doc is not None else None)
             if j is not None:
-                c = dict(r)
+                # THE DOCUMENT'S WORDS BESIDE THE RECORD'S EXPLANATION (M1,
+                # B8-1091): what the document recorded of how the colours
+                # were judged (since this fix, `judged_block`), else what the
+                # date's own saved report recorded.
+                c = self._as_recorded(r, j)
                 c.update(j)
                 out.append(c)
                 continue
             own = recorded_document(r) if doc is not None else None
             if (own is not None and doc_id
                     and str(own.get("id") or "") == doc_id):
-                out.append(r)                 # the loaded report's own file
+                # the loaded report's own file, as it was saved
+                out.append(self._as_recorded(r))
                 continue
             if doc_id.startswith("file:"):
                 # A report written before the document record existed: its
@@ -12042,10 +12235,118 @@ class MeasurementReportDialog(QDialog):
                 if (f.name == str(r.get("_report_file") or "")
                         and str(f.parent.parent)
                         == str(r.get("_origin_dir") or "")):
-                    out.append(r)
+                    out.append(self._as_recorded(r))
                     continue
             out.append(self._judged_live(r, lim))
         return out
+
+    @staticmethod
+    def _as_recorded(r: dict, judged: "dict | None" = None) -> dict:
+        """*r* as its saved report RECORDED it, for a page that shows the
+        verdict that report was saved with (challenge 5 of beta 42, M1,
+        B8-1091).
+
+        A row rebuilt from its measurement (`_report_needs_rebuilding`) is
+        this version's working of it; its record (`RECORD_KEY`) is the saved
+        report completed with the blocks it never had (`_the_saved_record`).
+        The session keys (``_origin_dir``, ``_report_file`` …) are the row's.
+        A row that was not rebuilt is its own record and comes back as it is.
+
+        *judged*, a report of several dates' `JUDGED_KEY` block: the
+        explanation blocks it recorded replace the date's own, and a rule
+        block it did NOT record is left out when the date's record was
+        rebuilt under a newer rule, exactly as for a report of one date."""
+        if not isinstance(r, dict):
+            return r
+        rec = r.get(RECORD_KEY)
+        if not isinstance(rec, dict) and not isinstance(judged, dict):
+            return r
+        c = dict(rec if isinstance(rec, dict) else r)
+        c.update({k: v for k, v in r.items()
+                  if k.startswith("_") and k != RECORD_KEY})
+        c.pop(RECORD_KEY, None)
+        if isinstance(rec, dict) and WORKED_OUT_EARLIER_KEY in rec:
+            c[WORKED_OUT_EARLIER_KEY] = True
+        else:
+            c.pop(WORKED_OUT_EARLIER_KEY, None)
+        if isinstance(judged, dict):
+            # What the document recorded of the judgement wins; a rule
+            # block it did not record did not exist for it (every report
+            # of several dates written before this fix).
+            for k in EXPLANATION_BLOCKS:
+                if k in judged:
+                    c[k] = judged[k]
+            # The paper patch is the date's own fact, not the document's:
+            # a judged block never carried it before this fix, and the
+            # date's record answers for it above.
+            working = {k: v for k, v in r.items() if k != RECORD_KEY}
+            probe = dict(judged)
+            probe.setdefault("paper_patch", c.get("paper_patch"))
+            if _worked_out_differently(probe, working):
+                c[WORKED_OUT_EARLIER_KEY] = True
+                for k in ("paper_white_used", "strip_corner_aims"):
+                    if k not in judged:
+                        c.pop(k, None)
+            elif any(k in judged for k in RULE_BLOCKS):
+                c.pop(WORKED_OUT_EARLIER_KEY, None)
+        return c
+
+    def _worked_out_again(self, r: dict) -> dict:
+        """*r* worked out again from what is on disk NOW, for Generate
+        (Create New and Update; challenge 5 of beta 42, M4, B8-1094).
+
+        The window's rows were worked out when it read them: a saved report
+        that was not stale IS its saved numbers, and a stale one was rebuilt
+        then. So a print record written since, a profile renamed away since,
+        or a report saved under an older rule was written again from those
+        cached inputs: the K37 recipes of the demo package did not raise
+        their messages, and a new report with no profile on disk still said
+        its strip corners were compared with the profile's prediction.
+        Opening a saved report stays a record (§6); a press of Generate reads
+        the measurement, its print record and the run's profile again.
+
+        The measurement is the one this row is about (`_measurement_for`, the
+        same rule the window reads a saved report's measurement by); where
+        no file on disk is it any more, the row is written as it stands,
+        which is the only honest source left. Its date and the session keys
+        are the row's."""
+        from workflow.measurement_report import build_report
+        if not isinstance(r, dict):
+            return r
+        origin = str(r.get("_origin_dir") or "")
+        if not origin:
+            return r
+        # The name the report records; the window's own file when it is in
+        # this folder (a target renamed since keeps the old name in its
+        # reports, `_measurement_for`).
+        opened = Path(origin) / Path(str(r.get("ti3") or "")).name
+        own = getattr(self, "_ti3", None)
+        if own and Path(str(own)).parent == Path(origin):
+            opened = Path(str(own))
+        try:
+            ti3 = self._measurement_for(r, Path(origin), opened)
+        except Exception:                              # noqa: BLE001
+            ti3 = None
+        if ti3 is None and r.get("_fresh"):
+            cand = Path(origin) / Path(str(r.get("ti3") or "")).name
+            ti3 = cand if cand.is_file() else None
+        if ti3 is None:
+            log.info("Generate: %s is not on disk as it was, so its row is "
+                     "written as the window read it", r.get("ti3"))
+            return r
+        try:
+            new = build_report(ti3, argyll_bin=self._argyll_bin())
+        except Exception as exc:                       # noqa: BLE001
+            log.warning("Generate: %s could not be worked out again (%s); "
+                        "its row is written as the window read it", ti3, exc)
+            return r
+        for k in ("created", "raw_drift", "report_type"):
+            if k in r:
+                new[k] = r[k]
+        new.update({k: v for k, v in r.items()
+                    if k.startswith("_") and k != RECORD_KEY
+                    and k != WORKED_OUT_EARLIER_KEY})
+        return new
 
     def _judged_live(self, r: dict, lim) -> dict:
         """A copy of *r* judged against *lim* just now (G7). Cached per row,
@@ -12790,8 +13091,29 @@ class MeasurementReportDialog(QDialog):
             out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
         return (out + self._scope_deleted_runs_html()
+                + self._worked_out_earlier_html(runs)
                 + self._scope_warnings_html(sc["warnings"])
                 + self._scope_notes_html(sc.get("notes") or []))
+
+    @staticmethod
+    def _worked_out_earlier_html(runs: list) -> str:
+        """One line when a measurement on the page is shown with the verdict
+        an earlier version saved, and this version would work it out
+        differently (challenge 5 of beta 42, M1, B8-1091): the page is the
+        record (§6), its notes are the record's, and the reader is told once
+        that Update works it out again (M-REPORT-WORKED-OUT-EARLIER). Empty
+        for a new report, whose rows are this version's. Never raises."""
+        try:
+            if not any(isinstance(r, dict) and r.get(WORKED_OUT_EARLIER_KEY)
+                       for r in runs or []):
+                return ""
+        except Exception:                              # noqa: BLE001
+            return ""
+        from workflow import measurement_messages as M
+        title, body = M.M_REPORT_WORKED_OUT_EARLIER.render()
+        return (f"<div style='color:{_C['dim']};margin-top:10px'><b>"
+                + html.escape(title) + "</b><br>" + html.escape(body)
+                + "</div>")
 
     def _scope_deleted_runs_html(self) -> str:
         """#182 A6 (Knut, 5817809396): the shown report covered a profile run

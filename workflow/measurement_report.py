@@ -2984,11 +2984,21 @@ def across_places_refusal(member_dirs) -> str:
 JUDGED_KEY = "judged"
 
 
+#: What a report of several dates records, per measurement, of HOW its
+#: colours were judged, beside the verdict (challenge 5 of beta 42, M1,
+#: B8-1091): the yardstick, and the rule blocks that decide it. A document
+#: that is opened again is a record, and its notes must be the ones that
+#: were true when its words were written, not a later version's.
+JUDGED_EXPLANATION_KEYS: "tuple[str, ...]" = (
+    "yardstick", "yardstick_no_paper", "paper_patch", "paper_white_used",
+    "strip_corner_aims")
+
+
 def judged_block(report: dict) -> dict:
     """The three keys `stamp_verdict` wrote on *report*, as a `JUDGED_KEY`
-    value."""
+    value, with how the colours were judged (`JUDGED_EXPLANATION_KEYS`)."""
     return {k: report[k] for k in ("pass_thresholds", "compliance", "verdict")
-            if k in report}
+            + JUDGED_EXPLANATION_KEYS if k in report}
 
 
 def recorded_judgement(block: "dict | None", key: str,

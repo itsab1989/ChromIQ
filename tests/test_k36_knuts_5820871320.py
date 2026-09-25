@@ -335,11 +335,16 @@ def test_the_scope_run_deleted_message_is_approved():
 
 # --------------------------------------------------------------------- K36-4
 def test_the_no_paper_patch_note_names_the_sheet_not_the_report():
-    """MUTATION: the old body ("nothing on this sheet") -> red."""
+    """MUTATION: the old body ("nothing on this sheet") -> red.
+
+    Reworded again for Knut, #182 5824834975 (B8-1096): "sheet" was still
+    unclear, so the note names the MEASUREMENT, as the report does, and says
+    the report's other measurements are judged as usual. Approval kept."""
     from workflow import measurement_messages as M
     msg = M.M_REPORT_NO_PAPER_PATCH
     assert msg.approved
     body = msg.render()[1]
-    assert "this measured sheet" in body
-    assert "not the rest of the report" in body
+    assert "The chart of this measurement" in body
+    assert "the report's other measurements are judged as usual" in body
+    assert "sheet" not in body
     assert "absolute Lab" in body
