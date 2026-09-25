@@ -26988,6 +26988,21 @@ class TabChart(QWidget):
 
         paper = s.get("chart_paper", "A4")
         idx = self._paper_combo.findData(paper)
+        if idx < 0:
+            # A PAPER GUIDED CANNOT SHOW (B8-1228). "Save as Defaults" in
+            # Manual on Custom stores the W x H ("130x180"), which Guided has no
+            # entry for, and the rebuild above leaves the combo on its FIRST
+            # row, A2. The same dimensions under a Guided code if there is one,
+            # else A4, the factory default, as the layout panel does
+            # (`_on_instr_changed`, the "keeps jumping back to A2" report).
+            dims = _PAPER_MM.get(paper)
+            if dims:
+                for k in range(self._paper_combo.count()):
+                    if _PAPER_MM.get(self._paper_combo.itemData(k)) == dims:
+                        idx = k
+                        break
+            if idx < 0:
+                idx = self._paper_combo.findData("A4")
         if idx >= 0:
             self._paper_combo.setCurrentIndex(idx)
 
@@ -27094,4 +27109,30 @@ class TabChart(QWidget):
         self._populate_preset_combo(presets)
 
         mode = s.get("chart_mode", "guided")
+        # WITH THE ENGINE ON, THE SAVED RECIPE IS THE PAPER THAT WAS SHOWN
+        # (B8-1228). printtarg's -p is hidden then, and an older save could
+        # leave it on another paper (B8-1223: the paper before Custom). Every
+        # Guided -> Manual switch pushes -p into the layout panel
+        # (`_sync_engine_panel_after_transfer`), so a stale -p would replace
+        # the recipe's paper the moment Manual opens. Put -p in step first.
+        saved_recipe = s.get("manual_engine_recipe", None)
+        if (bool(s.get("use_chromiq_layout_engine", False))
+                and isinstance(saved_recipe, dict)
+                and saved_recipe.get("paper")):
+            self._set_manual_value("printtarg", "-p",
+                                   str(saved_recipe["paper"]))
+        # RESTORING IS NOT A CHANGE MADE IN GUIDED (B8-1228). Both modes were
+        # just set from the store, each to its own saved value. The switch
+        # below (Guided is on screen at start-up) used to take every Guided
+        # field as "changed" and carry it into Manual: a Custom 130 x 180
+        # saved in Manual reached Guided as a paper it cannot show, and came
+        # back into Manual's -p and the layout panel as Guided's A2. Both modes
+        # are snapshotted as restored, so no FIELD is carried, here or on the
+        # next switch a person makes unless he changed it. The switch itself
+        # must still run its carry: its last step seeds the layout panel's
+        # instrument and paper from -i / -p (`_sync_engine_panel_after_
+        # transfer`), and without it the panel opened on its default i1Pro and
+        # mirrored that back into -i (measured on screen, ColorMunki saved).
+        self._snapshot_shared_settings("guided")
+        self._snapshot_shared_settings("manual")
         self._switch_mode(mode)
