@@ -336,17 +336,20 @@ def _ramps(aims: dict, rgb_of=None, corners=()):
 
 def test_neutral_aims_between_l30_and_l70_are_the_grey_axis():
     """Device values that are never grey (and no single-ink ramp), aims that
-    are neutral at L* 65, 50 and 35: the tone row is answered, at tone values
-    35, 50 and 65, and its ΔL* is measured against each aim.
+    are neutral at L* 65, 50 and 35 between a paper of L* 95 and a darkest
+    neutral aim of L* 5: the tone row is answered, at tone values 33.3, 50 and
+    66.7 (K43: between the chart's own paper and its darkest neutral aim), and
+    its ΔL* is measured against each aim.
 
     MUTATION, proven red: drop the ``neutral_aims`` branch of `ramps_block`
     (no axis, `ramp_too_few_neutral_aims`)."""
     aims = {"1": (65.0, 0.2, -0.1), "2": (50.0, -0.3, 0.2),
-            "3": (35.0, 0.1, 0.4), "4": (80.0, 30.0, 10.0)}
+            "3": (35.0, 0.1, 0.4), "4": (80.0, 30.0, 10.0),
+            "5": (95.0, 0.0, 0.0), "6": (5.0, 0.0, 0.0)}
     b = _ramps(aims)
     grey = b["axes"]["grey"]
     assert grey["eligible"] and grey["source"] == "neutral_aims"
-    assert grey["picked"] == [35.0, 50.0, 65.0]
+    assert grey["picked"] == [33.3, 50.0, 66.7]
     assert b["reason"] is None and b["max_dl"] == 0.0
 
 
@@ -373,16 +376,19 @@ def test_device_greys_do_not_count_on_such_a_chart():
 
 
 def test_bunched_aims_are_named_by_their_lightness():
-    """Aims at L* 69, 68 and 41 have three steps and a span of 28 but not
-    the spacing: nothing lies near the middle of their band, tone value 45,
-    which is L* 55, and the reason names the LIGHTNESS.
+    """Between a paper of L* 95 and a darkest aim of L* 5 (K43: 0.9 L* per
+    tone-value point), aims at tone values 32, 33 and 60 have three steps and
+    a span of 28 but not the spacing: nothing lies near the middle of their
+    band, tone value 46, which is L* 95 - 0.9 x 46 = 53.6, and the reason
+    names the LIGHTNESS.
 
-    MUTATION, proven red: report `missing_level` as the tone value (45)."""
-    aims = {"1": (69.0, 0.0, 0.0), "2": (68.0, 0.0, 0.0),
-            "3": (41.0, 0.0, 0.0)}
+    MUTATION, proven red: report `missing_level` as the tone value (46)."""
+    aims = {"1": (95 - 0.9 * 32, 0.0, 0.0), "2": (95 - 0.9 * 33, 0.0, 0.0),
+            "3": (95 - 0.9 * 60, 0.0, 0.0),
+            "p": (95.0, 0.0, 0.0), "k": (5.0, 0.0, 0.0)}
     b = _ramps(aims)
     assert b["reason"] == MR.REASON_RAMP_NEUTRAL_AIMS_BUNCHED
-    assert b["missing_level"] == 55.0
+    assert b["missing_level"] == 53.6
 
 
 def test_the_corners_are_never_steps():
@@ -391,7 +397,8 @@ def test_the_corners_are_never_steps():
 
     MUTATION, proven red: drop ``sid not in corners``."""
     aims = {"1": (65.0, 0.0, 0.0), "2": (50.0, 0.0, 0.0),
-            "3": (35.0, 0.0, 0.0)}
+            "3": (35.0, 0.0, 0.0), "p": (95.0, 0.0, 0.0),
+            "k": (5.0, 0.0, 0.0)}
     b = _ramps(aims, corners=("2",))
     assert not b["axes"]["grey"]["eligible"]
 
@@ -455,7 +462,10 @@ def test_the_help_text_states_the_rule():
     """The metric's help icon says how such a chart's grey axis is found."""
     from workflow import compliance_sets as CS
     d = CS.ROW_BY_ID["ramps_30_70_dl_max"].detect
-    assert "neutral aims" in d and "100 minus its aim's L*" in d
+    # K43: the tone value runs from the chart's own paper to its darkest
+    # neutral aim (it said "100 minus its aim's L*" before)
+    assert "neutral aims" in d and "darkest neutral aim" in d
+    assert "100 minus" not in d
 
 
 def test_a_preset_nobody_has_checked_yet_is_checked_behind_the_scenes(qapp):

@@ -430,6 +430,18 @@ def make_chart(into: Path, stem: str, recipe: ChartRecipe, cache_root: Path) -> 
 PRINTTARG_INSTRUMENT = "CM"
 PRINTTARG_DPI = 150
 PRINTTARG_MARGIN_MM = 6
+#: **ONE SEED FOR EVERY printtarg LAYOUT IN THE PACK (K43, Knut #182
+#: 5833695633).** *"if they use printtarg for their layout, then the attribute
+#: to use a seed number should be used. This corresponds to a user having a
+#: chart in a verification created for a run, and printing that for every
+#: dated verification run."* Without ``-R`` printtarg draws its random start
+#: afresh on every run, so each build of the pack placed every patch somewhere
+#: else (measured: 1,287,288 of 2,175,960 pixels of one page differed between
+#: two unseeded runs). With it two builds lay every chart out identically; the
+#: only bytes that differ are printtarg's clock (the ``.ti2``'s CREATED line
+#: and the time printed in the page's label). 182 is the layout engine's seed
+#: in the same pack (`make_evenness_demo`, `make_every_metric_demo`).
+PRINTTARG_SEED = 182
 
 
 def _targen_settings(recipe) -> "dict[str, object]":
@@ -451,7 +463,10 @@ def _suppress_left(instrument: str) -> bool:
 def printtarg_args(paper: str, instrument: str = PRINTTARG_INSTRUMENT) -> list:
     return ([f"-i{instrument}", f"-p{paper}", f"-t{PRINTTARG_DPI}"]
             + (["-L"] if _suppress_left(instrument) else [])
-            + [f"-M{PRINTTARG_MARGIN_MM}"])
+            + [f"-M{PRINTTARG_MARGIN_MM}"]
+            # K43: the same patch places on every build (see PRINTTARG_SEED),
+            # in the form the Create Chart tab passes it (`build_args`)
+            + ["-R", str(PRINTTARG_SEED)])
 
 
 def record_chart_settings(folder: Path, paper: str,
@@ -482,6 +497,9 @@ def record_chart_settings(folder: Path, paper: str,
         "printtarg-t": {"enabled": True, "value": PRINTTARG_DPI},
         "printtarg-L": {"enabled": _suppress_left(instrument), "value": True},
         "printtarg-m": {"enabled": False, "value": PRINTTARG_MARGIN_MM},
+        # K43: the seed the chart was laid out with, so Generate on this
+        # chart places its patches where the printed sheet has them
+        "printtarg-R": {"enabled": True, "value": PRINTTARG_SEED},
     }
     for flag, value in (targen or {}).items():
         settings[f"targen-{flag}"] = {"enabled": True, "value": value}
@@ -6691,8 +6709,10 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("")
     a(f"{len(_PRESETS.REQUIREMENTS)} requirements, with a FAIL preset one "
       f"notch outside each line and a")
-    a("PASS preset exactly on it, plus a control that answers everything and")
-    a(f"four more: {len(_PRESETS.DEMOS)} presets in all. Copy that folder's "
+    a("PASS preset exactly on it, plus two controls that answer everything a")
+    a("preset can (one of 78 patches, and one of 650 patches on two pages")
+    a("that answers the two evenness rows too) and two presets that cannot")
+    a(f"be checked: {len(_PRESETS.DEMOS)} presets in all. Copy that folder's "
       f"CONTENTS into your")
     a("own Create Chart preset folder and restart ChromIQ:")
     a("")
@@ -6702,6 +6722,25 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("That folder's own README gives each requirement, the comparison as")
     a("ChromIQ's source writes it, the file the line was read from, and which")
     a("reasons no patch set can provoke at all.")
+    a("")
+    # K43 (Knut, #182 5833695633): one printtarg seed for the whole pack.
+    a("EVERY CHART PRINTTARG LAYS OUT IS LAID OUT THE SAME WAY EVERY TIME")
+    a("-----------------------------------------------------------------")
+    a("")
+    a("Knut, 2026-09-25: \"if they use printtarg for their layout, then the")
+    a("attribute to use a seed number should be used. This corresponds to a")
+    a("user having a chart in a verification created for a run, and printing")
+    a("that for every dated verification run\".")
+    a("")
+    a("Every chart of these projects that printtarg lays out, and every demo")
+    a(f"preset, uses printtarg's seed -R {PRINTTARG_SEED} (the layout engine's "
+      f"charts here use")
+    a(f"seed {PRINTTARG_SEED} too). Two builds of the package place every "
+      f"patch in the same")
+    a("place; the only bytes that differ are printtarg's clock, the CREATED")
+    a("line of each .ti2 and the date and time printed in the page's label.")
+    a("Each chart's stored Create Chart settings carry the seed, so Generate")
+    a("on a chart of this package lays it out as the printed sheet has it.")
     a("")
     a("EVERY METRIC LIMIT, AND WHETHER THIS PACKAGE TESTS IT")
     a("-----------------------------------------------------")

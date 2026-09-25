@@ -81,9 +81,10 @@ STRICT = (MR.REPORT_TYPE_FULL, "custom_iso_12647_7")
 CONSTANT = MR.REASON_NEEDS_REFERENCE_FILE
 #: …and a second one since the evenness rows became computable (#182,
 #: 2026-09-22). It was "laid out later" until K40-1 (Knut, 5832026677), when
-#: the window began to lay every preset out behind the scenes: every demo is
-#: a 78-patch printtarg preset, which printtarg lays out as 3 i1Pro strips on
-#: A4, under the 9 by 9 page both evenness rows need.
+#: the window began to lay every preset out behind the scenes: every 78-patch
+#: demo is a printtarg preset, which printtarg lays out as 3 i1Pro strips on
+#: A4, under the 9 by 9 page both evenness rows need. The larger demos of K43
+#: (R16, L1) do not carry it: their page is judged.
 CONSTANT_LAYOUT = MR.REASON_EVENNESS_GRID_TOO_SMALL
 CONSTANTS = (CONSTANT, CONSTANT_LAYOUT)
 
@@ -107,7 +108,19 @@ IND = {
     "surface_within": 2.0, "surface_min": 10,
     "outer_fraction": 0.25, "outer_min": 20,
     "worst5_min": 20,
+    # K43 (the larger demos): the evenness page, Knut's two floors
+    "evenness_grid": 9, "evenness_coverage": 0.60,
 }
+
+#: K43: printtarg's page for these presets (i1Pro, A4, 300 dpi, -L), MEASURED
+#: off its page image with a ruler, not asked of the app, by patch size (-a):
+#: patches to a strip, strips to a page, a strip's width and the block's
+#: height in mm, on a 210 by 297 mm sheet.
+PAGE = {1.0: {"strip_patches": 21, "page_strips": 24, "strip_mm": 8.005,
+              "block_mm": 232.07},
+        0.8: {"strip_patches": 27, "page_strips": 30, "strip_mm": 6.405,
+              "block_mm": 238.50}}
+SHEET_MM2 = 209.97 * 297.01
 
 _REFERENCE_ROWS = ("substrate_de00_max", "solids_de00_max",
                    "cmy_solids_dhab_max")
@@ -218,14 +231,24 @@ def _ladder_fills(ids, rgb) -> int:
     return filled
 
 
-def _independent(path: Path) -> "dict[str, str | None]":
-    """``{row_id: reason or None}``, computed from the .ti1 and nothing else."""
+def _independent(path: Path, scale: float = 1.0) -> "dict[str, str | None]":
+    """``{row_id: reason or None}``, computed from the .ti1 and the patch
+    size the preset is saved with (*scale*), and nothing else."""
     ids, rgb, kw = _read_ti1(path)
     out: "dict[str, str | None]" = {r: CONSTANT for r in _REFERENCE_ROWS}
     out.update({r: None for r in _FREE_ROWS})
-    # a .ti1 carries no page grid, so neither evenness row can be answered
-    out.update({r: CONSTANT_LAYOUT for r in ("uniformity_sd",
-                                             "uniformity_de00_max_from_mean")})
+    # the evenness page, from the patch count and printtarg's page as
+    # measured (PAGE): the first page's strips, its rows, and its block
+    page = PAGE[round(float(scale), 2)]
+    strips = min(page["page_strips"],
+                 int(math.ceil(len(ids) / page["strip_patches"])))
+    rows = min(len(ids), page["strip_patches"])
+    cover = strips * page["strip_mm"] * page["block_mm"] / SHEET_MM2
+    even = (CONSTANT_LAYOUT if min(strips, rows) < IND["evenness_grid"]
+            else MR.REASON_EVENNESS_PAGE_COVERAGE
+            if cover < IND["evenness_coverage"] else None)
+    out.update({r: even for r in ("uniformity_sd",
+                                  "uniformity_de00_max_from_mean")})
 
     # -- the control strip
     declared = [p for p in re.split(r"[,\s]+",
@@ -580,6 +603,21 @@ def test_the_control_answers_every_row_its_patches_decide(dialog):
     assert not _withheld(dialog, demo)
 
 
+def test_the_larger_control_answers_the_evenness_rows_too(dialog):
+    """K43 (Knut, #182 5833695633: "use also larger demo charts/presets to
+    catch and test more metrics and combinations"): the 650-patch control,
+    two pages, answers every row a preset can decide, the two evenness rows
+    included, which no 78-patch demo can.
+
+    MUTATION, proven red: build it with 78 patches (``chart_page(78)``)."""
+    demo = next(d for d in GEN.DEMOS if d.name.startswith("Verify L1 "))
+    _head, _item, row = _row_for(dialog, demo.name)
+    missing = dict(row.assessment.missing)
+    assert "uniformity_sd" not in missing, missing
+    assert "uniformity_de00_max_from_mean" not in missing, missing
+    assert not _withheld(dialog, demo), missing
+
+
 def test_no_open_question_is_left_in_the_pack(dialog):
     """Knut's own paragraph expects a spacing requirement: *"the selected
     patches have a certain distance between each other … so that they are not
@@ -636,7 +674,7 @@ def test_the_independent_arithmetic_agrees_with_the_app(dialog, installed):
         if d.no_chart or d.corrupt:
             continue
         chart = sidecar_path("create_chart", d.name, ".ti1")
-        want = _independent(chart)
+        want = _independent(chart, d.scale)
         got = dict(_row_for(dialog, d.name)[2].assessment.missing)
         for rid, why in want.items():
             if got.get(rid) != why:
@@ -669,6 +707,8 @@ def test_the_thresholds_the_pack_claims_are_the_apps_own():
     assert IND["surface_min"] == MR.SURFACE_GAMUT_MIN
     assert IND["outer_fraction"] == MR.OUTER_GAMUT_FRACTION
     assert IND["outer_min"] == MR.OUTER_GAMUT_MIN
+    assert IND["evenness_grid"] == MR.EVENNESS_MIN_GRID
+    assert IND["evenness_coverage"] == MR.EVENNESS_MIN_PAGE_COVERAGE
     #: the worst-5 % line is not a constant, it is where `_stats` stops having
     #: a worst twentieth: ceil(0.95 n) == n for every n below it
     assert MR._stats([0.0] * (IND["worst5_min"] - 1))["small_sample"]

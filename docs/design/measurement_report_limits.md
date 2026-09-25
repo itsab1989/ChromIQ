@@ -127,6 +127,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §33 | K37: a white-mapped sheet whose chart has no paper patch is judged against the paper white of the profile it was printed through, with a numbered note; absolute Lab with a note on each row only when no profile can be read | 2026-09-24, 5822758830 | recommendation (e) accepted by Knut; built for beta 42 (B8-1081 to B8-1084), NOT confirmed; two message texts proposed |
 | §34 | K37 (i): on a FROM PROFILE GAMUT chart the control strip compares its seven ink and black corner patches with the profile's prediction, the cube-corner table keeps the ideal values, and a note says so | 2026-09-24, 5823088098 (our 5823015844) | approved by Knut; built for beta 42 (B8-1085 to B8-1088), NOT confirmed; two message texts proposed |
 | §36 | K40: every preset laid out behind the scenes for the evenness rows (printtarg or the layout engine, a "Working…" row, never a blocked window); the tone row of a FROM PROFILE GAMUT chart on its neutral aims; a demo project whose one chart answers every metric | 2026-09-25, 5832026677 | ruled by Knut; built for beta 43 (B8-1121 to B8-1125), NOT confirmed; the tone value of a neutral aim (100 − L\*) is ours to confirm |
+| §39 | K43: the tone value of a FROM PROFILE GAMUT chart's neutral aims, between the chart's own paper and its darkest neutral aim (ISO 20654's SCTV for a neutral), superseding §36.2's 100 − L\*; larger demo presets (R16, L1) that reach the evenness rows; one printtarg seed (182) for every demo | 2026-09-25, 5833695633 | decided by us on his instruction ("Make a decision based on well founded reasoning"); built for beta 44 (B8-1211 to B8-1215), NOT confirmed |
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
@@ -7393,7 +7394,9 @@ grey rows' steps are (§26.5):
 
 * a step is a patch whose AIM is neutral, ``hypot(a*, b*) <
   NEUTRAL_AIM_CHROMA_MAX`` = 1.0; the eight cube corners never;
-* **our construction, to confirm:** each is placed at the tone value
+* **SUPERSEDED by §39.1 (K43, beta 44):** the tone value is measured between
+  the chart's own paper and its darkest neutral aim, no longer as 100 − L\*.
+  As built in beta 43: **our construction, to confirm:** each is placed at the tone value
   **100 − its aim's L\***, so the band 30 % to 70 % is the aims from L\* 70 down
   to L\* 30, and the count (3 distinct steps), span (20) and spacing (rule A, 4)
   rules are asked of those levels unchanged. §26.5 left open *"by which tone
@@ -7470,7 +7473,7 @@ beside the other projects (README and COVERAGE entries):
 * **Proof:** `~/Desktop/ChromIQ-beta43-proof/knut-k40/`.
 
 **Status:** built for beta 43 (B8-1121 to B8-1125), NOT confirmed; the tone
-value of a neutral aim (100 − L\*) is our construction and is put to Knut.
+value of a neutral aim (100 − L\*) is our construction and is put to Knut (answered by K43: §39.1 supersedes it).
 
 
 ## 37. K42: the graph tab arrows, and where the one-page summary says what a PASS means (#182, 2026-09-25, beta 43)
@@ -7620,3 +7623,150 @@ his confirmation.)
 * **Verified by:** `tests/test_k44_default_button_audit.py`
   (`test_every_destructive_question_defaults_to_cancel`,
   `test_the_focus_never_starts_on_a_destructive_button`).
+
+
+## 39. K43: the tone value of a FROM PROFILE GAMUT chart's neutral aims, larger demo presets, and one printtarg seed for every demo (#182, 2026-09-25, beta 44)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Asked by:** Knut, #182
+[5833695633](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5833695633)
+(2026-09-25), answering the three questions of the K40 round:
+
+> 1. *"Analyse and simulate, as well as search online for normal practice.
+>    Make a decision based on well founded reasoning from the tests and
+>    simulations, and argue what is the best method and why, and the
+>    consequences of using wrong method."*
+> 2. *"Yes, use also larger demo charts/presets to catch and test more
+>    metrics and combinations."*
+> 3. *"For the sake of the simulations in the demo package, if they use
+>    printtarg for their layout, then the attribute to use a seed number
+>    should be used. This corresponds to a user having a chart in a
+>    verification created for a run, and printing that for every dated
+>    verification run (without regenerating a chart, which is not supposed to
+>    be done anyway)."*
+
+The decision in 39.1 is ours, taken on his instruction; what was built from all
+three waits for his confirmation. Register: B8-1211 to B8-1215. Proof and the
+full analysis: `~/Desktop/ChromIQ-beta44-proof/k43/` (REPORT.md).
+
+**39.1 The tone value of a neutral aim (supersedes the tone value of §36.2).**
+On a FROM PROFILE GAMUT chart the 30 to 70 % tone row's grey axis is still the
+chart's neutral aims (§36.2). Each is now placed at its tone value **between
+the chart's own paper (0 %) and its own darkest neutral aim (100 %), in L\***:
+
+    tone value = 100 × (L*paper − L*aim) / (L*paper − L*darkest neutral aim)
+
+* **the paper** is the lighter of the chart's bare-paper corner aim (which
+  aims at the profile's own paper, §31) and its lightest neutral aim, so an
+  absolute chart starts at the profile's paper and a media-relative chart at
+  its own white (L\* 100); **the black** is the darkest neutral aim;
+* the band, the count (3 distinct steps), the span (20 points) and the
+  spacing (rule A, 4 points) are asked of these tone values unchanged; a
+  bunched axis names the lightness no aim is near, and the tolerance beside
+  it is given in L\* on the chart's own scale (4 points × the paper-to-black
+  range / 100);
+* fewer than two neutral levels are no scale: `ramp_too_few_neutral_aims`;
+* the ΔL\* of each step against its own aim is unchanged; only WHICH aims
+  are judged moves;
+* every other chart is unchanged (device axes, `100 − channel`).
+
+Why (the analysis, REPORT.md):
+
+* **Normal practice.** Every printing standard measures a tone value between
+  the paper and the solid: ISO 12647-1's Murray-Davies (densities), G7's
+  CIE-Y tone value (Idealliance, *Calibrating, Printing and Proofing by the
+  G7 Method*, 2.9.1: `(paper_Y − n_Y) / (paper_Y − 100k_Y) × 100`), and
+  ISO 20654:2017's spot colour tone value, whose three components are all L\*
+  for a neutral colour, so that for a neutral on a neutral paper it is the
+  formula above exactly. None measures it between L\* 100 and L\* 0, which
+  no paper and no ink reach.
+* **Measured on real profiles** (ChromIQ's own FROM PROFILE GAMUT module, 648
+  patches, both intents; Epson ET-8550 plain paper ×2, paper L\* 92.5, black
+  L\* 20.5; Canon PRO-300 Epson Premium Semigloss, paper 93.1, black 2.3; a
+  plain-paper printer test, paper 91.4, black 27.9): 100 − L\* judged 35 to
+  95 % of the paper-to-black range on the plain papers and 28 to 68 % on the
+  gloss one; the relative scale judges 30 to 70 % on every paper.
+* **Intent invariance.** Measured in the device values of the aims each rule
+  selects, the relative scale selects the same greys whether the chart was
+  built absolute or media-relative (device tone values 27–64 against 26–61,
+  27–62 against 26–62, 39–74 against 37–73, 27–59 against 29–57); 100 − L\*
+  moves them by up to 10 device points and, on the plain paper with black
+  L\* 31.5 relative, reaches the black itself (42–100).
+* **Consequences of the wrong method.** With 100 − L\*, a fault in the
+  shadows just above the black (6 to 20 L\* above it, 3 L\* dark) FAILS the
+  mid-tone row on every paper with a black of L\* 20 (ΔL\* 2.3 against 2.0)
+  and passes on a gloss paper: the same physical fault, two verdicts, decided
+  by the paper. The light mid-tones (27 to 30 % of the range) fall out of the
+  band on plain and matte papers. A Murray-Davies (CIE Y) tone value would put
+  the 30 to 70 % band at L\* 58 to 83 on every paper, the light half only
+  (it measures area coverage, which a nominal 50 % grey prints at about 65 to
+  70 %), and never judge the dark mid-tones. The device values of an aim
+  (100 − mean RGB) are not stable either: their band lies at 14 to 40 % of the
+  paper-to-black range on the demo pack's synthetic printers and at 24 to 82 %
+  on the real ones, because it is the driver's encoding, not the colour.
+
+* **Built:** `workflow/measurement_report.py` (`neutral_aim_tone_scale`,
+  `neutral_aim_tone_value`, `_paper_corner_sids`, `ramps_block`: the grey
+  axis's `tone_scale`, the block's `spacing_tol_l` and `missing_level`); the
+  texts that stated the old rule (`workflow/compliance_sets.py` `_D_RAMPS`,
+  `_R_RAMPS_AIMS`; `ui/dialogs/preset_verification_dialog.py`;
+  `ui/dialogs/measurement_report_dialog.py` `_CHART_HELP` and the two N-A
+  reasons; `ui/dialogs/welcome_dialog.py` "Grey ramp"), German by hand.
+* **Verified by:** `tests/test_k43_tone_value_between_paper_and_black.py`
+  (each test red on the mutation in its docstring),
+  `tests/test_k40_presets_laid_out_and_the_tone_row_on_aims.py` (adapted).
+
+**39.2 Larger demo presets (K43-2).** The verification demo pack gains three
+presets, 36 in all (was 33, counting the two "X" presets):
+
+* **R16, the evenness page**, the first pair large enough for the evenness
+  rows: FAIL 648 patches, 24 i1Pro strips covering 58.8 % of an A4 page
+  (`evenness_page_coverage_too_small`); PASS 649 patches, 25 strips, 61.2 %,
+  both evenness rows answered. Both at printtarg's `-a 0.80`: at the default
+  size the coverage line falls between 420 and 421 patches, where the sheet's
+  own noise (1.14 with 47 patches to an area) is over Custom ISO 12647-7's
+  pairwise limit (1.0), so the PASS side would have been withheld for a
+  second reason; at 0.80 it is 0.94.
+* **L1, the control at size**: 650 patches on two A4 pages (24 and 7 strips),
+  every row a preset can decide answered.
+* In the window (Any report type, All metrics, and Custom ISO 12647-7 alike):
+  every 78-patch demo still answers at most 13 of 18; R16 FAIL 13, R16 PASS
+  15, L1 15. No preset can reach the other three (the reference rows need a
+  FROM PROFILE GAMUT chart's reference file).
+* `evenness_page_coverage_too_small` moves from the pack's "no preset can
+  show it" list to R16; `evenness_grid_too_small` stays the state of every
+  78-patch demo.
+* Measured, not changed: under the read-only ISO 12647-7 values (pairwise
+  limit 0.5) no one-page A4 i1Pro chart answers the pairwise evenness row
+  (504 patches: noise 1.03); R16 PASS and L1 read `evenness_noisy_pairwise`
+  there (B8-1215).
+* **Built:** `scripts/make_verification_preset_demos.py` (`chart_page`,
+  `R16_SCALE`, the R16 requirement, the L1 demo, `fillers` on a finer lattice
+  past 390, `payload(scale=)`, `layout(chart)`).
+* **Verified by:** `tests/test_the_demo_presets_pair_on_every_requirement.py`
+  (the R16 pair in every pair test; `test_the_larger_control_answers_the_evenness_rows_too`;
+  the independent arithmetic now models printtarg's page from a ruler
+  measurement).
+
+**39.3 One printtarg seed for every demo (K43-3).** Every chart of the
+release demo package that printtarg lays out, and every demo preset, is laid
+out with `-R 182` (the layout engine's seed in the same pack):
+
+* the projects: `make_report_limit_demos.printtarg_args` (grid charts, targen
+  charts, FROM PROFILE GAMUT charts), and the chart's recorded Create Chart
+  settings carry `printtarg-R`;
+* the presets: `printtarg_-R = 182` with its row enabled;
+* the presets window lays a preset out behind the scenes with the preset's
+  own seed when it fixes one (`preset_layout.params_for_user_preset`), so the
+  page it judges is the page Generate prints.
+* Measured: two unseeded runs of one patch set placed the patches differently
+  (RANDOM_START 11 against 70, 1,287,288 of 2,175,960 pixels of the page
+  different). Seeded, the `.ti2` is identical line for line except
+  printtarg's CREATED clock, and the page image identical except the 247
+  pixels of the date and time printtarg prints in its label.
+* **Verified by:** `tests/test_k43_every_printtarg_demo_is_seeded.py`.
+
+**Status:** built for beta 44 (B8-1211 to B8-1215), NOT confirmed.

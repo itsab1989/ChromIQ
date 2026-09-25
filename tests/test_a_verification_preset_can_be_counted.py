@@ -138,6 +138,14 @@ def test_every_demo_preset_that_ships_a_chart_is_counted(demo_pack):
     assert len(user) >= 30, user
     counted = [r for r in user if r.patches]
     uncounted = [r for r in user if not r.patches]
+    # K43 (Knut, #182 5833695633): the larger demos. L1 really is two pages;
+    # R16 is saved at printtarg's -a 0.80, a patch size `data.patch_db` holds
+    # no measured table for, so its sheet count stays unknown (0) exactly as
+    # the fallback's docstring says (B8-1215). Every other demo is one page.
+    larger = {r.label: r.pages for r in counted
+              if r.label.startswith(("Verify L1 ", "Verify R16 "))}
+    assert sorted(larger.values()) == [0, 0, 2], larger
+    counted = [r for r in counted if r.label not in larger]
     assert counted and all(r.pages == 1 for r in counted), \
         [(r.label, r.pages) for r in counted if r.pages != 1]
     assert all(r.pages == 0 for r in uncounted)

@@ -29035,3 +29035,46 @@ would reach.
 - where: `workflow/preset_layout.py` (`_start_worker`, `_hold_gc_locked`, `release_gc_if_idle`, `_retire_if_idle`, `_work`, `_stop_worker`, `settle`, `set_hold_listener`, `pending`), `ui/dialogs/preset_verification_dialog.py` (`_register_collector`), `tests/conftest.py` (`_the_collector_is_given_back_between_tests`), `tests/test_c1b43_the_presets_window_never_stalls.py` (`_drain` uses `settle`).
 - tests: tests/test_b8_1191_no_collection_on_the_layout_thread.py. Red before the fix, 3 of 3 runs on 439dfcf9: "1 garbage collection(s) ran on the background thread". Mutation, red: `release_gc_if_idle` giving collection back while the thread is alive (two tests).
 - evidence: test_no_collection_ever_runs_on_the_background_thread, test_collection_is_off_before_the_thread_runs_a_line, test_a_collector_switched_on_behind_its_back_is_switched_off_again, test_no_job_is_lost_to_a_thread_that_is_ending
+
+### B8-1211 · FIXED, awaiting confirmation · K43-1: a FROM PROFILE GAMUT chart's neutral aims placed on the tone row by 100 − L\*, which judged the shadows of a plain or matte paper as mid-tones
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Knut, #182 5833695633, asked for the tone value of a neutral aim (§36.2's "100 − L\*, our construction") to be analysed, simulated, compared with normal practice and decided. Decided: the tone value runs from the chart's own paper (0 %) to its own darkest neutral aim (100 %) in L\*, which is ISO 20654:2017's spot colour tone value for a neutral colour; ISO 12647-1 (Murray-Davies) and G7 (CIE Y) also measure a tone value between paper and solid, and no standard measures it between L\* 100 and L\* 0. Measured through ChromIQ's own FROM PROFILE GAMUT module on real profiles: 100 − L\* judged 33 to 87 % of the paper-to-black range on plain papers (black L\* 20.5 to 27.9) and 26 to 69 % on a gloss one (black 2.3); the relative scale judges 30 to 70 % on every paper, and selects the same greys whether the chart was built absolute or media-relative (100 − L\* moved them by up to 10 device points, and to the black itself on one). Simulated: a shadow fault 6 to 20 L\* above the black FAILED the mid-tone row under 100 − L\* on every paper with a black of L\* 20 and passed on a gloss paper; under the relative scale it passes on both. A Murray-Davies tone value would judge L\* 58 to 83 only (the light half). Full analysis: `~/Desktop/ChromIQ-beta44-proof/k43/REPORT.md`. Spec §39.1 (supersedes the tone value of §36.2).
+- where: `workflow/measurement_report.py` (`neutral_aim_tone_scale`, `neutral_aim_tone_value`, `_paper_corner_sids`, `ramps_block`), `workflow/compliance_sets.py` (`_D_RAMPS`, `_R_RAMPS_AIMS`), `ui/dialogs/preset_verification_dialog.py`, `ui/dialogs/measurement_report_dialog.py` (`_CHART_HELP`, the two N-A reasons), `ui/dialogs/welcome_dialog.py` (Grey ramp), `data/i18n/*.json` (German by hand, 9 keys in, 9 out).
+- tests: tests/test_k43_tone_value_between_paper_and_black.py, each red on the mutation in its docstring (`k43/mutations-tone.txt`); tests/test_k40_presets_laid_out_and_the_tone_row_on_aims.py adapted.
+- evidence: test_a_plain_papers_shadows_are_not_its_mid_tones, test_its_light_mid_tones_are, test_the_paper_is_the_charts_own_paper, test_a_media_relative_chart_starts_at_its_own_white, test_the_tone_value_is_iso_20654s_for_a_neutral, test_the_spacing_tolerance_is_given_in_lightness, test_a_chart_with_one_neutral_level_has_no_scale, test_no_text_still_states_the_old_rule
+
+### B8-1212 · FIXED, awaiting confirmation · K43-2: no verification demo preset was large enough for the evenness rows (every one stopped at 13 of 18)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5833695633: "use also larger demo charts/presets to catch and test more metrics and combinations". Added R16, a FAIL/PASS pair one patch either side of the evenness page-coverage line (648 patches, 24 i1Pro strips, 58.8 % of A4; 649 patches, 25 strips, 61.2 %; printtarg -a 0.80), and L1, a 650-patch control on two A4 pages. In "Which presets can be used for verification?": R16 FAIL 13 of 18, R16 PASS 15, L1 15; every 78-patch demo unchanged (at most 13). 36 presets (was 33). `evenness_page_coverage_too_small` is now shown by a demo. The pair is at -a 0.80 because at the default size its line falls at 420/421 patches, where the sheet's own noise (1.14) is over Custom ISO 12647-7's pairwise limit (1.0) and would have withheld the PASS side for a second reason. The independent arithmetic of the pack's test models printtarg's page from a ruler measurement.
+- where: `scripts/make_verification_preset_demos.py` (`chart_page`, `R16_SCALE`, R16, L1, `fillers`, `payload(scale=)`, `layout(chart)`), `scripts/make_report_limit_demos.py` (README), `scripts/make_release_demo_package.py` (`RULE_DEMOS` §39).
+- tests: tests/test_the_demo_presets_pair_on_every_requirement.py (R16 in every pair test). Mutations, red: L1 built with 78 patches; R16 PASS one strip short (`k43/mutations-seed-demos.txt`).
+- evidence: test_the_larger_control_answers_the_evenness_rows_too, test_the_pass_side_answers_them, test_the_fail_side_withholds_exactly_its_own_rows, test_the_independent_arithmetic_agrees_with_the_app
+
+### B8-1213 · FIXED, awaiting confirmation · K43-3: printtarg drew a new random start on every build, so no demo chart was laid out the same way twice
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5833695633: use printtarg's seed for every demo it lays out, as a user prints one verification chart for every dated check. printtarg's `-R rsnum` ("Use given random start number"). Every printtarg run of the release demo package (`make_report_limit_demos.printtarg_args`: grid, targen and FROM PROFILE GAMUT charts) passes `-R 182`, and the chart's stored Create Chart settings carry `printtarg-R`; every demo preset is saved with `printtarg_-R = 182`, its row enabled. Measured: unseeded, two runs of one patch set gave RANDOM_START 11 and 70 and 1,287,288 of 2,175,960 page pixels differed; seeded, the .ti2 is identical except its CREATED line and the page identical except the 247 pixels of the date and time in printtarg's label. Two full builds of the package: see `k43/REPORT.md`.
+- where: `scripts/make_report_limit_demos.py` (`PRINTTARG_SEED`, `printtarg_args`, `record_chart_settings`), `scripts/make_verification_preset_demos.py` (`PRINTTARG_SEED`, `payload`).
+- tests: tests/test_k43_every_printtarg_demo_is_seeded.py, red on the mutations in its docstrings.
+- evidence: test_the_pack_has_one_seed, test_every_printtarg_run_of_the_demo_projects_is_seeded, test_the_recorded_settings_carry_the_seed, test_every_demo_preset_is_saved_with_the_seed, test_two_builds_lay_a_chart_out_identically
+
+### B8-1214 · FIXED, awaiting confirmation · The presets window laid a preset out without the printtarg seed the preset fixes
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Found building B8-1213. `preset_layout.params_for_user_preset` read -A and -n of a preset's expert rows but not -R, so a preset that fixes printtarg's seed was laid out behind the scenes with a different shuffle from the one Generate prints. It moves no strip, row or coverage (so no count changed), only which patch sits where; the window now passes the preset's own seed when its row is enabled, as Generate does (`ParameterWidget.build_args`), and none when it is not.
+- where: `workflow/preset_layout.py` (`params_for_user_preset`).
+- tests: tests/test_k43_every_printtarg_demo_is_seeded.py. Mutation, red: drop the -R branch.
+- evidence: test_the_presets_window_lays_a_seeded_preset_out_with_its_seed
+
+### B8-1215 · OPEN, for Knut · Two findings of the K43 simulations, not changed
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: (1) Every FROM PROFILE GAMUT chart in the release demo package is built through a synthetic printer whose black is L\* 0.0, so on the pack itself 100 − L\* and the relative tone value pick nearly the same neutral aims and no demo project shows where they part (the plain and matte papers of the analysis do). A demo project on a synthetic matte paper (black about L\* 20) would. (2) Under the read-only ISO 12647-7 values (pairwise evenness limit 0.5) no one-page A4 i1Pro chart can have its pairwise evenness row judged: the sheet's own noise at 504 patches, the most one page holds at the default size, is 1.03. R16 PASS and L1 read `evenness_noisy_pairwise` under that set; Custom ISO 12647-7 (1.0) judges them. (3) The window's Pages column is blank for R16 (sheet count 0, "unknown"): `data/patch_db` has no measured table for printtarg's patch size 0.80, so `tab_chart._preset_sheet_count` cannot say, although the behind-the-scenes printtarg layout knows it is one page. L1 reads 2 pages. `tests/test_a_verification_preset_can_be_counted.py` records both.
+- where: `scripts/make_every_metric_demo.py`, `scripts/make_report_limit_demos.py` (the synthetic printers); `workflow/measurement_report.py` (`evenness_withheld`).

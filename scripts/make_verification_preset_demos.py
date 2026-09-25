@@ -26,7 +26,7 @@ counts as a surface patch, and how many are needed); ``no_ramp`` is two (how
 many steps, and how far apart). One preset per code cannot tell you which half
 of a code is broken.
 
-So this pack is built around REQUIREMENTS: fifteen of them, each with a FAIL
+So this pack is built around REQUIREMENTS: sixteen of them, each with a FAIL
 preset one notch outside its line and a PASS preset exactly ON it. A pair
 differs by ONE thing and nothing else, so the rows that change between the two
 are the rows that requirement governs, and a detection that quietly went dead
@@ -79,6 +79,11 @@ FOLDER = "Create Chart presets (verification demos)"
 
 #: The tab folder inside the user's presets directory, from the app's own map.
 TAB = "create_chart"
+
+#: printtarg's seed for every demo here: the release pack's one seed, the same
+#: number as `make_report_limit_demos.PRINTTARG_SEED` (a test holds them equal;
+#: importing that module here would pull its whole build in).
+PRINTTARG_SEED = 182
 
 
 # ---------------------------------------------------------------------------
@@ -229,18 +234,29 @@ def surface(k: int = 12, distance: float = 0.0
 _LATTICE = (15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0)
 
 
+#: K43: the larger demos need more fillers than `_LATTICE` holds (390). The
+#: same rules on a lattice five units apart, taken only after the coarse one
+#: is used up, so every 78-patch chart is byte for byte what it was.
+_FINE_LATTICE = tuple(15.0 + 5.0 * i for i in range(15))
+
+
 def fillers(n: int) -> "list[tuple[float, float, float]]":
     """*n* interior patches that satisfy no condition at all. See the note
     above: they only ever add to the patch count."""
     out = []
-    for r in _LATTICE:
-        for g in _LATTICE:
-            for b in _LATTICE:
-                if max(r, g, b) - min(r, g, b) <= 24.0:
-                    continue
-                out.append((r, g, b))
-                if len(out) == n:
-                    return out
+    seen = set()
+    for lattice in (_LATTICE, _FINE_LATTICE):
+        for r in lattice:
+            for g in lattice:
+                for b in lattice:
+                    if max(r, g, b) - min(r, g, b) <= 24.0:
+                        continue
+                    if (r, g, b) in seen:
+                        continue
+                    seen.add((r, g, b))
+                    out.append((r, g, b))
+                    if len(out) == n:
+                        return out
     raise AssertionError(f"only {len(out)} fillers available, {n} asked for")
 
 
@@ -406,6 +422,33 @@ def chart_clumped_ramp(tone_values=(40.0, 59.4, 60.0)):
     return _pad(greys(lv) + surface() + cyan_ramp(tone_values))
 
 
+# -- R16: the page the evenness rows judge (K43, larger demos) --------------
+#: **HOW printtarg LAYS THESE PRESETS OUT, MEASURED (2026-09-25).** i1Pro, A4,
+#: 300 dpi, -L, as `payload` stores. At the default patch size: 21 patches to
+#: a strip, at most 24 strips to a page, the block covering 2.98 % of the page
+#: per strip (20 strips 59.6 %, 21 strips 62.6 %). At ``-a 0.80`` (R16): 27
+#: patches to a strip, 24 strips cover 58.8 % and 25 cover 61.2 %. The two
+#: evenness rows want a page of at least `EVENNESS_MIN_GRID` (9) strips by 9
+#: rows and a block covering at least `EVENNESS_MIN_PAGE_COVERAGE` (60 %).
+#:
+#: **WHY R16 IS NOT AT THE DEFAULT PATCH SIZE, where the line falls between
+#: 420 and 421 patches.** The window also withholds an evenness verdict when
+#: the sheet's own noise is not below the limit (Knut, ruling 6), and with 47
+#: patches to each of the nine areas a 421-patch sheet's noise is 1.14, over
+#: Custom ISO 12647-7's pairwise limit of 1.0: its PASS side would have been
+#: withheld for a second reason. At ``-a 0.80`` the line falls between 648 and
+#: 649 patches, 72 to an area, noise 0.94, and nothing but the coverage moves.
+#: (No one-page A4 i1Pro chart at the default size is below 1.0: 504 patches,
+#: 1.03.)
+R16_SCALE = 0.80
+
+
+def chart_page(n: int):
+    """The control's patches, topped up with fillers to *n*: every row it
+    decides answered, whatever the page does."""
+    return _pad(greys(_GREY_OK) + surface() + cyan_ramp(), n)
+
+
 # ---------------------------------------------------------------------------
 # The requirements
 # ---------------------------------------------------------------------------
@@ -443,6 +486,9 @@ class Requirement:
     #: here is constant across the pair and therefore changes nothing.
     also: "tuple[str, ...]" = ()
     also_why: str = ""
+    #: K43: printtarg's patch size (-a) both presets are saved with, when it
+    #: is not the pack's 1.0 (the page is what R16 is about)
+    scale: float = 1.0
 
 
 _CS_ROWS = ("control_strip_de00_avg", "control_strip_de00_max",
@@ -639,6 +685,25 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "mid-tone steps 40, 50 and 60",
         chart_clumped_ramp, lambda: chart_clumped_ramp((40.0, 50.0, 60.0)),
         strip_ids(20), strip_ids(20)),
+    # K43 (Knut, #182 5833695633: "use also larger demo charts/presets to
+    # catch and test more metrics and combinations"): the first pair large
+    # enough for the evenness rows' 9 by 9 page, one patch either side of the
+    # page-coverage line.
+    Requirement(
+        "R16", "Evenness across the sheet",
+        "The page has to be at least 9 strips by 9 rows, and the patch block "
+        "has to cover at least 60 % of it, so that the nine areas the sheet "
+        "is split into are real areas of the page.",
+        "strips and rows >= EVENNESS_MIN_GRID (9), and the block's share of "
+        "the page >= EVENNESS_MIN_PAGE_COVERAGE (0.60)  ->  otherwise "
+        "evenness_page_coverage_too_small",
+        "measurement_report.EVENNESS_MIN_GRID, EVENNESS_MIN_PAGE_COVERAGE",
+        ("uniformity_sd", "uniformity_de00_max_from_mean"),
+        "evenness_page_coverage_too_small",
+        "648 patches, 24 i1Pro strips covering 58.8 % of an A4 page",
+        "649 patches, 25 strips covering 61.2 %",
+        lambda: chart_page(648), lambda: chart_page(649),
+        strip_ids(20), strip_ids(20), scale=R16_SCALE),
 )
 
 
@@ -671,6 +736,8 @@ class Demo:
     corrupt: bool = False
     #: write no .ti1 at all (a preset that stores settings only)
     no_chart: bool = False
+    #: K43: printtarg's patch size (-a) the preset is saved with
+    scale: float = 1.0
 
 
 def opening_choice() -> "tuple[str, str]":
@@ -779,7 +846,8 @@ def _build_demos() -> "tuple[Demo, ...]":
             f"line: {r.fail_label}.{look}",
             kind="FAIL", key=r.key, reason=r.reason, rows=r.rows, also=r.also,
             comparison=r.comparison, source=r.source,
-            chart=r.fail_chart, keywords=dict(r.fail_keywords)))
+            chart=r.fail_chart, keywords=dict(r.fail_keywords),
+            scale=r.scale))
         n += 1
         out.append(Demo(
             n, f"Verify {r.key} PASS, {r.pass_label}{where}",
@@ -788,19 +856,30 @@ def _build_demos() -> "tuple[Demo, ...]":
             f"answered here, and nothing else changes.{look}",
             kind="PASS", key=r.key, reason="", rows=r.rows, also=r.also,
             comparison=r.comparison, source=r.source,
-            chart=r.pass_chart, keywords=dict(r.pass_keywords)))
+            chart=r.pass_chart, keywords=dict(r.pass_keywords),
+            scale=r.scale))
         n += 1
     out += [
+        # K43: the largest demo, two pages, every row a preset can decide
+        # answered, the evenness pair included.
+        Demo(n, "Verify L1 control, 650 patches on two pages, every row "
+                "answered",
+             "The control at size: 650 patches, which printtarg lays out as "
+             "two A4 pages for an i1Pro (24 strips and 7 strips). It answers "
+             "every row a patch set can decide, the two evenness rows "
+             "included, which no 78-patch preset can.",
+             kind="control", chart=lambda: chart_page(650),
+             keywords=strip_ids(20)),
         # Q1, the grey ramp clumped at the light end, became R14 when Knut
         # ruled the spacing rule for the grey ramp (#182 B8-483, 2026-09-23),
         # and Q2, the tone ramp clumped the same way, became R15 when he
         # ruled it for that ramp too (K31, #182 5801677743).
-        Demo(n, "Verify X1 other, settings only, no patch set",
+        Demo(n + 1, "Verify X1 other, settings only, no patch set",
              "A preset saved with the attach tick box OFF. Not a metric: it "
              "is the one state in which the window can say nothing about a "
              "preset, and it must say which tick box fixes it.",
              kind="other", no_chart=True),
-        Demo(n + 1, "Verify X2 other, the patch set cannot be read",
+        Demo(n + 2, "Verify X2 other, the patch set cannot be read",
              "A .ti1 beside the preset that is not a chart. Not a metric "
              "either: the other half of \"Cannot be checked\".",
              kind="other", corrupt=True, chart=chart_control),
@@ -890,9 +969,10 @@ UNREACHABLE: "dict[str, str]" = {
         "Needs a laid-out chart whose patch locations cannot be read, which a "
         "printtarg preset is not until it is laid out.",
     "evenness_grid_too_small":
-        "It is the STATE OF EVERY DEMO HERE since K40-1, like the reference "
-        "code above: laid out by printtarg on A4 for an i1Pro, 78 patches "
-        "fill 3 strips, and both evenness rows want 9 strips and 9 rows.",
+        "It is the STATE OF EVERY 78-PATCH DEMO HERE since K40-1, like the "
+        "reference code above: laid out by printtarg on A4 for an i1Pro, 78 "
+        "patches fill 3 strips, and both evenness rows want 9 strips and 9 "
+        "rows. The larger demos of K43 (R16 and L1) have 24 to 31 strips.",
     "evenness_empty_area":
         "Needs a page of at least 9 by 9 whose patches leave a ninth of it "
         "empty, which a chart filled strip by strip cannot do.",
@@ -901,12 +981,8 @@ UNREACHABLE: "dict[str, str]" = {
         "engine presets of one page and 140 to 200 patches.",
     "evenness_noisy_from_mean":
         "As the row above.",
-    # #182 E2 (Knut, 2026-09-23): the page-coverage floor.
-    "evenness_page_coverage_too_small":
-        "Needs the page grid and the patch block's place on the page, which a "
-        "printtarg preset does not have until it is laid out. The built-in "
-        "ENGINE presets do, and the window shows this code on every i1Pro 3 "
-        "Plus chart (SHOWN_BY_BUILTINS).",
+    # #182 E2 (Knut, 2026-09-23): the page-coverage floor. K43: no longer
+    # here, it is R16's FAIL side.
     "evenness_no_page_geometry":
         "Needs a laid-out chart with no engine geometry, no page image and no "
         "derived rectangles beside it. A printtarg preset has no page grid "
@@ -919,14 +995,14 @@ UNREACHABLE: "dict[str, str]" = {
 #: appear, which is stronger than asserting they do not.
 SHOWN_BY_BUILTINS: "frozenset[str]" = frozenset({
     "evenness_noisy_pairwise",
-    "evenness_noisy_from_mean", "evenness_page_coverage_too_small",
+    "evenness_noisy_from_mean",
 })
 
 
 # ---------------------------------------------------------------------------
 # The preset payload
 # ---------------------------------------------------------------------------
-def payload(attached: bool) -> dict:
+def payload(attached: bool, scale: float = 1.0) -> dict:
     """A Create Chart preset's stored values.
 
     Deliberately small: these presets exist to be assessed, and every key they
@@ -939,7 +1015,14 @@ def payload(attached: bool) -> dict:
         "printtarg_-p": "A4",
         "printtarg_-t": 300,
         "printtarg_-L": True,
-        "printtarg_-a": 1.0,
+        "printtarg_-a": float(scale),
+        # K43 (Knut, #182 5833695633): the seed printtarg lays the chart out
+        # with, so every Generate of the preset puts every patch in the same
+        # place, as a user printing one verification chart for every dated
+        # check does. The pack's one seed (`make_report_limit_demos.
+        # PRINTTARG_SEED`).
+        "printtarg_-R": PRINTTARG_SEED,
+        "printtarg_-R_enabled": True,
         "tiff_16bit": False,
         "auto_patches": False,
         "auto_grey": False,
@@ -967,7 +1050,7 @@ def build(dest: Path) -> "list[tuple[Demo, Path | None]]":
     for d in DEMOS:
         stem = _sanitize(d.name)
         doc = {"chromiq_preset_version": 1, "tab": TAB, "name": d.name,
-               "data": payload(not d.no_chart)}
+               "data": payload(not d.no_chart, d.scale)}
         (dest / (stem + ".json")).write_text(
             json.dumps(doc, indent=2, ensure_ascii=False) + "\n",
             encoding="utf-8")
@@ -1009,17 +1092,26 @@ CONSTANT = "needs_reference_file"
 CONSTANTS = (CONSTANT, "evenness_grid_too_small")
 
 
-def layout() -> dict:
-    """The layout every demo here is judged with: the one the presets
-    window gives a preset saved with these settings
+def layout(chart: "Path | None" = None) -> dict:
+    """The layout a demo here is judged with: the one the presets window
+    gives a preset saved with these settings
     (`preset_layout.layout_for_user_preset`), printtarg from ArgyllCMS's
-    usual folder or from ``CHROMIQ_ARGYLL_BIN``."""
+    usual folder or from ``CHROMIQ_ARGYLL_BIN``. Read from the preset saved
+    beside *chart* when there is one (K43: R16 is saved with its own patch
+    size), otherwise the pack's own settings."""
     from core.platform_paths import default_argyll_bin_dir
     from workflow.preset_layout import layout_for_user_preset
     argyll = os.environ.get("CHROMIQ_ARGYLL_BIN", default_argyll_bin_dir())
     settings = {"argyll_bin_path": argyll}
-    return layout_for_user_preset(payload(True),
-                                  lambda k, d=None: settings.get(k, d))
+    data = payload(True)
+    if chart is not None:
+        try:
+            doc = json.loads(Path(chart).with_suffix(".json")
+                             .read_text(encoding="utf-8"))
+            data = dict(doc.get("data") or data)
+        except (OSError, ValueError):
+            pass
+    return layout_for_user_preset(data, lambda k, d=None: settings.get(k, d))
 
 
 def assess(chart: "Path | None") -> "dict[str, str]":
@@ -1030,7 +1122,7 @@ def assess(chart: "Path | None") -> "dict[str, str]":
     if chart is None:
         return {"": "no chart"}
     try:
-        values = PE.chart_row_values(chart, layout(), lay_out=True)
+        values = PE.chart_row_values(chart, layout(chart), lay_out=True)
     except (Ti3ParseError, OSError) as exc:
         return {"": f"unreadable: {exc}"}
     return {rid: (v.get("reason") or "")
@@ -1064,10 +1156,10 @@ def in_the_window(chart: "Path | None", r: "Requirement") -> "dict[str, str]":
         try:
             # laid out first, here and now, as the window's own background
             # thread would have done by the time anybody reads the row
-            PE.chart_row_values(chart, layout(), lay_out=True)
+            PE.chart_row_values(chart, layout(chart), lay_out=True)
         except (Ti3ParseError, OSError):
             pass
-    a = PE.assess(chart, tid, sid, recipe=layout())
+    a = PE.assess(chart, tid, sid, recipe=layout(chart))
     return {rid: why for rid, why in a.missing if why not in CONSTANTS}
 
 

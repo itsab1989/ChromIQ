@@ -356,6 +356,11 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Every-Metric/run1, Run type Verification: Create Chart > \"Which presets can be used for verification?\": the current chart answers 18 of 18; a printtarg preset of your own reads \"Working…\" until it is laid out",
         "Report-Limits-Every-Metric/run1: New report…, all three dates, Custom ISO 12647-8: every metric PASS, PASS, FAIL; the tone row read on the neutral aims",
     ]),
+    ("§39", "K43:", [
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Custom ISO 12647-8: the tone row read on the neutral aims, placed between the chart's paper and its darkest neutral aim (this pack's printers have a black of L* 0, so both scales pick nearly the same aims; the analysis shows where they part)",
+        "Create Chart presets (verification demos): \"Which presets can be used for verification?\": R16 FAIL 13 of 18 (page coverage 58.8 %), R16 PASS and L1 15 of 18, the evenness rows answered",
+        "every chart of the package that printtarg laid out: -R 182, the same RANDOM_START on every build, and the seed in its stored Create Chart settings",
+    ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
     ]),

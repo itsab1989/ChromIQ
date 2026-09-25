@@ -190,15 +190,18 @@ def reason_line(code: str) -> str:
                "no {n} of them roughly evenly spaced from its black to its "
                "white.").format(n=MR.GREY_MIN_LEVELS),
         # K40-2 (Knut, #182 5832026677): the tone row of such a chart takes
-        # its neutral aims too, placed at 100 minus their L*.
+        # its neutral aims too; K43: placed by their tone value between the
+        # chart's own paper and its darkest neutral aim.
         MR.REASON_RAMP_TOO_FEW_NEUTRAL_AIMS:
             tr("This chart was built with From Profile Gamut, and it carries "
-               "fewer than {n} distinct neutral aims between L* 30 and L* 70, "
+               "fewer than {n} distinct neutral aims in its mid-tones (30 % to "
+               "70 % of the way from its paper to its darkest neutral aim), "
                "spanning at least {span}, to serve as its mid-tone "
                "ramp.").format(n=MR.RAMP_MIN_STEPS,
                                span=f"{MR.RAMP_MIN_SPAN:g}"),
         MR.REASON_RAMP_NEUTRAL_AIMS_BUNCHED:
-            tr("The neutral aims of this chart between L* 30 and L* 70 are "
+            tr("The neutral aims in this chart's mid-tones (30 % to 70 % of "
+               "the way from its paper to its darkest neutral aim) are "
                "bunched together: it has no {n} of them roughly evenly "
                "spaced.").format(n=MR.RAMP_MIN_STEPS),
         MR.REASON_NEUTRAL_AIMS_NO_WHITE:

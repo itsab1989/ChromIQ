@@ -404,10 +404,14 @@ _D_RAMPS = (
     # grey axis is its neutral aims, as the grey rows' steps are (K31).
     "On a chart built with FROM PROFILE GAMUT the grey axis is the chart's "
     "neutral aims instead, as on the grey rows: the patches whose aim colour "
-    "is neutral, each placed at the tone value 100 minus its aim's L*, so "
-    "the band is the aims from L* 70 down to L* 30, and the same three rules "
-    "are asked of them. Each of those patches is measured against its own "
-    "aim. Such a chart prints the profile's own numbers, so its red, green "
+    "is neutral. Each is placed at its tone value between the chart's own "
+    "paper and its own darkest neutral aim, in lightness: 0 % is the paper, "
+    "100 % the darkest neutral aim, and an aim halfway between them in L* is "
+    "at 50 %. That is how ISO 20654 measures a tone value between paper and "
+    "solid, and it keeps the band in the middle of what the paper and inks "
+    "print, however light the paper's black is. The same three rules are "
+    "asked of those tone values. Each of those patches is measured against "
+    "its own aim. Such a chart prints the profile's own numbers, so its red, green "
     "and blue ramps are read as on any chart but seldom have steps to read.")
 #: **CHROMIQ'S OWN POPULATION, UNDER A HEADING THAT NO LONGER NAMES A
 #: STANDARD.** These two rows were never missing a detection method; they were
@@ -484,7 +488,8 @@ _R_RAMPS_AIMS = (
     "On a chart built with FROM PROFILE GAMUT the grey steps of this ramp "
     "come from the profile, not from a step setting, so build the chart "
     "again with more patches: about one patch in eight is a neutral aim, and "
-    "a larger chart carries more of them between L* 30 and L* 70.")
+    "a larger chart carries more of them in the mid-tones, between 30 % and "
+    "70 % of the way from its paper to its darkest neutral aim.")
 _R_RAMPS = _R_RAMPS_DEVICE + "\n\n" + _R_RAMPS_AIMS
 _R_CONTROL_STRIP = (
     "Declare the strip on the chart. Put a file beside the chart named after "

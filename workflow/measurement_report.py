@@ -4645,6 +4645,64 @@ def grey_balance_block(rgb100, lab, ref: "dict[str, tuple]",
     return block
 
 
+#: **K43 (Knut, #182 5833695633: "Analyse and simulate, as well as search
+#: online for normal practice").** The tone value of a neutral AIM on a FROM
+#: PROFILE GAMUT chart is measured between the chart's own paper (0 %) and its
+#: own darkest neutral aim (100 %), on L*: ISO 20654:2017's spot colour tone
+#: value (SCTV), whose three "value" components are all L* for a neutral
+#: colour, so for a neutral on a neutral paper it is exactly
+#: ``100 (L*paper - L*) / (L*paper - L*darkest)``. Every printing standard
+#: measures a tone value between the paper and the solid (ISO 12647-1's
+#: Murray-Davies, G7's CIE-Y tone value, ISO 20654), none between L* 100 and
+#: L* 0, which no paper and no ink reach. It replaces K40-2's ``100 - L*``,
+#: which put the 30 to 70 % band into the shadows of every paper whose black
+#: is not near L* 0 (measured: on a plain paper with a black of L* 20 it
+#: judged 33 to 87 % of the paper-to-black range, on a gloss paper with a
+#: black of L* 3 26 to 69 %). The analysis: `~/Desktop/ChromIQ-beta44-proof/
+#: k43/REPORT.md`.
+def neutral_aim_tone_scale(neutral_ls: "list[float]",
+                           paper_ls: "list[float]" = ()
+                           ) -> "tuple[float, float] | None":
+    """``(L*paper, L*darkest)`` of a FROM PROFILE GAMUT chart's tone scale:
+    the paper is the lightest of the chart's paper aim (its bare-paper corner,
+    which aims at the profile's own paper) and its neutral aims, so a
+    media-relative chart (paper at L* 100) and an absolute one (paper at the
+    profile's white) are both measured from their own paper; the black is the
+    darkest neutral aim. None when there are fewer than two distinct levels,
+    because a scale needs two ends."""
+    ls = [float(v) for v in neutral_ls]
+    if not ls:
+        return None
+    paper = max(ls + [float(v) for v in paper_ls])
+    black = min(ls)
+    if paper - black < GREY_LEVEL_TOL:
+        return None
+    return paper, black
+
+
+def neutral_aim_tone_value(l_star: float,
+                           scale: "tuple[float, float] | None") -> float:
+    """The tone value of a neutral aim of lightness *l_star* on *scale*
+    (:func:`neutral_aim_tone_scale`): 0 at the paper, 100 at the darkest
+    neutral aim. With no scale, -1, which no band holds."""
+    if scale is None:
+        return -1.0
+    paper, black = scale
+    return 100.0 * (paper - float(l_star)) / (paper - black)
+
+
+def _paper_corner_sids(rgb, sample_ids: "list[str]", corners: "set[str]",
+                       aims: dict) -> "list[str]":
+    """The declared corners of a FROM PROFILE GAMUT chart that are the bare
+    paper (device white), and carry an aim."""
+    out = []
+    for i, sid in enumerate(sample_ids):
+        if sid in corners and aims.get(sid) is not None and len(rgb) > i \
+                and float(np.min(rgb[i])) >= GREY_PAPER_LEVEL:
+            out.append(sid)
+    return out
+
+
 def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
                 sample_ids: "list[str]",
                 neutral_aims: "dict[str, tuple] | None" = None,
@@ -4657,10 +4715,12 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
     way the grey rows take them, K31 option a). The GREY axis is then the
     patches whose AIM is neutral (``hypot(a*, b*)`` under
     `NEUTRAL_AIM_CHROMA_MAX`, the eight *corner_ids* never), each placed at
-    the tone value ``100 - L*`` of its aim, so the band 30 to 70 % is the
-    aims from L* 70 down to L* 30, and the count, span and spacing rules are
-    asked of those levels unchanged. The ΔL* is each step's measured L*
-    against its aim. The R, G and B axes stay device axes, as on every chart.
+    its tone value between the chart's OWN paper and its own darkest neutral
+    aim (K43, :func:`neutral_aim_tone_value`: ISO 20654's spot colour tone
+    value, which for a neutral is ``100 (L*paper - L*) / (L*paper -
+    L*darkest)``), and the count, span and spacing rules are asked of those
+    tone values unchanged. The ΔL* is each step's measured L* against its
+    aim. The R, G and B axes stay device axes, as on every chart.
     """
     rgb = np.asarray(rgb100, dtype=float)
     axes: dict = {}
@@ -4674,7 +4734,8 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
                              ("grey", None, ())):
         aim_of = ref
         if ch is None and neutral_aims is not None:
-            # K40-2: the neutral aims, placed by 100 - their aim's L*
+            # K40-2: the neutral aims; K43: placed by their tone value
+            # between the chart's own paper and its darkest neutral aim
             aim_of = neutral_aims
             members = [i for i, sid in enumerate(sample_ids)
                        if sid not in corners
@@ -4682,8 +4743,12 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
                        and math.hypot(float(neutral_aims[sid][1]),
                                       float(neutral_aims[sid][2]))
                        < NEUTRAL_AIM_CHROMA_MAX]
-            tv_of = (lambda i: 100.0                     # noqa: E731
-                     - float(neutral_aims[sample_ids[i]][0]))
+            scale = neutral_aim_tone_scale(
+                [float(neutral_aims[sample_ids[i]][0]) for i in members],
+                [float(neutral_aims[sid][0]) for sid in
+                 _paper_corner_sids(rgb, sample_ids, corners, neutral_aims)])
+            tv_of = (lambda i, sc=scale: neutral_aim_tone_value(  # noqa: E731
+                float(neutral_aims[sample_ids[i]][0]), sc))
         elif ch is None:
             members = [i for i in range(len(sample_ids))
                        if float(rgb[i].max() - rgb[i].min()) <= GREY_SPREAD_TOL]
@@ -4719,6 +4784,9 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
                 "max_dl": round(float(max(dls)), 3) if (eligible and dls) else None}
         if ch is None and neutral_aims is not None:
             axis["source"] = "neutral_aims"
+            # K43: the two ends the tone values were measured between
+            axis["tone_scale"] = (None if scale is None
+                                  else [round(scale[0], 2), round(scale[1], 2)])
         axes[name] = axis
         if eligible and dls:
             any_eligible = True
@@ -4735,8 +4803,14 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
         if bunched is not None and bunched[0] == "grey":
             out["reason"] = REASON_RAMP_NEUTRAL_AIMS_BUNCHED
             out["bunched_axis"] = "grey"
-            out["missing_level"] = (None if bunched[1] is None
-                                    else round(100.0 - bunched[1], 1))
+            sc = axes["grey"].get("tone_scale")
+            out["missing_level"] = (
+                None if (bunched[1] is None or sc is None)
+                else round(sc[0] - bunched[1] / 100.0 * (sc[0] - sc[1]), 1))
+            # the spacing tolerance in the same units as the level it is
+            # read beside: tone-value points of THIS chart's scale, in L*
+            out["spacing_tol_l"] = (None if sc is None else round(
+                RAMP_SPACING_TOL / 100.0 * (sc[0] - sc[1]), 1))
         elif bunched is not None:
             out["reason"] = REASON_RAMP_STEPS_BUNCHED
             out["bunched_axis"] = bunched[0]

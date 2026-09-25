@@ -152,6 +152,15 @@ def params_for_user_preset(data: dict, settings_get) -> "object":
     if bool(data.get("printtarg_-n", False)):
         p.no_spacers = True
         extra.append("-n")
+    # K43 (Knut, #182 5833695633): a preset that fixes printtarg's seed is
+    # laid out with it, as Generate passes it (`ParameterWidget.build_args`),
+    # so the page judged here is the page that is printed, patch for patch.
+    # It moves no patch count, strip or row, only which patch sits where.
+    if data.get("printtarg_-R_enabled") and data.get("printtarg_-R"):
+        try:
+            extra += ["-R", str(int(data["printtarg_-R"]))]
+        except (TypeError, ValueError):
+            pass
     if extra:
         import shlex
         p.extra_printtarg_args = shlex.join(extra)

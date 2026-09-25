@@ -1743,8 +1743,8 @@ GLOSSARY += [
         "grey with slightly unequal red, green and blue. The tone row needs "
         "less: a single-ink or grey ramp with at least three roughly evenly "
         "spaced steps between 30 % and 70 %; on a chart built with “From "
-        "profile gamut” that grey ramp is its neutral aims between L* 70 and "
-        "L* 30.")),
+        "profile gamut” it is its neutral aims 30 % to 70 % of the way from "
+        "its paper to its black.")),
     (tr("Control strip"),
      tr("In printing, the narrow band of standard patches along the edge of a "
         "sheet that a press operator measures. ChromIQ has no such band, so "
