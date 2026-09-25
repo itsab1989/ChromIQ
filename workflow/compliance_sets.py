@@ -1198,9 +1198,10 @@ _iso_shipped: "dict[str, frozenset[str]] | None" = None
     # KNUT, #182 5831473881 (2026-09-25): the three figures his newer list and
     # his 2026-09-21 research disagreed on are 3.00, all three (Custom ISO
     # 12647-7 solids and outer gamut, Custom ISO 12647-8 surface gamut). And
-    # a row only ONE Custom set has a figure for takes that figure in the
-    # other set too, so both sets are defined on every metric his research
-    # covers: that is `custom_defaults`' second source, not a copy here.
+    # a row only ONE Custom set had a figure for was given that figure in the
+    # other set too, ONCE, here: -8's control-strip maximum and -7's
+    # control-strip 95th percentile. Knut, #182 5831783959: "this was not a
+    # general rule, but a one time operation to set the new default values."
 _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
     "iso_12647_7": {
         "substrate_de00_max": Limit.value(2.0),          # ΔE00
@@ -1208,6 +1209,7 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         "cmy_solids_dhab_max": Limit.value(2.5),         # ΔH*ab
         "control_strip_de00_avg": Limit.value(2.0),      # ΔE00
         "control_strip_de00_max": Limit.value(4.0),      # ΔE00
+        "control_strip_de00_p95": Limit.value(4.0),      # ΔE00, from -8, once (5831783959)
         "grey_balance_neutral_ramp_avg": Limit.value(1.5),   # ΔCh
         "grey_balance_neutral_ramp_max": Limit.value(3.0),   # ΔCh
         "all_de00_avg": Limit.value(2.0),                # ΔE00
@@ -1229,6 +1231,7 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
     "iso_12647_8": {
         "substrate_de00_max": Limit.value(2.0),          # ΔE00
         "control_strip_de00_avg": Limit.value(2.0),      # ΔE00
+        "control_strip_de00_max": Limit.value(4.0),      # ΔE00, from -7, once (5831783959)
         "control_strip_de00_p95": Limit.value(4.0),      # ΔE00
         "grey_balance_neutral_ramp_avg": Limit.value(1.5),   # ΔCh
         "grey_balance_neutral_ramp_max": Limit.value(3.0),   # ΔCh
@@ -1313,11 +1316,6 @@ def custom_defaults(parent_set_id: str) -> "dict[str, Limit]":
     :func:`custom_default_sources` cannot drift from what this returns.
     """
     out = dict(_CUSTOM_CHROMIQ_FILL)
-    # A row only the OTHER Custom set's research covers takes that figure
-    # (Knut, #182 5831473881); this set's own research still wins.
-    for other, table in _CUSTOM_INDUSTRY.items():
-        if other != parent_set_id:
-            out.update(table)
     out.update(_CUSTOM_INDUSTRY.get(parent_set_id, {}))
     return out
 
@@ -1328,9 +1326,7 @@ def custom_default_sources(parent_set_id: str) -> "dict[str, str]":
     ``"industry"`` for one of Knut's researched figures, ``"chromiq"`` for one
     of ChromIQ's own. Same keys as :func:`custom_defaults`, always.
     """
-    industry = set()
-    for table in _CUSTOM_INDUSTRY.values():  # either set's research counts
-        industry.update(table)
+    industry = _CUSTOM_INDUSTRY.get(parent_set_id, {})
     return {rid: ("industry" if rid in industry else "chromiq")
             for rid in custom_defaults(parent_set_id)}
 

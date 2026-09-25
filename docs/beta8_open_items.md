@@ -28610,7 +28610,7 @@ would reach.
 - status: FIXED
 - note: Knut, #182 5831473881 (2026-09-25): "that the one that does not have a number, takes that number from the other Custom ISO set ... For the three mentioned above, use 3,00 for all of them."
 - where: `workflow/compliance_sets.py` (`_CUSTOM_INDUSTRY`, `custom_defaults`, `custom_default_sources`); spec §2a, §30.2.
-- fixed: Custom ISO 12647-7 solids 2.0 -> 3.0 and outer gamut 4.0 -> 3.0, Custom ISO 12647-8 surface gamut 4.0 -> 3.0; -8 takes the control-strip maximum 4.0 from -7, -7 takes the control-strip 95th percentile 4.0 from -8. Each column: 16 researched figures, 4 ChromIQ (repeatability x2, evenness x2), 20 limits.
+- fixed: Custom ISO 12647-7 solids 2.0 -> 3.0 and outer gamut 4.0 -> 3.0, Custom ISO 12647-8 surface gamut 4.0 -> 3.0; -8 was given the control-strip maximum 4.0 from -7 and -7 the control-strip 95th percentile 4.0 from -8, ONCE, written into the tables (Knut 5831783959: not a general rule). Each column: 16 researched figures, 4 ChromIQ (repeatability x2, evenness x2), 20 limits.
 - tests: tests/test_compliance_sets.py (digest, sources, the K33 rows), tests/test_iso_values_ship_as_values_only.py; the --runslow demo-package tests pass (279).
 - evidence: test_every_custom_default_comes_from_one_of_the_two_named_sources
 

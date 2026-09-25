@@ -314,8 +314,11 @@ two evenness rows.
 So the three rows in the table above are **3.00** (Custom ISO 12647-7 solid
 colours and outer-gamut patches, Custom ISO 12647-8 surface-gamut patches), and
 a row only one Custom set's research covers takes that figure in the other set
-too (`compliance_sets.custom_defaults`): the control-strip maximum (4.0, from
--7) in -8, and the control-strip 95th percentile (4.0, from -8) in -7. Each
+too: the control-strip maximum (4.0, from -7) in -8, and the control-strip
+95th percentile (4.0, from -8) in -7. **That was done once, by writing the two
+figures into the tables**, not as a rule the program applies: Knut, #182
+5831783959, *"this was not a general rule, but a one time operation to set the
+new default values."* Each
 Custom column now carries **16 researched figures and 4 ChromIQ numbers**, 20
 limits. The four are ChromIQ's two repeatability rows and the two evenness
 rows, which neither set of his figures covers. ⏳ Awaiting confirmation.

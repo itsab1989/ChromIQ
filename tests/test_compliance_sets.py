@@ -594,9 +594,11 @@ def test_chromiqs_own_half_of_the_defaults_is_anybody_elses_published_figure():
 #: the new digest with the snippet in the failure message and put it here in
 #: the same commit that changes the table.
 _INDUSTRY_DIGEST = \
-    "488706e90d6eac6105d9dabc8fd44f90e7a0c0d378baba48d6c20ebbe1e12ca3"
+    "9d54b3d6fb57dffc0cc54fa3f78c861f987c2c574c775a70c02c21ed27a97d30"
 #: (Changed 2026-09-25 on Knut's instruction, #182 5831473881: "For the three
-#: mentioned above, use 3,00 for all of them.")
+#: mentioned above, use 3,00 for all of them." and the two control-strip rows
+#: each column was given from the other, once: 5831783959 "this was not a
+#: general rule, but a one time operation to set the new default values.")
 #: (Changed 2026-09-24 on Knut's instruction, K33, #182 5816565326: his second
 #: set of figures, added to both columns where a row took ChromIQ's own
 #: number; where it would have replaced a figure of 2026-09-21 the earlier
@@ -614,7 +616,9 @@ _INDUSTRY_ROWS = {
         "outer_gamut_226_de00_avg", "solids_de00_max", "substrate_de00_max",
         # K33, 2026-09-24
         "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
-        "surface_gamut_de00_avg", "ramps_30_70_dl_max"),
+        "surface_gamut_de00_avg", "ramps_30_70_dl_max",
+        # from -8, once (Knut, #182 5831473881 / 5831783959)
+        "control_strip_de00_p95"),
     "iso_12647_8": (
         "all_de00_avg", "all_de00_p95", "control_strip_de00_avg",
         "control_strip_de00_p95", "grey_balance_neutral_ramp_avg",
@@ -622,7 +626,9 @@ _INDUSTRY_ROWS = {
         "substrate_de00_max", "surface_gamut_de00_avg",
         # K33, 2026-09-24
         "solids_de00_max", "cmy_solids_dhab_max", "best95_de00_avg",
-        "worst5_de00_avg", "all_de00_max", "outer_gamut_226_de00_avg"),
+        "worst5_de00_avg", "all_de00_max", "outer_gamut_226_de00_avg",
+        # from -7, once (Knut, #182 5831473881 / 5831783959)
+        "control_strip_de00_max"),
 }
 
 #: Knut's K33 figures, #182 5816565326 (2026-09-24), by the row each of his
@@ -657,8 +663,8 @@ def test_knuts_k33_figures_fill_only_the_rows_that_took_ours():
             assert src[rid] == "industry", (parent, rid)
             want = _K33_KEPT_EARLIER.get((parent, rid), number)
             assert lim[rid] == cs.Limit.value(want), (parent, rid, lim[rid])
-    # After it, and after each column takes the other's figure where it has
-    # none (Knut, #182 5831473881), only four rows of each column start from
+    # After it, and after each column was given the other's figure where it
+    # had none, once (Knut, #182 5831473881 and 5831783959), only four rows of each column start from
     # ChromIQ's own numbers: both repeatability rows and both evenness rows,
     # which neither set of his figures covers.
     for parent in cs.ISO_SET_IDS:
@@ -723,17 +729,10 @@ def test_every_custom_default_comes_from_one_of_the_two_named_sources():
         sources = cs.custom_default_sources(parent)
         assert set(defaults) == set(sources)
         assert set(sources.values()) <= {"industry", "chromiq"}
-        # Knut, #182 5831473881: a row only the OTHER Custom set's research
-        # covers takes that figure; this set's own research wins over it.
-        other = [p for p in cs.ISO_SET_IDS if p != parent]
         for rid, src in sources.items():
-            own = cs._CUSTOM_INDUSTRY[parent]
-            theirs = [cs._CUSTOM_INDUSTRY[o][rid] for o in other
-                      if rid in cs._CUSTOM_INDUSTRY[o]]
-            in_industry = rid in own or bool(theirs)
+            in_industry = rid in cs._CUSTOM_INDUSTRY[parent]
             assert (src == "industry") == in_industry, rid
-            expect = (own[rid] if rid in own
-                      else theirs[0] if theirs
+            expect = (cs._CUSTOM_INDUSTRY[parent][rid] if in_industry
                       else cs._CUSTOM_CHROMIQ_FILL[rid])
             assert defaults[rid] == expect, rid
         # every measurable row still has a limit, whichever source gave it
