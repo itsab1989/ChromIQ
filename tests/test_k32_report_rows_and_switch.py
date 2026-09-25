@@ -138,39 +138,52 @@ def test_a_printing_record_says_why_it_has_only_four_graphs(tmp_path, qapp):
 
 
 def test_a_warming_tick_gives_the_event_loop_back_after_its_budget(
-        qapp, monkeypatch):
+        qapp, monkeypatch, tmp_path):
     """Switching the run type to Verification starts warming the preset
     eligibility cache on the event loop. A tick took FOUR charts whatever they
     cost, and a chart with page TIFFs costs about 0.57 s on this machine, so
     the window froze for 3.0 to 3.2 s in one piece (measured on screen on
-    Report-Limits-Evenness). A tick now stops once its budget is spent.
+    Report-Limits-Evenness). K32 made it one chart a tick; B8-1161 (challenge
+    1 of beta 43) found that one chart still froze the presets window for a
+    second, and a tick now works nothing out itself: it hands the chart to
+    the background thread and returns
+    (tests/test_c1b43_the_presets_window_never_stalls.py has the heartbeat).
 
-    MUTATION, proved to land: `end = min(len(charts), at + 4)` with the four
-    charts taken regardless: four slow charts in one tick, red.
-    """
+    MUTATION, proved to land: `_warm_one_preset_batch` calling
+    ``_pe.chart_row_values`` itself (red: a heavy chart in the tick)."""
     import time
     from ui.tabs import tab_chart as TC
     from workflow import preset_eligibility as PE
+    from workflow import preset_layout as PL
+    from workflow.i1profiler_import import RgbPatch, write_ti1
     calls: list = []
 
-    def slow(chart, recipe=None):
+    def slow(chart, recipe=None, **_k):
         calls.append(chart)
         time.sleep(TC._PRESET_WARM_BUDGET_S * 1.2)   # a heavy chart
+        return {}
     monkeypatch.setattr(PE, "chart_row_values", slow)
+    charts = []
+    for i in range(3):
+        c = tmp_path / f"c{i}.ti1"
+        write_ti1([RgbPatch(i, 0, 0)], c)
+        charts.append(c)
+    PE.clear_cache()
     host = types.SimpleNamespace(
-        _preset_warm_charts=[(f"c{i}", None) for i in range(10)],
+        _preset_warm_charts=[(c, None) for c in charts],
         _preset_warm_at=0, _preset_warm_timer=None)
     t0 = time.monotonic()
     TC.TabChart._warm_one_preset_batch(host)
     took = time.monotonic() - t0
-    assert len(calls) == 1, (
-        f"one tick warmed {len(calls)} heavy charts in {took:.2f} s; it "
-        "should give the event loop back after the first")
+    assert took < TC._PRESET_WARM_BUDGET_S, (
+        f"one tick held the event loop {took:.2f} s")
     assert host._preset_warm_at == 1
-    # …and the rest are warmed by later ticks, none lost.
-    while host._preset_warm_at < 10:
-        TC.TabChart._warm_one_preset_batch(host)
-    assert calls == [f"c{i}" for i in range(10)]
+    # the chart went to the background thread, and nothing is lost
+    end = time.monotonic() + 10
+    while PL.pending() and time.monotonic() < end:
+        time.sleep(0.02)
+    assert calls == [charts[0]]
+    PE.clear_cache()
 
 
 # ---------------------------------------------------------------------------

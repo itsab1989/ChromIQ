@@ -294,7 +294,15 @@ def write_table(fh, facts: list[dict], ticked: Iterable[str] | None = None,
 
 
 class TableError(ValueError):
-    """The file is not a preset table at all (no Key or no answer column)."""
+    """The file is not a preset table at all (no Key or no answer column),
+    or it cannot be read as a table (:attr:`unreadable`)."""
+
+    def __init__(self, message: str, *, unreadable: bool = False) -> None:
+        super().__init__(message)
+        #: True when the file could not be read as text in columns at all
+        #: (B8-1162: a cell over the csv module's 128 KB limit, or a binary
+        #: file), rather than read and found to lack the two columns.
+        self.unreadable = unreadable
 
 
 class TableReading:
@@ -314,6 +322,10 @@ class TableReading:
         self.invalid: list[tuple[int, str, str, str]] = []
         #: ``[(line, name)]``: a row with no key, which cannot be matched.
         self.no_key: list[tuple[int, str]] = []
+        #: ``[(lines, key, name, answer)]``: a known key answered yes or no
+        #: on more than one line (B8-1163). The LAST line counts, and
+        #: ``answer`` is the answer it gave; ``lines`` lists every one.
+        self.duplicates: list[tuple[list[int], str, str, bool]] = []
 
     @property
     def skipped(self) -> int:
@@ -349,6 +361,17 @@ def read_table(raw: bytes | str, known: Iterable[str]) -> TableReading:
     delim = ";" if first.count(";") > first.count(",") else ","
     reader = csv.reader(io.StringIO(text, newline=""), delimiter=delim)
     try:
+        return _read_rows(reader, known)
+    except csv.Error as exc:
+        # B8-1162: a cell over the csv module's limit (128 KB), which is
+        # what a binary file with no line break reads as. It escaped as an
+        # uncaught `_csv.Error` and the window said nothing at all.
+        raise TableError(f"not readable as a table: {exc}",
+                         unreadable=True) from None
+
+
+def _read_rows(reader, known: Iterable[str]) -> TableReading:
+    try:
         header = [h.strip() for h in next(reader)]
     except StopIteration:
         raise TableError("empty file") from None
@@ -362,6 +385,8 @@ def read_table(raw: bytes | str, known: Iterable[str]) -> TableReading:
         i = col.get(name)
         return row[i].strip() if i is not None and i < len(row) else ""
 
+    answered_on: dict[str, list[int]] = {}
+    names: dict[str, str] = {}
     for row in reader:
         line = reader.line_num
         if not any(c.strip() for c in row):
@@ -379,14 +404,16 @@ def read_table(raw: bytes | str, known: Iterable[str]) -> TableReading:
             out.comments[key] = comment
         answer = cell(row, TABLE_ANSWER)
         low = answer.lower()
-        if low in TABLE_YES:
-            out.answers[key] = True
-        elif low in TABLE_NO:
-            out.answers[key] = False
+        if low in TABLE_YES or low in TABLE_NO:
+            out.answers[key] = low in TABLE_YES
+            answered_on.setdefault(key, []).append(line)
+            names[key] = name
         elif not answer:
             out.blank.append((line, key, name))
         else:
             out.invalid.append((line, key, name, answer))
+    out.duplicates = [(lines, key, names.get(key, ""), out.answers[key])
+                      for key, lines in answered_on.items() if len(lines) > 1]
     return out
 
 

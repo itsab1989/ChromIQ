@@ -198,9 +198,10 @@ window then updates what is shown in the pulldown."*
 | Import, answers | yes, y, x, 1, ja, true tick; no, n, nein, nei, 0, false clear; any case |
 | Import, reported and skipped | a key this ChromIQ does not have; a row with no key; an empty answer; an answer that is neither yes nor no. The last two leave that preset's tick as it was |
 | Import, not named | a built-in the file does not name keeps its tick |
-| Not a table | a file without the Key or the answer column: "This file is not a list of built-in presets. Nothing was changed." |
+| Not a table | a file without the Key or the answer column: "This file is not a list of built-in presets. Nothing was changed." A file that cannot be read as a table at all (a cell over 128 KB, or a binary file) says the same, with "It cannot be read as a table: a cell is too long, or it is not a text file." (B8-1162) |
+| A key listed twice | the last line that answers it counts, and the summary says so: "Lines {lines}: {name} is listed more than once. The last of them counts, so it is ticked." (or "unticked") (B8-1163) |
 | The summary | a message after every import: "The window now shows the ticks from the list." then Ticked: N, Unticked: M, Skipped: K, and "Not in the file, so left as they were: L" when L > 0; one line per problem with its line number (the first ten; the rest under the details); "Nothing is stored yet: OK keeps these ticks, Close discards them."; its button is "Back to the list", not a second OK |
-| A status line | above the buttons, after an export ("Saved the list to {path}.") and an import ("Imported {path}. OK keeps these ticks; Close discards them.") |
+| A status line | above the buttons, after every export and import, whatever came of it: "Saved the list to {path}.", "The list was not saved to {path}.", "Imported {path}. OK keeps these ticks; Close discards them." or "{path} was not imported. Nothing was changed." (B8-1164) |
 | Applying | an import changes only the window. **OK stores it and rebuilds both lists; Close, Escape and the close box discard it**, as every change in the window (C3a). Knut wrote "closing the window then updates"; since B8-1097 the window has OK and Close by Basti's decision, so OK is what applies |
 | Comments | a Comments cell read by an import is written back by the next export from the same window |
 

@@ -575,6 +575,50 @@ def gamut_only_shortfalls(row: "PresetRow | None") -> "tuple[str, ...]":
     return tuple(rid for rid, _why in row.assessment.missing if rid in gamut)
 
 
+#: How long the background thread waits before its next chart after a row is
+#: selected (B8-1161, `workflow.preset_layout.hold`).
+SELECTION_HOLD_S = 0.3
+
+
+class _CollectorPump:
+    """The GUI thread's half of `preset_layout`'s garbage-collector rule
+    (B8-1161): while the background thread has work, automatic collection is
+    off and this timer collects on the GUI thread instead, then gives it back.
+    A bound method on a timer parented to the application, never a closure
+    (CLAUDE.md, the scroll-bar segfault)."""
+
+    INTERVAL_MS = 500
+
+    def __init__(self) -> None:
+        from PyQt6.QtCore import QTimer
+        from PyQt6.QtWidgets import QApplication
+        self.timer = QTimer(QApplication.instance())
+        self.timer.setInterval(self.INTERVAL_MS)
+        self.timer.timeout.connect(self.tick)
+
+    def tick(self) -> None:
+        from workflow import preset_layout as PL
+        if PL.collect_on_gui_thread():
+            self.timer.stop()
+
+
+_PUMP: "_CollectorPump | None" = None
+
+
+def collect_on_this_thread() -> None:
+    """Start the GUI thread's collector timer, if it is not running. Called on
+    the GUI thread by whatever hands the background thread work: the presets
+    window and the Create Chart tab's warming."""
+    global _PUMP
+    from PyQt6.QtWidgets import QApplication
+    if QApplication.instance() is None:
+        return
+    if _PUMP is None:
+        _PUMP = _CollectorPump()
+    if not _PUMP.timer.isActive():
+        _PUMP.timer.start()
+
+
 #: **KNUT'S OWN WORDING FOR THE TOP LINE**, 2026-09-21: *"That line should
 #: always be at the top and be shown as 'Current chart layout in Create Chart
 #: tab'."* A function rather than a constant because `tr()` is answered against
@@ -950,6 +994,11 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         return sorted(members, key=lambda r: -answered(r))
 
     def _on_selected(self, current, _previous=None) -> None:
+        if self._background:
+            # B8-1161: the background thread starts no new chart while the
+            # detail pane is written, so a click answers at once
+            from workflow import preset_layout as PL
+            PL.hold(SELECTION_HOLD_S)
         self._show_detail(current.data(0, Qt.ItemDataRole.UserRole)
                           if current is not None else None)
 
@@ -989,17 +1038,26 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
     # -- the work --------------------------------------------------------
     def refresh(self) -> None:
         """Re-assess every preset against the current choice and redraw."""
+        # each chart's files read once for the whole redraw (B8-1161)
+        with PE.one_pass():
+            self._refresh()
+
+    def _refresh(self) -> None:
         type_id, set_id = self.current_type(), self.current_set()
         for row in self._rows + ([self._current] if self._current else []):
             # K40-1: a preset whose answer is not known yet goes to the
             # background thread and reads "Working…"; the reader's own chart
             # (the first line) is always answered at once.
+            # B8-1161: a chart whose job is still queued is waiting, and is
+            # not read off the disk to find that out
             row.pending = bool(
                 self._background and not row.is_current_chart
                 and row.chart is not None
-                and not PE.values_ready(row.chart, row.recipe))
+                and (PE.request_queued(row.chart, row.recipe)
+                     or not PE.values_ready(row.chart, row.recipe)))
             if row.pending:
                 PE.request_values(row.chart, row.recipe)
+                collect_on_this_thread()
                 row.assessment = PE.UNCHECKED
                 row.starred = False
                 continue
@@ -1110,16 +1168,26 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         if gen == getattr(self, "_layout_seen", None):
             return
         self._layout_seen = gen
+        with PE.one_pass():
+            self._poll_layouts_now()
+
+    def _poll_layouts_now(self) -> None:
         type_id, set_id = self.current_type(), self.current_set()
         changed = []
         for row in self._all_rows():
             if not self._is_waiting(row):
                 continue
             if row.pending:
+                # B8-1161: a row whose job has not run yet is not read off
+                # the disk at all; with 150 rows waiting that was 150 file
+                # reads on every poll, on the window's thread
+                if not PE.request_finished(row.chart, row.recipe):
+                    continue
                 if not PE.values_ready(row.chart, row.recipe):
                     # asked again (a no-op while it is queued): a chart that
                     # changed on disk meanwhile is worked out anew
                     PE.request_values(row.chart, row.recipe)
+                    collect_on_this_thread()
                     continue
                 row.pending = False
             elif not PE.layout_is_ready(row.chart, row.recipe):

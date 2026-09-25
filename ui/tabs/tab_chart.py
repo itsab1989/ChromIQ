@@ -4163,10 +4163,18 @@ def builtin_preset_layout(p: "_Ti1Preset | None", settings) -> "dict | None":
         return None
 
 
-#: How long one tick of the preset warming may run before it gives the event
-#: loop back (K32). A single chart with page TIFFs can still take longer; the
-#: budget only stops a tick from starting on the NEXT one.
+#: How long one tick of the preset warming may spend asking which charts are
+#: known already before it gives the event loop back (K32). Since B8-1161 a
+#: tick works nothing out itself: a chart that is not known goes to the
+#: background thread, so no tick can run for a chart's whole cost again.
 _PRESET_WARM_BUDGET_S = 0.05
+
+#: How often the warming asks whether the background thread is free (B8-1161).
+_PRESET_WARM_TICK_MS = 40
+
+#: How long the background thread waits before its next chart when the
+#: presets window is opened (B8-1161, `workflow.preset_layout.hold`).
+PRESET_WINDOW_OPEN_HOLD_S = 1.0
 
 
 def verification_preset_rows(settings) -> list:
@@ -11051,6 +11059,11 @@ class TabChart(QWidget):
         # already.
         from PyQt6.QtCore import Qt as _Qt
         from PyQt6.QtGui import QGuiApplication as _QGA
+        from workflow import preset_layout as _pl
+        # B8-1161: the background thread starts no new chart while the
+        # window is built and shown, which is thousands of calls into Python
+        # that each wait for the GIL while that thread holds it
+        _pl.hold(PRESET_WINDOW_OPEN_HOLD_S)
         _QGA.setOverrideCursor(_Qt.CursorShape.BusyCursor)
         try:
             rows = verification_preset_rows(self._settings)
@@ -11102,13 +11115,15 @@ class TabChart(QWidget):
         return str(data)
 
     def _warm_preset_eligibility(self) -> None:
-        """Assess a few preset charts per tick, so the button does not wait.
+        """Have the preset charts assessed while the tab is idle, so the
+        button does not wait.
 
         The work is the same work the window does, and the cache it fills is
         the window's own, keyed by path, mtime and size, so a chart that
-        changes is re-read and nothing here can go stale. It runs on the event
-        loop in small batches rather than a thread: nothing it touches is
-        shared with the GUI, and a thread would buy nothing but a race.
+        changes is re-read and nothing here can go stale. Since B8-1161 the
+        work itself runs on the window's background thread
+        (`workflow.preset_layout`), one chart at a time; the event loop only
+        hands the charts over (`_warm_one_preset_batch`).
 
         **THE SLOT IS A BOUND METHOD, NOT A CLOSURE, AND THAT IS NOT A STYLE
         CHOICE.** The first cut connected a nested function to a `QTimer`
@@ -11120,7 +11135,12 @@ class TabChart(QWidget):
         widget dies. The state lives on `self` for the same reason.
         """
         from PyQt6.QtCore import QTimer
-        if getattr(self, "_preset_warm_timer", None) is not None:
+        timer = getattr(self, "_preset_warm_timer", None)
+        if timer is not None:
+            # paused while the tab was hidden (B8-1161): carry on
+            if (not timer.isActive() and self._preset_warm_at
+                    < len(getattr(self, "_preset_warm_charts", None) or [])):
+                timer.start()
             return
         # **ONLY ON A VERIFICATION RUN, BECAUSE THE BUTTON IS ONLY THERE ON A
         # VERIFICATION RUN.** Knut, 2026-09-19, scoped the window to Run type =
@@ -11147,27 +11167,50 @@ class TabChart(QWidget):
             return
         self._preset_warm_at = 0
         timer = QTimer(self)
-        timer.setInterval(0)
+        # not 0: a tick that finds the background thread busy only asks it
+        # again, and at 0 it would ask as fast as the loop turns (B8-1161)
+        timer.setInterval(_PRESET_WARM_TICK_MS)
         self._preset_warm_timer = timer
         timer.timeout.connect(self._warm_one_preset_batch)
         timer.start()
 
     def _warm_one_preset_batch(self) -> None:
-        """One batch of the warming above. A bound method; see its note.
+        """One tick of the warming above. A bound method; see its note.
 
-        **A BATCH IS A TIME BUDGET, NOT A COUNT (K32, Knut on beta 41, #182
-        5813851807: "Changing from Profiling to Verification took several
-        seconds and it felt like the app was freezing").** It was four charts
-        per tick, whatever they cost. Measured on screen on the demo project
-        Report-Limits-Evenness: a chart with page TIFFs costs about 0.57 s
-        (`chart_grid` measures the patch block on every page), so four of
-        them held the event loop for 3.0 to 3.2 s in one piece right after
-        the switch, and 8.7 s of warming in all. Now a tick takes charts until
-        `_PRESET_WARM_BUDGET_S` is spent, at least one, so the window answers
-        between any two charts.
+        **THE WORK IS DONE ON THE BACKGROUND THREAD, NEVER HERE (B8-1161).**
+        Challenge 1 of beta 43, on screen with a 50 ms heartbeat: "Which
+        presets can be used for verification?" froze for 1.05 to 1.11 s, three
+        or four times in 1.5 s, while its "Working…" rows resolved. Every
+        stall was this tick, running inside the window's ``exec()``: it worked
+        a chart out HERE, on the window's thread, while K40-1's background
+        thread (`workflow.preset_layout`) worked out the same presets for the
+        window. Its "at least one chart a tick" (K32, B8-984) cost about 1 s
+        for a chart with page images, and each chart was worked out twice.
+
+        So a tick computes nothing. It hands the next chart whose answer is
+        not known yet to that same background thread
+        (`preset_eligibility.request_values`), whose answers land in the one
+        cache the window reads, and it hands over the next one only when the
+        thread has nothing left to do. While the window is open the thread is
+        busy with the window's own rows, so the warming waits for it and
+        never queues a chart twice (`preset_layout.request` refuses a key
+        already queued). What is left on this thread is a ``stat`` or two a
+        chart, to see whether its answer is known, and at most
+        `_PRESET_WARM_BUDGET_S` of those a tick.
         """
         import time as _time
         from workflow import preset_eligibility as _pe
+        from workflow import preset_layout as _pl
+        visible = getattr(self, "isVisible", None)
+        if visible is not None and not visible():
+            # B8-1161: a hidden tab hands out no work (showEvent restarts it);
+            # a tab left alive but off screen kept the thread busy for ever
+            timer = getattr(self, "_preset_warm_timer", None)
+            if timer is not None:
+                timer.stop()
+            return
+        if _pl.pending():
+            return          # the thread is busy: the window's rows, or ours
         charts = getattr(self, "_preset_warm_charts", None) or []
         at = int(getattr(self, "_preset_warm_at", 0))
         end = at
@@ -11176,7 +11219,12 @@ class TabChart(QWidget):
             c, recipe = charts[end]
             end += 1
             try:
-                _pe.chart_row_values(c, recipe)
+                if not _pe.values_ready(c, recipe):
+                    _pe.request_values(c, recipe)
+                    from ui.dialogs.preset_verification_dialog import (
+                        collect_on_this_thread)
+                    collect_on_this_thread()
+                    break
             except Exception:   # noqa: BLE001 - one bad chart is not fatal
                 pass
             if _time.monotonic() - t0 >= _PRESET_WARM_BUDGET_S:

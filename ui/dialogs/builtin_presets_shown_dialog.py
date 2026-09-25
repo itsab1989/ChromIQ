@@ -475,6 +475,8 @@ class BuiltinPresetsShownDialog(QDialog):
         try:
             self.export_to(path)
         except OSError as exc:
+            self._set_status(tr("The list was not saved to {path}.").format(
+                path=path))
             self._message(QMessageBox.Icon.Warning, tr("Export list"),
                           tr("The list could not be saved."), str(exc))
             return
@@ -486,16 +488,26 @@ class BuiltinPresetsShownDialog(QDialog):
             return
         try:
             reading = self.import_from(path)
-        except cp.TableError:
+        except cp.TableError as exc:
+            # B8-1164: the status line says what happened to THIS import; it
+            # kept the last export's "Saved the list to …" before
+            self._set_status(tr("{path} was not imported. Nothing was "
+                                "changed.").format(path=path))
+            if getattr(exc, "unreadable", False):
+                why = tr("It cannot be read as a table: a cell is too long, "
+                         "or it is not a text file.")
+            else:
+                why = tr("It needs the columns {key} and {answer}, as Export "
+                         "list writes them.").format(key=cp.TABLE_KEY,
+                                                     answer=cp.TABLE_ANSWER)
             self._message(
                 QMessageBox.Icon.Warning, tr("Import list"),
                 tr("This file is not a list of built-in presets. Nothing "
-                   "was changed."),
-                tr("It needs the columns {key} and {answer}, as Export list "
-                   "writes them.").format(key=cp.TABLE_KEY,
-                                          answer=cp.TABLE_ANSWER))
+                   "was changed."), why)
             return
         except OSError as exc:
+            self._set_status(tr("{path} was not imported. Nothing was "
+                                "changed.").format(path=path))
             self._message(QMessageBox.Icon.Warning, tr("Import list"),
                           tr("The file could not be read. Nothing was "
                              "changed."), str(exc))
@@ -533,6 +545,17 @@ class BuiltinPresetsShownDialog(QDialog):
             problems.append((line, tr(
                 "Line {line}: {name}: no yes or no. Its tick is "
                 "unchanged.").format(line=line, name=name)))
+        for lines, key, name, answer in reading.duplicates:
+            # B8-1163: a key listed twice was settled by its last line, and
+            # the summary did not say so
+            at = ", ".join(str(n) for n in lines)
+            text = (tr("Lines {lines}: {name} is listed more than once. The "
+                       "last of them counts, so it is ticked.")
+                    if answer else
+                    tr("Lines {lines}: {name} is listed more than once. The "
+                       "last of them counts, so it is unticked."))
+            problems.append((lines[0], text.format(lines=at,
+                                                   name=name or key)))
         for line, _key, name, answer in reading.invalid:
             problems.append((line, tr(
                 "Line {line}: {name}: “{answer}” is not yes or no. Its tick "

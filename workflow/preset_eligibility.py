@@ -64,7 +64,11 @@ No Qt in here.
 """
 from __future__ import annotations
 
+import contextlib
+import fnmatch
 import logging
+import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -581,12 +585,107 @@ def chart_row_values(chart: "str | Path",
     return hit
 
 
+class _OnePass(threading.local):
+    memo: "dict | None" = None
+
+
+_PASS = _OnePass()
+
+
+@contextlib.contextmanager
+def one_pass():
+    """Within this block, on this thread, each chart's files are read off the
+    disk once (B8-1161).
+
+    The presets window asks :func:`values_ready`, :func:`assess` and
+    :func:`made_for_verification` about the same chart in one refresh, and
+    each of them built :func:`_values_key` again: a ``realpath``, a ``stat``
+    of the chart, of its reference and of every page image beside it, three
+    times over for 220 presets. With the background thread busy, every one of
+    those calls waits for the GIL on the way back, and the window stalled for
+    up to 1.8 s (measured on screen). Nothing on disk that the key reads
+    changes within one redraw, so it is read once. Thread-local: the
+    background thread never sees it."""
+    outer = _PASS.memo
+    if outer is None:
+        _PASS.memo = {}
+    try:
+        yield
+    finally:
+        if outer is None:
+            _PASS.memo = None
+
+
 def _values_key(p: Path, recipe: "dict | None") -> tuple:
     """The key :func:`chart_row_values` files an answer under. Raises OSError
     when the chart cannot be read."""
+    memo = _PASS.memo
+    if memo is None:
+        return _read_values_key(p, recipe)
+    mk = (str(p), repr(sorted((recipe or {}).items())))
+    hit = memo.get(mk)
+    if hit is None:
+        try:
+            hit = memo[mk] = _read_values_key(p, recipe)
+        except OSError as exc:
+            memo[mk] = exc
+            raise
+    elif isinstance(hit, OSError):
+        raise hit
+    return hit
+
+
+#: ``str(path) -> str(path.resolve())`` for the session (B8-1161): a
+#: ``realpath`` is an ``lstat`` per folder on the way, asked for every preset
+#: on every redraw of the presets window. What the key must notice, a chart
+#: that changed, it notices through the ``stat`` beside it.
+_RESOLVED: "dict[str, str]" = {}
+
+
+def _resolved(p: Path) -> str:
+    k = str(p)
+    hit = _RESOLVED.get(k)
+    if hit is None:
+        hit = _RESOLVED[k] = str(p.resolve())
+    return hit
+
+
+def _stem_files_once(folder: Path, stem: str, *tails: str) -> "list[Path]":
+    """`core.file_manager.stem_files`, but within :func:`one_pass` each
+    folder is listed once (B8-1161): the built-in charts share a handful of
+    folders, and each of 220 presets listed its folder again."""
+    from core.file_manager import _NAME_CASEFOLD, glob_escape, nfc, stem_files
+    memo = _PASS.memo
+    if memo is None:
+        return stem_files(folder, stem, *tails)
+    lk = ("ls", str(folder))
+    names = memo.get(lk)
+    if names is None:
+        try:
+            with os.scandir(str(folder)) as entries:
+                names = [e.name for e in entries]
+        except (OSError, ValueError):
+            names = []
+        memo[lk] = names
+    lit = nfc(stem)
+    pats = [nfc(glob_escape(lit) + t) for t in tails]
+    if _NAME_CASEFOLD:
+        lit = lit.lower()
+        pats = [q.lower() for q in pats]
+    out: "list[Path]" = []
+    for name in names:
+        n = nfc(name)
+        if _NAME_CASEFOLD:
+            n = n.lower()
+        if n.startswith(lit) and any(fnmatch.fnmatchcase(n, q) for q in pats):
+            out.append(Path(folder) / name)
+    return out
+
+
+def _read_values_key(p: Path, recipe: "dict | None") -> tuple:
     from workflow import preset_layout as PL
     st = p.stat()
-    return (str(p.resolve()), st.st_mtime_ns, st.st_size,
+    return (_resolved(p), st.st_mtime_ns, st.st_size,
             _reference_stamp(p), _layout_stamp(p),
             # the recipe decides the predicted page grid of a preset that
             # is not laid out yet, so two recipes are two answers
@@ -617,8 +716,27 @@ def request_values(chart: "str | Path", recipe: "dict | None") -> None:
     re-reads it when `preset_layout.generation()` moves."""
     from workflow import preset_layout as PL
     p = Path(chart)
-    key = ("values", str(p), repr(sorted((recipe or {}).items())))
-    PL.request(key, _Compute(p, recipe))
+    PL.request(_request_key(p, recipe), _Compute(p, recipe))
+
+
+def _request_key(p: Path, recipe: "dict | None") -> tuple:
+    return ("values", str(p), repr(sorted((recipe or {}).items())))
+
+
+def request_queued(chart: "str | Path", recipe: "dict | None") -> bool:
+    """Whether this chart's background job is waiting or running now
+    (B8-1161): its answer is not known, and a window need not read the
+    chart's files to find that out."""
+    from workflow import preset_layout as PL
+    return PL.queued(_request_key(Path(chart), recipe))
+
+
+def request_finished(chart: "str | Path", recipe: "dict | None") -> bool:
+    """Whether the background job :func:`request_values` queued for this
+    chart has run (B8-1161). A set lookup: a window polling its waiting rows
+    asks this first and reads a chart's files only once its job is done."""
+    from workflow import preset_layout as PL
+    return PL.finished(_request_key(Path(chart), recipe))
 
 
 class _Compute:
@@ -686,12 +804,11 @@ def _layout_stamp(chart: Path) -> tuple:
 
     #182 E2: and the page coverage reads the ``.channels.json`` and the page
     images beside that ``.ti2``, so they are part of the key as well."""
-    from core.file_manager import stem_files
     ti2 = chart if chart.suffix.lower() == ".ti2" else chart.with_suffix(".ti2")
     out: list = []
     for p in [ti2, ti2.with_suffix(".channels.json")] + sorted(
-            stem_files(ti2.parent, ti2.stem, ".tif", ".TIF", ".tiff",
-                       "_*.tif", "_*.TIF", "_*.tiff")):
+            _stem_files_once(ti2.parent, ti2.stem, ".tif", ".TIF", ".tiff",
+                             "_*.tif", "_*.TIF", "_*.tiff")):
         if p == chart:
             continue
         try:
@@ -726,6 +843,7 @@ def clear_cache() -> None:
     _CACHE.clear()
     _PATCHES.clear()
     _UNREADABLE.clear()
+    _RESOLVED.clear()
     from workflow import preset_layout
     preset_layout.clear_cache()
     from workflow import page_coverage
@@ -1069,7 +1187,7 @@ def patch_count(chart: "str | Path") -> int:
     p = Path(chart)
     try:
         st = p.stat()
-        key = (str(p.resolve()), st.st_mtime_ns, st.st_size)
+        key = (_resolved(p), st.st_mtime_ns, st.st_size)
     except OSError:
         return 0
     hit = _PATCHES.get(key)

@@ -307,39 +307,185 @@ def request(key: tuple, work) -> None:
         if key in _REQUESTED:
             return
         _REQUESTED.add(key)
+        _FINISHED.discard(key)
         _start_worker()
     _QUEUE.put(("call", None, None, (key, work)))
 
 
+#: Keys of :func:`request` jobs that have run (B8-1161), so a window can ask
+#: "has mine finished?" with a set lookup instead of re-reading every waiting
+#: chart's files on each poll. Cleared for a key when it is requested again.
+_FINISHED: "set[tuple]" = set()
+
+
+def queued(key: tuple) -> bool:
+    """Whether the :func:`request` job for *key* is waiting or running."""
+    with _LOCK:
+        return key in _REQUESTED
+
+
+def finished(key: tuple) -> bool:
+    """Whether the :func:`request` job for *key* has run since it was last
+    requested."""
+    with _LOCK:
+        return key in _FINISHED
+
+
+#: The interpreter's switch interval while this thread has work (B8-1161).
+#: **THE WINDOW'S THREAD WAITS FOR THE GIL, AND 5 MS A TIME ADDS UP.**
+#: Measured on screen with a 50 ms heartbeat: with this thread busy, the
+#: window's own thread stalled up to 1.8 s reopening the presets window, all
+#: of it in `stat`, `realpath` and Qt calling back into Python. Each of those
+#: gives the GIL away, and CPython then lets this thread keep it for the
+#: whole switch interval (5 ms by default) before handing it back. At 1 ms
+#: the window gets it back five times sooner; the interval is put back when
+#: the queue has been empty for half a second.
+BUSY_SWITCH_INTERVAL_S = 0.001
+
+
+# ---------------------------------------------------------------------------
+# The garbage collector never runs on this thread (B8-1161)
+# ---------------------------------------------------------------------------
+#
+# **A COLLECTION ON THIS THREAD CAN DESTROY A QT WIDGET OFF THE GUI THREAD.**
+# Python collects on whichever thread allocates past the threshold, and this
+# thread allocates a great deal (page images, numpy, the layout engine). A
+# collection that finds a closed dialog in a reference cycle deletes its C++
+# widget right here, while the GUI thread may be dispatching an event to it:
+# the everyday tier lost a worker to exactly that (SIGSEGV in
+# `QCoreApplicationPrivate::sendThroughObjectEventFilters` from a timer, with
+# this thread in `PIL.Image.copy`), once the tab's warming had moved its work
+# onto this thread. `core/sound.py` records the same crash class for an
+# import. So while this thread has work, automatic collection is off; the GUI
+# thread collects the youngest generation itself (:func:`collect_on_gui_thread`,
+# driven by a timer in the presets window's module) and switches it back on
+# when this thread is idle. If no GUI timer runs, this thread gives it back
+# after `_GC_GIVE_BACK_IDLE_S` idle, which is the only moment it may still
+# collect here.
+
+_GC_HELD = False
+_GC_GIVE_BACK_IDLE_S = 5.0
+
+
+def _hold_gc() -> None:
+    """On this thread, when it takes a job."""
+    global _GC_HELD
+    import gc
+    with _LOCK:
+        if not _GC_HELD and gc.isenabled():
+            gc.disable()
+            _GC_HELD = True
+
+
+def _give_gc_back() -> None:
+    global _GC_HELD
+    import gc
+    with _LOCK:
+        if _GC_HELD:
+            _GC_HELD = False
+            gc.enable()
+
+
+def gc_held() -> bool:
+    """Whether automatic collection is off because this thread has work."""
+    return _GC_HELD
+
+
+def collect_on_gui_thread() -> bool:
+    """Call on the GUI thread, on a timer, while :func:`gc_held`: collects
+    the youngest generation there, and gives automatic collection back once
+    this thread is idle. True when it has been given back (the timer may
+    stop)."""
+    import gc
+    if not _GC_HELD:
+        return True
+    if not pending():
+        _give_gc_back()
+        return True
+    gc.collect(0)
+    return False
+
+
 def _work() -> None:
     global _GENERATION
-    while not _STOP.is_set():
-        try:
-            job = _QUEUE.get(timeout=0.5)
-        except queue.Empty:
-            continue
-        if job is None:
-            return
-        kind, chart, spec, call = job
-        if kind == "call":
-            key, work = call
+    import sys
+    restore: "float | None" = None
+    idle_since: "float | None" = None
+    try:
+        while not _STOP.is_set():
             try:
-                work()
-            except Exception as exc:      # noqa: BLE001 - one preset only
-                log.info("checking a preset behind the scenes failed: %s", exc)
-            with _LOCK:
-                _REQUESTED.discard(key)
-                _GENERATION += 1
-            continue
+                job = _QUEUE.get(timeout=0.5)
+            except queue.Empty:
+                if restore is not None:
+                    sys.setswitchinterval(restore)
+                    restore = None
+                now = time.monotonic()
+                idle_since = idle_since or now
+                if _GC_HELD and now - idle_since >= _GC_GIVE_BACK_IDLE_S:
+                    _give_gc_back()
+                continue
+            _hold_gc()
+            idle_since = None
+            if job is None:
+                return
+            if restore is None:
+                restore = sys.getswitchinterval()
+                sys.setswitchinterval(min(restore, BUSY_SWITCH_INTERVAL_S))
+            _wait_while_held()
+            _run_job(job)
+    finally:
+        if restore is not None:
+            sys.setswitchinterval(restore)
+        _give_gc_back()
+
+
+_HOLD_UNTIL = 0.0
+
+
+def hold(seconds: float) -> None:
+    """Start no new job for *seconds* (B8-1161).
+
+    For the moment the presets window is being built and shown: that is work
+    on the window's thread that calls into Python thousands of times, and
+    every one of those calls waits for the GIL while this thread holds it.
+    Measured on screen, a reopen took 0.3 to 0.8 s with this thread busy and
+    0.18 s with it idle. A job already running finishes; the next one waits.
+    """
+    global _HOLD_UNTIL
+    _HOLD_UNTIL = max(_HOLD_UNTIL, time.monotonic() + float(seconds))
+
+
+def _wait_while_held() -> None:
+    while not _STOP.is_set():
+        left = _HOLD_UNTIL - time.monotonic()
+        if left <= 0:
+            return
+        time.sleep(min(left, 0.05))
+
+
+def _run_job(job: tuple) -> None:
+    global _GENERATION
+    kind, chart, spec, call = job
+    if kind == "call":
+        key, work = call
         try:
-            grid_for(chart, spec, wait=True)
-        except Exception as exc:      # noqa: BLE001 - one preset is never fatal
-            log.warning("laying %s out behind the scenes failed: %s", chart, exc)
-            with _LOCK:
-                _RESULTS[layout_key(chart, spec)] = {
-                    "reason": REASON_LAYOUT_REFUSED, "detail": str(exc)}
-                _PENDING.discard(layout_key(chart, spec))
-                _GENERATION += 1
+            work()
+        except Exception as exc:      # noqa: BLE001 - one preset only
+            log.info("checking a preset behind the scenes failed: %s", exc)
+        with _LOCK:
+            _REQUESTED.discard(key)
+            _FINISHED.add(key)
+            _GENERATION += 1
+        return
+    try:
+        grid_for(chart, spec, wait=True)
+    except Exception as exc:      # noqa: BLE001 - one preset is never fatal
+        log.warning("laying %s out behind the scenes failed: %s", chart, exc)
+        with _LOCK:
+            _RESULTS[layout_key(chart, spec)] = {
+                "reason": REASON_LAYOUT_REFUSED, "detail": str(exc)}
+            _PENDING.discard(layout_key(chart, spec))
+            _GENERATION += 1
 
 
 def _stop_worker() -> None:
@@ -362,6 +508,7 @@ def clear_cache() -> None:
         _RESULTS.clear()
         _TIMINGS.clear()
         _REQUESTED.clear()
+        _FINISHED.clear()
         _GENERATION += 1
 
 
