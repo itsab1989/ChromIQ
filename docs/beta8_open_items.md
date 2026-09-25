@@ -28979,3 +28979,31 @@ would reach.
 - fixed: ColorMunki 12, i1Pro 16, i1Pro 3 Plus 11, CR30 8, Scanner 2, Red River Paper 2 = 51 ticked; his edit of the same comment added i1Pro A3-1404p-1page-Landscape and A3-2808p-2pages-Landscape, so 53. Four photo-card labels in the screenshots read "×" where the preset names read "x"; matched by key.
 - tests: tests/test_curated_builtin_presets.py (its fixture now switches the paper filter off, since those tests are about the ticks), tests/test_k41_preset_paper_filter.py (the Scanner arrow counts every hidden scanner preset), tests/test_scanner_builtin_presets.py (a preset under a closed arrow is not "parked").
 - evidence: test_the_parking_mechanism_is_still_wired
+### B8-1171 · FIXED, awaiting confirmation · Both preset lists end in a coloured note saying whether the paper filter is on and where to change it
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5834773589 (K46-1). The last row of "Select preset" and of the Built-in presets list is a note in the app's information colours (QLabel#info's, per appearance; Neutral has no coloured note and uses its own). Filter ON: "This list is filtered by the paper size selected. To show all paper sizes, untick “Filter preset-dropdown list according to selected paper size” in “Settings for built-in presets”." Filter OFF: "To filter this list of built-in presets by the paper size selected, tick “Filter preset-dropdown list according to selected paper size” in “Settings for built-in presets”." Bottom, not top: Knut left the choice open; the brief chose the bottom. The note wraps and never widens a list.
+- where: `ui/tabs/tab_chart.py` (`preset_list_note`, `_add_preset_list_note`, `_CappedComboBox.NOTE_ROLE`, `_ComboSeparatorDelegate._paint_note`, `fit_popup`), `ui/builtin_preset_popup.py` (`note`, `_paint_note`, `_note_height`), `ui/theme.py` (`info_colours`), `ui/styles.py` (`INFO_BG`).
+- tests: tests/test_k46_preset_list_note_and_settings_name.py (mutations, each red: no note; the texts swapped; the popup given no note; the Dark colour wrong).
+- evidence: test_select_preset_ends_in_the_note_for_the_state, test_the_note_follows_the_box_when_ok_stores_it, test_the_built_in_presets_list_ends_in_the_note, test_the_note_is_painted_in_the_info_colours_of_each_appearance
+- spec: curated_presets.md C9.
+
+### B8-1172 · FIXED, awaiting confirmation · The preset-list note is never a choice
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: In "Select preset" the note is disabled and not selectable open or closed (unlike an arrow row, which is enabled while the list is open), so Down, End, PageDown, the wheel and type-ahead skip it; a click on it is swallowed by the combo's event filter; `_on_preset_selected` refuses its userData through `core.curated_presets.is_not_a_preset` (arrow rows and the note) and `_is_deletable_preset` says no. In the Built-in presets list it is not a keyboard row, `_index_at` finds nothing on it, and `_activate` ignores it without closing the list.
+- where: `core/curated_presets.py` (`NOTE_ROW_DATA`, `is_not_a_preset`), `ui/tabs/tab_chart.py`, `ui/builtin_preset_popup.py`.
+- tests: tests/test_k46_preset_list_note_and_settings_name.py (mutations, each red: note enabled; handler not refusing; click not swallowed; popup keyboard, mouse and activate reaching it). tests/test_the_live_preview_only_follows_the_user.py now picks the list's last PRESET (it used `count() - 1`, which is the note now).
+- evidence: test_the_note_is_disabled_and_not_selectable_open_or_closed, test_arrow_keys_wheel_and_type_ahead_never_land_on_the_note, test_a_click_on_the_note_is_swallowed, test_the_preset_handler_refuses_the_note, test_the_built_in_presets_list_never_chooses_the_note
+
+### B8-1173 · FIXED, awaiting confirmation · The gear's window is named "Settings for built-in presets" everywhere
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5834773589 (K46-2). Window title (was "Built-in presets in the lists"), the gear's tooltip (first line is the name) and accessible name, the list's accessible name, the Manual Presets help line (⚙), the arrow rows' tooltip (was "with the gear button beside the presets folder button"), the window's help icon (was "This window chooses ...") and the paper filter's help icon (was "this window's list"). German "Einstellungen für integrierte Presets", by hand, Du-Form. The window has no masthead, so none was named. data/parameters.yaml and the §M catalogue never referred to it.
+- where: `ui/dialogs/builtin_presets_shown_dialog.py`, `ui/tabs/tab_chart.py`, `data/i18n/*.json`.
+- tests: tests/test_k46_preset_list_note_and_settings_name.py (mutations, each red: the old title; the tooltip without the name), tests/test_k42_own_presets_paragraph_is_true_with_the_filter.py updated.
+- evidence: test_the_window_title_the_tooltip_and_the_accessible_names, test_no_text_calls_the_window_anything_else, test_every_text_that_names_the_window_names_it_in_german
+- proof: ~/Desktop/ChromIQ-beta43-proof/k46/ (EN Light, Dark, Neutral; DE Light, Dark: both lists with the filter ON and OFF, the window, the tooltip)

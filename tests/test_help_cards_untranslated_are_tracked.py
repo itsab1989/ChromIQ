@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-25, K46 (B8-1171 to B8-1173, Knut #182 5834773589): the paper-filter note, 2 keys in; the window named "Settings for built-in presets" in 6 texts, 6 keys replaced by 6. German by hand, does not move; each of the twelve others rises by exactly 2 under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-25, challenge 1 of beta 43 fixes (B8-1162 to B8-1164: the gear window's Import list refuses a file it cannot read as a table, reports a key listed more than once (two variants), and its status line says when an import or an export did not happen). 5 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 5, here and in the echo budget. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-25, K40 (Knut #182 5832026677: B8-1121 to B8-1125: the presets window's Working… state, Still being checked, the layout and printtarg reason lines, the tone row's two neutral-aim reasons in the window and the report, its help, lever, the report's chart help and the Dictionary's Grey ramp). 16 keys in, 3 out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 13 here and 8 in the echo budget. COUNTED off the tree rebased onto ae9594cb (K41), BOTH ledgers.
     # RE-MEASURED 2026-09-25, K39 (Knut #182 5831246553: B8-1111 to B8-1114, M-REPORT-WORKED-OUT-EARLIER without "Update works the report out again.", M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW and M-REPORT-NEW-REPORT-SETTINGS titles and bodies, the "New report…" tooltip, and the audit's rewordings: "the profile runs it is drawn from", the colorimetric-missing paragraphs, the Paper white graph's reason). 10 keys in, 6 out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 5 (5 of the 6 retired keys were English echoes there). COUNTED off the tree rebased onto 1c4995c2, BOTH ledgers.
@@ -1038,18 +1039,18 @@ _BUDGET = {
     # 2 under the beta rule (5 keys in, 2 out; the counter does not count
     # "The paper filter", too short). COUNTED off the tree, BOTH ledgers.
     "de": 13,
-    "es": 1006,
-    "fr": 1007,
-    "it": 1006,
-    "ja": 1006,
-    "nl": 1006,
-    "no": 1006,
-    "pl": 1006,
-    "pt": 1006,
-    "ru": 1005,
-    "sv": 1006,
-    "zh_CN": 1005,
-    "uk": 1149,
+    "es": 1008,
+    "fr": 1009,
+    "it": 1008,
+    "ja": 1008,
+    "nl": 1008,
+    "no": 1008,
+    "pl": 1008,
+    "pt": 1008,
+    "ru": 1007,
+    "sv": 1008,
+    "zh_CN": 1007,
+    "uk": 1151,
 }
 
 

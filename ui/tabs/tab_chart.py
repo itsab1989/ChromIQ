@@ -13,11 +13,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
-from PyQt6.QtCore import QSize, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QFont, QIcon, QPalette
+from PyQt6.QtCore import QRect, QRectF, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QPainter,
+                         QPalette, QPen)
 from PyQt6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFileDialog,
@@ -3928,6 +3930,22 @@ def paper_filter_groups(groups: list, selected: str) -> list:
     return out
 
 
+def preset_list_note(filter_on: bool) -> str:
+    """The coloured note at the bottom of "Select preset" and of the Built-in
+    presets list (Knut, #182 5834773589, B8-1171): with the paper filter on,
+    that the list is filtered and how to show every paper size; with it off,
+    how to filter it. Both name the box and the window it is in by their own
+    labels, never by a description of where they are."""
+    if filter_on:
+        return tr("This list is filtered by the paper size selected. To "
+                  "show all paper sizes, untick “Filter preset-dropdown list "
+                  "according to selected paper size” in “Settings for "
+                  "built-in presets”.")
+    return tr("To filter this list of built-in presets by the paper size "
+              "selected, tick “Filter preset-dropdown list according to "
+              "selected paper size” in “Settings for built-in presets”.")
+
+
 def _marked_overlay_label(key: str, label: str) -> str:
     """The ★-overlay row for a built-in: its overlay label plus the "Full layout
     setup" marker when the preset carries one. The eleven prebuilt ("by
@@ -4396,6 +4414,13 @@ class _CappedComboBox(NoScrollComboBox):
     #: code) it lays its chart out on. Absent on the Scanner presets and on a
     #: person's preset that stores no paper, which are always listed.
     PAPER_ROLE = Qt.ItemDataRole.UserRole + 46
+    #: On the paper-filter note at the bottom of the list (Knut, #182
+    #: 5834773589, B8-1171): True. The note is DISABLED and not selectable
+    #: all the time, open or closed, so the arrow keys, the wheel and
+    #: type-ahead step over it; a click on it is swallowed here; and
+    #: :meth:`TabChart._on_preset_selected` refuses its userData
+    #: (:data:`core.curated_presets.NOTE_ROW_DATA`) like an arrow row's.
+    NOTE_ROLE = Qt.ItemDataRole.UserRole + 47
 
     #: ``(row, action)`` for an arrow row, where action is "toggle" (a click,
     #: Return, Enter or Space), "open" (Right), "close" (Left), or "parent"
@@ -4437,6 +4462,8 @@ class _CappedComboBox(NoScrollComboBox):
                     QEvent.Type.MouseButtonRelease,
                     QEvent.Type.MouseButtonDblClick):
                 idx = view.indexAt(event.position().toPoint())
+                if idx.isValid() and self.itemData(idx.row(), self.NOTE_ROLE):
+                    return True          # the note is read, never chosen
                 if idx.isValid() and self.itemData(idx.row(), self.MORE_ROLE):
                     if et == QEvent.Type.MouseButtonRelease \
                             and event.button() == Qt.MouseButton.LeftButton:
@@ -4536,10 +4563,14 @@ class _CappedComboBox(NoScrollComboBox):
         if container is None:
             return
         if rows_changed:
-            visible = sum(1 for r in range(self.count())
+            # Row by row: the paper-filter note (B8-1171) wraps over more
+            # than one line, so it is taller than row 0.
+            content = sum(max(row_h, view.sizeHintForRow(r))
+                          if self.itemData(r, self.NOTE_ROLE) else row_h
+                          for r in range(self.count())
                           if not view.isRowHidden(r))
             frame = max(0, container.height() - view.viewport().height())
-            want = min(max_h, visible * row_h + frame)
+            want = min(max_h, content + frame)
             if container.height() != want:
                 view.setVerticalScrollBarPolicy(
                     Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -4579,10 +4610,64 @@ class _ComboSeparatorDelegate(QStyledItemDelegate):
 
     _SEP_ROLE = Qt.ItemDataRole.AccessibleDescriptionRole
 
+    #: The paper-filter note's padding inside its box, and the box's inset
+    #: from the row (B8-1171).
+    _NOTE_PAD = 8
+    _NOTE_INSET = 4
+
     def _is_separator(self, index) -> bool:
         return index.data(self._SEP_ROLE) == "separator"
 
+    @staticmethod
+    def _is_note(index) -> bool:
+        return bool(index.data(_CappedComboBox.NOTE_ROLE))
+
+    def _note_width(self, option) -> int:
+        """The width the note wraps to: the open list's, which is at least
+        the combo's own."""
+        combo = self.parent()
+        width = option.rect.width()
+        if isinstance(combo, QComboBox):
+            width = max(width, combo.width(), combo.view().viewport().width())
+        return max(160, width)
+
+    def _note_text_rect(self, rect: QRect) -> QRect:
+        box = rect.adjusted(self._NOTE_INSET + 6, self._NOTE_INSET,
+                            -(self._NOTE_INSET + 6), -self._NOTE_INSET)
+        return box.adjusted(self._NOTE_PAD, self._NOTE_PAD,
+                            -self._NOTE_PAD, -self._NOTE_PAD)
+
+    def _paint_note(self, painter, option, index) -> None:
+        """THE PAPER-FILTER NOTE (Knut, #182 5834773589, B8-1171): a box in
+        the app's information colours for the appearance on screen
+        (:func:`ui.theme.info_colours`), its text wrapped. Painted here, not
+        by the default delegate, because the row is disabled and the default
+        would grey it out."""
+        from ui.theme import info_colours
+        colours = info_colours()
+        rect = option.rect
+        box = QRectF(rect.adjusted(self._NOTE_INSET + 6, self._NOTE_INSET,
+                                   -(self._NOTE_INSET + 6),
+                                   -self._NOTE_INSET)).adjusted(
+            0.5, 0.5, -0.5, -0.5)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(QPen(QColor(colours["border"]), 1))
+        painter.setBrush(QColor(colours["bg"]))
+        painter.drawRoundedRect(box, 4, 4)
+        painter.setPen(QColor(colours["text"]))
+        painter.setFont(option.font)
+        painter.drawText(self._note_text_rect(rect),
+                         int(Qt.AlignmentFlag.AlignLeft
+                             | Qt.AlignmentFlag.AlignVCenter
+                             | Qt.TextFlag.TextWordWrap),
+                         str(index.data(Qt.ItemDataRole.DisplayRole) or ""))
+        painter.restore()
+
     def paint(self, painter, option, index) -> None:
+        if self._is_note(index):
+            self._paint_note(painter, option, index)
+            return
         if self._is_separator(index):
             line = QColor(option.palette.color(QPalette.ColorRole.Text))
             line.setAlpha(70)
@@ -4611,6 +4696,17 @@ class _ComboSeparatorDelegate(QStyledItemDelegate):
         hint = super().sizeHint(option, index)
         if self._is_separator(index):
             return QSize(0, hint.height())
+        if self._is_note(index):
+            # No width of its own, so the note never widens the list; the
+            # height its wrapped text needs at the list's width.
+            width = self._note_width(option)
+            text_w = self._note_text_rect(QRect(0, 0, width, 1000)).width()
+            fm = QFontMetrics(option.font)
+            text_h = fm.boundingRect(
+                QRect(0, 0, max(40, text_w), 10000),
+                int(Qt.TextFlag.TextWordWrap),
+                str(index.data(Qt.ItemDataRole.DisplayRole) or "")).height()
+            return QSize(0, text_h + 2 * (self._NOTE_PAD + self._NOTE_INSET))
         return hint
 
 
@@ -6559,11 +6655,16 @@ class TabChart(QWidget):
         self._preset_shown_btn.setFixedSize(28, 28)
         set_folder_twin_icon(self._preset_shown_btn, "gear", "folder_create")
         self._preset_shown_btn.setIconSize(QSize(14, 14))
+        # NAMED (Knut, #182 5834773589, B8-1172): the tooltip starts with the
+        # window's name, "Settings for built-in presets", which every text
+        # that refers to the window uses.
         self._preset_shown_btn.setToolTip(
-            tr("Choose which built-in presets are listed directly.\n"
-               "The others stay available under an arrow in each group."))
+            tr("Settings for built-in presets\n"
+               "Choose which built-in presets are listed directly, and whether\n"
+               "the lists follow the paper size. The others stay available\n"
+               "under an arrow in each group."))
         self._preset_shown_btn.setAccessibleName(
-            tr("Built-in presets in the lists"))
+            tr("Settings for built-in presets"))
         self._preset_shown_btn.clicked.connect(self._open_builtin_presets_shown)
         presets_row.addWidget(self._preset_add_btn, 0, 2)
         presets_row.addWidget(self._preset_del_btn, 0, 3)
@@ -6575,8 +6676,9 @@ class TabChart(QWidget):
             "  +  Save current parameter values as a new named preset.\n"
             "  −  Delete the currently selected preset.\n"
             "  ▢  Open this tab's presets folder in {manager}.\n"
-            "  ⚙  Choose which built-in presets are listed directly; the\n"
-            "      others wait under an arrow (▸) in each group.\n\n"
+            "  ⚙  Open “Settings for built-in presets”: choose which built-in\n"
+            "      presets are listed directly (the others wait under an arrow\n"
+            "      (▸) in each group), and whether the lists follow the paper size.\n\n"
             "Select a preset from the dropdown to instantly restore all\n"
             "values. The Default entry always resets to built-in defaults.\n\n"
             "Presets are stored as plain .json files, one per preset,\n"
@@ -10391,8 +10493,10 @@ class TabChart(QWidget):
 
     def _is_deletable_preset(self, index: int) -> bool:
         """True only for user presets (Default and built-ins can't be deleted)."""
+        from core.curated_presets import is_not_a_preset
         data = self._preset_combo.itemData(index)
-        return data is not None and data not in BUILTIN_PRESET_KEYS
+        return data is not None and data not in BUILTIN_PRESET_KEYS \
+            and not is_not_a_preset(data)
 
     def _add_builtin_group_heading(self, heading: str) -> None:
         """A non-selectable heading row naming the instrument a group is for.
@@ -10605,6 +10709,7 @@ class TabChart(QWidget):
                     disabled=key in DISABLED_BUILTIN_PRESET_KEYS)
                 cb.setItemData(cb.count() - 1, instr, cb.MEMBER_ROLE)
             self._mark_preset_group_rows(group_start, instr)
+        self._add_preset_list_note()
         if select_name is not None:
             # Match by userData (the bare name), not the shown text, which may
             # carry a ▶ prefix for auto-run presets.
@@ -10619,6 +10724,25 @@ class TabChart(QWidget):
         self._preset_del_btn.setEnabled(
             self._is_deletable_preset(self._preset_combo.currentIndex())
         )
+
+    def _add_preset_list_note(self) -> None:
+        """THE PAPER-FILTER NOTE, the list's last row (Knut, #182 5834773589,
+        B8-1171): what the filter does now and where to change it, in the
+        app's information colours. Disabled and not selectable all the time,
+        so the arrow keys, the wheel and type-ahead step over it, open or
+        closed; the combo swallows a click on it; the preset handler refuses
+        its userData, as it refuses an arrow row's."""
+        from core.curated_presets import NOTE_ROW_DATA, paper_filter_on
+        cb = self._preset_combo
+        text = preset_list_note(paper_filter_on(self._settings))
+        cb.addItem(text, userData=NOTE_ROW_DATA)
+        row = cb.count() - 1
+        cb.setItemData(row, True, cb.NOTE_ROLE)
+        cb.setItemData(row, text, Qt.ItemDataRole.ToolTipRole)
+        item = cb.model().item(row)
+        if item is not None:
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsSelectable
+                          & ~Qt.ItemFlag.ItemIsEnabled)
 
     # ------------------------------------------------------------------
     # The curated built-ins: the arrow rows (#182 5818659478)
@@ -10705,8 +10829,9 @@ class TabChart(QWidget):
                     "The other built-in presets of {group}. Click, or press "
                     "Return or the Right arrow key, to show them; the Left "
                     "arrow key hides them again. Choose which ones are listed "
-                    "directly with the gear button beside the presets folder "
-                    "button.").format(group=group), Qt.ItemDataRole.ToolTipRole)
+                    "directly in “Settings for built-in presets” (the ⚙ "
+                    "button beside the presets folder button).").format(
+                        group=group), Qt.ItemDataRole.ToolTipRole)
             elif isinstance(cb.itemData(row), str) and (
                     grp or cb.itemData(row, cb.PAPER_ROLE)):
                 # A ticked built-in (a person's own preset has no paper
@@ -11260,7 +11385,12 @@ class TabChart(QWidget):
             if rest:
                 more[instr] = [(_marked_overlay_label(key, overlay_label), key)
                                for (_combo, overlay_label, key) in rest]
-        popup = BuiltinPresetPopup(groups, self, more=more)
+        # The paper-filter note at the bottom (Knut, #182 5834773589,
+        # B8-1171), the same sentence as the pulldown's.
+        from core.curated_presets import paper_filter_on
+        popup = BuiltinPresetPopup(
+            groups, self, more=more,
+            note=preset_list_note(paper_filter_on(self._settings)))
         popup.set_appearance(resolve_mode(self._settings.get("appearance", "auto")))
         popup.selected.connect(self._activate_builtin_preset)
         # Keep a reference so the popup isn't garbage-collected while shown.
@@ -11849,8 +11979,9 @@ class TabChart(QWidget):
         # through, and the closed combo cannot step onto it because it is
         # disabled there; but a selection that reaches this slot by any other
         # road is put back, before its userData can be read as a preset NAME.
-        from core.curated_presets import is_more_row
-        if is_more_row(self._preset_combo.itemData(index)):
+        # The paper-filter note (B8-1171) is refused the same way.
+        from core.curated_presets import is_not_a_preset
+        if is_not_a_preset(self._preset_combo.itemData(index)):
             self._revert_preset_combo()
             return
         data = self._preset_combo.itemData(index)

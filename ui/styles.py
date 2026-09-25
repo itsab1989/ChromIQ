@@ -18,6 +18,8 @@ _ARROW_UP   = str(resource_path("assets/arrow_up.svg")).replace("\\", "/")
 
 # Spectrum
 SPEC_MAGENTA = "#ff4573"
+#: The ground of the information note (``QLabel#info``) in Dark.
+INFO_BG = "#25060f"
 SPEC_AMBER   = "#ffb42d"
 SPEC_GREEN   = "#56d6a5"
 SPEC_CYAN    = "#37bcd6"
@@ -472,7 +474,7 @@ QLabel#warning {{
     border: 1px solid {ACCENT_WARN}; border-radius: 4px; padding: 6px 10px;
 }}
 QLabel#info {{
-    background: #25060f; color: {SPEC_MAGENTA};
+    background: {INFO_BG}; color: {SPEC_MAGENTA};
     border: 1px solid {SPEC_MAGENTA}; border-radius: 4px; padding: 6px 10px;
 }}
 /* The Measure tab's own information box — same shape as #info, in that tab's

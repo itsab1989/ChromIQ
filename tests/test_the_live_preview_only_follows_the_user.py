@@ -387,10 +387,16 @@ def test_loading_a_user_preset_arms_nothing(tab, monkeypatch, tmp_path):
         "selecting in the preset dropdown left a re-layout queued")
     assert tab._last_auto_sig == tab._layout_signature()
 
-    # And the early-return path: a divider row is not a choice at all.
-    if combo.count() > 1:
+    # And the list's last PRESET. This was `combo.count() - 1` and called a
+    # divider row, but the last row was always the last built-in preset; since
+    # K46 (B8-1171) the last row is the paper-filter note, which is refused
+    # before the handler starts and changes nothing, so it is skipped here.
+    from core.curated_presets import is_not_a_preset
+    last = max((r for r in range(combo.count())
+                if not is_not_a_preset(combo.itemData(r))), default=0)
+    if last > 0:
         _arm(tab)
-        tab._on_preset_selected(combo.count() - 1)
+        tab._on_preset_selected(last)
         assert not tab._auto_preview_timer.isActive()
 
 

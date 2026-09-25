@@ -68,7 +68,8 @@ def test_a_help_icon_for_the_window_and_one_right_of_the_box(qapp):
                       "filtered", "“Select preset” and the Built-in presets "
                       "list", "Guided", "Manual", "Scanner", "Custom",
                       "orientation counts", "“▸ N more presets”",
-                      "this window's list"):
+                      # named since K46 (B8-1172): "this window's list"
+                      "the list in “Settings for built-in presets”"):
             assert words in b, words
         cb = dlg._paper_filter
         assert box.geometry().left() >= cb.geometry().right()
@@ -114,7 +115,8 @@ def test_the_german_is_translated_by_hand_in_du_form():
     t = de[OWN]
     assert t.startswith("Deine eigenen Presets sind nicht betroffen")
     assert "Papierfilter" in t
-    keys = [k for k in de if k.startswith(("This window chooses which "
+    keys = [k for k in de if k.startswith(("“Settings for built-in "
+                                           "presets” chooses which "
                                            "built-in presets",
                                            "While this box is ticked"))]
     assert len(keys) == 2

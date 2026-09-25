@@ -435,6 +435,25 @@ def by_mode(light, dark, neutral, mode: "str | None" = None):
             APPEARANCE_NEUTRAL: neutral}.get(mode or active_mode(), dark)
 
 
+def info_colours(mode: "str | None" = None) -> "dict[str, str]":
+    """``{"bg", "text", "border"}`` of the app's information note in ``mode``:
+    the colours the style sheets give ``QLabel#info`` (the Create Chart note
+    box), for a note that is PAINTED rather than a label, such as the
+    paper-filter note at the bottom of the two preset lists (Knut, #182
+    5834773589, B8-1171). Neutral has one accent and no coloured note, so it
+    answers what its ``QLabel#info`` is: the surface, the main ink and the
+    border."""
+    return by_mode(
+        {"bg": light_styles.LM_INFO_BG, "text": light_styles.LM_INFO_TEXT,
+         "border": light_styles.LM_INFO_BORDER},
+        {"bg": styles.INFO_BG, "text": styles.SPEC_MAGENTA,
+         "border": styles.SPEC_MAGENTA},
+        {"bg": neutral_styles.NM_BG_SURFACE,
+         "text": neutral_styles.NM_TEXT_MAIN,
+         "border": neutral_styles.NM_BORDER},
+        mode)
+
+
 def panel_border_qss(*, radius: int = 4, mode: "str | None" = None) -> str:
     """The plain, colourless rounded outline for a bare ``QFrame(StyledPanel)``.
 

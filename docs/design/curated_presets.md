@@ -33,8 +33,8 @@ Nothing is removed. Every built-in stays reachable from both lists.
 | Where | What |
 |---|---|
 | Create Chart, Manual, Presets frame, first row | a 28 px icon button with a gear, between "Open this tab's presets folder in {manager}" and the help icon, the same size and style as the folder button |
-| its tooltip | "Choose which built-in presets are listed directly. The others stay available under an arrow in each group." |
-| the frame's help icon | gains the line "⚙  Choose which built-in presets are listed directly; the others wait under an arrow (▸) in each group." |
+| its tooltip | ~~"Choose which built-in presets are listed directly. The others stay available under an arrow in each group."~~ **Amended (K46, C9):** "Settings for built-in presets", then "Choose which built-in presets are listed directly, and whether the lists follow the paper size. The others stay available under an arrow in each group." |
+| the frame's help icon | gains the line "⚙  Choose which built-in presets are listed directly; the others wait under an arrow (▸) in each group." **Amended (K46, C9):** "⚙  Open “Settings for built-in presets”: choose which built-in presets are listed directly (the others wait under an arrow (▸) in each group), and whether the lists follow the paper size." |
 
 `{manager}` is already the platform's own word (`core.platform_paths.
 file_manager_name`: Finder on macOS, File Explorer on Windows, "your file
@@ -43,7 +43,7 @@ button; see B8-1023 for the one other string that names Finder.
 
 ### C3. The window
 
-* Title "Built-in presets in the lists"; modal.
+* Title ~~"Built-in presets in the lists"~~ **"Settings for built-in presets"** (K46, C9); modal.
 * Three paragraphs: ticked presets are listed directly in "Select preset" and in
   the Built-in presets list (the middle of the three buttons at the top of
   Create Chart); the others wait under an arrow after the group's last ticked
@@ -272,3 +272,29 @@ like before."*
 | The order | i1Pro / i1Pro 2 / i1Pro 3, i1Pro 3 Plus, ColorMunki / i1Studio / ColorChecker Studio, CR30 (ChnSpec), then Scanner, then Red River Paper. The person's own presets stay on top, with no heading |
 | Where it comes from | the Instrument pulldown's own source, `INSTRUMENT_LABELS` in `data/patch_db.py` (what Guided's Instrument field lists, in its order); Manual's Instrument field (`printtarg -i` in `data/parameters.yaml`) lists the same codes in the same order, and a test holds the two together. No second list: `instrument_group_rank` in `ui/tabs/tab_chart.py` ranks each group by its instrument's place there, and a group that is not an instrument goes last, keeping its place |
 | Every list | sorted once, in the registry `BUILTIN_PRESET_GROUPS`, so every list follows: "Select preset", the Built-in presets list, the gear window's list and its Export list CSV, "Compare with profile", "Which presets can be used for verification?" (its "Preset pulldown order" keeps the groups in this order), and `scripts/make_preset_defaults.py --table`. `data/preset_defaults.json` was rewritten in the new order; it ticks the same 62 presets |
+
+### C9. The paper-filter note, and the window's name (Knut, #182 5834773589, beta 43, B8-1171 to B8-1173)
+
+⏳ **Awaiting confirmation. Confirmed by:** *nobody yet.* Verified by driving
+the real app on screen, English and German, Light, Dark and Neutral (proof in
+`~/Desktop/ChromIQ-beta43-proof/k46/`), which proves what the app does;
+whether it is what it should do is Knut's or Sebastian's call.
+
+Knut: *"The pull-down list for "Select preset" and the "built-in presets"
+button should have a coloured note [...] at the bottom or the top (whichever
+is most commonly done and looking good) of the selection list [...]"* and
+*"The "Settings for built-in presets" does not have a label defined in the
+tool-tip, I suggest calling it "Settings for built-in presets" [...] All
+places, like help texts, should refer to this label, not general descriptions
+that may be misunderstood."*
+
+| What | Behaviour |
+|---|---|
+| Where | the LAST row of "Select preset" and of the Built-in presets list, after Red River Paper's arrow; in both lists, at every paper, filter on or off |
+| Filter ON | "This list is filtered by the paper size selected. To show all paper sizes, untick “Filter preset-dropdown list according to selected paper size” in “Settings for built-in presets”." German: "Diese Liste ist nach der gewählten Papiergröße gefiltert. Um alle Papiergrößen zu zeigen, nimm in „Einstellungen für integrierte Presets“ das Häkchen bei „Presetliste im Aufklappmenü nach gewählter Papiergröße filtern“ weg." |
+| Filter OFF | "To filter this list of built-in presets by the paper size selected, tick “Filter preset-dropdown list according to selected paper size” in “Settings for built-in presets”." German: "Um diese Liste der integrierten Presets nach der gewählten Papiergröße zu filtern, hake in „Einstellungen für integrierte Presets“ das Kästchen „Presetliste im Aufklappmenü nach gewählter Papiergröße filtern“ an." |
+| Follows the box | the text changes when OK stores the box (C3a, C7); Close changes nothing |
+| Its look | a rounded box in the app's information colours (`QLabel#info`: `ui.theme.info_colours`): Light pink ground, magenta text and edge; Dark the dark magenta ground, magenta text and edge; Neutral, which has no coloured note, its surface, main ink and border. The text wraps to the list's width; the note never widens a list |
+| Never a choice | in "Select preset" it is disabled and not selectable at all times, open or closed, so Up, Down, End, PageDown, the wheel and type-ahead step over it; a click on it is swallowed; the preset handler refuses it (userData `NOTE_ROW_DATA`, `is_not_a_preset`), as it refuses an arrow row. In the Built-in presets list it is not among the rows the keyboard moves through, the mouse finds nothing on it, and it is never emitted or closes the list |
+| The window's name | "Settings for built-in presets" (German "Einstellungen für integrierte Presets", after the existing "Integrierte Presets"), in the window's title, the gear's tooltip (its first line) and accessible name, the list's accessible name, the Manual Presets help line, the arrow rows' tooltip, the window's two help icons and the note. No user-facing text calls it "the gear window", "this window's list" or "Built-in presets in the lists" any more |
+| Not built | the window has no masthead (it never had one), so the name is its title bar only |

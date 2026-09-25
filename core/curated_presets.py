@@ -60,6 +60,18 @@ def is_more_row(data: Any) -> bool:
     return isinstance(data, str) and data.startswith(MORE_ROW_PREFIX)
 
 
+#: userData of the paper-filter note at the bottom of "Select preset" (Knut,
+#: #182 5834773589, B8-1171). Like the arrow row it is not a preset key and
+#: never becomes one: :func:`is_not_a_preset` refuses it in the preset handler.
+NOTE_ROW_DATA = "__chromiq_presets_note__"
+
+
+def is_not_a_preset(data: Any) -> bool:
+    """True for a row of "Select preset" that is not a preset but carries
+    userData: an arrow row, or the paper-filter note."""
+    return is_more_row(data) or data == NOTE_ROW_DATA
+
+
 @lru_cache(maxsize=1)
 def shipped_defaults() -> frozenset[str]:
     """The keys ChromIQ ships ticked, read once from :data:`DEFAULTS_FILE`.

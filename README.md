@@ -214,8 +214,8 @@ Or start from one of **185 ready-made chart presets** (154 in 4.2), grouped by
 instrument: ColorMunki / i1Studio / ColorChecker Studio, i1Pro / i1Pro 2 /
 i1Pro 3, i1Pro 3 Plus, CR30, scanner, and Red River Paper.
 
-**New in 4.3:** the **gear button** beside the presets folder opens every
-built-in preset with a tick box. The ticked ones are listed directly; the rest
+**New in 4.3:** the **gear button** beside the presets folder opens
+**Settings for built-in presets**, which lists every built-in preset with a tick box. The ticked ones are listed directly; the rest
 wait under an arrow at the end of their group, so nothing is removed. ChromIQ
 starts you on a few per instrument and paper size, and only the changes you
 make are kept, so a later release can still improve that starting list. On a

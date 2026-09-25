@@ -100,7 +100,10 @@ class BuiltinPresetsShownDialog(QDialog):
         self._comments: dict[str, str] = {}
         self._last_box: QMessageBox | None = None
         self.setObjectName("builtin_presets_shown_dialog")
-        self.setWindowTitle(tr("Built-in presets in the lists"))
+        # NAMED (Knut, #182 5834773589, B8-1172): "Settings for built-in
+        # presets", the name the gear's tooltip, the help texts and the
+        # note at the bottom of both preset lists use for this window.
+        self.setWindowTitle(tr("Settings for built-in presets"))
         self.setModal(True)
 
         lay = QVBoxLayout(self)
@@ -134,10 +137,11 @@ class BuiltinPresetsShownDialog(QDialog):
         from ui.tooltip_button import TooltipButton
         self._help = TooltipButton(
             tr("How the built-in preset lists work"),
-            tr("This window chooses which built-in presets “Select preset” "
-               "and the Built-in presets list show directly. It always "
-               "lists every built-in preset with its tick; the paper "
-               "filter does not change what this window lists.\n\nTicks: a "
+            tr("“Settings for built-in presets” chooses which built-in "
+               "presets “Select preset” and the Built-in presets list show "
+               "directly. It always lists every built-in preset with its "
+               "tick; the paper filter does not change what it lists."
+               "\n\nTicks: a "
                "ticked preset is listed directly. The other presets of its "
                "group are still there, under “▸ N more presets” after the "
                "group's last ticked preset: click it, or select it and "
@@ -171,7 +175,7 @@ class BuiltinPresetsShownDialog(QDialog):
             0, QHeaderView.ResizeMode.Stretch)
         self._tree.header().setSectionResizeMode(
             1, QHeaderView.ResizeMode.ResizeToContents)
-        self._tree.setAccessibleName(tr("Built-in presets in the lists"))
+        self._tree.setAccessibleName(tr("Settings for built-in presets"))
         self._groups: list[QTreeWidgetItem] = []
         for heading, entries in groups:
             g = QTreeWidgetItem(self._tree, [heading, ""])
@@ -215,7 +219,8 @@ class BuiltinPresetsShownDialog(QDialog):
                "Paper size or Manual's Paper, whichever mode is shown. "
                "They follow the paper as you change it.\n\nIt applies to "
                "built-in presets only. Your own presets are never "
-               "filtered, and neither is this window's list, which always "
+               "filtered, and neither is the list in “Settings for built-in "
+               "presets”, which always "
                "shows every built-in preset with its tick.\n\nA preset's "
                "paper is the paper its chart is laid out on, and the "
                "orientation counts: A3 Portrait shows only the portrait A3 "
