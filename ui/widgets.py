@@ -3438,13 +3438,17 @@ def defer_freeze_default(win: QWidget) -> None:
         return
     from PyQt6 import sip as _sip
 
-    from ui.default_button import freeze_default, mark_safe_buttons
+    from ui.default_button import (freeze_default, guard_destructive_focus,
+                                   mark_safe_buttons)
     mark_safe_buttons(win)
+    # B8-1181: the focus never starts on a destructive button (Space).
+    guard_destructive_focus(win)
 
     def _run() -> None:
         if not _sip.isdeleted(win) and win.isVisible():
             mark_safe_buttons(win)
             freeze_default(win)
+            guard_destructive_focus(win)
     for _delay in (0, 160):
         QTimer.singleShot(_delay, _run)
 

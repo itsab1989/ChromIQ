@@ -31,7 +31,13 @@ def main() -> int:
     out_root = sys.argv[1]
     modes = (sys.argv[2].split(",") if len(sys.argv) > 2
              else ["light", "dark", "neutral"])
+    from PyQt6.QtCore import Qt
     from PyQt6.QtGui import QColor
+    try:
+        from ui.default_button import is_destructive as _is_destructive
+    except ImportError:                 # a tree before B8-1181
+        def _is_destructive(_b):
+            return False
     from PyQt6.QtTest import QTest
     from PyQt6.QtWidgets import QApplication, QMessageBox, QPushButton
     app = QApplication.instance() or QApplication([])
@@ -83,7 +89,22 @@ def main() -> int:
                    "name": b.objectName(), "default": b.isDefault(),
                    "auto": b.autoDefault(), "enabled": b.isEnabled(),
                    "fill": fill, "filled": is_filled,
-                   "safe": bool(b.property("chromiq_safe_default"))}
+                   "safe": bool(b.property("chromiq_safe_default")),
+                   # B8-1181: the button the keyboard focus is on, as the
+                   # window holds it (active or not): Space presses it.
+                   "focus": win.focusWidget() is b}
+            if _is_destructive(b):
+                # On screen macOS activates a window AFTER B8-1042's pass
+                # and hands the focus to the first button in the chain;
+                # offscreen never does. So do what activation does, and see
+                # whether a destructive button keeps that focus (Space
+                # would press it).
+                row["destructive"] = True
+                win.activateWindow()
+                b.setFocus(Qt.FocusReason.ActiveWindowFocusReason)
+                QTest.qWait(80)
+                row["keeps_activation_focus"] = win.focusWidget() is b
+                b.clearFocus()
             if not b.isEnabled():
                 # Most tools grey their main action until the inputs are
                 # chosen: enable it, as choosing them would, and look again

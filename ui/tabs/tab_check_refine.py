@@ -1217,6 +1217,10 @@ class TabCheckRefine(QWidget):
         del_btn = bb.addButton(tr("Delete"), QDialogButtonBox.ButtonRole.AcceptRole)
         # Coloured in the tab's colour before K44, and kept (B8-1156).
         del_btn.setObjectName("primary")
+        # Destructive: never where the keyboard focus starts (B8-1181).
+        # Not the default, so the mark changes nothing in its colour.
+        from ui.default_button import mark_destructive
+        mark_destructive(del_btn)
         # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
         # the safest." Return presses Cancel, which stays plain; Delete keeps
         # its colour and is reached by a click.

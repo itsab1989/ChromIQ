@@ -272,3 +272,25 @@ def test_a_destructive_action_is_never_newly_filled(audit, mode):
             bad.append(f"{name}: coloured {_coloured(audit[mode][name])}, "
                        "want ['Delete'] as before K44")
     assert not bad, f"{mode}:\n" + "\n".join(bad)
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_the_focus_never_starts_on_a_destructive_button(audit, mode):
+    """B8-1181, found on screen: in "Preset already exists" and "Stuck Print
+    Jobs Detected" the window's activation put the keyboard focus on
+    Overwrite / Clear & Print, so Space pressed it (Return pressed Cancel).
+    In every destructive question, after show and B8-1042's passes, the
+    focus is not on the destructive button, and a focus the window hands it
+    on activation (not the user's Tab or click) is given back."""
+    bad = []
+    for name, (action, _safe) in DESTRUCTIVE_QUESTIONS.items():
+        rows = audit[mode][name]
+        act = [r for r in rows if r["text"] == action]
+        if not act or not act[0].get("destructive"):
+            bad.append(f"{name}: {action!r} is not marked destructive")
+            continue
+        if act[0].get("focus"):
+            bad.append(f"{name}: the focus starts on {action!r}")
+        if act[0].get("keeps_activation_focus"):
+            bad.append(f"{name}: {action!r} keeps the focus activation gives it")
+    assert not bad, f"{mode}:\n" + "\n".join(bad)

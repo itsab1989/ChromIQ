@@ -50,6 +50,82 @@ def mark_destructive(btn) -> None:
     btn.setProperty(DESTRUCTIVE, True)
 
 
+def is_destructive(btn) -> bool:
+    """Marked with :func:`mark_destructive`, or a button-box
+    ``DestructiveRole`` button."""
+    if btn.property(DESTRUCTIVE):
+        return True
+    from PyQt6.QtWidgets import QDialogButtonBox
+    p = btn.parentWidget()
+    while p is not None and not isinstance(p, QDialogButtonBox):
+        if p.isWindow():
+            return False
+        p = p.parentWidget()
+    return (p is not None
+            and p.buttonRole(btn) == QDialogButtonBox.ButtonRole.DestructiveRole)
+
+
+#: The focus reasons a USER gives a button: Tab, Shift+Tab, a click, a
+#: mnemonic. Any other reason (the window being activated, a popup closing,
+#: code) is stray focus.
+_USER_FOCUS = ("TabFocusReason", "BacktabFocusReason", "MouseFocusReason",
+               "ShortcutFocusReason")
+
+
+def _drop_focus(btn) -> None:
+    from PyQt6 import sip
+    if not sip.isdeleted(btn) and btn.hasFocus():
+        btn.clearFocus()
+
+
+_GUARD = None
+
+
+def _guard():
+    """One shared filter object for every destructive button."""
+    global _GUARD
+    if _GUARD is None:
+        from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
+
+        class _NoStrayFocusOnDestructive(QObject):
+            def eventFilter(self, obj, event):  # noqa: N802 - Qt's name
+                if event.type() == QEvent.Type.FocusIn:
+                    users = tuple(getattr(Qt.FocusReason, n)
+                                  for n in _USER_FOCUS)
+                    if event.reason() not in users:
+                        from functools import partial
+                        QTimer.singleShot(0, partial(_drop_focus, obj))
+                return False
+
+        _GUARD = _NoStrayFocusOnDestructive()
+    return _GUARD
+
+
+def guard_destructive_focus(window) -> None:
+    """B8-1181 (Space-bar hole, found on screen): the keyboard focus never
+    STARTS on a destructive button. B8-1042's pass drops button focus as a
+    window is shown, but on macOS the window is often activated after that
+    pass, and activation hands the focus to the first button in the chain:
+    Overwrite, Clear & Print. Return still presses the safe default (Cancel),
+    but Space presses the focused button. So a destructive button gives back
+    any focus that did not come from the user (Tab, Shift+Tab, a click, its
+    mnemonic): the focus is on no button, as B8-1042 wants, and Space presses
+    nothing. The user can still Tab to it."""
+    from PyQt6.QtWidgets import QPushButton
+    try:
+        mine = [b for b in window.findChildren(QPushButton)
+                if b.window() is window]
+    except RuntimeError:
+        return
+    g = _guard()
+    for b in mine:
+        if is_destructive(b) and not b.property("chromiq_focus_guard"):
+            b.installEventFilter(g)
+            b.setProperty("chromiq_focus_guard", True)
+            if b.hasFocus() or window.focusWidget() is b:
+                b.clearFocus()
+
+
 #: The dynamic property on a button a window colours BY ITS OWN CODE (a
 #: per-button style sheet), the way ``#primary`` is coloured by the sheets.
 COLOURED = "chromiq_coloured"

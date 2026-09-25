@@ -7609,10 +7609,14 @@ his confirmation.)
   rebuilding over verifications presses "Duplicate the run and build there"
   when a duplicate can be made, and Cancel only when it cannot.
 * The safe default is drawn like any button, never as the main action (38.1).
+* The keyboard focus never starts on the destructive action, so Space does
+  not press it: a focus the window hands it as it is shown or activated is
+  given back, and the focus is on no button (B8-1042). Tab still reaches it.
 * The destructive action keeps its look: plain (38.3), except Delete Preset in
   Measure, Build Profile and Check & Refine, which keeps the tab colour it had
   before K44.
 * Not changed, put to Knut (B8-1182): "Build anyway" when the measurement is
   not in the selected run, and "Save now?" when importing a translation.
 * **Verified by:** `tests/test_k44_default_button_audit.py`
-  (`test_every_destructive_question_defaults_to_cancel`).
+  (`test_every_destructive_question_defaults_to_cancel`,
+  `test_the_focus_never_starts_on_a_destructive_button`).
