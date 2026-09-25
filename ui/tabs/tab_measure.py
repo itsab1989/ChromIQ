@@ -3666,7 +3666,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         bb = QDialogButtonBox(dlg)
         bb.addButton(tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         del_btn = bb.addButton(tr("Delete"), QDialogButtonBox.ButtonRole.AcceptRole)
-        del_btn.setObjectName("primary")
+        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
+        # filled. It was #primary (tinted); it is plain now, and still the
+        # button Return presses.
+        from ui.default_button import mark_destructive
+        mark_destructive(del_btn)
         bb.rejected.connect(dlg.reject)
         bb.accepted.connect(dlg.accept)
         dlg_layout.addWidget(bb)
@@ -13896,6 +13900,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         go = box.addButton(tr("Measure anyway"), QMessageBox.ButtonRole.AcceptRole)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
+        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
+        # filled, even as the default; what Return presses is unchanged.
+        from ui.default_button import mark_destructive
+        mark_destructive(go)
         # Long labels clip once the font swap widens them, and polish
         # does not happen offscreen — so fit them here (Knut, #130).
         from ui.widgets import (fit_message_box_buttons,

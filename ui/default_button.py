@@ -35,6 +35,20 @@ from __future__ import annotations
 #: destructive question, not the main action": it is drawn like any button.
 SAFE_DEFAULT = "chromiq_safe_default"
 
+#: The dynamic property on a DESTRUCTIVE action (delete, overwrite, replace,
+#: discard, enable-at-your-own-risk). Decision for beta 43, 2026-09-25: a
+#: destructive action is NEVER drawn filled, even when it is the default.
+#: Which button Return presses is not changed (listed for Knut, B8-1155).
+DESTRUCTIVE = "chromiq_destructive"
+
+
+def mark_destructive(btn) -> None:
+    """Say that *btn* destroys or replaces something: it is drawn like any
+    button, never filled, even as the default. A QMessageBox button added
+    with ``DestructiveRole`` is recognised without this."""
+    btn.setProperty(DESTRUCTIVE, True)
+
+
 #: The dynamic property on a button a window colours BY ITS OWN CODE (a
 #: per-button style sheet), the way ``#primary`` is coloured by the sheets.
 COLOURED = "chromiq_coloured"
@@ -99,7 +113,11 @@ def mark_safe_default(btn) -> None:
 
 
 def _role_is_safe(btn) -> bool:
-    """Cancel / No / Close / Keep / Go back: a button-box REJECT or NO role."""
+    """Cancel / No / Close / Keep / Go back: a button-box REJECT or NO role;
+    or a destructive action (``DestructiveRole``, or :func:`mark_destructive`),
+    which is never drawn filled."""
+    if btn.property(DESTRUCTIVE):
+        return True
     from PyQt6.QtWidgets import QDialogButtonBox
     p = btn.parentWidget()
     while p is not None and not isinstance(p, QDialogButtonBox):
@@ -110,7 +128,7 @@ def _role_is_safe(btn) -> bool:
         return False
     role = p.buttonRole(btn)
     R = QDialogButtonBox.ButtonRole
-    return role in (R.RejectRole, R.NoRole)
+    return role in (R.RejectRole, R.NoRole, R.DestructiveRole)
 
 
 def mark_safe_buttons(window) -> None:

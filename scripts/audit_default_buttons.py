@@ -202,6 +202,24 @@ def main() -> int:
         chk._ti3_path = Path(out_root) / "demo.ti3"
         from types import SimpleNamespace
         res = SimpleNamespace(avg_de=1.2, peak_de=4.0, patch_errors=[])
+        # A DESTRUCTIVE action is never drawn filled, even as the default
+        # (beta 43, 2026-09-25). The real windows, rejected unanswered.
+        chart = win._tab_chart
+        chart._is_deletable_preset = lambda _i: True     # this instance only
+        take_modal("Delete Preset (Create Chart)", chart._on_preset_delete)
+        take_modal("Delete Preset (Measure)",
+                   win._tab_measure._on_m_preset_delete)
+        take_modal("Preset already exists",
+                   lambda: chart._confirm_overwrite_preset("Mine"))
+        take_modal("New chart over a run's work",
+                   lambda: chart._ask_chart_question(
+                       "Replace?", "Body", "Generate the new chart"))
+        from ui.widgets import confirm
+        take_modal("Different language (confirm, Yes destructive)",
+                   lambda: confirm(win, "Different language", "Import?",
+                                   QMessageBox.StandardButton.Yes
+                                   | QMessageBox.StandardButton.No,
+                                   destructive=QMessageBox.StandardButton.Yes))
         take_modal("Profile Quality Assessment (Good, refine offered)",
                    lambda: chk._show_result_dialog(
                        res, [("A", 1.0)], [("A", 3.0)],

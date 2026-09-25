@@ -1696,11 +1696,14 @@ def confirm(
     text: str,
     buttons: QMessageBox.StandardButton,
     default: "QMessageBox.StandardButton | None" = None,
+    destructive: "QMessageBox.StandardButton | None" = None,
 ) -> QMessageBox.StandardButton:
     """Yes/No-style confirmation prompt without the question-mark icon.
 
     A drop-in for ``QMessageBox.question`` (which bakes in the “?” icon the
     user dislikes): same signature shape, returns the StandardButton clicked.
+    ``destructive`` names the button that destroys or replaces something: it
+    is never drawn filled (K44), whether or not it is the default.
     """
     box = QMessageBox(parent)
     box.setWindowTitle(title)
@@ -1709,6 +1712,9 @@ def confirm(
     box.setStandardButtons(buttons)
     if default is not None:
         box.setDefaultButton(default)
+    if destructive is not None and box.button(destructive) is not None:
+        from ui.default_button import mark_destructive
+        mark_destructive(box.button(destructive))
     fit_message_box_buttons(box)
     box.exec()
     return box.standardButton(box.clickedButton())

@@ -3437,6 +3437,10 @@ class SettingsDialog(QDialog):
         ok_btn = box.button(QMessageBox.StandardButton.Ok)
         cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
         ok_btn.setText(tr("Enable the engine"))
+        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
+        # filled, even as the default; what Return presses is unchanged.
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
         cancel_btn.setText(tr("Keep using colprof"))
         # Size each button to its own label so the text never clips
         # (QMessageBox default min-width is too narrow for wide labels).

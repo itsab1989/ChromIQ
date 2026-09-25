@@ -293,6 +293,8 @@ class TranslationDialog(QDialog):
                     "“{chosen}”. Import it as “{chosen}” anyway?"
                 ).format(sheet=report.code_mismatch, chosen=code),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                # K44: importing over the wrong language is never drawn filled.
+                destructive=QMessageBox.StandardButton.Yes,
             )
             if keep != QMessageBox.StandardButton.Yes:
                 return

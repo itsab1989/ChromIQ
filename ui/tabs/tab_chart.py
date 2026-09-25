@@ -13404,6 +13404,10 @@ class TabChart(QWidget):
                        "or cancel and choose a different name.").format(name=name))
         overwrite = box.addButton(tr("Overwrite"),
                                   QMessageBox.ButtonRole.AcceptRole)
+        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
+        # filled, even as the default; what Return presses is unchanged.
+        from ui.default_button import mark_destructive
+        mark_destructive(overwrite)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.exec()
         return box.clickedButton() is overwrite
@@ -13432,7 +13436,11 @@ class TabChart(QWidget):
         dlg_layout.addWidget(info)
         bb = QDialogButtonBox(dlg)
         bb.addButton(tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
-        bb.addButton(tr("Delete"), QDialogButtonBox.ButtonRole.AcceptRole)
+        del_btn = bb.addButton(tr("Delete"), QDialogButtonBox.ButtonRole.AcceptRole)
+        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
+        # filled, even as the default; what Return presses is unchanged.
+        from ui.default_button import mark_destructive
+        mark_destructive(del_btn)
         bb.rejected.connect(dlg.reject)
         bb.accepted.connect(dlg.accept)
         dlg_layout.addWidget(bb)
@@ -19455,6 +19463,10 @@ class TabChart(QWidget):
         box.setText(title)
         box.setInformativeText(body)
         go = box.addButton(go_label, QMessageBox.ButtonRole.AcceptRole)
+        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
+        # filled, even as the default; what Return presses is unchanged.
+        from ui.default_button import mark_destructive
+        mark_destructive(go)
         box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(go)
         # Long labels clip once the font swap widens them, and polish does not

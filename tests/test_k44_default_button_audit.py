@@ -69,6 +69,18 @@ NOTHING_FILLED = (
 #: Neutral's Restore Factory Defaults is an ACTION fill, left as it was
 #: (rule 1); OK, the default, is ACTION-filled beside it. Put to Knut.
 NEUTRAL_PREFERENCES_EXTRA = ["Restore Factory Defaults"]
+#: Decision for beta 43, 2026-09-25: a DESTRUCTIVE action is never drawn
+#: filled, even when it is the default. Which button Return presses is NOT
+#: changed (listed for Knut, B8-1155): the real windows, and their default.
+#: (Delete Preset in Measure, Build Profile and Check & Refine was a tinted
+#: #primary before; it is plain now.)
+DESTRUCTIVE_DEFAULTS = {
+    "Delete Preset (Create Chart)": "Delete",
+    "Delete Preset (Measure)": "Delete",
+    "Preset already exists": "Overwrite",
+    "New chart over a run's work": "Generate the new chart",
+    "Different language (confirm, Yes destructive)": "Yes",
+}
 
 
 @pytest.fixture(scope="module")
@@ -110,7 +122,8 @@ def _default(rows):
 
 def test_every_audited_window_is_in_exactly_one_class(audit):
     names = set(audit["light"])
-    classes = [set(FILLED_NOW), set(ALREADY_COLOURED), set(NOTHING_FILLED)]
+    classes = [set(FILLED_NOW), set(ALREADY_COLOURED), set(NOTHING_FILLED),
+               set(DESTRUCTIVE_DEFAULTS)]
     assert sum(len(c) for c in classes) == len(set().union(*classes))
     assert set().union(*classes) | {"#primary beside another default"} \
         == names, names
@@ -201,3 +214,18 @@ def test_the_fill_is_the_windows_own_accent(audit, mode):
     assert fill("report question (as built)", "Create New").lower() == \
         SPEC_GREEN.lower()
     assert fill("Preferences", "OK").lower() == app_accent(mode).lower()
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_a_destructive_default_is_never_filled(audit, mode):
+    """Beta 43, 2026-09-25: Delete, Overwrite, Generate over a run's work,
+    import over another language: still what Return presses, never filled."""
+    bad = []
+    for name, want in DESTRUCTIVE_DEFAULTS.items():
+        rows = audit[mode][name]
+        d = [r["text"] for r in _default(rows)]
+        if d != [want]:
+            bad.append(f"{name}: default {d}, want {want!r} (behaviour must not change)")
+        if _coloured(rows):
+            bad.append(f"{name}: filled {_coloured(rows)}")
+    assert not bad, f"{mode}:\n" + "\n".join(bad)
