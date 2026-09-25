@@ -312,6 +312,9 @@ _LIMIT_NOTES = {
     # the line prints. One sentence, the row's name in it.
     rid: _limit_note_for(rid) for rid in (
         "all_de00_avg", "all_de00_max", "substrate_de00_max",
+        # K45-2: the three other rows the Colour accuracy graph plots, whose
+        # limit a line of that graph now describes too.
+        "best95_de00_avg", "worst5_de00_avg", "all_de00_p95",
         "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
         "ramps_30_70_dl_max", "control_strip_de00_avg",
         "control_strip_de00_p95", "repeat_patches_de00_max",
@@ -465,6 +468,31 @@ def _limit_line_note(word: str, value: float, unit: str, row_id: str,
     return tr("{word} ({value}): {text}").format(
         word=word, value=_limit_value_text(value, unit),
         text=_LIMIT_NOTES[row_id](name))
+
+
+def _limit_line_note_for_rows(word: str, value: float, unit: str,
+                              row_ids: list, names: list) -> str:
+    """`_limit_line_note` for a line that is the limit for SEVERAL rows
+    (K45-2, Knut #182 5834422633): the Colour accuracy graph's Avg line is the
+    limit for every average row the set limits at that number, and its Max
+    line for every maximum, so the sentence names each of them. One row reads
+    exactly as `_limit_line_note` always has."""
+    if len(row_ids) == 1:
+        return _limit_line_note(word, value, unit, row_ids[0], names[0])
+    quoted = [tr("“{metric}”").format(metric=n) for n in names]
+    listed = tr("{items} and {item}").format(items=", ".join(quoted[:-1]),
+                                              item=quoted[-1])
+    return tr("{word} ({value}): {text}").format(
+        word=word, value=_limit_value_text(value, unit),
+        text=tr("the limit for {metrics}.").format(metrics=listed))
+
+
+#: The five rows the Colour accuracy graph plots, each with the family of
+#: limit line it belongs to: an average sits under the grey "Avg" line, a
+#: maximum (the 95th percentile is "Maximum ΔE00, lowest 95 %") under "Max".
+_ACCURACY_LINE_ROWS = (("all_de00_avg", "avg"), ("best95_de00_avg", "avg"),
+                       ("worst5_de00_avg", "avg"), ("all_de00_max", "max"),
+                       ("all_de00_p95", "max"))
 
 
 def _with_unit(label: str, unit: str) -> str:
@@ -1544,6 +1572,31 @@ _PDF_TREND_H = 176
 #: *"a y-axis on the graph that is, for ex. twice as tall as the graph on
 #: screen"*), so a change of a tenth of a ΔE00 between dates stays visible.
 _PDF_ACCURACY_SCALE = 2
+#: The report's running text, in the 96-dpi pixels the document is laid out
+#: in: 12 px, which the PDF prints as 9 pt (the writer maps 96 px to 72 pt).
+_BODY_TEXT_PX = 12
+
+
+def _how_to_read_frame(doc):
+    """The coloured frame of "How to read this report" in a laid-out report
+    document: the first table after the block that heads it, or None."""
+    from PyQt6.QtGui import QTextCursor
+    want = tr("How to read this report")
+    block = doc.begin()
+    while block.isValid():
+        if (block.text().strip() == want
+                and QTextCursor(block).currentTable() is None):
+            nxt = block.next()
+            while nxt.isValid():
+                table = QTextCursor(nxt).currentTable()
+                if table is not None:
+                    return table
+                if nxt.text().strip():
+                    return None
+                nxt = nxt.next()
+            return None
+        block = block.next()
+    return None
 
 
 #: The radius of the marker of a series with a single value on a trend graph:
@@ -1716,6 +1769,44 @@ def _place_limit_words(words: list, *, L: float, T: float, h: float,
     return out
 
 
+class _TrendKey(QLabel):
+    """The limit-line key under the trend graph in the window (K45-2).
+
+    **IT TAKES NOTHING FROM THE GRAPH.** A plain word-wrapped label counts in
+    the window's minimum height, and the height ladder of `showEvent` /
+    `_fit_to_screen` then took its lines out of the graphs: measured on
+    screen at 1400 x 980, the Grey balance graph went from 110 px to 61 px
+    with its axis numbers printed over each other. So this label asks for
+    its lines only as its PREFERRED height and has no minimum: where the
+    window has room (the report view under it takes the surplus) it gets all
+    of them, and where it has none it is the first thing to give way."""
+
+    def hasHeightForWidth(self) -> bool:  # noqa: D401
+        return False
+
+    def heightForWidth(self, _w: int) -> int:  # noqa: N802
+        # Qt's layout item asks this WITHOUT asking `hasHeightForWidth`
+        # first, and QLabel answers with its wrapped height at the window's
+        # narrowest width: 157 px of need for two lines of key (measured).
+        return -1
+
+    def minimumSizeHint(self):
+        from PyQt6.QtCore import QSize
+        return QSize(0, 0)
+
+    def sizeHint(self):
+        from PyQt6.QtCore import QSize
+        if not self.text():
+            return QSize(0, 0)
+        w = max(200, self.width())
+        return QSize(w, super().heightForWidth(w))
+
+    def resizeEvent(self, ev) -> None:  # noqa: N802
+        super().resizeEvent(ev)
+        if ev.oldSize().width() != ev.size().width():
+            self.updateGeometry()
+
+
 class _TrendChart(QWidget):
     """A compact multi-line chart of a printer's measurement history over time
     (#40, Knut). Generic: each instance plots one GROUP of related metrics
@@ -1823,11 +1914,15 @@ class _TrendChart(QWidget):
     # ---- K25: lines, words and red marks, described ------------------------
     def _lines(self) -> list:
         """``[(value, word, QColor | None, note)]`` for every limit line."""
+        # The accuracy graph's grey pair FIRST, then any line of its own a
+        # judged row needs that neither of the pair stands for (K45-2: a P95
+        # limit set apart from the Max one); every other graph has only
+        # `limit_lines`.
+        raw = []
         if self._thresholds:
             raw = [(tv, tlab, None) for tv, tlab in
                    zip(self._thresholds, (tr("Avg"), tr("Max")))]
-        else:
-            raw = list(self._limit_lines)
+        raw += list(self._limit_lines)
         notes = self._line_notes + [""] * len(raw)
         return [(tv, tlab, tcol, notes[k])
                 for k, (tv, tlab, tcol) in enumerate(raw)]
@@ -3424,6 +3519,21 @@ class MeasurementReportDialog(QDialog):
                 self._trend_tabs.indexOf(chart), False)
         self._trend_tabs.setVisible(False)
         v.addWidget(self._trend_tabs)
+        # UNDER THE GRAPH, WHAT EACH LIMIT LINE IS (K45-2, Knut #182
+        # 5834422633: the descriptions "should always be showing below each
+        # chart, if they have a threshold associated with that graph"). The
+        # PDF prints them under every graph; on screen they were only a
+        # tooltip on each word, and a line out of view had no word to point
+        # at. One label for the tab in front, refilled when the tab or the
+        # data changes.
+        self._trend_key = _TrendKey(self)
+        self._trend_key.setWordWrap(True)
+        self._trend_key.setTextFormat(Qt.TextFormat.RichText)
+        self._trend_key.setStyleSheet("font-size:11px;padding:2px 6px 0 6px")
+        self._trend_key.setVisible(False)
+        v.addWidget(self._trend_key)
+        self._trend_key_box = v
+        self._trend_tabs.currentChanged.connect(self._refresh_trend_key)
 
         self._view = QTextBrowser(self)
         self._view.setOpenExternalLinks(False)
@@ -4775,7 +4885,23 @@ class MeasurementReportDialog(QDialog):
         need = layout.minimumSize().height()
         if layout.hasHeightForWidth():
             narrowest = max(self.minimumWidth(), layout.minimumSize().width())
-            need = max(need, layout.totalHeightForWidth(narrowest))
+            # THE LIMIT-LINE KEY IS NOT A NEED (K45-2). The height-for-width
+            # total counts every item at its PREFERRED height, the key's lines
+            # included, and a need that holds them sent the ladder below into
+            # the graphs: measured on screen at 1400 x 980, Colour accuracy
+            # went from 110 px to 60 px for two lines of key. The key has no
+            # minimum (`_TrendKey`); it is given its lines out of the report
+            # view's room, the part of the window that scrolls anyway.
+            # Read from the LAYOUT'S item, whose cached hint is the one the
+            # total was made of, with the spacing the item brings along.
+            key = getattr(self, "_trend_key", None)
+            box = getattr(self, "_trend_key_box", None)
+            spare = 0
+            if key is not None and box is not None and not key.isHidden():
+                item = box.itemAt(box.indexOf(key))
+                if item is not None and item.sizeHint().height() > 0:
+                    spare = item.sizeHint().height() + max(0, box.spacing())
+            need = max(need, layout.totalHeightForWidth(narrowest) - spare)
         return need
 
     def event(self, ev) -> bool:  # noqa: D401
@@ -7151,10 +7277,51 @@ class MeasurementReportDialog(QDialog):
         # to the spacer instead. Tables are fitted again after any heading
         # moved, since everything below it moved too.
         from ui.pdf_layout import (avoid_orphan_headings,
-                                   no_blank_page_before_a_break)
+                                   break_before_unless_overflowed,
+                                   no_blank_page_before_a_break,
+                                   set_breaks_before,
+                                   tighten_to_close_a_page)
         if avoid_orphan_headings(doc, body_h):
             _paginate_tables(doc, body_h)
+        # "FOR INFORMATION" STARTS A PAGE OF ITS OWN (K45-3, Knut #182
+        # 5834422633), unless the colour table in front of it already ran
+        # over onto the page it would start on. Decided on the settled
+        # layout, after the tables have been fitted, since that is what
+        # decides where the colour section ends.
+        #
+        # THEN THE PAGE RULES START AGAIN FROM THE CLEAN DOCUMENT. Every
+        # break they set further down was set for where things stood BEFORE
+        # this one, and one of them is stale once "For information" has a
+        # page of its own: "Worst patches", pushed off the foot of the old
+        # page, went on alone to a third sheet with the page it had been
+        # pushed from now half empty (the first drive of this change). So
+        # everything they did is undone, the breaks decided here are set,
+        # and the rules run once more; nothing above a break moves, so the
+        # decision stands.
+        _info_breaks = break_before_unless_overflowed(
+            doc, tr("For information (no limit applies)"),
+            tr("Colour accuracy (ΔE00 against the chart's design)"), body_h)
+        if _info_breaks:
+            while doc.isUndoAvailable():
+                doc.undo()
+            set_breaks_before(doc, _info_breaks)
+            _paginate_tables(doc, body_h)
+            if avoid_orphan_headings(doc, body_h):
+                _paginate_tables(doc, body_h)
         no_blank_page_before_a_break(doc, body_h)
+        # "HOW TO READ THIS REPORT" GIVES UP AT MOST 0.2 PT TO SAVE A SHEET
+        # (K45-1, Knut #182 5834422633), and only when that really does
+        # bring the one or two lines it spilled back onto its own page.
+        # Last, because the section after it starts on a page of its own, so
+        # nothing under it moves.
+        _panel = _how_to_read_frame(doc)
+        if _panel is not None:
+            _step = tighten_to_close_a_page(doc, _panel, body_h,
+                                            _BODY_TEXT_PX * 0.75)
+            if _step:
+                log.info("measurement report PDF: \"How to read this "
+                         "report\" set %.1f pt tighter to end on its own "
+                         "page", _step)
 
         units = self._scope_header_units(doc_runs)   # profile names + measurements/date
         head_font = QFont(); head_font.setPixelSize(8)
@@ -7321,6 +7488,80 @@ class MeasurementReportDialog(QDialog):
                 None if "all_de00_max" in dash or not judged("all_de00_max")
                 else max_thr)
 
+    def _accuracy_row_limits(self) -> "dict[str, float]":
+        """``{row_id: limit}`` for each of the five rows the Colour accuracy
+        graph plots that this document judges against a number (K45-2).
+
+        The same set `_thresholds` reads the grey pair from, and the same two
+        filters `_accuracy_thresholds` puts on it: a row the set leaves at "–"
+        and a row the report type does not judge have no line."""
+        if self._ungraded_by_type():
+            return {}
+        from workflow.measurement_report import rows_for_report_type
+        lim = (self._document_limits() or self._sticky_limits()
+               or self._window_limits())
+        limits = lim.limits if lim is not None else {}
+        dash = self._dash_row_ids(self._document_runs_for_graphs())
+        keep = rows_for_report_type(self._report_type_now())
+        out: "dict[str, float]" = {}
+        for rid, _family in _ACCURACY_LINE_ROWS:
+            one = limits.get(rid)
+            if (one is None or not getattr(one, "is_numeric", False)
+                    or rid in dash or (keep is not None and rid not in keep)):
+                continue
+            out[rid] = float(one.number)
+        return out
+
+    def _accuracy_line_plan(self) -> "tuple[list, list]":
+        """What the Colour accuracy graph's limit lines say (K45-2, Knut
+        #182 5834422633: *"Several reports, or all, are lacking under the
+        graph for 'Colour accuracy (ΔE00)' the description of the horizontal
+        threshold lines ... they should always be showing below each chart,
+        if they have a threshold associated with that graph."*).
+
+        Returns ``(pair_notes, extra)``. ``pair_notes`` are the sentences of
+        the grey Avg and Max lines, in that order ("" for a member that is not
+        drawn); each names EVERY plotted row the set limits at that line's
+        number in its family, not only the all-patch row: ChromIQ's own sets
+        put the lowest 95 % and highest 5 % averages at the Avg number and the
+        95th percentile at the Max number, and the graph plotted those rows
+        with no word about their limit. ``extra`` is ``[(value, word, note)]``
+        for a judged row neither line stands for: the ISO sets limit the 95th
+        percentile at 5.0 and the all-patch maximum not at all, so that row
+        gets a grey line of its own, "P95"."""
+        avg_thr, max_thr = self._accuracy_thresholds()
+        limits = self._accuracy_row_limits()
+        runs = self._document_runs_for_graphs()
+        covered: set = set()
+        pair_notes = []
+        for word, thr, family, own in ((tr("Avg"), avg_thr, "avg",
+                                        "all_de00_avg"),
+                                       (tr("Max"), max_thr, "max",
+                                        "all_de00_max")):
+            if not isinstance(thr, (int, float)):
+                pair_notes.append("")
+                continue
+            rids = [own] + [rid for rid, fam in _ACCURACY_LINE_ROWS
+                            if fam == family and rid != own and rid in limits
+                            and abs(limits[rid] - float(thr)) < 1e-9]
+            covered.update(rids)
+            pair_notes.append(_limit_line_note_for_rows(
+                word, thr, "ΔE00", rids,
+                [self._row_name(r, runs) for r in rids]))
+        groups: "dict[tuple, list]" = {}
+        for rid, family in _ACCURACY_LINE_ROWS:
+            if rid in covered or rid not in limits:
+                continue
+            groups.setdefault((family, limits[rid]), []).append(rid)
+        extra = []
+        for (family, value), rids in groups.items():
+            word = (tr("Avg") if family == "avg"
+                    else tr("P95") if rids == ["all_de00_p95"] else tr("Max"))
+            extra.append((value, word, _limit_line_note_for_rows(
+                word, value, "ΔE00", rids,
+                [self._row_name(r, runs) for r in rids])))
+        return pair_notes, extra
+
     def _colour_accuracy_is_judged(self) -> bool:
         """Whether the page judges either colour-accuracy row the graph's
         two lines stand for: not on a Printing record, and not on a type
@@ -7328,7 +7569,8 @@ class MeasurementReportDialog(QDialog):
         if self._ungraded_by_type():
             return False
         a, m = self._accuracy_thresholds()
-        return isinstance(a, (int, float)) or isinstance(m, (int, float))
+        return (isinstance(a, (int, float)) or isinstance(m, (int, float))
+                or bool(self._accuracy_row_limits()))
 
     def _document_runs_for_graphs(self) -> list:
         """The document's measurements, for a graph deciding what to draw;
@@ -14801,7 +15043,7 @@ class MeasurementReportDialog(QDialog):
         # with no lookup and no warning.
         family = QApplication.font().family().replace("'", "")
         return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
-                f"font-size:12px\">"
+                f"font-size:{_BODY_TEXT_PX}px\">"
                 + "".join(parts) + "</div>")
 
     def _runs_for_document(self) -> list:
@@ -15230,7 +15472,11 @@ class MeasurementReportDialog(QDialog):
             # left to draw (K28, item 3), and is hidden like a judged-metric
             # tab with no judged row. The other three always show.
             shown = bool(metrics) if chart is self._trend_de else True
-            plan.append((chart, title, metrics, y_max, dec, auto, thr, [],
+            # K45-2: the lines a judged accuracy row needs besides the pair.
+            extra = ([(v, w, None) for v, w, _n in
+                      self._accuracy_line_plan()[1]]
+                     if chart is self._trend_de and not _no_lines else [])
+            plan.append((chart, title, metrics, y_max, dec, auto, thr, extra,
                          shown))
         judged = self._judged_trend_limits()
         for key, title, rows in _TREND_GROUPS:
@@ -15284,17 +15530,8 @@ class MeasurementReportDialog(QDialog):
         # other, decided for the document exactly as `_trend_configs` does.
         _names_runs = self._document_runs_for_graphs()
         if chart is self._trend_de:
-            avg_thr, max_thr = self._accuracy_thresholds()
-            notes = [_limit_line_note(tr("Avg"), avg_thr, "ΔE00",
-                                      "all_de00_avg",
-                                      self._row_name("all_de00_avg",
-                                                     _names_runs))
-                     if isinstance(avg_thr, (int, float)) else "",
-                     _limit_line_note(tr("Max"), max_thr, "ΔE00",
-                                      "all_de00_max",
-                                      self._row_name("all_de00_max",
-                                                     _names_runs))
-                     if isinstance(max_thr, (int, float)) else ""]
+            pair_notes, extra = self._accuracy_line_plan()
+            notes = list(pair_notes) + [n for _v, _w, n in extra]
             return {"line_notes": notes, "withheld": [], "about": about}
         rows = dict((k, r) for k, _t, r in _TREND_GROUPS).get(key)
         if not rows:
@@ -15330,6 +15567,31 @@ class MeasurementReportDialog(QDialog):
         show = bool(self._sources)
         self._trend_label.setVisible(show)
         self._trend_tabs.setVisible(show)
+        self._refresh_trend_key()
+
+    def _refresh_trend_key(self, _index: int = -1) -> None:
+        """The limit lines of the graph in front, described under it (K45-2):
+        the same sentences, and the same dotted stroke in the line's colour,
+        the PDF prints under that graph."""
+        key = getattr(self, "_trend_key", None)
+        if key is None:
+            return
+        chart = self._trend_tabs.currentWidget()
+        # A graph with fewer than two dates draws no line, only the reason
+        # it draws nothing, and the PDF prints no such graph; so no key.
+        lines = ([(col, text) for kind, col, text in chart.descriptions()
+                  if kind == "line"]
+                 if isinstance(chart, _TrendChart) and chart.has_trend()
+                 else [])
+        if not lines or not self._trend_tabs.isVisibleTo(self):
+            key.clear()
+            key.setVisible(False)
+            return
+        key.setText("<br>".join(
+            f"<span style='color:{col.name()};font-weight:bold'>"
+            "\u2508\u2508</span>&nbsp;&nbsp;" + html.escape(text)
+            for col, text in lines))
+        key.setVisible(True)
 
     # ------------------------------------------------------------------
     def _use_theme_palette(self) -> None:

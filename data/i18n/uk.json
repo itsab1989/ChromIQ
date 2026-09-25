@@ -6288,5 +6288,8 @@
  "⟳ Rotate 90°": "⟳ Повернути на 90°",
  "⤢ Dock back": "⤢ Док-станція",
  "⤢ Pop out": "⤢ Вискочити",
- "＋ Add another scan to average": "＋ Додайте ще одне сканування до середнього"
+ "＋ Add another scan to average": "＋ Додайте ще одне сканування до середнього",
+ "“{metric}”": "“{metric}”",
+ "{items} and {item}": "{items} and {item}",
+ "the limit for {metrics}.": "the limit for {metrics}."
 }

@@ -6288,5 +6288,8 @@
  "⟳ Rotate 90°": "⟳ Rodar 90°",
  "⤢ Dock back": "⤢ Encaixar de volta",
  "⤢ Pop out": "⤢ Destacar",
- "＋ Add another scan to average": "＋ Adicionar outra digitalização para média"
+ "＋ Add another scan to average": "＋ Adicionar outra digitalização para média",
+ "“{metric}”": "“{metric}”",
+ "{items} and {item}": "{items} and {item}",
+ "the limit for {metrics}.": "the limit for {metrics}."
 }

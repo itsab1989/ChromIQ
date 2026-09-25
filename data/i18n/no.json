@@ -6288,5 +6288,8 @@
  "⟳ Rotate 90°": "⟳ Roter 90°",
  "⤢ Dock back": "⤢ Dokk tilbake",
  "⤢ Pop out": "⤢ Løsne",
- "＋ Add another scan to average": "＋ Legg til enda et skann å midle"
+ "＋ Add another scan to average": "＋ Legg til enda et skann å midle",
+ "“{metric}”": "“{metric}”",
+ "{items} and {item}": "{items} and {item}",
+ "the limit for {metrics}.": "the limit for {metrics}."
 }

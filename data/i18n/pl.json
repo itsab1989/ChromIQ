@@ -6288,5 +6288,8 @@
  "⟳ Rotate 90°": "⟳ Obróć o 90°",
  "⤢ Dock back": "⤢ Zadokuj z powrotem",
  "⤢ Pop out": "⤢ Odłącz",
- "＋ Add another scan to average": "＋ Dodaj kolejny skan do uśrednienia"
+ "＋ Add another scan to average": "＋ Dodaj kolejny skan do uśrednienia",
+ "“{metric}”": "“{metric}”",
+ "{items} and {item}": "{items} and {item}",
+ "the limit for {metrics}.": "the limit for {metrics}."
 }

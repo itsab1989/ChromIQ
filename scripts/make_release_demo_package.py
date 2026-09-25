@@ -361,6 +361,10 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Create Chart presets (verification demos): \"Which presets can be used for verification?\": R16 FAIL 13 of 18 (page coverage 58.8 %), R16 PASS and L1 15 of 18, the evenness rows answered",
         "every chart of the package that printtarg laid out: -R 182, the same RANDOM_START on every build, and the seed in its stored Create Chart settings",
     ]),
+    ("§40", "K45:", [
+        "Report-Limits-Threshold-Series/run1, Run type Verification, in German: New report…, the first two dates, Grey and tone check, ChromIQ default: Save report as PDF…, \"So ist dieser Bericht zu lesen\" ends on page 2 (10 pages; 11 without K45), and each \"Zur Information (es gilt kein Grenzwert)\" starts a page",
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: under the Colour accuracy graph, in the window and the PDF, Avg names three rows and Max two; Contract proof check: a grey P95 line and its sentence",
+    ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
     ]),

@@ -33,7 +33,8 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, QRectF, QSizeF, Qt
 from PyQt6.QtGui import (QAbstractTextDocumentLayout, QColor, QFont,
-                         QFontMetricsF, QPainter, QTextCursor, QTextFormat,
+                         QFontMetricsF, QPainter, QTextBlockFormat,
+                         QTextCharFormat, QTextCursor, QTextFormat,
                          QTextTable, QTextTableCellFormat)
 
 from core.i18n import tr
@@ -703,6 +704,197 @@ def drop_orphan_tail(doc, body_h: float, footer_h: float) -> "str | None":
     cursor.removeSelectedText()
     settled_layout(doc)
     return text or None
+
+
+# ---------------------------------------------------------------------------
+# Two rules the Measurement Report asked for (Knut, #182 5834422633)
+# ---------------------------------------------------------------------------
+def _last_line_page(lay, block, body_h: float) -> int:
+    """The page the block's LAST line of text lands on (see `_line_page`)."""
+    rect = lay.blockBoundingRect(block)
+    layout = block.layout()
+    if layout is None or not layout.lineCount():
+        return int(rect.top() // body_h)
+    line = layout.lineAt(layout.lineCount() - 1)
+    return int((rect.top() + line.y()) // body_h)
+
+
+def _text_blocks_between(doc, first_pos: int, last_pos: int) -> list:
+    """Every block holding text from *first_pos* to *last_pos*, in order."""
+    out = []
+    block = doc.findBlock(first_pos)
+    while block.isValid() and block.position() <= last_pos:
+        if block.text().strip():
+            out.append(block)
+        block = block.next()
+    return out
+
+
+def frame_text_pages(doc, frame, body_h: float) -> "tuple[int, int] | None":
+    """``(first, last)``: the pages the first and the last line of text inside
+    *frame* land on, or None when it holds no text.
+
+    From the LINES, not the frame's box: a table's box carries its padding, and
+    a box can cross a boundary its text never does."""
+    lay = settled_layout(doc)
+    blocks = _text_blocks_between(doc, frame.firstPosition(),
+                                  frame.lastPosition())
+    if not blocks:
+        return None
+    return (_line_page(lay, blocks[0], body_h),
+            _last_line_page(lay, blocks[-1], body_h))
+
+
+#: The only two steps :func:`tighten_to_close_a_page` may take, in points of
+#: the text it is set in. Knut, #182 5834422633: *"if the default text font
+#: size is 11 pt, then reducing it to 10.9 pt or 10.8 pt is acceptable"*.
+TIGHTEN_STEPS_PT = (0.1, 0.2)
+
+
+def tighten_to_close_a_page(doc, frame, body_h: float, text_pt: float,
+                            steps=TIGHTEN_STEPS_PT) -> "float | None":
+    """Set the text inside *frame* at most 0.2 pt smaller when, and only when,
+    that brings its last line or two back onto the page it started on and so
+    saves the sheet they spilled onto. Returns the step taken (0.1 or 0.2) or
+    None, in which case the document is exactly as it was.
+
+    Knut, #182 5834422633, on the "How to read this report" frame: *"Several of
+    the reports have ONE line passing to the next page ... then the rest of the
+    page is empty until next page starts at the top. This is as it should, when
+    the text gets too big for a page. So leave it, unless you find a way to
+    compress the text ... to be one line less line, without affecting the font
+    size too much ... reducing it to 10.9 pt or 10.8 pt is acceptable."*
+
+    **HOW 0.2 PT IS SET, BECAUSE QT CANNOT SET IT AS A FONT SIZE.** Qt rounds
+    every font to a whole pixel before it lays text out (measured,
+    2026-09-25: a 12 px line and an 11.73 px one are the same width to the
+    hundredth, 11 px is 6 % narrower), and the report is laid out in 96-dpi
+    pixels, where one pixel is 0.75 pt. The smallest real size step there is is
+    therefore 0.75 pt, nearly four times what Knut allowed. So the step is
+    taken as the SPACE the smaller size would take: every glyph's advance and
+    every line's height are scaled by ``(text_pt - step) / text_pt``, which is
+    exactly the room text set 0.1 or 0.2 pt smaller occupies. The letter shapes
+    keep their size; 2.2 % of a 9 pt letter is 0.2 pt, which no eye resolves.
+
+    The fit is measured, never estimated: the document is re-laid out after
+    each step and the step is kept only if the frame's last line of text now
+    lands on the page its first line does AND the document is a page shorter.
+    Neither step fitting leaves the document untouched (an undo, not a
+    reconstruction), so a frame that will not fit keeps its full size.
+    """
+    pages = frame_text_pages(doc, frame, body_h)
+    if pages is None or pages[0] == pages[1] or text_pt <= 0:
+        return None
+    before = pages_that_carry_something(doc, body_h)
+    first, last = frame.firstPosition(), frame.lastPosition()
+    for step in steps:
+        factor = (text_pt - step) / text_pt
+        cur = QTextCursor(doc)
+        cur.beginEditBlock()
+        cur.setPosition(first)
+        cur.setPosition(last, QTextCursor.MoveMode.KeepAnchor)
+        cf = QTextCharFormat()
+        cf.setFontLetterSpacingType(QFont.SpacingType.PercentageSpacing)
+        cf.setFontLetterSpacing(100.0 * factor)
+        cur.mergeCharFormat(cf)
+        bf = QTextBlockFormat()
+        bf.setLineHeight(100.0 * factor,
+                         QTextBlockFormat.LineHeightTypes.ProportionalHeight
+                         .value)
+        cur.mergeBlockFormat(bf)
+        cur.endEditBlock()
+        now = frame_text_pages(doc, frame, body_h)
+        if (now is not None and now[0] == now[1]
+                and pages_that_carry_something(doc, body_h) < before):
+            return step
+        doc.undo()
+        settled_layout(doc)
+    return None
+
+
+def break_before_unless_overflowed(doc, heading: str, section: str,
+                                   body_h: float) -> list:
+    """Start every block reading *heading* on a fresh page, unless the section
+    in front of it (headed *section*) already ran over a page boundary.
+    Returns how many breaks were set.
+
+    Knut, #182 5834422633: *"add a page break in front of 'For information (no
+    limit applies)', so that they always start on a fresh page, unless the
+    information from the previous section 'Colour accuracy (ΔE00 against the
+    chart's design)' overflows to the next page (then no page break is needed
+    in front of 'For information (no limit applies)')"*.
+
+    The previous section runs from its heading to the last line of text in
+    front of *heading*. When no *section* heading is found before the previous
+    forced break, the section is taken to start there (a measurement whose
+    colour table is missing still has a first block). Measured on the settled
+    layout, one heading at a time from the top, because each break moves
+    everything under it.
+
+    Returns the positions of the blocks it gave a break, so a caller that
+    wants the rest of the page rules to start again from a clean document
+    (their breaks were set for the layout BEFORE these) can put exactly
+    these back: see :func:`set_breaks_before`.
+    """
+    always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+    done: set = set()
+    set_at: list = []
+    for _ in range(400):
+        lay = settled_layout(doc)
+        target = None
+        block = doc.begin()
+        while block.isValid():
+            if (block.text().strip() == heading
+                    and block.position() not in done
+                    and QTextCursor(block).currentTable() is None):
+                target = block
+                break
+            block = block.next()
+        if target is None:
+            return set_at
+        done.add(target.position())
+        if target.blockFormat().pageBreakPolicy() & always:
+            continue
+        prev = target.previous()
+        while prev.isValid() and not prev.text().strip():
+            prev = prev.previous()
+        if not prev.isValid():
+            continue
+        start = prev
+        walk = prev
+        while walk.isValid():
+            if QTextCursor(walk).currentTable() is None:
+                if walk.text().strip() == section:
+                    start = walk
+                    break
+                if walk.blockFormat().pageBreakPolicy() & always:
+                    start = walk
+                    break
+            if walk.text().strip():
+                start = walk
+            walk = walk.previous()
+        end_page = _last_line_page(lay, prev, body_h)
+        if _line_page(lay, target, body_h) > end_page:
+            continue                      # already at the top of a page
+        if _line_page(lay, start, body_h) != end_page:
+            continue                      # the section before overflowed
+        fmt = target.blockFormat()
+        fmt.setPageBreakPolicy(always)
+        QTextCursor(target).setBlockFormat(fmt)
+        set_at.append(target.position())
+    return set_at
+
+
+def set_breaks_before(doc, positions) -> None:
+    """Give the block at each of *positions* a page break before itself."""
+    always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+    for pos in positions:
+        block = doc.findBlock(pos)
+        if block.isValid():
+            fmt = block.blockFormat()
+            fmt.setPageBreakPolicy(always)
+            QTextCursor(block).setBlockFormat(fmt)
+    settled_layout(doc)
 
 
 # ---------------------------------------------------------------------------

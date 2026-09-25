@@ -6288,5 +6288,8 @@
  "⟳ Rotate 90°": "⟳ Pivoter de 90°",
  "⤢ Dock back": "⤢ Réintégrer",
  "⤢ Pop out": "⤢ Détacher",
- "＋ Add another scan to average": "＋ Ajouter une numérisation à moyenner"
+ "＋ Add another scan to average": "＋ Ajouter une numérisation à moyenner",
+ "“{metric}”": "“{metric}”",
+ "{items} and {item}": "{items} and {item}",
+ "the limit for {metrics}.": "the limit for {metrics}."
 }

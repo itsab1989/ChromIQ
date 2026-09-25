@@ -6288,5 +6288,8 @@
  "⟳ Rotate 90°": "⟳ 90° draaien",
  "⤢ Dock back": "⤢ Terugkoppelen",
  "⤢ Pop out": "⤢ Losmaken",
- "＋ Add another scan to average": "＋ Nog een scan om te middelen toevoegen"
+ "＋ Add another scan to average": "＋ Nog een scan om te middelen toevoegen",
+ "“{metric}”": "“{metric}”",
+ "{items} and {item}": "{items} and {item}",
+ "the limit for {metrics}.": "the limit for {metrics}."
 }

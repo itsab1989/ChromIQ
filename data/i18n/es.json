@@ -6288,5 +6288,8 @@
  "⟳ Rotate 90°": "⟳ Girar 90°",
  "⤢ Dock back": "⤢ Volver a acoplar",
  "⤢ Pop out": "⤢ Desacoplar",
- "＋ Add another scan to average": "＋ Añadir otro escaneo para promediar"
+ "＋ Add another scan to average": "＋ Añadir otro escaneo para promediar",
+ "“{metric}”": "“{metric}”",
+ "{items} and {item}": "{items} and {item}",
+ "the limit for {metrics}.": "the limit for {metrics}."
 }

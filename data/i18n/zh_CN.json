@@ -6288,5 +6288,8 @@
  "⟳ Rotate 90°": "⟳ 旋转 90°",
  "⤢ Dock back": "⤢ 收回停靠",
  "⤢ Pop out": "⤢ 弹出",
- "＋ Add another scan to average": "＋ 添加另一次扫描以求平均"
+ "＋ Add another scan to average": "＋ 添加另一次扫描以求平均",
+ "“{metric}”": "“{metric}”",
+ "{items} and {item}": "{items} and {item}",
+ "the limit for {metrics}.": "the limit for {metrics}."
 }

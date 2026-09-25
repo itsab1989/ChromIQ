@@ -128,6 +128,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §34 | K37 (i): on a FROM PROFILE GAMUT chart the control strip compares its seven ink and black corner patches with the profile's prediction, the cube-corner table keeps the ideal values, and a note says so | 2026-09-24, 5823088098 (our 5823015844) | approved by Knut; built for beta 42 (B8-1085 to B8-1088), NOT confirmed; two message texts proposed |
 | §36 | K40: every preset laid out behind the scenes for the evenness rows (printtarg or the layout engine, a "Working…" row, never a blocked window); the tone row of a FROM PROFILE GAMUT chart on its neutral aims; a demo project whose one chart answers every metric | 2026-09-25, 5832026677 | ruled by Knut; built for beta 43 (B8-1121 to B8-1125), NOT confirmed; the tone value of a neutral aim (100 − L\*) is ours to confirm |
 | §39 | K43: the tone value of a FROM PROFILE GAMUT chart's neutral aims, between the chart's own paper and its darkest neutral aim (ISO 20654's SCTV for a neutral), superseding §36.2's 100 − L\*; larger demo presets (R16, L1) that reach the evenness rows; one printtarg seed (182) for every demo | 2026-09-25, 5833695633 | decided by us on his instruction ("Make a decision based on well founded reasoning"); built for beta 44 (B8-1211 to B8-1215), NOT confirmed |
+| §40 | K45: the PDF's page layout: "How to read this report" set at most 0.2 pt tighter when that saves the page it spilled onto; every limit line of the Colour accuracy graph described under it (all rows it limits, a P95 line of its own where the set needs one), in the PDF and the window; "For information (no limit applies)" on a page of its own unless the colour section ran over | 2026-09-25, 5834422633 | asked by Knut; built for beta 44 (B8-1201 to B8-1204), NOT confirmed; how 0.2 pt is set put to him |
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
@@ -7770,3 +7771,131 @@ out with `-R 182` (the layout engine's seed in the same pack):
 * **Verified by:** `tests/test_k43_every_printtarg_demo_is_seeded.py`.
 
 **Status:** built for beta 44 (B8-1211 to B8-1215), NOT confirmed.
+
+## 40. K45: the PDF's page layout: "How to read this report", the Colour accuracy graph's limit lines, "For information" on a page of its own (#182, 2026-09-25, beta 44)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Asked by:** Knut, #182
+[5834422633](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5834422633)
+(2026-09-25, with six sample PDFs). What was BUILT waits for his
+confirmation. Register: B8-1201 to B8-1204. Proof:
+`~/Desktop/ChromIQ-beta44-proof/k45-pdf-layout/` (on screen, EN and DE, before
+and after, 15 report cases each, every page rendered).
+
+**40.1 "How to read this report" gives up at most 0.2 pt to save a page.**
+Knut: *"Several of the reports have ONE line passing to the next page (in
+section 'How to read this report'), then the rest of the page is empty until
+next page starts at the top. This is as it should, when the text gets too big
+for a page. So leave it, unless you find a way to compress the text in 'How to
+read this report' to be one line less line, without affecting the font size
+too much. For example, to adjust the text font size in the coloured frame ...
+one or two decimal points is acceptable. For example, if the default text font
+size is 11 pt, then reducing it to 10.9 pt or 10.8 pt is acceptable, thus
+adapting the text slightly to fit that one or two lines overflowing to the
+next page, thus preventing the mostly empty page."*
+
+* When the text in the coloured frame ends on a page of its own, the PDF is
+  laid out again with that text 0.1 pt smaller, then 0.2 pt smaller, and the
+  first step that brings the frame's last line back onto the page it started
+  on AND makes the document a page shorter is kept. Never more than 0.2 pt,
+  and never when neither step fits: then the frame is exactly as before.
+  The fit is measured on the laid-out document the PDF is painted from, never
+  estimated.
+* The report's text is 9 pt in the PDF, so the frame's text is set at 8.9 or
+  8.8 pt. **How** (for Knut to confirm, B8-1204): Qt rounds every font to a
+  whole pixel before it lays text out, and one pixel of the report is 0.75 pt,
+  so a size of 8.8 pt cannot be printed as such (measured: 12 px and 11.73 px
+  lay out to the same width). The step is therefore taken as the room the
+  smaller size takes: every letter's advance and every line's height in the
+  frame are scaled by 8.8/9 (or 8.9/9); the letters themselves stay 9 pt.
+* Measured: German Grey and tone check of Report-Limits-Threshold-Series
+  (2 measurements) 11 pages before, 10 after; of Report-Limits-Evenness run 8
+  (4 measurements) 15 before, 14 after; both at 0.2 pt. In both the German
+  guide put its last THREE lines on page 3, and 0.2 pt brought all three back,
+  since the narrower text also wraps into fewer lines. This is Knut's own
+  sample case (his English guide has one more bullet, the tone row, and
+  spills one line). Every other case measured spills 20 or more lines and is
+  left as it was.
+* **Built:** `ui/pdf_layout.py` (`tighten_to_close_a_page`,
+  `TIGHTEN_STEPS_PT`, `frame_text_pages`),
+  `ui/dialogs/measurement_report_dialog.py` (`_export_pdf`,
+  `_how_to_read_frame`, `_BODY_TEXT_PX`).
+* **Verified by:** `tests/test_k45_report_pdf_layout.py`
+  (`test_a_one_line_spill_is_tightened_back_and_saves_the_sheet`,
+  `test_never_more_than_two_tenths_of_a_point`,
+  `test_a_spill_that_will_not_fit_is_left_exactly_as_it_was`,
+  `test_a_frame_that_fits_is_not_touched`,
+  `test_the_report_finds_its_how_to_read_frame`).
+
+**40.2 Every graph with a limit describes its limit lines under it, in the
+PDF and in the window.** Knut: *"Several reports, or all, are lacking under the
+graph for 'Colour accuracy (ΔE00)' the description of the horizontal threshold
+lines. Other graphs, like for 'Grey balance (ΔCh)' or 'Control strip (ΔE00)',
+these descriptions are present and saying if the line is outside of the scale
+in the graph. This means they should always be showing below each chart, if
+they have a threshold associated with that graph."*
+
+* The Colour accuracy graph plots five rows. Its grey Avg line is the limit
+  for EVERY average row the set limits at that number, and its Max line for
+  every maximum (the 95th percentile is "Maximum ΔE00, lowest 95 %"); each
+  sentence names all of them. ChromIQ default, for example: *"Avg (2.0 ΔE00):
+  the limit for “Average ΔE00, all patches”, “Average ΔE00, lowest 95 %” and
+  “Average ΔE00, highest 5 %”."* and *"Max (3.0 ΔE00): the limit for “Maximum
+  ΔE00, all patches” and “Maximum ΔE00, lowest 95 % (95th percentile)”."*
+  Before, each named only its all-patch row.
+* A plotted row the set limits at a number neither grey line stands for gets
+  a grey line of its own, with its sentence: the ISO 12647-7 and -8 sets limit
+  the 95th percentile at 5.0 and the all-patch maximum not at all, so their
+  graph gains "P95 (5.0 ΔE00): the limit for “Maximum ΔE00, lowest 95 % within
+  gamut (95th percentile)”." Before, that row was judged, plotted and not
+  described.
+* A line outside the plotted range is still described, with "Outside the range
+  of values shown." (§17.1 item 12, unchanged).
+* A graph with no limit shows no description: Paper white (L*), Darkest black
+  (L*), Cube corners, and Colour accuracy on a Grey and tone check or a
+  Printing record, which judge no colour-accuracy row. The other graphs
+  already described every line (§17.1).
+* **In the window** the same sentences are shown under the graph in front,
+  with the same dotted stroke in the line's colour, and change with the tab.
+  They take their room from the report text below, never from the graph: the
+  graph keeps its height. A graph of one date draws no line and shows none.
+* **Built:** `ui/dialogs/measurement_report_dialog.py`
+  (`_accuracy_line_plan`, `_accuracy_row_limits`, `_limit_line_note_for_rows`,
+  `_ACCURACY_LINE_ROWS`, `_TrendChart._lines`, `_TrendKey`,
+  `_refresh_trend_key`, `_layout_need`).
+* **Verified by:** `tests/test_k45_report_pdf_layout.py`
+  (`test_the_accuracy_key_names_every_row_its_lines_limit`,
+  `test_a_judged_row_no_grey_line_stands_for_gets_its_own`,
+  `test_the_window_shows_the_key_under_the_graph_in_front`,
+  `test_the_window_key_takes_nothing_from_the_graphs`).
+
+**40.3 "For information (no limit applies)" starts a page of its own, unless
+the colour section in front of it already ran over.** Knut: *"The sub-section
+'For information (no limit applies)' is always far down on the page, and the
+three sections under that heading always have plenty of space to be on a
+separate page, so I suggest to add a page break in front of 'For information
+(no limit applies)', so that they always start on a fresh page, unless the
+information from the previous section 'Colour accuracy (ΔE00 against the
+chart's design)' overflows to the next page (then no page break is needed in
+front of 'For information (no limit applies)')"*.
+
+* In "Detailed data per measurement", the heading of each measurement's
+  "For information (no limit applies)" (Paper white and darkest black, Cube
+  corners, Worst patches) starts a new page when that measurement's "Colour
+  accuracy (ΔE00 against the chart's design)" section, from its heading to its
+  last line, is on one page. When that section runs from one page onto the
+  next, "For information" follows it there with no break.
+* The rest of the page rules (a table not split, a heading not left alone)
+  are then applied again from the start, so what follows the heading stays
+  with it.
+* The PDF only; the window is one scrolling page.
+* **Built:** `ui/pdf_layout.py` (`break_before_unless_overflowed`,
+  `set_breaks_before`), `ui/dialogs/measurement_report_dialog.py`
+  (`_export_pdf`).
+* **Verified by:** `tests/test_k45_report_pdf_layout.py`
+  (`test_for_information_starts_a_fresh_page`,
+  `test_no_break_when_the_colour_section_already_ran_over`,
+  `test_the_saved_pdf_starts_every_for_information_on_a_fresh_page`).

@@ -6288,5 +6288,8 @@
  "⟳ Rotate 90°": "⟳ Ruota di 90°",
  "⤢ Dock back": "⤢ Riaggancia",
  "⤢ Pop out": "⤢ Stacca",
- "＋ Add another scan to average": "＋ Aggiungi un'altra scansione da mediare"
+ "＋ Add another scan to average": "＋ Aggiungi un'altra scansione da mediare",
+ "“{metric}”": "“{metric}”",
+ "{items} and {item}": "{items} and {item}",
+ "the limit for {metrics}.": "the limit for {metrics}."
 }

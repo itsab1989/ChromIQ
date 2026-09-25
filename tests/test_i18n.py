@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-25, K45-2 (B8-1202, Knut #182 5834422633): the Colour accuracy graph's Avg and Max sentences name every row they are the limit for, 3 keys in (the quoted name, the "and" of a list, "the limit for {metrics}."), none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. The echo budget does not move (all three are under 25 characters). COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-25, K46 (B8-1171 to B8-1173, Knut #182 5834773589): the paper-filter note at the bottom of both preset lists, 2 keys in (filter on, filter off); the window NAMED "Settings for built-in presets" in its title, the gear's tooltip, the Manual Presets help, the arrow rows' tooltip and both help icons, 6 keys replaced by 6 (all English echoes outside German already). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 2. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-25, challenge 1 of beta 43 fixes (B8-1162 to B8-1164: the gear window's Import list refuses a file it cannot read as a table, reports a key listed more than once (two variants), and its status line says when an import or an export did not happen). 5 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 5, here and in the echo budget. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-25, K42-3 (B8-1144, Knut #182 5832746557 and 5833232475): the gear window's third paragraph reworded (one key replaced by one), its two help icons in (4 keys: two titles, two bodies), the box's tooltip out (1 key). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. COUNTED off the tree, BOTH ledgers.
@@ -1454,17 +1455,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1342,
-    "fr": 1364,
-    "it": 1353,
-    "ja": 1328,
-    "nl": 1368,
-    "no": 1354,
-    "pl": 1346,
-    "pt": 1344,
-    "ru": 1317,
-    "sv": 1355,
-    "zh_CN": 1322,
+    "es": 1345,
+    "fr": 1367,
+    "it": 1356,
+    "ja": 1331,
+    "nl": 1371,
+    "no": 1357,
+    "pl": 1349,
+    "pt": 1347,
+    "ru": 1320,
+    "sv": 1358,
+    "zh_CN": 1325,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1492,7 +1493,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1499,
+    "uk": 1502,
 }
 
 
