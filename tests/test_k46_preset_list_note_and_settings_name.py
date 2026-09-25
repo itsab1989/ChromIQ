@@ -15,13 +15,13 @@
 
 What these tests hold:
 
-* both lists end in the note, with the ON text while the filter is on and the
+* both lists carry the note, with the ON text while the filter is on and the
   OFF text while it is off, and it follows a change stored by OK;
-* the note is never a choice: disabled and not selectable in "Select preset"
-  (so the arrow keys, the wheel and type-ahead step over it, open or closed),
-  a click on it is swallowed, the preset handler refuses it; in the Built-in
-  presets list it is not in the keyboard's rows, the mouse finds nothing on it
-  and it can never be emitted;
+* since B8-1226 (Knut, #182 5839478031) it is PINNED under each list, visible
+  with the list scrolled to the top, and the list above still scrolls fully;
+* the note is never a choice: it is not an entry of "Select preset" at all,
+  and a click on it is swallowed; in the Built-in presets list it is not in
+  the keyboard's rows, the mouse finds nothing on it and it is never emitted;
 * it is painted in the app's information colours for Light, Dark and Neutral,
   the ones the style sheets give ``QLabel#info``;
 * the window is called "Settings for built-in presets" (German "Einstellungen
@@ -88,7 +88,10 @@ def tab(qapp, settings):
 
 
 def _note_rows(cb) -> list[int]:
-    return [r for r in range(cb.count()) if cb.itemData(r, cb.NOTE_ROLE)]
+    """Rows of the combo that carry the note: none since B8-1226."""
+    return [r for r in range(cb.count())
+            if cb.itemData(r) == cp.NOTE_ROW_DATA
+            or cb.itemText(r) in (NOTE_ON, NOTE_OFF)]
 
 
 def _last_preset_row(cb) -> int:
@@ -111,123 +114,121 @@ def test_the_texts_name_the_box_and_the_window():
 
 
 @pytest.mark.parametrize("on", [True, False])
-def test_select_preset_ends_in_the_note_for_the_state(tab, settings, on):
+def test_select_preset_carries_the_note_for_the_state(tab, settings, on):
+    """The note for the state, pinned under the list (B8-1226), and no longer
+    an entry of the combo."""
     tab._apply_builtin_presets_shown(
         cp.shown_keys(settings, []) or set(), paper_filter=on)
     cb = tab._preset_combo
-    notes = _note_rows(cb)
-    assert notes == [cb.count() - 1], "the note is the list's last row"
-    row = notes[0]
-    assert cb.itemData(row) == cp.NOTE_ROW_DATA
-    assert cb.itemText(row) == (NOTE_ON if on else NOTE_OFF)
-    assert not cb.view().isRowHidden(row)
+    assert cb.note() == (NOTE_ON if on else NOTE_OFF)
+    assert _note_rows(cb) == [], "the note is not a row of the list any more"
 
 
 def test_the_note_follows_the_box_when_ok_stores_it(tab, settings):
     cb = tab._preset_combo
     assert cp.paper_filter_on(settings)                  # the default is ON
-    assert cb.itemText(_note_rows(cb)[0]) == NOTE_ON
+    assert cb.note() == NOTE_ON
     tab._apply_builtin_presets_shown(set(), paper_filter=False)
-    assert cb.itemText(_note_rows(cb)[0]) == NOTE_OFF
+    assert cb.note() == NOTE_OFF
     tab._apply_builtin_presets_shown(set(), paper_filter=True)
-    assert cb.itemText(_note_rows(cb)[0]) == NOTE_ON
+    assert cb.note() == NOTE_ON
 
 
-def test_the_note_is_disabled_and_not_selectable_open_or_closed(tab, qapp):
-    cb = tab._preset_combo
-    row = _note_rows(cb)[0]
-    flags = cb.model().item(row).flags()
-    assert not flags & Qt.ItemFlag.ItemIsEnabled
-    assert not flags & Qt.ItemFlag.ItemIsSelectable
+def _open(cb, qapp):
     cb.showPopup()
-    qapp.processEvents()
+    for _ in range(5):
+        qapp.processEvents()
+    view = cb.view()
+    return view, view.window(), cb._note_footer
+
+
+def test_the_note_is_pinned_under_the_list_scrolled_to_the_top(tab, qapp):
+    """Knut, #182 5839478031: *"not visible before scrolling to the bottom.
+    Can the message be made to always stay visible at the bottom"*. With the
+    list scrolled to the TOP, and to the end, the note is shown, inside the
+    popup's frame, under the list, whole. MUTATION: add the footer to nothing
+    / hide it (red); make it a row again (red: `_note_rows`)."""
+    cb = tab._preset_combo
+    view, frame, foot = _open(cb, qapp)
     try:
-        flags = cb.model().item(row).flags()
-        assert not flags & Qt.ItemFlag.ItemIsEnabled, \
-            "opening the list must not enable the note, as it does an arrow"
+        assert view.verticalScrollBar().maximum() > 0, \
+            "the list is long enough to scroll"
+        for where in ("top", "end"):
+            bar = view.verticalScrollBar()
+            bar.setValue(0 if where == "top" else bar.maximum())
+            qapp.processEvents()
+            assert foot is not None and foot.isVisible(), where
+            assert foot.text() == NOTE_ON
+            g = foot.geometry()
+            assert frame.rect().contains(g), (where, g, frame.rect())
+            assert g.top() >= view.geometry().bottom(), (where, g,
+                                                        view.geometry())
+            assert g.height() >= foot.heightForWidth(g.width()) - 1
     finally:
         cb.hidePopup()
 
 
-def test_arrow_keys_wheel_and_type_ahead_never_land_on_the_note(tab, qapp):
+def test_the_list_above_the_note_still_scrolls_to_its_last_row(tab, qapp):
+    """The note takes its own room: the last listed row can still be
+    scrolled fully into view above it."""
     cb = tab._preset_combo
-    note = _note_rows(cb)[0]
+    view, _frame, foot = _open(cb, qapp)
+    try:
+        last = max(r for r in range(cb.count()) if not view.isRowHidden(r))
+        idx = cb.model().index(last, 0)
+        view.scrollTo(idx)
+        qapp.processEvents()
+        rect = view.visualRect(idx)
+        assert view.viewport().rect().contains(rect), (rect,
+                                                       view.viewport().rect())
+    finally:
+        cb.hidePopup()
+
+
+def test_the_note_never_widens_the_list(tab, qapp):
+    cb = tab._preset_combo
+    assert cb._note_footer.sizeHint().width() == 0
+    assert cb._note_footer.minimumSizeHint().width() == 0
+
+
+def test_arrow_keys_wheel_and_type_ahead_never_reach_the_note(tab, qapp):
+    """Nothing can step onto the note: it is not an entry of the combo."""
+    cb = tab._preset_combo
     last = _last_preset_row(cb)
-    # the closed combo: Down and End past the last preset
     cb.setCurrentIndex(last)
     for key in (Qt.Key.Key_Down, Qt.Key.Key_End, Qt.Key.Key_PageDown):
         QTest.keyClick(cb, key)
-        assert cb.currentIndex() != note
-    # the wheel on the closed combo
-    cb.setCurrentIndex(last)
-    for _ in range(3):
-        ev = QWheelEvent(QPointF(5, 5), QPointF(cb.mapToGlobal(QPoint(5, 5))),
-                         QPoint(0, 0), QPoint(0, -120),
-                         Qt.MouseButton.NoButton,
-                         Qt.KeyboardModifier.NoModifier,
-                         Qt.ScrollPhase.NoScrollPhase, False)
-        QApplication.sendEvent(cb, ev)
-        assert cb.currentIndex() != note
-    # type-ahead on the closed combo: the note's own first words
+        assert cb.itemData(cb.currentIndex()) != cp.NOTE_ROW_DATA
     for words in ("This list", "To filter", "T"):
         cb.setCurrentIndex(last)
         QTest.keyClicks(cb, words)
-        assert cb.currentIndex() != note, words
-    # the open list: Down from the last preset stays off the note
-    cb.setCurrentIndex(last)
-    cb.showPopup()
-    qapp.processEvents()
-    try:
-        view = cb.view()
-        view.setCurrentIndex(cb.model().index(last, 0))
-        for key in (Qt.Key.Key_Down, Qt.Key.Key_End, Qt.Key.Key_PageDown):
-            QTest.keyClick(view, key)
-            assert view.currentIndex().row() != note
-        view.setCurrentIndex(cb.model().index(last, 0))
-        view.keyboardSearch("This list")
-        assert view.currentIndex().row() != note
-    finally:
-        cb.hidePopup()
-    assert cb.currentIndex() != note
+        assert cb.itemText(cb.currentIndex()) not in (NOTE_ON, NOTE_OFF)
 
 
 def test_a_click_on_the_note_is_swallowed(tab, qapp):
     cb = tab._preset_combo
-    note = _note_rows(cb)[0]
     before = cb.currentIndex()
-    cb.showPopup()
-    qapp.processEvents()
+    _view, _frame, foot = _open(cb, qapp)
     try:
-        view = cb.view()
-        idx = cb.model().index(note, 0)
-        view.scrollTo(idx)
-        qapp.processEvents()
-        pos = view.visualRect(idx).center()
+        pos = foot.rect().center()
         for et in (QEvent.Type.MouseButtonPress,
                    QEvent.Type.MouseButtonRelease):
             ev = QMouseEvent(et, QPointF(pos),
-                             QPointF(view.viewport().mapToGlobal(pos)),
+                             QPointF(foot.mapToGlobal(pos)),
                              Qt.MouseButton.LeftButton,
                              Qt.MouseButton.LeftButton
                              if et == QEvent.Type.MouseButtonPress
                              else Qt.MouseButton.NoButton,
                              Qt.KeyboardModifier.NoModifier)
-            assert cb.eventFilter(view.viewport(), ev) is True
+            QApplication.sendEvent(foot, ev)
+            assert ev.isAccepted()
+        qapp.processEvents()
     finally:
         cb.hidePopup()
     assert cb.currentIndex() == before
 
 
-def test_the_preset_handler_refuses_the_note(tab):
-    cb = tab._preset_combo
-    note = _note_rows(cb)[0]
-    before = cb.currentIndex()
-    cb.blockSignals(True)
-    cb.setCurrentIndex(note)
-    cb.blockSignals(False)
-    tab._on_preset_selected(note)
-    assert cb.currentIndex() == before
-    assert not tab._is_deletable_preset(note)
+def test_the_preset_handler_still_refuses_the_note_data(tab):
     assert cp.is_not_a_preset(cp.NOTE_ROW_DATA)
     assert not cp.is_not_a_preset("My own preset")
 
@@ -236,16 +237,37 @@ def test_the_preset_handler_refuses_the_note(tab):
 # The Built-in presets list
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("on", [True, False])
-def test_the_built_in_presets_list_ends_in_the_note(tab, settings, qapp, on):
+def test_the_built_in_presets_list_carries_the_note(tab, settings, qapp, on):
     tab._apply_builtin_presets_shown(set(), paper_filter=on)
     tab._open_builtin_preset_overlay()
     popup = tab._builtin_preset_popup
     try:
         qapp.processEvents()
-        rows = popup._rows
-        assert rows[-1].kind == "note"
-        assert rows[-1].text == (NOTE_ON if on else NOTE_OFF)
-        assert [r for r in rows if r.kind == "note"] == [rows[-1]]
+        assert popup._note == (NOTE_ON if on else NOTE_OFF)
+        assert popup._note_h > popup.ROW_H
+        assert all(r.kind != "note" for r in popup._rows)
+    finally:
+        popup.close()
+
+
+def test_the_built_in_presets_note_is_pinned_under_the_rows(qapp):
+    """B8-1226: scrolled to the top and to the end, the note sits in the same
+    place, under the scrolling rows, inside the panel. MUTATION: put it back
+    among the rows (red)."""
+    groups = [("Group", [(f"Preset {i}", f"k{i}") for i in range(30)])]
+    popup = BuiltinPresetPopup(groups, None, note=NOTE_ON)
+    try:
+        popup.show()
+        qapp.processEvents()
+        assert popup._max_scroll > 0
+        places = []
+        for y in (0, popup._max_scroll):
+            popup._scroll_y = y
+            note = popup._note_rect()
+            places.append(note)
+            assert popup._panel_rect().contains(note)
+            assert note.top() >= popup._viewport_rect().bottom()
+        assert places[0] == places[1]
     finally:
         popup.close()
 
@@ -258,22 +280,12 @@ def test_the_built_in_presets_list_never_chooses_the_note(qapp):
     try:
         popup.show()
         qapp.processEvents()
-        note = len(popup._rows) - 1
-        assert popup._rows[note].kind == "note"
-        assert note not in popup._selectable()
-        # the note is tall enough for its wrapped text
-        assert popup._rows[note].height > popup.ROW_H
-        # the keyboard: Down past the end stays on the last preset
         for _ in range(6):
             QTest.keyClick(popup, Qt.Key.Key_Down)
-            assert popup._hover_index != note
-        # the mouse: nothing under it
-        centre = popup._row_rect(popup._rows[note]).center()
-        popup._scroll_y = popup._max_scroll
-        centre = popup._row_rect(popup._rows[note]).center()
-        assert popup._index_at(centre) == -1
-        # and even asked directly, it is not emitted
-        popup._activate(note)
+        assert popup._rows[popup._hover_index].kind == "item"
+        assert popup._index_at(popup._note_rect().center()) == -1
+        QTest.mouseClick(popup, Qt.MouseButton.LeftButton,
+                         pos=popup._note_rect().center())
         assert got == []
         assert popup.isVisible(), "the note closed the list as a pick would"
     finally:
@@ -322,7 +334,7 @@ def test_both_lists_paint_the_note_through_info_colours():
     assert "info_colours(self._mode)" in inspect.getsource(
         pop.BuiltinPresetPopup._paint_note)
     assert "info_colours()" in inspect.getsource(
-        tc._ComboSeparatorDelegate._paint_note)
+        tc._PresetListNote.paintEvent)
 
 
 # ---------------------------------------------------------------------------

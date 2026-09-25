@@ -4383,6 +4383,96 @@ def _extra_args_have_patch_source(extra: str) -> bool:
     return False
 
 
+class _PresetListNote(QWidget):
+    """THE PAPER-FILTER NOTE, PINNED UNDER THE OPEN "Select preset" LIST
+    (Knut, #182 5839478031, B8-1226).
+
+    It was the list's last ROW (B8-1171), so it was only seen after scrolling
+    to the end: *"not visible before scrolling to the bottom. Can the message
+    be made to always stay visible at the bottom"*. Now it is a widget of the
+    popup's own frame, under the scrolling list: it does not scroll, and as it
+    is not an entry of the combo at all, the arrow keys, the wheel,
+    type-ahead and the preset handler cannot reach it. A click on it is
+    swallowed. Painted in the app's information colours
+    (:func:`ui.theme.info_colours`), wrapped to the list's width, never
+    widening it."""
+
+    PAD = 8
+    INSET = 4
+
+    def __init__(self, parent: QWidget) -> None:
+        super().__init__(parent)
+        self.setObjectName("preset_list_note")
+        self._text = ""
+        pol = QSizePolicy(QSizePolicy.Policy.Ignored,
+                          QSizePolicy.Policy.Fixed)
+        pol.setHeightForWidth(True)
+        self.setSizePolicy(pol)
+
+    def text(self) -> str:
+        return self._text
+
+    def set_text(self, text: str) -> None:
+        self._text = str(text or "")
+        self.setToolTip(self._text)
+        self.setAccessibleName(self._text)
+        self.updateGeometry()
+        self.update()
+
+    def _text_rect(self, rect: QRect) -> QRect:
+        box = rect.adjusted(self.INSET + 6, self.INSET,
+                            -(self.INSET + 6), -self.INSET)
+        return box.adjusted(self.PAD, self.PAD, -self.PAD, -self.PAD)
+
+    def hasHeightForWidth(self) -> bool:  # noqa: N802 — Qt's name
+        return True
+
+    def heightForWidth(self, width: int) -> int:  # noqa: N802
+        text_w = self._text_rect(QRect(0, 0, max(160, width), 1000)).width()
+        fm = QFontMetrics(self.font())
+        text_h = fm.boundingRect(QRect(0, 0, max(40, text_w), 10000),
+                                 int(Qt.TextFlag.TextWordWrap),
+                                 self._text).height()
+        return text_h + 2 * (self.PAD + self.INSET)
+
+    def sizeHint(self) -> QSize:  # noqa: N802
+        # No width of its own: the note wraps to the list, never widens it.
+        return QSize(0, self.heightForWidth(self.width() or 300))
+
+    def minimumSizeHint(self) -> QSize:  # noqa: N802
+        return QSize(0, self.heightForWidth(self.width() or 300))
+
+    def paintEvent(self, _event) -> None:  # noqa: N802
+        from ui.theme import info_colours
+        colours = info_colours()
+        rect = self.rect()
+        box = QRectF(rect.adjusted(self.INSET + 6, self.INSET,
+                                   -(self.INSET + 6),
+                                   -self.INSET)).adjusted(0.5, 0.5, -0.5, -0.5)
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setPen(QPen(QColor(colours["border"]), 1))
+        p.setBrush(QColor(colours["bg"]))
+        p.drawRoundedRect(box, 4, 4)
+        p.setPen(QColor(colours["text"]))
+        p.setFont(self.font())
+        p.drawText(self._text_rect(rect),
+                   int(Qt.AlignmentFlag.AlignLeft
+                       | Qt.AlignmentFlag.AlignVCenter
+                       | Qt.TextFlag.TextWordWrap), self._text)
+        p.end()
+
+    # A click on the note is read, never chosen, and does not close the list.
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        event.accept()
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        event.accept()
+
+    def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802
+        event.accept()
+
+
 class _CappedComboBox(NoScrollComboBox):
     """A combo whose popup is capped at ~15 rows and scrolls.
 
@@ -4414,13 +4504,8 @@ class _CappedComboBox(NoScrollComboBox):
     #: code) it lays its chart out on. Absent on the Scanner presets and on a
     #: person's preset that stores no paper, which are always listed.
     PAPER_ROLE = Qt.ItemDataRole.UserRole + 46
-    #: On the paper-filter note at the bottom of the list (Knut, #182
-    #: 5834773589, B8-1171): True. The note is DISABLED and not selectable
-    #: all the time, open or closed, so the arrow keys, the wheel and
-    #: type-ahead step over it; a click on it is swallowed here; and
-    #: :meth:`TabChart._on_preset_selected` refuses its userData
-    #: (:data:`core.curated_presets.NOTE_ROW_DATA`) like an arrow row's.
-    NOTE_ROLE = Qt.ItemDataRole.UserRole + 47
+    # (The paper-filter note was a row here, NOTE_ROLE, until B8-1226 pinned
+    # it under the list as :class:`_PresetListNote`: see :meth:`set_note`.)
 
     #: ``(row, action)`` for an arrow row, where action is "toggle" (a click,
     #: Return, Enter or Space), "open" (Right), "close" (Left), or "parent"
@@ -4439,6 +4524,46 @@ class _CappedComboBox(NoScrollComboBox):
         self._arrow_viewport = view.viewport()
         view.installEventFilter(self)
         self._arrow_viewport.installEventFilter(self)
+        # THE NOTE, PINNED UNDER THE LIST (B8-1226): a widget of the popup's
+        # frame, after the view and its scrollers, so it never scrolls away.
+        self._note_footer: "_PresetListNote | None" = None
+        container = view.parentWidget()
+        lay = container.layout() if container is not None else None
+        if lay is not None:
+            self._note_footer = _PresetListNote(container)
+            self._note_footer.setFont(self.font())
+            lay.addWidget(self._note_footer)
+            self._note_footer.hide()
+
+    def set_note(self, text: str) -> None:
+        """The paper-filter note pinned under the open list ("" hides it)."""
+        foot = self._note_footer
+        if foot is None:
+            return
+        foot.set_text(text)
+        foot.setVisible(bool(text))
+
+    def note(self) -> str:
+        foot = self._note_footer
+        return foot.text() if foot is not None and not foot.isHidden() else ""
+
+    def _note_block_height(self) -> int:
+        """The height the pinned note takes in the popup frame, 0 without."""
+        foot = self._note_footer
+        if foot is None or foot.isHidden() or not foot.text():
+            return 0
+        container = foot.parentWidget()
+        lay = container.layout() if container is not None else None
+        width = container.width() if container is not None else self.width()
+        if lay is not None:
+            m = lay.contentsMargins()
+            width -= m.left() + m.right()
+        # FIXED to the height its text needs at the frame's width, so the
+        # frame's layout can neither squeeze it nor hand it spare room.
+        h = foot.heightForWidth(max(width, 160))
+        if foot.height() != h or foot.minimumHeight() != h:
+            foot.setFixedHeight(h)
+        return h + max(0, lay.spacing() if lay is not None else 0)
 
     #: The only events the filter looks at. Everything else leaves at once.
     _ARROW_EVENTS = frozenset({2, 3, 4, 6, 51})   # press, release, dbl, key, override
@@ -4462,8 +4587,6 @@ class _CappedComboBox(NoScrollComboBox):
                     QEvent.Type.MouseButtonRelease,
                     QEvent.Type.MouseButtonDblClick):
                 idx = view.indexAt(event.position().toPoint())
-                if idx.isValid() and self.itemData(idx.row(), self.NOTE_ROLE):
-                    return True          # the note is read, never chosen
                 if idx.isValid() and self.itemData(idx.row(), self.MORE_ROLE):
                     if et == QEvent.Type.MouseButtonRelease \
                             and event.button() == Qt.MouseButton.LeftButton:
@@ -4562,19 +4685,23 @@ class _CappedComboBox(NoScrollComboBox):
         container = view.window()            # the popup frame
         if container is None:
             return
-        if rows_changed:
-            # Row by row: the paper-filter note (B8-1171) wraps over more
-            # than one line, so it is taller than row 0.
-            content = sum(max(row_h, view.sizeHintForRow(r))
-                          if self.itemData(r, self.NOTE_ROLE) else row_h
-                          for r in range(self.count())
+        # THE PINNED NOTE (B8-1226) is added to the frame on top of the rows,
+        # so the list above it keeps its full height and the note is always
+        # in the frame, whatever the list is scrolled to.
+        foot = self._note_block_height()
+        if rows_changed or foot:
+            lay = container.layout()
+            if lay is not None:
+                lay.activate()
+            content = sum(row_h for r in range(self.count())
                           if not view.isRowHidden(r))
-            frame = max(0, container.height() - view.viewport().height())
-            want = min(max_h, content + frame)
+            frame = max(0, container.height() - view.viewport().height()
+                        - foot)
+            want = min(max_h, content + frame) + foot
             if container.height() != want:
                 view.setVerticalScrollBarPolicy(
                     Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-                container.setMaximumHeight(max_h)
+                container.setMaximumHeight(max_h + foot)
                 container.resize(container.width(), want)
         elif container.height() > max_h:
             view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -4610,64 +4737,13 @@ class _ComboSeparatorDelegate(QStyledItemDelegate):
 
     _SEP_ROLE = Qt.ItemDataRole.AccessibleDescriptionRole
 
-    #: The paper-filter note's padding inside its box, and the box's inset
-    #: from the row (B8-1171).
-    _NOTE_PAD = 8
-    _NOTE_INSET = 4
+    # (The paper-filter note was painted here as a list row until B8-1226
+    # pinned it under the list: :class:`_PresetListNote`.)
 
     def _is_separator(self, index) -> bool:
         return index.data(self._SEP_ROLE) == "separator"
 
-    @staticmethod
-    def _is_note(index) -> bool:
-        return bool(index.data(_CappedComboBox.NOTE_ROLE))
-
-    def _note_width(self, option) -> int:
-        """The width the note wraps to: the open list's, which is at least
-        the combo's own."""
-        combo = self.parent()
-        width = option.rect.width()
-        if isinstance(combo, QComboBox):
-            width = max(width, combo.width(), combo.view().viewport().width())
-        return max(160, width)
-
-    def _note_text_rect(self, rect: QRect) -> QRect:
-        box = rect.adjusted(self._NOTE_INSET + 6, self._NOTE_INSET,
-                            -(self._NOTE_INSET + 6), -self._NOTE_INSET)
-        return box.adjusted(self._NOTE_PAD, self._NOTE_PAD,
-                            -self._NOTE_PAD, -self._NOTE_PAD)
-
-    def _paint_note(self, painter, option, index) -> None:
-        """THE PAPER-FILTER NOTE (Knut, #182 5834773589, B8-1171): a box in
-        the app's information colours for the appearance on screen
-        (:func:`ui.theme.info_colours`), its text wrapped. Painted here, not
-        by the default delegate, because the row is disabled and the default
-        would grey it out."""
-        from ui.theme import info_colours
-        colours = info_colours()
-        rect = option.rect
-        box = QRectF(rect.adjusted(self._NOTE_INSET + 6, self._NOTE_INSET,
-                                   -(self._NOTE_INSET + 6),
-                                   -self._NOTE_INSET)).adjusted(
-            0.5, 0.5, -0.5, -0.5)
-        painter.save()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(QColor(colours["border"]), 1))
-        painter.setBrush(QColor(colours["bg"]))
-        painter.drawRoundedRect(box, 4, 4)
-        painter.setPen(QColor(colours["text"]))
-        painter.setFont(option.font)
-        painter.drawText(self._note_text_rect(rect),
-                         int(Qt.AlignmentFlag.AlignLeft
-                             | Qt.AlignmentFlag.AlignVCenter
-                             | Qt.TextFlag.TextWordWrap),
-                         str(index.data(Qt.ItemDataRole.DisplayRole) or ""))
-        painter.restore()
-
     def paint(self, painter, option, index) -> None:
-        if self._is_note(index):
-            self._paint_note(painter, option, index)
-            return
         if self._is_separator(index):
             line = QColor(option.palette.color(QPalette.ColorRole.Text))
             line.setAlpha(70)
@@ -4696,17 +4772,6 @@ class _ComboSeparatorDelegate(QStyledItemDelegate):
         hint = super().sizeHint(option, index)
         if self._is_separator(index):
             return QSize(0, hint.height())
-        if self._is_note(index):
-            # No width of its own, so the note never widens the list; the
-            # height its wrapped text needs at the list's width.
-            width = self._note_width(option)
-            text_w = self._note_text_rect(QRect(0, 0, width, 1000)).width()
-            fm = QFontMetrics(option.font)
-            text_h = fm.boundingRect(
-                QRect(0, 0, max(40, text_w), 10000),
-                int(Qt.TextFlag.TextWordWrap),
-                str(index.data(Qt.ItemDataRole.DisplayRole) or "")).height()
-            return QSize(0, text_h + 2 * (self._NOTE_PAD + self._NOTE_INSET))
         return hint
 
 
@@ -5423,6 +5488,12 @@ class TabChart(QWidget):
         if self._manual_paper_pw is not None:
             self._manual_paper_pw.value_changed.connect(
                 self._on_preset_paper_changed)
+        # With the layout engine on, Manual's Paper field on screen is the
+        # layout panel's (B8-1221): a person's pick, a preset's recipe and the
+        # restored defaults all move this combo.
+        _lp = getattr(self, "_manual_layout_panel", None)
+        if _lp is not None and getattr(_lp, "paper", None) is not None:
+            _lp.paper.currentIndexChanged.connect(self._on_preset_paper_changed)
 
         # #133 Q11 (a pre-existing gap): while Run type = Verification and the
         # run has no profile, Guided/Manual say so in a non-blocking info box —
@@ -7286,6 +7357,12 @@ class TabChart(QWidget):
         if self._manual_layout_panel.paper is not None:
             self._manual_layout_panel.paper.currentIndexChanged.connect(
                 self._sync_manual_selection_from_panel)
+            # A Custom size typed in its boxes is a paper change too (B8-1223).
+            for _box in (getattr(self._manual_layout_panel, "custom_w", None),
+                         getattr(self._manual_layout_panel, "custom_h", None)):
+                if _box is not None:
+                    _box.valueChanged.connect(
+                        self._sync_manual_selection_from_panel)
         self._manual_layout_panel.changed.connect(self._refresh_manual_command_preview)
         # Picking SpectroScan + Hexagonal must grey the ruler-marker controls
         # straight away, not only once a chart has been generated (#152, Knut):
@@ -8174,7 +8251,10 @@ class TabChart(QWidget):
                 or getattr(p, "_loading", False)):
             return
         eng = p.instr.currentData() or "i1"
-        paper = p.paper.currentData() or "A4"
+        # `selection()`, not `paper.currentData()`: on Custom the combo's data
+        # is the sentinel "__custom__", which -p cannot take, so -p kept the
+        # paper before (B8-1223). `selection()` answers the W x H boxes.
+        paper = p.selection()[1] or "A4"
         flag = {"p3": "3p"}.get(eng, eng)
         self._syncing_manual_sel = True
         try:
@@ -10603,12 +10683,35 @@ class TabChart(QWidget):
         if not paper_filter_on(self._settings):
             return ""
         if self._current_mode() == "manual":
-            pw = getattr(self, "_manual_paper_pw", None)
-            code = pw.get_raw_value() if pw is not None else ""
+            code = self._manual_paper_on_screen()
         else:
             combo = getattr(self, "_paper_combo", None)
             code = combo.currentData() if combo is not None else ""
         return paper_class(code)
+
+    def _manual_paper_on_screen(self) -> str:
+        """The paper Manual's Paper field SHOWS, as a ``-p`` code (a Custom
+        size as ``WxH``).
+
+        **THE FIELD ON SCREEN, NOT PRINTTARG'S WIDGET (B8-1221, Knut, #182
+        5838170697).** With the ChromIQ layout engine on (the default, and
+        Knut's) the Paper field a person sees and changes is the layout
+        panel's; printtarg's ``-p`` row is hidden, and it is only kept in step
+        when a person picks a named paper. A recipe loaded into the panel (a
+        preset, the saved "Save as Defaults") never reached it, and Custom
+        reached it as a sentinel it could not take. The filter read ``-p``, so
+        the lists showed the presets of a paper nobody had on screen: A3
+        Landscape's groups under A4, the paper before under Custom. A loaded
+        project "worked" because its chart was a printtarg chart: the engine
+        went off and ``-p`` was the field on screen.
+        """
+        grp = getattr(self, "_manual_layout_grp", None)
+        panel = getattr(self, "_manual_layout_panel", None)
+        if grp is not None and not grp.isHidden() and panel is not None \
+                and getattr(panel, "paper", None) is not None:
+            return panel.selection()[1]
+        pw = getattr(self, "_manual_paper_pw", None)
+        return (pw.get_raw_value() or "") if pw is not None else ""
 
     def _mark_preset_group_rows(self, start: int, group: str) -> None:
         """Tag the rows of one built-in group from ``start`` on with its
@@ -10726,23 +10829,16 @@ class TabChart(QWidget):
         )
 
     def _add_preset_list_note(self) -> None:
-        """THE PAPER-FILTER NOTE, the list's last row (Knut, #182 5834773589,
-        B8-1171): what the filter does now and where to change it, in the
-        app's information colours. Disabled and not selectable all the time,
-        so the arrow keys, the wheel and type-ahead step over it, open or
-        closed; the combo swallows a click on it; the preset handler refuses
-        its userData, as it refuses an arrow row's."""
-        from core.curated_presets import NOTE_ROW_DATA, paper_filter_on
+        """THE PAPER-FILTER NOTE (Knut, #182 5834773589, B8-1171): what the
+        filter does now and where to change it, in the app's information
+        colours. PINNED under the open list since B8-1226 (Knut, 5839478031:
+        *"always stay visible at the bottom"*), no longer its last row, so it
+        is not an entry of the combo at all: nothing can step onto it or
+        choose it."""
+        from core.curated_presets import paper_filter_on
         cb = self._preset_combo
-        text = preset_list_note(paper_filter_on(self._settings))
-        cb.addItem(text, userData=NOTE_ROW_DATA)
-        row = cb.count() - 1
-        cb.setItemData(row, True, cb.NOTE_ROLE)
-        cb.setItemData(row, text, Qt.ItemDataRole.ToolTipRole)
-        item = cb.model().item(row)
-        if item is not None:
-            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsSelectable
-                          & ~Qt.ItemFlag.ItemIsEnabled)
+        if hasattr(cb, "set_note"):
+            cb.set_note(preset_list_note(paper_filter_on(self._settings)))
 
     # ------------------------------------------------------------------
     # The curated built-ins: the arrow rows (#182 5818659478)
@@ -10795,6 +10891,8 @@ class TabChart(QWidget):
 
         listed: dict[str, int] = {}      # group -> presets it still lists
         rest_left: dict[str, int] = {}   # group -> presets left under its arrow
+        ticked_on_paper: dict[str, int] = {}
+        rest_on_paper: dict[str, int] = {}
         for row in range(cb.count()):
             grp = cb.itemData(row, cb.GROUP_ROLE)
             if not grp or cb.itemData(row, cb.MORE_ROLE) \
@@ -10803,14 +10901,31 @@ class TabChart(QWidget):
             if filtered(row):
                 continue
             listed[grp] = listed.get(grp, 0) + 1
+            on_paper = bool(selected) and paper_matches(
+                cb.itemData(row, cb.PAPER_ROLE), selected)
             if cb.itemData(row, cb.MEMBER_ROLE):
                 rest_left[grp] = rest_left.get(grp, 0) + 1
+                if on_paper:
+                    rest_on_paper[grp] = rest_on_paper.get(grp, 0) + 1
+            elif on_paper:
+                ticked_on_paper[grp] = ticked_on_paper.get(grp, 0) + 1
+        # KNUT'S WORKAROUND RULE (#182 5839418461, B8-1227): with the filter
+        # on, a group that has presets on the paper but none of them ticked
+        # lists them directly, as if ticked, for this paper only, so its
+        # heading never stands over nothing but an arrow. Not Scanner, which
+        # the filter never touches.
+        shown_all = {g for g, n in rest_on_paper.items()
+                     if selected and n and not ticked_on_paper.get(g)
+                     and g not in PAPER_FILTER_ALWAYS_SHOWN}
+        for g in shown_all:
+            rest_left[g] = 0
         for row in range(cb.count()):
             member = cb.itemData(row, cb.MEMBER_ROLE)
             group = cb.itemData(row, cb.MORE_ROLE)
             grp = cb.itemData(row, cb.GROUP_ROLE)
             if member:
-                hidden = member not in opened or filtered(row)
+                hidden = (member not in opened and member not in shown_all) \
+                    or filtered(row)
                 view.setRowHidden(row, hidden)
                 item = model.item(row)
                 if item is not None:
@@ -11070,6 +11185,9 @@ class TabChart(QWidget):
         self._preset_del_btn.setEnabled(self._is_deletable_preset(index))
         if to_none:
             self._last_preset_index = 0
+        # The paper filter exempts the selected row, so the row selected a
+        # moment ago is filtered again now (B8-1224).
+        self._apply_preset_collapse()
 
     def _update_header_buttons_for_mode(self) -> None:
         """Park "Load patch set" and the presets button while FROM PROFILE
@@ -11377,9 +11495,14 @@ class TabChart(QWidget):
         more: dict[str, list[tuple[str, str]]] = {}
         # The paper filter (#182 5832303551): only the presets on the paper
         # selected now; a group left empty is not listed at all.
+        selected = self._preset_paper_selected()
         for instr, entries in paper_filter_groups(
-                BUILTIN_PRESET_GROUPS, self._preset_paper_selected()):
+                BUILTIN_PRESET_GROUPS, selected):
             top, rest = split_group(entries, shown)
+            if selected and not top and instr not in PAPER_FILTER_ALWAYS_SHOWN:
+                # Knut's workaround rule (#182 5839418461, B8-1227): presets
+                # on this paper, none ticked: list them directly.
+                top, rest = rest, []
             groups.append((instr, [(_marked_overlay_label(key, overlay_label), key)
                                    for (_combo, overlay_label, key) in top]))
             if rest:

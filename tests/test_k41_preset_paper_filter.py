@@ -107,8 +107,28 @@ def _group_of(key: str) -> str:
 
 
 def _manual_paper(tab, code: str) -> None:
+    choose_manual_paper(tab, code)
+
+
+def choose_manual_paper(tab, code: str) -> None:
+    """Choose *code* in MANUAL'S PAPER FIELD ON SCREEN, the way a person does:
+    the ChromIQ layout panel's Paper when the engine is on (the default, and
+    Knut's), printtarg's own when it is off. Until B8-1221 these tests set
+    printtarg's -p, which the engine HIDES, so they drove a field nobody sees
+    and could not see Knut's fault (#182 5838170697)."""
     tab._switch_mode("manual")
-    tab._set_manual_value("printtarg", "-p", code)
+    grp = tab._manual_layout_grp
+    panel = tab._manual_layout_panel
+    if grp is not None and not grp.isHidden():
+        i = panel.paper.findData(code)
+        if i < 0:
+            w, h = (int(v) for v in code.split("x"))
+            panel.custom_w.setValue(w)
+            panel.custom_h.setValue(h)
+            i = panel.paper.findData("__custom__")
+        panel.paper.setCurrentIndex(i)
+    else:
+        tab._set_manual_value("printtarg", "-p", code)
 
 
 def _a_builtin_on(paper: str) -> str:
@@ -293,7 +313,8 @@ def test_guided_filters_by_its_own_paper_size_and_the_mode_switch_is_live(
     # Two different papers in the two modes. (Switching modes carries a
     # changed paper across, Knut #9, so the pages are turned directly here:
     # what is tested is that the list follows the page on screen.)
-    tab._set_manual_value("printtarg", "-p", "Letter")
+    choose_manual_paper(tab, "Letter")
+    tab._switch_mode("guided")
     tab._paper_combo.setCurrentIndex(tab._paper_combo.findData("A4"))
     qapp.processEvents()
     assert tab._preset_paper_selected() == "A4"

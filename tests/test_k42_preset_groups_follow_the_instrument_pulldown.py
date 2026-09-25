@@ -37,6 +37,28 @@ INSTRUMENT_ORDER = [TC.INSTRUMENT_GROUP_LABELS["i1Pro"],
 EXPECTED = INSTRUMENT_ORDER + ["Scanner", "Red River Paper"]
 
 
+
+def choose_manual_paper(tab, code: str) -> None:
+    """Choose *code* in MANUAL'S PAPER FIELD ON SCREEN, the way a person does:
+    the ChromIQ layout panel's Paper when the engine is on (the default, and
+    Knut's), printtarg's own when it is off. Until B8-1221 these tests set
+    printtarg's -p, which the engine HIDES, so they drove a field nobody sees
+    and could not see Knut's fault (#182 5838170697)."""
+    tab._switch_mode("manual")
+    grp = tab._manual_layout_grp
+    panel = tab._manual_layout_panel
+    if grp is not None and not grp.isHidden():
+        i = panel.paper.findData(code)
+        if i < 0:
+            w, h = (int(v) for v in code.split("x"))
+            panel.custom_w.setValue(w)
+            panel.custom_h.setValue(h)
+            i = panel.paper.findData("__custom__")
+        panel.paper.setCurrentIndex(i)
+    else:
+        tab._set_manual_value("printtarg", "-p", code)
+
+
 @pytest.fixture(scope="module")
 def qapp():
     return QApplication.instance() or QApplication([])
@@ -131,7 +153,7 @@ def test_a_paper_change_after_loading_lists_the_new_paper_and_keeps_the_loaded(
     stop re-filtering on a paper change (red: the old paper's presets stay)."""
     settings.set(cp.PAPER_FILTER_KEY, True)
     tab._switch_mode("manual")
-    tab._set_manual_value("printtarg", "-p", "A3")
+    choose_manual_paper(tab, "A3")
     qapp.processEvents()
     cb = tab._preset_combo
     view = cb.view()
@@ -147,15 +169,15 @@ def test_a_paper_change_after_loading_lists_the_new_paper_and_keeps_the_loaded(
                 and cb.itemData(r) != cb.currentData()}
     # the paper change alone refilters the list, live
     assert live_papers() == {"A3"}
-    tab._set_manual_value("printtarg", "-p", "Letter")
+    choose_manual_paper(tab, "Letter")
     qapp.processEvents()
     assert live_papers() == {"Letter"}
-    tab._set_manual_value("printtarg", "-p", "A3")
+    choose_manual_paper(tab, "A3")
     qapp.processEvents()
     a3 = next(k for h, e in TC.BUILTIN_PRESET_GROUPS if h != "Scanner"
               for _c, _o, k in e if TC.builtin_preset_paper(k) == "A3")
     cb.setCurrentIndex(cb.findData(a3))
-    tab._set_manual_value("printtarg", "-p", "A4")
+    choose_manual_paper(tab, "A4")
     qapp.processEvents()
     # with a preset loaded, the list moves to A4 all the same
     assert live_papers() == {"A4"}

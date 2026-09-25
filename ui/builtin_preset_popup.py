@@ -11,7 +11,7 @@ preset in the Manual presets dropdown (name prompt + generate).
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from PyQt6.QtCore import (QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt,
                           pyqtSignal)
@@ -243,6 +243,7 @@ class BuiltinPresetPopup(QWidget):
         self._viewport_h  = 0
         self._content_h   = 0
         self._content_top = 0
+        self._note_h      = 0     # the pinned note under the rows (B8-1226)
 
         self._rows: list[_VisualRow] = []
         self._build_rows()
@@ -282,10 +283,8 @@ class BuiltinPresetPopup(QWidget):
                     self._rows.append(_VisualRow("item", label, key, y,
                                                  self.ROW_H, group=instr))
                     y += self.ROW_H
-        if self._note:
-            # Its height is set by _compute_size, once the width is known.
-            self._rows.append(_VisualRow("note", self._note, None, y,
-                                         self.ROW_H))
+        # The note is NOT a row (B8-1226): it is pinned under the scrolling
+        # rows, see `_note_rect`.
 
     @staticmethod
     def _more_text(count: int, is_open: bool) -> str:
@@ -335,7 +334,7 @@ class BuiltinPresetPopup(QWidget):
         # Measured over EVERY preset, the ones under a closed arrow included,
         # so the panel does not change width when an arrow is opened.
         # Not the note: it wraps to the panel, it does not widen it.
-        texts = [(r.kind, r.text) for r in self._rows if r.kind != "note"]
+        texts = [(r.kind, r.text) for r in self._rows]
         for rest in self._more.values():
             texts.extend(("item", label) for label, _k in rest)
         for kind, text in texts:
@@ -348,9 +347,11 @@ class BuiltinPresetPopup(QWidget):
         inner = 2 * (6 + 12)
         panel_w = math.ceil(text_w) + inner + self.H_PAD + self.SCROLLBAR_W
         panel_w = max(panel_w, 260)
-        if self._rows and self._rows[-1].kind == "note":
-            self._rows[-1] = replace(
-                self._rows[-1], height=self._note_height(panel_w))
+        # THE NOTE IS PINNED UNDER THE ROWS (Knut, #182 5839478031, B8-1226):
+        # *"always stay visible at the bottom, so that it is not scrolled out
+        # of view"*. It takes its own height under the viewport; the rows
+        # above scroll as before.
+        self._note_h = self._note_height(panel_w) if self._note else 0
 
         self._content_h = sum(r.height for r in self._rows)
         # Cap the viewport to one header + MAX_VISIBLE_ITEMS entries; scroll the
@@ -361,7 +362,7 @@ class BuiltinPresetPopup(QWidget):
         self._scroll_y = max(0, min(keep_scroll, self._max_scroll))
 
         self._content_top = self.PANEL_MARGIN + self.TAIL_H + self.V_PAD
-        panel_h = self._viewport_h + 2 * self.V_PAD
+        panel_h = self._viewport_h + 2 * self.V_PAD + self._note_h
         w = panel_w + 2 * self.PANEL_MARGIN
         h = panel_h + 2 * self.PANEL_MARGIN + self.TAIL_H
         self.setFixedSize(w, h)
@@ -395,6 +396,12 @@ class BuiltinPresetPopup(QWidget):
         """The scrolling content region inside the panel (rows are clipped here)."""
         panel = self._panel_rect()
         return QRect(panel.left(), self._content_top, panel.width(), self._viewport_h)
+
+    def _note_rect(self) -> QRect:
+        """Where the pinned note sits: under the viewport, the rows' width."""
+        panel = self._panel_rect()
+        return QRect(panel.left() + 6, self._content_top + self._viewport_h,
+                     panel.width() - 12, self._note_h)
 
     def _row_rect(self, row: _VisualRow) -> QRect:
         panel = self._panel_rect()
@@ -477,9 +484,6 @@ class BuiltinPresetPopup(QWidget):
             rect = self._row_rect(row)
             if rect.bottom() < viewport.top() or rect.top() > viewport.bottom():
                 continue  # fully scrolled out of view
-            if row.kind == "note":
-                self._paint_note(p, rect, sb_w)
-                continue
             if row.kind == "header":
                 p.setPen(QColor(pal["header_text"]))
                 p.setFont(self._header_font)
@@ -527,6 +531,9 @@ class BuiltinPresetPopup(QWidget):
                 2, 2,
             )
 
+        if self._note:
+            self._paint_note(p, self._note_rect(), 0)
+
         p.end()
 
     def _paint_note(self, p: QPainter, rect: QRect, sb_w: int) -> None:
@@ -557,7 +564,7 @@ class BuiltinPresetPopup(QWidget):
         if not self._viewport_rect().contains(pt):
             return -1
         for i, row in enumerate(self._rows):
-            if row.kind in ("header", "note"):
+            if row.kind == "header":
                 continue
             if self._row_rect(row).contains(pt):
                 return i

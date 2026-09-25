@@ -28988,7 +28988,7 @@ would reach.
 - note: Knut, #182 5834773589 (K46-1). The last row of "Select preset" and of the Built-in presets list is a note in the app's information colours (QLabel#info's, per appearance; Neutral has no coloured note and uses its own). Filter ON: "This list is filtered by the paper size selected. To show all paper sizes, untick “Filter preset-dropdown list according to selected paper size” in “Settings for built-in presets”." Filter OFF: "To filter this list of built-in presets by the paper size selected, tick “Filter preset-dropdown list according to selected paper size” in “Settings for built-in presets”." Bottom, not top: Knut left the choice open; the brief chose the bottom. The note wraps and never widens a list.
 - where: `ui/tabs/tab_chart.py` (`preset_list_note`, `_add_preset_list_note`, `_CappedComboBox.NOTE_ROLE`, `_ComboSeparatorDelegate._paint_note`, `fit_popup`), `ui/builtin_preset_popup.py` (`note`, `_paint_note`, `_note_height`), `ui/theme.py` (`info_colours`), `ui/styles.py` (`INFO_BG`).
 - tests: tests/test_k46_preset_list_note_and_settings_name.py (mutations, each red: no note; the texts swapped; the popup given no note; the Dark colour wrong).
-- evidence: test_select_preset_ends_in_the_note_for_the_state, test_the_note_follows_the_box_when_ok_stores_it, test_the_built_in_presets_list_ends_in_the_note, test_the_note_is_painted_in_the_info_colours_of_each_appearance
+- evidence: test_select_preset_carries_the_note_for_the_state, test_the_note_follows_the_box_when_ok_stores_it, test_the_built_in_presets_list_carries_the_note, test_the_note_is_painted_in_the_info_colours_of_each_appearance
 - spec: curated_presets.md C9.
 
 ### B8-1172 · FIXED, awaiting confirmation · The preset-list note is never a choice
@@ -28998,7 +28998,7 @@ would reach.
 - note: In "Select preset" the note is disabled and not selectable open or closed (unlike an arrow row, which is enabled while the list is open), so Down, End, PageDown, the wheel and type-ahead skip it; a click on it is swallowed by the combo's event filter; `_on_preset_selected` refuses its userData through `core.curated_presets.is_not_a_preset` (arrow rows and the note) and `_is_deletable_preset` says no. In the Built-in presets list it is not a keyboard row, `_index_at` finds nothing on it, and `_activate` ignores it without closing the list.
 - where: `core/curated_presets.py` (`NOTE_ROW_DATA`, `is_not_a_preset`), `ui/tabs/tab_chart.py`, `ui/builtin_preset_popup.py`.
 - tests: tests/test_k46_preset_list_note_and_settings_name.py (mutations, each red: note enabled; handler not refusing; click not swallowed; popup keyboard, mouse and activate reaching it). tests/test_the_live_preview_only_follows_the_user.py now picks the list's last PRESET (it used `count() - 1`, which is the note now).
-- evidence: test_the_note_is_disabled_and_not_selectable_open_or_closed, test_arrow_keys_wheel_and_type_ahead_never_land_on_the_note, test_a_click_on_the_note_is_swallowed, test_the_preset_handler_refuses_the_note, test_the_built_in_presets_list_never_chooses_the_note
+- evidence: test_arrow_keys_wheel_and_type_ahead_never_reach_the_note, test_a_click_on_the_note_is_swallowed, test_the_preset_handler_still_refuses_the_note_data, test_the_built_in_presets_list_never_chooses_the_note
 
 ### B8-1173 · FIXED, awaiting confirmation · The gear's window is named "Settings for built-in presets" everywhere
 - blocks release: no
@@ -29115,3 +29115,71 @@ would reach.
 - status: OPEN
 - note: (1) HOW 0.2 PT IS SET. Qt rounds every font to a whole pixel before laying text out, and one pixel of the report is 0.75 pt, so 8.8 pt text cannot be printed as a font size (measured: 12 px and 11.73 px lay out identically; 11 px is 6 % narrower, nearly four times the 0.2 pt he allowed). B8-1201 therefore scales the room the text takes (every letter's advance and every line's height by 8.8/9); the letters stay 9 pt and a PDF reader reports 9 pt. The alternative, a real 8.25 pt (one pixel), is outside his limit. (2) The Colour accuracy graph on a Grey and tone check or a Printing record judges no colour-accuracy row, so it has no line and no description (spec 40.2); if he wants a sentence saying "no limit applies to this graph in this report", it is a new text for §M. (3) Two limits have no graph of their own: ISO 12647-7 judges "Maximum ΔE00, control strip" (5.0) while the Control strip graph plots the average and the 95th percentile (his K20/K21 pairing), and the ISO sets' paper-white and solid-colour limits are against the printing condition's reference, not the chart design the Paper white (L*) and Cube corners graphs plot, so no line was drawn on those graphs.
 - where: `ui/pdf_layout.py` (`tighten_to_close_a_page`), `ui/dialogs/measurement_report_dialog.py` (`_TREND_GROUPS`, `_accuracy_line_plan`).
+
+### B8-1221 · FIXED, awaiting confirmation · Knut #182 5838170697: with the ChromIQ layout engine on, the paper filter read printtarg's HIDDEN Paper widget, so both preset lists showed another paper's presets
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- note: Knut, beta 43, filter ON, Manual, A4, no project: "Select preset" showed only the i1Pro and ColorMunki groups and Scanner; with a project loaded "it seems to work" (5838170697, 5838212440, 5838457985). Cause, measured by driving the real app on screen (`~/Desktop/ChromIQ-beta44-proof/paper-filter-matrix/`): with the engine on (the default, and Knut's), Manual's Paper field on screen is the layout panel's; printtarg's `-p` row is hidden and is only kept in step when a person picks a named paper (`_sync_manual_selection_from_panel`, skipped while the panel loads a recipe). `_preset_paper_selected` read `-p`. Applying a preset loads its recipe, so the panel showed the preset's paper and the lists kept the paper before: on screen, A3 Landscape by hand, then a ColorMunki A4 preset from the Built-in presets list, gave an A4 field over i1Pro, ColorMunki and Scanner, Knut's case exactly (his log shows `_apply_knut_preset` again and again). A loaded project "worked" because its chart was a printtarg chart: the engine went off and `-p` was the field on screen. Why the coordinator could not reproduce it: the K41 and K42 tests set `-p` directly, the field the engine hides; they now choose the paper where a person does. Fix: `_manual_paper_on_screen` reads the panel's `selection()` while the panel is shown, `-p` otherwise, and the panel's Paper combo re-filters the lists live. Spec C7 already said "the Paper field of the mode on screen"; the code broke it; note C10 in `docs/design/curated_presets.md`.
+- where: `ui/tabs/tab_chart.py` (`_manual_paper_on_screen`, `_preset_paper_selected`, the signal wiring beside the paper filter's).
+- tests: tests/test_b8_1221_the_filter_reads_the_paper_on_screen.py, red on the beta 43 code and on each mutation in its docstrings; tests/test_k41_preset_paper_filter.py and tests/test_k42_preset_groups_follow_the_instrument_pulldown.py now choose the paper on screen.
+- evidence: test_manual_with_the_engine_reads_the_layout_panels_paper, test_a_recipe_loaded_into_the_panel_moves_the_lists, test_the_engine_switched_off_hands_the_filter_to_printtargs_paper, test_knuts_start_then_a_preset_on_another_paper
+
+### B8-1222 · FIXED, awaiting confirmation · Knut #182 5838498921: on Custom the lists did not show the custom-size presets
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- note: The same cause as B8-1221, plus a second one: the layout panel's Custom reached `-p` as the sentinel "__custom__", which `-p` cannot take, so `-p` stayed on the paper before (on screen: 5 x 7 in before Custom, and the lists showed Scanner only instead of the i1Pro photo-card presets and Scanner). Both halves are fixed (B8-1221 and B8-1223).
+- where: `ui/tabs/tab_chart.py` (`_manual_paper_on_screen`, `_sync_manual_selection_from_panel`).
+- tests: tests/test_b8_1221_the_filter_reads_the_paper_on_screen.py (red with both halves reverted, the beta 43 code).
+- evidence: test_custom_in_the_layout_panel_lists_the_custom_size_presets
+
+### B8-1223 · FIXED, awaiting confirmation · The layout panel's Custom paper never reached printtarg's Paper, so Save as Defaults stored the paper before
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Found under B8-1222. `_sync_manual_selection_from_panel` copied `paper.currentData()`, which is "__custom__" on Custom; now `selection()`, which answers the W x H boxes, and a change of either box syncs too. Measured: Save as Defaults on Custom 130 x 180 stored `manual_printtarg_-p_l=A3` (the paper before).
+- where: `ui/tabs/tab_chart.py` (`_sync_manual_selection_from_panel`, its wiring in the layout panel's set-up).
+- tests: tests/test_b8_1221_the_filter_reads_the_paper_on_screen.py, red on the mutation in its docstring.
+- evidence: test_custom_reaches_printtargs_paper_too
+
+### B8-1224 · FIXED, awaiting confirmation · A preset that did not take left its row listed in a list filtered to another paper
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Found by the matrix. The filter never hides the selected row; `_revert_preset_combo` put the pulldown back with its signals blocked and did not re-filter, so the row selected a moment ago stayed un-hidden and enabled in the closed pulldown (what Up, Down and the wheel step through) until the list was next opened. Now it re-filters.
+- where: `ui/tabs/tab_chart.py` (`_revert_preset_combo`).
+- tests: tests/test_b8_1221_the_filter_reads_the_paper_on_screen.py, red on the mutation in its docstring.
+- evidence: test_a_refused_preset_leaves_no_row_of_its_own_paper_behind
+
+### B8-1225 · OPEN, for Knut · Two of his beta 43 reports did not reproduce on screen: the Built-in presets list filtered while the box was off, and A3 presets on 4 x 6 in
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: Knut, #182 5838212440 (filter OFF: "Select preset" shows all, but the Built-in presets list is filtered and misses instruments) and 5838576109 (4 x 6 in or 5 x 7 in: A3 presets of i1Pro 3 Plus and ColorMunki, nothing for i1Pro; Knut could not reproduce it himself, 5838625234). The on-screen matrix (`~/Desktop/ChromIQ-beta44-proof/paper-filter-matrix/`) drove both on the beta 43 code and never got either: with the box off both lists listed every group at every paper, in both modes; 4 x 6 in and 5 x 7 in listed Scanner only. The second has the shape of B8-1221 (the lists of another paper, A3 Portrait's groups are exactly i1Pro 3 Plus, ColorMunki and Scanner) after a preset on A3, which that fix removes. No built-in lays out on 4 x 6 in or 5 x 7 in: the photo cards are 10 x 15 cm and 13 x 18 cm and so Custom (C7); whether they should be listed on the nearest named size is asked of Knut in C7.
+- where: `ui/tabs/tab_chart.py` (`_open_builtin_preset_overlay`, `_preset_paper_selected`).
+
+### B8-1226 · FIXED, awaiting confirmation · Knut #182 5839478031: the paper-filter note was only seen after scrolling to the end of either list
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: The note (B8-1171) was the last ROW of "Select preset" and of the Built-in presets list. It is now pinned under the rows of each open list: in "Select preset" a widget of the popup's own frame under the scrolling list (`_PresetListNote`, no longer an entry of the combo, so nothing can step onto it or choose it; a click on it is swallowed), in the Built-in presets list drawn under the scrolling viewport inside the bubble. Driven on screen, English and German, Light, Dark and Neutral, scrolled to the top and to the end, filter on and off: `~/Desktop/ChromIQ-beta44-proof/paper-filter-matrix/pinned-note/`.
+- where: `ui/tabs/tab_chart.py` (`_PresetListNote`, `_CappedComboBox.set_note`, `fit_popup`, `_add_preset_list_note`, `_ComboSeparatorDelegate`), `ui/builtin_preset_popup.py` (`_note_rect`, `_compute_size`, `paintEvent`).
+- tests: tests/test_k46_preset_list_note_and_settings_name.py, red on hiding the pinned note.
+- evidence: test_the_note_is_pinned_under_the_list_scrolled_to_the_top, test_the_list_above_the_note_still_scrolls_to_its_last_row, test_the_built_in_presets_note_is_pinned_under_the_rows, test_a_click_on_the_note_is_swallowed
+
+### B8-1227 · FIXED, awaiting confirmation · Knut #182 5839418461: a group with presets on the paper but none ticked listed them only under its arrow
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut's workaround rule: with the filter on, a group whose presets on the selected paper are all unticked lists them directly, as if ticked, for that paper only, in both lists; Scanner excluded. With the shipped ticks: ColorMunki on A3 Landscape (0 of 8) and A3+ Portrait (0 of 3). Measured first: such a group did NOT vanish on beta 43, it showed its heading and "N more presets"; the group Knut saw vanish at 4 x 6 in has no preset on 4 x 6 in at all (B8-1225, C7).
+- where: `ui/tabs/tab_chart.py` (`_apply_preset_collapse`, `_open_builtin_preset_overlay`).
+- tests: tests/test_b8_1221_the_filter_reads_the_paper_on_screen.py, red on dropping the rule from either list.
+- evidence: test_a_group_with_none_ticked_on_the_paper_lists_them_directly, test_the_rule_is_for_the_paper_only
+
+### B8-1228 · OPEN · "Save as Defaults" on a Custom paper opens the next session on A2, in Guided and in Manual
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: Found by the matrix, not fixed here (the lists follow the paper shown correctly). Manual, layout engine on, Custom 130 x 180 mm, Save as Defaults: the store holds `chart_paper=130x180` and the engine recipe's paper `130x180`, and the next start shows A2 (the first entry) in both Paper fields. Guided has no Custom entry, so `_restore_settings` finds no `130x180` and leaves the combo where the rebuild put it; the panel's restore of the saved recipe does not reach Custom either. Proof: `before/en-engine-on-restart/matrix.json`.
+- where: `ui/tabs/tab_chart.py` (`_on_save_defaults`, `_restore_settings`, `_init_manual_layout_panel`), `ui/dialogs/layout_options_panel.py` (`set_recipe`).
