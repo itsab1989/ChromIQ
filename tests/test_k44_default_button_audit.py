@@ -72,11 +72,12 @@ NEUTRAL_PREFERENCES_EXTRA = ["Restore Factory Defaults"]
 #: Decision for beta 43, 2026-09-25: a DESTRUCTIVE action is never drawn
 #: filled, even when it is the default. Which button Return presses is NOT
 #: changed (listed for Knut, B8-1155): the real windows, and their default.
-#: (Delete Preset in Measure, Build Profile and Check & Refine was a tinted
-#: #primary before; it is plain now.)
+#: This is for buttons K44 would NEWLY fill. A destructive button a window
+#: already coloured before K44 keeps that colour (Basti's rule wins): Delete
+#: Preset in Measure, Build Profile and Check & Refine is a tinted #primary,
+#: pinned in ALREADY_COLOURED against the before file.
 DESTRUCTIVE_DEFAULTS = {
     "Delete Preset (Create Chart)": "Delete",
-    "Delete Preset (Measure)": "Delete",
     "Preset already exists": "Overwrite",
     "New chart over a run's work": "Generate the new chart",
     "Different language (confirm, Yes destructive)": "Yes",

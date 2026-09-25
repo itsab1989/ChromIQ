@@ -84,6 +84,13 @@
     "#9f82ff",
     null
    ]
+  ],
+  "Delete Preset (Measure)": [
+   [
+    "Delete",
+    "#56d6a5",
+    null
+   ]
   ]
  },
  "dark": {
@@ -171,6 +178,13 @@
     "#9f82ff",
     null
    ]
+  ],
+  "Delete Preset (Measure)": [
+   [
+    "Delete",
+    "#56d6a5",
+    null
+   ]
   ]
  },
  "neutral": {
@@ -255,6 +269,13 @@
    ],
    [
     "← Guide Me Through Refinement",
+    "#101010",
+    null
+   ]
+  ],
+  "Delete Preset (Measure)": [
+   [
+    "Delete",
     "#101010",
     null
    ]

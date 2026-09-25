@@ -7582,7 +7582,10 @@ Soft-proof, Translate).
 * **Verified by:** `tests/test_the_default_button_is_filled_in_the_accent.py`,
   `tests/test_k44_default_button_audit.py`.
 
-**38.3 A destructive action is never filled** (decision for beta 43,
-2026-09-25, B8-1156): delete, overwrite, replace, clear, enable-at-your-own-risk
-buttons are drawn like any button even when they are the default. Which button
-Return presses in those questions is unchanged and remains with Knut (38.2).
+**38.3 K44 never newly fills a destructive action** (decision for beta 43,
+2026-09-25, B8-1156): a delete, overwrite, replace, clear or
+enable-at-your-own-risk button that had no colour before K44 stays plain even
+when it is the default. One that was already coloured (Delete Preset in
+Measure, Build Profile and Check & Refine) keeps its colour, as 38.1 says.
+Which button Return presses in those questions is unchanged and remains with
+Knut (38.2).

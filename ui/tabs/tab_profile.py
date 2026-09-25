@@ -2500,11 +2500,7 @@ class TabProfile(QWidget):
         bb = QDialogButtonBox(dlg)
         bb.addButton(tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
         del_btn = bb.addButton(tr("Delete"), QDialogButtonBox.ButtonRole.AcceptRole)
-        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
-        # filled. It was #primary (tinted); it is plain now, and still the
-        # button Return presses.
-        from ui.default_button import mark_destructive
-        mark_destructive(del_btn)
+        del_btn.setObjectName("primary")
         bb.rejected.connect(dlg.reject)
         bb.accepted.connect(dlg.accept)
         dlg_layout.addWidget(bb)
