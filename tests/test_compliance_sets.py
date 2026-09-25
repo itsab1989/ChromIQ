@@ -594,7 +594,9 @@ def test_chromiqs_own_half_of_the_defaults_is_anybody_elses_published_figure():
 #: the new digest with the snippet in the failure message and put it here in
 #: the same commit that changes the table.
 _INDUSTRY_DIGEST = \
-    "f86d413758e31a423cc4e6a95dce0d1c1ea55ec01e1d67caf3909c65817d11ea"
+    "488706e90d6eac6105d9dabc8fd44f90e7a0c0d378baba48d6c20ebbe1e12ca3"
+#: (Changed 2026-09-25 on Knut's instruction, #182 5831473881: "For the three
+#: mentioned above, use 3,00 for all of them.")
 #: (Changed 2026-09-24 on Knut's instruction, K33, #182 5816565326: his second
 #: set of figures, added to both columns where a row took ChromIQ's own
 #: number; where it would have replaced a figure of 2026-09-21 the earlier
@@ -632,9 +634,12 @@ _K33 = {"solids_de00_max": 3.0, "cmy_solids_dhab_max": 2.5,
         "ramps_30_70_dl_max": 2.0}
 #: Where a K33 figure differs from his own figure of 2026-09-21 for that
 #: column: the earlier one is kept, and the choice is put to him.
-_K33_KEPT_EARLIER = {("iso_12647_7", "solids_de00_max"): 2.0,
-                     ("iso_12647_7", "outer_gamut_226_de00_avg"): 4.0,
-                     ("iso_12647_8", "surface_gamut_de00_avg"): 4.0}
+#: The three rows where his K33 figure and his 2026-09-21 research disagreed.
+#: Kept at the earlier figure until Knut ruled, #182 5831473881 (2026-09-25):
+#: "For the three mentioned above, use 3,00 for all of them."
+_K33_KEPT_EARLIER = {("iso_12647_7", "solids_de00_max"): 3.0,
+                     ("iso_12647_7", "outer_gamut_226_de00_avg"): 3.0,
+                     ("iso_12647_8", "surface_gamut_de00_avg"): 3.0}
 
 
 def test_knuts_k33_figures_fill_only_the_rows_that_took_ours():
@@ -652,13 +657,14 @@ def test_knuts_k33_figures_fill_only_the_rows_that_took_ours():
             assert src[rid] == "industry", (parent, rid)
             want = _K33_KEPT_EARLIER.get((parent, rid), number)
             assert lim[rid] == cs.Limit.value(want), (parent, rid, lim[rid])
-    # After it, only five rows of each column start from ChromIQ's own
-    # numbers: one control-strip row, both repeatability rows and both
-    # evenness rows, none of which either set of his figures covers.
+    # After it, and after each column takes the other's figure where it has
+    # none (Knut, #182 5831473881), only four rows of each column start from
+    # ChromIQ's own numbers: both repeatability rows and both evenness rows,
+    # which neither set of his figures covers.
     for parent in cs.ISO_SET_IDS:
         ours = sorted(r for r, s in cs.custom_default_sources(parent).items()
                       if s == "chromiq")
-        assert len(ours) == 5, (parent, ours)
+        assert len(ours) == 4, (parent, ours)
 
 
 def test_the_researched_industry_figures_are_exactly_what_knut_delivered():
@@ -717,10 +723,17 @@ def test_every_custom_default_comes_from_one_of_the_two_named_sources():
         sources = cs.custom_default_sources(parent)
         assert set(defaults) == set(sources)
         assert set(sources.values()) <= {"industry", "chromiq"}
+        # Knut, #182 5831473881: a row only the OTHER Custom set's research
+        # covers takes that figure; this set's own research wins over it.
+        other = [p for p in cs.ISO_SET_IDS if p != parent]
         for rid, src in sources.items():
-            in_industry = rid in cs._CUSTOM_INDUSTRY[parent]
+            own = cs._CUSTOM_INDUSTRY[parent]
+            theirs = [cs._CUSTOM_INDUSTRY[o][rid] for o in other
+                      if rid in cs._CUSTOM_INDUSTRY[o]]
+            in_industry = rid in own or bool(theirs)
             assert (src == "industry") == in_industry, rid
-            expect = (cs._CUSTOM_INDUSTRY[parent][rid] if in_industry
+            expect = (own[rid] if rid in own
+                      else theirs[0] if theirs
                       else cs._CUSTOM_CHROMIQ_FILL[rid])
             assert defaults[rid] == expect, rid
         # every measurable row still has a limit, whichever source gave it

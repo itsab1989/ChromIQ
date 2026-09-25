@@ -1195,10 +1195,16 @@ _iso_shipped: "dict[str, frozenset[str]] | None" = None
 #: Custom column starts from the block he filled in for it. His file gives a
 #: figure per standard's own structure, so a row one column carries and the
 #: other does not is his structure, not an omission.
+    # KNUT, #182 5831473881 (2026-09-25): the three figures his newer list and
+    # his 2026-09-21 research disagreed on are 3.00, all three (Custom ISO
+    # 12647-7 solids and outer gamut, Custom ISO 12647-8 surface gamut). And
+    # a row only ONE Custom set has a figure for takes that figure in the
+    # other set too, so both sets are defined on every metric his research
+    # covers: that is `custom_defaults`' second source, not a copy here.
 _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
     "iso_12647_7": {
         "substrate_de00_max": Limit.value(2.0),          # ΔE00
-        "solids_de00_max": Limit.value(2.0),             # ΔE00
+        "solids_de00_max": Limit.value(3.0),             # ΔE00
         "cmy_solids_dhab_max": Limit.value(2.5),         # ΔH*ab
         "control_strip_de00_avg": Limit.value(2.0),      # ΔE00
         "control_strip_de00_max": Limit.value(4.0),      # ΔE00
@@ -1206,7 +1212,7 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         "grey_balance_neutral_ramp_max": Limit.value(3.0),   # ΔCh
         "all_de00_avg": Limit.value(2.0),                # ΔE00
         "all_de00_p95": Limit.value(4.0),                # ΔE00
-        "outer_gamut_226_de00_avg": Limit.value(4.0),    # ΔE00
+        "outer_gamut_226_de00_avg": Limit.value(3.0),    # ΔE00
         # KNUT'S SECOND SET OF FIGURES (K33, #182 5816565326, 2026-09-24),
         # proposed for BOTH Custom columns "so that all metrics are
         # included". Added only where the row took ChromIQ's own fill
@@ -1228,7 +1234,7 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         "grey_balance_neutral_ramp_max": Limit.value(3.0),   # ΔCh
         "all_de00_avg": Limit.value(2.0),                # ΔE00
         "all_de00_p95": Limit.value(4.0),                # ΔE00
-        "surface_gamut_de00_avg": Limit.value(4.0),      # ΔE00
+        "surface_gamut_de00_avg": Limit.value(3.0),      # ΔE00
         "ramps_30_70_dl_max": Limit.value(2.0),          # ΔL*
         # K33 (see the note in the block above). Kept from 2026-09-21 where
         # his new figure differs: surface gamut 4.0, not 3.00. The ramp row
@@ -1307,6 +1313,11 @@ def custom_defaults(parent_set_id: str) -> "dict[str, Limit]":
     :func:`custom_default_sources` cannot drift from what this returns.
     """
     out = dict(_CUSTOM_CHROMIQ_FILL)
+    # A row only the OTHER Custom set's research covers takes that figure
+    # (Knut, #182 5831473881); this set's own research still wins.
+    for other, table in _CUSTOM_INDUSTRY.items():
+        if other != parent_set_id:
+            out.update(table)
     out.update(_CUSTOM_INDUSTRY.get(parent_set_id, {}))
     return out
 
@@ -1317,7 +1328,9 @@ def custom_default_sources(parent_set_id: str) -> "dict[str, str]":
     ``"industry"`` for one of Knut's researched figures, ``"chromiq"`` for one
     of ChromIQ's own. Same keys as :func:`custom_defaults`, always.
     """
-    industry = _CUSTOM_INDUSTRY.get(parent_set_id, {})
+    industry = set()
+    for table in _CUSTOM_INDUSTRY.values():  # either set's research counts
+        industry.update(table)
     return {rid: ("industry" if rid in industry else "chromiq")
             for rid in custom_defaults(parent_set_id)}
 

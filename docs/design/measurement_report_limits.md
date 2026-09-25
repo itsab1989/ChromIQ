@@ -303,6 +303,24 @@ rows neither set of his figures covers are one control-strip row (the 95th
 percentile in -7, the maximum in -8), ChromIQ's two repeatability rows and the
 two evenness rows.
 
+**Ruled by Knut, #182 5831473881 (2026-09-25):**
+
+> *"The intention was, for those settings that only is set in one of the
+> Custom ISO limit set, that the one that does not have a number, takes that
+> number from the other Custom ISO set, so that all the 21 metrics are defined
+> with thresholds for the Custom ISO sets. For the three mentioned above, use
+> 3,00 for all of them."*
+
+So the three rows in the table above are **3.00** (Custom ISO 12647-7 solid
+colours and outer-gamut patches, Custom ISO 12647-8 surface-gamut patches), and
+a row only one Custom set's research covers takes that figure in the other set
+too (`compliance_sets.custom_defaults`): the control-strip maximum (4.0, from
+-7) in -8, and the control-strip 95th percentile (4.0, from -8) in -7. Each
+Custom column now carries **16 researched figures and 4 ChromIQ numbers**, 20
+limits. The four are ChromIQ's two repeatability rows and the two evenness
+rows, which neither set of his figures covers. ⏳ Awaiting confirmation.
+**Confirmed by:** *nobody yet.*
+
 **NEITHER SOURCE 2 NOR SOURCE 3 IS A STANDARD'S PUBLISHED VALUE, AND THE APP
 SAYS SO.** The Report limits window's description of its columns is generated
 from `compliance_sets::custom_default_counts`, so it names exactly the sources
@@ -6098,7 +6116,9 @@ ChromIQ's own number. Kept where his new figure would replace his own figure
 of 2026-09-21, **for him to decide**: Custom ISO 12647-7 solid colours 2.0
 (proposed 3.00) and outer-gamut patches 4.0 (proposed 2.50); Custom ISO
 12647-8 surface-gamut patches 4.0 (proposed 3.00). Each Custom column now
-starts from 15 researched figures and 5 of ChromIQ's own, 20 limits. **Every
+starts from 15 researched figures and 5 of ChromIQ's own, 20 limits (16 and 4
+since Knut's ruling of 2026-09-25, §2a: the three kept figures are 3.00 and
+each column takes the other's figure where it has none). **Every
 row ChromIQ can measure already had a limit in some set before this change**
 (the two Custom columns carried all 20), and still does. Noted for him, not
 changed: with "Maximum ΔE00, all patches" at 2.00, the rows it bounds

@@ -170,7 +170,10 @@ def test_a_shipped_set_leaves_the_custom_column_on_knuts_figures(shipped, sets):
         assert not any(l.number == FAKE for l in custom.values()), sid
         counts = cs.custom_default_counts("custom_" + sid)
         assert counts["supplied"] == 0, sid
-        assert counts["industry"] == len(cs._CUSTOM_INDUSTRY[sid]), sid
+        # either Custom set's research counts (Knut, #182 5831473881)
+        assert counts["industry"] == sum(
+            1 for s in cs.custom_default_sources(sid).values()
+            if s == "industry"), sid
 
 
 def test_a_licence_holders_number_wins_its_row_and_a_null_keeps_the_shipped_one(
