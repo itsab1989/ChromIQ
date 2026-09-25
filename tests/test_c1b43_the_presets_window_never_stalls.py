@@ -49,12 +49,9 @@ def qapp():
 
 
 def _drain(timeout: float = 30.0) -> None:
-    """Wait for the background thread, then do what the GUI thread's
-    collector timer does once it is idle: give collection back."""
-    end = time.monotonic() + timeout
-    while PL.pending() and time.monotonic() < end:
-        time.sleep(0.02)
-    PL.collect_on_gui_thread()
+    """Wait for the background thread, end it, and give collection back
+    (B8-1191: only once the thread has ended, and never by that thread)."""
+    PL.settle(timeout)
 
 
 @pytest.fixture(autouse=True)

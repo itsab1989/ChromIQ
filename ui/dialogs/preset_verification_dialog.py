@@ -582,8 +582,9 @@ SELECTION_HOLD_S = 0.3
 
 class _CollectorPump:
     """The GUI thread's half of `preset_layout`'s garbage-collector rule
-    (B8-1161): while the background thread has work, automatic collection is
-    off and this timer collects on the GUI thread instead, then gives it back.
+    (B8-1161, B8-1191): while a background thread is alive, automatic
+    collection is off and this timer collects on the GUI thread instead, then
+    gives it back once that thread has ended.
     A bound method on a timer parented to the application, never a closure
     (CLAUDE.md, the scroll-bar segfault)."""
 
@@ -617,6 +618,19 @@ def collect_on_this_thread() -> None:
         _PUMP = _CollectorPump()
     if not _PUMP.timer.isActive():
         _PUMP.timer.start()
+
+
+# B8-1191: whoever hands `preset_layout`'s thread work on the main thread
+# starts this timer, including a caller that is not this window or the tab's
+# warming (an assessment that queues a printtarg layout), because the
+# collector is now held for the thread's whole life and only a thread that is
+# not that one may give it back.
+def _register_collector() -> None:
+    from workflow import preset_layout as PL
+    PL.set_hold_listener(collect_on_this_thread)
+
+
+_register_collector()
 
 
 #: **KNUT'S OWN WORDING FOR THE TOP LINE**, 2026-09-21: *"That line should

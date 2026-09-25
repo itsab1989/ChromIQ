@@ -225,7 +225,12 @@ def generation() -> int:
 
 
 def pending() -> int:
-    """How many layouts and assessments are queued or running."""
+    """How many layouts and assessments are queued or running.
+
+    Also gives automatic collection back once the background thread has
+    ended (B8-1191, :func:`release_gc_if_idle`), so a caller that only polls
+    this, with no presets window and no timer, still gets it back."""
+    release_gc_if_idle()
     with _LOCK:
         return len(_PENDING) + len(_REQUESTED)
 
@@ -278,17 +283,58 @@ def _schedule(key: tuple, chart: Path, spec: dict) -> None:
         if key in _PENDING or key in _RESULTS:
             return
         _PENDING.add(key)
+        # queued under the lock, so a thread deciding to retire (which it
+        # does under the same lock, on an empty queue) cannot miss it
         _start_worker()
-    _QUEUE.put(("layout", chart, dict(spec), None))
+        _QUEUE.put(("layout", chart, dict(spec), None))
+    _held_by_caller()
+
+
+#: Every background thread started and not yet known to have ended
+#: (B8-1191). Normally one; two only for the moment a retiring thread is
+#: still unwinding while its successor has started.
+_THREADS: "list[threading.Thread]" = []
+
+
+#: Called on the main thread whenever work is handed over, so the GUI can
+#: start the timer that collects while collection is held and gives it back
+#: once the thread has ended (B8-1191). Set by the presets window's module;
+#: this module stays free of Qt.
+_HOLD_LISTENER = None
+
+
+def set_hold_listener(callback) -> None:
+    """Register what the main thread calls when it hands the background
+    thread work (the presets window module's collector timer)."""
+    global _HOLD_LISTENER
+    _HOLD_LISTENER = callback
+
+
+def _held_by_caller() -> None:
+    cb = _HOLD_LISTENER
+    if cb is None or threading.current_thread() is not threading.main_thread():
+        return
+    try:
+        cb()
+    except Exception as exc:      # noqa: BLE001 - never fatal to a request
+        log.debug("the collector timer could not be started: %s", exc)
 
 
 def _start_worker() -> None:
-    """Called with `_LOCK` held."""
+    """Called with `_LOCK` held, by whoever hands the thread work.
+
+    Collection is switched off BEFORE the thread exists (B8-1191), so the
+    thread never runs a line of Python with it on."""
     global _WORKER
-    if _WORKER is None or not _WORKER.is_alive():
+    _hold_gc_locked()
+    _THREADS[:] = [t for t in _THREADS if t.is_alive()]
+    _RETIRING.intersection_update(_THREADS)
+    if (_WORKER is None or not _WORKER.is_alive()
+            or _WORKER in _RETIRING):
         _STOP.clear()
         _WORKER = threading.Thread(target=_work, name="chromiq-preset-layout",
                                    daemon=True)
+        _THREADS.append(_WORKER)
         _WORKER.start()
 
 
@@ -309,7 +355,8 @@ def request(key: tuple, work) -> None:
         _REQUESTED.add(key)
         _FINISHED.discard(key)
         _start_worker()
-    _QUEUE.put(("call", None, None, (key, work)))
+        _QUEUE.put(("call", None, None, (key, work)))
+    _held_by_caller()
 
 
 #: Keys of :func:`request` jobs that have run (B8-1161), so a window can ask
@@ -344,99 +391,166 @@ BUSY_SWITCH_INTERVAL_S = 0.001
 
 
 # ---------------------------------------------------------------------------
-# The garbage collector never runs on this thread (B8-1161)
+# The garbage collector never runs on this thread (B8-1161, B8-1191)
 # ---------------------------------------------------------------------------
 #
 # **A COLLECTION ON THIS THREAD CAN DESTROY A QT WIDGET OFF THE GUI THREAD.**
 # Python collects on whichever thread allocates past the threshold, and this
 # thread allocates a great deal (page images, numpy, the layout engine). A
-# collection that finds a closed dialog in a reference cycle deletes its C++
-# widget right here, while the GUI thread may be dispatching an event to it:
-# the everyday tier lost a worker to exactly that (SIGSEGV in
+# collection that finds a closed dialog in a reference cycle finalises it
+# right here, while the GUI thread may be dispatching an event to it: the
+# everyday tier lost a worker to exactly that (SIGSEGV in
 # `QCoreApplicationPrivate::sendThroughObjectEventFilters` from a timer, with
-# this thread in `PIL.Image.copy`), once the tab's warming had moved its work
-# onto this thread. `core/sound.py` records the same crash class for an
-# import. So while this thread has work, automatic collection is off; the GUI
-# thread collects the youngest generation itself (:func:`collect_on_gui_thread`,
-# driven by a timer in the presets window's module) and switches it back on
-# when this thread is idle. If no GUI timer runs, this thread gives it back
-# after `_GC_GIVE_BACK_IDLE_S` idle, which is the only moment it may still
-# collect here.
+# this thread in `PIL.Image.copy`). `core/sound.py` records the same crash
+# class for an import.
+#
+# **AND "WHILE IT HAS WORK" WAS NOT ENOUGH (B8-1191).** B8-1161 switched
+# collection off while this thread had a job and let the thread itself switch
+# it back on after 5 s idle. That hand-back was the hole: while collection is
+# off the GUI thread goes on allocating, so the count is far past the
+# threshold, and the very next allocation after `gc.enable()` collects. The
+# next allocation was THIS thread's own, in its idle loop, microseconds later.
+# Measured: 5 of 5 runs of a script collected on this thread at that moment,
+# and one everyday-tier run collected 2,024 objects here during a test that
+# builds a Create Chart tab. The beta 43 gate then lost a worker to the same
+# SIGSEGV with this thread idle in `queue.get`, which is where a hand-back
+# leaves it.
+#
+# So the rule is now about the thread's WHOLE LIFE, not its jobs:
+#
+# * collection is switched off by whoever hands the thread work, before the
+#   thread is started (`_start_worker`), so it never runs a line with it on;
+# * the thread never switches it back on. It ENDS when it has been idle for
+#   `_IDLE_EXIT_S`, and only a thread that is not this one gives collection
+#   back, and only once no background thread is alive any more
+#   (:func:`release_gc_if_idle`: the presets window's timer, every
+#   :func:`pending` call, and the test suite between tests);
+# * while it is off, the GUI thread collects the youngest generation itself
+#   (:func:`collect_on_gui_thread`, on the presets window module's timer).
 
 _GC_HELD = False
-_GC_GIVE_BACK_IDLE_S = 5.0
+#: whether collection was on when the hold began, so a hold never switches
+#: on a collector that somebody else had switched off
+_GC_WAS_ENABLED = True
+#: how long the thread waits for more work before it ends (B8-1191)
+_IDLE_EXIT_S = 1.0
+#: threads that have decided to end (under `_LOCK`) and are unwinding
+_RETIRING: "set[threading.Thread]" = set()
 
 
-def _hold_gc() -> None:
-    """On this thread, when it takes a job."""
+def _hold_gc_locked() -> None:
+    """Switch automatic collection off for as long as a background thread
+    lives. Called with `_LOCK` held, never on the background thread."""
+    global _GC_HELD, _GC_WAS_ENABLED
+    import gc
+    if not _GC_HELD:
+        _GC_WAS_ENABLED = gc.isenabled()
+        _GC_HELD = True
+    gc.disable()
+
+
+def _on_a_background_thread() -> bool:
+    return threading.current_thread() in _THREADS
+
+
+def release_gc_if_idle() -> bool:
+    """Give automatic collection back if it is held and no background thread
+    is alive any more. Never does anything on the background thread itself,
+    whose own next allocation would otherwise be the one that collects.
+    True when collection is not held (any more)."""
     global _GC_HELD
     import gc
+    if not _GC_HELD:
+        return True
+    if _on_a_background_thread():
+        return False
     with _LOCK:
-        if not _GC_HELD and gc.isenabled():
-            gc.disable()
-            _GC_HELD = True
-
-
-def _give_gc_back() -> None:
-    global _GC_HELD
-    import gc
-    with _LOCK:
-        if _GC_HELD:
-            _GC_HELD = False
+        if not _GC_HELD:
+            return True
+        _THREADS[:] = [t for t in _THREADS if t.is_alive()]
+        if _THREADS or not _QUEUE.empty():
+            return False
+        _RETIRING.clear()
+        _GC_HELD = False
+        if _GC_WAS_ENABLED:
             gc.enable()
+        return True
 
 
 def gc_held() -> bool:
-    """Whether automatic collection is off because this thread has work."""
+    """Whether automatic collection is off because a background thread is
+    alive."""
     return _GC_HELD
 
 
 def collect_on_gui_thread() -> bool:
     """Call on the GUI thread, on a timer, while :func:`gc_held`: collects
     the youngest generation there, and gives automatic collection back once
-    this thread is idle. True when it has been given back (the timer may
-    stop)."""
+    no background thread is alive. True when it has been given back (the
+    timer may stop)."""
     import gc
-    if not _GC_HELD:
-        return True
-    if not pending():
-        _give_gc_back()
+    if release_gc_if_idle():
         return True
     gc.collect(0)
     return False
 
 
+def _retire_if_idle(me: threading.Thread) -> bool:
+    """On the background thread: end it if nothing is queued. Decided under
+    `_LOCK`, which is also held while work is queued, so a job can never be
+    left in the queue with no thread to run it."""
+    global _WORKER
+    with _LOCK:
+        if not _QUEUE.empty():
+            return False
+        _RETIRING.add(me)
+        if _WORKER is me:
+            _WORKER = None
+        return True
+
+
 def _work() -> None:
-    global _GENERATION
+    global _WORKER
+    import gc
     import sys
+    me = threading.current_thread()
     restore: "float | None" = None
     idle_since: "float | None" = None
     try:
         while not _STOP.is_set():
             try:
-                job = _QUEUE.get(timeout=0.5)
+                job = _QUEUE.get(timeout=0.25)
             except queue.Empty:
                 if restore is not None:
                     sys.setswitchinterval(restore)
                     restore = None
                 now = time.monotonic()
                 idle_since = idle_since or now
-                if _GC_HELD and now - idle_since >= _GC_GIVE_BACK_IDLE_S:
-                    _give_gc_back()
+                if now - idle_since >= _IDLE_EXIT_S and _retire_if_idle(me):
+                    return
                 continue
-            _hold_gc()
             idle_since = None
             if job is None:
                 return
+            if _GC_HELD and gc.isenabled():
+                # somebody switched it back on while this thread lives (an
+                # import guard that restores what it found): off again
+                gc.disable()
             if restore is None:
                 restore = sys.getswitchinterval()
                 sys.setswitchinterval(min(restore, BUSY_SWITCH_INTERVAL_S))
             _wait_while_held()
             _run_job(job)
+            # the job's objects are released here, with collection still off
+            job = None
     finally:
         if restore is not None:
             sys.setswitchinterval(restore)
-        _give_gc_back()
+        with _LOCK:
+            _RETIRING.add(me)
+            if _WORKER is me:
+                _WORKER = None
+        # collection is NOT given back here: see the note above
 
 
 _HOLD_UNTIL = 0.0
@@ -488,14 +602,55 @@ def _run_job(job: tuple) -> None:
             _GENERATION += 1
 
 
-def _stop_worker() -> None:
-    """At exit: let a layout that is running finish and remove its folder,
-    rather than leave a temporary folder behind."""
+def _stop_worker(timeout: float = 5.0) -> bool:
+    """End the background thread and give collection back (B8-1191). A job
+    that is running finishes and removes its folder, rather than leave a
+    temporary folder behind; jobs still queued are dropped and may be asked
+    for again. Never on the background thread. True when collection is back
+    (or was never held)."""
+    if _on_a_background_thread():
+        return False
     _STOP.set()
-    _QUEUE.put(None)
-    w = _WORKER
-    if w is not None and w.is_alive():
-        w.join(timeout=5.0)
+    with _LOCK:
+        threads = list(_THREADS)
+    _QUEUE.put(None)            # wakes a thread waiting for work
+    end = time.monotonic() + max(0.0, float(timeout))
+    for t in threads:
+        if t.is_alive():
+            t.join(timeout=max(0.0, end - time.monotonic()))
+    dropped = []
+    while True:
+        try:
+            dropped.append(_QUEUE.get_nowait())
+        except queue.Empty:
+            break
+    with _LOCK:
+        for job in dropped:
+            if not job:
+                continue
+            kind, chart, spec, call = job
+            if kind == "call":
+                _REQUESTED.discard(call[0])
+            else:
+                try:
+                    _PENDING.discard(layout_key(chart, spec))
+                except Exception:      # noqa: BLE001 - a key is a key
+                    pass
+    return release_gc_if_idle()
+
+
+def settle(timeout: float = 30.0) -> bool:
+    """Let the queued work finish, then end the background thread and give
+    automatic collection back (B8-1191). For the test suite between tests,
+    and for anything else that needs the process back in its ordinary state.
+    True when all of that happened within *timeout*."""
+    if _on_a_background_thread():
+        return False
+    end = time.monotonic() + max(0.0, float(timeout))
+    while pending() and time.monotonic() < end:
+        time.sleep(0.01)
+    finished_in_time = not pending()
+    return _stop_worker(max(0.5, end - time.monotonic())) and finished_in_time
 
 
 atexit.register(_stop_worker)

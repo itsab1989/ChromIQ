@@ -594,6 +594,20 @@ def _the_update_check_never_reaches_the_network(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _the_collector_is_given_back_between_tests():
+    """B8-1191: `workflow.preset_layout` holds automatic garbage collection
+    off for as long as its background thread lives, and only a thread that
+    is not that one may give it back. A test with no event loop running has
+    no timer to do it, so each test's teardown gives it back here once the
+    thread has ended. Never blocks: a thread still working keeps it held,
+    and the next teardown (or the presets window's timer) gives it back."""
+    yield
+    pl = sys.modules.get("workflow.preset_layout")
+    if pl is not None:
+        pl.release_gc_if_idle()
+
+
+@pytest.fixture(autouse=True)
 def _no_real_editor_render(monkeypatch):
     try:
         from ui.dialogs.ti2_relayout_dialog import Ti2RelayoutDialog
