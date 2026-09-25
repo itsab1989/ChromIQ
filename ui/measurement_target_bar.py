@@ -1782,10 +1782,15 @@ class MeasurementTargetBar(QWidget):
             restore = box.addButton(tr("Restore Chart"),
                                     QMessageBox.ButtonRole.AcceptRole)
             # K44 (beta 43): destructive (the current chart is not kept), so
-            # never drawn filled; what Return presses is unchanged.
+            # never drawn filled.
             from ui.default_button import mark_destructive
             mark_destructive(restore)
-            box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+            cancel = box.addButton(tr("Cancel"),
+                                   QMessageBox.ButtonRole.RejectRole)
+            # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+            # the safest." Return presses Cancel; the destructive action stays
+            # plain (B8-1156) and is reached by a click.
+            box.setDefaultButton(cancel)
             from ui.widgets import widen_message_box
             widen_message_box(box)
             box.exec()

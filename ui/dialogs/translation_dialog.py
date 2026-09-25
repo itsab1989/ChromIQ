@@ -293,6 +293,9 @@ class TranslationDialog(QDialog):
                     "“{chosen}”. Import it as “{chosen}” anyway?"
                 ).format(sheet=report.code_mismatch, chosen=code),
                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                # Knut, #182 5835722977 (beta 43): "I think Cancel as the
+                # default is the safest." Return answers No.
+                QMessageBox.StandardButton.No,
                 # K44: importing over the wrong language is never drawn filled.
                 destructive=QMessageBox.StandardButton.Yes,
             )

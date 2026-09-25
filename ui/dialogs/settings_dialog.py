@@ -3438,7 +3438,7 @@ class SettingsDialog(QDialog):
         cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
         ok_btn.setText(tr("Enable the engine"))
         # K44 (beta 43, 2026-09-25): a destructive action is never drawn
-        # filled, even as the default; what Return presses is unchanged.
+        # filled.
         from ui.default_button import mark_destructive
         mark_destructive(ok_btn)
         cancel_btn.setText(tr("Keep using colprof"))
@@ -3459,7 +3459,9 @@ class SettingsDialog(QDialog):
                                  QSizePolicy.Policy.Minimum)
             grid.addItem(spacer, grid.rowCount(), 0, 1,
                          grid.columnCount())
-        box.setDefaultButton(QMessageBox.StandardButton.Ok)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return keeps colprof; enabling the engine is a click.
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._profile_engine_check.setChecked(False)
 

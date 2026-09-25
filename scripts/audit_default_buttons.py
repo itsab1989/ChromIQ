@@ -214,12 +214,71 @@ def main() -> int:
         take_modal("New chart over a run's work",
                    lambda: chart._ask_chart_question(
                        "Replace?", "Body", "Generate the new chart"))
-        from ui.widgets import confirm
-        take_modal("Different language (confirm, Yes destructive)",
-                   lambda: confirm(win, "Different language", "Import?",
-                                   QMessageBox.StandardButton.Yes
-                                   | QMessageBox.StandardButton.No,
-                                   destructive=QMessageBox.StandardButton.Yes))
+        take_modal("Delete Preset (Build Profile)",
+                   win._tab_profile._on_m_preset_delete)
+        take_modal("Delete Preset (Check & Refine)",
+                   win._tab_check._on_m_preset_delete)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Every destructive question on B8-1155's list, built by
+        # its own method; only what the method reads first is stood in for,
+        # on this instance, and put back.
+        bar = win._target_bar
+        real_ctl = bar._ctl
+        bar._ctl = SimpleNamespace(
+            restore_needs_confirmation=lambda: True,
+            target=SimpleNamespace(is_verification=lambda: False),
+            selection_has_measurement=lambda: True)
+        try:
+            take_modal("Restore Chart", bar._on_restore_clicked)
+        finally:
+            bar._ctl = real_ctl
+        ti2 = build_tool_dialog("ti2_relayout", runner, settings, win)
+        take_modal("Overwrite patch set", ti2._prompt_apply_action)
+        ti2.close()
+        ti2.deleteLater()
+        meas = win._tab_measure
+        meas._measurement_at_risk = lambda: Path(out_root) / "held.ti3"
+        meas._read_builds_on_existing = lambda: False
+        meas._replace_warning_scope = lambda: None
+        take_modal("Measure anyway", meas._confirm_replacing_measurement)
+        import workflow.profile_rebuild_guard as guard
+        real_assess = guard.assess
+        guard.assess = lambda run, silenced=False: SimpleNamespace(
+            needed=True, can_duplicate=False, duplicate_blocked_by=["a chart"],
+            dated=2, oldest="2026-09-01")
+        prof._run_being_built_into = lambda: None
+        try:
+            take_modal("Build here anyway",
+                       prof._confirm_rebuild_over_verifications)
+        finally:
+            guard.assess = real_assess
+        pr = win._tab_print
+        real_module = pr._module
+        pr._module = SimpleNamespace(get_stuck_jobs=lambda _p: ["job-1"],
+                                     cancel_all_jobs=lambda _p: 0)
+        try:
+            take_modal("Clear & Print", lambda: pr._handle_stuck_jobs("Printer"))
+        finally:
+            pr._module = real_module
+        prefs = SettingsDialog(settings, win)
+        take_modal("Profile engine opt-in",
+                   lambda: prefs._on_profile_engine_clicked(True))
+        prefs.deleteLater()
+        import ui.dialogs.translation_dialog as tdmod
+        from ui.dialogs.translation_dialog import TranslationDialog
+        tdlg = TranslationDialog(settings, win)
+        tdlg._resolve_target = lambda: ("fr", "French")
+        real = (tdmod.open_file_dialog, tdmod.rt.read_rows, tdmod.rt.apply_rows)
+        tdmod.open_file_dialog = lambda *a, **k: str(Path(out_root) / "de.csv")
+        tdmod.rt.read_rows = lambda _p: []
+        tdmod.rt.apply_rows = lambda _c, _r: (
+            {}, {}, SimpleNamespace(code_mismatch="de"))
+        try:
+            take_modal("Different language", tdlg._on_import)
+        finally:
+            (tdmod.open_file_dialog, tdmod.rt.read_rows,
+             tdmod.rt.apply_rows) = real
+        tdlg.deleteLater()
         take_modal("Profile Quality Assessment (Good, refine offered)",
                    lambda: chk._show_result_dialog(
                        res, [("A", 1.0)], [("A", 3.0)],

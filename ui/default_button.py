@@ -37,8 +37,9 @@ SAFE_DEFAULT = "chromiq_safe_default"
 
 #: The dynamic property on a DESTRUCTIVE action (delete, overwrite, replace,
 #: discard, enable-at-your-own-risk). Decision for beta 43, 2026-09-25: a
-#: destructive action is NEVER drawn filled, even when it is the default.
-#: Which button Return presses is not changed (listed for Knut, B8-1155).
+#: destructive action is NEVER drawn filled. And Knut, #182 5835722977
+#: (beta 43): "I think Cancel as the default is the safest": in every
+#: destructive question Return presses Cancel (No, Keep), which stays plain.
 DESTRUCTIVE = "chromiq_destructive"
 
 

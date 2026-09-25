@@ -8662,11 +8662,14 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                                   QDialogButtonBox.ButtonRole.ActionRole)
         cancel_btn = bb.addButton(tr("Cancel"),
                                   QDialogButtonBox.ButtonRole.RejectRole)
-        overwrite_btn.setDefault(True)
         # K44 (beta 43, 2026-09-25): a destructive action is never drawn
-        # filled, even as the default; what Return presses is unchanged.
+        # filled.
         from ui.default_button import mark_destructive
         mark_destructive(overwrite_btn)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return presses Cancel; the destructive action stays
+        # plain (B8-1156) and is reached by a click.
+        cancel_btn.setDefault(True)
         lay.addWidget(bb)
 
         result = {"v": "cancel"}

@@ -7587,5 +7587,32 @@ Soft-proof, Translate).
 enable-at-your-own-risk button that had no colour before K44 stays plain even
 when it is the default. One that was already coloured (Delete Preset in
 Measure, Build Profile and Check & Refine) keeps its colour, as 38.1 says.
-Which button Return presses in those questions is unchanged and remains with
-Knut (38.2).
+Which button Return presses in those questions was left to Knut (38.2); his
+answer is 38.4.
+
+**38.4 Cancel is the default in every destructive question** (Knut, #182
+[5835722977](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5835722977),
+2026-09-25: *"I think Cancel as the default is the safest."* Register:
+B8-1181, B8-1182. Proof: `~/Desktop/ChromIQ-beta43-proof/cancel-default/`.)
+
+**Confirmed by:** *nobody yet.* (Knut asked for it; what was built waits for
+his confirmation.)
+
+* Return presses Cancel (or No, or Keep using colprof) in every question whose
+  other answer deletes, overwrites, replaces, clears or enables at the user's
+  own risk: Delete Preset in all four tabs, Preset already exists, Restore
+  Chart, Apply or save this patch set, a new chart over a run's work, Measure
+  anyway, Build here anyway, Stuck Print Jobs Detected (Clear & Print), the
+  profile-engine opt-in and the translation "Different language" question.
+  The destructive action is reached only by a click.
+* Where the question also offers a safe way forward, that stays the default:
+  rebuilding over verifications presses "Duplicate the run and build there"
+  when a duplicate can be made, and Cancel only when it cannot.
+* The safe default is drawn like any button, never as the main action (38.1).
+* The destructive action keeps its look: plain (38.3), except Delete Preset in
+  Measure, Build Profile and Check & Refine, which keeps the tab colour it had
+  before K44.
+* Not changed, put to Knut (B8-1182): "Build anyway" when the measurement is
+  not in the selected run, and "Save now?" when importing a translation.
+* **Verified by:** `tests/test_k44_default_button_audit.py`
+  (`test_every_destructive_question_defaults_to_cancel`).

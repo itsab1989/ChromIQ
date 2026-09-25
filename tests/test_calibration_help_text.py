@@ -327,14 +327,12 @@ def test_return_never_replaces_a_calibration_chart():
 
 #: Windows allowed to make their accept button the Return default, each with
 #: the reason. An entry here is a decision, not an oversight.
-_RETURN_DEFAULT_ALLOWED = {
-    # The profiling-chart overwrite question. Its whole area - when it warns,
-    # what it keeps - is DEFERRED by the owner (2026-09-02: "defer this for
-    # now and leave it as it is"), so its Return default is not ours to change
-    # while that stands. Recorded rather than silently skipped, so it comes
-    # back the moment the deferral lifts.
-    ("ui/tabs/tab_chart.py", "_ask_chart_question"),
-}
+_RETURN_DEFAULT_ALLOWED: "set[tuple[str, str]]" = set()
+# EMPTY SINCE BETA 43. It held ("ui/tabs/tab_chart.py", "_ask_chart_question"),
+# the new-chart-over-a-run's-work question, whose area the owner had deferred
+# (2026-09-02: "leave it as it is"). Knut, #182 5835722977 (2026-09-25), on the
+# K44 list that names this window: "I think Cancel as the default is the
+# safest." Its default is Cancel now (B8-1181), so the exemption is gone.
 
 
 def test_every_destructive_window_keeps_return_safe():
@@ -381,18 +379,26 @@ def test_every_destructive_window_keeps_return_safe():
 
 
 def test_the_allowed_list_is_not_a_way_to_hide_new_ones():
-    """A guard with an exemption list is only honest if the list is checked.
-
-    Proves the scanner still SEES the exempt window, so the entry cannot
-    quietly become dead while the pattern drifts past it.
-    """
+    """A guard with an exemption list is only honest if the list is checked:
+    every entry must still be a window that makes its accept button the
+    default, or it is dead and must go. And the window that was the only
+    entry until beta 43 now defaults to Cancel (B8-1181)."""
+    import importlib
     import inspect
     import re
 
+    for path, fn in _RETURN_DEFAULT_ALLOWED:
+        mod = importlib.import_module(path[:-3].replace("/", "."))
+        owner = next(o for o in vars(mod).values()
+                     if inspect.isclass(o) and fn in vars(o))
+        src = inspect.getsource(getattr(owner, fn))
+        m = re.search(r"(\w+)\s*=\s*box\.addButton\(", src)
+        assert m and f"setDefaultButton({m.group(1)})" in src, (
+            f"{path} {fn} no longer makes its accept button the default - "
+            "remove it from _RETURN_DEFAULT_ALLOWED")
+
     from ui.tabs.tab_chart import TabChart
     src = inspect.getsource(TabChart._ask_chart_question)
-    m = re.search(r"(\w+)\s*=\s*box\.addButton\(", src)
-    assert m, "the exempt window no longer builds its button that way"
-    assert f"setDefaultButton({m.group(1)})" in src, (
-        "the exempt window no longer makes its accept button the default - "
-        "remove it from _RETURN_DEFAULT_ALLOWED")
+    assert "box.setDefaultButton(cancel)" in src, (
+        "the new-chart-over-a-run's-work question must default to Cancel "
+        "(Knut, #182 5835722977)")

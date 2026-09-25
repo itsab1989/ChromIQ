@@ -70,18 +70,36 @@ NOTHING_FILLED = (
 #: (rule 1); OK, the default, is ACTION-filled beside it. Put to Knut.
 NEUTRAL_PREFERENCES_EXTRA = ["Restore Factory Defaults"]
 #: Decision for beta 43, 2026-09-25: a DESTRUCTIVE action is never drawn
-#: filled, even when it is the default. Which button Return presses is NOT
-#: changed (listed for Knut, B8-1155): the real windows, and their default.
-#: This is for buttons K44 would NEWLY fill. A destructive button a window
-#: already coloured before K44 keeps that colour (Basti's rule wins): Delete
-#: Preset in Measure, Build Profile and Check & Refine is a tinted #primary,
-#: pinned in ALREADY_COLOURED against the before file.
-DESTRUCTIVE_DEFAULTS = {
-    "Delete Preset (Create Chart)": "Delete",
-    "Preset already exists": "Overwrite",
-    "New chart over a run's work": "Generate the new chart",
-    "Different language (confirm, Yes destructive)": "Yes",
+#: filled (B8-1156). And Knut, #182 5835722977 (beta 43): "I think Cancel as
+#: the default is the safest." So in every destructive question of B8-1155's
+#: list, Return presses Cancel (No, Keep using colprof), which is drawn plain.
+#: {window: (the destructive action, the safe default)}.
+DESTRUCTIVE_QUESTIONS = {
+    "Delete Preset (Create Chart)": ("Delete", "Cancel"),
+    "Delete Preset (Measure)": ("Delete", "Cancel"),
+    "Delete Preset (Build Profile)": ("Delete", "Cancel"),
+    "Delete Preset (Check & Refine)": ("Delete", "Cancel"),
+    "Preset already exists": ("Overwrite", "Cancel"),
+    "Restore Chart": ("Restore Chart", "Cancel"),
+    "Overwrite patch set": ("Overwrite", "Cancel"),
+    "New chart over a run's work": ("Generate the new chart", "Cancel"),
+    "Measure anyway": ("Measure anyway", "Cancel"),
+    "Build here anyway": ("Build here anyway", "Cancel"),
+    "Clear & Print": ("Clear  Print", "Cancel"),  # "&&" draws one "&"
+    "Profile engine opt-in": ("Enable the engine", "Keep using colprof"),
+    "Different language": ("Yes", "No"),
 }
+#: Delete Preset in Measure, Build Profile and Check & Refine was a tinted
+#: #primary before K44 and keeps that colour (Basti's rule wins, B8-1156):
+#: Delete stays coloured, only the default moved to Cancel. Measure's is
+#: pinned against the before file in ALREADY_COLOURED; these two were not in
+#: the audit before, so their colour is pinned here.
+COLOURED_DELETES = ("Delete Preset (Build Profile)",
+                    "Delete Preset (Check & Refine)")
+#: Every other destructive question: nothing coloured at all.
+PLAIN_DESTRUCTIVE = tuple(n for n in DESTRUCTIVE_QUESTIONS
+                          if n not in COLOURED_DELETES
+                          and n not in ALREADY_COLOURED)
 
 
 @pytest.fixture(scope="module")
@@ -124,7 +142,7 @@ def _default(rows):
 def test_every_audited_window_is_in_exactly_one_class(audit):
     names = set(audit["light"])
     classes = [set(FILLED_NOW), set(ALREADY_COLOURED), set(NOTHING_FILLED),
-               set(DESTRUCTIVE_DEFAULTS)]
+               set(PLAIN_DESTRUCTIVE), set(COLOURED_DELETES)]
     assert sum(len(c) for c in classes) == len(set().union(*classes))
     assert set().union(*classes) | {"#primary beside another default"} \
         == names, names
@@ -218,15 +236,39 @@ def test_the_fill_is_the_windows_own_accent(audit, mode):
 
 
 @pytest.mark.parametrize("mode", MODES)
-def test_a_destructive_default_is_never_filled(audit, mode):
-    """Beta 43, 2026-09-25: Delete, Overwrite, Generate over a run's work,
-    import over another language: still what Return presses, never filled."""
+def test_every_destructive_question_defaults_to_cancel(audit, mode):
+    """Knut, #182 5835722977: "I think Cancel as the default is the safest."
+    Return presses Cancel (No, Keep using colprof) in every destructive
+    question, and that safe default is drawn plain, never as the main
+    action."""
     bad = []
-    for name, want in DESTRUCTIVE_DEFAULTS.items():
+    for name, (action, safe) in DESTRUCTIVE_QUESTIONS.items():
         rows = audit[mode][name]
+        if any("error" in r for r in rows):
+            bad.append(f"{name}: {rows}")
+            continue
+        texts = [r["text"] for r in rows]
+        if action not in texts or safe not in texts:
+            bad.append(f"{name}: buttons {texts}, want {action!r} and {safe!r}")
         d = [r["text"] for r in _default(rows)]
-        if d != [want]:
-            bad.append(f"{name}: default {d}, want {want!r} (behaviour must not change)")
-        if _coloured(rows):
-            bad.append(f"{name}: filled {_coloured(rows)}")
+        if d != [safe]:
+            bad.append(f"{name}: Return presses {d}, want [{safe!r}]")
+        if safe in _coloured(rows):
+            bad.append(f"{name}: the safe default {safe!r} is filled")
+    assert not bad, f"{mode}:\n" + "\n".join(bad)
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_a_destructive_action_is_never_newly_filled(audit, mode):
+    """B8-1156: a destructive question with no coloured button before K44
+    has none now; the coloured Delete Preset windows keep Delete, and only
+    Delete, coloured."""
+    bad = []
+    for name in PLAIN_DESTRUCTIVE:
+        if _coloured(audit[mode][name]):
+            bad.append(f"{name}: filled {_coloured(audit[mode][name])}")
+    for name in COLOURED_DELETES:
+        if _coloured(audit[mode][name]) != ["Delete"]:
+            bad.append(f"{name}: coloured {_coloured(audit[mode][name])}, "
+                       "want ['Delete'] as before K44")
     assert not bad, f"{mode}:\n" + "\n".join(bad)

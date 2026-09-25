@@ -13584,10 +13584,14 @@ class TabChart(QWidget):
         overwrite = box.addButton(tr("Overwrite"),
                                   QMessageBox.ButtonRole.AcceptRole)
         # K44 (beta 43, 2026-09-25): a destructive action is never drawn
-        # filled, even as the default; what Return presses is unchanged.
+        # filled.
         from ui.default_button import mark_destructive
         mark_destructive(overwrite)
-        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return presses Cancel; the destructive action stays
+        # plain (B8-1156) and is reached by a click.
+        box.setDefaultButton(cancel)
         box.exec()
         return box.clickedButton() is overwrite
 
@@ -13614,12 +13618,17 @@ class TabChart(QWidget):
         info.setWordWrap(True)
         dlg_layout.addWidget(info)
         bb = QDialogButtonBox(dlg)
-        bb.addButton(tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
+        cancel_btn = bb.addButton(tr("Cancel"),
+                                  QDialogButtonBox.ButtonRole.RejectRole)
         del_btn = bb.addButton(tr("Delete"), QDialogButtonBox.ButtonRole.AcceptRole)
         # K44 (beta 43, 2026-09-25): a destructive action is never drawn
-        # filled, even as the default; what Return presses is unchanged.
+        # filled.
         from ui.default_button import mark_destructive
         mark_destructive(del_btn)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return presses Cancel; the destructive action stays
+        # plain (B8-1156) and is reached by a click.
+        cancel_btn.setDefault(True)
         bb.rejected.connect(dlg.reject)
         bb.accepted.connect(dlg.accept)
         dlg_layout.addWidget(bb)
@@ -19643,11 +19652,14 @@ class TabChart(QWidget):
         box.setInformativeText(body)
         go = box.addButton(go_label, QMessageBox.ButtonRole.AcceptRole)
         # K44 (beta 43, 2026-09-25): a destructive action is never drawn
-        # filled, even as the default; what Return presses is unchanged.
+        # filled.
         from ui.default_button import mark_destructive
         mark_destructive(go)
-        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(go)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return presses Cancel; the destructive action stays
+        # plain (B8-1156) and is reached by a click.
+        box.setDefaultButton(cancel)
         # Long labels clip once the font swap widens them, and polish does not
         # happen offscreen — so fit them here (Knut, #130).
         fit_message_box_buttons(box)
