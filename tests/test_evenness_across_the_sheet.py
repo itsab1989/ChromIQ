@@ -436,8 +436,9 @@ def test_the_rows_are_computable_under_their_own_heading():
 
 def test_the_limits_knut_gave_and_the_half_and_double_rule():
     """1.5 and 1.0 in ChromIQ default (Knut, 2026-09-22; the 1.0 awaits his
-    confirmation), the same in tight and quick (E3), default's own numbers in
-    both Custom columns, and nothing in the two read-only ISO columns.
+    confirmation), the same in tight and quick (E3), Knut's own figures in
+    the two Custom columns (5831860724), and nothing in the two read-only ISO
+    columns.
 
     MUTATION: change either default number and this goes red.
     """
@@ -449,8 +450,13 @@ def test_the_limits_knut_gave_and_the_half_and_double_rule():
             f["chromiq_tight"][FROM_MEAN].number) == (1.5, 1.0)
     assert (f["chromiq_quick"][PAIR].number,
             f["chromiq_quick"][FROM_MEAN].number) == (1.5, 1.0)
-    for s in ("custom_iso_12647_7", "custom_iso_12647_8"):
-        assert (f[s][PAIR].number, f[s][FROM_MEAN].number) == (1.5, 1.0), s
+    # The two Custom columns take Knut's own evenness figures from his file
+    # of 2026-09-21 (#182 5831860724: "I thought I gave you the default
+    # numbers"), no longer ChromIQ default's.
+    assert (f["custom_iso_12647_7"][PAIR].number,
+            f["custom_iso_12647_7"][FROM_MEAN].number) == (1.0, 1.0)
+    assert (f["custom_iso_12647_8"][PAIR].number,
+            f["custom_iso_12647_8"][FROM_MEAN].number) == (1.5, 1.0)
     # THE TWO READ-ONLY ISO COLUMNS HOLD WHAT THE SHIPPED FILE GIVES THEM
     # (#182 S-2, §23), read from that file here and never written into this
     # source, and none of ChromIQ's own numbers. A row the file leaves out has

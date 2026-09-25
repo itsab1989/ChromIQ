@@ -28649,3 +28649,14 @@ would reach.
 - status: OPEN
 - note: Knut, #182 5831246553: *"Why does not the demo projects in the "Create Chart presets (verification demos)" contain tests to check all requirements and for all 21 the metrics available for the limit sets?"* Answered with no code change (the text is in `~/Desktop/ChromIQ-beta43-proof/k39-export-import/REPORT.md`, K39-8). Measured: the limit sets have 32 rows, 20 computable (5 now, 12 build, 3 ref) and 12 that cannot be measured; "Which presets can be used for verification?" counts 18 (the 20 less the two repeatability rows, `CS.POPULATION_MAY_BE_ABSENT`); no count of 21 exists in the code. Since B8-1098 each Custom set carries a limit on all 20 computable rows (16 researched, 4 ChromIQ), so a 21st metric can only be a ✕ row; the likeliest are "Maximum ΔE00, spot colours" (ISO 12647-7 2.5, -8 3.5) and "Maximum ΔE00, print to print and day to day" (2.0, 2.5). The 33 demo presets each change one rule for its FAIL/PASS pair; the control answers 13 of 18, and every demo misses the three reference rows (a preset can never be FROM PROFILE GAMUT) and the two evenness rows (a printtarg preset has no page layout yet). A FROM PROFILE GAMUT chart of 648 patches on one A4 page, built headless, answered 17 of 18; the 18th, the 30-70 % ramps row, reads device single-ink or device-grey steps, which a FROM PROFILE GAMUT chart gets only if its profile happens to put greys on R=G=B. Open for Knut: whether the ramps row should use neutral aims on a FROM PROFILE GAMUT chart as the grey rows already do (K31 option (a)), and whether a covering demo project is wanted.
 - where: `scripts/make_verification_preset_demos.py`; `workflow/preset_eligibility.py` (`rows_every_metric`); `workflow/compliance_sets.py` (`ROWS`, `POPULATION_MAY_BE_ABSENT`).
+
+### B8-1099 · FIXED, awaiting confirmation · Knut's evenness figures for the Custom ISO sets were in his file and never taken
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5831860724: "I thought I gave you the default numbers I wanted for the Custom ISO settings for these 4."
+- where: `workflow/compliance_sets.py::_CUSTOM_INDUSTRY`; spec §2a.
+- cause: his file of 2026-09-21 carried uniformity_sd and uniformity_de00_max_from_mean for both columns; the code comment deferred them to a question (§16) that was never put to him.
+- fixed: Custom ISO 12647-7 evenness 1.0 / 1.0 (the SD was ChromIQ's 1.5), Custom ISO 12647-8 1.5 / 1.0. His "repeatability_de00_max" is the unmeasurable "print to print and day to day" row, so ChromIQ's two repeatability rows keep 2.0 / 3.0 and are the only ChromIQ numbers left (18 + 2).
+- tests: tests/test_compliance_sets.py (digest, row sets, 2 ChromIQ rows), tests/test_evenness_across_the_sheet.py; --runslow demo and evenness tests 400 passed.
+- evidence: test_the_limits_knut_gave_and_the_half_and_double_rule

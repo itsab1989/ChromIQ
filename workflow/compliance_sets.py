@@ -1227,6 +1227,10 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         "all_de00_max": Limit.value(2.0),                # ΔE00
         "surface_gamut_de00_avg": Limit.value(3.0),      # ΔE00
         "ramps_30_70_dl_max": Limit.value(2.0),          # ΔL*
+        # Evenness, from his file of 2026-09-21 (never read until Knut, #182
+        # 5831860724: "I thought I gave you the default numbers")
+        "uniformity_sd": Limit.value(1.0),                  # ΔE00
+        "uniformity_de00_max_from_mean": Limit.value(1.0),  # ΔE00
     },
     "iso_12647_8": {
         "substrate_de00_max": Limit.value(2.0),          # ΔE00
@@ -1248,6 +1252,9 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         "worst5_de00_avg": Limit.value(2.0),             # ΔE00
         "all_de00_max": Limit.value(2.0),                # ΔE00
         "outer_gamut_226_de00_avg": Limit.value(2.5),    # ΔE00
+        # Evenness, from his file of 2026-09-21 (#182 5831860724)
+        "uniformity_sd": Limit.value(1.5),                  # ΔE00
+        "uniformity_de00_max_from_mean": Limit.value(1.0),  # ΔE00
     },
 }
 
@@ -1300,9 +1307,9 @@ _CUSTOM_CHROMIQ_FILL: "dict[str, Limit]" = {
     "repeat_patches_de00_max": Limit.value(2.0),      # ΔE00
     "repeat_measurement_de00_max": Limit.value(3.0),  # ΔE00
     # EVENNESS ACROSS THE SHEET, computable since 2026-09-22: ChromIQ
-    # default's own two numbers, by the rule this table follows. Knut's values
-    # file may carry figures of his own for these rows; nothing here reads it
-    # (§16 asks him whether he wants those as the Custom starting numbers).
+    # default's own two numbers, by the rule this table follows. Both Custom
+    # columns now take Knut's own figures instead (`_CUSTOM_INDUSTRY`, #182
+    # 5831860724), so these are reached only if his table loses a row.
     "uniformity_sd": Limit.value(1.5),                  # ΔE00
     "uniformity_de00_max_from_mean": Limit.value(1.0),  # ΔE00
 }

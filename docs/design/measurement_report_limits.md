@@ -318,7 +318,16 @@ too: the control-strip maximum (4.0, from -7) in -8, and the control-strip
 95th percentile (4.0, from -8) in -7. **That was done once, by writing the two
 figures into the tables**, not as a rule the program applies: Knut, #182
 5831783959, *"this was not a general rule, but a one time operation to set the
-new default values."* Each
+new default values."*
+
+Knut, #182 5831860724 (2026-09-25), on the four rows that were still
+ChromIQ's: *"I thought I gave you the default numbers I wanted for the Custom
+ISO settings for these 4."* His file of 2026-09-21 did carry the two
+**evenness** rows (Custom ISO 12647-7: 1.0 and 1.0; Custom ISO 12647-8: 1.5 and
+1.0), and they were never taken. They are now. Its "repeatability" row is
+"print to print and day to day" (✕, ChromIQ cannot measure it), not ChromIQ's
+two repeatability rows, so those two keep ChromIQ's numbers (2.0 and 3.0). Each
+Custom column: **18 researched figures, 2 ChromIQ**, 20 limits. Each
 Custom column now carries **16 researched figures and 4 ChromIQ numbers**, 20
 limits. The four are ChromIQ's two repeatability rows and the two evenness
 rows, which neither set of his figures covers. ⏳ Awaiting confirmation.

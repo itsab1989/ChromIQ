@@ -594,11 +594,13 @@ def test_chromiqs_own_half_of_the_defaults_is_anybody_elses_published_figure():
 #: the new digest with the snippet in the failure message and put it here in
 #: the same commit that changes the table.
 _INDUSTRY_DIGEST = \
-    "9d54b3d6fb57dffc0cc54fa3f78c861f987c2c574c775a70c02c21ed27a97d30"
+    "3179a54b9dd6b7bf4ef9e146c5551e3911a40d55d5c79f6642ab91e15517e223"
 #: (Changed 2026-09-25 on Knut's instruction, #182 5831473881: "For the three
 #: mentioned above, use 3,00 for all of them." and the two control-strip rows
 #: each column was given from the other, once: 5831783959 "this was not a
 #: general rule, but a one time operation to set the new default values.")
+#: And his evenness figures from the 2026-09-21 file, never read until
+#: 5831860724: "I thought I gave you the default numbers".
 #: (Changed 2026-09-24 on Knut's instruction, K33, #182 5816565326: his second
 #: set of figures, added to both columns where a row took ChromIQ's own
 #: number; where it would have replaced a figure of 2026-09-21 the earlier
@@ -618,7 +620,9 @@ _INDUSTRY_ROWS = {
         "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
         "surface_gamut_de00_avg", "ramps_30_70_dl_max",
         # from -8, once (Knut, #182 5831473881 / 5831783959)
-        "control_strip_de00_p95"),
+        "control_strip_de00_p95",
+        # evenness, his file of 2026-09-21 (#182 5831860724)
+        "uniformity_sd", "uniformity_de00_max_from_mean"),
     "iso_12647_8": (
         "all_de00_avg", "all_de00_p95", "control_strip_de00_avg",
         "control_strip_de00_p95", "grey_balance_neutral_ramp_avg",
@@ -628,7 +632,9 @@ _INDUSTRY_ROWS = {
         "solids_de00_max", "cmy_solids_dhab_max", "best95_de00_avg",
         "worst5_de00_avg", "all_de00_max", "outer_gamut_226_de00_avg",
         # from -7, once (Knut, #182 5831473881 / 5831783959)
-        "control_strip_de00_max"),
+        "control_strip_de00_max",
+        # evenness, his file of 2026-09-21 (#182 5831860724)
+        "uniformity_sd", "uniformity_de00_max_from_mean"),
 }
 
 #: Knut's K33 figures, #182 5816565326 (2026-09-24), by the row each of his
@@ -664,13 +670,14 @@ def test_knuts_k33_figures_fill_only_the_rows_that_took_ours():
             want = _K33_KEPT_EARLIER.get((parent, rid), number)
             assert lim[rid] == cs.Limit.value(want), (parent, rid, lim[rid])
     # After it, and after each column was given the other's figure where it
-    # had none, once (Knut, #182 5831473881 and 5831783959), only four rows of each column start from
-    # ChromIQ's own numbers: both repeatability rows and both evenness rows,
-    # which neither set of his figures covers.
+    # had none, once (Knut, #182 5831473881 and 5831783959), and his evenness
+    # figures (5831860724), only two rows of each column start from
+    # ChromIQ's own numbers: both repeatability rows, which neither set of his
+    # figures covers.
     for parent in cs.ISO_SET_IDS:
         ours = sorted(r for r, s in cs.custom_default_sources(parent).items()
                       if s == "chromiq")
-        assert len(ours) == 4, (parent, ours)
+        assert len(ours) == 2, (parent, ours)
 
 
 def test_the_researched_industry_figures_are_exactly_what_knut_delivered():
