@@ -2491,6 +2491,14 @@ def set_summary(rows: "list[tuple]", *, set_is_iso: bool,
     """
     bearing = [(r[0], r[1], (r[2] if len(r) > 2 else None))
                for r in rows if r[0].is_numeric]
+    if graded and any(b[1] in (PASS, FAIL, COND) for b in bearing):
+        # K51 (B8-1330): on a column that judges some rows, a row shown for
+        # information is not one of its values. A raw drift check has such
+        # rows (its paper and solid rows are judged against the profile, the
+        # others compared with the design for information), and "3 of 12
+        # values checked" would count nine rows it never meant to check. A
+        # column where NOTHING was judged keeps them, for "nothing_graded".
+        bearing = [b for b in bearing if b[1] != INFO]
     total = len(bearing)
     R = SUMMARY_REASONS
     # "NOTHING WAS JUDGED" OUTRANKS "THERE WERE NO LIMITS", and the two used to

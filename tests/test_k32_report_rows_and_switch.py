@@ -121,7 +121,9 @@ def test_a_printing_record_says_why_it_has_only_four_graphs(tmp_path, qapp):
         runs = dlg._runs_for_document()
         html = dlg._report_results_html(runs,
                                         dlg._rows_the_results_show(runs))
-        assert "carries no graph of a judged metric" in html
+        # K51 (B8-1334): its limit lines are shown for information now
+        assert "a limit line on its graphs is shown for information " \
+            "only" in html
         shown = [dlg._trend_tabs.tabText(i)
                  for i in range(dlg._trend_tabs.count())
                  if dlg._trend_tabs.isTabVisible(i)]
@@ -131,7 +133,8 @@ def test_a_printing_record_says_why_it_has_only_four_graphs(tmp_path, qapp):
         dlg._report_type_now = lambda: REPORT_TYPE_FULL
         html = dlg._report_results_html(runs,
                                         dlg._rows_the_results_show(runs))
-        assert "carries no graph of a judged metric" not in html
+        assert "a limit line on its graphs is shown for information" \
+            not in html
     finally:
         dlg.close()
         host.deleteLater()

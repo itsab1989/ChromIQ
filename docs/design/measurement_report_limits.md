@@ -84,7 +84,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §16.5 | E1 a page under 9 by 9 is left out, the others judged | 2026-09-23, 5789263863 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §16.5 | E3 tight and quick at half and double (0.75 / 0.5, 3.0 / 2.0) | as first built | superseded by E3 (all three ChromIQ sets 1.5 / 1.0) |
 | §16.5 | E3 all three ChromIQ sets carry 1.5 / 1.0 | 2026-09-23, 5789263863 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
-| §16.5 | E4 the evenness rows do not take a preset's star | 2026-09-23, 5789263863 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
+| §16.5 | E4 the evenness rows do not take a preset's star | 2026-09-23, 5789263863 | superseded by K51 (§45.4, Knut 5846167083): the evenness rows decide the star |
 | §16.5 | E5 / E6 Custom columns 1.5 / 1.0; rows stay in the ISO structure | 2026-09-23, 5789263863 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §16.5 | E7 1.0 on the from-the-mean row | 2026-09-23, 5789263863 | agreed (Knut: "confirmed", of the value); built, confirmed by Knut 2026-09-23 (5794311113) |
 | §16.6 | E2 page coverage at 75 % | 2026-09-23, 5789539407 | superseded by 60 % (5792912682) |
@@ -133,6 +133,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §41.6 | K49 (§41.6 to §41.9): Knut's three answers: (b2) built (the paper row against the profile's media white on every chart with a paper patch, the solid rows against the profile's prediction where printed raw, N-A with a named note otherwise, §32.5 reversed for those two rows only); a graph of a row with values and no limit shown, with a sentence of its own (§17 item 3 amended); the Control strip's three lines and the caption outside §M accepted | 2026-09-25, 5841092535 | the three answers confirmed by Knut (§41.6); built for beta 44 (B8-1244 to B8-1248), NOT confirmed; two message texts proposed; one question (B8-1249) |
 | §43 | Challenge 2 of beta 44, the report findings: a relative chart's solid rows predicted absolute; (b2) on verifications only; the Printing record names every graph it carries; why no limit line is drawn, from the set data; the Cube corners sentence says "aim values"; a graph with no line needs two dated values; a value shown for information keeps its (b2) note; the older question of a relative FROM PROFILE GAMUT chart judged absolute | 2026-09-26, challenge 2 of beta 44 | found by the challenge round, not ruled by Knut; built (B8-1270, B8-1271, B8-1273 to B8-1278), NOT confirmed; one question for Knut (B8-1272) |
 | §44 | K50: a report's notes never refer to other limit sets (the sentence under a graph with no limit line speaks of this report only); the presets window groups the metrics that carry identical messages; M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE approved | 2026-09-26, 5845519118, 5845588201 | the rule and the two notes' wording confirmed by Knut (§44.1, §41.7); built for beta 44 (B8-1320 to B8-1322), the new wording and the grouping NOT confirmed |
+| §45 | K51: a raw print judges its paper and solid rows against the profile; "–" is not in the report, graphs included; a limit line shown for information where the report judges nothing; the star's rule (4) with the evenness rows; a media-relative FROM PROFILE GAMUT chart judged relative to its paper; the i1Pro group enabled with the engine on | 2026-09-26, 5846167083, 5846297769 | the answers confirmed by Knut (§45.1); built for beta 44 (B8-1330 to B8-1336, B8-1340), NOT confirmed; the two-page rule put to him |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -3653,7 +3654,11 @@ driven on screen on the demo packs:
 3. *(**Amended by K49, §41.8**, Knut 5841092535 answer 2, *"Yes, it can
    have value for trending"*: a tab none of whose rows is judged is shown
    and printed too when its rows have values, with no line and a sentence
-   saying why; the rest of this item stands.)*
+   saying why; the rest of this item stands.)* *(**K49's amendment taken
+   back for "–" rows by K51, §45.3**, Knut 5846167083: a "–" row is not in
+   the report, graphs included; where the document judges none of a tab's
+   rows, the rows its set limits are plotted with their lines, shown for
+   information.)*
    **A new tab is shown, and printed in the PDF, only when at least one of
    its rows was judged for the report**: some measurement the document
    covers has a PASS, FAIL or COND on it. A row that is N-A, INFO or has no
@@ -8235,7 +8240,11 @@ three rows were compared with, `condition_reference = {"paper": {...},
   changed (`reference_sets`, `data/`), and no report reads them.
 
 **41.8 A graph of a row with values and no limit is shown, with its own
-sentence (B8-1247, B8-1248).**
+sentence (B8-1247, B8-1248).** *(**Superseded by K51, §45.3:** a "–" row is
+in no graph; B8-1249 is answered "no". The Printing record's and an
+ungraded sheet's graphs plot the rows the set limits, with their lines,
+shown for information; Paper white, Darkest black and Cube corners carry a
+sentence of their own.)*
 
 * §17 item 3 is amended: a tab NONE of whose rows is judged, whose rows have
   a value on some date of the document, is shown and printed with those
@@ -8527,7 +8536,7 @@ listed under *"Notes on the values above:"*.
 
 **43.8 The older question: a relative FROM PROFILE GAMUT chart is judged
 absolute against relative aims (B8-1272, MAJOR, OPEN, for Knut; not
-changed).** The chart's module chooses its colours through the profile with
+changed).** *(**Answered by K51, §45.5:** Knut chose (A); built.)* The chart's module chooses its colours through the profile with
 the chart's intent and stores their Lab in that intent; the report reads
 the sheet as measured (absolute) and compares every patch with those aims.
 On a relative chart the two are in different colorimetry. Measured on the
@@ -8651,6 +8660,7 @@ Register: B8-1320 to B8-1322. Proof: `~/Desktop/ChromIQ-beta44-proof/k50-report/
   sentences too. Knut's analysis question of 5845519118 (whether a "–"
   threshold should take the metric out of the graphs and results
   altogether) is not answered by this change and is not built.
+  *(Answered by K51, §45.3: yes, (A).)*
 * **The presets window groups identical messages (B8-1321).** Under "This
   chart cannot answer", the metrics whose COMPLETE set of lines (what the
   chart is short of, printtarg's own words where it refused a layout, and
@@ -8672,3 +8682,251 @@ Register: B8-1320 to B8-1322. Proof: `~/Desktop/ChromIQ-beta44-proof/k50-report/
   line per metric and was not part of the ruling.
 * **The two (b2) notes (B8-1322)** are approved in §M
   (`approved=True`), their text unchanged.
+
+## 45. K51: a raw print judges its paper and solids, "–" is not in the report, a limit shown for information, the star's rule (4), a media-relative FROM PROFILE GAMUT chart, the i1Pro group (#182, 2026-09-26, beta 44)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-26, #182
+[5846167083](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5846167083)
+and [5846297769](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5846297769),
+for exactly the answers quoted here, to the five analyses of K50
+(`~/Desktop/ChromIQ-beta44-proof/k50-analysis/ANALYSIS-1.txt` to `-5.txt`).
+What was built from them, and every wording that is ours, is in 45.2 and
+waits for his confirmation.
+
+**45.1 The answers, verbatim.**
+
+* **K50-1 (a raw print),** to *"Should (2) be built: the paper and solid
+  rows judged on a raw print, the other rows of a raw print shown for
+  information? If yes: should the drift-check sentence name the judged rows
+  as proposed above"*: *"Answer, yes for both."* The rule: on a raw print the
+  paper row and the two solid rows, whose reference is the profile, are
+  judged; every other row of a raw print is compared with the chart's design
+  colours and stays INFO (Knut, 2026-08-11, `is_drift_check`); the sentence
+  names the judged rows as proposed: *"the paper and the solid colours are
+  judged against the profile; the other colours are compared with the
+  chart's design colours for information"*.
+* **K50-2 ("–"),** *"1. Should "–" mean "not in the report" everywhere,
+  graphs included (A)? Answer: Yes"*; *"2. If yes: the Printing record then
+  carries the graphs of the rows its set limits (no lines), instead of every
+  graph with values. Agreed? Answer: Yes"*; on the information graphs'
+  sentence: *""This graph shows the lightness of the paper on each date, as
+  measured. It is a measurement of the sheet, not a judged metric, so no limit
+  line is drawn; the trend shows whether the paper changes between dates."
+  Approved."*; and his modification of the Printing record's graphs: *"Yes,
+  the note can say "without judging them", but I think the limit line can
+  still be shown if the limit value exists. The limit is then just for
+  information. This should apply for all graphs where metrics have a
+  threshold, then the limit-line is shown in the graph, and a note says what
+  that limit line is (as usual), but then also notes if the limit is only
+  shown as info and if the the report records the measurements without
+  judging them."* B8-1249 is answered by (A): no.
+* **K50-3 (the star),** *"4 is fine, but with modifications: The one page
+  rule makes it difficult to get a chart with a star for i1Pro3 Plus, as the
+  evenness check may need several pages to work properly. Is that correct?
+  Also, we have ruled that the evenness metrics should be checked by doing the
+  layout of a preset, so that it can be assessed if a metric can be answered
+  for a chart. That still holds, so they shall still be included in the
+  assessment of chart presets."*; on Q-E4 (§16.5): *"use the modified 4 as I
+  stated above."* The rule: under 900 patches, a paper patch, every metric the
+  chart's patches decide, and the two evenness rows included in the
+  assessment, from the laid-out preset. The page rule was his question.
+* **K50-4 (a media-relative FROM PROFILE GAMUT chart, B8-1272),** *"1. Should
+  (A) be built for FROM PROFILE GAMUT charts built with the media-relative
+  intent? Answer: yes."*; *"2. The new line for "How the colours were judged"
+  on such a sheet (quoted above): approve or reword? Answer: Approved."* The
+  line: *"relative to the paper white of this sheet, because the chart was
+  built with the media-relative intent"*.
+* **K50-5 (the i1Pro group, B8-1289),** *"1. Should the group be enabled with
+  the engine on, since Guided uses it? Answer: Yes"*; *"2. The title and help
+  text above: approve or reword? Answer: approved"* (title *"i1Pro margin and
+  patch scale (Guided, and Manual with printtarg)"*, help *"Used by Guided
+  mode, and by Manual mode when the ChromIQ layout engine is off. With the
+  layout engine on, Manual takes the margins from Instrument Limits and the
+  patch scale from the Chart Layout presets above, which you can set for each
+  paper."*, replacing *"Changes apply to both Guided and Manual mode."*);
+  *"3. Should Manual with the engine take the preset's patch scale for the
+  i1Pro (2), or keep its own Chart Layout presets? Answer: keep its own Chart
+  Layout presets"*.
+
+### ⏳ Awaiting confirmation: what was built from them
+
+**Confirmed by:** *nobody yet.*
+
+Register: B8-1330 to B8-1336, B8-1340, B8-1341. Proof:
+`~/Desktop/ChromIQ-beta44-proof/k51/` (on screen, EN and DE, before and
+after, window and PDF; NOTES.txt, ANSWERS.txt). Tests:
+`tests/test_k51_rulings.py`, each red on the mutation in its docstring
+(`k51/mutations.txt`).
+
+**45.2 A raw print (B8-1330, B8-1331).**
+
+* `row_values` marks the paper row and the two solid rows ``graded=True``
+  on a raw drift check when they were compared with the profile
+  (`ROWS_JUDGED_ON_A_RAW_PRINT`), and `judge` honours it: under ISO 12647-7
+  and both Custom sets they read PASS, FAIL or N-A; under ChromIQ's three
+  sets, which put "–" on all three, nothing changes. Every other row reads
+  INFO.
+* The column's Overall word follows the judged rows, and its counts are
+  about them only (`counted_rows`, `sheet_is_judged`; `set_summary` leaves an
+  INFO row out of a column that judged something). On the demo pack's raw
+  drift check (Report-Limits-Border-Conditions, run3) under ISO 12647-7 the
+  designed drift FAILs "Maximum ΔE00, solid colours" and the Overall reads
+  FAIL.
+* In the window and the PDF: the three rows carry their words and notes, the
+  other cells of the column read "drift", "Judged against" names the set; the
+  detailed chapter keeps the three rows' words. The sentence under the
+  results, where a drift column judges (ours around Knut's approved clause):
+  *"Columns marked “drift” are sheets printed raw, without the profile. On
+  them the paper and the solid colours are judged against the profile; the
+  other colours are compared with the chart's design colours for
+  information, because a sheet printed raw is not expected to match the
+  design closely, and PASS or FAIL there would be unfair to a perfectly
+  healthy printer. For those sheets the detailed chapter shows how far the
+  printer has moved since the previous raw check."* German: *"Spalten mit dem
+  Vermerk „Drift“ sind Bögen, die roh, ohne Profil, gedruckt wurden. Auf
+  ihnen werden das Papier und die Volltonfarben gegen das Profil beurteilt;
+  die übrigen Farben werden zur Information mit den Design-Farben des Charts
+  verglichen, denn von einem roh gedruckten Bogen wird keine enge
+  Übereinstimmung mit dem Entwurf erwartet, und PASS oder FAIL wären dort
+  ungerecht gegenüber einem völlig gesunden Drucker. Für diese Bögen zeigt
+  das Detailkapitel, wie weit sich der Drucker seit der letzten Roh-Kontrolle
+  bewegt hat."* Where no drift column judges, the old sentence stays.
+* "How to read this report" said a drift column shows "drift" *"in every
+  cell"*; it now says *"in every cell it does not judge … Its paper and solid
+  colour rows are judged against the profile where the limit set has a limit
+  for them."*
+* Saved reports keep their saved verdicts (§6); a drift check saved with
+  those rows as INFO under a set that limits them carries
+  M-REPORT-WORKED-OUT-EARLIER (`_worked_out_differently`).
+
+**45.3 "–" is not in the report, and a limit shown for information (B8-1332
+to B8-1334).**
+
+* No graph plots a row whose limit is "–": K49's graphs of rows with values
+  and no limit (§41.8, `_unlimited_trend_rows`) are gone, in every report
+  type. §17 item 3 holds again as Knut first wrote it, with his
+  modification: a tab is shown when one of its rows is judged (only the
+  judged rows plotted, each with its line), or, where the document judges
+  none of its rows, when a row its set LIMITS has values on two dates or
+  more; those rows are plotted with their lines at the set's numbers
+  (`_document_row_limits`, `_info_trend_limits`, `_trend_plan`).
+* Under a graph whose lines the document does not judge against (a Printing
+  record; a raw drift check's design rows; a profiling sheet), after the
+  usual sentence for each line: *"This report records these measurements
+  without judging them, so the limit line is shown for information only."*
+  (two lines or more: *"… so the limit lines are shown for information
+  only."*). German: *"Dieser Bericht hält diese Messungen fest, ohne sie zu
+  beurteilen, daher ist die Grenzwertlinie nur zur Information
+  eingezeichnet."* / *"… daher sind die Grenzwertlinien nur zur Information
+  eingezeichnet."* The Colour accuracy graph of a Printing record draws its
+  Avg and Max lines again (K30's B4 taken back), with the same sentence.
+* The Printing record's sentence under its results begins *"This report is
+  not graded, so a limit line on its graphs is shown for information only."*
+  (German: *"Dieser Bericht wird nicht bewertet, daher ist eine
+  Grenzwertlinie in seinen Grafiken nur zur Information eingezeichnet."*),
+  then names the graphs it carries as before (§43.3); with none, *"It carries
+  no graph: …"*.
+* The three graphs of the sheet itself: Paper white (L\*) carries Knut's
+  approved sentence verbatim; Darkest black (L\*) and Cube corners (ΔE00)
+  follow its pattern (ours): *"This graph shows the lightness of the darkest
+  patch on each date, as measured. It is a measurement of the sheet, not a
+  judged metric, so no limit line is drawn; the trend shows whether the black
+  changes between dates."* and *"This graph shows how far the paper white,
+  the black and the six solid colours lie from their aim values (ΔE00) on
+  each date, as measured; the aims of the black and the six colours are ideal
+  values that most printers cannot reach. It is a measurement of the sheet,
+  not a judged metric, so no limit line is drawn; the trend shows whether the
+  inks and the paper change between dates."* German by hand, no "du".
+
+**45.4 The star (B8-1340), and the answer to Knut's question.**
+
+* **Measured** (`k51/star-data/`, the app's own `chart_row_values` on every
+  preset the window lists, laid out, the evenness rows under the loosest
+  limit any set puts on them, 1.5 and 2.0): on one page, the i1Pro 3 Plus
+  answers the evenness rows only on A3 (336 patches); on A4 and Letter none
+  of its one-page presets does (84: a grid under 9 by 9; 143 and 154: the
+  sheet's noise over 1.5), and its two-page presets do (A4 308, Letter 286).
+  So Knut's reading is right for A4 and Letter.
+* **Built:** `made_for_verification` stars a chart with at most **two**
+  printed pages (`VERIFICATION_MAX_PAGES`), fewer than **900** patches
+  (`VERIFICATION_PATCHES_UNDER`), that can be laid out again, has a paper
+  patch, has no patch shortfall and answers both evenness rows
+  (`evenness_answered`, loosest limits). Two pages is the smallest page rule
+  that gives the i1Pro 3 Plus a star on A4 and Letter; put to Knut as a
+  question. Starred presets per instrument (today → rule (4) on one page with
+  evenness → as built): i1Pro 15 → 8 → 8, i1Pro 3 Plus 5 → 1 → 4, ColorMunki
+  14 → 9 → 13, CR30 14 → 6 → 11; 48 → 24 → 36 in all.
+* The ★ line of the window (ours): *"★ marks a chart made for verification:
+  one or two printed pages, fewer than {patches} patches, a patch printed
+  with no ink to measure the paper, and an answer to every metric its patches
+  and its page layout decide, the two evenness metrics included. The mark
+  describes the chart, so it does not change with the two pulldowns
+  above."*; the help cards say the same.
+
+**45.5 A media-relative FROM PROFILE GAMUT chart (B8-1335).**
+
+* `build_report` reads such a sheet relative to its own paper patch, by the
+  Bradford adaptation ArgyllCMS uses between absolute and relative
+  colorimetry (`media_relative_xyz`), against the chart's relative aims; the
+  paper corners aim at white. On the adversary's setup
+  (`fixes-2/older-problem`, a perfect print): "Average ΔE00, all patches"
+  2.40 before, 0.03 after (the plain XYZ ratio of §33 would give 0.14; an
+  absolute chart reads 0.04, the round trip of the stored aims).
+* Absolute, as ruled: the paper row and the two solid rows (they read the
+  cube-corner table, which keeps the readings as measured and the paper's
+  own aim), evenness (its aims carried onto the paper, E8), the same chart
+  measured again (K15). The control strip's corner rungs are read with the
+  colours, media-relative, against the relative prediction.
+* "How the colours were judged" prints Knut's approved line; German: *"relativ
+  zum Papierweiß dieses Bogens, weil das Chart mit dem medienrelativen
+  Rendering-Intent erstellt wurde"* (ours).
+* Saved reports keep their verdicts; worked out again they carry
+  M-REPORT-WORKED-OUT-EARLIER. The demo pack gains
+  Report-Limits-Profile-Gamut/run3, such a chart printed as profiled on two
+  dates.
+
+**45.6 The i1Pro group (B8-1336).** Preferences > Chart Layout: the group
+is enabled whatever the layout engine setting, titled as approved, its help
+paragraph as approved (German, Du-Form, ours: *"Wird vom geführten Modus
+verwendet und vom manuellen Modus, wenn die ChromIQ-Layout-Engine aus ist.
+Mit eingeschalteter Layout-Engine nimmt der manuelle Modus die Ränder aus den
+Messgeräte-Grenzwerten und die Feldgröße aus den Chart-Layout-Presets oben,
+die du für jedes Papier festlegen kannst."*); the em dashes of that help text
+are replaced. Manual with the engine is unchanged (answer 3).
+
+* **Built:** `workflow/measurement_report.py` (`ROWS_JUDGED_ON_A_RAW_PRINT`,
+  `drift_check_judges`, `sheet_is_judged`, `counted_rows`, `row_values`,
+  `judge`, `stamp_verdict`, `summarise`, `PAPER_WHITE_CHART_RELATIVE`,
+  `media_relative_xyz`, `aims_on_the_paper`, `build_report`);
+  `workflow/compliance_sets.py` (`set_summary`);
+  `ui/dialogs/measurement_report_dialog.py` (`_drift_judges`, `_drift_only`,
+  `_rows_with_words`, the results cells, `_summary_cell`,
+  `_thresholds_cell`, `_column_summary`, the drift sentence, the guide,
+  `_document_row_limits`, `_info_trend_limits`,
+  `_accuracy_lines_for_information`, `_trend_plan`, `_trend_extras`,
+  `_SHEET_GRAPH_NOTES`, `info_limit_note`, `_TrendChart`,
+  `_record_graphs_sentence`, `_printing_block_html`,
+  `_worked_out_differently`); `workflow/preset_eligibility.py`
+  (`VERIFICATION_MAX_PAGES`, `VERIFICATION_PATCHES_UNDER`,
+  `made_for_verification`, `evenness_answered`);
+  `ui/dialogs/preset_verification_dialog.py`, `ui/dialogs/welcome_dialog.py`
+  (the star texts); `ui/dialogs/settings_dialog.py`;
+  `scripts/make_report_limit_demos.py`, `scripts/make_release_demo_package.py`;
+  `data/i18n/*.json`, both ledgers.
+* **Verified by:** `tests/test_k51_rulings.py` (16 tests); amended:
+  `tests/test_trend_graphs_for_judged_metrics.py`,
+  `tests/test_k47_every_limited_row_has_a_graph.py`,
+  `tests/test_c2b44_report_findings.py`,
+  `tests/test_c2_a_printing_record_names_only_the_graphs_it_draws.py`,
+  `tests/test_k49_the_paper_and_solids_against_the_profile.py`,
+  `tests/test_k30_rulings.py`, `tests/test_k32_report_rows_and_switch.py`,
+  `tests/test_the_preset_window_says_what_a_chart_can_answer.py`,
+  `tests/test_a_verification_preset_can_be_counted.py`,
+  `tests/test_the_presets_window_sorts_within_each_group.py`.
+
+**Status:** the answers confirmed by Knut (45.1); what was built (45.2 to
+45.6) NOT confirmed; one question (the two-page rule, B8-1340); one gap
+(B8-1341: the tooltip of the presets button in Create Chart still says "one
+printed page of a few hundred patches").

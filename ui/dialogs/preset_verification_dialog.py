@@ -875,12 +875,20 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         star_row.addStretch(1)
         outer.addLayout(star_row)
 
+        # K51 (Knut, #182 5846167083, rule (4) with his modifications;
+        # B8-1340): under 900 patches, a paper patch, every metric the
+        # chart's patches decide, and the two evenness rows answered on the
+        # laid-out preset; up to two pages, so the i1Pro 3 Plus keeps a star
+        # on A4 and Letter (asked of Knut). "one or two" is written out, not
+        # formatted, and a test holds it to `VERIFICATION_MAX_PAGES`.
         star_note = QLabel(tr(
-            "★ marks a chart made for verification: one printed page, "
-            "{max_patches} patches or fewer, and nothing withheld that a "
-            "different patch set would supply. The mark describes the chart, "
-            "so it does not change with the two pulldowns above.").format(
-                max_patches=PE.VERIFICATION_MAX_PATCHES), self)
+            "★ marks a chart made for verification: one or two printed "
+            "pages, fewer than {patches} patches, a patch printed with no ink "
+            "to measure the paper, and an answer to every metric its patches "
+            "and its page layout decide, the two evenness metrics included. "
+            "The mark describes the chart, so it does not change with the two "
+            "pulldowns above.").format(
+                patches=PE.VERIFICATION_PATCHES_UNDER), self)
         star_note.setWordWrap(True)
         star_note.setObjectName("info")
         outer.addWidget(star_note)

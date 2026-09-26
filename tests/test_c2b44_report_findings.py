@@ -332,7 +332,7 @@ def test_the_new_sentences_are_german_by_hand_and_name_no_control():
     from core.resource_path import resource_path
     de = json.load(open(resource_path("data/i18n/de.json"), encoding="utf-8"))
     texts = [mrd._NO_LIMIT_WHY[mrd.NO_LIMIT_WHY_SET](),
-             mrd._NO_LIMIT_SHOWS["corners"]()] + [
+             mrd._SHEET_GRAPH_NOTES["corners"]()] + [
         f() for f in mrd.MeasurementReportDialog._RECORD_GRAPH_NAMES.values()]
     for en in texts:
         for word in ("Choose", "Press", "tick", "window", "tab", "button"):
@@ -351,8 +351,10 @@ def test_the_new_sentences_are_german_by_hand_and_name_no_control():
 # 5. the Cube corners sentence agrees with its caption
 # --------------------------------------------------------------------------
 def test_the_cube_corners_sentence_says_aim_values_as_the_caption_does():
-    """MUTATION, proven red: restore "from their ideal values"."""
-    s = mrd._NO_LIMIT_SHOWS["corners"]()
+    """MUTATION, proven red: restore "from their ideal values".
+
+    K51: the sentence is the Cube corners one of `_SHEET_GRAPH_NOTES`."""
+    s = mrd._SHEET_GRAPH_NOTES["corners"]()
     assert "from their aim values" in s
     assert "aim values" in mrd._TREND_ABOUT["corners"]()
     assert "from their ideal values" not in s
@@ -363,24 +365,30 @@ def test_the_cube_corners_sentence_says_aim_values_as_the_caption_does():
 # --------------------------------------------------------------------------
 # 7. a graph with no limit line needs two dates
 # --------------------------------------------------------------------------
-def test_a_graph_with_no_line_and_one_dated_value_is_hidden(tmp_path, qapp):
-    """Tone has values and no limit under ChromIQ default, so it is shown
-    (K49). With a value on ONE date only it would be an empty frame that
-    "draws no trend": hidden, in the window and the PDF (one plan).
+def test_a_graph_with_no_line_and_one_dated_value_is_hidden(tmp_path, qapp,
+                                                            monkeypatch):
+    """A tab that judges nothing is shown only for its trend. Since K51 that
+    is a tab whose limit lines are shown for information (a Printing record:
+    Grey balance, limited by ChromIQ default and judged on no date). With a
+    value on ONE date only it would be an empty frame that "draws no trend":
+    hidden, in the window and the PDF (one plan).
 
     MUTATION, proven red: drop the ``_dated < 2`` check in `_trend_plan`."""
     from tests.test_trend_graphs_for_judged_metrics import _open
     from workflow.compliance_sets import effective_limits
     dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
     try:
-        tone = dlg._trend_groups["tone"]
+        monkeypatch.setattr(type(dlg), "_ungraded_by_type", lambda self: True)
+        grey = dlg._trend_groups["grey"]
         shown = {c: s for c, *_r, s in dlg._trend_plan()}
-        assert shown[tone] is True, "the fixture has no tone trend"
+        assert shown[grey] is True, "the fixture has no grey trend"
+        assert "grey_balance_neutral_ramp_avg" in dlg._info_trend_limits()
         for pt in dlg._trend_series[1:]:
-            (pt.get("rows") or {}).pop("ramps_30_70_dl_max", None)
-        assert "ramps_30_70_dl_max" in dlg._unlimited_trend_rows()
+            for rid in ("grey_balance_neutral_ramp_avg",
+                        "grey_balance_neutral_ramp_max"):
+                (pt.get("rows") or {}).pop(rid, None)
         shown = {c: s for c, *_r, s in dlg._trend_plan()}
-        assert shown[tone] is False
+        assert shown[grey] is False
     finally:
         dlg.deleteLater()
 

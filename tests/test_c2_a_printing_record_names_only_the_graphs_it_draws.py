@@ -41,9 +41,12 @@ def test_one_measurement_names_no_graph_and_says_why(tmp_path, qapp):
         one = runs[:1]
         assert dlg._graphs_drawn_for(one) == []
         html = dlg._report_results_html(one, dlg._rows_the_results_show(one))
-        assert "carries no graph of a judged metric" in html
+        # K51 (B8-1334): a record's limit lines are shown for information
+        assert ("This report is not graded, so a limit line on its graphs "
+                "is shown for information only.") in html
         assert FOUR not in html, "a record of one date names four graphs"
-        assert "a graph needs at least two measurements" in html
+        assert "It carries no graph: a graph needs at least two " \
+            "measurements" in html
     finally:
         dlg.close()
         host.deleteLater()
@@ -80,11 +83,12 @@ def test_german_is_written_by_hand():
     from pathlib import Path
     de = json.loads((Path(__file__).resolve().parents[1] / "data" / "i18n"
                      / "de.json").read_text(encoding="utf-8"))
-    for key in ("This report is not graded, so it carries no graph of a "
-                "judged metric: each of those graphs is drawn against its "
-                "limit.",
-                "It carries no other graph either: a graph needs at least "
-                "two measurements, and this report has one.",
+    for key in ("This report is not graded, so a limit line on its graphs "
+                "is shown for information only.",
+                "It carries no graph: a graph needs at least two "
+                "measurements, and this report has one.",
+                "It carries no graph: the measurements it covers have no "
+                "values to draw one from.",
                 "The graphs it carries show {graphs}.",
                 "{list} and {last}", "the cube corners"):
         assert de.get(key) and de[key] != key, key

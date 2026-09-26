@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-26, K51 (B8-1330 to B8-1340, Knut #182 5846167083 and 5846297769): the drift sentence and guide line, the information note under a graph (two forms), the three sheet-graph sentences, the record's sentence, the star line and its two help cards, the media-relative line, the i1Pro group's title and help. German by hand; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K50 (B8-1320, Knut #182 5845519118): the sentence under a graph with no limit line speaks of this report only, never of other limit sets: B8-1274's five reasons out ("ChromIQ has no limit ... in any of its limit sets" and the four "although other limit sets ... have one"), one in ("This report sets no limit for what this graph shows, so no limit line is drawn."). 1 key in, 5 out. German by hand, does not move; the twelve others carry the English under the beta rule and each falls by exactly 4 here and 3 in the echo budget (the "ChromIQ has no limit" key starts with "ChromIQ" and was never an echo there). COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, challenge 2 of beta 44 (B8-1271, B8-1273 to B8-1275): the three reference rows' help and the paper row's lever say a profiling measurement reads N-A (4 keys replaced by 4), the Printing record names every graph it carries (9 graph names in, the four-graph sentence out), why no limit line is drawn chosen from the set data (5 sentences in, 1 out), the Cube corners sentence says aim values (1 replaced by 1), the Paper white difference caption no longer says "with its limit" (1 replaced by 1). 20 keys in, 8 out. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K49 (B8-1244 to B8-1252, Knut #182 5841092535 and 5841606710): (b2) built, the paper row and the two solid rows compared with the profile (the three row help texts and the lever of the solid rows reworded, a lever of the paper row's own, four report reasons, two §M notes proposed, one line in the presets window), a graph with values but no limit shown, with a sentence per graph (13 graphs, three reasons no line is drawn) in place of K47's one note, the surface gamut's line word "Surface" in place of "Shell" (F4), and the metric help's "How this row relates to the others" (its heading and three family texts, F5). 35 keys in, 6 out. Measured on the tree rebased onto 011d4772 (K48). German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
@@ -1460,17 +1461,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1394,
-    "fr": 1416,
-    "it": 1405,
-    "ja": 1380,
-    "nl": 1420,
-    "no": 1406,
-    "pl": 1398,
-    "pt": 1396,
-    "ru": 1369,
-    "sv": 1407,
-    "zh_CN": 1374,
+    "es": 1400,
+    "fr": 1422,
+    "it": 1411,
+    "ja": 1386,
+    "nl": 1426,
+    "no": 1412,
+    "pl": 1404,
+    "pt": 1402,
+    "ru": 1375,
+    "sv": 1413,
+    "zh_CN": 1380,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1498,7 +1499,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1548,
+    "uk": 1553,
 }
 
 

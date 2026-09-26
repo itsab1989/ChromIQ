@@ -1989,7 +1989,9 @@ class SettingsDialog(QDialog):
         # ---- Output folder ----
         # ---- i1Pro chart defaults ----
         from data.patch_db import I1PRO_DEFAULT_PRESETS, I1PRO_PRESET_LABELS
-        i1pro_grp = QGroupBox(tr("i1Pro Chart Defaults"), self)
+        # K51-E (Knut, #182 5846297769, K50-5: "approved"; B8-1336): the
+        # title says which modes the group governs.
+        i1pro_grp = QGroupBox(tr("i1Pro margin and patch scale (Guided, and Manual with printtarg)"), self)
         i1g = QVBoxLayout(i1pro_grp)
 
         # Row 1: default layout preset
@@ -2002,21 +2004,28 @@ class SettingsDialog(QDialog):
         i1_preset_row.addWidget(self._i1pro_preset_combo)
         i1_preset_row.addStretch()
         i1_preset_row.addWidget(TooltipButton(
-            tr("i1Pro Chart Defaults"),
+            tr("i1Pro margin and patch scale (Guided, and Manual with printtarg)"),
             tr("Sets the default printtarg layout flags (−m / −M margin and −a patch "
             "scale) used by the Create Chart tab whenever the active instrument is "
             "an i1Pro (i1Pro / i1Pro 2 / i1Pro 3).\n\n"
-            "  • −m 10  −a 0.95  — recommended. Wider margin protects strip optics "
+            "  • −m 10  −a 0.95: recommended. Wider margin protects strip optics "
             "from drifting onto paper at the trailing edge; smaller patches let "
             "~9% more colours fit per sheet.\n"
-            "  • −m 10  −a 1.0   — full-size patches with the wider margin.\n"
-            "  • −m 6   −a 1.0   — tightest layout. Higher risk of 'not enough "
+            "  • −m 10  −a 1.0: full-size patches with the wider margin.\n"
+            "  • −m 6   −a 1.0: tightest layout. Higher risk of 'not enough "
             "patches read' errors on some printers when the strip's last patch "
             "lands too close to the bare paper edge.\n\n"
             "Other instruments (i1Pro 3 Plus, ColorMunki, SpectroScan) are not "
-            "affected by this setting — they keep their own defaults.\n\n"
-            "Changes apply to both Guided and Manual mode. A custom margin or "
-            "patch-scale you set manually is preserved — switching instruments "
+            "affected by this setting: they keep their own defaults.\n\n"
+            # K51-E (Knut, #182 5846297769, K50-5: "approved"): replaces
+            # "Changes apply to both Guided and Manual mode.", which was not
+            # true of Manual with the layout engine on.
+            "Used by Guided mode, and by Manual mode when the ChromIQ layout "
+            "engine is off. With the layout engine on, Manual takes the "
+            "margins from Instrument Limits and the patch scale from the Chart "
+            "Layout presets above, which you can set for each paper.\n\n"
+            "A custom margin or "
+            "patch-scale you set manually is preserved: switching instruments "
             "only updates the value if it currently matches one of the three "
             "preset values above."),
             self,
@@ -2059,10 +2068,12 @@ class SettingsDialog(QDialog):
         ))
         i1g.addLayout(i1_clip_row)
 
-        # These are printtarg (old-engine) i1Pro options; they live on the Chart
-        # Layout tab now and are greyed when the ChromIQ engine is active, since
-        # they have no effect then (Knut #93). Built here (widgets referenced by
-        # load/save), re-homed in _build_chart_layout_tab.
+        # The i1Pro options of Guided (which always uses the ChromIQ engine and
+        # reads them) and of Manual with printtarg. They live on the Chart
+        # Layout tab; K51-E (Knut, #182 5846297769, K50-5: "Yes") keeps them
+        # enabled with the engine on, since Guided uses them then too. Built
+        # here (widgets referenced by load/save), re-homed in
+        # _build_chart_layout_tab.
         self._i1pro_grp = i1pro_grp
 
         # ---- Neutral patches ----
@@ -5468,12 +5479,13 @@ class SettingsDialog(QDialog):
         # so every later edit recomputes the estimate live as before.
         self._layout_estimate_pending = True
 
-        # Re-home the printtarg (old-engine) i1Pro options here, greyed when the
-        # ChromIQ engine is active (they have no effect then) (Knut #93).
+        # Re-home the i1Pro options here. K51-E (Knut, #182 5846297769,
+        # K50-5, B8-1336): ENABLED whatever the engine setting, because Guided
+        # always uses the engine and reads them; the greying of #93 ("they
+        # have no effect then") was true of Manual only.
         if getattr(self, "_i1pro_grp", None) is not None:
-            engine_on = bool(self._settings.get("use_chromiq_layout_engine", False))
-            self._i1pro_grp.setEnabled(not engine_on)
-            self._i1pro_grp.setTitle(tr("i1Pro Chart Defaults (printtarg engine)"))
+            self._i1pro_grp.setEnabled(True)
+            self._i1pro_grp.setTitle(tr("i1Pro margin and patch scale (Guided, and Manual with printtarg)"))
             page.layout().addWidget(self._i1pro_grp)
         return self._scroll_wrap(page)
 

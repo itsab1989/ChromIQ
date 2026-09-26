@@ -92,6 +92,14 @@ def test_most_answered_sorts_within_each_group(qapp, rows, only_star):
     dlg = _open(qapp, rows)
     try:
         dlg._only_star.setChecked(only_star)
+        if only_star:
+            # K51 (B8-1340): a starred chart answers every metric its patches
+            # decide AND both evenness rows under the loosest limits, so under
+            # the default selection every starred preset answers the same
+            # count and nothing can move. Custom ISO 12647-7's evenness
+            # limit (1.0 on the pairs) separates them again (15 or 16 of 16).
+            dlg._set_combo.setCurrentIndex(
+                dlg._set_combo.findData("custom_iso_12647_7"))
         qapp.processEvents()
         before = _groups(dlg)
         if only_star:

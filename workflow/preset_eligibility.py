@@ -90,17 +90,29 @@ log = logging.getLogger(__name__)
 #: patches to a few hundred patches. These are the presets made especially with
 #: the thought they may be used for verification."*
 #:
-#: **One printed page.** His words ("any one-page preset"), and the reason is
-#: the job: a verification is a check you run often, and a check that costs
-#: four sheets and four strip-reading sessions is one nobody runs.
-VERIFICATION_MAX_PAGES = 1
+#: **At most TWO printed pages (K51, B8-1340; awaiting Knut's confirmation).**
+#: It was one, his words ("any one-page preset"), because a verification is a
+#: check you run often. Knut, #182 5846167083, on the star's rule (4): *"The
+#: one page rule makes it difficult to get a chart with a star for i1Pro3
+#: Plus, as the evenness check may need several pages to work properly. Is
+#: that correct? Also, we have ruled that the evenness metrics should be
+#: checked by doing the layout of a preset ... they shall still be included in
+#: the assessment of chart presets."* Measured on every preset the window
+#: lists (``~/Desktop/ChromIQ-beta44-proof/k51/star-data/``): with the two
+#: evenness rows in the star, no ONE-page i1Pro 3 Plus preset on A4 or Letter
+#: answers them (84 patches: a grid under 9 by 9; 143 and 154: the sheet's
+#: noise over the 1.5 limit), only the A3 one (336); the two-page ones do
+#: (A4 308, Letter 286). Two pages is the smallest page rule that gives the
+#: i1Pro 3 Plus a star on A4 and Letter; it is put to Knut as a question.
+VERIFICATION_MAX_PAGES = 2
 
-#: **"A few hundred patches."** Measured on the shipped set, 2026-09-19: the
-#: one-page built-ins run 77, 84, 84, 84, 84, 88, 143 … 572, 572, **588**, and
-#: then jump to **616**, 648, 648, 800, 1144, 1404, 3250, 3430. 600 sits in the
-#: set's own gap, so the line is drawn where the charts themselves already
-#: separate, not at a round number that cuts through a family.
-VERIFICATION_MAX_PATCHES = 600
+#: **Under 900 patches (K51, Knut's figure, #182 5845519118: "one page (below
+#: 900 patches)").** It was 600 or fewer. Measured on the shipped one-page
+#: set, 900 sits in a gap as 600 did (837, then 1144); the multi-page presets
+#: of exactly 900 patches are left out by "under".
+VERIFICATION_PATCHES_UNDER = 900
+#: The largest patch count that can carry the star, for callers that print it.
+VERIFICATION_MAX_PATCHES = VERIFICATION_PATCHES_UNDER - 1
 
 #: **NO LOWER BOUND IS IMPOSED, and that is deliberate.** S2w's outer-gamut
 #: rule already sets one: the top quarter must hold 20 patches, so a chart
@@ -159,9 +171,9 @@ OTHER_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_CONTROL_STRIP_TOO_SMALL,   # the declared strip is too short
     MR.REASON_NO_CORNERS,                # no patch at a solid corner
     # #182 K49, (b2): the paper row on a chart with no patch printed with
-    # no ink. A chart-file matter like the corners above, and kept out of
-    # the star for the same reason: it decided none before (the row read
-    # needs_reference_file on every preset).
+    # no ink. A chart-file matter like the corners above, so it is not a
+    # PATCH shortfall; since K51 (rule (4), B8-1340) `made_for_verification`
+    # withholds the star for it by name all the same.
     MR.REASON_NO_PAPER_PATCH,
     MR.REASON_NOT_COMPUTED,              # the block is absent (old report)
     MR.REASON_NO_DEVICE_VALUES,          # the file carries no device values
@@ -187,12 +199,11 @@ from workflow.preset_layout import (REASON_LAYING_OUT as REASON_EVENNESS_LAYING_
 #: (Knut, 2026-09-22.) A page grid under 9 by 9, an area with no patch, or too
 #: few patches per area for the sheet's noise to stay under the limit: a
 #: larger chart fixes each of them, so they are shown as missing like any
-#: patch shortfall. They do NOT decide the star, and that is a question put to
-#: Knut rather than an answer (docs/design/measurement_report_limits.md §16,
-#: Q-E4): at 1.5 the rows want about 30 patches in every ninth of the page,
-#: roughly 270 on one page, and the verification presets the star was made
-#: for are deliberately 77 to 204. Counting them would take the star off nearly
-#: every chart it exists to mark.
+#: patch shortfall. **Since K51 they DECIDE the star** (Knut, #182
+#: 5846167083, answering Q-E4 of §16: *"they shall still be included in the
+#: assessment of chart presets"*): `made_for_verification` asks
+#: `evenness_answered`, and the page rule became two pages so that the
+#: i1Pro 3 Plus keeps a star on A4 and Letter (B8-1340).
 LAYOUT_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_EVENNESS_GRID_TOO_SMALL,
     MR.REASON_EVENNESS_EMPTY_AREA,
@@ -1194,35 +1205,70 @@ def made_for_verification(chart: "str | Path | None", patches: int,
                           recipe: "dict | None" = None) -> bool:
     """Whether this chart is one of the ones Knut asked to be highlighted.
 
-    Four conditions, ANDed, and none of them depends on the two pulldowns:
-    the mark says what the CHART is, so it does not flicker on and off while
-    a reader compares report types.
+    Knut's rule (4), with his modifications (K51, #182 5846167083; B8-1340).
+    Every condition ANDed, and none of them depends on the two pulldowns: the
+    mark says what the CHART is, so it does not flicker on and off while a
+    reader compares report types.
 
-    1. one printed page (:data:`VERIFICATION_MAX_PAGES`);
-    2. :data:`VERIFICATION_MAX_PATCHES` patches or fewer;
-    3. nothing withheld that a different patch set would supply, over every
-       row ChromIQ can compute. Not "every row the selection asks", because a
-       selection may ask for a colorimetric reference no preset carries.
-    4. **the sheet can be laid out again** (*relayoutable*). A preset that
+    1. at most :data:`VERIFICATION_MAX_PAGES` printed pages;
+    2. fewer than :data:`VERIFICATION_PATCHES_UNDER` patches;
+    3. **the sheet can be laid out again** (*relayoutable*). A preset that
        ships finished page TIFFs is printed as the image it comes with, so it
        can never be built FROM PROFILE GAMUT and can never carry the
        colorimetric reference :func:`gamut_only_rows` needs. Knut, beta 25:
        *"when ticking 'Show only the presets made for verification' these
        presets should not show up in the list."* The caller knows which
        presets those are; this module only applies the rule.
+    4. **a paper patch** (a patch printed with no ink): the paper row reads
+       N-A without one (K50-3: it was filed as a chart-file matter and kept
+       the star; rule (4) takes it off);
+    5. every metric the chart's own patches decide is answered: nothing
+       withheld that a different patch set would supply, over every row
+       ChromIQ can compute. Not "every row the selection asks", because a
+       selection may ask for a colorimetric reference no preset carries (the
+       two solid rows, :func:`gamut_only_rows`, never decide the star);
+    6. **the two evenness rows are answered on the laid-out preset**
+       (:func:`evenness_answered`), under the loosest limit any limit set puts
+       on them: Knut, *"they shall still be included in the assessment of
+       chart presets"*. A printtarg preset not laid out yet has no star until
+       its layout arrives (the window asks again then).
     """
     if chart is None or pages < 1 or pages > VERIFICATION_MAX_PAGES:
         return False
     if not relayoutable:
         return False
-    if patches < 1 or patches > VERIFICATION_MAX_PATCHES:
+    if patches < 1 or patches >= VERIFICATION_PATCHES_UNDER:
         return False
     try:
         values = chart_row_values(chart, recipe)
     except (Ti3ParseError, OSError):
         return False
-    return not any(is_patch_shortfall((values.get(rid) or {}).get("reason"))
-                   for rid in rows_the_patches_decide(values))
+    if (values.get(PAPER_ROW) or {}).get("reason") == MR.REASON_NO_PAPER_PATCH:
+        return False
+    if any(is_patch_shortfall((values.get(rid) or {}).get("reason"))
+           for rid in rows_the_patches_decide(values)):
+        return False
+    return evenness_answered(values)
+
+
+#: The paper row, "ΔE00, paper white against the reference paper".
+PAPER_ROW = "substrate_de00_max"
+
+
+def evenness_answered(values: "dict[str, dict]",
+                      limits: "dict | None" = None) -> bool:
+    """Whether both evenness rows have a value on this chart and neither is
+    withheld for the sheet's own noise, under *limits* (default: the loosest
+    limit any limit set puts on each row, :func:`loosest_limits`, the same
+    set-independent question the pre-flight asks)."""
+    limits = loosest_limits() if limits is None else limits
+    for rid in MR.EVENNESS_ROWS:
+        v = values.get(rid) or {}
+        if v.get("value") is None:
+            return False
+        if MR.evenness_withheld(rid, v, limits.get(rid)):
+            return False
+    return True
 
 
 def patch_count(chart: "str | Path") -> int:

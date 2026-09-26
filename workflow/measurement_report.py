@@ -212,6 +212,10 @@ PAPER_REF_FROM_PRINT = "printed_through"
 #: not judged relative to a paper at all (absolute by its printing, or a
 #: colorimetric reference).
 PAPER_WHITE_FROM_SHEET = "sheet"
+#: K51-D (Knut, #182 5846297769, K50-4 option (A), "yes"; B8-1335): the
+#: ``why`` of a paper white used because the chart was built FROM PROFILE
+#: GAMUT with the media-relative intent (its aims are media-relative).
+PAPER_WHITE_CHART_RELATIVE = "chart_relative"
 PAPER_WHITE_FROM_PROFILE = "profile"
 PAPER_WHITE_UNAVAILABLE = "unavailable"
 PAPER_WHITE_NOT_USED = "not_used"
@@ -456,6 +460,14 @@ ROWS_ON_RAW_SOLIDS: "tuple[str, ...]" = ("solids_de00_max",
 #: composite black), and the three the hue row reads.
 SOLID_CORNERS: "tuple[str, ...]" = ("C", "M", "Y", "K")
 HUE_CORNERS: "tuple[str, ...]" = ("C", "M", "Y")
+
+#: **K51 (Knut, #182 5846167083, answer "yes for both" to K50-1, option (2);
+#: B8-1330).** The rows a raw drift check judges: the three whose reference is
+#: the profile ((b2), §41.7), so a healthy printer reads near 0 on them. Every
+#: other row of a raw print is compared with the chart's design colours and
+#: stays INFO, as ruled on 2026-08-11 (`is_drift_check`).
+ROWS_JUDGED_ON_A_RAW_PRINT: "frozenset[str]" = frozenset({
+    "substrate_de00_max", *ROWS_ON_RAW_SOLIDS})
 
 
 def sheet_profile(printing: "dict | None", ti3_path: "Path | str | None"
@@ -1541,6 +1553,9 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     #: #182 E8: the aims EVENNESS compares the absolute readings with. The
     #: ΔE00 aims as they are, unless the sheet is read media-relative below.
     evenness_ref = None
+    #: K51-D: the aims the cube-corner table reads, kept before a
+    #: media-relative chart moves its paper corners to white (below).
+    _corner_ref = ref
     if ref_source in ("design", "device") and printing:
         _col = printing.get("colour")
         _route = printing.get("route")
@@ -1590,14 +1605,60 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                 # the sheet stays as measured, and the record says so
                 report["paper_white_used"] = {"from": PAPER_WHITE_NOT_USED}
 
+    # K51-D (Knut, #182 5846297769, K50-4 option (A): "yes"; B8-1335): A
+    # FROM PROFILE GAMUT CHART BUILT WITH THE MEDIA-RELATIVE INTENT IS JUDGED
+    # MEDIA-RELATIVE. Its aims were made by ArgyllCMS in media-relative
+    # colorimetry (the paper is L* 100), and the sheet is read as measured,
+    # so before this a perfect print read the paper's distance from L* 100 in
+    # every colour (2.40 on the adversary's setup, §43.8). The reading is
+    # scaled to the sheet's own paper patch the way ArgyllCMS relates
+    # absolute to relative colorimetry (Bradford, `media_relative_xyz`), so a
+    # perfect print reads what an absolute chart reads (0.03 against 0.04,
+    # the round trip of the stored aims). What stays absolute: the paper row
+    # and the two solid rows (`condition_reference_block` reads the corner
+    # table, which keeps the readings as measured), evenness (its aims are
+    # carried onto the paper instead, E8) and the repeat of the chart on
+    # another date (K15). The control strip's rungs are read with the
+    # colours, media-relative, against the chart's relative aims and the
+    # relative prediction of its corners (§34, the chart's intent).
+    corner_lab = lab
+    chart_relative = False
+    if ref_source == "colorimetric" and _cref is not None \
+            and str(_cref.get("intent") or "") == "relative":
+        _wi = paper_white_row(lab, rgb100 if rgb100 is not None
+                              else _device_values_of(data, ti3_path))
+        if _wi is not None:
+            white_xyz = np.asarray(data.xyz[_wi], dtype=float)
+            if float(white_xyz.min()) > 0.0:
+                chart_relative = True
+                lab = [xyz_to_lab(tuple(np.asarray(media_relative_xyz(
+                    x, white_xyz)) / 100.0)) for x in data.xyz]
+                report["yardstick"] = "media-relative"
+                report["paper_white_used"] = {
+                    "from": PAPER_WHITE_FROM_SHEET,
+                    "why": PAPER_WHITE_CHART_RELATIVE}
+                # the paper corners aim at the paper the aims were made on:
+                # white, in media-relative colorimetry
+                ref = dict(ref)
+                for _sid in paper_corner_ids(_cref):
+                    ref[_sid] = (100.0, 0.0, 0.0)
+                evenness_ref = aims_on_the_paper(ref, white_xyz,
+                                                 bradford=True)
+
     # The eight cube corners (paper white, composite black, the six ink
     # primaries/secondaries) — the patch the chart DECLARES as each corner
     # where it declares one, else the nearest patch to it by device RGB. Each
     # carries its measured colour and, when a reference exists, its expected
     # colour and ΔE00, so the report says something about the inks, not only the
     # instrument (Knut). rgb is device 0..100.
-    report["corners"] = corners_block(rgb100, lab, ref, data,
-                                      corner_ids, corner_devices)
+    # K51-D: on a chart judged media-relative for its own intent the table
+    # keeps the readings as measured and the paper's own aim (§31.5), so the
+    # paper row and the two solid rows, which read it, stay absolute.
+    report["corners"] = (corners_block(rgb100, absolute_lab, _corner_ref,
+                                       data, corner_ids, corner_devices)
+                         if chart_relative else
+                         corners_block(rgb100, lab, ref, data,
+                                       corner_ids, corner_devices))
 
     in_gamut_ids: "set[str] | None" = None
     if ref:
@@ -4074,8 +4135,8 @@ def stamp_verdict(report: dict, limits_or_avg, max_thr: "float | None" = None,
         if not set_id:
             set_id, set_label = "chromiq_default", "ChromIQ default (recommended)"
     _de, source = graded_de00(report)
-    graded = is_graded_sheet(report)
     rows = judge(report, limits)
+    graded = sheet_is_judged(report, rows)
     summary = summarise(report, limits, rows, set_id, set_label)
     judged = [r for r in rows if r["word"] in (PASS, FAIL)]
     avg_thr, mx_thr = legacy_pair(limits)
@@ -5831,7 +5892,34 @@ def _row_band_labels(grid: dict, rows: int, band: int) -> "list[str]":
 _D50_XYZ_100 = (96.42, 100.0, 82.49)
 
 
-def aims_on_the_paper(ref: "dict[str, tuple]", paper_xyz) -> "dict[str, tuple]":
+def media_relative_xyz(xyz, paper_xyz, inverse: bool = False):
+    """*xyz* (0..100) read relative to a paper whose white measures
+    *paper_xyz*: the paper maps onto D50, by the Bradford cone-space
+    adaptation ArgyllCMS uses between absolute and relative colorimetry
+    (K51-D, B8-1335). ICC.1's plain ratio per X, Y and Z (the §33 yardstick)
+    reads a perfect print of a media-relative FROM PROFILE GAMUT chart 0.14
+    away from its aims on the adversary's setup, Bradford 0.03, which is the
+    round trip of the stored aims (an absolute chart reads 0.04). With
+    *inverse*, a relative XYZ is carried back onto the paper."""
+    x = np.asarray(xyz, dtype=float)
+    w = np.asarray(paper_xyz, dtype=float)
+    # the D50 white L*a*b* is computed against, so the paper reads L* 100
+    d50 = np.asarray((96.422, 100.0, 82.521), dtype=float)
+    src, dst = (d50, w) if inverse else (w, d50)
+    m = (np.linalg.inv(_BRADFORD)
+         @ np.diag((_BRADFORD @ dst) / (_BRADFORD @ src)) @ _BRADFORD)
+    return m @ x
+
+
+#: The Bradford cone-response matrix (Lam 1985), ArgyllCMS's default
+#: chromatic adaptation between absolute and media-relative colorimetry.
+_BRADFORD = np.array([[0.8951, 0.2664, -0.1614],
+                      [-0.7502, 1.7135, 0.0367],
+                      [0.0389, -0.0685, 1.0296]])
+
+
+def aims_on_the_paper(ref: "dict[str, tuple]", paper_xyz,
+                      bradford: bool = False) -> "dict[str, tuple]":
     """Each aim Lab carried onto a paper whose white measures *paper_xyz*.
 
     #182 E8: evenness reads a sheet as MEASURED, whatever its intent. On a
@@ -5847,6 +5935,11 @@ def aims_on_the_paper(ref: "dict[str, tuple]", paper_xyz) -> "dict[str, tuple]":
         return {}
     ids = list(ref)
     xyz = _lab_to_xyz_array(np.asarray([ref[i] for i in ids], dtype=float))
+    if bradford:
+        # K51-D: a media-relative FROM PROFILE GAMUT chart's aims, carried
+        # back the way `media_relative_xyz` reads its sheet
+        return {sid: xyz_to_lab(tuple(np.asarray(media_relative_xyz(
+            x, paper_xyz, inverse=True)) / 100.0)) for sid, x in zip(ids, xyz)}
     scale = np.asarray(paper_xyz, dtype=float) / np.asarray(_D50_XYZ_100)
     return {sid: xyz_to_lab(tuple(x * scale / 100.0))
             for sid, x in zip(ids, xyz)}
@@ -5954,6 +6047,42 @@ def is_graded_sheet(report: dict) -> bool:
     return graded_de00(report)[1] != VERDICT_SOURCE_NONE
 
 
+def drift_check_judges(rows: "list[dict]") -> bool:
+    """Whether a raw drift check's *rows* judge anything (K51, B8-1330): one
+    of :data:`ROWS_JUDGED_ON_A_RAW_PRINT` carries a limit and so a PASS, a
+    FAIL or an N-A. Under a limit set that puts "–" on all three (ChromIQ's
+    own sets) nothing is judged and the sheet stays a drift check with no
+    verdict, as it was."""
+    from workflow.compliance_sets import COND, FAIL, N_A, PASS
+    return any((r.get("row_id") or r.get("key")) in ROWS_JUDGED_ON_A_RAW_PRINT
+               and r.get("word") in (PASS, FAIL, COND, N_A)
+               for r in rows or ())
+
+
+def counted_rows(report: dict, rows: "list[dict]") -> "list[dict]":
+    """The rows a column's Overall word and its counts are about: all of
+    them, or on a raw drift check that judges its paper and solid rows only
+    those (K51, B8-1330). Its other rows are compared with the design for
+    information, and a row among them that reads N-A (a strip the chart does
+    not declare) is not a value "not checked": it was never going to be."""
+    if is_drift_check(report) and drift_check_judges(rows):
+        return [r for r in rows
+                if (r.get("row_id") or r.get("key"))
+                in ROWS_JUDGED_ON_A_RAW_PRINT]
+    return list(rows)
+
+
+def sheet_is_judged(report: dict, rows: "list[dict]") -> bool:
+    """Whether the column of *report*, judged into *rows*, carries a verdict:
+    a graded sheet (:func:`is_graded_sheet`), or a raw drift check that
+    judges its paper or solid rows against the profile
+    (:func:`drift_check_judges`). The Overall word follows those rows then;
+    the rows shown for information are not counted (`set_summary`)."""
+    if is_graded_sheet(report):
+        return True
+    return is_drift_check(report) and drift_check_judges(rows)
+
+
 def _hue_difference_ab(lab_a, lab_b) -> float:
     """CIE 1976 metric hue difference ΔH*ab, unsigned (CS Q6)."""
     dl = float(lab_a[0]) - float(lab_b[0])
@@ -5972,7 +6101,9 @@ def row_values(report: dict) -> "dict[str, dict]":
 
     ``value`` is None with a ``reason`` code when the chart or the reference
     cannot supply the row. ``graded`` is False for a row that cannot be judged
-    on this sheet at all, None to inherit the sheet's own grading. ``notes`` is
+    on this sheet at all, True for a row judged on a sheet that is otherwise
+    not graded (K51: the paper and solid rows of a raw drift check, whose
+    reference is the profile), None to inherit the sheet's own grading. ``notes`` is
     a list of note codes commenting a verdict that WAS given: see
     :data:`NOTE_PRINTING_UNRECORDED` for why the two are not the same thing.
 
@@ -6054,10 +6185,14 @@ def row_values(report: dict) -> "dict[str, dict]":
     if isinstance(cond, dict):
         # #182 K49, (b2): against the profile's own description of the
         # printing condition (`condition_reference_block`).
+        # K51 (B8-1330): on a raw drift check these values are JUDGED, since
+        # their reference is the profile (`ROWS_JUDGED_ON_A_RAW_PRINT`);
+        # None inherits the sheet's own grading everywhere else.
+        _on_profile = True if is_drift_check(report) else None
         paper = cond.get("paper") or {}
         if paper.get("from") == CONDITION_FROM_PROFILE \
                 and paper.get("de") is not None:
-            put("substrate_de00_max", paper["de"],
+            put("substrate_de00_max", paper["de"], graded=_on_profile,
                 notes=(None if report.get("reference_source") == "colorimetric"
                        else NOTE_PAPER_AGAINST_PROFILE))
         else:
@@ -6069,11 +6204,12 @@ def row_values(report: dict) -> "dict[str, dict]":
             de = [float(v) for v in (solids.get("de") or {}).values()]
             dh = [float(v) for v in (solids.get("dhab") or {}).values()]
             if de:
-                put("solids_de00_max", max(de), notes=NOTE_SOLIDS_PREDICTED)
+                put("solids_de00_max", max(de), graded=_on_profile,
+                    notes=NOTE_SOLIDS_PREDICTED)
             else:
                 put("solids_de00_max", None, REASON_NO_CORNERS)
             if dh:
-                put("cmy_solids_dhab_max", max(dh),
+                put("cmy_solids_dhab_max", max(dh), graded=_on_profile,
                     notes=NOTE_SOLIDS_PREDICTED)
             else:
                 put("cmy_solids_dhab_max", None, REASON_NO_CORNERS)
@@ -6255,6 +6391,9 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
         graded = graded_sheet
         if cell and cell.get("graded") is False:
             graded = False
+        elif cell and cell.get("graded") is True:
+            # K51 (B8-1330): judged against the profile on a raw drift check
+            graded = True
         word = row_verdict(lim, value, graded)
         if word is None:
             continue
@@ -6369,7 +6508,7 @@ def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str,
                                           applies_a_standard)
     s = SET_BY_ID.get(set_id)
     pairs = []
-    for row in rows:
+    for row in counted_rows(report, rows):
         lim = limits.get(row["row_id"])
         # THE ROW ID TRAVELS WITH THE PAIR, because the column's completeness
         # arithmetic has to know which row an N-A came from: a row whose
@@ -6383,7 +6522,7 @@ def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str,
     # left about what the run was judged against.
     return set_summary(pairs,
                        set_is_iso=applies_a_standard(set_id, set_label),
-                       graded=is_graded_sheet(report))
+                       graded=sheet_is_judged(report, rows))
 
 
 def limits_from_pair(avg_thr: float, max_thr: float) -> "dict":

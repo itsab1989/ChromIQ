@@ -26482,7 +26482,8 @@ would reach.
 - found by: challenge round B of beta 39 (B3, B4, B7, B9).
 - built: `_how_to_read_html`, `_run_detail_html` (a row that counts every patch sits under "All patches"; the Result sentence only with a split row), `_trend_plan` / `_trend_extras` (no line on a Printing record, its own description), `_verdict_provenance`, the detailed intro, the "Compare a profile" paragraph, the German heading "So ist dieser Bericht zu lesen", the "Worst patches" table.
 - tests: tests/test_k30_rulings.py, tests/test_a_saved_report_keeps_its_verdict.py
-- evidence: test_the_guide_says_within_gamut_only_where_a_row_uses_it, test_grey_rows_sit_under_all_patches_on_a_split_sheet, test_a_printing_record_draws_no_limit_line, test_the_report_text_explains_no_chromiq_control, test_worst_patches_heading_travels_with_its_table, test_a_recorded_verdict_says_plainly_that_the_spin_boxes_cannot_move_it
+- note (K51, B8-1334): B4 ("no line on a record") is taken back by Knut, #182 5846167083: a record draws the limit lines its set has, for information, with a note saying so. Its test was retargeted onto that rule.
+- evidence: test_the_guide_says_within_gamut_only_where_a_row_uses_it, test_grey_rows_sit_under_all_patches_on_a_split_sheet, test_a_printing_record_draws_its_limit_lines_for_information, test_the_report_text_explains_no_chromiq_control, test_worst_patches_heading_travels_with_its_table, test_a_recorded_verdict_says_plainly_that_the_spin_boxes_cannot_move_it
 - proof: ~/Desktop/ChromIQ-beta39-proof/k30/drive-en, drive-de (B3, B4 photographs; B2 PDF pages for B9).
 
 ### B8-857 · FIXED, awaiting confirmation · K30 (challenge B B5 / challenge A F7): the demo package speaks the §22.2 names and says what it is
@@ -29341,14 +29342,15 @@ would reach.
 - evidence: test_the_presets_window_answers_the_paper_row_from_the_paper_patch, test_the_two_solid_rows_are_beyond_every_preset, test_every_reason_the_report_can_produce_is_classified, test_the_reference_rows_say_where_the_reference_comes_from, test_i_the_demo_generator_designs_a_solid_on_the_prediction
 - proof: ~/Desktop/ChromIQ-beta44-proof/k49/pack-build.log, verify.txt
 
-### B8-1247 · FIXED, awaiting confirmation · K49: a graph of a row with values and no limit is shown and printed, for trending (§17 item 3 amended)
+### B8-1247 · SUPERSEDED · K49: a graph of a row with values and no limit is shown and printed, for trending (§17 item 3 amended)
 - blocks release: no
 - severity: MINOR
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-1332
 - note: Knut, #182 5841092535, answer 2: "Yes, it can have value for trending". A tab none of whose rows is judged, whose rows have a value on some date of the document and belong to its type, is shown and printed with those values and no limit line. A tab with a judged row still plots only its judged rows (asked in B8-1249); a tab with no value stays hidden; a Grey and tone check plots no colour row.
 - where: `ui/dialogs/measurement_report_dialog.py` (`_unlimited_trend_rows`, `_trend_plan`); spec 17 item 3, 41.8.
 - tests: tests/test_trend_graphs_for_judged_metrics.py (three tests amended for the ruling), tests/test_k49_the_paper_and_solids_against_the_profile.py.
-- evidence: test_a_tab_shows_while_one_of_its_rows_is_judged_or_has_values, test_a_report_that_judges_nothing_draws_no_limit_line, test_the_pdf_prints_the_shown_tabs_and_leaves_the_hidden_out, test_a_grey_and_tone_check_plots_no_colour_row_without_a_limit
+- evidence: (K51, B8-1332: Knut chose (A), a "–" row is in no graph; the tests were retargeted onto that rule) test_a_tab_shows_while_one_of_its_rows_is_judged_or_has_values, test_a_report_that_judges_nothing_draws_no_limit_line, test_the_pdf_prints_the_shown_tabs_and_leaves_the_hidden_out, test_a_row_with_values_and_no_limit_is_plotted_by_no_graph
 - proof: ~/Desktop/ChromIQ-beta44-proof/k49/ (case D)
 
 ### B8-1248 · FIXED, awaiting confirmation · K49: the note under a graph with no limit says what it shows, what it is for and why no line is drawn, per graph
@@ -29361,10 +29363,12 @@ would reach.
 - evidence: test_a_drawn_graph_with_no_limit_line_says_so, test_every_graph_has_its_own_no_limit_sentence, test_the_note_names_no_control_of_the_app, test_the_window_shows_the_key_under_the_graph_in_front
 - proof: ~/Desktop/ChromIQ-beta44-proof/k49/ (cases C and D)
 
-### B8-1249 · OPEN, for Knut · K49: an unjudged row with values beside the judged rows of its tab
+### B8-1249 · SUPERSEDED · K49: an unjudged row with values beside the judged rows of its tab
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-1332
+- answered: Knut, #182 5846167083 (K51), K50-2 option (A), "Yes": a "–" row is not in the report, graphs included, so no. Built as B8-1332.
 - note: Answer 2 shows a graph whose rows have values and no limit. Where a tab has BOTH (the Control strip under ISO 12647-7 judges Avg and Max and not P95; Grey balance under a set that limits only the average), the unjudged row is still left out, as §17 item 3 had it. Should it be plotted too, with no line of its own and a sentence saying so? Also asked: the wording of M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE (§M-PROPOSED), and the thirteen graph sentences.
 - where: spec 41.8; `ui/dialogs/measurement_report_dialog.py` (`_trend_plan`).
 
@@ -29461,10 +29465,12 @@ would reach.
 - evidence: test_a_profiling_measurement_is_not_compared_with_the_profile, test_a_run_s_own_sheet_is_not_compared_with_its_own_profile, test_the_help_says_a_profiling_measurement_reads_n_a
 - proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (cases R, P, V; pack/evenness-profiling-paper-row.txt)
 
-### B8-1272 · OPEN, for Knut · Beta 44 challenge 2, finding 1 (older): a relative FROM PROFILE GAMUT chart is judged as measured against relative aims
+### B8-1272 · SUPERSEDED · Beta 44 challenge 2, finding 1 (older): a relative FROM PROFILE GAMUT chart is judged as measured against relative aims
 - blocks release: no
 - severity: MAJOR
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-1335
+- answered: Knut, #182 5846297769 (K51), "yes" to (A) and "Approved" to the line. Built as B8-1335.
 - found by: the beta 44 challenge round 2 (FINDINGS.md, 1, "Older").
 - note: The chart's module stores its aims in the chart's intent; the report reads the sheet as measured. On the adversary's perfect print of a relative chart "Average ΔE00, all patches" reads 2.40 (P95 3.08, max 3.29) against ISO 12647-7's 2.5, where the absolute chart reads 0.04; the strip on such a chart carries the same offset. Measured three ways (`fixes-2/older-problem/older_problem.txt`): as built 2.40; against the profile's absolute prediction 0.01; the reading media-relative to its own paper patch 0.14. Options put to Knut in spec 43.8: (A) judge a relative chart media-relative, as §33 does for white-mapped sheets (recommended); (B) compare every patch with the profile's absolute prediction; (C) write every FROM PROFILE GAMUT reference in absolute colorimetry; (D) keep it with a note. Not changed silently: it changes every relative chart's figures.
 - where: `workflow/measurement_report.py` (`build_report`, the colorimetric reference), `workflow/gamut_target.py` (`select_gamut_targets`, `write_colorimetric_reference`); spec 43.8.
@@ -29637,10 +29643,12 @@ would reach.
 - tests: tests/test_b8_1285_preferences_and_the_i1pro_preset.py
 - evidence: test_the_panels_instrument_reaches_printtarg
 
-### B8-1289 · OPEN, for Basti and Knut · With the layout engine on, Manual does not use the i1Pro Chart Defaults preset, and Guided does
+### B8-1289 · SUPERSEDED · With the layout engine on, Manual does not use the i1Pro Chart Defaults preset, and Guided does
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-1336
+- answered: Knut, #182 5846297769 (K51): the group enabled with the engine on ("Yes"), the title and help "approved", Manual with the engine keeps its own Chart Layout presets. Built as B8-1336.
 - note: Measured on screen (`fixes-3/after/fresh`, a fresh install, where the engine is ON): Guided on the i1Pro builds with the preset (`_collect_guided`, then `_engine_build_kwargs`: border 10, pscale 0.95), while Manual's layout panel for the i1Pro carries its own border 6 and patch scale 1.0 (the same for every instrument), and unticking the engine converts that into `-a 1.0`, not the preset's 0.95. So with the engine on (the factory setting) the two modes build the i1Pro differently, and the preset's help ("Changes apply to both Guided and Manual mode") holds only for Manual with the engine off. Not changed: whether the panel should take the preset for the i1Pro, or the help should name the exception, is a decision; the help text was left as it is.
 - where: `ui/tabs/tab_chart.py` (`_collect_guided`, `_convert_engine_to_printtarg`), `workflow/chart_creator.py` (`_engine_build_kwargs`), `ui/dialogs/settings_dialog.py` (the i1Pro Chart Defaults help).
 
@@ -29869,3 +29877,107 @@ would reach.
 - found by: the B8-1300 controls, on screen (`~/Desktop/ChromIQ-beta44-proof/k50-create-chart/after/cells/`, B1 / B2 cr30-off and cr30-on; `cells-table.txt`), not driven further.
 - note: two CR30 presets saved from the same panel settings (Custom 250 x 300, 400 dpi, margins 11 / 12 / 13 / 14), one with the box unticked and one ticked, differ in one recipe field only: `clip_content_mode` "off" unticked, "notes" ticked. So the ticked one reserves a clip band and builds 352 patches where the unticked one builds 396 on the same sheet, on 4d04dce9 as well. The box decides nothing else for the CR30 (B8-1295, B8-1300); whether the clip content should follow it is not decided. Where the default is set per box state was not traced.
 - where: `ui/tabs/tab_chart.py` (the engine tick, `_on_manual_engine_toggled`, and the panel's clip-content default), `ui/dialogs/layout_options_panel.py`.
+
+### B8-1330 · FIXED, awaiting confirmation · K51: a raw print judges its paper and solid rows against the profile, and its Overall word follows
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5846167083, K50-1 option (2): "Answer, yes for both."
+- note: On a raw drift check `row_values` marks the paper row and the two solid rows (compared with the profile since K49) `graded=True`, and `judge` honours it; every design-referenced row stays INFO. The column's Overall word and counts are about the judged rows only (`sheet_is_judged`, `counted_rows`; `set_summary` leaves INFO rows out of a column that judged something, and keeps them where nothing was, for "nothing_graded"). ChromIQ's own three sets put "–" on all three, so under them nothing changes. In the window and PDF the three cells carry their words and notes, the other cells read "drift", "Judged against" names the set, the detailed chapter keeps the three words. A saved drift check that would now be judged carries M-REPORT-WORKED-OUT-EARLIER. Demo pack: Border-Conditions/run3 under ISO 12647-7 FAILs "Maximum ΔE00, solid colours". Spec 45.2.
+- where: `workflow/measurement_report.py` (`ROWS_JUDGED_ON_A_RAW_PRINT`, `row_values`, `judge`, `drift_check_judges`, `sheet_is_judged`, `counted_rows`, `stamp_verdict`, `summarise`), `workflow/compliance_sets.py` (`set_summary`), `ui/dialogs/measurement_report_dialog.py` (`_drift_judges`, `_drift_only`, `_rows_with_words`, `_summary_cell`, `_thresholds_cell`, `_column_summary`, the results cells, the detailed chapter, `_worked_out_differently`).
+- tests: tests/test_k51_rulings.py
+- evidence: test_a_raw_print_judges_its_paper_and_solid_rows_against_the_profile, test_a_set_with_no_limit_on_those_rows_leaves_the_drift_check_unjudged, test_a_column_judging_nothing_keeps_its_info_rows_in_the_count, test_a_drift_column_shows_words_on_the_judged_rows_only
+- proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (case D, NOTES.txt)
+
+### B8-1331 · FIXED, awaiting confirmation · K51: the drift sentence names the judged rows, and How to read no longer says "drift" is in every cell
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Knut, #182 5846167083 ("yes for both": the sentence as proposed in K50-1).
+- note: Where a drift column judges, the sentence under the results reads "Columns marked “drift” are sheets printed raw, without the profile. On them the paper and the solid colours are judged against the profile; the other colours are compared with the chart's design colours for information, because …" (Knut's approved clause verbatim, the rest ours); German by hand. Where none judges, the old sentence stays. "How to read this report": "… shows the word “drift” in every cell it does not judge … Its paper and solid colour rows are judged against the profile where the limit set has a limit for them." Spec 45.2.
+- where: `ui/dialogs/measurement_report_dialog.py` (the notes under the results, `_how_to_read_html`), `data/i18n/*.json`.
+- tests: tests/test_k51_rulings.py
+- evidence: test_the_drift_sentence_names_the_judged_rows_in_knuts_words
+- proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (case D)
+
+### B8-1332 · FIXED, awaiting confirmation · K51: a "–" metric is not in the report, graphs included
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5846167083, K50-2 option (A): "Yes"; B8-1249 answered "no".
+- note: K49's graphs of rows with values and no limit (`_unlimited_trend_rows`) are gone in every report type; a tab is shown when one of its rows is judged, or, where the document judges none, when a row its set LIMITS has values on two dates or more (B8-1334). A Custom set with one row switched off loses that row from the table and its graph line together. Spec 45.3, §17 item 3 and §41.8 marked.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_document_row_limits`, `_judged_trend_limits`, `_info_trend_limits`, `_trend_plan`).
+- tests: tests/test_k51_rulings.py, tests/test_trend_graphs_for_judged_metrics.py, tests/test_k49_the_paper_and_solids_against_the_profile.py, tests/test_c2b44_report_findings.py (amended)
+- evidence: test_a_printing_record_plots_the_rows_its_set_limits_and_no_dash_row, test_a_row_with_values_and_no_limit_is_plotted_by_no_graph, test_a_tab_shows_while_one_of_its_rows_is_judged_or_has_values, test_the_pdf_prints_the_shown_tabs_and_leaves_the_hidden_out
+- proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (cases C and X)
+
+### B8-1333 · FIXED, awaiting confirmation · K51: Paper white, Darkest black and Cube corners each carry one sentence of the sheet's own
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Knut, #182 5846167083: the Paper white sentence "Approved."
+- note: Paper white (L*): Knut's sentence verbatim. Darkest black (L*) and Cube corners (ΔE00) in the same pattern (ours, awaiting confirmation). Whatever the report judges (`_SHEET_GRAPH_NOTES`, `no_limit_note`). German by hand, no "du". Spec 45.3.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_SHEET_GRAPH_NOTES`, `no_limit_note`, `_NO_LIMIT_SHOWS`), `data/i18n/*.json`.
+- tests: tests/test_k51_rulings.py, tests/test_k47_every_limited_row_has_a_graph.py, tests/test_c2b44_report_findings.py (amended)
+- evidence: test_the_paper_white_sentence_is_knuts_approved_wording, test_every_graph_has_its_own_no_limit_sentence, test_the_cube_corners_sentence_says_aim_values_as_the_caption_does
+- proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (every case, g02, g04, g05)
+
+### B8-1334 · FIXED, awaiting confirmation · K51: where the report judges nothing, the limit lines are drawn for information, and a note says so
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5846167083 (his modification of K50-2 answer 2).
+- note: A Printing record, a raw drift check's design rows and a profiling sheet plot the rows their set limits with their lines at the set's numbers; after the usual note for each line: "This report records these measurements without judging them, so the limit line is shown for information only." (plural "the limit lines are"). The Colour accuracy graph of a record draws its Avg and Max lines again (K30's B4 taken back). The record's sentence under its results: "This report is not graded, so a limit line on its graphs is shown for information only." then the graphs it carries. Window key and PDF alike. German by hand. Spec 45.3.
+- where: `ui/dialogs/measurement_report_dialog.py` (`info_limit_note`, `_accuracy_lines_for_information`, `_accuracy_row_limits`, `_trend_plan`, `_trend_extras`, `_TrendChart.set_data`, `descriptions`, `_record_graphs_sentence`), `data/i18n/*.json`.
+- tests: tests/test_k51_rulings.py, tests/test_trend_graphs_for_judged_metrics.py, tests/test_k30_rulings.py, tests/test_k32_report_rows_and_switch.py, tests/test_c2_a_printing_record_names_only_the_graphs_it_draws.py (amended)
+- evidence: test_the_information_note_has_both_forms_in_both_languages, test_the_key_under_a_graph_says_the_lines_are_for_information, test_a_report_that_judges_nothing_draws_no_limit_line, test_a_printing_record_draws_its_limit_lines_for_information, test_one_measurement_names_no_graph_and_says_why
+- proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (cases R and D)
+
+### B8-1335 · FIXED, awaiting confirmation · K51: a FROM PROFILE GAMUT chart built with the media-relative intent is judged relative to its own paper
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5846297769, K50-4 option (A): "yes"; the line "Approved." Answers B8-1272.
+- note: The sheet is read relative to its paper patch by the Bradford adaptation ArgyllCMS uses between absolute and relative colorimetry (`media_relative_xyz`), against the chart's relative aims (paper corners at white). Perfect print, the adversary's setup: 2.40 before, 0.03 after (plain XYZ ratio 0.14; an absolute chart 0.04). Absolute, as ruled: the paper row and the two solid rows (the cube-corner table keeps the readings as measured), evenness (aims carried onto the paper), the chart measured again. The control strip's rungs are read with the colours against the relative prediction. "How the colours were judged": "relative to the paper white of this sheet, because the chart was built with the media-relative intent" (German ours). Saved reports keep their verdicts, with M-REPORT-WORKED-OUT-EARLIER. Demo pack: Report-Limits-Profile-Gamut/run3. Spec 45.5.
+- where: `workflow/measurement_report.py` (`PAPER_WHITE_CHART_RELATIVE`, `media_relative_xyz`, `aims_on_the_paper`, `build_report`), `ui/dialogs/measurement_report_dialog.py` (`_printing_block_html`, `_worked_out_differently`), `scripts/make_report_limit_demos.py`.
+- tests: tests/test_k51_rulings.py
+- evidence: test_a_media_relative_chart_is_judged_relative_to_its_paper, test_the_approved_line_says_how_the_colours_were_judged, test_a_saved_relative_report_says_it_was_worked_out_earlier
+- proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (relative/, NOTES.txt)
+
+### B8-1336 · FIXED, awaiting confirmation · K51: the i1Pro group in Preferences > Chart Layout is enabled with the engine on, titled and explained as approved
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Knut, #182 5846297769, K50-5: "Yes", "approved", "keep its own Chart Layout presets". Answers B8-1289.
+- note: `setEnabled(True)` whatever the engine setting (Guided always uses the engine and reads it); title "i1Pro margin and patch scale (Guided, and Manual with printtarg)"; the help's "Changes apply to both Guided and Manual mode." replaced by the approved paragraph; the help text's em dashes replaced (a touched string). German by hand, Du-Form. Manual with the engine is unchanged. Proved on screen: with the engine on, choosing "-m 6 -a 1.0" moves Guided's "Calculated patches" on A4. Spec 45.6.
+- where: `ui/dialogs/settings_dialog.py`, `data/i18n/*.json`.
+- tests: tests/test_k51_rulings.py
+- evidence: test_the_i1pro_group_is_enabled_with_the_engine_on
+- proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (i1pro/)
+
+### B8-1340 · FIXED, awaiting confirmation · K51: the verification star follows rule (4) with Knut's modifications, the evenness rows included
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5846167083, K50-3: "4 is fine, but with modifications … they shall still be included in the assessment of chart presets"; "use the modified 4".
+- note: Measured first (`k51/star-data/`): with the evenness rows in the star no one-page i1Pro 3 Plus preset on A4 or Letter answers them (84: grid under 9 by 9; 143, 154: noise over 1.5), only A3 (336); the two-page ones do (A4 308, Letter 286). Built: at most two pages, fewer than 900 patches, laid out again, a paper patch, no patch shortfall, both evenness rows answered under the loosest limits (`evenness_answered`). Starred: 48 before, 36 after (i1Pro 15 to 8, i1Pro 3 Plus 5 to 4, ColorMunki 14 to 13, CR30 14 to 11); the two-page rule is put to Knut. The ★ line and both help cards say the rule; German by hand, Du-Form.
+- where: `workflow/preset_eligibility.py` (`VERIFICATION_MAX_PAGES`, `VERIFICATION_PATCHES_UNDER`, `made_for_verification`, `evenness_answered`), `ui/dialogs/preset_verification_dialog.py`, `ui/dialogs/welcome_dialog.py`, `data/i18n/*.json`.
+- tests: tests/test_k51_rulings.py, tests/test_the_preset_window_says_what_a_chart_can_answer.py, tests/test_a_verification_preset_can_be_counted.py, tests/test_the_presets_window_sorts_within_each_group.py (amended)
+- evidence: test_the_star_follows_rule_4_with_knuts_modifications, test_evenness_counts_under_the_loosest_limit_of_any_set, test_the_star_line_says_the_rule_and_the_constants_agree, test_the_star_means_one_page_and_a_few_hundred_patches, test_the_page_count_is_what_decides_the_star
+- proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (star-data/, runs/*-star/)
+
+### B8-1341 · OPEN · The tooltip of Create Chart's presets button still says the star is "one printed page of a few hundred patches"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: reading every text that states the star's rule while building B8-1340.
+- note: `ui/tabs/tab_chart.py` (the tooltip of "Which presets can be used for verification?") says "A ★ marks a chart made for verification, which is one printed page of a few hundred patches or fewer that leaves nothing on the table". Untrue since B8-1340. Not changed in this round because another agent was editing tab_chart.py for beta 44; one sentence to reword when the file is free.
+- where: `ui/tabs/tab_chart.py` (the presets button's help).
+
+### B8-1342 · OPEN · A report of raw drift checks says it covers 0 of the project's measurements
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the K51 on-screen proof (`~/Desktop/ChromIQ-beta44-proof/k51/runs/*-report-D/`): Report-Limits-Border-Conditions, run3, both raw dates ticked, reads "This report covers 0 of the 9 measurements recorded for this project." Seen before the K51 change too (before-report-D), so not caused by it.
+- note: the coverage sentence counts the document's measurements that are not raw drift checks (`_is_raw_drift` in the two `covered` counts of the Report Scope code), so a document of drift checks covers "0". Since K51 a drift column can carry verdicts, which makes the 0 plainer still. Wants one rule for what "covered" counts; not changed here.
+- where: `ui/dialogs/measurement_report_dialog.py` (the two `covered = len(...)` lines of the scope sentence).

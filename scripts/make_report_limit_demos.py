@@ -3191,7 +3191,9 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         # no record of its printing are both judged in absolute Lab.
         # A COLORIMETRIC reference is judged absolute whatever the printing,
         # because that reference already includes the paper.
-        predicted = apply_design(
+        # K51-D (B8-1335): a date with no design is a printer that prints
+        # exactly as profiled: fakeread's own sheet, nothing moved.
+        predicted = {} if date.design is None else apply_design(
             ti3, work / f"{vstem}.ti2", date.design, gamut,
             relative=plan.print_colour == "through-profile" and cref_labs is None,
             ref_labs=cref_labs, corner_ids=corner_ids,
@@ -4128,6 +4130,29 @@ CHART_SMALL_I1 = ChartRecipe(105, 12, 8, "A4", "105 patches on A4, i1Pro layout"
                              instrument="i1")
 #: A From Profile Gamut chart of a different size than the pack's first.
 CHART_GAMUT_SMALL = GamutChartRecipe(150, "A4")
+#: K51-D (Knut, #182 5846297769, K50-4 option (A); B8-1335): the same kind of
+#: chart built with the module's media-relative intent, its aims in
+#: media-relative colorimetry (the paper at L* 100).
+CHART_GAMUT_RELATIVE = GamutChartRecipe(200, "A4", intent="relative")
+
+#: …printed by a printer that prints exactly as profiled, on two dates, and
+#: judged relative to its own paper patch. Before K51-D the report read it as
+#: measured against its relative aims and a perfect print read about 2.4 on
+#: "Average ΔE00, all patches" (FAIL under ChromIQ default's 2.0, §43.8).
+GAMUT_RELATIVE_AS_PROFILED: "list[Date]" = [
+    _d("2026-10-05_100000", "2026-10-05T10:00:00",
+       "A media-relative chart printed exactly as profiled",
+       "The chart was built with the media-relative intent, so its aims put "
+       "the paper at L* 100. The sheet is judged relative to its own paper "
+       "patch, and a print that matches the profile reads close to zero.",
+       None, []),
+    _d("2026-10-19_100000", "2026-10-19T10:00:00",
+       "The same chart, printed again",
+       "A second perfect print: the colours still read close to zero, and "
+       "the paper row still compares the paper itself, as measured, with the "
+       "profile's paper.",
+       None, []),
+]
 
 
 def _outlier_pair(m: str, over: Design, inside: Design, limit_word: str,
@@ -4548,6 +4573,16 @@ PROJECTS = [
                      "package and must not be: they are the column's own "
                      "starting numbers, researched industry figures and "
                      "ChromIQ's own, and a test pins where each came from."),
+        # K51-D (B8-1335): the relative case of §43.8.
+        RunPlan("A From-profile-gamut chart built with the media-relative "
+                "intent, judged relative to its own paper white.",
+                CHART_MEDIUM, CHART_GAMUT_RELATIVE, "chromiq_default",
+                # 24 rungs, measured: enough for the 95th-percentile row
+                GAMUT_RELATIVE_AS_PROFILED, expect_strip_p95=True,
+                print_colour="raw",
+                note="Deliberately built with the media-relative intent and "
+                     "printed as profiled: it exists to show the relative "
+                     "reading. Do not regenerate it absolute."),
     ]),
     # -----------------------------------------------------------------------
     # The eighth project: the five rows that had no detection until B8-397
@@ -6868,7 +6903,10 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("      measurement in here, so its column shows what was recorded")
     a("      rather than something worked out when you open it")
     a("  a sheet printed raw and read as a drift check, whose column says")
-    a("      'drift' and carries no verdict at all: Border-Conditions, run3")
+    a("      'drift' and carries no verdict under its own limit set, ChromIQ")
+    a("      default; under ISO 12647-7 its paper and solid rows are judged")
+    a("      against the profile and every other cell still says 'drift'")
+    a("      (K51): Border-Conditions, run3")
     a("")
     _multi = _cov.get("multi_type_runs", []) or []
     _all_runs = len(_cov.get("type_set_rows", []) or [])

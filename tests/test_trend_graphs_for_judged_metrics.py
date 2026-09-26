@@ -192,29 +192,30 @@ def test_a_withheld_evenness_value_is_not_plotted_against_its_limit():
 def test_a_tab_shows_while_one_of_its_rows_is_judged_or_has_values(
         qapp, tmp_path):
     """ChromIQ default limits the grey rows and not the tone ramp, so Grey
-    balance shows with its lines. Tone has values and no limit: since K49
-    (Knut, #182 5841092535, answer 2: *"Yes, it can have value for
-    trending"*) it shows too, with its values and NO line, where §17 item 3
-    hid it. A tab with no value on any date (Paper white difference: this
-    run has no profile to compare the paper with) stays hidden; the four
-    original tabs always show.
+    balance shows with its lines. Tone has values and no limit ("–"): K49
+    showed it without a line; since K51 (Knut, #182 5846167083, K50-2
+    option (A), *"Yes"*) a "–" row is not in the report, graphs included,
+    so its tab is hidden again, as §17 item 3 first had it. A tab with no
+    value on any date (Paper white difference: this run has no profile to
+    compare the paper with) stays hidden; the four original tabs always
+    show.
 
     MUTATION, proven red: ``bool(metrics)`` -> ``True`` in `_trend_plan`
-    (the empty Paper white difference tab shows); or drop the
-    `_unlimited_trend_rows` branch (Tone is hidden again)."""
+    (the empty Paper white difference tab shows); or accept a row with no
+    numeric limit in `_document_row_limits`'s ``info`` (Tone shows again)."""
     dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
     try:
         judged = dlg._judged_trend_limits()
         assert "grey_balance_neutral_ramp_avg" in judged, (
             f"the fixture judges no grey row ({judged}), so it proves nothing")
         assert "ramps_30_70_dl_max" not in judged
-        assert "ramps_30_70_dl_max" in dlg._unlimited_trend_rows(), (
+        assert any((pt.get("rows") or {}).get("ramps_30_70_dl_max")
+                   is not None for pt in dlg._trend_series), (
             "the fixture has no tone value, so it proves nothing")
+        assert "ramps_30_70_dl_max" not in dlg._info_trend_limits()
         vis = _visible(dlg)
         assert vis["Grey balance (ΔCh)"] is True
-        assert vis["Tone ramps 30 to 70 % (ΔL*)"] is True
-        tone = _group(dlg, "tone")
-        assert len(tone._metrics) == 1 and tone._limit_lines == []
+        assert vis["Tone ramps 30 to 70 % (ΔL*)"] is False
         assert vis["Paper white difference (ΔE00)"] is False
         for keep in ("Colour accuracy (ΔE00)", "Paper white (L*)",
                      "Darkest black (L*)", "Cube corners (ΔE00)"):
@@ -283,13 +284,17 @@ def test_only_the_judged_rows_of_a_group_are_plotted(qapp, tmp_path):
 
 def test_a_report_that_judges_nothing_draws_no_limit_line(
         qapp, tmp_path, monkeypatch):
-    """The Printing record judges nothing (every row INFO), so no tab draws
-    a limit line, whatever the set limits. Since K49 (Knut, #182 5841092535,
-    answer 2) a tab whose rows have values is shown for trending, with no
-    line and the sentence that says why; before, none was shown.
+    """The Printing record judges nothing (every row INFO). K51 (Knut, #182
+    5846167083): *"the limit line can still be shown if the limit value
+    exists. The limit is then just for information"*, so a tab whose rows
+    the set LIMITS shows them with their lines, and the key under it says
+    what each line is and that it is shown for information only. A row the
+    set leaves at "–" (the tone ramp under ChromIQ default) is not in the
+    report and its tab stays hidden.
 
     MUTATION, proven red: accept ``INFO`` as judged in
-    `_judged_trend_limits` (the grey tab draws its lines)."""
+    `_document_row_limits` (nothing is "for information"); or drop the
+    ``info_note`` from `_trend_extras` (the key says nothing of it)."""
     dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
     try:
         # The Printing record is what `_ungraded_by_type` answers True for;
@@ -300,17 +305,24 @@ def test_a_report_that_judges_nothing_draws_no_limit_line(
         dlg._refresh_trend()
         qapp.processEvents()
         assert dlg._judged_trend_limits() == {}
+        info = dlg._info_trend_limits()
+        assert info.get("grey_balance_neutral_ramp_avg") == 1.5
+        assert "ramps_30_70_dl_max" not in info
         vis = _visible(dlg)
-        free = dlg._unlimited_trend_rows()
-        for key, t, rows in mrd._TREND_GROUPS:
-            has = any(rid in free for rid, _w, _c in rows)
-            assert vis[t()] is has, (key, has)
-            assert _group(dlg, key)._limit_lines == [], key
         assert vis["Grey balance (ΔCh)"] is True
-        note = [x for x in _group(dlg, "grey").descriptions()
-                if x[0] == "note"]
-        assert note and note[0][2] == mrd.no_limit_note(
-            "grey", mrd.NO_LIMIT_WHY_RECORD)
+        assert vis["Tone ramps 30 to 70 % (ΔL*)"] is False
+        grey = _group(dlg, "grey")
+        assert [v for v, _w, _c in grey._limit_lines] == [1.5, 3.0]
+        d = grey.descriptions()
+        assert [k for k, _c, _t in d if k == "line"] == ["line", "line"]
+        assert ("note", d[-1][1], mrd.info_limit_note(2)) in d
+        # the Colour accuracy graph too, with its Avg and Max lines
+        de = dlg._trend_de
+        assert de._thresholds and any(isinstance(t, (int, float))
+                                      for t in de._thresholds)
+        assert any(k == "note" and t.startswith(
+            "This report records these measurements without judging them")
+            for k, _c, t in de.descriptions())
     finally:
         dlg.deleteLater()
 
@@ -394,23 +406,22 @@ def _export(dlg, tmp_path, monkeypatch):
 
 def test_the_pdf_prints_the_shown_tabs_and_leaves_the_hidden_out(
         qapp, tmp_path, monkeypatch):
-    """Grey balance is printed; Tone, which has values and no limit, is
-    printed too since K49 (Knut, #182 5841092535, answer 2), with the
-    sentence saying why it has no line; Paper white difference, which has no
-    value, is not. Each chart is one table so a title never stays behind at
-    the foot of a page.
+    """Grey balance is printed; Tone, which has values and no limit ("–"),
+    is not since K51 (Knut, #182 5846167083, K50-2 option (A): a "–" row is
+    not in the report, graphs included; K49 had printed it); Paper white
+    difference, which has no value, is not either. Each chart is one table
+    so a title never stays behind at the foot of a page.
 
     MUTATION, proven red: drop ``if not shown: continue`` in `_export_pdf`
-    (Paper white difference is printed); or go back to a bare ``<div>`` +
-    ``<img>``."""
+    (Paper white difference and Tone are printed); or go back to a bare
+    ``<div>`` + ``<img>``."""
     dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
     try:
         if not dlg._trend_de.has_trend():
             pytest.skip("no trend on this fixture, so nothing is printed")
         _sizes, html_ = _export(dlg, tmp_path, monkeypatch)
         assert "Grey balance (ΔCh)" in html_
-        assert "Tone ramps 30 to 70 % (ΔL*)" in html_
-        assert mrd.html.escape(mrd.no_limit_note("tone")) in html_
+        assert "Tone ramps 30 to 70 % (ΔL*)" not in html_
         assert "Paper white difference (ΔE00)" not in html_
         n_charts = html_.count("chart://")
         assert n_charts == sum(1 for e in dlg._trend_plan() if e[-1])

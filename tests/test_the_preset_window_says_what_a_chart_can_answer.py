@@ -375,19 +375,34 @@ def test_a_missing_row_shows_the_metrics_own_lever(qapp, rows):
 # 5. the star, in numbers, on the real set
 # ---------------------------------------------------------------------------
 def test_the_star_means_one_page_and_a_few_hundred_patches(rows):
-    """Knut: *"any one-page preset … from about 80 patches to a few hundred"*.
+    """Knut: *"any one-page preset … from about 80 patches to a few hundred"*,
+    and since K51 (#182 5846167083) his rule (4) with his modifications: one
+    or two pages, fewer than 900 patches, a paper patch, no patch shortfall
+    and the two evenness rows answered on the laid-out preset.
 
     Asserted as the conditions themselves rather than as a count, so adding a
     preset cannot make this test wrong and cannot make it vacuous either: every
-    starred preset meets all three, and every unstarred one fails at least one.
-    """
+    starred preset meets all of them, and every unstarred one fails at least
+    one. The window's own call is asked (with the preset's layout recipe),
+    so a printtarg preset still being laid out is unstarred on both sides."""
+    starred_any = 0
     for r in rows:
-        meets = (r.chart is not None
-                 and r.pages == PE.VERIFICATION_MAX_PAGES
-                 and 0 < r.patches <= PE.VERIFICATION_MAX_PATCHES
-                 and not PE.assess(r.chart, *EVERYDAY).patch_shortfalls)
-        starred = PE.made_for_verification(r.chart, r.patches, r.pages)
+        values = (PE.chart_row_values(r.chart, r.recipe)
+                  if r.chart is not None else {})
+        meets = (r.chart is not None and r.relayoutable
+                 and 1 <= r.pages <= PE.VERIFICATION_MAX_PAGES
+                 and 0 < r.patches < PE.VERIFICATION_PATCHES_UNDER
+                 and (values.get("substrate_de00_max") or {}).get("reason")
+                 != MR.REASON_NO_PAPER_PATCH
+                 and not PE.assess(r.chart, *EVERYDAY,
+                                   recipe=r.recipe).patch_shortfalls
+                 and PE.evenness_answered(values))
+        starred = PE.made_for_verification(r.chart, r.patches, r.pages,
+                                           relayoutable=r.relayoutable,
+                                           recipe=r.recipe)
         assert starred == meets, f"{r.label}: starred={starred}, meets={meets}"
+        starred_any += starred
+    assert starred_any, "no preset is starred, so this proves nothing"
 
 
 def test_the_star_does_not_move_when_the_pulldowns_do(qapp, rows):

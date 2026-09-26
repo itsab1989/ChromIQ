@@ -304,32 +304,35 @@ def test_the_presets_window_answers_the_paper_row_from_the_paper_patch(
 
 
 # --------------------------------------------------------------------------
-# a graph with values and no limit (answer 2)
+# a graph with values and no limit (answer 2, taken back by K51)
 # --------------------------------------------------------------------------
-def test_a_grey_and_tone_check_plots_no_colour_row_without_a_limit(
+def test_a_row_with_values_and_no_limit_is_plotted_by_no_graph(
         qapp, monkeypatch):
-    """A row with values and no limit is plotted for trending (K49, answer
-    2), but only a row the document is ABOUT: a Grey and tone check is not
-    about the solids, so it shows no Solid colours graph however many values
-    they have; a Full colour check does. A judged row is never one of them.
+    """K49 answer 2 plotted a row with values and no limit for trending.
+    K51 (Knut, #182 5846167083, K50-2 option (A): *"Yes"*) takes it back: a
+    "–" row is not in the report, graphs included, whatever report type. So
+    with values on two dates and no row judged or limited, no tab of
+    `_TREND_GROUPS` is shown, on a Full colour check as on a Grey and tone
+    check.
 
-    MUTATION, proven red: drop the report-type filter in
-    `_unlimited_trend_rows`."""
+    MUTATION, proven red: let `_trend_plan` treat a row with values as
+    ``info`` when the document has no limit for it."""
     from tests.test_calibration_reports import _settings
-    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from ui.dialogs.measurement_report_dialog import (MeasurementReportDialog,
+                                                      _TREND_GROUPS)
     dlg = MeasurementReportDialog(_settings())
     try:
         dlg._trend_series = [{"rows": {"solids_de00_max": 1.0 + i,
                                        "ramps_30_70_dl_max": 0.5}}
                              for i in range(2)]
-        monkeypatch.setattr(type(dlg), "_report_type_now",
-                            lambda self: MR.REPORT_TYPE_GREY)
-        assert dlg._unlimited_trend_rows({}) == {"ramps_30_70_dl_max"}
-        monkeypatch.setattr(type(dlg), "_report_type_now",
-                            lambda self: MR.REPORT_TYPE_FULL)
-        assert dlg._unlimited_trend_rows({}) == {"ramps_30_70_dl_max",
-                                                 "solids_de00_max"}
-        assert dlg._unlimited_trend_rows({"solids_de00_max": 3.0}) == {
-            "ramps_30_70_dl_max"}
+        monkeypatch.setattr(type(dlg), "_document_row_limits",
+                            lambda self: ({}, {}))
+        assert not hasattr(dlg, "_unlimited_trend_rows")
+        groups = {dlg._trend_groups[k] for k, _t, _r in _TREND_GROUPS}
+        for tid in (MR.REPORT_TYPE_GREY, MR.REPORT_TYPE_FULL):
+            monkeypatch.setattr(type(dlg), "_report_type_now",
+                                lambda self, t=tid: t)
+            shown = {c: sh for c, *_r, sh in dlg._trend_plan()}
+            assert not any(shown[c] for c in groups), tid
     finally:
         dlg.deleteLater()

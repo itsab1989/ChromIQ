@@ -115,15 +115,44 @@ def test_the_r11_preset_is_counted_at_one_page(demo_pack):
 
 
 def test_the_page_count_is_what_decides_the_star(demo_pack):
-    """And the count reaches the star: the PASS half of the pair is marked
-    made-for-verification, which it could never be while ``pages`` was 0
-    (``made_for_verification`` refuses ``pages < 1`` outright)."""
+    """And the count reaches the star, which it could never do while
+    ``pages`` was 0 (``made_for_verification`` refuses ``pages < 1``
+    outright).
+
+    K51 (Knut, #182 5846167083, rule (4) with his modifications; B8-1340):
+    the star needs a paper patch and the two evenness rows answered on the
+    laid-out preset, and the R11 PASS half has neither (no patch printed with
+    no ink, and a 78-patch page is a grid under 9 by 9), so it is no longer
+    starred. The pack's L1 control, 650 patches on TWO pages, is: its count
+    is derived as 2, and two pages is within the rule now.
+
+    MUTATION, proven red: ``VERIFICATION_MAX_PAGES = 1`` (L1 loses the star),
+    or ``pages=0`` for a user preset in `verification_preset_rows`."""
     rows = {r.label: r for r in _rows(demo_pack) if not r.builtin}
     ok = rows[R11_PASS]
-    assert PE.made_for_verification(ok.chart, ok.patches, ok.pages,
-                                    relayoutable=ok.relayoutable), \
-        "the preset built to pass R11 is still not marked for verification"
-    # The FAIL half stays unstarred, and now for the RIGHT reason: it is one
+    assert ok.pages == 1
+    values = PE.chart_row_values(ok.chart, ok.recipe, lay_out=True)
+    assert values["substrate_de00_max"]["reason"] == "paper_not_measured"
+    assert not PE.evenness_answered(values)
+    assert not PE.made_for_verification(ok.chart, ok.patches, ok.pages,
+                                        relayoutable=ok.relayoutable,
+                                        recipe=ok.recipe)
+    l1 = next(r for lab, r in rows.items() if lab.startswith("Verify L1 "))
+    assert l1.pages == 2 and l1.patches < PE.VERIFICATION_PATCHES_UNDER
+    # THE ARGYLL FOLDER IS NAMED HERE, not read from whatever settings the
+    # worker holds: another test of the same worker may have pointed them at
+    # a folder with no printtarg in it (seen in a loaded gate), and a preset
+    # that cannot be laid out answers no evenness row
+    argyll = Path("/Applications/Argyll/bin")
+    if not (argyll / "printtarg").is_file():
+        pytest.skip("printtarg is needed to lay the preset out")
+    recipe = dict(l1.recipe or {}, argyll_bin=str(argyll))
+    PE.chart_row_values(l1.chart, recipe, lay_out=True)
+    assert PE.made_for_verification(l1.chart, l1.patches, l1.pages,
+                                    relayoutable=l1.relayoutable,
+                                    recipe=recipe), \
+        "the two-page control preset is not marked for verification"
+    # The FAIL half stays unstarred, and for the RIGHT reason: it is one
     # notch outside the surface-patch rule, not a preset of unknown length.
     fail = rows[R11_FAIL]
     assert fail.pages == 1

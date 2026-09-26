@@ -785,6 +785,16 @@ from two technical fields.
 **Test T12** (§9): a regular verification chart offers both options with neither
 disabled, and the notice changes with the selection.
 
+⏳ **Awaiting confirmation (K51, #182 5846167083, "yes for both"; built for
+beta 44, B8-1330):** Knut's answer is confirmed, what was built is not. On
+the report a raw print of a regular chart stays a drift check, with one
+change: the paper row and the two solid rows, whose reference is the
+profile's own description of the printing condition (§41.7 of
+`measurement_report_limits.md`), are judged where the limit set limits them;
+every row compared with the chart's design colours stays for information.
+The sentence under the results names the judged rows. See
+`measurement_report_limits.md` §45.2. **Confirmed by:** *nobody yet.*
+
 ### 3.2 Feature A — the conversion itself
 
 | # | Condition | Action | Where |

@@ -249,9 +249,13 @@ def test_the_note_names_no_control_of_the_app():
     from core.resource_path import resource_path
     cat = json.load(open(resource_path("data/i18n/de.json"),
                          encoding="utf-8"))
+    # K51: the three sheet graphs have a sentence of their own, and a
+    # graph whose lines the report does not judge says so (two forms)
     parts = [f() for f in mrd._NO_LIMIT_SHOWS.values()] + \
-        [f() for f in mrd._NO_LIMIT_WHY.values()]
-    assert len(parts) == len(mrd._TREND_ABOUT) + 3
+        [f() for f in mrd._NO_LIMIT_WHY.values()] + \
+        [f() for f in mrd._SHEET_GRAPH_NOTES.values()] + \
+        [mrd.info_limit_note(1), mrd.info_limit_note(2)]
+    assert len(parts) == len(mrd._TREND_ABOUT) + 3 + 2
     for en in parts:
         import re
         for word in ("Choose", "Press", "tick", "window", "tab", "button"):
@@ -269,15 +273,24 @@ def test_every_graph_has_its_own_no_limit_sentence():
     Each says what its graph shows, what watching it is for (a change
     between dates) and why no line is drawn.
 
-    MUTATION, proven red: map two keys of `_NO_LIMIT_SHOWS` to one text."""
+    MUTATION, proven red: map two keys of `_NO_LIMIT_SHOWS` to one text.
+
+    K51: the three graphs of the sheet itself (paper white, darkest black,
+    cube corners) carry a sentence of their own instead
+    (`_SHEET_GRAPH_NOTES`), which ends on what the trend shows."""
     keys = set(mrd._TREND_ABOUT)
-    assert set(mrd._NO_LIMIT_SHOWS) == keys
+    sheet = set(mrd._SHEET_GRAPH_NOTES)
+    assert sheet == {"white", "black", "corners"}
+    assert set(mrd._NO_LIMIT_SHOWS) == keys - sheet
     texts = {k: mrd.no_limit_note(k) for k in keys}
     assert len(set(texts.values())) == len(keys)
     for k, t in texts.items():
         assert t.startswith("This graph shows"), k
         assert "date" in t, k
-        assert t.endswith("no limit line is drawn."), k
+        if k in sheet:
+            assert "no limit line is drawn; the trend shows" in t, k
+        else:
+            assert t.endswith("no limit line is drawn."), k
     for why in (mrd.NO_LIMIT_WHY_SET, mrd.NO_LIMIT_WHY_RECORD,
                 mrd.NO_LIMIT_WHY_ACCURACY):
         assert mrd.no_limit_note("de", why).endswith(

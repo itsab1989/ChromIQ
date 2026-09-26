@@ -539,11 +539,18 @@ def test_grey_rows_sit_under_all_patches_on_a_split_sheet(tmp_path, qapp):
         dlg.deleteLater()
 
 
-def test_a_printing_record_draws_no_limit_line(tmp_path, qapp):
-    """Challenge B B4 (spec 17 item 4): the record's Colour accuracy graph
-    drew Avg and Max lines labelled "the limit for ...".
+def test_a_printing_record_draws_its_limit_lines_for_information(tmp_path,
+                                                                 qapp):
+    """Challenge B B4 (spec 17 item 4) took the record's Avg and Max lines
+    off its Colour accuracy graph. K51 (Knut, #182 5846167083) puts them
+    back, for information: *"the limit line can still be shown if the limit
+    value exists. The limit is then just for information ... a note says what
+    that limit line is (as usual), but then also notes if the limit is only
+    shown as info and if the report records the measurements without judging
+    them."*
 
-    MUTATION, proven red: take `_no_lines = False` in `_trend_plan`."""
+    MUTATION, proven red: ``_no_lines = self._ungraded_by_type()`` in
+    `_trend_plan` again (no line), or no ``info_note`` from `_trend_extras`."""
     from tests.test_k28b_one_vocabulary import _open
     from workflow.compliance_sets import effective_limits
     from workflow.measurement_report import REPORT_TYPE_RECORD
@@ -552,8 +559,11 @@ def test_a_printing_record_draws_no_limit_line(tmp_path, qapp):
         dlg._report_type_now = lambda: REPORT_TYPE_RECORD
         plan = dlg._trend_plan()
         de = next(e for e in plan if e[0] is dlg._trend_de)
-        assert de[6] is None, de[6]
-        assert dlg._trend_extras(dlg._trend_de)["line_notes"] == []
+        assert de[6] is not None and any(
+            isinstance(v, (int, float)) for v in de[6]), de[6]
+        ex = dlg._trend_extras(dlg._trend_de)
+        assert [n for n in ex["line_notes"] if n], ex
+        assert ex["info_note"] and "information only" in ex["info_note"]
     finally:
         dlg.deleteLater()
 

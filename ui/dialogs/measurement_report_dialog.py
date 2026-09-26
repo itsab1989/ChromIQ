@@ -951,6 +951,27 @@ def _worked_out_differently(saved: dict, rebuilt: dict) -> bool:
         if any((cond.get(k) or {}).get("from") == CONDITION_FROM_PROFILE
                for k in ("paper", "solids")):
             return True
+    # K51-D (B8-1335): a FROM PROFILE GAMUT chart built with the
+    # media-relative intent is judged relative to its own paper patch now;
+    # a report saved before judged it as measured.
+    from workflow.measurement_report import PAPER_WHITE_CHART_RELATIVE
+    if ((rebuilt.get("paper_white_used") or {}).get("why")
+            == PAPER_WHITE_CHART_RELATIVE
+            and (saved.get("paper_white_used") or {}).get("why")
+            != PAPER_WHITE_CHART_RELATIVE):
+        return True
+    # K51 (B8-1330): a raw drift check saved with its paper and solid rows
+    # shown for information, where this version judges them against the
+    # profile (its saved limits put a number on one of them).
+    from workflow.measurement_report import (ROWS_JUDGED_ON_A_RAW_PRINT,
+                                             is_drift_check)
+    _v = saved.get("verdict") if isinstance(saved.get("verdict"), dict) else {}
+    if is_drift_check(saved) and _v.get("graded") is False and any(
+            (x.get("row_id") or x.get("key")) in ROWS_JUDGED_ON_A_RAW_PRINT
+            and x.get("word") == "INFO"
+            and isinstance(x.get("threshold"), (int, float))
+            for x in (_v.get("rows") or ())):
+        return True
     if "paper_patch" not in saved:
         if rebuilt.get("paper_patch") is False:
             return True
@@ -1682,35 +1703,17 @@ def _trend_about_html(text: str) -> str:
 #: is good for, the first half of the sentence under a graph with no limit
 #: line. Keyed like `_TREND_ABOUT`. Written for whoever the PDF is handed to
 #: (K18): no control of the app is named (K39).
+#: K51: Paper white, Darkest black and Cube corners have a sentence of their
+#: own (`_SHEET_GRAPH_NOTES`), so they are not here.
 _NO_LIMIT_SHOWS = {
     "de": lambda: tr(
         "This graph shows how far the measured patches lie from their aim "
         "values (ΔE00) on each date, which is useful for watching the print "
         "drift between dates."),
-    "white": lambda: tr(
-        "This graph shows the lightness (L*) of the bare paper on each date, "
-        "which is useful for watching the paper change between dates, for "
-        "example a new batch or paper that has aged."),
     "paper_diff": lambda: tr(
         "This graph shows how far the bare paper lies from the reference "
         "paper (ΔE00) on each date, which is useful for watching the paper "
         "change between dates."),
-    "black": lambda: tr(
-        "This graph shows the lightness (L*) of the darkest patch on each "
-        "date, which is useful for watching the blacks drift between dates, "
-        "for example as an ink runs low."),
-    # Challenge 2 of beta 44, finding 5 (B8-1275): "from their ideal
-    # values" was false of the paper white on a FROM PROFILE GAMUT chart,
-    # whose aim is the profile's paper (§31.5), and the caption above the
-    # same graph says "aim values". The black and the six colours aim at
-    # ideal values on every chart kind, and only they are called ideal.
-    "corners": lambda: tr(
-        "This graph shows how far the paper white, the black and the six "
-        "solid colours lie from their aim values (ΔE00) on each date. The "
-        "aims of the black and the six colours are ideal values that lie "
-        "outside what most printers can print, so the level says little "
-        "about the print; the trend shows whether the inks and the paper "
-        "drift between dates."),
     "solids": lambda: tr(
         "This graph shows how far the cyan, magenta, yellow and black solids "
         "lie from the colours the profile predicts for them (ΔE00) on each "
@@ -1773,6 +1776,48 @@ _NO_LIMIT_WHY = {
 }
 
 
+#: K51 (Knut, #182 5846167083): the three graphs of measurements of the sheet
+#: itself, which no limit set has a row for, each with ONE sentence of its own
+#: whatever the report judges. Paper white is Knut's approved wording,
+#: verbatim (*"Approved."*); Darkest black and Cube corners follow its pattern
+#: and await his confirmation (B8-1333).
+_SHEET_GRAPH_NOTES = {
+    "white": lambda: tr(
+        "This graph shows the lightness of the paper on each date, as "
+        "measured. It is a measurement of the sheet, not a judged metric, so "
+        "no limit line is drawn; the trend shows whether the paper changes "
+        "between dates."),
+    "black": lambda: tr(
+        "This graph shows the lightness of the darkest patch on each date, as "
+        "measured. It is a measurement of the sheet, not a judged metric, so "
+        "no limit line is drawn; the trend shows whether the black changes "
+        "between dates."),
+    "corners": lambda: tr(
+        "This graph shows how far the paper white, the black and the six "
+        "solid colours lie from their aim values (ΔE00) on each date, as "
+        "measured; the aims of the black and the six colours are ideal values "
+        "that most printers cannot reach. It is a measurement of the sheet, "
+        "not a judged metric, so no limit line is drawn; the trend shows "
+        "whether the inks and the paper change between dates."),
+}
+
+
+def info_limit_note(n_lines: int) -> str:
+    """The sentence after the line notes of a graph whose limit lines the
+    report does not judge against (K51, B8-1334): a Printing record, a raw
+    drift check's design rows, a profiling sheet. Knut, #182 5846167083:
+    *"the note can say "without judging them", but I think the limit line can
+    still be shown if the limit value exists. The limit is then just for
+    information ... a note says what that limit line is (as usual), but then
+    also notes if the limit is only shown as info and if the report records
+    the measurements without judging them."*"""
+    if n_lines == 1:
+        return tr("This report records these measurements without judging "
+                  "them, so the limit line is shown for information only.")
+    return tr("This report records these measurements without judging them, "
+              "so the limit lines are shown for information only.")
+
+
 def no_limit_note(key: str = "", why: str = NO_LIMIT_WHY_SET) -> str:
     """The sentence under a drawn graph that has no limit line: what the
     graph *key* shows and what watching it is good for, then why no line is
@@ -1782,7 +1827,13 @@ def no_limit_note(key: str = "", why: str = NO_LIMIT_WHY_SET) -> str:
     second half alone.
 
     Both halves speak of this report only (K50, B8-1320): never of another
-    limit set, of ChromIQ's sets, or of anything else the app offers."""
+    limit set, of ChromIQ's sets, or of anything else the app offers.
+
+    K51: the three graphs of the sheet itself (paper white, darkest black,
+    cube corners) have one sentence each, whatever *why* is
+    (`_SHEET_GRAPH_NOTES`)."""
+    if key in _SHEET_GRAPH_NOTES:
+        return _SHEET_GRAPH_NOTES[key]()
     shows = _NO_LIMIT_SHOWS.get(key)
     tail = _NO_LIMIT_WHY.get(why, _NO_LIMIT_WHY[NO_LIMIT_WHY_SET])()
     return (shows() + " " + tail) if shows else tail
@@ -2046,6 +2097,9 @@ class _TrendChart(QWidget):
         self._line_notes: list = []
         self._withheld: list = []
         self._no_limit_text: "str | None" = None
+        #: K51: the sentence saying the limit lines are shown for information
+        #: only, or None when they are the limits the report judged against.
+        self._info_note: "str | None" = None
         #: ``[(QRectF, text)]`` of everything painted that explains itself,
         #: refreshed by every paint, read by the tooltip (`event`).
         self._hits: list = []
@@ -2053,10 +2107,14 @@ class _TrendChart(QWidget):
 
     def set_data(self, series, metrics, dark=True, y_max=None, dec=1,
                  auto=False, thresholds=None, limit_lines=None,
-                 line_notes=None, withheld=None, no_limit=None) -> None:
+                 line_notes=None, withheld=None, no_limit=None,
+                 info_note=None) -> None:
         # K49: the sentence this graph prints under it when it has no limit
         # line (`no_limit_note`), or None for the general one.
         self._no_limit_text = no_limit
+        # K51 (Knut, #182 5846167083): printed after the line notes when the
+        # lines are shown for information only (`info_limit_note`).
+        self._info_note = info_note
         # One entry per metric: ``withheld[k](pt)`` is the sentence saying
         # why metric k's value on that date is not drawn, or None.
         wh = list(withheld or [])
@@ -2201,6 +2259,12 @@ class _TrendChart(QWidget):
             # K49: the graph's own sentence, set by its dialog
             out.insert(0, ("note", grey,
                            self._no_limit_text or no_limit_note()))
+        elif self._info_note and any(k == "line" for k, _c, _t in out):
+            # K51 (Knut, #182 5846167083): "a note says what that limit line
+            # is (as usual), but then also notes if the limit is only shown
+            # as info and if the report records the measurements without
+            # judging them."
+            out.append(("note", grey, self._info_note))
         for _k, _i, _v, text in self.withheld_marks():
             out.append(("mark", QColor(_WITHHELD_RED), text))
         return out
@@ -7431,7 +7495,8 @@ class MeasurementReportDialog(QDialog):
                                  limit_lines=lines,
                                  line_notes=ex["line_notes"],
                                  withheld=ex["withheld"],
-                                 no_limit=ex.get("no_limit"))
+                                 no_limit=ex.get("no_limit"),
+                                 info_note=ex.get("info_note"))
                     # Render at 3× and display at the same 600px layout width: a
                     # plain grab() gave a ~96-dpi raster that printed visibly
                     # blurry next to the vector text (Sebastian, 2026-08-10).
@@ -7726,9 +7791,8 @@ class MeasurementReportDialog(QDialog):
 
         The same set `_thresholds` reads the grey pair from, and the same two
         filters `_accuracy_thresholds` puts on it: a row the set leaves at "–"
-        and a row the report type does not judge have no line."""
-        if self._ungraded_by_type():
-            return {}
+        and a row the report type does not judge have no line. A Printing
+        record has them too, shown for information (K51, B8-1334)."""
         from workflow.measurement_report import rows_for_report_type
         lim = (self._document_limits() or self._sticky_limits()
                or self._window_limits())
@@ -11827,22 +11891,34 @@ class MeasurementReportDialog(QDialog):
         numbered notes is about something that is on the page."""
         from workflow.compliance_sets import N_A
         for r in runs or ():
-            if _is_raw_drift(r):
+            if self._drift_only(r):
                 continue
-            rows, _rec = self._verdict_rows(r)
+            rows = self._rows_with_words(r)
             if any(x.get("word") == N_A for x in rows):
                 return True
         return False
+
+    def _rows_with_words(self, r: dict) -> list:
+        """The verdict rows whose word the results table prints for *r*:
+        all of them, or on a raw drift check the ones it judges against the
+        profile (K51, B8-1330); every other cell of such a column reads
+        "drift", so its notes would number nothing on the page."""
+        rows, _rec = self._verdict_rows(r)
+        if not _is_raw_drift(r):
+            return rows
+        from workflow.measurement_report import ROWS_JUDGED_ON_A_RAW_PRINT
+        return [x for x in rows
+                if (x.get("row_id") or x.get("key"))
+                in ROWS_JUDGED_ON_A_RAW_PRINT]
 
     def _note_numbering(self, runs: list):
         """The raw numbering the verdict cells mark themselves from."""
         from workflow.measurement_report import numbered_notes
         merged: list = []
         for r in runs or ():
-            if _is_raw_drift(r):
+            if self._drift_only(r):
                 continue
-            rows, _rec = self._verdict_rows(r)
-            merged.extend(rows)
+            merged.extend(self._rows_with_words(r))
         # #182 A10: A SHEET WITH NO PAPER PATCH carries a numbered note on
         # its "Paper white" line, which is no limit row, so the line is put
         # into the one numbering as a row of its own (after the limit rows,
@@ -12288,7 +12364,7 @@ class MeasurementReportDialog(QDialog):
         """The one word for a run's column, with its numbers."""
         from workflow.compliance_sets import (Limit, Summary, set_summary,
                                               applies_a_standard)
-        from workflow.measurement_report import (is_graded_sheet,
+        from workflow.measurement_report import (counted_rows,
                                                  recorded_compliance)
         rec = self._recorded(r)
         # THE SAVED SUMMARY IS THE FULL REPORT'S, AND A TYPE THAT CHANGES THE
@@ -12370,9 +12446,13 @@ class MeasurementReportDialog(QDialog):
         pairs = [(limits.get(row.get("row_id"), Limit.none())
                   if isinstance(limits.get(row.get("row_id")), Limit)
                   else Limit.none(), row.get("word"), row.get("row_id"))
-                 for row in rows]
+                 for row in counted_rows(r, rows)]
+        # K51 (B8-1330): a raw drift check that judges its paper or solid
+        # rows is a judged column; its rows shown for information are not
+        # counted (`set_summary`).
+        from workflow.measurement_report import sheet_is_judged
         graded = (bool(rec.get("graded")) if rec is not None
-                  else is_graded_sheet(r))
+                  else sheet_is_judged(r, rows))
         # THE RAW ID AND THE STORED LABEL, not the resolved set: both are None
         # for a set this ChromIQ no longer defines, and a column reading
         # "Custom ISO 12647-7 (historical)" beside a green PASS is a claim made
@@ -12528,9 +12608,26 @@ class MeasurementReportDialog(QDialog):
             "it was measured."
         ).format(label=label)
 
+    def _drift_judges(self, r: dict) -> bool:
+        """Whether *r* is a raw drift check that judges its paper or solid
+        rows against the profile (K51, Knut #182 5846167083, K50-1 option
+        (2); B8-1330): its column then carries those rows' words and an
+        Overall word of its own, and only its other cells read "drift"."""
+        if not _is_raw_drift(r):
+            return False
+        from workflow.measurement_report import drift_check_judges
+        rows, _rec = self._verdict_rows(r)
+        return drift_check_judges(rows)
+
+    def _drift_only(self, r: dict) -> bool:
+        """A raw drift check whose column carries no verdict at all: every
+        cell, the Overall word included, reads "drift" (K51: under a limit
+        set that puts no limit on its paper and solid rows)."""
+        return _is_raw_drift(r) and not self._drift_judges(r)
+
     def _thresholds_cell(self, r: dict) -> str:
         """The Report Results row that says what a column was judged against."""
-        if _is_raw_drift(r):
+        if self._drift_only(r):
             txt = "—"
         elif self._recorded(r) is None and not r.get("_fresh"):
             txt = tr("not recorded")
@@ -12543,7 +12640,7 @@ class MeasurementReportDialog(QDialog):
         """The Overall row: the column's one word, its reason as tooltip."""
         from workflow.compliance_sets import (COND, FAIL, PASS, summary_text,
                                               word_label)
-        if _is_raw_drift(r):
+        if self._drift_only(r):
             return (f"<td align='center' style='color:{_C['faint']}'>"
                     + html.escape(tr("drift")) + "</td>")
         sm = self._column_summary(r)
@@ -13196,19 +13293,23 @@ class MeasurementReportDialog(QDialog):
         whatever was drawn, and a record of one measurement draws none: its
         tabs are empty frames saying a trend needs two measurements, and its
         PDF has no graph at all. Then K49 let a record carry every graph
-        with values, and the sentence went on naming four."""
-        head = tr("This report is not graded, so it carries no graph of a "
-                  "judged metric: each of those graphs is drawn against its "
-                  "limit.")
+        with values, and the sentence went on naming four.
+
+        **K51 (Knut, #182 5846167083): a record carries the graphs of the
+        rows its set limits, WITH their limit lines, shown for information**
+        (B8-1334), so the first sentence no longer says it carries no graph
+        of a judged metric."""
+        head = tr("This report is not graded, so a limit line on its graphs "
+                  "is shown for information only.")
         drawn = self._graphs_drawn_for(runs)
         if not drawn and len(runs) <= 1:
             return head + " " + tr(
-                "It carries no other graph either: a graph needs at least "
-                "two measurements, and this report has one.")
+                "It carries no graph: a graph needs at least two "
+                "measurements, and this report has one.")
         if not drawn:
             return head + " " + tr(
-                "It carries no other graph either: the measurements it "
-                "covers have no values to draw one from.")
+                "It carries no graph: the measurements it covers have no "
+                "values to draw one from.")
         words = [self._RECORD_GRAPH_NAMES[k]() for k in drawn
                  if k in self._RECORD_GRAPH_NAMES]
         if len(words) == 1:
@@ -14356,10 +14457,15 @@ class MeasurementReportDialog(QDialog):
             # by PHOTOGRAPHING the guide after changing four sentences beside
             # it: the picture had this one in frame and nothing had flagged
             # it, because nothing in the suite reads this paragraph.
+            # K51 (B8-1331): "in every cell" is no longer true where the
+            # limit set limits the paper and solid rows: those are judged
+            # against the profile on a raw print.
             "<p>" + html.escape(tr(
                 "A column read as a drift check shows the word “drift” in "
-                "every cell instead: it compares one measurement with another "
-                "rather than with a limit. A column's Overall word is PASS "
+                "every cell it does not judge: it compares one measurement "
+                "with another rather than with a limit. Its paper and solid "
+                "colour rows are judged against the profile where the limit "
+                "set has a limit for them. A column's Overall word is PASS "
                 "when every row that could be checked passed; a row the test "
                 "chart used could not answer is not counted as a failure, and "
                 "the sentence under the word says how many there were.")) + "</p>"
@@ -14542,8 +14648,13 @@ class MeasurementReportDialog(QDialog):
 
         _note_nums = self._note_numbering(runs)
 
+        from workflow.measurement_report import ROWS_JUDGED_ON_A_RAW_PRINT
+
         def cell(r, rid):
-            if _is_raw_drift(r):
+            # K51 (B8-1330): a drift check's paper and solid rows carry their
+            # words when it judges them; its other cells read "drift".
+            if _is_raw_drift(r) and not (rid in ROWS_JUDGED_ON_A_RAW_PRINT
+                                         and self._drift_judges(r)):
                 return (f"<td align='center' style='color:{_C['faint']}'>"
                         + html.escape(tr("drift")) + "</td>")
             x = verd[id(r)].get(rid)
@@ -14635,7 +14746,21 @@ class MeasurementReportDialog(QDialog):
         row_getters.append((tr("Judged against"), self._thresholds_cell))
         note_css = f"color:{_C['faint']};font-size:10px;margin-top:2px"
         notes = ""
-        if any(_is_raw_drift(r) for r in runs):
+        if any(self._drift_judges(r) for r in runs):
+            # K51 (Knut, #182 5846167083: "yes for both"): the sentence names
+            # the rows a raw print judges, in the words he approved.
+            notes += (
+                f"<div style='{note_css}'>" + html.escape(tr(
+                    "Columns marked “drift” are sheets printed raw, without "
+                    "the profile. On them the paper and the solid colours are "
+                    "judged against the profile; the other colours are "
+                    "compared with the chart's design colours for "
+                    "information, because a sheet printed raw is not expected "
+                    "to match the design closely, and PASS or FAIL there would "
+                    "be unfair to a perfectly healthy printer. For those "
+                    "sheets the detailed chapter shows how far the printer "
+                    "has moved since the previous raw check.")) + "</div>")
+        elif any(_is_raw_drift(r) for r in runs):
             notes += (
                 f"<div style='{note_css}'>" + html.escape(tr(
                     "Columns marked “drift” are sheets printed raw, without "
@@ -14737,7 +14862,7 @@ class MeasurementReportDialog(QDialog):
         from workflow.compliance_sets import reason_needs_the_footnote
         _said: "list[str]" = []
         for r in runs:
-            if _is_raw_drift(r):
+            if self._drift_only(r):
                 continue
             sm = self._column_summary(r)
             if not reason_needs_the_footnote(sm.reason):
@@ -15255,7 +15380,7 @@ class MeasurementReportDialog(QDialog):
         # claim about columns it does not describe. The per-column row below
         # already answers that case and keeps answering it.
         _sets = {self._judged_label_for(r, mark_unsaved=False)
-                 for r in runs if not _is_raw_drift(r)}
+                 for r in runs if not self._drift_only(r)}
         if len(_sets) == 1:
             _head_bits.append(html.escape(tr("Judged against:")) + " "
                               + html.escape(_sets.pop()))
@@ -15294,7 +15419,7 @@ class MeasurementReportDialog(QDialog):
         # same question the note under the results asks), the gamut split only
         # where a sheet was split, and a calibration's chain has no profile.
         from workflow.measurement_report import is_calibration_dir
-        _graded_runs = [r for r in runs if not _is_raw_drift(r)]
+        _graded_runs = [r for r in runs if not self._drift_only(r)]
         parts = [head, self._scope_html(runs, _other_sets),
                  self._how_to_read_html(
                      _present,
@@ -15701,57 +15826,72 @@ class MeasurementReportDialog(QDialog):
     def _pdf_html(self, runs: list, charts_html: str) -> str:
         return self._report_body_html(runs, for_pdf=True, charts_html=charts_html)
 
-    def _judged_trend_limits(self) -> "dict[str, float]":
-        """``{row_id: limit}`` for every trend row the DOCUMENT judged.
+    def _document_row_limits(self) -> "tuple[dict, dict]":
+        """``(judged, info)``, each ``{row_id: limit}``, over EVERY row of the
+        document's measurements, read from `_verdict_rows`, which is what the
+        results table prints.
 
-        #182 K20/K21. Judged means a PASS, FAIL or COND on that row for some
-        measurement of `_runs_for_document()` that is not a raw drift check,
-        read from `_verdict_rows`, which is what the results table prints. The
-        limit is the threshold that verdict was given against, so the dotted
-        line sits at the number printed beside the word: a saved report's
-        recorded set, or the run's set when judged live. Newest measurement
-        wins if two disagree, which `_one_limit_set` should make impossible.
+        * ``judged``: a PASS, FAIL or COND on that row for some measurement.
+          The limit is the threshold that verdict was given against, so the
+          dotted line sits at the number printed beside the word: a saved
+          report's recorded set, or the run's set when judged live. Newest
+          measurement wins if two disagree, which `_one_limit_set` should
+          make impossible. A raw drift check counts: since K51 it judges its
+          paper and solid rows against the profile (B8-1330), and its other
+          rows read INFO.
+        * ``info``: judged on no measurement, and INFO with a numeric limit on
+          one (K51, Knut #182 5846167083: *"the limit line can still be shown
+          if the limit value exists. The limit is then just for
+          information"*): the document's limit set limits the row and the
+          document does not judge it (a Printing record, a raw drift check's
+          design rows, a profiling sheet). A row whose limit is "–" is in
+          neither (K51, K50-2 option (A): it is not in the report at all).
         """
-        from workflow.compliance_sets import COND, FAIL, PASS
-        from workflow.measurement_report import TREND_ROW_IDS
-        if not self._sources:
-            return {}
-        want = set(TREND_ROW_IDS)
-        out: "dict[str, float]" = {}
+        from workflow.compliance_sets import COND, FAIL, INFO, PASS
+        if not getattr(self, "_sources", None):
+            return {}, {}
+        judged: "dict[str, float]" = {}
+        info: "dict[str, float]" = {}
         for r in self._runs_for_document():
-            if _is_raw_drift(r):
-                continue
             rows, _rec = self._verdict_rows(r)
             for x in rows:
                 rid = x.get("row_id") or x.get("key")
                 thr = x.get("threshold")
-                if (rid in want and x.get("word") in (PASS, FAIL, COND)
-                        and isinstance(thr, (int, float))):
-                    out[rid] = float(thr)
-        return out
+                if not isinstance(thr, (int, float)):
+                    continue
+                if x.get("word") in (PASS, FAIL, COND):
+                    judged[rid] = float(thr)
+                elif x.get("word") == INFO and x.get("value") is not None:
+                    info[rid] = float(thr)
+        return judged, {k: v for k, v in info.items() if k not in judged}
 
-    def _unlimited_trend_rows(self, judged: "dict | None" = None
-                              ) -> "set[str]":
-        """The trend rows that have a value on some date of the document and
-        no limit: judged on no date (the limits the document is judged
-        against set none for them, or the document judges nothing), and part
-        of the document's type (a Grey and tone check is not about the
-        colour rows). #182 K49 (Knut, 5841092535, answer 2): *"Yes, it can
-        have value for trending"*; §17 item 3 before it hid their tab."""
-        from workflow.measurement_report import (TREND_ROW_IDS,
-                                                 rows_for_report_type)
-        if judged is None:
-            judged = self._judged_trend_limits()
-        series = getattr(self, "_trend_series", None) or []
-        keep = rows_for_report_type(self._report_type_now())
-        out = set()
-        for rid in TREND_ROW_IDS:
-            if rid in judged or (keep is not None and rid not in keep):
-                continue
-            if any((pt.get("rows") or {}).get(rid) is not None
-                   for pt in series):
-                out.add(rid)
-        return out
+    def _judged_trend_limits(self) -> "dict[str, float]":
+        """``{row_id: limit}`` for every trend row the DOCUMENT judged.
+
+        #182 K20/K21; see `_document_row_limits`, whose first half this is,
+        narrowed to the rows a trend graph plots."""
+        from workflow.measurement_report import TREND_ROW_IDS
+        judged, _info = self._document_row_limits()
+        want = set(TREND_ROW_IDS)
+        return {k: v for k, v in judged.items() if k in want}
+
+    def _info_trend_limits(self) -> "dict[str, float]":
+        """``{row_id: limit}`` for every trend row the document's limit set
+        limits and the document does not judge (K51, B8-1334): plotted with
+        its limit line, shown for information only. See
+        `_document_row_limits`."""
+        from workflow.measurement_report import TREND_ROW_IDS
+        _judged, info = self._document_row_limits()
+        want = set(TREND_ROW_IDS)
+        return {k: v for k, v in info.items() if k in want}
+
+    def _accuracy_lines_for_information(self) -> bool:
+        """Whether the Colour accuracy graph's limit lines are shown for
+        information only (K51, B8-1334): the document judges none of the five
+        colour-accuracy rows, and its limit set limits some of them."""
+        judged, info = self._document_row_limits()
+        rids = {rid for rid, _fam in _ACCURACY_LINE_ROWS}
+        return not (rids & set(judged)) and bool(rids & set(info))
 
     def _trend_plan(self) -> list:
         """Every trend tab as ``(chart, title, metrics, y_max, dec, auto,
@@ -15764,11 +15904,13 @@ class MeasurementReportDialog(QDialog):
         judged rows, each with its own dotted line (`_TREND_GROUPS`)."""
         from workflow.compliance_sets import ROW_BY_ID
         avg_thr, max_thr = self._accuracy_thresholds()
-        # **A PRINTING RECORD IS JUDGED AGAINST NOTHING, SO ITS GRAPH DRAWS
-        # NO LIMIT (#182 K30, challenge B B4; spec 17 item 4).** Its Colour
-        # accuracy graph drew the Avg and Max lines, each labelled "the limit
-        # for ...", on a document that gives no verdict.
-        _no_lines = self._ungraded_by_type()
+        # **A PRINTING RECORD DRAWS ITS LIMIT LINES FOR INFORMATION (K51,
+        # B8-1334).** K30 took them off (challenge B B4: "the limit for ..."
+        # on a document that gives no verdict). Knut, #182 5846167083: *"the
+        # limit line can still be shown if the limit value exists. The limit
+        # is then just for information."* The sentence under the graph says
+        # so (`_trend_extras`, `info_limit_note`).
+        _no_lines = False
         plan = []
         for chart, title, metrics, y_max, dec, auto in self._trend_configs():
             thr = ((avg_thr, max_thr) if chart is self._trend_de
@@ -15784,33 +15926,37 @@ class MeasurementReportDialog(QDialog):
             plan.append((chart, title, metrics, y_max, dec, auto, thr, extra,
                          shown))
         judged = self._judged_trend_limits()
-        unlimited = self._unlimited_trend_rows(judged)
+        info = self._info_trend_limits()
         for key, title, rows in _TREND_GROUPS:
             metrics, lines = [], []
-            # K49 (Knut, #182 5841092535, answer 2: *"Yes, it can have value
-            # for trending"*): a tab none of whose rows is judged, whose rows
-            # have values, is shown with those values and no line.
+            # K51 (Knut, #182 5846167083, K50-2 option (A): *"Yes"*): a row
+            # whose limit is "–" is not in the report, so no graph plots it
+            # (K49's graphs of unlimited rows are gone; B8-1249: no). A tab
+            # none of whose rows is judged plots the rows its set LIMITS,
+            # each with its line, shown for information (his modification).
             free = not any(rid in judged for rid, _w, _c in rows)
             if free:
-                # Challenge 2 of beta 44, finding 7 (B8-1276): a tab with no
-                # limit line is shown only for its TREND, so it needs values
-                # on two dates or more. With one it was an empty frame saying
-                # it "draws no trend", which the PDF does not print either.
+                # Challenge 2 of beta 44, finding 7 (B8-1276): a tab that
+                # judges nothing is shown only for its TREND, so it needs
+                # values on two dates or more. With one it was an empty frame
+                # saying it "draws no trend", which the PDF does not print.
                 _dated = sum(1 for pt in (getattr(self, "_trend_series",
                                                   None) or [])
                              if any((pt.get("rows") or {}).get(rid)
                                     is not None
                                     for rid, _w, _c in rows
-                                    if rid in unlimited))
+                                    if rid in info))
                 if _dated < 2:
                     free = False
             for rid, word, col in rows:
-                if free and rid in unlimited:
+                if free and rid in info:
+                    lim = info[rid]
                     metrics.append((_with_unit(self._row_name(
                                         rid, self._document_runs_for_graphs()),
                                         ROW_BY_ID[rid].unit), QColor(col),
                                     (lambda pt, rr=rid:
                                      _trend_row_value(pt, rr, None))))
+                    lines.append((lim, word(), QColor(col)))
                     continue
                 if rid not in judged:
                     continue
@@ -15851,6 +15997,9 @@ class MeasurementReportDialog(QDialog):
                                          and not self._colour_accuracy_is_judged())
                else NO_LIMIT_WHY_SET)
         nl = no_limit_note(key or "", why)
+        # K51 (B8-1334): the sentence after the line notes when every line
+        # of this graph is a limit the document does not judge against.
+        info = self._info_trend_limits()
         if chart is self._trend_de and _series_is_within_gamut(
                 getattr(self, "_trend_series", None)):
             # K30 (B3): a record judges no patch, so "each judged patch" is
@@ -15859,8 +16008,6 @@ class MeasurementReportDialog(QDialog):
             about = (_TREND_ABOUT_DE_JUDGED()
                      if self._colour_accuracy_is_judged()
                      else _TREND_ABOUT_DE_WITHIN_GAMUT())
-        if chart is self._trend_de and ungraded:
-            return {"line_notes": [], "withheld": [], "about": about, "no_limit": nl}
         # THE NAME THE LEGEND BESIDE THE LINE PRINTS (B8-944): "…, within
         # gamut" on a document holding a split sheet, the plain name on any
         # other, decided for the document exactly as `_trend_configs` does.
@@ -15868,13 +16015,29 @@ class MeasurementReportDialog(QDialog):
         if chart is self._trend_de:
             pair_notes, extra = self._accuracy_line_plan()
             notes = list(pair_notes) + [n for _v, _w, n in extra]
-            return {"line_notes": notes, "withheld": [], "about": about, "no_limit": nl}
+            n_lines = sum(1 for n in notes if n)
+            return {"line_notes": notes, "withheld": [], "about": about,
+                    "no_limit": nl,
+                    "info_note": (info_limit_note(n_lines)
+                                  if n_lines
+                                  and self._accuracy_lines_for_information()
+                                  else None)}
         rows = dict((k, r) for k, _t, r in _TREND_GROUPS).get(key)
         if not rows:
             return {"line_notes": [], "withheld": [], "about": about, "no_limit": nl}
         judged = self._judged_trend_limits()
         notes, withheld = [], []
+        free = not any(rid in judged for rid, _w, _c in rows)
         for rid, word, _col in rows:
+            if free and rid in info:
+                # K51: a line shown for information withholds no date (the
+                # document judges none), so there is no red x to explain
+                notes.append(_limit_line_note(word(), info[rid],
+                                              ROW_BY_ID[rid].unit, rid,
+                                              self._row_name(rid,
+                                                             _names_runs)))
+                withheld.append(None)
+                continue
             if rid not in judged:
                 continue
             lim = judged[rid]
@@ -15883,7 +16046,11 @@ class MeasurementReportDialog(QDialog):
                                                               _names_runs)))
             withheld.append(lambda pt, rr=rid, ll=lim:
                             _trend_withheld_reason(pt, rr, ll))
-        return {"line_notes": notes, "withheld": withheld, "about": about, "no_limit": nl}
+        n_info = (sum(1 for rid, _w, _c in rows if rid in info)
+                  if free else 0)
+        return {"line_notes": notes, "withheld": withheld, "about": about,
+                "no_limit": nl,
+                "info_note": info_limit_note(n_info) if n_info else None}
 
     def _update_trends(self, series: list, dark: bool) -> None:
         """Feed the grouped trend charts their metric sets. The tabs stay visible
@@ -15898,7 +16065,8 @@ class MeasurementReportDialog(QDialog):
                            auto=auto, thresholds=thr, limit_lines=lines,
                            line_notes=ex["line_notes"],
                            withheld=ex["withheld"],
-                           no_limit=ex.get("no_limit"))
+                           no_limit=ex.get("no_limit"),
+                           info_note=ex.get("info_note"))
             self._trend_tabs.setTabVisible(self._trend_tabs.indexOf(chart),
                                            shown)
         show = bool(self._sources)
@@ -16146,7 +16314,17 @@ class MeasurementReportDialog(QDialog):
         # Pairing 3: say WHICH yardstick judged the sheet, in plain words,
         # so a media-relative score can never be mistaken for an absolute one.
         _pw_prof = _paper_white_from_profile(r)
-        if r.get("yardstick") == "media-relative" and _pw_prof is not None:
+        from workflow.measurement_report import PAPER_WHITE_CHART_RELATIVE
+        if r.get("yardstick") == "media-relative" and (
+                r.get("paper_white_used") or {}).get("why") \
+                == PAPER_WHITE_CHART_RELATIVE:
+            # K51-D (Knut, #182 5846297769, "Approved"; B8-1335): a FROM
+            # PROFILE GAMUT chart built with the media-relative intent is
+            # judged relative to its own paper patch.
+            rows.append((tr("How the colours were judged"), tr(
+                "relative to the paper white of this sheet, because the chart "
+                "was built with the media-relative intent"), False))
+        elif r.get("yardstick") == "media-relative" and _pw_prof is not None:
             # #182 K37, (e): not the sheet's own paper white, which its chart
             # has no patch for, but the one its profile records.
             rows.append((tr("How the colours were judged"), tr(
@@ -16245,7 +16423,15 @@ class MeasurementReportDialog(QDialog):
             if raw_drift:
                 # A drift check is never graded against the profile
                 # thresholds — the drift paragraph below carries the verdict.
+                # K51 (B8-1330): except its paper and solid rows, judged
+                # against the profile when its limit set limits them.
+                from workflow.measurement_report import (
+                    ROWS_JUDGED_ON_A_RAW_PRINT)
+                _keep = (ROWS_JUDGED_ON_A_RAW_PRINT
+                         if self._drift_judges(r) else frozenset())
                 for row in rows:
+                    if (row.get("row_id") or row.get("key")) in _keep:
+                        continue
                     row["pass"] = None
                     row["threshold"] = None
                     row["word"] = None
@@ -16285,7 +16471,7 @@ class MeasurementReportDialog(QDialog):
             _marked: "list[int]" = []
 
             def mark_for(row) -> str:
-                if raw_drift or row is None:
+                if row is None or (raw_drift and row.get("word") is None):
                     return ""
                 ns = note_numbers_for(row, _nums)
                 for n in ns:

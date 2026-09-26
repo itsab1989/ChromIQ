@@ -148,7 +148,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ]),
     ("§13.9", "A report that judges nothing keeps every ticked measurement", [
         "Report-Limits-Report-Types/run7: Grey and tone check on a chart with no grey ramp",
-        "Report-Limits-Border-Conditions/run3: a raw sheet, no verdict given",
+        "Report-Limits-Border-Conditions/run3: a raw sheet, no verdict under its own set, ChromIQ default (K51: under ISO 12647-7 its paper and solid rows are judged against the profile)",
     ]),
     ("§13.9", "One report, one limit set, applied to every measurement it includes", [
         "Report-Limits-Report-Folders/run1+run2: the report across both runs",
@@ -211,7 +211,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ("§16.5", "E3 all three ChromIQ sets carry 1.5 / 1.0", [
         "Report-Limits-Evenness/run1: the drift crosses 1.5, the blotch crosses 1.0",
     ]),
-    ("§16.5", "E4 the evenness rows do not take a preset's star", [
+    ("§16.5", "E4 the evenness rows decide a preset's star (K51, §45.3)", [
         "Create Chart presets (verification demos): the presets window",
     ]),
     ("§16.5", "E5 / E6 Custom columns 1.5 / 1.0", [
@@ -374,8 +374,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ("§41.6", "K49", [
         "Report-Limits-Every-Metric/run1: New report…, all three dates, Contract proof check, ISO 12647-7:2016 values: the solid rows compared with the profile's prediction, PASS, PASS, FAIL, each with M-REPORT-SOLIDS-PREDICTED; the cube-corner table keeps the ideal values",
         "Report-Limits-Threshold-Series/run1: New report…, the first three dates, Contract proof check: the paper row compared with the run's profile's paper white, with M-REPORT-PAPER-AGAINST-PROFILE; the solid rows N-A, printed through the profile",
-        "Report-Limits-Border-Conditions/run3 (printed raw, a drift check): the paper and solid rows against the profile, shown with no verdict",
-        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: Paper white difference, Solid colours and Hue of the solids shown with their values and no limit line, each with its own sentence",
+        "Report-Limits-Border-Conditions/run3 (printed raw, a drift check): the paper and solid rows against the profile, shown with no verdict under ChromIQ default (judged under ISO 12647-7 since K51, §45.1)",
         "Report-Limits-Every-Limit-Set/run1 (ordinary chart): the paper row over on the date that designs every row over, back inside after",
     ]),
     ("§42", "Knut on F5", [
@@ -386,13 +385,20 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ("§43", "Challenge 2 of beta 44", [
         "Report-Limits-Evenness/run1, Run type Profiling: New report…, Printing record, all runs: no Paper white difference graph, the three reference rows N-A (needs a reference), as before K49: a profiling measurement is not compared with its own profile (B8-1271)",
         "Report-Limits-Report-Types/run1, Run type Profiling: New report…, Printing record, all runs: the sentence under the results names every graph the record carries (B8-1273)",
-        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: under Cube corners \"aim values\" (B8-1275); the sentence under a graph with no limit line as §44 words it (B8-1274, amended by K50); with one date ticked no graph without a limit line is shown (B8-1276)",
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: under Cube corners \"aim values\" (B8-1275, worded as §45.2 since K51); with one date ticked no graph whose lines are for information is shown (B8-1276)",
         "no demo chart is built with the relative intent, so the relative FROM PROFILE GAMUT case of B8-1270 is shown by the suite and by the proof's FPG-relative project, not by this package",
     ]),
     ("§44", "K50:", [
-        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: under Cube corners and under Solid colours \"This report sets no limit for what this graph shows, so no limit line is drawn.\"; no sentence names another limit set (B8-1320)",
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: no sentence names another limit set (B8-1320); since K51 no graph of a \u201c\u2013\u201d row is drawn at all (§45.2)",
         "Report-Limits-Every-Metric/run1, Run type Verification: Create Chart > \"Which presets can be used for verification?\", Judged against ISO 12647-7, any preset not built from the profile's gamut: \"Maximum ΔE00, solid colours\" and \"Maximum ΔH*ab, cyan, magenta and yellow solids\" listed together, their reason and lever once (B8-1321)",
         "M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE approved by Knut (B8-1322): as §41.7 shows them",
+    ]),
+    ("§45", "K51:", [
+        "Report-Limits-Border-Conditions/run3, Run type Verification: New report…, both dates, Full colour check, ISO 12647-7:2016 values: the paper and solid rows judged against the profile (the designed drift FAILs \u201cMaximum \u0394E00, solid colours\u201d), the other cells read \u201cdrift\u201d, the Overall word follows the judged rows, and the sentence under the results names the judged rows (B8-1330, B8-1331)",
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: no graph for a row whose limit is \u201c\u2013\u201d (Paper white difference, Solid colours, Hue of the solids, Tone ramps, Control strip, Outer and surface gamut are gone); Paper white, Darkest black and Cube corners each carry their own sentence (B8-1332, B8-1333)",
+        "Report-Limits-Every-Metric/run1, Run type Profiling: New report…, Printing record, all runs, ISO 12647-7:2016 values: the graphs of the rows the set limits, each with its limit line, and under each the sentence that the lines are shown for information only (B8-1334)",
+        "Report-Limits-Every-Metric/run1: New report…, Custom ISO 12647-7 with \u201cMaximum \u0394E00, control strip\u201d switched off in Edit limits…: that row is in neither the table nor the Control strip graph, which keeps Avg and P95 (B8-1332)",
+        "Create Chart presets (verification demos): \u201cWhich presets can be used for verification?\u201d: the star under the new rule, one or two pages, fewer than 900 patches, a paper patch, and the evenness rows answered on the laid-out preset (B8-1340)",
     ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
