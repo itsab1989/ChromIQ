@@ -44,3 +44,15 @@ def test_the_dialog_pins_ok_in_its_own_sheet():
     src = inspect.getsource(settings_dialog.SettingsDialog._apply_indicator_theme)
     assert "QPushButton#prefs_ok:default" in src
     assert "+ buttons_qss" in src
+
+
+def test_only_create_chart_asks_for_the_magenta_folder():
+    """Basti, 2026-09-26: the layout panel's folder buttons are magenta only
+    in the Create Chart tab; Preferences keeps its own colour."""
+    from ui.dialogs import layout_options_panel, settings_dialog
+    from ui.tabs import tab_chart
+    assert 'browse_icon: str = "folder"' in inspect.getsource(
+        layout_options_panel.LayoutOptionsPanel.__init__)
+    assert 'browse_icon="folder_create"' in inspect.getsource(tab_chart)
+    assert "folder_create" not in inspect.getsource(
+        settings_dialog.SettingsDialog._build_chart_layout_tab)

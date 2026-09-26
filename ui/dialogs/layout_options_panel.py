@@ -295,8 +295,14 @@ class LayoutOptionsPanel(QWidget):
     def __init__(self, parent: QWidget | None = None, *,
                  with_calibration: bool = False, with_selectors: bool = False,
                  defer_clip_preview: bool = False,
-                 clip_content_always_shown: bool = False) -> None:
+                 clip_content_always_shown: bool = False,
+                 browse_icon: str = "folder") -> None:
         super().__init__(parent)
+        #: The folder glyph of this panel's browse buttons (the clip-border
+        #: image, the .cal file). Basti, 2026-09-26: magenta ("folder_create",
+        #: as the Presets row) only in the Create Chart tab; Preferences keeps
+        #: the plain themed folder its own look paints. Set before any widget.
+        self._browse_icon = browse_icon
         #: PREFERENCES > CHART LAYOUT SHOWS "Clip-border content" ALWAYS
         #: (B8-1362, Knut #182 5847578917): *"It is wrong that some settings
         #: are hidden. Even if Clip-border is set to be default OFF, a user
@@ -4698,13 +4704,12 @@ class LayoutOptionsPanel(QWidget):
         from PyQt6.QtCore import QSize
         from ui.widgets import make_browse_button, set_folder_icon
         b = make_browse_button(self, tooltip)
-        # The same themed glyph as the Presets row's folder (Basti,
-        # 2026-09-26: the clip-border Image button showed the plain black
-        # folder). A bare setIcon was overwritten on every theme reload,
-        # because make_browse_button tags the button as the plain "folder";
-        # set_folder_icon retags it, so the reload paints the magenta
-        # variant (ACTION in Neutral) instead.
-        set_folder_icon(b, "folder_create")
+        # A THEMED glyph, chosen by the host (``browse_icon``): a bare setIcon
+        # was overwritten on every theme reload, because make_browse_button
+        # tags the button as the plain "folder". Create Chart asks for
+        # "folder_create", the Presets row's magenta (ACTION in Neutral);
+        # Preferences keeps the plain folder (Basti, 2026-09-26).
+        set_folder_icon(b, self._browse_icon)
         b.setObjectName("browse_compact")
         b.style().unpolish(b)
         b.style().polish(b)
