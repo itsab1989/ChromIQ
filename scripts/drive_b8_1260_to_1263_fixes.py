@@ -8,9 +8,9 @@ default (on), the shipped ticks.
 
 * F1: Custom 420 x 297 (A3 Landscape's own size) with the layout engine ON,
   then with it OFF (printtarg's own Paper field): the Paper field and the open
-  "Select preset" list photographed. Judged against what THE DRIVE CHOSE:
-  Custom, so every built-in listed must be on a size the Paper field does not
-  name (read from ``data/parameters.yaml``, never from ``paper_class``).
+  "Select preset" list photographed. Since Knut's ruling of 2026-09-26
+  (B8-1310, reversing B8-1260) a Custom size equal to a named paper is that
+  paper, so every built-in listed must be on A3 Landscape ("420x297").
 * F7: End and Home in the open "Select preset" list, photographed after each;
   judged against the last and first rows Up and Down can reach. The keys are
   sent to the list's view as Qt key events (macOS does not let a process it
@@ -200,12 +200,17 @@ def script(d):
         d.pump(300)
         keys = listed_builtins()
         on_named = [k for k in keys if str(builtin_preset_paper(k)) in named]
+        # REVERSED BY B8-1310 (Knut, #182 5845519118, 2026-09-26): a Custom
+        # 420 x 297 IS A3 Landscape, so every built-in listed must be on
+        # "420x297" (B8-1260 wanted none on a named paper).
+        off_a3l = [k for k in keys if str(builtin_preset_paper(k)) != "420x297"]
         s = {"scene": name, "engine": engine,
              "paper_on_screen": tab._manual_paper_on_screen(),
              "filter_reads": tab._preset_paper_selected(),
              "builtins_listed": len(keys),
              "builtins_on_a_named_paper": on_named,
-             "ok": bool(keys) and not on_named}
+             "builtins_not_on_a3_landscape": off_a3l,
+             "ok": bool(keys) and not off_a3l}
         rec["scenes"].append(s)
         d.note(f"{name}: engine {'on' if engine else 'off'}, paper "
                f"{s['paper_on_screen']!r}, filter reads "

@@ -4,9 +4,10 @@ the gear window, B8-1237 to B8-1243.
 * B8-1237: a group with presets on the paper and none ticked shows its heading
   and "▸ N more presets" (B8-1227's listing them directly is withdrawn);
   pinned in ``test_b8_1221_the_filter_reads_the_paper_on_screen.py``.
-* B8-1238: Custom lists every custom-size built-in whatever the W x H boxes
-  say, never the paper before (Knut's screenshot: Custom 210 x 297 showing
-  A3 Landscape's lists, beta 43's B8-1222).
+* B8-1238: Custom lists every custom-size built-in, never the paper before
+  (Knut's screenshot: Custom 210 x 297 showing A3 Landscape's lists, beta
+  43's B8-1222). Since Knut's ruling of 2026-09-26 (B8-1310) a Custom size
+  that equals a named paper is that paper: 210 x 297 lists A4 Portrait's.
 * B8-1239: the gear window's help states the rule for when a preset shows.
 * B8-1240: the gear window's two ⓘ are the app's flat ⓘ: the style sheets
   draw it by the object name ``tooltip_btn``, which this window used to
@@ -64,7 +65,13 @@ def _on(preset_paper, sel: str) -> bool:
     """Whether a preset on *preset_paper* belongs to the Paper field entry
     *sel* ("custom" for Custom), judged without the filter's functions."""
     p = str(preset_paper or "")
-    return (p if p in _NAMED else cp.CUSTOM_PAPER) == sel
+    if p in _NAMED:
+        return p == sel
+    # A size equal to a named paper is that paper (B8-1310). None of the
+    # built-ins' custom sizes (100 x 150, 130 x 180) equals one; asserted
+    # here rather than assumed, so a new one cannot be misread silently.
+    assert p in ("100x150", "130x180"), f"a new custom preset size {p}"
+    return cp.CUSTOM_PAPER == sel
 
 
 @pytest.fixture(scope="module")
@@ -181,14 +188,15 @@ def test_a4_landscape_lists_only_its_own_scanner_presets(tab, settings, qapp):
 # B8-1238: Custom, whatever the boxes say, never the paper before
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("dims", [(210, 297), (100, 150), (500, 500),
-                                  (420, 297)])  # B8-1260: A3 L's own size
+@pytest.mark.parametrize("dims", [(100, 150), (500, 500), (250, 300)])
 def test_custom_after_a3_landscape_lists_the_custom_size_presets(
         tab, settings, qapp, dims):
-    """Knut's screenshot: A3 Landscape, then Custom 210 x 297 (an A4's size),
-    and the Built-in presets list still showed A3 Landscape's groups. Custom
-    is one class whatever its size: every custom-size built-in, ticked ones
-    directly, the rest under the arrow; never A4's and never A3 Landscape's."""
+    """Knut's screenshot: A3 Landscape, then Custom, and the Built-in presets
+    list still showed A3 Landscape's groups. A Custom size that equals NO
+    named paper is one class whatever its size: every custom-size built-in,
+    ticked ones directly, the rest under the arrow; never A3 Landscape's.
+    (A size that equals a named paper is that paper since Knut's ruling of
+    2026-09-26, B8-1310: `test_b8_1310_...`; it was Custom under B8-1260.)"""
     _panel_paper(tab, "420x297")
     qapp.processEvents()
     _panel_paper(tab, "__custom__", dims)
@@ -197,6 +205,25 @@ def test_custom_after_a3_landscape_lists_the_custom_size_presets(
     exp = _expected(settings, cp.CUSTOM_PAPER)
     assert exp and exp != _expected(settings, "420x297") \
         and exp != _expected(settings, "A4")
+    assert _pulldown(tab) == exp
+    assert _popup(tab) == exp
+
+
+@pytest.mark.parametrize("dims,named", [((210, 297), "A4"),
+                                        ((420, 297), "420x297")])
+def test_custom_on_a_named_papers_size_after_a3_landscape_is_that_paper(
+        tab, settings, qapp, dims, named):
+    """Knut, #182 5845519118 (B8-1310): *"if the custom side equals to a
+    named paper size, that preset should be treated as that named paper
+    size."* Custom 210 x 297 lists A4 Portrait's presets, and 420 x 297 A3
+    Landscape's."""
+    _panel_paper(tab, "420x297")
+    qapp.processEvents()
+    _panel_paper(tab, "__custom__", dims)
+    qapp.processEvents()
+    assert tab._preset_paper_selected() == named
+    exp = _expected(settings, named)
+    assert exp and exp != _expected(settings, cp.CUSTOM_PAPER)
     assert _pulldown(tab) == exp
     assert _popup(tab) == exp
 
@@ -252,7 +279,10 @@ def test_the_gear_help_states_the_rule(gear):
         assert "none of them ticked" in text
         assert "“▸ N more presets” only" in text
         assert "Custom paper" in text
-        assert "whatever the width and height boxes say" in text
+        # B8-1310: a Custom size equal to a named paper is that paper, so
+        # "whatever the width and height boxes say" is no longer true
+        assert "whatever the width and height boxes say" not in text
+        assert "count as that paper" in text and "orientation" in text
         assert "—" not in text
     assert "Paper filter off" in window
     assert "A ticked preset for that paper is listed directly" in window
@@ -269,4 +299,6 @@ def test_the_german_help_is_by_hand_and_says_the_same():
         assert "auch Scanner" in v
         assert "keines angehakt" in v
         assert "immer angezeigt" not in v
+        assert "zählen sie als dieses Papier" in v            # B8-1310
+        assert "egal was in den Feldern" not in v
         assert " du " in v or "Klicke" in v or "Nimm" in v    # Du-Form

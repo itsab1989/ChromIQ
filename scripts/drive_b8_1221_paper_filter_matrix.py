@@ -248,10 +248,35 @@ def script(d):
             return panel.paper, "__custom__"
         return tab._manual_paper_pw._custom_combo, "custom"
 
+    # A CUSTOM SIZE EQUAL TO A NAMED PAPER IS THAT PAPER (Knut, #182
+    # 5845519118, 2026-09-26, B8-1310, reversing B8-1260's "the entry
+    # decides"). The sizes are written out from the paper standards, not
+    # read from the app, so the expectation stays independent of the code.
+    SIZES_MM = {"A2": (420, 594), "594x420": (594, 420),
+                "329x483": (329, 483), "483x329": (483, 329),
+                "A3": (297, 420), "420x297": (420, 297),
+                "11x17": (279.4, 431.8), "Legal": (215.9, 355.6),
+                "A4": (210, 297), "A4R": (297, 210),
+                "Letter": (215.9, 279.4), "LetterR": (279.4, 215.9),
+                "203x254": (203, 254), "127x178": (127, 178),
+                "4x6": (101.6, 152.4)}
+
+    def size_class(w, h) -> str:
+        for code, (nw, nh) in SIZES_MM.items():
+            if abs(nw - w) < 0.5 and abs(nh - h) < 0.5:
+                return code
+        return "custom"
+
     def on_screen_class() -> str:
         c, custom = visible_paper_combo()
         data = str(c.currentData() or "")
-        return "custom" if custom is not None and data == custom else data
+        if custom is None or data != custom:
+            return data
+        if custom == "__custom__":
+            p = tab._manual_layout_panel
+            return size_class(p.custom_w.value(), p.custom_h.value())
+        pw = tab._manual_paper_pw
+        return size_class(pw._custom_w_spin.value(), pw._custom_h_spin.value())
 
     #: every named code the Paper fields offer (both Manual fields and Guided)
     NAMED = set()
@@ -265,7 +290,13 @@ def script(d):
         paper = str(paper or "")
         if not paper:
             return ""
-        return paper if paper in NAMED else "custom"
+        if paper in NAMED:
+            return paper
+        try:
+            w, h = (float(x) for x in paper.split("x"))
+        except ValueError:
+            return "custom"
+        return size_class(w, h)          # B8-1310
 
     def preset_on(paper, sel) -> bool:
         mine = preset_class(paper)

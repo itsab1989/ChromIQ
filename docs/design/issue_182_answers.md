@@ -2333,3 +2333,28 @@ paper and nothing is wrong. The check simply does not exist there.
 Extending it is a change to a surface his ruling does not name, so it is
 reported rather than made. What would be needed is the right-edge overlap
 asked without the engine gate, using the same measured `report.right_mm`.
+
+## 2y. Knut's ruling of 2026-09-26: no i1iSis entry in the layout engine, and nothing hidden (B8-1283)
+
+### Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-26, on #182 (comment 5845519118), for exactly
+what he said. The question put to him: *"With the ChromIQ layout engine on,
+the i1iSis cannot be chosen in Manual: the layout panel has no i1iSis entry
+and shows the i1Pro. Choosing any paper there quietly switches the instrument
+to the i1Pro, and that is what Save as Defaults then stores. Should choosing
+the i1iSis hide the layout panel and use printtarg's own fields, as it does
+with the engine off? Or should the engine get an i1iSis entry?"* His answer:
+
+> *"No i1iSis entry. Do not hide. That setting is only used if a user measures
+> a chart outside ChromIQ (in i1Profiler) and then imports the results back
+> into ChromIQ for creating the report."*
+
+So the app stays as it is: the layout panel has no i1iSis entry, and with the
+engine on the panel is not hidden for the i1iSis. Nothing was changed for it
+(B8-1283); `tests/test_b8_1283_no_i1isis_entry_and_nothing_hidden.py` pins
+both halves.
+
+The i1iSis help (printtarg's Measurement Instrument, `data/parameters.yaml`)
+does not say what the setting is for in his words. Wording proposed to him,
+not shipped, in `~/Desktop/ChromIQ-beta44-proof/k50-create-chart/NOTES.txt`.

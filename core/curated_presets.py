@@ -451,9 +451,12 @@ def _read_rows(reader, known: Iterable[str]) -> TableReading:
 # which every built-in carries and a person's own preset stores as
 # ``printtarg_-p``. The pulldowns list each ORIENTATION as its own entry
 # ("A3 Portrait" is ``A3``, "A3 Landscape" is ``420x297``), so orientation is
-# part of the paper and the match is exact. Any code the paper list does not
-# name (``100x150``, a person's ``210x280``) is what the Paper field shows as
-# "Custom (enter dimensions)", and matches Custom whatever its dimensions.
+# part of the paper and the match is exact. A size that EQUALS a named paper
+# is that paper (Knut, #182 5845519118, 2026-09-26, B8-1310, reversing
+# B8-1260): a Custom 210 x 297 is A4 Portrait, 420 x 297 A3 Landscape. Any
+# other size (``100x150``, a person's ``210x280``) is what the Paper field
+# shows as "Custom (enter dimensions)", and matches Custom whatever its
+# dimensions.
 
 #: The setting: True filters both lists by the paper selected in Create Chart.
 PAPER_FILTER_KEY = "builtin_presets_paper_filter"
@@ -474,15 +477,48 @@ def paper_filter_on(settings: Any) -> bool:
     return bool(v)
 
 
+def named_paper_of_size(code: Any) -> str:
+    """The named paper a custom ``WxH`` size (millimetres) IS, or "".
+
+    Knut, #182 5845519118 (2026-09-26, B8-1310): *"if the custom side equals
+    to a named paper size, that preset should be treated as that named paper
+    size."* So a Custom 210 x 297 is A4 Portrait and 297 x 210 A4 Landscape:
+    the orientation is matched exactly, as the paper codes spell it, and a
+    size whose orientation the paper list does not name (152 x 102, 4 x 6 in
+    turned) stays Custom.
+
+    EQUAL TO THE MILLIMETRE THE CUSTOM BOXES HOLD. The boxes take whole
+    millimetres, so an inch paper can only ever be typed rounded: 216 x 279
+    is Letter (215.9 x 279.4), 102 x 152 is 4 x 6 in (101.6 x 152.4). Each
+    side matches when it is within half a millimetre of the named size."""
+    from data.patch_db import PAPER_LABELS
+    from workflow.layout_engine.papers import dimensions_mm, parse_custom
+    dims = parse_custom(str(code or "").strip())
+    if dims is None:
+        return ""
+    w, h = dims
+    for named in PAPER_LABELS:
+        try:
+            nw, nh = dimensions_mm(named)
+        except ValueError:
+            continue
+        if abs(nw - w) < 0.5 and abs(nh - h) < 0.5:
+            return named
+    return ""
+
+
 def paper_class(code: Any) -> str:
     """The Paper field entry a ``-p`` code is shown as: the code itself when
-    the paper list names it, :data:`CUSTOM_PAPER` for any other size, and ""
-    for no paper at all."""
+    the paper list names it, the named paper a custom size equals
+    (:func:`named_paper_of_size`, Knut's ruling of 2026-09-26),
+    :data:`CUSTOM_PAPER` for any other size, and "" for no paper at all."""
     from data.patch_db import PAPER_LABELS
     code = str(code or "").strip()
     if not code:
         return ""
-    return code if code in PAPER_LABELS else CUSTOM_PAPER
+    if code in PAPER_LABELS:
+        return code
+    return named_paper_of_size(code) or CUSTOM_PAPER
 
 
 def paper_matches(preset_paper: Any, selected: str) -> bool:

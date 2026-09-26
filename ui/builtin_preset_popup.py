@@ -244,6 +244,8 @@ class BuiltinPresetPopup(QWidget):
         self._content_h   = 0
         self._content_top = 0
         self._note_h      = 0     # the pinned note under the rows (B8-1226)
+        #: While the scroll thumb is dragged: the press's offset into it.
+        self._thumb_grab: "int | None" = None
 
         self._rows: list[_VisualRow] = []
         self._build_rows()
@@ -403,6 +405,50 @@ class BuiltinPresetPopup(QWidget):
         return QRect(panel.left() + 6, self._content_top + self._viewport_h,
                      panel.width() - 12, self._note_h)
 
+    #: How far left of the painted thumb a press still counts as the scroll
+    #: bar's: the thumb is 4 px wide, and a bar a person has to hit to the
+    #: pixel is one that chooses the row beside it instead (B8-1319).
+    SCROLL_GRAB_W = 12
+
+    def _thumb_rect(self) -> QRect:
+        """Where the scroll thumb is painted, empty when the list fits."""
+        if self._max_scroll <= 0:
+            return QRect()
+        viewport = self._viewport_rect()
+        panel = self._panel_rect()
+        track_h = viewport.height()
+        thumb_h = max(24, int(track_h * self._viewport_h / self._content_h))
+        travel = track_h - thumb_h
+        frac = self._scroll_y / self._max_scroll if self._max_scroll else 0
+        return QRect(panel.right() - self.SCROLLBAR_W - 3,
+                     viewport.top() + int(travel * frac),
+                     self.SCROLLBAR_W, thumb_h)
+
+    def _scroll_strip_rect(self) -> QRect:
+        """The scroll bar a mouse can use: the thumb's track, the full height
+        of the rows, from :attr:`SCROLL_GRAB_W` left of the thumb to the
+        panel's edge. Empty when the list fits (B8-1319)."""
+        if self._max_scroll <= 0:
+            return QRect()
+        viewport = self._viewport_rect()
+        panel = self._panel_rect()
+        left = panel.right() - self.SCROLLBAR_W - 3 - self.SCROLL_GRAB_W // 2
+        return QRect(left, viewport.top(), panel.right() - left + 1,
+                     viewport.height())
+
+    def _scroll_to_thumb_top(self, top: int) -> None:
+        viewport = self._viewport_rect()
+        thumb = self._thumb_rect()
+        travel = viewport.height() - thumb.height()
+        if travel <= 0:
+            return
+        frac = (top - viewport.top()) / travel
+        new_y = max(0, min(self._max_scroll,
+                           int(round(frac * self._max_scroll))))
+        if new_y != self._scroll_y:
+            self._scroll_y = new_y
+            self.update()
+
     def _row_rect(self, row: _VisualRow) -> QRect:
         panel = self._panel_rect()
         y = self._content_top + row.top - self._scroll_y
@@ -516,20 +562,11 @@ class BuiltinPresetPopup(QWidget):
 
         # Scroll thumb on the right edge of the viewport.
         if self._max_scroll > 0:
-            track_h = viewport.height()
-            thumb_h = max(24, int(track_h * self._viewport_h / self._content_h))
-            travel  = track_h - thumb_h
-            frac    = self._scroll_y / self._max_scroll if self._max_scroll else 0
-            thumb_y = viewport.top() + int(travel * frac)
-            thumb_x = panel.right() - self.SCROLLBAR_W - 3
             thumb   = QColor(pal["text"])
             thumb.setAlpha(70)
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(thumb)
-            p.drawRoundedRect(
-                QRect(thumb_x, thumb_y, self.SCROLLBAR_W, thumb_h),
-                2, 2,
-            )
+            p.drawRoundedRect(self._thumb_rect(), 2, 2)
 
         if self._note:
             self._paint_note(p, self._note_rect(), 0)
@@ -563,6 +600,8 @@ class BuiltinPresetPopup(QWidget):
         gaps, the scrolled-away region, or the transparent margin."""
         if not self._viewport_rect().contains(pt):
             return -1
+        if self._scroll_strip_rect().contains(pt):
+            return -1               # the scroll bar is never a row (B8-1319)
         for i, row in enumerate(self._rows):
             if row.kind == "header":
                 continue
@@ -585,6 +624,11 @@ class BuiltinPresetPopup(QWidget):
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        grab = getattr(self, "_thumb_grab", None)
+        if grab is not None:
+            # dragging the thumb: it follows the pointer, the rows scroll
+            self._scroll_to_thumb_top(int(event.position().y()) - grab)
+            return
         idx = self._index_at(event.position().toPoint())
         if idx != self._hover_index:
             self._hover_index = idx
@@ -614,10 +658,33 @@ class BuiltinPresetPopup(QWidget):
         if not self._panel_rect().contains(pt):
             self.close()
             return
+        if self._scroll_strip_rect().contains(pt):
+            # THE SCROLL BAR SCROLLS, AND NEVER CHOOSES (B8-1319, Knut's
+            # user on #182 5845615756). It was painted and nothing more: a
+            # press on it did nothing, and a press a pixel left of it chose
+            # the row underneath and closed the list. The thumb drags; a
+            # press on the track above or below it pages towards the press.
+            thumb = self._thumb_rect()
+            if thumb.top() <= pt.y() <= thumb.bottom():
+                self._thumb_grab = pt.y() - thumb.top()
+            else:
+                self._thumb_grab = None
+                page = max(self.ROW_H, self._viewport_h - self.ROW_H)
+                step = page if pt.y() > thumb.bottom() else -page
+                self._scroll_y = max(0, min(self._max_scroll,
+                                            self._scroll_y + step))
+                self.update()
+            return
         idx = self._index_at(pt)
         if idx < 0:
             return
         self._activate(idx)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        if getattr(self, "_thumb_grab", None) is not None:
+            self._thumb_grab = None
+            return
+        super().mouseReleaseEvent(event)
 
     def _activate(self, idx: int) -> None:
         row = self._rows[idx]

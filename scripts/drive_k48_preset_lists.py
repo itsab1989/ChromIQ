@@ -15,8 +15,9 @@ photographs both open lists by window id:
 * A3 Landscape: ColorMunki has presets there and none ticked, so its heading
   and "8 more presets" only (K48-1); no Scanner (its presets are A4 and
   Letter Landscape, the addendum);
-* Custom 210 x 297 after A3 Landscape: every custom-size built-in, whatever
-  the boxes say (K48-2), never A3 Landscape's lists;
+* Custom 210 x 297 after A3 Landscape: A4 Portrait's lists since Knut's
+  ruling of 2026-09-26 (B8-1310: a Custom size equal to a named paper is
+  that paper; K48-2 and B8-1260 had it Custom), never A3 Landscape's;
 * A4 Landscape: the Scanner presets on that paper;
 * the gear window, and both of its help windows, photographed (K48-3, K48-4).
 
@@ -158,15 +159,41 @@ def script(d):
         NAMED |= {str(_c.itemData(i)) for i in range(_c.count())}
     NAMED -= {"custom", "__custom__", "None", ""}
 
+    # A CUSTOM SIZE EQUAL TO A NAMED PAPER IS THAT PAPER (Knut, #182
+    # 5845519118, 2026-09-26, B8-1310, reversing B8-1260). The sizes are
+    # written out from the paper standards, not read from the app.
+    SIZES_MM = {"A2": (420, 594), "594x420": (594, 420),
+                "329x483": (329, 483), "483x329": (483, 329),
+                "A3": (297, 420), "420x297": (420, 297),
+                "11x17": (279.4, 431.8), "Legal": (215.9, 355.6),
+                "A4": (210, 297), "A4R": (297, 210),
+                "Letter": (215.9, 279.4), "LetterR": (279.4, 215.9),
+                "203x254": (203, 254), "127x178": (127, 178),
+                "4x6": (101.6, 152.4)}
+
+    def size_class(w, h):
+        for code, (nw, nh) in SIZES_MM.items():
+            if abs(nw - w) < 0.5 and abs(nh - h) < 0.5:
+                return code
+        return "custom"
+
     def preset_class(paper):
         paper = str(paper or "")
-        return paper if paper in NAMED else "custom"
+        if paper in NAMED:
+            return paper
+        try:
+            w, h = (float(x) for x in paper.split("x"))
+        except ValueError:
+            return "custom"
+        return size_class(w, h)
 
     def expected_paper():
         if not cp.paper_filter_on(d.settings):
             return ""
         data = str(panel.paper.currentData() or "")
-        return "custom" if data == "__custom__" else data
+        if data == "__custom__":
+            return size_class(panel.custom_w.value(), panel.custom_h.value())
+        return data
 
     def expected():
         """(heading, ticked keys listed directly, the count under its arrow)
@@ -341,7 +368,7 @@ def script(d):
     yield from popup_photo("5-custom-210x297")
 
     # F1: Custom sizes that spell a named paper's code, each after the
-    # named paper it spells, so a filter reading the size shows that paper.
+    # named paper it spells. Since B8-1310 each IS that paper.
     for named, dims in (("420x297", (420, 297)), ("127x178", (127, 178)),
                         ("594x420", (594, 420)), ("329x483", (329, 483)),
                         ("483x329", (483, 329)), ("203x254", (203, 254))):

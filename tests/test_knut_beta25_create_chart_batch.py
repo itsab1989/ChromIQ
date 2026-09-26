@@ -326,7 +326,10 @@ def test_the_presets_frame_leaves_the_same_bottom_gap_as_the_others(
              if g.title() in ("Randomisation", "Layout")}
     assert set(named) == {"Randomisation", "Layout"}, (
         f"the two frames Knut named are not both here: {sorted(named)}")
-    mine = presets.layout().contentsMargins().bottom()
+    # Since B8-1311 the frame folds (a CollapsibleGroupBox): its content
+    # layout is on its `body`, inside an outer layout with no margins.
+    mine = (presets.body.layout().contentsMargins().bottom()
+            + presets.layout().contentsMargins().bottom())
     for title, grp in named.items():
         theirs = grp.layout().contentsMargins().bottom()
         assert mine >= theirs, (

@@ -244,7 +244,7 @@ apply, exactly as on any other paper.
 | ON: which paper | the Paper field of the mode on screen: Guided's "Paper size", Manual's "Paper" (the gamut module lays out through Manual's). Live: the lists follow a change of paper and a switch between Guided and Manual at once |
 | ON: a preset's paper | the printtarg `-p` code it lays its chart out on, the one selecting it puts in Manual's Paper field: a Full-layout-setup preset's own `paper`, a "by Pharmacist" bundle's paper folder. Every built-in has one. *Knut, 5833232475, asked: "Yes"* |
 | ON: orientation | part of the paper. Both pulldowns list each orientation as its own entry (A3 Portrait is `A3`, A3 Landscape is `420x297`, A4 Landscape `A4R`), so the match is exact: A3 Portrait lists only portrait A3 presets. *Knut, 5833232475, asked: "Correct"* |
-| ON: Custom | Manual's "Custom (enter dimensions)": every preset on a size the Paper field does not name (the 10 × 15 and 13 × 18 cm cards), whatever its dimensions and whatever the Custom boxes hold. Guided has no Custom entry. **Knut, #182 5840677938 (K48): *"All Custom papers should then show (disregarding any setting in the Custom size input boxes), if they have a tick in the settings window, else only the "N more presets" is showing"*.** That is this row with the ticks-and-arrows row below; his screenshot of Custom 210 × 297 showing A3 Landscape's lists was beta 43's fault B8-1222 (the filter read printtarg's hidden Paper, left on A3 Landscape), fixed since d9b86846 and driven again on screen for K48 (B8-1238). **What decides is the ENTRY, not the size (beta 44 challenge F1, B8-1260; ⏳ awaiting confirmation):** with "Custom…" selected the filter is Custom even when the boxes hold a named paper's size (420 × 297 is A3 Landscape's, 127 × 178 5 × 7 in's, 594 × 420, 329 × 483, 483 × 329 and 203 × 254 likewise); beta 44 filtered those as the named paper. **Open (not built):** "Save as Defaults" stores only the size, so a Custom 420 × 297 reopens as A3 Landscape (the same paper to printtarg) |
+| ON: Custom | Manual's "Custom (enter dimensions)": every preset on a size the Paper field does not name (the 10 × 15 and 13 × 18 cm cards), whatever its dimensions and whatever the Custom boxes hold. Guided has no Custom entry. **Knut, #182 5840677938 (K48): *"All Custom papers should then show (disregarding any setting in the Custom size input boxes), if they have a tick in the settings window, else only the "N more presets" is showing"*.** That is this row with the ticks-and-arrows row below; his screenshot of Custom 210 × 297 showing A3 Landscape's lists was beta 43's fault B8-1222 (the filter read printtarg's hidden Paper, left on A3 Landscape), fixed since d9b86846 and driven again on screen for K48 (B8-1238). ~~**What decides is the ENTRY, not the size (beta 44 challenge F1, B8-1260; ⏳ awaiting confirmation):** with "Custom…" selected the filter is Custom even when the boxes hold a named paper's size (420 × 297 is A3 Landscape's, 127 × 178 5 × 7 in's, 594 × 420, 329 × 483, 483 × 329 and 203 × 254 likewise); beta 44 filtered those as the named paper. **Open (not built):** "Save as Defaults" stores only the size, so a Custom 420 × 297 reopens as A3 Landscape (the same paper to printtarg)~~ **Reversed by Knut's ruling of 2026-09-26 (#182 5845519118, B8-1310): a Custom size equal to a named paper is that named paper. See C7a below.** A Custom size equal to no named paper keeps this row: every Custom preset, whatever the boxes say |
 | ON: Scanner | ~~always listed in full, whatever the paper~~ **Knut's ruling of 2026-09-25 (#182 5840692243, K48, B8-1241): *"I also think the Scanner presets now should obey the same filtering according to paper size."*** Scanner is filtered like every other group: its presets on the selected paper, ticked ones directly, the rest under "▸ N more presets", Custom as above. The Scanner presets are all A4 Landscape or Letter Landscape, so every other paper lists no Scanner group (A3 Landscape shows no A4 or Letter scanner preset) |
 | ON: Red River Paper | filtered like every other group |
 | ON: ticks and arrows | still apply within what is left: per group the ticked presets on that paper, then "▸ N more presets" over the unticked ones on that paper, N counting only those; opening the arrow shows the rest of that paper's presets (Knut, 5833232475: *"Same function as before"*). Custom included (5832436639) |
@@ -254,6 +254,35 @@ apply, exactly as on any other paper.
 | ON: the person's own presets | ~~filtered too, by the paper each stores (Manual's Paper field when it was saved, `printtarg_-p`); one that stores no paper is always listed. They stay at the top~~ **Amended (Knut, 5833232475: *"No. This feature only apply build-in presets"*, B8-1145): never filtered. Every one of them is listed, at the top, whatever the paper; the window's third paragraph and both help icons say so** |
 | The selected preset | never changed by the filter. When the paper moves away from it, it stays selected and loaded, and stays listed in its group (with its heading) in "Select preset", so the closed pulldown and the open list show what is loaded; once another preset is chosen, it leaves the list the next time the list opens. The Built-in presets list has no selection and lists only the paper's presets *Knut, 5833490026: "sure, but if a user changes the paper size after a preset is loaded, we must assume the user intends to change the size, so the preset list will change to show presets with the newly selected paper. But the previously selected preset [...] stays loaded and stays visible in the pulldown until you choose another preset." That is what is built; pinned by `tests/test_k42_preset_groups_follow_the_instrument_pulldown.py` (B8-1147)* |
 | Every key | stays an entry of "Select preset": a filtered preset is hidden and disabled like one under a closed arrow, never removed, so a stored selection and the "Which presets can be used for verification" double-click still find it |
+
+### C7a. Confirmed behaviour: a Custom size equal to a named paper is that paper (Knut, #182 5845519118, 2026-09-26, B8-1310)
+
+**Confirmed by:** Knut, 2026-09-26, for exactly what he said and no more. The
+question put to him: *"a Custom 420×297 saved with "Save as Defaults" reopens
+as "A3 (420 × 297 mm) Landscape", not as Custom. ChromIQ stores only the paper
+size, which is the same paper to printtarg. Now that Custom has its own preset
+list, should a Custom size be remembered as Custom, so it reopens as Custom
+and keeps showing the Custom presets?"* His answer:
+
+> *"if the custom side equals to a named paper size, that preset should be
+> treated as that named paper size."*
+
+This reverses B8-1260 (the Custom entry deciding whatever the boxes held).
+
+⏳ **Awaiting confirmation: how the ruling is built.** **Confirmed by:**
+*nobody yet.* Driven on screen (`~/Desktop/ChromIQ-beta44-proof/k50-create-chart/`,
+`before/lists-and-frames` and `after/lists-and-frames`); whether these details
+are what he meant is his call:
+
+| What | Behaviour |
+|---|---|
+| Both lists, Manual, "Custom…" | when the width and height equal a named paper of the Paper field, both lists show that paper's presets: 420 × 297 A3 Landscape, 210 × 297 A4 Portrait, 297 × 210 A4 Landscape, 127 × 178 5 × 7 in. Engine on (the layout panel's Paper) and off (printtarg's) |
+| Orientation | matched exactly, as the paper codes spell it: 297 × 420 is A3 Portrait, 420 × 297 A3 Landscape. 152 × 102 (a 4 × 6 in card turned) names no paper, so it is Custom |
+| "Equal" | to the millimetre, within half a millimetre per side, because the Custom boxes take whole millimetres: 216 × 279 is Letter (215.9 × 279.4), 102 × 152 is 4 × 6 in (101.6 × 152.4) |
+| A preset's own paper | the same rule (his words: "that preset"). No shipped built-in preset changes: the only custom sizes they use, 100 × 150 and 130 × 180 mm, equal no named paper |
+| Any other Custom size | unchanged: every Custom preset, whatever the boxes say (K48) |
+| "Save as Defaults" | unchanged: it stores the size (`210x297`, `420x297`) and the next start shows that size again (measured with the engine on, before and after, `save-as-defaults-table.txt` of the proof); the lists read it by the same rule, so a saved 210 × 297 lists A4 Portrait's presets after the restart too |
+| The help | both help icons of "Settings for built-in presets" say it (B8-1310), where they used to say "whatever the width and height boxes say" |
 
 ### C8. The groups come in the Instrument pulldown's order (Knut, #182 5833490026, beta 43, B8-1146)
 
@@ -317,7 +346,7 @@ is met there.
 
 | What | Behaviour |
 |---|---|
-| Manual, engine on | the Paper field on screen is the ChromIQ layout panel's, and that is the one the filter reads; ~~Custom as its W × H, so every custom-size preset~~ **Custom as the Custom class whatever its W × H (B8-1260), so every custom-size preset; engine off the same for printtarg's own "Custom (enter dimensions)"**. printtarg's own Paper row is hidden then and is not read |
+| Manual, engine on | the Paper field on screen is the ChromIQ layout panel's, and that is the one the filter reads; ~~Custom as its W × H, so every custom-size preset~~ ~~**Custom as the Custom class whatever its W × H (B8-1260), so every custom-size preset; engine off the same for printtarg's own "Custom (enter dimensions)"**~~ **Custom as its W × H: the named paper it equals (Knut, 2026-09-26, B8-1310, C7a), otherwise the Custom class; engine off the same for printtarg's own "Custom (enter dimensions)"**. printtarg's own Paper row is hidden then and is not read |
 | Manual, engine off | printtarg's Paper field, as before |
 | Whatever changed the paper | a person's pick, a preset from "Select preset" or from the Built-in presets list, a project, the saved defaults at start-up: both lists show the presets of the paper the field shows at that moment, in the closed pulldown too (what the arrow keys and the wheel step through) |
 | A preset that did not take | its row is filtered again as soon as the pulldown goes back (C7's "the selected preset" is the selection that stands) |

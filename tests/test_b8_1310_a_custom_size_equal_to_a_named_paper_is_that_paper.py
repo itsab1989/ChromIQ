@@ -1,28 +1,28 @@
-"""B8-1260 (beta 44 challenge F1): on "Custom", the paper filter is the Custom
-class WHATEVER THE BOXES HOLD.
+"""B8-1310 (Knut, #182 5845519118, 2026-09-26): a Custom size that EQUALS a
+named paper is that named paper, in both preset lists.
 
-C7, and Knut in K48 (#182 5840677938): *"All Custom papers should then show
-(disregarding any setting in the Custom size input boxes)"*. Beta 44 read the
-Paper field on screen as a ``-p`` code, Custom as ``WxH``, and
-``paper_class`` calls any code the paper list names a named paper. So a Custom
-420 x 297 was A3 Landscape, and both lists showed A3 Landscape's presets; so
-were 127 x 178 (5 x 7 in), 594 x 420 (A2 Landscape), 329 x 483 and 483 x 329
-(A3+), 203 x 254 (8 x 10 in). Every one of the 5 instruments, engine on and
-off (the challenge round, on screen).
+*"if the custom side equals to a named paper size, that preset should be
+treated as that named paper size."* This REVERSES B8-1260 (beta 44 challenge
+F1), which made the Custom entry decide whatever the boxes held. So:
 
-THE EXPECTED VALUES DO NOT COME FROM THE CODE UNDER TEST. The B8-1221 and K48
-drivers judged through ``paper_class`` too, so they agreed with the fault.
-Here the named papers are read from ``data/parameters.yaml`` (the Paper
-field's own list), and the expected class is "custom" because the test put the
-field on Custom, not because a function said so.
+* Custom 420 x 297 lists A3 Landscape's presets, 210 x 297 A4 Portrait's,
+  297 x 210 A4 Landscape's, 216 x 279 Letter's (the boxes take whole
+  millimetres, and Letter is 215.9 x 279.4).
+* The orientation is matched exactly, as the paper codes spell it: 152 x 102
+  (a 4 x 6 in card turned) names no paper, so it is Custom.
+* A size equal to no named paper keeps the Custom lists: every Custom preset,
+  whatever the boxes say (K48).
 
-MUTATIONS (each red here, see mutations.txt of the fixes-1 proof):
-* ``_preset_paper_selected`` without the Custom-entry check (the beta 44
-  code): every colliding size red, engine on and off; the non-colliding
-  130 x 180 stays green, which is why the old tests never saw it.
-* ``_manual_paper_is_custom_on_screen`` asking only the layout panel: the
-  engine-off cases red.
-* it asking only printtarg's widget: the engine-on cases red.
+THE EXPECTED VALUES DO NOT COME FROM THE CODE UNDER TEST. The named papers are
+read from ``data/parameters.yaml`` (the Paper field's own list), and their
+millimetre sizes are written out here from the paper standards (ISO 216, ANSI),
+not taken from ``workflow.layout_engine.papers`` or ``paper_class``.
+
+MUTATIONS (mutations.txt of the k50 proof): ``paper_class`` without the
+size match (B8-1260's rule for W x H codes): 210 x 297, 297 x 210, 216 x 279,
+102 x 152 red; the B8-1260 Custom-entry check put back into
+``_preset_paper_selected``: every named-size case red, engine on and off;
+the orientation dropped from the match (sorted sides): 152 x 102 red.
 """
 from __future__ import annotations
 
@@ -41,13 +41,35 @@ from ui.tabs import tab_chart as TC                             # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-#: Custom sizes that spell a named paper's code (the challenge round's six)
-COLLIDING = [(420, 297), (127, 178), (594, 420), (329, 483), (483, 329),
-             (203, 254)]
+#: Each named paper's size in mm, width x height as the code orients it.
+#: Written from the standards, NOT read from the app.
+SIZES_MM = {
+    "A2": (420, 594), "594x420": (594, 420),
+    "329x483": (329, 483), "483x329": (483, 329),
+    "A3": (297, 420), "420x297": (420, 297),
+    "11x17": (279.4, 431.8), "Legal": (215.9, 355.6),
+    "A4": (210, 297), "A4R": (297, 210),
+    "Letter": (215.9, 279.4), "LetterR": (279.4, 215.9),
+    "203x254": (203, 254), "127x178": (127, 178),
+    "4x6": (101.6, 152.4),
+}
+
+#: (Custom W x H as typed in whole millimetres, the class a person expects)
+CASES = [
+    ((420, 297), "420x297"),
+    ((210, 297), "A4"),
+    ((297, 210), "A4R"),
+    ((216, 279), "Letter"),
+    ((102, 152), "4x6"),
+    ((127, 178), "127x178"),
+    ((297, 420), "A3"),
+    ((152, 102), "custom"),     # 4 x 6 in turned: no such named paper
+    ((250, 300), "custom"),
+    ((100, 150), "custom"),
+]
 
 
 def _named_papers() -> set:
-    """The named entries of Manual's Paper field, from its own definition."""
     data = yaml.safe_load((ROOT / "data" / "parameters.yaml").read_text(
         encoding="utf-8"))
     for p in data["parameters"]["printtarg"]:
@@ -60,15 +82,30 @@ NAMED = _named_papers()
 
 
 def _class(paper) -> str:
+    """A preset's paper as a person reads it: its named paper, the named
+    paper its millimetre size equals, or Custom."""
     paper = str(paper or "")
-    return paper if paper in NAMED else "custom"
+    if paper in NAMED:
+        return paper
+    try:
+        w, h = (float(x) for x in paper.split("x"))
+    except ValueError:
+        return "custom"
+    for code, (nw, nh) in SIZES_MM.items():
+        if code in NAMED and abs(nw - w) < 0.5 and abs(nh - h) < 0.5:
+            return code
+    return "custom"
 
 
-def test_the_colliding_sizes_really_are_named_codes():
-    """The premise: each size is a code the Paper field names, so a filter
-    that reads the size finds a named paper."""
-    for w, h in COLLIDING:
-        assert f"{w}x{h}" in NAMED
+def test_every_named_paper_has_a_size_here():
+    assert NAMED <= set(SIZES_MM), NAMED - set(SIZES_MM)
+
+
+@pytest.mark.parametrize("dims,want", CASES,
+                         ids=[f"{w}x{h}" for (w, h), _ in CASES])
+def test_the_class_of_a_custom_size(dims, want):
+    assert cp.paper_class(f"{dims[0]}x{dims[1]}") == want
+    assert _class(f"{dims[0]}x{dims[1]}") == want      # the test agrees too
 
 
 @pytest.fixture(scope="module")
@@ -147,8 +184,7 @@ def _popup(tab):
 
 def _choose(tab, qapp, engine: bool, code: str, dims=None) -> None:
     """A person's pick in the Paper field on screen: the layout panel's with
-    the engine on, printtarg's with it off. The boxes are typed first, as a
-    person who had them on that size before would find them."""
+    the engine on, printtarg's with it off."""
     if engine:
         panel = tab._manual_layout_panel
         want = "__custom__" if code == "custom" else code
@@ -177,61 +213,56 @@ def _engine(tab, qapp, on: bool) -> None:
 
 @pytest.mark.parametrize("engine", [True, False], ids=["engine-on",
                                                         "engine-off"])
-@pytest.mark.parametrize("dims", COLLIDING,
-                         ids=[f"{w}x{h}" for w, h in COLLIDING])
-def test_custom_on_a_named_papers_size_lists_the_custom_presets(
-        tab, settings, qapp, engine, dims):
-    """The named paper first (so a filter reading the size shows exactly the
-    lists it already had), then Custom with the boxes on that paper's size:
-    both lists are Custom's, never the named paper's."""
+@pytest.mark.parametrize("dims,want", CASES,
+                         ids=[f"{w}x{h}" for (w, h), _ in CASES])
+def test_custom_lists_what_its_size_is(tab, settings, qapp, engine, dims,
+                                       want):
+    """Custom with the boxes on each size, after A4 (so a stale list would
+    show A4's): both lists are the named paper's when the size equals one,
+    Custom's otherwise."""
     _engine(tab, qapp, engine)
-    named = f"{dims[0]}x{dims[1]}"
-    _choose(tab, qapp, engine, named)
-    exp_named = _expected(settings, named)
-    assert _pulldown(tab) == exp_named
+    _choose(tab, qapp, engine, "A4")
     _choose(tab, qapp, engine, "custom", dims)
-    assert tab._manual_paper_on_screen() == named     # the size is kept
-    assert tab._preset_paper_selected() == cp.CUSTOM_PAPER
-    exp = _expected(settings, "custom")
-    assert exp and exp != exp_named
+    assert tab._manual_paper_on_screen() == f"{dims[0]}x{dims[1]}"
+    assert tab._preset_paper_selected() == want
+    exp = _expected(settings, want)
     assert _pulldown(tab) == exp
     assert _popup(tab) == exp
 
 
-@pytest.mark.parametrize("engine", [True, False], ids=["engine-on",
-                                                        "engine-off"])
-def test_back_from_custom_to_the_named_paper_is_that_paper_again(
-        tab, settings, qapp, engine):
-    """The Custom rule goes no further than the Custom entry: back on A3
-    Landscape the lists are A3 Landscape's."""
-    _engine(tab, qapp, engine)
-    _choose(tab, qapp, engine, "custom", (420, 297))
-    assert _pulldown(tab) == _expected(settings, "custom")
-    _choose(tab, qapp, engine, "420x297")
-    assert tab._preset_paper_selected() == "420x297"
-    assert _pulldown(tab) == _expected(settings, "420x297")
-    assert _popup(tab) == _expected(settings, "420x297")
+def test_a_custom_size_is_the_named_papers_list_not_customs(tab, settings,
+                                                            qapp):
+    """The point of the ruling, stated as a difference: on Custom 420 x 297
+    the lists are A3 Landscape's, which are not Custom's."""
+    _engine(tab, qapp, True)
+    _choose(tab, qapp, True, "custom", (420, 297))
+    a3l, custom = _expected(settings, "420x297"), _expected(settings, "custom")
+    assert a3l and custom and a3l != custom
+    assert _pulldown(tab) == a3l
 
 
-def test_a_box_changed_on_custom_keeps_the_custom_class(tab, settings, qapp):
+def test_a_box_changed_on_custom_follows_the_size(tab, settings, qapp):
     """Typing a named paper's size into the boxes while Custom is selected
-    (the entry does not move) must not bring the named paper's lists."""
+    brings that paper's lists; typing it away again brings Custom's."""
     _engine(tab, qapp, True)
     _choose(tab, qapp, True, "custom", (100, 150))
+    assert _pulldown(tab) == _expected(settings, "custom")
     panel = tab._manual_layout_panel
     panel.custom_w.setValue(420)
     panel.custom_h.setValue(297)
     qapp.processEvents()
-    assert tab._manual_paper_on_screen() == "420x297"
-    assert tab._preset_paper_selected() == cp.CUSTOM_PAPER
+    assert tab._preset_paper_selected() == "420x297"
+    assert _pulldown(tab) == _expected(settings, "420x297")
+    assert _popup(tab) == _expected(settings, "420x297")
+    panel.custom_w.setValue(250)
+    panel.custom_h.setValue(300)
+    qapp.processEvents()
+    assert tab._preset_paper_selected() == "custom"
     assert _pulldown(tab) == _expected(settings, "custom")
-    assert _popup(tab) == _expected(settings, "custom")
 
 
-def test_guided_has_no_custom_and_filters_by_its_named_paper(
-        tab, settings, qapp):
-    """Guided has no Custom entry (C7), so its A3 Landscape is A3 Landscape;
-    the fix must not turn a named Guided paper into Custom."""
+def test_guided_filters_by_its_named_paper(tab, settings, qapp):
+    """Guided has no Custom entry (C7); its A3 Landscape is A3 Landscape."""
     tab._switch_mode("guided")
     qapp.processEvents()
     c = tab._paper_combo

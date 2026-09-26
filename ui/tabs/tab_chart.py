@@ -4442,6 +4442,26 @@ def _layout_panel_lays_out(instr, engine_setting) -> bool:
             or bool(engine_setting))
 
 
+def _panel_lays_out_on(tab) -> bool:
+    """:func:`_layout_panel_lays_out` for Manual as *tab* has it now:
+    printtarg's -i and the engine setting (B8-1295, B8-1300).
+
+    A FUNCTION, NOT ONLY A METHOD, because some of its readers are called
+    unbound on a stand-in that has ``_settings`` and little else
+    (`_engine_text_notes` in a dozen test files and a gate driver). A
+    stand-in without printtarg's rows answers with the setting alone, which
+    is what every one of them was written against."""
+    instr = None
+    getter = getattr(tab, "_manual_get", None)
+    if callable(getter):
+        try:
+            instr = getter("printtarg", "-i", "i1")
+        except Exception:      # noqa: BLE001 — a half-built tab
+            instr = None
+    return _layout_panel_lays_out(
+        instr, tab._settings.get("use_chromiq_layout_engine", False))
+
+
 #: THE RECIPE OF A LAYOUT PANEL NOBODY EVER SAW (B8-1290).
 #:
 #: Until beta 44, "Save as Defaults" with the engine off stored the hidden
@@ -4843,6 +4863,10 @@ class _CappedComboBox(NoScrollComboBox):
         # frame, after the view and its scrollers, so it never scrolls away.
         self._note_footer: "_PresetListNote | None" = None
         container = view.parentWidget()
+        # THE POPUP'S FRAME TOO (B8-1319): see `_is_frame_click`.
+        self._arrow_container = container
+        if container is not None:
+            container.installEventFilter(self)
         lay = container.layout() if container is not None else None
         if lay is not None:
             self._note_footer = _PresetListNote(container)
@@ -4881,7 +4905,40 @@ class _CappedComboBox(NoScrollComboBox):
         return h + max(0, lay.spacing() if lay is not None else 0)
 
     #: The only events the filter looks at. Everything else leaves at once.
-    _ARROW_EVENTS = frozenset({2, 3, 4, 6, 51})   # press, release, dbl, key, override
+    _ARROW_EVENTS = frozenset({2, 3, 4, 5, 6, 51})  # press, release, dbl, move, key, override
+
+    #: The mouse events a press on the list's frame may not pass on.
+    _FRAME_MOUSE_EVENTS = frozenset({2, 3, 4, 5})
+
+    def _is_frame_click(self, obj, event) -> bool:
+        """True for a mouse event on the open list's FRAME: the list view's
+        own border or the popup's, inside the popup, where no row, scroll
+        bar, scroll strip or note took it (B8-1319).
+
+        Knut relayed a user on Windows (#182 5845615756): pressing the list's
+        scroll bar chose the first preset and closed the list; only the wheel
+        scrolled. The bar is 8 px wide (the app's style sheet), and a press
+        that misses it by a pixel lands on the list view's frame, which
+        passes it up to Qt's popup frame; that frame closes the list on any
+        press it gets. Worse, Qt's popup reads a mouse move or release ON THE
+        VIEW as if it were on the rows (``indexAt`` of a point in the view's
+        coordinates), so the move beside the bar made the top visible row
+        current and a release there chose it. Measured on screen with a real
+        pointer (`scripts/drive_b8_1319_preset_list_scroll_bar.py`): a press
+        on the frame right of the bar, above it, or a drag started there,
+        closed the list; the bar itself, its page area and the strips above
+        and below the rows worked. A frame is not a choice, so it is kept:
+        the list stays open and nothing is chosen. A press OUTSIDE the popup
+        still reaches Qt and closes it, as a click away from a list does."""
+        if int(event.type().value) not in self._FRAME_MOUSE_EVENTS:
+            return False
+        if obj is not self._arrow_view \
+                and obj is not getattr(self, "_arrow_container", None):
+            return False
+        try:
+            return obj.rect().contains(event.position().toPoint())
+        except Exception:      # noqa: BLE001 — never let a filter raise
+            return False
 
     def eventFilter(self, obj, event):  # noqa: N802 — Qt's name
         # **THE TYPE IS ASKED FIRST, AND NOTHING OF THE COMBO BEFORE IT.** The
@@ -4897,6 +4954,11 @@ class _CappedComboBox(NoScrollComboBox):
                 return False
             from PyQt6.QtCore import QEvent
             view = self._arrow_view
+            if self._is_frame_click(obj, event):
+                event.accept()
+                return True
+            if et == QEvent.Type.MouseMove:
+                return False
             if obj is self._arrow_viewport and et in (
                     QEvent.Type.MouseButtonPress,
                     QEvent.Type.MouseButtonRelease,
@@ -6745,8 +6807,19 @@ class TabChart(QWidget):
         layout.addWidget(self._cal_target_grp)
 
         # Output (target name)
-        output_grp = QGroupBox(tr("Output"), w)
-        output_layout = QVBoxLayout(output_grp)
+        # COLLAPSIBLE, OPEN BY DEFAULT (Knut, #182 5845588201, B8-1311):
+        # *"For the Output frame and Presets frame, make those frames also
+        # have an arrow, like Basic or "ChromIQ layout" frames have, so that
+        # Output frame and Presets frame can be minimised/hidden, but default
+        # is that they are open and showing its content."* The same
+        # CollapsibleGroupBox as Basic and ChromIQ layout; like them, the
+        # folded state lasts for the session and every start opens it again.
+        # Both frames sit above the scrolling parameters, so folding them
+        # gives the parameters the height on a small screen (a MacBook Pro
+        # 14", 1512 x 982 points).
+        output_grp = CollapsibleGroupBox(tr("Output"), w)
+        self._manual_output_grp = output_grp
+        output_layout = QVBoxLayout(output_grp.body)
         # Shared label width keeps the "Target name:" and "Chart notes:"
         # input fields aligned vertically. Sized to the translated labels so
         # longer locales widen the column (the stretchy edits absorb it).
@@ -6967,12 +7040,14 @@ class TabChart(QWidget):
         layout.addWidget(output_grp)
 
         # Presets
-        presets_grp = QGroupBox(tr("Presets"), w)
+        # Collapsible, open by default, as Output above (B8-1311).
+        presets_grp = CollapsibleGroupBox(tr("Presets"), w)
+        self._manual_presets_grp = presets_grp
         # A COLUMN, because Knut asked for the verification button to sit
         # BELOW the dropdown (#182, beta 22). The dropdown and its +/−/folder
         # buttons keep the row they have always had; the new button gets a row
         # of its own underneath it.
-        presets_col = QVBoxLayout(presets_grp)
+        presets_col = QVBoxLayout(presets_grp.body)
         # **9 AT THE BOTTOM, WHICH IS WHAT THE OTHER FRAMES USE.** Knut, beta
         # 25: *"The button bottom edge overlaps with the bottom edge of the
         # Presets frame. Make sure there is a distance between the bottom edge
@@ -8493,9 +8568,12 @@ class TabChart(QWidget):
                                  and manual_btn.isChecked()):
             return
         if use_engine is None:
-            engine_check = getattr(self, "_manual_engine_check", None)
-            use_engine = bool(engine_check is not None
-                              and engine_check.isChecked())
+            # THE PANEL THAT LAYS THE CHART OUT, NOT THE BOX (B8-1300). This
+            # asked the "ChromIQ layout engine" tick, so on the CR30 with the
+            # box unticked (the panel on screen and laying the chart out) a
+            # build, which calls this without `use_engine`, blanked the
+            # estimate column (beta 44 challenge round 6, AP).
+            use_engine = _panel_lays_out_on(self)
         if not (use_engine
                 and getattr(self, "_manual_layout_panel", None) is not None):
             self._layout_info_panel.clear_estimate()
@@ -8746,9 +8824,7 @@ class TabChart(QWidget):
     def _manual_panel_lays_out(self) -> bool:
         """`_layout_panel_lays_out` for what Manual is on now: printtarg's -i
         and the engine setting (B8-1295)."""
-        return _layout_panel_lays_out(
-            self._manual_get("printtarg", "-i", "i1"),
-            self._settings.get("use_chromiq_layout_engine", False))
+        return _panel_lays_out_on(self)
 
     def _pinned_layout_recipe(self):
         """:meth:`_current_layout_recipe`, pinned — the label style resolved and
@@ -11263,19 +11339,17 @@ class TabChart(QWidget):
         :func:`core.curated_presets.paper_class` spells it: Guided's "Paper
         size" or Manual's "Paper", whichever mode is shown (the gamut module
         lays out through Manual's). "" while the filter is off."""
-        from core.curated_presets import (
-            CUSTOM_PAPER, paper_class, paper_filter_on)
+        from core.curated_presets import paper_class, paper_filter_on
         if not paper_filter_on(self._settings):
             return ""
         if self._current_mode() == "manual":
-            # THE ENTRY, NOT THE SIZE (beta 44 challenge F1). On "Custom…"
-            # the class is Custom whatever the boxes hold (C7; Knut, #182
-            # 5840677938: "disregarding any setting in the Custom size input
-            # boxes"). Read as W x H, a Custom 420 x 297 was the code of A3
-            # Landscape and the lists showed A3 Landscape's presets; so were
-            # 127x178, 594x420, 329x483, 483x329 and 203x254.
-            if self._manual_paper_is_custom_on_screen():
-                return CUSTOM_PAPER
+            # THE SIZE, WHICH A CUSTOM ENTRY THAT EQUALS A NAMED PAPER IS
+            # (Knut, #182 5845519118, 2026-09-26, B8-1310): *"if the custom
+            # side equals to a named paper size, that preset should be
+            # treated as that named paper size."* A Custom 420 x 297 is A3
+            # Landscape, 210 x 297 A4 Portrait; `paper_class` decides it from
+            # the W x H the field answers. This reverses B8-1260, which made
+            # the Custom ENTRY decide whatever the boxes held.
             code = self._manual_paper_on_screen()
         else:
             combo = getattr(self, "_paper_combo", None)
@@ -11305,21 +11379,6 @@ class TabChart(QWidget):
             return panel.selection()[1]
         pw = getattr(self, "_manual_paper_pw", None)
         return (pw.get_raw_value() or "") if pw is not None else ""
-
-    def _manual_paper_is_custom_on_screen(self) -> bool:
-        """True when Manual's Paper field on screen (the one
-        :meth:`_manual_paper_on_screen` reads) has its Custom entry selected:
-        the layout panel's "Custom…" with the engine on, printtarg's
-        "custom" with it off. Asked of the ENTRY, never of the W x H it
-        answers, because a Custom size can spell a named paper's code."""
-        grp = getattr(self, "_manual_layout_grp", None)
-        panel = getattr(self, "_manual_layout_panel", None)
-        if grp is not None and not grp.isHidden() and panel is not None \
-                and getattr(panel, "paper", None) is not None:
-            return panel.paper.currentData() == "__custom__"
-        pw = getattr(self, "_manual_paper_pw", None)
-        combo = getattr(pw, "_custom_combo", None) if pw is not None else None
-        return combo is not None and combo.currentData() == "custom"
 
     def _mark_preset_group_rows(self, start: int, group: str) -> None:
         """Tag the rows of one built-in group from ``start`` on with its
@@ -12963,7 +13022,15 @@ class TabChart(QWidget):
                 # to render it and the preview is wrong. The restored -i/-p widgets
                 # then drive the (correct) instrument & paper. An engine preset (future
                 # layout_recipe) would instead switch the engine on.
-                if getattr(self, "_manual_engine_check", None) is not None:
+                # NOT FOR THE CR30 (B8-1300): its preset carries a recipe
+                # whatever the box said, and the box decides nothing for it,
+                # so the box is left where the person has it; the same rule
+                # as `_restore_user_preset`. Measured on screen (k50 proof,
+                # after/cells/B2-cr30-off): this line alone still ticked it.
+                from workflow.chart_creator import ENGINE_ONLY_INSTRUMENTS
+                if getattr(self, "_manual_engine_check", None) is not None \
+                        and str((pdata or {}).get("printtarg_-i") or "") \
+                        not in ENGINE_ONLY_INSTRUMENTS:
                     has_recipe = isinstance(pdata, dict) and bool(pdata.get("layout_recipe"))
                     self._set_engine_checked(has_recipe)
                 # Carry the preset's stored New-chart recipe (Set B), if any, so a
@@ -13067,7 +13134,17 @@ class TabChart(QWidget):
         # build reseeds from the store, which would clobber the preset recipe).
         lr = data.get("layout_recipe")
         engine_on = isinstance(lr, dict) and bool(lr)
-        if bool(self._settings.get("use_chromiq_layout_engine", False)) != engine_on:
+        # THE BOX IS LEFT ALONE FOR THE CR30 (B8-1300). Since a preset saved
+        # on the CR30 with the box unticked carries its recipe (the layout
+        # panel laid its chart out), "carries a recipe" no longer means "was
+        # saved with the box ticked" there. The box decides nothing for an
+        # instrument only the engine can lay out, so a CR30 preset does not
+        # move it either way; for every other instrument the rule stands.
+        from workflow.chart_creator import ENGINE_ONLY_INSTRUMENTS
+        _engine_only = str(data.get("printtarg_-i") or "") \
+            in ENGINE_ONLY_INSTRUMENTS
+        if not _engine_only and bool(self._settings.get(
+                "use_chromiq_layout_engine", False)) != engine_on:
             self._settings.set("use_chromiq_layout_engine", engine_on)
         if engine_on:
             self._refresh_manual_command_preview()   # swap groups + init panel
@@ -14034,9 +14111,13 @@ class TabChart(QWidget):
         )
         # ChromIQ layout engine: store the full layout recipe (minus the per-chart
         # seed) so a named preset carries the engine options too, exactly like it
-        # carries the printtarg ones (#93). Only when the engine is active.
+        # carries the printtarg ones (#93). Only when the layout panel lays
+        # the chart out: the box ticked, or the CR30 whatever the box says
+        # (B8-1300). A CR30 preset saved with the box unticked carried no
+        # recipe, and loading it built whatever the panel held instead
+        # (challenge round 6, B1 / B2: Letter for the preset's 250 x 300).
         if (getattr(self, "_manual_layout_panel", None) is not None
-                and bool(self._settings.get("use_chromiq_layout_engine", False))):
+                and _panel_lays_out_on(self)):
             from dataclasses import replace
             # PINNED: a saved preset carries its own label style, so a later
             # Preferences change can't resize the labels on it (Knut, beta-6).
@@ -14260,8 +14341,9 @@ class TabChart(QWidget):
         # Engine charts: the printtarg widgets didn't produce the chart (the
         # engine recipe did, and the preset carries it as layout_recipe), so
         # syncing from them would stamp unrelated instrument/paper/layout values
-        # into the recipe (#100). Keep it exactly as created.
-        if bool(self._settings.get("use_chromiq_layout_engine", False)):
+        # into the recipe (#100). Keep it exactly as created. The CR30 with
+        # the box unticked is such a chart too (B8-1300).
+        if _panel_lays_out_on(self):
             return recipe
         try:
             from workflow.ti2_relayout import recipe_layout_from_options
@@ -16820,9 +16902,12 @@ class TabChart(QWidget):
         # move the predicted capacity either (#170). `engine_on` is computed the
         # same way a dozen lines below; Guided is always the engine.
         from workflow.chart_creator import ENGINE_INSTRUMENTS as _EI
+        # (B8-1300: Manual asks the one predicate, so the CR30 with the box
+        # unticked is the engine here too, as it is in the build.)
         _engine_here = (instr in _EI) and (
             not (self._manual_btn is not None and self._manual_btn.isChecked())
-            or bool(self._settings.get("use_chromiq_layout_engine", False)))
+            or _layout_panel_lays_out(
+                instr, self._settings.get("use_chromiq_layout_engine", False)))
         chromiq_force_l = self._chromiq_force_l(instr, paper) and not _engine_here
         eff_lb = has_lb or chromiq_force_l or td
         # Triple density forces -P; reflect that in the lookup so the
@@ -16853,7 +16938,8 @@ class TabChart(QWidget):
         guided_active = not (self._manual_btn is not None
                              and self._manual_btn.isChecked())
         engine_on = (instr in ENGINE_INSTRUMENTS) and (
-            guided_active or bool(self._settings.get("use_chromiq_layout_engine", False)))
+            guided_active or _layout_panel_lays_out(
+                instr, self._settings.get("use_chromiq_layout_engine", False)))
         if engine_on:
             per_sheet = self._engine_capacity(
                 instr, paper, dd=dd, td=td, eff_lb=eff_lb, nsl=nsl_eff,
@@ -19657,6 +19743,13 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001
             pass
         try:
+            # THE BOX, DELIBERATELY NOT `_layout_panel_lays_out` (B8-1300,
+            # read and left). `engine_on` is what `_apply_ui_state` puts back
+            # into the "ChromIQ layout engine" tick; the predicate would store
+            # True for a CR30 with the box unticked and a run change would
+            # then tick the box. The recipe below is stored whatever the box
+            # says, and the CR30's panel lays out from it on the way back
+            # (challenge round 6, PT: reopened as built, 250 x 300 / 400 dpi).
             out["engine_on"] = bool(
                 self._settings.get("use_chromiq_layout_engine", False))
             rec = self._manual_layout_panel.get_recipe()
@@ -20933,7 +21026,7 @@ class TabChart(QWidget):
         try:
             p = self._collect_manual()
             per = None
-            if bool(self._settings.get("use_chromiq_layout_engine", False)):
+            if _panel_lays_out_on(self):       # the CR30 unticked too (B8-1300)
                 # FROM THE LIVE RECIPE, because in Manual mode that is what
                 # lays the sheet out. Asking `_engine_capacity` with the
                 # PRINTTARG fields ignored the recipe panel entirely — the
@@ -21104,9 +21197,9 @@ class TabChart(QWidget):
     def _gamut_pages(self) -> int:
         """The page count the build will actually use: the engine panel's own
         Pages control when the engine is on, printtarg's spin otherwise."""
-        if bool(self._settings.get("use_chromiq_layout_engine", False)) \
+        if _panel_lays_out_on(self) \
                 and getattr(self, "_manual_layout_panel", None) is not None:
-            return int(self._manual_layout_panel.get_pages())
+            return int(self._manual_layout_panel.get_pages())    # B8-1300
         return int(self._manual_pages_spin.value()
                    if self._manual_pages_spin is not None else 1)
 
@@ -23816,8 +23909,10 @@ class TabChart(QWidget):
             # is the one that distinguishes the module and is deliberately not
             # used here.
             manual = self._current_mode() == "manual"
+            # The layout panel laying the sheet out, the CR30 with the box
+            # unticked included (B8-1300).
             if not (manual and getattr(self, "_manual_layout_panel", None) is not None
-                    and bool(self._settings.get("use_chromiq_layout_engine", False))):
+                    and _panel_lays_out_on(self)):
                 return warns, over
             # THE RECIPE THE SHEET WAS BUILT WITH, NOT THE ONE IN THE BOXES.
             # See `_notice_layout_recipe` for the four routes that recomputed
@@ -26609,7 +26704,11 @@ class TabChart(QWidget):
         only re-renders when something actually changed (and the post-render
         refresh doesn't loop)."""
         try:
-            if (bool(self._settings.get("use_chromiq_layout_engine", False))
+            # THE PANEL THAT LAYS THE CHART OUT (B8-1300): on the CR30 with
+            # the box unticked this was printtarg's rows, which nobody sees
+            # there, so a panel edit never moved it and the auto-preview
+            # ignored it (challenge round 6, AP).
+            if (_panel_lays_out_on(self)
                     and getattr(self, "_manual_layout_panel", None) is not None):
                 # Via _current_layout_recipe so a Settings styling change also
                 # counts as a layout change and re-triggers the auto-preview.
@@ -26729,6 +26828,10 @@ class TabChart(QWidget):
             from workflow.per_target_settings import snapshot
             parts: dict = {"reg": snapshot(self)}
             try:
+                # The BOX, as `_collect_ui_state` stores it (what a run
+                # change puts back), not the predicate: see there (B8-1300).
+                # The panel's recipe is in the fingerprint whatever the box
+                # says, so a panel edit on the CR30 unticked counts.
                 parts["engine_on"] = bool(
                     self._settings.get("use_chromiq_layout_engine", False))
                 rec = self._manual_layout_panel.get_recipe()
