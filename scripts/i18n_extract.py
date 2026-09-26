@@ -120,6 +120,9 @@ def _compliance_set_keys() -> set[str]:
             out.add(row.detect)
         if row.remedy:
             out.add(row.remedy)
+        # Knut, #182 5841606710: how a row relates to its family
+        if getattr(row, "relation", ""):
+            out.add(row.relation)
     # K31: the within-gamut names (`tr(row_name(...))`) and the two halves of
     # the grey rows' lever (`tr(remedy_for(...))`), both tr() on a variable.
     out |= set(cs.IN_GAMUT_LABELS.values())

@@ -221,6 +221,11 @@ def reason_line(code: str) -> str:
                "patches."),
         MR.REASON_NO_CORNERS:
             tr("This chart has no patch at any of the solid ink corners."),
+        # #182 K49, (b2): the paper row compares the chart's paper patch
+        # with the profile's media white.
+        MR.REASON_NO_PAPER_PATCH:
+            tr("This chart has no patch printed with no ink, so its paper "
+               "cannot be measured."),
         MR.REASON_NOT_COMPUTED:
             tr("ChromIQ cannot check this metric on this chart."),
         MR.REASON_NO_DEVICE_VALUES:

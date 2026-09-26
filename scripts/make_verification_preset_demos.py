@@ -391,6 +391,19 @@ def chart_clumped_greys():
     ramp that is one black patch and a huddle at the top.
     """
     lv = (0.0, 90.0, 90.6, 91.2, 91.8, 92.4, 93.0, 93.6)
+    # #182 K49, (b2): a patch of bare paper, as the PASS side has one at 100,
+    # so the paper row reads the same on both sides and only the grey pair
+    # moves. At 100 it is one more neutral step, and the huddle stays a huddle.
+    return _pad(greys(lv) + [(100.0, 100.0, 100.0)] + surface() + cyan_ramp())
+
+
+def chart_paper_patch(white: float):
+    """#182 K49, (b2): the control chart with its lightest neutral at
+    *white* on every channel. At 100 - PAPER_PATCH_TOL (99.5) or above it is
+    a patch printed with no ink, and the paper row is answered; one notch
+    under it the chart has none. The neutral still reaches white either way
+    (the line is 90), so nothing else moves."""
+    lv = list(_GREY_OK[:-1]) + [white]
     return _pad(greys(lv) + surface() + cyan_ramp())
 
 
@@ -544,7 +557,9 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "a ramp built exactly 1.0 unit out of neutral",
         lambda: chart_grey_spread(1.0 + NOTCH),
         lambda: chart_grey_spread(1.0),
-        strip_ids(20), strip_ids(20)),
+        strip_ids(20), strip_ids(20),
+        also=("paper_not_measured",),
+        also_why='#182 K49, (b2): neither side carries a patch printed with no ink (its lightest patch is what this pair is about, or is kept off the faces), so the paper row reads paper_not_measured on both.'),
     Requirement(
         "R05", "Grey balance",
         "There have to be at least eight distinct steps of it. Two levels "
@@ -569,7 +584,9 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
                                    90.0 - NOTCH)),
         lambda: chart_grey_levels((0.0, 13.0, 26.0, 39.0, 51.0, 64.0, 77.0,
                                    90.0)),
-        strip_ids(20), strip_ids(20)),
+        strip_ids(20), strip_ids(20),
+        also=("paper_not_measured",),
+        also_why='#182 K49, (b2): neither side carries a patch printed with no ink (its lightest patch is what this pair is about, or is kept off the faces), so the paper row reads paper_not_measured on both.'),
     Requirement(
         "R07", "Grey balance",
         "It has to reach black at the other. What the code asks for is a "
@@ -635,7 +652,9 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "the same 12, every one exactly 2.0 from the nearest face",
         lambda: chart_surface(12, 2.0 + NOTCH),
         lambda: chart_surface(12, 2.0),
-        strip_ids(20), strip_ids(20)),
+        strip_ids(20), strip_ids(20),
+        also=("paper_not_measured",),
+        also_why='#182 K49, (b2): neither side carries a patch printed with no ink (its lightest patch is what this pair is about, or is kept off the faces), so the paper row reads paper_not_measured on both.'),
     Requirement(
         "R12", "Surface of the device cube",
         "At least 10 of those patches carry a reference value.",
@@ -644,7 +663,9 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         ("surface_gamut_de00_avg",), "too_few_surface_patches",
         "9 surface patches", "10 surface patches",
         lambda: chart_surface(9, 0.0), lambda: chart_surface(10, 0.0),
-        strip_ids(20), strip_ids(20)),
+        strip_ids(20), strip_ids(20),
+        also=("paper_not_measured",),
+        also_why='#182 K49, (b2): neither side carries a patch printed with no ink (its lightest patch is what this pair is about, or is kept off the faces), so the paper row reads paper_not_measured on both.'),
     Requirement(
         "R13", "Outer gamut, top quarter by C*ab",
         "The top quarter by chroma has to hold at least 20 patches. The help "
@@ -704,6 +725,22 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "649 patches, 25 strips covering 61.2 %",
         lambda: chart_page(648), lambda: chart_page(649),
         strip_ids(20), strip_ids(20), scale=R16_SCALE),
+    # #182 K49, (b2) (Knut, 5841092535, "Yes"): the paper row is compared
+    # with the profile's media white on any chart with a patch printed with
+    # no ink, so whether a chart has one is a requirement of its own.
+    Requirement(
+        "R17", "Paper white against the reference paper",
+        "The chart has to carry a patch printed with no ink: every red, green "
+        "and blue value within 0.5 of 100.",
+        "no row with rgb.min() >= 100 - PAPER_PATCH_TOL (0.5), so 99.5  ->  "
+        "paper_not_measured",
+        "measurement_report.PAPER_PATCH_TOL, paper_patch_rows",
+        ("substrate_de00_max",), "paper_not_measured",
+        "the lightest patch at 99.4 on every channel",
+        "the lightest patch at exactly 99.5",
+        lambda: chart_paper_patch(99.5 - NOTCH),
+        lambda: chart_paper_patch(99.5),
+        strip_ids(20), strip_ids(20)),
 )
 
 
@@ -908,10 +945,12 @@ def pairs() -> "list[tuple[Requirement, Demo, Demo]]":
 UNREACHABLE: "dict[str, str]" = {
     "needs_reference_file":
         "It is the STATE OF EVERY PRESET, not a fault in one. A preset chart "
-        "carries no colorimetric reference (only a chart built FROM PROFILE "
-        "GAMUT does), so the three reference rows read this code on all 177 "
+        "is printed through its profile as a verification, so its solids "
+        "are not the printer's own (only a chart built FROM PROFILE GAMUT "
+        "prints them raw), and the two solid rows read this code on all "
         "built-ins and on all of these demos. A preset cannot cause it and "
-        "cannot avoid it.",
+        "cannot avoid it. (Since K49 the paper row is answered by any chart "
+        "with a patch printed with no ink; R17 is its pair.)",
     "no_reference":
         "Unreachable by construction. The stand-in report gives every sample "
         "id an aim value (preset_eligibility._perfect_print), so no block can "

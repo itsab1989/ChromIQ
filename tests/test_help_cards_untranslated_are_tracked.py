@@ -1046,19 +1046,26 @@ _BUDGET = {
     # move; each of the twelve others rises by exactly 6 under the beta
     # rule (7 new keys of 25 characters or more, less the one retired).
     # COUNTED off the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-26, K49 (B8-1244 to B8-1252, Knut #182
+    # 5841092535, 5841606710): (b2), the per-graph note under a graph
+    # with no limit, "Surface" for "Shell" and the metric help's
+    # family paragraphs, 35 keys in, 6 out, on the tree rebased onto
+    # 011d4772 (K48). German by hand, does not move; the
+    # twelve others carry the English under the beta rule. COUNTED
+    # off the tree, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 1014,
-    "fr": 1015,
-    "it": 1014,
-    "ja": 1014,
-    "nl": 1014,
-    "no": 1014,
-    "pl": 1014,
-    "pt": 1014,
-    "ru": 1013,
-    "sv": 1014,
-    "zh_CN": 1013,
-    "uk": 1157,
+    "es": 1046,
+    "fr": 1047,
+    "it": 1046,
+    "ja": 1046,
+    "nl": 1046,
+    "no": 1046,
+    "pl": 1046,
+    "pt": 1046,
+    "ru": 1045,
+    "sv": 1046,
+    "zh_CN": 1045,
+    "uk": 1188,
 }
 
 

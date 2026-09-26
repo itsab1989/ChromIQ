@@ -279,10 +279,24 @@ def test_the_report_finds_every_cube_corner(gamut_chart):
 @pytest.mark.parametrize("row", ["substrate_de00_max", "solids_de00_max",
                                  "cmy_solids_dhab_max"])
 def test_the_three_reference_rows_get_a_number(gamut_chart, row):
-    """These rows exist for this chart kind and nothing else can supply them."""
+    """The paper row always has its number here (the chart's reference
+    records the profile's white). #182 K49, (b2): the two solid rows are
+    compared with the profile's prediction, the same one the control strip
+    asks (`profile_corner_predictions`), so they have a number exactly when
+    the strip's corners were compared with the prediction, and otherwise
+    read N-A "no profile could be read"; never a comparison with the ideal
+    values, which K37 (i) kept here."""
+    from workflow.measurement_report import (CORNER_AIMS_FROM_PROFILE,
+                                             REASON_NO_PROFILE_TO_COMPARE)
     got = gamut_chart["rows"][row]
-    assert got["value"] is not None, (
-        f"{row} came back with no value: {got['reason']}")
+    asked = (gamut_chart["report"].get("strip_corner_aims") or {}).get(
+        "from") == CORNER_AIMS_FROM_PROFILE
+    if row == "substrate_de00_max" or asked:
+        assert got["value"] is not None, (
+            f"{row} came back with no value: {got['reason']}")
+    else:
+        assert got["value"] is None
+        assert got["reason"] == REASON_NO_PROFILE_TO_COMPARE, got
 
 
 # --- F2: the chart's own declaration ---------------------------------------

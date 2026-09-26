@@ -256,7 +256,8 @@ def test_every_paper_class_reaches_the_paper_white_line(built_package):
     Measured on screen (2026-09-23): 96.0 on the glossy class, 94.5 on the
     rag. A sheet judged in absolute Lab and a From Profile Gamut chart put
     every patch, the paper too, at its designed distance from the chart's aim
-    (office paper's unrecorded sheet read L* 100.4), so those are not asked."""
+    (office paper's unrecorded sheet read L* 100.4), so those are not asked;
+    nor, since K49, a date that designs its paper off the profile's."""
     gen = _gen()
     seen: dict = {}
     for p in built_package.glob("Report-Limits-*/runs/run*/verifications/*/"
@@ -264,6 +265,13 @@ def test_every_paper_class_reaches_the_paper_white_line(built_package):
         rep = json.loads(p.read_text(encoding="utf-8"))
         if (rep.get("printing") or {}).get("colour") != "through-profile" or \
                 rep.get("reference_source") == "colorimetric":
+            continue
+        # #182 K49, (b2): the paper row is judged on an ordinary chart now,
+        # and a date that designs the paper off its profile's (`white_de`)
+        # prints on a drifted paper on purpose. The class's own paper is the
+        # sheet whose paper row reads it, within rounding.
+        paper = (rep.get("condition_reference") or {}).get("paper") or {}
+        if paper.get("de") is None or float(paper["de"]) > 0.1:
             continue
         meta = json.loads((p.parents[3] / "meta.json").read_text(encoding="utf-8"))
         seen.setdefault(meta.get("paper"), []).append(rep["paper_white"]["lab"])

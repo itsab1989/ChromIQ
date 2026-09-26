@@ -128,12 +128,28 @@ def test_the_worst_five_condition_quotes_the_real_population_size():
 def test_the_reference_rows_say_where_the_reference_comes_from(rid):
     """MEASURED while mapping this table: those three rows produced
     `needs_reference_file` in 80 of 80 saved reports in the demo package,
-    because the sidecar they need is written only by the profile-gamut chart
-    module. A help icon that did not say so would send a reader looking for
-    patches that are already on the chart."""
+    because the sidecar they needed was written only by the profile-gamut
+    chart module. A help icon that did not say so would send a reader
+    looking for patches that are already on the chart.
+
+    #182 K49, (b2) (Knut 5841092535, "Yes"): the reference is now the
+    PROFILE's own description, the paper against its media white on any
+    chart with a paper patch, the solids against its prediction where they
+    were printed as they are. The icon says which, and when the row reads
+    N-A.
+
+    MUTATION, proven red: put the old "colorimetric reference" sentences
+    back."""
     text = next(r.detect for r in cs.ROWS if r.id == rid)
-    assert "colorimetric reference" in text
-    assert "profile's gamut" in text
+    assert "colorimetric reference" not in text
+    assert "profile" in text and "N-A" in text
+    if rid == "substrate_de00_max":
+        assert "printed with no ink" in text
+        assert "no profile can be read" in text
+    else:
+        assert "profile predicts" in text
+        assert "printed through the profile" in text
+        assert "profile's gamut" in text
 
 
 #: The five rows that had no detection method until B8-397. Knut approved all

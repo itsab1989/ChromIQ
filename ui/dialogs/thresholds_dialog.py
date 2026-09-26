@@ -1135,6 +1135,11 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         if row.remedy:
             parts.append(tr("What you can do about it") + "\n"
                          + tr(row.remedy))
+        # Knut, #182 5841606710: how the statistic relates to the others of
+        # its family, and what that means for choosing limits.
+        if getattr(row, "relation", ""):
+            parts.append(tr("How this row relates to the others") + "\n"
+                         + tr(row.relation))
         if not row.detect and row.note:
             parts.append(tr("ChromIQ does not evaluate this row: {why}. There "
                             "is nothing to detect on your chart, and the cell "

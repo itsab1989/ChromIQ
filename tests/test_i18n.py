@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-26, K49 (B8-1244 to B8-1252, Knut #182 5841092535 and 5841606710): (b2) built, the paper row and the two solid rows compared with the profile (the three row help texts and the lever of the solid rows reworded, a lever of the paper row's own, four report reasons, two §M notes proposed, one line in the presets window), a graph with values but no limit shown, with a sentence per graph (13 graphs, three reasons no line is drawn) in place of K47's one note, the surface gamut's line word "Surface" in place of "Shell" (F4), and the metric help's "How this row relates to the others" (its heading and three family texts, F5). 35 keys in, 6 out. Measured on the tree rebased onto 011d4772 (K48). German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K48 (B8-1239, Knut #182 5840677938 and 5840692243): the gear window's two help bodies reworded (the rule for when a preset shows; Scanner filtered too), 2 keys replaced by 2. German by hand, does not move; the twelve others carried the old English and carry the new, so none moves. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K47 (B8-1231 to B8-1236, Knut #182 5840152058): the three new graph tabs (Solid colours, Hue of the solids, Outer and surface gamut), their two new line words ("Outer", "Shell") and four descriptions, the control strip's description reworded for its maximum (one key replaced by one), and the note under a graph with no limit. 10 keys in, 1 out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 9. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-25, K45-2 (B8-1202, Knut #182 5834422633): the Colour accuracy graph's Avg and Max sentences name every row they are the limit for, 3 keys in (the quoted name, the "and" of a list, "the limit for {metrics}."), none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. The echo budget does not move (all three are under 25 characters). COUNTED off the tree, BOTH ledgers.
@@ -1457,17 +1458,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1354,
-    "fr": 1376,
-    "it": 1365,
-    "ja": 1340,
-    "nl": 1380,
-    "no": 1366,
-    "pl": 1358,
-    "pt": 1356,
-    "ru": 1329,
-    "sv": 1367,
-    "zh_CN": 1334,
+    "es": 1386,
+    "fr": 1408,
+    "it": 1397,
+    "ja": 1372,
+    "nl": 1412,
+    "no": 1398,
+    "pl": 1390,
+    "pt": 1388,
+    "ru": 1361,
+    "sv": 1399,
+    "zh_CN": 1366,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1495,7 +1496,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1511,
+    "uk": 1540,
 }
 
 

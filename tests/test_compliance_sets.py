@@ -594,7 +594,10 @@ def test_chromiqs_own_half_of_the_defaults_is_anybody_elses_published_figure():
 #: the new digest with the snippet in the failure message and put it here in
 #: the same commit that changes the table.
 _INDUSTRY_DIGEST = \
-    "3179a54b9dd6b7bf4ef9e146c5551e3911a40d55d5c79f6642ab91e15517e223"
+    "082b139f7679876a72761358d5574432b99ab75f02217f533be19ce4efafd329"
+#: (Changed 2026-09-26 on Knut's instruction, #182 5841606710: "(a) Max
+#: higher, so it sits above P95 4.0 ... set to 4.50." Both columns'
+#: "Maximum ΔE00, all patches", 2.0 until then.)
 #: (Changed 2026-09-25 on Knut's instruction, #182 5831473881: "For the three
 #: mentioned above, use 3,00 for all of them." and the two control-strip rows
 #: each column was given from the other, once: 5831783959 "this was not a
@@ -651,7 +654,11 @@ _K33 = {"solids_de00_max": 3.0, "cmy_solids_dhab_max": 2.5,
 #: "For the three mentioned above, use 3,00 for all of them."
 _K33_KEPT_EARLIER = {("iso_12647_7", "solids_de00_max"): 3.0,
                      ("iso_12647_7", "outer_gamut_226_de00_avg"): 3.0,
-                     ("iso_12647_8", "surface_gamut_de00_avg"): 3.0}
+                     ("iso_12647_8", "surface_gamut_de00_avg"): 3.0,
+                     # Knut, #182 5841606710 (2026-09-26): 4.50, above the
+                     # 95th percentile's 4.0, in both columns
+                     ("iso_12647_7", "all_de00_max"): 4.5,
+                     ("iso_12647_8", "all_de00_max"): 4.5}
 
 
 def test_knuts_k33_figures_fill_only_the_rows_that_took_ours():

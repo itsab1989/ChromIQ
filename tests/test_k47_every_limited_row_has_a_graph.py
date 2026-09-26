@@ -183,7 +183,7 @@ def test_a_solid_row_judged_brings_its_tab(qapp, tmp_path):
 # ---------------------------------------------------------------------------
 # a graph with no limit says so
 # ---------------------------------------------------------------------------
-def _chart(lines=None, thresholds=None, n=3):
+def _chart(lines=None, thresholds=None, n=3, no_limit=None):
     chart = mrd._TrendChart()
     series = [{"created": f"2026-01-0{i + 1}T10:00:00", "white_L": 95.0 + i}
               for i in range(n)]
@@ -191,18 +191,28 @@ def _chart(lines=None, thresholds=None, n=3):
                              lambda pt: pt.get("white_L"))],
                    dark=False, limit_lines=lines or [],
                    thresholds=thresholds,
-                   line_notes=["note"] * len(lines or []))
+                   line_notes=["note"] * len(lines or []),
+                   no_limit=no_limit)
     return chart
 
 
 def test_a_drawn_graph_with_no_limit_line_says_so():
-    """No limit line, a drawn trend: one note, the general sentence, first.
+    """No limit line, a drawn trend: one note, first. K49 (Knut, #182
+    5841092535, answer 2: *"be a bit more informative than "No limit
+    applies" as note"*): the graph's own sentence, what it shows, what
+    watching it is for and why no line is drawn; a chart given none falls
+    back to the second half alone.
 
-    MUTATION, proven red: drop the note from `_TrendChart.descriptions`."""
-    [(kind, _c, text)] = _chart().descriptions()
+    MUTATION, proven red: drop the note from `_TrendChart.descriptions`; or
+    ignore ``no_limit`` there (the general sentence is printed)."""
+    own = mrd.no_limit_note("white")
+    [(kind, _c, text)] = _chart(no_limit=own).descriptions()
     assert kind == "note"
-    assert text == mrd.no_limit_note()
-    assert "limit" in text and "trend" in text
+    assert text == own
+    assert "paper" in text and "between dates" in text
+    assert "no limit line is drawn" in text
+    [(kind, _c, text)] = _chart().descriptions()
+    assert kind == "note" and text == mrd.no_limit_note()
 
 
 def test_a_graph_with_a_limit_line_carries_no_such_note():
@@ -230,15 +240,45 @@ def test_the_pdf_prints_the_note_without_a_line_mark():
 
 def test_the_note_names_no_control_of_the_app():
     """K39: report text names no feature, action or button of the app; and
-    no em dash (CLAUDE.md), in English and in German.
+    no em dash (CLAUDE.md), in English and in German, for every graph's
+    sentence and every reason no line is drawn (K49).
 
-    MUTATION, proven red: end the sentence with "Choose a limit set that
+    MUTATION, proven red: end a sentence with "Choose a limit set that
     judges it."."""
-    en = mrd.no_limit_note()
-    for word in ("Choose", "Press", "tick", "window", "tab", "button", "—"):
-        assert word not in en
     import json
     from core.resource_path import resource_path
-    de = json.load(open(resource_path("data/i18n/de.json"),
-                        encoding="utf-8"))[en]
-    assert de != en and "—" not in de and "Grenzwert" in de
+    cat = json.load(open(resource_path("data/i18n/de.json"),
+                         encoding="utf-8"))
+    parts = [f() for f in mrd._NO_LIMIT_SHOWS.values()] + \
+        [f() for f in mrd._NO_LIMIT_WHY.values()]
+    assert len(parts) == len(mrd._TREND_ABOUT) + 3
+    for en in parts:
+        import re
+        for word in ("Choose", "Press", "tick", "window", "tab", "button"):
+            assert not re.search(rf"\b{word}\b", en), (word, en)
+        assert "—" not in en, en
+        de = cat[en]
+        assert de != en and "—" not in de, en
+        # K49: German report text takes no "du" (Du-Form, never addressed)
+        assert " du " not in f" {de.lower()} " and "dein" not in de.lower()
+
+
+def test_every_graph_has_its_own_no_limit_sentence():
+    """K49 (Knut, #182 5841092535, answer 2): the note is written for each
+    graph, never the one general sentence K47 printed under all of them.
+    Each says what its graph shows, what watching it is for (a change
+    between dates) and why no line is drawn.
+
+    MUTATION, proven red: map two keys of `_NO_LIMIT_SHOWS` to one text."""
+    keys = set(mrd._TREND_ABOUT)
+    assert set(mrd._NO_LIMIT_SHOWS) == keys
+    texts = {k: mrd.no_limit_note(k) for k in keys}
+    assert len(set(texts.values())) == len(keys)
+    for k, t in texts.items():
+        assert t.startswith("This graph shows"), k
+        assert "date" in t, k
+        assert t.endswith("no limit line is drawn."), k
+    for why in (mrd.NO_LIMIT_WHY_SET, mrd.NO_LIMIT_WHY_RECORD,
+                mrd.NO_LIMIT_WHY_ACCURACY):
+        assert mrd.no_limit_note("de", why).endswith(
+            mrd._NO_LIMIT_WHY[why]())

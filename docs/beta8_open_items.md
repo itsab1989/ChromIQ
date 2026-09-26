@@ -17885,7 +17885,7 @@ would reach.
   test_the_star_means_one_page_and_a_few_hundred_patches,
   test_the_star_does_not_move_when_the_pulldowns_do,
   test_each_instrument_group_has_at_least_one_starred_preset,
-  test_the_three_reference_rows_are_beyond_every_preset,
+  test_the_two_solid_rows_are_beyond_every_preset,
   test_the_control_strip_is_the_one_chromiq_would_declare,
   test_a_chart_whose_ladder_does_not_fill_is_told_so,
   test_a_user_preset_with_no_patch_set_is_listed_and_told_why,
@@ -25370,7 +25370,7 @@ would reach.
   extra page.
 - evidence: the 12 tests of the trend-graph test file, each
   red under the mutation its docstring names, among them
-  test_a_tab_shows_only_while_one_of_its_rows_is_judged,
+  test_a_tab_shows_while_one_of_its_rows_is_judged_or_has_values,
   test_each_line_sits_at_the_limit_the_report_was_judged_against,
   test_only_the_judged_rows_of_a_group_are_plotted,
   test_a_line_outside_the_data_range_neither_shows_nor_moves_the_axis,
@@ -28138,7 +28138,7 @@ would reach.
 - note: Knut, #182 5817809396 (A11, "yes"). Answers B8-804 point 1. Spec §31.5. MEASURED FIRST on the beta 41 code and the challenge-2 pack: 51 dated FROM PROFILE GAMUT verifications in 4 projects, every one compared the paper with L* 100.00 / 0.01 / -0.01 (device white read as sRGB); the profiles describe L* 94.0 to 96.0; a paper of exactly the profile's white (95.5 / 0.21 / 1.41) reads 2.98 ΔE00 against it. Now the reference records the profile's media white (CHROMIQ_PROFILE_WHITE_LAB) and the bare-paper corner aims at it; an older reference asks the run's own built profile; with neither the old comparison stays. Other charts unchanged (N-A without a colorimetric reference; a Fogra set compares with its own paper). Not changed, put to Knut: the other seven corners keep their ideal aims, and the declared control strip includes them.
 - where: `workflow/gamut_target.py` (`profile_media_white_lab`, `GamutSelection`, `write_colorimetric_reference`, `read_colorimetric_reference`); `workflow/measurement_report.py` (`paper_corner_ids`, `paper_reference_of`, `build_report`).
 - tests: tests/test_k34_knuts_section_a.py. Mutations: no W override when reading the reference (red); the header illuminant for the media white (red); no run-profile fallback (red); both overrides removed (red, the row reads 2.98).
-- evidence: test_the_reference_records_the_profiles_media_white, test_the_paper_row_compares_the_paper_with_the_profiles_white, test_an_older_reference_asks_the_runs_own_profile, test_with_nothing_to_ask_the_row_keeps_its_old_comparison, test_the_profile_white_is_read_from_the_profiles_wtpt
+- evidence: test_the_reference_records_the_profiles_media_white, test_the_paper_row_compares_the_paper_with_the_profiles_white, test_an_older_reference_asks_the_runs_own_profile, test_with_nothing_to_ask_the_row_reads_no_profile, test_the_profile_white_is_read_from_the_profiles_wtpt
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k34/ (*-a11-*.png; a11-measure-before.txt, a11-measure-after.txt).
 
 ### B8-1016 · FIXED, awaiting confirmation · The demo pack designs a FROM PROFILE GAMUT paper against the profile's white, and a chart with no paper patch in absolute Lab
@@ -28527,7 +28527,7 @@ would reach.
 - note: Spec §34.3. On the shipped pack the change moved the strip by +1.16 (average) and +1.66 (largest) median and turned 24 strip verdicts PASS to FAIL, because the generator put every corner exactly on its ideal value. Now R, G, B go on the prediction and C, M, Y, K between the two aims (`_between_two_aims`, designed hue kept, inside 85 % of the run's own solid-colour limit). The four projects rebuilt: 102 of 102 dates as designed; Second-Route's strip passes where its dates are designed to pass (it failed on 10 of them before).
 - where: `scripts/make_report_limit_demos.py`.
 - tests: tests/test_k37_paper_white_from_the_profile.py; the release tier's demo-package tests.
-- evidence: test_i_the_demo_generator_places_a_solid_between_its_two_aims
+- evidence: test_i_the_demo_generator_designs_a_solid_on_the_prediction
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/analysis/k37i_*.txt, rebuilt-subset/generator-build.txt
 
 ### B8-1088 · OPEN, for Knut · The tight column cannot pass both the solids and the strip on a FROM PROFILE GAMUT chart
@@ -29228,17 +29228,23 @@ would reach.
 - evidence: test_every_row_any_set_limits_has_a_graph, test_a_solid_row_judged_brings_its_tab
 - proof: ~/Desktop/ChromIQ-beta44-proof/k47/ (REPORT.md)
 
-### B8-1235 · OPEN, for Knut · K47-3b: the paper-white and solid rows have a reference only on a FROM PROFILE GAMUT chart, and there the solids aim at ideal sRGB
+### B8-1235 · FIXED, awaiting confirmation · K47-3b: the paper-white and solid rows have a reference only on a FROM PROFILE GAMUT chart, and there the solids aim at ideal sRGB
 - blocks release: no
 - severity: MAJOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5841092535 (K49), answer 1: "Should (b2) be built? Answer: Yes." Built as B8-1244 (the paper row) and B8-1245 (the solid rows), B8-1246 (the presets window, the help, the demo pack); spec 41.6, 41.7.
+- tests: tests/test_k49_the_paper_and_solids_against_the_profile.py
+- evidence: test_the_paper_of_an_ordinary_chart_is_compared_with_the_runs_profile, test_a_from_profile_gamut_chart_needs_its_prediction
 - note: Analysis for Knut, #182 5840152058, in spec 41.4 and the proof's REPORT.md. In every set the three rows are compared with the chart's colorimetric reference only (FROM PROFILE GAMUT); on every other chart they read N-A; the Fogra sets are connected to no report. On a FROM PROFILE GAMUT chart the solids aim at the ideal sRGB corners (§32.5): through two real vendor profiles the printer's own solids lie 11.1 to 35.6 ΔE00 and 21.0 to 50.2 ΔH*ab from them, so both solid rows fail on every such sheet of a real printer under ISO 12647-7 and both Custom sets, however well it prints. ISO 12647-7's own text compares with the characterization data of the printing condition simulated. Recommended, NOT built: (b2), the profile's own prediction as that characterization data (paper against the profile's media white on every sheet with a paper patch; solids against the profile's prediction where they were printed raw). Not built because it reverses Knut's §32.5 "no" and changes what the paper row judges on every ordinary chart.
 - where: `workflow/measurement_report.py` (`row_values`, `corners_block`, `profile_corner_predictions`, `paper_reference_of`), `workflow/gamut_target.py` (`_corner_ideal_labs`), `workflow/reference_sets.py` (`can_fill`); spec 41.4.
 
-### B8-1236 · OPEN, for Knut · K47: three questions K47 leaves to him
+### B8-1236 · FIXED, awaiting confirmation · K47: three questions K47 leaves to him
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5841092535 (K49): (1) "Yes." (B8-1244 to B8-1246); (2) "Yes, it can have value for trending, but be a bit more informative than "No limit applies" as note." (B8-1247, B8-1248); (3) "OK." (B8-1233's three lines and B8-1232's caption outside §M, accepted as built). What is still open with him is B8-1249. Spec 41.6.
+- tests: tests/test_k47_every_limited_row_has_a_graph.py, tests/test_trend_graphs_for_judged_metrics.py
+- evidence: test_every_graph_has_its_own_no_limit_sentence, test_a_tab_shows_while_one_of_its_rows_is_judged_or_has_values
 - note: (1) Build (b2) of B8-1235? (2) A row with values and no limit (a FROM PROFILE GAMUT chart's paper and solid rows under ChromIQ default) keeps its tab hidden by §17 item 3; should such a graph be shown with the "no limit applies" note? (3) The Control strip tab with three lines, and the no-limit note kept out of §M as a graph caption: as built?
 - where: spec 41.5.
 
@@ -29304,6 +29310,92 @@ would reach.
 - where: `ui/tabs/tab_chart.py` (`_preset_paper_selected`, `_manual_paper_on_screen`).
 - tests: tests/test_b8_1221_the_filter_reads_the_paper_on_screen.py and tests/test_k48_preset_lists_scanner_custom_and_the_gear_help.py (both lists compared with the rule).
 - evidence: test_knuts_start_then_a_preset_on_another_paper, test_manual_with_the_engine_reads_the_layout_panels_paper, test_a3_landscape_lists_no_scanner_preset
+
+### B8-1244 · FIXED, awaiting confirmation · K49 (b2): the paper row is compared with the profile's media white on every verification with a paper patch
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Knut, #182 5841092535, answer 1: "Should (b2) be built? Answer: Yes." "ΔE00, paper white against the reference paper" compares the chart's patch printed with no ink, read as measured, with the media white of a profile: on a FROM PROFILE GAMUT chart the white its reference recorded (§31.5), on every other chart the K37 lookup (the profile the print record names when on disk, else the run's own built profile). Before: N-A on every chart but a FROM PROFILE GAMUT one. N-A with a named note when the chart has no paper patch ("paper_not_measured") or no profile can be read ("no_profile_to_compare"; on a FROM PROFILE GAMUT chart with neither a recorded white nor a profile this replaces §31.5's comparison with the ideal white). On a chart that is not FROM PROFILE GAMUT the row carries M-REPORT-PAPER-AGAINST-PROFILE (PROPOSED), because the cube-corner table's white there still compares the same patch with the chart's ideal white. Saved reports: `condition_reference` is always built, a rule block and a judged-explanation key (§6, M-REPORT-WORKED-OUT-EARLIER where this version works a saved report out differently). Spec 41.7.
+- where: `workflow/measurement_report.py` (`condition_reference_block`, `sheet_profile`, `row_values`, `CONDITION_*`, `REASON_NO_PAPER_PATCH`, `REASON_NO_PROFILE_TO_COMPARE`, `NOTE_PAPER_AGAINST_PROFILE`, `JUDGED_EXPLANATION_KEYS`), `workflow/measurement_messages.py`, `ui/dialogs/measurement_report_dialog.py` (`ALWAYS_BUILT_BLOCKS`, `RULE_BLOCKS`, `_worked_out_differently`, `_reason_sentence`, `_note_sentence`), docs/design/unified_measurement_management.md §M-PROPOSED.
+- tests: tests/test_k49_the_paper_and_solids_against_the_profile.py, tests/test_message_catalogue.py, tests/test_chromiq_owns_the_two_repeatability_rows.py (amended: a sheet in no run reads "no profile"), tests/test_k34_knuts_section_a.py (amended: with no white and no profile the row reads "no profile", not the ideal white), tests/test_a_profile_gamut_chart_is_printable_and_names_its_corners.py (amended: the solid rows have a number exactly when the prediction could be asked). Mutations, each red: ~/Desktop/ChromIQ-beta44-proof/k49/mutations.txt.
+- evidence: test_the_paper_of_an_ordinary_chart_is_compared_with_the_runs_profile, test_the_profile_the_sheet_was_printed_through_comes_first, test_no_paper_patch_or_no_profile_is_a_named_n_a, test_the_paper_is_read_as_measured_not_media_relative, test_a_report_saved_before_k49_keeps_its_old_rows, test_every_new_reason_and_note_has_its_sentence_in_both_languages
+- proof: ~/Desktop/ChromIQ-beta44-proof/k49/ (REPORT.md)
+
+### B8-1245 · FIXED, awaiting confirmation · K49 (b2): the two solid rows are compared with the profile's prediction where the solids were printed raw
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Same answer. "Maximum ΔE00, solid colours" and "Maximum ΔH*ab, cyan, magenta and yellow solids" compare each present C, M, Y, K corner patch with the Lab the profile predicts for its device value: a FROM PROFILE GAMUT chart always (the prediction §34 asks for the strip, so a solid has one aim in every row that judges it); any other chart only when its print record says raw (the K37 profile, absolute colorimetry), and such a raw print is a drift check, never graded, so there the values are shown without a verdict. Through the profile: N-A, "solids_through_profile"; no print record: N-A, "solids_printing_unrecorded"; no profile: N-A, "no_profile_to_compare". Every value carries M-REPORT-SOLIDS-PREDICTED (PROPOSED). §32.5 is reversed for these two rows only: the cube-corner table and graph keep the ideal values. Measured, two real vendor printers printing exactly as profiled: solid colours 30.72 / 35.50 FAIL before, 0.01 PASS after; hue 49.91 / 46.63 FAIL before, 0.01 PASS after (ISO 12647-7). Spec 41.7.
+- where: `workflow/measurement_report.py` (`solids_printed_raw`, `condition_reference_block`, `ROWS_ON_RAW_SOLIDS`, `REASON_SOLIDS_*`, `NOTE_SOLIDS_PREDICTED`, `row_values`), `ui/dialogs/measurement_report_dialog.py`, spec 32.5, 34.1, 41.7.
+- tests: tests/test_k49_the_paper_and_solids_against_the_profile.py, tests/test_k37_paper_white_from_the_profile.py (amended: the solid row reads the prediction's shift, the table stays at 0). Mutations, each red: mutations.txt.
+- evidence: test_solids_printed_through_the_profile_stay_n_a_and_say_why, test_solids_of_an_unrecorded_print_cannot_be_told, test_solids_of_a_raw_print_are_compared_with_the_prediction, test_a_from_profile_gamut_chart_needs_its_prediction, test_i_the_corner_table_keeps_the_ideal_values
+- proof: ~/Desktop/ChromIQ-beta44-proof/k49/vendor_sheet_before.json, vendor_sheet_after.json
+
+### B8-1246 · FIXED, awaiting confirmation · K49 (b2): the presets window, the metric help and the demo pack follow
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: "Which presets can be used for verification?" models (b2) before printing: a chart with a paper patch answers the paper row, one without says "This chart has no patch printed with no ink, so its paper cannot be measured." (a chart-file matter, kept out of the star as the row was before); the two solid rows keep the FROM PROFILE GAMUT remedy, and `gamut_only_rows` is those two. The three rows' help texts and the solid rows' lever say what (b2) compares; the paper row has a lever of its own. The demo generators design FROM PROFILE GAMUT solids on the prediction (`_between_two_aims` and the tight column's "corner bound" gone, the cell is met), an ordinary relative sheet's paper off the profile's paper (`white_de`, the paper row joins ROWS_ORDINARY), the office-paper run says its paper is over; every-metric's corners on the prediction. Rebuilt: 0 mismatches, 109 of 109 matrix cells both ways, `--verify` complete.
+- where: `workflow/preset_eligibility.py` (`_condition_it_would_get`, `gamut_only_rows`, `OTHER_SHORTFALL_REASONS`), `ui/dialogs/preset_verification_dialog.py` (`reason_line`), `workflow/compliance_sets.py` (`_D_REFERENCE_*`, `_R_REFERENCE`, `_R_REFERENCE_PAPER`), `scripts/make_report_limit_demos.py`, `scripts/make_every_metric_demo.py`, `scripts/make_release_demo_package.py` (RULE_DEMOS, MESSAGE_DEMOS).
+- tests: tests/test_k49_the_paper_and_solids_against_the_profile.py, tests/test_the_preset_window_says_what_a_chart_can_answer.py (amended: two solid rows beyond every preset, the paper row answered; three after-printing reasons not classified), tests/test_every_metric_says_how_it_is_detected.py (amended), tests/test_k37_paper_white_from_the_profile.py (the generator).
+- evidence: test_the_presets_window_answers_the_paper_row_from_the_paper_patch, test_the_two_solid_rows_are_beyond_every_preset, test_every_reason_the_report_can_produce_is_classified, test_the_reference_rows_say_where_the_reference_comes_from, test_i_the_demo_generator_designs_a_solid_on_the_prediction
+- proof: ~/Desktop/ChromIQ-beta44-proof/k49/pack-build.log, verify.txt
+
+### B8-1247 · FIXED, awaiting confirmation · K49: a graph of a row with values and no limit is shown and printed, for trending (§17 item 3 amended)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5841092535, answer 2: "Yes, it can have value for trending". A tab none of whose rows is judged, whose rows have a value on some date of the document and belong to its type, is shown and printed with those values and no limit line. A tab with a judged row still plots only its judged rows (asked in B8-1249); a tab with no value stays hidden; a Grey and tone check plots no colour row.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_unlimited_trend_rows`, `_trend_plan`); spec 17 item 3, 41.8.
+- tests: tests/test_trend_graphs_for_judged_metrics.py (three tests amended for the ruling), tests/test_k49_the_paper_and_solids_against_the_profile.py.
+- evidence: test_a_tab_shows_while_one_of_its_rows_is_judged_or_has_values, test_a_report_that_judges_nothing_draws_no_limit_line, test_the_pdf_prints_the_shown_tabs_and_leaves_the_hidden_out, test_a_grey_and_tone_check_plots_no_colour_row_without_a_limit
+- proof: ~/Desktop/ChromIQ-beta44-proof/k49/ (case D)
+
+### B8-1248 · FIXED, awaiting confirmation · K49: the note under a graph with no limit says what it shows, what it is for and why no line is drawn, per graph
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Same answer: "be a bit more informative than "No limit applies" as note". Thirteen sentences, one per graph (what it shows, what watching it between dates is useful for), each ended by one of three reasons no line is drawn (the limits the report is judged against set none; the report records without judging; the report does not judge colour accuracy). German by hand, no "du". A graph caption outside §M (answer 3: "OK"). Replaces B8-1232's one sentence.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_NO_LIMIT_SHOWS`, `_NO_LIMIT_WHY`, `no_limit_note`, `_trend_extras`, `_TrendChart.set_data`, `descriptions`), `data/i18n/*.json`, both ledgers; spec 41.8.
+- tests: tests/test_k47_every_limited_row_has_a_graph.py (amended), tests/test_k45_report_pdf_layout.py (amended: the Darkest black key in its own words).
+- evidence: test_a_drawn_graph_with_no_limit_line_says_so, test_every_graph_has_its_own_no_limit_sentence, test_the_note_names_no_control_of_the_app, test_the_window_shows_the_key_under_the_graph_in_front
+- proof: ~/Desktop/ChromIQ-beta44-proof/k49/ (cases C and D)
+
+### B8-1249 · OPEN, for Knut · K49: an unjudged row with values beside the judged rows of its tab
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: Answer 2 shows a graph whose rows have values and no limit. Where a tab has BOTH (the Control strip under ISO 12647-7 judges Avg and Max and not P95; Grey balance under a set that limits only the average), the unjudged row is still left out, as §17 item 3 had it. Should it be plotted too, with no line of its own and a sentence saying so? Also asked: the wording of M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE (§M-PROPOSED), and the thirteen graph sentences.
+- where: spec 41.8; `ui/dialogs/measurement_report_dialog.py` (`_trend_plan`).
+
+### B8-1250 · FIXED, awaiting confirmation · Challenge 1 of beta 44, F3: limit words of lines at one value drifted away from their lines
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Custom ISO 12647-7 puts 4.0 on the control strip's P95 and maximum, 2.0 on Colour accuracy's Avg and Max, 3.0 on the outer and surface gamut averages: two lines drawn as one, and the second word was pushed to a place with no line beside it, next to an axis number ("4.9 Max"; Colour accuracy's "Max" floating; "Outer" and "Shell" either side of "2.8"). Lines closer than 2 px now carry ONE label, the words joined in line order ("P95 / Max", "Avg / Max", "Outer / Surface"), with both notes behind it; the key under the graph keeps one sentence per line. Between two clear places a word inside the plot takes the one not level with an axis number (a tie-breaker only: the K32 order of conflicts is unchanged). The set values are not changed (F5, P95 4.0 above Max 2.0, is Knut's question).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_merge_coinciding_lines`, `_WORD_SAME_LINE_PX`, `_WORD_BESIDE_AXIS_NUMBER`, `_place_limit_words`, `_TrendChart.paintEvent`); spec 17.1 item 11 (amended), 41.10.
+- tests: tests/test_c1b44_limit_words_stay_by_their_lines.py; tests/test_k32_limit_words.py (amended: lines at one height share one word), tests/test_trend_graphs_explain_themselves.py (amended: its "near" lines 0.06 apart, and a word wider than the margin goes inside). Mutations, each red: ~/Desktop/ChromIQ-beta44-proof/k49/mutations.txt.
+- evidence: test_two_lines_at_one_value_carry_one_label_beside_them, test_the_merged_label_reads_both_words_in_line_order, test_a_word_inside_prefers_the_clear_side_away_from_an_axis_number, test_every_graph_places_every_word_by_the_one_rule
+- proof: ~/Desktop/ChromIQ-beta44-proof/k49/runs/*/*/photographs/*-E-* (Custom ISO 12647-7, before and after)
+
+### B8-1251 · FIXED, awaiting confirmation · Challenge 1 of beta 44, F4: the limit word "Shell" ("Hülle") was said nowhere else
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: The tab, the legend, the description and the table say surface gamut ("Gamut-Oberfläche"). The line word is "Surface" ("Oberfläche") now, a word of its own row's name in both languages, like "Outer" ("Rand"). It is wider than the margin, so its word sits inside the plot at the left end of its line.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_TREND_GROUPS`), `data/i18n/*.json`.
+- tests: tests/test_c1b44_limit_words_stay_by_their_lines.py
+- evidence: test_the_surface_gamut_is_called_so_on_its_line
+
+### B8-1252 · FIXED, awaiting confirmation · Knut on F5 (#182 5841606710): both Custom columns' maximum at 4.50, and the metric help says how the rows of a family relate
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut: "The help text for the different metrics need to include the information ... that "Maximum ΔE00, lowest 95 % (P95)" can never be higher than "Maximum ΔE00, all patches". Set "(a) Max higher, so it sits above P95 4.0"... set to 4.50." "Maximum ΔE00, all patches" starts at 4.50 in Custom ISO 12647-7 and Custom ISO 12647-8 (was 2.0, K33); a number a user typed stays; saved reports keep the limits they recorded. The (i) help of the five all-patch rows, the three control-strip rows and the two grey-ramp rows gains "How this row relates to the others": which statistic can never pass which, and that a limit on the 95th percentile or an average set above the maximum's can never decide anything. German by hand. The demo pack's Custom-Columns and office-paper dates redesigned for 4.50, rebuilt, --verify complete. Spec 42.
+- where: `workflow/compliance_sets.py` (`_CUSTOM_INDUSTRY`, `Row.relation`, `_REL_*`), `ui/dialogs/thresholds_dialog.py` (`_row_help`), `scripts/i18n_extract.py`, `data/i18n/*.json`, `scripts/make_report_limit_demos.py`.
+- tests: tests/test_c1b44_limit_words_stay_by_their_lines.py, tests/test_compliance_sets.py (amended: the digest and the kept figures).
+- evidence: test_both_custom_columns_put_their_maximum_above_their_95th_percentile, test_every_row_of_a_family_says_how_it_relates_to_the_others, test_the_researched_industry_figures_are_exactly_what_knut_delivered
+- proof: ~/Desktop/ChromIQ-beta44-proof/k49/runs/help/, runs/after-E/
 
 ### B8-1260 · FIXED, awaiting confirmation · Beta 44 challenge F1: a Custom paper whose W x H spells a named paper's code was filtered as that named paper
 - blocks release: no

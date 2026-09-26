@@ -277,6 +277,10 @@ class Row:
     #: the lever a reader can pull, on a row that CAN be judged. Empty where
     #: there is nothing on the chart to change.
     remedy: str = ""
+    #: #182 (Knut, 5841606710, 2026-09-26): how this row's statistic relates
+    #: to the other rows worked out from the same patches, and what that means
+    #: for choosing limits. Empty where no such order holds.
+    relation: str = ""
 
     def __post_init__(self) -> None:
         assert self.status in ROW_STATUSES, self.status
@@ -299,29 +303,42 @@ class Row:
 #: arithmetic behind each one is in `measurement_report.row_values` and the
 #: blocks it calls; `tests/test_every_metric_says_how_it_is_detected.py` holds
 #: the two together.
+#: #182 K49, (b2) (Knut, 5841092535, "Yes"): the paper row and the two solid
+#: rows compare the measurement with the profile's own description of the
+#: printing condition, no longer with a FROM PROFILE GAMUT chart's
+#: reference alone.
 _D_REFERENCE_WHITE = (
-    "ChromIQ can judge this row only when the chart carries a colorimetric "
-    "reference, which is a file of aim values measured beside the chart, and "
-    "the chart has a patch within 12 device units of bare paper. Charts built "
-    "from your profile's gamut carry that reference; an ordinary test chart "
-    "has no aim for this row and the report says so instead of guessing.")
+    "The bare paper, read from the chart's patch printed with no ink, is "
+    "compared with the paper white recorded in the profile: the profile the "
+    "chart was printed through, or else the profile of its run. That is the "
+    "paper the profile was made for, so the row shows whether the paper you "
+    "print on still matches it. A chart built from your profile's gamut "
+    "keeps the paper white its reference recorded when the chart was "
+    "built.\n\n"
+    "The row reads N-A when the chart has no patch printed with no ink, or "
+    "when no profile can be read.")
 _D_REFERENCE_SOLIDS = (
-    "Two things are needed. The chart has to carry a colorimetric reference, "
-    "which is a file of aim values measured beside it. And it has to have a "
-    "patch at one or more of the four solid corners: cyan, magenta, yellow, "
-    "and the composite black where all three inks are at full.\n\n"
-    "A corner counts as present when a patch sits within 12 device units of "
-    "it. The row then reports the worst of the corners that were found, not of "
-    "all four, so on a chart with only cyan it is a verdict on cyan.\n\n"
-    "Charts built from your profile's gamut carry the reference. An ordinary "
-    "test chart has no aim for this row.")
+    "Each solid corner patch (cyan, magenta, yellow, and the composite black "
+    "where all three inks are at full) is compared with the colour the "
+    "profile predicts for it, so the row shows how accurately the solids "
+    "were printed, not how far this printer's inks are from ideal ones.\n\n"
+    "That needs the solids printed as they are. A chart built from your "
+    "profile's gamut always is, and so is a chart printed without a profile. "
+    "A chart printed through the profile converts its solids to other ink "
+    "amounts before printing, so there the row reads N-A.\n\n"
+    "The chart needs a patch at one or more of the four corners; a corner "
+    "counts as present when a patch sits within 12 device units of it. The "
+    "row reports the worst of the corners that were found, not of all four. "
+    "The cube-corner table goes on comparing the same patches with their "
+    "ideal values.")
 _D_REFERENCE_CMY = (
-    "ChromIQ can judge this row only when the chart carries a colorimetric "
-    "reference and has a patch at one or more of the cyan, magenta and yellow "
-    "solid corners, within 12 device units. The row reports the worst of the "
-    "corners that were found, not of all three. Charts built from your "
-    "profile's gamut carry that reference; an ordinary test chart has no aim "
-    "for this row.")
+    "The hue difference (ΔH*ab) of the cyan, magenta and yellow solid patches "
+    "from the hue the profile predicts for them, on the same charts as the "
+    "solid-colour row: a chart built from your profile's gamut, or one "
+    "printed without a profile. A chart printed through the profile reads "
+    "N-A here. The chart needs a patch at one or more of the three corners, "
+    "within 12 device units, and the row reports the worst of the corners "
+    "that were found.")
 #: **A CHART DECLARES ITS OWN STRIP.** Knut approved this on 2026-09-18
 #: (S2w). It replaces a sentence that said this row is never judged, which was
 #: true for as long as ChromIQ had no way to be told which patches the strip
@@ -444,11 +461,52 @@ _D_SURFACE_GAMUT = (
 #: missing. Only rows that CAN be judged get one: on a row that needs a gloss
 #: meter there is nothing on the chart to change, and inventing advice would be
 #: worse than the silence.
+#: #182 K49, (b2): the two solid rows need their solids printed raw.
+#: KNUT, #182 5841606710 (2026-09-26): *"The help text for the different
+#: metrics need to include the information ... that "Maximum ΔE00, lowest
+#: 95 % (P95)" can never be higher than "Maximum ΔE00, all patches"."* One
+#: text per family of rows worked out from the same patches. Every sentence
+#: is an order the arithmetic guarantees: the 95th percentile is the largest
+#: of the lowest 95 %, so never above the largest of all; any average is never
+#: above the largest value it is taken over; the lowest 95 %'s average is
+#: never above their largest. (The average over ALL patches can be above the
+#: 95th percentile when the highest 5 % are far out, so nothing is claimed
+#: about those two.)
+_REL_ALL_PATCHES = (
+    "These five rows are worked out from the same patches, so some of them "
+    "can never pass one another. The maximum over all patches is the "
+    "largest. The 95th percentile (the maximum of the lowest 95 %) is never "
+    "higher than it, and the average of the lowest 95 % is never higher than "
+    "the 95th percentile. No average, the one of the highest 5 % included, is "
+    "ever higher than the maximum over all patches.\n\n"
+    "So when you choose limits, a limit on the 95th percentile, or on an "
+    "average, set above the limit on the maximum can never decide anything: "
+    "a sheet over it is already over the maximum's limit.")
+_REL_CONTROL_STRIP = (
+    "These three rows are worked out from the same patches of the control "
+    "strip, so its 95th percentile is never higher than its maximum, and its "
+    "average is never higher than its maximum either.\n\n"
+    "So when you choose limits, a limit on the 95th percentile, or on the "
+    "average, set above the limit on the maximum can never decide anything: "
+    "a strip over it is already over the maximum's limit.")
+_REL_GREY_RAMP = (
+    "These two rows are worked out from the same grey steps, so the average "
+    "is never higher than the worst step.\n\n"
+    "So when you choose limits, a limit on the average set above the limit "
+    "on the maximum can never decide anything: a ramp over it is already over "
+    "the maximum's limit.")
 _R_REFERENCE = (
     "Build the verification chart with FROM PROFILE GAMUT on the Create Chart "
-    "tab. That chart is made from your own profile and carries the aim values "
-    "this metric is measured against, so the metric can be judged. A chart "
-    "made any other way will keep reading N-A here however good the print is.")
+    "tab, or print the chart raw, with no profile, on the Print Chart tab. "
+    "Either way the solids are printed as they are, and are "
+    "compared with the colours your profile predicts for them. A chart "
+    "printed through the profile keeps reading N-A here however good the "
+    "print is.")
+#: …and the paper row a chart with a paper patch and a profile to read.
+_R_REFERENCE_PAPER = (
+    "Use a chart with a patch printed with no ink (most charts have one), "
+    "measured in a run whose profile is built. The paper is then compared "
+    "with the paper white that profile records.")
 _R_GREY_RAMP_DEVICE = (
     "Use a chart with a longer grey ramp: at least eight steps of neutral "
     "grey, running from white through to black and spread evenly between "
@@ -626,7 +684,7 @@ ROWS: "tuple[Row, ...]" = (
         "ΔE00, paper white against the reference paper", "ΔE00", "ref",
         blurb='How far the bare paper of the printed test chart sits from the paper the reference describes. A paper that is bluer, warmer or darker than the aim moves every colour printed on it.',
         detect=_D_REFERENCE_WHITE,
-        remedy=_R_REFERENCE),
+        remedy=_R_REFERENCE_PAPER),
     Row("substrate_overprinted_de00_max", "substrate",
         "ΔE00, overprinted proofing paper against the production paper", "ΔE00",
         "unmeasurable",
@@ -659,28 +717,33 @@ ROWS: "tuple[Row, ...]" = (
         "Average ΔE00, control strip", "ΔE00", "build",
         blurb='The average colour error over the patches of the control strip on the test chart used: the run of patches a press or a proof is checked on.',
         detect=_D_CONTROL_STRIP,
-        remedy=_R_CONTROL_STRIP),
+        remedy=_R_CONTROL_STRIP,
+        relation=_REL_CONTROL_STRIP),
     Row("control_strip_de00_max", "control_strip",
         "Maximum ΔE00, control strip", "ΔE00", "build",
         blurb='The worst single patch of that control strip.',
         detect=_D_CONTROL_STRIP,
-        remedy=_R_CONTROL_STRIP),
+        remedy=_R_CONTROL_STRIP,
+        relation=_REL_CONTROL_STRIP),
     Row("control_strip_de00_p95", "control_strip",
         "Maximum ΔE00, control strip, lowest 95 % (95th percentile)", "ΔE00", "build",
         blurb='The error that 95 % of the declared strip stays under, so one bad patch does not decide the result.',
         detect=_D_CONTROL_STRIP,
-        remedy=_R_CONTROL_STRIP),
+        remedy=_R_CONTROL_STRIP,
+        relation=_REL_CONTROL_STRIP),
     # -- Grey ramp (K-h)
     Row("grey_balance_neutral_ramp_avg", "grey_ramp",
         "Average ΔCh, grey balance of the grey ramp", "ΔCh", "build",
         blurb='How neutral the greys of the printed test chart are on average: how far each step of the grey ramp sits from having no colour cast at all. Lightness is ignored, only the cast is counted.',
         detect=_D_GREY_RAMP,
-        remedy=_R_GREY_RAMP),
+        remedy=_R_GREY_RAMP,
+        relation=_REL_GREY_RAMP),
     Row("grey_balance_neutral_ramp_max", "grey_ramp",
         "Maximum ΔCh, grey balance of the grey ramp", "ΔCh", "build",
         blurb='The worst single step of the grey ramp. One step with a cast is visible in a photograph even when the average looks healthy.',
         detect=_D_GREY_RAMP,
-        remedy=_R_GREY_RAMP),
+        remedy=_R_GREY_RAMP,
+        relation=_REL_GREY_RAMP),
     # -- All patches (ChromIQ's five, shape A merge with the ISO all-patch rows)
     # **THE FIVE NAMES ARE KNUT'S, IN i1PROFILER'S WORD ORDER WITH THE UNIT**
     # (K28, #182 5795087247, 2026-09-23): *"all metrics in report, in graphs
@@ -696,27 +759,32 @@ ROWS: "tuple[Row, ...]" = (
         metric_key="avg_all",
         blurb='The average colour error over the whole chart. The headline number, and the one to watch over time.',
         detect=_D_ALL_PATCHES,
-        remedy=_R_ALL_PATCHES),
+        remedy=_R_ALL_PATCHES,
+        relation=_REL_ALL_PATCHES),
     Row("best95_de00_avg", "all_patches", "Average ΔE00, lowest 95 %", "ΔE00",
         "now", metric_key="avg_low95",
         blurb='The average over the lowest 95 % of the patches, with the highest 5 % left out, so a handful of very hard colours cannot hide an otherwise good result.',
         detect=_D_ALL_PATCHES,
-        remedy=_R_ALL_PATCHES),
+        remedy=_R_ALL_PATCHES,
+        relation=_REL_ALL_PATCHES),
     Row("worst5_de00_avg", "all_patches", "Average ΔE00, highest 5 %", "ΔE00",
         "now", metric_key="avg_high5",
         blurb='How bad the hardest colours are: the average over the highest 5 % alone. This is the row that answers what happens at the edge of what the printer can do.',
         detect=_D_WORST5,
-        remedy=_R_WORST5),
+        remedy=_R_WORST5,
+        relation=_REL_ALL_PATCHES),
     Row("all_de00_max", "all_patches", "Maximum ΔE00, all patches", "ΔE00", "now",
         metric_key="max_all",
         blurb='The single worst patch on the sheet. Useful for finding a misread or a damaged patch as well as a real error.',
         detect=_D_ALL_PATCHES,
-        remedy=_R_ALL_PATCHES),
+        remedy=_R_ALL_PATCHES,
+        relation=_REL_ALL_PATCHES),
     Row("all_de00_p95", "all_patches", "Maximum ΔE00, lowest 95 % (95th percentile)", "ΔE00",
         "now", metric_key="max_low95",
         blurb='The maximum difference within the lowest 95 %, which is the 95th percentile: the error 95 % of the chart stays under, counted by rank rather than by fitting a curve.',
         detect=_D_ALL_PATCHES,
-        remedy=_R_ALL_PATCHES),
+        remedy=_R_ALL_PATCHES,
+        relation=_REL_ALL_PATCHES),
     # -- Selected patches of the chart (S2w, Knut 2026-09-18)
     # THE ID KEEPS ITS "226", which came from a standard's 226-patch list this
     # row is no longer about. A run's stored limits and every saved report on
@@ -1255,7 +1323,12 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         # The ΔH*ab row already read 2.5 here, as he now proposes.
         "best95_de00_avg": Limit.value(2.0),             # ΔE00
         "worst5_de00_avg": Limit.value(2.0),             # ΔE00
-        "all_de00_max": Limit.value(2.0),                # ΔE00
+        # KNUT, #182 5841606710 (2026-09-26), on the challenge round's F5
+        # (P95 4.0 above Max 2.0, which can never decide anything, since the
+        # 95th percentile is never higher than the maximum of the same
+        # patches): "(a) Max higher, so it sits above P95 4.0 ... set to
+        # 4.50." It was 2.0 (K33).
+        "all_de00_max": Limit.value(4.5),                # ΔE00
         "surface_gamut_de00_avg": Limit.value(3.0),      # ΔE00
         "ramps_30_70_dl_max": Limit.value(2.0),          # ΔL*
         # Evenness, from his file of 2026-09-21 (never read until Knut, #182
@@ -1281,7 +1354,9 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         "cmy_solids_dhab_max": Limit.value(2.5),         # ΔH*ab
         "best95_de00_avg": Limit.value(2.0),             # ΔE00
         "worst5_de00_avg": Limit.value(2.0),             # ΔE00
-        "all_de00_max": Limit.value(2.0),                # ΔE00
+        # KNUT, #182 5841606710 (2026-09-26): 4.50, above P95 4.0, as in the
+        # block above. It was 2.0 (K33).
+        "all_de00_max": Limit.value(4.5),                # ΔE00
         "outer_gamut_226_de00_avg": Limit.value(2.5),    # ΔE00
         # Evenness, from his file of 2026-09-21 (#182 5831860724)
         "uniformity_sd": Limit.value(1.5),                  # ΔE00

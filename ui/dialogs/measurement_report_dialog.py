@@ -275,7 +275,9 @@ _TREND_GROUPS = (
     # K47: the two averages over selected patches of the chart.
     ("gamut_edge", lambda: tr("Outer and surface gamut (ΔE00)"), (
         ("outer_gamut_226_de00_avg", lambda: tr("Outer"), "#e0864b"),
-        ("surface_gamut_de00_avg", lambda: tr("Shell"), "#37bcd6"))),
+        # Challenge 1 of beta 44, F4: "Shell" was said nowhere else; the
+        # tab, the legend, the description and the table say surface gamut.
+        ("surface_gamut_de00_avg", lambda: tr("Surface"), "#37bcd6"))),
     ("repeat", lambda: tr("Repeatability (ΔE00)"), (
         ("repeat_patches_de00_max", lambda: tr("Sheet"), "#37bcd6"),
         ("repeat_measurement_de00_max", lambda: tr("Again"), "#e0864b"))),
@@ -871,6 +873,11 @@ ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = (
     # corner rungs of the control strip were compared with. A report without
     # it compared them with their ideal values; it is worked out again.
     "strip_corner_aims",
+    # #182 K49, (b2) (Knut, 5841092535): what the paper row and the two
+    # solid rows were compared with. A report without it judged them only
+    # against a FROM PROFILE GAMUT chart's reference (the solids against
+    # their ideal values); it is worked out again.
+    "condition_reference",
 )
 
 
@@ -887,7 +894,10 @@ ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = (
 #: it did not record is left out, and the page says, once, that an earlier
 #: version worked the report out (`_worked_out_earlier_html`).
 RULE_BLOCKS: "tuple[str, ...]" = (
-    "paper_patch", "paper_white_used", "strip_corner_aims")
+    "paper_patch", "paper_white_used", "strip_corner_aims",
+    # K49, (b2): a report saved before it keeps its paper and solid rows as
+    # they were worked out, against the chart's colorimetric reference alone
+    "condition_reference")
 
 #: Everything a saved report records about HOW its colours were judged. Beside
 #: a kept verdict these come from the record, never from a rebuild; a report of
@@ -930,6 +940,15 @@ def _worked_out_differently(saved: dict, rebuilt: dict) -> bool:
             (rebuilt.get("strip_corner_aims") or {}).get("from")
             == CORNER_AIMS_FROM_PROFILE):
         return True
+    # K49, (b2): before it the paper and solid rows were judged only on a
+    # FROM PROFILE GAMUT chart, the solids against their ideal values; now
+    # against the profile wherever one can be read.
+    if "condition_reference" not in saved:
+        from workflow.measurement_report import CONDITION_FROM_PROFILE
+        cond = rebuilt.get("condition_reference") or {}
+        if any((cond.get(k) or {}).get("from") == CONDITION_FROM_PROFILE
+               for k in ("paper", "solids")):
+            return True
     if "paper_patch" not in saved:
         if rebuilt.get("paper_patch") is False:
             return True
@@ -1656,13 +1675,99 @@ def _trend_about_html(text: str) -> str:
             f"margin:2px 0 4px'>" + html.escape(text) + "</div>")
 
 
-def no_limit_note() -> str:
-    """The sentence under a drawn graph that has no limit line (K47, Knut
-    #182 5840152058). General, so it is true of every such graph: the paper
-    white and darkest black L*, the cube corners, and colour accuracy on a
-    report that judges no colour-accuracy row."""
-    return tr("No limit applies to what this graph shows, so it has no "
-              "limit line. It shows the trend only.")
+#: #182 K49 (Knut, 5841092535, answer 2: *"be a bit more informative than
+#: "No limit applies" as note"*). What each graph shows and what watching it
+#: is good for, the first half of the sentence under a graph with no limit
+#: line. Keyed like `_TREND_ABOUT`. Written for whoever the PDF is handed to
+#: (K18): no control of the app is named (K39).
+_NO_LIMIT_SHOWS = {
+    "de": lambda: tr(
+        "This graph shows how far the measured patches lie from their aim "
+        "values (ΔE00) on each date, which is useful for watching the print "
+        "drift between dates."),
+    "white": lambda: tr(
+        "This graph shows the lightness (L*) of the bare paper on each date, "
+        "which is useful for watching the paper change between dates, for "
+        "example a new batch or paper that has aged."),
+    "paper_diff": lambda: tr(
+        "This graph shows how far the bare paper lies from the reference "
+        "paper (ΔE00) on each date, which is useful for watching the paper "
+        "change between dates."),
+    "black": lambda: tr(
+        "This graph shows the lightness (L*) of the darkest patch on each "
+        "date, which is useful for watching the blacks drift between dates, "
+        "for example as an ink runs low."),
+    "corners": lambda: tr(
+        "This graph shows how far the paper white, the black and the six "
+        "solid colours lie from their ideal values (ΔE00) on each date. The "
+        "ideal values lie outside what most printers can print, so the level "
+        "says little about the print; the trend shows whether the inks and "
+        "the paper drift between dates."),
+    "solids": lambda: tr(
+        "This graph shows how far the cyan, magenta, yellow and black solids "
+        "lie from the colours the profile predicts for them (ΔE00) on each "
+        "date, which is useful for watching the inks drift between dates."),
+    "solid_hue": lambda: tr(
+        "This graph shows how far the hue of the cyan, magenta and yellow "
+        "solids lies from the hue the profile predicts for them (ΔH*ab) on "
+        "each date, which is useful for watching the inks drift in hue "
+        "between dates."),
+    "grey": lambda: tr(
+        "This graph shows how neutral the grey ramp prints (ΔCh) on each "
+        "date, which is useful for watching a colour cast appear between "
+        "dates."),
+    "tone": lambda: tr(
+        "This graph shows the largest lightness difference (ΔL*) on the "
+        "ramps between 30 % and 70 % on each date, which is useful for "
+        "watching the mid-tones drift lighter or darker between dates."),
+    "strip": lambda: tr(
+        "This graph shows the colour difference (ΔE00) of the control-strip "
+        "patches on each date, which is useful for watching the print drift "
+        "between dates."),
+    "gamut_edge": lambda: tr(
+        "This graph shows how far the most saturated colours lie from their "
+        "aim values (ΔE00) on each date, which is useful for watching the "
+        "edge of the gamut drift between dates."),
+    "repeat": lambda: tr(
+        "This graph shows how far apart the same colour measures (ΔE00) on "
+        "each date, which is useful for watching whether the printer and the "
+        "instrument stay repeatable from one date to the next."),
+    "evenness": lambda: tr(
+        "This graph shows how evenly the sheet prints the same colour across "
+        "nine areas (ΔE00) on each date, which is useful for watching "
+        "unevenness, such as banding, appear between dates."),
+}
+
+#: …and why no limit line is drawn, the second half. ``set``: the limits the
+#: document is judged against put no number on what the graph shows;
+#: ``record``: the document judges nothing (a Printing record); ``accuracy``:
+#: the document judges no colour-accuracy row (a Grey and tone check).
+NO_LIMIT_WHY_SET = "set"
+NO_LIMIT_WHY_RECORD = "record"
+NO_LIMIT_WHY_ACCURACY = "accuracy"
+_NO_LIMIT_WHY = {
+    NO_LIMIT_WHY_SET: lambda: tr(
+        "The limits this report is judged against set none for it, so no "
+        "limit line is drawn."),
+    NO_LIMIT_WHY_RECORD: lambda: tr(
+        "This report records the measurements without judging them, so no "
+        "limit line is drawn."),
+    NO_LIMIT_WHY_ACCURACY: lambda: tr(
+        "This report does not judge colour accuracy, so no limit line is "
+        "drawn."),
+}
+
+
+def no_limit_note(key: str = "", why: str = NO_LIMIT_WHY_SET) -> str:
+    """The sentence under a drawn graph that has no limit line: what the
+    graph *key* shows and what watching it is good for, then why no line is
+    drawn (*why*). K47 (Knut, #182 5840152058) put a general sentence there;
+    K49 (5841092535, answer 2) asked for it to be *"a bit more informative"*,
+    so it is written per graph. A key with no sentence of its own gets the
+    second half alone."""
+    shows = _NO_LIMIT_SHOWS.get(key)
+    tail = _NO_LIMIT_WHY.get(why, _NO_LIMIT_WHY[NO_LIMIT_WHY_SET])()
+    return (shows() + " " + tail) if shows else tail
 
 
 def _trend_key_html(descriptions: list) -> str:
@@ -1704,6 +1809,34 @@ _WORD_WORD_GAP = 14.0
 #: the wrong limit; less than printing over another word (1000), which reads
 #: as neither.
 _WORD_PAST_ANOTHER_LINE = 800.0
+#: Challenge 1 of beta 44, F3: two limit lines closer than this (px) are
+#: drawn as one, and their words share ONE label ("P95 / Max"), so no word is
+#: pushed off to a place with no line beside it.
+_WORD_SAME_LINE_PX = 2.0
+#: …and a word placed inside the plot starts this far right of the axis, and
+#: pays `_WORD_BESIDE_AXIS_NUMBER` for sitting level with a y-axis number,
+#: so it never reads as that number's unit ("4.9 Max").
+_WORD_INSIDE_INDENT = 4.0
+_WORD_BESIDE_AXIS_NUMBER = 0.5
+
+
+def _merge_coinciding_lines(thr: list, ys: list, notes: list) -> list:
+    """``[(y, label, [indices])]``: the limit lines of a graph grouped by
+    where they are drawn. Lines closer than `_WORD_SAME_LINE_PX` are one
+    line on the page, so their words are joined, in the order of the lines
+    ("P95 / Max"), and placed once (challenge 1 of beta 44, F3)."""
+    order = sorted(range(len(ys)), key=lambda i: ys[i])
+    groups: list = []
+    for i in order:
+        if groups and abs(ys[i] - groups[-1][0]) < _WORD_SAME_LINE_PX:
+            groups[-1][2].append(i)
+        else:
+            groups.append([ys[i], None, [i]])
+    out = []
+    for y, _l, idx in groups:
+        idx = sorted(idx)
+        out.append((y, " / ".join(thr[i][1] for i in idx), idx))
+    return out
 
 
 def _segment_length_in(rect: "QRectF", a: "QPointF", b: "QPointF") -> float:
@@ -1734,7 +1867,7 @@ def _word_conflict(rect: "QRectF", own_y: float, line_ys: "list[float]",
         if r.intersects(m):
             score += 500.0
     for ly in line_ys:
-        if ly is not own_y and r.top() <= ly <= r.bottom():
+        if ly != own_y and r.top() <= ly <= r.bottom():
             score += 50.0
     if r.top() <= own_y <= r.bottom():
         score += 30.0                    # clamped onto its own line
@@ -1750,6 +1883,9 @@ def _word_conflict(rect: "QRectF", own_y: float, line_ys: "list[float]",
 def _place_limit_words(words: list, *, L: float, T: float, h: float,
                        axis_ys: "list[float]", polys: list,
                        marks: list) -> list:
+    # (challenge 1 of beta 44, F3: a caller hands coinciding lines in as ONE
+    # word, `_merge_coinciding_lines`; a word inside the plot is indented
+    # and kept off the rows of the axis numbers.)
     """Where each limit word of a trend graph goes: ``[(QRectF, where)]`` in
     the order of *words*, which are ``(line y, text width)``.
 
@@ -1802,9 +1938,13 @@ def _place_limit_words(words: list, *, L: float, T: float, h: float,
             for where, top in (("above", y - 16.0 - 15.0 * step),
                                ("below", y + 2.0 + 15.0 * step)):
                 top = min(max(top, T), T + h - 14.0)
-                rect = QRectF(L + 4.0 - 1.0, top, tw + 2.0, 14.0)
+                rect = QRectF(L + _WORD_INSIDE_INDENT - 1.0, top, tw + 2.0,
+                              14.0)
                 score = (_word_conflict(rect, y, line_ys, polys, marks, taken)
                          + 2.0 * step)
+                if any(rect.top() - 7.0 < ay < rect.bottom() + 7.0
+                       for ay in axis_ys):
+                    score += _WORD_BESIDE_AXIS_NUMBER
                 # **BESIDE ITS OWN LINE, NEVER PAST ANOTHER ONE (challenge 2
                 # of beta 42, #4).** With Max's word in the margin and the
                 # Avg line a few pixels under it, Avg's word went a step up
@@ -1887,6 +2027,7 @@ class _TrendChart(QWidget):
         self._limit_lines: list = []
         self._line_notes: list = []
         self._withheld: list = []
+        self._no_limit_text: "str | None" = None
         #: ``[(QRectF, text)]`` of everything painted that explains itself,
         #: refreshed by every paint, read by the tooltip (`event`).
         self._hits: list = []
@@ -1894,7 +2035,10 @@ class _TrendChart(QWidget):
 
     def set_data(self, series, metrics, dark=True, y_max=None, dec=1,
                  auto=False, thresholds=None, limit_lines=None,
-                 line_notes=None, withheld=None) -> None:
+                 line_notes=None, withheld=None, no_limit=None) -> None:
+        # K49: the sentence this graph prints under it when it has no limit
+        # line (`no_limit_note`), or None for the general one.
+        self._no_limit_text = no_limit
         # One entry per metric: ``withheld[k](pt)`` is the sentence saying
         # why metric k's value on that date is not drawn, or None.
         wh = list(withheld or [])
@@ -2036,7 +2180,9 @@ class _TrendChart(QWidget):
         # So a drawn graph with no limit line says why it has none.
         if (len(self._series) >= 2 and self._metrics
                 and not any(k == "line" for k, _c, _t in out)):
-            out.insert(0, ("note", grey, no_limit_note()))
+            # K49: the graph's own sentence, set by its dialog
+            out.insert(0, ("note", grey,
+                           self._no_limit_text or no_limit_note()))
         for _k, _i, _v, text in self.withheld_marks():
             out.append(("mark", QColor(_WITHHELD_RED), text))
         return out
@@ -2250,24 +2396,29 @@ class _TrendChart(QWidget):
                 p.drawLine(QPointF(L, yy), QPointF(L + w, yy))
             p.setPen(QPen(fg, 1.0))
             fm = p.fontMetrics()
+            # Challenge 1 of beta 44, F3: lines drawn at one height carry
+            # one label, "P95 / Max", with both notes behind it.
+            groups = _merge_coinciding_lines(thr, thr_ys, notes)
+            #: every drawn limit line's height, for a test to group
+            self._line_ys = list(thr_ys)
             placed = _place_limit_words(
-                [(yy, fm.horizontalAdvance(tlab)) for (_tv, tlab), yy
-                 in zip(thr, thr_ys)],
+                [(gy, fm.horizontalAdvance(glab)) for gy, glab, _i in groups],
                 L=L, T=T, h=h, axis_ys=axis_ys,
                 polys=getattr(self, "_polys", []),
                 marks=getattr(self, "_marks", []))
             #: ``[(QRectF, where, line y)]`` per drawn word, for a test and a
             #: driver to measure what was placed where ("margin" / "above" /
-            #: "below").
+            #: "below"). Lines drawn at one height share one word.
             self._word_boxes = []
-            for (tv, tlab), yy, note, (rect, where) in zip(thr, thr_ys, notes,
-                                                           placed):
+            for (yy, tlab, idx), (rect, where) in zip(groups, placed):
+                note = " ".join(notes[i] for i in idx if notes[i])
                 if where == "margin":
                     p.drawText(QRectF(0, rect.center().y() - 7, L - 4, 14),
                                Qt.AlignmentFlag.AlignRight
                                | Qt.AlignmentFlag.AlignVCenter, tlab)
                 else:
-                    p.drawText(QRectF(rect.left() + 1, rect.top(), 80, 14),
+                    p.drawText(QRectF(rect.left() + 1, rect.top(),
+                                      rect.width() + 20, 14),
                                Qt.AlignmentFlag.AlignLeft
                                | Qt.AlignmentFlag.AlignVCenter, tlab)
                 self._word_boxes.append((QRectF(rect), where, yy))
@@ -7261,7 +7412,8 @@ class MeasurementReportDialog(QDialog):
                                  y_max=y_max, dec=dec, auto=auto, thresholds=thr,
                                  limit_lines=lines,
                                  line_notes=ex["line_notes"],
-                                 withheld=ex["withheld"])
+                                 withheld=ex["withheld"],
+                                 no_limit=ex.get("no_limit"))
                     # Render at 3× and display at the same 600px layout width: a
                     # plain grab() gave a ~96-dpi raster that printed visibly
                     # blurry next to the vector text (Sebastian, 2026-08-10).
@@ -11452,6 +11604,27 @@ class MeasurementReportDialog(QDialog):
                                       "information only"),
             "no_corners": tr("the measured chart has no patch at the colour "
                              "corners this row needs"),
+            # #182 K49, (b2) (Knut, 5841092535): the paper row and the two
+            # solid rows compare the measurement with its profile's own
+            # description. Each says what the measured chart or its print
+            # lacks, to the K22 rule.
+            "no_profile_to_compare": tr(
+                "this row compares the measured chart with the paper and the "
+                "solid colours its profile describes, and no profile could be "
+                "read"),
+            "paper_not_measured": tr(
+                "the measured chart has no patch printed with no ink, so its "
+                "paper was not measured"),
+            "solids_through_profile": tr(
+                "the measured chart was printed through the profile, so its "
+                "cyan, magenta, yellow and black patches were converted to "
+                "other ink amounts before printing and are not the printer's "
+                "own solids"),
+            "solids_printing_unrecorded": tr(
+                "how the measured chart was printed is not recorded, so "
+                "whether its cyan, magenta, yellow and black patches were "
+                "printed as they are or converted through the profile first "
+                "cannot be told"),
             # WHAT THE CODE MEANS, WHICH IS NOT WHAT THIS USED TO SAY.
             # `REASON_NOT_COMPUTED` is set when the BLOCK IS MISSING FROM THIS
             # REPORT; it says nothing about whether a file can be read. The old
@@ -11564,6 +11737,14 @@ class MeasurementReportDialog(QDialog):
             return (M.M_REPORT_STRIP_CORNERS_PREDICTED
                     if code == NOTE_STRIP_CORNERS_PREDICTED
                     else M.M_REPORT_STRIP_CORNERS_IDEAL).render()[1]
+        from workflow.measurement_report import (NOTE_PAPER_AGAINST_PROFILE,
+                                                 NOTE_SOLIDS_PREDICTED)
+        if code in (NOTE_SOLIDS_PREDICTED, NOTE_PAPER_AGAINST_PROFILE):
+            # #182 K49, (b2): §M text (proposed)
+            from workflow import measurement_messages as M
+            return (M.M_REPORT_SOLIDS_PREDICTED
+                    if code == NOTE_SOLIDS_PREDICTED
+                    else M.M_REPORT_PAPER_AGAINST_PROFILE).render()[1]
         return {
             "printing_unrecorded": tr(
                 "How this sheet was printed is not recorded, so the grey rows "
@@ -12764,7 +12945,8 @@ class MeasurementReportDialog(QDialog):
             probe.setdefault("paper_patch", c.get("paper_patch"))
             if _worked_out_differently(probe, working):
                 c[WORKED_OUT_EARLIER_KEY] = True
-                for k in ("paper_white_used", "strip_corner_aims"):
+                for k in ("paper_white_used", "strip_corner_aims",
+                          "condition_reference"):
                     if k not in judged:
                         c.pop(k, None)
             elif any(k in judged for k in RULE_BLOCKS):
@@ -15510,6 +15692,29 @@ class MeasurementReportDialog(QDialog):
                     out[rid] = float(thr)
         return out
 
+    def _unlimited_trend_rows(self, judged: "dict | None" = None
+                              ) -> "set[str]":
+        """The trend rows that have a value on some date of the document and
+        no limit: judged on no date (the limits the document is judged
+        against set none for them, or the document judges nothing), and part
+        of the document's type (a Grey and tone check is not about the
+        colour rows). #182 K49 (Knut, 5841092535, answer 2): *"Yes, it can
+        have value for trending"*; §17 item 3 before it hid their tab."""
+        from workflow.measurement_report import (TREND_ROW_IDS,
+                                                 rows_for_report_type)
+        if judged is None:
+            judged = self._judged_trend_limits()
+        series = getattr(self, "_trend_series", None) or []
+        keep = rows_for_report_type(self._report_type_now())
+        out = set()
+        for rid in TREND_ROW_IDS:
+            if rid in judged or (keep is not None and rid not in keep):
+                continue
+            if any((pt.get("rows") or {}).get(rid) is not None
+                   for pt in series):
+                out.add(rid)
+        return out
+
     def _trend_plan(self) -> list:
         """Every trend tab as ``(chart, title, metrics, y_max, dec, auto,
         thresholds, limit_lines, shown)``, in tab order.
@@ -15541,9 +15746,21 @@ class MeasurementReportDialog(QDialog):
             plan.append((chart, title, metrics, y_max, dec, auto, thr, extra,
                          shown))
         judged = self._judged_trend_limits()
+        unlimited = self._unlimited_trend_rows(judged)
         for key, title, rows in _TREND_GROUPS:
             metrics, lines = [], []
+            # K49 (Knut, #182 5841092535, answer 2: *"Yes, it can have value
+            # for trending"*): a tab none of whose rows is judged, whose rows
+            # have values, is shown with those values and no line.
+            free = not any(rid in judged for rid, _w, _c in rows)
             for rid, word, col in rows:
+                if free and rid in unlimited:
+                    metrics.append((_with_unit(self._row_name(
+                                        rid, self._document_runs_for_graphs()),
+                                        ROW_BY_ID[rid].unit), QColor(col),
+                                    (lambda pt, rr=rid:
+                                     _trend_row_value(pt, rr, None))))
+                    continue
                 if rid not in judged:
                     continue
                 lim = judged[rid]
@@ -15577,6 +15794,12 @@ class MeasurementReportDialog(QDialog):
                         if c is chart), None)
         about = _TREND_ABOUT[key]() if key in _TREND_ABOUT else ""
         ungraded = self._ungraded_by_type()
+        # K49: the sentence under this graph should it have no limit line
+        why = (NO_LIMIT_WHY_RECORD if ungraded else
+               NO_LIMIT_WHY_ACCURACY if (chart is self._trend_de
+                                         and not self._colour_accuracy_is_judged())
+               else NO_LIMIT_WHY_SET)
+        nl = no_limit_note(key or "", why)
         if chart is self._trend_de and _series_is_within_gamut(
                 getattr(self, "_trend_series", None)):
             # K30 (B3): a record judges no patch, so "each judged patch" is
@@ -15586,7 +15809,7 @@ class MeasurementReportDialog(QDialog):
                      if self._colour_accuracy_is_judged()
                      else _TREND_ABOUT_DE_WITHIN_GAMUT())
         if chart is self._trend_de and ungraded:
-            return {"line_notes": [], "withheld": [], "about": about}
+            return {"line_notes": [], "withheld": [], "about": about, "no_limit": nl}
         # THE NAME THE LEGEND BESIDE THE LINE PRINTS (B8-944): "…, within
         # gamut" on a document holding a split sheet, the plain name on any
         # other, decided for the document exactly as `_trend_configs` does.
@@ -15594,10 +15817,10 @@ class MeasurementReportDialog(QDialog):
         if chart is self._trend_de:
             pair_notes, extra = self._accuracy_line_plan()
             notes = list(pair_notes) + [n for _v, _w, n in extra]
-            return {"line_notes": notes, "withheld": [], "about": about}
+            return {"line_notes": notes, "withheld": [], "about": about, "no_limit": nl}
         rows = dict((k, r) for k, _t, r in _TREND_GROUPS).get(key)
         if not rows:
-            return {"line_notes": [], "withheld": [], "about": about}
+            return {"line_notes": [], "withheld": [], "about": about, "no_limit": nl}
         judged = self._judged_trend_limits()
         notes, withheld = [], []
         for rid, word, _col in rows:
@@ -15609,7 +15832,7 @@ class MeasurementReportDialog(QDialog):
                                                               _names_runs)))
             withheld.append(lambda pt, rr=rid, ll=lim:
                             _trend_withheld_reason(pt, rr, ll))
-        return {"line_notes": notes, "withheld": withheld, "about": about}
+        return {"line_notes": notes, "withheld": withheld, "about": about, "no_limit": nl}
 
     def _update_trends(self, series: list, dark: bool) -> None:
         """Feed the grouped trend charts their metric sets. The tabs stay visible
@@ -15623,7 +15846,8 @@ class MeasurementReportDialog(QDialog):
             chart.set_data(series, metrics, dark=dark, y_max=y_max, dec=dec,
                            auto=auto, thresholds=thr, limit_lines=lines,
                            line_notes=ex["line_notes"],
-                           withheld=ex["withheld"])
+                           withheld=ex["withheld"],
+                           no_limit=ex.get("no_limit"))
             self._trend_tabs.setTabVisible(self._trend_tabs.indexOf(chart),
                                            shown)
         show = bool(self._sources)

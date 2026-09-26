@@ -287,5 +287,11 @@ def test_every_graph_places_every_word_by_the_one_rule(qapp, tab, words,
             lines.append((max(0.0, min(vmax, v)), word))
         chart = _chart(data, lines, accuracy=(tab == "accuracy"))
         _paint(chart, *size)
-        assert len(chart._word_boxes) == len(lines), (tab, case)
+        # Challenge 1 of beta 44, F3: lines drawn at one height share ONE
+        # word ("P95 / Max"); every other line has its own.
+        ys = chart._line_ys
+        groups = mrd._merge_coinciding_lines(
+            [(0, w) for _v, w in lines], ys, [""] * len(ys))
+        assert len(chart._word_boxes) == len(groups), (tab, case)
+        assert len(ys) == len(lines), (tab, case)
         _check(chart, f"{tab} case {case} {data} {lines}")

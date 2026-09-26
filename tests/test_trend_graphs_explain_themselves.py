@@ -219,7 +219,9 @@ def test_every_tab_places_its_words_by_the_accuracy_rule(qapp, key):
     # the axis number 2.24; three are spread between the numbers instead.
     heights = (0.5, 1.3) if len(words) <= 2 else (0.45, 0.75, 1.6)
     far = [(heights[j], w, QColor("#3070c0")) for j, w in enumerate(words)]
-    near = [(1.12 + 0.02 * j, w, QColor("#3070c0")) for j, w in enumerate(words)]
+    # 0.06 apart: all within an axis number's reach, and never so close that
+    # two lines are drawn as one (challenge 1 of beta 44, F3, joins those)
+    near = [(1.12 + 0.06 * j, w, QColor("#3070c0")) for j, w in enumerate(words)]
     notes = [f"note {w}" for w in words]
     for lines, inside in ((far, False), (near, True)):
         chart = _grey_chart([0.2, 2.0, 0.3], lines, notes)
@@ -227,7 +229,10 @@ def test_every_tab_places_its_words_by_the_accuracy_rule(qapp, key):
         boxes = [r for r, t in chart._hits if t.startswith("note ")]
         assert len(boxes) == len(words), "a word was not drawn"
         for b in boxes:
-            assert (b.left() >= 40.0) == inside, (key, inside, b)
+            # a word wider than the margin goes inside wherever its line is
+            # ("Surface", since challenge 1 of beta 44, F4)
+            wide = b.width() - 4.0 > 40.0 - 6.0
+            assert (b.left() >= 40.0) == (inside or wide), (key, inside, b)
         if inside and len(boxes) == 2:
             # the upper line's word above it, the lower one's below it
             ys = sorted(b.center().y() for b in boxes)

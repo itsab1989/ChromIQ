@@ -993,7 +993,6 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
                  strip_ids: "list[str] | None" = None,
                  paper_white_lab: "tuple | None" = None,
                  strip_corner_aims: "dict[str, tuple] | None" = None,
-                 corner_budgets: "tuple[float, float] | None" = None
                  ) -> "dict[str, float]":
     """Rewrite the measurement's XYZ so the chart's statistics are the design's.
 
@@ -1325,19 +1324,18 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
                 s = _solve_scale(r, _PAPER_DRIFT, design.white_de)
                 new_lab[ci] = tuple(r[k] + _PAPER_DRIFT[k] * s for k in range(3))
             elif (strip_corner_aims and name in ("C", "M", "Y", "K")
-                  and data.sample_ids[ci] in strip_corner_aims
-                  and not (name == "K" and design.solid_de is not None)):
-                # #182 K37 (i): ON A FROM PROFILE GAMUT CHART A CORNER HAS TWO
-                # AIMS. The report compares it with its IDEAL value in the
-                # corner rows and with the profile's PREDICTION in the control
-                # strip, and on these profiles the two lie 1.8 to 6.1 ΔE00
-                # apart. A solid (and the black) is judged by both, so it is
-                # placed between them (`_between_two_aims`), keeping the hue
-                # difference from the ideal the date designs exactly.
-                new_lab[ci] = _between_two_aims(
-                    r, strip_corner_aims[data.sample_ids[ci]],
-                    design.cmy_dh if name != "K" else None,
-                    corner_budgets)
+                  and data.sample_ids[ci] in strip_corner_aims):
+                # #182 K49, (b2) (Knut, 5841092535, "Yes"): ON A FROM PROFILE
+                # GAMUT CHART A SOLID HAS ONE AIM FOR EVERY ROW THAT JUDGES
+                # IT, the profile's PREDICTION: "Maximum ΔE00, solid
+                # colours", the hue row and the control strip all compare it
+                # with that. Until K49 the two solid rows compared it with its
+                # IDEAL value while the strip compared it with the prediction,
+                # and a solid was placed between the two; the cube-corner
+                # table keeps the ideal and is not judged.
+                new_lab[ci] = _solid_on_prediction(
+                    name, strip_corner_aims[data.sample_ids[ci]],
+                    measured[ci], design)
             elif name in ("C", "M", "Y") and design.cmy_dh is not None:
                 new_lab[ci] = _rotate_hue(r, design.cmy_dh)
             elif name == "K" and design.solid_de is not None:
@@ -1469,6 +1467,30 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
         predicted["grey_balance_neutral_ramp_avg"] = float(np.mean(dchs))
         predicted["grey_balance_neutral_ramp_max"] = float(np.max(dchs))
 
+    # -- #182 K49, (b2): THE PAPER OF AN ORDINARY CHART IS JUDGED TOO, against
+    #    the paper white of the run's profile, so a date that designs the
+    #    paper (``white_de``) prints on a paper that far from it. On a sheet
+    #    read media-relative the paper is the anchor every reading is divided
+    #    by, so moving it moves nothing else: the whole sheet is written back
+    #    on the drifted paper, every relative value kept, and the paper
+    #    patches (at L*100 relative) land exactly on it. A yellowing paper
+    #    keeps its lightness (`_PAPER_DRIFT`), so it stays the lightest
+    #    reading on the sheet. A FROM PROFILE GAMUT chart designs its white
+    #    corner in the corner block above instead.
+    if (design.white_de is not None and ref_labs is None and relative
+            and not profile_anchor and paper_white_lab is not None
+            and whites):
+        pw = tuple(float(v) for v in paper_white_lab)
+        s = _solve_scale(pw, _PAPER_DRIFT, design.white_de)
+        drifted = tuple(pw[k] + _PAPER_DRIFT[k] * s for k in range(3))
+        scale = np.asarray(_lab_to_xyz100(drifted), dtype=float) \
+            / np.array(_D50)
+        # every patch the design did not touch moves with the paper too
+        for i in range(n):
+            if i not in new_lab:
+                new_lab[i] = measured[i]
+        predicted["substrate_de00_max"] = float(design.white_de)
+
     out = {}
     for i, v in new_lab.items():
         rel = np.asarray(_lab_to_xyz100(v), dtype=float)
@@ -1477,72 +1499,27 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     return predicted
 
 
-#: #182 K37 (i): the budgets `_between_two_aims` shares a solid's gap by when
-#: the run's limit set puts no number on a row: its difference from the IDEAL
-#: (the solid-colour row, 2.0 in Custom ISO 12647-7) and from the profile's
-#: PREDICTION (a control-strip rung, whose largest-difference row is 3.0 in
-#: Custom ISO 12647-8).
-CORNER_IDEAL_BUDGET = 2.0
-CORNER_STRIP_BUDGET = 3.0
-
-
-def _corner_budgets(limits) -> "tuple[float, float]":
-    """(solid-colour row, largest control-strip rung): the run's own limits
-    where they carry a number, else the defaults above."""
-    def num(rid, default):
-        lim = (limits or {}).get(rid)
-        n = getattr(lim, "number", None) if lim is not None else None
-        return float(n) if n else default
-    return (num("solids_de00_max", CORNER_IDEAL_BUDGET),
-            num("control_strip_de00_max", CORNER_STRIP_BUDGET))
-
-
-def _between_two_aims(ideal, pred, dh: "float | None",
-                      budgets: "tuple[float, float] | None" = None) -> tuple:
-    """A solid placed between its ideal value and the profile's prediction.
-
-    L* and chroma move a fraction t of the way from the ideal to the
-    prediction; the hue is turned FROM THE IDEAL, toward the prediction's
-    hue, by exactly the hue difference *dh* the date designs (0 when it
-    designs none), so `cmy_solids_dhab_max` still reads what the date asks.
-    t is 0 when the ideal already lies inside 85 % of the strip's budget;
-    otherwise the t nearest the prediction that keeps the difference from
-    the ideal inside 85 % of the solid-colour budget (a grid of 51 steps)."""
-    Li, ai, bi = (float(v) for v in ideal)
-    Lp, ap, bp = (float(v) for v in pred)
-    ci, cp = math.hypot(ai, bi), math.hypot(ap, bp)
-    hi, hp = math.atan2(bi, ai), math.atan2(bp, ap)
-    sign = 1.0 if math.sin(hp - hi) >= 0 else -1.0
-    best, best_score = tuple(ideal), None
-    for k in range(51):
-        t = k / 50.0
-        L = Li + t * (Lp - Li)
-        c = ci + t * (cp - ci)
-        want = float(dh or 0.0)
-        if c > 1e-9 and ci > 1e-9 and want > 0:
-            half = min(1.0, want / (2.0 * math.sqrt(ci * c)))
-            dth = 2.0 * math.asin(half)
-        else:
-            dth = 0.0
-        h = hi + sign * dth
-        cand = (L, c * math.cos(h), c * math.sin(h))
-        b_ideal, b_strip = budgets or (CORNER_IDEAL_BUDGET,
-                                       CORNER_STRIP_BUDGET)
-        # THE SOLID-COLOUR ROW FIRST: it is judged only on this kind of chart,
-        # so no other run can show it passing; the strip rows are judged on
-        # the ordinary charts as well. Inside 85 % of its budget, then as
-        # near the prediction as that allows. Where the gap is wider than both
-        # budgets together (the tight column), the strip carries the rest.
-        if k == 0 and _de(cand, pred) <= 0.85 * b_strip:
-            # the ideal already satisfies the strip: nothing to share, and a
-            # date that designs "constant lightness and chroma" keeps it
-            return cand
-        if _de(cand, ideal) > 0.85 * b_ideal and k:
-            continue
-        score = _de(cand, pred) / b_strip
-        if best_score is None or score < best_score:
-            best, best_score = cand, score
-    return best
+def _solid_on_prediction(name: str, pred, measured, design) -> tuple:
+    """A FROM PROFILE GAMUT chart's solid, designed on the profile's
+    prediction (#182 K49, (b2)): cyan, magenta and yellow turned in hue by
+    exactly the date's ``cmy_dh`` (so "Maximum ΔH*ab, cyan, magenta and
+    yellow solids" reads it), the composite black moved by the date's
+    ``solid_de`` along fakeread's own direction (so "Maximum ΔE00, solid
+    colours" reads it), anything the date does not design ON the
+    prediction, which is what a printer that prints as profiled prints."""
+    if name in ("C", "M", "Y") and design.cmy_dh is not None:
+        return _rotate_hue(tuple(pred), design.cmy_dh)
+    if name == "K" and design.solid_de is not None:
+        # A BLACK THAT PRINTS LIGHTER, never darker. The prediction sits at
+        # L* 0 on these profiles, and fakeread reads it back there, so
+        # "fakeread's own direction" is noise; followed downward it would
+        # need a negative lightness, which no reading can hold (measured on
+        # the first build: designed 5.0, read 2.49). Up and slightly warm
+        # is what a black running out of ink does.
+        p = tuple(float(v) for v in pred)
+        return _place(p, (p[0] + 1.0, p[1] + 0.2, p[2] + 0.3),
+                      design.solid_de)
+    return tuple(float(v) for v in pred)
 
 
 #: The band `measurement_report.ramps_block` reads, and the spread it allows a
@@ -2392,11 +2369,14 @@ BORDER_RAW_DRIFT: "list[Date]" = [
 CUSTOM_7_SERIES: "list[Date]" = [
     _d("2027-01-05_100000", "2027-01-05T10:00:00",
        "One patch over the largest-difference limit",
-       "A single patch at 4.5, over the 2.0 this column puts on 'Maximum "
+       "A single patch at 4.7, over the 4.5 this column puts on 'Maximum "
        "ΔE00, all patches', with 'Average ΔE00, highest 5 %' held under its own 2.0. "
        "ONE row "
        "crosses.",
-       Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.20, grey_dch=0.50),
+       # Knut, #182 5841606710: the column's maximum is 4.50 (it was 2.0),
+       # so the single far patch is 4.7 (it was 4.5): at 5.0 the swing back
+       # crossed "the same chart measured again" on the date after (3.02).
+       Design(bulk=0.90, shoulder=1.50, peak=4.70, tail=1.20, grey_dch=0.50),
        ["all_de00_max"]),
     _d("2027-01-19_100000", "2027-01-19T10:00:00",
        "The bad patch is gone again",
@@ -2422,17 +2402,22 @@ CUSTOM_7_SERIES: "list[Date]" = [
 CUSTOM_8_SERIES: "list[Date]" = [
     _d("2027-02-02_100000", "2027-02-02T10:00:00",
        "One patch goes far out, and one ramp step goes dark",
-       "A single patch at 2.75 is over the 2.0 this column puts on 'Maximum "
+       "A single patch at 4.7 is over the 4.5 this column puts on 'Maximum "
        "ΔE00, all patches', with 'Average ΔE00, highest 5 %' held under its "
-       "own 2.0, and the middle step of the grey tone ramp is 3.0 too dark, "
+       "own 2.0, and the middle step of the grey tone ramp is 2.4 too dark, "
        "over the 2.0 this column puts on it. TWO rows cross, which is the "
        "most this design allows, and neither is a recommendation: this "
        "column requires both.",
        # K33 (B8-998): with Knut's 2.00 on the maximum, the highest 5 % can
        # no longer cross alone (its average is never above the maximum), so
        # the row this date crosses beside the ramp is the maximum itself.
-       Design(bulk=0.80, shoulder=1.40, peak=2.75, tail=1.20, grey_dch=0.50,
-              ramp_dl=3.0),
+       # Knut, #182 5841606710: the maximum's limit is 4.50 (was 2.0), so the
+       # far patch is 4.7 (was 2.75).
+       # With the far patch at 4.7 the highest 5 % holds it and the dark
+       # ramp step together, so the step is 2.4 (it was 3.0) to keep that
+       # average under its 2.0.
+       Design(bulk=0.80, shoulder=1.30, peak=4.70, tail=0.80, grey_dch=0.50,
+              ramp_dl=2.4),
        ["all_de00_max", "ramps_30_70_dl_max"]),
     _d("2027-02-16_100000", "2027-02-16T10:00:00",
        "Both come back",
@@ -3212,7 +3197,6 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
             ref_labs=cref_labs, corner_ids=corner_ids,
             corner_devices=corner_devices, strip_ids=strip_ids,
             strip_corner_aims=strip_corner_aims,
-            corner_budgets=_corner_budgets(limits_rec.limits),
             # K37 (e): a relative sheet of a chart with no paper patch is
             # judged against the run's profile's paper white, as here
             paper_white_lab=profile_media_white_lab(icc))
@@ -3568,7 +3552,12 @@ def fill_limits(set_id: str, relax: "dict[str, float] | None" = None,
 #: two into a claim that is true of neither.
 ROWS_ORDINARY = (
     "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
-    "all_de00_p95", "grey_balance_neutral_ramp_avg",
+    "all_de00_p95",
+    # #182 K49, (b2): the paper patch of an ordinary chart is compared with
+    # the paper white of the run's profile, so this chart answers the row,
+    # and `white_de` is what makes it cross.
+    "substrate_de00_max",
+    "grey_balance_neutral_ramp_avg",
     "grey_balance_neutral_ramp_max", "ramps_30_70_dl_max",
     "control_strip_de00_avg", "control_strip_de00_max",
     "control_strip_de00_p95", "surface_gamut_de00_avg",
@@ -3840,16 +3829,12 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
         over = _replace(over, ramp_dl=None, repeat_split=None)
         inside = _replace(inside, ramp_dl=None, repeat_split=None)
     rows = matrix_rows(set_id, kind)
-    # #182 K37 (i): ON A FROM PROFILE GAMUT CHART THE TIGHT COLUMN CANNOT BE
-    # MET BY THE SOLIDS AND THE STRIP AT ONCE. A solid is judged against its
-    # ideal value in "Solid colours, largest" and against the profile's
-    # prediction in the control strip, and on this package's profiles the
-    # two lie 3.0 to 4.9 ΔE00 apart, more than the tight column's 1.5 and
-    # 1.5 together. The solid row is kept inside (no other chart kind can
-    # show it passing) and the strip's largest difference stays over; its
-    # PASS in this column is shown on the ordinary chart of the same column.
-    corner_bound = (["control_strip_de00_max"]
-                    if kind == "gamut" and set_id == "chromiq_tight" else [])
+    # #182 K37 (i) left one cell of the tight column unmeetable on a FROM
+    # PROFILE GAMUT chart: the solid rows compared a solid with its ideal
+    # value and the strip with the profile's prediction, 3.0 to 4.9 apart.
+    # #182 K49, (b2): both compare it with the prediction now, so the cell
+    # is met like every other and no date is designed over it.
+    corner_bound: "list[str]" = []
     # The repeat row of the second date crosses only in a column that numbers
     # it; a read-only ISO column does not (no standard limits ChromIQ's own
     # repeatability rows), so there the second date is simply back inside.
@@ -3876,10 +3861,11 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
                "judged here; that one is judged on the ordinary chart of the "
                "same column."
                if kind == "gamut" else
-               "The three rows that need a reference measurement of the "
-               "printing condition have no value here: an ordinary chart "
-               "cannot supply them, and the Profile-Gamut project is where "
-               "they are exercised.")
+               "The two solid-colour rows have no value here: this chart is "
+               "printed through the profile, so its solids are not the "
+               "printer's own, and the Profile-Gamut project is where they "
+               "are exercised. Its paper is compared with the paper white of "
+               "the run's profile.")
     if set_id in _ISO_SET_IDS:
         # A READ-ONLY ISO COLUMN numbers only what its standard limits, so
         # the sentence counts those rows and says why the others carry no
@@ -3941,16 +3927,10 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
     ]
 
 
-#: K37 (i): why the tight column's FROM PROFILE GAMUT dates never bring the
-#: strip's largest difference back (see `matrix_dates`).
-_CORNER_BOUND_STORY = (
-    " Except 'Control-strip patches, largest difference': on a chart built "
-    "from the profile's gamut the solid inks are compared with their ideal "
-    "values in 'Solid colours, largest' and with the profile's prediction in "
-    "the control strip, and on this profile the two lie further apart than "
-    "this column's two limits together, so the solids are kept inside the "
-    "solid-colour row and the strip stays over. The ordinary chart of the "
-    "same column shows that row passing.")
+#: K37 (i) had the tight column's FROM PROFILE GAMUT dates keep the strip's
+#: largest difference over; K49, (b2) made that cell meetable, so nothing is
+#: appended to a story any more (see `matrix_dates`).
+_CORNER_BOUND_STORY = ""
 
 
 #: The FROM PROFILE GAMUT project's own dates: the three rows that exist
@@ -4183,17 +4163,24 @@ PAPER_RAG = _outlier_pair(
 #: The Custom column numbers every row ChromIQ can measure, so a single far
 #: patch also crosses the control-strip rows when it is a strip patch
 #: (measured: it was). The tone-ramp row is what this run moves instead.
+#: #182 K49, (b2): THIS RUN IS PRINTED THROUGH ITS PROFILE, and it was
+#: printed with no record until K49. The paper row is judged on an ordinary
+#: chart now, against the paper white of the run's profile, and an
+#: unrecorded sheet is read as measured, where this generator designs the
+#: bare paper on the chart's own ideal white: the row was over the column's
+#: 2.0 on both dates, and a run of a Custom column must show every row it
+#: crosses coming back. Printed through the profile, the sheet's paper is the
+#: office paper the profile was made on, and the row reads it (PASS on both).
+#: The unrecorded angle stays with Border-Conditions/run2.
 PAPER_OFFICE = _outlier_pair(
     "04", Design(bulk=0.80, shoulder=1.20, tail=1.00, grey_dch=0.40,
                  ramp_dl=2.6),
     Design(bulk=0.80, shoulder=1.20, tail=1.00, grey_dch=0.40, ramp_dl=1.0),
-    # K33 (B8-998): Knut's 2.00 on 'Maximum ΔE00, all patches' in this
-    # column. A ramp step 2.6 too dark is itself a patch more than 2.0 out,
-    # so that row now crosses with the ramp row; the story names both.
-    "the tone-ramp row (Custom ISO 12647-7 2.0), and with it 'Maximum ΔE00, "
-    "all patches' (2.0), which that one dark step also carries over, on a "
-    "sheet whose printing nobody recorded",
-    ["ramps_30_70_dl_max", "all_de00_max"])
+    # Knut, #182 5841606710: the maximum's limit is 4.50 in this column (it
+    # was 2.0, K33), so the one dark step no longer carries "Maximum ΔE00,
+    # all patches" over with it.
+    "the tone-ramp row (Custom ISO 12647-7 2.0)",
+    ["ramps_30_70_dl_max"])
 PAPER_NEWS: "list[Date]" = [
     _d("2029-05-03_100000", "2029-05-03T10:00:00",
        "Measured once, one patch far out",
@@ -4704,11 +4691,10 @@ PROJECTS = [
                 "check: a grey cast, then corrected.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_quick", PAPER_RAG,
                 paper_class="matte_rag", report_type=REPORT_TYPE_GREY),
-        RunPlan("Uncoated office paper, an i1Pro chart layout, the Custom "
-                "ISO 12647-7 limit set, and no record of how the sheets were "
-                "printed, so they are judged in absolute Lab.",
+        RunPlan("Uncoated office paper, an i1Pro chart layout and the Custom "
+                "ISO 12647-7 limit set.",
                 CHART_SMALL_I1, CHART_SMALL_I1, "custom_iso_12647_7",
-                PAPER_OFFICE, paper_class="office", print_colour="none",
+                PAPER_OFFICE, paper_class="office",
                 note="The limits of this column are not edited by this "
                      "package and must not be: they are the column's own "
                      "starting numbers, researched industry figures and "

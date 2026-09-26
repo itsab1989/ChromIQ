@@ -123,7 +123,11 @@ def test_row_a_needs_no_reference_values_at_all(tmp_path):
              ("K2", (0.0, 0.0, 0.0), (2.4, 2.4, 2.4))]
     t3 = _write(tmp_path / "sheet.ti3", rows)          # no sibling .ti2
     vals = _values(t3)
-    assert vals["substrate_de00_max"]["reason"] == mr.REASON_NEEDS_REFERENCE_FILE
+    # #182 K49, (b2): the paper row asks the run's profile, and this sheet
+    # is in no run
+    assert vals["substrate_de00_max"]["value"] is None
+    assert vals["substrate_de00_max"]["reason"] \
+        == mr.REASON_NO_PROFILE_TO_COMPARE
     assert vals[ROW_A]["value"] is not None
 
 

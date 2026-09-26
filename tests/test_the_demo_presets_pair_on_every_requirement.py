@@ -99,6 +99,7 @@ CONSTANTS = (CONSTANT, CONSTANT_LAYOUT)
 IND = {
     "grey_within": 1.0, "grey_steps": 8, "grey_apart": 0.5,
     "grey_white_at": 90.0, "grey_black_at": 10.0, "grey_paper_at": 99.5,
+    "paper_at": 99.5,
     "grey_even_within": 4.0,
     "ramp_low": 30.0, "ramp_high": 70.0, "ramp_steps": 3, "ramp_span": 20.0,
     # K31 rule A (Knut, #182 5801677743): the grey ramp's spacing, on the band
@@ -122,8 +123,9 @@ PAGE = {1.0: {"strip_patches": 21, "page_strips": 24, "strip_mm": 8.005,
               "block_mm": 238.50}}
 SHEET_MM2 = 209.97 * 297.01
 
-_REFERENCE_ROWS = ("substrate_de00_max", "solids_de00_max",
-                   "cmy_solids_dhab_max")
+#: #182 K49, (b2): the two solid rows only; the paper row is answered by a
+#: chart with a patch printed with no ink (`IND["paper_at"]`).
+_REFERENCE_ROWS = ("solids_de00_max", "cmy_solids_dhab_max")
 _FREE_ROWS = ("all_de00_avg", "best95_de00_avg", "all_de00_max",
               "all_de00_p95")
 
@@ -237,6 +239,10 @@ def _independent(path: Path, scale: float = 1.0) -> "dict[str, str | None]":
     ids, rgb, kw = _read_ti1(path)
     out: "dict[str, str | None]" = {r: CONSTANT for r in _REFERENCE_ROWS}
     out.update({r: None for r in _FREE_ROWS})
+    # K49, (b2): the paper row, off the patch printed with no ink
+    out["substrate_de00_max"] = (
+        None if any(min(px) >= IND["paper_at"] for px in rgb)
+        else MR.REASON_NO_PAPER_PATCH)
     # the evenness page, from the patch count and printtarg's page as
     # measured (PAGE): the first page's strips, its rows, and its block
     page = PAGE[round(float(scale), 2)]
@@ -694,6 +700,7 @@ def test_the_thresholds_the_pack_claims_are_the_apps_own():
     assert IND["grey_white_at"] == MR.GREY_LIGHTEST_MIN
     assert IND["grey_black_at"] == MR.GREY_DARKEST_MAX
     assert IND["grey_paper_at"] == MR.GREY_PAPER_LEVEL
+    assert IND["paper_at"] == 100.0 - MR.PAPER_PATCH_TOL
     assert IND["grey_even_within"] == MR.GREY_SPACING_TOL
     assert (IND["ramp_low"], IND["ramp_high"]) == (MR.RAMP_TV_LOW,
                                                    MR.RAMP_TV_HIGH)

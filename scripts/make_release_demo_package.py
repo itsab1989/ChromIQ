@@ -350,7 +350,9 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ]),
     ("§34", "K37 (i):", [
         "Report-Limits-Second-Route/run2: New report…, every date, Judged against Custom ISO 12647-7: the two control-strip rows carry M-REPORT-STRIP-CORNERS-PREDICTED, the cube-corner table keeps the ideal values",
-        "Report-Limits-Every-Limit-Set/run4 and Report-Limits-Second-Route/run4 (ChromIQ tight): the strip's largest difference stays over on the dates that bring every other row back, and the dates say why",
+        # K49, (b2): the solids and the strip share one aim now, so the
+        # tight column's FROM PROFILE GAMUT dates bring every row back.
+        "Report-Limits-Every-Limit-Set/run4 and Report-Limits-Second-Route/run4 (ChromIQ tight): the dates that bring every other row back bring the strip's largest difference back too",
     ]),
     ("§36", "K40:", [
         "Report-Limits-Every-Metric/run1, Run type Verification: Create Chart > \"Which presets can be used for verification?\": the current chart answers 18 of 18; a printtarg preset of your own reads \"Working…\" until it is laid out",
@@ -367,7 +369,19 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ]),
     ("§41", "K47:", [
         "Report-Limits-Every-Metric/run1: New report…, all three dates, Contract proof check judged against ISO 12647-7:2016 values: the Control strip graph plots Avg and Max, each with its dotted line and sentence; the new Solid colours, Hue of the solids and Outer and surface gamut graphs; judged against Custom ISO 12647-7: Avg, P95 and Max",
-        "Report-Limits-Threshold-Series/run1: New report…, the first two dates, Grey and tone check: under Colour accuracy, Paper white, Darkest black and Cube corners, \"No limit applies to what this graph shows, so it has no limit line. It shows the trend only.\"",
+        "Report-Limits-Threshold-Series/run1: New report…, the first two dates, Grey and tone check: under Colour accuracy, Paper white, Darkest black and Cube corners, a sentence saying the graph has no limit line (worded per graph since K49, §41.8)",
+    ]),
+    ("§41.6", "K49", [
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Contract proof check, ISO 12647-7:2016 values: the solid rows compared with the profile's prediction, PASS, PASS, FAIL, each with M-REPORT-SOLIDS-PREDICTED; the cube-corner table keeps the ideal values",
+        "Report-Limits-Threshold-Series/run1: New report…, the first three dates, Contract proof check: the paper row compared with the run's profile's paper white, with M-REPORT-PAPER-AGAINST-PROFILE; the solid rows N-A, printed through the profile",
+        "Report-Limits-Border-Conditions/run3 (printed raw, a drift check): the paper and solid rows against the profile, shown with no verdict",
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: Paper white difference, Solid colours and Hue of the solids shown with their values and no limit line, each with its own sentence",
+        "Report-Limits-Every-Limit-Set/run1 (ordinary chart): the paper row over on the date that designs every row over, back inside after",
+    ]),
+    ("§42", "Knut on F5", [
+        "Report-Limits-Every-Metric/run1, Run type Verification: Measurement Report, Edit limits…: the two Custom columns read 4.50 on \"Maximum ΔE00, all patches\"; the (i) of that row, of the 95th percentile and of the control strip's and the grey ramp's rows: \"How this row relates to the others\"",
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Contract proof check, Custom ISO 12647-7: under Colour accuracy the Max line (4.5) above the P95 line (4.0)",
+        "Report-Limits-Custom-Columns/run1..run2: a single patch at 4.7 crosses the 4.50 and comes back",
     ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
@@ -471,6 +485,14 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-REPORT-STRIP-CORNERS-PREDICTED": [
         "Report-Limits-Every-Limit-Set/run12 (Custom ISO 12647-7, a chart built from the profile's gamut): any date, the control-strip rows carry this note",
         "Report-Limits-Profile-Gamut/run1: New report…, Judged against ISO 12647-7, the control-strip rows carry this note",
+    ],
+    # K49, (b2) (Knut, 5841092535): proposed notes on the solid rows and on
+    # an ordinary chart's paper row.
+    "M-REPORT-SOLIDS-PREDICTED": [
+        "Report-Limits-Every-Metric/run1: New report…, Contract proof check, ISO 12647-7:2016 values: the two solid rows carry this note",
+    ],
+    "M-REPORT-PAPER-AGAINST-PROFILE": [
+        "Report-Limits-Threshold-Series/run1: New report…, Contract proof check, ISO 12647-7:2016 values: the paper row carries this note",
     ],
     "M-REPORT-STRIP-CORNERS-IDEAL": [
         "Report-Limits-Profile-Gamut/run1: rename run1's Report-Limits-Profile-Gamut.icc, then New report…, Judged against ISO 12647-7, Generate report",

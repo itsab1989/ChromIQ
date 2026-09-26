@@ -383,14 +383,19 @@ def test_i_the_strip_compares_the_corners_with_the_profiles_prediction(
 
 
 def test_i_the_corner_table_keeps_the_ideal_values(tmp_path, fake_profile):
-    """Knut's earlier "no" (§32.5): the corner rows and table are unchanged.
+    """Knut's earlier "no" (§32.5): the corner TABLE is unchanged. Since K49,
+    (b2) (Knut 5841092535, "Yes"), "Maximum ΔE00, solid colours" is compared
+    with the profile's prediction like the strip, so it reads the shift the
+    fake profile predicts while the table reads 0.
 
     MUTATION, proven red: put the predictions into `ref` itself (the corner
-    table and "Solid colours, largest" read the shift)."""
-    from workflow.measurement_report import build_report, row_values
+    table reads the shift)."""
+    from workflow.measurement_report import (NOTE_SOLIDS_PREDICTED,
+                                             build_report, row_values)
     rep = build_report(_fpg_sheet(tmp_path), argyll_bin="/fake/argyll")
-    v = row_values(rep)["solids_de00_max"]["value"]
-    assert v is not None and v < 0.05, v
+    cell = row_values(rep)["solids_de00_max"]
+    assert cell["value"] is not None and cell["value"] > 1.0, cell
+    assert NOTE_SOLIDS_PREDICTED in cell["notes"]
     for c in rep["corners"]:
         if c.get("name") != "W" and c.get("de") is not None:
             assert c["de"] < 0.05, c
@@ -469,13 +474,16 @@ def test_i_a_report_saved_before_it_is_worked_out_again():
     assert _report_needs_rebuilding(rep)
 
 
-def test_i_the_demo_generator_places_a_solid_between_its_two_aims():
-    """The demo pack's FROM PROFILE GAMUT solids: the designed hue difference
-    from the ideal is kept exactly, the solid row's budget is kept, and the
-    ideal is left alone when it already fits the strip.
+def test_i_the_demo_generator_designs_a_solid_on_the_prediction():
+    """The demo pack's FROM PROFILE GAMUT solids since K49, (b2) (Knut
+    5841092535, "Yes"): the two solid rows and the strip all compare a solid
+    with the profile's prediction, so the generator designs it there, the hue
+    turn and the black's difference measured FROM the prediction, and a
+    solid the date does not design sits on it. (K37 (i) placed it between
+    the ideal and the prediction, `_between_two_aims`, now gone.)
 
-    MUTATION, proven red: return the ideal from `_between_two_aims` always
-    (the strip difference stays the whole gap)."""
+    MUTATION, proven red: design the solid on the ideal again (the hue turn
+    is measured from the wrong colour)."""
     import importlib
     import sys as _sys
     _sys.path.insert(0, str(Path(__file__).resolve().parent.parent
@@ -483,10 +491,12 @@ def test_i_the_demo_generator_places_a_solid_between_its_two_aims():
     gen = importlib.import_module("make_report_limit_demos")
     from workflow.measurement_report import _hue_difference_ab
     from workflow.ti3_analysis import ciede2000
-    ideal, pred = (97.1, -21.6, 94.5), (93.2, -14.9, 90.9)   # 3.8 apart
-    got = gen._between_two_aims(ideal, pred, 0.4, (2.0, 3.0))
-    assert abs(_hue_difference_ab(got, ideal) - 0.4) < 0.02, got
-    assert ciede2000(got, ideal) <= 0.85 * 2.0 + 1e-6
-    assert ciede2000(got, pred) < ciede2000(ideal, pred) - 1.0
-    near = (96.9, -21.4, 94.3)
-    assert gen._between_two_aims(ideal, near, None, (2.0, 3.0)) == ideal
+    pred = (93.2, -14.9, 90.9)
+    d = gen.Design(bulk=0.5, shoulder=0.8, cmy_dh=2.0, solid_de=3.0)
+    got = gen._solid_on_prediction("Y", pred, (93.0, -14.0, 90.0), d)
+    assert abs(_hue_difference_ab(got, pred) - 2.0) < 0.02, got
+    k = gen._solid_on_prediction("K", (2.0, 0.3, -0.4), (2.5, 0.5, -0.2), d)
+    assert abs(ciede2000(k, (2.0, 0.3, -0.4)) - 3.0) < 0.02, k
+    plain = gen.Design(bulk=0.5, shoulder=0.8)
+    assert gen._solid_on_prediction("C", pred, pred, plain) == pred
+    assert not hasattr(gen, "_between_two_aims")

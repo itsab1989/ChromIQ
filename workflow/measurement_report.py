@@ -400,6 +400,207 @@ def profile_paper_white(printing: "dict | None",
             "source": PAPER_REF_FROM_RUN, "profile": got[1]}
 
 
+#: #182 K49, (b2) (Knut, 5841092535: *"Should (b2) be built? Answer: Yes."*).
+#: What ``report["condition_reference"]`` says the paper row and the two
+#: solid rows were compared with. The profile's own description is taken as
+#: the characterization data of the printing condition being verified (this
+#: printer, these inks, this paper): the paper against the profile's media
+#: white, the solids against the colours the profile predicts for them. The
+#: other values say why a row could not be compared with it.
+CONDITION_FROM_PROFILE = "profile"
+#: no profile could be read (none recorded, none built in the run, or one
+#: ArgyllCMS cannot read)
+CONDITION_NO_PROFILE = "no_profile"
+#: the paper row only: the chart has no patch printed with no ink
+CONDITION_NO_PAPER_PATCH = "no_paper_patch"
+#: the solid rows only: the sheet was printed THROUGH the profile, so its
+#: cyan, magenta, yellow and black patches were converted to other ink
+#: amounts before printing and are not the printer's own solids
+CONDITION_THROUGH_PROFILE = "through_profile"
+#: the solid rows only: nobody recorded how the sheet was printed, so whether
+#: its solids were printed as they are cannot be told
+CONDITION_PRINTING_UNRECORDED = "printing_unrecorded"
+#: the solid rows only: the chart has no patch at a solid corner
+CONDITION_NO_CORNERS = "no_corners"
+#: the solid rows only, and only in the presets window, which asks before
+#: anything is printed: a chart that is not FROM PROFILE GAMUT is printed
+#: through its profile as a verification, so it cannot answer them; the
+#: remedy that window gives is the one `REASON_NEEDS_REFERENCE_FILE` carries
+CONDITION_BEFORE_PRINTING = "before_printing"
+
+#: The two rows (b2) judges against the profile's prediction where the solids
+#: were printed raw (a FROM PROFILE GAMUT chart always, else a raw print).
+#: §32.5 is reversed for these two and for nothing else: the cube-corner
+#: table and its graph keep the ideal values.
+ROWS_ON_RAW_SOLIDS: "tuple[str, ...]" = ("solids_de00_max",
+                                         "cmy_solids_dhab_max")
+#: The corner names whose solids those two rows read (C, M, Y and the
+#: composite black), and the three the hue row reads.
+SOLID_CORNERS: "tuple[str, ...]" = ("C", "M", "Y", "K")
+HUE_CORNERS: "tuple[str, ...]" = ("C", "M", "Y")
+
+
+def sheet_profile(printing: "dict | None", ti3_path: "Path | str | None"
+                  ) -> "tuple[Path, str] | None":
+    """``(profile, where from)`` for a measured sheet, or None: the profile
+    the print record names, when that file is still on disk (the profile the
+    sheet was printed through), else the run's own built profile. THE SAME
+    LOOKUP #182 K37 uses for a sheet's paper white (`profile_paper_white`),
+    so (b2) and K37 cannot ask two different profiles about one sheet.
+    Never raises."""
+    try:
+        cand = (printing or {}).get("profile_path")
+        if cand and Path(str(cand)).is_file():
+            return Path(str(cand)), PAPER_REF_FROM_PRINT
+    except Exception:                                  # noqa: BLE001
+        pass
+    icc = _run_profile_path(ti3_path)
+    return (icc, PAPER_REF_FROM_RUN) if icc is not None else None
+
+
+def solids_printed_raw(report: dict) -> "str | None":
+    """How a sheet's solids were printed, for the two solid rows of (b2):
+    None when they were printed as they are (raw), else the
+    ``CONDITION_*`` code that says why they cannot be compared with the
+    profile's prediction.
+
+    A FROM PROFILE GAMUT chart (a colorimetric reference) is ALWAYS raw: its
+    patches are already the profile's own ink amounts, and the Print tab
+    prints it with no profile applied (§3.1a), whatever a print record says.
+    Every other chart: a print record that says raw is raw; one that says
+    through the profile is not (its "cyan" is the chart's cyan mapped into
+    the gamut, a mix of inks); no record, or one that answers neither, cannot
+    be told."""
+    if (report or {}).get("reference_source") == "colorimetric":
+        return None
+    colour = ((report or {}).get("printing") or {}).get("colour")
+    if colour == "raw":
+        return None
+    if colour == "through-profile":
+        return CONDITION_THROUGH_PROFILE
+    return CONDITION_PRINTING_UNRECORDED
+
+
+def condition_reference_block(report: dict, *,
+                              ti3_path: "Path | str | None",
+                              argyll_bin: "str | Path | None",
+                              cref: "dict | None" = None,
+                              fpg_predictions: "tuple[dict, str] | None" = None,
+                              ) -> dict:
+    """``{"paper": {...}, "solids": {...}}``: what the paper row and the two
+    solid rows are compared with on this sheet (#182 K49, (b2)).
+
+    **Paper.** The sheet's paper patch (the patch printed with no ink, read
+    as measured) against the media white of the profile. A FROM PROFILE
+    GAMUT chart keeps the white its reference records (§31.5, A11:
+    `paper_reference_of`); every other chart asks `sheet_profile`, the K37
+    lookup. No paper patch, or no profile: the row reads N-A and says which.
+
+    **Solids.** Where the solids were printed raw (`solids_printed_raw`),
+    each present C, M, Y and K corner patch against the colour the profile
+    predicts for its own device value. A FROM PROFILE GAMUT chart asks the
+    one prediction its control strip asks (*fpg_predictions*, §34), with the
+    chart's own intent; a raw print asks `sheet_profile` with absolute
+    colorimetry, because a raw sheet is read as measured. The cube-corner
+    table (``report["corners"]``) is NOT touched: it keeps the ideal values.
+
+    Never raises: anything that cannot be asked is a named N-A."""
+    out: dict = {}
+    corners = {c.get("name"): c for c in (report.get("corners") or [])}
+    colorimetric = report.get("reference_source") == "colorimetric"
+
+    # -- the paper
+    paper: dict
+    if colorimetric:
+        w = corners.get("W")
+        _pw = paper_reference_of(cref, ti3_path) if cref is not None else None
+        if not (w and w.get("present")):
+            paper = {"from": CONDITION_NO_PAPER_PATCH}
+        elif _pw is None:
+            paper = {"from": CONDITION_NO_PROFILE}
+        else:
+            lab = tuple(float(v) for v in _pw[0])
+            paper = {"from": CONDITION_FROM_PROFILE, "source": _pw[1],
+                     "lab": [round(v, 2) for v in lab],
+                     "de": round(float(ciede2000(tuple(w["lab"]), lab)), 2)}
+            try:
+                if _pw[1] == PAPER_REF_FROM_CHART:
+                    paper["profile"] = str(
+                        (cref or {}).get("profile") or "")
+                else:
+                    _rp = _run_profile_path(ti3_path)
+                    paper["profile"] = _rp.name if _rp else ""
+            except Exception:                          # noqa: BLE001
+                pass
+    else:
+        pw = report.get("paper_white") or {}
+        if report.get("paper_patch") is False or not pw.get("lab"):
+            paper = {"from": CONDITION_NO_PAPER_PATCH}
+        else:
+            got = profile_paper_white(report.get("printing"), ti3_path)
+            if got is None:
+                paper = {"from": CONDITION_NO_PROFILE}
+            else:
+                lab = tuple(float(v) for v in got["lab"])
+                paper = {"from": CONDITION_FROM_PROFILE,
+                         "source": got["source"], "profile": got["profile"],
+                         "lab": [round(v, 2) for v in lab],
+                         "de": round(float(ciede2000(
+                             tuple(float(v) for v in pw["lab"]), lab)), 2)}
+    out["paper"] = paper
+
+    # -- the solids
+    solids: dict
+    why = solids_printed_raw(report)
+    present = [n for n in SOLID_CORNERS
+               if corners.get(n) and corners[n].get("present")]
+    if why is not None:
+        solids = {"from": why}
+    elif not present:
+        solids = {"from": CONDITION_NO_CORNERS}
+    else:
+        preds: "dict[str, tuple]" = {}
+        profile_name = ""
+        source = ""
+        if colorimetric:
+            if fpg_predictions is not None:
+                by_sid, profile_name = fpg_predictions
+                source = PAPER_REF_FROM_RUN
+                for n in present:
+                    p = by_sid.get(str(corners[n].get("sample")))
+                    if p is not None:
+                        preds[n] = tuple(float(v) for v in p)
+        else:
+            sp = sheet_profile(report.get("printing"), ti3_path)
+            if sp is not None and argyll_bin:
+                icc, source = sp
+                profile_name = icc.name
+                try:
+                    from workflow.xicclu_runner import forward_lab
+                    devs = [tuple(float(v) for v in corners[n]["rgb"])
+                            for n in present]
+                    labs = forward_lab(devs, icc, argyll_bin, intent="a")
+                    if len(labs) == len(present):
+                        preds = {n: tuple(float(v) for v in lab)
+                                 for n, lab in zip(present, labs)}
+                except Exception as exc:               # noqa: BLE001
+                    log.debug("solid predictions skipped: %s", exc)
+        if len(preds) != len(present):
+            solids = {"from": CONDITION_NO_PROFILE}
+        else:
+            de = {n: round(float(ciede2000(tuple(corners[n]["lab"]),
+                                           preds[n])), 2) for n in present}
+            dh = {n: round(_hue_difference_ab(corners[n]["lab"], preds[n]), 2)
+                  for n in present if n in HUE_CORNERS}
+            solids = {"from": CONDITION_FROM_PROFILE, "source": source,
+                      "profile": profile_name,
+                      "predicted": {n: [round(v, 2) for v in preds[n]]
+                                    for n in present},
+                      "de": de, "dhab": dh}
+    out["solids"] = solids
+    return out
+
+
 def _srgb_hex(xyz100: "tuple[float, float, float]") -> str:
     """D50 XYZ (0..100) → #rrggbb for display (Bradford to D65, sRGB gamma)."""
     x, y, z = (v / 100.0 for v in xyz100)
@@ -1564,6 +1765,7 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # written on EVERY report, so one saved before K37 (i) is worked out
     # again when the window reads it (ALWAYS_BUILT_BLOCKS, §6)
     report["strip_corner_aims"] = {"from": CORNER_AIMS_NOT_APPLICABLE}
+    _pred = None
     if ref_source == "colorimetric" and _cref is not None:
         _pred = profile_corner_predictions(_cref, ti3_path, argyll_bin)
         if _pred is not None:
@@ -1592,6 +1794,16 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         if _corners_in_strip:
             corner_aims["in_strip"] = _corners_in_strip
             report["strip_corner_aims"] = corner_aims
+
+    # #182 K49, (b2) (Knut, 5841092535, "Yes"): the paper row and the two
+    # solid rows are compared with the profile's own description of the
+    # printing condition, the paper with its media white on every sheet that
+    # has a paper patch, the solids with its prediction where they were
+    # printed raw. Written on EVERY report (ALWAYS_BUILT_BLOCKS, §6); the
+    # cube-corner table above keeps the ideal values.
+    report["condition_reference"] = condition_reference_block(
+        report, ti3_path=ti3_path, argyll_bin=argyll_bin, cref=_cref,
+        fpg_predictions=_pred)
     return report
 
 
@@ -2995,7 +3207,7 @@ JUDGED_KEY = "judged"
 #: were true when its words were written, not a later version's.
 JUDGED_EXPLANATION_KEYS: "tuple[str, ...]" = (
     "yardstick", "yardstick_no_paper", "paper_patch", "paper_white_used",
-    "strip_corner_aims")
+    "strip_corner_aims", "condition_reference")
 
 
 def judged_block(report: dict) -> dict:
@@ -4264,6 +4476,22 @@ REASON_NO_WHITE = "no_white"
 REASON_NO_BLACK = "no_black"
 REASON_NO_REFERENCE = "no_reference"
 REASON_NEEDS_REFERENCE_FILE = "needs_reference_file"
+#: #182 K49, (b2): the paper row and the two solid rows compare the sheet
+#: with its profile's own description, and these say why one could not:
+#: no profile could be read; the chart has no patch printed with no ink; the
+#: sheet was printed through the profile, so its solids are not the
+#: printer's own; nobody recorded how the sheet was printed.
+REASON_NO_PROFILE_TO_COMPARE = "no_profile_to_compare"
+REASON_NO_PAPER_PATCH = "paper_not_measured"
+REASON_SOLIDS_THROUGH_PROFILE = "solids_through_profile"
+REASON_SOLIDS_PRINTING_UNRECORDED = "solids_printing_unrecorded"
+#: …and the three of them only a MEASURED sheet can give: the presets window
+#: asks before anything is printed, of a chart whose run has a profile, and
+#: models a verification printed through it (`preset_eligibility`), so it
+#: can never meet them and does not classify them.
+AFTER_PRINTING_REASONS: "tuple[str, ...]" = (
+    REASON_NO_PROFILE_TO_COMPARE, REASON_SOLIDS_THROUGH_PROFILE,
+    REASON_SOLIDS_PRINTING_UNRECORDED)
 REASON_NO_RAMP = "no_ramp"
 #: K31 rule A: a ramp with enough steps spanning enough of the band, whose
 #: steps are bunched (`RAMP_SPACING_TOL`). Its own code, because "no tone ramp
@@ -4440,6 +4668,17 @@ NOTE_JUDGED_ABSOLUTE_NO_PAPER_WHITE = "absolute_no_paper_white"
 #: no profile could be asked, `M_REPORT_STRIP_CORNERS_IDEAL`.
 NOTE_STRIP_CORNERS_PREDICTED = "strip_corners_predicted"
 NOTE_STRIP_CORNERS_IDEAL = "strip_corners_ideal"
+
+#: #182 K49, (b2), Knut 5841092535 "Yes": the solid rows compare the solids
+#: with the profile's PREDICTION while the cube-corner table keeps their
+#: IDEAL values, and the paper row of a chart that is not FROM PROFILE GAMUT
+#: compares the paper with the profile's media white while the table's white
+#: corner keeps the chart's own aim. A note on each row says which, so the
+#: row and the table do not read as a contradiction. The texts are
+#: `measurement_messages.M_REPORT_SOLIDS_PREDICTED` and
+#: `M_REPORT_PAPER_AGAINST_PROFILE` (§M, proposed).
+NOTE_SOLIDS_PREDICTED = "solids_predicted"
+NOTE_PAPER_AGAINST_PROFILE = "paper_against_profile"
 
 #: The rows whose numbers such a sheet moves, measured in §32.6: the five
 #: colour-difference statistics, the three control-strip rows, the two gamut
@@ -5754,7 +5993,46 @@ def row_values(report: dict) -> "dict[str, dict]":
     # -- rows that need a reference for the printing condition: computable
     #    from the corners only against a colorimetric reference (CS Q9)
     corners = {c.get("name"): c for c in (report.get("corners") or [])}
-    if report.get("reference_source") == "colorimetric":
+    cond = report.get("condition_reference")
+    if isinstance(cond, dict):
+        # #182 K49, (b2): against the profile's own description of the
+        # printing condition (`condition_reference_block`).
+        paper = cond.get("paper") or {}
+        if paper.get("from") == CONDITION_FROM_PROFILE \
+                and paper.get("de") is not None:
+            put("substrate_de00_max", paper["de"],
+                notes=(None if report.get("reference_source") == "colorimetric"
+                       else NOTE_PAPER_AGAINST_PROFILE))
+        else:
+            put("substrate_de00_max", None, {
+                CONDITION_NO_PAPER_PATCH: REASON_NO_PAPER_PATCH,
+            }.get(paper.get("from"), REASON_NO_PROFILE_TO_COMPARE))
+        solids = cond.get("solids") or {}
+        if solids.get("from") == CONDITION_FROM_PROFILE:
+            de = [float(v) for v in (solids.get("de") or {}).values()]
+            dh = [float(v) for v in (solids.get("dhab") or {}).values()]
+            if de:
+                put("solids_de00_max", max(de), notes=NOTE_SOLIDS_PREDICTED)
+            else:
+                put("solids_de00_max", None, REASON_NO_CORNERS)
+            if dh:
+                put("cmy_solids_dhab_max", max(dh),
+                    notes=NOTE_SOLIDS_PREDICTED)
+            else:
+                put("cmy_solids_dhab_max", None, REASON_NO_CORNERS)
+        else:
+            reason = {
+                CONDITION_THROUGH_PROFILE: REASON_SOLIDS_THROUGH_PROFILE,
+                CONDITION_PRINTING_UNRECORDED:
+                    REASON_SOLIDS_PRINTING_UNRECORDED,
+                CONDITION_NO_CORNERS: REASON_NO_CORNERS,
+                CONDITION_BEFORE_PRINTING: REASON_NEEDS_REFERENCE_FILE,
+            }.get(solids.get("from"), REASON_NO_PROFILE_TO_COMPARE)
+            for rid in ROWS_ON_RAW_SOLIDS:
+                put(rid, None, reason)
+    elif report.get("reference_source") == "colorimetric":
+        # A report saved before K49, shown as it was saved: its rows were
+        # worked out against the chart's colorimetric reference alone.
         w = corners.get("W")
         # #182 A11: the W corner's aim is the paper the chart's profile
         # describes since beta 42 (`paper_reference_of`, set in

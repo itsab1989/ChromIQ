@@ -362,16 +362,20 @@ def test_an_older_reference_asks_the_runs_own_profile(tmp_path):
     assert v is not None and v < 0.1, v
 
 
-def test_with_nothing_to_ask_the_row_keeps_its_old_comparison(tmp_path):
-    """No white recorded and no profile in the run: the row keeps the old
-    comparison with the W corner's own aim (device white read as sRGB),
-    which is what a report saved before beta 42 carries anyway."""
-    from workflow.measurement_report import build_report, row_values
+def test_with_nothing_to_ask_the_row_reads_no_profile(tmp_path):
+    """No white recorded and no profile in the run. Until K49 the row kept
+    the old comparison with the W corner's own aim (device white read as
+    sRGB); since (b2) (Knut, #182 5841092535, "Yes") it compares the paper
+    with a profile's media white or not at all: N-A, "no profile could be
+    read". A report saved before K49 keeps its old number (§6)."""
+    from workflow.measurement_report import (REASON_NO_PROFILE_TO_COMPARE,
+                                             build_report, row_values)
     ti3 = _gamut_verification(tmp_path, profile_white=None)
     rep = build_report(ti3)
     assert "paper_reference_lab" not in rep["colorimetric"]
-    v = row_values(rep)["substrate_de00_max"]["value"]
-    assert v is not None and 2.5 < v < 3.5, v
+    cell = row_values(rep)["substrate_de00_max"]
+    assert cell["value"] is None
+    assert cell["reason"] == REASON_NO_PROFILE_TO_COMPARE
 
 
 # --------------------------------------------------------------------------

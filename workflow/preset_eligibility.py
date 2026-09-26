@@ -158,6 +158,11 @@ OTHER_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_NO_CONTROL_STRIP,          # the chart declares no strip
     MR.REASON_CONTROL_STRIP_TOO_SMALL,   # the declared strip is too short
     MR.REASON_NO_CORNERS,                # no patch at a solid corner
+    # #182 K49, (b2): the paper row on a chart with no patch printed with
+    # no ink. A chart-file matter like the corners above, and kept out of
+    # the star for the same reason: it decided none before (the row read
+    # needs_reference_file on every preset).
+    MR.REASON_NO_PAPER_PATCH,
     MR.REASON_NOT_COMPUTED,              # the block is absent (old report)
     MR.REASON_NO_DEVICE_VALUES,          # the file carries no device values
 })
@@ -250,8 +255,14 @@ def classified_reasons() -> "frozenset[str]":
 #: `measurement_report` withholds with ``needs_reference_file``. Two lists that
 #: could drift is the fault this project keeps finding.
 def gamut_only_rows() -> "tuple[str, ...]":
-    """The row ids no preset chart can answer, in table order."""
-    return tuple(r.id for r in CS.ROWS if r.status == "ref")
+    """The row ids no preset chart can answer, in table order.
+
+    #182 K49, (b2): since Knut's "Yes" (5841092535) the paper row is
+    compared with the profile's media white on any chart with a paper patch,
+    so it left this list; the two solid rows stay, because only a chart whose
+    solids are printed raw can answer them (`MR.ROWS_ON_RAW_SOLIDS`)."""
+    return tuple(r.id for r in CS.ROWS if r.status == "ref"
+                 and r.id in MR.ROWS_ON_RAW_SOLIDS)
 
 
 def is_patch_shortfall(reason: "str | None") -> bool:
@@ -430,7 +441,46 @@ def _perfect_print(chart: Path, recipe: "dict | None" = None,
         # by a second reading of what a corner is.
         report["corners"] = MR.corners_block(rgb100, lab, ref, data,
                                              corner_ids, corner_devices)
+    report["condition_reference"] = _condition_it_would_get(
+        report, rgb100, lab, colorimetric)
     return report
+
+
+def _condition_it_would_get(report: dict, rgb100, lab,
+                            colorimetric: bool) -> dict:
+    """#182 K49, (b2): what the paper row and the two solid rows of a
+    flawless print of this chart would be compared with, asked of the
+    report's own predicates.
+
+    * **The paper:** any chart with a patch printed with no ink
+      (`MR.paper_white_row`, the report's own test) is compared with its
+      profile's media white. A verification is always measured in a run with
+      a profile, so a flawless print reads 0; a chart with no such patch
+      cannot answer.
+    * **The solids:** a FROM PROFILE GAMUT chart prints its solids raw and is
+      compared with the profile's prediction; any other chart is printed
+      through its profile as a verification, so its solids are not the
+      printer's own and the rows stay withheld, with the remedy the report's
+      ``needs_reference_file`` carries (build it FROM PROFILE GAMUT)."""
+    if colorimetric:
+        corners = {c.get("name"): c for c in report.get("corners") or []}
+        w = corners.get("W")
+        paper = ({"from": MR.CONDITION_FROM_PROFILE, "de": 0.0}
+                 if w and w.get("present")
+                 else {"from": MR.CONDITION_NO_PAPER_PATCH})
+        present = [n for n in MR.SOLID_CORNERS
+                   if corners.get(n) and corners[n].get("present")]
+        solids = ({"from": MR.CONDITION_FROM_PROFILE,
+                   "de": {n: 0.0 for n in present},
+                   "dhab": {n: 0.0 for n in present
+                            if n in MR.HUE_CORNERS}}
+                  if present else {"from": MR.CONDITION_NO_CORNERS})
+    else:
+        paper = ({"from": MR.CONDITION_FROM_PROFILE, "de": 0.0}
+                 if MR.paper_white_row(lab, rgb100) is not None
+                 else {"from": MR.CONDITION_NO_PAPER_PATCH})
+        solids = {"from": MR.CONDITION_BEFORE_PRINTING}
+    return {"paper": paper, "solids": solids}
 
 
 def _declared_corners(chart: Path) -> "tuple[list | None, dict | None]":

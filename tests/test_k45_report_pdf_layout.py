@@ -401,7 +401,9 @@ def test_the_window_shows_the_key_under_the_graph_in_front(qapp, tmp_path):
         # K47 (Knut #182 5840152058): a graph with no limit now says so
         # under it, and says nothing else.
         assert not dlg._trend_key.isHidden()
-        assert dlg._trend_key.text() == mrd.html.escape(mrd.no_limit_note())
+        # K49: in that graph's own words (what it shows, what for, why)
+        assert dlg._trend_key.text() == mrd.html.escape(
+            mrd.no_limit_note("black"))
         # a graph of one date draws no line, so it has no key either
         tabs.setCurrentIndex(tabs.indexOf(dlg._trend_de))
         assert not dlg._trend_key.isHidden()

@@ -335,6 +335,11 @@ def test_every_reason_the_report_can_produce_is_classified():
     #: fifth code added to that pair is either classified or excluded on
     #: purpose, never by this test quietly widening.
     never_asked = set(MR.REPEATABILITY_REASONS)
+    #: #182 K49, (b2): the three reasons only a MEASURED sheet gives (no
+    #: profile could be read, solids printed through the profile, printing
+    #: not recorded). This window asks before printing, so it never meets
+    #: them, and classifying them would be sentences nobody reads.
+    never_asked |= set(MR.AFTER_PRINTING_REASONS)
     produced = {v for k, v in vars(MR).items()
                 if k.startswith("REASON_") and isinstance(v, str)}
     assert not (never_asked & PE.classified_reasons()), (
@@ -418,17 +423,23 @@ def test_each_instrument_group_has_at_least_one_starred_preset(rows):
     assert without == ["Red River Paper", "Scanner"], without
 
 
-def test_the_three_reference_rows_are_beyond_every_preset(builtin_charts):
-    """MEASURED, on all of them: a colorimetric reference is written only
-    beside a chart built FROM PROFILE GAMUT, so no preset can answer these
-    three, and the window says so with the row's own remedy instead of
-    pretending otherwise."""
+def test_the_two_solid_rows_are_beyond_every_preset(builtin_charts):
+    """MEASURED, on all of them: a preset is printed through its profile as a
+    verification, so its solids are not the printer's own and no preset can
+    answer the two solid rows; the window says so with the row's own remedy
+    (build it FROM PROFILE GAMUT). #182 K49, (b2): the PAPER row left this
+    list, because it is compared with the profile's media white on any chart
+    with a patch printed with no ink, which every one of them has.
+
+    MUTATION, proven red: model the solids of an ordinary chart as compared
+    with the profile in `_condition_it_would_get`."""
     for label, chart in builtin_charts:
         v = PE.chart_row_values(chart)
-        for rid in ("substrate_de00_max", "solids_de00_max",
-                    "cmy_solids_dhab_max"):
+        for rid in ("solids_de00_max", "cmy_solids_dhab_max"):
             assert v[rid]["value"] is None, f"{label} answered {rid}"
             assert v[rid]["reason"] == MR.REASON_NEEDS_REFERENCE_FILE
+        assert v["substrate_de00_max"]["value"] == 0.0, \
+            (label, v["substrate_de00_max"])
 
 
 def test_the_control_strip_is_the_one_chromiq_would_declare(builtin_charts):

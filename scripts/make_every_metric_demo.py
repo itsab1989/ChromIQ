@@ -259,7 +259,6 @@ def _sheet(ti2: Path, out: Path, d: Date, seed: int, *, cref: dict,
     aims = {str(k): tuple(v) for k, v in cref["labs"].items()}
     corners = set(str(c) for c in cref.get("corner_ids") or ())
     paper_ids = set(MR.paper_corner_ids(cref))
-    budgets = DEMO._corner_budgets(_limits())
     labs = {}
     for sid in chart.sample_ids:
         aim = aims[sid]
@@ -272,21 +271,13 @@ def _sheet(ti2: Path, out: Path, d: Date, seed: int, *, cref: dict,
             base = _solve(paper_white, _PAPER_SHIFT, d.paper_de)
             lab = np.asarray(base, float) + np.array([0.0, 0.0, 0.0])
         elif sid in corners:
-            # §34 (K37 i): a solid (C, M, Y, one ink off) and the black are
-            # judged against their IDEAL value by the corner rows and against
-            # the profile's PREDICTION by the control strip, so they go
-            # between the two (`_between_two_aims`); the overprints R, G, B
-            # (two inks off) are judged only in the strip and go on the
-            # prediction, which is what a printer prints.
+            # #182 K49, (b2): every corner patch but the paper aims at the
+            # profile's PREDICTION in every row that judges it (the two
+            # solid rows and the control strip), which is what a printer that
+            # prints as profiled prints; the cube-corner table keeps the ideal
+            # and is not judged.
             pred = strip_aims.get(sid)
-            dev = [float(x) for x in (cref.get("devices") or {}).get(sid, ())]
-            overprint = sum(1 for x in dev if x <= 0.5) == 2
-            if pred is not None and overprint:
-                base = tuple(pred)
-            elif pred is not None:
-                base = DEMO._between_two_aims(aim, pred, None, budgets)
-            else:
-                base = aim
+            base = tuple(pred) if pred is not None else aim
             base = _rotate(base, d.solid_dh)
             base = _solve(base, _SHIFT, d.solid_de) if d.solid_de else base
             lab = np.asarray(base, float) + noise * 0.4
