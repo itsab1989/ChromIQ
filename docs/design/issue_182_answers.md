@@ -2356,5 +2356,56 @@ engine on the panel is not hidden for the i1iSis. Nothing was changed for it
 both halves.
 
 The i1iSis help (printtarg's Measurement Instrument, `data/parameters.yaml`)
-does not say what the setting is for in his words. Wording proposed to him,
-not shipped, in `~/Desktop/ChromIQ-beta44-proof/k50-create-chart/NOTES.txt`.
+did not say what the setting is for in his words. The wording proposed to him
+in `~/Desktop/ChromIQ-beta44-proof/k50-create-chart/NOTES.txt` was ACCEPTED by
+Knut on 2026-09-26 (#182 comment 5846376222, *"Answer: Accepted"*) and ships in
+beta 44 word for word; see §2z.
+
+## 2z. Knut's answers of 2026-09-26 (#182 comments 5846376222 and 5846545713)
+
+### Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-26, on #182 (comments 5846376222 and
+5846545713), for exactly what he said and nothing more:
+
+* The Measure tab's check before measuring groups its metrics the way the
+  presets window does (B8-1321). Asked *"The Measure tab's check before
+  measuring ("this chart cannot answer…") still lists one line per metric.
+  Should it be grouped the same way?"*, he answered *"Answer: yes"*.
+* Guided's Output frame does not fold: *"No"* (B8-1311).
+* The i1iSis help text, accepted word for word (*"Answer: Accepted"*):
+  *"i1iSis (via i1Profiler): automatic sheet-fed chart reader that ChromIQ
+  cannot drive. Choose it only when you will measure the chart in i1Profiler
+  and import the measurements back into ChromIQ, for example to make a
+  Measurement Report. ChromIQ saves the patch list in i1Profiler's own format
+  beside the chart; its Print and Measure tabs are not used for this
+  device."*
+* The CR30 and the layout engine box: *"Should not "Use the ChromIQ layout
+  engine instead of printtarg" always be ON and locked when CR30 instrument is
+  selected? I think so."*
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* How the four were built for beta 44, driven on
+screen (`~/Desktop/ChromIQ-beta44-proof/k53/`):
+
+* The pre-flight's "It cannot answer these" list is grouped by
+  `group_by_messages`, the presets window's own function, over the lines the
+  pre-flight prints under a metric: its one reason (the lever stays in the
+  presets window, which Knut asked the popup to leave out so it stays short).
+  Metrics with the same reason are listed together with the reason once;
+  a metric whose reason no other shares is listed on its own; the groups keep
+  the order of their first metric (B8-1354).
+* The i1iSis bullet is his text; the rest of the instrument help lost its em
+  dashes (the house rule for a touched string), and the German help, by hand,
+  gained the CR30 bullet it never had.
+* On the CR30, whichever way it became the instrument (printtarg's
+  Instrument, the layout panel's, a preset, a restore, a target's settings,
+  Guided's switch to Manual), the box shows ticked, is greyed, keeps a muted
+  fill so it reads as ticked, and says why in its tooltip. The lock is SHOWN,
+  not written: `use_chromiq_layout_engine` keeps the person's own choice, so
+  the box returns to it the moment the instrument is no longer the CR30, and
+  an i1Pro laid out by printtarg stays printtarg after a CR30 in between. A
+  store or preset saved with the box unticked on a CR30 opens with the box
+  locked on and its own layout (B8-1353).
+

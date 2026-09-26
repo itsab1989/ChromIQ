@@ -494,33 +494,48 @@ parameters:
       tooltip_body: |
         Teilt dem Chart-Generator mit, mit welchem Spektralfotometer du
         das gedruckte Chart einlesen wirst. Das Messfeldraster wird um
-        Streifenbreite, Feldgröße und Abstände dieses Geräts herum gebaut
-        — die richtige Wahl ist daher entscheidend.
+        Streifenbreite, Feldgröße und Abstände dieses Geräts herum gebaut,
+        daher ist die richtige Wahl entscheidend.
 
-          •  i1Pro / i1Pro 2 / i1Pro 3 — handgeführter Streifenleser, die
+          •  i1Pro / i1Pro 2 / i1Pro 3: handgeführter Streifenleser, die
              häufigste Wahl. Liest eine Spalte Messfelder in einem Durchzug.
 
-          •  i1Pro 3 Plus — Version des i1Pro 3 mit größerer Blende.
+          •  i1Pro 3 Plus: Version des i1Pro 3 mit größerer Blende.
              Liest größere Felder, daher passen deutlich weniger pro Blatt
              (~5× weniger als beim normalen i1Pro).
 
-          •  ColorMunki / i1Studio / ColorChecker Studio — Einsteigergerät.
+          •  ColorMunki / i1Studio / ColorChecker Studio: Einsteigergerät.
              Liest allein jeweils ein Feld; mit der optionalen Messschiene
              werden sie gepaart (siehe Double Density).
 
-          •  SpectroScan — XY-Flachbettscanner. Ein motorisierter Arm liest
+          •  SpectroScan: XY-Flachbettscanner. Ein motorisierter Arm liest
              jedes Feld einzeln und packt daher weit mehr Farben pro Blatt
              als jeder Streifenleser.
 
-          •  i1iSis (über i1Profiler) — automatischer Einzelblatt-Chartleser.
-             ChromIQ kann dieses Gerät nicht direkt ansteuern: Stattdessen
-             wird die Feldliste im i1Profiler-eigenen Format neben dem Chart
-             gespeichert, und du schließt den Workflow dort ab (drucken,
-             scannen, Profil bauen). ChromIQs Druck- und Mess-Tabs werden
+          •  CR30 (ChnSpec): kleines Handfarbmessgerät, das jeweils EIN
+             Feld liest. Du setzt es auf ein Feld und drückst die Taste am
+             Gerät; ChromIQ speichert dieses Feld und hebt das nächste
+             hervor. Das Chart ist ein einfaches Raster mit Zeilennummern
+             und Spaltenbuchstaben, damit du das gefragte Feld findest. Die
+             Feldgröße ist VORLÄUFIG (Quadrate von 12 mm, ein begründeter
+             Ausgangswert und kein gemessenes Minimum), und jedes Feld ist
+             ein Aufsetzen und ein Tastendruck von etwa zwei Sekunden, ein
+             volles A4-Blatt mit ~345 Feldern ist also eine lange Sitzung.
+             Ein CR30-Chart wird IMMER von ChromIQs eigener Layout-Engine
+             gesetzt und kann nur von ChromIQ gelesen werden: Das normale
+             chartread von ArgyllCMS kennt dieses Gerät nicht und lehnt das
+             Chart ab.
+
+          •  i1iSis (über i1Profiler): automatischer Einzelblatt-Chartleser,
+             den ChromIQ nicht ansteuern kann. Wähle ihn nur, wenn du das
+             Chart in i1Profiler messen und die Messwerte anschließend in
+             ChromIQ importieren wirst, zum Beispiel für einen Messbericht.
+             ChromIQ speichert die Feldliste im i1Profiler-eigenen Format
+             neben dem Chart; die Druck- und Mess-Tabs von ChromIQ werden
              für dieses Gerät nicht verwendet.
 
         Die falsche Gerätewahl ergibt ein Chart, an dem sich dein Gerät
-        nicht ausrichten kann oder das es nicht zuverlässig liest — beim
+        nicht ausrichten kann oder das es nicht zuverlässig liest, und beim
         Messen erscheinen dann „patches not found“- oder Ausrichtungsfehler.
         Im geführten Modus passt sich das Layout dieser Wahl automatisch an.
 

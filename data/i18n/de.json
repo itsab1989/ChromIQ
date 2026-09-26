@@ -6340,5 +6340,6 @@
  "the outer and surface gamut": "den Gamut-Rand samt Gamut-Oberfläche",
  "the paper white difference": "die Papierweiß-Abweichung",
  "the solid colours": "die Volltonfarben",
- "the tone ramps": "die Tonwertrampen"
+ "the tone ramps": "die Tonwertrampen",
+ "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Ein CR30-Chart wird immer von der ChromIQ-Layout-Engine gesetzt, daher bleibt dies eingeschaltet, solange der CR30 das Messgerät ist."
 }

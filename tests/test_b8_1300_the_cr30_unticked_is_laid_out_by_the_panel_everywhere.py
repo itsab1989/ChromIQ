@@ -70,7 +70,10 @@ def _tab(qapp, settings, instr: str, box: bool):
     t._refresh_manual_command_preview()
     qapp.processEvents()
     assert t._manual_get("printtarg", "-i", "") == instr
-    assert bool(t._manual_engine_check.isChecked()) is box
+    # B8-1353: on the CR30 the box SHOWS ticked and is locked; the setting
+    # keeps the person's own choice ("unticked" is the setting from here on).
+    assert bool(t._manual_engine_check.isChecked()) is (box or instr == "CR30")
+    assert bool(t._settings.get("use_chromiq_layout_engine", None)) is box
     return t
 
 
@@ -154,8 +157,10 @@ def test_loading_it_puts_the_presets_layout_back_and_leaves_the_box(
     assert r.dpi == 400
     assert [r.margin_top, r.margin_right, r.margin_bottom, r.margin_left] \
         == [11, 12, 13, 14]
-    # the box decides nothing for the CR30, and a CR30 preset does not move it
-    assert t._manual_engine_check.isChecked() is False
+    # the box decides nothing for the CR30, and a CR30 preset does not move
+    # the person's setting (B8-1353: the box itself shows ticked and locked)
+    assert t._manual_engine_check.isChecked() is True
+    assert not t._manual_engine_check.isEnabled()
     assert t._settings.get("use_chromiq_layout_engine", True) is False
     assert not t._manual_layout_grp.isHidden()
 

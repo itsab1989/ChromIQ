@@ -6340,5 +6340,6 @@
  "the outer and surface gamut": "the outer and surface gamut",
  "the paper white difference": "the paper white difference",
  "the solid colours": "the solid colours",
- "the tone ramps": "the tone ramps"
+ "the tone ramps": "the tone ramps",
+ "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument."
 }

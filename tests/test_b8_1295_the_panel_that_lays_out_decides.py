@@ -265,7 +265,11 @@ def test_the_cr30_with_the_box_unticked_saves_the_panel_on_screen(qapp, store):
     t = _cr30_unticked_session(qapp, store)
     try:
         got = _manual(qapp, t)
-        assert got["shown"] and not t._manual_engine_check.isChecked()
+        # B8-1353: the box shows ticked and locked on the CR30; the setting
+        # is the person's "unticked"
+        assert got["shown"] and t._manual_engine_check.isChecked() \
+            and not t._manual_engine_check.isEnabled() \
+            and not t._settings.get("use_chromiq_layout_engine", False)
         t._on_save_defaults()
     finally:
         _close(qapp, t)

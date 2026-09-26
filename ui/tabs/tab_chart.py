@@ -4969,6 +4969,11 @@ class _CappedComboBox(NoScrollComboBox):
                             and event.button() == Qt.MouseButton.LeftButton:
                         self.more_row_triggered.emit(idx.row(), "toggle")
                     return True
+                if et == QEvent.Type.MouseButtonRelease \
+                        and not self._ending_view_drag \
+                        and not self._release_chooses(event.position().toPoint()):
+                    self._end_view_drag(event)
+                    return True
             elif obj is view and et == QEvent.Type.ShortcutOverride:
                 # THE POPUP TAKES RETURN AND ENTER HERE, NOT AS A KEY PRESS:
                 # its container chooses the current row and closes the list
@@ -5021,6 +5026,54 @@ class _CappedComboBox(NoScrollComboBox):
         except Exception:      # noqa: BLE001 — an event filter must never raise
             log.debug("preset list: arrow row event not handled", exc_info=True)
         return super().eventFilter(obj, event)
+
+    #: True while :meth:`_end_view_drag` hands the view its own release.
+    _ending_view_drag = False
+
+    def _release_chooses(self, pos) -> bool:
+        """True when a release at ``pos`` (the viewport's coordinates) is on
+        a row a person can choose: inside the rows' area, on a row that is
+        enabled and selectable (B8-1350, B8-1351).
+
+        Qt's popup does not ask where the release is. It chooses the list's
+        CURRENT row on any release its viewport receives inside the VIEW's
+        rectangle, and the viewport keeps receiving the mouse after a press
+        on it, wherever the pointer goes. So a press on a row, dragged right
+        past the 8 px scroll bar onto the list's edge while the list scrolled
+        by itself, chose the row that became current while it scrolled
+        (beta 44 challenge round 7, 9 of 9 with a real pointer); and a click
+        on a group heading, which cannot be current, chose the current preset
+        again. A release chooses only the row it is on, as the Built-in
+        presets list does; anything else leaves the list open."""
+        vp = self._arrow_viewport
+        if not vp.rect().contains(pos):
+            return False
+        idx = self._arrow_view.indexAt(pos)
+        if not idx.isValid():
+            return False
+        need = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        return (idx.flags() & need) == need
+
+    def _end_view_drag(self, event) -> None:
+        """Kept from Qt's popup, the release still has to reach the LIST, so
+        it ends its press-and-drag as after any release. Handed a copy far
+        outside the view, the popup's check (the point inside the view) fails
+        and chooses nothing. Measured on screen with a real pointer: without
+        this copy the list closed by itself while the pointer then hovered
+        over the rows (3 of 3); with it, it stays open and the next click on
+        a row chooses that row (k53 after/follow-up)."""
+        from PyQt6.QtCore import QEvent, QPointF
+        from PyQt6.QtGui import QMouseEvent
+        from PyQt6.QtWidgets import QApplication
+        far = QPointF(-100000.0, -100000.0)
+        copy = QMouseEvent(QEvent.Type.MouseButtonRelease, far,
+                           event.globalPosition(), event.button(),
+                           event.buttons(), event.modifiers())
+        self._ending_view_drag = True
+        try:
+            QApplication.sendEvent(self._arrow_viewport, copy)
+        finally:
+            self._ending_view_drag = False
 
     def _edge_row(self, *, last: bool) -> int:
         """The first (or last) row of the open list that Up and Down can
@@ -7909,6 +7962,56 @@ class TabChart(QWidget):
         layout.addWidget(scroll)
         return w
 
+    def _engine_box_locked(self) -> bool:
+        """True while Manual's instrument is one only the ChromIQ layout
+        engine can lay out (the CR30, `ENGINE_ONLY_INSTRUMENTS`): the box
+        "Use the ChromIQ layout engine instead of printtarg" is then shown
+        ticked and cannot be changed (B8-1353, Knut #182 5846545713)."""
+        from workflow.chart_creator import ENGINE_ONLY_INSTRUMENTS
+        try:
+            instr = self._manual_get("printtarg", "-i", "i1")
+        except Exception:      # noqa: BLE001 — a half-built tab
+            return False
+        return str(instr or "") in ENGINE_ONLY_INSTRUMENTS
+
+    def _sync_engine_box(self) -> None:
+        """The engine box as it must stand now, without firing `toggled`.
+
+        **SHOWN, NOT WRITTEN (B8-1353).** Knut, #182 5846545713: *"Should not
+        "Use the ChromIQ layout engine instead of printtarg" always be ON and
+        locked when CR30 instrument is selected? I think so."* On the CR30 the
+        box shows ticked and is disabled; `use_chromiq_layout_engine` keeps
+        the person's own choice, so the box goes back to it the moment the
+        instrument is no longer the CR30, and an i1Pro saved with printtarg
+        stays printtarg after a CR30 in between. The setting is not needed to
+        lay a CR30 out: `_layout_panel_lays_out` answers yes for the CR30
+        whatever it says, which is also what an older store or preset saved
+        with the box unticked on a CR30 is read by."""
+        chk = getattr(self, "_manual_engine_check", None)
+        if chk is None:
+            return
+        locked = self._engine_box_locked()
+        want = locked or bool(
+            self._settings.get("use_chromiq_layout_engine", False))
+        if chk.isChecked() != want:
+            chk.blockSignals(True)
+            chk.setChecked(want)
+            chk.blockSignals(False)
+        if chk.isEnabled() == locked:
+            chk.setEnabled(not locked)
+            # A DISABLED TICKED BOX IS DRAWN EMPTY in both themes (measured on
+            # screen: the first cut showed the CR30's lock as an unticked
+            # greyed box). `#locked_on` keeps a muted accent fill, the
+            # convention the Measure tab's patch-by-patch lock set; the name
+            # is part of the selector, so the box is polished again.
+            chk.setObjectName("locked_on" if locked else "")
+            chk.style().unpolish(chk)
+            chk.style().polish(chk)
+            chk.setToolTip(tr(
+                "A CR30 chart is always laid out by the ChromIQ layout engine, "
+                "so this stays on while the CR30 is the instrument.")
+                if locked else "")
+
     def _set_engine_checked(self, on: bool) -> None:
         """Move the engine checkbox WITHOUT it counting as the user's choice.
 
@@ -7917,6 +8020,20 @@ class TabChart(QWidget):
         the first-time stamp default must not be spent on them.
         """
         chk = getattr(self, "_manual_engine_check", None)
+        if chk is not None and self._engine_box_locked():
+            # LOCKED ON THE CR30 (B8-1353): the box shows ticked whatever the
+            # person chose, so the box is no measure of that choice. What an
+            # app path moves is the person's own setting, the one the box
+            # returns to when the CR30 is no longer the instrument.
+            if bool(self._settings.get("use_chromiq_layout_engine",
+                                       False)) != bool(on):
+                self._engine_moved_by_app = getattr(
+                    self, "_engine_moved_by_app", 0) + 1
+                try:
+                    self._on_manual_engine_toggled(bool(on))
+                finally:
+                    self._engine_moved_by_app -= 1
+            return
         if chk is None or chk.isChecked() == bool(on):
             return
         self._engine_moved_by_app = getattr(self, "_engine_moved_by_app", 0) + 1
@@ -8205,11 +8322,7 @@ class TabChart(QWidget):
         # load or engine switch can change it elsewhere) without re-firing toggled.
         chk = getattr(self, "_manual_engine_check", None)
         if chk is not None:
-            want = bool(self._settings.get("use_chromiq_layout_engine", False))
-            if chk.isChecked() != want:
-                chk.blockSignals(True)
-                chk.setChecked(want)
-                chk.blockSignals(False)
+            self._sync_engine_box()
         # Any manual layout/recipe change routes through here, so this is the
         # single hook for the live preview refresh (Knut, opt-in; guarded by a
         # layout-signature check so it only fires on a real change).
@@ -12871,7 +12984,9 @@ class TabChart(QWidget):
                 engine_builtin = _kp is not None and (
                     _kp.layout_recipe is not None or _kp.engine)
                 if getattr(self, "_manual_engine_check", None) is not None \
-                        and self._manual_engine_check.isChecked() != engine_builtin:
+                        and bool(self._settings.get(
+                            "use_chromiq_layout_engine", False)) \
+                        != engine_builtin:
                     self._set_engine_checked(engine_builtin)
                 if data == TC918_PRESET_KEY:
                     applied = self._apply_tc918_preset(name)
@@ -15304,8 +15419,11 @@ class TabChart(QWidget):
                     str(layout.get("date") or "")
                     or _chart_date_from_ti2(Path(ti2_path)))
                 # Engine on first (builds/updates the panel), then the recipe.
+                # The SETTING, not the box: on a CR30 the box shows ticked
+                # whatever the person chose (B8-1353).
                 if (self._manual_engine_check is not None
-                        and not self._manual_engine_check.isChecked()):
+                        and not self._settings.get(
+                            "use_chromiq_layout_engine", False)):
                     self._set_engine_checked(True)
                 if self._manual_layout_panel is not None:
                     from dataclasses import replace as _replace_rec
@@ -15383,7 +15501,8 @@ class TabChart(QWidget):
             # chart at all. That is the asymmetry: restoring an engine chart
             # switched the engine on, restoring a printtarg chart left it on too.
             if (self._manual_engine_check is not None
-                    and self._manual_engine_check.isChecked()):
+                    and self._settings.get("use_chromiq_layout_engine",
+                                           False)):
                 self._set_engine_checked(False)
         # BOTH chart kinds get their printtarg fields back, not just printtarg
         # charts. On an engine chart these values are inert — the engine lays

@@ -8679,7 +8679,10 @@ Register: B8-1320 to B8-1322. Proof: `~/Desktop/ChromIQ-beta44-proof/k50-report/
   different message, so on this tree the paper row is never in that group.
   The Measure tab's
   pre-flight summary (`summary_lines`) is not changed: it lists one short
-  line per metric and was not part of the ruling.
+  line per metric and was not part of the ruling. (Superseded for beta 44 by
+  K53: Knut answered *"yes"* to grouping it too, 5846376222; built in
+  `summary_lines` with the same function, `issue_182_answers.md` §2z,
+  B8-1354.)
 * **The two (b2) notes (B8-1322)** are approved in §M
   (`approved=True`), their text unchanged.
 

@@ -593,9 +593,17 @@ def summary_lines(row: "PresetRow | None", *, generic: bool = False) -> "list[Li
                            "asked for can be measured on it.")))
         return out
     out.append(Line(tr("It cannot answer these"), bold=True))
-    for rid, why in a.missing:
-        out.append(Line("✕  " + tr(PE.row_label(rid)), indent=6))
-        out.append(Line(reason_line(why), info=True, indent=22))
+    # GROUPED AS THE PRESETS WINDOW GROUPS THEM (K53, Knut #182 5846376222,
+    # asked whether this list should be grouped like B8-1321's: "Answer:
+    # yes"). The same function, over the lines THIS list prints under a
+    # metric (the one reason; the lever stays in the full pane): metrics whose
+    # lines are identical are listed together with the line once, anything
+    # else on its own, in the order of each group's first metric.
+    for rids, messages in group_by_messages(
+            [(rid, (reason_line(why),)) for rid, why in a.missing]):
+        out += [Line("✕  " + tr(PE.row_label(rid)), indent=6)
+                for rid in rids]
+        out += [Line(m, info=True, indent=22) for m in messages]
     return out
 
 

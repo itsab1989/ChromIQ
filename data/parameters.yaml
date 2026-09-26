@@ -640,46 +640,47 @@ parameters:
       tooltip_body: |
         Tells the chart generator which spectrophotometer you will use to
         read the printed chart. The patch grid is built around that
-        instrument's strip width, patch size and spacing — so getting
+        instrument's strip width, patch size and spacing, so getting
         this right is essential.
 
-          •  i1Pro / i1Pro 2 / i1Pro 3 — handheld strip reader, the most
+          •  i1Pro / i1Pro 2 / i1Pro 3: handheld strip reader, the most
              common choice. Reads a column of patches in one sweep.
 
-          •  i1Pro 3 Plus — larger-aperture version of the i1Pro 3.
+          •  i1Pro 3 Plus: larger-aperture version of the i1Pro 3.
              Reads bigger patches, so far fewer fit per sheet (~5× less
              than the regular i1Pro).
 
-          •  ColorMunki / i1Studio / ColorChecker Studio — entry-level
+          •  ColorMunki / i1Studio / ColorChecker Studio: entry-level
              device. Reads one patch at a time on its own; with the
              optional measuring rig it pairs them up (see Double Density).
 
-          •  SpectroScan — flatbed XY scanner. A motorised arm reads
+          •  SpectroScan: flatbed XY scanner. A motorised arm reads
              each patch individually, so it packs far more colours per
              sheet than any strip reader.
 
-          •  CR30 (ChnSpec) — small hand-held colorimeter that reads
+          •  CR30 (ChnSpec): small hand-held colorimeter that reads
              ONE patch at a time. You place it on a patch and press the
              button on the instrument; ChromIQ records that patch and
              highlights the next one. The chart is a plain grid with row
              numbers and column letters so you can find the patch being
-             asked for. Its patch size is PROVISIONAL (12 mm squares —
-             a reasoned starting point, not a measured minimum), and each
+             asked for. Its patch size is PROVISIONAL (12 mm squares, a
+             reasoned starting point and not a measured minimum), and each
              patch is a placement and a press of about two seconds, so a
              full A4 sheet of ~345 patches is a long sitting. A CR30 chart is
              ALWAYS laid out by ChromIQ's own layout engine, and can
-             only be read by ChromIQ — standard ArgyllCMS chartread does
+             only be read by ChromIQ: standard ArgyllCMS chartread does
              not know this instrument and refuses the chart.
 
-          •  i1iSis (via i1Profiler) — automatic sheet-fed chart reader.
-             ChromIQ cannot drive this device directly: instead it will
-             save the patch list in i1Profiler's own format alongside
-             the chart, and you finish the workflow there (print, scan,
-             build profile). ChromIQ's Print and Measure tabs are not
-             used for this device.
+          •  i1iSis (via i1Profiler): automatic sheet-fed chart reader
+             that ChromIQ cannot drive. Choose it only when you will
+             measure the chart in i1Profiler and import the measurements
+             back into ChromIQ, for example to make a Measurement Report.
+             ChromIQ saves the patch list in i1Profiler's own format
+             beside the chart; its Print and Measure tabs are not used
+             for this device.
 
         Picking the wrong instrument produces a chart your device cannot
-        align to or read reliably — you'll see "patches not found" or
+        align to or read reliably, and you'll see "patches not found" or
         alignment errors when measuring. In Guided mode the layout
         adapts to this choice automatically.
 
