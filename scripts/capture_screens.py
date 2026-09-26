@@ -59,7 +59,6 @@ from core.resource_path import resource_path
 from core.settings import AppSettings
 from ui.styles import WinButtonLayoutStyle
 from ui.theme import apply_appearance
-from ui.widgets import ButtonFontFilter, GroupBoxSurfaceFilter
 from ui.main_window import MainWindow
 
 HOME_PROJECTS = Path.home() / "ChromIQ"
@@ -176,8 +175,14 @@ def build_app():
     for fp in resource_path("assets/fonts").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(fp))
     app.setStyle(WinButtonLayoutStyle("Fusion"))
-    app.installEventFilter(ButtonFontFilter(app))
-    app.installEventFilter(GroupBoxSurfaceFilter(app))
+    # THE SAME FILTERS AS main(), not two of them. Without DialogFocusFilter
+    # a driver's pop-ups never had their safe default marked (K44) nor their
+    # default frozen, so a driver photographed a Cancel filled in the tab's
+    # accent that the shipped app draws plain, or the other way round: what a
+    # driver proves must be what ships (Basti, 2026-09-26, a filled Cancel).
+    from ui.widgets import CompositeAppFilter
+    app._chromiq_app_filter = CompositeAppFilter(app)
+    app.installEventFilter(app._chromiq_app_filter)
     return app
 
 
