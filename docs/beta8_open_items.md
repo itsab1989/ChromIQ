@@ -29852,10 +29852,12 @@ would reach.
 - status: OPEN
 - found by: the B8-1360 matrix, per-target cells (both trees): the challenge-8 project (built with "Auto patch count" ticked, -f 0) opened with the tick off, the frame read "(1 page · Auto grey/white/black)" and `targen … -f0`, the estimate column said 441, and Generate built 14 patches (white, black and the grey steps). The run's `create_chart_settings` carry `targen-f` = 0 and no auto-patch tick. Pre-existing: 2194eec7 does the same. Not fixed here (not the CR30, and which stored field the tick belongs in is §1.2's question); registered for the next round.
 
-### B8-1364 · OPEN, a question · Create Chart's preset list marks the built-in presets with ★, which is now also the verification star
+### B8-1364 · SUPERSEDED · Create Chart's preset list marks the built-in presets with ★, which is now also the verification star
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-1387
+- note (K57): Knut, #182 5848511977, gave the verification mark another symbol (●), so ★ means only built-in again.
 - found by: challenge round 8, C6.
 - note: in Create Chart's preset list ★ has always meant BUILT-IN ("★  i1Pro · A4-1296p-2pages …  ·  built-in"; the Dictionary's "Preset" entry says "ChromIQ ships built-in presets (marked ★)"). Since K51 the presets window uses ★ for "made for verification" (B8-1340). It is not a leftover, so it is not changed: the same mark means two things in two lists a verification user sees side by side, and a built-in without the verification star wears ★ in the dropdown. Question: keep ★ for built-ins, or give built-ins another mark (the "· built-in" suffix alone would do) so ★ means only "made for verification"?
 
@@ -30217,3 +30219,34 @@ would reach.
 - found by: the K56 proof, `~/Desktop/ChromIQ-beta44-proof/k56/preflight/en/photographs/01-trigger-clicking-the-measure-tab.png`: the line stands six lines above Knut's revised paragraph.
 - note: `_gamut_state_line` says "This chart was not built with From Profile Gamut, so it carries no colorimetric reference." and, for a converted chart, "... so it carries the colorimetric reference the three reference metrics are judged against." Since K49 the paper row and the two solid rows are compared with the profile's prediction, not with that reference, which is the reason M-VERIFY-SOLIDS-REASON and the revised paragraph were written. The first sentence is still literally true (no reference file is written), the second is not. Our text, not approved text; not changed here because Knut's two new texts are the ones he has seen. Suggested: "This chart was not built with From Profile Gamut, so printed through its profile its solid patches are converted." / "This chart was built with From Profile Gamut, so it prints its solid patches as they are."
 - where: `ui/dialogs/preset_verification_dialog.py` (`_gamut_state_line`).
+
+### B8-1387 · FIXED, awaiting confirmation · Knut K57: the "made for verification" mark is ● instead of ★, and no text about it says "star"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5848511977 (for beta 44, 5848514529): *"The star in the "Which presets can be used for verification?" window should use another symbol, like an arrow pointing to the right, or a circle. Help text and text in the window, and in notes, should then not use the word "star" relating to function "made for verification"."*
+- note: a filled circle ●, not an arrow: "▸" already means "N more presets" in the same lists. Changed: the window's list rows and its detail line ("●  Made for verification."), the explanation line under the pulldowns, the help card "What the ● means, and why it does not move" and its body ("the mark", not "the star"), the Dictionary entry, and the tooltip of Create Chart's presets button (B8-1341; a text-only change in `tab_chart.py`). German by hand ("Stern" is gone); the twelve others carry the English under the beta rule, six keys renamed in place, both ledgers unmoved. Create Chart's ★ for a BUILT-IN preset stays and now means only that (B8-1364 answered). Measured on screen: ● renders in the window's font, in its bold rows and in the red info line (EN and DE).
+- where: `ui/dialogs/preset_verification_dialog.py`, `ui/dialogs/welcome_dialog.py`, `ui/tabs/tab_chart.py` (the tooltip only), `data/i18n/*.json`, `scripts/make_release_demo_package.py`.
+- tests: tests/test_k57_the_mark_and_the_clip_border.py, tests/test_k51_rulings.py
+- evidence: test_a_preset_made_for_verification_wears_the_circle_not_the_star, test_no_text_about_made_for_verification_says_star, test_the_presets_button_help_names_the_circle
+- proof: ~/Desktop/ChromIQ-beta44-proof/k56/mark/ (en, de; 09-presets-window-current-chart-selected.png, run.json mark_texts)
+
+### B8-1388 · FIXED, awaiting confirmation · Knut K57: a Content chosen in Preferences with the clip border Off switched the clip border On
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5848511977: *"Inside that tab the values are defaults, so changing the default shall not change the clip border setting."*
+- note: measured on screen before the fix (`k56/clip/before-CM`): Preferences > Chart Layout, ColorMunki, "Clip border" Off, Content Custom text / ChromIQ branding / Imported image: the panel's clip border went On and the stored layout said so (`clip_content_mode` "text"...), while the "Clip border" box above still read Off. B8-1362's limit: on the ColorMunki, SpectroScan and CR30 the Content box WAS the On / Off switch. FIX: the recipe keeps the content a clip border takes when On (`clip_content_when_on`, new, "" = the notes box). In Preferences a band instrument's clip border is held Off by its own switch (`_clip_held_off`); the Content box shows and sets the kept kind; "Off" chosen as the Content still switches it Off, and the "Clip border" box follows the panel (`_on_layout_field_changed`). A clip border switched On, in Preferences or in Create Chart, starts on the kept kind (it started on the Notes box whatever was meant). After (CM, SS, CR30, and CM in German): the clip border stays Off, the stored layout reads Off with the chosen kind kept; switched On it takes that kind.
+- where: `ui/dialogs/layout_options_panel.py` (`_holds_clip_off`, `_when_on_kind`, `clip_enabled`, `set_clip_enabled`, `_on_clip_content_changed`, `_sync_clip_enable_display`, `_update_clip_visibility`, `_clip_band_active`, `set_recipe`, `apply_to_recipe`), `ui/dialogs/settings_dialog.py` (`_on_layout_field_changed`), `workflow/layout_engine/presets.py` (`clip_content_when_on`).
+- tests: tests/test_k57_the_mark_and_the_clip_border.py, tests/test_layout_presets.py
+- evidence: test_a_content_chosen_in_preferences_with_the_clip_border_off_keeps_it_off, test_create_chart_switched_on_starts_on_the_kept_content
+- proof: ~/Desktop/ChromIQ-beta44-proof/k56/clip/ (before-CM, after-CM, after-SS, after-CR30, after-CM-de; result.json, photographs A0 to A4)
+
+### B8-1389 · FIXED, awaiting confirmation (a guard, no code change) · Knut K57: in Create Chart, with the clip border On, choosing a Content reloads no other field of the frame
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5848511977: *"If Clip-border is ON, then a user can change the fields in clip-border content frame, but selecting anything there shall not reload any defaults for the clip-border content frame's fields."*
+- note: measured on screen before and after (ColorMunki, SpectroScan, CR30; `k56/clip/*/result.json`, photographs B0 to B4): Side Right, Flip 180°, a typed Text, a chosen Font and Size 9, then Content Branding, Notes box, Imported image, Custom text: Side, Flip, Text and Font never changed. The only field that moves is Size, which reads "auto" while the Notes box is chosen (it sizes itself and ignores the box, #125, a tester's beta 18 request) and is back at 9 on leaving it. Nothing to fix; pinned by a test. "Custom text example" replaces the Text with the example table after asking, which is what it is for. If Knut saw a reload elsewhere (a Reset to the layout preset, or a preset chosen), that is a different path and needs his steps.
+- tests: tests/test_k57_the_mark_and_the_clip_border.py
+- evidence: test_create_chart_content_changes_reload_no_other_field

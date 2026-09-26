@@ -6087,6 +6087,17 @@ class SettingsDialog(QDialog):
         if self._loading_layout:
             return
         self._layout_store.set(self._recipe_from_fields())
+        # K57: the "Clip border" selector says what the panel holds; a
+        # Content chosen while it is Off no longer switches it, and "Off"
+        # chosen as the Content does.
+        _i = self._layout_clip_enable.findData(
+            "on" if self._layout_panel.clip_enabled() else "off")
+        if _i >= 0 and _i != self._layout_clip_enable.currentIndex():
+            _b = self._layout_clip_enable.blockSignals(True)
+            try:
+                self._layout_clip_enable.setCurrentIndex(_i)
+            finally:
+                self._layout_clip_enable.blockSignals(_b)
         # The combination has a saved layout from this moment on — say so.
         self._update_layout_saved_hint(*self._layout_selection())
         self._update_layout_calc()

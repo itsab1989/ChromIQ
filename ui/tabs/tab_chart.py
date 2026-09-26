@@ -7305,8 +7305,9 @@ class TabChart(QWidget):
         _pv.setSpacing(6)
         _pv.addWidget(self._preset_verify_btn, 0,
                       Qt.AlignmentFlag.AlignVCenter)
-        # The ★ sentence says rule (4) as K51 set it (B8-1340, B8-1341), in
-        # the words of the presets window's own star line.
+        # The ● sentence (K57, Knut #182 5848511977: not a star, which marks
+        # a built-in in the Preset pulldown) says rule (4) as K51 set it
+        # (B8-1340, B8-1341), in the words of the presets window's own line.
         self._preset_verify_help = TooltipButton(
             tr("Which presets can be used for verification?"),
             tr("Opens a list of every chart preset, marked against the "
@@ -7320,7 +7321,7 @@ class TabChart(QWidget):
             "Click a preset to read that; double-click it to close the window "
             "and load the preset here.\n\n"
             "Nothing is hidden: presets that fall short stay on the list with "
-            "their reasons. A ★ marks a chart made for verification: one or "
+            "their reasons. A ● marks a chart made for verification: one or "
             "two printed pages, fewer than 900 patches, a patch printed with no "
             "ink to measure the paper, and an answer to every metric its "
             "patches and its page layout decide, evenness included. "

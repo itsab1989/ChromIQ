@@ -355,14 +355,14 @@ def test_evenness_counts_under_the_loosest_limit_of_any_set():
 
 
 def test_the_star_line_says_the_rule_and_the_constants_agree():
-    """The ★ line under the pulldowns: "one or two printed pages" is written
+    """The ● line (★ until K57) under the pulldowns: "one or two printed pages" is written
     out, so it is held to the constant here; German by hand, Du-Form.
 
     MUTATION, proven red: set ``VERIFICATION_MAX_PAGES = 3``."""
     import ui.dialogs.preset_verification_dialog as pvd
     src = re.sub(r'"\s*\n\s*"', "",
                  Path(pvd.__file__).read_text(encoding="utf-8"))
-    m = re.search(r'"(★ marks a chart made for verification: [^"]+)"', src)
+    m = re.search(r'"(● marks a chart made for verification: [^"]+)"', src)
     assert m, "the star line is gone"
     key = m.group(1)
     assert "one or two printed pages" in key and PE.VERIFICATION_MAX_PAGES == 2

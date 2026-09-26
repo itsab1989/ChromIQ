@@ -398,12 +398,16 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: no graph for a row whose limit is \u201c\u2013\u201d (Paper white difference, Solid colours, Hue of the solids, Tone ramps, Control strip, Outer and surface gamut are gone); Paper white, Darkest black and Cube corners each carry their own sentence (B8-1332, B8-1333)",
         "Report-Limits-Every-Metric/run1, Run type Profiling: New report…, Printing record, all runs, ISO 12647-7:2016 values: the graphs of the rows the set limits, each with its limit line, and under each the sentence that the lines are shown for information only (B8-1334)",
         "Report-Limits-Every-Metric/run1: New report…, Custom ISO 12647-7 with \u201cMaximum \u0394E00, control strip\u201d switched off in Edit limits…: that row is in neither the table nor the Control strip graph, which keeps Avg and P95 (B8-1332)",
-        "Create Chart presets (verification demos): \u201cWhich presets can be used for verification?\u201d: the star under the new rule, one or two pages, fewer than 900 patches, a paper patch, and the evenness rows answered on the laid-out preset (B8-1340)",
+        "Create Chart presets (verification demos): \u201cWhich presets can be used for verification?\u201d: the \u25cf mark (\u2605 until K57) under the new rule, one or two pages, fewer than 900 patches, a paper patch, and the evenness rows answered on the laid-out preset (B8-1340)",
     ]),
     ("\u00a746", "K56:", [
         "Report-Limits-Border-Conditions/run3, Run type Verification: New report\u2026, both dates, Full colour check, ISO 12647-7:2016 values: the report opens \u201cThis report follows the printer behind the profile built in \u2026\u201d with the clause that the paper and the solid colours are judged against the profile (B8-1377); under ChromIQ default the same sentence stops before that clause (B8-1381)",
         "Report-Limits-Profile-Gamut/run1 (printed through the profile): the report keeps the approved opening \u201cIt was verified by printing a chart through that profile\u201d (B8-1377)",
         "Report-Limits-Strip-And-Gamut/run4, Measure tab, Run type Verification, the run set to ISO 12647-7: the pre-flight's FROM PROFILE GAMUT paragraph as Knut accepted it (B8-1374), and M-VERIFY-SOLIDS-REASON, approved (B8-1373), under the two solid rows",
+    ]),
+    ("§47", "K57:", [
+        "Create Chart presets (verification demos): “Which presets can be used for verification?”: a chart made for verification is marked ●, and the line under the pulldowns says so (B8-1387)",
+        "not a project: Preferences > Chart Layout, ColorMunki, SpectroScan or CR30, Clip border Off: a Content chosen there leaves it Off and is the content it takes when switched On (B8-1388)",
     ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",

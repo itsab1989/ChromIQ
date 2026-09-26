@@ -763,14 +763,14 @@ WORKFLOWS: list[dict] = [
                   "cannot and why. Double-click loads it straight into Create "
                   "Chart. Nothing is hidden and nothing is filtered out: the "
                   "window marks presets, it does not withhold them.")),
-              (tr("What the ★ means, and why it does not move"),
+              (tr("What the ● means, and why it does not move"),
                # K51 (Knut, #182 5846167083): rule (4) with his changes.
-               tr("A star marks a chart MADE for verification: one or two "
+               tr("A ● marks a chart MADE for verification: one or two "
                   "printed pages, fewer than 900 patches, a patch printed with "
                   "no ink to measure the paper, and an answer to every metric "
                   "its patches and its page layout decide, the two evenness "
                   "metrics included. Those are properties of the chart "
-                  "itself, so the star does not change when you change the two "
+                  "itself, so the mark does not change when you change the two "
                   "pulldowns at the top of the window. Tick “Show only the "
                   "presets made for verification” to see just those.")),
               (tr("Three metrics only “FROM PROFILE GAMUT” can answer"),
@@ -1839,7 +1839,7 @@ GLOSSARY += [
      tr("A window on the Create Chart tab, shown on verification runs only, "
         "that lists every preset against the metrics a report of the type and "
         "limit set you choose asks of a chart, and says how many of them each "
-        "preset can answer. A ★ marks a chart MADE for verification: one or "
+        "preset can answer. A ● marks a chart MADE for verification: one or "
         "two pages, fewer than 900 patches, a paper patch, and an answer to "
         "every metric its patches and its page layout decide, evenness "
         "included. It marks presets, it never withholds them, and a "

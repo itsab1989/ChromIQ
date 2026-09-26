@@ -66,7 +66,7 @@ def test_all_fields_persist_through_named_dict():
         chart_text_font="Inter", chart_text_size_mm=3.5, chart_text_bold=True,
         chart_text_italic=True, chart_text_align="between_margins",
         stamp_command=True, clip_border_width_mm=30.0,
-        clip_content_mode="text", clip_text="ID", clip_text_font="Inter",
+        clip_content_mode="text", clip_content_when_on="image", clip_text="ID", clip_text_font="Inter",
         clip_image_path="/tmp/logo.png", nolimit=True, strip_pattern="A-Z",
         patch_pattern="1-99",
         # EVERY field has to be set to a NON-DEFAULT value, or the loop below

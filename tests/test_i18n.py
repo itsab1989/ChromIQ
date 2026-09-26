@@ -1480,6 +1480,12 @@ _IDENTICAL_TO_KEY = {
     # hand, does not move; each of the twelve others rises by exactly 2 (3
     # English placeholders in, 1 out). COUNTED off the tree with this file's
     # own expression, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-26, K57 (Knut #182 5848511977; B8-1387): the
+    # verification mark is ● instead of ★, six keys renamed in place (the
+    # window's line and row word, the help card's title and body, the
+    # Dictionary entry, the presets button's tooltip). German by hand; each of
+    # the twelve others keeps the English under the beta rule, so every count
+    # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 141,
     "es": 1407,
     "fr": 1429,

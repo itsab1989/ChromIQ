@@ -135,6 +135,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §44 | K50: a report's notes never refer to other limit sets (the sentence under a graph with no limit line speaks of this report only); the presets window groups the metrics that carry identical messages; M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE approved | 2026-09-26, 5845519118, 5845588201 | the rule and the two notes' wording confirmed by Knut (§44.1, §41.7); built for beta 44 (B8-1320 to B8-1322), the new wording and the grouping NOT confirmed |
 | §45 | K51: a raw print judges its paper and solid rows against the profile; "–" is not in the report, graphs included; a limit line shown for information where the report judges nothing; the star's rule (4) with the evenness rows; a media-relative FROM PROFILE GAMUT chart judged relative to its paper; the i1Pro group enabled with the engine on | 2026-09-26, 5846167083, 5846297769 | the answers confirmed by Knut (§45.1); built for beta 44 (B8-1330 to B8-1336, B8-1340), NOT confirmed; the two-page rule put to him; challenge 8's fixes to it in 45.7 to 45.9 (B8-1370 to B8-1377), NOT confirmed |
 | §46 | K56: M-VERIFY-SOLIDS-REASON approved; the pre-flight's FROM PROFILE GAMUT paragraph revised as accepted; the opening of a report of raw sheets | 2026-09-26, 5848287278 | the answers (approval and two accepted texts) are Knut's; what was built (when each opening is given) NOT confirmed; four questions (B8-1380, B8-1381, B8-1383, B8-1384) and the analysis of "drift" (B8-1385) put to him |
+| §47 | K57: the "made for verification" mark is ● not ★; a Content chosen in Preferences with the clip border Off leaves it Off; a Content change in Create Chart reloads no other field | 2026-09-26, 5848511977, 5848514529 | the rulings are Knut's; what was built (B8-1387, B8-1388; B8-1389 verified) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -9070,3 +9071,56 @@ its docstring (`k56/mutations.txt`).
 
 **Status:** the answers are Knut's (46.1); what was built (46.2) NOT
 confirmed; four questions and one analysis with him.
+
+## 47. K57: the "made for verification" mark, and the clip border's content (#182, 2026-09-26, beta 44)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-26, #182
+[5848511977](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5848511977)
+(for beta 44: [5848514529](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5848514529)),
+for exactly the rulings quoted here. What was built from them is in 47.2 and
+waits for his confirmation.
+
+**47.1 The rulings, verbatim.**
+
+* *"The star in the "Which presets can be used for verification?" window
+  should use another symbol, like an arrow pointing to the right, or a
+  circle. Help text and text in the window, and in notes, should then not use
+  the word "star" relating to function "made for verification"."*
+* *"Inside that tab [Preferences > Chart Layout] the values are defaults, so
+  changing the default shall not change the clip border setting. In the
+  Create Chart tab, if Clip-border is OFF, then the clip-border content frame
+  is not visible ... If Clip-border is ON, then a user can change the fields
+  in clip-border content frame, but selecting anything there shall not reload
+  any defaults for the clip-border content frame's fields."*
+
+### ⏳ Awaiting confirmation: what was built from them
+
+**Confirmed by:** *nobody yet.*
+
+Register: B8-1387 to B8-1389 (B8-1364 superseded). Proof:
+`~/Desktop/ChromIQ-beta44-proof/k56/mark/` and `k56/clip/` (on screen, EN
+and DE). Tests: `tests/test_k57_the_mark_and_the_clip_border.py`, each red on
+the mutation in its docstring (`k56/mutations-k57.txt`).
+
+**47.2 Built.**
+
+* The mark is ● (a filled circle), not an arrow, because "▸" already means
+  "N more presets" in the same lists. §45.4's ★ reads ● everywhere the app
+  says it: the window's rows, its detail line, the line under its pulldowns,
+  the help card "What the ● means, and why it does not move", the Dictionary,
+  and the tooltip of Create Chart's presets button. Create Chart's ★ marks a
+  built-in preset only.
+* A layout recipe keeps the content its clip border takes when On
+  (`clip_content_when_on`). In Preferences, on the ColorMunki, SpectroScan
+  and CR30, the "Clip border" box alone switches the clip border; a Content
+  chosen while it is Off is kept for when it is On and leaves it Off. A clip
+  border switched On, in Preferences or in Create Chart, starts on the kept
+  content (the Notes box when none was chosen).
+* Create Chart, clip border On: choosing a Content changes no other field of
+  the frame (measured before any change; pinned). Size reads "auto" while the
+  Notes box is chosen, which sizes itself, and returns on leaving it.
+
+**Status:** the rulings are Knut's (47.1); what was built (47.2) NOT
+confirmed.

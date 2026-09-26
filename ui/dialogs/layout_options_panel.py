@@ -313,6 +313,15 @@ class LayoutOptionsPanel(QWidget):
         #: only when the clip border is On. Create Chart passes nothing and
         #: keeps the frame hidden while its chart has no clip border.
         self._clip_content_always_shown = bool(clip_content_always_shown)
+        #: K57 (Knut #182 5848511977): in Preferences the clip border's On /
+        #: Off is its own switch, and a Content chosen while it is Off is the
+        #: content it takes when switched On, not a switch. True while
+        #: Preferences holds a band instrument's clip border Off; the Content
+        #: box then shows `clip_content_when_on`. See `_holds_clip_off`.
+        self._clip_held_off = False
+        #: The content a clip border switched On starts on (the recipe's
+        #: `clip_content_when_on`); "" = the notes box.
+        self._clip_when_on = ""
         # Set BEFORE any widget exists: constructing the panel already renders
         # the clip preview a handful of times. A caller that is going to load a
         # recipe straight afterwards (Preferences -> Chart Layout) passes True
@@ -3039,8 +3048,7 @@ class LayoutOptionsPanel(QWidget):
             inst = self._inst
             clip_mode = self._clip and inst in ("i1", "p3")
         is_band_inst = inst in ("CM", "SS", "CR30")
-        content_on = (hasattr(self, "clip_content_mode")
-                      and self.clip_content_mode.currentData() != "off")
+        content_on = hasattr(self, "clip_content_mode") and self.clip_enabled()
         # For CM/SS the band (and its content group) appears only when the clip
         # border is turned on — i.e. content is set to something — matching the
         # i1Pro, whose group hides when its clip is off (#93).
@@ -3081,7 +3089,8 @@ class LayoutOptionsPanel(QWidget):
         # (#164, Knut: *"Only Notes box shall have the text field disabled"*).
         custom_text = mode in ("text", "branding", "image")
         font_modes = mode in ("text", "branding", "notes", "image")
-        if (mode in (None, "off") and self._clip_content_always_shown
+        if ((mode in (None, "off") or self._clip_held_off)
+                and self._clip_content_always_shown
                 and ((getattr(self, "instr", None).currentData()
                       if getattr(self, "instr", None) is not None
                       else getattr(self, "_inst", "")) in ("CM", "SS", "CR30"))):
@@ -3156,6 +3165,15 @@ class LayoutOptionsPanel(QWidget):
         if self.clip_content_mode.currentData() == "example":
             self._load_example_clip_table()
             return
+        _cur = self.clip_content_mode.currentData()
+        if _cur not in (None, "off"):
+            # K57: the kind chosen is the one a clip border switched On
+            # starts on, and choosing it while Preferences holds the clip
+            # border Off leaves it Off.
+            self._clip_when_on = _cur
+        elif self._holds_clip_off():
+            # "Off" chosen as the Content in Preferences switches it Off.
+            self._clip_held_off = True
         self._sync_clip_content_enabled()
         # On CM/SS the clip-width row appears only once notes content is on, so
         # re-evaluate visibility when the content mode changes (#93).
@@ -3216,8 +3234,7 @@ class LayoutOptionsPanel(QWidget):
         own handler (#93)."""
         if not hasattr(self, "clip_enable"):
             return
-        on = (hasattr(self, "clip_content_mode")
-              and self.clip_content_mode.currentData() not in (None, "off"))
+        on = self.clip_enabled()
         i = self.clip_enable.findData("on" if on else "off")
         self.clip_enable.blockSignals(True)
         self.clip_enable.setCurrentIndex(i if i >= 0 else 0)
@@ -3238,8 +3255,24 @@ class LayoutOptionsPanel(QWidget):
         if self.instr.currentData() in ("i1", "p3"):
             self.set_clip_enabled(self.mode.currentData() == "clip")
 
+    def _holds_clip_off(self) -> bool:
+        """Preferences (``clip_content_always_shown``) on an instrument whose
+        clip border is a switch inside one layout combination (K57)."""
+        if not self._clip_content_always_shown:
+            return False
+        inst = (self.instr.currentData() if self.instr is not None
+                else self._inst)
+        return inst in ("CM", "SS", "CR30")
+
+    def _when_on_kind(self) -> str:
+        """The content a clip border switched On starts on (K57)."""
+        k = self._clip_when_on or "notes"
+        return k if self.clip_content_mode.findData(k) >= 0 else "notes"
+
     def clip_enabled(self) -> bool:
         """Whether a clip / notes band is currently turned on (content set)."""
+        if self._clip_held_off:
+            return False
         return (hasattr(self, "clip_content_mode")
                 and self.clip_content_mode.currentData() not in (None, "off"))
 
@@ -3248,8 +3281,29 @@ class LayoutOptionsPanel(QWidget):
         seeds a notes band (if none yet), Off clears it (#93). Lets a host (the
         Settings window) expose the CM/SS clip toggle without its own selector."""
         cur = self.clip_content_mode.currentData()
+        if self._holds_clip_off():
+            # K57: Preferences switches the clip border and nothing else; the
+            # Content box keeps the kind it takes when On.
+            if on:
+                self._clip_held_off = False
+                if cur in (None, "off"):
+                    self._select_clip_content(self._when_on_kind())
+                    return
+            else:
+                if cur not in (None, "off", "example"):
+                    self._clip_when_on = cur
+                self._clip_held_off = True
+                if cur in (None, "off"):
+                    self._select_clip_content(self._when_on_kind())
+                    return
+            self._sync_clip_enable_display()
+            self._update_clip_visibility()
+            self._emit()
+            return
         if on and cur in (None, "off"):
-            j = self.clip_content_mode.findData("notes")
+            # K57: a clip border switched On starts on the content its
+            # recipe keeps for it (the notes box unless one was chosen).
+            j = self.clip_content_mode.findData(self._when_on_kind())
             if j >= 0:
                 self.clip_content_mode.setCurrentIndex(j)   # fires content-changed
         elif not on and cur not in (None, "off"):
@@ -3543,8 +3597,7 @@ class LayoutOptionsPanel(QWidget):
             return (self.mode.currentData() == "clip") if self.mode is not None \
                 else bool(self._clip)
         if inst in ("CM", "SS", "CR30"):
-            return (hasattr(self, "clip_content_mode")
-                    and self.clip_content_mode.currentData() not in (None, "off"))
+            return hasattr(self, "clip_content_mode") and self.clip_enabled()
         return False
 
     # Scoped to the spinbox classes so the red outline MERGES with the
@@ -5474,6 +5527,20 @@ class LayoutOptionsPanel(QWidget):
             self.seed_spin.setValue(int(r.seed))
         self._sync_seed_enabled()
         self._inst, self._clip = r.instrument, r.clip_border
+        # K57: the content a clip border switched On starts on, and in
+        # Preferences a band instrument's clip border held Off with the
+        # Content box showing that content.
+        self._clip_when_on = str(getattr(r, "clip_content_when_on", "") or "")
+        self._clip_held_off = False
+        if self._holds_clip_off() and r.clip_content_mode in (None, "", "off"):
+            self._clip_held_off = True
+            _k = self.clip_content_mode.findData(self._when_on_kind())
+            _b = self.clip_content_mode.blockSignals(True)
+            try:
+                self.clip_content_mode.setCurrentIndex(max(0, _k))
+            finally:
+                self.clip_content_mode.blockSignals(_b)
+            self._sync_clip_content_enabled()
         # The shape, for the panels that have no shape selector of their own
         # (Preferences > Chart Layout, the relayout dialog). Without it those
         # panels cannot tell a honeycomb from a rectangular chart and would
@@ -5630,7 +5697,12 @@ class LayoutOptionsPanel(QWidget):
         r.stamp_command = self.stamp_command.isChecked()
         r.compression = self.compression.currentData() or "lzw"
         r.clip_border_width_mm = self.clip_width.value()
-        r.clip_content_mode = self.clip_content_mode.currentData() or "off"
+        _cc = self.clip_content_mode.currentData() or "off"
+        # K57: held Off in Preferences, the recipe's clip border is Off and
+        # the Content box's kind is the one it takes when switched On.
+        r.clip_content_mode = "off" if self._clip_held_off else _cc
+        r.clip_content_when_on = (_cc if _cc not in ("off", "example")
+                                  else self._clip_when_on)
         r.clip_side = self.clip_side.currentData() or "left"
         r.clip_flip_180 = self.clip_flip_180.isChecked()
         r.clip_text = self.clip_text.toPlainText()

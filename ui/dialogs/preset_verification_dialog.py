@@ -463,7 +463,7 @@ def detail_lines(row: "PresetRow | None", *,
         if row.chart is not None:
             out.append(Line(_gamut_state_line(row), info=True))
     if row.starred:
-        out.append(Line(tr("★  Made for verification.")))
+        out.append(Line(tr("●  Made for verification.")))
     elif (not row.is_current_chart and row.chart is not None
             and not row.pages and a.checked):
         # A USER PRESET'S PAGE COUNT IS NOT KNOWABLE FROM ITS PATCH SET. How
@@ -903,7 +903,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         # on A4 and Letter (asked of Knut). "one or two" is written out, not
         # formatted, and a test holds it to `VERIFICATION_MAX_PAGES`.
         star_note = QLabel(tr(
-            "★ marks a chart made for verification: one or two printed "
+            "● marks a chart made for verification: one or two printed "
             "pages, fewer than {patches} patches, a patch printed with no ink "
             "to measure the paper, and an answer to every metric its patches "
             "and its page layout decide, the two evenness metrics included. "
@@ -1412,7 +1412,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             self._show_detail(None)
 
     def _columns(self, row: PresetRow) -> "list[str]":
-        name = ("★  " + row.label) if row.starred else row.label
+        name = ("●  " + row.label) if row.starred else row.label
         a = row.assessment
         if row.pending:
             verdict = tr("Working…")

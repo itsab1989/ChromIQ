@@ -252,6 +252,14 @@ class LayoutRecipe:
     # its own documentation strip out of the box (#93). Only drawn where a clip
     # border exists (i1/p3 clip mode); harmless elsewhere.
     clip_content_mode: str = "notes"
+    # THE CONTENT THE CLIP BORDER TAKES WHEN IT IS SWITCHED ON (K57, Knut
+    # #182 5848511977). On the ColorMunki, SpectroScan and CR30 the content IS
+    # the On / Off switch ("off" = no clip border), so a Content chosen in
+    # Preferences while the clip border is Off switched it On (B8-1362's
+    # limit). Knut: "changing the default shall not change the clip border
+    # setting". The kind is kept here instead, and a clip border switched On
+    # starts on it. "" = the notes box, as before.
+    clip_content_when_on: str = ""
     clip_text: str = ""                  # rotated text / notes caption (tokens ok)
     clip_text_font: str = "Inter"
     clip_text_size_mm: float = 0.0       # 0 = auto-fit to the strip width
