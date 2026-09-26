@@ -123,7 +123,10 @@ def test_the_iso_report_types_are_greyed_for_the_documents():
 def test_info_is_the_word_of_an_ungraded_sheet_and_a_dash_row_leaves():
     body = _glossary("PASS, FAIL, COND, INFO, N-A")
     assert "is left out of the report altogether" in body
-    assert "raw drift check" in body
+    # K59 (Knut #182 5849392788): "drift" is not used; the raw sheet is
+    # named by what is shown for information on it.
+    assert "raw sheet's design colours" in body
+    assert "drift" not in body.lower()
 
 
 def test_the_pairing_help_leaves_the_ramp_out_and_names_the_iso_sets():

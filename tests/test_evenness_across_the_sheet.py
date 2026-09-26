@@ -486,7 +486,7 @@ def test_the_help_text_quotes_the_numbers_the_code_uses():
     assert "95th percentile" in d
     for rid in (PAIR, FROM_MEAN):
         blurb = CS.ROW_BY_ID[rid].blurb
-        for cause in ("banding", "print head", "paper", "drifting"):
+        for cause in ("banding", "print head", "paper", "changing"):
             assert cause in blurb, (rid, cause)
 
 
@@ -503,7 +503,8 @@ def test_the_causes_note_is_customer_text():
         _NOTE_TEXT_SEP = MeasurementReportDialog._NOTE_TEXT_SEP
 
     said = MeasurementReportDialog._note_sentence(_Bare(), "evenness_causes")
-    assert "banding" in said and "drifting" in said, said
+    assert "banding" in said and "changing" in said, said
+    assert "drift" not in said.lower(), said   # K59: no "drift"
     for word in ("ChromIQ", "Create Chart", "preset", "Use ", "add "):
         assert word not in said, word
 

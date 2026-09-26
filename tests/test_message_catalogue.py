@@ -209,6 +209,25 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # had no headline and a list heading that
                                  # was false. Our words.
                                  "M-RUN-DELETE-REPORTS-LOCKED",
+                                 # K59 (#182, Knut 5849392788, option C and
+                                 # "change" for "drift"): the texts he asked
+                                 # to see before they ship. Each replaces one
+                                 # that is false under his ruling, so each is
+                                 # shown while it waits; none is his wording.
+                                 "M-REPORT-RAW-PRINT-INFO",
+                                 "M-REPORT-RAW-JUDGED-AGAINST",
+                                 "M-REPORT-RAW-NOT-JUDGED",
+                                 "M-REPORT-RAW-OVERALL",
+                                 "M-REPORT-RAW-RESULTS-JUDGED",
+                                 "M-REPORT-RAW-RESULTS-SOME",
+                                 "M-REPORT-RAW-RESULTS",
+                                 "M-REPORT-RAW-GUIDE-JUDGED",
+                                 "M-REPORT-RAW-GUIDE",
+                                 "M-REPORT-RAW-BASELINE",
+                                 "M-REPORT-RAW-INCOMPARABLE",
+                                 "M-REPORT-RAW-CHANGE",
+                                 "M-REPORT-RAW-SHEET",
+                                 "M-REPORT-MIXED-OPENING",
                                  # (#182 A6 and A10: M-REPORT-SCOPE-RUN-
                                  # DELETED and M-REPORT-NO-PAPER-PATCH were
                                  # APPROVED by Knut in 5820871320, K36-3 and

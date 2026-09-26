@@ -166,9 +166,14 @@ def test_the_legend_promises_a_note_only_where_there_is_one(tmp_path, qapp):
 
 def test_the_legend_does_not_blame_drift_for_a_word_drift_never_shows(tmp_path,
                                                                       qapp):
-    """A drift column prints the word "drift" in every cell, and never INFO.
+    """A drift column printed the word "drift" in every cell, and never INFO.
     The legend listed a raw drift check among the causes of INFO, so page 2
     attributed a word to a state that produces a different one.
+
+    K59 (Knut, #182 5849392788): "The word drift is not used at all." A raw
+    sheet's cells read INFO now, and the guide says so in its raw-column
+    paragraph (M-REPORT-RAW-GUIDE-JUDGED) rather than in the INFO bullet;
+    the page carries no "drift" at all.
 
     MUTATION: put "raw drift check" back among the causes of INFO and this
     goes red.
@@ -183,8 +188,10 @@ def test_the_legend_does_not_blame_drift_for_a_word_drift_never_shows(tmp_path,
         clause = body[i:i + 700]
         assert "drift check, which" not in clause, \
             "a drift check is named as a cause of INFO again"
-        assert _html.escape(tr("drift")) in body, \
-            "the page no longer says what a drift column shows instead"
+        from workflow import measurement_messages as M
+        assert _html.escape(M.M_REPORT_RAW_GUIDE_JUDGED.render()[1]) in body, \
+            "the page no longer says what a raw column shows"
+        assert "drift" not in body.lower()
     finally:
         dlg.close()
 

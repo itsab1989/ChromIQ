@@ -245,10 +245,12 @@ def test_raw_drift_identical_prints_measure_zero(tmp_path):
     assert r2["raw_drift"]["avg"] == 0.0 and r2["raw_drift"]["max"] == 0.0
 
 
-def test_raw_sheets_show_drift_not_pass_fail(qapp, tmp_path, monkeypatch):
-    """Report Results: a raw sheet's cells say “drift”; its detail table has
-    no Pass/Fail; the drift paragraph appears. Gamut and through sheets keep
-    their grading."""
+def test_raw_sheets_show_info_not_pass_fail(qapp, tmp_path, monkeypatch):
+    """Report Results: a raw sheet's design-colour cells read INFO with the
+    raw print's numbered note (K59, Knut #182 5849392788, option C: the word
+    "drift" is not used at all); its detail table has no Pass/Fail; the
+    baseline paragraph appears. Gamut and through sheets keep their
+    grading."""
     import html as _html
     from workflow.measurement_report import build_report
     s, run, ti3 = _measured(tmp_path, monkeypatch,
@@ -274,7 +276,8 @@ def test_raw_sheets_show_drift_not_pass_fail(qapp, tmp_path, monkeypatch):
     dlg = MeasurementReportDialog(s, None, initial_ti3=ti3)
     try:
         results = _html.unescape(dlg._report_results_html([rep]))
-        assert ">drift<" in results.replace("</td>", "<")
+        assert "drift" not in results.lower()
+        assert ">INFO" in results
         assert "not expected to match the design closely" in results
         detail = _html.unescape(dlg._run_detail_html(rep))
         assert "it is the baseline" in detail

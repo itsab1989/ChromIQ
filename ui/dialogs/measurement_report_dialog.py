@@ -1708,8 +1708,8 @@ def _trend_about_html(text: str) -> str:
 _NO_LIMIT_SHOWS = {
     "de": lambda: tr(
         "This graph shows how far the measured patches lie from their aim "
-        "values (ΔE00) on each date, which is useful for watching the print "
-        "drift between dates."),
+        "values (ΔE00) on each date, which is useful for watching how the "
+        "print changes between dates."),
     "paper_diff": lambda: tr(
         "This graph shows how far the bare paper lies from the reference "
         "paper (ΔE00) on each date, which is useful for watching the paper "
@@ -1717,12 +1717,13 @@ _NO_LIMIT_SHOWS = {
     "solids": lambda: tr(
         "This graph shows how far the cyan, magenta, yellow and black solids "
         "lie from the colours the profile predicts for them (ΔE00) on each "
-        "date, which is useful for watching the inks drift between dates."),
+        "date, which is useful for watching how the inks change between "
+        "dates."),
     "solid_hue": lambda: tr(
         "This graph shows how far the hue of the cyan, magenta and yellow "
         "solids lies from the hue the profile predicts for them (ΔH*ab) on "
-        "each date, which is useful for watching the inks drift in hue "
-        "between dates."),
+        "each date, which is useful for watching how the hue of the inks "
+        "changes between dates."),
     "grey": lambda: tr(
         "This graph shows how neutral the grey ramp prints (ΔCh) on each "
         "date, which is useful for watching a colour cast appear between "
@@ -1730,15 +1731,16 @@ _NO_LIMIT_SHOWS = {
     "tone": lambda: tr(
         "This graph shows the largest lightness difference (ΔL*) on the "
         "ramps between 30 % and 70 % on each date, which is useful for "
-        "watching the mid-tones drift lighter or darker between dates."),
+        "watching whether the mid-tones become lighter or darker between "
+        "dates."),
     "strip": lambda: tr(
         "This graph shows the colour difference (ΔE00) of the control-strip "
-        "patches on each date, which is useful for watching the print drift "
-        "between dates."),
+        "patches on each date, which is useful for watching how the print "
+        "changes between dates."),
     "gamut_edge": lambda: tr(
         "This graph shows how far the most saturated colours lie from their "
-        "aim values (ΔE00) on each date, which is useful for watching the "
-        "edge of the gamut drift between dates."),
+        "aim values (ΔE00) on each date, which is useful for watching how "
+        "the edge of the gamut changes between dates."),
     "repeat": lambda: tr(
         "This graph shows how far apart the same colour measures (ΔE00) on "
         "each date, which is useful for watching whether the printer and the "
@@ -2588,8 +2590,9 @@ _PAIRING_HELP = (
     "are the everyday pair for ChromIQ default, the set for checking a profile "
     "you built: 2.0 average and 3.0 maximum on the colour difference rows. "
     "ChromIQ tight halves those two, for critical work once a printer is "
-    "behaving, and Quick check doubles them, for a health check only a clearly "
-    "drifted printer fails; the grey rows move with them. Grey and "
+    "behaving, and Quick check doubles them, for a health check only a "
+    "printer that has clearly changed fails; the grey rows move with them. "
+    "Grey and "
     "tone check keeps three rows, the two grey balance ones and the mid-tone "
     "ramp. A ChromIQ set judges the two grey rows like any other row and puts "
     "no limit on the mid-tone ramp, so that row is left out of the report. "
@@ -2814,7 +2817,7 @@ class MeasurementReportDialog(QDialog):
             "it into a clear Pass/Fail verdict you can track over time. The real "
             "power is comparison: because the design reference never changes, the "
             "way the numbers move between dated reports of the same printer is a "
-            "clean signal of drift: ageing inks, a printer slowly wandering, or "
+            "clean signal of change: ageing inks, a printer slowly wandering, or "
             "an instrument going off.\n\n"
             "Three ways to use it\n"
             "  • Profiling runs: after building a profile, check how faithfully "
@@ -2823,7 +2826,7 @@ class MeasurementReportDialog(QDialog):
             "THROUGH your finished profile (a colour-managed print, made "
             "with Run type Verification), measure it "
             "every so often, and save a report each time. When the Pass/Fail "
-            "results start slipping, that's your sign the printer has drifted far "
+            "results start slipping, that's your sign the printer has changed far "
             "enough to re-profile. A tiny verification chart is enough; you're "
             "watching the trend, not building a profile.\n"
             "  • Calibration: with Run type Calibration, the window opens on "
@@ -11841,6 +11844,11 @@ class MeasurementReportDialog(QDialog):
             return (M.M_REPORT_STRIP_CORNERS_PREDICTED
                     if code == NOTE_STRIP_CORNERS_PREDICTED
                     else M.M_REPORT_STRIP_CORNERS_IDEAL).render()[1]
+        from workflow.measurement_report import NOTE_RAW_PRINT_INFO
+        if code == NOTE_RAW_PRINT_INFO:
+            # K59: §M text (M-REPORT-RAW-PRINT-INFO, proposed, shown)
+            from workflow import measurement_messages as M
+            return M.M_REPORT_RAW_PRINT_INFO.render()[1]
         from workflow.measurement_report import (NOTE_PAPER_AGAINST_PROFILE,
                                                  NOTE_SOLIDS_PREDICTED)
         if code in (NOTE_SOLIDS_PREDICTED, NOTE_PAPER_AGAINST_PROFILE):
@@ -11870,8 +11878,8 @@ class MeasurementReportDialog(QDialog):
                 "printer (banding, a partly blocked or misaligned print head), "
                 "from the paper (not flat, or not the same all over), or, on "
                 "an instrument that reads whole strips, from the instrument "
-                "drifting during the reading. The strips are read one after "
-                "another, so such a drift shows as a difference across the "
+                "changing during the reading. The strips are read one after "
+                "another, so such a change shows as a difference across the "
                 "strips rather than down them."),
         }.get(code or "", "")
 
@@ -11913,8 +11921,6 @@ class MeasurementReportDialog(QDialog):
         numbered notes is about something that is on the page."""
         from workflow.compliance_sets import N_A
         for r in runs or ():
-            if self._drift_only(r):
-                continue
             rows = self._rows_with_words(r)
             if any(x.get("word") == N_A for x in rows):
                 return True
@@ -11922,24 +11928,22 @@ class MeasurementReportDialog(QDialog):
 
     def _rows_with_words(self, r: dict) -> list:
         """The verdict rows whose word the results table prints for *r*:
-        all of them, or on a raw drift check the ones it judges against the
-        profile (K51, B8-1330); every other cell of such a column reads
-        "drift", so its notes would number nothing on the page."""
+        all of them.
+
+        **K59 (Knut, #182 5849392788, option C).** A raw sheet's cells read
+        the words its rows hold (PASS or FAIL on the paper and solid rows it
+        judges, INFO on a value shown for information, N-A where the sheet
+        cannot answer), never "drift", so every cell's notes are on the page.
+        Until K59 only the three rows a raw print judges were here, because
+        every other cell of such a column read "drift"."""
         rows, _rec = self._verdict_rows(r)
-        if not _is_raw_drift(r):
-            return rows
-        from workflow.measurement_report import ROWS_JUDGED_ON_A_RAW_PRINT
-        return [x for x in rows
-                if (x.get("row_id") or x.get("key"))
-                in ROWS_JUDGED_ON_A_RAW_PRINT]
+        return rows
 
     def _note_numbering(self, runs: list):
         """The raw numbering the verdict cells mark themselves from."""
         from workflow.measurement_report import numbered_notes
         merged: list = []
         for r in runs or ():
-            if self._drift_only(r):
-                continue
             merged.extend(self._rows_with_words(r))
         # #182 A10: A SHEET WITH NO PAPER PATCH carries a numbered note on
         # its "Paper white" line, which is no limit row, so the line is put
@@ -11947,9 +11951,9 @@ class MeasurementReportDialog(QDialog):
         # so no row's number moves).
         # #182 K37: on a sheet judged relative to its profile's paper white
         # the line carries M-REPORT-PAPER-WHITE-FROM-PROFILE instead.
+        # K59: a raw sheet's "Paper white" line carries its note too, as on
+        # any other sheet (its cells no longer read "drift").
         for r in runs or ():
-            if _is_raw_drift(r):
-                continue
             _code = _paper_white_note_code(r)
             if _code is None:
                 continue
@@ -12244,6 +12248,26 @@ class MeasurementReportDialog(QDialog):
             if code not in notes:
                 notes.append(code)
             row["notes"] = notes
+        # **K59 (Knut, #182 5849392788): INFO, "WITH A NUMBERED REFERENCE TO
+        # A NOTE THAT EXPLAINS THE ISSUE, WHERE THAT IS RELEVANT".** On a
+        # sheet printed raw, a value that compares the print with the chart's
+        # design colours is shown for information, and the note says why.
+        # Added here, at display, so a report saved before K59 carries it as
+        # well: the words are the record (§6), the note is how they are read.
+        # Not on a type that judges nothing (a Printing record), where INFO
+        # is the type's doing and its own guide line says so.
+        if _is_raw_drift(r) and not self._ungraded_by_type():
+            from workflow.compliance_sets import INFO
+            from workflow.measurement_report import (
+                NOTE_RAW_PRINT_INFO, ROWS_COMPARED_WITH_THE_DESIGN)
+            for row in rows or ():
+                if (row.get("word") == INFO and row.get("value") is not None
+                        and (row.get("row_id") or row.get("key"))
+                        in ROWS_COMPARED_WITH_THE_DESIGN):
+                    notes = list(row.get("notes") or ())
+                    if NOTE_RAW_PRINT_INFO not in notes:
+                        notes.append(NOTE_RAW_PRINT_INFO)
+                    row["notes"] = notes
         return rows
 
     def _type_covers_sentence(self, type_id: "str | None" = None) -> str:
@@ -12443,6 +12467,14 @@ class MeasurementReportDialog(QDialog):
             _reason = recorded_reason(
                 str(sm.get("reason", "")), int(sm.get("checked", 0)),
                 int(sm.get("total", 0)), int(sm.get("not_computed", 0)))
+            # K59: a raw sheet saved before K59 kept the profiling sheet's
+            # sentence ("It was measured to build a profile rather than to
+            # check one"), which is false of a verification printed raw. A
+            # saved sentence is a rendering (`recorded_reason`); the word
+            # and the counts stay as saved.
+            from workflow.compliance_sets import SUMMARY_REASONS as _SR
+            if _is_raw_drift(r) and _reason == _SR["not_graded"]:
+                _reason = _SR["raw_print"]
             return Summary(rec["overall"], int(sm.get("checked", 0)),
                            int(sm.get("total", 0)), int(sm.get("failed", 0)),
                            int(sm.get("cond", 0)), int(sm.get("not_computed", 0)),
@@ -12486,11 +12518,16 @@ class MeasurementReportDialog(QDialog):
             _stored = ""
         from workflow.compliance_sets import SUMMARY_REASONS
         _by_type = self._ungraded_by_type()
+        _raw = _is_raw_drift(r)
         return set_summary(pairs,
                            set_is_iso=applies_a_standard(set_id, _stored),
                            graded=graded and not _by_type,
                            ungraded_reason=(SUMMARY_REASONS["record_type"]
-                                            if _by_type and graded else ""))
+                                            if _by_type and (graded or _raw)
+                                            # K59: a raw sheet was not
+                                            # "measured to build a profile"
+                                            else SUMMARY_REASONS["raw_print"]
+                                            if _raw else ""))
 
     def _one_limit_set(self, runs: list) -> "tuple[list, list]":
         """``(in the report, left out of it)``: nothing is left out (K31).
@@ -12642,29 +12679,76 @@ class MeasurementReportDialog(QDialog):
         return drift_check_judges(rows)
 
     def _drift_only(self, r: dict) -> bool:
-        """A raw drift check whose column carries no verdict at all: every
-        cell, the Overall word included, reads "drift" (K51: under a limit
-        set that puts no limit on its paper and solid rows)."""
+        """A sheet printed raw whose column judged nothing: its Overall word
+        is INFO and its "Judged against" says it was not judged (K59). Its
+        cells read the words its rows hold, as on any other sheet."""
         return _is_raw_drift(r) and not self._drift_judges(r)
 
+    def _raw_clause(self, runs: list) -> str:
+        """How much of "the paper and the solid colours are judged against
+        the profile" is TRUE of the raw columns in *runs* (K59; challenge 9 of
+        beta 44: the clause must be true of exactly the rows judged).
+
+        * ``"all"``: every raw column has a limit on all three of
+          `ROWS_JUDGED_ON_A_RAW_PRINT` and a PASS or FAIL on each (a COND a
+          saved report kept counts): Knut's clause is true as it stands.
+        * ``"where_limited"``: every row among the three that the set limits
+          got a PASS or FAIL, but not every one is limited (ChromIQ's own sets
+          put "–" on all three; ISO 12647-8 limits the paper only): Knut's
+          conditional form, "... where the limit set has a limit for them",
+          is true.
+        * ``"none"``: a limited row read N-A (no readable profile, no paper
+          patch) or INFO (a report saved before K51): neither form is true of
+          it.
+
+        A row the set puts "–" on is not in the verdict rows at all
+        (`_drop_dash_rows`), which is what "limited" means here."""
+        from workflow.compliance_sets import COND, FAIL, PASS
+        from workflow.measurement_report import ROWS_JUDGED_ON_A_RAW_PRINT
+        every = True
+        for r in runs or ():
+            if not _is_raw_drift(r):
+                continue
+            rows, _rec = self._verdict_rows(r)
+            three = [x for x in rows
+                     if (x.get("row_id") or x.get("key"))
+                     in ROWS_JUDGED_ON_A_RAW_PRINT]
+            if any(x.get("word") not in (PASS, FAIL, COND) for x in three):
+                return "none"
+            named = {(x.get("row_id") or x.get("key")) for x in three}
+            if len(named) < len(ROWS_JUDGED_ON_A_RAW_PRINT):
+                every = False
+        return "all" if every else "where_limited"
+
     def _thresholds_cell(self, r: dict) -> str:
-        """The Report Results row that says what a column was judged against."""
+        """The Report Results row that says what a column was judged against.
+
+        **K59 (Knut, #182 5849392788, option C): "the raw print named once in
+        'Judged against'".** A raw sheet's column says so here, once, instead
+        of "drift" in every cell: the set it judged its paper or solid rows
+        against, marked "(printed raw)", or "not judged (printed raw)" where
+        it judged nothing (M-REPORT-RAW-JUDGED-AGAINST,
+        M-REPORT-RAW-NOT-JUDGED, proposed, shown: the "—" they replace said
+        nothing about how the sheet was printed)."""
+        from workflow import measurement_messages as M
         if self._drift_only(r):
-            txt = "—"
+            txt = M.M_REPORT_RAW_NOT_JUDGED.render()[1]
         elif self._recorded(r) is None and not r.get("_fresh"):
             txt = tr("not recorded")
         else:
             txt = self._judged_label_for(r)
+            if _is_raw_drift(r):
+                txt = M.M_REPORT_RAW_JUDGED_AGAINST.render(set=txt)[1]
         return (f"<td align='center' style='color:{_C['faint']};"
                 f"font-size:10px'>{html.escape(txt)}</td>")
 
     def _summary_cell(self, r: dict) -> str:
-        """The Overall row: the column's one word, its reason as tooltip."""
+        """The Overall row: the column's one word, its reason as tooltip.
+
+        K59: a raw sheet's column reads its word like any other: the judged
+        rows' word where it judged something, else INFO (never "drift")."""
         from workflow.compliance_sets import (COND, FAIL, PASS, summary_text,
                                               word_label)
-        if self._drift_only(r):
-            return (f"<td align='center' style='color:{_C['faint']}'>"
-                    + html.escape(tr("drift")) + "</td>")
         sm = self._column_summary(r)
         col = {PASS: _C["pass"], FAIL: _C["fail"], COND: _C["cond"]}.get(
             sm.word, _C["faint"])
@@ -14340,6 +14424,7 @@ class MeasurementReportDialog(QDialog):
             _grades_nothing = self._ungraded_by_type()
         except Exception:              # noqa: BLE001 — a bare guide, no window
             _grades_nothing = False
+        from workflow import measurement_messages as _MM
         body = (
             "<p>" + html.escape(tr(
                 "This report compares what the instrument measured against the "
@@ -14493,22 +14578,14 @@ class MeasurementReportDialog(QDialog):
             # report saved before K51 among them, said its paper and solid
             # rows "are judged against the profile" beside cells that all
             # read "drift". There it keeps the sentence it had before K51.
-            "<p>" + html.escape(tr(
-                "A column read as a drift check shows the word “drift” in "
-                "every cell it does not judge: it compares one measurement "
-                "with another rather than with a limit. Its paper and solid "
-                "colour rows are judged against the profile where the limit "
-                "set has a limit for them. A column's Overall word is PASS "
-                "when every row that could be checked passed; a row the test "
-                "chart used could not answer is not counted as a failure, and "
-                "the sentence under the word says how many there were.")
-                if drift_judged else tr(
-                "A column read as a drift check shows the word “drift” in "
-                "every cell instead: it compares one measurement with another "
-                "rather than with a limit. A column's Overall word is PASS "
-                "when every row that could be checked passed; a row the test "
-                "chart used could not answer is not counted as a failure, and "
-                "the sentence under the word says how many there were.")) + "</p>"
+            # K59 (Knut, #182 5849392788, option C): "drift" is not a cell
+            # word any more and "the word drift is not used at all". The
+            # paragraph says what a raw column shows instead (proposed,
+            # shown: the one it replaces described cells that no longer
+            # exist). The last sentence, on the Overall word, is unchanged.
+            "<p>" + html.escape(
+                (_MM.M_REPORT_RAW_GUIDE_JUDGED if drift_judged
+                 else _MM.M_REPORT_RAW_GUIDE).render()[1]) + "</p>"
             # A COLUMN'S NAME IS NOT ITS CONTENTS. The sentence this replaces
             # read "The columns named after a standard hold that standard's
             # published tolerance values", and for the two Custom columns that
@@ -14594,9 +14671,9 @@ class MeasurementReportDialog(QDialog):
                 "design closely, so low ΔE and passes mean the profile is "
                 "still accurate; numbers rising over time mean that the "
                 "profile describes the printer less well than it did. (Printed "
-                "raw instead, the same sheet is a "
-                "printer drift check, and the report says which way each sheet "
-                "was printed.)")) + "</li>"
+                "raw instead, the same sheet is a check of the printer "
+                "itself, and the report says which way each sheet was "
+                "printed.)")) + "</li>"
             "</ul>"
             # **ONLY WHERE A SHEET WAS SPLIT, AND AS A STATEMENT ABOUT THE
             # REPORT (re-challenge R2 of beta 39, #20).** "Where the report
@@ -14655,7 +14732,7 @@ class MeasurementReportDialog(QDialog):
             "<p>" + html.escape(tr(
                 "Because the design reference never changes, comparing dated "
                 "reports of the same chart on the same printer is a clean, "
-                "reliable signal of drift: ageing inks, a wandering printer, "
+                "reliable signal of change: ageing inks, a wandering printer, "
                 "or an instrument going off. Screen and print colours here are "
                 "approximate; the numbers come from the measurement file and "
                 "are exact.")) + "</p>")
@@ -14688,15 +14765,12 @@ class MeasurementReportDialog(QDialog):
 
         _note_nums = self._note_numbering(runs)
 
-        from workflow.measurement_report import ROWS_JUDGED_ON_A_RAW_PRINT
-
         def cell(r, rid):
-            # K51 (B8-1330): a drift check's paper and solid rows carry their
-            # words when it judges them; its other cells read "drift".
-            if _is_raw_drift(r) and not (rid in ROWS_JUDGED_ON_A_RAW_PRINT
-                                         and self._drift_judges(r)):
-                return (f"<td align='center' style='color:{_C['faint']}'>"
-                        + html.escape(tr("drift")) + "</td>")
+            # K59 (Knut, #182 5849392788, option C): a raw sheet's cells read
+            # the words its rows hold, never "drift": PASS or FAIL where it
+            # judges its paper and solid rows against the profile (K51), INFO
+            # with a numbered note on a value shown for information, N-A with
+            # its note where the sheet cannot answer.
             x = verd[id(r)].get(rid)
             if x is None:
                 return "<td align='center'>—</td>"
@@ -14786,29 +14860,26 @@ class MeasurementReportDialog(QDialog):
         row_getters.append((tr("Judged against"), self._thresholds_cell))
         note_css = f"color:{_C['faint']};font-size:10px;margin-top:2px"
         notes = ""
+        # K51 (Knut, #182 5846167083: "yes for both"): the sentence names the
+        # rows a raw print judges, in the words he approved. K59 (Knut, #182
+        # 5849392788, option C): no column is "marked drift" any more; a raw
+        # sheet is named once, under "Judged against", and the sentence says
+        # so (proposed, shown: the sentence it replaces pointed at cells that
+        # no longer read "drift"). And the clause is true of exactly the
+        # rows judged (challenge 9): Knut's words where every raw column
+        # judged all three, "where the limit set has a limit for them and
+        # the measurement can answer them" where some were "–" or N-A.
+        from workflow import measurement_messages as _MM
         if any(self._drift_judges(r) for r in runs):
-            # K51 (Knut, #182 5846167083: "yes for both"): the sentence names
-            # the rows a raw print judges, in the words he approved.
-            notes += (
-                f"<div style='{note_css}'>" + html.escape(tr(
-                    "Columns marked “drift” are sheets printed raw, without "
-                    "the profile. On them the paper and the solid colours are "
-                    "judged against the profile; the other colours are "
-                    "compared with the chart's design colours for "
-                    "information, because a sheet printed raw is not expected "
-                    "to match the design closely, and PASS or FAIL there would "
-                    "be unfair to a perfectly healthy printer. For those "
-                    "sheets the detailed chapter shows how far the printer "
-                    "has moved since the previous raw check.")) + "</div>")
+            _raw_msg = (_MM.M_REPORT_RAW_RESULTS_JUDGED
+                        if self._raw_clause(runs) == "all"
+                        else _MM.M_REPORT_RAW_RESULTS_SOME)
+            notes += (f"<div style='{note_css}'>"
+                      + html.escape(_raw_msg.render()[1]) + "</div>")
         elif any(_is_raw_drift(r) for r in runs):
-            notes += (
-                f"<div style='{note_css}'>" + html.escape(tr(
-                    "Columns marked “drift” are sheets printed raw, without "
-                    "the profile: they are not expected to match the design "
-                    "closely, so PASS and FAIL would be unfair to a "
-                    "perfectly healthy printer. For those sheets the "
-                    "detailed chapter shows how far the printer has moved "
-                    "since the previous raw check instead.")) + "</div>")
+            notes += (f"<div style='{note_css}'>"
+                      + html.escape(_MM.M_REPORT_RAW_RESULTS.render()[1])
+                      + "</div>")
         # APPENDED, never assigned: a report can hold a raw-drift sheet AND a
         # column with no recorded verdict, and the first draft of this block
         # overwrote the drift note whenever it did.
@@ -15190,10 +15261,26 @@ class MeasurementReportDialog(QDialog):
         # report across runs said "This report judges the profile built in
         # P, run 1" over run 2's measurements too.
         places = MeasurementReportDialog._places_of(runs)
+        _all_raw = bool(runs) and all(_is_raw_drift(r) for r in runs)
+        _any_raw = any(_is_raw_drift(r) for r in runs)
         if len(places) > 1:
             where = "; ".join(
                 tr("{project}, run {n}").format(project=p, n=n) if n else p
                 for p, n in places)
+            # **B8-1383, Knut #182 5849392788: "Ok"**, to the plural opening
+            # of a report whose sheets were ALL printed raw; and to B8-1384,
+            # "Should the raw opening also end with 'The measurements it
+            # covers are listed under Report Scope.'?": "Yes." Both verbatim.
+            # A document across runs with sheets printed BOTH ways keeps the
+            # approved plural sentence below (B8-1397: no text for it yet).
+            if _all_raw:
+                return tr(
+                    "This report follows the printers behind the profiles "
+                    "built in {where}. Their sheets were printed without the "
+                    "profiles, measured, and compared with the charts' own "
+                    "aim values. The measurements it covers are listed under "
+                    "Report Scope."
+                ).format(where=where)
             return tr(
                 "This report judges the profiles built in {where}. Each was "
                 "verified by printing a chart through its profile, measuring "
@@ -15207,33 +15294,67 @@ class MeasurementReportDialog(QDialog):
         # **A DOCUMENT OF RAW SHEETS ONLY WAS NOT "VERIFIED BY PRINTING A
         # CHART THROUGH THAT PROFILE" (B8-1377).** Knut accepted its own
         # opening in #182 5848287278 ("Accepted."), verbatim below. It is
-        # given only where EVERY sheet is a raw drift check: one sheet printed
-        # through the profile keeps the sentence above, true of that sheet,
-        # and a mixed document has no approved sentence yet (B8-1380).
+        # given only where EVERY sheet was printed raw; a document of sheets
+        # printed both ways has its own sentence below (B8-1380).
         #
         # **AND ITS LAST CLAUSE IS A CLAIM THE LIMIT SET DECIDES (B8-1381).**
         # "the paper and the solid colours are judged against the profile" is
-        # true only where every column judged them, which is what
-        # `_drift_judges` asks. Under ChromIQ's own sets those rows are "–"
-        # and not in the report, and where no profile could be read they are
-        # N-A: nothing was judged, every cell reads "drift", and the clause
-        # would be false. There the sentence stops before it, which keeps
-        # every word Knut's and adds none; the conditional variant is his to
-        # approve.
-        if runs and all(_is_raw_drift(r) for r in runs):
-            if all(self._drift_judges(r) for r in runs):
+        # true only where every column judged all three rows. Under ChromIQ's
+        # own sets those rows are "–" and not in the report, and where no
+        # profile could be read they are N-A.
+        #
+        # **K59, Knut #182 5849392788.** B8-1381, "use a conditional form:
+        # '…; the paper and the solid colours are judged against the profile
+        # where the limit set has a limit for them.'": "The conditional form I
+        # think." B8-1384, the Report Scope sentence at the end: "Yes." So
+        # there are three forms, each given only where it is TRUE of exactly
+        # the rows judged (challenge 9 of beta 44), `_raw_clause`:
+        #   "all"            every raw column judged all three rows: the
+        #                    clause as he accepted it;
+        #   "where_limited"  every row the set limits was judged, and some
+        #                    are "–" (ChromIQ's own sets, ISO 12647-8's
+        #                    paper-only): his conditional form;
+        #   "none"           a limited row read N-A (no readable profile, no
+        #                    paper patch): both forms would say it was judged,
+        #                    so the sentence stops before the clause, every
+        #                    word his (a question for him, B8-1395).
+        if _all_raw:
+            clause = self._raw_clause(runs)
+            if clause == "all":
                 return tr(
                     "This report follows the printer behind the profile "
                     "built in {where}. Its sheets were printed without the "
                     "profile, measured, and compared with the chart's own aim "
                     "values; the paper and the solid colours are judged "
-                    "against the profile."
+                    "against the profile. The measurements it covers are "
+                    "listed under Report Scope."
+                ).format(where=where)
+            if clause == "where_limited":
+                return tr(
+                    "This report follows the printer behind the profile "
+                    "built in {where}. Its sheets were printed without the "
+                    "profile, measured, and compared with the chart's own aim "
+                    "values; the paper and the solid colours are judged "
+                    "against the profile where the limit set has a limit for "
+                    "them. The measurements it covers are listed under Report "
+                    "Scope."
                 ).format(where=where)
             return tr(
                 "This report follows the printer behind the profile built in "
                 "{where}. Its sheets were printed without the profile, "
-                "measured, and compared with the chart's own aim values."
+                "measured, and compared with the chart's own aim values. The "
+                "measurements it covers are listed under Report Scope."
             ).format(where=where)
+        # **B8-1380: A DOCUMENT OF SHEETS PRINTED BOTH WAYS.** Knut, #182
+        # 5849392788: "When that is resolved and the message reworded, the
+        # rest of the message is ok." Reworded without "drift"
+        # (M-REPORT-MIXED-OPENING, proposed); shown while it waits, because
+        # the approved sentence below says every sheet "was verified by
+        # printing a chart through that profile", which is false of the raw
+        # ones.
+        if _any_raw:
+            from workflow import measurement_messages as _MM
+            return _MM.M_REPORT_MIXED_OPENING.render(where=where)[1]
         return tr(
             "This report judges the profile built in {where}. It was verified "
             "by printing a chart through that profile, measuring it, and "
@@ -15508,7 +15629,8 @@ class MeasurementReportDialog(QDialog):
                 _h2(tr("Trend over time"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:6px'>" + html.escape(tr(
                     "A rising average or shifting white/black/colour over time "
-                    "points to ageing inks, printer drift, or instrument drift."))
+                    "points to ageing inks, or to a printer or an instrument "
+                    "that has changed."))
                 + "</div>" + _gap() + charts_html)
         if len(runs) > 1:
             parts.append(self._comparison_table_html(runs))
@@ -16343,8 +16465,8 @@ class MeasurementReportDialog(QDialog):
                          False))
         elif colour == "raw":
             rows.append((tr("What this measured"), tr(
-                "whether this printer has changed — no profile took part, so "
-                "this is a drift check, not a profile check"), False))
+                "whether this printer has changed: no profile took part, so "
+                "this is a check of the printer, not of the profile"), False))
             rows.append((tr("Printed"), tr("raw — no profile applied"), False))
         else:
             rows.append((tr("Printed"), tr(
@@ -16502,22 +16624,13 @@ class MeasurementReportDialog(QDialog):
             # thresholds it was given, whatever the spin boxes say today.
             rows, recorded = self._verdict_rows(r)
             raw_drift = _is_raw_drift(r)
-            if raw_drift:
-                # A drift check is never graded against the profile
-                # thresholds — the drift paragraph below carries the verdict.
-                # K51 (B8-1330): except its paper and solid rows, judged
-                # against the profile when its limit set limits them.
-                from workflow.measurement_report import (
-                    ROWS_JUDGED_ON_A_RAW_PRINT)
-                _keep = (ROWS_JUDGED_ON_A_RAW_PRINT
-                         if self._drift_judges(r) else frozenset())
-                for row in rows:
-                    if (row.get("row_id") or row.get("key")) in _keep:
-                        continue
-                    row["pass"] = None
-                    row["threshold"] = None
-                    row["word"] = None
-            thb = f"border-bottom:1.5px solid {_C['rule']}"
+            # K59 (Knut, #182 5849392788, option C): a raw sheet's table
+            # shows the words its rows hold, as the results grid does (PASS
+            # or FAIL on the paper and solid rows it judges, INFO with its
+            # note on a value shown for information, N-A with its note), and
+            # the limit beside an INFO, as on any sheet shown for
+            # information. Until K59 every other row read "—" here.
+            thb =f"border-bottom:1.5px solid {_C['rule']}"
             cols = ([tr("Within gamut"), tr("Beyond it"), tr("All patches")]
                     if split else [tr("Measured ΔE00")])
             # **NO VERDICT COLUMN ON A TYPE THAT JUDGES NOTHING** (G12, Knut
@@ -16678,44 +16791,28 @@ class MeasurementReportDialog(QDialog):
                     + html.escape(self._verdict_provenance(r, recorded))
                     + "</p>")
             if raw_drift:
+                # K59 (Knut, #182 5849392788): *"Use the word "Change"
+                # instead of "Drift"."* A comparison of two prints shows a
+                # change; whether it is a drift is read from the trend
+                # graphs. The four texts are §M-PROPOSED (M-REPORT-RAW-*),
+                # shown: each replaces one that called the sheet "a drift
+                # check".
+                from workflow import measurement_messages as _MM
                 rd = r.get("raw_drift") or {}
                 if rd.get("baseline"):
-                    drift_txt = tr(
-                        "This sheet was printed raw, without the profile, "
-                        "so it is a drift check, and it is the first one: "
-                        "it is the baseline that later raw checks of this "
-                        "chart are measured against.")
+                    raw_txt = _MM.M_REPORT_RAW_BASELINE.render()[1]
                 elif rd.get("incomparable"):
-                    drift_txt = tr(
-                        "This sheet was printed raw, without the profile — a "
-                        "drift check. The previous raw check used a "
-                        "different chart, so print-to-print drift cannot be "
-                        "measured for this pair; the next raw check of THIS "
-                        "chart will start a fresh comparison.")
+                    raw_txt = _MM.M_REPORT_RAW_INCOMPARABLE.render()[1]
                 elif rd.get("avg") is not None:
-                    drift_txt = tr(
-                        "Drift since the previous raw check ({prev}): "
-                        "average {avg} ΔE00, maximum {max}: this print "
-                        "measured against that print, patch by patch, "
-                        "{n} patches. Small numbers mean the printer still "
-                        "behaves as it did then; growing numbers mean it has "
-                        "drifted. "
-                        "(PASS and FAIL against the report's limit set are not "
-                        "shown here: a raw sheet is not expected to match "
-                        "the design closely, so it would fail even a "
-                        "perfectly healthy printer.)").format(
-                            prev=str(rd.get("prev", ""))[:16].replace("T", " "),
-                            avg=_fmt(rd.get("avg")), max=_fmt(rd.get("max")),
-                            n=rd.get("n"))
+                    raw_txt = _MM.M_REPORT_RAW_CHANGE.render(
+                        prev=str(rd.get("prev", ""))[:16].replace("T", " "),
+                        avg=_fmt(rd.get("avg")), max=_fmt(rd.get("max")),
+                        n=rd.get("n"))[1]
                 else:
-                    drift_txt = tr(
-                        "This sheet was printed raw, without the profile — a "
-                        "drift check. Its ΔE figures above describe distance "
-                        "from the design, and what matters is how they "
-                        "change between dated checks, not their size.")
+                    raw_txt = _MM.M_REPORT_RAW_SHEET.render()[1]
                 parts.append(
                     f"<p style='color:{_C['faint']};font-size:10px'>"
-                    + html.escape(drift_txt) + "</p>")
+                    + html.escape(raw_txt) + "</p>")
             # K30 (B3): "The Result judges the within-gamut figures" only
             # where a row in this table uses the split (spec 22.1); a Grey and
             # tone check's rows count every grey patch.
@@ -16741,12 +16838,12 @@ class MeasurementReportDialog(QDialog):
                     f"<p style='color:{_C['faint']};font-size:10px'>" + html.escape(tr(
                         "Within what the profile ({profile}) can print: {n} of "
                         "this sheet's colours ({pct} %); beyond it: {m}. The Result "
-                        "judges the within-gamut figures — a colour beyond "
+                        "judges the within-gamut figures: a colour beyond "
                         "the gamut was never printable, so its distance "
                         "describes the gamut's limit, not a mistake of the "
                         "profile. Those patches stay visible in their own "
                         "column, and how steady they are from check to check "
-                        "is a drift signal.").format(
+                        "shows whether the printer changes.").format(
                             n=split.get("n_in"), m=split.get("n_out"),
                             pct=round(100 * (split.get("n_in") or 0)
                                       / max((split.get("n_in") or 0)

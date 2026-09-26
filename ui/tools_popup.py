@@ -78,7 +78,7 @@ _GROUPS: tuple[tuple[str, tuple[ToolEntry, ...]], ...] = (
         ToolEntry("average",    tr("Average measurements")),
         ToolEntry("merge",      tr("Merge measurements")),
         ToolEntry("ti3_info",   tr("Inspect a measurement")),
-        ToolEntry("measurement_report", tr("Measurement report (accuracy & drift)")),
+        ToolEntry("measurement_report", tr("Measurement report (accuracy & trends)")),
     )),
     (tr("Charts & patch sets"), (
         ToolEntry("ti2_relayout", tr("Edit / create chart patch set")),

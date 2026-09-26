@@ -136,6 +136,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §45 | K51: a raw print judges its paper and solid rows against the profile; "–" is not in the report, graphs included; a limit line shown for information where the report judges nothing; the star's rule (4) with the evenness rows; a media-relative FROM PROFILE GAMUT chart judged relative to its paper; the i1Pro group enabled with the engine on | 2026-09-26, 5846167083, 5846297769 | the answers confirmed by Knut (§45.1); built for beta 44 (B8-1330 to B8-1336, B8-1340), NOT confirmed; the two-page rule put to him; challenge 8's fixes to it in 45.7 to 45.9 (B8-1370 to B8-1377), NOT confirmed |
 | §46 | K56: M-VERIFY-SOLIDS-REASON approved; the pre-flight's FROM PROFILE GAMUT paragraph revised as accepted; the opening of a report of raw sheets | 2026-09-26, 5848287278 | the answers (approval and two accepted texts) are Knut's; what was built (when each opening is given) NOT confirmed; four questions (B8-1380, B8-1381, B8-1383, B8-1384) and the analysis of "drift" (B8-1385) put to him |
 | §47 | K57: the "made for verification" mark is ● not ★; a Content chosen in Preferences with the clip border Off leaves it Off; a Content change in Create Chart reloads no other field | 2026-09-26, 5848511977, 5848514529 | the rulings are Knut's; what was built (B8-1387, B8-1388; B8-1389 verified) NOT confirmed |
+| §49 | K59: option C for a sheet printed raw (INFO with a numbered note where relevant, N-A with its note, the raw print named once under "Judged against"); "drift" not used in the report, its graphs, guide, help, window or PDF; "Change since the previous raw check"; the raw openings Knut chose (conditional form, plural, Report Scope sentence), true of exactly the rows judged; the mixed opening without "drift"; the two FROM PROFILE GAMUT state lines | 2026-09-26, 5849392788 | the answers are Knut's (Confirmed); what was built NOT confirmed; fourteen texts in §M-PROPOSED; three questions and two gaps (B8-1395 to B8-1398) |
 | §48 | K58: the ChromIQ branding's wordmark at the end of the clip border, like the Notes box, for Side Left/Right x Flip 180 Off/On, the text in the box beyond it | 2026-09-18 5730034611, 2026-09-26 5848747795 | the design is Knut's; what was built (B8-1390) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
 
@@ -8775,15 +8776,17 @@ after, window and PDF; NOTES.txt, ANSWERS.txt). Tests:
   sets, which put "–" on all three, nothing changes. Every other row reads
   INFO. *(Challenge 8, 45.7: the column judges only where one of the three
   got PASS or FAIL; three N-A judge nothing, and the column reads "drift"
-  throughout.)*
+  throughout.)* *(Superseded by K59, §49: no cell reads "drift"; the INFO
+  cells carry a numbered note and the N-A cells theirs.)*
 * The column's Overall word follows the judged rows, and its counts are
   about them only (`counted_rows`, `sheet_is_judged`; `set_summary` leaves an
   INFO row out of a column that judged something). On the demo pack's raw
   drift check (Report-Limits-Border-Conditions, run3) under ISO 12647-7 the
   designed drift FAILs "Maximum ΔE00, solid colours" and the Overall reads
   FAIL.
-* In the window and the PDF: the three rows carry their words and notes, the
-  other cells of the column read "drift", "Judged against" names the set; the
+* In the window and the PDF *(superseded by K59, §49)*: the three rows carry
+  their words and notes, the other cells of the column read "drift",
+  "Judged against" names the set; the
   detailed chapter keeps the three rows' words. The sentence under the
   results, where a drift column judges (ours around Knut's approved clause):
   *"Columns marked “drift” are sheets printed raw, without the profile. On
@@ -8966,6 +8969,11 @@ mutation in its docstring (`fixes-8-report/mutations.txt`).
   all read N-A (no profile could be read, no solid patch) judges nothing and
   reads "drift" throughout, with the old sentence. 45.2 had it reading N-A
   with a note under a column "judged against" its set (B8-1372, a question).
+* *(K59, §49: the rule that N-A is not a verdict stands; the display does
+  not. Such a column reads its N-A rows with their notes, INFO elsewhere
+  with the raw print's note, INFO overall, "not judged (printed raw)"
+  under "Judged against"; a beta 43 save reads as its file. Knut's answer
+  to B8-1372.)*
 
 **45.8 "–" rows in a report of drift checks (B8-1371).**
 
@@ -9069,9 +9077,14 @@ its docstring (`k56/mutations.txt`).
     (B8-1383).
 * The accepted raw sentence does not end with "The measurements it covers
   are listed under Report Scope."; it ships as accepted (B8-1384).
+* *(Superseded by K59, §49: Knut answered B8-1380, B8-1381, B8-1383 and
+  B8-1384 and the analysis, B8-1385, in 5849392788. The raw opening ends
+  with the Report Scope sentence, takes his conditional form where it is
+  true, and a document of sheets printed both ways opens with its own
+  sentence.)*
 
 **Status:** the answers are Knut's (46.1); what was built (46.2) NOT
-confirmed; four questions and one analysis with him.
+confirmed; four questions and one analysis with him, answered in §49.
 
 ## 47. K57: the "made for verification" mark, and the clip border's content (#182, 2026-09-26, beta 44)
 
@@ -9164,3 +9177,142 @@ at the top, each turned over by Flip 180. Its size never depends on the text.
 The Text field's lines fill a box that starts 3.5 mm past the wordmark, at the
 typed Size or, in auto, no larger than the wordmark. The preview, the
 generated chart and the exported template share the one renderer.
+
+## 49. K59: a sheet printed raw, option C, and no "drift" (#182, 2026-09-26, beta 44)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-26, #182
+[5849392788](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5849392788),
+for exactly the answers quoted here, to the K56 questions (§46) and the
+analysis of "drift" (`~/Desktop/ChromIQ-beta44-proof/k56/ANALYSIS-drift.txt`).
+What was built from them, and every wording that is ours, is in 49.2 to 49.5
+and waits for his confirmation.
+
+**49.1 The answers, verbatim.**
+
+* On the analysis: *"use recommended option C, but with some comments: 1. The
+  word drift is not used at all. A user can analyse the trend graphs to
+  ascertain if what he sees is a drift. The comparison of prints is in the
+  reports called trend graphs. The word "drift" is a symptom or a result of
+  something, and a comparison or a trend may not be a drift of values at
+  all."*; on "Drift" staying for the comparison with the previous raw check:
+  *"Use the word "Change" instead of "Drift". The word drift is not related to
+  a comparison of two values, but is a trend over longer time in either upward
+  or downward direction. A Comparison against another value cannot conclude
+  that it is a drift. It is better that a person looks at the trend to
+  diagnose this."*
+* "Should (C) be built": *"Yes, but see above."* "INFO as the cell word ..., or
+  the number with an information marker?": *"can we use the INFO but also have
+  a numbered reference to a note that explains the issue, where that is
+  relevant?"* "I will propose the reworded sentence under the results, the
+  guide entry and the "Judged against" text for your approval before they
+  ship": *"Ok"*.
+* B8-1380, the mixed opening: *"The use of the word “drift” for a chart
+  printed raw is not a good wording ... When that is resolved and the message
+  reworded, the rest of the message is ok."*
+* B8-1381: *"The conditional form I think."* (*"…; the paper and the solid
+  colours are judged against the profile where the limit set has a limit for
+  them."*)
+* B8-1383, *"This report follows the printers behind the profiles built in
+  {where}. Their sheets were printed without the profiles, measured, and
+  compared with the charts' own aim values."*: *"Ok"*.
+* B8-1384, "Should the raw opening also end with "The measurements it covers
+  are listed under Report Scope."?": *"Yes."*
+* B8-1386, *"This chart was not built with From Profile Gamut, so printed
+  through its profile its solid patches are converted."* and *"This chart was
+  built with From Profile Gamut, so it prints its solid patches as they
+  are."*: *"Ok"*.
+
+### ⏳ Awaiting confirmation: what was built from them
+
+**Confirmed by:** *nobody yet.*
+
+Register: B8-1393 to B8-1398; B8-1370, B8-1372, B8-1380, B8-1381, B8-1383,
+B8-1384, B8-1386 answered, B8-1385 superseded. Proof:
+`~/Desktop/ChromIQ-beta44-proof/k59/` (on screen, EN and DE, window and PDF;
+NOTES.txt, PROPOSALS.txt, drift-grep.txt). Tests:
+`tests/test_k59_no_drift_in_the_report.py`, each red on the mutation in its
+docstring (`k59/mutations.txt`).
+
+**49.2 A raw sheet's cells, its note, its Overall word, "Judged against".**
+
+* Every cell of a raw column reads the word its row holds, in the results
+  grid and in the detailed chapter: PASS or FAIL on the paper and solid rows
+  where the limit set limits them (K51, §45.2), INFO on every other value,
+  N-A with its numbered note where the sheet cannot answer. No cell reads
+  "drift". The detailed table shows the limit beside an INFO, as on any sheet
+  shown for information.
+* An INFO on a row that compares the print with the chart's design colours
+  (`ROWS_COMPARED_WITH_THE_DESIGN`, the rows §32.6 lists) carries the raised
+  number of M-REPORT-RAW-PRINT-INFO, *"This sheet was printed raw, without the
+  profile, so this value is shown for information only and is not judged: it
+  compares the print with the chart's design colours, which a sheet printed
+  without the profile is not expected to match closely."* Not on the paper and
+  solid rows (compared with the profile), not on the two repeatability rows
+  (readings against readings, B8-1398), not on a Printing record (INFO is the
+  type's doing). German: *"Dieser Bogen wurde roh, ohne das Profil, gedruckt,
+  daher wird dieser Wert nur zur Information gezeigt und nicht beurteilt: Er
+  vergleicht den Druck mit den Design-Farben des Charts, und von einem ohne das
+  Profil gedruckten Bogen wird keine enge Übereinstimmung mit ihnen
+  erwartet."*
+* Overall: the judged rows' word where one of the paper and solid rows got
+  PASS or FAIL (N-A is not a verdict, §45.7), else INFO, whose sentence is
+  M-REPORT-RAW-OVERALL (it was the profiling sheet's "It was measured to build
+  a profile rather than to check one", false of a verification).
+* "Judged against": *"<set> (printed raw)"* where the column judged,
+  *"not judged (printed raw)"* where it judged nothing (it read "—").
+* Under the results, the sentence names that marker, in the form true of the
+  rows judged: Knut's K51 clause verbatim where every raw column judged all
+  three rows (M-REPORT-RAW-RESULTS-JUDGED); *"… judged against the profile
+  where the limit set has a limit for them and the measurement can answer
+  them; …"* where some were "–" or N-A (M-REPORT-RAW-RESULTS-SOME, ISO 12647-8
+  limits the paper only); M-REPORT-RAW-RESULTS where nothing was judged. "How
+  to read this report" says the same (M-REPORT-RAW-GUIDE-JUDGED,
+  M-REPORT-RAW-GUIDE).
+
+**49.3 Saved reports (§6).** A report shows what it stored: the words and
+the counts are the record; the raw note, the "Judged against" text and the
+Overall sentence are readings of it. A raw sheet saved by beta 43 or 44 reads
+as its file: INFO on the design rows, N-A with "needs a reference for the
+printing condition" on the three rows (beta 43), Overall INFO; its stored
+profiling sentence is read as M-REPORT-RAW-OVERALL (a saved sentence is a
+rendering, `recorded_reason`). B8-1370's special case is NOT undone: its rule
+(N-A is not a verdict) is what makes such a column read INFO rather than N-A
+"nothing checked"; only its "drift throughout" display went. Report Scope's
+"Worked out by an earlier version" line (M-REPORT-WORKED-OUT-EARLIER) stays
+where this version would compare those rows with the profile.
+
+**49.4 No "drift", and "change".** The detailed chapter's lines under a raw
+sheet are M-REPORT-RAW-BASELINE, -INCOMPARABLE, -CHANGE (*"Change since the
+previous raw check ({prev}): … larger numbers mean it has changed since.
+Whether it keeps changing in one direction can be read from the trend graphs,
+across all the dated checks. …"*) and -SHEET. Every other text of the report
+and of the help about it says "change" where it said "drift", nothing else
+changed (B8-1394 lists them): the trend graph descriptions, the guide, the
+evenness note, the Tools entry "Measurement report (accuracy & trends)", the
+glossary, the Getting Started card, the Print Chart tab's raw notice (§3.1b of
+`verification_printing_and_target.md`), Preferences > Reports, the file guide.
+The trend graphs themselves are unchanged.
+
+**49.5 The openings (B8-1380, B8-1381, B8-1383, B8-1384).**
+
+* Every sheet raw, one project and run, each form only where it is TRUE of
+  exactly the rows judged (challenge 9 of beta 44): every raw column judged
+  all three rows: Knut's accepted sentence (§46); every limited row judged and
+  some "–" (ChromIQ's own sets, ISO 12647-8): his conditional form; a limited
+  row read N-A: the sentence stops before the clause (B8-1395, a question).
+  Each ends *"The measurements it covers are listed under Report Scope."*
+* Every sheet raw, several runs: his plural sentence and the same ending.
+* Sheets printed both ways, one project and run: M-REPORT-MIXED-OPENING,
+  *"This report judges the profile built in {where}. Some of its sheets were
+  printed through that profile and compared with the chart's own aim values;
+  the others, marked “printed raw”, were printed without it. The measurements
+  it covers are listed under Report Scope."* (proposed, shown). Across runs:
+  the approved plural sentence, unchanged (B8-1397).
+* The two FROM PROFILE GAMUT state lines of the presets window and the
+  Measure pre-flight: his accepted texts, verbatim (B8-1386).
+
+**Status:** the answers confirmed by Knut (49.1); what was built (49.2 to
+49.5) NOT confirmed; fourteen texts in §M-PROPOSED; questions B8-1395, B8-1398;
+gaps B8-1396, B8-1397.

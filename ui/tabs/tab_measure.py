@@ -3398,8 +3398,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "Preferences → Reports), ChromIQ keeps a dated report of every "
             "measurement, and this window shows how the latest one has "
             "changed from the last. A rising colour difference or a shifting "
-            "white/black points to ageing inks, a drifting printer, or a "
-            "drifting instrument.\n\n"
+            "white/black points to ageing inks, or to a printer or an "
+            "instrument that has changed.\n\n"
             "Measure the chart first, then open this. Screen colours are "
             "approximate; the numbers come from your measurement file."),
             left))

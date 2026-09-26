@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-26, K59 (B8-1393, B8-1394, B8-1380 to B8-1386, Knut #182 5849392788): option C for a sheet printed raw and no "drift" in the report or its help: 14 §M-PROPOSED texts in, 7 approved openings and state lines in or re-keyed, 40 help and report texts re-keyed with "change" for "drift" (and their em dashes cleaned), "drift" and the old raw texts out. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1362, Knut #182 5847578917): Preferences > Chart Layout shows "Clip-border content" with the clip border Off, with a note that its fields apply only when the clip border is On, 1 key in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the echo budget. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1341): the ★ sentence in the tooltip of "Which presets can be used for verification?" says rule (4) as K51 set it, 1 key replaced by 1. German by hand, does not move; the twelve others carried the old paragraph in English and carry the new one in English, so none moves. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K51 (B8-1330 to B8-1340, Knut #182 5846167083 and 5846297769): the drift sentence and guide line, the information note under a graph (two forms), the three sheet-graph sentences, the record's sentence, the star line and its two help cards, the media-relative line, the i1Pro group's title and help. German by hand; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
@@ -1080,18 +1081,18 @@ _BUDGET = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 1060,
-    "fr": 1061,
-    "it": 1060,
-    "ja": 1060,
-    "nl": 1060,
-    "no": 1060,
-    "pl": 1060,
-    "pt": 1060,
-    "ru": 1059,
-    "sv": 1060,
-    "zh_CN": 1059,
-    "uk": 1202,
+    "es": 1095,
+    "fr": 1096,
+    "it": 1095,
+    "ja": 1095,
+    "nl": 1095,
+    "no": 1095,
+    "pl": 1095,
+    "pt": 1095,
+    "ru": 1094,
+    "sv": 1095,
+    "zh_CN": 1094,
+    "uk": 1236,
 }
 
 

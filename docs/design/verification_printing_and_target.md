@@ -766,7 +766,7 @@ about a rule being broken:
 > The sheet goes to the printer exactly as it is, with no profile involved. That
 > is useful for one particular question: *"is my printer still behaving the way
 > it did last time?"* Print the same chart the same way each month and compare
-> the results, and you will see it drift before it becomes visible in your work.
+> the results, and you will see it change before it becomes visible in your work.
 >
 > What it cannot tell you is how accurate your profile is, because no profile
 > took part. For that, choose **Through this run's profile** above — then the
@@ -794,6 +794,29 @@ profile's own description of the printing condition (§41.7 of
 every row compared with the chart's design colours stays for information.
 The sentence under the results names the judged rows. See
 `measurement_report_limits.md` §45.2. **Confirmed by:** *nobody yet.*
+
+✅ **Confirmed behaviour (K59, the word and the cells).** **Confirmed by:**
+Knut, 2026-09-26, #182
+[5849392788](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5849392788),
+for exactly these answers. On the report a raw print is not called a
+"drift check", and "drift" is not used anywhere: *"The word drift is not
+used at all. A user can analyse the trend graphs to ascertain if what he
+sees is a drift. The comparison of prints is in the reports called trend
+graphs."*; *"Use the word "Change" instead of "Drift"."* Option C of the
+K56 analysis is to be built (*"Yes, but see above."*), its cell word INFO
+*"but also [with] a numbered reference to a note that explains the issue,
+where that is relevant"*. The notice quoted above reads "you will see it
+change" (it said "drift"), the only change to it.
+
+⏳ **Awaiting confirmation (K59, what was built):** a raw print's cells
+read the words its rows hold: PASS or FAIL on the paper and solid rows
+where the set limits them, INFO with the numbered note
+M-REPORT-RAW-PRINT-INFO on every value compared with the chart's design
+colours, N-A with its note where the sheet cannot answer; the Overall word
+is the judged rows' word, else INFO; "Judged against" names the raw print
+once. The texts are ours and wait in §M-PROPOSED of
+`unified_measurement_management.md`. See `measurement_report_limits.md`
+§49. **Confirmed by:** *nobody yet.*
 
 ### 3.2 Feature A — the conversion itself
 

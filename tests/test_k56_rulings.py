@@ -129,11 +129,31 @@ def test_the_gamut_paragraph_is_knuts_accepted_revision():
 
 # --------------------------------------------------------------------------
 # 3. The opening of a report of raw sheets (B8-1377, B8-1380, B8-1381)
+#
+# K59 (Knut, #182 5849392788): B8-1381 "The conditional form I think.";
+# B8-1384 the Report Scope sentence at the end, "Yes."; B8-1380 the mixed
+# document's sentence once "drift" is gone. The three raw forms, each true of
+# exactly the rows judged, are pinned in `test_k59_no_drift_in_the_report.py`;
+# here the K56 cases, with the endings he added.
 # --------------------------------------------------------------------------
+SCOPE = " The measurements it covers are listed under Report Scope."
+
+
+def _all_three(word: str) -> "list[dict]":
+    """The paper and both solid rows limited and reading *word*."""
+    rows = [{"row_id": rid, "key": rid, "value": 1.0, "threshold": 3.0,
+             "word": word}
+            for rid in ("substrate_de00_max", "solids_de00_max",
+                        "cmy_solids_dhab_max")]
+    rows.append({"row_id": "all_de00_avg", "key": "all_de00_avg",
+                 "value": 3.1, "threshold": 2.5, "word": CS.INFO})
+    return rows
+
+
 def test_a_report_of_raw_sheets_that_judged_opens_with_knuts_sentence(
         qapp, monkeypatch):
-    """Every sheet raw, every column judging its solid row: his accepted
-    sentence, verbatim.
+    """Every sheet raw, every column judging all three rows: his accepted
+    sentence, verbatim, and the Report Scope sentence he asked for.
 
     MUTATION, proven red: delete the raw branch of
     `_what_this_report_judges` (the approved "verified by printing a chart
@@ -142,8 +162,13 @@ def test_a_report_of_raw_sheets_that_judged_opens_with_knuts_sentence(
     try:
         runs = [_sheet("raw", "2026-11-16_100000"),
                 _sheet("raw", "2026-11-23_100000")]
-        said = _opening(dlg, monkeypatch, runs, [CS.FAIL, CS.PASS])
-        assert said == RAW_OPENING.format(where="Demo, run 3"), said
+        by = {id(runs[0]): _all_three(CS.FAIL), id(runs[1]): _all_three(CS.PASS)}
+        monkeypatch.setattr(type(dlg), "_verdict_rows",
+                            lambda self, r: (by[id(r)], False))
+        monkeypatch.setattr(type(dlg), "_report_kind",
+                            lambda self, runs: "verification")
+        said = dlg._what_this_report_judges(runs)
+        assert said == (RAW_OPENING + SCOPE).format(where="Demo, run 3"), said
         assert "through that profile" not in said
     finally:
         dlg.deleteLater()
@@ -151,38 +176,40 @@ def test_a_report_of_raw_sheets_that_judged_opens_with_knuts_sentence(
 
 def test_a_report_of_raw_sheets_that_judged_nothing_makes_no_claim(
         qapp, monkeypatch):
-    """ChromIQ's own sets put "–" on the paper and solid rows, and a sheet
-    with no readable profile reads N-A on all three: nothing was judged, so
-    "the paper and the solid colours are judged against the profile" would be
-    false. The sentence stops before it. One column that judged nothing among
-    columns that did is enough to stop it, because the clause speaks for the
-    whole document.
+    """Where a limited row read N-A (no profile could be read), the clause,
+    plain or conditional, would say it was judged: the sentence stops before
+    it. One such column among columns that judged is enough, because the
+    clause speaks for the whole document.
 
-    MUTATION, proven red: drop the `all(self._drift_judges(...))` test (the
-    clause is printed over columns that read "drift" throughout); and, as a
-    second mutation, make it `any` (the mixed document gets the clause)."""
+    MUTATION, proven red: in `_raw_clause` return "all" unconditionally (the
+    clause is printed over an N-A); and, as a second mutation, look at the
+    first raw column only (the mixed document gets the clause)."""
     dlg = _dialog(qapp)
     try:
         runs = [_sheet("raw", "2026-11-16_100000")]
         said = _opening(dlg, monkeypatch, runs, [CS.N_A])
-        assert said == RAW_OPENING_UNJUDGED.format(where="Demo, run 3"), said
+        assert said == (RAW_OPENING_UNJUDGED + SCOPE).format(
+            where="Demo, run 3"), said
         assert "judged against the profile" not in said
         runs = [_sheet("raw", "2026-11-16_100000"),
                 _sheet("raw", "2026-11-23_100000")]
         said = _opening(dlg, monkeypatch, runs, [CS.FAIL, CS.N_A])
-        assert said == RAW_OPENING_UNJUDGED.format(where="Demo, run 3"), said
+        assert said == (RAW_OPENING_UNJUDGED + SCOPE).format(
+            where="Demo, run 3"), said
     finally:
         dlg.deleteLater()
 
 
 def test_a_sheet_printed_through_the_profile_keeps_the_approved_sentence(
         qapp, monkeypatch):
-    """A document of through-profile sheets, and a MIXED one, keep Knut's
-    approved sentence of 2026-09-20: it is true of every sheet printed through
-    the profile, and the mixed case has no approved text yet (B8-1380).
+    """A document of through-profile sheets keeps Knut's approved sentence of
+    2026-09-20. A MIXED one, since K59, opens with the sentence he accepted
+    once "drift" was gone (M-REPORT-MIXED-OPENING, proposed, shown).
 
-    MUTATION, proven red: test `any(_is_raw_drift(...))` instead of `all`
-    (the mixed document says its sheets were printed without the profile)."""
+    MUTATION, proven red: test `any(_is_raw_drift(...))` for the raw
+    branch (the mixed document says its sheets were printed without the
+    profile)."""
+    from workflow import measurement_messages as M
     dlg = _dialog(qapp)
     try:
         runs = [_sheet("profile", "2026-11-16_100000")]
@@ -191,7 +218,9 @@ def test_a_sheet_printed_through_the_profile_keeps_the_approved_sentence(
         runs = [_sheet("profile", "2026-11-16_100000"),
                 _sheet("raw", "2026-11-23_100000")]
         said = _opening(dlg, monkeypatch, runs, [CS.PASS, CS.FAIL])
-        assert said == THROUGH_OPENING.format(where="Demo, run 3"), said
+        assert said == M.M_REPORT_MIXED_OPENING.body.format(
+            where="Demo, run 3"), said
+        assert "drift" not in said
     finally:
         dlg.deleteLater()
 
@@ -201,11 +230,13 @@ def test_the_raw_openings_are_german_in_german():
 
     MUTATION, proven red: set either German value back to its English key."""
     de = _de()
-    for en in (RAW_OPENING, RAW_OPENING_UNJUDGED):
+    for en in (RAW_OPENING + SCOPE, RAW_OPENING_UNJUDGED + SCOPE):
         t = de[en]
         assert t != en and "{where}" in t
         assert t.startswith("Dieser Bericht verfolgt den Drucker")
+        assert t.endswith("Welche Messungen er umfasst, steht unter "
+                          "„Berichtsumfang“.")
         assert "—" not in t and "—" not in en
         assert " du " not in f" {t} " and " dein" not in t
-    assert "gegen das Profil beurteilt" in de[RAW_OPENING]
-    assert "gegen das Profil beurteilt" not in de[RAW_OPENING_UNJUDGED]
+    assert "gegen das Profil beurteilt" in de[RAW_OPENING + SCOPE]
+    assert "gegen das Profil beurteilt" not in de[RAW_OPENING_UNJUDGED + SCOPE]

@@ -3346,6 +3346,208 @@ M_REPORT_WORKED_OUT_EARLIER = _m(
     "out the current way.",
     approved=True)   # Knut, #182 5831246553 (the UI reference removed)
 
+# --- PROPOSED (K59, Knut #182 5849392788): A SHEET PRINTED RAW, OPTION C ---
+# *"use recommended option C"*, with *"The word drift is not used at all ...
+# Use the word "Change" instead of "Drift""* and, on the cell word, *"can we
+# use the INFO but also have a numbered reference to a note that explains the
+# issue, where that is relevant?"*. His answer to "I will propose the
+# reworded sentence under the results, the guide entry and the "Judged
+# against" text for your approval before they ship": *"Ok"*.
+#
+# Every text below replaces one that is false under his ruling (a cell or a
+# sentence that says "drift" of a single sheet, a "Judged against" of "—"
+# beside a column that says nothing about how it was printed), so each is
+# SHOWN while it waits, as M-VERIFY-UNCHECKED-METRICS was; none is approved.
+# `tests/test_k59_no_drift_in_the_report.py` pins which one is used where.
+
+#: The numbered note on a value of a raw sheet shown for information. Only on
+#: the rows that compare the print with the chart's design colours
+#: (`measurement_report.ROWS_COMPARED_WITH_THE_DESIGN`), which is where it is
+#: "relevant": a repeatability row compares readings with readings, and the
+#: paper and solid rows are compared with the profile.
+M_REPORT_RAW_PRINT_INFO = _m(
+    "M-REPORT-RAW-PRINT-INFO",
+    "A value of a sheet printed raw, shown for information",
+    "This sheet was printed raw, without the profile, so this value is shown "
+    "for information only and is not judged: it compares the print with the "
+    "chart's design colours, which a sheet printed without the profile is not "
+    "expected to match closely.",
+    approved=False)
+
+#: "Judged against" of a raw sheet's column, where it judged its paper or
+#: solid rows ({set} is the limit set's name, as every other column shows it).
+M_REPORT_RAW_JUDGED_AGAINST = _m(
+    "M-REPORT-RAW-JUDGED-AGAINST",
+    "Judged against, a sheet printed raw",
+    "{set} (printed raw)",
+    approved=False)
+
+#: ...and where it judged nothing (every value INFO or N-A).
+M_REPORT_RAW_NOT_JUDGED = _m(
+    "M-REPORT-RAW-NOT-JUDGED",
+    "Judged against, a sheet printed raw that judged nothing",
+    "not judged (printed raw)",
+    approved=False)
+
+#: The Overall word's sentence (tooltip, one-page summary) of a raw column
+#: that judged nothing. It replaces the profiling sheet's "It was measured to
+#: build a profile rather than to check one", which is false of a
+#: verification sheet; the same sentence is `compliance_sets.
+#: SUMMARY_REASONS["raw_print"]`.
+M_REPORT_RAW_OVERALL = _m(
+    "M-REPORT-RAW-OVERALL",
+    "Overall, a sheet printed raw that judged nothing",
+    "This sheet was printed raw, without the profile, so its values are shown "
+    "for information only and nothing on it was judged.",
+    approved=False)
+
+#: The sentence under Report Results where a raw column judged ALL THREE of
+#: its paper and solid rows, in every raw column: Knut's approved K51 clause
+#: ("the paper and the solid colours are judged against the profile; the
+#: other colours are compared with the chart's design colours for
+#: information") is exactly true there and kept verbatim. Only the first
+#: sentence, which named the "drift" cells, is new.
+M_REPORT_RAW_RESULTS_JUDGED = _m(
+    "M-REPORT-RAW-RESULTS-JUDGED",
+    "Under the results, sheets printed raw that judged their paper and solids",
+    "Columns marked “printed raw” under “Judged against” are sheets printed "
+    "without the profile. On them the paper and the solid colours are judged "
+    "against the profile; the other colours are compared with the chart's "
+    "design colours for information, because a sheet printed raw is not "
+    "expected to match the design closely, and PASS or FAIL there would be "
+    "unfair to a perfectly healthy printer. For those sheets the detailed "
+    "chapter shows how far the printer has moved since the previous raw "
+    "check.",
+    approved=False)
+
+#: ...where a raw column judged some of those rows but not all (a set that
+#: limits the paper only, as ISO 12647-8 does; a row that read N-A). Challenge
+#: 9 of beta 44: the clause must be true of exactly the rows judged.
+M_REPORT_RAW_RESULTS_SOME = _m(
+    "M-REPORT-RAW-RESULTS-SOME",
+    "Under the results, sheets printed raw that judged some of their paper and "
+    "solid rows",
+    "Columns marked “printed raw” under “Judged against” are sheets printed "
+    "without the profile. On them the paper and the solid colours are judged "
+    "against the profile where the limit set has a limit for them and the "
+    "measurement can answer them; the other colours are compared with the "
+    "chart's design colours for information, because a sheet printed raw is "
+    "not expected to match the design closely, and PASS or FAIL there would "
+    "be unfair to a perfectly healthy printer. For those sheets the detailed "
+    "chapter shows how far the printer has moved since the previous raw "
+    "check.",
+    approved=False)
+
+#: ...and where no raw column judged anything.
+M_REPORT_RAW_RESULTS = _m(
+    "M-REPORT-RAW-RESULTS",
+    "Under the results, sheets printed raw that judged nothing",
+    "Columns marked “printed raw” under “Judged against” are sheets printed "
+    "without the profile. They are not expected to match the design closely, "
+    "and PASS or FAIL would be unfair to a perfectly healthy printer, so their "
+    "values are shown for information. For those sheets the detailed chapter "
+    "shows how far the printer has moved since the previous raw check.",
+    approved=False)
+
+#: "How to read this report": the paragraph about a raw column. The last
+#: sentence, about the Overall word, is the one the guide carried before.
+M_REPORT_RAW_GUIDE_JUDGED = _m(
+    "M-REPORT-RAW-GUIDE-JUDGED",
+    "How to read this report, a sheet printed raw",
+    "A column marked “printed raw” under “Judged against” is a sheet printed "
+    "without the profile. Its paper and solid colour rows are judged against "
+    "the profile where the limit set has a limit for them; its values that "
+    "compare the print with the chart's design colours read INFO, with a "
+    "numbered note that says so. A column's Overall word is PASS when every "
+    "row that could be checked passed; a row the test chart used could not "
+    "answer is not counted as a failure, and the sentence under the word says "
+    "how many there were.",
+    approved=False)
+
+#: ...in a document whose raw columns judged nothing.
+M_REPORT_RAW_GUIDE = _m(
+    "M-REPORT-RAW-GUIDE",
+    "How to read this report, a sheet printed raw that judged nothing",
+    "A column marked “printed raw” under “Judged against” is a sheet printed "
+    "without the profile. Its values that compare the print with the chart's "
+    "design colours read INFO, with a numbered note that says so. A column's "
+    "Overall word is PASS when every row that could be checked passed; a row "
+    "the test chart used could not answer is not counted as a failure, and "
+    "the sentence under the word says how many there were.",
+    approved=False)
+
+#: The detailed chapter, under a raw sheet's table (Knut: "Change", not
+#: "Drift"). The first raw sheet of a chart:
+M_REPORT_RAW_BASELINE = _m(
+    "M-REPORT-RAW-BASELINE",
+    "The first raw check of a chart",
+    "This sheet was printed raw, without the profile, and it is the first raw "
+    "check of this chart: it is the baseline that later raw checks of this "
+    "chart are compared with.",
+    approved=False)
+
+#: ...a raw sheet whose previous raw check used another chart:
+M_REPORT_RAW_INCOMPARABLE = _m(
+    "M-REPORT-RAW-INCOMPARABLE",
+    "A raw check after one of a different chart",
+    "This sheet was printed raw, without the profile. The previous raw check "
+    "used a different chart, so the change from print to print cannot be "
+    "measured for this pair; the next raw check of THIS chart will start a "
+    "fresh comparison.",
+    approved=False)
+
+#: ...the print-to-print comparison with the previous raw check. Knut: "A
+#: Comparison against another value cannot conclude that it is a drift. It is
+#: better that a person looks at the trend to diagnose this."
+M_REPORT_RAW_CHANGE = _m(
+    "M-REPORT-RAW-CHANGE",
+    "Change since the previous raw check",
+    "Change since the previous raw check ({prev}): average {avg} ΔE00, "
+    "maximum {max}: this print measured against that print, patch by patch, "
+    "{n} patches. Small numbers mean the printer still behaves as it did "
+    "then; larger numbers mean it has changed since. Whether it keeps "
+    "changing in one direction can be read from the trend graphs, across all "
+    "the dated checks. (PASS and FAIL against the report's limit set are not "
+    "shown here: a raw sheet is not expected to match the design closely, so "
+    "it would fail even a perfectly healthy printer.)",
+    approved=False)
+
+#: ...a raw sheet with no comparison record at all:
+M_REPORT_RAW_SHEET = _m(
+    "M-REPORT-RAW-SHEET",
+    "A sheet printed raw",
+    "This sheet was printed raw, without the profile. Its figures compared "
+    "with the chart's design colours describe the distance from the design, "
+    "and what matters is how they change between dated checks, not their "
+    "size.",
+    approved=False)
+
+#: The opening of a report whose sheets were printed both ways (B8-1380).
+#: Knut: *"The use of the word “drift” for a chart printed raw is not a good
+#: wording ... When that is resolved and the message reworded, the rest of
+#: the message is ok."* Only "marked “drift”" is reworded: the others are now
+#: marked "printed raw" under "Judged against". Shown while it waits, because
+#: the approved sentence it replaces ("It was verified by printing a chart
+#: through that profile") is false of the raw sheets.
+M_REPORT_MIXED_OPENING = _m(
+    "M-REPORT-MIXED-OPENING",
+    "The opening of a report of sheets printed both ways",
+    "This report judges the profile built in {where}. Some of its sheets were "
+    "printed through that profile and compared with the chart's own aim "
+    "values; the others, marked “printed raw”, were printed without it. The "
+    "measurements it covers are listed under Report Scope.",
+    approved=False)
+
+#: The K59 proposals as one tuple, in the order PROPOSALS.txt lists them.
+K59_PROPOSED = (
+    M_REPORT_RAW_PRINT_INFO, M_REPORT_RAW_JUDGED_AGAINST,
+    M_REPORT_RAW_NOT_JUDGED, M_REPORT_RAW_OVERALL,
+    M_REPORT_RAW_RESULTS_JUDGED, M_REPORT_RAW_RESULTS_SOME,
+    M_REPORT_RAW_RESULTS, M_REPORT_RAW_GUIDE_JUDGED, M_REPORT_RAW_GUIDE,
+    M_REPORT_RAW_BASELINE, M_REPORT_RAW_INCOMPARABLE, M_REPORT_RAW_CHANGE,
+    M_REPORT_RAW_SHEET, M_REPORT_MIXED_OPENING,
+)
+
 #: The two remedies of M-REPORT-DELETE-FAILED (re-challenge R2, #8). "Copy
 #: the project" is only a remedy for a report that lives in a project; a
 #: report across projects lives in the folder that holds them, and copying
@@ -3438,6 +3640,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_STRIP_CORNERS_PREDICTED, M_REPORT_STRIP_CORNERS_IDEAL,
     M_REPORT_SOLIDS_PREDICTED, M_REPORT_PAPER_AGAINST_PROFILE,
     M_REPORT_WORKED_OUT_EARLIER,
+    *K59_PROPOSED,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

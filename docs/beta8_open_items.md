@@ -30097,7 +30097,8 @@ would reach.
 - note: beta 43 showed "drift" in every cell and in Overall. Beta 44 showed N-A on the paper and solid rows, Overall INFO, "On them the paper and the solid colours are judged against the profile" (they read N-A) and "It was measured to build a profile rather than to check one" (it is a verification). Cause: `drift_check_judges` counted N-A as a verdict, and beta 43 saved those three rows as N-A ("needs_reference_file"), so the saved column stopped being drift-only and fell into the `graded: False` path with the profiling sheet's sentence. Fixed: a raw drift check judges only when one of the three rows reads PASS or FAIL (or a COND a saved report kept). The saved report reads as in beta 43, with Report Scope's "Worked out by an earlier version" line because this version would judge those rows. Spec 45.7.
 - where: `workflow/measurement_report.py` (`drift_check_judges`, which `counted_rows`, `sheet_is_judged`, `stamp_verdict`, `summarise` and the window's `_drift_judges` / `_drift_only` all ask).
 - tests: tests/test_c8_drift_checks_and_dash_rows.py
-- evidence: test_n_a_on_the_three_rows_does_not_make_a_drift_check_judge, test_a_saved_beta_43_drift_check_reads_drift_throughout
+- evidence: test_n_a_on_the_three_rows_does_not_make_a_drift_check_judge, test_a_saved_beta_43_drift_check_reads_as_its_file
+- K59 (Knut #182 5849392788, option C, B8-1393): the rule of this entry stands (N-A is not a verdict, so such a column judges nothing and reads INFO overall); its DISPLAY changed. A beta 43 save now reads as its file: INFO with the raw print's numbered note on the design rows, N-A with "needs a reference for the printing condition" on the three rows, Overall INFO, "Judged against" "not judged (printed raw)", and the profiling sheet's sentence it stored is read as M-REPORT-RAW-OVERALL. Report Scope's "Worked out by an earlier version" line stays: this version would compare those rows with the profile (§6).
 - proof: ~/Desktop/ChromIQ-beta44-proof/fixes-8-report/ (saved-b43/, NOTES.txt)
 
 ### B8-1371 · FIXED, awaiting confirmation · "–" rows in a report of drift checks: in the Overview, in the Colour accuracy graph, with a fallback "Max 3.0" line
@@ -30111,13 +30112,14 @@ would reach.
 - evidence: test_a_drift_column_takes_its_dash_rows_out_too, test_no_accuracy_line_comes_from_the_fallback_pair
 - proof: ~/Desktop/ChromIQ-beta44-proof/fixes-8-report/ (report/, NOTES.txt)
 
-### B8-1372 · FIXED, awaiting confirmation · QUESTION: a raw drift check whose paper and solid rows all read N-A now reads "drift" throughout
+### B8-1372 · FIXED, awaiting confirmation · QUESTION ANSWERED (K59): a raw drift check whose paper and solid rows all read N-A now reads "drift" throughout
 - blocks release: no
 - severity: MINOR
 - status: FIXED
 - found by: the B8-1370 fix, which applies to a fresh report as well as a saved one.
 - note: Spec 45.2 (K51, built, not confirmed) says the three rows of a raw print read "PASS, FAIL or N-A" under a set that limits them. With B8-1370 a column whose three rows ALL read N-A (no profile could be read, or the chart has neither a paper patch nor a solid patch) judges nothing: its cells and Overall read "drift", "Judged against" reads "—", and the sentence is the one without the judged clause, as before K51. A column with one PASS or FAIL among the three still shows its N-A rows with their notes. Question for Knut: is that right, or should a raw print show the N-A and its note even when nothing else was judged? Spec 45.7.
 - where: `workflow/measurement_report.py` (`drift_check_judges`).
+- answered: Knut, #182 5849392788, option C (B8-1393): such a column shows its N-A rows with their notes and reads INFO overall; "drift" is not used. Built in B8-1393.
 - tests: tests/test_c8_drift_checks_and_dash_rows.py
 - evidence: test_n_a_on_the_three_rows_does_not_make_a_drift_check_judge
 
@@ -30186,23 +30188,29 @@ would reach.
 - note: the description is one fixed sentence for every set; the legend and the line notes follow the set since B8-1371. Wants a sentence that names only what is plotted, or none of the populations. Not changed here.
 - where: `ui/dialogs/measurement_report_dialog.py` (the Colour accuracy graph's description, `_TREND_ABOUT_DE_JUDGED`).
 
-### B8-1380 · OPEN · QUESTION: a report that mixes raw sheets and sheets printed through the profile has no true opening sentence
+### B8-1380 · FIXED, wording PROPOSED · QUESTION ANSWERED (K59): a report that mixes raw sheets and sheets printed through the profile has no true opening sentence
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5849392788: *"The use of the word “drift” for a chart printed raw is not a good wording ... When that is resolved and the message reworded, the rest of the message is ok."* Reworded ("the others, marked “printed raw”, were printed without it"), M-REPORT-MIXED-OPENING in §M-PROPOSED, shown while it waits because the approved sentence it replaces is false of the raw sheets. One project and run only; across runs see B8-1397. German by hand.
+- tests: tests/test_k59_no_drift_in_the_report.py, tests/test_k56_rulings.py
+- evidence: test_several_runs_all_raw_and_mixed, test_a_sheet_printed_through_the_profile_keeps_the_approved_sentence
+- proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (report/*/MIXED)
 - found by: building B8-1377 (K56).
 - note: Knut accepted an opening for a document of raw sheets only (#182 5848287278). A document holding both kinds keeps the approved sentence "It was verified by printing a chart through that profile", which is true of the sheets printed through it and not of the raw ones; nothing was invented for it. Question for Knut, with a suggestion: "This report judges the profile built in {where}. Some of its sheets were printed through that profile and compared with the chart's own aim values; the others, marked “drift”, were printed without it. The measurements it covers are listed under Report Scope."
 - where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
 
-### B8-1381 · OPEN · QUESTION: "the paper and the solid colours are judged against the profile" is false under ChromIQ's own sets, so a raw report there stops before it
+### B8-1381 · FIXED, awaiting confirmation · QUESTION ANSWERED (K59): "the paper and the solid colours are judged against the profile" is false under ChromIQ's own sets, so a raw report there stops before it
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5849392788: *"The conditional form I think."* Built, each form only where it is true of exactly the rows judged (`_raw_clause`; challenge 9 of beta 44 found the K56 rule gave the full clause where ANY row was judged, e.g. ISO 12647-8, which limits the paper only): the accepted clause where every raw column judged all three rows; his conditional form where every limited row was judged and some are "–" (ChromIQ's own sets, ISO 12647-8); the sentence stops before the clause where a limited row read N-A, which neither form is true of (a question, B8-1395). Every form ends with the Report Scope sentence (B8-1384). German by hand.
+- tests: tests/test_k59_no_drift_in_the_report.py, tests/test_k56_rulings.py
+- evidence: test_each_raw_opening_is_given_where_it_is_true, test_a_report_of_raw_sheets_that_judged_nothing_makes_no_claim
+- proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (report/*/RAWISO, RAWCQ)
 - found by: checking Knut's accepted sentence of B8-1377 against the code (K56).
 - note: Measured on the code: `drift_check_judges` is true only where one of the paper and solid rows reads PASS or FAIL. ChromIQ default, tight and Quick check put "–" on all three, so they are not in the report and the column reads "drift" in every cell; with no readable profile the three read N-A and the column also judges nothing (B8-1372). There the clause would be false. Shipped (every word Knut's, none added): the sentence stops after "compared with the chart's own aim values." Question for Knut: approve that shortened form, or reword it, e.g. "...; the paper and the solid colours are judged against the profile where the limit set has a limit for them."
 - where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
-- tests: tests/test_k56_rulings.py
-- evidence: test_a_report_of_raw_sheets_that_judged_nothing_makes_no_claim
 
 ### B8-1382 · OPEN · The pre-flight's count ("can answer 14 of the 18 metrics") does not know how the sheet was printed
 - blocks release: no
@@ -30212,34 +30220,46 @@ would reach.
 - note: The count is worked out from the chart alone; where the sheet is already recorded as printed raw, the two solid rows would be answered (against the profile). Making it read the print record is a change to `preset_eligibility`, which the presets window shares. Not changed.
 - where: `workflow/preset_eligibility.py` (`_condition_it_would_get`), `ui/tabs/tab_measure.py`.
 
-### B8-1383 · OPEN · QUESTION: a report of raw sheets across several runs still says "Each was verified by printing a chart through its profile"
+### B8-1383 · FIXED, wording APPROVED by Knut · QUESTION ANSWERED (K59): a report of raw sheets across several runs still says "Each was verified by printing a chart through its profile"
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5849392788: *"Ok"*. Ships verbatim where every sheet of a document across runs was printed raw, with the Report Scope sentence (B8-1384). No judged clause: none was proposed for the plural (B8-1395). German by hand.
+- tests: tests/test_k59_no_drift_in_the_report.py
+- evidence: test_several_runs_all_raw_and_mixed
+- proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (report/*/MULTI)
 - found by: building B8-1377 (K56).
 - note: Knut accepted a singular sentence ("the profile built in {where}"). A document across runs keeps the approved plural sentence, which is false where every sheet was printed raw. Suggested: "This report follows the printers behind the profiles built in {where}. Their sheets were printed without the profiles, measured, and compared with the charts' own aim values." (with the judged clause where every column judged). For Knut.
 - where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
 
-### B8-1384 · OPEN · QUESTION: the accepted raw opening no longer points at Report Scope
+### B8-1384 · FIXED, wording APPROVED by Knut · QUESTION ANSWERED (K59): the accepted raw opening no longer points at Report Scope
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5849392788: *"Yes."* Every raw opening, singular and plural, ends "The measurements it covers are listed under Report Scope." German: "Welche Messungen er umfasst, steht unter „Berichtsumfang“." (the approved opening's own German).
+- tests: tests/test_k59_no_drift_in_the_report.py, tests/test_k56_rulings.py
+- evidence: test_each_raw_opening_is_given_where_it_is_true, test_the_raw_openings_are_german_in_german
 - found by: building B8-1377 (K56).
 - note: The approved through-profile sentence ends "The measurements it covers are listed under Report Scope.", which is how a reader finds the dates (Knut, 2026-09-20: the dates must be traceable). The accepted raw sentence ends without it and ships verbatim. Question for Knut: append that sentence to the raw openings too?
 - where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
 
-### B8-1385 · OPEN · QUESTION (Knut K56 Q1): a raw sheet's cells read "drift" where nothing has been shown to drift, and where a metric cannot be worked out
+### B8-1385 · SUPERSEDED · QUESTION (Knut K56 Q1): a raw sheet's cells read "drift" where nothing has been shown to drift, and where a metric cannot be worked out
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-1393
 - found by: Knut, #182 5848287278, answer to question 1 (B8-1372): "if a metric is N-A, for example when a profile file is missing, then how can one claim the numbers represent "drift"? I claim it should say N-A ... The drift, in my view, can only be read from the trend-graphs, not from a single verification measurement".
 - note: Analysis for him, no code changed: `~/Desktop/ChromIQ-beta44-proof/k56/ANALYSIS-drift.txt` (industry practice: ISO 12647-2 deviation vs variation, Fiery, ChromaChecker, Alwan, Epson, G7, SPC; options with consequences; recommendation). Recommended: a raw sheet's unjudged cells show the number marked as information, a row that cannot be worked out reads N-A with its note, the word "drift" is kept for the comparison with the previous raw check and the trend graphs. Waits for his choice.
 - where: `ui/dialogs/measurement_report_dialog.py` (the results cells, `_summary_cell`, the drift sentence and guide), `workflow/measurement_report.py` (`drift_check_judges`).
 
-### B8-1386 · OPEN · The pre-flight's and the presets window's FROM PROFILE GAMUT state line still speaks of a "colorimetric reference" the three metrics are judged against
+### B8-1386 · FIXED, wording APPROVED by Knut · The pre-flight's and the presets window's FROM PROFILE GAMUT state line still speaks of a "colorimetric reference" the three metrics are judged against
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5849392788: *"Ok"*. Both lines verbatim, in `_gamut_state_line`, which the presets window and the Measure pre-flight share. German by hand: "Dieses Chart wurde nicht mit „Aus dem Profil-Gamut“ gebaut, daher werden seine Volltonfelder umgewandelt, wenn es durch sein Profil gedruckt wird." / "Dieses Chart wurde mit „Aus dem Profil-Gamut“ gebaut und druckt seine Volltonfelder deshalb so, wie sie sind."
+- tests: tests/test_k59_no_drift_in_the_report.py
+- evidence: test_the_gamut_state_lines_are_knuts_verbatim
+- proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (preflight/, presets/)
 - found by: the K56 proof, `~/Desktop/ChromIQ-beta44-proof/k56/preflight/en/photographs/01-trigger-clicking-the-measure-tab.png`: the line stands six lines above Knut's revised paragraph.
 - note: `_gamut_state_line` says "This chart was not built with From Profile Gamut, so it carries no colorimetric reference." and, for a converted chart, "... so it carries the colorimetric reference the three reference metrics are judged against." Since K49 the paper row and the two solid rows are compared with the profile's prediction, not with that reference, which is the reason M-VERIFY-SOLIDS-REASON and the revised paragraph were written. The first sentence is still literally true (no reference file is written), the second is not. Our text, not approved text; not changed here because Knut's two new texts are the ones he has seen. Suggested: "This chart was not built with From Profile Gamut, so printed through its profile its solid patches are converted." / "This chart was built with From Profile Gamut, so it prints its solid patches as they are."
 - where: `ui/dialogs/preset_verification_dialog.py` (`_gamut_state_line`).
@@ -30305,3 +30325,57 @@ would reach.
 - tests: tests/test_b8_1392_no_collection_inside_event_delivery.py
 - evidence: test_main_moves_the_collector_before_any_widget_or_filter, test_the_suite_collects_where_the_app_does, test_a_garbage_tree_meets_its_events_and_is_still_collected, test_without_it_the_same_script_dies_in_the_event_filter_dispatch
 - proof: ~/Desktop/ChromIQ-beta44-proof/segfault/ (NOTES.txt)
+
+### B8-1393 · FIXED, texts PROPOSED · Knut K59 (option C): a raw sheet's cells read INFO with a numbered note, N-A with its note, never "drift"; the raw print named once under "Judged against"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5849392788, on K56 question 1 (`~/Desktop/ChromIQ-beta44-proof/k56/ANALYSIS-drift.txt`): *"use recommended option C, but with some comments: 1. The word drift is not used at all."*; to "Should (C) be built": *"Yes, but see above."*; to "INFO as the cell word, or the number with an information marker?": *"can we use the INFO but also have a numbered reference to a note that explains the issue, where that is relevant?"*; to "I will propose the reworded sentence under the results, the guide entry and the "Judged against" text for your approval before they ship": *"Ok"*.
+- fix: a raw sheet's cells show the words its rows hold, in the grid and in the detailed chapter: PASS or FAIL on the paper and solid rows where the set limits them (K51, unchanged), INFO on every other value, N-A with its numbered note where the sheet cannot answer. Every INFO on a row that compares the print with the chart's design colours (`ROWS_COMPARED_WITH_THE_DESIGN`, the rows §32.6 lists) carries the raised number of M-REPORT-RAW-PRINT-INFO; not the paper and solid rows (the profile), not the two repeatability rows (readings against readings, B8-1398), not on a Printing record. Overall: the judged rows' word, else INFO, whose sentence is M-REPORT-RAW-OVERALL (it was the profiling sheet's "measured to build a profile"). "Judged against": "<set> (printed raw)" where the column judged, "not judged (printed raw)" where it judged nothing (was "—"). The sentence under the results and the guide's paragraph name that marker instead of "drift" cells, in three and two forms true of the rows judged (challenge 9). Saved reports show what they stored (§6): the note, the "Judged against" text and the Overall sentence are readings, not the record; a beta 43 save reads as its file (B8-1370). Fourteen texts, all §M-PROPOSED, shown while they wait because each replaces a text false under the ruling; German by hand.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_rows_with_words`, `_has_an_absence`, `_note_numbering`, `_note_the_absences`, `_note_sentence`, `_column_summary`, `_raw_clause`, `_thresholds_cell`, `_summary_cell`, the results cells and sentence, `_how_to_read_html`, `_run_detail_html`), `workflow/measurement_report.py` (`NOTE_RAW_PRINT_INFO`, `ROWS_COMPARED_WITH_THE_DESIGN`, `summarise`), `workflow/compliance_sets.py` (`SUMMARY_REASONS["raw_print"]`), `workflow/measurement_messages.py` (`K59_PROPOSED`), `docs/design/unified_measurement_management.md` §M-PROPOSED, `data/i18n/*.json`.
+- tests: tests/test_k59_no_drift_in_the_report.py, tests/test_c8_drift_checks_and_dash_rows.py, tests/test_k51_rulings.py, tests/test_gamut_split_report.py
+- evidence: test_a_raw_sheets_cells_read_their_words_and_the_note, test_the_note_is_where_it_is_relevant_and_nowhere_else, test_judged_against_names_the_raw_print_once, test_a_raw_sheet_that_judged_nothing_reads_info_with_its_own_sentence, test_the_sentence_under_the_results_is_true_of_the_rows_judged, test_a_saved_beta_43_drift_check_reads_as_its_file, test_every_k59_text_is_proposed_and_german_by_hand
+- proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (NOTES.txt, PROPOSALS.txt, report/, saved-b43/)
+
+### B8-1394 · FIXED, awaiting confirmation · Knut K59: the word "drift" is not used in the report, its graphs, its guide, its help, its window or its PDF (EN, DE); "Change since the previous raw check"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5849392788: *"The word drift is not used at all. A user can analyse the trend graphs to ascertain if what he sees is a drift ... Use the word "Change" instead of "Drift". The word drift is not related to a comparison of two values, but is a trend over longer time in either upward or downward direction."*
+- fix: the detailed chapter's four lines under a raw sheet (§M-PROPOSED M-REPORT-RAW-BASELINE, -INCOMPARABLE, -CHANGE, -SHEET): "Change since the previous raw check (…)", "larger numbers mean it has changed since", and that whether it keeps changing in one direction is read from the trend graphs. Every other text of the report and of the help about it, reworded with "change" (Knut's word) and nothing else changed, em dashes of a touched string cleaned: the six trend graph descriptions, the "Trend over time" line, the guide's closing paragraph and its verification bullet, "What this measured", the split paragraph, the limit-set pairing help, "What this tool does", the evenness causes note and its two help texts and lever, the hue row's help ("shifted"), Quick check's blurb, the Tools entry "Measurement report (accuracy & trends)" (was "accuracy & drift") and the four help texts that name it, the glossary ("Raw verification print (a check of the printer)", the three ways, the gamut groups, judged as measured, the verdict words, graded), the Getting Started card, the Print Chart tab's raw notice, Preferences > Reports, the Measure tab's report help, the file guide's four report lines, the run-type help. German by hand ("Veränderung", "Verlauf"); the twelve others carry the English under the beta rule. Physical uses of the word outside the report are unchanged (an instrument's calibration drift notices, a scan grid that drifted, a swipe that drifted a row); Create Chart's FROM PROFILE GAMUT help still says "drifted" (B8-1396).
+- where: `ui/dialogs/measurement_report_dialog.py`, `workflow/compliance_sets.py`, `ui/dialogs/welcome_dialog.py`, `ui/tools_popup.py`, `ui/file_guide.py`, `ui/dialogs/settings_dialog.py`, `ui/tabs/tab_measure.py`, `ui/tabs/tab_print.py`, `ui/measurement_target_bar.py`, `data/i18n/*.json`.
+- tests: tests/test_k59_no_drift_in_the_report.py
+- evidence: test_no_text_of_the_report_says_drift_in_english_or_german, test_the_guard_is_not_vacuous, test_the_detailed_chapter_says_change
+- proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (drift-grep.txt: every rendered page and PDF, EN and DE)
+
+### B8-1395 · OPEN · QUESTION: a raw report whose limited paper or solid row read N-A opens without the judged clause, and the plural raw opening has none
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: building B8-1381 (K59) against challenge 9's rule that the clause be true of exactly the rows judged.
+- note: Where the set limits the paper or a solid row and it reads N-A (no profile could be read; no paper patch), "the paper and the solid colours are judged against the profile", plain or "where the limit set has a limit for them", would say a row was judged that was not. There the opening stops before the clause (every word Knut's) and the N-A cells carry their notes. Question for Knut: keep that, or a form such as "...; the paper and the solid colours are judged against the profile where the limit set has a limit for them and the measurement can answer them" (the form the sentence under the results uses, M-REPORT-RAW-RESULTS-SOME)? Likewise the plural raw opening he accepted has no judged clause; should it get one?
+- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`, `_raw_clause`).
+
+### B8-1396 · OPEN · Create Chart's FROM PROFILE GAMUT help still says "has anything drifted" and "a drifting printer"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the K59 sweep for "drift" (B8-1394).
+- note: Two help texts of the FROM PROFILE GAMUT module in the Create Chart tab (the module's ⓘ, "has anything drifted since I made this profile?", and the patch count's, "a drifting printer shows in the ..."), which describe verification. Not changed here: `ui/tabs/tab_chart.py` is being worked on by another agent for beta 44 (as B8-1391). Wants "changed" for "drifted", as B8-1394 did everywhere else, with German.
+- where: `ui/tabs/tab_chart.py` (the FROM PROFILE GAMUT help texts near its module ⓘ).
+
+### B8-1397 · OPEN · A report across runs whose sheets were printed both ways keeps the approved plural opening, "Each was verified by printing a chart through its profile"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: building B8-1380 and B8-1383 (K59).
+- note: Knut accepted the mixed sentence for one project and run (B8-1380) and the plural sentence for sheets that were ALL printed raw (B8-1383). A document across runs with sheets of both kinds has neither; it keeps the approved plural sentence, which is false of its raw sheets. Suggested for him: "This report judges the profiles built in {where}. Some of their sheets were printed through their profiles and compared with the charts' own aim values; the others, marked “printed raw”, were printed without them. The measurements it covers, and the profile run each comes from, are listed under Report Scope."
+- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
+
+### B8-1398 · OPEN · QUESTION: a raw sheet's two repeatability rows read INFO with no note
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: building B8-1393 (K59).
+- note: The raw print's note is attached only where it is true, to the rows that compare the print with the chart's design colours. The two repeatability rows ("Maximum ΔE00, repeat patches on one sheet", "... the same chart measured again") compare readings with readings, which printing raw does not affect (§32.6 leaves them out of the rows the paper white moves for the same reason), yet they read INFO on a raw sheet because the whole sheet is not graded (Knut, 2026-08-11). Question for Knut: should a raw sheet judge them like any other sheet (as K51 did for the paper and solids), or keep INFO, and then with which note?
+- where: `workflow/measurement_report.py` (`is_graded_sheet`, `ROWS_JUDGED_ON_A_RAW_PRINT`).

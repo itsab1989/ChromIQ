@@ -1682,9 +1682,10 @@ def write_print_record(chart_dir: Path, stem: str, when: str, profile_name: str,
 
     * ``through-profile``: the ordinary verification. Everything is graded.
     * ``raw``: the sheet went to the printer with no profile applied, so the
-      report treats it as a DRIFT check and prints "drift" instead of a
-      verdict (`measurement_report.is_drift_check`): pass/fail against profile
-      accuracy would fail a healthy printer for ever.
+      report shows its values compared with the design as INFO, with a
+      numbered note, instead of a verdict (`measurement_report.is_drift_check`,
+      K59): pass/fail against profile accuracy would fail a healthy printer
+      for ever.
     * ``none``: no record was written, which is what a sheet printed outside
       ChromIQ looks like. The grey-balance rows are then JUDGED like every
       other row and carry a numbered note (`printing_unrecorded`) saying that
@@ -1788,7 +1789,7 @@ SERIES_DEFAULT: "list[Date]" = [
        Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
        []),
     _d("2026-02-16_100000", "2026-02-16T10:00:00",
-       "The hardest colours all drift together",
+       "The hardest colours all move together",
        "The highest 5 % of patches average about 2.7, so 'Average ΔE00, highest 5 %' is over "
        "its limit of 2.0, while 'Maximum ΔE00, all patches' stays under 3.0. ONE row "
        "crosses.",
@@ -1800,7 +1801,7 @@ SERIES_DEFAULT: "list[Date]" = [
        Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
        []),
     _d("2026-03-16_100000", "2026-03-16T10:00:00",
-       "The whole sheet drifts",
+       "The whole sheet moves",
        "The bulk of the chart moves up to just under its own limit and the "
        "highest 5 % go to 2.98, just under theirs. Between them they carry "
        "'Average ΔE00, all patches' over 2.0. TWO rows cross, which is the most this "
@@ -2018,7 +2019,7 @@ _C1 = ("2026-09-07_160000", "2026-09-07T16:00:00", "The shared measurement",
        "The same designed sheet as the other two runs of this project. Only "
        "the limit set differs.")
 _C2 = ("2026-09-21_160000", "2026-09-21T16:00:00",
-       "The shared measurement, drifted",
+       "The shared measurement, moved",
        "The same sheet a fortnight later, everything a little worse. Again "
        "the only difference between the three runs is the column.")
 
@@ -2304,22 +2305,23 @@ BORDER_UNRECORDED: "list[Date]" = [
        []),
 ]
 
-#: A SHEET PRINTED RAW, which is a drift check and not an accuracy check.
-#: `is_drift_check` makes the report withhold the verdict entirely and print
-#: "drift": judging a raw sheet against profile accuracy would fail a healthy
-#: printer for ever (Knut, 2026-08-11).
+#: A SHEET PRINTED RAW, a check of the printer and not an accuracy check.
+#: `is_drift_check` makes the report withhold the verdict on every value
+#: compared with the design (INFO with a numbered note since K59): judging a
+#: raw sheet against profile accuracy would fail a healthy printer for ever
+#: (Knut, 2026-08-11).
 BORDER_RAW_DRIFT: "list[Date]" = [
     _d("2026-12-03_100000", "2026-12-03T10:00:00",
        "A sheet printed with no profile applied",
-       "Printed raw and measured to watch the printer drift, not to check a "
-       "profile. The numbers are large because nothing corrected them, and "
-       "the report declines to put a verdict on them.",
+       "Printed raw and measured to watch how the printer changes, not to "
+       "check a profile. The numbers are large because nothing corrected "
+       "them, and the report shows them for information only.",
        Design(bulk=3.00, shoulder=5.00, peak=8.00, tail=6.00, grey_dch=2.50),
        []),
     _d("2026-12-17_100000", "2026-12-17T10:00:00",
        "The same raw sheet a fortnight later",
-       "The numbers have moved, which is what a drift check is for, and there "
-       "is still no verdict to give.",
+       "The numbers have moved, which is what a raw check is for, and they "
+       "are still shown for information only.",
        Design(bulk=3.60, shoulder=5.60, peak=9.00, tail=6.80, grey_dch=3.00),
        []),
 ]
@@ -2470,7 +2472,7 @@ class RunPlan:
     #: in the package demonstrated that until this existed.
     also_generate: "tuple[str, ...]" = ()
     #: How the dated sheets of this run were printed: "through-profile" (the
-    #: ordinary verification), "raw" (a drift check, which the report refuses
+    #: ordinary verification), "raw" (a check of the printer, which the report refuses
     #: to grade against profile accuracy), or "none" (nobody recorded it, which
     #: puts a numbered note on the grey rows). See `write_print_record`.
     print_colour: str = "through-profile"
@@ -3995,7 +3997,7 @@ GAMUT_ISOLATION: "list[Date]" = [
 #: largest crosses and the 95th percentile does not, and one where both do.
 STRIP_ISOLATION: "list[Date]" = [
     _d("2028-08-03_100000", "2028-08-03T10:00:00",
-       "The whole strip drifts",
+       "The whole strip moves",
        "The strip's average is designed at 2.3, over the 2.0 this column puts "
        "on it, while every rung stays under the 3.0 on its largest and its "
        "95th percentile. The twenty-five rungs the strip design can move are "
@@ -4036,7 +4038,7 @@ STRIP_ISOLATION: "list[Date]" = [
 
 SURFACE_ISOLATION: "list[Date]" = [
     _d("2028-09-28_100000", "2028-09-28T10:00:00",
-       "The edge of the device cube drifts",
+       "The edge of the device cube moves",
        "Every patch with a red, green or blue value within 2.0 of 0 or of 100 "
        "is moved to 3.0, over the 2.0 this column puts on the surface-gamut "
        "row. Every other row is relaxed to 9.0. ONE row crosses.",
@@ -4053,7 +4055,7 @@ SURFACE_ISOLATION: "list[Date]" = [
 
 OUTER_ISOLATION: "list[Date]" = [
     _d("2028-10-26_100000", "2028-10-26T10:00:00",
-       "The most saturated quarter of the chart drifts",
+       "The most saturated quarter of the chart moves",
        "The top quarter of the chart by the chroma of its aim values is moved "
        "to 3.0, over the 2.0 this column puts on the outer-gamut row. Every "
        "other row is relaxed to 9.0. ONE row crosses.",
@@ -4526,7 +4528,8 @@ PROJECTS = [
                 note="Deliberately shipped without a print record beside the "
                      "chart snapshot. Do not add one."),
         RunPlan("A sheet printed with no profile applied, which the report "
-                "treats as a drift check rather than an accuracy check.",
+                "treats as a check of the printer rather than an accuracy "
+                "check.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default",
                 BORDER_RAW_DRIFT,
                 print_colour="raw",
@@ -4719,7 +4722,7 @@ PROJECTS = [
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", PAPER_GLOSSY,
                 paper_class="glossy_oba"),
         RunPlan("Baryta, on the A3 chart, judged with ChromIQ tight in a "
-                "Colour summary: the averages drift, then recover.",
+                "Colour summary: the averages rise, then recover.",
                 CHART_SMALL, CHART_WIDE, "chromiq_tight", PAPER_BARYTA,
                 paper_class="baryta", report_type=REPORT_TYPE_SUMMARY),
         RunPlan("Matte cotton rag, judged with Quick check in a Grey and tone "
@@ -6240,7 +6243,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("verification begins as a real fakeread of that run's verification chart")
     a("through that run's own profile.")
     a("")
-    a("A designed drift is then applied on top, patch by patch. Each patch")
+    a("A designed change is then applied on top, patch by patch. Each patch")
     a("keeps the direction of the error fakeread produced through the real")
     a("profile; only the size of that error is scaled, so that the chart's")
     a("statistics land exactly where the date's design says. That is what lets")
@@ -6902,11 +6905,11 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("      SAVED report of its own, a Printing record, like every other")
     a("      measurement in here, so its column shows what was recorded")
     a("      rather than something worked out when you open it")
-    a("  a sheet printed raw and read as a drift check, whose column says")
-    a("      'drift' and carries no verdict under its own limit set, ChromIQ")
-    a("      default; under ISO 12647-7 its paper and solid rows are judged")
-    a("      against the profile and every other cell still says 'drift'")
-    a("      (K51): Border-Conditions, run3")
+    a("  a sheet printed raw, whose column carries no verdict under its own")
+    a("      limit set, ChromIQ default: every value INFO with a numbered")
+    a("      note; under ISO 12647-7 its paper and solid rows are judged")
+    a("      against the profile and every other value reads INFO with that")
+    a("      note (K51, K59): Border-Conditions, run3")
     a("")
     _multi = _cov.get("multi_type_runs", []) or []
     _all_runs = len(_cov.get("type_set_rows", []) or [])

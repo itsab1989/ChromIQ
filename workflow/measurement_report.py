@@ -4810,6 +4810,20 @@ ROWS_MOVED_BY_THE_PAPER_WHITE: "tuple[str, ...]" = (
     "uniformity_sd", "uniformity_de00_max_from_mean",
 )
 
+#: **K59 (Knut, #182 5849392788, option C): A RAW SHEET'S VALUE SHOWN FOR
+#: INFORMATION CARRIES A NUMBERED NOTE, "WHERE THAT IS RELEVANT".** His
+#: answer to "INFO as the cell word, or the number with an information
+#: marker?": *"can we use the INFO but also have a numbered reference to a
+#: note that explains the issue, where that is relevant?"* The note
+#: (M-REPORT-RAW-PRINT-INFO) says the value compares the print with the
+#: chart's design colours, so it is relevant, and true, on exactly the rows
+#: that do: the ones above. Not on the paper and solid rows (compared with the
+#: profile, judged on a raw print, `ROWS_JUDGED_ON_A_RAW_PRINT`), and not on
+#: the two repeatability rows, which compare readings with readings.
+NOTE_RAW_PRINT_INFO = "raw_print_info"
+ROWS_COMPARED_WITH_THE_DESIGN: "frozenset[str]" = frozenset(
+    ROWS_MOVED_BY_THE_PAPER_WHITE)
+
 
 def _distinct_levels(levels: "list[float]", tol: float = GREY_LEVEL_TOL) -> int:
     """How many distinct values a sorted list holds when values within *tol*
@@ -6530,9 +6544,14 @@ def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str,
     # THE RAW ID, NOT THE RESOLVED SET'S. `getattr(s, "id", None)` is None for
     # a set this ChromIQ no longer defines, which threw away the only evidence
     # left about what the run was judged against.
+    # K59: a raw sheet that judged nothing is not "measured to build a
+    # profile"; its Overall sentence says how it was printed.
+    from workflow.compliance_sets import SUMMARY_REASONS
     return set_summary(pairs,
                        set_is_iso=applies_a_standard(set_id, set_label),
-                       graded=sheet_is_judged(report, rows))
+                       graded=sheet_is_judged(report, rows),
+                       ungraded_reason=(SUMMARY_REASONS["raw_print"]
+                                        if is_drift_check(report) else ""))
 
 
 def limits_from_pair(avg_thr: float, max_thr: float) -> "dict":

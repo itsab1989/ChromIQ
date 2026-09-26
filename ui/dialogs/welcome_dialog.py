@@ -674,7 +674,7 @@ WORKFLOWS: list[dict] = [
                   "a dated report of the calibration's measurement is written "
                   "into the project's “cal/reports” folder. With Run type "
                   "Calibration, Tools → “Measurement report (accuracy & "
-                  "drift)” and the Measure tab's “Measurement report…” open "
+                  "trends)” and the Measure tab's “Measurement report…” open "
                   "on that measurement. It can have every report type but "
                   "the Printing record, and you can add other projects' "
                   "calibrations to one report. The reports are named “Cal” "
@@ -807,9 +807,10 @@ WORKFLOWS: list[dict] = [
                   "off, exactly as for a profiling chart.")),
               (tr("When “Raw — no profile” is the right answer instead"),
                tr("It prints the chart untouched, which asks whether the "
-                  "PRINTER has drifted rather than how good the profile is. "
-                  "ChromIQ treats such a sheet as a drift check and shows its "
-                  "numbers without grading them, because there is no profile "
+                  "PRINTER has changed rather than how good the profile is. "
+                  "ChromIQ treats such a sheet as a check of the printer and "
+                  "shows the numbers it compares with the chart's design "
+                  "colours without grading them, because there is no profile "
                   "in the loop to be right or wrong. A chart from “FROM "
                   "PROFILE GAMUT” already has the profile applied, so ChromIQ "
                   "selects Raw for it by itself.")))),
@@ -827,7 +828,7 @@ WORKFLOWS: list[dict] = [
                   "table, the IMPORT module on this tab files that "
                   "measurement in exactly the same way, so it joins the same "
                   "history.")))),
-            (3, tr("Open Tools → “Measurement report (accuracy & drift)” and "
+            (3, tr("Open Tools → “Measurement report (accuracy & trends)” and "
                 "set “Report type:” and “Judged against:”, then click "
                 "“Generate report”."),
              False,
@@ -850,8 +851,9 @@ WORKFLOWS: list[dict] = [
                   "when it is not, and N-A when your chart carries nothing "
                   "that could answer it. INFO means the number is shown for "
                   "information only and nothing was judged from it: on a "
-                  "report type that judges nothing, on a raw drift check, "
-                  "and on a row that needs something about the print that "
+                  "report type that judges nothing, on a raw sheet's design "
+                  "colours, and on a row that needs something about the "
+                  "print that "
                   "was not recorded. A row the limit set puts no limit on "
                   "(“–”) is left out of the report altogether. “Overall” is the one word for a whole dated "
                   "check, and the only place COND appears. A profiling "
@@ -1388,7 +1390,7 @@ GLOSSARY += [
         "together. Shown before printing and recorded on the report. More "
         "coverage means a roomier gamut; accuracy is measured separately, "
         "over the colours that are in reach.")),
-    (tr("Raw verification print (drift check)"),
+    (tr("Raw verification print (a check of the printer)"),
      tr("Printing a verification chart WITHOUT the profile — the chart's own "
         "numbers go straight to the paper. Measuring it answers a different "
         "question: has the printer changed since last time? It cannot judge "
@@ -1397,21 +1399,21 @@ GLOSSARY += [
         "way each sheet was printed.")),
     (tr("Which verification should I use? (the three ways)"),
      tr("Three checks, three questions. (1) A chart from your profile's "
-        "gamut, printed as it is — “does my printer deliver what this "
+        "gamut, printed as it is: “does my printer deliver what this "
         "profile promised?” The most honest accuracy check, judged colour "
         "by colour with nothing forgiven; the best everyday choice. (2) A "
-        "verification chart printed through the profile — “is the whole "
+        "verification chart printed through the profile: “is the whole "
         "ChromIQ printing path still right?” Printed with absolute intent "
-        "it is judged exactly as measured, the paper's own tone included — "
+        "it is judged exactly as measured, the paper's own tone included, "
         "the strictest reading; with the everyday relative intent the "
         "report judges it against the sheet's own paper white instead, "
         "because that is the white the print was aimed at. "
-        "(3) A sheet printed from your own application — Photoshop, a "
-        "layout program — with the profile applied: “does my everyday "
+        "(3) A sheet printed from your own application (Photoshop, a "
+        "layout program) with the profile applied: “does my everyday "
         "printing chain work?” This one is judged relative to the sheet's "
-        "own paper white, because such prints map white to the paper — so "
+        "own paper white, because such prints map white to the paper, so "
         "the paper is not counted against the profile. Any of the three, "
-        "repeated the same way over time, shows drift; the report records "
+        "repeated the same way over time, shows change; the report records "
         "which way each sheet was made so they are never mixed silently.")),
     (tr("Judged relative to paper white (media-relative)"),
      # K31 (Knut, #182 5801677743, section 3): evenness and its own line.
@@ -1443,7 +1445,7 @@ GLOSSARY += [
         "or more saturated than this printer and paper can physically "
         "produce; their larger ΔEs describe the limit of the gamut, not a "
         "mistake of the profile, and their stability from check to check is "
-        "a useful drift signal. The Overview shows both groups and, under "
+        "a useful sign of change. The Overview shows both groups and, under "
         "“Within and beyond the gamut together”, all the colours as one, for "
         "information only: neither of those ever has a limit. Every patch "
         "stays counted and visible. (A chart from the “From profile gamut” "
@@ -1452,12 +1454,12 @@ GLOSSARY += [
     (tr("Judged as measured (no white adjustment)"),
      tr("The other way the Measurement Report can score a verification "
         "sheet: every measured colour is compared exactly as the instrument "
-        "read it — nothing is scaled, the paper's own tone counts too. The "
+        "read it; nothing is scaled, the paper's own tone counts too. The "
         "report uses it for sheets whose printing did not map white to the "
-        "paper: raw drift sheets, and sheets printed through the profile "
+        "paper: sheets printed raw, and sheets printed through the profile "
         "with absolute colorimetric intent. One thing this is NOT: a "
         "rendering intent. Rendering intents (relative, absolute, "
-        "perceptual) exist only when colours are converted for printing — a "
+        "perceptual) exist only when colours are converted for printing; a "
         "sheet printed raw has no intent at all. “Judged as measured” "
         "describes how the report compares afterwards, and it applies to "
         "any sheet, however it was printed. Its counterpart is “Judged "
@@ -1588,7 +1590,7 @@ GLOSSARY += [
         "measured, how far each figure is from what the chart asked for, "
         "whether that is inside the limits you chose, and how the printer has "
         "moved since the last check. Tools ▸ “Measurement report (accuracy & "
-        "drift)”. It reads measurements you already have and writes a "
+        "trends)”. It reads measurements you already have and writes a "
         "report_*.json beside them, plus a PDF when you ask for one; it never "
         "changes a measurement or a profile.")),
     (tr("Limit set"),
@@ -1621,8 +1623,8 @@ GLOSSARY += [
         "and FAIL is outside it. INFO means the number is shown for "
         "information only and nothing was judged from it: on a report type "
         "that judges nothing, such as the Printing record, on a profiling "
-        "measurement or a raw drift check, which are never graded, and on a "
-        "row that needs something about the print that was not recorded. A "
+        "measurement or a raw sheet's design colours, which are never "
+        "graded, and on a row that needs something about the print that was not recorded. A "
         "row the limit set puts no limit on (“–”) is left out of the report "
         "altogether. N-A means your chart "
         "carries nothing that could answer the row at all. A row the set "
@@ -1655,9 +1657,10 @@ GLOSSARY += [
         "verification sheet printed through the profile is graded. A "
         "PROFILING measurement never is: it is expected to fall outside "
         "accuracy limits, because it is the raw material a profile is built "
-        "FROM rather than a test of one. A raw drift check is not graded "
-        "either, because no profile is in the loop to be right or wrong. An "
-        "ungraded sheet shows every figure and reads INFO throughout.")),
+        "FROM rather than a test of one. A raw sheet's design colours are "
+        "not graded either, because no profile is in the loop to be right or "
+        "wrong. An ungraded sheet shows every figure and reads INFO "
+        "throughout.")),
     (tr("A report's limit set"),
      tr("Every report carries a copy of the limit set it was judged against, "
         "and judges every measurement it covers against that one set, "

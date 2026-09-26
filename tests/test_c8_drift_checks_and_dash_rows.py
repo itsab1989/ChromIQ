@@ -103,37 +103,47 @@ def test_n_a_on_the_three_rows_does_not_make_a_drift_check_judge():
     assert MR.drift_check_judges(judged)
 
 
-def test_a_saved_beta_43_drift_check_reads_drift_throughout(qapp, monkeypatch):
-    """The saved column, shown by beta 44: "drift" in every cell and in
-    Overall, "—" as what it was judged against, the old drift sentence, no
-    claim that the paper and solids were judged, and no profiling footnote.
+def test_a_saved_beta_43_drift_check_reads_as_its_file(qapp):
+    """The saved column, shown by beta 44 since K59 (Knut #182 5849392788,
+    option C): what the file holds. The three paper and solid rows read N-A
+    with their numbered note (beta 43 saved them "needs a reference for the
+    printing condition"), the design rows INFO with the raw print's numbered
+    note, Overall INFO (nothing was judged: N-A is not a verdict, B8-1370's
+    rule stands), "Judged against" says it was printed raw and not judged,
+    the sentence for raw columns that judged nothing, and neither "drift"
+    nor the profiling sheet's sentence the file carries as its reason.
 
     MUTATION, proven red: put ``N_A`` back into `drift_check_judges` (the
-    three cells read N-A, Overall INFO, the new sentence and the profiling
-    footnote are printed)."""
+    column reads as judged: Overall N-A "nothing checked", the judged
+    sentence); and, separately, drop the raw mapping of the saved reason in
+    `_column_summary` (the tooltip says "measured to build a profile")."""
     dlg = _dialog(qapp)
     try:
         rep = _raw_sheet()
         rows = _saved_b43_rows()
-        monkeypatch.setattr(type(dlg), "_verdict_rows",
-                            lambda self, r: ([dict(x) for x in rows], True))
-        prof = ("This sheet is not graded, so its numbers are shown for "
-                "information only. It was measured to build a profile rather "
-                "than to check one, and a profiling measurement is expected "
-                "to fall outside the accuracy limits. That is normal here, "
-                "and it is not a fault.")
-        monkeypatch.setattr(
-            type(dlg), "_column_summary",
-            lambda self, r: CS.Summary(CS.INFO, 0, 7, 0, 0, 3, prof))
+        prof = CS.SUMMARY_REASONS["not_graded"]
+        assert "measured to build a profile" in prof
+        rep["verdict"] = {"rows": [dict(x) for x in rows], "graded": False,
+                          "overall": CS.INFO, "all_pass": None,
+                          "summary": {"checked": 0, "total": 7, "failed": 0,
+                                      "cond": 0, "not_computed": 3,
+                                      "reason": prof}}
         assert dlg._drift_only(rep) and not dlg._drift_judges(rep)
-        assert "drift" in dlg._summary_cell(rep)
-        assert "—" in dlg._thresholds_cell(rep)
+        cell = dlg._summary_cell(rep)
+        assert ">INFO<" in cell and "drift" not in cell.lower(), cell
+        assert "measured to build a profile" not in cell
+        from workflow import measurement_messages as M
+        assert (M.M_REPORT_RAW_NOT_JUDGED.body
+                in dlg._thresholds_cell(rep))
         html = dlg._report_results_html([rep], [x["row_id"] for x in rows])
-        assert "N-A" not in html.split("Overall")[0], "a cell reads N-A"
+        grid = html.split("Overall")[0]
+        assert "N-A" in grid and "INFO" in grid
         assert "judged against the profile" not in html
-        assert "so PASS and FAIL would be unfair" in html
+        assert "so their values are shown for information" in html
         assert "measured to build a profile" not in html
-        assert ">INFO<" not in html
+        assert "drift" not in html.lower()
+        import html as _h
+        assert _h.escape(M.M_REPORT_RAW_PRINT_INFO.body) in html
     finally:
         dlg.deleteLater()
 
@@ -150,22 +160,23 @@ def test_the_guide_claims_no_judging_where_no_drift_column_judged(qapp):
     import re
     import ui.dialogs.measurement_report_dialog as mrd
     dlg = _dialog(qapp)
+    from workflow import measurement_messages as M
     try:
         claim = "Its paper and solid colour rows are judged against the profile"
         said = _html.unescape(dlg._how_to_read_html([], drift_judged=False))
         assert claim not in said
-        assert "in every cell instead" in said
+        # K59: the paragraph of a raw column that judged nothing
+        assert M.M_REPORT_RAW_GUIDE.body in said
         said = _html.unescape(dlg._how_to_read_html([], drift_judged=True))
         assert claim in said
+        assert "drift" not in said.lower()
     finally:
         dlg.deleteLater()
     src = re.sub(r"\s+", " ", inspect.getsource(mrd.MeasurementReportDialog))
     assert ("drift_judged=not any(_is_raw_drift(r) for r in runs) or "
             "any(self._drift_judges(r) for r in runs)") in src
     de = json.loads((ROOT / "data/i18n/de.json").read_text(encoding="utf-8"))
-    key = next(k for k in de if k.startswith(
-        "A column read as a drift check shows the word “drift” in every cell "
-        "instead"))
+    key = M.M_REPORT_RAW_GUIDE.body
     assert de[key] != key
 
 

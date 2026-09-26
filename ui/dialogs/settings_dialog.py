@@ -4066,9 +4066,9 @@ class SettingsDialog(QDialog):
         v.setContentsMargins(12, 12, 12, 12)
 
         intro = QLabel(tr(
-            "Settings for the Measurement Report — the tool that checks a "
+            "Settings for the Measurement Report, the tool that checks a "
             "measured chart against its design colours and tracks how a printer "
-            "drifts over time."), self)
+            "changes over time."), self)
         intro.setWordWrap(True)
         _ink(intro, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(intro)
@@ -4098,8 +4098,8 @@ class SettingsDialog(QDialog):
             "Why keep it on? Because the reports then build up over time, and "
             "the Measurement Report tool can plot how a chart's measurements "
             "change from one to the next: a gradual rise, or a shift in white "
-            "or black, is a sign of ageing inks, a drifting printer, or a "
-            "drifting instrument. It's especially handy for regular "
+            "or black, is a sign of ageing inks, or of a printer or an "
+            "instrument that has changed. It's especially handy for regular "
             "verification measurements: the report shows you when the results "
             "have slipped far enough that re-profiling is worth it.\n\n"
             "It costs nothing noticeable and never changes your measurement "

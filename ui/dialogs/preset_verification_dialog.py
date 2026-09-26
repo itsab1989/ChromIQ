@@ -547,14 +547,17 @@ def _gamut_state_line(row: PresetRow) -> str:
     with the same words on a chart that was never converted and on one whose
     reference has been deleted, and only this line tells them apart.
     """
+    # B8-1386, Knut #182 5849392788, on both lines: "Ok". Verbatim. Since K49
+    # the paper and solid rows are compared with the profile's prediction,
+    # not with a colorimetric reference, so what tells the two charts apart
+    # for those rows is how their solid patches print.
     if row.from_profile_gamut:
         return tr(
-            "This chart was built with From Profile Gamut, so it carries the "
-            "colorimetric reference the three reference metrics are judged "
-            "against.")
+            "This chart was built with From Profile Gamut, so it prints its "
+            "solid patches as they are.")
     return tr(
-        "This chart was not built with From Profile Gamut, so it carries no "
-        "colorimetric reference.")
+        "This chart was not built with From Profile Gamut, so printed through "
+        "its profile its solid patches are converted.")
 
 
 def summary_lines(row: "PresetRow | None", *, generic: bool = False) -> "list[Line]":

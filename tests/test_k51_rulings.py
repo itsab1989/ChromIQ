@@ -151,14 +151,19 @@ def test_the_drift_sentence_names_the_judged_rows_in_knuts_words(qapp,
                 [rep], [x["row_id"] for x in rows])
             assert ("On them the paper and the solid colours are judged "
                     "against the profile" in html) is new_there, sid
-            assert ("so PASS and FAIL would be unfair" in html) \
+            # K59: the sentence of a raw column that judged nothing
+            # (M-REPORT-RAW-RESULTS)
+            assert ("so their values are shown for information" in html) \
                 is (not new_there), sid
+            assert "drift" not in html.lower(), sid
     finally:
         dlg.deleteLater()
-    src = Path(mrd.__file__).read_text(encoding="utf-8")
-    flat = re.sub(r'"\s*\n\s*"', "", src)
-    assert APPROVED_DRIFT in flat.replace("On them t", "t")
-    key = next(k for k in _de_cat() if "On them the paper and the solid" in k)
+    # K59: the sentence moved into §M (M-REPORT-RAW-RESULTS-JUDGED); Knut's
+    # clause is in it verbatim.
+    del mrd
+    from workflow import measurement_messages as M
+    assert APPROVED_DRIFT in M.M_REPORT_RAW_RESULTS_JUDGED.body
+    key = M.M_REPORT_RAW_RESULTS_JUDGED.body
     de = _de_cat()[key]
     assert "gegen das Profil beurteilt" in de and " du " not in f" {de} "
     assert "—" not in key and "—" not in de
@@ -172,9 +177,11 @@ def _dialog(qapp):
 
 def test_a_drift_column_shows_words_on_the_judged_rows_only(qapp,
                                                             monkeypatch):
-    """The column of a judging drift check: its Overall word is the judged
+    """The column of a judging raw sheet: its Overall word is the judged
     rows' word, "Judged against" names the set, the paper and solid rows
-    carry their words and every other cell reads "drift".
+    carry their words. K59 (Knut #182 5849392788, option C): every other
+    cell reads its own word (INFO, N-A), never "drift", so every row's word
+    is printed; a column that judged nothing reads INFO.
 
     MUTATION, proven red: `_summary_cell` asks `_is_raw_drift` again (the
     Overall cell reads "drift")."""
@@ -189,8 +196,8 @@ def test_a_drift_column_shows_words_on_the_judged_rows_only(qapp,
             lambda self, r: CS.Summary(CS.FAIL, 3, 3, 1, 0, 0,
                                        CS.SUMMARY_REASONS["fail"]))
         assert dlg._drift_judges(rep) and not dlg._drift_only(rep)
-        assert {x["row_id"] for x in dlg._rows_with_words(rep)} == set(
-            MR.ROWS_JUDGED_ON_A_RAW_PRINT)
+        assert {x["row_id"] for x in dlg._rows_with_words(rep)} == {
+            x["row_id"] for x in rows}
         cell = dlg._summary_cell(rep)
         assert "FAIL" in cell and "drift" not in cell, cell
         monkeypatch.setattr(type(dlg), "_verdict_rows",
@@ -198,7 +205,13 @@ def test_a_drift_column_shows_words_on_the_judged_rows_only(qapp,
                                 r, CS.effective_limits("chromiq_default",
                                                        {}))], False))
         assert dlg._drift_only(rep)
-        assert "drift" in dlg._summary_cell(rep)
+        monkeypatch.undo()
+        monkeypatch.setattr(type(dlg), "_verdict_rows",
+                            lambda self, r: ([dict(x) for x in MR.judge(
+                                r, CS.effective_limits("chromiq_default",
+                                                       {}))], False))
+        cell = dlg._summary_cell(rep)
+        assert "INFO" in cell and "drift" not in cell, cell
     finally:
         dlg.deleteLater()
 

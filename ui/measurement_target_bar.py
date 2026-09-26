@@ -824,7 +824,7 @@ class MeasurementTargetBar(QWidget):
             "The list follows the order of the work: you calibrate, then "
             "you profile, then you verify. Most of the time you want "
             "Profiling, which is why it stays the one already selected.\n\n"
-            "• Calibration — measure a special chart that brings the "
+            "• Calibration: measure a special chart that brings the "
             "printer itself to a known, repeatable state before any profile "
             "is built. It produces a calibration file (.cal) which every "
             "profile run of this project can then use. One calibration is "
@@ -833,14 +833,14 @@ class MeasurementTargetBar(QWidget):
             "optional; use it when you want your printer to behave the same "
             "way today and in six months. It is offered only while "
             "calibration options are switched on in Preferences.\n\n"
-            "• Profiling — measure a chart printed with colour management "
+            "• Profiling: measure a chart printed with colour management "
             "OFF, so ChromIQ can learn your printer and build a profile "
             "from it. This is the normal choice.\n\n"
-            "• Verification — measure a (usually smaller) chart printed "
+            "• Verification: measure a (usually smaller) chart printed "
             "THROUGH a finished profile, with colour management ON, to "
             "check how accurate that profile still is. A verification never "
             "builds a profile; it is kept as a dated record so you can "
-            "watch a profile hold up — or drift — over time."))
+            "watch a profile hold up, or change, over time."))
         self._type_combo.currentIndexChanged.connect(self._on_type_changed)
         # …and the WRITE trigger, before the list even appears.
         self._type_combo.about_to_open.connect(

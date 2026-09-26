@@ -627,9 +627,9 @@ _EVEN_CAUSES = (
     "An uneven sheet usually has one of these causes: banding from the "
     "printer, a partly blocked or misaligned print head, paper that is not "
     "flat or not the same all over, or, on an instrument that reads whole "
-    "strips, the instrument drifting while it reads. The strips are read one "
-    "after another, so a drift during the reading shows as a difference "
-    "across the strips rather than down them.")
+    "strips, the instrument changing while it reads. The strips are read "
+    "one after another, so such a change during the reading shows as a "
+    "difference across the strips rather than down them.")
 _B_EVEN_PAIRWISE = (
     "Whether the sheet prints the same colour everywhere. Every patch is "
     "compared with its own aim value, the differences are averaged over each "
@@ -682,8 +682,8 @@ _R_EVENNESS = (
     "Use a chart whose pages hold at least 9 strips and 9 rows, with patches "
     "covering at least 60 % of the page, and enough patches that about 30 "
     "land in each ninth of the page. If a metric reads a difference, measure the same sheet "
-    "again before looking for a cause, since an instrument that drifts during "
-    "a long reading makes the strips read last differ from the first.")
+    "again before looking for a cause, since an instrument that changes "
+    "during a long reading makes the strips read last differ from the first.")
 
 ROWS: "tuple[Row, ...]" = (
     # -- Paper
@@ -712,7 +712,7 @@ ROWS: "tuple[Row, ...]" = (
         remedy=_R_REFERENCE),
     Row("cmy_solids_dhab_max", "solids",
         "Maximum ΔH*ab, cyan, magenta and yellow solids", "ΔH*ab", "ref",
-        blurb='Whether the three chromatic solids drifted in hue, ignoring how light or how saturated they are. A hue shift in a solid is the one error the eye finds hardest to forgive.',
+        blurb='Whether the three chromatic solids shifted in hue, ignoring how light or how saturated they are. A hue shift in a solid is the one error the eye finds hardest to forgive.',
         detect=_D_REFERENCE_CMY,
         remedy=_R_REFERENCE),
     Row("spot_solids_de00_max", "solids",
@@ -1003,7 +1003,7 @@ SETS: "tuple[SetDef, ...]" = (
                  "colour difference matters."),
     SetDef("chromiq_quick", "Quick check", "chromiq", True,
            blurb="Twice ChromIQ default: a quick health check that only a "
-                 "clearly drifted printer fails."),
+                 "printer that has clearly changed fails."),
     SetDef("iso_12647_7", "ISO 12647-7:2016 values", "iso", False,
            blurb="The published tolerance values of ISO 12647-7:2016 "
                  "(contract proofs), applied to the chart you printed. "
@@ -2241,6 +2241,14 @@ SUMMARY_REASONS: "dict[str, str]" = {
     "record_type": "This is a Printing record, which sets down what was "
                    "printed and measured and judges none of it. The numbers "
                    "are shown for information only.",
+    # K59 (Knut #182 5849392788, option C): a verification sheet printed raw
+    # that judged nothing reads INFO, and "It was measured to build a profile"
+    # above would be false of it. The text is M-REPORT-RAW-OVERALL, proposed
+    # (`measurement_messages`); not a footnote reason, because the sentence
+    # under the results already says what such a column is.
+    "raw_print": "This sheet was printed raw, without the profile, so its "
+                 "values are shown for information only and nothing on it "
+                 "was judged.",
     # FOUND BUILDING T3, AND REACHABLE TODAY. A column where NOTHING could be
     # checked, and where every row that is missing is a recommendation rather
     # than a requirement, fell through every clause to PASS — under a sentence

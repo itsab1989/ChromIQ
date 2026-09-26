@@ -374,7 +374,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ("§41.6", "K49", [
         "Report-Limits-Every-Metric/run1: New report…, all three dates, Contract proof check, ISO 12647-7:2016 values: the solid rows compared with the profile's prediction, PASS, PASS, FAIL, each with M-REPORT-SOLIDS-PREDICTED; the cube-corner table keeps the ideal values",
         "Report-Limits-Threshold-Series/run1: New report…, the first three dates, Contract proof check: the paper row compared with the run's profile's paper white, with M-REPORT-PAPER-AGAINST-PROFILE; the solid rows N-A, printed through the profile",
-        "Report-Limits-Border-Conditions/run3 (printed raw, a drift check): the paper and solid rows against the profile, shown with no verdict under ChromIQ default (judged under ISO 12647-7 since K51, §45.1)",
+        "Report-Limits-Border-Conditions/run3 (printed raw): the paper and solid rows against the profile, shown with no verdict under ChromIQ default (judged under ISO 12647-7 since K51, §45.1)",
         "Report-Limits-Every-Limit-Set/run1 (ordinary chart): the paper row over on the date that designs every row over, back inside after",
     ]),
     ("§42", "Knut on F5", [
@@ -394,7 +394,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE approved by Knut (B8-1322): as §41.7 shows them",
     ]),
     ("§45", "K51:", [
-        "Report-Limits-Border-Conditions/run3, Run type Verification: New report…, both dates, Full colour check, ISO 12647-7:2016 values: the paper and solid rows judged against the profile (the designed drift FAILs \u201cMaximum \u0394E00, solid colours\u201d), the other cells read \u201cdrift\u201d, the Overall word follows the judged rows, and the sentence under the results names the judged rows (B8-1330, B8-1331)",
+        "Report-Limits-Border-Conditions/run3, Run type Verification: New report…, both dates, Full colour check, ISO 12647-7:2016 values: the paper and solid rows judged against the profile (the designed change FAILs \u201cMaximum \u0394E00, solid colours\u201d), the Overall word follows the judged rows, and the sentence under the results names the judged rows (B8-1330, B8-1331); since K59 the other cells read INFO with a numbered note (\u00a749)",
         "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: no graph for a row whose limit is \u201c\u2013\u201d (Paper white difference, Solid colours, Hue of the solids, Tone ramps, Control strip, Outer and surface gamut are gone); Paper white, Darkest black and Cube corners each carry their own sentence (B8-1332, B8-1333)",
         "Report-Limits-Every-Metric/run1, Run type Profiling: New report…, Printing record, all runs, ISO 12647-7:2016 values: the graphs of the rows the set limits, each with its limit line, and under each the sentence that the lines are shown for information only (B8-1334)",
         "Report-Limits-Every-Metric/run1: New report…, Custom ISO 12647-7 with \u201cMaximum \u0394E00, control strip\u201d switched off in Edit limits…: that row is in neither the table nor the Control strip graph, which keeps Avg and P95 (B8-1332)",
@@ -404,6 +404,11 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Border-Conditions/run3, Run type Verification: New report\u2026, both dates, Full colour check, ISO 12647-7:2016 values: the report opens \u201cThis report follows the printer behind the profile built in \u2026\u201d with the clause that the paper and the solid colours are judged against the profile (B8-1377); under ChromIQ default the same sentence stops before that clause (B8-1381)",
         "Report-Limits-Profile-Gamut/run1 (printed through the profile): the report keeps the approved opening \u201cIt was verified by printing a chart through that profile\u201d (B8-1377)",
         "Report-Limits-Strip-And-Gamut/run4, Measure tab, Run type Verification, the run set to ISO 12647-7: the pre-flight's FROM PROFILE GAMUT paragraph as Knut accepted it (B8-1374), and M-VERIFY-SOLIDS-REASON, approved (B8-1373), under the two solid rows",
+    ]),
+    ("\u00a749", "K59:", [
+        "Report-Limits-Border-Conditions/run3, Run type Verification: New report\u2026, both dates, Full colour check, ISO 12647-7:2016 values: the paper and solid rows PASS or FAIL against the profile, every other cell INFO with the raised number of M-REPORT-RAW-PRINT-INFO, \u201cJudged against\u201d reads the set \u201c(printed raw)\u201d, the opening with Knut's clause and the Report Scope sentence, and no \u201cdrift\u201d anywhere (B8-1393, B8-1394, B8-1381, B8-1384)",
+        "Report-Limits-Border-Conditions/run3, the same under ChromIQ default: every cell INFO or N-A with its note, Overall INFO, \u201cnot judged (printed raw)\u201d, the opening in Knut's conditional form; Detailed data: \u201cChange since the previous raw check\u201d under the second date (B8-1393, B8-1394)",
+        "Measure tab, Run type Verification, and Create Chart > \u201cWhich presets can be used for verification?\u201d: the FROM PROFILE GAMUT state line as Knut accepted it (B8-1386)",
     ]),
     ("§47", "K57:", [
         "Create Chart presets (verification demos): “Which presets can be used for verification?”: a chart made for verification is marked ●, and the line under the pulldowns says so (B8-1387)",
@@ -564,6 +569,49 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     ],
     "M-LIMIT-RECOMMENDED": [
         "not reachable from data: no set ChromIQ ships marks a row recommended (a licence holder's own file can)",
+    ],
+    # K59 (Knut #182 5849392788): option C and "change" for "drift".
+    "M-REPORT-RAW-PRINT-INFO": [
+        "Report-Limits-Border-Conditions/run3: New report…, both dates, Full colour check: every INFO cell compared with the design carries this note",
+    ],
+    "M-REPORT-RAW-JUDGED-AGAINST": [
+        "Report-Limits-Border-Conditions/run3: New report…, ISO 12647-7:2016 values: under \u201cJudged against\u201d",
+    ],
+    "M-REPORT-RAW-NOT-JUDGED": [
+        "Report-Limits-Border-Conditions/run3: New report…, ChromIQ default: under \u201cJudged against\u201d",
+    ],
+    "M-REPORT-RAW-OVERALL": [
+        "Report-Limits-Border-Conditions/run3: New report…, ChromIQ default: the Overall word's tooltip",
+    ],
+    "M-REPORT-RAW-RESULTS-JUDGED": [
+        "Report-Limits-Border-Conditions/run3: New report…, ISO 12647-7:2016 values: the sentence under the results",
+    ],
+    "M-REPORT-RAW-RESULTS-SOME": [
+        "Report-Limits-Border-Conditions/run3: New report…, ISO 12647-8:2021 values (the paper row only is limited): the sentence under the results",
+    ],
+    "M-REPORT-RAW-RESULTS": [
+        "Report-Limits-Border-Conditions/run3: New report…, ChromIQ default: the sentence under the results",
+    ],
+    "M-REPORT-RAW-GUIDE-JUDGED": [
+        "Report-Limits-Border-Conditions/run3: New report…, ISO 12647-7:2016 values: How to read this report",
+    ],
+    "M-REPORT-RAW-GUIDE": [
+        "Report-Limits-Border-Conditions/run3: New report…, ChromIQ default: How to read this report",
+    ],
+    "M-REPORT-RAW-BASELINE": [
+        "Report-Limits-Border-Conditions/run3: New report…, the first date only, Show detailed data: under its table",
+    ],
+    "M-REPORT-RAW-CHANGE": [
+        "Report-Limits-Border-Conditions/run3: New report…, both dates, Show detailed data: under the second date's table",
+    ],
+    "M-REPORT-RAW-INCOMPARABLE": [
+        "not reachable from this package: its raw sheets of one run share one chart; raised when the previous raw check of a run used a different chart",
+    ],
+    "M-REPORT-RAW-SHEET": [
+        "not reachable from this package: every raw sheet in it has a comparison record; raised for a raw sheet the report has no comparison record for",
+    ],
+    "M-REPORT-MIXED-OPENING": [
+        "Report-Limits-Border-Conditions/run3: write {\"colour\": \"through-profile\", \"intent\": \"relative\", \"route\": \"chromiq\", \"profile\": \"Report-Limits-Border-Conditions.icc\"} as Report-Limits-Border-Conditions-verify.print.json into the 2026-12-17 date's chart/ folder and delete that date's reports/ folder, then New report…, both dates: the opening",
     ],
     "M-VERIFY-NO-PROFILE": ["not a report message: a run without a profile (none in this package)"],
     "M-VERIFY-NO-CHART": ["not a report message: a run without a verification chart (none in this package)"],
