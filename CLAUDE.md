@@ -117,6 +117,21 @@ reference to a bound receiver and lets Qt sever the connection when it dies,
 instead of parking a Python closure inside a C++ object on the far side of the
 cycle.
 
+**AND THE GARBAGE COLLECTOR MAY NOT RUN INSIDE QT'S EVENT DELIVERY (B8-1392).**
+The other half of the same crash class, found 2026-09-26 from a core dump: a
+worker died 3 runs in 9 in `sendThroughObjectEventFilters`. A widget tree left in
+a reference cycle was still receiving a queued event; a Python event filter on
+it allocated, the allocation triggered an automatic collection, and the
+collection deleted the very widget Qt was delivering to. Beta 43 had it too, and
+B8-1191's "GC on the layout thread" was the same fault seen from one side.
+`core/gc_guard.py` turns automatic collection off and collects from a timer on
+the GUI thread, between events; `main()`, `scripts/capture_screens.py::build_app`
+and the suite's QApplication fixture install it. **Never switch
+automatic collection on in app code**; code that holds it off for a while
+restores only what it found (`core/sound.py`, `workflow/preset_layout.py`), and a test that must measure CPython's own collector
+asks for the `automatic_gc` fixture. `tests/test_b8_1392_no_collection_inside_
+event_delivery.py` keeps it that way.
+
 `pytest.ini` scopes collection to `tests/` (via `testpaths`). Without it a
 bare `pytest` recurses into `.venv/` and — with `pytest-qt` active —
 collection appears to hang for many minutes. Anything far beyond the times
