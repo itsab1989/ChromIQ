@@ -4717,7 +4717,7 @@ NOTE_STRIP_CORNERS_IDEAL = "strip_corners_ideal"
 #: corner keeps the chart's own aim. A note on each row says which, so the
 #: row and the table do not read as a contradiction. The texts are
 #: `measurement_messages.M_REPORT_SOLIDS_PREDICTED` and
-#: `M_REPORT_PAPER_AGAINST_PROFILE` (§M, proposed).
+#: `M_REPORT_PAPER_AGAINST_PROFILE` (§M, approved by Knut in 5845588201).
 NOTE_SOLIDS_PREDICTED = "solids_predicted"
 NOTE_PAPER_AGAINST_PROFILE = "paper_against_profile"
 

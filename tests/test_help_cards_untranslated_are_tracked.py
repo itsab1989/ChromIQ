@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-26, K50 (B8-1320, Knut #182 5845519118): the sentence under a graph with no limit line speaks of this report only, never of other limit sets: B8-1274's five reasons out ("ChromIQ has no limit ... in any of its limit sets" and the four "although other limit sets ... have one"), one in ("This report sets no limit for what this graph shows, so no limit line is drawn."). 1 key in, 5 out. German by hand, does not move; the twelve others carry the English under the beta rule and each falls by exactly 4 here and 3 in the echo budget (the "ChromIQ has no limit" key starts with "ChromIQ" and was never an echo there). COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, challenge 2 of beta 44 (B8-1271, B8-1273 to B8-1275): the three reference rows' help and the paper row's lever say a profiling measurement reads N-A (4 keys replaced by 4), the Printing record names every graph it carries (9 graph names in, the four-graph sentence out), why no limit line is drawn chosen from the set data (5 sentences in, 1 out), the Cube corners sentence says aim values (1 replaced by 1), the Paper white difference caption no longer says "with its limit" (1 replaced by 1). 20 keys in, 8 out. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K48 (B8-1239, Knut #182 5840677938 and 5840692243): the gear window's two help bodies reworded (the rule for when a preset shows; Scanner filtered too), 2 keys replaced by 2. German by hand, does not move; the twelve others carried the old English and carry the new, so none moves. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-25, K46 (B8-1171 to B8-1173, Knut #182 5834773589): the paper-filter note, 2 keys in; the window named "Settings for built-in presets" in 6 texts, 6 keys replaced by 6. German by hand, does not move; each of the twelve others rises by exactly 2 under the beta rule. COUNTED off the tree, BOTH ledgers.
@@ -1055,18 +1056,18 @@ _BUDGET = {
     # twelve others carry the English under the beta rule. COUNTED
     # off the tree, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 1050,
-    "fr": 1051,
-    "it": 1050,
-    "ja": 1050,
-    "nl": 1050,
-    "no": 1050,
-    "pl": 1050,
-    "pt": 1050,
-    "ru": 1049,
-    "sv": 1050,
-    "zh_CN": 1049,
-    "uk": 1192,
+    "es": 1047,
+    "fr": 1048,
+    "it": 1047,
+    "ja": 1047,
+    "nl": 1047,
+    "no": 1047,
+    "pl": 1047,
+    "pt": 1047,
+    "ru": 1046,
+    "sv": 1047,
+    "zh_CN": 1046,
+    "uk": 1189,
 }
 
 

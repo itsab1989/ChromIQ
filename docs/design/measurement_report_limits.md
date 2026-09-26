@@ -132,6 +132,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §41 | K47: every row a set limits has a data line, a limit line and a sentence (the control strip's maximum, the two solid-colour rows, the outer- and surface-gamut averages); a graph with no limit says so under it; what the paper-white and solid rows are compared with, and the analysis of a default reference | 2026-09-25, 5840152058 | ruled by Knut; built for beta 44 (B8-1232 to B8-1234), NOT confirmed; the reference question analysed and put back to him (B8-1235, B8-1236) |
 | §41.6 | K49 (§41.6 to §41.9): Knut's three answers: (b2) built (the paper row against the profile's media white on every chart with a paper patch, the solid rows against the profile's prediction where printed raw, N-A with a named note otherwise, §32.5 reversed for those two rows only); a graph of a row with values and no limit shown, with a sentence of its own (§17 item 3 amended); the Control strip's three lines and the caption outside §M accepted | 2026-09-25, 5841092535 | the three answers confirmed by Knut (§41.6); built for beta 44 (B8-1244 to B8-1248), NOT confirmed; two message texts proposed; one question (B8-1249) |
 | §43 | Challenge 2 of beta 44, the report findings: a relative chart's solid rows predicted absolute; (b2) on verifications only; the Printing record names every graph it carries; why no limit line is drawn, from the set data; the Cube corners sentence says "aim values"; a graph with no line needs two dated values; a value shown for information keeps its (b2) note; the older question of a relative FROM PROFILE GAMUT chart judged absolute | 2026-09-26, challenge 2 of beta 44 | found by the challenge round, not ruled by Knut; built (B8-1270, B8-1271, B8-1273 to B8-1278), NOT confirmed; one question for Knut (B8-1272) |
+| §44 | K50: a report's notes never refer to other limit sets (the sentence under a graph with no limit line speaks of this report only); the presets window groups the metrics that carry identical messages; M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE approved | 2026-09-26, 5845519118, 5845588201 | the rule and the two notes' wording confirmed by Knut (§44.1, §41.7); built for beta 44 (B8-1320 to B8-1322), the new wording and the grouping NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -8148,7 +8149,7 @@ three rows were compared with, `condition_reference = {"paper": {...},
     the profile the print record names when that file is on disk (the one
     the sheet was printed through), else the run's own built profile.
   * On a chart that is not FROM PROFILE GAMUT the row carries a numbered
-    note, M-REPORT-PAPER-AGAINST-PROFILE (**PROPOSED**, §M-PROPOSED), because
+    note, M-REPORT-PAPER-AGAINST-PROFILE (**Confirmed by Knut, 2026-09-26**, #182 [5845588201](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5845588201), for the wording: *"Messages "M-REPORT-SOLIDS-PREDICTED" and "M-REPORT-PAPER-AGAINST-PROFILE" accepted."*; approved in §M), because
     the cube-corner table's white corner there still compares the same patch
     with the chart's own ideal white, and the two would otherwise read as a
     contradiction. (On a FROM PROFILE GAMUT chart the table's white already
@@ -8181,7 +8182,7 @@ three rows were compared with, `condition_reference = {"paper": {...},
     two rows show their values for information and carry no verdict: in
     practice the solid rows are judged only on FROM PROFILE GAMUT charts;
   * every judged or shown value carries the numbered note
-    M-REPORT-SOLIDS-PREDICTED (**PROPOSED**; a value shown for information
+    M-REPORT-SOLIDS-PREDICTED (**Confirmed by Knut, 2026-09-26**, #182 [5845588201](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5845588201), for the wording: *"Messages "M-REPORT-SOLIDS-PREDICTED" and "M-REPORT-PAPER-AGAINST-PROFILE" accepted."*; approved in §M; a value shown for information
     did not until §43.7, B8-1277): the cube-corner table compares
     the same patches with their ideal values, so the two can differ a lot;
   * N-A with its reason: printed through the profile
@@ -8465,7 +8466,7 @@ white difference", "the solid colours", "the hue of the solids", "grey
 balance", "the tone ramps", "the control strip", "the outer and surface
 gamut", "repeatability", "evenness", besides the four). Amends §27.3.
 
-**43.4 Why no limit line is drawn, from the set data (B8-1274).** *"The
+**43.4 Why no limit line is drawn, from the set data (B8-1274).** *(**Superseded by §44.1, K50:** a report never refers to other limit sets; the sentences below are gone.)* *"The
 limits this report is judged against set none for it"* was poor English,
 and untrue under Paper white (L\*), Darkest black (L\*) and Cube corners,
 which no limit set has a row for: it implied that another choice would draw
@@ -8595,3 +8596,79 @@ their own change.
 **Status:** built for beta 44 (B8-1270, B8-1271, B8-1273 to B8-1278), NOT
 confirmed; one question for Knut (B8-1272); two number-format faults
 registered (B8-1279).
+
+## 44. K50: a report never refers to other limit sets, and the presets window groups identical messages (#182, 2026-09-26, beta 44)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-26, #182
+[5845519118](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5845519118)
+and [5845588201](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5845588201),
+for exactly the rules quoted here. The words and the layout built from them
+are in 44.2 and wait for his confirmation.
+
+**44.1 The rulings, verbatim.**
+
+* On the graph sentences of §43.4: *"The notes in a report should not refer
+  to what other limit sets have, that is a reference to the features of the
+  ChromIQ app, and not relevant for a customer to see."*
+* On "Which presets can be used for verification": *"all those metrics that
+  have identical messages should be grouped togheter then shown the message
+  for that group"* [...] *"If there are other metrics that share the exact
+  same messaging they can also be grouped, but only if some of the messages
+  of a metric is common with another, they need to be listed separately."*
+* *"Messages "M-REPORT-SOLIDS-PREDICTED" and "M-REPORT-PAPER-AGAINST-PROFILE"
+  accepted."* (recorded in §41.7 and in §M).
+
+### ⏳ Awaiting confirmation: what was built from them
+
+**Confirmed by:** *nobody yet.*
+
+Register: B8-1320 to B8-1322. Proof: `~/Desktop/ChromIQ-beta44-proof/k50-report/`
+(on screen, EN and DE, before and after; NOTES.txt).
+
+**44.2 As built.**
+
+* **The sentence under a graph with no limit line (B8-1320).** Its first
+  half (what the graph shows, and what watching it between dates is good
+  for, §41.8) is unchanged. Where the report's limits put no number on what
+  the graph shows, the second half is now one sentence, whatever other limit
+  sets hold: *"This report sets no limit for what this graph shows, so no
+  limit line is drawn."* (German: *"Dieser Bericht setzt für das, was diese
+  Grafik zeigt, keinen Grenzwert, daher ist keine Grenzwertlinie
+  eingezeichnet."*). §43.4's five sentences (*"ChromIQ has no limit for what
+  this graph shows in any of its limit sets"* and the four *"although
+  another limit set / other limit sets (named after ISO 12647) have one"*)
+  are gone, with the code that chose between them from the sets' numbers.
+  The Printing record's and the Grey and tone check's endings (§41.8) spoke
+  of the report alone already and are unchanged.
+* **The rest of the report text was searched** (the page and the PDF, the
+  notes, How to read this report, Report Scope, the graph captions and
+  sentences, the §M messages printed in a report, English and German): no
+  other sentence refers to another limit set or to ChromIQ's sets.
+  `tests/test_report_text_names_no_part_of_the_app.py` now fails on such a
+  reference (`OTHER_SETS`, `OTHER_SETS_DE`) and scans the no-limit
+  sentences too. Knut's analysis question of 5845519118 (whether a "–"
+  threshold should take the metric out of the graphs and results
+  altogether) is not answered by this change and is not built.
+* **The presets window groups identical messages (B8-1321).** Under "This
+  chart cannot answer", the metrics whose COMPLETE set of lines (what the
+  chart is short of, printtarg's own words where it refused a layout, and
+  the metric's lever) is identical are listed together, one ✕ line each,
+  with those lines printed once under the group. A metric sharing only some
+  of its lines with another is listed on its own. The groups keep the order
+  of their first metric (`group_by_messages`, `_missing_messages` in
+  `ui/dialogs/preset_verification_dialog.py`). Measured over every preset
+  the window lists, under ISO 12647-7 and under All metrics alike: the two
+  solid rows form one group on 185 presets (*"This chart carries no
+  colorimetric reference."* and the FROM PROFILE GAMUT lever, once), and the
+  two evenness rows on 17 (the noise line and their lever, once). Knut's
+  example also had the paper row in the group; since K49 (§41.7) a chart
+  with a paper patch answers that row, and one without says *"This chart has
+  no patch printed with no ink, so its paper cannot be measured."*, a
+  different message, so on this tree the paper row is never in that group.
+  The Measure tab's
+  pre-flight summary (`summary_lines`) is not changed: it lists one short
+  line per metric and was not part of the ruling.
+* **The two (b2) notes (B8-1322)** are approved in §M
+  (`approved=True`), their text unchanged.

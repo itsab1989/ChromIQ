@@ -249,16 +249,9 @@ def test_the_note_names_no_control_of_the_app():
     from core.resource_path import resource_path
     cat = json.load(open(resource_path("data/i18n/de.json"),
                          encoding="utf-8"))
-    from workflow.compliance_sets import SET_BY_ID
     parts = [f() for f in mrd._NO_LIMIT_SHOWS.values()] + \
         [f() for f in mrd._NO_LIMIT_WHY.values()]
     assert len(parts) == len(mrd._TREND_ABOUT) + 3
-    # B8-1274: the four "although another set has one" sentences
-    iso7, iso8, dflt, tight = (SET_BY_ID[k] for k in (
-        "iso_12647_7", "iso_12647_8", "chromiq_default", "chromiq_tight"))
-    parts += [mrd._others_have_one(o) for o in (
-        [iso7], [iso7, iso8], [dflt], [dflt, tight])]
-    assert len(set(parts[-4:])) == 4
     for en in parts:
         import re
         for word in ("Choose", "Press", "tick", "window", "tab", "button"):
@@ -285,7 +278,7 @@ def test_every_graph_has_its_own_no_limit_sentence():
         assert t.startswith("This graph shows"), k
         assert "date" in t, k
         assert t.endswith("no limit line is drawn."), k
-    for why in (mrd.NO_LIMIT_WHY_NOWHERE, mrd.NO_LIMIT_WHY_RECORD,
+    for why in (mrd.NO_LIMIT_WHY_SET, mrd.NO_LIMIT_WHY_RECORD,
                 mrd.NO_LIMIT_WHY_ACCURACY):
         assert mrd.no_limit_note("de", why).endswith(
             mrd._NO_LIMIT_WHY[why]())

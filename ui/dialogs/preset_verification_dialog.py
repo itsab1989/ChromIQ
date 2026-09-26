@@ -359,6 +359,37 @@ class Line:
     indent: int = 0
 
 
+def _missing_messages(rid: str, why: str, said: str = "") -> "tuple[str, ...]":
+    """Every line the pane prints under one metric the chart cannot answer:
+    what it is short of, printtarg's own words when it refused the layout,
+    and the metric's lever."""
+    out = [reason_line(why)]
+    if why == PE.REASON_EVENNESS_LAYOUT_REFUSED and said:
+        # printtarg's own words, quoted as its own
+        out.append(tr("printtarg said: “{said}”").format(said=said))
+    remedy = "" if why in _LAYOUT_REASONS else PE.row_remedy(rid, why)
+    if remedy:
+        out.append(tr(remedy))
+    return tuple(out)
+
+
+def group_by_messages(items: "list[tuple[str, tuple[str, ...]]]"
+                      ) -> "list[tuple[list[str], tuple[str, ...]]]":
+    """Metrics that carry the IDENTICAL messages, listed together with the
+    messages printed once under the group (K50, Knut, #182 5845519118: *"all
+    those metrics that have identical messages should be grouped together
+    then shown the message for that group"*).
+
+    A metric is grouped only by its COMPLETE message set: *"only if some of
+    the messages of a metric is common with another, they need to be listed
+    separately."* Groups keep the order of their first metric, and the
+    metrics inside a group keep theirs."""
+    groups: "dict[tuple[str, ...], list[str]]" = {}
+    for rid, messages in items:
+        groups.setdefault(tuple(messages), []).append(rid)
+    return [(rids, messages) for messages, rids in groups.items()]
+
+
 def detail_lines(row: "PresetRow | None", *,
                  every_metric: bool = False) -> "list[Line]":
     """Everything the right-hand pane says about one chart, as data.
@@ -464,17 +495,12 @@ def detail_lines(row: "PresetRow | None", *,
     if missing:
         out.append(Line(tr("This chart cannot answer"), bold=True))
         said = PE.layout_failure_detail(row.chart, row.recipe)
-        for rid, why in missing:
-            out.append(Line("✕  " + tr(PE.row_label(rid)), indent=6))
-            out.append(Line(reason_line(why), info=True, indent=22))
-            if why == PE.REASON_EVENNESS_LAYOUT_REFUSED and said:
-                # printtarg's own words, quoted as its own
-                out.append(Line(tr("printtarg said: “{said}”").format(
-                    said=said), info=True, indent=22))
-            remedy = ("" if why in _LAYOUT_REASONS
-                      else PE.row_remedy(rid, why))
-            if remedy:
-                out.append(Line(tr(remedy), info=True, indent=22))
+        for rids, messages in group_by_messages(
+                [(rid, _missing_messages(rid, why, said))
+                 for rid, why in missing]):
+            out += [Line("✕  " + tr(PE.row_label(rid)), indent=6)
+                    for rid in rids]
+            out += [Line(m, info=True, indent=22) for m in messages]
         # **WHAT THE REPORT DOES WITH THESE ROWS, AND THE ONE LEVER OVER IT.**
         # M-VERIFY-UNCHECKED-METRICS, asked for by Knut on 2026-09-22. Every
         # line above says what a row is short of; none of them said what the

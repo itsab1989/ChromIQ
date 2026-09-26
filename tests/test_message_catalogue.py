@@ -195,14 +195,12 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-REPORT-UPDATE-NOTHING-LEFT",
                                  "M-REPORT-DELETE-FAILED",
                                  "M-REPORT-NOT-WRITABLE",
-                                 # #182 K49, (b2), Knut 5841092535 "Yes":
-                                 # the paper and solid rows compared with
-                                 # the profile while the cube-corner table
-                                 # keeps the ideal values. The BEHAVIOUR is
-                                 # his ruling; the two notes' WORDING is ours
-                                 # and waits here.
-                                 "M-REPORT-SOLIDS-PREDICTED",
-                                 "M-REPORT-PAPER-AGAINST-PROFILE",
+                                 # (#182 K49, (b2): the two notes on the
+                                 # paper and solid rows,
+                                 # M-REPORT-SOLIDS-PREDICTED and
+                                 # M-REPORT-PAPER-AGAINST-PROFILE, were
+                                 # APPROVED by Knut in 5845588201 and left
+                                 # this set.)
                                  # Re-challenge R2 of beta 39: the run-delete
                                  # refusal about reports it cannot renumber
                                  # had no headline and a list heading that

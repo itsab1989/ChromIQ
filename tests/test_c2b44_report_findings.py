@@ -14,6 +14,8 @@
    thirteen are drawn.
 4. (B8-1274) "The limits this report is judged against set none for it" was
    poor English, and untrue where NO limit set has a limit for the graph.
+   Amended by K50 (B8-1320): the replacement named other limit sets, which a
+   report may never do; it is one sentence about this report now.
 5. (B8-1275) The Cube corners sentence called every aim "ideal"; the paper
    white of a FROM PROFILE GAMUT chart aims at the profile's paper.
 7. (B8-1276) A graph with no limit line and a value on one date only was
@@ -279,80 +281,58 @@ def test_the_record_sentence_names_graphs_beyond_the_first_four(
 
 
 # --------------------------------------------------------------------------
-# 4. why no line is drawn, from the set data
+# 4. why no line is drawn: B8-1274 chose it from the set data; K50 (Knut,
+#    #182 5845519118, B8-1320) ruled that a report never refers to what
+#    other limit sets have, so it is one sentence about this report
 # --------------------------------------------------------------------------
-def test_a_graph_no_limit_set_limits_says_so():
-    """Paper white, Darkest black and Cube corners plot no row of any limit
-    set: "ChromIQ has no limit ... in any of its limit sets".
-
-    MUTATION, proven red: always give the "other limit sets" sentence."""
-    nowhere = mrd._NO_LIMIT_WHY[mrd.NO_LIMIT_WHY_NOWHERE]()
-    for key in ("white", "black", "corners"):
-        for sid in ("chromiq_default", "iso_12647_7", "custom_iso_12647_8"):
-            assert mrd.no_limit_note(key, mrd.NO_LIMIT_WHY_SET,
-                                     sid).endswith(nowhere), (key, sid)
+_THIS_REPORT = ("This report sets no limit for what this graph shows, so no "
+                "limit line is drawn.")
 
 
-def test_a_graph_another_set_limits_names_that_kind_of_set():
-    """Under ChromIQ default the paper, solid, tone, strip and gamut graphs
-    have no line, and every set that limits them is named after ISO 12647;
-    Repeatability under ISO 12647-7 is limited by ChromIQ's sets and the
-    Custom ones, so it is only counted.
+def test_a_graph_with_no_limit_line_speaks_of_this_report_only():
+    """Every graph, under every set: the same sentence, about this report.
+    Paper white, Darkest black and Cube corners (no set has a row for them)
+    and the graphs another set limits read alike.
 
-    MUTATION, proven red: name the ISO sets whatever `_sets_limiting` finds."""
-    iso = ("although other limit sets named after ISO 12647 have one, so no "
-           "limit line is drawn.")
-    for key in ("paper_diff", "solids", "solid_hue", "tone", "strip",
-                "gamut_edge"):
-        assert mrd.no_limit_note(key, mrd.NO_LIMIT_WHY_SET,
-                                 "chromiq_default").endswith(iso), key
+    MUTATION, proven red: bring back "although other limit sets named after
+    ISO 12647 have one" for a set that has none."""
+    for key in list(mrd._NO_LIMIT_SHOWS) + [""]:
+        s = mrd.no_limit_note(key, mrd.NO_LIMIT_WHY_SET)
+        assert s.endswith(_THIS_REPORT), key
+        for gone in ("other limit set", "another limit set", "any of its",
+                     "ChromIQ has no limit", "named after ISO"):
+            assert gone not in s, (key, gone)
     # and the caption above Paper white difference claims no limit line,
     # which a graph shown with none (K49) would contradict
     assert "limit" not in mrd._TREND_ABOUT["paper_diff"]()
-    rep = mrd.no_limit_note("repeat", mrd.NO_LIMIT_WHY_SET, "iso_12647_7")
-    assert rep.endswith("although other limit sets have one, so no limit "
-                        "line is drawn."), rep
 
 
-def test_the_choice_is_read_from_the_set_data(monkeypatch):
-    """No hard-coded list: take every number out of every set and the Paper
-    white difference graph says no set has one; give one set a number on the
-    Cube corners... there is no such row, so it stays; give ONE ISO set a
-    number on the tone row and the sentence says "another limit set".
+def test_the_sentence_does_not_read_the_sets(monkeypatch):
+    """No set is asked: take every number out of every set, or give one set a
+    number on the tone row, and the sentence does not move.
 
-    MUTATION, proven red: key the choice on a fixed list of graph keys."""
+    MUTATION, proven red: key the tail on `factory_limits` again."""
     import workflow.compliance_sets as cs
     from workflow.compliance_sets import Limit
-    real = cs.factory_limits
+    before = {k: mrd.no_limit_note(k) for k in mrd._NO_LIMIT_SHOWS}
     monkeypatch.setattr(cs, "factory_limits", lambda sid: {})
-    nowhere = mrd._NO_LIMIT_WHY[mrd.NO_LIMIT_WHY_NOWHERE]()
-    assert mrd.no_limit_note("paper_diff", mrd.NO_LIMIT_WHY_SET,
-                             "chromiq_default").endswith(nowhere)
-
-    def one(sid):
-        return ({"ramps_30_70_dl_max": Limit.value(2.0)}
-                if sid == "iso_12647_8" else {})
-    monkeypatch.setattr(cs, "factory_limits", one)
-    s = mrd.no_limit_note("tone", mrd.NO_LIMIT_WHY_SET, "chromiq_default")
-    assert s.endswith("although another limit set named after ISO 12647 "
-                      "has one, so no limit line is drawn."), s
-    monkeypatch.setattr(cs, "factory_limits", real)
+    assert {k: mrd.no_limit_note(k) for k in mrd._NO_LIMIT_SHOWS} == before
+    monkeypatch.setattr(cs, "factory_limits", lambda sid: (
+        {"ramps_30_70_dl_max": Limit.value(2.0)}
+        if sid == "iso_12647_8" else {}))
+    assert {k: mrd.no_limit_note(k) for k in mrd._NO_LIMIT_SHOWS} == before
 
 
 def test_the_new_sentences_are_german_by_hand_and_name_no_control():
     """German by hand, no "du" (report text), no em dash, no control of the
-    app named (K39).
+    app named (K39), no other limit set named (K50).
 
     MUTATION, proven red: delete one German entry."""
     import json
     from core.resource_path import resource_path
-    from workflow.compliance_sets import SET_BY_ID
     de = json.load(open(resource_path("data/i18n/de.json"), encoding="utf-8"))
-    a, b, c, d = (SET_BY_ID[k] for k in ("iso_12647_7", "iso_12647_8",
-                                         "chromiq_default", "chromiq_tight"))
-    texts = [mrd._NO_LIMIT_WHY[mrd.NO_LIMIT_WHY_NOWHERE](),
+    texts = [mrd._NO_LIMIT_WHY[mrd.NO_LIMIT_WHY_SET](),
              mrd._NO_LIMIT_SHOWS["corners"]()] + [
-        mrd._others_have_one(o) for o in ([a], [a, b], [c], [c, d])] + [
         f() for f in mrd.MeasurementReportDialog._RECORD_GRAPH_NAMES.values()]
     for en in texts:
         for word in ("Choose", "Press", "tick", "window", "tab", "button"):
@@ -361,6 +341,10 @@ def test_the_new_sentences_are_german_by_hand_and_name_no_control():
         g = de.get(en)
         assert g and g != en and "—" not in g, en
         assert " du " not in f" {g.lower()} " and "dein" not in g.lower(), en
+        assert "Grenzwertsätze" not in g and "anderer" not in g, g
+    assert de[_THIS_REPORT] == (
+        "Dieser Bericht setzt für das, was diese Grafik zeigt, keinen "
+        "Grenzwert, daher ist keine Grenzwertlinie eingezeichnet.")
 
 
 # --------------------------------------------------------------------------

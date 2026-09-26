@@ -103,14 +103,39 @@ def _allowed(text: str) -> bool:
     return any(k in text for k in ALLOWED)
 
 
+#: K50 (Knut, #182 5845519118): *"The notes in a report should not refer to
+#: what other limit sets have, that is a reference to the features of the
+#: ChromIQ app, and not relevant for a customer to see."* A report speaks of
+#: the limits IT is judged against, never of the sets it was not, nor of the
+#: sets ChromIQ offers. B8-1274's graph sentences did both ("although other
+#: limit sets named after ISO 12647 have one", "ChromIQ has no limit for what
+#: this graph shows in any of its limit sets").
+OTHER_SETS = re.compile(
+    r"\b(?:other|another|any of (?:its|ChromIQ's)|all of (?:its|ChromIQ's)|"
+    r"every|each|none of (?:its|ChromIQ's)|no)\s+(?:\w+\s+)?limit sets?\b"
+    r"|\bChromIQ's (?:own )?(?:limit )?sets\b"
+    r"|\blimit sets? named after\b"
+    r"|\bChromIQ has no limit\b",
+    re.IGNORECASE)
+#: …and in German.
+OTHER_SETS_DE = re.compile(
+    r"\b(?:ander\w*|kein\w*|jede\w*|alle\w*)\s+(?:\w+\s+)?"
+    r"Grenzwerts[aä]tz\w*"
+    r"|\bChromIQs? (?:eigene\w* )?Grenzwerts[aä]tz\w*"
+    r"|\bnach ISO 12647 benannt\w*",
+    re.IGNORECASE)
+
+
 def ui_hits(text: str) -> list:
-    """The UI words in *text*, cased words only when capitalised mid-text."""
+    """The UI words in *text*, cased words only when capitalised mid-text,
+    and every reference to a limit set other than the report's own (K50)."""
     out = []
     for m in UI_WORDS.finditer(text or ""):
         w = m.group(0)
         if w.lower() in _CASED and not w[0].isupper():
             continue
         out.append(w)
+    out += [m.group(0) for m in OTHER_SETS.finditer(text or "")]
     return out
 
 
@@ -177,6 +202,12 @@ def _tables() -> "list[str]":
     out += [cs.STANDARD_CAVEAT, cs.STANDARD_CAVEAT_PROOF]
     out += list(cs.SUMMARY_REASONS.values())
     out += [f() for f in mrd._TREND_ABOUT.values()]
+    # K49/K50: the sentence under a graph with no limit line, both halves
+    # and every whole the report can print
+    out += [f() for f in mrd._NO_LIMIT_SHOWS.values()]
+    out += [f() for f in mrd._NO_LIMIT_WHY.values()]
+    out += [mrd.no_limit_note(k, why) for k in list(mrd._NO_LIMIT_SHOWS) + [""]
+            for why in mrd._NO_LIMIT_WHY]
     for rid, note in mrd._LIMIT_NOTES.items():
         out.append(note("NAME"))
     return out
@@ -356,8 +387,9 @@ def test_the_german_report_text_names_no_part_of_the_app():
             messages_the_report_functions_print():
         m = M.CATALOGUE[mid]
         keys += [m.body] + ([m.body_one] if m.body_one else [])
-    bad = [(k[:80], UI_WORDS_DE.findall(de[k])) for k in keys
-           if k in de and UI_WORDS_DE.search(de[k]) and not _allowed(k)]
+    bad = [(k[:80], UI_WORDS_DE.findall(de[k]) + OTHER_SETS_DE.findall(de[k]))
+           for k in keys if k in de and not _allowed(k)
+           and (UI_WORDS_DE.search(de[k]) or OTHER_SETS_DE.search(de[k]))]
     assert not bad, bad
 
 
@@ -376,3 +408,57 @@ def test_the_pattern_catches_what_it_is_for():
               "an update of the paper white",
               "Report Scope", "Judged against: ChromIQ default"):
         assert not ui_hits(s), (s, ui_hits(s))
+
+
+def test_the_pattern_catches_a_reference_to_other_limit_sets():
+    """K50: each sentence B8-1274 printed under a graph is found, in English
+    and in German, and a sentence about the report's own limits is not.
+
+    MUTATION, proved to land: put B8-1274's "nowhere" sentence back in
+    `_NO_LIMIT_WHY` (red in the tables test and here)."""
+    for s in ("ChromIQ has no limit for what this graph shows in any of its "
+              "limit sets, so no limit line is drawn.",
+              "The limit set this report is judged against has no limit for "
+              "what this graph shows, although another limit set has one, so "
+              "no limit line is drawn.",
+              "although other limit sets named after ISO 12647 have one",
+              "although another limit set named after ISO 12647 has one",
+              "although other limit sets have one",
+              "that is what ChromIQ's own sets do with the metrics above"):
+        assert OTHER_SETS.search(s), s
+    for s in ("ChromIQ hat in keinem seiner Grenzwertsätze einen Grenzwert",
+              "ein anderer Grenzwertsatz aber schon",
+              "andere Grenzwertsätze aber schon",
+              "andere, nach ISO 12647 benannte Grenzwertsätze"):
+        assert OTHER_SETS_DE.search(s), s
+    for s in ("This report sets no limit for what this graph shows, so no "
+              "limit line is drawn.",
+              "Judged against: ISO 12647-7:2016 values",
+              "The limit set this report is judged against",
+              "the limits this report is judged against"):
+        assert not OTHER_SETS.search(s), s
+    assert not OTHER_SETS_DE.search(
+        "Dieser Bericht setzt für das, was diese Grafik zeigt, keinen "
+        "Grenzwert, daher ist keine Grenzwertlinie eingezeichnet.")
+
+
+def test_the_no_limit_sentence_speaks_of_this_report_only():
+    """K50 (B8-1320): whatever set the report is judged against, the sentence
+    under a graph with no limit line is the same, and it says only that THIS
+    report sets no limit. No set is consulted to write it.
+
+    MUTATION, proved to land: give `no_limit_note` a third parameter that
+    picks another sentence per set (a TypeError here) or read the sets."""
+    import inspect
+    import ui.dialogs.measurement_report_dialog as mrd
+    assert list(inspect.signature(mrd.no_limit_note).parameters) == [
+        "key", "why"]
+    src = inspect.getsource(mrd.no_limit_note)
+    assert "factory_limits" not in src and "SETS" not in src
+    for gone in ("NO_LIMIT_WHY_NOWHERE", "_sets_limiting", "_others_have_one"):
+        assert not hasattr(mrd, gone), gone
+    tail = mrd._NO_LIMIT_WHY[mrd.NO_LIMIT_WHY_SET]()
+    assert tail == ("This report sets no limit for what this graph shows, so "
+                    "no limit line is drawn.")
+    for k in mrd._NO_LIMIT_SHOWS:
+        assert mrd.no_limit_note(k).endswith(" " + tail), k

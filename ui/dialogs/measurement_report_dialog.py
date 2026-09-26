@@ -1753,19 +1753,17 @@ _NO_LIMIT_SHOWS = {
 NO_LIMIT_WHY_SET = "set"
 NO_LIMIT_WHY_RECORD = "record"
 NO_LIMIT_WHY_ACCURACY = "accuracy"
-#: ``set`` split in two by the set data (challenge 2 of beta 44, finding 4,
-#: B8-1274): NO limit set has a limit on the graph's rows (Paper white,
-#: Darkest black and Cube corners have no row at all), or the report's own
-#: set has none while another set has one. "The limits this report is judged
-#: against set none for it" was poor English, and untrue of the first kind:
-#: it implied another choice would draw a line. `no_limit_note` chooses.
-NO_LIMIT_WHY_NOWHERE = "nowhere"
+#: K50 (Knut, #182 5845519118): *"The notes in a report should not refer to
+#: what other limit sets have, that is a reference to the features of the
+#: ChromIQ app, and not relevant for a customer to see."* So ``set`` has one
+#: sentence, about THIS report alone, whatever other limit sets hold. B8-1274
+#: had split it in two from the set data ("ChromIQ has no limit ... in any of
+#: its limit sets", "although other limit sets ... have one"); both named the
+#: app's sets to the customer and are gone (B8-1320).
 _NO_LIMIT_WHY = {
-    # ``set`` has no sentence of its own: `no_limit_note` turns it into
-    # ``nowhere`` or into one of `_others_have_one`'s four.
-    NO_LIMIT_WHY_NOWHERE: lambda: tr(
-        "ChromIQ has no limit for what this graph shows in any of its limit "
-        "sets, so no limit line is drawn."),
+    NO_LIMIT_WHY_SET: lambda: tr(
+        "This report sets no limit for what this graph shows, so no limit "
+        "line is drawn."),
     NO_LIMIT_WHY_RECORD: lambda: tr(
         "This report records the measurements without judging them, so no "
         "limit line is drawn."),
@@ -1775,64 +1773,7 @@ _NO_LIMIT_WHY = {
 }
 
 
-def _trend_key_rows(key: str) -> "tuple[str, ...]":
-    """The limit-set rows a graph *key* plots: the five colour-accuracy rows
-    for ``de``, a group's rows for a grouped tab, and none for Paper white,
-    Darkest black and Cube corners, which plot no row of any limit set."""
-    if key == "de":
-        from workflow.compliance_sets import ROWS
-        return tuple(r.id for r in ROWS if r.metric_key)
-    return tuple(rid for k, _t, rows in _TREND_GROUPS if k == key
-                 for rid, _w, _c in rows)
-
-
-def _sets_limiting(key: str, but: "str | None" = None) -> "list":
-    """Every limit set other than *but* whose own numbers put a limit on a
-    row the graph *key* plots (`factory_limits`: what the set holds before
-    anyone types a number into it). Read from the set data, so a row a set
-    gains or loses changes the sentence under its graph by itself."""
-    from workflow.compliance_sets import SETS, factory_limits
-    rows = _trend_key_rows(key)
-    if not rows:
-        return []
-    out = []
-    for sd in SETS:
-        if sd.id == but:
-            continue
-        try:
-            lims = factory_limits(sd.id)
-        except Exception:                              # noqa: BLE001
-            continue
-        if any(getattr(lims.get(rid), "is_numeric", False) for rid in rows):
-            out.append(sd)
-    return out
-
-
-def _others_have_one(others: list) -> str:
-    """Why no line is drawn when the report's own limit set has no limit for
-    the graph and *others* have one: one sentence, naming them by kind when
-    they share one simply (every one named after ISO 12647), else only
-    saying there are others."""
-    iso = bool(others) and all("ISO 12647" in sd.label for sd in others)
-    if len(others) == 1:
-        return (tr("The limit set this report is judged against has no "
-                   "limit for what this graph shows, although another limit "
-                   "set named after ISO 12647 has one, so no limit line is "
-                   "drawn.") if iso else
-                tr("The limit set this report is judged against has no "
-                   "limit for what this graph shows, although another limit "
-                   "set has one, so no limit line is drawn."))
-    return (tr("The limit set this report is judged against has no limit "
-               "for what this graph shows, although other limit sets named "
-               "after ISO 12647 have one, so no limit line is drawn.") if iso
-            else
-            tr("The limit set this report is judged against has no limit "
-               "for what this graph shows, although other limit sets have "
-               "one, so no limit line is drawn."))
-
-
-def no_limit_note(key: str = "", why: str = NO_LIMIT_WHY_SET,
-                  set_id: "str | None" = None) -> str:
+def no_limit_note(key: str = "", why: str = NO_LIMIT_WHY_SET) -> str:
     """The sentence under a drawn graph that has no limit line: what the
     graph *key* shows and what watching it is good for, then why no line is
     drawn (*why*). K47 (Knut, #182 5840152058) put a general sentence there;
@@ -1840,16 +1781,10 @@ def no_limit_note(key: str = "", why: str = NO_LIMIT_WHY_SET,
     so it is written per graph. A key with no sentence of its own gets the
     second half alone.
 
-    With *why* ``set`` the reason is chosen from the set data (B8-1274): no
-    limit set has a limit for this graph (``nowhere``), or the set the
-    report is judged against (*set_id*) has none and others do, named."""
+    Both halves speak of this report only (K50, B8-1320): never of another
+    limit set, of ChromIQ's sets, or of anything else the app offers."""
     shows = _NO_LIMIT_SHOWS.get(key)
-    if why in _NO_LIMIT_WHY:
-        tail = _NO_LIMIT_WHY[why]()
-    else:
-        others = _sets_limiting(key, but=set_id)
-        tail = (_others_have_one(others) if others
-                else _NO_LIMIT_WHY[NO_LIMIT_WHY_NOWHERE]())
+    tail = _NO_LIMIT_WHY.get(why, _NO_LIMIT_WHY[NO_LIMIT_WHY_SET])()
     return (shows() + " " + tail) if shows else tail
 
 
@@ -15915,11 +15850,7 @@ class MeasurementReportDialog(QDialog):
                NO_LIMIT_WHY_ACCURACY if (chart is self._trend_de
                                          and not self._colour_accuracy_is_judged())
                else NO_LIMIT_WHY_SET)
-        try:
-            _set_id = self._report_limits().set_id
-        except Exception:                              # noqa: BLE001
-            _set_id = None
-        nl = no_limit_note(key or "", why, _set_id)
+        nl = no_limit_note(key or "", why)
         if chart is self._trend_de and _series_is_within_gamut(
                 getattr(self, "_trend_series", None)):
             # K30 (B3): a record judges no patch, so "each judged patch" is

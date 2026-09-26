@@ -386,8 +386,13 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ("§43", "Challenge 2 of beta 44", [
         "Report-Limits-Evenness/run1, Run type Profiling: New report…, Printing record, all runs: no Paper white difference graph, the three reference rows N-A (needs a reference), as before K49: a profiling measurement is not compared with its own profile (B8-1271)",
         "Report-Limits-Report-Types/run1, Run type Profiling: New report…, Printing record, all runs: the sentence under the results names every graph the record carries (B8-1273)",
-        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: under Cube corners \"ChromIQ has no limit for what this graph shows in any of its limit sets\" and \"aim values\"; under Solid colours \"… although other limit sets named after ISO 12647 have one …\" (B8-1274, B8-1275); with one date ticked no graph without a limit line is shown (B8-1276)",
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: under Cube corners \"aim values\" (B8-1275); the sentence under a graph with no limit line as §44 words it (B8-1274, amended by K50); with one date ticked no graph without a limit line is shown (B8-1276)",
         "no demo chart is built with the relative intent, so the relative FROM PROFILE GAMUT case of B8-1270 is shown by the suite and by the proof's FPG-relative project, not by this package",
+    ]),
+    ("§44", "K50:", [
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: under Cube corners and under Solid colours \"This report sets no limit for what this graph shows, so no limit line is drawn.\"; no sentence names another limit set (B8-1320)",
+        "Report-Limits-Every-Metric/run1, Run type Verification: Create Chart > \"Which presets can be used for verification?\", Judged against ISO 12647-7, any preset not built from the profile's gamut: \"Maximum ΔE00, solid colours\" and \"Maximum ΔH*ab, cyan, magenta and yellow solids\" listed together, their reason and lever once (B8-1321)",
+        "M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE approved by Knut (B8-1322): as §41.7 shows them",
     ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
@@ -492,8 +497,8 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
         "Report-Limits-Every-Limit-Set/run12 (Custom ISO 12647-7, a chart built from the profile's gamut): any date, the control-strip rows carry this note",
         "Report-Limits-Profile-Gamut/run1: New report…, Judged against ISO 12647-7, the control-strip rows carry this note",
     ],
-    # K49, (b2) (Knut, 5841092535): proposed notes on the solid rows and on
-    # an ordinary chart's paper row.
+    # K49, (b2) (Knut, 5841092535): the notes on the solid rows and on an
+    # ordinary chart's paper row, approved by Knut in 5845588201.
     "M-REPORT-SOLIDS-PREDICTED": [
         "Report-Limits-Every-Metric/run1: New report…, Contract proof check, ISO 12647-7:2016 values: the two solid rows carry this note",
     ],

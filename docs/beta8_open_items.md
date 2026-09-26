@@ -29478,15 +29478,16 @@ would reach.
 - evidence: test_every_graph_has_a_name_in_the_record_sentence, test_the_record_sentence_names_graphs_beyond_the_first_four
 - proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (case R)
 
-### B8-1274 · FIXED, awaiting confirmation · Beta 44 challenge 2, finding 4: "The limits this report is judged against set none for it" was poor English and untrue where no set has a limit
+### B8-1274 · SUPERSEDED · Beta 44 challenge 2, finding 4: "The limits this report is judged against set none for it" was poor English and untrue where no set has a limit
 - blocks release: no
 - severity: MINOR
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-1320
 - found by: the beta 44 challenge round 2 (FINDINGS.md, 4; medium there).
 - note: Chosen per graph from the sets' own numbers (`_sets_limiting`, never a list of graphs): no set limits what the graph shows ("ChromIQ has no limit for what this graph shows in any of its limit sets, so no limit line is drawn.": Paper white, Darkest black, Cube corners under every set), or the report's set has none and others do ("…, although other limit sets named after ISO 12647 have one, …" when every such set is named after ISO 12647, else "…, although other limit sets have one, …"; singular forms with one). EN and DE by hand, no "du". Also seen on screen in this round: the caption above Paper white difference said "per date, with its limit." over a graph with no line; it ends at "per date." now. Spec 43.4, 41.8 amended.
 - where: `ui/dialogs/measurement_report_dialog.py` (`NO_LIMIT_WHY_NOWHERE`, `_trend_key_rows`, `_sets_limiting`, `_others_have_one`, `no_limit_note`, `_trend_extras`), `data/i18n/*.json`.
 - tests: tests/test_c2b44_report_findings.py, tests/test_k47_every_limited_row_has_a_graph.py (amended).
-- evidence: test_a_graph_no_limit_set_limits_says_so, test_a_graph_another_set_limits_names_that_kind_of_set, test_the_choice_is_read_from_the_set_data, test_the_new_sentences_are_german_by_hand_and_name_no_control
+- evidence: (K50, B8-1320: the sentences naming other limit sets were removed with the tests that pinned them; what replaced them is proved by B8-1320's tests) test_a_graph_with_no_limit_line_speaks_of_this_report_only, test_the_sentence_does_not_read_the_sets, test_the_new_sentences_are_german_by_hand_and_name_no_control
 - proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (case D)
 
 ### B8-1275 · FIXED, awaiting confirmation · Beta 44 challenge 2, finding 5: the Cube corners sentence said "ideal values" where the paper white aims at the profile's paper
@@ -29763,4 +29764,36 @@ would reach.
 - found by: the beta 44 release gate 2 of 3 (d7ab5b2a), `--runslow -n auto`: `assert combo.currentData() == mrd.NEW_REPORT_KEY` got a saved report's key, so the Up-arrow key clicks never moved "Report shown" to "New report…". Gates 1 and 3 passed it; the file passed 3 of 3 runs alone.
 - note: a test race under load, not seen on screen; the keys are sent with `QTest.keyClick` to a combo whose selection a deferred reload may reset. Wants a look at what the dialog does between the clicks before the next gate that shows it.
 - where: `tests/test_k39_update_question_and_new_report.py::test_new_report_chosen_from_the_keyboard_is_the_same`.
+
+### B8-1320 · FIXED, awaiting confirmation · K50: the sentence under a graph with no limit line referred to other limit sets
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5845519118: *"The notes in a report should not refer to what other limit sets have, that is a reference to the features of the ChromIQ app, and not relevant for a customer to see."*
+- note: B8-1274's five reasons ("ChromIQ has no limit for what this graph shows in any of its limit sets, so no limit line is drawn." and the four "The limit set this report is judged against has no limit for what this graph shows, although another limit set / other limit sets (named after ISO 12647) have one, so no limit line is drawn.") are replaced by one sentence about this report: "This report sets no limit for what this graph shows, so no limit line is drawn." (German: "Dieser Bericht setzt für das, was diese Grafik zeigt, keinen Grenzwert, daher ist keine Grenzwertlinie eingezeichnet."). The first half of each sentence (what the graph shows, what watching the trend is for) is unchanged. `_sets_limiting`, `_others_have_one`, `_trend_key_rows` and `NO_LIMIT_WHY_NOWHERE` are gone; `no_limit_note(key, why)` reads no set. All other report text (page, PDF, notes, How to read, Report Scope, captions, §M report messages; EN and DE) was searched: no other reference to another limit set or to ChromIQ's sets. The guard now fails on one. Knut's analysis-2 question ("–" means off) is not answered or built here. Spec: measurement_report_limits.md §44 (§43.4 superseded).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_NO_LIMIT_WHY`, `no_limit_note`, `_trend_extras`), `data/i18n/*.json`, both ledgers.
+- tests: tests/test_report_text_names_no_part_of_the_app.py (extended: `OTHER_SETS`, `OTHER_SETS_DE`, the no-limit sentences scanned), tests/test_c2b44_report_findings.py (section 4 rewritten), tests/test_k47_every_limited_row_has_a_graph.py (amended).
+- evidence: test_the_pattern_catches_a_reference_to_other_limit_sets, test_the_no_limit_sentence_speaks_of_this_report_only, test_the_tables_a_report_prints_from_name_no_part_of_the_app, test_the_german_report_text_names_no_part_of_the_app, test_a_graph_with_no_limit_line_speaks_of_this_report_only, test_the_sentence_does_not_read_the_sets
+- proof: ~/Desktop/ChromIQ-beta44-proof/k50-report/ (NOTES.txt)
+
+### B8-1321 · FIXED, awaiting confirmation · K50: the presets window repeated the same message under every metric that carried it
+- blocks release: yes
+- severity: MINOR
+- status: FIXED
+- found by: Knut, #182 5845519118: group the metrics with identical messages and show the message once; *"only if some of the messages of a metric is common with another, they need to be listed separately."*
+- note: `detail_lines` groups the metrics under "This chart cannot answer" by their COMPLETE set of lines (`_missing_messages`: the reason, printtarg's own words where it refused, the lever), one ✕ line each, then the lines once (`group_by_messages`); groups keep the order of their first metric. Measured over every preset the window lists: under ISO 12647-7 and All metrics the two solid rows form one group on 185 presets and the two evenness rows on 17. Knut's example also had the paper row in the group; since K49 a chart with a paper patch answers it and one without gets a different message, so on this tree that group has two rows. The Measure tab's pre-flight summary (`summary_lines`) is unchanged (question to Knut).
+- where: `ui/dialogs/preset_verification_dialog.py` (`_missing_messages`, `group_by_messages`, `detail_lines`).
+- tests: tests/test_k50_the_presets_window_groups_identical_messages.py
+- evidence: test_identical_message_sets_are_one_group_in_first_metric_order, test_a_metric_sharing_only_some_messages_is_listed_on_its_own, test_the_solid_rows_share_one_message_block, test_every_group_carries_exactly_its_metrics_messages
+- proof: ~/Desktop/ChromIQ-beta44-proof/k50-report/ (NOTES.txt)
+
+### B8-1322 · FIXED · K50: M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE approved
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Knut, #182 5845588201: *"Messages "M-REPORT-SOLIDS-PREDICTED" and "M-REPORT-PAPER-AGAINST-PROFILE" accepted."*
+- note: moved from §M-PROPOSED to §M with an "Approved by" line, taken off the awaiting-review list with a parenthetical (as the K37 and K39 notes were), `approved=True`, removed from the proposed set of tests/test_message_catalogue.py; recorded in measurement_report_limits.md §41.7 (confirmed by Knut 2026-09-26, for the wording). Text unchanged.
+- where: `workflow/measurement_messages.py`, `docs/design/unified_measurement_management.md`, `docs/design/measurement_report_limits.md`.
+- tests: tests/test_message_catalogue.py, tests/test_k49_the_paper_and_solids_against_the_profile.py (now asserts approved).
+- evidence: test_an_approved_message_is_not_still_headed_proposed, test_the_awaiting_review_section_holds_exactly_the_proposed_messages, test_every_new_reason_and_note_has_its_sentence_in_both_languages
 

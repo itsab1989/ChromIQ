@@ -3263,12 +3263,14 @@ M_REPORT_STRIP_CORNERS_IDEAL = _m(
     "usual.",
     approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
 
-# --- PROPOSED (#182 K49, (b2), Knut 5841092535: "Should (b2) be built?
+# --- APPROVED (#182 K49, (b2), Knut 5841092535: "Should (b2) be built?
 # Answer: Yes."): the paper row and the two solid rows compare the
 # measurement with its profile's own description of the printing condition.
 # The cube-corner table keeps the ideal values (§32.5 reversed for the two
 # solid rows only), so a row and the table can read very differently about
-# the same patch; the note on the row says why. ------------------------------
+# the same patch; the note on the row says why. Both notes APPROVED by Knut
+# in 5845588201: *"Messages "M-REPORT-SOLIDS-PREDICTED" and
+# "M-REPORT-PAPER-AGAINST-PROFILE" accepted."* ------------------------------
 M_REPORT_SOLIDS_PREDICTED = _m(
     "M-REPORT-SOLIDS-PREDICTED",
     "Solid colours compared with the profile's prediction",
@@ -3277,7 +3279,7 @@ M_REPORT_SOLIDS_PREDICTED = _m(
     "shows how accurately they were printed. The cube-corner table compares "
     "the same patches with their ideal values, which shows how far this "
     "printer's colours are from the ideal ones, so the two can differ a lot.",
-    approved=False)
+    approved=True)   # Knut, #182 5845588201: "accepted"
 
 M_REPORT_PAPER_AGAINST_PROFILE = _m(
     "M-REPORT-PAPER-AGAINST-PROFILE",
@@ -3287,7 +3289,7 @@ M_REPORT_PAPER_AGAINST_PROFILE = _m(
     "profile of its run), which is the paper that profile was made for. The "
     "cube-corner table compares the same patch with the chart's own aim for "
     "white, an ideal white, so the two can differ.",
-    approved=False)
+    approved=True)   # Knut, #182 5845588201: "accepted"
 
 # --- APPROVED: a saved report worked out by an earlier version (challenge 5
 # of beta 42, M1, B8-1091). Its verdicts are kept (§6); a rule introduced since

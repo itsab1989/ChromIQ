@@ -234,8 +234,8 @@ def test_a_report_saved_before_k49_keeps_its_old_rows(tmp_path):
 # --------------------------------------------------------------------------
 def test_every_new_reason_and_note_has_its_sentence_in_both_languages(qapp):
     """Four N-A reasons, each saying what the measured chart or its print
-    lacks (K22), and the two §M notes, proposed. German by hand, and no
-    "du" in report text.
+    lacks (K22), and the two §M notes, APPROVED by Knut in 5845588201 (K50).
+    German by hand, and no "du" in report text.
 
     MUTATION, proven red: drop "solids_through_profile" from
     `_reason_sentence` (the N-A cell has no numbered note)."""
@@ -261,8 +261,8 @@ def test_every_new_reason_and_note_has_its_sentence_in_both_languages(qapp):
             == M.M_REPORT_PAPER_AGAINST_PROFILE.render()[1]
         for m in (M.M_REPORT_SOLIDS_PREDICTED,
                   M.M_REPORT_PAPER_AGAINST_PROFILE):
-            assert not m.approved
-            assert m.id in M.PROPOSED
+            assert m.approved
+            assert m.id not in M.PROPOSED
     finally:
         dlg.deleteLater()
 
