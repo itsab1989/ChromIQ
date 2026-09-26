@@ -15,9 +15,10 @@
    "drift" (B8-1380, proposed).
 4. **The two FROM PROFILE GAMUT state lines** (B8-1386, "Ok"), verbatim.
 
-The new texts are §M-PROPOSED (M-REPORT-RAW-*, M-REPORT-MIXED-OPENING) and
-shown while they wait, because each replaces a text that is false under his
-ruling; `tests/test_message_catalogue.py` holds that set.
+The new texts (M-REPORT-RAW-*, M-REPORT-MIXED-OPENING) were APPROVED by
+Knut in #182 5850164956; `tests/test_message_catalogue.py` holds that set.
+K60 (his answers D1 to D3 in the same post) is pinned in
+`tests/test_k60_raw_openings_and_repeatability.py`.
 
 Every test names the mutation that turns it red; each was run red
 (~/Desktop/ChromIQ-beta44-proof/k59/mutations.txt).
@@ -211,9 +212,10 @@ def test_the_note_is_where_it_is_relevant_and_nowhere_else(qapp,
                                                           monkeypatch):
     """The note says the value compares the print with the design colours,
     so it goes on exactly those rows: not on the paper and solid rows (the
-    profile), not on the repeatability rows (readings against readings), not
-    on a sheet printed through its profile, and not on a Printing record,
-    whose INFO is the type's doing.
+    profile), not on the repeatability rows (readings against readings, and
+    since D3, Knut #182 5850164956, JUDGED on a raw sheet), not on a sheet
+    printed through its profile, and not on a Printing record, whose INFO is
+    the type's doing.
 
     MUTATION, proven red: attach the note to every INFO row (drop the
     `ROWS_COMPARED_WITH_THE_DESIGN` test)."""
@@ -225,7 +227,7 @@ def test_the_note_is_where_it_is_relevant_and_nowhere_else(qapp,
                                       "groups": 12, "pairs": 12}
         rows, _rec = dlg._verdict_rows(rep)
         repeat = [x for x in rows if x["row_id"] == "repeat_patches_de00_max"]
-        assert repeat and repeat[0]["word"] == CS.INFO, repeat
+        assert repeat and repeat[0]["word"] == CS.PASS, repeat
         noted = {x["row_id"] for x in rows
                  if MR.NOTE_RAW_PRINT_INFO in (x.get("notes") or ())}
         assert noted and noted <= MR.ROWS_COMPARED_WITH_THE_DESIGN, noted
@@ -329,6 +331,10 @@ ALL = RAW + "; the paper and the solid colours are judged against the profile."
 WHERE = (RAW + "; the paper and the solid colours are judged against the "
          "profile where the limit set has a limit for them.")
 NONE = RAW + "."
+#: D1 (Knut, #182 5850164956, B8-1395): "Use the new sentence."
+ANSWERABLE = (RAW + "; the paper and the solid colours are judged against "
+              "the profile where the limit set has a limit for them and the "
+              "measurement can answer them.")
 PLURAL = ("This report follows the printers behind the profiles built in "
           "{where}. Their sheets were printed without the profiles, measured, "
           "and compared with the charts' own aim values." + SCOPE)
@@ -353,14 +359,14 @@ def _opening(dlg, monkeypatch, set_id, runs):
     ("iso_12647_7", {}, ALL),                       # all three judged
     ("iso_12647_8", {}, WHERE),                     # the paper only limited
     ("chromiq_default", {}, WHERE),                 # none limited
-    ("iso_12647_7", {"profile": False}, NONE),      # limited, N-A
+    ("iso_12647_7", {"profile": False}, ANSWERABLE),  # limited, N-A (D1)
 ])
 def test_each_raw_opening_is_given_where_it_is_true(qapp, monkeypatch,
                                                     set_id, kw, want):
     """Knut's accepted clause where every raw column judged all three rows;
     his conditional form where every limited row was judged and some are
-    "–"; neither where a limited row read N-A. Each ends with the Report
-    Scope sentence (B8-1384, "Yes").
+    "–"; his D1 sentence (#182 5850164956) where a limited row read N-A. Each
+    ends with the Report Scope sentence (B8-1384, "Yes").
 
     MUTATION, proven red: give the full clause wherever a column judged
     anything (as K56 did): ISO 12647-8 says its solids were judged."""
@@ -376,9 +382,10 @@ def test_each_raw_opening_is_given_where_it_is_true(qapp, monkeypatch,
 
 def test_several_runs_all_raw_and_mixed(qapp, monkeypatch):
     """Across runs, every sheet raw: Knut's plural sentence ("Ok") and the
-    Report Scope sentence. One run, sheets printed both ways: the mixed
-    sentence without "drift" (proposed). Across runs with both kinds: the
-    approved plural sentence, unchanged (B8-1397).
+    Report Scope sentence, with the judged clause in its plural form where a
+    paper or solid row was judged (D1, K60). One run, sheets printed both
+    ways: the mixed sentence without "drift" (approved). Across runs with both
+    kinds: his D2 sentence (#182 5850164956, "Accepted."), B8-1397.
 
     MUTATION, proven red: drop the ``if _all_raw`` branch of the plural
     case (the approved "Each was verified by printing a chart through its
@@ -387,7 +394,10 @@ def test_several_runs_all_raw_and_mixed(qapp, monkeypatch):
     try:
         said = _opening(dlg, monkeypatch, "iso_12647_7",
                         [_sheet("raw", run="run1"), _sheet("raw", run="run3")])
-        assert said == PLURAL.format(where="Demo, run 1; Demo, run 3"), said
+        assert said == PLURAL.replace(
+            "aim values.", "aim values; the paper and the solid colours are "
+            "judged against the profiles.").format(
+                where="Demo, run 1; Demo, run 3"), said
         said = _opening(dlg, monkeypatch, "iso_12647_7",
                         [_sheet("through-profile"), _sheet("raw")])
         assert said == M.M_REPORT_MIXED_OPENING.body.format(
@@ -395,7 +405,8 @@ def test_several_runs_all_raw_and_mixed(qapp, monkeypatch):
         said = _opening(dlg, monkeypatch, "iso_12647_7",
                         [_sheet("through-profile", run="run1"),
                          _sheet("raw", run="run3")])
-        assert said.startswith("This report judges the profiles built in")
+        assert said == M.M_REPORT_MIXED_OPENING_RUNS.body.format(
+            where="Demo, run 1; Demo, run 3"), said
     finally:
         dlg.deleteLater()
 
@@ -457,17 +468,18 @@ def test_the_gamut_state_lines_are_knuts_verbatim():
         assert "farbmetrische Referenz" not in de[k]
 
 
-def test_every_k59_text_is_proposed_and_german_by_hand():
-    """The fourteen texts wait in §M-PROPOSED; each has German written by
-    hand (not the English), no em dash, and no "du" in report text.
+def test_every_k59_text_is_approved_and_german_by_hand():
+    """The fourteen texts were APPROVED by Knut in #182 5850164956 and left
+    §M-PROPOSED; each has German written by hand (not the English), no em
+    dash, and no "du" in report text.
 
-    MUTATION, proven red: mark any of them ``approved=True``; or set a German
+    MUTATION, proven red: mark any of them ``approved=False``; or set a German
     value back to its English key."""
     de = _de()
-    assert len(M.K59_PROPOSED) == 14
-    for m in M.K59_PROPOSED:
-        assert not m.approved, m.id
-        assert m.id in M.PROPOSED
+    assert len(M.K59_TEXTS) == 14
+    for m in M.K59_TEXTS:
+        assert m.approved, m.id
+        assert m.id not in M.PROPOSED
         for en in (m.title, m.body):
             t = de[en]
             if en != "{set} (printed raw)":

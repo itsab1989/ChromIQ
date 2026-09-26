@@ -996,14 +996,14 @@ class SetDef:
 
 SETS: "tuple[SetDef, ...]" = (
     SetDef("chromiq_default", "ChromIQ default (recommended)", "chromiq", True,
-           blurb="ChromIQ's own limits: 2.0 on the averages, 3.0 on the "
-                 "maxima. The right choice for checking a profile you built."),
+           blurb="ChromIQ's own limits, the right choice for checking a "
+                 "profile you built."),
     SetDef("chromiq_tight", "ChromIQ tight", "chromiq", True,
-           blurb="Half of ChromIQ default: for critical work where a small "
-                 "colour difference matters."),
+           blurb="Stricter limits than ChromIQ default: for critical work "
+                 "where a small colour difference matters."),
     SetDef("chromiq_quick", "Quick check", "chromiq", True,
-           blurb="Twice ChromIQ default: a quick health check that only a "
-                 "printer that has clearly changed fails."),
+           blurb="Wider limits than ChromIQ default: a quick health check "
+                 "that only a printer that has clearly changed fails."),
     SetDef("iso_12647_7", "ISO 12647-7:2016 values", "iso", False,
            blurb="The published tolerance values of ISO 12647-7:2016 "
                  "(contract proofs), applied to the chart you printed. "

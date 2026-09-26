@@ -257,7 +257,7 @@ def test_the_words_reach_the_grid_and_the_pdf_body(qapp, tmp_path):
         assert "PASS" in grid and "Overall" in grid and "Judged against" in grid
         assert "ChromIQ default" in grid
         body = dlg._report_body_html(runs, for_pdf=True)
-        assert "The five verdict words" in body
+        assert "The four verdict words" in body
         # THE WORD IS GONE ALTOGETHER NOW, denial included. Knut, 2026-09-11,
         # struck the sentence that carried it: *"It is not needed to say 'this
         # report never says that anything conforms to a standard', which
@@ -273,9 +273,10 @@ def test_the_words_reach_the_grid_and_the_pdf_body(qapp, tmp_path):
         # does not point at a note it does not have (R2 of beta 39, #2).
         assert ("rather than to that standard's own chart and control strip"
                 not in plain)
-        # W5: one bullet per word, not one paragraph carrying all five
-        for word in ("PASS:", "FAIL:", "COND (short for conditional):",
-                     "INFO:", "N-A (not applicable):"):
+        # W5: one bullet per word, not one paragraph carrying all of them;
+        # four since Knut #182 5850330710 removed COND from every text
+        assert "COND" not in body
+        for word in ("PASS:", "FAIL:", "INFO:", "N-A (not applicable):"):
             assert f"<li>{_html.escape(word)}" in body or f"<li>{word}" in body, word
     finally:
         dlg.deleteLater()

@@ -856,7 +856,7 @@ WORKFLOWS: list[dict] = [
                   "print that "
                   "was not recorded. A row the limit set puts no limit on "
                   "(“–”) is left out of the report altogether. “Overall” is the one word for a whole dated "
-                  "check, and the only place COND appears. A profiling "
+                  "check. A profiling "
                   "measurement is never graded at all: it is expected to "
                   "fall outside accuracy limits, and saying so would be "
                   "noise rather than news.")),
@@ -1596,8 +1596,8 @@ GLOSSARY += [
     (tr("Limit set"),
      tr("One column of the Report limits table: the numbers a report is "
         "judged against, one per row. ChromIQ ships three of its own, "
-        "“ChromIQ default (recommended)”, “ChromIQ tight” (half the numbers) "
-        "and “Quick check” (double them), plus two read-only columns named "
+        "“ChromIQ default (recommended)”, “ChromIQ tight” and “Quick check”, "
+        "plus two read-only columns named "
         "after ISO 12647-7 and 12647-8 that hold a standard's published values "
         "where ChromIQ ships them or a licence holder supplies them, and read "
         "“?” where neither is so, and two Custom columns you fill in yourself. "
@@ -1618,7 +1618,7 @@ GLOSSARY += [
     # and these four help-card sentences were missed, so the Getting Started
     # card went on teaching the retired meaning as the only meaning, in
     # thirteen languages.
-    (tr("PASS, FAIL, COND, INFO, N-A (the verdict words)"),
+    (tr("PASS, FAIL, INFO, N-A (the verdict words)"),
      tr("What a row of a report says about itself. PASS is inside its limit "
         "and FAIL is outside it. INFO means the number is shown for "
         "information only and nothing was judged from it: on a report type "
@@ -1628,10 +1628,7 @@ GLOSSARY += [
         "row the limit set puts no limit on (“–”) is left out of the report "
         "altogether. N-A means your chart "
         "carries nothing that could answer the row at all. A row the set "
-        "cannot express gets no word. COND is not a row word: it belongs to "
-        "the column's Overall, below. A report saved before ChromIQ 4.3.0 "
-        "may still show COND on a row, where it meant a value over a limit "
-        "the set only recommended; such a row reads FAIL today.")),
+        "cannot express gets no word.")),
     # **AN N-A NEVER DEMOTES A COLUMN**, since Knut widened the rule on
     # 2026-09-21: *"a metric that is not applicable should not have verdict
     # conditional … When all other metrics PASS, that N-A is not applicable,

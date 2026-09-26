@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-26, K60 (Knut #182 5850164956, D1 to D3; B8-1395, B8-1397, B8-1398, B8-1403): the D1 sentence, three plural raw openings with the judged clause, and M-REPORT-MIXED-OPENING-RUNS (headline and body), 6 keys in; and Knut #182 5850330710 (no COND, no limit numbers, no relations between sets): 11 keys re-keyed, the guide's COND bullet out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 5, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K59 (B8-1393, B8-1394, B8-1380 to B8-1386, Knut #182 5849392788): option C for a sheet printed raw and no "drift" in the report or its help: 14 §M-PROPOSED texts in, 7 approved openings and state lines in or re-keyed, 40 help and report texts re-keyed with "change" for "drift" (and their em dashes cleaned), "drift" and the old raw texts out. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1362, Knut #182 5847578917): Preferences > Chart Layout shows "Clip-border content" with the clip border Off, with a note that its fields apply only when the clip border is On, 1 key in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the echo budget. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1341): the ★ sentence in the tooltip of "Which presets can be used for verification?" says rule (4) as K51 set it, 1 key replaced by 1. German by hand, does not move; the twelve others carried the old paragraph in English and carry the new one in English, so none moves. COUNTED off the tree, BOTH ledgers.
@@ -1488,17 +1489,17 @@ _IDENTICAL_TO_KEY = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 141,
-    "es": 1445,
-    "fr": 1467,
-    "it": 1456,
-    "ja": 1431,
-    "nl": 1470,
-    "no": 1456,
-    "pl": 1449,
-    "pt": 1447,
-    "ru": 1420,
-    "sv": 1457,
-    "zh_CN": 1425,
+    "es": 1450,
+    "fr": 1472,
+    "it": 1461,
+    "ja": 1436,
+    "nl": 1475,
+    "no": 1461,
+    "pl": 1454,
+    "pt": 1452,
+    "ru": 1425,
+    "sv": 1462,
+    "zh_CN": 1430,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1527,8 +1528,8 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 1597,
-    "uk": 1597,
+    "uk": 1602,
+    "uk": 1602,
 }
 
 

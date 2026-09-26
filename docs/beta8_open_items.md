@@ -30204,7 +30204,7 @@ would reach.
 - blocks release: no
 - severity: MINOR
 - status: FIXED
-- answered: Knut, #182 5849392788: *"The conditional form I think."* Built, each form only where it is true of exactly the rows judged (`_raw_clause`; challenge 9 of beta 44 found the K56 rule gave the full clause where ANY row was judged, e.g. ISO 12647-8, which limits the paper only): the accepted clause where every raw column judged all three rows; his conditional form where every limited row was judged and some are "–" (ChromIQ's own sets, ISO 12647-8); the sentence stops before the clause where a limited row read N-A, which neither form is true of (a question, B8-1395). Every form ends with the Report Scope sentence (B8-1384). German by hand.
+- answered: Knut, #182 5849392788: *"The conditional form I think."* Built, each form only where it is true of exactly the rows judged (`_raw_clause`; challenge 9 of beta 44 found the K56 rule gave the full clause where ANY row was judged, e.g. ISO 12647-8, which limits the paper only): the accepted clause where every raw column judged all three rows; his conditional form where every limited row was judged and some are "–" (ChromIQ's own sets, ISO 12647-8); the sentence stops before the clause where a limited row read N-A, which neither form is true of (a question, B8-1395; K60: that case opens with Knut's D1 sentence now). Every form ends with the Report Scope sentence (B8-1384). German by hand.
 - tests: tests/test_k59_no_drift_in_the_report.py, tests/test_k56_rulings.py
 - evidence: test_each_raw_opening_is_given_where_it_is_true, test_a_report_of_raw_sheets_that_judged_nothing_makes_no_claim
 - proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (report/*/RAWISO, RAWCQ)
@@ -30224,7 +30224,7 @@ would reach.
 - blocks release: no
 - severity: MINOR
 - status: FIXED
-- answered: Knut, #182 5849392788: *"Ok"*. Ships verbatim where every sheet of a document across runs was printed raw, with the Report Scope sentence (B8-1384). No judged clause: none was proposed for the plural (B8-1395). German by hand.
+- answered: Knut, #182 5849392788: *"Ok"*. Ships verbatim where every sheet of a document across runs was printed raw, with the Report Scope sentence (B8-1384). No judged clause: none was proposed for the plural (B8-1395; K60: B8-1403 gives it the true clause where a paper or solid row was judged). German by hand.
 - tests: tests/test_k59_no_drift_in_the_report.py
 - evidence: test_several_runs_all_raw_and_mixed
 - proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (report/*/MULTI)
@@ -30326,15 +30326,15 @@ would reach.
 - evidence: test_main_moves_the_collector_before_any_widget_or_filter, test_the_suite_collects_where_the_app_does, test_a_garbage_tree_meets_its_events_and_is_still_collected, test_without_it_the_same_script_dies_in_the_event_filter_dispatch
 - proof: ~/Desktop/ChromIQ-beta44-proof/segfault/ (NOTES.txt)
 
-### B8-1393 · FIXED, texts PROPOSED · Knut K59 (option C): a raw sheet's cells read INFO with a numbered note, N-A with its note, never "drift"; the raw print named once under "Judged against"
+### B8-1393 · FIXED, texts APPROVED by Knut (5850164956) · Knut K59 (option C): a raw sheet's cells read INFO with a numbered note, N-A with its note, never "drift"; the raw print named once under "Judged against"
 - blocks release: no
 - severity: MINOR
 - status: FIXED
 - ruling: Knut, #182 5849392788, on K56 question 1 (`~/Desktop/ChromIQ-beta44-proof/k56/ANALYSIS-drift.txt`): *"use recommended option C, but with some comments: 1. The word drift is not used at all."*; to "Should (C) be built": *"Yes, but see above."*; to "INFO as the cell word, or the number with an information marker?": *"can we use the INFO but also have a numbered reference to a note that explains the issue, where that is relevant?"*; to "I will propose the reworded sentence under the results, the guide entry and the "Judged against" text for your approval before they ship": *"Ok"*.
-- fix: a raw sheet's cells show the words its rows hold, in the grid and in the detailed chapter: PASS or FAIL on the paper and solid rows where the set limits them (K51, unchanged), INFO on every other value, N-A with its numbered note where the sheet cannot answer. Every INFO on a row that compares the print with the chart's design colours (`ROWS_COMPARED_WITH_THE_DESIGN`, the rows §32.6 lists) carries the raised number of M-REPORT-RAW-PRINT-INFO; not the paper and solid rows (the profile), not the two repeatability rows (readings against readings, B8-1398), not on a Printing record. Overall: the judged rows' word, else INFO, whose sentence is M-REPORT-RAW-OVERALL (it was the profiling sheet's "measured to build a profile"). "Judged against": "<set> (printed raw)" where the column judged, "not judged (printed raw)" where it judged nothing (was "—"). The sentence under the results and the guide's paragraph name that marker instead of "drift" cells, in three and two forms true of the rows judged (challenge 9). Saved reports show what they stored (§6): the note, the "Judged against" text and the Overall sentence are readings, not the record; a beta 43 save reads as its file (B8-1370). Fourteen texts, all §M-PROPOSED, shown while they wait because each replaces a text false under the ruling; German by hand.
+- fix: a raw sheet's cells show the words its rows hold, in the grid and in the detailed chapter: PASS or FAIL on the paper and solid rows where the set limits them (K51, unchanged), INFO on every other value, N-A with its numbered note where the sheet cannot answer. Every INFO on a row that compares the print with the chart's design colours (`ROWS_COMPARED_WITH_THE_DESIGN`, the rows §32.6 lists) carries the raised number of M-REPORT-RAW-PRINT-INFO; not the paper and solid rows (the profile), not the two repeatability rows (readings against readings, B8-1398), not on a Printing record. Overall: the judged rows' word, else INFO, whose sentence is M-REPORT-RAW-OVERALL (it was the profiling sheet's "measured to build a profile"). "Judged against": "<set> (printed raw)" where the column judged, "not judged (printed raw)" where it judged nothing (was "—"). The sentence under the results and the guide's paragraph name that marker instead of "drift" cells, in three and two forms true of the rows judged (challenge 9). Saved reports show what they stored (§6): the note, the "Judged against" text and the Overall sentence are readings, not the record; a beta 43 save reads as its file (B8-1370). Fourteen texts, shown because each replaced a text false under the ruling, all APPROVED by Knut in #182 5850164956 (*"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*); German by hand. The repeatability rows are judged since K60 (B8-1398).
 - where: `ui/dialogs/measurement_report_dialog.py` (`_rows_with_words`, `_has_an_absence`, `_note_numbering`, `_note_the_absences`, `_note_sentence`, `_column_summary`, `_raw_clause`, `_thresholds_cell`, `_summary_cell`, the results cells and sentence, `_how_to_read_html`, `_run_detail_html`), `workflow/measurement_report.py` (`NOTE_RAW_PRINT_INFO`, `ROWS_COMPARED_WITH_THE_DESIGN`, `summarise`), `workflow/compliance_sets.py` (`SUMMARY_REASONS["raw_print"]`), `workflow/measurement_messages.py` (`K59_PROPOSED`), `docs/design/unified_measurement_management.md` §M-PROPOSED, `data/i18n/*.json`.
 - tests: tests/test_k59_no_drift_in_the_report.py, tests/test_c8_drift_checks_and_dash_rows.py, tests/test_k51_rulings.py, tests/test_gamut_split_report.py
-- evidence: test_a_raw_sheets_cells_read_their_words_and_the_note, test_the_note_is_where_it_is_relevant_and_nowhere_else, test_judged_against_names_the_raw_print_once, test_a_raw_sheet_that_judged_nothing_reads_info_with_its_own_sentence, test_the_sentence_under_the_results_is_true_of_the_rows_judged, test_a_saved_beta_43_drift_check_reads_as_its_file, test_every_k59_text_is_proposed_and_german_by_hand
+- evidence: test_a_raw_sheets_cells_read_their_words_and_the_note, test_the_note_is_where_it_is_relevant_and_nowhere_else, test_judged_against_names_the_raw_print_once, test_a_raw_sheet_that_judged_nothing_reads_info_with_its_own_sentence, test_the_sentence_under_the_results_is_true_of_the_rows_judged, test_a_saved_beta_43_drift_check_reads_as_its_file, test_every_k59_text_is_approved_and_german_by_hand
 - proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (NOTES.txt, PROPOSALS.txt, report/, saved-b43/)
 
 ### B8-1394 · FIXED, awaiting confirmation · Knut K59: the word "drift" is not used in the report, its graphs, its guide, its help, its window or its PDF (EN, DE); "Change since the previous raw check"
@@ -30348,12 +30348,15 @@ would reach.
 - evidence: test_no_text_of_the_report_says_drift_in_english_or_german, test_the_guard_is_not_vacuous, test_the_detailed_chapter_says_change
 - proof: ~/Desktop/ChromIQ-beta44-proof/k59/ (drift-grep.txt: every rendered page and PDF, EN and DE)
 
-### B8-1395 · OPEN · QUESTION: a raw report whose limited paper or solid row read N-A opens without the judged clause, and the plural raw opening has none
+### B8-1395 · FIXED, awaiting confirmation · QUESTION ANSWERED (K60): a raw report whose limited paper or solid row read N-A opens with Knut's D1 sentence
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5850164956, D1: *"Whatever the text, it must be true, so you dont need to ask if I want to keep something that is false. Use the new sentence."* Built verbatim: where every sheet was printed raw (one project and run) and a limited paper or solid row read N-A (no profile could be read, no paper patch), the opening is "This report follows the printer behind the profile built in {where}. Its sheets were printed without the profile, measured, and compared with the chart's own aim values; the paper and the solid colours are judged against the profile where the limit set has a limit for them and the measurement can answer them. The measurements it covers are listed under Report Scope." (`_raw_clause` "answerable"). The sentence stops before the clause only where a limited row that could be answered reads INFO (a report saved before K51), which no form is true of. His second point ("I dont know what you mean with "And should the plural opening (A4) carry a judged clause too?"") is settled under his rule in B8-1403. German by hand.
+- tests: tests/test_k60_raw_openings_and_repeatability.py, tests/test_k59_no_drift_in_the_report.py, tests/test_k56_rulings.py
+- evidence: test_d1_the_singular_opening_is_knuts_new_sentence, test_each_raw_opening_is_given_where_it_is_true, test_a_report_of_raw_sheets_that_judged_nothing_makes_no_claim
+- proof: ~/Desktop/ChromIQ-beta44-proof/k60/ (report/*/NOPROF7, NOPROFC7)
 - found by: building B8-1381 (K59) against challenge 9's rule that the clause be true of exactly the rows judged.
-- note: Where the set limits the paper or a solid row and it reads N-A (no profile could be read; no paper patch), "the paper and the solid colours are judged against the profile", plain or "where the limit set has a limit for them", would say a row was judged that was not. There the opening stops before the clause (every word Knut's) and the N-A cells carry their notes. Question for Knut: keep that, or a form such as "...; the paper and the solid colours are judged against the profile where the limit set has a limit for them and the measurement can answer them" (the form the sentence under the results uses, M-REPORT-RAW-RESULTS-SOME)? Likewise the plural raw opening he accepted has no judged clause; should it get one?
 - where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`, `_raw_clause`).
 
 ### B8-1396 · OPEN · Create Chart's FROM PROFILE GAMUT help still says "has anything drifted" and "a drifting printer"
@@ -30364,18 +30367,48 @@ would reach.
 - note: Two help texts of the FROM PROFILE GAMUT module in the Create Chart tab (the module's ⓘ, "has anything drifted since I made this profile?", and the patch count's, "a drifting printer shows in the ..."), which describe verification. Not changed here: `ui/tabs/tab_chart.py` is being worked on by another agent for beta 44 (as B8-1391). Wants "changed" for "drifted", as B8-1394 did everywhere else, with German.
 - where: `ui/tabs/tab_chart.py` (the FROM PROFILE GAMUT help texts near its module ⓘ).
 
-### B8-1397 · OPEN · A report across runs whose sheets were printed both ways keeps the approved plural opening, "Each was verified by printing a chart through its profile"
+### B8-1397 · FIXED, wording APPROVED by Knut · QUESTION ANSWERED (K60): a report across runs whose sheets were printed both ways opens with Knut's D2 sentence
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5850164956, D2: *"Accepted."* A document across several profile runs with sheets printed both ways opens with M-REPORT-MIXED-OPENING-RUNS, verbatim and approved: "This report judges the profiles built in {where}. Some of their sheets were printed through their profiles and compared with the charts' own aim values; the others, marked “printed raw”, were printed without them. The measurements it covers, and the profile run each comes from, are listed under Report Scope." A document across runs of sheets printed through their profiles only keeps the approved plural sentence. German by hand.
+- tests: tests/test_k60_raw_openings_and_repeatability.py, tests/test_k59_no_drift_in_the_report.py
+- evidence: test_d2_across_runs_both_ways_is_knuts_sentence_verbatim, test_several_runs_all_raw_and_mixed
+- proof: ~/Desktop/ChromIQ-beta44-proof/k60/ (report/*/MIXEDRUNS)
 - found by: building B8-1380 and B8-1383 (K59).
-- note: Knut accepted the mixed sentence for one project and run (B8-1380) and the plural sentence for sheets that were ALL printed raw (B8-1383). A document across runs with sheets of both kinds has neither; it keeps the approved plural sentence, which is false of its raw sheets. Suggested for him: "This report judges the profiles built in {where}. Some of their sheets were printed through their profiles and compared with the charts' own aim values; the others, marked “printed raw”, were printed without them. The measurements it covers, and the profile run each comes from, are listed under Report Scope."
-- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`), `workflow/measurement_messages.py` (`M_REPORT_MIXED_OPENING_RUNS`), `docs/design/unified_measurement_management.md` §M.
 
-### B8-1398 · OPEN · QUESTION: a raw sheet's two repeatability rows read INFO with no note
+### B8-1398 · FIXED, awaiting confirmation · QUESTION ANSWERED (K60): a raw sheet judges its two repeatability rows
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- answered: Knut, #182 5850164956, D3: *"Yes, judge them, since printing raw does not affect this metric."* On a sheet printed raw the two repeatability rows ("Maximum ΔE00, repeat patches on one sheet", "Maximum ΔE00, the same chart measured again") are judged like on any other sheet, where the set limits them (ChromIQ's own sets and both Custom ISO sets do; the read-only ISO sets put "–" on them). They carry no raw print note (they compare readings with readings). The Overall word and its counts follow the judged rows (`counted_rows`: the paper and solid rows and the two repeatability rows), "Judged against" reads "<set> (printed raw)" wherever one of them was judged, and the sentence under the results and the guide are the judged forms (M-REPORT-RAW-RESULTS-SOME where not every paper and solid row was judged). Every sentence that says "the paper and the solid colours are judged" still asks only those three rows (`raw_paper_or_solids_judged`, `_raw_clause`), so a raw column that judged only its repeatability rows never claims them: the plural opening stays as Knut accepted it, the singular is his conditional form (as K59 gave it under ChromIQ's own sets). A raw sheet saved before K60 with a limited repeatability row read INFO shows Report Scope's "Worked out by an earlier version" line (`_worked_out_differently`). Under ChromIQ default the demo pack's raw run now judges its repeatability rows, so its "judges nothing" demonstrations moved to the same run with its profile moved away (`scripts/make_release_demo_package.py`), and the pack's own README summary counts a raw column the way the window does (`scripts/make_report_limit_demos.py`, `_crossed_rows`).
+- tests: tests/test_k60_raw_openings_and_repeatability.py, tests/test_k59_no_drift_in_the_report.py
+- evidence: test_a_raw_sheet_judges_its_repeatability_rows, test_the_same_sheet_printed_through_the_profile_is_unchanged, test_the_window_follows_overall_counts_and_judged_against, test_openings_do_not_claim_the_paper_or_solids_for_repeatability_alone, test_a_saved_raw_sheet_with_an_ungraded_repeat_row_is_worked_out_again, test_the_note_is_where_it_is_relevant_and_nowhere_else
+- proof: ~/Desktop/ChromIQ-beta44-proof/k60/ (report/*/RAWCQ, NOPROFC7, MULTICQ)
 - found by: building B8-1393 (K59).
-- note: The raw print's note is attached only where it is true, to the rows that compare the print with the chart's design colours. The two repeatability rows ("Maximum ΔE00, repeat patches on one sheet", "... the same chart measured again") compare readings with readings, which printing raw does not affect (§32.6 leaves them out of the rows the paper white moves for the same reason), yet they read INFO on a raw sheet because the whole sheet is not graded (Knut, 2026-08-11). Question for Knut: should a raw sheet judge them like any other sheet (as K51 did for the paper and solids), or keep INFO, and then with which note?
-- where: `workflow/measurement_report.py` (`is_graded_sheet`, `ROWS_JUDGED_ON_A_RAW_PRINT`).
+- where: `workflow/measurement_report.py` (`ROWS_REPEATABILITY`, `ROWS_GRADED_ON_A_RAW_PRINT`, `row_values`, `drift_check_judges`, `raw_paper_or_solids_judged`, `counted_rows`), `ui/dialogs/measurement_report_dialog.py` (`_worked_out_differently`, `_raw_clause`, `_raw_paper_or_solids_judged`).
+
+### B8-1403 · FIXED, awaiting confirmation · The plural raw opening carries the judged clause, in the form that is true, where a paper or solid row was judged
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- decided by: our reading of Knut's rule in #182 5850164956 (D1): *"Whatever the text, it must be true"*. He did not understand the question ("I dont know what you mean with "And should the plural opening (A4) carry a judged clause too?""), so this is ours, under his rule, and awaits his confirmation.
+- fix: across runs, every sheet raw: where a raw column judged one of its paper and solid rows, the plural opening he accepted (A4) gains the clause the singular carries, plural ("against the profiles"), in the form true of exactly the rows judged: "...; the paper and the solid colours are judged against the profiles." where every raw column judged all three; "... against the profiles where the limit set has a limit for them." where some are "–"; "... against the profiles where the limit set has a limit for them and the measurements can answer them." where a limited row read N-A. Where none was judged (only the repeatability rows, B8-1398, or nothing), A4 stays as he accepted it. German by hand ("gegen die Profile beurteilt", "und die Messungen sie beantworten können").
+- tests: tests/test_k60_raw_openings_and_repeatability.py, tests/test_k59_no_drift_in_the_report.py
+- evidence: test_d1_the_plural_opening_carries_the_true_clause, test_openings_do_not_claim_the_paper_or_solids_for_repeatability_alone, test_several_runs_all_raw_and_mixed
+- proof: ~/Desktop/ChromIQ-beta44-proof/k60/ (report/*/MULTI, MULTICQ)
+- found by: Knut's answer to B8-1395 (K60).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`, `_raw_paper_or_solids_judged`).
+
+### B8-1404 · FIXED, awaiting confirmation · Knut's text rules of #182 5850330710: no COND, only the current report, no limit numbers, no relation between limit sets
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5850330710, on section C of `~/Desktop/ChromIQ-beta44-proof/k59/PROPOSALS.txt`: *"Remove all references to COND, since it is not used anymore (or am I wrong?) ... Only explain the currently generated report."*; *"the messages should avoid repeating threshold numbers set in the Report Limits window"*; *"you should avoid talking about ChromIQ tight and ChromIQ Quick Check as their limits are functionally always double or half."*; *"Besides these things all the messages are approved."*
+- fix: COND is not produced by any report generated today (no row since 2026-09-21; a column's Overall only when a row already reads COND, which only a report saved before 4.3.0 holds; the ISO cap went 2026-09-22), so it left the report guide (the bullet; "four verdict words"), the Dictionary (heading and entry, C31), the Getting Started card (C10) and the window's help (C32). Kept: the cell label and that cell's tooltip, drawn only on a saved older report that holds the word (a question for Knut, in REWORDED.txt). The numbers of ChromIQ default and "half"/"twice"/"halves"/"doubles" went from the "Judged against" help (C37), the window's help (C32), the Dictionary's "Limit set" and the three ChromIQ set descriptions (C28 and its two siblings); tight is "stricter", Quick check "wider". User-facing text only; no behaviour changed. German by hand; both ledgers re-measured. Every text, before and after, in `~/Desktop/ChromIQ-beta44-proof/k60/REWORDED.txt`.
+- tests: tests/test_k60_raw_openings_and_repeatability.py, tests/test_the_report_words_say_what_the_code_does.py, tests/test_a_recommended_metric_carries_a_note.py
+- evidence: test_no_text_explains_cond, test_no_text_relates_one_limit_set_to_another_or_repeats_its_numbers, test_the_register_of_cond_strings_is_complete
+- proof: ~/Desktop/ChromIQ-beta44-proof/k60/ (REWORDED.txt; report/*/ the guide's four verdict words)
+- found by: Knut, #182 5850330710.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_PAIRING_HELP`, the window's help, `_how_to_read_html`), `ui/dialogs/welcome_dialog.py` (Dictionary, Getting Started), `workflow/compliance_sets.py` (`SETS` blurbs), `data/i18n/*.json`.

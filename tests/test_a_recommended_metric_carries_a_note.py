@@ -214,9 +214,11 @@ def test_a_stored_COND_verdict_is_still_a_word_the_app_defines():
 
     from ui.dialogs import measurement_report_dialog as mrd
     guide = inspect.getsource(mrd)
-    assert "COND (short for conditional)" in guide
-    assert "Rows do not use this word" in guide, \
-        "the guide must say the word is not a row verdict any more"
+    # Knut, #182 5850330710: "Remove all references to COND, since it is not
+    # used anymore". No report generated today shows it, so the guide does
+    # not explain it; a saved older report's COND cell carries its own
+    # tooltip (`test_the_report_words_say_what_the_code_does`).
+    assert "COND (short for conditional)" not in guide
     # K18 (Knut, 2026-09-23) OVERRULED the history this used to require: *"A
     # report text shall never explain something in the past, only the current
     # functionality ... Only explain what the meaning of COND is and how to

@@ -136,7 +136,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §45 | K51: a raw print judges its paper and solid rows against the profile; "–" is not in the report, graphs included; a limit line shown for information where the report judges nothing; the star's rule (4) with the evenness rows; a media-relative FROM PROFILE GAMUT chart judged relative to its paper; the i1Pro group enabled with the engine on | 2026-09-26, 5846167083, 5846297769 | the answers confirmed by Knut (§45.1); built for beta 44 (B8-1330 to B8-1336, B8-1340), NOT confirmed; the two-page rule put to him; challenge 8's fixes to it in 45.7 to 45.9 (B8-1370 to B8-1377), NOT confirmed |
 | §46 | K56: M-VERIFY-SOLIDS-REASON approved; the pre-flight's FROM PROFILE GAMUT paragraph revised as accepted; the opening of a report of raw sheets | 2026-09-26, 5848287278 | the answers (approval and two accepted texts) are Knut's; what was built (when each opening is given) NOT confirmed; four questions (B8-1380, B8-1381, B8-1383, B8-1384) and the analysis of "drift" (B8-1385) put to him |
 | §47 | K57: the "made for verification" mark is ● not ★; a Content chosen in Preferences with the clip border Off leaves it Off; a Content change in Create Chart reloads no other field | 2026-09-26, 5848511977, 5848514529 | the rulings are Knut's; what was built (B8-1387, B8-1388; B8-1389 verified) NOT confirmed |
-| §49 | K59: option C for a sheet printed raw (INFO with a numbered note where relevant, N-A with its note, the raw print named once under "Judged against"); "drift" not used in the report, its graphs, guide, help, window or PDF; "Change since the previous raw check"; the raw openings Knut chose (conditional form, plural, Report Scope sentence), true of exactly the rows judged; the mixed opening without "drift"; the two FROM PROFILE GAMUT state lines | 2026-09-26, 5849392788 | the answers are Knut's (Confirmed); what was built NOT confirmed; fourteen texts in §M-PROPOSED; three questions and two gaps (B8-1395 to B8-1398) |
+| §49 | K59: option C for a sheet printed raw (INFO with a numbered note where relevant, N-A with its note, the raw print named once under "Judged against"); "drift" not used in the report, its graphs, guide, help, window or PDF; "Change since the previous raw check"; the raw openings Knut chose (conditional form, plural, Report Scope sentence), true of exactly the rows judged; the mixed opening without "drift"; the two FROM PROFILE GAMUT state lines | 2026-09-26, 5849392788; 5850164956 | the answers are Knut's (Confirmed); the fourteen texts APPROVED by Knut in 5850164956 (Confirmed); K60, his answers D1 to D3 (Confirmed) and what was built from them (NOT confirmed, 49.6); one gap left (B8-1396) |
 | §48 | K58: the ChromIQ branding's wordmark at the end of the clip border, like the Notes box, for Side Left/Right x Flip 180 Off/On, the text in the box beyond it | 2026-09-18 5730034611, 2026-09-26 5848747795 | the design is Knut's; what was built (B8-1390) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
 
@@ -9224,6 +9224,31 @@ and waits for his confirmation.
   built with From Profile Gamut, so it prints its solid patches as they
   are."*: *"Ok"*.
 
+**49.1b The fourteen texts, and K60's answers, verbatim.** **Confirmed by:**
+Knut, 2026-09-26, #182
+[5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956),
+to `~/Desktop/ChromIQ-beta44-proof/k59/PROPOSALS.txt`:
+
+* Section B, the fourteen texts (M-REPORT-RAW-PRINT-INFO to
+  M-REPORT-RAW-SHEET, and M-REPORT-MIXED-OPENING): *"All messages under "B.
+  PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are
+  approved."* They are in §M of `unified_measurement_management.md`, approved.
+* D1 (B8-1395), the opening where a limited paper or solid row read N-A:
+  *"Whatever the text, it must be true, so you dont need to ask if I want to
+  keep something that is false. Use the new sentence. I dont know what you
+  mean with "And should the plural opening (A4) carry a judged clause
+  too?""* The new sentence: *"…; the paper and the solid colours are judged
+  against the profile where the limit set has a limit for them and the
+  measurement can answer them"*.
+* D2 (B8-1397), a report across runs with sheets printed both ways: *"This
+  report judges the profiles built in {where}. Some of their sheets were
+  printed through their profiles and compared with the charts' own aim
+  values; the others, marked “printed raw”, were printed without them. The
+  measurements it covers, and the profile run each comes from, are listed
+  under Report Scope."*: *"Accepted."*
+* D3 (B8-1398), a raw sheet's two repeatability rows: *"Yes, judge them,
+  since printing raw does not affect this metric."*
+
 ### ⏳ Awaiting confirmation: what was built from them
 
 **Confirmed by:** *nobody yet.*
@@ -9257,7 +9282,8 @@ docstring (`k59/mutations.txt`).
   Profil gedruckten Bogen wird keine enge Übereinstimmung mit ihnen
   erwartet."*
 * Overall: the judged rows' word where one of the paper and solid rows got
-  PASS or FAIL (N-A is not a verdict, §45.7), else INFO, whose sentence is
+  PASS or FAIL, or since K60 one of the two repeatability rows (49.6) (N-A is
+  not a verdict, §45.7), else INFO, whose sentence is
   M-REPORT-RAW-OVERALL (it was the profiling sheet's "It was measured to build
   a profile rather than to check one", false of a verification).
 * "Judged against": *"<set> (printed raw)"* where the column judged,
@@ -9301,18 +9327,74 @@ The trend graphs themselves are unchanged.
   exactly the rows judged (challenge 9 of beta 44): every raw column judged
   all three rows: Knut's accepted sentence (§46); every limited row judged and
   some "–" (ChromIQ's own sets, ISO 12647-8): his conditional form; a limited
-  row read N-A: the sentence stops before the clause (B8-1395, a question).
+  row read N-A: his D1 sentence since K60 (49.6; until then it stopped before
+  the clause).
   Each ends *"The measurements it covers are listed under Report Scope."*
-* Every sheet raw, several runs: his plural sentence and the same ending.
+* Every sheet raw, several runs: his plural sentence and the same ending
+  (with a judged clause since K60, 49.6).
 * Sheets printed both ways, one project and run: M-REPORT-MIXED-OPENING,
   *"This report judges the profile built in {where}. Some of its sheets were
   printed through that profile and compared with the chart's own aim values;
   the others, marked “printed raw”, were printed without it. The measurements
-  it covers are listed under Report Scope."* (proposed, shown). Across runs:
-  the approved plural sentence, unchanged (B8-1397).
+  it covers are listed under Report Scope."* (APPROVED in 5850164956).
+  Across runs: his D2 sentence since K60 (49.6).
 * The two FROM PROFILE GAMUT state lines of the presets window and the
   Measure pre-flight: his accepted texts, verbatim (B8-1386).
 
-**Status:** the answers confirmed by Knut (49.1); what was built (49.2 to
-49.5) NOT confirmed; fourteen texts in §M-PROPOSED; questions B8-1395, B8-1398;
-gaps B8-1396, B8-1397.
+### ⏳ Awaiting confirmation: K60, what was built from 49.1b
+
+**Confirmed by:** *nobody yet.*
+
+Register: B8-1395, B8-1397, B8-1398 answered; B8-1403 new. Proof:
+`~/Desktop/ChromIQ-beta44-proof/k60/` (on screen, EN and DE, window and PDF).
+Tests: `tests/test_k60_raw_openings_and_repeatability.py`, each red on the
+mutation in its docstring (`k60/mutations.txt`).
+
+**49.6 The openings and the repeatability rows (K60).**
+
+* **D1, one project and run, every sheet raw.** Where a limited paper or solid
+  row read N-A (no profile could be read, no paper patch), the opening is
+  Knut's sentence, verbatim: *"This report follows the printer behind the
+  profile built in {where}. Its sheets were printed without the profile,
+  measured, and compared with the chart's own aim values; the paper and the
+  solid colours are judged against the profile where the limit set has a limit
+  for them and the measurement can answer them. The measurements it covers are
+  listed under Report Scope."* It stops before the clause only where a limited
+  row that could be answered reads INFO (a report saved before K51), which no
+  form is true of.
+* **D1 under his rule, several runs, every sheet raw (B8-1403, ours).** Where a
+  raw column judged one of its paper and solid rows, his plural sentence gains
+  the same clause in the form true of exactly the rows judged, "against the
+  profiles": *"…; the paper and the solid colours are judged against the
+  profiles."* (every raw column judged all three), *"… where the limit set has
+  a limit for them."* (some are "–"), *"… where the limit set has a limit for
+  them and the measurements can answer them."* (a limited row read N-A).
+  Where none was judged it stays as he accepted it.
+* **D2, several runs, sheets printed both ways:** M-REPORT-MIXED-OPENING-RUNS,
+  his sentence verbatim (approved, §M).
+* **D3, the repeatability rows of a raw sheet** are judged where the set
+  limits them (ChromIQ's own sets and both Custom ISO sets; the read-only ISO
+  sets put "–" on them), with no raw print note. The Overall word and its
+  counts follow the rows judged (the paper and solid rows and the two
+  repeatability rows); "Judged against" reads "<set> (printed raw)" wherever
+  one was judged; under the results M-REPORT-RAW-RESULTS-SOME where not every
+  paper and solid row was judged. No sentence that says "the paper and the
+  solid colours are judged" is given for the repeatability rows alone: the
+  plural opening stays without its clause, the singular keeps the conditional
+  form K59 gave ChromIQ's own sets. A raw sheet saved before K60 with a limited
+  repeatability row read INFO shows "Worked out by an earlier version" in
+  Report Scope (§6).
+
+**49.7 Knut's text rules of #182 5850330710 (B8-1404).** *"Remove all
+references to COND, since it is not used anymore"*; texts explain only the
+report generated today; no limit numbers from the Report limits window; no
+relation between limit sets (*"avoid talking about ChromIQ tight and ChromIQ
+Quick Check as their limits are functionally always double or half"*). COND
+is produced by no report generated today, so no guide, Dictionary, card or
+help text mentions it; only a saved older report's COND cell keeps its label
+and tooltip. The texts, before and after:
+`~/Desktop/ChromIQ-beta44-proof/k60/REWORDED.txt`.
+
+**Status:** the answers and the fourteen texts confirmed by Knut (49.1, 49.1b);
+what was built (49.2 to 49.6) NOT confirmed, B8-1403 ours under his rule; gap
+B8-1396.

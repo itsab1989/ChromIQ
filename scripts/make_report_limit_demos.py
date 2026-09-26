@@ -3468,11 +3468,26 @@ def _crossed_rows(report, limits, row_values, row_verdict, set_summary,
         # demonstrated by a row that is not on the page.
         if word is not None and info.get("reason"):
             shown_reasons[rid] = info["reason"]
+    # **A RAW SHEET'S COLUMN, AS THE WINDOW COUNTS IT (K51, K59, K60).** A
+    # sheet printed raw judges its paper and solid rows and, since D3 (Knut,
+    # #182 5850164956), its two repeatability rows; its Overall word is about
+    # those rows only (`counted_rows`, `sheet_is_judged`), and one that judged
+    # nothing says how it was printed. For every other sheet both functions
+    # give what this computed before.
+    from workflow.measurement_report import (counted_rows, is_drift_check,
+                                             sheet_is_judged)
+    drows = [{"row_id": rid, "word": w} for (_l, w, rid) in rows
+             if w is not None]
+    judged = sheet_is_judged(report, drows)
+    keep_ids = {r["row_id"] for r in counted_rows(report, drows)}
+    rows = [t for t in rows if t[1] is None or t[2] in keep_ids]
     summary = set_summary(
         rows, set_is_iso=applies_a_standard(set_id),
-        graded=graded_sheet and not ungraded_by_type,
+        graded=judged and not ungraded_by_type,
         ungraded_reason=(SUMMARY_REASONS["record_type"]
-                         if ungraded_by_type and graded_sheet else ""))
+                         if ungraded_by_type and judged
+                         else SUMMARY_REASONS["raw_print"]
+                         if is_drift_check(report) else ""))
     return {"crossed": sorted(crossed), "values": values,
             "overall": summary.word, "reason": summary.reason,
             "shown_reasons": shown_reasons}

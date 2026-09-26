@@ -167,7 +167,9 @@ def _glossary():
 
 
 def test_the_dictionary_defines_every_verdict_word_in_one_place():
-    """The five words a reader meets in the Report Results table.
+    """The four words a reader meets in the Report Results table (COND
+    went from every text, Knut #182 5850330710: no report generated today
+    shows it).
 
     Taken from `workflow.compliance_sets`, so retiring or adding one fails
     here rather than leaving the card describing a word the app no longer
@@ -175,7 +177,7 @@ def test_the_dictionary_defines_every_verdict_word_in_one_place():
     """
     from workflow import compliance_sets as CS
 
-    words = [CS.PASS, CS.FAIL, CS.COND, CS.INFO, CS.N_A]
+    words = [CS.PASS, CS.FAIL, CS.INFO, CS.N_A]
     # THE BODY, NOT THE HEADWORD. A headword that merely LISTS the five words
     # explains none of them, and matching on "headword plus body" let exactly
     # that pass: the mutation that replaced "COND" with "CONDITIONAL" in the

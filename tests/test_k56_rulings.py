@@ -45,8 +45,16 @@ RAW_OPENING = (
     "Its sheets were printed without the profile, measured, and compared with "
     "the chart's own aim values; the paper and the solid colours are judged "
     "against the profile.")
-#: The same, stopped before the clause the limit set decides (B8-1381).
+#: The same, stopped before the clause the limit set decides (B8-1381): only
+#: where a limited row that could be answered reads INFO (a report saved
+#: before K51).
 RAW_OPENING_UNJUDGED = RAW_OPENING.split(";")[0] + "."
+#: Where a limited row read N-A: Knut's D1 sentence, #182 5850164956 (B8-1395),
+#: "Use the new sentence."
+RAW_OPENING_ANSWERABLE = (
+    RAW_OPENING.split(";")[0] + "; the paper and the solid colours are judged "
+    "against the profile where the limit set has a limit for them and the "
+    "measurement can answer them.")
 THROUGH_OPENING = (
     "This report judges the profile built in {where}. It was verified by "
     "printing a chart through that profile, measuring it, and comparing the "
@@ -176,26 +184,34 @@ def test_a_report_of_raw_sheets_that_judged_opens_with_knuts_sentence(
 
 def test_a_report_of_raw_sheets_that_judged_nothing_makes_no_claim(
         qapp, monkeypatch):
-    """Where a limited row read N-A (no profile could be read), the clause,
-    plain or conditional, would say it was judged: the sentence stops before
-    it. One such column among columns that judged is enough, because the
-    clause speaks for the whole document.
+    """Where a limited row read N-A (no profile could be read), the plain
+    clause and the conditional form would each say it was judged: D1 (Knut,
+    #182 5850164956, "Whatever the text, it must be true ... Use the new
+    sentence.") gives "... where the limit set has a limit for them and the
+    measurement can answer them". One such column among columns that judged
+    is enough, because the clause speaks for the whole document. Where a
+    limited row that could be answered reads INFO (saved before K51), no form
+    is true and the sentence stops before the clause.
 
     MUTATION, proven red: in `_raw_clause` return "all" unconditionally (the
     clause is printed over an N-A); and, as a second mutation, look at the
-    first raw column only (the mixed document gets the clause)."""
+    first raw column only (the mixed document gets the plain clause)."""
     dlg = _dialog(qapp)
     try:
         runs = [_sheet("raw", "2026-11-16_100000")]
         said = _opening(dlg, monkeypatch, runs, [CS.N_A])
-        assert said == (RAW_OPENING_UNJUDGED + SCOPE).format(
+        assert said == (RAW_OPENING_ANSWERABLE + SCOPE).format(
             where="Demo, run 3"), said
-        assert "judged against the profile" not in said
         runs = [_sheet("raw", "2026-11-16_100000"),
                 _sheet("raw", "2026-11-23_100000")]
         said = _opening(dlg, monkeypatch, runs, [CS.FAIL, CS.N_A])
+        assert said == (RAW_OPENING_ANSWERABLE + SCOPE).format(
+            where="Demo, run 3"), said
+        runs = [_sheet("raw", "2026-11-16_100000")]
+        said = _opening(dlg, monkeypatch, runs, [CS.INFO])
         assert said == (RAW_OPENING_UNJUDGED + SCOPE).format(
             where="Demo, run 3"), said
+        assert "judged against the profile" not in said
     finally:
         dlg.deleteLater()
 
@@ -204,7 +220,7 @@ def test_a_sheet_printed_through_the_profile_keeps_the_approved_sentence(
         qapp, monkeypatch):
     """A document of through-profile sheets keeps Knut's approved sentence of
     2026-09-20. A MIXED one, since K59, opens with the sentence he accepted
-    once "drift" was gone (M-REPORT-MIXED-OPENING, proposed, shown).
+    once "drift" was gone (M-REPORT-MIXED-OPENING, approved in 5850164956).
 
     MUTATION, proven red: test `any(_is_raw_drift(...))` for the raw
     branch (the mixed document says its sheets were printed without the

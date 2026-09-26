@@ -469,6 +469,22 @@ HUE_CORNERS: "tuple[str, ...]" = ("C", "M", "Y")
 ROWS_JUDGED_ON_A_RAW_PRINT: "frozenset[str]" = frozenset({
     "substrate_de00_max", *ROWS_ON_RAW_SOLIDS})
 
+#: ChromIQ's own two repeatability rows. They compare readings with readings
+#: (repeat patches on one sheet; the same chart measured again), which
+#: printing raw does not affect.
+ROWS_REPEATABILITY: "tuple[str, ...]" = ("repeat_patches_de00_max",
+                                         "repeat_measurement_de00_max")
+
+#: **D3 (Knut, #182 5850164956, B8-1398): "Yes, judge them, since printing
+#: raw does not affect this metric."** Every row a sheet printed raw judges
+#: where the set limits it: the three compared with the profile
+#: (`ROWS_JUDGED_ON_A_RAW_PRINT`) and the two repeatability rows. The
+#: sentences that say "the paper and the solid colours are judged" still ask
+#: `ROWS_JUDGED_ON_A_RAW_PRINT` alone, so a raw column that judged only its
+#: repeatability rows never claims its paper or solids were judged.
+ROWS_GRADED_ON_A_RAW_PRINT: "frozenset[str]" = frozenset({
+    *ROWS_JUDGED_ON_A_RAW_PRINT, *ROWS_REPEATABILITY})
+
 
 def sheet_profile(printing: "dict | None", ti3_path: "Path | str | None"
                   ) -> "tuple[Path, str] | None":
@@ -6063,10 +6079,11 @@ def is_graded_sheet(report: dict) -> bool:
 
 def drift_check_judges(rows: "list[dict]") -> bool:
     """Whether a raw drift check's *rows* judge anything (K51, B8-1330): one
-    of :data:`ROWS_JUDGED_ON_A_RAW_PRINT` actually got a verdict, a PASS or a
-    FAIL (or a COND a saved report kept). Under a limit set that puts "–" on
-    all three (ChromIQ's own sets) nothing is judged and the sheet stays a
-    drift check with no verdict, as it was.
+    of :data:`ROWS_GRADED_ON_A_RAW_PRINT` actually got a verdict, a PASS or a
+    FAIL (or a COND a saved report kept): the paper and solid rows, and since
+    D3 (Knut, #182 5850164956, B8-1398) the two repeatability rows. Where none
+    of them is limited, or none could be answered, nothing is judged and the
+    column reads INFO overall.
 
     **N-A IS NOT A VERDICT, AND COUNTING IT BROKE EVERY SAVED DRIFT CHECK
     (challenge 8, C2; B8-1370).** A drift check saved before K51 kept those
@@ -6078,6 +6095,20 @@ def drift_check_judges(rows: "list[dict]") -> bool:
     verification. A column whose three rows could not be worked out has
     judged nothing either, today as then, so it reads "drift" throughout."""
     from workflow.compliance_sets import COND, FAIL, PASS
+    # D3 (B8-1398): the two repeatability rows count as well; which of the
+    # rows were judged is `raw_paper_or_solids_judged`'s question.
+    return any((r.get("row_id") or r.get("key")) in ROWS_GRADED_ON_A_RAW_PRINT
+               and r.get("word") in (PASS, FAIL, COND)
+               for r in rows or ())
+
+
+def raw_paper_or_solids_judged(rows: "list[dict]") -> bool:
+    """Whether one of a raw sheet's paper and solid rows
+    (:data:`ROWS_JUDGED_ON_A_RAW_PRINT`) got a PASS or a FAIL (or a COND a
+    saved report kept). Asked by every sentence that says "the paper and the
+    solid colours are judged": since D3 a raw column can judge its two
+    repeatability rows and nothing else (B8-1398)."""
+    from workflow.compliance_sets import COND, FAIL, PASS
     return any((r.get("row_id") or r.get("key")) in ROWS_JUDGED_ON_A_RAW_PRINT
                and r.get("word") in (PASS, FAIL, COND)
                for r in rows or ())
@@ -6086,13 +6117,13 @@ def drift_check_judges(rows: "list[dict]") -> bool:
 def counted_rows(report: dict, rows: "list[dict]") -> "list[dict]":
     """The rows a column's Overall word and its counts are about: all of
     them, or on a raw drift check that judges its paper and solid rows only
-    those (K51, B8-1330). Its other rows are compared with the design for
+    those (K51, B8-1330), and its two repeatability rows (D3, B8-1398). Its other rows are compared with the design for
     information, and a row among them that reads N-A (a strip the chart does
     not declare) is not a value "not checked": it was never going to be."""
     if is_drift_check(report) and drift_check_judges(rows):
         return [r for r in rows
                 if (r.get("row_id") or r.get("key"))
-                in ROWS_JUDGED_ON_A_RAW_PRINT]
+                in ROWS_GRADED_ON_A_RAW_PRINT]
     return list(rows)
 
 
@@ -6331,11 +6362,16 @@ def row_values(report: dict) -> "dict[str, dict]":
     # same thing as "this sheet has no repeats" and not the same thing as
     # "this chart has never been measured twice" -- the same N9 distinction the
     # grey rows and the control strip draw above.
+    #
+    # D3 (Knut, #182 5850164956, B8-1398): on a sheet printed raw they are
+    # JUDGED, like on any other sheet, "since printing raw does not affect
+    # this metric"; None inherits the sheet's own grading everywhere else.
+    _repeat_graded = True if is_drift_check(report) else None
     rw = report.get("repeat_within_sheet")
     if not isinstance(rw, dict):
         put("repeat_patches_de00_max", None, REASON_NOT_COMPUTED)
     elif rw.get("eligible") and rw.get("max") is not None:
-        put("repeat_patches_de00_max", rw["max"])
+        put("repeat_patches_de00_max", rw["max"], graded=_repeat_graded)
     else:
         put("repeat_patches_de00_max", None,
             rw.get("reason") or REASON_NO_REPEAT_PATCHES)
@@ -6344,7 +6380,7 @@ def row_values(report: dict) -> "dict[str, dict]":
     if not isinstance(ra, dict):
         put("repeat_measurement_de00_max", None, REASON_NOT_COMPUTED)
     elif ra.get("eligible") and ra.get("max") is not None:
-        put("repeat_measurement_de00_max", ra["max"])
+        put("repeat_measurement_de00_max", ra["max"], graded=_repeat_graded)
     else:
         put("repeat_measurement_de00_max", None,
             ra.get("reason") or REASON_NO_EARLIER_MEASUREMENT)

@@ -151,8 +151,9 @@ def test_the_help_says_the_things_a_reader_came_for():
     h = _helps()
     must = {
         # which set goes with which type, and what the numbers really are
-        "pair": ("2.0 average and 3.0 maximum", "halves those two",
-                 "doubles them",
+        # Knut, #182 5850330710: no limit numbers and no "halves"/"doubles"
+        # between sets in the help; stricter and wider is all it says.
+        "pair": ("ChromIQ tight has stricter limits", "Quick check wider ones",
                  "judges the two grey rows like any other row",
                  "no limit on the mid-tone ramp",
                  "every row it can compute reads INFO", "still names the set",
@@ -224,12 +225,10 @@ def test_the_numbers_in_the_help_are_the_numbers_in_the_sets():
            ("chromiq_default", "chromiq_tight", "chromiq_quick")}
     avg = {s: lim[s]["all_de00_avg"].number for s in lim}
     mx = {s: lim[s]["all_de00_max"].number for s in lim}
-    assert (avg["chromiq_default"], mx["chromiq_default"]) == (2.0, 3.0), (
-        "the help says 2.0 average and 3.0 maximum")
-    assert (avg["chromiq_tight"], mx["chromiq_tight"]) == (1.0, 1.5), (
-        "the help says ChromIQ tight halves those two")
-    assert (avg["chromiq_quick"], mx["chromiq_quick"]) == (4.0, 6.0), (
-        "the help says Quick check doubles them")
+    assert avg["chromiq_tight"] < avg["chromiq_default"] < avg["chromiq_quick"], (
+        "the help says ChromIQ tight has stricter limits, Quick check wider ones")
+    assert mx["chromiq_tight"] < mx["chromiq_default"] < mx["chromiq_quick"], (
+        "the help says ChromIQ tight has stricter limits, Quick check wider ones")
     # …and the claims about Grey and tone check's own three rows.
     #
     # THE FIRST TWO CHANGED SIDES ON 2026-09-21. The help used to say the grey

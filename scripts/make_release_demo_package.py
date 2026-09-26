@@ -148,7 +148,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ]),
     ("§13.9", "A report that judges nothing keeps every ticked measurement", [
         "Report-Limits-Report-Types/run7: Grey and tone check on a chart with no grey ramp",
-        "Report-Limits-Border-Conditions/run3: a raw sheet, no verdict under its own set, ChromIQ default (K51: under ISO 12647-7 its paper and solid rows are judged against the profile)",
+        "Report-Limits-Border-Conditions/run3: move Report-Limits-Border-Conditions.icc out of runs/run3 and delete both dates' reports/ folders (no profile can be read), then New report…, both dates, ISO 12647-7:2016 values: a raw sheet that judges nothing (K60: under ChromIQ default its repeatability rows are judged, under ISO 12647-7 with its profile its paper and solid rows)",
     ]),
     ("§13.9", "One report, one limit set, applied to every measurement it includes", [
         "Report-Limits-Report-Folders/run1+run2: the report across both runs",
@@ -407,7 +407,9 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ]),
     ("\u00a749", "K59:", [
         "Report-Limits-Border-Conditions/run3, Run type Verification: New report\u2026, both dates, Full colour check, ISO 12647-7:2016 values: the paper and solid rows PASS or FAIL against the profile, every other cell INFO with the raised number of M-REPORT-RAW-PRINT-INFO, \u201cJudged against\u201d reads the set \u201c(printed raw)\u201d, the opening with Knut's clause and the Report Scope sentence, and no \u201cdrift\u201d anywhere (B8-1393, B8-1394, B8-1381, B8-1384)",
-        "Report-Limits-Border-Conditions/run3, the same under ChromIQ default: every cell INFO or N-A with its note, Overall INFO, \u201cnot judged (printed raw)\u201d, the opening in Knut's conditional form; Detailed data: \u201cChange since the previous raw check\u201d under the second date (B8-1393, B8-1394)",
+        "Report-Limits-Border-Conditions/run3, the same under ChromIQ default: the two repeatability rows PASS or FAIL (K60, D3), every other cell INFO or N-A with its note, Overall the repeatability rows' word, \u201cChromIQ default (printed raw)\u201d, the opening in Knut's conditional form; Detailed data: \u201cChange since the previous raw check\u201d under the second date (B8-1393, B8-1394, B8-1398)",
+        "Report-Limits-Border-Conditions/run3: move Report-Limits-Border-Conditions.icc out of runs/run3 and delete both dates' reports/ folders (no profile can be read), then New report…, both dates, ISO 12647-7:2016 values: the paper and solid rows N-A, the opening in Knut's D1 sentence, \u201c\u2026 where the limit set has a limit for them and the measurement can answer them\u201d (K60, B8-1395); under Custom ISO 12647-7 the same opening beside judged repeatability rows",
+        "Report-Limits-Border-Conditions/run3 + run1 (run1 printed through the profile), run1 added with \u201cAdd Profile's Measurements\u2026\u201d: M-REPORT-MIXED-OPENING-RUNS (K60, D2, B8-1397); run1's sheets recorded raw instead: the plural raw opening with \u201cjudged against the profiles\u201d under ISO 12647-7, without it under ChromIQ default (K60, D1, B8-1403)",
         "Measure tab, Run type Verification, and Create Chart > \u201cWhich presets can be used for verification?\u201d: the FROM PROFILE GAMUT state line as Knut accepted it (B8-1386)",
     ]),
     ("§47", "K57:", [
@@ -578,10 +580,10 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
         "Report-Limits-Border-Conditions/run3: New report…, ISO 12647-7:2016 values: under \u201cJudged against\u201d",
     ],
     "M-REPORT-RAW-NOT-JUDGED": [
-        "Report-Limits-Border-Conditions/run3: New report…, ChromIQ default: under \u201cJudged against\u201d",
+        "Report-Limits-Border-Conditions/run3: move Report-Limits-Border-Conditions.icc out of runs/run3 and delete both dates' reports/ folders (no profile can be read), then New report…, both dates, ISO 12647-7:2016 values: under \u201cJudged against\u201d",
     ],
     "M-REPORT-RAW-OVERALL": [
-        "Report-Limits-Border-Conditions/run3: New report…, ChromIQ default: the Overall word's tooltip",
+        "Report-Limits-Border-Conditions/run3: move Report-Limits-Border-Conditions.icc out of runs/run3 and delete both dates' reports/ folders (no profile can be read), then New report…, both dates, ISO 12647-7:2016 values: the Overall word's tooltip",
     ],
     "M-REPORT-RAW-RESULTS-JUDGED": [
         "Report-Limits-Border-Conditions/run3: New report…, ISO 12647-7:2016 values: the sentence under the results",
@@ -590,13 +592,13 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
         "Report-Limits-Border-Conditions/run3: New report…, ISO 12647-8:2021 values (the paper row only is limited): the sentence under the results",
     ],
     "M-REPORT-RAW-RESULTS": [
-        "Report-Limits-Border-Conditions/run3: New report…, ChromIQ default: the sentence under the results",
+        "Report-Limits-Border-Conditions/run3: move Report-Limits-Border-Conditions.icc out of runs/run3 and delete both dates' reports/ folders (no profile can be read), then New report…, both dates, ISO 12647-7:2016 values: the sentence under the results",
     ],
     "M-REPORT-RAW-GUIDE-JUDGED": [
         "Report-Limits-Border-Conditions/run3: New report…, ISO 12647-7:2016 values: How to read this report",
     ],
     "M-REPORT-RAW-GUIDE": [
-        "Report-Limits-Border-Conditions/run3: New report…, ChromIQ default: How to read this report",
+        "Report-Limits-Border-Conditions/run3: move Report-Limits-Border-Conditions.icc out of runs/run3 and delete both dates' reports/ folders (no profile can be read), then New report…, both dates, ISO 12647-7:2016 values: How to read this report",
     ],
     "M-REPORT-RAW-BASELINE": [
         "Report-Limits-Border-Conditions/run3: New report…, the first date only, Show detailed data: under its table",
@@ -612,6 +614,9 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     ],
     "M-REPORT-MIXED-OPENING": [
         "Report-Limits-Border-Conditions/run3: write {\"colour\": \"through-profile\", \"intent\": \"relative\", \"route\": \"chromiq\", \"profile\": \"Report-Limits-Border-Conditions.icc\"} as Report-Limits-Border-Conditions-verify.print.json into the 2026-12-17 date's chart/ folder and delete that date's reports/ folder, then New report…, both dates: the opening",
+    ],
+    "M-REPORT-MIXED-OPENING-RUNS": [
+        "Report-Limits-Border-Conditions/run3 + run1: with run3 ticked, \u201cAdd Profile's Measurements\u2026\u201d one of run1's dated measurements (printed through the profile), New report\u2026: the opening",
     ],
     "M-VERIFY-NO-PROFILE": ["not a report message: a run without a profile (none in this package)"],
     "M-VERIFY-NO-CHART": ["not a report message: a run without a verification chart (none in this package)"],
