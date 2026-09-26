@@ -170,6 +170,9 @@ def patch_loaders() -> None:
 def build_app():
     app = QApplication(sys.argv)
     app.setApplicationName("ChromIQ")
+    # as main() does (B8-1392): the collector runs from the event loop
+    from core.gc_guard import install_gui_thread_collector
+    install_gui_thread_collector(app)
     for fp in resource_path("assets/fonts").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(fp))
     app.setStyle(WinButtonLayoutStyle("Fusion"))

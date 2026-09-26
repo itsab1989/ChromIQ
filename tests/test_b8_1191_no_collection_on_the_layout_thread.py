@@ -31,7 +31,7 @@ THREAD = "chromiq-preset-layout"
 
 
 @pytest.fixture(autouse=True)
-def _settled():
+def _settled(automatic_gc):   # B8-1392: CPython's own collector, for this measurement
     PL._HOLD_UNTIL = 0.0
     PL.settle(30)
     assert gc.isenabled()

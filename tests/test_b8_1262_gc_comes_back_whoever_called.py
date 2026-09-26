@@ -41,7 +41,7 @@ def qapp():
 
 
 @pytest.fixture(autouse=True)
-def _settled(monkeypatch):
+def _settled(automatic_gc, monkeypatch):   # B8-1392: CPython's own collector, for this measurement
     PL._HOLD_UNTIL = 0.0
     assert PL.settle(30)
     assert gc.isenabled()

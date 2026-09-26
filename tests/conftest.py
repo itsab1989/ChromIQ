@@ -243,6 +243,16 @@ def _one_qapplication_per_worker():
     except Exception:                                    # pragma: no cover
         pass          # a Qt build without Fusion: better the platform default
                       # than no QApplication at all
+    # THE COLLECTOR RUNS WHERE THE APP'S DOES (B8-1392): on this thread, from
+    # the event loop, never inside Qt's delivery of an event and never on
+    # another thread. `main()` installs the same thing right after its
+    # QApplication. Without it the everyday tier lost a worker in 3 of 9 runs
+    # at abc852a2: a test let go of a Create Chart tab, pytest-qt's
+    # processEvents delivered a timer to one of its widgets, a Python event
+    # filter allocated, the allocation collected the tab, and Qt read the
+    # freed receiver (`core/gc_guard.py`).
+    from core.gc_guard import install_gui_thread_collector
+    install_gui_thread_collector(_PINNED_QAPP)
     yield _PINNED_QAPP
     # Deliberately NOT destroyed: tearing it down at session end would delete
     # every QObject still alive during other fixtures' teardown, which is the
@@ -593,6 +603,28 @@ def _the_update_check_never_reaches_the_network(monkeypatch):
         _forget()
 
 
+@pytest.fixture()
+def automatic_gc():
+    """For a test that measures what `workflow.preset_layout` does with
+    AUTOMATIC collection (B8-1161, B8-1191, B8-1262): the session runs with it
+    off and collected by the GUI thread's timer (B8-1392, `core/gc_guard.py`),
+    which is how the app runs too. This puts CPython's own collector back for
+    the one test and pauses the timer, which would otherwise switch it off
+    again underneath the test; both are restored afterwards."""
+    import gc as _gc
+    from core import gc_guard as _gg
+    timer = getattr(_gg._COLLECTOR, "timer", None) if _gg.installed() else None
+    if timer is not None:
+        timer.stop()
+    _gc.enable()
+    try:
+        yield
+    finally:
+        if timer is not None:
+            _gc.disable()
+            timer.start()
+
+
 @pytest.fixture(autouse=True)
 def _the_collector_is_given_back_between_tests():
     """B8-1191: `workflow.preset_layout` holds automatic garbage collection
@@ -605,6 +637,17 @@ def _the_collector_is_given_back_between_tests():
     pl = sys.modules.get("workflow.preset_layout")
     if pl is not None:
         pl.release_gc_if_idle()
+    # B8-1392: automatic collection is off for the session (the GUI thread's
+    # collector, `core/gc_guard.py`), and a test that never turns the event
+    # loop never meets its timer. A teardown is outside any Qt delivery, so
+    # what is due is collected here. A test that switched collection back on
+    # (to measure `preset_layout`'s hold) has it switched off again.
+    import gc as _gc
+    from core import gc_guard as _gg
+    if _gg.installed():
+        if _gc.isenabled():
+            _gc.disable()
+        _gg.collect_if_due()
 
 
 @pytest.fixture(autouse=True)

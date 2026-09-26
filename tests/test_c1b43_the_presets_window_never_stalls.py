@@ -298,7 +298,7 @@ def test_the_window_holds_the_background_while_it_opens_and_on_a_click():
 
 
 def test_the_collector_never_runs_on_the_background_thread(
-        qapp, tmp_path, monkeypatch):
+        qapp, tmp_path, monkeypatch, automatic_gc):   # B8-1392
     """While the background thread works a chart out, automatic garbage
     collection is off, so a collection can never destroy a Qt widget on that
     thread (the everyday tier lost a worker to a SIGSEGV in Qt's event-filter
