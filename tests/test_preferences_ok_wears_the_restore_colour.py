@@ -56,3 +56,13 @@ def test_only_create_chart_asks_for_the_magenta_folder():
     assert 'browse_icon="folder_create"' in inspect.getsource(tab_chart)
     assert "folder_create" not in inspect.getsource(
         settings_dialog.SettingsDialog._build_chart_layout_tab)
+
+
+def test_preferences_tints_its_folder_like_its_info_icons():
+    """Basti, 2026-09-26: "in preferences it should have the accent color
+    that the tooltip icons use there". MUTATION: drop the loop and this goes
+    red."""
+    from ui.dialogs import settings_dialog
+    src = inspect.getsource(settings_dialog.SettingsDialog._apply_indicator_theme)
+    assert "load_tinted_folder_icon(indicator" in src
+    assert '"clip_image_browse"' in src

@@ -5225,6 +5225,18 @@ class SettingsDialog(QDialog):
         for btn in self.findChildren(TooltipButton):
             btn._color_override = indicator
             btn._set_icon()
+        # The layout panel's folder button (the clip-border image; the .cal
+        # browse exists only with calibration, not here) wears the SAME colour as this window's ⓘ icons (Basti,
+        # 2026-09-26: "in preferences it should have the accent color that
+        # the tooltip icons use there"). Untagged, so the app's theme reload
+        # leaves them to this method, which re-runs on a live preview.
+        from ui.widgets import load_tinted_folder_icon
+        panel = getattr(self, "_layout_panel", None)
+        for name in ("clip_image_browse",):
+            fb = getattr(panel, name, None) if panel is not None else None
+            if fb is not None:
+                fb.setProperty("themed_folder_icon", None)
+                fb.setIcon(load_tinted_folder_icon(indicator, size=20))
         # …AND EVERY LITERAL TEXT COLOUR IN THE WINDOW. The theme can be
         # previewed from inside this dialog, so a label coloured at build time
         # would keep the previous appearance's value until the window is
