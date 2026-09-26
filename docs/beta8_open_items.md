@@ -30412,3 +30412,4 @@ would reach.
 - proof: ~/Desktop/ChromIQ-beta44-proof/k60/ (REWORDED.txt; report/*/ the guide's four verdict words)
 - found by: Knut, #182 5850330710.
 - where: `ui/dialogs/measurement_report_dialog.py` (`_PAIRING_HELP`, the window's help, `_how_to_read_html`), `ui/dialogs/welcome_dialog.py` (Dictionary, Getting Started), `workflow/compliance_sets.py` (`SETS` blurbs), `data/i18n/*.json`.
+- approved: Knut, #182 5850782488 (2026-09-26): "All messages approved." The old-report COND tooltip stays ("should that tooltip go too?" "No.").
