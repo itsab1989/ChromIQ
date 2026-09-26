@@ -227,7 +227,8 @@ def test_no_accuracy_line_comes_from_the_fallback_pair(qapp, monkeypatch):
 # --------------------------------------------------------------------------
 def test_the_solid_rows_reason_is_true_both_ways():
     """The presets window's and the pre-flight's reason for the two solid
-    rows is M-VERIFY-SOLIDS-REASON, proposed in §M: it says why (printed
+    rows is M-VERIFY-SOLIDS-REASON, approved in §M (Knut, #182 5848287278,
+    K56; it was proposed when this was written): it says why (printed
     through the profile) and what a raw print gets; it no longer blames a
     missing colorimetric reference. German by hand, no em dash, no "du".
 
@@ -239,8 +240,9 @@ def test_the_solid_rows_reason_is_true_both_ways():
     assert line == M.M_VERIFY_SOLIDS_REASON.body
     assert "colorimetric reference" not in line
     assert "through its profile" in line and "without a profile" in line
-    assert not M.M_VERIFY_SOLIDS_REASON.approved
-    assert "M-VERIFY-SOLIDS-REASON" in M.PROPOSED
+    # Approved by Knut, #182 5848287278 (K56): it left §M-PROPOSED.
+    assert M.M_VERIFY_SOLIDS_REASON.approved
+    assert "M-VERIFY-SOLIDS-REASON" not in M.PROPOSED
     de = json.loads((ROOT / "data/i18n/de.json").read_text(encoding="utf-8"))
     t = de[M.M_VERIFY_SOLIDS_REASON.body]
     assert t and t != line and "—" not in t and "—" not in line

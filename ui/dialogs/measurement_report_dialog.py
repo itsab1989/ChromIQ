@@ -15204,6 +15204,36 @@ class MeasurementReportDialog(QDialog):
         run = self._run_number_for(runs)
         where = (tr("{project}, run {n}").format(project=project, n=run)
                  if run else project)
+        # **A DOCUMENT OF RAW SHEETS ONLY WAS NOT "VERIFIED BY PRINTING A
+        # CHART THROUGH THAT PROFILE" (B8-1377).** Knut accepted its own
+        # opening in #182 5848287278 ("Accepted."), verbatim below. It is
+        # given only where EVERY sheet is a raw drift check: one sheet printed
+        # through the profile keeps the sentence above, true of that sheet,
+        # and a mixed document has no approved sentence yet (B8-1380).
+        #
+        # **AND ITS LAST CLAUSE IS A CLAIM THE LIMIT SET DECIDES (B8-1381).**
+        # "the paper and the solid colours are judged against the profile" is
+        # true only where every column judged them, which is what
+        # `_drift_judges` asks. Under ChromIQ's own sets those rows are "–"
+        # and not in the report, and where no profile could be read they are
+        # N-A: nothing was judged, every cell reads "drift", and the clause
+        # would be false. There the sentence stops before it, which keeps
+        # every word Knut's and adds none; the conditional variant is his to
+        # approve.
+        if runs and all(_is_raw_drift(r) for r in runs):
+            if all(self._drift_judges(r) for r in runs):
+                return tr(
+                    "This report follows the printer behind the profile "
+                    "built in {where}. Its sheets were printed without the "
+                    "profile, measured, and compared with the chart's own aim "
+                    "values; the paper and the solid colours are judged "
+                    "against the profile."
+                ).format(where=where)
+            return tr(
+                "This report follows the printer behind the profile built in "
+                "{where}. Its sheets were printed without the profile, "
+                "measured, and compared with the chart's own aim values."
+            ).format(where=where)
         return tr(
             "This report judges the profile built in {where}. It was verified "
             "by printing a chart through that profile, measuring it, and "

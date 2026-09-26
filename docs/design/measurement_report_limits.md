@@ -134,6 +134,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §43 | Challenge 2 of beta 44, the report findings: a relative chart's solid rows predicted absolute; (b2) on verifications only; the Printing record names every graph it carries; why no limit line is drawn, from the set data; the Cube corners sentence says "aim values"; a graph with no line needs two dated values; a value shown for information keeps its (b2) note; the older question of a relative FROM PROFILE GAMUT chart judged absolute | 2026-09-26, challenge 2 of beta 44 | found by the challenge round, not ruled by Knut; built (B8-1270, B8-1271, B8-1273 to B8-1278), NOT confirmed; one question for Knut (B8-1272) |
 | §44 | K50: a report's notes never refer to other limit sets (the sentence under a graph with no limit line speaks of this report only); the presets window groups the metrics that carry identical messages; M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE approved | 2026-09-26, 5845519118, 5845588201 | the rule and the two notes' wording confirmed by Knut (§44.1, §41.7); built for beta 44 (B8-1320 to B8-1322), the new wording and the grouping NOT confirmed |
 | §45 | K51: a raw print judges its paper and solid rows against the profile; "–" is not in the report, graphs included; a limit line shown for information where the report judges nothing; the star's rule (4) with the evenness rows; a media-relative FROM PROFILE GAMUT chart judged relative to its paper; the i1Pro group enabled with the engine on | 2026-09-26, 5846167083, 5846297769 | the answers confirmed by Knut (§45.1); built for beta 44 (B8-1330 to B8-1336, B8-1340), NOT confirmed; the two-page rule put to him; challenge 8's fixes to it in 45.7 to 45.9 (B8-1370 to B8-1377), NOT confirmed |
+| §46 | K56: M-VERIFY-SOLIDS-REASON approved; the pre-flight's FROM PROFILE GAMUT paragraph revised as accepted; the opening of a report of raw sheets | 2026-09-26, 5848287278 | the answers (approval and two accepted texts) are Knut's; what was built (when each opening is given) NOT confirmed; four questions (B8-1380, B8-1381, B8-1383, B8-1384) and the analysis of "drift" (B8-1385) put to him |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -8981,7 +8982,7 @@ mutation in its docstring (`fixes-8-report/mutations.txt`).
 
 * The reason under the two solid rows in the presets window and the Measure
   pre-flight is M-VERIFY-SOLIDS-REASON, proposed in §M-PROPOSED of
-  `unified_measurement_management.md`, shown while it waits: *"Printed through its profile, as a verification normally is, the chart's solid patches become other ink amounts, not the printer's own solids, so the report cannot judge them. Printed without a profile, its solids are judged against the profile and its other metrics are shown for information only."* It replaces *"This chart carries
+  `unified_measurement_management.md` (approved by Knut in 5848287278, §46), shown while it waited: *"Printed through its profile, as a verification normally is, the chart's solid patches become other ink amounts, not the printer's own solids, so the report cannot judge them. Printed without a profile, its solids are judged against the profile and its other metrics are shown for information only."* It replaces *"This chart carries
   no colorimetric reference."*
 * A report type that judges nothing: the INFO bullet of "How to read this
   report" says *"This kind of report judges nothing, so every value it can
@@ -9000,3 +9001,72 @@ measurements" (B8-1342); the pre-flight's FROM PROFILE GAMUT paragraph still
 says those metrics "are judged against a colorimetric reference", and its
 count is not told how the sheet was printed (B8-1374).
 
+## 46. K56: M-VERIFY-SOLIDS-REASON approved, the FROM PROFILE GAMUT paragraph, the opening of a report of raw sheets (#182, 2026-09-26, beta 44)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-26, #182
+[5848287278](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5848287278),
+for exactly the answers quoted here. What was built from them, and when each
+text is given, is in 46.2 and waits for his confirmation.
+
+**46.1 The answers, verbatim.**
+
+* *"Regarding "For your approval (M-VERIFY-SOLIDS-REASON)" Answer:
+  Approved."* The message is in §M of `unified_measurement_management.md`.
+* On the pre-flight's paragraph (B8-1374), suggested *"Some of the metrics
+  listed above can be answered by a verification in only one way: its solid
+  patches must be printed as they are, and a chart printed through its
+  profile converts them. A chart built with FROM PROFILE GAMUT in the Create
+  Chart tab prints them as they are."*: *"Answer: Accepted."*
+* On the opening of a verification report (B8-1377), suggested for a report
+  of raw sheets only *"This report follows the printer behind the profile
+  built in {where}. Its sheets were printed without the profile, measured,
+  and compared with the chart's own aim values; the paper and the solid
+  colours are judged against the profile."*: *"Answer: Accepted."*
+* His question 1 (B8-1372) is answered with a request for an analysis, not a
+  ruling (B8-1385).
+
+### ⏳ Awaiting confirmation: what was built from them
+
+**Confirmed by:** *nobody yet.*
+
+Register: B8-1373, B8-1374, B8-1377, B8-1380 to B8-1385. Proof:
+`~/Desktop/ChromIQ-beta44-proof/k56/` (on screen, EN and DE, window and PDF;
+NOTES.txt). Tests: `tests/test_k56_rulings.py`, each red on the mutation in
+its docstring (`k56/mutations.txt`).
+
+**46.2 When each text is given.**
+
+* `M_VERIFY_PREFLIGHT_GAMUT`: his paragraph, then the approved second
+  paragraph unchanged; shown on the same condition as before
+  (`gamut_only_shortfalls`). German (ours): *"Einige der oben aufgeführten
+  Kennzahlen kann eine Verifizierung nur auf einem Weg beantworten: Die
+  Volltonfelder müssen so gedruckt werden, wie sie sind, und ein Chart, das
+  durch sein Profil gedruckt wird, wandelt sie um. Ein Chart, das mit AUS DEM
+  PROFIL-GAMUT im Reiter „Chart erstellen“ erstellt wurde, druckt sie so, wie
+  sie sind."*
+* The opening of a verification report (`_what_this_report_judges`), one
+  project and run:
+  * every sheet a raw drift check (`_is_raw_drift`) and every column judged
+    its paper or solid rows (`_drift_judges`, a PASS or FAIL among them): his
+    accepted sentence, verbatim. German (ours, no "du"): *"Dieser Bericht
+    verfolgt den Drucker, zu dem das Profil gehört, das in {where} erstellt
+    wurde. Seine Bögen wurden ohne das Profil gedruckt, gemessen und mit den
+    Zielwerten des Charts verglichen; das Papier und die Volltonfarben werden
+    gegen das Profil beurteilt."*
+  * every sheet raw, and a column that judged nothing (ChromIQ's own sets put
+    "–" on those rows, so they are not in the report; no readable profile
+    makes them N-A): the clause would be false, so the sentence stops before
+    it, *"... and compared with the chart's own aim values."* (German: *"...
+    und mit den Zielwerten des Charts verglichen."*). Every word his, none
+    added; the form itself is a question for him (B8-1381).
+  * any sheet printed through the profile, a mixed document included: the
+    approved sentence of 2026-09-20, unchanged (the mixed case, B8-1380).
+  * several runs or projects: the approved plural sentence, unchanged
+    (B8-1383).
+* The accepted raw sentence does not end with "The measurements it covers
+  are listed under Report Scope."; it ships as accepted (B8-1384).
+
+**Status:** the answers are Knut's (46.1); what was built (46.2) NOT
+confirmed; four questions and one analysis with him.

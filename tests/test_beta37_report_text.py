@@ -204,7 +204,7 @@ def test_the_preflight_names_the_bars_own_german_labels():
     d = _de()
     assert not any("Durchgangstyp" in v for v in d.values())
     key = next(k for k in d if k.startswith(
-        "Some of the metrics listed above can be met in only one way"))
+        "Some of the metrics listed above can be answered by a verification"))
     assert f"Lauftyp „{d['Verification']}“" in d[key]
     assert d["Run type:"].startswith("Lauftyp")
 

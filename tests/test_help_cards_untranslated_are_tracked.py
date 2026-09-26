@@ -1066,19 +1066,26 @@ _BUDGET = {
     # 2 translated keys out. German by hand, does not move; each of the
     # twelve others rises by exactly 3. COUNTED off the tree, BOTH ledgers
     # in the same commit.
+    # RE-MEASURED 2026-09-26, K56 (Knut #182 5848287278; B8-1374,
+    # B8-1377): the pre-flight's FROM PROFILE GAMUT paragraph revised as he
+    # accepted it (its old key left every catalogue), and the two openings of
+    # a report whose sheets were all printed raw, 3 keys in, 1 out. German by
+    # hand, does not move; each of the twelve others rises by exactly 2 (3
+    # English placeholders in, 1 out). COUNTED off the tree with this file's
+    # own expression, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 1058,
-    "fr": 1059,
-    "it": 1058,
-    "ja": 1058,
-    "nl": 1058,
-    "no": 1058,
-    "pl": 1058,
-    "pt": 1058,
-    "ru": 1057,
-    "sv": 1058,
-    "zh_CN": 1057,
-    "uk": 1200,
+    "es": 1060,
+    "fr": 1061,
+    "it": 1060,
+    "ja": 1060,
+    "nl": 1060,
+    "no": 1060,
+    "pl": 1060,
+    "pt": 1060,
+    "ru": 1059,
+    "sv": 1060,
+    "zh_CN": 1059,
+    "uk": 1202,
 }
 
 

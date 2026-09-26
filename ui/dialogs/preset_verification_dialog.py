@@ -147,7 +147,8 @@ class PresetRow:
 #: entry, and `tests/test_the_preset_window_says_what_is_missing.py` fails when
 #: one does not, because a row that says only "✕" teaches nobody anything.
 def _solids_reason() -> str:
-    """The body of M-VERIFY-SOLIDS-REASON (§M-PROPOSED), translated."""
+    """The body of M-VERIFY-SOLIDS-REASON (§M, approved by Knut in
+    5848287278), translated."""
     from workflow import measurement_messages as M
     return M.M_VERIFY_SOLIDS_REASON.render()[1]
 
@@ -159,7 +160,8 @@ def reason_line(code: str) -> str:
         # only ever given to the two solid rows (`_condition_it_would_get`,
         # CONDITION_BEFORE_PRINTING), and "carries no colorimetric
         # reference" stopped being why once K49/K51 compared them with the
-        # profile. §M-PROPOSED M-VERIFY-SOLIDS-REASON says why, both ways.
+        # profile. §M M-VERIFY-SOLIDS-REASON (approved, 5848287278) says why,
+        # both ways.
         MR.REASON_NEEDS_REFERENCE_FILE:
             _solids_reason(),
         MR.REASON_NO_REFERENCE:

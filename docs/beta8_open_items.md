@@ -30095,24 +30095,28 @@ would reach.
 - tests: tests/test_c8_drift_checks_and_dash_rows.py
 - evidence: test_n_a_on_the_three_rows_does_not_make_a_drift_check_judge
 
-### B8-1373 · FIXED, awaiting confirmation · The pre-flight and the presets window blamed a missing colorimetric reference for the two solid rows
+### B8-1373 · FIXED, wording APPROVED by Knut · The pre-flight and the presets window blamed a missing colorimetric reference for the two solid rows
 - blocks release: no
 - severity: MINOR
 - status: FIXED
 - found by: challenge round 8 of beta 44, C5 (`~/Desktop/ChromIQ-beta44-proof/challenge-8/preflight/`).
-- note: Under "Maximum ΔE00, solid colours" and "Maximum ΔH*ab, cyan, magenta and yellow solids" both windows said "This chart carries no colorimetric reference." Since K49/K51 those rows are compared with the profile's prediction, and judged on a raw print; what withholds them on a verification is that it is printed through its profile, which converts the solid patches. Neither window can know yet how the sheet will be printed, so the line now says both cases: M-VERIFY-SOLIDS-REASON, proposed in §M-PROPOSED, shown while it waits (as M-VERIFY-UNCHECKED-METRICS is), German by hand. Wording in spec 45.9.
+- note: Under "Maximum ΔE00, solid colours" and "Maximum ΔH*ab, cyan, magenta and yellow solids" both windows said "This chart carries no colorimetric reference." Since K49/K51 those rows are compared with the profile's prediction, and judged on a raw print; what withholds them on a verification is that it is printed through its profile, which converts the solid patches. Neither window can know yet how the sheet will be printed, so the line now says both cases: M-VERIFY-SOLIDS-REASON, proposed in §M-PROPOSED, shown while it waits (as M-VERIFY-UNCHECKED-METRICS is), German by hand. Wording in spec 45.9. **APPROVED by Knut in #182 5848287278** (2026-09-26, K56: *"Regarding 'For your approval (M-VERIFY-SOLIDS-REASON)' Answer: Approved."*): moved out of §M-PROPOSED into §M, and out of `AWAITING_APPROVAL` in `tests/test_message_catalogue.py`. What the two windows do with it (the behaviour) still awaits his confirmation.
 - where: `ui/dialogs/preset_verification_dialog.py` (`reason_line`), `workflow/measurement_messages.py`, `docs/design/unified_measurement_management.md`, `data/i18n/*.json`.
 - tests: tests/test_c8_drift_checks_and_dash_rows.py
 - evidence: test_the_solid_rows_reason_is_true_both_ways
 - proof: ~/Desktop/ChromIQ-beta44-proof/fixes-8-report/ (preflight/, NOTES.txt)
 
-### B8-1374 · OPEN · The pre-flight's FROM PROFILE GAMUT paragraph says the solid metrics are "judged against a colorimetric reference", and its count does not know how the sheet was printed
+### B8-1374 · FIXED, awaiting confirmation · The pre-flight's FROM PROFILE GAMUT paragraph says the solid metrics are "judged against a colorimetric reference", and its count does not know how the sheet was printed
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: fixing B8-1373.
 - note: M-VERIFY-PREFLIGHT's approved paragraph (`M_VERIFY_PREFLIGHT_GAMUT`) says "Some of the metrics listed above can be met in only one way: they are judged against a colorimetric reference, and ChromIQ writes one only beside a chart built with FROM PROFILE GAMUT". Since K49 those rows are compared with the profile's prediction, not with a reference file, and since K51 a raw print answers them too (as a drift check). "Only one way" is still true of a verification printed through its profile. A revision of approved text is Knut's; suggested: "Some of the metrics listed above can be answered by a verification in only one way: its solid patches must be printed as they are, and a chart printed through its profile converts them. A chart built with FROM PROFILE GAMUT in the Create Chart tab prints them as they are." Separately, the pre-flight's count ("can answer 14 of the 18 metrics") is worked out from the chart alone; where the sheet is already recorded as printed raw, the two solid rows would be answered (against the profile). Making the count read the print record is a change to `preset_eligibility`, which the presets window shares.
+- fix (K56): the suggested paragraph was **accepted by Knut in #182 5848287278** (*"Answer: Accepted."*) and ships verbatim as the first paragraph of `M_VERIFY_PREFLIGHT_GAMUT`; the second paragraph (approved in 5816565326) is unchanged. §M records the revision as his. German by hand. The count is NOT changed here: it moves to B8-1382.
 - where: `workflow/measurement_messages.py` (`M_VERIFY_PREFLIGHT_GAMUT`), `ui/tabs/tab_measure.py` (`_show_verification_preflight_now`), `workflow/preset_eligibility.py` (`_condition_it_would_get`).
+- tests: tests/test_k56_rulings.py
+- evidence: test_the_gamut_paragraph_is_knuts_accepted_revision
+- proof: ~/Desktop/ChromIQ-beta44-proof/k56/preflight/ (en, de)
 
 ### B8-1375 · FIXED, awaiting confirmation · A Printing record's guide said "every value in it reads INFO" above rows that read N-A
 - blocks release: no
@@ -30136,13 +30140,17 @@ would reach.
 - evidence: test_a_sheet_printed_through_the_profile_is_not_told_about_raw_prints
 - proof: ~/Desktop/ChromIQ-beta44-proof/fixes-8-report/ (report/*/A0)
 
-### B8-1377 · OPEN · A report of raw drift checks opens with "It was verified by printing a chart through that profile"
+### B8-1377 · FIXED, awaiting confirmation · A report of raw drift checks opens with "It was verified by printing a chart through that profile"
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: challenge round 8 of beta 44, C6 (Border-Conditions run3).
 - note: The opening sentence of a verification report is Knut's approved wording (2026-09-20): "This report judges the profile built in {where}. It was verified by printing a chart through that profile, measuring it, and comparing the measurements with the chart's own aim values." On a document whose sheets were all printed raw the second sentence is false. Not changed, because it is approved text. Suggested for a document of raw sheets only: "This report follows the printer behind the profile built in {where}. Its sheets were printed without the profile, measured, and compared with the chart's own aim values; the paper and the solid colours are judged against the profile." (a mixed document would need its own). For Knut.
-- where: `ui/dialogs/measurement_report_dialog.py` (the opening sentence of a verification report).
+- fix (K56): **accepted by Knut in #182 5848287278** (*"Answer: Accepted."*). `_what_this_report_judges` gives it where EVERY sheet of the document is a raw drift check (`_is_raw_drift`) and every column judged its paper or solid rows (`_drift_judges`), verbatim. Where every sheet is raw and a column judged nothing (ChromIQ's own sets put "–" on those rows; no readable profile makes them N-A), the clause "the paper and the solid colours are judged against the profile" would be false, and the sentence stops before it (B8-1381). A document with any sheet printed through the profile keeps the approved sentence (B8-1380). A document across several runs keeps the approved plural sentence (B8-1383). German by hand: "Dieser Bericht verfolgt den Drucker, zu dem das Profil gehört, das in {where} erstellt wurde. Seine Bögen wurden ohne das Profil gedruckt, gemessen und mit den Zielwerten des Charts verglichen; das Papier und die Volltonfarben werden gegen das Profil beurteilt."
+- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
+- tests: tests/test_k56_rulings.py
+- evidence: test_a_report_of_raw_sheets_that_judged_opens_with_knuts_sentence
+- proof: ~/Desktop/ChromIQ-beta44-proof/k56/report/ (en, de; window and PDF)
 
 ### B8-1378 · OPEN · The Colour accuracy graph's description names "the lowest 95 % and the highest 5 %" where the set leaves those rows at "–"
 - blocks release: no
@@ -30151,3 +30159,61 @@ would reach.
 - found by: the B8-1371 proof (`~/Desktop/ChromIQ-beta44-proof/fixes-8-report/saved-b43/after/en/en-saved-iso7.pdf`): under ISO 12647-7 the graph plots two rows, and its fixed description still reads "The average and the maximum, the lowest 95 % and the highest 5 %."
 - note: the description is one fixed sentence for every set; the legend and the line notes follow the set since B8-1371. Wants a sentence that names only what is plotted, or none of the populations. Not changed here.
 - where: `ui/dialogs/measurement_report_dialog.py` (the Colour accuracy graph's description, `_TREND_ABOUT_DE_JUDGED`).
+
+### B8-1380 · OPEN · QUESTION: a report that mixes raw sheets and sheets printed through the profile has no true opening sentence
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: building B8-1377 (K56).
+- note: Knut accepted an opening for a document of raw sheets only (#182 5848287278). A document holding both kinds keeps the approved sentence "It was verified by printing a chart through that profile", which is true of the sheets printed through it and not of the raw ones; nothing was invented for it. Question for Knut, with a suggestion: "This report judges the profile built in {where}. Some of its sheets were printed through that profile and compared with the chart's own aim values; the others, marked “drift”, were printed without it. The measurements it covers are listed under Report Scope."
+- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
+
+### B8-1381 · OPEN · QUESTION: "the paper and the solid colours are judged against the profile" is false under ChromIQ's own sets, so a raw report there stops before it
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: checking Knut's accepted sentence of B8-1377 against the code (K56).
+- note: Measured on the code: `drift_check_judges` is true only where one of the paper and solid rows reads PASS or FAIL. ChromIQ default, tight and Quick check put "–" on all three, so they are not in the report and the column reads "drift" in every cell; with no readable profile the three read N-A and the column also judges nothing (B8-1372). There the clause would be false. Shipped (every word Knut's, none added): the sentence stops after "compared with the chart's own aim values." Question for Knut: approve that shortened form, or reword it, e.g. "...; the paper and the solid colours are judged against the profile where the limit set has a limit for them."
+- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
+- tests: tests/test_k56_rulings.py
+- evidence: test_a_report_of_raw_sheets_that_judged_nothing_makes_no_claim
+
+### B8-1382 · OPEN · The pre-flight's count ("can answer 14 of the 18 metrics") does not know how the sheet was printed
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: B8-1374, split off when its paragraph was fixed (K56).
+- note: The count is worked out from the chart alone; where the sheet is already recorded as printed raw, the two solid rows would be answered (against the profile). Making it read the print record is a change to `preset_eligibility`, which the presets window shares. Not changed.
+- where: `workflow/preset_eligibility.py` (`_condition_it_would_get`), `ui/tabs/tab_measure.py`.
+
+### B8-1383 · OPEN · QUESTION: a report of raw sheets across several runs still says "Each was verified by printing a chart through its profile"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: building B8-1377 (K56).
+- note: Knut accepted a singular sentence ("the profile built in {where}"). A document across runs keeps the approved plural sentence, which is false where every sheet was printed raw. Suggested: "This report follows the printers behind the profiles built in {where}. Their sheets were printed without the profiles, measured, and compared with the charts' own aim values." (with the judged clause where every column judged). For Knut.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
+
+### B8-1384 · OPEN · QUESTION: the accepted raw opening no longer points at Report Scope
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: building B8-1377 (K56).
+- note: The approved through-profile sentence ends "The measurements it covers are listed under Report Scope.", which is how a reader finds the dates (Knut, 2026-09-20: the dates must be traceable). The accepted raw sentence ends without it and ships verbatim. Question for Knut: append that sentence to the raw openings too?
+- where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`).
+
+### B8-1385 · OPEN · QUESTION (Knut K56 Q1): a raw sheet's cells read "drift" where nothing has been shown to drift, and where a metric cannot be worked out
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: Knut, #182 5848287278, answer to question 1 (B8-1372): "if a metric is N-A, for example when a profile file is missing, then how can one claim the numbers represent "drift"? I claim it should say N-A ... The drift, in my view, can only be read from the trend-graphs, not from a single verification measurement".
+- note: Analysis for him, no code changed: `~/Desktop/ChromIQ-beta44-proof/k56/ANALYSIS-drift.txt` (industry practice: ISO 12647-2 deviation vs variation, Fiery, ChromaChecker, Alwan, Epson, G7, SPC; options with consequences; recommendation). Recommended: a raw sheet's unjudged cells show the number marked as information, a row that cannot be worked out reads N-A with its note, the word "drift" is kept for the comparison with the previous raw check and the trend graphs. Waits for his choice.
+- where: `ui/dialogs/measurement_report_dialog.py` (the results cells, `_summary_cell`, the drift sentence and guide), `workflow/measurement_report.py` (`drift_check_judges`).
+
+### B8-1386 · OPEN · The pre-flight's and the presets window's FROM PROFILE GAMUT state line still speaks of a "colorimetric reference" the three metrics are judged against
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the K56 proof, `~/Desktop/ChromIQ-beta44-proof/k56/preflight/en/photographs/01-trigger-clicking-the-measure-tab.png`: the line stands six lines above Knut's revised paragraph.
+- note: `_gamut_state_line` says "This chart was not built with From Profile Gamut, so it carries no colorimetric reference." and, for a converted chart, "... so it carries the colorimetric reference the three reference metrics are judged against." Since K49 the paper row and the two solid rows are compared with the profile's prediction, not with that reference, which is the reason M-VERIFY-SOLIDS-REASON and the revised paragraph were written. The first sentence is still literally true (no reference file is written), the second is not. Our text, not approved text; not changed here because Knut's two new texts are the ones he has seen. Suggested: "This chart was not built with From Profile Gamut, so printed through its profile its solid patches are converted." / "This chart was built with From Profile Gamut, so it prints its solid patches as they are."
+- where: `ui/dialogs/preset_verification_dialog.py` (`_gamut_state_line`).

@@ -1473,18 +1473,25 @@ _IDENTICAL_TO_KEY = {
     # not move; each of the twelve others rises by exactly 3 net (5 English
     # placeholders in, the two retired translations out). COUNTED off the
     # tree with this file's own expression.
+    # RE-MEASURED 2026-09-26, K56 (Knut #182 5848287278; B8-1374,
+    # B8-1377): the pre-flight's FROM PROFILE GAMUT paragraph revised as he
+    # accepted it (its old key left every catalogue), and the two openings of
+    # a report whose sheets were all printed raw, 3 keys in, 1 out. German by
+    # hand, does not move; each of the twelve others rises by exactly 2 (3
+    # English placeholders in, 1 out). COUNTED off the tree with this file's
+    # own expression, BOTH ledgers in the same commit.
     "de": 141,
-    "es": 1405,
-    "fr": 1427,
-    "it": 1416,
-    "ja": 1391,
-    "nl": 1431,
-    "no": 1417,
-    "pl": 1409,
-    "pt": 1407,
-    "ru": 1380,
-    "sv": 1418,
-    "zh_CN": 1385,
+    "es": 1407,
+    "fr": 1429,
+    "it": 1418,
+    "ja": 1393,
+    "nl": 1433,
+    "no": 1419,
+    "pl": 1411,
+    "pt": 1409,
+    "ru": 1382,
+    "sv": 1420,
+    "zh_CN": 1387,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1513,8 +1520,8 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 1558,
-    "uk": 1558,
+    "uk": 1560,
+    "uk": 1560,
 }
 
 

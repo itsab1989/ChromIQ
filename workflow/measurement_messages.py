@@ -1036,17 +1036,27 @@ M_VERIFY_PREFLIGHT = _m(
 #: the same breath, said he was *"not sure about all the required conditions
 #: for 'From Profile Gamut' feature to be visible"*. They were measured for
 #: B8-613 and this says what they are.
+#:
+#: **ITS FIRST PARAGRAPH IS A REVISION KNUT ACCEPTED (B8-1374, #182
+#: 5848287278: "Accepted.").** It said the metrics "are judged against a
+#: colorimetric reference, and ChromIQ writes one only beside a chart built
+#: with FROM PROFILE GAMUT", which K49 and K51 made untrue: the two solid rows
+#: are compared with the profile's prediction, and a raw print answers them.
+#: What really withholds them from a verification is that it is printed
+#: through its profile, which converts the solid patches. His words, verbatim;
+#: the second paragraph is the one he approved in 5816565326, unchanged.
 M_VERIFY_PREFLIGHT_GAMUT = (
-    "Some of the metrics listed above can be met in only one way: they are "
-    "judged against a colorimetric reference, and ChromIQ writes one only "
-    "beside a chart built with FROM PROFILE GAMUT in the Create Chart tab.\n\n"
+    "Some of the metrics listed above can be answered by a verification in "
+    "only one way: its solid patches must be printed as they are, and a chart "
+    "printed through its profile converts them. A chart built with FROM "
+    "PROFILE GAMUT in the Create Chart tab prints them as they are.\n\n"
     "That button sits beside GUIDED and MANUAL whenever Run type is "
     "Verification. Before it can choose any colours the run must already hold "
     "a built profile, and it lays the sheet out again from scratch.")
 
 
-# --- PROPOSED: why a chart cannot answer the two solid rows (challenge 8,
-# C5; B8-1373) ------------------------------------------------------------
+# --- APPROVED: why a chart cannot answer the two solid rows (challenge 8,
+# C5; B8-1373; Knut, #182 5848287278: "Approved.") -------------------------
 #: The reason line under "Maximum ΔE00, solid colours" and "Maximum ΔH*ab,
 #: cyan, magenta and yellow solids", in the presets window and in the Measure
 #: tab's pre-flight (M-VERIFY-PREFLIGHT's metric list). Only the BODY is
@@ -1067,7 +1077,9 @@ M_VERIFY_SOLIDS_REASON = _m(
     "the report cannot judge them. Printed without a profile, its solids are "
     "judged against the profile and its other metrics are shown for "
     "information only.",
-    approved=False)
+    # Knut, #182 5848287278, 2026-09-26: "Regarding 'For your approval
+    # (M-VERIFY-SOLIDS-REASON)' Answer: Approved."
+    approved=True)
 
 
 #: The one line the PRE-FLIGHT carries, where the full paragraph below is what
