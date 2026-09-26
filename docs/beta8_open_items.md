@@ -29876,6 +29876,8 @@ would reach.
 - note: a question for Knut.
 - found by: beta 44 challenge round 9. `tab_chart.py:8650` "Layout preset: … ● modified" sits in the tab whose presets button tooltip says ● marks a chart made for verification (B8-1387). It also shows in a fresh factory session and after a built-in preset loads (as in beta 43).
 - answered: Knut, #182 5849622329: "No, they are in different window and there is no confustion." No change.
+- decided by: Knut
+- because: the "● modified" line is in Create Chart and the ● verification mark is in the presets window, so the two never appear together and do not confuse (Knut, #182 5849622329).
 
 ### B8-1402 · OPEN · Clip border: an Offset Y moves the branding wordmark into the text, and `clip_content_when_on` does not travel in build kwargs
 - blocks release: no
