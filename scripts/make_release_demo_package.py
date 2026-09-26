@@ -409,6 +409,9 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Create Chart presets (verification demos): “Which presets can be used for verification?”: a chart made for verification is marked ●, and the line under the pulldowns says so (B8-1387)",
         "not a project: Preferences > Chart Layout, ColorMunki, SpectroScan or CR30, Clip border Off: a Content chosen there leaves it Off and is the content it takes when switched On (B8-1388)",
     ]),
+    ("§48", "K58:", [
+        "not a project: Create Chart > Manual, i1Pro with the clip border, Content ChromIQ branding with a few lines of Text: the wordmark at the end of the band where the Notes box puts its own, for Side Left/Right and Flip 180 Off/On (B8-1390)",
+    ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
     ]),

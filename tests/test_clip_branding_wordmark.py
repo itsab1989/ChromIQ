@@ -1,22 +1,29 @@
-"""#163 — the clip-border branding must print the branding AND the user's lines.
+"""The clip-border "ChromIQ branding": the wordmark AND the user's lines, with
+the wordmark at the END of the band, where the Notes box puts its own.
 
-soul-traveller: *"the clip-border ChromIQ branding option ... shows the icon
-only if there is no text, and if there is text only the text without the icon
-is shown"*.
+#163 (soul-traveller): *"the clip-border ChromIQ branding option ... shows the
+icon only if there is no text, and if there is text only the text without the
+icon is shown"*. The wordmark lost a fight for the band's width it could not
+win.
 
-The wordmark never vanished outright: it lost a fight it could not win. The
-fit-to-band loop shrank ONLY the wordmark, so with a clip-text size set every
-millimetre the lines took came out of the branding until it was a few pixels
-tall — and once the lines alone were larger than the band, the loop ran out of
-steps and they were printed off the edge of the sheet.
+K58 (Knut, #182 5730034611, and 5848747795 when he found it still missing):
+the wordmark was centred along the strip with the lines stacked ACROSS the band
+beside it, so every line of text made it smaller. His design: *"placed in the
+same way as for the "Notes box", at the bottom of the clip-border text field
+(given that Flip 180 is off), or when Flip 180 is ON it is placed on the top
+side ... centred against the width of the clip-border text area ... 3 to 4 mm
+space after the image before the text in Text field is placed"*, the text in
+the box that is left. The #163 fitter that shared the band across went with
+it: the wordmark is sized by the band alone now.
 
-Two kinds of test here, because each catches what the other cannot:
+Two kinds of test:
 
-* the RULE, against :func:`_fit_branding_sizes` — exact sizes, so a fix that is
-  subtly too greedy for the wordmark, or that quietly shrinks a size the user
-  asked for, fails here rather than hiding inside a tolerance;
-* the PICTURE, against the rendered band — every line present, nothing cut off,
-  the branding actually inked, which is all the printed sheet really promises.
+* the BAND, from `render_clip_strip` itself: the wordmark at the bottom end,
+  as large with six lines as with none, and every line present in the box
+  beyond it, clear of the wordmark by the gap, not cut off;
+* the PAGE, from `render_pages` on a real layout, Side Left and Right x Flip
+  180 Off and On: the branding's wordmark at the same end as the Notes box's,
+  in all four.
 """
 from __future__ import annotations
 
@@ -24,143 +31,20 @@ import numpy as np
 import pytest
 
 from workflow.layout_engine import raster
-from workflow.layout_engine.raster import (_CLIP_ACROSS, _CLIP_ALONG,
-                                           _WORDMARK_FLOOR_FRAC,
-                                           _fit_branding_sizes)
 
 DPI = 200
 MM = DPI / 25.4
 PAGE_MM = 297.0
 LINES = ["Knut Petersen", "Epson P900", "Hahnemuehle Photo Rag",
          "Glossy 310", "2026-08-21", "run 3"]
-LONG_LINE = "Hahnemuehle Photo Rag 308 gsm " * 8          # 240 characters
 
-# The band widths and clip-text sizes the UI can actually produce: the clip-width
-# spin starts at 10 mm (layout_options_panel: clip_width.setMinimum) and the size
-# spin runs to 72 pt = 25.4 mm. The first version of these tests stopped at 12 mm
-# and 8 mm — inside the old shrink loop's reach, which is why it missed that the
-# loop could not converge.
+# The band widths the UI can produce (the clip-width spin starts at 10 mm).
 BANDS = [10, 12, 16, 20, 24, 30, 40]
-SIZES = [0.0, 2.0, 3.0, 4.23, 6.0, 8.0, 14.0, 25.4]
 COUNTS = [0, 1, 2, 3, 5, 6]
 
 
-# ---------------------------------------------------------------------------
-# the rule
-# ---------------------------------------------------------------------------
-
-def _fit(band_mm: float, size_mm: float, nlines: int, lines=None):
-    w = int(round(band_mm * MM))
-    return _fit_branding_sizes(
-        list(lines if lines is not None else LINES[:nlines]), w,
-        int(round(PAGE_MM * MM)), "Inter", size_mm * MM), w
-
-
-@pytest.mark.parametrize("band_mm", BANDS)
-@pytest.mark.parametrize("size_mm", SIZES[1:])
-@pytest.mark.parametrize("nlines", COUNTS)
-def test_the_stack_always_fits_across_the_band(band_mm, size_mm, nlines):
-    """Whatever the user asks for, the stack fits — it is never printed off the
-    band. The old loop stepped 40 × 0.95, which bottoms out at ×0.129, so a size
-    far above what the band holds still overflowed."""
-    (size, esize), w = _fit(band_mm, size_mm, nlines)
-    stack = size * 1.25 + nlines * esize * 1.25
-    assert stack <= w * _CLIP_ACROSS + 1, (
-        f"stack {stack:.0f}px over a {w}px band (wordmark {size}, lines {esize})")
-
-
-@pytest.mark.parametrize("band_mm,size_mm,nlines", [
-    (24, 2.0, 1), (24, 3.0, 3), (30, 4.23, 3), (40, 6.0, 3), (24, 4.23, 1),
-    (16, 2.0, 2), (40, 8.0, 2),
-])
-def test_a_size_that_fits_is_used_exactly_as_asked(band_mm, size_mm, nlines):
-    """The cap may only bite when it has to. A clip-text size the band can hold
-    is rendered at that size — not a few per cent under it."""
-    (_size, esize), _w = _fit(band_mm, size_mm, nlines)
-    assert esize == int(size_mm * MM), (
-        f"asked {size_mm} mm ({int(size_mm * MM)}px), got {esize}px")
-
-
-@pytest.mark.parametrize("band_mm", BANDS)
-@pytest.mark.parametrize("size_mm", SIZES[1:])
-@pytest.mark.parametrize("nlines", [1, 2, 3, 5, 6])
-def test_the_wordmark_never_takes_more_than_its_floor(band_mm, size_mm, nlines):
-    """The branding is protected, not privileged.
-
-    Once the user's lines have to be shrunk, the wordmark must be sitting at its
-    floor — an equal share of the band, and never more than
-    ``_WORDMARK_FLOOR_FRAC`` of its unconstrained size. A greedier floor would
-    quietly halve the user's text to make the logo bigger.
-    """
-    (size, esize), w = _fit(band_mm, size_mm, nlines)
-    if esize >= int(size_mm * MM):
-        return                       # the user's size survived; nothing to trade
-    floor = min(w * _CLIP_ACROSS / (1 + nlines) / 1.25,
-                w * 0.55 * _WORDMARK_FLOOR_FRAC)
-    assert size <= floor + 1, (
-        f"the wordmark took {size}px (floor {floor:.0f}px) while shrinking the "
-        f"user's lines to {esize}px")
-
-
-@pytest.mark.parametrize("band_mm", BANDS)
-@pytest.mark.parametrize("size_mm", SIZES[1:])
-def test_neither_block_overruns_the_strip_length(band_mm, size_mm):
-    """Along the strip, with a line far too long for the page."""
-    (size, esize), _w = _fit(band_mm, size_mm, 3, lines=[LONG_LINE, "b", "c"])
-    from PIL import Image, ImageDraw
-    d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
-    along = PAGE_MM * MM * _CLIP_ALONG
-    f = raster._font(size, raster.WORDMARK_FONT)
-    wm = d.textlength("Chrom", font=f) + d.textlength("IQ", font=f) * 1.25
-    txt = d.textlength(LONG_LINE, font=raster._font(esize, "Inter"))
-    assert wm <= along + 2, f"the wordmark is {wm:.0f}px along a {along:.0f}px strip"
-    assert txt <= along + 2, f"the line is {txt:.0f}px along a {along:.0f}px strip"
-
-
-def test_the_wordmark_itself_is_capped_by_the_strip_length():
-    """A band wide enough that the WORDMARK is what does not fit lengthways.
-
-    No paper reaches this — the widest clip band the UI allows is 100 mm and the
-    shortest page is far longer — but it is the other half of the same rule, and
-    without it nothing stops the wordmark being sized for the band alone and
-    running off both ends of the strip.
-    """
-    from PIL import Image, ImageDraw
-    d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
-    size, esize = _fit_branding_sizes(["Lab"], 400, 300, "Inter", 40.0)
-    f = raster._font(size, raster.WORDMARK_FONT)
-    wm = d.textlength("Chrom", font=f) + d.textlength("IQ", font=f) * 1.25
-    assert wm <= 300 * _CLIP_ALONG + 2, (
-        f"the wordmark is {wm:.0f}px along a {300 * _CLIP_ALONG:.0f}px strip")
-    assert size * 1.25 + esize * 1.25 <= 400 * _CLIP_ACROSS + 1
-
-
-def test_a_long_line_of_the_users_does_not_shrink_the_wordmark():
-    """The two axes are separate. A line too long for the STRIP is the line's
-    problem — shrinking the wordmark does nothing to relieve it, and costs the
-    branding for free."""
-    short, _w = _fit(24, 4.23, 1, lines=["Lab"])
-    long_, _w = _fit(24, 4.23, 1, lines=[LONG_LINE])
-    assert long_[0] == short[0], (
-        f"a 240-character line shrank the wordmark from {short[0]} to {long_[0]}")
-
-
-@pytest.mark.parametrize("band_mm,nlines,expect", [
-    (24, 0, 103), (24, 1, 65), (24, 3, 32), (16, 3, 21), (40, 5, 36),
-])
-def test_the_automatic_size_is_untouched(band_mm, nlines, expect):
-    """With no size set, wordmark and lines share one auto-fitted size — the
-    long-standing behaviour, pinned exactly. #163 is about the case where a size
-    IS set; the default must come through the fix unchanged."""
-    (size, esize), _w = _fit(band_mm, 0.0, nlines)
-    assert size == esize == expect
-
-
-# ---------------------------------------------------------------------------
-# the picture
-# ---------------------------------------------------------------------------
-
-def _band(band_mm: float, size_mm: float, nlines: int, font: str = "Inter"):
+def _band(band_mm: float, nlines: int, size_mm: float = 0.0,
+          font: str = "Inter"):
     w = int(round(band_mm * MM))
     img = raster.render_clip_strip(
         "branding", width_px=w, height_px=int(round(PAGE_MM * MM)), dpi=DPI,
@@ -168,66 +52,184 @@ def _band(band_mm: float, size_mm: float, nlines: int, font: str = "Inter"):
     return np.asarray(img.convert("RGB")).astype(int), w
 
 
-def _ink_rows(arr: np.ndarray) -> list[tuple[int, int]]:
-    """Contiguous inked bands ACROSS the strip = one per rendered line."""
-    cols = (arr.sum(axis=2) < 700).any(axis=0)
-    rows, start = [], None
-    for i, v in enumerate(cols):
+def _pink(arr: np.ndarray) -> np.ndarray:
+    """Pixels of the magenta "IQ". Magenta over white keeps red well above
+    green whatever the coverage, while any grey (the black text's antialiased
+    edge) has red == green."""
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    return ((r - g) > 40) & (b > g)
+
+
+def _ink(arr: np.ndarray) -> np.ndarray:
+    return arr.sum(axis=2) < 700
+
+
+def _span(mask_rows: np.ndarray):
+    idx = np.nonzero(mask_rows)[0]
+    return (int(idx[0]), int(idx[-1])) if idx.size else None
+
+
+def _wordmark_along(arr: np.ndarray):
+    """Where the wordmark sits ALONG an upright band: from its top (the
+    magenta "IQ", the far end of a wordmark that reads up the strip) to the
+    last inked row of the band (its "C")."""
+    pink = _span(_pink(arr).any(axis=1))
+    assert pink is not None, "the ChromIQ wordmark is not on the band at all"
+    last = _span(_ink(arr).any(axis=1))[1]
+    return pink[0], last
+
+
+def _runs(mask: np.ndarray) -> "list[tuple[int, int]]":
+    out, start = [], None
+    for i, v in enumerate(mask):
         if v and start is None:
             start = i
         elif not v and start is not None:
-            rows.append((start, i - 1))
+            out.append((start, i - 1))
             start = None
     if start is not None:
-        rows.append((start, len(cols) - 1))
-    return rows
+        out.append((start, len(mask) - 1))
+    return out
 
 
-def _wordmark_row(arr: np.ndarray, rows: list[tuple[int, int]]):
-    """The row carrying the magenta "IQ" — the branding.
+# ---------------------------------------------------------------------------
+# the band
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("band_mm", BANDS)
+@pytest.mark.parametrize("nlines", COUNTS)
+def test_the_wordmark_sits_at_the_bottom_end_and_the_lines_in_the_box(
+        band_mm, nlines):
+    """Upright band (a left band, Flip 180 off): the wordmark against the
+    bottom end, the lines above it, 3.5 mm clear of it, each one present and
+    none cut off at the band's edges.
 
-    Finding it by colour has a trap at each end. A loose distance to
-    (255, 69, 115) — say |c - magenta| < 200 — also matches a mid-grey around
-    115, i.e. the antialiased edge of ordinary BLACK text, so every line of the
-    user's text looks like the wordmark. A tight distance finds nothing once the
-    glyph is small enough that no pixel is fully covered. So test for PINKNESS
-    instead: magenta over white keeps red well above green whatever the
-    coverage, while any grey has red == green.
-    """
-    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
-    cols = (((r - g) > 40) & (b > g)).any(axis=0)
-    return next((row for row in rows if cols[row[0]:row[1] + 1].any()), None)
-
-
-def test_wordmark_survives_a_fixed_clip_text_size():
-    """soul-traveller's own settings: a 24 mm band, three lines at 6 mm.
-
-    Before the fix the wordmark was shrunk to 9 px — about 1 mm on paper, which
-    is what "only the text is shown" looked like."""
-    arr, _w = _band(24, 6.0, 3)
-    rows = _ink_rows(arr)
-    wm = _wordmark_row(arr, rows)
-    assert wm is not None, "the ChromIQ wordmark is not on the band at all"
-    assert len([r for r in rows if r is not wm]) == 3, "one row per line of text"
-    assert (wm[1] - wm[0] + 1) / MM >= 3.0, (
-        f"the wordmark is only {(wm[1] - wm[0] + 1) / MM:.1f} mm tall")
+    MUTATION, proven red: centre the wordmark along the strip again
+    (``x = (L - wm_w) / 2`` in `_vwordmark`)."""
+    arr, w = _band(band_mm, nlines)
+    H = arr.shape[0]
+    lo, hi = _wordmark_along(arr)
+    # 2 mm of end pad, as the Notes box has, plus the "C"'s own side bearing
+    assert H - 1 - hi <= 4.0 * MM, (
+        f"the wordmark ends {(H - 1 - hi) / MM:.1f} mm from the bottom end; "
+        "the Notes box puts it 2 mm from it")
+    box = arr[:max(0, lo - int(3.0 * MM))]
+    rows = _runs(_ink(box).any(axis=0))
+    assert len(rows) == nlines, (
+        f"{len(rows)} lines of ink in the text box, expected {nlines}")
+    if nlines:
+        assert rows[0][0] > 0 and rows[-1][1] < w - 1, \
+            "a line is cut off at the edge of the band"
+        gap = lo - _span(_ink(box).any(axis=1))[1]
+        assert gap >= 3.0 * MM, f"the text is {gap / MM:.1f} mm from the wordmark"
 
 
 @pytest.mark.parametrize("band_mm", BANDS)
-@pytest.mark.parametrize("size_mm", SIZES)
-@pytest.mark.parametrize("nlines", COUNTS)
-def test_branding_band_never_starves_or_clips(band_mm, size_mm, nlines):
-    """Cross every band width, clip-text size and line count.
+def test_text_never_shrinks_the_wordmark(band_mm):
+    """Knut's complaint in one line: *"This results in a very small ChromIQ
+    image, as it becomes smaller for every line of text written"*.
 
-    On the printed band, whatever the combination: every line is there, none of
-    it is cut off at the band edges, and the branding is inked.
-    """
-    arr, w = _band(band_mm, size_mm, nlines)
-    rows = _ink_rows(arr)
-    assert len(rows) == nlines + 1, (
-        f"{len(rows)} ink rows on the band, expected {nlines + 1} "
-        "(the wordmark plus one per line) — a line is missing or two merged")
-    assert rows[0][0] > 0 and rows[-1][1] < w - 1, (
-        "the content is cut off at the edge of the clip band")
-    assert _wordmark_row(arr, rows) is not None, (
-        "the ChromIQ wordmark is not on the band at all")
+    MUTATION, proven red: size the wordmark by the number of lines
+    (``size /= 1 + len(extra_lines)``)."""
+    sizes = []
+    for n in (0, 3, 6):
+        arr, _w = _band(band_mm, n)
+        lo, hi = _wordmark_along(arr)
+        sizes.append(hi - lo)
+    assert max(sizes) - min(sizes) <= 2, (
+        f"the wordmark's length changes with the text: {sizes} px")
+
+
+def test_a_typed_size_is_used_in_the_box():
+    """A typed clip-text Size is the size of the lines (#125), in the box."""
+    arr, _w = _band(24, 1, size_mm=4.0)
+    lo, _hi = _wordmark_along(arr)
+    box = arr[:lo - int(3.0 * MM)]
+    across = _span(_ink(box).any(axis=0))
+    assert across is not None
+    height_mm = (across[1] - across[0] + 1) / MM
+    assert 2.0 <= height_mm <= 4.5, f"a 4 mm line is {height_mm:.1f} mm tall"
+
+
+def test_branding_extra_text_uses_chosen_font():
+    """The lines use the chosen clip font, not the wordmark face (#93)."""
+    a, _ = _band(24, 2, font="Inter")
+    b, _ = _band(24, 2, font="JetBrains Mono")
+    assert not np.array_equal(a, b)
+
+
+# ---------------------------------------------------------------------------
+# the page: Side Left / Right x Flip 180 Off / On, against the Notes box
+# ---------------------------------------------------------------------------
+def _page_band(mode: str, side: str, flip: bool) -> np.ndarray:
+    """The clip band of a real page, rendered by the engine's page renderer
+    (the one Generate uses), cut out by the band's own geometry."""
+    from workflow.layout_engine import geometry, instruments
+    from workflow.layout_engine.presets import default_recipe
+    from workflow.layout_engine.ti1_reader import ColorTarget
+    r = default_recipe("i1", "A4", mode="clip")
+    r.clip_side = side
+    geom = instruments.geom_from_build_kwargs(r.build_kwargs())
+    target = ColorTarget(
+        color_rep="iRGB", device_fields=["RGB_R", "RGB_G", "RGB_B"],
+        patches=[((float(i * 9 % 100), float(i * 17 % 100), float(i * 5 % 100)),
+                  (40.0, 45.0, 50.0)) for i in range(60)])
+    lay = geometry.compute(geom, 210.0, 297.0, 60)
+    dpi = 100
+    text = "Knut Larsson\nEpson P900" if mode == "branding" else ""
+    res = raster.render_pages(
+        target, lay, geom, seed=1, randomize=False, paper_w_mm=210.0,
+        paper_h_mm=297.0, dpi=dpi, clip_content_mode=mode, clip_text=text,
+        clip_flip_180=flip)
+    page = np.asarray(res.images[0].convert("RGB")).astype(int)
+    ax, ay, aw, ah = geometry.clip_area_px(geom, 297.0, dpi, 210.0, 0, 0.0)
+    return page[ay:ay + ah, ax:ax + aw]
+
+
+def _end_of_wordmark(band: np.ndarray) -> str:
+    pink = _span(_pink(band).any(axis=1))
+    assert pink is not None, "no wordmark on the page's clip band"
+    mid = (pink[0] + pink[1]) / 2
+    return "bottom" if mid > band.shape[0] / 2 else "top"
+
+
+@pytest.mark.parametrize("side", ["left", "right"])
+@pytest.mark.parametrize("flip", [False, True])
+def test_the_branding_sits_at_the_same_end_as_the_notes_box(side, flip):
+    """The four combinations Knut named, on the generated page: the branding's
+    wordmark is at the end where the Notes box puts its own.
+
+    MUTATION, proven red: centre the wordmark along the strip again."""
+    notes = _page_band("notes", side, flip)
+    brand = _page_band("branding", side, flip)
+    assert _end_of_wordmark(brand) == _end_of_wordmark(notes)
+    pn = _span(_pink(notes).any(axis=1))
+    pb = _span(_pink(brand).any(axis=1))
+    H = notes.shape[0]
+    # at the very end: the branding's IQ lies within the outer quarter of the
+    # strip, on the Notes box's side
+    if _end_of_wordmark(notes) == "bottom":
+        assert pb[1] > H * 0.75 and pn[1] > H * 0.75
+    else:
+        assert pb[0] < H * 0.25 and pn[0] < H * 0.25
+
+
+def test_a_line_that_fills_the_box_keeps_the_gap_to_the_wordmark():
+    """A line long enough to fill its box reaches the box's end, and the box
+    ends 3 to 4 mm before the wordmark (Knut: "3 to 4 mm space after the
+    image before the text").
+
+    MUTATION, proven red: let the box run up to the wordmark
+    (``box_len = int(L - (pad + ink_w))``)."""
+    w = int(round(24 * MM))
+    img = raster.render_clip_strip(
+        "branding", width_px=w, height_px=int(round(PAGE_MM * MM)), dpi=DPI,
+        text=("Hahnemuehle Photo Rag 308 gsm, Epson SureColor P900, "
+              "profiled 2026-08-21 by Knut, run 3 of the verification series. ") * 3)
+    arr = np.asarray(img.convert("RGB")).astype(int)
+    lo, _hi = _wordmark_along(arr)
+    box = arr[:lo]
+    rows = _ink(box).any(axis=1)
+    text_end = _span(rows)[1]
+    gap_mm = (lo - text_end) / MM
+    # the box starts 3.5 mm on; a line this long fills it (`_vtext` 99.5 %)
+    assert 3.0 <= gap_mm <= 5.0, f"the text ends {gap_mm:.1f} mm before the wordmark"

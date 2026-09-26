@@ -1468,7 +1468,8 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
                                  extra_size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
                                  scale=image_scale,
                                  offset_x_px=image_offset_x_mm * mm2px,
-                                 offset_y_px=image_offset_y_mm * mm2px)
+                                 offset_y_px=image_offset_y_mm * mm2px,
+                                 dpi=dpi, anchor_far=anchor_far)
         except Exception:  # noqa: BLE001 — a blank band, never a crashed slot
             # The imported-image branch above has always swallowed its failures;
             # the branding one could not fail until it gained a scale, and then
@@ -1520,13 +1521,10 @@ def _italic_tile(text: str, font, fill: tuple, stroke_w: int = 0,
     return sheared, base_y, (bbox[0] if bbox else 0)
 
 
-#: The clip band's usable share across (0.92) and along it (0.99). The clip AREA
-#: already keeps the text-edge distance from the page edge, so don't inset twice.
-_CLIP_ACROSS, _CLIP_ALONG = 0.92, 0.99
-#: The wordmark is protected down to an equal share of the band — but never asks
-#: for more than this fraction of its unconstrained size, so a user who sets a
-#: big clip-text size with one or two lines keeps the size they asked for (#163).
-_WORDMARK_FLOOR_FRAC = 0.40
+#: The smallest wordmark the branding draws, in px. (The #163 fitter that
+#: shared the band ACROSS between the wordmark and the user's lines, and its
+#: floor, went with K58: the wordmark sits at the end of the band now, sized
+#: by the band alone, and the lines have the box beyond it.)
 _BRANDING_MIN_PX = 8
 #: How far past the band's own width the branding may be scaled (#164). The
 #: wordmark is laid ACROSS the band, so a few times its width is already one
@@ -1541,171 +1539,135 @@ _MAX_BRANDING_SIZE_FACTOR = 4.0
 #: and the glyph tile it implies (~46 Mpx) stays under Pillow's WARNING threshold
 #: as well as its hard limit — an alarming message on stderr is not a fix either.
 _MAX_BRANDING_SIZE_PX = 4000.0
-
-
-def _fit_branding_sizes(extra_lines: list[str], width_px: int, height_px: int,
-                        font_family: str = "Inter",
-                        extra_size_px: float = 0.0) -> tuple[int, int]:
-    """Font sizes for the branding clip band: ``(wordmark, extra lines)``.
-
-    Split out of the drawing so the RULE can be tested exactly instead of being
-    inferred from ink (#163).
-
-    With no clip-text size set, one size serves the whole stack and shrinks to
-    fit — the long-standing automatic behaviour, left untouched.
-
-    With a size set, the wordmark gives way first: it shrinks until it reaches
-    its floor, and only then do the user's lines shrink with it. Both sizes are
-    SOLVED rather than stepped down: the old loop stepped 40 × 0.95, which
-    bottoms out at ×0.129, so a size far above what the band can hold still
-    overflowed and printed off the edge of the sheet.
-
-    The two axes are kept apart. Across the band the wordmark and the lines
-    share one budget. ALONG the strip each is limited only by its own longest
-    line — otherwise a long line of the user's shrinks the wordmark it does not
-    crowd, and a long wordmark crushes the user's text to nothing.
-    """
-    d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
-    k = len(extra_lines)
-    n = 1 + k
-    across, along = width_px * _CLIP_ACROSS, height_px * _CLIP_ALONG
-    natural = width_px * 0.55
-
-    if not extra_size_px:
-        # AUTO: one size for wordmark and lines alike, shrunk to fit. Unchanged
-        # — this is the default, and it was never what #163 was about.
-        size = max(10, int(natural))
-        for _ in range(40):
-            f = _font(size, WORDMARK_FONT)
-            f_extra = _font(size, font_family)
-            wm_w = d.textlength("Chrom", font=f) + d.textlength("IQ", font=f) * 1.25
-            widest = max([wm_w] + [d.textlength(l, font=f_extra) for l in extra_lines])
-            if size * 1.25 * n <= across and widest <= along:
-                break
-            size = int(size * 0.9)
-            # The floor used to be 10 px, and the loop left the stack OVER the
-            # band when even 10 px could not fit it — a narrow band with several
-            # lines then printed them off the edge. Every case that already
-            # fitted breaks out above and is untouched (#163).
-            if size <= _BRANDING_MIN_PX:
-                size = _BRANDING_MIN_PX
-                break
-        return size, size
-
-    # Advance widths scale linearly with the point size, so one measurement at a
-    # reference size gives the largest size each block may take along the strip.
-    ref = 100
-    f_ref = _font(ref, WORDMARK_FONT)
-    wm_ref = (d.textlength("Chrom", font=f_ref)
-              + d.textlength("IQ", font=f_ref) * 1.25)
-    txt_ref = max((d.textlength(l, font=_font(ref, font_family))
-                   for l in extra_lines), default=0.0)
-    size_along = (along * ref / wm_ref) if wm_ref > 0 else float(width_px)
-    esize_along = (along * ref / txt_ref) if txt_ref > 0 else float(width_px)
-
-    size = min(natural, size_along)
-    esize = min(float(extra_size_px), esize_along)
-    if size * 1.25 + k * esize * 1.25 > across:
-        floor = min(across / n / 1.25, natural * _WORDMARK_FLOOR_FRAC, size_along)
-        size = max(min(size, (across - k * esize * 1.25) / 1.25), floor)
-        if k and size * 1.25 + k * esize * 1.25 > across:
-            esize = (across - size * 1.25) / (k * 1.25)
-    return (max(_BRANDING_MIN_PX, int(size)),
-            max(_BRANDING_MIN_PX, int(esize)))
+#: K58: where the user's text box starts, past the wordmark's last ink, in mm
+#: (Knut, #182 5730034611: "3 to 4 mm space after the image before the text
+#: in Text field is placed"). A line shorter than the box is centred in it, so
+#: the space a reader sees is this or more.
+_BRANDING_TEXT_GAP_MM = 3.5
+#: K58: the longest share of the strip the wordmark may take, so a wide band on
+#: a short page keeps room for the lines.
+_BRANDING_MAX_LEN_FRAC = 0.35
 
 
 def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
                font_family: str = "Inter", extra_size_px: float = 0.0,
                scale: float = 100.0, offset_x_px: float = 0.0,
-               offset_y_px: float = 0.0) -> Image.Image:
+               offset_y_px: float = 0.0, dpi: float = 200.0,
+               anchor_far: bool = False) -> Image.Image:
     """The masthead "ChromIQ" wordmark — Instrument Serif, "Chrom" near-black,
-    "IQ" bold-italic in magenta — plus optional lines, read up the strip. The
-    optional lines use *font_family* (the user's chosen clip font), not the
-    wordmark face (#93, Knut).
+    "IQ" italic in magenta — AT THE END OF THE BAND, and the user's lines in
+    the box that is left, read up the strip (K58).
 
-    *extra_size_px* > 0 sets the point size of the optional lines (the user's
-    clip-text Size, which now applies to branding too — Knut); 0 keeps the
-    legacy behaviour of matching the wordmark's auto-fit size.
+    **KNUT'S DESIGN (#182 5730034611, 2026-09-18), BUILT FOR BETA 44 AFTER HE
+    FOUND IT MISSING (5848747795).** It was centred along the strip with the
+    lines stacked across the band beside it, so every line of text made the
+    wordmark smaller. He asked for it to be placed as the Notes box places its
+    wordmark: *"at the bottom of the clip-border text field (given that Flip
+    180 is off), or when Flip 180 is ON it is placed on the top side ... centred
+    against the width of the clip-border text area ... there needs to be 3 to 4
+    mm space after the image before the text in Text field is placed, which
+    means the space available for the text is a "box" confined by clip-boder
+    width, the short-end side of the ChromIQ image plus 3 to 4mm, and the
+    opposite side of the page"*. Measured on every tag from v4.1.5-beta.3 to
+    v4.3.0-beta.43: none placed it at the end, so this is the design being
+    built, not a regression being undone.
 
-    *scale* (percent) and the two offsets place the block, the same way the
-    imported image is placed (#164, Knut: *"For Imported image option, then
-    there are fields to position the image. Why are those options not available
-    for ChromIQ branding? Currently the image is always centred on page
-    vertically and text on next line."*). The scale multiplies the size the
-    fitter SOLVED, so :func:`_fit_branding_sizes` — and the #163 rules it
-    encodes — are untouched at 100 %, and a bigger number is the user asking
-    for a bigger mark rather than a bug in the fit.
+    So, exactly as `_render_notes_strip` does it: the wordmark is drawn at the
+    start of a landscape canvas (the end that becomes the bottom of a left band
+    once turned; the caller's 180 degree turn for a right band, or for Flip
+    180, carries it to the top), centred across the band, sized by the band and
+    never by the text. The lines go through `_vtext` in the box beyond it,
+    :data:`_BRANDING_TEXT_GAP_MM` further on, as Custom text does in the whole
+    band, and never larger than the wordmark in auto.
+
+    *scale* (percent) sizes the wordmark and the two offsets move it, the way
+    the imported image is placed (#164); the text box starts after the
+    wordmark wherever the scale leaves its end.
     """
-    canvas = Image.new("RGBA", (max(1, height_px), max(1, width_px)), (0, 0, 0, 0))
-    d = ImageDraw.Draw(canvas)
-    chrom_fill = WORDMARK_RGB + (255,)
-    iq_fill = WORDMARK_IQ_RGB + (255,)
-    size, _esize = _fit_branding_sizes(extra_lines, width_px, height_px,
-                                       font_family, extra_size_px)
+    mm2px = float(dpi) / 25.4
+    L, T = max(1, height_px), max(1, width_px)       # length x thickness (px)
+    pad = max(2, round(2.0 * mm2px))                 # the Notes box's own end pad
+    d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
+    # The wordmark's size comes from the band's width by the Notes box's own
+    # rule (`_draw_wordmark_h`: 0.74 of the height it is given, here the band
+    # less the end pad on both sides), and is held to a share of the strip's
+    # length so a wide band on a short page keeps room for the lines.
+    ref = 100
+    f_ref = _font(ref, WORDMARK_FONT)
+    wm_ref = (d.textlength("Chrom", font=f_ref)
+              + d.textlength("IQ", font=f_ref) * 1.25) or 1.0
+    size = min(max(1.0, T - 2 * pad) * 0.74,
+               (L * _BRANDING_MAX_LEN_FRAC) * ref / wm_ref)
     sc = max(0.05, float(scale or 100.0) / 100.0)
     if sc != 1.0:
-        # CEILING, NOT JUST A FLOOR. The Scale box runs to 50 000 % because it
-        # was built for blowing a small logo up, and multiplying a SOLVED font
-        # size by that allocates a glyph tile of ~194 million pixels — Pillow
-        # refuses it as a decompression bomb, and the exception came out of a Qt
-        # slot while the user was typing in a spin box. Past a few times the
-        # band's width the mark is one letter anyway, so the extra is refused
-        # here rather than paid for.
+        # CEILING, NOT JUST A FLOOR (#164): the Scale box runs to 50 000 %, and
+        # a solved size multiplied by that asks Pillow for a glyph tile it
+        # refuses as a decompression bomb.
         ceiling = max(_BRANDING_MIN_PX * 2.0,
                       min(_MAX_BRANDING_SIZE_FACTOR * width_px,
                           _MAX_BRANDING_SIZE_PX))
-        size = min(ceiling, max(_BRANDING_MIN_PX, size * sc))
-        _esize = min(ceiling, max(_BRANDING_MIN_PX, _esize * sc))
-    esize = _esize if extra_size_px else None
+        size = min(ceiling, size * sc)
+    size = max(_BRANDING_MIN_PX, int(size))
     f = _font(size, WORDMARK_FONT)
     asc, desc = f.getmetrics()
-    line_h = size * 1.25
-    extra_line_h = (esize if esize else size) * 1.25
-    # Centre the whole stack (wordmark line + extra lines at their own height).
-    stack_h = line_h + len(extra_lines) * extra_line_h
-    cy = (width_px - stack_h) / 2
-    # "IQ" is the masthead's real Instrument Serif *Italic* face (the masthead
-    # asks for bold too, but Instrument Serif has no bold face and Qt doesn't
-    # synthesise one — so the header renders plain italic). Use the genuine
-    # italic glyphs (no faux shear, no faux bold) so the "IQ" — notably the Q's
-    # tail — matches the header exactly instead of a sheared regular face.
     f_iq = _font(size, WORDMARK_FONT, italic=True)
-    iq_tile, iq_base, iq_left = _italic_tile("IQ", f_iq, iq_fill, shear=0.0)
+    iq_tile, iq_base, iq_left = _italic_tile("IQ", f_iq, WORDMARK_IQ_RGB + (255,),
+                                             shear=0.0)
     chrom_w = d.textlength("Chrom", font=f)
     kern = size * 0.02
     wm_w = chrom_w + kern + (iq_tile.width - iq_left)
-    x = (height_px - wm_w) / 2
-    # Share one baseline so "IQ" sits level with "Chrom" (not raised).
-    baseline = cy + line_h * 0.5 + (asc - desc) / 2
+    # -- the wordmark on its own landscape layer, at the start of the length
+    mark = Image.new("RGBA", (L, T), (0, 0, 0, 0))
+    md = ImageDraw.Draw(mark)
+    x = pad
+    baseline = T / 2 + (asc - desc) / 2
     try:
-        d.text((x, baseline), "Chrom", font=f, fill=chrom_fill, anchor="ls")
-        canvas.paste(iq_tile,
-                     (int(x + chrom_w + kern - iq_left), int(baseline - iq_base)),
-                     iq_tile)
-        f_extra = _font(esize if esize else size, font_family)  # user's clip font + size
-        for i, ln in enumerate(extra_lines):
-            ly = cy + line_h + extra_line_h * (i + 0.5)
-            d.text((height_px / 2, ly), ln, font=f_extra,
-                   fill=chrom_fill, anchor="mm")
+        md.text((x, baseline), "Chrom", font=f, fill=WORDMARK_RGB + (255,),
+                anchor="ls")
+        mark.paste(iq_tile, (int(x + chrom_w + kern - iq_left),
+                             int(baseline - iq_base)), iq_tile)
     except Exception:  # pragma: no cover - default font without anchor
-        d.text((x, baseline), "ChromIQ", font=f, fill=chrom_fill)
-    out = canvas.rotate(90, expand=True)
-    if not (offset_x_px or offset_y_px):
-        return out
-    # Move it exactly the way the imported image is moved: X across the band,
-    # Y along the strip, applied to the finished overlay so nothing about the
-    # fit changes. Content pushed past the band is cropped, as it is for an
-    # image — the preview shows that happening before it reaches paper.
-    moved = Image.new("RGBA", out.size, (0, 0, 0, 0))
-    moved.paste(out, (round(offset_x_px), round(offset_y_px)), out)
-    return moved
+        md.text((x, 0), "ChromIQ", font=f, fill=WORDMARK_RGB + (255,))
+    mark = mark.rotate(90, expand=True)              # T x L, the start at the bottom
+    out = Image.new("RGBA", (T, L), (0, 0, 0, 0))
+    out.paste(mark, (round(offset_x_px), round(offset_y_px)), mark)
+    # -- the lines, in the box beyond the wordmark and the gap
+    if extra_lines:
+        # from the wordmark's last INK, not the italic tile's padded edge
+        _bb = iq_tile.getbbox()
+        ink_w = chrom_w + kern + ((_bb[2] if _bb else iq_tile.width) - iq_left)
+        box_len = int(L - (pad + ink_w + _BRANDING_TEXT_GAP_MM * mm2px))
+        if box_len > 0:
+            fixed = float(extra_size_px or 0.0)
+            if not fixed:
+                # AUTO NEVER LOSES A LINE. `_vtext`'s automatic size stops at
+                # the Custom-text floor, and the panel warns about a Custom
+                # text that does not fit at it; nothing warns for the
+                # branding, whose lines the #163 fit always kept inside the
+                # band. So where the stack cannot fit across the band at the
+                # floor, it is drawn at the size that does fit.
+                from workflow import text_edge_fit
+                floor = text_edge_fit.pt_to_px(
+                    text_edge_fit.AUTO_SHRINK_FLOOR_PT, dpi)
+                across = T * 0.98 / (1.2 * len(extra_lines))
+                if across < floor:
+                    fixed = max(1.0, across)
+            txt = _vtext("\n".join(extra_lines), font_family, T, box_len,
+                         size_px=fixed, dpi=dpi,
+                         anchor_far=anchor_far, max_size_px=float(size))
+            out.paste(txt, (0, 0), txt)
+    return out
 
 
 def _vtext(text: str, font_family: str, width_px: int, height_px: int,
            *, valign: str = "center", bold: bool = False,
            size_px: float = 0.0, dpi: float = 200.0,
-           anchor_far: bool = False) -> Image.Image:
+           anchor_far: bool = False,
+           max_size_px: float = 0.0) -> Image.Image:
     """A transparent ``width_px × height_px`` overlay with *text* read up the strip.
+
+    *max_size_px* (> 0) caps the AUTOMATIC size only: the branding's lines are
+    never drawn larger than its wordmark unless a size is typed (K58).
 
     ``size_px`` (>0) fixes the font size the user chose instead of auto-fitting
     to the strip width (#125, Knut — manual clip-text size).
@@ -1750,6 +1712,8 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
         size_thick = (width_px * THICK) / (1.2 * n)
         size_len = ref * (height_px * LEN) / widest_ref
         size = max(floor_px, int(min(size_thick, size_len)))
+        if max_size_px and max_size_px > 0:
+            size = max(floor_px, min(size, int(max_size_px)))
     f = _font(size, font_family, bold=bold)
     # Safety: shrink if rounding pushed a hair over (never grows past the fill
     # size). ONLY IN AUTO: a typed size is the user's answer, and a loop that

@@ -136,6 +136,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §45 | K51: a raw print judges its paper and solid rows against the profile; "–" is not in the report, graphs included; a limit line shown for information where the report judges nothing; the star's rule (4) with the evenness rows; a media-relative FROM PROFILE GAMUT chart judged relative to its paper; the i1Pro group enabled with the engine on | 2026-09-26, 5846167083, 5846297769 | the answers confirmed by Knut (§45.1); built for beta 44 (B8-1330 to B8-1336, B8-1340), NOT confirmed; the two-page rule put to him; challenge 8's fixes to it in 45.7 to 45.9 (B8-1370 to B8-1377), NOT confirmed |
 | §46 | K56: M-VERIFY-SOLIDS-REASON approved; the pre-flight's FROM PROFILE GAMUT paragraph revised as accepted; the opening of a report of raw sheets | 2026-09-26, 5848287278 | the answers (approval and two accepted texts) are Knut's; what was built (when each opening is given) NOT confirmed; four questions (B8-1380, B8-1381, B8-1383, B8-1384) and the analysis of "drift" (B8-1385) put to him |
 | §47 | K57: the "made for verification" mark is ● not ★; a Content chosen in Preferences with the clip border Off leaves it Off; a Content change in Create Chart reloads no other field | 2026-09-26, 5848511977, 5848514529 | the rulings are Knut's; what was built (B8-1387, B8-1388; B8-1389 verified) NOT confirmed |
+| §48 | K58: the ChromIQ branding's wordmark at the end of the clip border, like the Notes box, for Side Left/Right x Flip 180 Off/On, the text in the box beyond it | 2026-09-18 5730034611, 2026-09-26 5848747795 | the design is Knut's; what was built (B8-1390) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -9124,3 +9125,42 @@ the mutation in its docstring (`k56/mutations-k57.txt`).
 
 **Status:** the rulings are Knut's (47.1); what was built (47.2) NOT
 confirmed.
+
+## 48. K58: the ChromIQ branding at the end of the clip border (#182, 2026-09-26, beta 44)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-18 and 2026-09-26, #182
+[5730034611](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5730034611)
+and [5848747795](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5848747795),
+for exactly the design quoted here. What was built is in 48.2 and waits for
+his confirmation.
+
+**48.1 The design, verbatim.** *"I would prefer that the image as placed in
+the same way as for the "Notes box", at the bottom of the clip-border text
+field (given that Flip 180 is off), or when Flip 180 is ON it is placed on the
+top side. When Flip 180 is off, the ChromIQ image would be vertically placed
+against the bottom edge of the clip-border text area available, centred
+against the width of the clip-border text area, which is equal to the
+clip-border width setting. Flip 180 ON turns it around, so the image is placed
+against the top edge the clip-border text area available, same centring. For
+both cases there needs to be 3 to 4 mm space after the image before the text
+in Text field is placed"*; and on 2026-09-26: *"the image in the clip-border
+was supposed to be placed on the end, just like the Notes box, also done if
+side is Left or Right, and if Flip 180 is ON or OFF."*
+
+### ⏳ Awaiting confirmation: what was built
+
+**Confirmed by:** *nobody yet.*
+
+Register: B8-1390, B8-1391. Proof: `~/Desktop/ChromIQ-beta44-proof/k56/branding/`
+(generated charts, before and after, the TIFFs opened on screen). Tests:
+`tests/test_clip_branding_wordmark.py`.
+
+**48.2 Built.** The wordmark is drawn at the band's end as the Notes box draws
+its own (2 mm end pad, the same size rule, centred across the band), so it
+lands where the Notes box's does: a left band at the bottom and a right band
+at the top, each turned over by Flip 180. Its size never depends on the text.
+The Text field's lines fill a box that starts 3.5 mm past the wordmark, at the
+typed Size or, in auto, no larger than the wordmark. The preview, the
+generated chart and the exported template share the one renderer.
