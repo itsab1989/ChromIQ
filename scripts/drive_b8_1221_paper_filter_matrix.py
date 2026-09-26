@@ -232,6 +232,45 @@ def script(d):
         return mode, str(pw.get_raw_value() or ""), \
             pw._custom_combo.currentText()
 
+    # THE EXPECTED CLASS IS NOT ASKED OF THE CODE UNDER TEST (beta 44
+    # challenge F1). This driver used to judge through `cp.paper_class`, the
+    # function the filter itself uses, so a Custom 420 x 297 read as A3
+    # Landscape on both sides and the matrix called the fault OK. Now the
+    # class of the paper on screen comes from the ENTRY the visible field
+    # shows (C7: on "Custom" the boxes are disregarded), and a preset's class
+    # from the list of named entries the Paper fields offer.
+    def visible_paper_combo():
+        if tab._mode_name() == "guided":
+            return tab._paper_combo, None
+        panel = tab._manual_layout_panel
+        if panel is not None and panel.paper is not None \
+                and panel.paper.isVisible():
+            return panel.paper, "__custom__"
+        return tab._manual_paper_pw._custom_combo, "custom"
+
+    def on_screen_class() -> str:
+        c, custom = visible_paper_combo()
+        data = str(c.currentData() or "")
+        return "custom" if custom is not None and data == custom else data
+
+    #: every named code the Paper fields offer (both Manual fields and Guided)
+    NAMED = set()
+    for _c in (tab._paper_combo, tab._manual_paper_pw._custom_combo,
+               getattr(tab._manual_layout_panel, "paper", None)):
+        if _c is not None:
+            NAMED |= {str(_c.itemData(i)) for i in range(_c.count())}
+    NAMED -= {"custom", "__custom__", "None", ""}
+
+    def preset_class(paper) -> str:
+        paper = str(paper or "")
+        if not paper:
+            return ""
+        return paper if paper in NAMED else "custom"
+
+    def preset_on(paper, sel) -> bool:
+        mine = preset_class(paper)
+        return not mine or not sel or mine == sel
+
     def expected(sel: str, current_key):
         shown = cp.shown_keys(d.settings, BUILTIN_PRESET_KEYS)
         on = cp.paper_filter_on(d.settings)
@@ -240,7 +279,7 @@ def script(d):
             keys = [k for *_x, k in es]
             if on and h not in PAPER_FILTER_ALWAYS_SHOWN:
                 keys = [k for k in keys
-                        if cp.paper_matches(builtin_preset_paper(k), sel)]
+                        if preset_on(builtin_preset_paper(k), sel)]
             if keys:
                 top = [k for k in keys if k in shown]
                 rest = [k for k in keys if k not in shown]
@@ -289,7 +328,7 @@ def script(d):
 
     def judge(step: str, photo: str | None = None):
         mode, code, text = on_screen_paper()
-        sel = cp.paper_class(code)
+        sel = on_screen_class()
         cur = cb.currentData()
         cur_key = cur if isinstance(cur, str) and cur in BUILTIN_PRESET_KEYS \
             else None
@@ -302,7 +341,7 @@ def script(d):
         # The group the selected preset is in keeps it (C7): off its paper
         # it is one more row, ticked or under the arrow.
         cur_off = bool(cur_key) and on and group_of[cur_key] \
-            not in PAPER_FILTER_ALWAYS_SHOWN and not cp.paper_matches(
+            not in PAPER_FILTER_ALWAYS_SHOWN and not preset_on(
                 builtin_preset_paper(cur_key), sel)
         cur_member = cur_off and cur_key not in cp.shown_keys(
             d.settings, BUILTIN_PRESET_KEYS)
@@ -479,7 +518,12 @@ def script(d):
     MANUAL_PAPERS = [("A4", None), ("A3", None), ("420x297", None),
                      ("329x483", None), ("Letter", None), ("4x6", None),
                      ("127x178", None), ("custom", (100, 150)),
-                     ("custom", (130, 180)), ("A4", None)]
+                     ("custom", (130, 180)),
+                     # F1: Custom sizes that spell a named paper's code
+                     ("custom", (420, 297)), ("custom", (127, 178)),
+                     ("custom", (594, 420)), ("custom", (329, 483)),
+                     ("custom", (483, 329)), ("custom", (203, 254)),
+                     ("A4", None)]
     GUIDED_PAPERS = ["A4", "A3", "420x297", "329x483", "Letter", "4x6",
                      "127x178", "A4"]
 
@@ -547,6 +591,8 @@ def script(d):
         photo = None
         if code == "custom" and dims == (100, 150):
             photo = f"{LANG}-K3-on-manual-custom-100x150"
+        elif code == "custom" and dims == (420, 297):
+            photo = f"{LANG}-F1-on-manual-custom-420x297"
         elif code in ("4x6", "127x178"):
             photo = f"{LANG}-K4-on-manual-{code}"
         judge(f"Manual paper {tag}", photo=photo)
@@ -612,7 +658,7 @@ def script(d):
     yield 4000
     judge("preset i1Pro Letter from the Built-in presets list")
     photo_card = next(k for k in BUILTIN_PRESET_KEYS
-                      if cp.paper_class(builtin_preset_paper(k)) == "custom")
+                      if preset_class(builtin_preset_paper(k)) == "custom")
     pick_preset_from_pulldown(photo_card)
     yield 4000
     judge("preset i1Pro photo card (custom) from the pulldown")

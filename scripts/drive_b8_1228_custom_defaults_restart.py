@@ -17,6 +17,13 @@ Everything is sandboxed: settings, presets, the output folder (userdrive), and
 the ISO file forced to the repo's copy. A watchdog answers every modal the
 drive did not open itself (No / Cancel, a name question accepted), and a
 deadline ends the run, so nobody has to click.
+
+B8-1261 (beta 44 challenge F2): every restart cell now carries a verdict,
+``ok``, judged against the paper THE DRIVE CHOSE (never against anything the
+app computes): Manual must show it, and Guided too when Guided offers it.
+``B8_INSTR`` picks the instrument (default ColorMunki); ``B8_PHOTOS=0`` takes
+no photographs, for a sweep of every paper (the photographs are then taken
+only of the cells that matter).
 """
 from __future__ import annotations
 
@@ -39,6 +46,8 @@ PAPER = sys.argv[4]
 START = sys.argv[5]
 SB = Path(sys.argv[6]).resolve()
 DEADLINE_MS = 240_000
+INSTR = os.environ.get("B8_INSTR", "CM")
+PHOTOS = os.environ.get("B8_PHOTOS", "1") != "0"
 os.environ["CHROMIQ_SETTINGS_FILE"] = str(SB / "settings.ini")
 os.environ["CHROMIQ_PRESETS_DIR"] = str(SB / "presets")
 os.environ["CHROMIQ_COMPLIANCE_ISO_FILE"] = str(
@@ -56,8 +65,8 @@ if PHASE == "save":
     (SB / "presets").mkdir(parents=True)
     from core.settings import AppSettings
     _s = AppSettings()
-    for k, v in {"chart_instrument": "CM", "chart_paper": "A4",
-                 "chart_mode": START, "manual_printtarg_-i_l": "CM",
+    for k, v in {"chart_instrument": INSTR, "chart_paper": "A4",
+                 "chart_mode": START, "manual_printtarg_-i_l": INSTR,
                  "use_chromiq_layout_engine": ENGINE,
                  "restore_last_session": False, "restore_last_tab": False,
                  "update_notify": False, "show_splash": False}.items():
@@ -200,10 +209,18 @@ def script(d):
         c = {"step": step, "mode": mode, "paper_field": code,
              "paper_text": text, "filter_paper": tab._preset_paper_selected(),
              "instrument": instr}
+        if step.startswith("restart"):
+            # judged against what the drive chose, never the app's own sums
+            offered = mode == "manual" or \
+                tab._paper_combo.findData(WANT) >= 0
+            c["ok"] = (code == WANT and instr == INSTR) if offered \
+                else instr == INSTR
         rec["cells"].append(c)
         d.note(f"{step}: {mode} Paper = {code!r} ({text!r}), "
-               f"lists filtered to {c['filter_paper']!r}, instrument {instr!r}")
-        d.shot(tab, f"{tag}-{photo}")
+               f"lists filtered to {c['filter_paper']!r}, instrument {instr!r}"
+               + ("" if c.get("ok", True) else "   <-- WRONG"))
+        if PHOTOS:
+            d.shot(tab, f"{tag}-{photo}")
 
     def user_mode(mode):
         (tab._guided_btn if mode == "guided" else tab._manual_btn).click()
@@ -259,6 +276,8 @@ def script(d):
         user_mode("manual")
         yield 1500
     # The "Select preset" pulldown as a person opens it in Manual.
+    if not PHOTOS:
+        return
     cb = tab._preset_combo
     cb.showPopup()
     yield 1200

@@ -51,6 +51,7 @@ import logging
 import queue
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -559,7 +560,94 @@ def _work() -> None:
             _RETIRING.add(me)
             if _WORKER is me:
                 _WORKER = None
-        # collection is NOT given back here: see the note above
+        # collection is NOT given back here: see the note above. It is
+        # handed to a thread that is not this one (B8-1262).
+        _ask_another_thread_to_give_back(me)
+
+
+# ---------------------------------------------------------------------------
+# Giving collection back when the thread ends, whoever handed it work (B8-1262)
+# ---------------------------------------------------------------------------
+#
+# **A CALLER OFF THE GUI THREAD LEFT COLLECTION OFF (beta 44 challenge F6).**
+# The hold is given back by `release_gc_if_idle`, which only three things
+# call: the presets window's timer (started by `_held_by_caller`, and only on
+# the GUI thread), every `pending()` and the test suite's teardown. A
+# `request` from any other thread started no timer, so once the background
+# thread had ended collection stayed off until something happened to call
+# `pending()`, measured on screen: 12 s after the thread ended, still off.
+# No product caller does that today; this makes it not matter who calls.
+#
+# So the ending thread asks for it itself, without giving it back itself:
+# with a Qt application, the GUI thread runs `release_gc_if_idle` through a
+# queued call (`_GuiReleaser`); without one there is no Qt object to finalise
+# on the wrong thread, and a short helper thread waits for this one to end
+# and gives it back.
+
+#: the GUI-thread object the ending thread posts to, made once (B8-1262)
+_RELEASER = None
+#: how often the GUI thread asks again while the ending thread is still
+#: unwinding, and for how long at most
+_RELEASE_RETRY_MS = 20
+_RELEASE_RETRIES = 250
+
+
+def _make_gui_releaser(qtcore, app):
+    """A QObject living on the GUI thread with a real slot, so a queued call
+    from any thread runs it THERE (a plain Python callable would get a proxy
+    on the calling thread, whose event loop is about to end)."""
+    class _GuiReleaser(qtcore.QObject):
+        def __init__(self):
+            super().__init__()
+            self.tries = 0
+
+        @qtcore.pyqtSlot()
+        def release(self) -> None:
+            if release_gc_if_idle():
+                self.tries = 0
+                return
+            if not _GC_HELD:
+                return
+            self.tries += 1
+            if self.tries <= _RELEASE_RETRIES:
+                qtcore.QTimer.singleShot(_RELEASE_RETRY_MS, self.release)
+            else:
+                self.tries = 0
+
+    obj = _GuiReleaser()
+    if obj.thread() is not app.thread():
+        obj.moveToThread(app.thread())
+    return obj
+
+
+def _ask_another_thread_to_give_back(me: threading.Thread) -> None:
+    """Called by the background thread as it ends. Never gives collection
+    back itself (its own next allocation would collect here)."""
+    global _RELEASER
+    if not _GC_HELD:
+        return
+    try:
+        qtcore = sys.modules.get("PyQt6.QtCore")
+        app = qtcore.QCoreApplication.instance() if qtcore else None
+        if app is not None:
+            with _LOCK:
+                if _RELEASER is None:
+                    _RELEASER = _make_gui_releaser(qtcore, app)
+                rel = _RELEASER
+            qtcore.QMetaObject.invokeMethod(
+                rel, "release", qtcore.Qt.ConnectionType.QueuedConnection)
+            return
+    except Exception as exc:      # noqa: BLE001 - never fatal to the thread
+        log.debug("could not ask the GUI thread to collect: %s", exc)
+    threading.Thread(target=_give_back_after, args=(me,),
+                     name="chromiq-preset-layout-gc", daemon=True).start()
+
+
+def _give_back_after(thread: threading.Thread) -> None:
+    """No Qt application: wait for *thread* to end, then give collection
+    back from here, which is not a background layout thread."""
+    thread.join(10.0)
+    release_gc_if_idle()
 
 
 _HOLD_UNTIL = 0.0

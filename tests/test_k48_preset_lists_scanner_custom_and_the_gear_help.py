@@ -43,6 +43,30 @@ ROOT = Path(__file__).resolve().parents[1]
 SCANNER = next(h for h, _e in TC.BUILTIN_PRESET_GROUPS if h == "Scanner")
 
 
+def _named_papers() -> set:
+    """The named entries of Manual's Paper field, read from its definition
+    (``data/parameters.yaml``), not from the filter's ``paper_class``: the
+    expected lists must not come from the code under test (beta 44
+    challenge F1, B8-1260)."""
+    import yaml
+    root = Path(__file__).resolve().parents[1]
+    data = yaml.safe_load((root / "data" / "parameters.yaml").read_text(
+        encoding="utf-8"))
+    return next({c for c in p["choices"] if c != "custom"}
+                for p in data["parameters"]["printtarg"]
+                if p.get("flag") == "-p")
+
+
+_NAMED = _named_papers()
+
+
+def _on(preset_paper, sel: str) -> bool:
+    """Whether a preset on *preset_paper* belongs to the Paper field entry
+    *sel* ("custom" for Custom), judged without the filter's functions."""
+    p = str(preset_paper or "")
+    return (p if p in _NAMED else cp.CUSTOM_PAPER) == sel
+
+
 @pytest.fixture(scope="module")
 def qapp():
     return QApplication.instance() or QApplication([])
@@ -88,7 +112,7 @@ def _expected(settings, sel):
     out = []
     for h, es in TC.BUILTIN_PRESET_GROUPS:
         keys = [k for *_x, k in es
-                if cp.paper_matches(TC.builtin_preset_paper(k), sel)]
+                if _on(TC.builtin_preset_paper(k), sel)]
         if keys:
             out.append((h, [k for k in keys if k in shown],
                         len([k for k in keys if k not in shown])))
@@ -157,7 +181,8 @@ def test_a4_landscape_lists_only_its_own_scanner_presets(tab, settings, qapp):
 # B8-1238: Custom, whatever the boxes say, never the paper before
 # ---------------------------------------------------------------------------
 
-@pytest.mark.parametrize("dims", [(210, 297), (100, 150), (500, 500)])
+@pytest.mark.parametrize("dims", [(210, 297), (100, 150), (500, 500),
+                                  (420, 297)])  # B8-1260: A3 L's own size
 def test_custom_after_a3_landscape_lists_the_custom_size_presets(
         tab, settings, qapp, dims):
     """Knut's screenshot: A3 Landscape, then Custom 210 x 297 (an A4's size),

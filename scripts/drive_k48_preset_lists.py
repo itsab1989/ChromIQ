@@ -144,19 +144,43 @@ def script(d):
     panel = tab._manual_layout_panel
     heads = {h for h, _e in BUILTIN_PRESET_GROUPS}
 
+    # THE EXPECTED PAPER IS NOT ASKED OF THE CODE UNDER TEST (beta 44
+    # challenge F1). This driver used to take the paper from
+    # `tab._preset_paper_selected()` and match presets through
+    # `cp.paper_matches`, the very functions the filter runs, so a Custom
+    # 420 x 297 that the filter read as A3 Landscape was judged "ok". The
+    # paper now comes from the ENTRY the Paper field shows ("Custom…" is the
+    # Custom class whatever the boxes hold, C7), and a preset's class from
+    # the named entries the Paper fields offer.
+    NAMED = set()
+    for _c in (panel.paper, tab._manual_paper_pw._custom_combo,
+               tab._paper_combo):
+        NAMED |= {str(_c.itemData(i)) for i in range(_c.count())}
+    NAMED -= {"custom", "__custom__", "None", ""}
+
+    def preset_class(paper):
+        paper = str(paper or "")
+        return paper if paper in NAMED else "custom"
+
+    def expected_paper():
+        if not cp.paper_filter_on(d.settings):
+            return ""
+        data = str(panel.paper.currentData() or "")
+        return "custom" if data == "__custom__" else data
+
     def expected():
         """(heading, ticked keys listed directly, the count under its arrow)
         for every group the rule lists: the paper filter by the paper on
         screen, Scanner too, Custom as one class, ticked directly, the rest
         under the arrow, a group with none ticked its heading and arrow."""
         shown = cp.shown_keys(d.settings, BUILTIN_PRESET_KEYS)
-        sel = tab._preset_paper_selected()
+        sel = expected_paper()
         out = []
         for h, es in BUILTIN_PRESET_GROUPS:
             keys = [k for *_x, k in es]
             if sel:
                 keys = [k for k in keys
-                        if cp.paper_matches(builtin_preset_paper(k), sel)]
+                        if preset_class(builtin_preset_paper(k)) == sel]
             if keys:
                 out.append((h, [k for k in keys if k in shown],
                             len([k for k in keys if k not in shown])))
@@ -193,6 +217,8 @@ def script(d):
         ok_pull = pull == exp
         ok_pop = popg == exp
         s = {"scene": name, "paper_on_screen": tab._manual_paper_on_screen(),
+             "paper_entry_on_screen": panel.paper.currentText(),
+             "expected_paper": expected_paper(),
              "filter_paper": tab._preset_paper_selected(),
              "filter_on": cp.paper_filter_on(d.settings),
              "expected": exp, "pulldown": pull, "popup": popg,
@@ -313,6 +339,35 @@ def script(d):
     scene("5-custom-210x297", photo=False)
     yield from pulldown_photo("5-custom-210x297")
     yield from popup_photo("5-custom-210x297")
+
+    # F1: Custom sizes that spell a named paper's code, each after the
+    # named paper it spells, so a filter reading the size shows that paper.
+    for named, dims in (("420x297", (420, 297)), ("127x178", (127, 178)),
+                        ("594x420", (594, 420)), ("329x483", (329, 483)),
+                        ("483x329", (483, 329)), ("203x254", (203, 254))):
+        if panel.paper.findData(named) >= 0:
+            choose(named)
+            yield 1200
+            scene(f"F1-named-{named}", photo=False)
+        choose("__custom__", dims)
+        yield 1500
+        tag = f"F1-custom-{dims[0]}x{dims[1]}"
+        scene(tag, photo=False)
+        if dims == (420, 297):
+            # the Paper field itself, so the picture shows it IS Custom
+            from PyQt6.QtWidgets import QScrollArea
+            sa = panel.paper.parentWidget()
+            while sa is not None and not isinstance(sa, QScrollArea):
+                sa = sa.parentWidget()
+            if sa is not None:
+                sa.ensureWidgetVisible(panel.custom_h, 50, 200)
+            yield 800
+            for _attempt in range(3):
+                if d.shot(d.win, f"{tag}-window-paper-field"):
+                    break
+                yield 1000
+            yield from pulldown_photo(tag)
+            yield from popup_photo(tag)
 
     # A4 Landscape: the Scanner presets on it.
     if panel.paper.findData("A4R") >= 0:

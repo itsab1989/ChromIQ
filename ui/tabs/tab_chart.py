@@ -4604,6 +4604,27 @@ class _CappedComboBox(NoScrollComboBox):
             elif obj is view and et == QEvent.Type.KeyPress:
                 row = view.currentIndex().row()
                 key = event.key()
+                if key in (Qt.Key.Key_Home, Qt.Key.Key_End) and not (
+                        event.modifiers() & ~Qt.KeyboardModifier.KeypadModifier):
+                    # HOME AND END, AS IN ANY LIST (B8-1263, beta 44
+                    # challenge F7). Qt's own End goes to the model's last
+                    # row, which the paper filter or a closed arrow has
+                    # usually hidden, and then does nothing at all. The first
+                    # or last row a person can reach with Up and Down
+                    # instead: shown and enabled, so a heading or separator
+                    # is skipped and an open list's arrow row counts.
+                    target = self._edge_row(last=key == Qt.Key.Key_End)
+                    if target >= 0:
+                        idx = self.model().index(
+                            target, self.modelColumn(), self.rootModelIndex())
+                        sel = view.selectionModel()
+                        if sel is not None:
+                            sel.setCurrentIndex(
+                                idx, sel.SelectionFlag.ClearAndSelect)
+                        else:
+                            view.setCurrentIndex(idx)
+                        view.scrollTo(idx)
+                    return True
                 if row >= 0 and self.itemData(row, self.MORE_ROLE):
                     action = {
                         Qt.Key.Key_Return: "toggle", Qt.Key.Key_Enter: "toggle",
@@ -4620,6 +4641,22 @@ class _CappedComboBox(NoScrollComboBox):
         except Exception:      # noqa: BLE001 — an event filter must never raise
             log.debug("preset list: arrow row event not handled", exc_info=True)
         return super().eventFilter(obj, event)
+
+    def _edge_row(self, *, last: bool) -> int:
+        """The first (or last) row of the open list that Up and Down can
+        reach: not hidden, enabled and selectable. -1 when there is none."""
+        view = self.view()
+        model = self.model()
+        need = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
+        rows = range(self.count() - 1, -1, -1) if last else range(self.count())
+        for r in rows:
+            if view.isRowHidden(r):
+                continue
+            flags = model.flags(model.index(r, self.modelColumn(),
+                                            self.rootModelIndex()))
+            if (flags & need) == need:
+                return r
+        return -1
 
     def _set_popup_only_rows_enabled(self, on: bool) -> None:
         model = self.model()
@@ -10327,11 +10364,26 @@ class TabChart(QWidget):
         # matched-default guards mirror the margin logic above so a user
         # who picked different values keeps their choice when flipping
         # instruments.
+        #
+        # ONLY WHEN THE INSTRUMENT MOVES INTO OR OUT OF i1iSis (B8-1261, beta
+        # 44 challenge F2). This block used to run on EVERY call and read
+        # "not i1iSis, on A3+ Portrait" as i1iSis's paper left behind. The
+        # start-up restore calls this method after it has set -p from the
+        # store, so a person's own "Save as Defaults" on A3+ Portrait (any
+        # instrument but the i1iSis) came back as A4 in Manual with the
+        # engine off, while Guided and the store said A3+ (with the engine on
+        # the saved recipe put -p back, B8-1228, and hid it). The same held
+        # for a saved -n or -P, and for any other call: a preset reset, the
+        # panel build. What the person set is not the i1iSis's default.
+        prev = getattr(self, "_isis_defaults_instr", None)
+        self._isis_defaults_instr = instr
+        entering = instr == "isis" and prev is not None and prev != "isis"
+        leaving = prev == "isis" and instr != "isis"
         if self._manual_paper_pw is not None:
             current_paper = self._manual_paper_pw.get_raw_value() or ""
-            if instr == "isis" and current_paper == "A4":
+            if entering and current_paper == "A4":
                 self._manual_paper_pw.set_value("329x483")
-            elif instr != "isis" and current_paper == "329x483":
+            elif leaving and current_paper == "329x483":
                 self._manual_paper_pw.set_value("A4")
 
         for pw_attr in ("_manual_n_pw", "_manual_P_pw"):
@@ -10339,9 +10391,9 @@ class TabChart(QWidget):
             if pw is None:
                 continue
             current = bool(pw.get_raw_value())
-            if instr == "isis" and not current:
+            if entering and not current:
                 pw.set_value(True)
-            elif instr != "isis" and current:
+            elif leaving and current:
                 pw.set_value(False)
 
     # ------------------------------------------------------------------
@@ -10676,10 +10728,19 @@ class TabChart(QWidget):
         :func:`core.curated_presets.paper_class` spells it: Guided's "Paper
         size" or Manual's "Paper", whichever mode is shown (the gamut module
         lays out through Manual's). "" while the filter is off."""
-        from core.curated_presets import paper_class, paper_filter_on
+        from core.curated_presets import (
+            CUSTOM_PAPER, paper_class, paper_filter_on)
         if not paper_filter_on(self._settings):
             return ""
         if self._current_mode() == "manual":
+            # THE ENTRY, NOT THE SIZE (beta 44 challenge F1). On "Custom…"
+            # the class is Custom whatever the boxes hold (C7; Knut, #182
+            # 5840677938: "disregarding any setting in the Custom size input
+            # boxes"). Read as W x H, a Custom 420 x 297 was the code of A3
+            # Landscape and the lists showed A3 Landscape's presets; so were
+            # 127x178, 594x420, 329x483, 483x329 and 203x254.
+            if self._manual_paper_is_custom_on_screen():
+                return CUSTOM_PAPER
             code = self._manual_paper_on_screen()
         else:
             combo = getattr(self, "_paper_combo", None)
@@ -10709,6 +10770,21 @@ class TabChart(QWidget):
             return panel.selection()[1]
         pw = getattr(self, "_manual_paper_pw", None)
         return (pw.get_raw_value() or "") if pw is not None else ""
+
+    def _manual_paper_is_custom_on_screen(self) -> bool:
+        """True when Manual's Paper field on screen (the one
+        :meth:`_manual_paper_on_screen` reads) has its Custom entry selected:
+        the layout panel's "Custom…" with the engine on, printtarg's
+        "custom" with it off. Asked of the ENTRY, never of the W x H it
+        answers, because a Custom size can spell a named paper's code."""
+        grp = getattr(self, "_manual_layout_grp", None)
+        panel = getattr(self, "_manual_layout_panel", None)
+        if grp is not None and not grp.isHidden() and panel is not None \
+                and getattr(panel, "paper", None) is not None:
+            return panel.paper.currentData() == "__custom__"
+        pw = getattr(self, "_manual_paper_pw", None)
+        combo = getattr(pw, "_custom_combo", None) if pw is not None else None
+        return combo is not None and combo.currentData() == "custom"
 
     def _mark_preset_group_rows(self, start: int, group: str) -> None:
         """Tag the rows of one built-in group from ``start`` on with its

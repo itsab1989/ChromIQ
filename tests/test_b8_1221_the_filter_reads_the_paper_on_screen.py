@@ -33,6 +33,7 @@ case begins.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -44,6 +45,30 @@ import core.curated_presets as cp                               # noqa: E402
 from ui.tabs import tab_chart as TC                             # noqa: E402
 
 SCANNER = next(h for h, _e in TC.BUILTIN_PRESET_GROUPS if h == "Scanner")
+
+
+def _named_papers() -> set:
+    """The named entries of Manual's Paper field, read from its definition
+    (``data/parameters.yaml``), not from the filter's ``paper_class``: the
+    expected lists must not come from the code under test (beta 44
+    challenge F1, B8-1260)."""
+    import yaml
+    root = Path(__file__).resolve().parents[1]
+    data = yaml.safe_load((root / "data" / "parameters.yaml").read_text(
+        encoding="utf-8"))
+    return next({c for c in p["choices"] if c != "custom"}
+                for p in data["parameters"]["printtarg"]
+                if p.get("flag") == "-p")
+
+
+_NAMED = _named_papers()
+
+
+def _on(preset_paper, sel: str) -> bool:
+    """Whether a preset on *preset_paper* belongs to the Paper field entry
+    *sel* ("custom" for Custom), judged without the filter's functions."""
+    p = str(preset_paper or "")
+    return (p if p in _NAMED else cp.CUSTOM_PAPER) == sel
 
 
 @pytest.fixture(scope="module")
@@ -122,7 +147,7 @@ def _groups_on(paper: str) -> list:
     """The groups with a built-in on *paper*: every group, Scanner too since
     Knut's ruling of 2026-09-25 (#182 5840692243, K48)."""
     return [h for h, e in TC.BUILTIN_PRESET_GROUPS
-            if any(cp.paper_matches(TC.builtin_preset_paper(k), paper)
+            if any(_on(TC.builtin_preset_paper(k), paper)
                    for *_x, k in e)]
 
 
@@ -222,8 +247,11 @@ def test_the_engine_switched_off_hands_the_filter_to_printtargs_paper(
     tab._manual_engine_check.setChecked(True)
     qapp.processEvents()
     assert _engine_shown(tab)
-    assert tab._preset_paper_selected() == cp.paper_class(
-        tab._manual_layout_panel.selection()[1])
+    # the ENTRY the panel shows, a named paper here (B8-1260: never the
+    # code the filter itself derives)
+    entry = tab._manual_layout_panel.paper.currentData()
+    assert entry != "__custom__"
+    assert tab._preset_paper_selected() == entry
 
 
 def test_a_refused_preset_leaves_no_row_of_its_own_paper_behind(tab, qapp):
@@ -316,7 +344,7 @@ I1 = "i1Pro / i1Pro 2 / i1Pro 3"
 def _on_paper(group: str, paper: str) -> list:
     return [k for h, e in TC.BUILTIN_PRESET_GROUPS if h == group
             for *_x, k in e
-            if cp.paper_matches(TC.builtin_preset_paper(k), paper)]
+            if _on(TC.builtin_preset_paper(k), paper)]
 
 
 def test_a_group_with_none_ticked_on_the_paper_shows_its_heading_and_arrow(
