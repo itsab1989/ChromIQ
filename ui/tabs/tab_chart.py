@@ -4371,11 +4371,26 @@ def _house_margins() -> set[int]:
 
     Anything in this set was put in the field by
     `_apply_instrument_default_margin`, not chosen, so a switch of instrument
-    (or a changed i1Pro preset) may replace it; a value outside it was typed by
-    a person and stays. Asked of the tables rather than repeated, because a
-    hard-coded `(6, 10)` broke the moment the CR30 was given 5 mm.
+    may replace it; a value outside it was typed by a person and stays. Asked
+    of the tables rather than repeated, because a hard-coded `(6, 10)` broke
+    the moment the CR30 was given 5 mm.
+
+    NOT the rule for a changed i1Pro preset: that one moves only the preset's
+    own values, see `_i1pro_preset_margins` (B8-1293).
     """
-    margins = set(INSTRUMENT_DEFAULT_MARGIN.values()) | {6, 10}
+    return set(INSTRUMENT_DEFAULT_MARGIN.values()) | _i1pro_preset_margins()
+
+
+def _i1pro_preset_margins() -> set[int]:
+    """The margins Preferences > i1Pro Chart Defaults can put in -m: 6 and 10.
+
+    B8-1293 (beta 44 challenge round 4, F4): a changed preset moved a saved,
+    hand-typed -m 5 on the i1Pro, because the preset rule asked
+    `_house_margins`, which also holds the CR30's own 5 mm. The preset's help
+    says "only updates the value if it currently matches one of the three
+    preset values above", so only those count there.
+    """
+    margins = {6, 10}
     try:
         from data.patch_db import I1PRO_DEFAULT_PRESETS
         for _m, _a in I1PRO_DEFAULT_PRESETS.values():
@@ -4402,20 +4417,176 @@ def _engine_instrument(code) -> str:
     return eng if eng in ("i1", "p3", "CM", "SS", "CR30") else "i1"
 
 
-def _recipe_fits_instrument(recipe, instr) -> bool:
-    """Whether a stored layout recipe was made for `instr` (B8-1287).
+#: THE RECIPE OF A LAYOUT PANEL NOBODY EVER SAW (B8-1290).
+#:
+#: Until beta 44, "Save as Defaults" with the engine off stored the hidden
+#: layout panel as it stood, and a panel that had never been shown holds no
+#: recipe at all: this one, whatever instrument and paper were saved. Taken
+#: byte for byte from stores written by a026e3e5 (beta 43) on screen
+#: (`~/Desktop/ChromIQ-beta44-proof/fixes-4/old-stores`, and identical in
+#: every engine-off store of challenge-3, challenge-4 and fixes-3/before),
+#: with the ten label-style fields left out, because `_current_layout_recipe`
+#: overlays them from Preferences and they vary with the person's settings.
+#:
+#: WHY THE WHOLE RECIPE AND NOT "72 dpi and no margins". A person can type
+#: 72 dpi, untick instrument margins and type 0 in all four boxes; what he
+#: cannot do is also land on the unseeded panel's value for every other field
+#: at once. Measured (fixes-4 NOTES): the nearest a person gets differs in
+#: `clip_border_width_mm`, the clip and chart text fonts, `clip_content_mode`
+#: and `margins_explicit` (a typed margin sets it, beta 42 on), among others.
+_UNSEEN_PANEL_RECIPE: dict = {
+    'align_explicit': False,
+    'area_cols': 0,
+    'area_method': 'by_width',
+    'area_min_patch_mm': 0.0,
+    'area_ratio': 1.0,
+    'area_rows': 0,
+    'bit16': False,
+    'border': 6.0,
+    'chart_text': '',
+    'chart_text_align': 'left_margin',
+    'chart_text_bold': False,
+    'chart_text_font': 'JetBrains Mono',
+    'chart_text_italic': False,
+    'chart_text_size_mm': 0.0,
+    'clip_border': True,
+    'clip_border_width_mm': 10.0,
+    'clip_content_mode': 'off',
+    'clip_flip_180': False,
+    'clip_image_offset_x_mm': 0.0,
+    'clip_image_offset_y_mm': 0.0,
+    'clip_image_path': '',
+    'clip_image_rotation': 0,
+    'clip_image_scale': 100.0,
+    'clip_side': 'left',
+    'clip_text': '',
+    'clip_text_font': 'JetBrains Mono',
+    'clip_text_size_mm': 0.0,
+    'cm_density': 1,
+    'cm_stagger': False,
+    'compression': 'lzw',
+    'dpi': 72,
+    'edge_spacers': False,
+    'export_pdf': False,
+    'helper_marker_edge_mm': 2.0,
+    'helper_marker_len_mm': 2.0,
+    'helper_marker_per_patch': 3,
+    'helper_markers': False,
+    'helper_markers_sides': True,
+    'helper_markers_top_bottom': True,
+    'hex_flat_top': False,      # a stored value, not a read (B8-1290)
+    'hflag': False,
+    'instrument': 'i1',
+    'inter_patch_mm': 0.0,
+    'label_style_explicit': False,
+    'layout_explicit': False,
+    'layout_mode': 'area_first',
+    'margin_bottom': 0.0,
+    'margin_left': 0.0,
+    'margin_right': 0.0,
+    'margin_top': 0.0,
+    'margins_explicit': False,
+    'max_strip_mm': 0.0,
+    'nolimit': False,
+    'offset_x_mm': 0.0,
+    'offset_y_mm': 0.0,
+    'paper': 'A4',
+    'patch_area_align': 'top-left',
+    'patch_h_mm': 0.0,
+    'patch_pattern': '0-9,@-9,@-9;1-999',
+    'patch_w_mm': 0.0,
+    'pscale': 1.0,
+    'randomize': True,
+    'seed': None,
+    'seed_fixed': False,
+    'show_row_indicators': None,
+    'show_strip_indicators': True,
+    'spacer_mode': 'colored',
+    'spacer_on': True,
+    'spacer_overrides': {},
+    'spacer_palette': [],
+    'spacer_width_mm': 0.0,
+    'sscale': 1.0,
+    'stamp_command': False,
+    'strip_gap_mm': 0.0,
+    'strip_indicator_gap_mm': 0.0,
+    'strip_pattern': 'A-Z, A-Z',
+    'text_edge_clip_mm': 4.0,
+    'text_edge_mm': 4.0,
+    'text_edge_top_mm': 4.0,
+    'use_instrument_margins': False,
+}
 
-    With the engine off, "Save as Defaults" used to store the hidden layout
-    panel as it stood, which is an i1Pro on A4 at 72 dpi with no page margins
-    when the panel had never been shown: beside a saved i1Pro 3 Plus,
-    ColorMunki or SpectroScan, and restored verbatim at the next start with
-    the engine on. A recipe that names another instrument is not the saved
-    session's, and is not restored. One that names none is older than the
-    field and is taken as it is.
+#: The fields a stored recipe must hold to be judged as the unseen panel's.
+_UNSEEN_PANEL_CORE = ("instrument", "paper", "dpi", "margin_top",
+                      "margin_right", "margin_bottom", "margin_left",
+                      "use_instrument_margins")
+
+
+def _same_stored_value(stored, ref) -> bool:
+    """A stored value against the reference, as an INI store returns it too
+    (strings for numbers and bools, B8-1282)."""
+    if isinstance(ref, bool):
+        from ui.parameter_widget import as_bool
+        return isinstance(stored, (bool, str, int)) and as_bool(stored) is ref
+    if isinstance(ref, (int, float)):
+        try:
+            return abs(float(stored) - float(ref)) < 1e-9
+        except (TypeError, ValueError):
+            return False
+    if ref is None:
+        return stored is None or stored == ""
+    if isinstance(ref, (list, dict)):
+        return (stored or type(ref)()) == ref
+    return str(stored) == str(ref)
+
+
+def _is_unseen_panel_recipe(recipe) -> bool:
+    """Whether a stored recipe is the placeholder above (B8-1290), which
+    stands for "no recipe" and is treated as absent wherever one is read.
+
+    Every field the store holds must equal the placeholder's (the label
+    style aside); a field the store lacks is not judged, because a store
+    written before that field existed cannot hold it; a field the placeholder
+    does not know means a newer writer, and no newer writer stores one. The
+    core fields must be there.
     """
-    if not isinstance(recipe, dict) or not recipe.get("instrument"):
-        return True
-    return _engine_instrument(recipe.get("instrument")) == _engine_instrument(instr)
+    if not isinstance(recipe, dict):
+        return False
+    if any(k not in recipe for k in _UNSEEN_PANEL_CORE):
+        return False
+    try:
+        from core.settings import INDICATOR_STYLE_KEYS
+        overlaid = set(INDICATOR_STYLE_KEYS)
+    except Exception:      # noqa: BLE001
+        overlaid = set()
+    for key, value in recipe.items():
+        if key in overlaid:
+            continue
+        if key not in _UNSEEN_PANEL_RECIPE:
+            return False
+        if not _same_stored_value(value, _UNSEEN_PANEL_RECIPE[key]):
+            return False
+    return True
+
+
+def _recipe_is_for(recipe, instr, paper) -> bool:
+    """Whether a stored layout recipe is for this instrument AND paper, as
+    the layout panel names them (the i1iSis shown as the i1Pro, B8-1283).
+
+    The one test behind B8-1287 and B8-1291: a recipe for what Manual is on
+    is taken as it is; one that is not keeps every option of its own and
+    takes the instrument and paper from Manual (`TabChart._retargeted`). A
+    recipe that names no instrument or paper is older than the field and
+    counts as for any.
+    """
+    if not isinstance(recipe, dict):
+        return False
+    if recipe.get("instrument") and (
+            _engine_instrument(recipe.get("instrument"))
+            != _engine_instrument(instr)):
+        return False
+    return not recipe.get("paper") or str(recipe.get("paper")) == str(paper)
 
 
 def _extra_args_have_patch_source(extra: str) -> bool:
@@ -7659,71 +7830,79 @@ class TabChart(QWidget):
         if not self._manual_panel_inited:
             self._init_manual_layout_panel()
         try:
-            from dataclasses import replace
-            g = lambda f, d: self._manual_get("printtarg", f, d)
-            cur = panel.get_recipe()
-            instr = str(g("-i", "i1"))
-            suppress = bool(g("-L", True))           # -L = no left/clip border
-            dd = bool(g("-h", False))
-            td = (self._manual_td_check is not None
-                  and self._manual_td_check.isChecked() and instr == "CM")
-            # Spacers: -n (none) wins, then -b (B&W), then -c / default (coloured).
-            spacer_mode = ("none" if bool(g("-n", False))
-                           else "bw" if bool(g("-b", False))
-                           else "colored")
-            preserve = bool(g("-r", False))          # -r = preserve order
-            # Only carry the seed as a FIXED seed when the user actually enabled
-            # the -R row (printtarg always has an internal default, but the engine
-            # "no fixed seed" state must survive a round-trip).
-            has_seed = self._manual_enabled("printtarg", "-R")
-            seed_val = int(g("-R", 1) or 1)
-            bit16 = bool(self._bit16_radio is not None
-                         and self._bit16_radio.isChecked())
-            disable_comp = bool(g("-C", False))      # -C = no TIFF compression
-
-            # Margins: printtarg carries ONE value, the engine has four. Only
-            # collapse to all-four when the user actually changed printtarg's
-            # margin since the last switch — otherwise keep the engine's own
-            # (possibly distinct) four so toggling back and forth never loses them
-            # (Knut: don't transfer the non-1:1 field when it would clobber).
-            cur_m = float(g("-m", 6) or 6)
-            snap_m = getattr(self, "_pt_margin_at_switch", None)
-            if snap_m is not None and int(round(cur_m)) == int(snap_m):
-                margins = dict(
-                    margin_top=cur.margin_top, margin_right=cur.margin_right,
-                    margin_bottom=cur.margin_bottom, margin_left=cur.margin_left,
-                    border=cur.border,
-                    use_instrument_margins=cur.use_instrument_margins)
-            else:
-                margins = dict(
-                    margin_top=cur_m, margin_right=cur_m, margin_bottom=cur_m,
-                    margin_left=cur_m, border=cur_m, use_instrument_margins=False)
-
-            recipe = replace(
-                cur,
-                instrument=instr, paper=str(g("-p", "A4")),
-                dpi=int(g("-t", 300) or 300),
-                pscale=float(g("-a", 1.0) or 1.0),
-                nolimit=bool(g("-P", False)),
-                cm_density=(3 if td else 2 if dd else 1),
-                spacer_mode=spacer_mode, spacer_on=(spacer_mode != "none"),
-                randomize=(not preserve),
-                seed=(seed_val if (has_seed and not preserve) else None),
-                bit16=bit16,
-                compression=("none" if disable_comp else "lzw"),
-                clip_border=((not suppress) if instr in ("i1", "p3")
-                             else cur.clip_border),
-                clip_content_mode=(("off" if suppress else "notes")
-                                   if instr in ("i1", "p3")
-                                   else cur.clip_content_mode),
-                **margins,
-            )
-            self._set_engine_recipe(recipe)
+            self._set_engine_recipe(
+                self._printtarg_as_engine_recipe(panel.get_recipe()))
             if (getattr(panel, "pages", None) is not None
                     and self._manual_pages_spin is not None):
                 panel.pages.setValue(int(self._manual_pages_spin.value()))
         except Exception:  # noqa: BLE001 — never block the toggle
             log.warning("printtarg→engine conversion failed", exc_info=True)
+
+    def _printtarg_as_engine_recipe(self, cur):
+        """The engine OFF→ON conversion itself, as a value: `cur` with the
+        convertible fields taken from printtarg's widgets and every
+        engine-only option kept. `_convert_printtarg_to_engine` shows it;
+        "Save as Defaults" with the engine off stores it (B8-1291), so a
+        restart with the engine on shows what ticking the box shows."""
+        from dataclasses import replace
+        g = lambda f, d: self._manual_get("printtarg", f, d)
+        instr = str(g("-i", "i1"))
+        suppress = bool(g("-L", True))           # -L = no left/clip border
+        dd = bool(g("-h", False))
+        td = (self._manual_td_check is not None
+              and self._manual_td_check.isChecked() and instr == "CM")
+        # Spacers: -n (none) wins, then -b (B&W), then -c / default (coloured).
+        spacer_mode = ("none" if bool(g("-n", False))
+                       else "bw" if bool(g("-b", False))
+                       else "colored")
+        preserve = bool(g("-r", False))          # -r = preserve order
+        # Only carry the seed as a FIXED seed when the user actually enabled
+        # the -R row (printtarg always has an internal default, but the engine
+        # "no fixed seed" state must survive a round-trip).
+        has_seed = self._manual_enabled("printtarg", "-R")
+        seed_val = int(g("-R", 1) or 1)
+        bit16 = bool(self._bit16_radio is not None
+                     and self._bit16_radio.isChecked())
+        disable_comp = bool(g("-C", False))      # -C = no TIFF compression
+
+        # Margins: printtarg carries ONE value, the engine has four. Only
+        # collapse to all-four when the user actually changed printtarg's
+        # margin since the last switch — otherwise keep the engine's own
+        # (possibly distinct) four so toggling back and forth never loses them
+        # (Knut: don't transfer the non-1:1 field when it would clobber).
+        cur_m = float(g("-m", 6) or 6)
+        snap_m = getattr(self, "_pt_margin_at_switch", None)
+        if snap_m is not None and int(round(cur_m)) == int(snap_m):
+            margins = dict(
+                margin_top=cur.margin_top, margin_right=cur.margin_right,
+                margin_bottom=cur.margin_bottom, margin_left=cur.margin_left,
+                border=cur.border,
+                use_instrument_margins=cur.use_instrument_margins)
+        else:
+            margins = dict(
+                margin_top=cur_m, margin_right=cur_m, margin_bottom=cur_m,
+                margin_left=cur_m, border=cur_m, use_instrument_margins=False)
+
+        recipe = replace(
+            cur,
+            instrument=instr, paper=str(g("-p", "A4")),
+            dpi=int(g("-t", 300) or 300),
+            pscale=float(g("-a", 1.0) or 1.0),
+            nolimit=bool(g("-P", False)),
+            cm_density=(3 if td else 2 if dd else 1),
+            spacer_mode=spacer_mode, spacer_on=(spacer_mode != "none"),
+            randomize=(not preserve),
+            seed=(seed_val if (has_seed and not preserve) else None),
+            bit16=bit16,
+            compression=("none" if disable_comp else "lzw"),
+            clip_border=((not suppress) if instr in ("i1", "p3")
+                         else cur.clip_border),
+            clip_content_mode=(("off" if suppress else "notes")
+                               if instr in ("i1", "p3")
+                               else cur.clip_content_mode),
+            **margins,
+        )
+        return recipe
 
     def _convert_engine_to_printtarg(self) -> None:
         """Engine ON→OFF: write the engine panel's settings back onto the
@@ -8275,12 +8454,17 @@ class TabChart(QWidget):
         from workflow.layout_engine.presets import PresetStore
         return PresetStore.from_named_dict(load_presets("chart_layout", self._settings))
 
-    def _init_manual_layout_panel(self) -> None:
+    def _init_manual_layout_panel(self, selection=None) -> None:
         """Seed the layout panel (first time the engine is shown in Manual).
 
         Prefer the recipe saved by "Save as Defaults" (every engine option,
         incl. paper, restored verbatim); otherwise fall back to the active
-        per-(instrument/paper/mode) preset for the current selection (#93)."""
+        per-(instrument/paper/mode) preset for the current selection (#93).
+
+        ``selection`` is the (instrument, paper) the saved recipe is judged
+        against, when that is not what Manual's widgets show: a target with
+        nothing stored opens on the saved defaults as a whole (§4 S4), so
+        `_open_this_target_on_its_defaults` names the saved defaults' own."""
         self._manual_panel_inited = True
         # THE OTHER HALF OF THE PAGES MIRROR, wired once the panel exists.
         # Without it the tab's box could be the stale one instead.
@@ -8289,24 +8473,48 @@ class TabChart(QWidget):
         if _pages is not None and not getattr(self, "_pages_mirror_wired", False):
             _pages.valueChanged.connect(self._mirror_pages_from_panel)
             self._pages_mirror_wired = True
-        saved = self._settings.get("manual_engine_recipe", None)
-        # A RECIPE FOR ANOTHER INSTRUMENT IS NOT THE SAVED DEFAULTS' (B8-1287).
-        # Stores written before the fix hold the hidden panel's i1Pro beside a
-        # saved i1Pro 3 Plus, ColorMunki or SpectroScan; judged against the
-        # instrument the defaults were saved on.
-        saved_instr = self._settings.get(_pw_settings_key("printtarg", "-i"))
-        fits = _recipe_fits_instrument(saved, saved_instr or "i1")
-        if isinstance(saved, dict) and fits:
+        # THE SAVED RECIPE, JUDGED AGAINST WHAT MANUAL IS ON NOW (B8-1291,
+        # B8-1294).
+        #
+        # One rule for every caller: the start-up restore (where -i / -p are
+        # the saved defaults' own, -p already put in step with the recipe for
+        # C10), ticking the engine on, and opening a target with no recipe of
+        # its own (where -i / -p are the TARGET's). It used to be judged
+        # against the saved defaults' -i from the store, so a target on the
+        # CR30 opened with the defaults' ColorMunki recipe, whose instrument
+        # the panel then mirrored into -i. Now:
+        #   * the old placeholder recipe (B8-1290) counts as none;
+        #   * a recipe for this instrument and paper is taken as it is;
+        #   * any other keeps every option of its own (helper markers, chart
+        #     text, ...: B8-1291 lost them) and takes the instrument and
+        #     paper from Manual, as the switch to Manual does to a shown panel.
+        saved = self._stored_defaults_recipe()
+        if saved is not None:
             from workflow.layout_engine.presets import LayoutRecipe
+            # Until the start-up restore has filled the widgets (the panel is
+            # first seeded while the tab is built), they hold the factory
+            # values, so the store is asked what they are about to hold.
+            if selection is not None:
+                instr_now, paper_now = selection
+            elif getattr(self, "_defaults_restored", False):
+                instr_now = self._manual_get("printtarg", "-i", "i1")
+                paper_now = str(self._manual_get("printtarg", "-p", "A4")
+                                or "A4")
+            else:
+                instr_now, paper_now, _rp = self._stored_defaults_selection()
             try:
-                self._set_engine_recipe(LayoutRecipe.from_dict(saved))
+                rec = LayoutRecipe.from_dict(saved)
+                if not _recipe_is_for(saved, instr_now, paper_now):
+                    log.info("the saved layout recipe is for %s on %s and "
+                             "Manual is on %s / %s: its options are kept, "
+                             "the instrument and paper are Manual's",
+                             saved.get("instrument"), saved.get("paper"),
+                             instr_now, paper_now)
+                    rec = self._retargeted(rec, instr_now, paper_now)
+                self._set_engine_recipe(rec)
                 return
             except Exception as exc:  # noqa: BLE001 — fall back to the preset
                 log.warning("restore engine layout defaults failed: %s", exc)
-        elif isinstance(saved, dict):
-            log.info("the saved layout recipe is for %s and the defaults for "
-                     "%s: the panel opens on the layout preset instead",
-                     saved.get("instrument"), saved_instr)
         # The preset is looked up for the panel's selection, so the panel has
         # to show the Manual instrument and paper first: the first time it is
         # shown it still says i1Pro / A4, and a ColorMunki would get the
@@ -8317,6 +8525,28 @@ class TabChart(QWidget):
         # No styling overlay here: _current_layout_recipe applies the Settings
         # strip-indicator styling at read time, so seeding stays verbatim.
         self._set_engine_recipe(store.get(inst, paper, mode))
+
+    def _stored_defaults_recipe(self) -> "dict | None":
+        """The layout recipe "Save as Defaults" stored, or None when there is
+        none, or when it is the placeholder of a panel nobody saw (B8-1290):
+        that one stands for "no recipe", so the panel opens as a clean start
+        on the saved instrument and paper does, from the layout preset."""
+        saved = self._settings.get("manual_engine_recipe", None)
+        if not isinstance(saved, dict):
+            return None
+        if _is_unseen_panel_recipe(saved):
+            log.info("the stored layout recipe is the placeholder of a panel "
+                     "that was never shown (72 dpi, no margins): read as none")
+            return None
+        return saved
+
+    @staticmethod
+    def _retargeted(recipe, instr, paper):
+        """`recipe` with the instrument and paper Manual is on, every other
+        option its own (B8-1291). The instrument as the panel names it."""
+        from dataclasses import replace
+        return replace(recipe, instrument=_engine_instrument(instr),
+                       paper=str(paper or recipe.paper))
 
     def _sync_engine_panel_selection(self) -> None:
         """Seed the engine layout panel's instrument/paper from the canonical
@@ -10380,7 +10610,8 @@ class TabChart(QWidget):
         self._update_manual_lb_visibility()
 
     def _apply_instrument_default_margin(
-            self, *_signal_args, saved: "frozenset[str] | None" = None) -> None:
+            self, *_signal_args, saved: "frozenset[str] | None" = None,
+            preset_only: bool = False) -> None:
         """Auto-update -m (and -a, for i1) widgets to the per-instrument default
         on instrument change.
 
@@ -10435,7 +10666,12 @@ class TabChart(QWidget):
         # The restore used to end with this method, so a saved -m 6 on the
         # i1Pro came back as 10, a saved -m 10 or -a 0.95 on any other
         # instrument as 6 / 1.0: 25 of 30 saved pairs, every instrument.
-        if ("-m" not in keep and current_m in _house_margins()
+        #
+        # A CHANGED i1Pro PRESET MOVES ONLY THE PRESET'S OWN VALUES
+        # (`preset_only`, B8-1293): its help says so, and a hand-typed 5 on
+        # the i1Pro is not the CR30's 5.
+        house = _i1pro_preset_margins() if preset_only else _house_margins()
+        if ("-m" not in keep and current_m in house
                 and current_m != target_margin):
             self._manual_m_pw.set_value(target_margin)
 
@@ -10523,10 +10759,9 @@ class TabChart(QWidget):
             return False
         pw = self._manual_instr_pw
         if pw is not None and (pw.get_raw_value() or "i1") == "i1":
-            # the same rule a switch of instrument follows: a house value
-            # moves, a value the person typed (12, 0.85) stays, which is what
-            # the preset's help says
-            self._apply_instrument_default_margin()
+            # the preset's help: a value matching one of the preset values
+            # moves, any other (12, 0.85, and the CR30's 5, B8-1293) stays
+            self._apply_instrument_default_margin(preset_only=True)
         self._carry_i1pro_preset_into_saved_defaults()
         return True
 
@@ -10558,7 +10793,7 @@ class TabChart(QWidget):
                 m = int(float(v))
             except (TypeError, ValueError):
                 m = None
-            if m in _house_margins() and m != margin:
+            if m in _i1pro_preset_margins() and m != margin:
                 s.set(k_m, int(margin))
         k_a = _pw_settings_key("printtarg", "-a")
         v = s.get(k_a)
@@ -18971,7 +19206,10 @@ class TabChart(QWidget):
                     # freshly-reset printtarg selection first, or it seeds the
                     # defaults for the wrong instrument.
                     self._sync_engine_panel_selection()
-                    self._init_manual_layout_panel()
+                    # the saved defaults AS A WHOLE, their instrument and
+                    # paper with them (§4 S4; B8-1294)
+                    self._init_manual_layout_panel(
+                        selection=self._stored_defaults_selection()[:2])
                 except Exception:      # noqa: BLE001 — never block a load
                     log.warning("Could not open the layout panel on its "
                                 "defaults", exc_info=True)
@@ -19398,6 +19636,15 @@ class TabChart(QWidget):
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine toggle not applied")
         rec_d = stored.get("engine_recipe")
+        # A PANEL NOBODY SAW IS NO RECIPE (B8-1290). The per-target writer
+        # (`_collect_ui_state`) reads the panel whether or not it was ever
+        # seeded, so a target written before the panel was shown can hold the
+        # same placeholder as an old "Save as Defaults": absent, therefore
+        # neutral (§4 S4, the saved defaults).
+        if _is_unseen_panel_recipe(rec_d):
+            log.info("ui-state: the stored layout recipe is the placeholder "
+                     "of a panel that was never shown: read as none")
+            rec_d = None
         # NOT WHILE THAT LAYOUT IS BEING BUILT WITH. Building a chart makes the
         # run its own — creating or re-aligning it fires the target-switch
         # handler, which loads the run's *stored* Create Chart state right on top
@@ -19518,9 +19765,20 @@ class TabChart(QWidget):
             # LAST of the three branches, deliberately: an `elif` earlier in
             # the chain swallows a recipe that IS present, and the panel is
             # then reset in the middle of a build that was using it.
+            #
+            # JUDGED AGAINST THE TARGET, NOT THE SAVED DEFAULTS (B8-1294).
+            # A record with nothing in it is a target with nothing stored,
+            # which opens on the saved defaults as a whole (§4 S4). A record
+            # that holds the target's own Create Chart rows but no recipe
+            # (the shape ~40 betas wrote) has its instrument and paper on
+            # screen now: the saved recipe keeps its options and takes
+            # those, instead of pulling the panel, and through its mirror -i,
+            # onto the saved defaults' instrument.
             try:
                 self._sync_engine_panel_selection()
-                self._init_manual_layout_panel()
+                self._init_manual_layout_panel(
+                    selection=(None if stored
+                               else self._stored_defaults_selection()[:2]))
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: layout panel not reset", exc_info=True)
         ec = stored.get("engine_cal")
@@ -26900,45 +27158,53 @@ class TabChart(QWidget):
         # restart — _init_manual_layout_panel restores it. Without this, only the
         # printtarg widgets above were saved and the engine panel reset (#93).
         #
-        # ONLY A RECIPE FOR THE INSTRUMENT AND PAPER SAVED ABOVE (B8-1287).
-        # With the engine off the panel is hidden and does not follow -i / -p,
-        # and until it has been shown once it holds no recipe at all: it was
-        # stored anyway, as an i1Pro on A4 at 72 dpi with no page margins,
-        # beside a saved i1Pro 3 Plus, ColorMunki or SpectroScan, and a start
-        # with the engine on restored it verbatim (on screen: 72 dpi, no page
-        # margins, and a saved Letter opened as A4, B8-1228's "the recipe's
-        # paper wins"). So the panel is stored when it was shown and shows
-        # what -i / -p say, as it always does with the engine on; otherwise a
-        # stored recipe for this instrument and paper is kept, and any other
-        # one removed, so the next engine start seeds the panel from the
-        # layout preset for what was saved, as a first engine chart does.
+        # THE RECIPE STORED IS THE ONE THE ENGINE WOULD SHOW FOR WHAT WAS
+        # SAVED (B8-1287, B8-1291). One rule, whichever state the
+        # engine is in:
+        #   * engine ON: the panel is what is on screen (or what Manual shows
+        #     on the switch to it), so it is stored as it is, brought to the
+        #     instrument and paper saved above if a Guided change has not
+        #     reached it yet;
+        #   * engine OFF: printtarg's rows are on screen and the panel is
+        #     hidden, so what is stored is exactly what ticking the engine on
+        #     would show: the panel (seeded as the tick seeds it, from the
+        #     stored recipe or the layout preset for -i / -p) converted by
+        #     `_printtarg_as_engine_recipe`, which takes instrument, paper,
+        #     resolution, patch scale, margins, spacers and the rest from
+        #     printtarg and keeps every engine-only option.
+        # So a restart with the engine on shows what the session would have
+        # shown, and nothing a person set in the panel is lost. Until beta 43
+        # the engine-off save stored the hidden panel as it stood (an unseen
+        # one: i1Pro, A4, 72 dpi, no margins, B8-1290); beeb6e25 stored
+        # nothing and removed a recipe for another instrument or paper, with
+        # its helper markers and chart text (B8-1291).
         if getattr(self, "_manual_layout_panel", None) is not None:
             try:
-                panel = self._manual_layout_panel
-                instr_now = self._manual_get("printtarg", "-i", "i1")
-                paper_now = str(self._manual_get("printtarg", "-p", "A4") or "A4")
-                p_instr, p_paper, _mode = panel.selection()
-                if (self._manual_panel_inited
-                        and _engine_instrument(p_instr)
-                        == _engine_instrument(instr_now)
-                        and p_paper == paper_now):
-                    s.set("manual_engine_recipe",
-                          self._current_layout_recipe().to_dict())
-                else:
-                    old = s.get("manual_engine_recipe", None)
-                    if isinstance(old, dict) and not (
-                            _recipe_fits_instrument(old, instr_now)
-                            and str(old.get("paper") or "") == paper_now):
-                        s.unset("manual_engine_recipe")
-                        log.info("Save as Defaults: the layout panel holds no "
-                                 "recipe for %s on %s; the stored one (%s on "
-                                 "%s) was removed", instr_now, paper_now,
-                                 old.get("instrument"), old.get("paper"))
+                s.set("manual_engine_recipe", self._recipe_to_save())
             except Exception as exc:  # noqa: BLE001 — don't fail the whole save
                 log.warning("save engine layout defaults failed: %s", exc)
         log.info("Chart defaults saved")
         self._log.appendPlainText("Current settings saved as defaults.")
         self._log.ensureCursorVisible()
+
+    def _recipe_to_save(self) -> dict:
+        """The layout recipe "Save as Defaults" stores (see the rule in
+        `_on_save_defaults`): always for the instrument and paper saved."""
+        panel = self._manual_layout_panel
+        instr_now = self._manual_get("printtarg", "-i", "i1")
+        paper_now = str(self._manual_get("printtarg", "-p", "A4") or "A4")
+        if not self._manual_panel_inited:
+            # what the engine tick does first, on the hidden panel
+            self._init_manual_layout_panel()
+        if bool(self._settings.get("use_chromiq_layout_engine", False)):
+            rec = self._current_layout_recipe()
+        else:
+            rec = self._settings.apply_indicator_style(
+                self._printtarg_as_engine_recipe(panel.get_recipe()))
+        if not _recipe_is_for(rec.to_dict(), instr_now, paper_now) or (
+                rec.instrument != _engine_instrument(rec.instrument)):
+            rec = self._retargeted(rec, instr_now, paper_now)
+        return rec.to_dict()
 
     # ------------------------------------------------------------------
     # Param collection
@@ -27206,6 +27472,67 @@ class TabChart(QWidget):
     # ------------------------------------------------------------------
 
     def _restore_defaults(self) -> None:
+        try:
+            self._restore_defaults_impl()
+        finally:
+            # from here on the widgets hold the restored selection (B8-1291)
+            self._defaults_restored = True
+
+    def _stored_defaults_selection(self) -> "tuple[str, str, str | None]":
+        """(-i, -p, the recipe's paper when C10 gives it) as "Save as
+        Defaults" stored them, read from the store: what the layout panel is
+        judged against until the restore has put them on screen (the panel
+        is first seeded while the tab is built, before the restore).
+
+        -i is the i1Pro 3 Plus a beta-43 store lost (B8-1292). The paper is
+        the recipe's when the engine is on and the recipe (a real one,
+        B8-1290) is for the saved instrument: C10, "the recipe's paper wins
+        for an older save" (B8-1228)."""
+        s = self._settings
+        saved_recipe = self._stored_defaults_recipe()
+        stored_i = (self._instrument_b8_1288_left_behind(saved_recipe)
+                    or s.get(_pw_settings_key("printtarg", "-i")) or "i1")
+        stored_p = str(s.get(_pw_settings_key("printtarg", "-p")) or "A4")
+        recipe_paper = None
+        if (bool(s.get("use_chromiq_layout_engine", False))
+                and saved_recipe is not None and saved_recipe.get("paper")
+                and _engine_instrument(saved_recipe.get("instrument")
+                                       or stored_i)
+                == _engine_instrument(stored_i)):
+            recipe_paper = str(saved_recipe["paper"])
+        return str(stored_i), recipe_paper or stored_p, recipe_paper
+
+    def _instrument_b8_1288_left_behind(self, recipe) -> "str | None":
+        """The i1Pro 3 Plus a beta-43 store lost from -i (B8-1292), or None.
+
+        Until B8-1288 (beta 44) choosing the i1Pro 3 Plus in the layout panel
+        mirrored "3p" into -i, which -i does not offer, so -i kept the
+        instrument before, and "Save as Defaults" stored that stale -i beside
+        a recipe for the i1Pro 3 Plus. Such a store is recognised by what
+        only that fault writes: the recipe says p3, `chart_instrument` says
+        p3 and -i says something else. `chart_instrument` is what the save
+        collected, and in Manual with the engine on that is the panel's
+        instrument (`_collect_manual`), i.e. the one on screen; in Guided it
+        is Guided's, which is linked both ways to -i, so a Guided p3 beside
+        another -i cannot be written by any other path; with the engine off
+        in Manual it is -i itself. So the p3 in the recipe is what was shown,
+        and -i is taken from it. Any other disagreement is left alone.
+        """
+        s = self._settings
+        if not isinstance(recipe, dict):
+            return None
+        stored_i = s.get(_pw_settings_key("printtarg", "-i"))
+        if (_engine_instrument(recipe.get("instrument")) == "p3"
+                and str(recipe.get("instrument")) in ("p3", "3p")
+                and str(s.get("chart_instrument", "") or "") == "p3"
+                and stored_i is not None and str(stored_i) != "p3"):
+            log.info("Save as Defaults of an earlier beta left -i on %s "
+                     "beside an i1Pro 3 Plus layout (B8-1288): restored as "
+                     "the i1Pro 3 Plus", stored_i)
+            return "p3"
+        return None
+
+    def _restore_defaults_impl(self) -> None:
         s = self._settings
 
         # Strip any stray extension a pre-fix session may have persisted, so a
@@ -27283,12 +27610,18 @@ class TabChart(QWidget):
         # `_apply_instrument_default_margin` below leaves every one of them as
         # it came back, applying the instrument's defaults to the others only.
         saved_printtarg: set[str] = set()
+        # THE RECIPE AND THE INSTRUMENT IT WAS SAVED WITH (B8-1290, B8-1292).
+        healed_i = self._instrument_b8_1288_left_behind(
+            self._stored_defaults_recipe())
+        _i, _p, recipe_paper = self._stored_defaults_selection()
         for tool, widgets in self._manual_widgets.items():
             for pw in widgets:
                 if pw in self._d_cascade_widgets:
                     continue
                 new_key = _pw_settings_key(tool, pw.flag)
                 v = s.get(new_key)
+                if tool == "printtarg" and pw.flag == "-i" and healed_i:
+                    v = healed_i
                 if v is None:
                     legacy_key = f"manual_{tool}_{pw.flag}"
                     if legacy_key != new_key:
@@ -27381,18 +27714,12 @@ class TabChart(QWidget):
         # Guided -> Manual switch pushes -p into the layout panel
         # (`_sync_engine_panel_after_transfer`), so a stale -p would replace
         # the recipe's paper the moment Manual opens. Put -p in step first.
-        saved_recipe = s.get("manual_engine_recipe", None)
-        # …a recipe for THIS instrument (B8-1287): one written for another
-        # is not restored (`_init_manual_layout_panel`), so its paper is not
-        # the paper that was shown either.
-        if (bool(s.get("use_chromiq_layout_engine", False))
-                and isinstance(saved_recipe, dict)
-                and saved_recipe.get("paper")
-                and _recipe_fits_instrument(
-                    saved_recipe,
-                    s.get(_pw_settings_key("printtarg", "-i")) or "i1")):
-            self._set_manual_value("printtarg", "-p",
-                                   str(saved_recipe["paper"]))
+        # …a real recipe (B8-1290: the placeholder's A4 is nobody's paper)
+        # for THIS instrument (B8-1287): one written for another keeps its
+        # options and takes -i / -p (`_init_manual_layout_panel`), so its
+        # paper is not the paper that was shown either.
+        if recipe_paper:
+            self._set_manual_value("printtarg", "-p", recipe_paper)
         # RESTORING IS NOT A CHANGE MADE IN GUIDED (B8-1228). Both modes were
         # just set from the store, each to its own saved value. The switch
         # below (Guided is on screen at start-up) used to take every Guided

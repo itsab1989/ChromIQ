@@ -738,7 +738,14 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
                     # `hflag`, which is the field that makes it a honeycomb at
                     # all, so a bare read anywhere in that file is still an
                     # offender.
-                    or '"hflag": True, "hex_flat_top": True,' in line):
+                    or '"hflag": True, "hex_flat_top": True,' in line
+                    # NOR IS A SIGNATURE. `_UNSEEN_PANEL_RECIPE` in
+                    # tab_chart.py is the recipe earlier betas stored for a
+                    # panel nobody saw, compared field by field with a stored
+                    # dict to recognise it (B8-1290); nothing is built from
+                    # it. Matched by its exact text.
+                    or line == "    'hex_flat_top': False,      # a stored "
+                               "value, not a read (B8-1290)"):
                 continue          # the RESOLVED value is fine
             offenders.append(f"{rel}: {line.strip()[:90]}")
     assert not offenders, (

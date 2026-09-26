@@ -18,12 +18,14 @@ THE RULE (beta 44 challenge round 3, findings 1 and 2):
     preset, so the two modes disagreed (B8-1285).
 (c) Otherwise B8-1280 / B8-1281 hold: a saved flag comes back as saved.
 
-B8-1287: with the engine off, "Save as Defaults" stores the hidden layout
-panel's recipe, which still names the i1Pro beside a saved i1Pro 3 Plus,
-ColorMunki or SpectroScan. When the engine is on at a later start, that
-recipe named the instrument and paper. A recipe whose instrument is not the
-one Manual is on is not restored; the panel opens on the saved instrument's
-own layout preset, as a first engine chart does.
+B8-1287, as corrected by B8-1290 to B8-1292 (beta 44 challenge round 4):
+with the engine off, "Save as Defaults" stores what ticking the engine on
+would show (the panel converted from printtarg's rows, every engine-only
+option kept), so a restart with the engine on shows the session's tick; the
+placeholder earlier betas stored is read as no recipe; a recipe for another
+instrument or paper keeps its options and takes Manual's instrument and
+paper. The rest of that rule is guarded in
+tests/test_b8_1290_one_rule_for_the_saved_layout_recipe.py.
 
 MUTATIONS (see ~/Desktop/ChromIQ-beta44-proof/fixes-3/mutations.txt).
 """
@@ -298,6 +300,29 @@ def _manual_panel(t):
             p.instr.currentData(), p.selection()[1])
 
 
+def _engine_tick_in_the_saving_session(qapp, s, instr, paper):
+    """Save with the engine off, then tick it on IN THAT SESSION: what the
+    person would see. Returns (the stored recipe, the ticked panel's)."""
+    _seed(s, instr, engine=False)
+    t = _session(qapp, s)
+    try:
+        t._manual_btn.click()
+        pw = t._manual_paper_pw
+        pw._custom_combo.setCurrentIndex(pw._custom_combo.findData(paper))
+        qapp.processEvents()
+        t._on_save_defaults()
+        stored = s.get("manual_engine_recipe")
+        t._manual_engine_check.click()
+        qapp.processEvents()
+        ticked = t._manual_layout_panel.get_recipe().to_dict()
+    finally:
+        _close(qapp, t)
+    return stored, ticked
+
+
+_IGNORED = {"seed"}      # drawn per build, not a layout choice
+
+
 @pytest.mark.parametrize("instr,paper", [("p3", "A4"), ("CM", "A4"),
                                          ("SS", "A4"), ("i1", "Letter"),
                                          ("CM", "Letter")])
@@ -305,8 +330,11 @@ def test_an_engine_off_save_opens_as_saved_with_the_engine_on(
         qapp, store, instr, paper):
     """Save with the engine off, turn it on (the box is stored at once),
     start again: Manual, the panel and -i / -p are the saved instrument and
-    paper, not the recipe the hidden panel was left on."""
-    _save_engine_off(qapp, store, instr, paper)
+    paper, and the panel is FIELD FOR FIELD what ticking the engine on in the
+    saving session showed (B8-1292), never the 72 dpi placeholder."""
+    stored, ticked = _engine_tick_in_the_saving_session(qapp, store, instr,
+                                                        paper)
+    assert stored is not None and not TC._is_unseen_panel_recipe(stored)
     store.set("use_chromiq_layout_engine", True)
     t = _session(qapp, store)
     try:
@@ -314,8 +342,11 @@ def test_an_engine_off_save_opens_as_saved_with_the_engine_on(
         qapp.processEvents()
         assert _manual_panel(t) == (instr, paper, instr, paper)
         r = t._manual_layout_panel.get_recipe()
-        assert r.dpi == 300 and r.use_instrument_margins, (
-            "the panel holds a recipe nobody saw (72 dpi, no page margins)")
+        assert r.dpi == 300, "the panel holds the placeholder (72 dpi)"
+        back = r.to_dict()
+        diff = {k: (ticked.get(k), back.get(k)) for k in ticked
+                if k not in _IGNORED and ticked.get(k) != back.get(k)}
+        assert not diff, f"the restart is not the session's tick: {diff}"
         t._guided_btn.click()
         qapp.processEvents()
         t._manual_btn.click()
@@ -369,42 +400,65 @@ def test_a_recipe_for_the_saved_instrument_is_still_restored(qapp, store):
         _close(qapp, t2)
 
 
-@pytest.mark.parametrize("recipe_instr,manual,fits", [
-    ("i1", "i1", True), ("i1", "CM", False), ("p3", "p3", True),
-    ("p3", "3p", True), ("CM", "SS", False), (None, "CM", True),
+@pytest.mark.parametrize("recipe,manual,paper,fits", [
+    ({"instrument": "i1", "paper": "A4"}, "i1", "A4", True),
+    ({"instrument": "i1", "paper": "A4"}, "CM", "A4", False),
+    ({"instrument": "i1", "paper": "A4"}, "i1", "Letter", False),
+    ({"instrument": "p3", "paper": "A4"}, "p3", "A4", True),
+    ({"instrument": "p3", "paper": "A4"}, "3p", "A4", True),
+    ({"instrument": "CM", "paper": "A4"}, "SS", "A4", False),
+    ({}, "CM", "Letter", True),
     # the i1iSis has no engine layout; the panel shows the i1Pro for it
     # (B8-1283, open), so an i1Pro recipe beside it is not a mismatch here
-    ("i1", "isis", True)])
-def test_which_recipe_fits(recipe_instr, manual, fits):
-    assert TC._recipe_fits_instrument(
-        {"instrument": recipe_instr} if recipe_instr else {}, manual) is fits
+    ({"instrument": "i1", "paper": "329x483"}, "isis", "329x483", True)])
+def test_which_recipe_is_for_what_manual_is_on(recipe, manual, paper, fits):
+    assert TC._recipe_is_for(recipe, manual, paper) is fits
 
 
 @pytest.mark.parametrize("instr", ["p3", "CM", "SS", "i1"])
 def test_an_engine_off_save_stores_no_recipe_nobody_saw(qapp, store, instr):
-    """The hidden panel, never shown, is not the saved defaults' recipe."""
-    assert _save_engine_off(qapp, store, instr, "A4") is None
+    """The hidden panel, never shown, is not stored as it stood (B8-1287):
+    what is stored is for the saved instrument and paper, at their
+    resolution, not the 72 dpi placeholder (B8-1290)."""
+    _seed(store, instr, engine=False)
+    t = _session(qapp, store)
+    try:
+        t._on_save_defaults()
+    finally:
+        _close(qapp, t)
+    rec = store.get("manual_engine_recipe")
+    assert not TC._is_unseen_panel_recipe(rec)
+    assert (rec["instrument"], rec["paper"], rec["dpi"]) == (instr, "A4", 300)
 
 
-def test_an_engine_off_save_keeps_a_recipe_for_what_it_saved(qapp, store):
-    """An older engine save for the same instrument and paper is kept."""
+def test_an_engine_off_save_keeps_what_the_engine_save_set(qapp, store):
+    """An engine save's own options survive a later engine-off save on
+    another instrument (B8-1291: beeb6e25 deleted the recipe)."""
     _seed(store, "CM", engine=True)
     t = _session(qapp, store)
     try:
         t._manual_btn.click()
         qapp.processEvents()
+        p = t._manual_layout_panel
+        p.helper_markers_cb.setChecked(True)
+        p.chart_text.setText("KEPT")
+        p.chart_text.editingFinished.emit()
+        qapp.processEvents()
         t._on_save_defaults()
     finally:
         _close(qapp, t)
-    older = store.get("manual_engine_recipe")
-    assert older["instrument"] == "CM"
     store.set("use_chromiq_layout_engine", False)
     t = _session(qapp, store)
     try:
+        t._manual_btn.click()
+        t._manual_instr_pw.set_value("SS")
+        qapp.processEvents()
         t._on_save_defaults()
     finally:
         _close(qapp, t)
-    assert store.get("manual_engine_recipe") == older
+    rec = store.get("manual_engine_recipe")
+    assert rec["instrument"] == "SS"
+    assert rec["helper_markers"] is True and rec["chart_text"] == "KEPT"
 
 
 @pytest.mark.parametrize("code", ["p3", "CM", "SS", "CR30", "i1"])
