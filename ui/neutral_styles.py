@@ -776,12 +776,12 @@ QPushButton#browse:disabled, QPushButton#browse_compact:disabled {{
    K44: left exactly as it was (Basti, 2026-09-25: a colour a window already
    has is not changed). Since K44 OK, the default, is ACTION-filled too, so
    Neutral's Preferences shows two black buttons: put to Knut. */
-QPushButton#reset_defaults {{
+QPushButton#reset_defaults, QPushButton#prefs_ok {{
     background: {NM_ACTION};
     color: {NM_ON_ACTION};
     border: 1px solid {NM_ACTION};
 }}
-QPushButton#reset_defaults:hover {{
+QPushButton#reset_defaults:hover, QPushButton#prefs_ok:hover {{
     background: {NM_BORDER_HI};
     border-color: {NM_BORDER_HI};
 }}

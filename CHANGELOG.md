@@ -14,6 +14,7 @@
 
 ### Changed
 
+- In Preferences, OK now has the same colour as Restore Factory Defaults in every appearance, instead of a blue used nowhere else.
 - "Which presets can be used for verification" lists metrics that share the same message together, with the message once.
 - **Built-in preset lists:** Scanner presets are filtered by paper like every other group. A group with presets for the paper but none ticked shows its heading and "▸ N more presets". With a Custom paper, every Custom-paper preset is offered; a Custom size equal to a named paper (for example 210 × 297) is treated as that paper.
 - The gear window's help states the whole rule, and its info icons look like every other info icon.

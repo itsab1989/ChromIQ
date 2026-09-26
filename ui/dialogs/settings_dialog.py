@@ -3354,6 +3354,12 @@ class SettingsDialog(QDialog):
         )
         bb.accepted.connect(self._save_and_close)
         bb.rejected.connect(self.reject)
+        # OK, the button Return presses, wears Restore Factory Defaults'
+        # colour rather than the application's fallback accent, which in the
+        # Light appearance is a blue nothing else here uses (Basti,
+        # 2026-09-26: "if it gets any color than restore factory settings
+        # had before").
+        bb.button(QDialogButtonBox.StandardButton.Ok).setObjectName("prefs_ok")
         bottom_row.addWidget(bb)
 
         # Match the gap between left-side buttons to QDialogButtonBox's own

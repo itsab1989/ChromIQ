@@ -42,7 +42,6 @@ BEFORE = json.loads((ROOT / "tests" / "data" /
 #: filled (a tool's main action once its inputs are chosen, as it is greyed
 #: until then).
 FILLED_NOW = {
-    "Preferences": "OK",
     "gear window": "OK",
     "report question (as built)": "Create New",
     "tool/average": "Average",
@@ -58,6 +57,11 @@ FILLED_NOW = {
 #: coloured. The device-link family's "frame" is its #primary greyed; enabled
 #: it is the fill it always was.
 ALREADY_COLOURED = tuple(BEFORE["light"])
+#: Basti, 2026-09-26, on Preferences' OK turning blue (the application's
+#: fallback accent): "if it gets any color than restore factory settings had
+#: before". OK is still the button Return presses, and wears Restore Factory
+#: Defaults' own colour, whatever that is in each appearance.
+WEARS_RESTORES_COLOUR = {"Preferences": ("OK", "Restore Factory Defaults")}
 #: Rule 3 and C9: no filled button, on purpose (listed for Knut).
 NOTHING_FILLED = (
     "destructive question (Cancel default)",   # rule 3
@@ -142,7 +146,8 @@ def _default(rows):
 def test_every_audited_window_is_in_exactly_one_class(audit):
     names = set(audit["light"])
     classes = [set(FILLED_NOW), set(ALREADY_COLOURED), set(NOTHING_FILLED),
-               set(PLAIN_DESTRUCTIVE), set(COLOURED_DELETES)]
+               set(PLAIN_DESTRUCTIVE), set(COLOURED_DELETES),
+               set(WEARS_RESTORES_COLOUR)]
     assert sum(len(c) for c in classes) == len(set().union(*classes))
     assert set().union(*classes) | {"#primary beside another default"} \
         == names, names
@@ -223,16 +228,15 @@ def test_the_default_does_not_move_with_focus(audit, mode):
 def test_the_fill_is_the_windows_own_accent(audit, mode):
     """The gear window belongs to Create Chart: its OK is filled in the tab's
     magenta (the per-tab sheet); the report question takes its window's
-    green; Preferences, with no accent of its own, the application's."""
+    green. (Preferences wears Restore Factory Defaults' colour instead: see
+    test_preferences_ok_wears_restore_factory_defaults_colour.)"""
     from ui.styles import SPEC_GREEN, SPEC_MAGENTA
-    from ui.theme import app_accent
 
     def fill(name, text):
         return next(r["fill"] for r in audit[mode][name] if r["text"] == text)
     assert fill("gear window", "OK").lower() == SPEC_MAGENTA.lower()
     assert fill("report question (as built)", "Create New").lower() == \
         SPEC_GREEN.lower()
-    assert fill("Preferences", "OK").lower() == app_accent(mode).lower()
 
 
 @pytest.mark.parametrize("mode", MODES)
@@ -294,3 +298,14 @@ def test_the_focus_never_starts_on_a_destructive_button(audit, mode):
         if act[0].get("keeps_activation_focus"):
             bad.append(f"{name}: {action!r} keeps the focus activation gives it")
     assert not bad, f"{mode}:\n" + "\n".join(bad)
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_preferences_ok_wears_restore_factory_defaults_colour(audit, mode):
+    """Basti, 2026-09-26: OK, the button Return presses, is painted exactly as
+    Restore Factory Defaults is, in every appearance."""
+    for name, (ok, restore) in WEARS_RESTORES_COLOUR.items():
+        rows = audit[mode][name]
+        assert [r["text"] for r in _default(rows)] == [ok], rows
+        fills = {r["text"]: r["fill"].lower() for r in rows}
+        assert fills[ok] == fills[restore], (mode, fills)
