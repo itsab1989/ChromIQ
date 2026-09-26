@@ -364,9 +364,11 @@ _TREND_ABOUT = {
     "white": lambda: tr(
         "The lightness (L*) of the bare paper, per date. A change points to "
         "a different paper or to a change in the instrument."),
+    # Challenge 2 of beta 44 (B8-1274): "with its limit" was untrue since
+    # K49 showed this graph with no limit line too; a line says so itself.
     "paper_diff": lambda: tr(
         "How far the bare paper lies from the reference paper (ΔE00), per "
-        "date, with its limit."),
+        "date."),
     "black": lambda: tr(
         "The lightness (L*) of the darkest patch on the sheet, per date. A "
         "rising line means the blacks print lighter."),
@@ -1697,12 +1699,18 @@ _NO_LIMIT_SHOWS = {
         "This graph shows the lightness (L*) of the darkest patch on each "
         "date, which is useful for watching the blacks drift between dates, "
         "for example as an ink runs low."),
+    # Challenge 2 of beta 44, finding 5 (B8-1275): "from their ideal
+    # values" was false of the paper white on a FROM PROFILE GAMUT chart,
+    # whose aim is the profile's paper (§31.5), and the caption above the
+    # same graph says "aim values". The black and the six colours aim at
+    # ideal values on every chart kind, and only they are called ideal.
     "corners": lambda: tr(
         "This graph shows how far the paper white, the black and the six "
-        "solid colours lie from their ideal values (ΔE00) on each date. The "
-        "ideal values lie outside what most printers can print, so the level "
-        "says little about the print; the trend shows whether the inks and "
-        "the paper drift between dates."),
+        "solid colours lie from their aim values (ΔE00) on each date. The "
+        "aims of the black and the six colours are ideal values that lie "
+        "outside what most printers can print, so the level says little "
+        "about the print; the trend shows whether the inks and the paper "
+        "drift between dates."),
     "solids": lambda: tr(
         "This graph shows how far the cyan, magenta, yellow and black solids "
         "lie from the colours the profile predicts for them (ΔE00) on each "
@@ -1745,10 +1753,19 @@ _NO_LIMIT_SHOWS = {
 NO_LIMIT_WHY_SET = "set"
 NO_LIMIT_WHY_RECORD = "record"
 NO_LIMIT_WHY_ACCURACY = "accuracy"
+#: ``set`` split in two by the set data (challenge 2 of beta 44, finding 4,
+#: B8-1274): NO limit set has a limit on the graph's rows (Paper white,
+#: Darkest black and Cube corners have no row at all), or the report's own
+#: set has none while another set has one. "The limits this report is judged
+#: against set none for it" was poor English, and untrue of the first kind:
+#: it implied another choice would draw a line. `no_limit_note` chooses.
+NO_LIMIT_WHY_NOWHERE = "nowhere"
 _NO_LIMIT_WHY = {
-    NO_LIMIT_WHY_SET: lambda: tr(
-        "The limits this report is judged against set none for it, so no "
-        "limit line is drawn."),
+    # ``set`` has no sentence of its own: `no_limit_note` turns it into
+    # ``nowhere`` or into one of `_others_have_one`'s four.
+    NO_LIMIT_WHY_NOWHERE: lambda: tr(
+        "ChromIQ has no limit for what this graph shows in any of its limit "
+        "sets, so no limit line is drawn."),
     NO_LIMIT_WHY_RECORD: lambda: tr(
         "This report records the measurements without judging them, so no "
         "limit line is drawn."),
@@ -1758,15 +1775,81 @@ _NO_LIMIT_WHY = {
 }
 
 
-def no_limit_note(key: str = "", why: str = NO_LIMIT_WHY_SET) -> str:
+def _trend_key_rows(key: str) -> "tuple[str, ...]":
+    """The limit-set rows a graph *key* plots: the five colour-accuracy rows
+    for ``de``, a group's rows for a grouped tab, and none for Paper white,
+    Darkest black and Cube corners, which plot no row of any limit set."""
+    if key == "de":
+        from workflow.compliance_sets import ROWS
+        return tuple(r.id for r in ROWS if r.metric_key)
+    return tuple(rid for k, _t, rows in _TREND_GROUPS if k == key
+                 for rid, _w, _c in rows)
+
+
+def _sets_limiting(key: str, but: "str | None" = None) -> "list":
+    """Every limit set other than *but* whose own numbers put a limit on a
+    row the graph *key* plots (`factory_limits`: what the set holds before
+    anyone types a number into it). Read from the set data, so a row a set
+    gains or loses changes the sentence under its graph by itself."""
+    from workflow.compliance_sets import SETS, factory_limits
+    rows = _trend_key_rows(key)
+    if not rows:
+        return []
+    out = []
+    for sd in SETS:
+        if sd.id == but:
+            continue
+        try:
+            lims = factory_limits(sd.id)
+        except Exception:                              # noqa: BLE001
+            continue
+        if any(getattr(lims.get(rid), "is_numeric", False) for rid in rows):
+            out.append(sd)
+    return out
+
+
+def _others_have_one(others: list) -> str:
+    """Why no line is drawn when the report's own limit set has no limit for
+    the graph and *others* have one: one sentence, naming them by kind when
+    they share one simply (every one named after ISO 12647), else only
+    saying there are others."""
+    iso = bool(others) and all("ISO 12647" in sd.label for sd in others)
+    if len(others) == 1:
+        return (tr("The limit set this report is judged against has no "
+                   "limit for what this graph shows, although another limit "
+                   "set named after ISO 12647 has one, so no limit line is "
+                   "drawn.") if iso else
+                tr("The limit set this report is judged against has no "
+                   "limit for what this graph shows, although another limit "
+                   "set has one, so no limit line is drawn."))
+    return (tr("The limit set this report is judged against has no limit "
+               "for what this graph shows, although other limit sets named "
+               "after ISO 12647 have one, so no limit line is drawn.") if iso
+            else
+            tr("The limit set this report is judged against has no limit "
+               "for what this graph shows, although other limit sets have "
+               "one, so no limit line is drawn."))
+
+
+def no_limit_note(key: str = "", why: str = NO_LIMIT_WHY_SET,
+                  set_id: "str | None" = None) -> str:
     """The sentence under a drawn graph that has no limit line: what the
     graph *key* shows and what watching it is good for, then why no line is
     drawn (*why*). K47 (Knut, #182 5840152058) put a general sentence there;
     K49 (5841092535, answer 2) asked for it to be *"a bit more informative"*,
     so it is written per graph. A key with no sentence of its own gets the
-    second half alone."""
+    second half alone.
+
+    With *why* ``set`` the reason is chosen from the set data (B8-1274): no
+    limit set has a limit for this graph (``nowhere``), or the set the
+    report is judged against (*set_id*) has none and others do, named."""
     shows = _NO_LIMIT_SHOWS.get(key)
-    tail = _NO_LIMIT_WHY.get(why, _NO_LIMIT_WHY[NO_LIMIT_WHY_SET])()
+    if why in _NO_LIMIT_WHY:
+        tail = _NO_LIMIT_WHY[why]()
+    else:
+        others = _sets_limiting(key, but=set_id)
+        tail = (_others_have_one(others) if others
+                else _NO_LIMIT_WHY[NO_LIMIT_WHY_NOWHERE]())
     return (shows() + " " + tail) if shows else tail
 
 
@@ -12254,10 +12337,16 @@ class MeasurementReportDialog(QDialog):
         if not self._ungraded_by_type():
             return rows
         from workflow.compliance_sets import INFO, N_A
+        from workflow.measurement_report import VALUE_NOTES
         for row in rows:
             if row.get("word") != N_A:
                 row["word"] = INFO
-            row["notes"] = []
+            # B8-1277: a note that says what the VALUE is (the (b2) notes)
+            # stays with the value; the notes that comment a verdict go.
+            row["notes"] = ([n for n in (row.get("notes") or ())
+                             if n in VALUE_NOTES]
+                            if row.get("value") is not None
+                            and row.get("word") == INFO else [])
         return rows
 
     def _column_summary(self, r: dict):
@@ -13113,19 +13202,39 @@ class MeasurementReportDialog(QDialog):
             w.setProperty(self._GREYED_TIP, None)
             w.setProperty(self._OWN_TIP, None)
 
-    #: The four graphs a Printing record can carry, in tab order, with the
-    #: words the sentence under its results names them by.
-    _RECORD_GRAPHS = ("de", "white", "black", "corners")
+    #: What the sentence under a Printing record's results calls each graph
+    #: it carries, keyed like `_TREND_ABOUT`. Challenge 2 of beta 44,
+    #: finding 3 (B8-1273): since K49 a record carries every graph whose rows
+    #: have values (up to thirteen), and the sentence named only the first
+    #: four, "colour accuracy, paper white, darkest black and the cube
+    #: corners", whatever else was drawn.
+    _RECORD_GRAPH_NAMES = {
+        "de": lambda: tr("colour accuracy"),
+        "white": lambda: tr("paper white"),
+        "paper_diff": lambda: tr("the paper white difference"),
+        "black": lambda: tr("darkest black"),
+        "corners": lambda: tr("the cube corners"),
+        "solids": lambda: tr("the solid colours"),
+        "solid_hue": lambda: tr("the hue of the solids"),
+        "grey": lambda: tr("grey balance"),
+        "tone": lambda: tr("the tone ramps"),
+        "strip": lambda: tr("the control strip"),
+        "gamut_edge": lambda: tr("the outer and surface gamut"),
+        "repeat": lambda: tr("repeatability"),
+        "evenness": lambda: tr("evenness"),
+    }
 
     def _graphs_drawn_for(self, runs: list) -> "list[str]":
-        """Which of the four graphs that need no limit are DRAWN for *runs*:
-        shown in the plan and holding at least two dates (a graph of one date
-        is the empty frame saying a trend needs two measurements, and the
-        PDF prints no graph at all then)."""
+        """Which graphs are DRAWN for *runs*, in tab order: shown in the plan
+        and holding at least two dates (a graph of one date is the empty
+        frame saying a trend needs two measurements, and the PDF prints no
+        graph at all then). Every graph, not only the four that need no
+        limit (B8-1273)."""
         from workflow.measurement_report import report_trend
         charts = {"de": self._trend_de, "white": self._trend_white,
                   "black": self._trend_black,
                   "corners": self._trend_corners}
+        charts.update(self._trend_groups)
         series = report_trend(runs)
         out = []
         for chart, _t, metrics, _y, _d, _a, _thr, _l, shown in \
@@ -13140,27 +13249,23 @@ class MeasurementReportDialog(QDialog):
                         or any(f(pt) for f in wh))
             if dated >= 2:
                 out.append(key)
-        return [k for k in self._RECORD_GRAPHS if k in out]
+        return out
 
     def _record_graphs_sentence(self, runs: list) -> str:
         """The sentence under a Printing record's results: why it carries no
         graph of a judged metric, and WHICH graphs it does carry (K32, Knut
         on beta 41, #182 5813851807).
 
-        **ONLY THE GRAPHS THAT ARE DRAWN (challenge 2 of beta 42, #5).** It
-        named all four whatever was drawn, and a record of one measurement
-        draws none: its tabs are empty frames saying a trend needs two
-        measurements, and its PDF has no graph at all."""
+        **ONLY THE GRAPHS THAT ARE DRAWN (challenge 2 of beta 42, #5), AND
+        ALL OF THEM (challenge 2 of beta 44, B8-1273).** It named all four
+        whatever was drawn, and a record of one measurement draws none: its
+        tabs are empty frames saying a trend needs two measurements, and its
+        PDF has no graph at all. Then K49 let a record carry every graph
+        with values, and the sentence went on naming four."""
         head = tr("This report is not graded, so it carries no graph of a "
                   "judged metric: each of those graphs is drawn against its "
                   "limit.")
         drawn = self._graphs_drawn_for(runs)
-        if drawn == list(self._RECORD_GRAPHS):
-            return tr(
-                "This report is not graded, so it carries no graph of a "
-                "judged metric: each of those graphs is drawn against its "
-                "limit. The graphs it carries show colour accuracy, paper "
-                "white, darkest black and the cube corners.")
         if not drawn and len(runs) <= 1:
             return head + " " + tr(
                 "It carries no other graph either: a graph needs at least "
@@ -13169,10 +13274,8 @@ class MeasurementReportDialog(QDialog):
             return head + " " + tr(
                 "It carries no other graph either: the measurements it "
                 "covers have no values to draw one from.")
-        names = {"de": tr("colour accuracy"), "white": tr("paper white"),
-                 "black": tr("darkest black"),
-                 "corners": tr("the cube corners")}
-        words = [names[k] for k in drawn]
+        words = [self._RECORD_GRAPH_NAMES[k]() for k in drawn
+                 if k in self._RECORD_GRAPH_NAMES]
         if len(words) == 1:
             return head + " " + tr(
                 "The one graph it carries shows {graph}.").format(
@@ -15753,6 +15856,19 @@ class MeasurementReportDialog(QDialog):
             # for trending"*): a tab none of whose rows is judged, whose rows
             # have values, is shown with those values and no line.
             free = not any(rid in judged for rid, _w, _c in rows)
+            if free:
+                # Challenge 2 of beta 44, finding 7 (B8-1276): a tab with no
+                # limit line is shown only for its TREND, so it needs values
+                # on two dates or more. With one it was an empty frame saying
+                # it "draws no trend", which the PDF does not print either.
+                _dated = sum(1 for pt in (getattr(self, "_trend_series",
+                                                  None) or [])
+                             if any((pt.get("rows") or {}).get(rid)
+                                    is not None
+                                    for rid, _w, _c in rows
+                                    if rid in unlimited))
+                if _dated < 2:
+                    free = False
             for rid, word, col in rows:
                 if free and rid in unlimited:
                     metrics.append((_with_unit(self._row_name(
@@ -15799,7 +15915,11 @@ class MeasurementReportDialog(QDialog):
                NO_LIMIT_WHY_ACCURACY if (chart is self._trend_de
                                          and not self._colour_accuracy_is_judged())
                else NO_LIMIT_WHY_SET)
-        nl = no_limit_note(key or "", why)
+        try:
+            _set_id = self._report_limits().set_id
+        except Exception:                              # noqa: BLE001
+            _set_id = None
+        nl = no_limit_note(key or "", why, _set_id)
         if chart is self._trend_de and _series_is_within_gamut(
                 getattr(self, "_trend_series", None)):
             # K30 (B3): a record judges no patch, so "each judged patch" is

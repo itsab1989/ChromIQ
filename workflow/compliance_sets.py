@@ -316,7 +316,10 @@ _D_REFERENCE_WHITE = (
     "keeps the paper white its reference recorded when the chart was "
     "built.\n\n"
     "The row reads N-A when the chart has no patch printed with no ink, or "
-    "when no profile can be read.")
+    "when no profile can be read.\n\n"
+    "Only a verification is compared with the profile. A profiling "
+    "measurement is what the profile is built from, so it would be compared "
+    "with itself; there the row reads N-A.")
 _D_REFERENCE_SOLIDS = (
     "Each solid corner patch (cyan, magenta, yellow, and the composite black "
     "where all three inks are at full) is compared with the colour the "
@@ -330,15 +333,19 @@ _D_REFERENCE_SOLIDS = (
     "counts as present when a patch sits within 12 device units of it. The "
     "row reports the worst of the corners that were found, not of all four. "
     "The cube-corner table goes on comparing the same patches with their "
-    "ideal values.")
+    "ideal values.\n\n"
+    "Only a verification is compared with the profile. A profiling "
+    "measurement is what the profile is built from, so it would be compared "
+    "with itself; there the row reads N-A.")
 _D_REFERENCE_CMY = (
     "The hue difference (ΔH*ab) of the cyan, magenta and yellow solid patches "
     "from the hue the profile predicts for them, on the same charts as the "
     "solid-colour row: a chart built from your profile's gamut, or one "
     "printed without a profile. A chart printed through the profile reads "
-    "N-A here. The chart needs a patch at one or more of the three corners, "
-    "within 12 device units, and the row reports the worst of the corners "
-    "that were found.")
+    "N-A here, and so does a profiling measurement, which is what the "
+    "profile is built from. The chart needs a patch at one or more of the "
+    "three corners, within 12 device units, and the row reports the worst of "
+    "the corners that were found.")
 #: **A CHART DECLARES ITS OWN STRIP.** Knut approved this on 2026-09-18
 #: (S2w). It replaces a sentence that said this row is never judged, which was
 #: true for as long as ChromIQ had no way to be told which patches the strip
@@ -504,9 +511,9 @@ _R_REFERENCE = (
     "print is.")
 #: …and the paper row a chart with a paper patch and a profile to read.
 _R_REFERENCE_PAPER = (
-    "Use a chart with a patch printed with no ink (most charts have one), "
-    "measured in a run whose profile is built. The paper is then compared "
-    "with the paper white that profile records.")
+    "Measure a verification of a chart with a patch printed with no ink "
+    "(most charts have one), in a run whose profile is built. The paper is "
+    "then compared with the paper white that profile records.")
 _R_GREY_RAMP_DEVICE = (
     "Use a chart with a longer grey ramp: at least eight steps of neutral "
     "grey, running from white through to black and spread evenly between "

@@ -29436,3 +29436,106 @@ would reach.
 - where: `ui/tabs/tab_chart.py` (`_CappedComboBox.eventFilter`, `_edge_row`).
 - tests: tests/test_b8_1263_home_and_end_in_the_open_preset_list.py, both red without the Home/End branch.
 - evidence: test_end_and_home_in_the_open_list, test_end_never_lands_on_a_heading_and_follows_an_open_arrow
+
+### B8-1270 · FIXED, awaiting confirmation · Beta 44 challenge 2, finding 1: a relative FROM PROFILE GAMUT chart's solid rows compared an absolute reading with a relative prediction
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: the beta 44 challenge round 2 (`~/Desktop/ChromIQ-beta44-proof/challenge-2/FINDINGS.md`, 1; `relative_fpg.json`).
+- note: `corner_predictions_through` asked `xicclu` with the chart's own intent, and the two solid rows (K49, B8-1245) took that prediction from the strip. On a chart built with the relative intent a printer printing exactly as profiled read 2.94 on "Maximum ΔE00, solid colours" (ISO 12647-7: 3.0) and 2.13 on the hue row (2.5); the absolute chart 0.01 / 0.02. The rows ask "does the solid print as profiled?" and the reading is absolute, so `condition_reference_block` asks the run's profile with ABSOLUTE colorimetry whatever the chart's intent; an absolute chart reuses the strip's prediction (one lookup). After: 0.01 / 0.02 on both intents (`fixes-2/relative-fpg/`). The strip keeps the chart's intent: part of B8-1272. Spec 43.1, 41.7 amended.
+- where: `workflow/measurement_report.py` (`corner_predictions_through` `intent`, `condition_reference_block`).
+- tests: tests/test_c2b44_report_findings.py (a fake profile per intent, and one through ArgyllCMS in the release tier: sRGB.icm, 200-colour charts built with each intent, fakeread). Mutations, each red: `~/Desktop/ChromIQ-beta44-proof/fixes-2/mutations.txt`.
+- evidence: test_a_relative_chart_s_solids_are_predicted_absolute, test_an_absolute_chart_asks_once, test_a_perfect_print_reads_zero_in_both_intents_through_argyll
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (NOTES.txt, case F)
+
+### B8-1271 · FIXED, awaiting confirmation · Beta 44 challenge 2, finding 2: (b2) compared profiling sheets with the profile built from themselves
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: the beta 44 challenge round 2 (FINDINGS.md, 2).
+- note: Knut's "Yes" to (b2) (#182 5841092535) was to §41.4's "every verification sheet"; K49 applied it to every measurement, so a profiling sheet read 0.02 / 0.10 / 0.05 against its own profile and the Evenness demo's eight profiling runs a paper difference of 13.3 to 14.3 against the stand-in profile. Now `condition_reference_block` answers `not_verification` for any measurement that is not a verification, and `row_values` gives it what the three rows gave it before K49: the chart's colorimetric reference where it has one, else N-A "needs a reference for the printing condition", no note. The three rows' help says a profiling measurement reads N-A (it would be compared with itself); the paper row's lever asks for a verification. The demo pack rebuilt (0 faults, 109 of 109 matrix cells, --verify complete); its Evenness profiling reports record `not_verification`. Spec 43.2, 41.7 amended.
+- where: `workflow/measurement_report.py` (`CONDITION_NOT_VERIFICATION`, `condition_reference_block`, `row_values`), `workflow/compliance_sets.py` (`_D_REFERENCE_WHITE`, `_D_REFERENCE_SOLIDS`, `_D_REFERENCE_CMY`, `_R_REFERENCE_PAPER`), `data/i18n/*.json`.
+- tests: tests/test_c2b44_report_findings.py; tests/test_chromiq_owns_the_two_repeatability_rows.py (amended: a sheet in no run reads "needs a reference" again, as before K49). The release package names its §43 demonstrations (`RULE_DEMOS`). Mutations, each red: mutations.txt.
+- evidence: test_a_profiling_measurement_is_not_compared_with_the_profile, test_a_run_s_own_sheet_is_not_compared_with_its_own_profile, test_the_help_says_a_profiling_measurement_reads_n_a
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (cases R, P, V; pack/evenness-profiling-paper-row.txt)
+
+### B8-1272 · OPEN, for Knut · Beta 44 challenge 2, finding 1 (older): a relative FROM PROFILE GAMUT chart is judged as measured against relative aims
+- blocks release: no
+- severity: MAJOR
+- status: OPEN
+- found by: the beta 44 challenge round 2 (FINDINGS.md, 1, "Older").
+- note: The chart's module stores its aims in the chart's intent; the report reads the sheet as measured. On the adversary's perfect print of a relative chart "Average ΔE00, all patches" reads 2.40 (P95 3.08, max 3.29) against ISO 12647-7's 2.5, where the absolute chart reads 0.04; the strip on such a chart carries the same offset. Measured three ways (`fixes-2/older-problem/older_problem.txt`): as built 2.40; against the profile's absolute prediction 0.01; the reading media-relative to its own paper patch 0.14. Options put to Knut in spec 43.8: (A) judge a relative chart media-relative, as §33 does for white-mapped sheets (recommended); (B) compare every patch with the profile's absolute prediction; (C) write every FROM PROFILE GAMUT reference in absolute colorimetry; (D) keep it with a note. Not changed silently: it changes every relative chart's figures.
+- where: `workflow/measurement_report.py` (`build_report`, the colorimetric reference), `workflow/gamut_target.py` (`select_gamut_targets`, `write_colorimetric_reference`); spec 43.8.
+
+### B8-1273 · FIXED, awaiting confirmation · Beta 44 challenge 2, finding 3: the Printing record named four graphs where it carries up to thirteen
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the beta 44 challenge round 2 (FINDINGS.md, 3; medium there).
+- note: "The graphs it carries show colour accuracy, paper white, darkest black and the cube corners" stayed after K49 let a record carry every graph with values. `_graphs_drawn_for` looks at every tab and `_record_graphs_sentence` names every graph drawn, in tab order (`_RECORD_GRAPH_NAMES`). German by hand. Spec 43.3, 27.3 amended.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_RECORD_GRAPH_NAMES`, `_graphs_drawn_for`, `_record_graphs_sentence`).
+- tests: tests/test_c2b44_report_findings.py; tests/test_c2_a_printing_record_names_only_the_graphs_it_draws.py still green.
+- evidence: test_every_graph_has_a_name_in_the_record_sentence, test_the_record_sentence_names_graphs_beyond_the_first_four
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (case R)
+
+### B8-1274 · FIXED, awaiting confirmation · Beta 44 challenge 2, finding 4: "The limits this report is judged against set none for it" was poor English and untrue where no set has a limit
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the beta 44 challenge round 2 (FINDINGS.md, 4; medium there).
+- note: Chosen per graph from the sets' own numbers (`_sets_limiting`, never a list of graphs): no set limits what the graph shows ("ChromIQ has no limit for what this graph shows in any of its limit sets, so no limit line is drawn.": Paper white, Darkest black, Cube corners under every set), or the report's set has none and others do ("…, although other limit sets named after ISO 12647 have one, …" when every such set is named after ISO 12647, else "…, although other limit sets have one, …"; singular forms with one). EN and DE by hand, no "du". Also seen on screen in this round: the caption above Paper white difference said "per date, with its limit." over a graph with no line; it ends at "per date." now. Spec 43.4, 41.8 amended.
+- where: `ui/dialogs/measurement_report_dialog.py` (`NO_LIMIT_WHY_NOWHERE`, `_trend_key_rows`, `_sets_limiting`, `_others_have_one`, `no_limit_note`, `_trend_extras`), `data/i18n/*.json`.
+- tests: tests/test_c2b44_report_findings.py, tests/test_k47_every_limited_row_has_a_graph.py (amended).
+- evidence: test_a_graph_no_limit_set_limits_says_so, test_a_graph_another_set_limits_names_that_kind_of_set, test_the_choice_is_read_from_the_set_data, test_the_new_sentences_are_german_by_hand_and_name_no_control
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (case D)
+
+### B8-1275 · FIXED, awaiting confirmation · Beta 44 challenge 2, finding 5: the Cube corners sentence said "ideal values" where the paper white aims at the profile's paper
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the beta 44 challenge round 2 (FINDINGS.md, 5; medium there).
+- note: On a FROM PROFILE GAMUT chart the White line reads 0.0, its aim the profile's paper (§31.5), and the caption says "aim values". The sentence now says the corners lie "from their aim values" and calls only the black's and the six colours' aims ideal. Spec 43.5.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_NO_LIMIT_SHOWS["corners"]`), `data/i18n/*.json`.
+- tests: tests/test_c2b44_report_findings.py
+- evidence: test_the_cube_corners_sentence_says_aim_values_as_the_caption_does
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (case D)
+
+### B8-1276 · FIXED, awaiting confirmation · Beta 44 challenge 2, finding 7: a graph with no limit line and one dated value was an empty frame
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the beta 44 challenge round 2 (FINDINGS.md, 7).
+- note: A tab shown by K49 (none of its rows judged) is shown and printed only when two dates or more have a value of its rows. §17's confirmed behaviour is unchanged (the four original tabs always show; a tab with a judged row shows with one value as a point, or with the two-measurement text). Spec 43.6.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_trend_plan`).
+- tests: tests/test_c2b44_report_findings.py
+- evidence: test_a_graph_with_no_line_and_one_dated_value_is_hidden
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (cases D1 and P)
+
+### B8-1277 · FIXED, awaiting confirmation · Beta 44 challenge 2, finding 8: a solid value shown for information had no M-REPORT-SOLIDS-PREDICTED note
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the beta 44 challenge round 2 (FINDINGS.md, 8).
+- note: §41.7 says every judged or shown value carries it. `judge` gave notes only to a verdict and the Printing record's `_ungrade` cleared them. The two (b2) notes say what the value was compared with (`VALUE_NOTES`), so they now travel with every row that shows a value, INFO included, and survive `_ungrade`. Spec 43.7.
+- where: `workflow/measurement_report.py` (`VALUE_NOTES`, `judge`), `ui/dialogs/measurement_report_dialog.py` (`_ungrade`).
+- tests: tests/test_c2b44_report_findings.py
+- evidence: test_an_info_solid_value_carries_the_predicted_note, test_a_printing_record_keeps_the_value_notes
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-2/ (case C)
+
+### B8-1278 · FIXED · Beta 44 challenge 2, findings 6 and 9: the K49 driver's blue selection, and words in §42's Confirmed block Knut did not say
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the beta 44 challenge round 2 (FINDINGS.md, 6 and 9).
+- note: `scripts/drive_k49_reference_rows.py` scrolled with `QTextBrowser.find()`, which selects what it finds, and photographed the selection; `_scroll_to` now leaves none (`_show_without_selection`). The K49 photographs relied on were taken again (`fixes-2/k49-retake/`). §42's Confirmed block said "It stays one of his researched figures", which Knut did not say; moved to §42.2 (awaiting confirmation). Spec 43.9.
+- where: `scripts/drive_k49_reference_rows.py`, docs/design/measurement_report_limits.md §42.
+- tests: tests/test_c2b44_report_findings.py
+- evidence: test_the_k49_driver_leaves_no_selection_on_the_page
+
+### B8-1279 · OPEN · Beta 44 challenge 2, older: numbers follow the system locale in the limits window, and a German report's sentences print a decimal point
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the beta 44 challenge round 2 (FINDINGS.md, "Older, noted").
+- note: (1) The Report limits window's spin boxes and read-only cells use the system's locale (`thresholds_dialog._cell_text` asks `QLocale.system()`, the spin boxes keep Qt's default), so an English window on a German Mac shows "4,50"; the app's language should decide. (2) A German report's notes print "0.81" (`_evenness_noise_sentence` and the other note builders format with a point), while B8-950 gives a level in a sentence the comma of its language (`_level_text`); the tables print a point too. Both touch number formatting in several places and the tests that read those numbers, so they are left for their own change rather than fixed in this round.
+- where: `ui/dialogs/thresholds_dialog.py`, `ui/widgets.py` (the decimal spin box), `ui/dialogs/measurement_report_dialog.py` (`_fmt`, the note sentences).

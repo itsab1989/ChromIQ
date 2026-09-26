@@ -131,6 +131,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §40 | K45: the PDF's page layout: "How to read this report" set at most 0.2 pt tighter when that saves the page it spilled onto; every limit line of the Colour accuracy graph described under it (all rows it limits, a P95 line of its own where the set needs one), in the PDF and the window; "For information (no limit applies)" on a page of its own unless the colour section ran over | 2026-09-25, 5834422633 | asked by Knut; built for beta 44 (B8-1201 to B8-1204), NOT confirmed; how 0.2 pt is set put to him |
 | §41 | K47: every row a set limits has a data line, a limit line and a sentence (the control strip's maximum, the two solid-colour rows, the outer- and surface-gamut averages); a graph with no limit says so under it; what the paper-white and solid rows are compared with, and the analysis of a default reference | 2026-09-25, 5840152058 | ruled by Knut; built for beta 44 (B8-1232 to B8-1234), NOT confirmed; the reference question analysed and put back to him (B8-1235, B8-1236) |
 | §41.6 | K49 (§41.6 to §41.9): Knut's three answers: (b2) built (the paper row against the profile's media white on every chart with a paper patch, the solid rows against the profile's prediction where printed raw, N-A with a named note otherwise, §32.5 reversed for those two rows only); a graph of a row with values and no limit shown, with a sentence of its own (§17 item 3 amended); the Control strip's three lines and the caption outside §M accepted | 2026-09-25, 5841092535 | the three answers confirmed by Knut (§41.6); built for beta 44 (B8-1244 to B8-1248), NOT confirmed; two message texts proposed; one question (B8-1249) |
+| §43 | Challenge 2 of beta 44, the report findings: a relative chart's solid rows predicted absolute; (b2) on verifications only; the Printing record names every graph it carries; why no limit line is drawn, from the set data; the Cube corners sentence says "aim values"; a graph with no line needs two dated values; a value shown for information keeps its (b2) note; the older question of a relative FROM PROFILE GAMUT chart judged absolute | 2026-09-26, challenge 2 of beta 44 | found by the challenge round, not ruled by Knut; built (B8-1270, B8-1271, B8-1273 to B8-1278), NOT confirmed; one question for Knut (B8-1272) |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -5837,6 +5838,9 @@ instead *"It carries no other graph either: a graph needs at least two
 measurements, and this report has one."* (German: *"Er enthält auch keine
 andere Grafik: Eine Grafik braucht mindestens zwei Messungen, und dieser
 Bericht hat eine."*); a record that draws some names those, in tab order.
+**Amended (challenge 2 of beta 44, B8-1273, §43.3, not confirmed):** since
+K49 a record can carry up to thirteen graphs, and the sentence named only
+the first four; it names every graph drawn, in tab order.
 
 **27.4 Metric tables on screen.** The window fits its metric tables (Report
 Results and the Overview) to its own page width, never fewer than four dates
@@ -8138,7 +8142,9 @@ three rows were compared with, `condition_reference = {"paper": {...},
   against the media white (`wtpt`) of a profile:
   * a FROM PROFILE GAMUT chart keeps §31.5: the white its reference recorded
     when it was built, else the run's own profile (`paper_reference_of`);
-  * every other chart asks the K37 lookup (`profile_paper_white`, §33.2):
+  * every other chart (of a VERIFICATION: **amended by §43.2, B8-1271**,
+    a measurement that is not a verification is not compared with a profile
+    at all) asks the K37 lookup (`profile_paper_white`, §33.2):
     the profile the print record names when that file is on disk (the one
     the sheet was printed through), else the run's own built profile.
   * On a chart that is not FROM PROFILE GAMUT the row carries a numbered
@@ -8163,7 +8169,11 @@ three rows were compared with, `condition_reference = {"paper": {...},
     print record says; its prediction is the one §34 asks for the control
     strip (`profile_corner_predictions`: the run's own profile, the chart's
     intent), so a solid is judged against ONE aim in every row that judges
-    it;
+    it; *(**Amended by §43.1, B8-1270:** the two solid rows ask the run's
+    profile with ABSOLUTE colorimetry, whatever the chart's intent, because
+    their reading is absolute. On a chart built absolute that is the strip's
+    own prediction; on one built relative the strip keeps the chart's
+    intent, the older question of §43.8.)*
   * any other chart only when its print record says raw; the profile is the
     K37 lookup's, asked with absolute colorimetry (a raw sheet is read as
     measured). **A raw print of an ordinary chart is a drift check
@@ -8171,7 +8181,8 @@ three rows were compared with, `condition_reference = {"paper": {...},
     two rows show their values for information and carry no verdict: in
     practice the solid rows are judged only on FROM PROFILE GAMUT charts;
   * every judged or shown value carries the numbered note
-    M-REPORT-SOLIDS-PREDICTED (**PROPOSED**): the cube-corner table compares
+    M-REPORT-SOLIDS-PREDICTED (**PROPOSED**; a value shown for information
+    did not until §43.7, B8-1277): the cube-corner table compares
     the same patches with their ideal values, so the two can differ a lot;
   * N-A with its reason: printed through the profile
     (`solids_through_profile`: *"the measured chart was printed through the
@@ -8237,7 +8248,8 @@ sentence (B8-1247, B8-1248).**
 * The note under a drawn graph with no limit line is written per graph
   (`_NO_LIMIT_SHOWS`, `_NO_LIMIT_WHY`, `no_limit_note(key, why)`): what the
   graph shows, what watching it is for (a change between dates), and why no
-  line is drawn, in one of three forms: *"The limits this report is judged
+  line is drawn, in one of three forms (**the first replaced by §43.4,
+  B8-1274**): *"The limits this report is judged
   against set none for it, so no limit line is drawn."*; on a Printing
   record *"This report records the measurements without judging them, so no
   limit line is drawn."*; under Colour accuracy on a report that judges no
@@ -8334,7 +8346,7 @@ said above, that "Maximum ΔE00, lowest 95 % (P95)" can never be higher than
 
 * "Maximum ΔE00, all patches" starts at **4.50** in both Custom columns
   (Custom ISO 12647-7 and Custom ISO 12647-8), above their 95th percentile's
-  4.0. It stays one of his researched figures.
+  4.0.
 * The metric help says how the rows worked out from the same patches relate.
 
 ### ⏳ Awaiting confirmation: what was built from it
@@ -8344,7 +8356,10 @@ said above, that "Maximum ΔE00, lowest 95 % (P95)" can never be higher than
 **42.2 As built (B8-1252).**
 
 * `workflow/compliance_sets._CUSTOM_INDUSTRY`: "all_de00_max" 4.5 in both
-  columns (it was 2.0, K33). **What it changes:** a Custom column's numbers
+  columns (it was 2.0, K33), kept among the researched industry figures Knut
+  delivered, as the figure he set. *(This sentence stood in the Confirmed
+  block above as "It stays one of his researched figures", which Knut did
+  not say; moved here by challenge 2 of beta 44, B8-1278.)* **What it changes:** a Custom column's numbers
   are its defaults with the user's own typed numbers laid over them, so a
   user who typed nothing on that row gets 4.50 from the next start, and a
   number someone typed stays theirs. A saved report keeps the limits it was
@@ -8389,3 +8404,194 @@ said above, that "Maximum ΔE00, lowest 95 % (P95)" can never be higher than
 
 **Status:** the figure and the requirement confirmed by Knut (42.1); the help
 wording and the consequences (42.2) NOT confirmed.
+
+
+## 43. Challenge 2 of beta 44: the report findings (2026-09-26, beta 44)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+Found by the second challenge round of beta 44 on the K49 tree (4cd9bf6b),
+on screen (`~/Desktop/ChromIQ-beta44-proof/challenge-2/FINDINGS.md`), not
+ruled by Knut: what was built waits for his confirmation. Register: B8-1270
+to B8-1279. Proof: `~/Desktop/ChromIQ-beta44-proof/fixes-2/` (on screen, EN
+and DE, window and PDF, before and after; NOTES.txt).
+
+**43.1 A relative chart's solid rows are predicted absolute (B8-1270).** On
+a FROM PROFILE GAMUT chart built with the relative intent, "Maximum ΔE00,
+solid colours" and "Maximum ΔH\*ab, cyan, magenta and yellow solids"
+compared the solid patches, read as measured (absolute), with the colour
+the profile predicts for them in the chart's own (relative) intent
+(`corner_predictions_through` asked `xicclu -ir`). Measured with the
+adversary's setup (`relative_fpg.json`: one profile of paper L\* 95.5, a
+200-colour chart built with each intent by the app's own module, a sheet
+fakeread through the same profile, a printer that prints exactly as
+profiled, ISO 12647-7): solid colours 2.94 (limit 3.0) and hue 2.13 (2.5)
+on the relative chart, 0.01 and 0.02 on the absolute one. The question the
+rows ask is "does it print as profiled?", so the prediction is in the
+colorimetry of the reading: `condition_reference_block` asks the run's
+profile with ABSOLUTE colorimetry whatever the chart's intent (the strip's
+own prediction is reused only on a chart built absolute). After: 0.01 and
+0.02 on both. The control strip keeps the chart's intent (§34), which is
+part of 43.8.
+
+**43.2 (b2) on verifications only (B8-1271).** Knut's "Yes" (§41.6) was to
+the recommendation of §41.4, "on every verification sheet"; the build
+applied it to every measurement, so a profiling sheet was compared with the
+profile built from itself (0.02, 0.10, 0.05 on the demo pack) and the
+Evenness demo's eight profiling runs read a paper difference of 13.3 to
+14.3 against the stand-in profile. `condition_reference_block` now answers
+`not_verification` for any measurement that is not a verification (a
+profiling or calibration sheet, a file in no run), and `row_values` gives
+it **what these rows gave it before K49**: the chart's colorimetric
+reference where it has one (a FROM PROFILE GAMUT chart, which in practice
+is only ever a verification), otherwise N-A, *"this row needs a reference
+for the printing condition, and the measured chart has no aim for it"*. No
+note is attached. The help of the three rows says so: *"Only a verification
+is compared with the profile. A profiling measurement is what the profile
+is built from, so it would be compared with itself; there the row reads
+N-A."* (the paper and solid rows; the hue row in one clause), and the paper
+row's lever asks for a verification. The rebuilt demo pack's Evenness
+profiling reports record `not_verification` (`fixes-2/pack/`).
+
+**43.3 The Printing record names every graph it carries (B8-1273).** Since
+K49 a record can carry up to thirteen graphs; the sentence under its
+results named four ("colour accuracy, paper white, darkest black and the
+cube corners"), whatever else was drawn. `_graphs_drawn_for` now looks at
+every tab (a graph drawn: shown, with two dates or more), and the sentence
+names them in tab order with the words of `_RECORD_GRAPH_NAMES` ("the paper
+white difference", "the solid colours", "the hue of the solids", "grey
+balance", "the tone ramps", "the control strip", "the outer and surface
+gamut", "repeatability", "evenness", besides the four). Amends §27.3.
+
+**43.4 Why no limit line is drawn, from the set data (B8-1274).** *"The
+limits this report is judged against set none for it"* was poor English,
+and untrue under Paper white (L\*), Darkest black (L\*) and Cube corners,
+which no limit set has a row for: it implied that another choice would draw
+a line. The reason is now chosen per graph from the limit sets' own numbers
+(`factory_limits` of every set other than the report's: `_sets_limiting`),
+never from a list of graphs:
+
+* no set has a limit on any row the graph plots: *"ChromIQ has no limit for
+  what this graph shows in any of its limit sets, so no limit line is
+  drawn."* (German: *"ChromIQ hat in keinem seiner Grenzwertsätze einen
+  Grenzwert für das, was diese Grafik zeigt, daher ist keine Grenzwertlinie
+  eingezeichnet."*);
+* the report's set has none and others do: *"The limit set this report is
+  judged against has no limit for what this graph shows, although other
+  limit sets named after ISO 12647 have one, so no limit line is drawn."*
+  when every such set is named after ISO 12647 (both ISO sets and both
+  Custom ones), else *"…, although other limit sets have one, …"*; with one
+  such set, *"another limit set (named after ISO 12647) has one"*.
+  German by hand, no "du". Measured on the shipped sets: under ChromIQ
+  default the paper difference, solid, hue, tone, strip and gamut graphs get
+  the ISO form; Repeatability under ISO 12647-7 the plain one; Paper white,
+  Darkest black and Cube corners the first under every set.
+* The Printing record's and the Grey and tone check's endings (§41.8) are
+  unchanged.
+* The two lines above Paper white difference said *"…, per date, with its
+  limit."*, untrue since K49 shows that graph with no line too; they end at
+  *"per date."* (seen on screen in this round's proof, case D).
+
+**43.5 The Cube corners sentence says "aim values", as its caption does
+(B8-1275).** The sentence said the corners lie "from their ideal values";
+on a FROM PROFILE GAMUT chart the paper white aims at the profile's paper
+(§31.5; the White line reads 0.0), and the caption above the same graph
+says "aim values". Now: *"This graph shows how far the paper white, the
+black and the six solid colours lie from their aim values (ΔE00) on each
+date. The aims of the black and the six colours are ideal values that lie
+outside what most printers can print, so the level says little about the
+print; the trend shows whether the inks and the paper drift between
+dates."* True on every chart kind: only the black and the six colours are
+called ideal.
+
+**43.6 A graph with no limit line needs two dated values (B8-1276).** A tab
+shown by §41.8 (none of its rows judged, some with values) was shown with a
+value on one date only: an empty frame saying it "draws no trend". Such a
+tab is now shown, and printed, only when two dates or more have a value of
+its rows. What §17 confirmed is unchanged: the four original tabs always
+show, and a tab with a judged row shows with one value as a point (§17
+item 10) or with the "at least two measurements" text (§17 item 16).
+
+**43.7 A value shown for information keeps its (b2) note (B8-1277).** §41.7
+says every judged or shown value carries M-REPORT-SOLIDS-PREDICTED; a value
+shown for information (INFO: a raw drift check, a Printing record) carried
+none, because `judge` gave notes only to a verdict and the Printing
+record's `_ungrade` cleared them. The two (b2) notes say what the VALUE was
+compared with, not what a verdict means (`VALUE_NOTES`): they now travel
+with every row that shows a value, and `_ungrade` keeps them while it
+clears the notes that comment a verdict. On a Printing record they are
+listed under *"Notes on the values above:"*.
+
+**43.8 The older question: a relative FROM PROFILE GAMUT chart is judged
+absolute against relative aims (B8-1272, MAJOR, OPEN, for Knut; not
+changed).** The chart's module chooses its colours through the profile with
+the chart's intent and stores their Lab in that intent; the report reads
+the sheet as measured (absolute) and compares every patch with those aims.
+On a relative chart the two are in different colorimetry. Measured on the
+same perfect print (`fixes-2/older-problem/older_problem.txt`, the 200
+chart patches, corners excluded as the report excludes them):
+
+| chart built | (a) as built: as measured vs the chart's aims | (b) as measured vs the profile's ABSOLUTE prediction | (c) media-relative (paper patch to D50) vs the chart's aims |
+|---|---|---|---|
+| absolute | avg 0.04, P95 0.28, max 0.73 | avg 0.01, max 0.02 | avg 2.38, max 3.33 |
+| relative | **avg 2.40, P95 3.08, max 3.29** | avg 0.01, max 0.02 | avg 0.14, max 0.68 |
+
+So a perfect print of a relative chart reads 2.40 on "Average ΔE00, all
+patches" (ISO 12647-7: 2.5) and fails a tighter set outright; the control
+strip on such a chart (the chart's intent) has the same offset. Options:
+
+* **(A) Judge a relative chart media-relative**, the reading scaled to its
+  own paper patch (ICC media-relative, as §33 does for a sheet printed
+  through its profile with a white-mapping intent): the aims stay as the
+  chart recorded them; 0.14 on a perfect print. The paper row and the two
+  solid rows stay absolute, since they ask about the paper and the inks
+  themselves. Needs the chart's paper patch (a FROM PROFILE GAMUT chart
+  always has its W corner).
+* **(B) Compare every patch with the profile's absolute prediction** at
+  report time (as 43.1 does for the solids and §34 for the strip): 0.01;
+  the intent then decides only which colours the chart holds. Depends on
+  the run's profile, like §34.
+* **(C) Build every FROM PROFILE GAMUT chart's reference in absolute
+  colorimetry**, whatever intent chose its colours: charts made before keep
+  relative aims unless re-read.
+* **(D) Keep it, and put a numbered note on every row of such a sheet**
+  that the reading and the aims are in different colorimetry.
+
+Recommendation, not built: (A), because it keeps what the relative intent
+is for (a sheet judged relative to its own paper) and reuses a rule Knut
+already has (§33). Question for Knut: which?
+
+**43.9 Also recorded (B8-1278, B8-1279).** The blue selection in the K49
+photographs was the driver's: `scripts/drive_k49_reference_rows.py` scrolled
+with `QTextBrowser.find()`, which selects what it finds; `_scroll_to` now
+leaves no selection (`_show_without_selection`), and the K49 photographs
+used here were taken again with it (`fixes-2/k49-retake/`). §42's Confirmed
+block carried *"It stays one of his researched figures"*, which Knut did not
+say; it is moved into §42.2. Not fixed, registered (B8-1279): the Report
+limits window's spin boxes follow the system's locale, not the app's
+language (an English window on a German Mac shows "4,50"); and the German
+report's sentences print numbers with a decimal point ("0.81") where §19's
+B8-950 rule gives a sentence the comma of its language, while the tables
+print a point too. Both touch number formatting app-wide and are left for
+their own change.
+
+* **Built:** `workflow/measurement_report.py` (`corner_predictions_through`
+  `intent`, `condition_reference_block`, `CONDITION_NOT_VERIFICATION`,
+  `row_values`, `VALUE_NOTES`, `judge`); `ui/dialogs/measurement_report_dialog.py`
+  (`_RECORD_GRAPH_NAMES`, `_graphs_drawn_for`, `_record_graphs_sentence`,
+  `NO_LIMIT_WHY_NOWHERE`, `_trend_key_rows`, `_sets_limiting`,
+  `_others_have_one`, `no_limit_note`, `_trend_extras`, `_NO_LIMIT_SHOWS`,
+  `_trend_plan`, `_ungrade`); `workflow/compliance_sets.py` (the three help
+  texts, the paper row's lever); `data/i18n/*.json`, both ledgers;
+  `scripts/drive_k49_reference_rows.py`.
+* **Verified by:** `tests/test_c2b44_report_findings.py` (17 tests, one of
+  them through ArgyllCMS in the release tier, each red on the mutation in
+  its docstring, `fixes-2/mutations.txt`);
+  `tests/test_k47_every_limited_row_has_a_graph.py` (amended for the
+  reasons of 43.4).
+
+**Status:** built for beta 44 (B8-1270, B8-1271, B8-1273 to B8-1278), NOT
+confirmed; one question for Knut (B8-1272); two number-format faults
+registered (B8-1279).

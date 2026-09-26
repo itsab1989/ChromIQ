@@ -383,6 +383,12 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Every-Metric/run1: New report…, all three dates, Contract proof check, Custom ISO 12647-7: under Colour accuracy the Max line (4.5) above the P95 line (4.0)",
         "Report-Limits-Custom-Columns/run1..run2: a single patch at 4.7 crosses the 4.50 and comes back",
     ]),
+    ("§43", "Challenge 2 of beta 44", [
+        "Report-Limits-Evenness/run1, Run type Profiling: New report…, Printing record, all runs: no Paper white difference graph, the three reference rows N-A (needs a reference), as before K49: a profiling measurement is not compared with its own profile (B8-1271)",
+        "Report-Limits-Report-Types/run1, Run type Profiling: New report…, Printing record, all runs: the sentence under the results names every graph the record carries (B8-1273)",
+        "Report-Limits-Every-Metric/run1: New report…, all three dates, Full colour check, ChromIQ default: under Cube corners \"ChromIQ has no limit for what this graph shows in any of its limit sets\" and \"aim values\"; under Solid colours \"… although other limit sets named after ISO 12647 have one …\" (B8-1274, B8-1275); with one date ticked no graph without a limit line is shown (B8-1276)",
+        "no demo chart is built with the relative intent, so the relative FROM PROFILE GAMUT case of B8-1270 is shown by the suite and by the proof's FPG-relative project, not by this package",
+    ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
     ]),

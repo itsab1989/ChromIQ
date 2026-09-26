@@ -334,12 +334,20 @@ def profile_corner_predictions(cref: "dict | None",
 
 
 def corner_predictions_through(cref: "dict | None", icc: "Path | str",
-                               argyll_bin: "str | Path | None"
+                               argyll_bin: "str | Path | None",
+                               intent: "str | None" = None
                                ) -> "dict[str, tuple] | None":
     """``{sample id: Lab}``: *icc*'s forward prediction for the seven ink and
-    black corners *cref* declares, with the chart's own intent; None when it
-    cannot be asked. The one lookup `profile_corner_predictions` makes, and
-    the one the demo generator makes for the charts it designs."""
+    black corners *cref* declares, with the chart's own intent (or *intent*,
+    an ArgyllCMS intent letter, when given); None when it cannot be asked.
+    The one lookup `profile_corner_predictions` makes, and the one the demo
+    generator makes for the charts it designs.
+
+    **The two solid rows ask it with absolute colorimetry, whatever the
+    chart's intent** (challenge 2 of beta 44, finding 1, B8-1270): the row
+    asks "does the solid print as profiled?", and its reading is absolute
+    (as measured), so its prediction must be too. With the chart's relative
+    intent a perfect print read 2.94 ΔE00 against an ISO limit of 3.0."""
     if not cref or not argyll_bin:
         return None
     devices = dict(cref.get("devices") or {})
@@ -353,7 +361,8 @@ def corner_predictions_through(cref: "dict | None", icc: "Path | str",
         from workflow.xicclu_runner import forward_lab
         labs = forward_lab([tuple(float(v) for v in devices[sid])
                             for sid in ids], icc, argyll_bin,
-                           intent=intent_letter(str(cref.get("intent") or "")))
+                           intent=(intent or intent_letter(
+                               str(cref.get("intent") or ""))))
     except Exception as exc:                           # noqa: BLE001
         log.debug("corner predictions skipped: %s", exc)
         return None
@@ -428,6 +437,15 @@ CONDITION_NO_CORNERS = "no_corners"
 #: remedy that window gives is the one `REASON_NEEDS_REFERENCE_FILE` carries
 CONDITION_BEFORE_PRINTING = "before_printing"
 
+#: the paper row and the solid rows alike: the measurement is not a
+#: verification (a profiling or calibration sheet, or one in no run). Knut's
+#: "Yes" to (b2) was to "every verification sheet"; a profiling sheet would
+#: be compared with the profile built from itself (challenge 2 of beta 44,
+#: finding 2, B8-1271). Such a sheet gets what these rows gave it before K49
+#: (`row_values`: the chart's colorimetric reference where it has one, else
+#: N-A, "needs a reference for the printing condition").
+CONDITION_NOT_VERIFICATION = "not_verification"
+
 #: The two rows (b2) judges against the profile's prediction where the solids
 #: were printed raw (a FROM PROFILE GAMUT chart always, else a raw print).
 #: §32.5 is reversed for these two and for nothing else: the cube-corner
@@ -498,13 +516,25 @@ def condition_reference_block(report: dict, *,
 
     **Solids.** Where the solids were printed raw (`solids_printed_raw`),
     each present C, M, Y and K corner patch against the colour the profile
-    predicts for its own device value. A FROM PROFILE GAMUT chart asks the
-    one prediction its control strip asks (*fpg_predictions*, §34), with the
-    chart's own intent; a raw print asks `sheet_profile` with absolute
-    colorimetry, because a raw sheet is read as measured. The cube-corner
+    predicts for its own device value, ALWAYS WITH ABSOLUTE COLORIMETRY,
+    because the reading is absolute (as measured) and the row asks whether
+    the solid prints as profiled. A FROM PROFILE GAMUT chart asks the run's
+    own profile (the one its control strip asks, §34): the strip's own
+    prediction (*fpg_predictions*) is reused only when the chart was built
+    with the absolute intent, else the profile is asked again, absolute
+    (challenge 2 of beta 44, finding 1, B8-1270: with the chart's relative
+    intent a perfect print read 2.94 against 3.0). A raw print asks
+    `sheet_profile`, absolute too. The cube-corner
     table (``report["corners"]``) is NOT touched: it keeps the ideal values.
 
+    Only a VERIFICATION is compared with the profile (B8-1271): every other
+    measurement gets ``{"from": CONDITION_NOT_VERIFICATION}`` on both, and
+    `row_values` gives it what these rows gave it before K49.
+
     Never raises: anything that cannot be asked is a named N-A."""
+    if not (report or {}).get("is_verification"):
+        return {"paper": {"from": CONDITION_NOT_VERIFICATION},
+                "solids": {"from": CONDITION_NOT_VERIFICATION}}
     out: dict = {}
     corners = {c.get("name"): c for c in (report.get("corners") or [])}
     colorimetric = report.get("reference_source") == "colorimetric"
@@ -563,6 +593,17 @@ def condition_reference_block(report: dict, *,
         profile_name = ""
         source = ""
         if colorimetric:
+            from workflow.gamut_target import intent_letter
+            if fpg_predictions is not None and intent_letter(
+                    str((cref or {}).get("intent") or "")) != "a":
+                # B8-1270: the strip's prediction is in the chart's own
+                # (relative) intent; the solid rows' reading is absolute.
+                _icc = _run_profile_path(ti3_path)
+                _abs = (corner_predictions_through(cref, _icc, argyll_bin,
+                                                   intent="a")
+                        if _icc is not None else None)
+                fpg_predictions = ((_abs, fpg_predictions[1])
+                                   if _abs is not None else None)
             if fpg_predictions is not None:
                 by_sid, profile_name = fpg_predictions
                 source = PAPER_REF_FROM_RUN
@@ -4680,6 +4721,17 @@ NOTE_STRIP_CORNERS_IDEAL = "strip_corners_ideal"
 NOTE_SOLIDS_PREDICTED = "solids_predicted"
 NOTE_PAPER_AGAINST_PROFILE = "paper_against_profile"
 
+#: **THE NOTES THAT SAY WHAT A VALUE IS, NOT WHAT A VERDICT MEANS.** The two
+#: (b2) notes explain what the number was compared with, and the cube-corner
+#: table beside it compares the same patch with another aim; a value shown
+#: for information (INFO: a raw drift check, a Printing record) reads as the
+#: same contradiction as a judged one. So these travel with every row that
+#: SHOWS a value, and survive the Printing record's `_ungrade`, which clears
+#: the notes that comment a verdict (challenge 2 of beta 44, finding 8,
+#: B8-1277; §41.7: "every judged or shown value carries" the note).
+VALUE_NOTES: "tuple[str, ...]" = (NOTE_SOLIDS_PREDICTED,
+                                  NOTE_PAPER_AGAINST_PROFILE)
+
 #: The rows whose numbers such a sheet moves, measured in §32.6: the five
 #: colour-difference statistics, the three control-strip rows, the two gamut
 #: populations, both grey-balance rows, the 30 to 70 % tone ramps and the two
@@ -5994,6 +6046,11 @@ def row_values(report: dict) -> "dict[str, dict]":
     #    from the corners only against a colorimetric reference (CS Q9)
     corners = {c.get("name"): c for c in (report.get("corners") or [])}
     cond = report.get("condition_reference")
+    if isinstance(cond, dict) and (cond.get("paper") or {}).get("from") \
+            == CONDITION_NOT_VERIFICATION:
+        # B8-1271: not a verification, so not compared with the profile;
+        # the rows below give it what they gave it before K49.
+        cond = None
     if isinstance(cond, dict):
         # #182 K49, (b2): against the profile's own description of the
         # printing condition (`condition_reference_block`).
@@ -6031,8 +6088,9 @@ def row_values(report: dict) -> "dict[str, dict]":
             for rid in ROWS_ON_RAW_SOLIDS:
                 put(rid, None, reason)
     elif report.get("reference_source") == "colorimetric":
-        # A report saved before K49, shown as it was saved: its rows were
-        # worked out against the chart's colorimetric reference alone.
+        # A report saved before K49, shown as it was saved, or a measurement
+        # that is not a verification (B8-1271): its rows are worked out
+        # against the chart's colorimetric reference alone.
         w = corners.get("W")
         # #182 A11: the W corner's aim is the paper the chart's profile
         # describes since beta 42 (`paper_reference_of`, set in
@@ -6183,8 +6241,8 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
     the row id otherwise; ``pass`` keeps the old True / False / None shape
     (True for PASS, False for FAIL, None for every other word).
     """
-    from workflow.compliance_sets import (COND, FAIL, N_A, PASS, ROWS, Limit,
-                                          row_verdict)
+    from workflow.compliance_sets import (COND, FAIL, INFO, N_A, PASS, ROWS,
+                                          Limit, row_verdict)
     graded_sheet = is_graded_sheet(report)
     values = row_values(report)
     rows: list[dict] = []
@@ -6221,7 +6279,12 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
             # a verdict to comment. A note beside an N-A would be a footnote on
             # an absence, which is what `reason` is already for.
             "notes": (_row_notes(cell, lim)
-                      if word in (PASS, FAIL, COND) else []),
+                      if word in (PASS, FAIL, COND) else
+                      # B8-1277: a value shown for information keeps the
+                      # notes that say what the value IS
+                      [n for n in ((cell or {}).get("notes") or ())
+                       if n in VALUE_NOTES]
+                      if word == INFO and value is not None else []),
         })
     return rows
 

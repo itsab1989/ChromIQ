@@ -69,10 +69,25 @@ _ROW_WORDS = ("PASS", "FAIL", "N-A", "INFO", "–", "BESTANDEN",
               "NICHT BESTANDEN")
 
 
+def _show_without_selection(view, cur) -> None:
+    """Scroll *cur* into view and leave NO selection on the page.
+
+    Challenge 2 of beta 44, finding 6 (B8-1278): `QTextBrowser.find()`
+    selects what it finds, and this driver photographed the page with that
+    selection on it, so the K49 pictures showed a blue highlight the app
+    never makes. The cursor keeps its place; only the selection goes."""
+    from PyQt6.QtGui import QTextCursor
+    cur = QTextCursor(cur)
+    cur.clearSelection()
+    view.setTextCursor(cur)
+    view.ensureCursorVisible()
+
+
 def _scroll_to(dlg, text: str, row: bool = False) -> bool:
     """Bring the place *text* is printed on the page into view: the first,
     or with *row* the first in a results-table row (its cell carries a
-    verdict word or a number), not the guide's list of metrics above it."""
+    verdict word or a number), not the guide's list of metrics above it.
+    The page is left with no selection (B8-1278)."""
     import re
     from PyQt6.QtGui import QTextCursor
     view = dlg._view
@@ -86,12 +101,12 @@ def _scroll_to(dlg, text: str, row: bool = False) -> bool:
             first = QTextCursor(cur)
         if not row or (table and (any(w in block for w in _ROW_WORDS)
                                   or re.search(r"\d", block.replace(text, "")))):
-            view.ensureCursorVisible()
+            _show_without_selection(view, cur)
             return True
     if first is not None:
-        view.setTextCursor(first)
-        view.ensureCursorVisible()
+        _show_without_selection(view, first)
         return True
+    _show_without_selection(view, view.textCursor())
     return False
 
 
