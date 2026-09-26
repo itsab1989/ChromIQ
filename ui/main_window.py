@@ -932,6 +932,17 @@ class MainWindow(QMainWindow):
         # behaves the same wherever it is opened. See that function for why BOTH
         # rules are needed and why `padding-left: 0px` is not cosmetic.
         _sheet += combo_popup_qss(color)
+        # A list's SELECTED row, in a tab or a window opened from it, is this
+        # tab's accent too, not the appearance's own selection colour (cyan in
+        # Dark, blue in Light), which belonged to no tab. Basti, 2026-09-26, on
+        # "Which presets can be used for verification": "selected item is blue,
+        # should be magenta". Only the two selection properties are set, so the
+        # lists keep everything else of the application sheet.
+        _sheet += (
+            f"QTreeView, QListView, QTableView {{"
+            f" selection-background-color: {color};"
+            f" selection-color: {primary_text}; }}"
+        )
         # K44 (Knut, #182 5833983335): a window or pop-up opened from this tab
         # fills the button Return presses in the TAB's accent, the colour
         # `tint_dialog_primary` gives its #primary. A tab's own buttons are

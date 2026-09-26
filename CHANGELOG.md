@@ -18,6 +18,7 @@
 ### Changed
 
 - A window with no colour of its own (Preferences, an ⓘ help window opened from the top bar or from Preferences) draws its main button like Restore Factory Defaults: dark in Light, light in Dark, black in Neutral, instead of a blue (Light) or cyan (Dark) that appeared nowhere else in it.
+- A selected row in a list takes the colour of its tab, also in a window opened from that tab (for example magenta in "Which presets can be used for verification"), instead of the appearance's own blue or cyan.
 - "Which presets can be used for verification", and the Measure tab's check before measuring a verification chart, list metrics that share the same message together, with the message once.
 - Preferences > Chart Layout: the i1Pro margin and patch scale can be set with the layout engine on (Guided uses it), and its help says which modes it governs.
 - With the CR30, "Use the ChromIQ layout engine instead of printtarg" is ticked and locked, because the CR30 is always laid out by the engine; choosing another instrument gives the box back as you had it.
