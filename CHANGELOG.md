@@ -2,20 +2,26 @@
 
 ## v4.3.0-beta.44
 
-**The report judges the paper and the solids against the profile, every limit gets a graph line, the preset lists follow the paper for every group, and Save as Defaults brings a session back as it was saved.**
+**The report judges the paper and the solids against the profile, a metric switched off is left out, every limit gets a graph line, a new rule for the verification star, the preset lists follow the paper for every group, and Save as Defaults brings a session back as it was saved.**
 
 ### New
 
 - **Output and Presets fold** in Create Chart > Manual, like Basic and ChromIQ layout, so the layout settings have room on a small screen. Both start open.
-- **Paper and solids judged against the profile:** on a verification, "ΔE00, paper white against the reference paper" compares the paper patch with the paper white of the profile the sheet was printed through (or the run's own). The two solid-colour rows compare the solids with what the profile predicts wherever they were printed raw. A real printer that prints as profiled now passes these rows; before, it failed them by 11 to 50 because they were compared with ideal sRGB. Under a limit set that judges these rows, a sheet printed through the profile, or with no profile or paper patch, reads N-A with the reason; a profiling measurement is not judged on them. The cube-corner table keeps its ideal values.
+- **Paper and solids judged against the profile:** on a verification, "ΔE00, paper white against the reference paper" compares the paper patch with the paper white of the profile the sheet was printed through (or the run's own). The two solid-colour rows compare the solids with what the profile predicts wherever they were printed raw. A real printer that prints as profiled now passes these rows; before, it failed them by 11 to 50 because they were compared with ideal sRGB. Under a limit set that judges these rows, a sheet printed through the profile, or with no profile or paper patch, reads N-A with the reason; a profiling measurement is not judged on them. A sheet printed raw is judged on these three rows too; its other colours stay for information, and the report says which rows were judged. The cube-corner table keeps its ideal values.
 - **Every limited row has a graph line:** the Control strip graph shows its maximum too, and three new graphs show the solid colours, the hue of the solids, and the outer and surface gamut.
-- **Graphs with values but no limit** are shown for trending, with a sentence under each saying what it shows and why it has no limit line.
+- **A metric whose limit is "–" is left out of the report entirely**, graphs included.
+- A Printing record, and any sheet the report does not judge, draws the limit lines of its limit set on its graphs, marked as shown for information only. Paper white, Darkest black and Cube corners each say under the graph that they are measurements of the sheet, not judged metrics.
+- **The verification star** in "Which presets can be used for verification": one or two pages, fewer than 900 patches, a paper patch, and every metric the chart's patches and layout decide, evenness included.
+- A FROM PROFILE GAMUT chart built with the media-relative intent is judged relative to its own paper white.
 - The help of the all-patches, control-strip and grey-ramp rows explains how average, P95 and maximum relate: a P95 limit above the maximum limit can never decide anything.
 
 ### Changed
 
 - A window with no colour of its own (Preferences, an ⓘ help window opened from the top bar or from Preferences) draws its main button like Restore Factory Defaults: dark in Light, light in Dark, black in Neutral, instead of a blue (Light) or cyan (Dark) that appeared nowhere else in it.
-- "Which presets can be used for verification" lists metrics that share the same message together, with the message once.
+- "Which presets can be used for verification", and the Measure tab's check before measuring a verification chart, list metrics that share the same message together, with the message once.
+- Preferences > Chart Layout: the i1Pro margin and patch scale can be set with the layout engine on (Guided uses it), and its help says which modes it governs.
+- With the CR30, "Use the ChromIQ layout engine instead of printtarg" is ticked and locked, because the CR30 is always laid out by the engine; choosing another instrument gives the box back as you had it.
+- The help for Measurement Instrument says what the i1iSis setting is for: measuring the chart in i1Profiler and importing the measurements back, for example for a Measurement Report.
 - **Built-in preset lists:** Scanner presets are filtered by paper like every other group. A group with presets for the paper but none ticked shows its heading and "▸ N more presets". With a Custom paper, every Custom-paper preset is offered; a Custom size equal to a named paper (for example 210 × 297) is treated as that paper.
 - The gear window's help states the whole rule, and its info icons look like every other info icon.
 - Custom ISO 12647-7 and -8: "Maximum ΔE00, all patches" starts at 4.50.
@@ -27,7 +33,7 @@
 
 ### Fixed
 
-- In the open preset lists, pressing or dragging the scroll bar scrolls the list instead of choosing the first preset.
+- In the open preset lists, pressing or dragging the scroll bar scrolls the list instead of choosing the first preset. Releasing a press on the list's edge, or clicking a group heading, no longer chooses a preset.
 - **Save as Defaults** brings a session back as it was saved, for every instrument: a Custom paper no longer comes back as A2, A3+ Portrait no longer as A4, a paper chosen in Guided comes back in Manual too, a saved margin or patch scale is no longer reset, and a saved "off" flag no longer comes back ticked.
 - A layout saved with the ChromIQ layout engine off no longer opens as A4 at 72 dpi when the engine is switched on later, including layouts saved by every earlier version since 3.13. Options set only in the layout panel (helper markers, chart text, four separate margins) are kept when you save with the engine off.
 - On the CR30, which is always laid out by the ChromIQ layout engine, the panel on screen is what is saved, what a named preset keeps, what the estimate and the preview show, and what Generate builds, even with the engine box unticked.
@@ -35,7 +41,7 @@
 - Choosing the i1Pro 3 Plus in the layout panel sets printtarg's instrument too.
 - The paper filter reads the paper shown on screen, so both preset lists agree after a preset is loaded.
 - End and Home work in the open Select preset list.
-- On a relative-intent FROM PROFILE GAMUT chart, a perfectly printed sheet no longer reads close to the limit on the two solid-colour rows.
+- On a relative-intent FROM PROFILE GAMUT chart, a perfectly printed sheet no longer reads close to the limit, on the two solid-colour rows or on the colour rows.
 - A rare crash when the preset layout ran in the background.
 
 ## v4.3.0-beta.43
