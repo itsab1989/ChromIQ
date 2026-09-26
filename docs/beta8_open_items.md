@@ -29885,6 +29885,12 @@ would reach.
 - status: OPEN
 - found by: beta 44 challenge round 9 (`challenge-9/strips/`): the branding text box ignores the content offsets, so an Offset Y moves the wordmark over the text; `build_kwargs`/`from_build_kwargs` do not carry `clip_content_when_on` (B8-1388), so a chart restored from its build settings loses the kept content. Separately (as in beta 43): Create Chart's ColorMunki panel opens with the clip border On (Notes box) although the Preferences default is Off.
 
+### B8-1405 · OPEN · Guided's "Refinement profile" folder button is the plain folder, not the Create Chart magenta
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the beta 44 release check (downloaded macOS app, `~/Desktop/ChromIQ-beta44-proof/release/downloaded-app-beta44-main.png`). Basti's rule for Create Chart's folder buttons (magenta in Light and Dark, neutral in Neutral, as the Presets row) is applied to the layout panel since beta 44, not to Guided's refinement browse. Older than beta 44.
+
 ### B8-1300 · FIXED, awaiting confirmation · With the CR30 and the engine box unticked, more places still ask the engine setting alone while the layout panel is what lays the chart out
 - blocks release: no
 - severity: MINOR
