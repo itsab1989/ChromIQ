@@ -29851,6 +29851,7 @@ would reach.
 - severity: MAJOR
 - status: OPEN
 - found by: the B8-1360 matrix, per-target cells (both trees): the challenge-8 project (built with "Auto patch count" ticked, -f 0) opened with the tick off, the frame read "(1 page · Auto grey/white/black)" and `targen … -f0`, the estimate column said 441, and Generate built 14 patches (white, black and the grey steps). The run's `create_chart_settings` carry `targen-f` = 0 and no auto-patch tick. Pre-existing: 2194eec7 does the same. Not fixed here (not the CR30, and which stored field the tick belongs in is §1.2's question); registered for the next round.
+- round 9 (2026-09-26, `~/Desktop/ChromIQ-beta44-proof/challenge-9/autocount/`): NOT a beta 44 regression, beta 43 does exactly the same, and it is wider: i1Pro engine off 528 then 22; engine on 525 then 16 (estimate still 525); a built-in preset (100x150, 600) reopens with the panel on A4 portrait and builds 600 on A4 while the preview shows 100x150. The second Generate overwrites run1 without asking. The Auto tick is not stored per target; `_restore_chart_settings` unticks it and the stored `targen-f = 0` decides. MAJOR, pre-existing; for beta 45.
 
 ### B8-1364 · SUPERSEDED · Create Chart's preset list marks the built-in presets with ★, which is now also the verification star
 - blocks release: no
@@ -29860,6 +29861,26 @@ would reach.
 - note (K57): Knut, #182 5848511977, gave the verification mark another symbol (●), so ★ means only built-in again.
 - found by: challenge round 8, C6.
 - note: in Create Chart's preset list ★ has always meant BUILT-IN ("★  i1Pro · A4-1296p-2pages …  ·  built-in"; the Dictionary's "Preset" entry says "ChromIQ ships built-in presets (marked ★)"). Since K51 the presets window uses ★ for "made for verification" (B8-1340). It is not a leftover, so it is not changed: the same mark means two things in two lists a verification user sees side by side, and a built-in without the verification star wears ★ in the dropdown. Question: keep ★ for built-ins, or give built-ins another mark (the "· built-in" suffix alone would do) so ★ means only "made for verification"?
+
+### B8-1400 · OPEN · Round 9: closed Preferences windows stay alive until a full collection (B8-1392's GC timer)
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 44 challenge round 9 (`~/Desktop/ChromIQ-beta44-proof/challenge-9/gc-soak/`): 15 cycles over ~10 min; shipped: 98 collections, 9,927 live widgets at the end, RSS 3.55 GB; with automatic collection: 309 collections, ~3,100 widgets, 3.28 GB. About 1,170 widgets per closed Preferences window wait for a rare full collection; no crash, no leak without bound, no temp-file leftovers. Suggested: collect (generation 2) when a top-level dialog closes, from the GUI thread. Also: the gc_guard docstring's "the timer tick is the only thing Qt is delivering to" is not true inside a nested event loop (exec(), processEvents); theoretical, not reproduced.
+- where: `core/gc_guard.py`.
+
+### B8-1401 · OPEN · "● modified" in Create Chart's frame line shares its symbol with the verification mark
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: a question for Knut.
+- found by: beta 44 challenge round 9. `tab_chart.py:8650` "Layout preset: … ● modified" sits in the tab whose presets button tooltip says ● marks a chart made for verification (B8-1387). It also shows in a fresh factory session and after a built-in preset loads (as in beta 43).
+
+### B8-1402 · OPEN · Clip border: an Offset Y moves the branding wordmark into the text, and `clip_content_when_on` does not travel in build kwargs
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 44 challenge round 9 (`challenge-9/strips/`): the branding text box ignores the content offsets, so an Offset Y moves the wordmark over the text; `build_kwargs`/`from_build_kwargs` do not carry `clip_content_when_on` (B8-1388), so a chart restored from its build settings loses the kept content. Separately (as in beta 43): Create Chart's ColorMunki panel opens with the clip border On (Notes box) although the Preferences default is Off.
 
 ### B8-1300 · FIXED, awaiting confirmation · With the CR30 and the engine box unticked, more places still ask the engine setting alone while the layout panel is what lays the chart out
 - blocks release: no
