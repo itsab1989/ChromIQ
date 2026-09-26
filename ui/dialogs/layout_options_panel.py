@@ -4696,9 +4696,15 @@ class LayoutOptionsPanel(QWidget):
         """A magenta folder browse button sized like the targen -c browse
         (objectName browse_compact, 14px icon, 22px tall)."""
         from PyQt6.QtCore import QSize
-        from ui.widgets import load_magenta_folder_icon, make_browse_button
+        from ui.widgets import make_browse_button, set_folder_icon
         b = make_browse_button(self, tooltip)
-        b.setIcon(load_magenta_folder_icon())
+        # The same themed glyph as the Presets row's folder (Basti,
+        # 2026-09-26: the clip-border Image button showed the plain black
+        # folder). A bare setIcon was overwritten on every theme reload,
+        # because make_browse_button tags the button as the plain "folder";
+        # set_folder_icon retags it, so the reload paints the magenta
+        # variant (ACTION in Neutral) instead.
+        set_folder_icon(b, "folder_create")
         b.setObjectName("browse_compact")
         b.style().unpolish(b)
         b.style().polish(b)
