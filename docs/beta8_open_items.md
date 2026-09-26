@@ -29756,3 +29756,11 @@ would reach.
 - found by: reading every reader of `use_chromiq_layout_engine` in `ui/tabs/tab_chart.py` while fixing B8-1295 (not driven).
 - note: B8-1295 put the one predicate (`_layout_panel_lays_out`) into the frame, the build, the save, the restore, the tick, the transfer and the p3 repair. Read in code, these still ask the setting alone and so treat a CR30 with the box unticked as a printtarg chart: saving a named preset (`_on_preset_save`, no `layout_recipe`), the preset's recipe sync (`_recipe_synced_to_manual`), the patch count and its left-border rule (`_update_patch_count`), the gamut module's per-sheet and page counts (`_gamut_per_sheet`, `_gamut_pages`), the engine text notes (`_engine_text_notes`), the live-preview signature (`_layout_signature`), the unapplied-change fingerprint and the per-target record's `engine_on` (`_chart_settings_fingerprint`, `_collect_ui_state`). Each is the same question and wants the same predicate; not changed in this round because each reaches a different feature (presets, the count, the preview, per-target records) that needs its own on-screen check.
 - where: `ui/tabs/tab_chart.py` (the readers named above).
+### B8-1301 · OPEN · test_new_report_chosen_from_the_keyboard_is_the_same failed once in a loaded gate
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the beta 44 release gate 2 of 3 (d7ab5b2a), `--runslow -n auto`: `assert combo.currentData() == mrd.NEW_REPORT_KEY` got a saved report's key, so the Up-arrow key clicks never moved "Report shown" to "New report…". Gates 1 and 3 passed it; the file passed 3 of 3 runs alone.
+- note: a test race under load, not seen on screen; the keys are sent with `QTest.keyClick` to a combo whose selection a deferred reload may reset. Wants a look at what the dialog does between the clicks before the next gate that shows it.
+- where: `tests/test_k39_update_question_and_new_report.py::test_new_report_chosen_from_the_keyboard_is_the_same`.
+

@@ -6,7 +6,7 @@
 
 ### New
 
-- **Paper and solids judged against the profile:** on a verification, "ΔE00, paper white against the reference paper" compares the paper patch with the paper white of the profile the sheet was printed through (or the run's own). The two solid-colour rows compare the solids with what the profile predicts wherever they were printed raw. A real printer that prints as profiled now passes these rows; before, it failed them by 11 to 50 because they were compared with ideal sRGB. A sheet printed through the profile, or with no profile or paper patch, reads N-A with the reason. The cube-corner table keeps its ideal values.
+- **Paper and solids judged against the profile:** on a verification, "ΔE00, paper white against the reference paper" compares the paper patch with the paper white of the profile the sheet was printed through (or the run's own). The two solid-colour rows compare the solids with what the profile predicts wherever they were printed raw. A real printer that prints as profiled now passes these rows; before, it failed them by 11 to 50 because they were compared with ideal sRGB. Under a limit set that judges these rows, a sheet printed through the profile, or with no profile or paper patch, reads N-A with the reason; a profiling measurement is not judged on them. The cube-corner table keeps its ideal values.
 - **Every limited row has a graph line:** the Control strip graph shows its maximum too, and three new graphs show the solid colours, the hue of the solids, and the outer and surface gamut.
 - **Graphs with values but no limit** are shown for trending, with a sentence under each saying what it shows and why it has no limit line.
 - The help of the all-patches, control-strip and grey-ramp rows explains how average, P95 and maximum relate: a P95 limit above the maximum limit can never decide anything.
@@ -31,7 +31,7 @@
 - A Custom size equal to a named paper (for example 420 × 297) is no longer filtered as that paper.
 - The paper filter reads the paper shown on screen, so both preset lists agree after a preset is loaded.
 - End and Home work in the open Select preset list.
-- On a relative-intent FROM PROFILE GAMUT chart, a perfectly printed sheet no longer reads close to the limit on the solid rows.
+- On a relative-intent FROM PROFILE GAMUT chart, a perfectly printed sheet no longer reads close to the limit on the two solid-colour rows.
 - A rare crash when the preset layout ran in the background.
 
 ## v4.3.0-beta.43
