@@ -29578,9 +29578,62 @@ would reach.
 - note: Measured on screen (`fixes-2-i1isis/before-tip/isis-on-*`, `after/isis-on-*`): with the engine on, Manual shows the layout panel, whose instrument list has no i1iSis (`DELEGATED`), so it shows the i1Pro while printtarg's hidden `-i` still says i1iSis. Choosing any paper in the panel mirrors the panel back (`_sync_manual_selection_from_panel`) and `-i` becomes `i1`; "Save as Defaults" then stores the i1Pro. The build takes the panel's instrument (`_collect_manual`: `p.instrument = recipe.instrument`) while the i1Profiler hand-off asks `-i` (`_is_isis_selected`). A person cannot choose the i1iSis at all with the engine on. Not changed: which is intended (hide the panel for the i1iSis, show printtarg as for engine-off, or keep the i1iSis out of the engine) is a decision.
 - where: `ui/tabs/tab_chart.py` (`_sync_manual_selection_from_panel`, `_collect_manual`, `_is_isis_selected`, the `use_engine` test in the Manual refresh).
 
-### B8-1284 · OPEN, for Basti · Closing Preferences moves a person's own margin and patch scale to the instrument's house value
+### B8-1284 · FIXED, awaiting confirmation · Closing Preferences moves a person's own margin and patch scale to the instrument's house value
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: B8-1280's round (offscreen, diagnostic); reproduced on screen by the beta 44 challenge round 3, finding 2 (`~/Desktop/ChromIQ-beta44-proof/challenge-3/b8-1284-prefs`, 5 of 5 cells).
+- note: `MainWindow._open_settings` called `_apply_instrument_default_margin()` on every close, Cancel included, "so the new i1Pro preset shows at once". It moved every house value, whatever the instrument and whatever the person set: on screen, ColorMunki `-m 10` -> 6 (Cancel), ColorMunki `-a 0.95` -> 1.0 (OK), i1Pro `-m 6 -a 1.0` -> 10 / 0.95 (Cancel), i1iSis `-m 10` -> 6 (Cancel), SpectroScan `-m 10 -a 0.95` -> 6 / 1.0 (OK), with nothing changed in Preferences; the custom pair 12 / 0.85 (the control) stayed. The rule now (Basti's brief for this round): Preferences pushes the i1Pro Chart Defaults into Manual ONLY when that preset was changed and confirmed with OK (`TabChart.apply_i1pro_preset_if_changed`, the preset read before `exec()` and compared after); Cancel, or OK with nothing changed, touches nothing; only an i1Pro in Manual is ever moved by it, by the rule the preset's help states (a value matching a house value moves, a value typed by the person stays). On screen before (a026e3e5): 7 of 10 cells wrong (the round's six, its control right, plus a changed preset while on the ColorMunki and a chosen-then-cancelled preset); after: 0 of 10.
+- where: `ui/main_window.py` (`_open_settings`); `ui/tabs/tab_chart.py` (`i1pro_preset`, `apply_i1pro_preset_if_changed`, `_house_margins`, `_is_house_scale`). Driver `scripts/drive_b8_1285_preferences_and_restart.py` (phase `prefs`).
+- tests: tests/test_b8_1285_preferences_and_the_i1pro_preset.py
+- evidence: test_closing_preferences_with_nothing_changed_moves_nothing, test_a_preset_chosen_and_then_cancelled_moves_nothing, test_a_changed_preset_never_touches_another_instrument, test_a_changed_preset_reaches_manual_on_the_i1pro
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-3/ (NOTES.txt; before/b8-1284-prefs, after/b8-1284-prefs; mutations.txt M1 to M3)
+
+### B8-1285 · FIXED, awaiting confirmation · After Save as Defaults, a changed i1Pro Chart Defaults preset reached Guided but not Manual after a restart
+- blocks release: no
+- severity: MEDIUM
+- status: FIXED
+- found by: the beta 44 challenge round 3, finding 1 (`~/Desktop/ChromIQ-beta44-proof/challenge-3/preset-save`, `preset-restart`).
+- note: B8-1280's rule brings a stored flag back as saved, and "Save as Defaults" stores `-m` and `-a`. So after a save on the i1Pro's preset values (10 / 0.95), Preferences > i1Pro Chart Defaults set to "-m 6 -a 1.0" with OK showed 6 / 1.0 at once, and after a restart Manual came back 10 / 0.95 while Guided, which reads the preset, built with 6 / 1.0: the two modes disagreed, against the preset's own help ("Changes apply to both Guided and Manual mode"). Fix: when the preset is changed and confirmed, the saved Manual defaults are carried to it as well (`_carry_i1pro_preset_into_saved_defaults`), when the saved Manual instrument is the i1Pro, by the rule the live fields follow: a stored house value moves, a stored custom value (12 / 0.85) stays, and a save for another instrument is left alone. The simplest correct mechanism: the store then says what the session says, with no new key and nothing for the restore to reconcile; B8-1280 / B8-1281 hold unchanged otherwise (a saved flag comes back as saved, and without a preset change a saved 6 / 1.0 on the i1Pro stays 6 / 1.0). The preset's help text stays true for printtarg's Manual and for Guided; with the layout engine on, Manual does not use the preset at all (B8-1289, open). On screen before: Manual 10 / 0.95 after the restart, Guided 6 / 1.0; after: both 6 / 1.0, in the session and after the restart.
+- where: `ui/tabs/tab_chart.py` (`_carry_i1pro_preset_into_saved_defaults`). Driver phases `preset-save`, `preset-restart`.
+- tests: tests/test_b8_1285_preferences_and_the_i1pro_preset.py
+- evidence: test_a_changed_preset_survives_a_saved_session, test_a_saved_custom_pair_survives_a_preset_change, test_a_preset_change_leaves_another_instruments_save, test_without_a_preset_change_a_saved_pair_comes_back_as_saved
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-3/ (before/preset-*, after/preset-*; mutations.txt M4 to M6)
+
+### B8-1286 · FIXED, awaiting confirmation · Create Chart's "Edit layout defaults" opened Preferences, and a changed i1Pro preset there never reached Manual
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: reading the second door into Preferences while fixing B8-1284.
+- note: `TabChart._edit_layout_defaults` opens the same Preferences (on its Chart Layout tab) and did nothing after it closed, so a preset changed there reached Guided and not Manual until an instrument switch. It now follows the same rule as the main door: applied only when the preset was changed and confirmed with OK.
+- where: `ui/tabs/tab_chart.py` (`_edit_layout_defaults`).
+- tests: tests/test_b8_1285_preferences_and_the_i1pro_preset.py
+- evidence: test_the_layout_defaults_button_follows_the_same_rule
+
+### B8-1287 · FIXED, awaiting confirmation · With the layout engine off, Save as Defaults stored a layout recipe nobody had seen: i1Pro, A4, 72 dpi, no page margins
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the beta 44 challenge round 3, finding 3 (`challenge-3/sweep/summary.txt`: `recipe.instrument "i1"` beside `-i p3/CM/SS`); measured further in this round.
+- note: With the engine off the layout panel is hidden, does not follow `-i` / `-p`, and until it has been shown once holds no recipe at all; `_on_save_defaults` stored it anyway. Measured on screen (before, a026e3e5): every engine-off save, on every instrument including the i1Pro, stored an i1Pro / A4 recipe at 72 dpi with no page margins, no instrument margins and the clip text off. A later start with the engine on restored it verbatim: the panel showed the saved instrument (a later sync puts it right) but laid it out at 72 dpi with no page margins (the ColorMunki on Letter estimated 63 patches where a clean start gives 42), and a saved Letter opened as A4 in both `-p` and the panel (B8-1228's "the recipe's paper wins"). Before: 6 of 6 engine-on-at-start cells wrong (12 of 12 judged states); ticking the engine on in the session got instrument and paper right, because the tick converts printtarg's fields. Chosen fix, in two halves because each alone is not enough: (1) the SAVE stores the panel's recipe only when the panel was shown this session and shows the instrument and paper Manual is on (always so with the engine on); otherwise it keeps a stored recipe for this instrument and paper and removes any other, so the next engine start seeds the panel from the layout preset for what was saved, as a first engine chart does; a restore-only check could not catch the i1Pro, whose placeholder names the i1Pro. (2) the RESTORE ignores a stored recipe whose instrument is not the saved `-i` (`_recipe_fits_instrument`, the i1iSis counted as the i1Pro as the panel shows it, B8-1283 untouched), for the stores earlier betas already wrote; the paper is not judged there, so C10's "the recipe's paper wins for an older save" stands. Also: the panel is now synced to `-i` / `-p` before its layout preset is looked up, so a ColorMunki no longer gets the i1Pro's preset the first time the panel is shown. After: an engine-off save stores no recipe; engine off -> save -> restart -> engine ticked on is identical to a never-saved control for all 6 cells, and engine on at the start opens on the saved instrument and paper at 300 dpi with instrument margins (6 of 6, compared field by field with a control, `tools/compare_recipes.py`).
+- where: `ui/tabs/tab_chart.py` (`_on_save_defaults`, `_init_manual_layout_panel`, `_restore_defaults`, `_recipe_fits_instrument`, `_engine_instrument`). Driver phases `recipe-save`, `recipe-restart`, `recipe-restart2`, `recipe-control`, `recipe-control2`.
+- tests: tests/test_b8_1285_preferences_and_the_i1pro_preset.py
+- evidence: test_an_engine_off_save_opens_as_saved_with_the_engine_on, test_an_engine_off_save_then_the_engine_ticked_on, test_an_engine_off_save_stores_no_recipe_nobody_saw, test_an_engine_off_save_keeps_a_recipe_for_what_it_saved, test_a_store_written_before_the_fix_opens_on_its_instrument, test_a_recipe_for_the_saved_instrument_is_still_restored, test_which_recipe_fits
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-3/ (before/recipe-*, after/recipe-*, after/control-*; mutations.txt M8, M9)
+
+### B8-1288 · FIXED, awaiting confirmation · Choosing the i1Pro 3 Plus in the layout panel left printtarg's instrument on the one before
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: this round's fresh-install cells (on screen, before: panel i1Pro 3 Plus, `-i` i1Pro).
+- note: `_sync_manual_selection_from_panel` mirrored the panel's `p3` as `"3p"` (printtarg's own spelling), which `-i` does not offer (`data/parameters.yaml` has `p3`; "3p" is applied when the command is built), so `set_value` did nothing and `-i`, and with it "Save as Defaults" and Guided's mirror, stayed on the previous instrument. With B8-1287's save rule it would also have dropped the recipe. It now mirrors `p3`. Since #93 (8f483c71).
+- where: `ui/tabs/tab_chart.py` (`_sync_manual_selection_from_panel`).
+- tests: tests/test_b8_1285_preferences_and_the_i1pro_preset.py
+- evidence: test_the_panels_instrument_reaches_printtarg
+
+### B8-1289 · OPEN, for Basti and Knut · With the layout engine on, Manual does not use the i1Pro Chart Defaults preset, and Guided does
 - blocks release: no
 - severity: MINOR
 - status: OPEN
-- note: `MainWindow._open_settings` calls `_apply_instrument_default_margin()` after the dialog closes, "so the new i1Pro preset shows at once". It moves every house value, whatever the instrument and whatever the person set: measured offscreen (diagnostic), ColorMunki `-m 10` -> 6, i1Pro `-m 6 -a 1.0` -> 10 / 0.95, ColorMunki `-a 0.95` -> 1.0, i1iSis `-m 10` -> 6, with nothing changed in Preferences. Same shape as B8-1261 and B8-1281 (a default applied on a call that is not a switch). Not changed: whether closing Preferences should apply the i1Pro preset only when that preset changed is a decision.
-- where: `ui/main_window.py` (`_open_settings`); `ui/tabs/tab_chart.py` (`_apply_instrument_default_margin`).
+- note: Measured on screen (`fixes-3/after/fresh`, a fresh install, where the engine is ON): Guided on the i1Pro builds with the preset (`_collect_guided`, then `_engine_build_kwargs`: border 10, pscale 0.95), while Manual's layout panel for the i1Pro carries its own border 6 and patch scale 1.0 (the same for every instrument), and unticking the engine converts that into `-a 1.0`, not the preset's 0.95. So with the engine on (the factory setting) the two modes build the i1Pro differently, and the preset's help ("Changes apply to both Guided and Manual mode") holds only for Manual with the engine off. Not changed: whether the panel should take the preset for the i1Pro, or the help should name the exception, is a decision; the help text was left as it is.
+- where: `ui/tabs/tab_chart.py` (`_collect_guided`, `_convert_engine_to_printtarg`), `workflow/chart_creator.py` (`_engine_build_kwargs`), `ui/dialogs/settings_dialog.py` (the i1Pro Chart Defaults help).

@@ -2374,16 +2374,25 @@ class MainWindow(QMainWindow):
         layout_combo = None
         if hasattr(self._tab_chart, "current_layout_combo"):
             layout_combo = self._tab_chart.current_layout_combo()
+        from PyQt6.QtWidgets import QDialog
+        preset_before = (self._tab_chart.i1pro_preset()
+                         if hasattr(self._tab_chart, "i1pro_preset") else None)
         dlg = SettingsDialog(self._settings, self, margin_combo=margin_combo,
                              layout_combo=layout_combo)
-        dlg.exec()
+        accepted = dlg.exec() == QDialog.DialogCode.Accepted
         self._check_argyll_binaries()
         self._apply_calibration_mode()
         self._tab_print.apply_native_dialog_mode()
-        # Pick up an updated i1Pro chart-defaults preset immediately so the user
-        # doesn't have to toggle instruments to see the new margin / scale.
-        if hasattr(self._tab_chart, "_apply_instrument_default_margin"):
-            self._tab_chart._apply_instrument_default_margin()
+        # A CHANGED i1Pro chart-defaults preset reaches Manual at once, and the
+        # saved defaults with it, so a restart agrees (B8-1285). ONLY a changed
+        # one, confirmed with OK (B8-1284): this used to call
+        # `_apply_instrument_default_margin()` on every close, Cancel too, and
+        # moved a margin or scale the person had typed back to his
+        # instrument's house value.
+        if (preset_before is not None
+                and hasattr(self._tab_chart, "apply_i1pro_preset_if_changed")):
+            self._tab_chart.apply_i1pro_preset_if_changed(preset_before,
+                                                          accepted)
         if hasattr(self._tab_chart, "_update_patch_count"):
             self._tab_chart._update_patch_count()
         # Manual mode's Auto -g/-e/-B reflect the grey-ramp-reference anchor;

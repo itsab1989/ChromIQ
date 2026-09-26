@@ -4361,6 +4361,63 @@ def _pw_settings_key(tool: str, flag: str) -> str:
     return f"manual_{tool}_{flag}"
 
 
+#: The patch scales an instrument or the i1Pro preset puts in -a; any other
+#: value was typed by a person and is never moved for him.
+_HOUSE_SCALES = (1.0, 0.95)
+
+
+def _house_margins() -> set[int]:
+    """Every -m some instrument or the i1Pro preset puts there by itself.
+
+    Anything in this set was put in the field by
+    `_apply_instrument_default_margin`, not chosen, so a switch of instrument
+    (or a changed i1Pro preset) may replace it; a value outside it was typed by
+    a person and stays. Asked of the tables rather than repeated, because a
+    hard-coded `(6, 10)` broke the moment the CR30 was given 5 mm.
+    """
+    margins = set(INSTRUMENT_DEFAULT_MARGIN.values()) | {6, 10}
+    try:
+        from data.patch_db import I1PRO_DEFAULT_PRESETS
+        for _m, _a in I1PRO_DEFAULT_PRESETS.values():
+            margins.add(int(_m))
+    except Exception:      # noqa: BLE001 — a default table is never fatal
+        pass
+    return margins
+
+
+def _is_house_scale(value) -> bool:
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return False
+    return any(abs(v - known) <= 0.01 for known in _HOUSE_SCALES)
+
+
+def _engine_instrument(code) -> str:
+    """printtarg's -i as the layout panel names it: the i1Pro 3 Plus is "p3"
+    (printtarg itself says "3p"), and an instrument the engine does not lay
+    out (the i1iSis) is shown as the i1Pro, as `_sync_engine_panel_selection`
+    does (B8-1283 is open on that)."""
+    eng = {"3p": "p3"}.get(str(code or "i1"), str(code or "i1"))
+    return eng if eng in ("i1", "p3", "CM", "SS", "CR30") else "i1"
+
+
+def _recipe_fits_instrument(recipe, instr) -> bool:
+    """Whether a stored layout recipe was made for `instr` (B8-1287).
+
+    With the engine off, "Save as Defaults" used to store the hidden layout
+    panel as it stood, which is an i1Pro on A4 at 72 dpi with no page margins
+    when the panel had never been shown: beside a saved i1Pro 3 Plus,
+    ColorMunki or SpectroScan, and restored verbatim at the next start with
+    the engine on. A recipe that names another instrument is not the saved
+    session's, and is not restored. One that names none is older than the
+    field and is taken as it is.
+    """
+    if not isinstance(recipe, dict) or not recipe.get("instrument"):
+        return True
+    return _engine_instrument(recipe.get("instrument")) == _engine_instrument(instr)
+
+
 def _extra_args_have_patch_source(extra: str) -> bool:
     """True if extra targen args contain a flag that produces patches on its own.
 
@@ -8233,13 +8290,28 @@ class TabChart(QWidget):
             _pages.valueChanged.connect(self._mirror_pages_from_panel)
             self._pages_mirror_wired = True
         saved = self._settings.get("manual_engine_recipe", None)
-        if isinstance(saved, dict):
+        # A RECIPE FOR ANOTHER INSTRUMENT IS NOT THE SAVED DEFAULTS' (B8-1287).
+        # Stores written before the fix hold the hidden panel's i1Pro beside a
+        # saved i1Pro 3 Plus, ColorMunki or SpectroScan; judged against the
+        # instrument the defaults were saved on.
+        saved_instr = self._settings.get(_pw_settings_key("printtarg", "-i"))
+        fits = _recipe_fits_instrument(saved, saved_instr or "i1")
+        if isinstance(saved, dict) and fits:
             from workflow.layout_engine.presets import LayoutRecipe
             try:
                 self._set_engine_recipe(LayoutRecipe.from_dict(saved))
                 return
             except Exception as exc:  # noqa: BLE001 — fall back to the preset
                 log.warning("restore engine layout defaults failed: %s", exc)
+        elif isinstance(saved, dict):
+            log.info("the saved layout recipe is for %s and the defaults for "
+                     "%s: the panel opens on the layout preset instead",
+                     saved.get("instrument"), saved_instr)
+        # The preset is looked up for the panel's selection, so the panel has
+        # to show the Manual instrument and paper first: the first time it is
+        # shown it still says i1Pro / A4, and a ColorMunki would get the
+        # i1Pro's layout (B8-1287).
+        self._sync_engine_panel_selection()
         inst, paper, mode = self._manual_layout_panel.selection()
         store = self._layout_store()
         # No styling overlay here: _current_layout_recipe applies the Settings
@@ -8289,7 +8361,12 @@ class TabChart(QWidget):
         # is the sentinel "__custom__", which -p cannot take, so -p kept the
         # paper before (B8-1223). `selection()` answers the W x H boxes.
         paper = p.selection()[1] or "A4"
-        flag = {"p3": "3p"}.get(eng, eng)
+        # -i's own code, which is "p3" (data/parameters.yaml); printtarg's
+        # spelling, "3p", is applied when the command is built. This mapped
+        # to "3p", which -i does not offer, so choosing the i1Pro 3 Plus in
+        # the panel left -i on the instrument before (B8-1288, measured on
+        # screen: panel i1Pro 3 Plus, -i i1Pro).
+        flag = eng
         self._syncing_manual_sel = True
         try:
             for pw in self._manual_widgets.get("printtarg", []):
@@ -8466,6 +8543,7 @@ class TabChart(QWidget):
         """Open Settings on the Chart Layout tab, preselected to the layout the
         user is editing here (#93)."""
         from ui.dialogs.settings_dialog import SettingsDialog
+        from PyQt6.QtWidgets import QDialog
         dlg = SettingsDialog(self._settings, self,
                              margin_combo=self.current_margin_combo(),
                              layout_combo=self.current_layout_combo())
@@ -8475,7 +8553,12 @@ class TabChart(QWidget):
                 if tabs.tabText(i) == tr("Chart Layout"):
                     tabs.setCurrentIndex(i)
                     break
-        dlg.exec()
+        preset_before = self.i1pro_preset()
+        accepted = dlg.exec() == QDialog.DialogCode.Accepted
+        # The same Preferences, so the same rule (B8-1284, B8-1285): this door
+        # used to apply a changed i1Pro preset nowhere at all.
+        if self.apply_i1pro_preset_if_changed(preset_before, accepted):
+            self._update_patch_count()
         self._refresh_manual_command_preview()
 
     # ------------------------------------------------------------------
@@ -10346,19 +10429,13 @@ class TabChart(QWidget):
         # This was a hard-coded `(6, 10)`, and it broke the moment the CR30 was
         # given 5 mm: switching CR30 to SpectroScan left 5 in the box while the
         # build used 6, because 5 was not in the list and the box was never moved
-        # back. Ask the table instead of repeating it.
-        _house_margins = set(INSTRUMENT_DEFAULT_MARGIN.values()) | {6, 10}
-        try:
-            from data.patch_db import I1PRO_DEFAULT_PRESETS
-            for _m, _a in I1PRO_DEFAULT_PRESETS.values():
-                _house_margins.add(int(_m))
-        except Exception:      # noqa: BLE001 — a default table is never fatal
-            pass
+        # back. Ask the table instead of repeating it (`_house_margins`).
+        #
         # A MARGIN OR SCALE THE PERSON SAVED IS NOT A HOUSE DEFAULT (B8-1281).
         # The restore used to end with this method, so a saved -m 6 on the
         # i1Pro came back as 10, a saved -m 10 or -a 0.95 on any other
         # instrument as 6 / 1.0: 25 of 30 saved pairs, every instrument.
-        if ("-m" not in keep and current_m in _house_margins
+        if ("-m" not in keep and current_m in _house_margins()
                 and current_m != target_margin):
             self._manual_m_pw.set_value(target_margin)
 
@@ -10369,9 +10446,8 @@ class TabChart(QWidget):
                 current_a = None
             # Only override if the current scale is one of the known preset
             # values — leave custom scales (e.g. 0.85, 1.1) intact.
-            if current_a is not None and any(
-                abs(current_a - known) <= 0.01 for known in (1.0, 0.95)
-            ) and abs(current_a - target_scale) > 0.01:
+            if (current_a is not None and _is_house_scale(current_a)
+                    and abs(current_a - target_scale) > 0.01):
                 self._manual_a_pw.set_value(target_scale)
 
         # i1iSis: default to A3+ portrait, no spacers, and unlimited strip
@@ -10420,6 +10496,75 @@ class TabChart(QWidget):
                 pw.set_value(True)
             elif leaving and current:
                 pw.set_value(False)
+
+    def i1pro_preset(self) -> str:
+        """Preferences > i1Pro Chart Defaults, as stored."""
+        return str(self._settings.get("i1pro_default_preset",
+                                      I1PRO_DEFAULT_PRESET_KEY))
+
+    def apply_i1pro_preset_if_changed(self, before: str,
+                                      accepted: bool) -> bool:
+        """After Preferences closed: push the i1Pro Chart Defaults into Manual
+        if, and only if, that preset was changed and confirmed with OK.
+
+        B8-1284 (beta 44 challenge round 3, finding 2): Preferences used to call
+        `_apply_instrument_default_margin` on EVERY close, Cancel included, so
+        a margin or scale a person had typed that happened to be some
+        instrument's house value went back to his instrument's own: on screen
+        5 of 5 cells, ColorMunki, i1Pro, i1iSis, SpectroScan, with nothing
+        changed. Cancel, or OK with the preset as it was, now touches nothing,
+        and only an i1Pro in Manual is ever moved by it.
+
+        B8-1285 (finding 1): the change also reaches the saved defaults, or a
+        restart brought the stored -m / -a back (B8-1280's rule) while Guided
+        used the new preset. See `_carry_i1pro_preset_into_saved_defaults`.
+        """
+        if not accepted or self.i1pro_preset() == str(before):
+            return False
+        pw = self._manual_instr_pw
+        if pw is not None and (pw.get_raw_value() or "i1") == "i1":
+            # the same rule a switch of instrument follows: a house value
+            # moves, a value the person typed (12, 0.85) stays, which is what
+            # the preset's help says
+            self._apply_instrument_default_margin()
+        self._carry_i1pro_preset_into_saved_defaults()
+        return True
+
+    def _carry_i1pro_preset_into_saved_defaults(self) -> None:
+        """Give the saved Manual defaults the changed i1Pro preset (B8-1285).
+
+        "Save as Defaults" stores -m and -a, and the start-up restore brings a
+        stored flag back as saved (B8-1280, B8-1281). So after a save on the
+        i1Pro's preset values (10 / 0.95), a new preset (6 / 1.0) reached
+        Guided, which reads the preset, and not Manual, which read the store:
+        the two modes disagreed after a restart, against the preset's own
+        help ("Changes apply to both Guided and Manual mode").
+
+        When the saved Manual instrument is the i1Pro, the stored -m and -a
+        are carried to the new preset by the rule the live fields follow: a
+        house value moves, a value the person typed stays. Nothing else in
+        the store is touched, and a save for another instrument is left
+        alone, since the preset does not apply to it.
+        """
+        s = self._settings
+        instr = s.get(_pw_settings_key("printtarg", "-i"))
+        if str(instr or "i1") != "i1":
+            return
+        margin, scale = i1_defaults_from_preset(self.i1pro_preset())
+        k_m = _pw_settings_key("printtarg", "-m")
+        v = s.get(k_m)
+        if v is not None:
+            try:
+                m = int(float(v))
+            except (TypeError, ValueError):
+                m = None
+            if m in _house_margins() and m != margin:
+                s.set(k_m, int(margin))
+        k_a = _pw_settings_key("printtarg", "-a")
+        v = s.get(k_a)
+        if (v is not None and _is_house_scale(v)
+                and abs(float(v) - float(scale)) > 0.01):
+            s.set(k_a, float(scale))
 
     # ------------------------------------------------------------------
     # Auto patch-count (Manual mode)
@@ -26754,10 +26899,41 @@ class TabChart(QWidget):
         # (paper, margins, indicators, strip gap, label offset, …) survives a
         # restart — _init_manual_layout_panel restores it. Without this, only the
         # printtarg widgets above were saved and the engine panel reset (#93).
+        #
+        # ONLY A RECIPE FOR THE INSTRUMENT AND PAPER SAVED ABOVE (B8-1287).
+        # With the engine off the panel is hidden and does not follow -i / -p,
+        # and until it has been shown once it holds no recipe at all: it was
+        # stored anyway, as an i1Pro on A4 at 72 dpi with no page margins,
+        # beside a saved i1Pro 3 Plus, ColorMunki or SpectroScan, and a start
+        # with the engine on restored it verbatim (on screen: 72 dpi, no page
+        # margins, and a saved Letter opened as A4, B8-1228's "the recipe's
+        # paper wins"). So the panel is stored when it was shown and shows
+        # what -i / -p say, as it always does with the engine on; otherwise a
+        # stored recipe for this instrument and paper is kept, and any other
+        # one removed, so the next engine start seeds the panel from the
+        # layout preset for what was saved, as a first engine chart does.
         if getattr(self, "_manual_layout_panel", None) is not None:
             try:
-                s.set("manual_engine_recipe",
-                      self._current_layout_recipe().to_dict())
+                panel = self._manual_layout_panel
+                instr_now = self._manual_get("printtarg", "-i", "i1")
+                paper_now = str(self._manual_get("printtarg", "-p", "A4") or "A4")
+                p_instr, p_paper, _mode = panel.selection()
+                if (self._manual_panel_inited
+                        and _engine_instrument(p_instr)
+                        == _engine_instrument(instr_now)
+                        and p_paper == paper_now):
+                    s.set("manual_engine_recipe",
+                          self._current_layout_recipe().to_dict())
+                else:
+                    old = s.get("manual_engine_recipe", None)
+                    if isinstance(old, dict) and not (
+                            _recipe_fits_instrument(old, instr_now)
+                            and str(old.get("paper") or "") == paper_now):
+                        s.unset("manual_engine_recipe")
+                        log.info("Save as Defaults: the layout panel holds no "
+                                 "recipe for %s on %s; the stored one (%s on "
+                                 "%s) was removed", instr_now, paper_now,
+                                 old.get("instrument"), old.get("paper"))
             except Exception as exc:  # noqa: BLE001 — don't fail the whole save
                 log.warning("save engine layout defaults failed: %s", exc)
         log.info("Chart defaults saved")
@@ -27206,9 +27382,15 @@ class TabChart(QWidget):
         # (`_sync_engine_panel_after_transfer`), so a stale -p would replace
         # the recipe's paper the moment Manual opens. Put -p in step first.
         saved_recipe = s.get("manual_engine_recipe", None)
+        # …a recipe for THIS instrument (B8-1287): one written for another
+        # is not restored (`_init_manual_layout_panel`), so its paper is not
+        # the paper that was shown either.
         if (bool(s.get("use_chromiq_layout_engine", False))
                 and isinstance(saved_recipe, dict)
-                and saved_recipe.get("paper")):
+                and saved_recipe.get("paper")
+                and _recipe_fits_instrument(
+                    saved_recipe,
+                    s.get(_pw_settings_key("printtarg", "-i")) or "i1")):
             self._set_manual_value("printtarg", "-p",
                                    str(saved_recipe["paper"]))
         # RESTORING IS NOT A CHANGE MADE IN GUIDED (B8-1228). Both modes were
