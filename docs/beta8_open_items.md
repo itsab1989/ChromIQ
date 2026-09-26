@@ -29869,12 +29869,13 @@ would reach.
 - found by: beta 44 challenge round 9 (`~/Desktop/ChromIQ-beta44-proof/challenge-9/gc-soak/`): 15 cycles over ~10 min; shipped: 98 collections, 9,927 live widgets at the end, RSS 3.55 GB; with automatic collection: 309 collections, ~3,100 widgets, 3.28 GB. About 1,170 widgets per closed Preferences window wait for a rare full collection; no crash, no leak without bound, no temp-file leftovers. Suggested: collect (generation 2) when a top-level dialog closes, from the GUI thread. Also: the gc_guard docstring's "the timer tick is the only thing Qt is delivering to" is not true inside a nested event loop (exec(), processEvents); theoretical, not reproduced.
 - where: `core/gc_guard.py`.
 
-### B8-1401 · OPEN · "● modified" in Create Chart's frame line shares its symbol with the verification mark
+### B8-1401 · DEFERRED · "● modified" in Create Chart's frame line shares its symbol with the verification mark
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: DEFERRED
 - note: a question for Knut.
 - found by: beta 44 challenge round 9. `tab_chart.py:8650` "Layout preset: … ● modified" sits in the tab whose presets button tooltip says ● marks a chart made for verification (B8-1387). It also shows in a fresh factory session and after a built-in preset loads (as in beta 43).
+- answered: Knut, #182 5849622329: "No, they are in different window and there is no confustion." No change.
 
 ### B8-1402 · OPEN · Clip border: an Offset Y moves the branding wordmark into the text, and `clip_content_when_on` does not travel in build kwargs
 - blocks release: no
