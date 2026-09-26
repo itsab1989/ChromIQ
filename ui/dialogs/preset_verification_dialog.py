@@ -146,11 +146,22 @@ class PresetRow:
 #: Every code `workflow.preset_eligibility.classified_reasons` knows has an
 #: entry, and `tests/test_the_preset_window_says_what_is_missing.py` fails when
 #: one does not, because a row that says only "✕" teaches nobody anything.
+def _solids_reason() -> str:
+    """The body of M-VERIFY-SOLIDS-REASON (§M-PROPOSED), translated."""
+    from workflow import measurement_messages as M
+    return M.M_VERIFY_SOLIDS_REASON.render()[1]
+
+
 def reason_line(code: str) -> str:
     """What this chart is short of, in one sentence."""
     return {
+        # Challenge 8, C5 (B8-1373): in these two windows this reason is
+        # only ever given to the two solid rows (`_condition_it_would_get`,
+        # CONDITION_BEFORE_PRINTING), and "carries no colorimetric
+        # reference" stopped being why once K49/K51 compared them with the
+        # profile. §M-PROPOSED M-VERIFY-SOLIDS-REASON says why, both ways.
         MR.REASON_NEEDS_REFERENCE_FILE:
-            tr("This chart carries no colorimetric reference."),
+            _solids_reason(),
         MR.REASON_NO_REFERENCE:
             tr("This chart carries no aim values for its patches."),
         MR.REASON_NO_CONTROL_STRIP:

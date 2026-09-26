@@ -30010,6 +30010,96 @@ would reach.
 - status: OPEN
 - found by: the K51 on-screen proof (`~/Desktop/ChromIQ-beta44-proof/k51/runs/*-report-D/`): Report-Limits-Border-Conditions, run3, both raw dates ticked, reads "This report covers 0 of the 9 measurements recorded for this project." Seen before the K51 change too (before-report-D), so not caused by it.
 - note: the coverage sentence counts the document's measurements that are not raw drift checks (`_is_raw_drift` in the two `covered` counts of the Report Scope code), so a document of drift checks covers "0". Since K51 a drift column can carry verdicts, which makes the 0 plainer still. Wants one rule for what "covered" counts; not changed here.
+- challenge 8 of beta 44 (C6): seen again beside the drift columns' verdicts. Still not changed: whether a raw sheet counts as "covered" is the rule to decide, and the total (every measurement of the project, because a document of raw sheets has no kind) moves with it.
 - where: `ui/dialogs/measurement_report_dialog.py` (the two `covered = len(...)` lines of the scope sentence).
 - cause (K53, traced on screen with the panel's Content combo watched, `~/Desktop/ChromIQ-beta44-proof/k53/b8-1312-trace/`): the box never decides the clip content. The save, the restore and the conversion store and show what the panel holds. What differs is WHEN the layout panel is first set up, and for which instrument. Unticked, the panel is first set up only when the CR30 is chosen, from the CR30's own default layout (`workflow/layout_engine/presets.py`: CM, SS and CR30 default to Content "off", "the notes band is opt-in", Sebastian), so "off". Ticked, the panel was set up at start for the i1Pro, whose default is "notes", and choosing the CR30 in it keeps the Content the panel already had: the instrument switch writes a default Content only for the i1Pro / i1Pro 3 (off -> notes), never for CM, SS or CR30 (`LayoutOptionsPanel` instrument change, the `inst in ("i1", "p3")` branch). Same for the ColorMunki reached from an i1Pro in the panel (cell on-cm: notes). Basti's rule for instrument defaults (2026-09-02, `_may_default`): a default may set a value the person has not chosen; the "notes" the CR30 keeps is the i1Pro's default, not a choice.
 - after B8-1353 (the box locked on the CR30): NOT gone. Measured again on the locked tree (`k53/b8-1312-trace-after-lock/`): the box shows ticked on both paths, and the Content is still "off" when the CR30 is picked from printtarg's Instrument with the person's box unticked, "notes" when it is picked in the panel after an i1Pro. New saves follow the same path. Nothing changed for this (the fix touches ColorMunki and SpectroScan too, and which Content the CR30 should get is Knut's question); answer and recommendation in `k53/ANSWER-B8-1312.txt`.
+
+### B8-1370 · FIXED, awaiting confirmation · A raw drift check saved by beta 43 reads as judged in beta 44: N-A, INFO, a false sentence and the profiling footnote (regression from B8-1330)
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: challenge round 8 of beta 44, C2 (`~/Desktop/ChromIQ-beta44-proof/challenge-8/saved-iso7/`): Report-Limits-Border-Conditions, run3 (two raw sheets), Full colour check under ISO 12647-7 saved in beta 43, opened in beta 44.
+- note: beta 43 showed "drift" in every cell and in Overall. Beta 44 showed N-A on the paper and solid rows, Overall INFO, "On them the paper and the solid colours are judged against the profile" (they read N-A) and "It was measured to build a profile rather than to check one" (it is a verification). Cause: `drift_check_judges` counted N-A as a verdict, and beta 43 saved those three rows as N-A ("needs_reference_file"), so the saved column stopped being drift-only and fell into the `graded: False` path with the profiling sheet's sentence. Fixed: a raw drift check judges only when one of the three rows reads PASS or FAIL (or a COND a saved report kept). The saved report reads as in beta 43, with Report Scope's "Worked out by an earlier version" line because this version would judge those rows. Spec 45.7.
+- where: `workflow/measurement_report.py` (`drift_check_judges`, which `counted_rows`, `sheet_is_judged`, `stamp_verdict`, `summarise` and the window's `_drift_judges` / `_drift_only` all ask).
+- tests: tests/test_c8_drift_checks_and_dash_rows.py
+- evidence: test_n_a_on_the_three_rows_does_not_make_a_drift_check_judge, test_a_saved_beta_43_drift_check_reads_drift_throughout
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-8-report/ (saved-b43/, NOTES.txt)
+
+### B8-1371 · FIXED, awaiting confirmation · "–" rows in a report of drift checks: in the Overview, in the Colour accuracy graph, with a fallback "Max 3.0" line
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: challenge round 8 of beta 44, C3 (`~/Desktop/ChromIQ-beta44-proof/challenge-8/report/tip/`, cases D7 and D6).
+- note: Border-Conditions run3 under ISO 12647-7 (Full colour check, Contract proof check): the Overview listed, and the Colour accuracy graph plotted, "Average ΔE00, lowest 95 %", "Average ΔE00, highest 5 %" and "Maximum ΔE00, all patches", which ISO 12647-7 leaves at "–", and the graph drew and described "Max (3.0 ΔE00): the limit for 'Maximum ΔE00, all patches within gamut'", which is `legacy_pair`'s fallback. Cause: `_dash_row_ids` skipped raw drift columns (from before a drift column had a limit set). Fixed: every column is asked, and the graph's Avg and Max lines are drawn only for a number the set holds for that row, whatever the "–" filter catches. Knut's ruling B8-1332 now holds for drift checks too. Spec 45.8.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_dash_row_ids`, `_accuracy_thresholds`).
+- tests: tests/test_c8_drift_checks_and_dash_rows.py
+- evidence: test_a_drift_column_takes_its_dash_rows_out_too, test_no_accuracy_line_comes_from_the_fallback_pair
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-8-report/ (report/, NOTES.txt)
+
+### B8-1372 · FIXED, awaiting confirmation · QUESTION: a raw drift check whose paper and solid rows all read N-A now reads "drift" throughout
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the B8-1370 fix, which applies to a fresh report as well as a saved one.
+- note: Spec 45.2 (K51, built, not confirmed) says the three rows of a raw print read "PASS, FAIL or N-A" under a set that limits them. With B8-1370 a column whose three rows ALL read N-A (no profile could be read, or the chart has neither a paper patch nor a solid patch) judges nothing: its cells and Overall read "drift", "Judged against" reads "—", and the sentence is the one without the judged clause, as before K51. A column with one PASS or FAIL among the three still shows its N-A rows with their notes. Question for Knut: is that right, or should a raw print show the N-A and its note even when nothing else was judged? Spec 45.7.
+- where: `workflow/measurement_report.py` (`drift_check_judges`).
+- tests: tests/test_c8_drift_checks_and_dash_rows.py
+- evidence: test_n_a_on_the_three_rows_does_not_make_a_drift_check_judge
+
+### B8-1373 · FIXED, awaiting confirmation · The pre-flight and the presets window blamed a missing colorimetric reference for the two solid rows
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge round 8 of beta 44, C5 (`~/Desktop/ChromIQ-beta44-proof/challenge-8/preflight/`).
+- note: Under "Maximum ΔE00, solid colours" and "Maximum ΔH*ab, cyan, magenta and yellow solids" both windows said "This chart carries no colorimetric reference." Since K49/K51 those rows are compared with the profile's prediction, and judged on a raw print; what withholds them on a verification is that it is printed through its profile, which converts the solid patches. Neither window can know yet how the sheet will be printed, so the line now says both cases: M-VERIFY-SOLIDS-REASON, proposed in §M-PROPOSED, shown while it waits (as M-VERIFY-UNCHECKED-METRICS is), German by hand. Wording in spec 45.9.
+- where: `ui/dialogs/preset_verification_dialog.py` (`reason_line`), `workflow/measurement_messages.py`, `docs/design/unified_measurement_management.md`, `data/i18n/*.json`.
+- tests: tests/test_c8_drift_checks_and_dash_rows.py
+- evidence: test_the_solid_rows_reason_is_true_both_ways
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-8-report/ (preflight/, NOTES.txt)
+
+### B8-1374 · OPEN · The pre-flight's FROM PROFILE GAMUT paragraph says the solid metrics are "judged against a colorimetric reference", and its count does not know how the sheet was printed
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: fixing B8-1373.
+- note: M-VERIFY-PREFLIGHT's approved paragraph (`M_VERIFY_PREFLIGHT_GAMUT`) says "Some of the metrics listed above can be met in only one way: they are judged against a colorimetric reference, and ChromIQ writes one only beside a chart built with FROM PROFILE GAMUT". Since K49 those rows are compared with the profile's prediction, not with a reference file, and since K51 a raw print answers them too (as a drift check). "Only one way" is still true of a verification printed through its profile. A revision of approved text is Knut's; suggested: "Some of the metrics listed above can be answered by a verification in only one way: its solid patches must be printed as they are, and a chart printed through its profile converts them. A chart built with FROM PROFILE GAMUT in the Create Chart tab prints them as they are." Separately, the pre-flight's count ("can answer 14 of the 18 metrics") is worked out from the chart alone; where the sheet is already recorded as printed raw, the two solid rows would be answered (against the profile). Making the count read the print record is a change to `preset_eligibility`, which the presets window shares.
+- where: `workflow/measurement_messages.py` (`M_VERIFY_PREFLIGHT_GAMUT`), `ui/tabs/tab_measure.py` (`_show_verification_preflight_now`), `workflow/preset_eligibility.py` (`_condition_it_would_get`).
+
+### B8-1375 · FIXED, awaiting confirmation · A Printing record's guide said "every value in it reads INFO" above rows that read N-A
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge round 8 of beta 44, C6.
+- note: Now "INFO: the number is shown for information only. This kind of report judges nothing, so every value it can work out reads INFO." The N-A bullet below it says what the other rows are. German by hand. Spec 45.9.
+- where: `ui/dialogs/measurement_report_dialog.py` (the INFO bullet of "How to read this report").
+- tests: tests/test_c8_drift_checks_and_dash_rows.py
+- evidence: test_a_printing_records_guide_does_not_say_every_value_reads_info
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-8-report/ (report/*/R)
+
+### B8-1376 · FIXED, awaiting confirmation · A sheet printed through its profile with the absolute intent was told "a raw print has no intent at all"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge round 8 of beta 44, C6 (the absolute control run, Report-Limits-Profile-Gamut run1).
+- note: "How the colours were judged" for a verification judged as measured gave every such sheet the line "… (This is a way of comparing, not a rendering intent — a raw print has no intent at all.)", which beside a sheet printed through its profile with an intent reads as a statement about that sheet. A raw sheet keeps the line; a sheet printed through its profile now reads "as measured, with no white adjustment: every difference counts, the paper's own tone included. (This is a way of comparing, not a rendering intent.)". German by hand. Spec 45.9.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_printing_block_html`).
+- tests: tests/test_c8_drift_checks_and_dash_rows.py
+- evidence: test_a_sheet_printed_through_the_profile_is_not_told_about_raw_prints
+- proof: ~/Desktop/ChromIQ-beta44-proof/fixes-8-report/ (report/*/A0)
+
+### B8-1377 · OPEN · A report of raw drift checks opens with "It was verified by printing a chart through that profile"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: challenge round 8 of beta 44, C6 (Border-Conditions run3).
+- note: The opening sentence of a verification report is Knut's approved wording (2026-09-20): "This report judges the profile built in {where}. It was verified by printing a chart through that profile, measuring it, and comparing the measurements with the chart's own aim values." On a document whose sheets were all printed raw the second sentence is false. Not changed, because it is approved text. Suggested for a document of raw sheets only: "This report follows the printer behind the profile built in {where}. Its sheets were printed without the profile, measured, and compared with the chart's own aim values; the paper and the solid colours are judged against the profile." (a mixed document would need its own). For Knut.
+- where: `ui/dialogs/measurement_report_dialog.py` (the opening sentence of a verification report).
+
+### B8-1378 · OPEN · The Colour accuracy graph's description names "the lowest 95 % and the highest 5 %" where the set leaves those rows at "–"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the B8-1371 proof (`~/Desktop/ChromIQ-beta44-proof/fixes-8-report/saved-b43/after/en/en-saved-iso7.pdf`): under ISO 12647-7 the graph plots two rows, and its fixed description still reads "The average and the maximum, the lowest 95 % and the highest 5 %."
+- note: the description is one fixed sentence for every set; the legend and the line notes follow the set since B8-1371. Wants a sentence that names only what is plotted, or none of the populations. Not changed here.
+- where: `ui/dialogs/measurement_report_dialog.py` (the Colour accuracy graph's description, `_TREND_ABOUT_DE_JUDGED`).

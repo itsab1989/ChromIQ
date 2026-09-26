@@ -1989,7 +1989,6 @@
  "IMPORT": "IMPORTEREN",
  "INFO": "INFO",
  "INFO: the number is shown for information only and nothing was judged from it. That happens when the sheet is a profiling measurement, which is never graded, and when the row needs something about the print that was not recorded; the note under the results names the rows in that last case.": "INFO: the number is shown for information only and nothing was judged from it. That happens when the sheet is a profiling measurement, which is never graded, and when the row needs something about the print that was not recorded; the note under the results names the rows in that last case.",
- "INFO: the number is shown for information only. This kind of report judges nothing, so every value in it reads INFO.": "INFO: the number is shown for information only. This kind of report judges nothing, so every value in it reads INFO.",
  "INSTRUMENT · SPOT READ": "INSTRUMENT · LOSSE METING",
  "IRIDAS / Resolve (.cube)": "IRIDAS / Resolve (.cube)",
  "ISO 12647-7 and ISO 12647-8": "ISO 12647-7 and ISO 12647-8",
@@ -4659,7 +4658,6 @@
  "This chart cannot carry a control strip": "This chart cannot carry a control strip",
  "This chart cannot go through the macOS print dialog": "This chart cannot go through the macOS print dialog",
  "This chart carries no aim values for its patches.": "This chart carries no aim values for its patches.",
- "This chart carries no colorimetric reference.": "This chart carries no colorimetric reference.",
  "This chart carries no device values.": "This chart carries no device values.",
  "This chart carries no saved layout recipe (made with printtarg or an older ChromIQ), so only its instrument, paper and patch count could be restored — the preview still shows the chart exactly as it is.": "Deze kaart bevat geen opgeslagen indelingsrecept (gemaakt met printtarg of een oudere ChromIQ), dus konden alleen het meetinstrument, het papier en het meetveldaantal worden hersteld — de voorvertoning toont de kaart wel precies zoals hij is.",
  "This chart carries no saved layout recipe (made with printtarg), so its instrument, paper, patch count, chart notes and stamp choice were restored — the preview still shows the chart exactly as it is.": "Deze kaart bevat geen opgeslagen indelingsrecept (gemaakt met printtarg), maar het meetinstrument, het papier, het meetveldaantal, de kaartnotities en de keuze om commando's op de kaart te drukken zijn wel hersteld — de voorvertoning toont de kaart precies zoals hij is.",
@@ -6341,5 +6339,10 @@
  "the paper white difference": "the paper white difference",
  "the solid colours": "the solid colours",
  "the tone ramps": "the tone ramps",
- "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument."
+ "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.",
+ "INFO: the number is shown for information only. This kind of report judges nothing, so every value it can work out reads INFO.": "INFO: the number is shown for information only. This kind of report judges nothing, so every value it can work out reads INFO.",
+ "Why this chart cannot answer the solid colour metrics": "Why this chart cannot answer the solid colour metrics",
+ "as measured, with no white adjustment: every difference counts, the paper's own tone included. (This is a way of comparing, not a rendering intent.)": "as measured, with no white adjustment: every difference counts, the paper's own tone included. (This is a way of comparing, not a rendering intent.)",
+ "A column read as a drift check shows the word “drift” in every cell instead: it compares one measurement with another rather than with a limit. A column's Overall word is PASS when every row that could be checked passed; a row the test chart used could not answer is not counted as a failure, and the sentence under the word says how many there were.": "A column read as a drift check shows the word “drift” in every cell instead: it compares one measurement with another rather than with a limit. A column's Overall word is PASS when every row that could be checked passed; a row the test chart used could not answer is not counted as a failure, and the sentence under the word says how many there were.",
+ "Printed through its profile, as a verification normally is, the chart's solid patches become other ink amounts, not the printer's own solids, so the report cannot judge them. Printed without a profile, its solids are judged against the profile and its other metrics are shown for information only.": "Printed through its profile, as a verification normally is, the chart's solid patches become other ink amounts, not the printer's own solids, so the report cannot judge them. Printed without a profile, its solids are judged against the profile and its other metrics are shown for information only."
 }

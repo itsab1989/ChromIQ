@@ -1461,18 +1461,28 @@ _IDENTICAL_TO_KEY = {
     # English echoes out; 3 of the 8 retired keys were translated there).
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
+    # RE-MEASURED 2026-09-26, beta 44 challenge 8 (B8-1370, B8-1373,
+    # B8-1375, B8-1376): five new keys (M-VERIFY-SOLIDS-REASON's headline and
+    # body, the Printing record's INFO bullet, the as-measured line for a
+    # sheet printed through its profile, and the guide's drift sentence of
+    # before K51, back for a document whose drift columns judge nothing) and
+    # two retired ("This chart carries no colorimetric reference.", the old
+    # INFO bullet), both translated in every catalogue. German by hand, does
+    # not move; each of the twelve others rises by exactly 3 net (5 English
+    # placeholders in, the two retired translations out). COUNTED off the
+    # tree with this file's own expression.
     "de": 141,
-    "es": 1401,
-    "fr": 1423,
-    "it": 1412,
-    "ja": 1387,
-    "nl": 1427,
-    "no": 1413,
-    "pl": 1405,
-    "pt": 1403,
-    "ru": 1376,
-    "sv": 1414,
-    "zh_CN": 1381,
+    "es": 1404,
+    "fr": 1426,
+    "it": 1415,
+    "ja": 1390,
+    "nl": 1430,
+    "no": 1416,
+    "pl": 1408,
+    "pt": 1406,
+    "ru": 1379,
+    "sv": 1417,
+    "zh_CN": 1384,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1500,7 +1510,8 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1554,
+    # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
+    "uk": 1557,
 }
 
 

@@ -1990,7 +1990,6 @@
  "IMPORT": "IMPORTIEREN",
  "INFO": "INFO",
  "INFO: the number is shown for information only and nothing was judged from it. That happens when the sheet is a profiling measurement, which is never graded, and when the row needs something about the print that was not recorded; the note under the results names the rows in that last case.": "INFO: Die Zahl wird nur zur Information gezeigt, und es wurde nichts daraus beurteilt. Das passiert, wenn der Bogen eine Profilierungsmessung ist, die nie bewertet wird, und wenn die Zeile etwas über den Druck braucht, das nicht erfasst wurde; im letzten Fall nennt der Hinweis unter den Ergebnissen die Zeilen.",
- "INFO: the number is shown for information only. This kind of report judges nothing, so every value in it reads INFO.": "INFO: Die Zahl wird nur zur Information gezeigt. Diese Art Bericht beurteilt nichts, deshalb lautet jeder Wert darin INFO.",
  "INSTRUMENT · SPOT READ": "GERÄT · EINZELMESSUNG",
  "IRIDAS / Resolve (.cube)": "IRIDAS / Resolve (.cube)",
  "ISO 12647-7 and ISO 12647-8": "ISO 12647-7 und ISO 12647-8",
@@ -4652,7 +4651,6 @@
  "This chart cannot carry a control strip": "Dieses Chart kann keinen Kontrollstreifen tragen",
  "This chart cannot go through the macOS print dialog": "Dieses Chart kann nicht über den macOS-Druckdialog laufen",
  "This chart carries no aim values for its patches.": "Dieses Chart trägt keine Sollwerte für seine Messfelder.",
- "This chart carries no colorimetric reference.": "Dieses Chart trägt keine kolorimetrische Referenz.",
  "This chart carries no device values.": "Dieses Chart enthält keine Gerätewerte.",
  "This chart carries no saved layout recipe (made with printtarg or an older ChromIQ), so only its instrument, paper and patch count could be restored — the preview still shows the chart exactly as it is.": "Dieses Chart trägt kein gespeichertes Layout-Rezept (mit printtarg oder einer älteren ChromIQ-Version erstellt), daher konnten nur Instrument, Papier und Messfeld-Anzahl wiederhergestellt werden — die Vorschau zeigt das Chart trotzdem genau so, wie es ist.",
  "This chart carries no saved layout recipe (made with printtarg), so its instrument, paper, patch count, chart notes and stamp choice were restored — the preview still shows the chart exactly as it is.": "Dieses Chart trägt kein gespeichertes Layout-Rezept (mit printtarg erstellt), daher wurden Instrument, Papier, Messfeld-Anzahl, die Chart-Notizen und die Einstellung zum Aufdrucken der Befehle wiederhergestellt — die Vorschau zeigt das Chart trotzdem genau so, wie es ist.",
@@ -6341,5 +6339,10 @@
  "the paper white difference": "die Papierweiß-Abweichung",
  "the solid colours": "die Volltonfarben",
  "the tone ramps": "die Tonwertrampen",
- "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Ein CR30-Chart wird immer von der ChromIQ-Layout-Engine gesetzt, daher bleibt dies eingeschaltet, solange der CR30 das Messgerät ist."
+ "A CR30 chart is always laid out by the ChromIQ layout engine, so this stays on while the CR30 is the instrument.": "Ein CR30-Chart wird immer von der ChromIQ-Layout-Engine gesetzt, daher bleibt dies eingeschaltet, solange der CR30 das Messgerät ist.",
+ "INFO: the number is shown for information only. This kind of report judges nothing, so every value it can work out reads INFO.": "INFO: Die Zahl wird nur zur Information gezeigt. Diese Art Bericht beurteilt nichts, deshalb lautet jeder Wert, den er ermitteln kann, INFO.",
+ "Why this chart cannot answer the solid colour metrics": "Warum dieses Chart die Metriken der Volltonfarben nicht beantworten kann",
+ "as measured, with no white adjustment: every difference counts, the paper's own tone included. (This is a way of comparing, not a rendering intent.)": "wie gemessen, ohne Weiß-Anpassung: Jeder Unterschied zählt, auch der Eigenton des Papiers. (Das ist eine Art zu vergleichen, kein Rendering Intent.)",
+ "A column read as a drift check shows the word “drift” in every cell instead: it compares one measurement with another rather than with a limit. A column's Overall word is PASS when every row that could be checked passed; a row the test chart used could not answer is not counted as a failure, and the sentence under the word says how many there were.": "Eine Spalte, die als Driftprüfung gelesen wird, zeigt stattdessen in jeder Zelle das Wort „Drift“: Sie vergleicht eine Messung mit einer anderen statt mit einem Grenzwert. Das Gesamturteil einer Spalte lautet PASS, wenn jede Zeile, die geprüft werden konnte, bestanden hat; eine Zeile, die das verwendete Testchart nicht beantworten konnte, gilt nicht als Fehlschlag, und der Satz unter dem Urteil sagt, wie viele es waren.",
+ "Printed through its profile, as a verification normally is, the chart's solid patches become other ink amounts, not the printer's own solids, so the report cannot judge them. Printed without a profile, its solids are judged against the profile and its other metrics are shown for information only.": "Durch sein Profil gedruckt, wie bei einer Verifizierung üblich, werden die Volltonfelder des Charts zu anderen Tintenmengen, nicht zu den eigenen Volltönen des Druckers, daher kann der Bericht sie nicht beurteilen. Ohne Profil gedruckt, werden seine Volltöne gegen das Profil beurteilt und seine übrigen Kennzahlen nur zur Information gezeigt."
 }

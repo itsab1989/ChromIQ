@@ -113,6 +113,11 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # the post he answered, so the words he approved are not the words shipped.
 # The first two were then approved as reordered, #182 5818037438.
 AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
+                                 # beta 44 challenge 8, C5 (B8-1373): the
+                                 # reason line under the two solid rows,
+                                 # "carries no colorimetric reference",
+                                 # had been untrue since K49/K51.
+                                 "M-VERIFY-SOLIDS-REASON",
                                  # #159, 2026-08-30. The magnet guard used to
                                  # recognise ONE unit's stored white-tile value
                                  # because it was hard-coded from that unit, so

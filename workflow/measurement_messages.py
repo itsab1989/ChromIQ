@@ -1045,6 +1045,31 @@ M_VERIFY_PREFLIGHT_GAMUT = (
     "a built profile, and it lays the sheet out again from scratch.")
 
 
+# --- PROPOSED: why a chart cannot answer the two solid rows (challenge 8,
+# C5; B8-1373) ------------------------------------------------------------
+#: The reason line under "Maximum ΔE00, solid colours" and "Maximum ΔH*ab,
+#: cyan, magenta and yellow solids", in the presets window and in the Measure
+#: tab's pre-flight (M-VERIFY-PREFLIGHT's metric list). Only the BODY is
+#: shown; the title is its name in the review queue.
+#:
+#: It said "This chart carries no colorimetric reference.", which K49 and K51
+#: made untrue as a reason: those two rows are compared with the profile's
+#: prediction, not with a reference file, and a sheet printed raw is judged
+#: on them (Knut, #182 5846167083, K50-1). What really withholds them is how
+#: a verification is printed: through its profile, which converts the solid
+#: patches. Neither window can know yet how the sheet will be printed, so
+#: the line says both cases.
+M_VERIFY_SOLIDS_REASON = _m(
+    "M-VERIFY-SOLIDS-REASON",
+    "Why this chart cannot answer the solid colour metrics",
+    "Printed through its profile, as a verification normally is, the chart's "
+    "solid patches become other ink amounts, not the printer's own solids, so "
+    "the report cannot judge them. Printed without a profile, its solids are "
+    "judged against the profile and its other metrics are shown for "
+    "information only.",
+    approved=False)
+
+
 #: The one line the PRE-FLIGHT carries, where the full paragraph below is what
 #: the presets window shows. Knut asked for both windows to say this; he also
 #: asked, in the same specification, that this popup not *"become too long"*,
@@ -3423,7 +3448,8 @@ CATALOGUE = {m.id: m for m in (
     M_ENGINE_FELL_BACK,
     M_PATCHSET_MISSING,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
-    M_VERIFY_UNCHECKED_METRICS, M_REPORT_PATCH_COUNTS_DIFFER,
+    M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,
+    M_REPORT_PATCH_COUNTS_DIFFER,
     M_PROJECT_EXISTS,
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,

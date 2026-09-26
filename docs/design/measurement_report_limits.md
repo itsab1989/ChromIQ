@@ -133,7 +133,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §41.6 | K49 (§41.6 to §41.9): Knut's three answers: (b2) built (the paper row against the profile's media white on every chart with a paper patch, the solid rows against the profile's prediction where printed raw, N-A with a named note otherwise, §32.5 reversed for those two rows only); a graph of a row with values and no limit shown, with a sentence of its own (§17 item 3 amended); the Control strip's three lines and the caption outside §M accepted | 2026-09-25, 5841092535 | the three answers confirmed by Knut (§41.6); built for beta 44 (B8-1244 to B8-1248), NOT confirmed; two message texts proposed; one question (B8-1249) |
 | §43 | Challenge 2 of beta 44, the report findings: a relative chart's solid rows predicted absolute; (b2) on verifications only; the Printing record names every graph it carries; why no limit line is drawn, from the set data; the Cube corners sentence says "aim values"; a graph with no line needs two dated values; a value shown for information keeps its (b2) note; the older question of a relative FROM PROFILE GAMUT chart judged absolute | 2026-09-26, challenge 2 of beta 44 | found by the challenge round, not ruled by Knut; built (B8-1270, B8-1271, B8-1273 to B8-1278), NOT confirmed; one question for Knut (B8-1272) |
 | §44 | K50: a report's notes never refer to other limit sets (the sentence under a graph with no limit line speaks of this report only); the presets window groups the metrics that carry identical messages; M-REPORT-SOLIDS-PREDICTED and M-REPORT-PAPER-AGAINST-PROFILE approved | 2026-09-26, 5845519118, 5845588201 | the rule and the two notes' wording confirmed by Knut (§44.1, §41.7); built for beta 44 (B8-1320 to B8-1322), the new wording and the grouping NOT confirmed |
-| §45 | K51: a raw print judges its paper and solid rows against the profile; "–" is not in the report, graphs included; a limit line shown for information where the report judges nothing; the star's rule (4) with the evenness rows; a media-relative FROM PROFILE GAMUT chart judged relative to its paper; the i1Pro group enabled with the engine on | 2026-09-26, 5846167083, 5846297769 | the answers confirmed by Knut (§45.1); built for beta 44 (B8-1330 to B8-1336, B8-1340), NOT confirmed; the two-page rule put to him |
+| §45 | K51: a raw print judges its paper and solid rows against the profile; "–" is not in the report, graphs included; a limit line shown for information where the report judges nothing; the star's rule (4) with the evenness rows; a media-relative FROM PROFILE GAMUT chart judged relative to its paper; the i1Pro group enabled with the engine on | 2026-09-26, 5846167083, 5846297769 | the answers confirmed by Knut (§45.1); built for beta 44 (B8-1330 to B8-1336, B8-1340), NOT confirmed; the two-page rule put to him; challenge 8's fixes to it in 45.7 to 45.9 (B8-1370 to B8-1377), NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -8770,7 +8770,9 @@ after, window and PDF; NOTES.txt, ANSWERS.txt). Tests:
   (`ROWS_JUDGED_ON_A_RAW_PRINT`), and `judge` honours it: under ISO 12647-7
   and both Custom sets they read PASS, FAIL or N-A; under ChromIQ's three
   sets, which put "–" on all three, nothing changes. Every other row reads
-  INFO.
+  INFO. *(Challenge 8, 45.7: the column judges only where one of the three
+  got PASS or FAIL; three N-A judge nothing, and the column reads "drift"
+  throughout.)*
 * The column's Overall word follows the judged rows, and its counts are
   about them only (`counted_rows`, `sheet_is_judged`; `set_summary` leaves an
   INFO row out of a column that judged something). On the demo pack's raw
@@ -8933,3 +8935,68 @@ are replaced. Manual with the engine is unchanged (answer 3).
 45.6) NOT confirmed; one question (the two-page rule, B8-1340); one gap
 (B8-1341: the tooltip of the presets button in Create Chart still says "one
 printed page of a few hundred patches").
+
+### ⏳ Awaiting confirmation: challenge 8's report findings (beta 44, 2026-09-26)
+
+**Confirmed by:** *nobody yet.*
+
+Register: B8-1370 to B8-1377. Proof:
+`~/Desktop/ChromIQ-beta44-proof/fixes-8-report/` (on screen, EN and DE,
+before and after, window and PDF, a report saved by beta 43; NOTES.txt).
+Tests: `tests/test_c8_drift_checks_and_dash_rows.py`, each red on the
+mutation in its docstring (`fixes-8-report/mutations.txt`).
+
+**45.7 A column judges only where a row got PASS or FAIL (B8-1370, B8-1372).**
+
+* `drift_check_judges` counted N-A as a verdict. A raw drift check saved by
+  beta 43 under ISO 12647-7 kept its paper and solid rows as N-A ("needs a
+  reference for the printing condition"), so beta 44 showed that saved column
+  as judged: N-A in three cells, INFO as its Overall word, the 45.2 sentence
+  saying the paper and solids "are judged against the profile", and the
+  profiling sheet's footnote on a verification. Now a raw drift check judges
+  only when one of `ROWS_JUDGED_ON_A_RAW_PRINT` reads PASS or FAIL (or a COND
+  a saved report kept). The saved column reads as it did in beta 43: "drift"
+  in every cell and in Overall, "—" under "Judged against", the drift
+  sentence without the judged clause, and Report Scope's "Worked out by an
+  earlier version" line, because this version would judge those rows (§6).
+* The same rule applies to a fresh report: a raw drift check whose three rows
+  all read N-A (no profile could be read, no solid patch) judges nothing and
+  reads "drift" throughout, with the old sentence. 45.2 had it reading N-A
+  with a note under a column "judged against" its set (B8-1372, a question).
+
+**45.8 "–" rows in a report of drift checks (B8-1371).**
+
+* `_dash_row_ids` skipped raw drift columns, from before a drift column had
+  a limit set, so a report of drift checks dropped no "–" row: under ISO
+  12647-7 the Overview listed "Average ΔE00, lowest 95 %", "Average ΔE00,
+  highest 5 %" and "Maximum ΔE00, all patches", and the Colour accuracy graph
+  plotted them with a "Max (3.0 ΔE00)" line described as the limit of
+  "Maximum ΔE00, all patches within gamut". 3.0 is `legacy_pair`'s fallback;
+  ISO 12647-7 leaves that row at "–". A drift column is now asked too.
+* And whatever that filter catches, the Colour accuracy graph's Avg and Max
+  lines stand only for a number the report's set holds for that row
+  (`_accuracy_thresholds`): the fallback never becomes a line or a caption.
+
+**45.9 Texts (B8-1373, B8-1375, B8-1376).**
+
+* The reason under the two solid rows in the presets window and the Measure
+  pre-flight is M-VERIFY-SOLIDS-REASON, proposed in §M-PROPOSED of
+  `unified_measurement_management.md`, shown while it waits: *"Printed through its profile, as a verification normally is, the chart's solid patches become other ink amounts, not the printer's own solids, so the report cannot judge them. Printed without a profile, its solids are judged against the profile and its other metrics are shown for information only."* It replaces *"This chart carries
+  no colorimetric reference."*
+* A report type that judges nothing: the INFO bullet of "How to read this
+  report" says *"This kind of report judges nothing, so every value it can
+  work out reads INFO."* (was "every value in it reads INFO", above rows that
+  read N-A).
+* "How the colours were judged" on a verification judged as measured that
+  was printed THROUGH its profile: *"as measured, with no white adjustment:
+  every difference counts, the paper's own tone included. (This is a way of
+  comparing, not a rendering intent.)"* A raw sheet keeps the line with
+  "a raw print has no intent at all".
+
+**Not changed, registered:** a report of raw drift checks still opens with
+Knut's approved sentence "It was verified by printing a chart through that
+profile" (B8-1377, a wording for him); it still says it covers "0 of the 9
+measurements" (B8-1342); the pre-flight's FROM PROFILE GAMUT paragraph still
+says those metrics "are judged against a colorimetric reference", and its
+count is not told how the sheet was printed (B8-1374).
+

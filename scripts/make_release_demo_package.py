@@ -544,6 +544,9 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-VERIFY-UNCHECKED-METRICS": [
         "Report-Limits-Strip-And-Gamut/run4: the pre-flight's paragraph on a chart that cannot answer every metric",
     ],
+    "M-VERIFY-SOLIDS-REASON": [
+        "Report-Limits-Strip-And-Gamut/run4: the line under the two solid colour metrics in the pre-flight's list (its chart is not built with FROM PROFILE GAMUT)",
+    ],
     "M-VERIFY-NO-CONTROL-STRIP": [
         "not reachable from a built project: raised when Create Chart files a verification chart that cannot carry a strip (Report-Limits-Strip-And-Gamut/run4 is such a chart, already filed)",
     ],

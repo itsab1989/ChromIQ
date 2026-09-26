@@ -1057,19 +1057,26 @@ _BUDGET = {
     # 011d4772 (K48). German by hand, does not move; the
     # twelve others carry the English under the beta rule. COUNTED
     # off the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-26, beta 44 challenge 8 (B8-1370, B8-1373,
+    # B8-1375, B8-1376): 5 keys in (M-VERIFY-SOLIDS-REASON's headline and
+    # body, the Printing record's INFO bullet, the as-measured line for a
+    # sheet printed through its profile, the guide's pre-K51 drift sentence),
+    # 2 translated keys out. German by hand, does not move; each of the
+    # twelve others rises by exactly 3. COUNTED off the tree, BOTH ledgers
+    # in the same commit.
     "de": 13,
-    "es": 1054,
-    "fr": 1055,
-    "it": 1054,
-    "ja": 1054,
-    "nl": 1054,
-    "no": 1054,
-    "pl": 1054,
-    "pt": 1054,
-    "ru": 1053,
-    "sv": 1054,
-    "zh_CN": 1053,
-    "uk": 1196,
+    "es": 1057,
+    "fr": 1058,
+    "it": 1057,
+    "ja": 1057,
+    "nl": 1057,
+    "no": 1057,
+    "pl": 1057,
+    "pt": 1057,
+    "ru": 1056,
+    "sv": 1057,
+    "zh_CN": 1056,
+    "uk": 1199,
 }
 
 

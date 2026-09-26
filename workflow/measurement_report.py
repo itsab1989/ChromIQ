@@ -6049,13 +6049,23 @@ def is_graded_sheet(report: dict) -> bool:
 
 def drift_check_judges(rows: "list[dict]") -> bool:
     """Whether a raw drift check's *rows* judge anything (K51, B8-1330): one
-    of :data:`ROWS_JUDGED_ON_A_RAW_PRINT` carries a limit and so a PASS, a
-    FAIL or an N-A. Under a limit set that puts "–" on all three (ChromIQ's
-    own sets) nothing is judged and the sheet stays a drift check with no
-    verdict, as it was."""
-    from workflow.compliance_sets import COND, FAIL, N_A, PASS
+    of :data:`ROWS_JUDGED_ON_A_RAW_PRINT` actually got a verdict, a PASS or a
+    FAIL (or a COND a saved report kept). Under a limit set that puts "–" on
+    all three (ChromIQ's own sets) nothing is judged and the sheet stays a
+    drift check with no verdict, as it was.
+
+    **N-A IS NOT A VERDICT, AND COUNTING IT BROKE EVERY SAVED DRIFT CHECK
+    (challenge 8, C2; B8-1370).** A drift check saved before K51 kept those
+    three rows as N-A ("needs a reference for the printing condition"), so
+    counting N-A as judged turned its column from drift-only into a graded
+    column that judged nothing: N-A in the cells, INFO as its Overall word,
+    the drift sentence claiming "the paper and the solid colours are judged
+    against the profile", and the profiling sheet's footnote on a
+    verification. A column whose three rows could not be worked out has
+    judged nothing either, today as then, so it reads "drift" throughout."""
+    from workflow.compliance_sets import COND, FAIL, PASS
     return any((r.get("row_id") or r.get("key")) in ROWS_JUDGED_ON_A_RAW_PRINT
-               and r.get("word") in (PASS, FAIL, COND, N_A)
+               and r.get("word") in (PASS, FAIL, COND)
                for r in rows or ())
 
 

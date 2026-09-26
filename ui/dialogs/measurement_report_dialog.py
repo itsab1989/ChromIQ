@@ -7771,6 +7771,21 @@ class MeasurementReportDialog(QDialog):
         for a limit nobody set, so the graph asks this instead. `_TrendChart`
         already draws and describes only the members that are numbers."""
         avg_thr, max_thr = self._thresholds()
+        # **NEVER THE FALLBACK (challenge 8, C3; B8-1371).** `legacy_pair`
+        # answers 2.0 / 3.0 for a row the set does not put a number on; a
+        # line may only stand for a number the set holds, whatever the "–"
+        # filter below does or does not catch.
+        lim = (self._document_limits() or self._sticky_limits()
+               or self._window_limits())
+        _lims = lim.limits if lim is not None else {}
+
+        def _numeric(rid):
+            one = _lims.get(rid)
+            return one is not None and getattr(one, "is_numeric", False)
+        if not _numeric("all_de00_avg"):
+            avg_thr = None
+        if not _numeric("all_de00_max"):
+            max_thr = None
         dash = self._dash_row_ids(self._document_runs_for_graphs())
         # **AND ONLY A ROW THE REPORT TYPE JUDGES HAS A LINE (K30 leftover,
         # spec §17 item 4).** A Grey and tone check judges the neutral axis
@@ -7914,11 +7929,18 @@ class MeasurementReportDialog(QDialog):
         A row is dropped only when EVERY graded column leaves it at "–": one
         document has one limit set (`_one_limit_set`), so they agree, and when
         they cannot be read (an old saved verdict) nothing is dropped, because
-        a row wrongly hidden is a figure the reader never sees."""
+        a row wrongly hidden is a figure the reader never sees.
+
+        **A RAW DRIFT CHECK IS ASKED TOO (challenge 8, C3; B8-1371).** It
+        was skipped, from when a drift column had no limit set at all, so a
+        report of drift checks only dropped nothing: under ISO 12647-7 its
+        Overview listed the three rows the set leaves at "–" and its Colour
+        accuracy graph plotted them, one with a "Max 3.0" line described as
+        the limit of a row the set does not limit. Knut's ruling (K51,
+        B8-1332) is about every report: a "–" row is in no table, overview
+        or graph, a drift check's included."""
         out: "set[str] | None" = None
         for r in runs or ():
-            if _is_raw_drift(r):
-                continue
             lims = self._row_limits_of(r)
             if lims is None:
                 return set()
@@ -14272,7 +14294,8 @@ class MeasurementReportDialog(QDialog):
 
     def _how_to_read_html(self, present: "list[str] | None" = None, *,
                           standard: bool = False, split: bool = False,
-                          calibration: bool = False) -> str:
+                          calibration: bool = False,
+                          drift_judged: bool = True) -> str:
         """The plain-language guide. The heading sits OUTSIDE its background frame,
         with a blank line above it like every other section heading (Knut).
 
@@ -14411,9 +14434,14 @@ class MeasurementReportDialog(QDialog):
             # the promise was false in the one document it was about. What is
             # left is said per type, like the notes heading
             # (`_notes_list_html`).
+            # Challenge 8, C6 (B8-1375): "every value in it reads INFO" sat
+            # above a table whose rows the chart could not answer read N-A,
+            # which the next bullet explains. Only a value it can work out
+            # reads INFO, as the "Judged against" help already says.
             "<li>" + html.escape(tr(
                 "INFO: the number is shown for information only. This kind "
-                "of report judges nothing, so every value in it reads INFO.")
+                "of report judges nothing, so every value it can work out "
+                "reads INFO.")
                 if _grades_nothing else tr(
                 "INFO: the number is shown for information only and nothing "
                 "was judged from it. That happens when the sheet is a "
@@ -14460,12 +14488,24 @@ class MeasurementReportDialog(QDialog):
             # K51 (B8-1331): "in every cell" is no longer true where the
             # limit set limits the paper and solid rows: those are judged
             # against the profile on a raw print.
+            # **AND ONLY WHERE A DRIFT COLUMN DOES JUDGE (challenge 8, C2;
+            # B8-1370).** A document whose drift columns judge nothing, a
+            # report saved before K51 among them, said its paper and solid
+            # rows "are judged against the profile" beside cells that all
+            # read "drift". There it keeps the sentence it had before K51.
             "<p>" + html.escape(tr(
                 "A column read as a drift check shows the word “drift” in "
                 "every cell it does not judge: it compares one measurement "
                 "with another rather than with a limit. Its paper and solid "
                 "colour rows are judged against the profile where the limit "
                 "set has a limit for them. A column's Overall word is PASS "
+                "when every row that could be checked passed; a row the test "
+                "chart used could not answer is not counted as a failure, and "
+                "the sentence under the word says how many there were.")
+                if drift_judged else tr(
+                "A column read as a drift check shows the word “drift” in "
+                "every cell instead: it compares one measurement with another "
+                "rather than with a limit. A column's Overall word is PASS "
                 "when every row that could be checked passed; a row the test "
                 "chart used could not answer is not counted as a failure, and "
                 "the sentence under the word says how many there were.")) + "</p>"
@@ -15429,7 +15469,9 @@ class MeasurementReportDialog(QDialog):
                                for r in runs),
                      calibration=bool(runs) and all(
                          is_calibration_dir(str(r.get("_origin_dir") or ""))
-                         for r in runs)),
+                         for r in runs),
+                     drift_judged=not any(_is_raw_drift(r) for r in runs)
+                     or any(self._drift_judges(r) for r in runs)),
                  self._report_results_html(runs, _present)]
         if for_pdf and charts_html:
             parts.append(
@@ -16339,12 +16381,22 @@ class MeasurementReportDialog(QDialog):
                 "white to the paper, so the paper itself is not counted "
                 "against the profile"), False))
         elif r.get("is_verification") and r.get("yardstick") == "absolute" \
-                and (r.get("printing") or {}).get("colour"):
+                and (r.get("printing") or {}).get("colour") == "raw":
             rows.append((tr("How the colours were judged"), tr(
                 "as measured — no white adjustment: every difference "
                 "counts, the paper's own tone included. (This is a way of "
                 "comparing, not a rendering intent — a raw print has no "
                 "intent at all.)"), False))
+        elif r.get("is_verification") and r.get("yardstick") == "absolute" \
+                and (r.get("printing") or {}).get("colour"):
+            # Challenge 8, C6 (B8-1376): a sheet printed THROUGH the profile,
+            # with the absolute intent, was told "a raw print has no intent
+            # at all", which reads as a statement about this sheet. The
+            # comparison is the same; the clause about a raw print is not.
+            rows.append((tr("How the colours were judged"), tr(
+                "as measured, with no white adjustment: every difference "
+                "counts, the paper's own tone included. (This is a way of "
+                "comparing, not a rendering intent.)"), False))
         # **K31, "BOTH TEXTS APPROVED"** (Knut, #182 5801677743, answering
         # 5798697107 section 3). Evenness is always judged on the readings
         # as measured (E8), so on a sheet whose line above says "relative to
