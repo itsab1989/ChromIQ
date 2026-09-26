@@ -745,7 +745,11 @@ def test_no_reader_outside_the_engine_asks_the_flag_raw():
                     # dict to recognise it (B8-1290); nothing is built from
                     # it. Matched by its exact text.
                     or line == "    'hex_flat_top': False,      # a stored "
-                               "value, not a read (B8-1290)"):
+                               "value, not a read (B8-1290)"
+                    # …and the names of the fields each older release never
+                    # wrote, beside it (B8-1298). Exact text again.
+                    or line == ('                         "hex_flat_top",   # a '
+                                'field name, not a read (B8-1298)')):
                 continue          # the RESOLVED value is fine
             offenders.append(f"{rel}: {line.strip()[:90]}")
     assert not offenders, (

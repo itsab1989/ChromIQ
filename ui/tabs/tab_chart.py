@@ -4417,6 +4417,31 @@ def _engine_instrument(code) -> str:
     return eng if eng in ("i1", "p3", "CM", "SS", "CR30") else "i1"
 
 
+def _layout_panel_lays_out(instr, engine_setting) -> bool:
+    """THE ONE QUESTION: is Manual's chart laid out by the layout panel, which
+    is when the panel is what Manual shows? (B8-1295)
+
+    Yes when the "ChromIQ layout engine" box is ticked, AND for an instrument
+    only the engine can lay out (the CR30, `ENGINE_ONLY_INSTRUMENTS`) whatever
+    the box says: printtarg cannot draw a CR30 chart, so the panel stays on
+    screen with the box unticked and `ChartCreator._should_use_engine` builds
+    with the engine. The frame (`_refresh_manual_command_preview`), the build
+    (`_collect_manual`), "Save as Defaults" (`_recipe_to_save`), the restore
+    (`_stored_defaults_selection`), the engine tick (`_on_manual_engine_
+    toggled`), the per-target path and the p3 repair ask this, and nothing
+    else: beta 44 challenge round 5 found the save asking the setting alone,
+    so a CR30 laid out in the panel with the box unticked stored a recipe
+    converted from printtarg rows nobody could see (300 dpi, 5 mm, where the
+    panel said 400 dpi and 11 / 12 / 13 / 14 mm).
+
+    ``instr`` is printtarg's -i (or the store's); ``engine_setting`` the
+    `use_chromiq_layout_engine` value it is judged with.
+    """
+    from workflow.chart_creator import ENGINE_ONLY_INSTRUMENTS
+    return (str(instr or "") in ENGINE_ONLY_INSTRUMENTS
+            or bool(engine_setting))
+
+
 #: THE RECIPE OF A LAYOUT PANEL NOBODY EVER SAW (B8-1290).
 #:
 #: Until beta 44, "Save as Defaults" with the engine off stored the hidden
@@ -4517,10 +4542,68 @@ _UNSEEN_PANEL_RECIPE: dict = {
     'use_instrument_margins': False,
 }
 
-#: The fields a stored recipe must hold to be judged as the unseen panel's.
+#: EVERY SHAPE THE HISTORY WROTE (B8-1298). "Save as Defaults" has stored the
+#: panel since v3.13.0-beta.7 (66f4f3d2), engine off included, and the unseen
+#: panel's values moved five times since: its patch and spacer scales were
+#: the spin boxes' minimum, 0.5, until 9024bdfc (v4.1.5-beta.3); its paper A2
+#: until v3.13.0-beta.21; and so on. Each entry is (first release, last
+#: release, the values that differ from `_UNSEEN_PANEL_RECIPE`, the fields
+#: that range never wrote). Found by running every one of the 558 release
+#: tags' own engine-off save (`~/Desktop/ChromIQ-beta44-proof/fixes-5/
+#: diagnostics/alltags.jsonl`, 10 groups, no disagreement inside a group) and
+#: confirmed by a store each group's release wrote ON SCREEN, byte for byte
+#: (`tests/data/b8_1298_placeholders/`). The label style is overlaid as ever.
+_NEWER_THAN_V4_1_5_B2 = ("align_explicit", "chart_text_align",
+                         "hex_flat_top",   # a field name, not a read (B8-1298)
+                         "label_style_explicit", "layout_explicit",
+                         "margins_explicit", "seed_fixed",
+                         "show_row_indicators")
+_NO_HELPER_MARKERS = ("helper_marker_edge_mm", "helper_marker_len_mm",
+                      "helper_marker_per_patch", "helper_markers",
+                      "helper_markers_sides", "helper_markers_top_bottom")
+_V3_13_B23_NEVER = (_NEWER_THAN_V4_1_5_B2 + _NO_HELPER_MARKERS
+                    + ("clip_flip_180", "clip_text_size_mm"))
+_V3_13_B14_NEVER = _V3_13_B23_NEVER + ("export_pdf",)
+_V3_13_B11_NEVER = _V3_13_B14_NEVER + (
+    "clip_image_offset_x_mm", "clip_image_offset_y_mm", "clip_image_rotation",
+    "clip_image_scale", "cm_stagger", "text_edge_clip_mm", "text_edge_mm",
+    "text_edge_top_mm")
+_V3_13_B10_NEVER = _V3_13_B11_NEVER + (
+    "area_method", "area_min_patch_mm", "clip_side", "use_instrument_margins")
+_V3_13_B7_NEVER = _V3_13_B10_NEVER + (
+    "area_cols", "area_ratio", "area_rows", "layout_mode", "patch_area_align")
+_HALF = {"pscale": 0.5, "sscale": 0.5}
+_UNSEEN_PANEL_SHAPES: tuple = (
+    ("v3.13.0-beta.7", "v3.13.0-beta.9", dict(_HALF, paper="A2"),
+     _V3_13_B7_NEVER),
+    ("v3.13.0-beta.10", "v3.13.0-beta.10",
+     dict(_HALF, paper="A2", area_ratio=0.0, layout_mode="patch_first"),
+     _V3_13_B10_NEVER),
+    ("v3.13.0-beta.11", "v3.13.0-beta.13",
+     dict(_HALF, paper="A2", area_ratio=0.0), _V3_13_B11_NEVER),
+    ("v3.13.0-beta.14", "v3.13.0-beta.20",
+     dict(_HALF, paper="A2", area_ratio=0.0, margin_left=10.0),
+     _V3_13_B14_NEVER),
+    ("v3.13.0-beta.21", "v3.13.0-beta.22",
+     dict(_HALF, area_ratio=0.0, margin_left=10.0), _V3_13_B14_NEVER),
+    ("v3.13.0-beta.23", "v3.13.9", dict(_HALF, margin_left=10.0),
+     _V3_13_B23_NEVER),
+    ("v3.13.10", "v4.0.2-beta.1", dict(_HALF),
+     _NEWER_THAN_V4_1_5_B2 + _NO_HELPER_MARKERS),
+    ("v4.0.2-beta.2", "v4.1.1",
+     dict(_HALF, helper_marker_edge_mm=1.0, helper_marker_len_mm=3.0),
+     _NEWER_THAN_V4_1_5_B2 + ("helper_marker_per_patch",
+                              "helper_markers_sides",
+                              "helper_markers_top_bottom")),
+    ("v4.1.2-beta.1", "v4.1.5-beta.2", dict(_HALF), _NEWER_THAN_V4_1_5_B2),
+    ("v4.1.5-beta.3", "v4.3.0-beta.43 (a026e3e5)", {}, ()),
+)
+
+#: The fields a stored recipe must hold to be judged as the unseen panel's:
+#: every release since v3.13.0-beta.7 wrote them. (`use_instrument_margins`
+#: was one until B8-1298: v3.13.0-beta.7 to beta.12 never wrote it.)
 _UNSEEN_PANEL_CORE = ("instrument", "paper", "dpi", "margin_top",
-                      "margin_right", "margin_bottom", "margin_left",
-                      "use_instrument_margins")
+                      "margin_right", "margin_bottom", "margin_left")
 
 
 def _same_stored_value(stored, ref) -> bool:
@@ -4541,33 +4624,40 @@ def _same_stored_value(stored, ref) -> bool:
     return str(stored) == str(ref)
 
 
-def _is_unseen_panel_recipe(recipe) -> bool:
-    """Whether a stored recipe is the placeholder above (B8-1290), which
-    stands for "no recipe" and is treated as absent wherever one is read.
+def _unseen_panel_shape(recipe) -> "str | None":
+    """The release range whose unseen-panel placeholder `recipe` is
+    (B8-1290, B8-1298), or None for a real recipe.
 
-    Every field the store holds must equal the placeholder's (the label
-    style aside); a field the store lacks is not judged, because a store
-    written before that field existed cannot hold it; a field the placeholder
-    does not know means a newer writer, and no newer writer stores one. The
-    core fields must be there.
+    Judged against each shape of `_UNSEEN_PANEL_SHAPES` exactly: every field
+    the store holds must equal that shape's value (the label style aside); a
+    field the store lacks is not judged, because a store written before that
+    field existed cannot hold it; a field that range never wrote, or one no
+    release ever wrote, makes it real. The core fields must be there.
     """
     if not isinstance(recipe, dict):
-        return False
+        return None
     if any(k not in recipe for k in _UNSEEN_PANEL_CORE):
-        return False
+        return None
     try:
         from core.settings import INDICATOR_STYLE_KEYS
         overlaid = set(INDICATOR_STYLE_KEYS)
     except Exception:      # noqa: BLE001
         overlaid = set()
-    for key, value in recipe.items():
-        if key in overlaid:
+    held = {k: v for k, v in recipe.items() if k not in overlaid}
+    for first, last, changed, never in _UNSEEN_PANEL_SHAPES:
+        ref = dict(_UNSEEN_PANEL_RECIPE, **changed)
+        if any(k not in ref or k in never for k in held):
             continue
-        if key not in _UNSEEN_PANEL_RECIPE:
-            return False
-        if not _same_stored_value(value, _UNSEEN_PANEL_RECIPE[key]):
-            return False
-    return True
+        if all(_same_stored_value(v, ref[k]) for k, v in held.items()):
+            return f"{first} to {last}"
+    return None
+
+
+def _is_unseen_panel_recipe(recipe) -> bool:
+    """Whether a stored recipe is the placeholder of a layout panel nobody
+    saw, as any release wrote it (`_unseen_panel_shape`), which stands for
+    "no recipe" and is treated as absent wherever one is read."""
+    return _unseen_panel_shape(recipe) is not None
 
 
 def _recipe_is_for(recipe, instr, paper) -> bool:
@@ -7794,9 +7884,19 @@ class TabChart(QWidget):
         # convertible fields move (instrument, paper, margins, patch scale, clip
         # border, density, strip-limit); engine-only / printtarg-only options stay
         # on their own side.
-        if on and not was_on:
+        #
+        # ONLY WHEN WHAT LAYS THE CHART OUT CHANGES (B8-1295). On the CR30 the
+        # panel lays the chart out with the box ticked or not
+        # (`_layout_panel_lays_out`), so the tick changes nothing on screen,
+        # and converting printtarg's hidden rows into it replaced the panel a
+        # person had been editing: after a restart, Custom 250 x 300 became
+        # A4 and 11 / 12 / 13 / 14 mm became 5 mm (challenge 5, P3).
+        _instr = self._manual_get("printtarg", "-i", "i1")
+        panel_before = _layout_panel_lays_out(_instr, was_on)
+        panel_after = _layout_panel_lays_out(_instr, on)
+        if panel_after and not panel_before:
             self._convert_printtarg_to_engine()
-        elif was_on and not on:
+        elif panel_before and not panel_after:
             self._convert_engine_to_printtarg()
         # Re-evaluate the left-clip row: it must hide while the engine is on and
         # reappear (with the user's restored choice) when it goes off.
@@ -8171,8 +8271,7 @@ class TabChart(QWidget):
         # the FRAME does not — the layout panel hides, the printtarg group shows,
         # the "Layout preset:" bar disappears and the command stamp switches on,
         # all describing a printtarg run that never happens.
-        from workflow.chart_creator import ENGINE_ONLY_INSTRUMENTS
-        use_engine = (
+        use_engine = _layout_panel_lays_out(
             # ENGINE-ONLY (CR30, #159) FIRST, exactly as `_should_use_engine`
             # decides it, and for the same reason: the engine is not a
             # preference for these instruments, it is the only thing that can
@@ -8180,11 +8279,13 @@ class TabChart(QWidget):
             # `printtarg -iCR30 …` whenever the layout-engine setting happened
             # to be off — a command line printtarg rejects, describing a run
             # that never happens, next to a build that always takes the engine.
-            p.instrument in ENGINE_ONLY_INSTRUMENTS
-            or (bool(self._settings.get("use_chromiq_layout_engine", False))
-                and p.instrument in ENGINE_INSTRUMENTS
-                and (p.layout_recipe is not None
-                     or not (p.chromiq_clip_style or p.left_clip_info))))
+            # The one predicate (B8-1295), with the two legacy clip flags
+            # folded into the setting it is judged with.
+            p.instrument,
+            bool(self._settings.get("use_chromiq_layout_engine", False))
+            and p.instrument in ENGINE_INSTRUMENTS
+            and (p.layout_recipe is not None
+                 or not (p.chromiq_clip_style or p.left_clip_info)))
 
         def _layout_cmd() -> str:
             if use_engine:
@@ -8511,6 +8612,22 @@ class TabChart(QWidget):
                              saved.get("instrument"), saved.get("paper"),
                              instr_now, paper_now)
                     rec = self._retargeted(rec, instr_now, paper_now)
+                elif getattr(self, "_pt_margin_at_switch", None) is None:
+                    # THE TICK AFTER A RESTART SHOWS WHAT WAS SAVED (B8-1297).
+                    # The tick keeps the panel's four margins when printtarg's
+                    # -m has not moved since the engine was last switched off
+                    # (`_printtarg_as_engine_recipe`), and that snapshot is
+                    # per session. A real recipe for this instrument and paper
+                    # was stored beside the -m it was saved with, which is the
+                    # same pair: without this the tick after a restart
+                    # collapsed a saved 11 / 12 / 13 / 14 to -m (challenge 5,
+                    # P7), and so the store and the tick disagreed.
+                    _m = self._settings.get(_pw_settings_key("printtarg", "-m"))
+                    try:
+                        if _m is not None and str(_m) != "":
+                            self._pt_margin_at_switch = int(round(float(_m)))
+                    except (TypeError, ValueError):
+                        pass
                 self._set_engine_recipe(rec)
                 return
             except Exception as exc:  # noqa: BLE001 — fall back to the preset
@@ -8534,9 +8651,11 @@ class TabChart(QWidget):
         saved = self._settings.get("manual_engine_recipe", None)
         if not isinstance(saved, dict):
             return None
-        if _is_unseen_panel_recipe(saved):
+        shape = _unseen_panel_shape(saved)
+        if shape is not None:
             log.info("the stored layout recipe is the placeholder of a panel "
-                     "that was never shown (72 dpi, no margins): read as none")
+                     "that was never shown (72 dpi, no margins), as %s wrote "
+                     "it: read as none", shape)
             return None
         return saved
 
@@ -8623,6 +8742,13 @@ class TabChart(QWidget):
         """
         return self._settings.apply_indicator_style(
             self._manual_layout_panel.get_recipe())
+
+    def _manual_panel_lays_out(self) -> bool:
+        """`_layout_panel_lays_out` for what Manual is on now: printtarg's -i
+        and the engine setting (B8-1295)."""
+        return _layout_panel_lays_out(
+            self._manual_get("printtarg", "-i", "i1"),
+            self._settings.get("use_chromiq_layout_engine", False))
 
     def _pinned_layout_recipe(self):
         """:meth:`_current_layout_recipe`, pinned — the label style resolved and
@@ -10237,8 +10363,11 @@ class TabChart(QWidget):
         LAYOUT PANEL, not the printtarg -i/-p/-a/-m widgets. So after carrying
         settings into Manual, push the canonical instrument / paper / pages into
         the panel too — otherwise the panel keeps its old instrument and the
-        generated chart ignores what was transferred (Knut #9)."""
-        if not bool(self._settings.get("use_chromiq_layout_engine", False)):
+        generated chart ignores what was transferred (Knut #9).
+
+        Whenever the panel is what lays the chart out, the CR30 with the box
+        unticked included (`_layout_panel_lays_out`, B8-1295)."""
+        if not self._manual_panel_lays_out():
             return
         p = getattr(self, "_manual_layout_panel", None)
         if p is None:
@@ -10256,8 +10385,9 @@ class TabChart(QWidget):
         the same kwargs converted to a :class:`LayoutRecipe` here — so clip-border
         suppression, margins, patch scale, density and edge spacers all carry, not
         just instrument/paper. No-op when the engine is off (then the printtarg
-        widgets the transfer already set are what build the chart)."""
-        if not bool(self._settings.get("use_chromiq_layout_engine", False)):
+        widgets the transfer already set are what build the chart); the CR30
+        is laid out by the panel with the box unticked too (B8-1295)."""
+        if not self._manual_panel_lays_out():
             return
         panel = getattr(self, "_manual_layout_panel", None)
         if panel is None:
@@ -27075,6 +27205,21 @@ class TabChart(QWidget):
             log.exception("could not stamp chart meta.json")
 
     def _on_save_defaults(self) -> None:
+        # A GUIDED CHANGE MANUAL HAS NOT SEEN YET IS SAVED AS MANUAL WILL SHOW
+        # IT (B8-1299). The instrument is linked both ways, the paper is
+        # carried on the next switch to Manual (`_carry_shared_settings`). A
+        # save made in Guided stored Manual's paper from before the change, so
+        # the session showed Letter in Manual and the restart A4 (challenge 5,
+        # Q1 / Q2 against Q5). The carry the switch would make is made here,
+        # once: the store then holds what Manual shows, the same rule as the
+        # layout recipe (the one the engine would show for what was saved).
+        if self._current_mode() == "guided":
+            try:
+                self._carry_shared_settings("guided", "manual")
+                self._snapshot_shared_settings("guided")
+                self._snapshot_shared_settings("manual")
+            except Exception:      # noqa: BLE001 — never block the save
+                log.debug("save from Guided: carry skipped", exc_info=True)
         params = self._collect_params()
         s = self._settings
         # The project NAME is deliberately not saved (Sebastian, 2026-08-13):
@@ -27196,7 +27341,11 @@ class TabChart(QWidget):
         if not self._manual_panel_inited:
             # what the engine tick does first, on the hidden panel
             self._init_manual_layout_panel()
-        if bool(self._settings.get("use_chromiq_layout_engine", False)):
+        # THE PANEL WHEN IT IS WHAT LAYS THE CHART OUT, not when the setting
+        # says so (B8-1295): the CR30 is laid out by the panel with the box
+        # unticked, and the conversion from printtarg's hidden rows stored
+        # 300 dpi and 5 mm beside a panel showing 400 dpi and 11 to 14 mm.
+        if self._manual_panel_lays_out():
             rec = self._current_layout_recipe()
         else:
             rec = self._settings.apply_indicator_style(
@@ -27388,8 +27537,17 @@ class TabChart(QWidget):
         # the chart layout. Take instrument/paper + the full recipe + calibration
         # from it (the printtarg layout widgets are hidden), so every panel option
         # takes effect.
+        #
+        # WHENEVER THE PANEL IS WHAT LAYS THE CHART OUT (B8-1295), which on
+        # the CR30 is with the box unticked too: the panel stayed on screen
+        # there and the build took printtarg's hidden rows instead (their
+        # paper, 300 dpi, -m), so the chart was not the one the panel showed.
         if (getattr(self, "_manual_layout_panel", None) is not None
-                and bool(self._settings.get("use_chromiq_layout_engine", False))):
+                and self._manual_panel_lays_out()):
+            if not self._manual_panel_inited:
+                # the frame seeds it on the same question; a build asked for
+                # before the first refresh must not read an unseeded panel
+                self._init_manual_layout_panel()
             recipe = self._current_layout_recipe()
             p.instrument = recipe.instrument
             p.paper = recipe.paper
@@ -27485,16 +27643,22 @@ class TabChart(QWidget):
         is first seeded while the tab is built, before the restore).
 
         -i is the i1Pro 3 Plus a beta-43 store lost (B8-1292). The paper is
-        the recipe's when the engine is on and the recipe (a real one,
-        B8-1290) is for the saved instrument: C10, "the recipe's paper wins
-        for an older save" (B8-1228)."""
+        the recipe's when the layout panel is what the saved session showed
+        (`_layout_panel_lays_out`: the engine on, or the CR30 with the box
+        unticked, B8-1295) and the recipe (a real one, B8-1290) is for the
+        saved instrument: C10, "the recipe's paper wins for an older save"
+        (B8-1228). On the CR30 with the box unticked this was asked of the
+        setting alone, and the panel's seeding during the restore mirrored a
+        passing A4 into -p, so a saved Custom 250 x 300 came back as A4 in
+        printtarg's -p beside the panel's 250 x 300 (challenge 5, P8, P13)."""
         s = self._settings
         saved_recipe = self._stored_defaults_recipe()
         stored_i = (self._instrument_b8_1288_left_behind(saved_recipe)
                     or s.get(_pw_settings_key("printtarg", "-i")) or "i1")
         stored_p = str(s.get(_pw_settings_key("printtarg", "-p")) or "A4")
         recipe_paper = None
-        if (bool(s.get("use_chromiq_layout_engine", False))
+        if (_layout_panel_lays_out(
+                    stored_i, s.get("use_chromiq_layout_engine", False))
                 and saved_recipe is not None and saved_recipe.get("paper")
                 and _engine_instrument(saved_recipe.get("instrument")
                                        or stored_i)
@@ -27517,9 +27681,20 @@ class TabChart(QWidget):
         another -i cannot be written by any other path; with the engine off
         in Manual it is -i itself. So the p3 in the recipe is what was shown,
         and -i is taken from it. Any other disagreement is left alone.
+
+        ONLY WHILE THE PANEL IS WHAT IS SHOWN (B8-1296). The engine tick is
+        stored the moment it moves, not by "Save as Defaults", so a beta-43
+        store can hold that p3 recipe beside the engine switched off since,
+        with printtarg's -i on the i1Pro the person has been building on.
+        There the rows are what is on screen and -i is theirs (challenge 5,
+        V13); the same question `_layout_panel_lays_out` answers everywhere
+        else, asked of the store.
         """
         s = self._settings
         if not isinstance(recipe, dict):
+            return None
+        if not _layout_panel_lays_out(
+                "p3", s.get("use_chromiq_layout_engine", False)):
             return None
         stored_i = s.get(_pw_settings_key("printtarg", "-i"))
         if (_engine_instrument(recipe.get("instrument")) == "p3"
