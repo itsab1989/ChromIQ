@@ -29754,6 +29754,28 @@ would reach.
 - evidence: test_a_guided_only_save_comes_back_in_manual_as_the_session_showed
 - proof: ~/Desktop/ChromIQ-beta44-proof/fixes-5/ (before/Q1, Q2, Q6, Q7; after/ the same; mutations.txt M12)
 
+### B8-1350 · OPEN · A press on a preset, dragged to the list's edge while it scrolls, chooses another preset (regression from B8-1319)
+- blocks release: no
+- severity: MEDIUM
+- status: OPEN
+- found by: beta 44 challenge round 7, on screen with a real Quartz mouse (`~/Desktop/ChromIQ-beta44-proof/challenge-7/scroll/after-rep*`, `beta43-rep*`).
+- note: Manual, engine on, A4: open "Select preset", press on a row, drag right past the 8 px scroll bar onto the list's edge, hold while the list scrolls by itself, release. Beta 44 closes the list and chooses the row that became current while scrolling (pressed "ColorMunki A4-306p-1page", got "ColorMunki A4-1615p-5pages"), 9 of 9; beta 43 kept the list open, 3 of 3. Likely the B8-1319 filter in `_CappedComboBox` that keeps frame presses and releases from Qt. Cancelling the name prompt resets to "none", so nothing is built. Shipped in beta 44 as not a blocker (Basti's rule); fix in beta 45.
+- where: `ui/tabs/tab_chart.py` (`_CappedComboBox`).
+
+### B8-1351 · OPEN · Clicking a group heading in the open "Select preset" list chooses the current preset again
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 44 challenge round 7 (3 of 3 on beta 44 and on beta 43). The Built-in presets list correctly does nothing on a heading.
+- where: `ui/tabs/tab_chart.py` (`_CappedComboBox`).
+
+### B8-1352 · OPEN · Custom 102 x 152 is now 4x6 and lists nothing; the 100 x 150 presets are not offered for it
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: a question for Knut.
+- found by: beta 44 challenge round 7. Follows B8-1310 (Custom equal to a named paper is that paper) as built; a 4x6 user who types 102 x 152 sees an empty list, while the "10x15cm by Pharmacist" presets are 100 x 150 (B8-1242: cards not listed under 4x6 for now).
+
 ### B8-1300 · FIXED, awaiting confirmation · With the CR30 and the engine box unticked, more places still ask the engine setting alone while the layout panel is what lays the chart out
 - blocks release: no
 - severity: MINOR
