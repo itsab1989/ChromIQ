@@ -346,10 +346,12 @@ def accent_for(colour: str, mode: "str | None" = None) -> str:
 
 
 def app_accent(mode: "str | None" = None) -> str:
-    """The APPLICATION's accent in ``mode``: the value its own style sheet
-    paints a focus ring, an untinted ``#primary`` fill and a default button's
-    fill with. Blue in Light, cyan in Dark, ACTION in Neutral."""
-    return by_mode(light_styles.ACCENT_BLUE, styles.ACCENT,
+    """The APPLICATION's fill in ``mode``: what its own style sheet paints an
+    untinted ``#primary`` and a default button with, in a window that has no
+    accent of its own. Near-black in Light (Restore Factory Defaults' look,
+    Basti 2026-09-26: the blue it used to be appeared nowhere else in the
+    app), near-white in Dark, ACTION in Neutral."""
+    return by_mode(light_styles.FALLBACK_FILL, styles.FALLBACK_FILL,
                    neutral_styles.NM_ACTION, mode)
 
 

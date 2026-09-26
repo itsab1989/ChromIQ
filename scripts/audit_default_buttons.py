@@ -69,7 +69,11 @@ def main() -> int:
         _h, s, v, _a = fill.getHsv()
         far = (dist(fill, QColor(plain[mode])) > 24
                and dist(fill, ground) > 24)
-        accent = (v < 40) if mode == "neutral" else (s > 90 and v > 90)
+        # Neutral fills in near-black ACTION; Light's fallback, since
+        # 2026-09-26, is near-black too (Restore Factory Defaults' look).
+        accent = ((v < 40) if mode == "neutral"
+                  else (s > 90 and v > 90) or (mode == "light" and v < 40)
+                  or (mode == "dark" and v > 225 and s < 25))
         if not b.isEnabled() or b.isCheckable():
             # A greyed button is no action, and a checked toggle's fill says
             # "on", not "Return": neither can be a filled action.

@@ -113,13 +113,23 @@ def make_light_palette() -> QPalette:
 # The window's default button, filled (K44). Built here, before the sheet,
 # from this appearance's own tokens: see ui/default_button.py.
 from ui.default_button import default_fill_qss as _default_fill_qss
+# A window with no accent of its own (no masthead, not opened from a tab)
+# used to fill its main button in ACCENT_BLUE, a blue nothing else in the app
+# uses. Basti, 2026-09-26: "the main action button was blue. this color is
+# used nowhere else in the app"; and for Preferences, "if it gets any color
+# than restore factory settings had before". So the fallback fill is the
+# Restore Factory Defaults look, as in Neutral. A window with an accent still
+# fills in it (ui.theme.default_button_qss).
+FALLBACK_FILL = "#121212"
+FALLBACK_LABEL = "#f4f4f4"
+FALLBACK_HOVER = "#1f1f1f"
 _DEFAULT_QSS = _default_fill_qss(
-    accent=ACCENT_BLUE,
-    label="#ffffff",
-    hover=ACCENT_HOVER,
-    dis_bg="#b8cef8",
-    dis_border="#b8cef8",
-    dis_fg="#7890c0",
+    accent=FALLBACK_FILL,
+    label=FALLBACK_LABEL,
+    hover=FALLBACK_HOVER,
+    dis_bg="#e8e6e1",
+    dis_border="#d0ccc4",
+    dis_fg="#a8a4a0",
     plain_bg=LM_BG_WIDGET,
     plain_border=LM_BORDER_HI,
     plain_fg=LM_TEXT_MAIN,
@@ -225,19 +235,19 @@ QToolButton#peek_tab_arrow:disabled {{
     border-color: {LM_BORDER};
 }}
 QPushButton#primary {{
-    background: {ACCENT_BLUE};
-    color: #ffffff;
-    border: 1px solid {ACCENT_BLUE};
+    background: {FALLBACK_FILL};
+    color: {FALLBACK_LABEL};
+    border: 1px solid {FALLBACK_FILL};
     font-weight: bold;
 }}
 QPushButton#primary:hover {{
-    background: {ACCENT_HOVER};
-    border-color: {ACCENT_HOVER};
+    background: {FALLBACK_HOVER};
+    border-color: {FALLBACK_HOVER};
 }}
 QPushButton#primary:disabled {{
-    background: #b8cef8;
-    border-color: #b8cef8;
-    color: #7890c0;
+    background: #e8e6e1;
+    border-color: #d0ccc4;
+    color: #a8a4a0;
 }}
 QPushButton#danger {{
     background: #fde8e8;
