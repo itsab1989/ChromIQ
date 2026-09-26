@@ -5195,8 +5195,33 @@ class SettingsDialog(QDialog):
                 f"QCheckBox::indicator:checked:disabled {{"
                 f" background: {dis_bg}; border-color: {dis_border}; }}"
             )
+        # OK and Restore Factory Defaults, in THIS window's own sheet (Basti,
+        # 2026-09-26: "why is preferences ok button now magenta?"). Opened
+        # from the Create Chart tab (Edit layout defaults), this dialog is the
+        # tab's child, and a stylesheet on an ancestor beats the application
+        # sheet whatever its selector: the tab's K44 rule filled OK in magenta
+        # instead of Restore Factory Defaults' look. The dialog's own sheet is
+        # nearer than any ancestor's, so it holds wherever the window opens.
+        if mode == APPEARANCE_NEUTRAL:
+            fill, label, hover, edge = (neutral_styles.NM_ACTION,
+                                        neutral_styles.NM_ON_ACTION,
+                                        neutral_styles.NM_BORDER_HI,
+                                        neutral_styles.NM_ACTION)
+        elif mode == "light":
+            fill, label, hover, edge = "#121212", "#f4f4f4", "#1f1f1f", "#2a2a2a"
+        else:
+            fill, label, hover, edge = "#f4f4f4", "#121212", "#e0e0e0", "#d0d0d0"
+        buttons_qss = (
+            f"QPushButton#reset_defaults, QPushButton#prefs_ok,"
+            f" QPushButton#prefs_ok:default {{ background: {fill};"
+            f" color: {label}; border: 1px solid {edge}; }}"
+            f"QPushButton#reset_defaults:hover, QPushButton#prefs_ok:hover,"
+            f" QPushButton#prefs_ok:default:hover {{ background: {hover};"
+            f" border-color: {hover}; }}"
+        )
         self.setStyleSheet(
-            neutral_controls_qss(indicator, mode=mode) + disabled_qss)
+            neutral_controls_qss(indicator, mode=mode) + disabled_qss
+            + buttons_qss)
         for btn in self.findChildren(TooltipButton):
             btn._color_override = indicator
             btn._set_icon()

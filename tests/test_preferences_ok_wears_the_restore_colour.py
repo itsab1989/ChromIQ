@@ -31,3 +31,16 @@ def test_the_dialog_names_its_ok_button():
     src = inspect.getsource(settings_dialog)
     assert ('bb.button(QDialogButtonBox.StandardButton.Ok)'
             '.setObjectName("prefs_ok")') in src
+
+
+def test_the_dialog_pins_ok_in_its_own_sheet():
+    """Opened from the Create Chart tab (Edit layout defaults) the dialog is
+    the tab's child, and the tab's sheet beat the application sheet: OK came
+    out magenta (Basti, 2026-09-26). The dialog's own sheet is nearer.
+
+    MUTATION: drop ``buttons_qss`` from the dialog's setStyleSheet and this
+    goes red."""
+    from ui.dialogs import settings_dialog
+    src = inspect.getsource(settings_dialog.SettingsDialog._apply_indicator_theme)
+    assert "QPushButton#prefs_ok:default" in src
+    assert "+ buttons_qss" in src
