@@ -24,6 +24,19 @@ from core.i18n import tr
 log = get_logger(__name__)
 
 
+def as_bool(v: Any) -> bool:
+    """A stored flag as the bool it was saved as (B8-1282).
+
+    A settings file in INI format keeps no types: "Save as Defaults" writes
+    False and the next process reads the string "false", which ``bool()``
+    calls True. That is the sandbox every on-screen drive uses, and Linux's
+    own format. macOS's plist keeps the bool, so the owner's store never
+    showed it."""
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "1", "yes", "on")
+    return bool(v)
+
+
 #: The widest an expert row's name check box grows to show its whole name
 #: (B8-929). The name column is 190 px; past this a name elides.
 NAME_CELL_MAX = 260
@@ -146,7 +159,7 @@ class ParameterWidget(QWidget):
 
     def set_value(self, v: Any) -> None:
         if self._control is None and self._enable_check is not None:
-            self._enable_check.setChecked(bool(v))
+            self._enable_check.setChecked(as_bool(v))
             return
         c = self._control
         if c is None:
@@ -154,7 +167,7 @@ class ParameterWidget(QWidget):
         t = self._param.get("type", "string")
         try:
             if t == "boolean":
-                c.setChecked(bool(v))
+                c.setChecked(as_bool(v))
             elif t == "choice" or t == "flag_choice":
                 combo = self._custom_combo if self._custom_combo is not None else c
                 idx = combo.findData(str(v))
@@ -195,7 +208,7 @@ class ParameterWidget(QWidget):
     def set_user_enabled(self, checked: bool) -> None:
         """Programmatically set the expert enable-checkbox state."""
         if self._enable_check is not None:
-            self._enable_check.setChecked(checked)
+            self._enable_check.setChecked(as_bool(checked))
 
     def reset_to_default(self) -> None:
         """Restore the YAML default and clear any expert enable-checkbox.

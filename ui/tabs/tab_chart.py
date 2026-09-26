@@ -10296,7 +10296,8 @@ class TabChart(QWidget):
         # Hide/show the suppress-LB row in sync with the toggle.
         self._update_manual_lb_visibility()
 
-    def _apply_instrument_default_margin(self) -> None:
+    def _apply_instrument_default_margin(
+            self, *_signal_args, saved: "frozenset[str] | None" = None) -> None:
         """Auto-update -m (and -a, for i1) widgets to the per-instrument default
         on instrument change.
 
@@ -10307,10 +10308,20 @@ class TabChart(QWidget):
         For instrument == "i1" the (margin, scale) pair comes from the
         Preferences → i1Pro Chart Defaults setting. For other instruments only
         the margin is touched (legacy behaviour).
+
+        ``saved`` is given by the start-up restore only (B8-1280, B8-1281):
+        the printtarg flags "Save as Defaults" stored. Those are what the
+        person saved and are never moved; a flag the store does not hold gets
+        the instrument's own default, as a fresh start on that instrument.
         """
         if self._manual_instr_pw is None or self._manual_m_pw is None:
             return
         instr = self._manual_instr_pw.get_raw_value() or "i1"
+        # (`_restore_defaults` also lands here once mid-restore, from -i's
+        # value_changed, with the flags after -i still on their factory
+        # values; whatever that call does to them is overwritten by the saved
+        # values that follow, and its own final call, with `saved`, decides.)
+        keep = saved or frozenset()
 
         if instr == "i1":
             preset_key = str(self._settings.get(
@@ -10343,10 +10354,15 @@ class TabChart(QWidget):
                 _house_margins.add(int(_m))
         except Exception:      # noqa: BLE001 — a default table is never fatal
             pass
-        if current_m in _house_margins and current_m != target_margin:
+        # A MARGIN OR SCALE THE PERSON SAVED IS NOT A HOUSE DEFAULT (B8-1281).
+        # The restore used to end with this method, so a saved -m 6 on the
+        # i1Pro came back as 10, a saved -m 10 or -a 0.95 on any other
+        # instrument as 6 / 1.0: 25 of 30 saved pairs, every instrument.
+        if ("-m" not in keep and current_m in _house_margins
+                and current_m != target_margin):
             self._manual_m_pw.set_value(target_margin)
 
-        if self._manual_a_pw is not None:
+        if self._manual_a_pw is not None and "-a" not in keep:
             try:
                 current_a = float(self._manual_a_pw.get_raw_value() or 1.0)
             except (TypeError, ValueError):
@@ -10375,11 +10391,20 @@ class TabChart(QWidget):
         # the saved recipe put -p back, B8-1228, and hid it). The same held
         # for a saved -n or -P, and for any other call: a preset reset, the
         # panel build. What the person set is not the i1iSis's default.
+        #
+        # AT START-UP, ONLY WHAT THE STORE DOES NOT HOLD (B8-1280). A session
+        # that opens on the i1iSis came from the factory instrument, so a flag
+        # nobody saved gets the i1iSis's default (a store holding only the
+        # instrument opens on A3+ Portrait, -n and -P, as it always did); a
+        # flag that was saved comes back as saved, A4 and -n off included.
         prev = getattr(self, "_isis_defaults_instr", None)
         self._isis_defaults_instr = instr
-        entering = instr == "isis" and prev is not None and prev != "isis"
-        leaving = prev == "isis" and instr != "isis"
-        if self._manual_paper_pw is not None:
+        if saved is not None:
+            entering, leaving = instr == "isis", False
+        else:
+            entering = instr == "isis" and prev is not None and prev != "isis"
+            leaving = prev == "isis" and instr != "isis"
+        if self._manual_paper_pw is not None and "-p" not in keep:
             current_paper = self._manual_paper_pw.get_raw_value() or ""
             if entering and current_paper == "A4":
                 self._manual_paper_pw.set_value("329x483")
@@ -10388,7 +10413,7 @@ class TabChart(QWidget):
 
         for pw_attr in ("_manual_n_pw", "_manual_P_pw"):
             pw = getattr(self, pw_attr, None)
-            if pw is None:
+            if pw is None or pw.flag in keep:
                 continue
             current = bool(pw.get_raw_value())
             if entering and not current:
@@ -27076,6 +27101,12 @@ class TabChart(QWidget):
         # the Windows registry (HKCU is case-insensitive). Legacy values that
         # don't type-coerce to the widget's expected type are discarded
         # silently — they are leftover bytes from a clobbering case-twin.
+        #
+        # AS SAVED, NOT AS A SWITCH (B8-1280, B8-1281). The printtarg flags
+        # the store holds are collected, and the call to
+        # `_apply_instrument_default_margin` below leaves every one of them as
+        # it came back, applying the instrument's defaults to the others only.
+        saved_printtarg: set[str] = set()
         for tool, widgets in self._manual_widgets.items():
             for pw in widgets:
                 if pw in self._d_cascade_widgets:
@@ -27095,6 +27126,8 @@ class TabChart(QWidget):
                             v = None
                 if v is not None:
                     pw.set_value(v)
+                    if tool == "printtarg":
+                        saved_printtarg.add(pw.flag)
                 # Re-arm the enable-checkbox for expert non-boolean rows; without
                 # this the value is restored but the flag stays off (and is
                 # dropped by build_args). Only act when the key was persisted, so
@@ -27102,7 +27135,8 @@ class TabChart(QWidget):
                 if pw.has_separate_enable:
                     en = s.get(f"{new_key}_enabled")
                     if en is not None:
-                        pw.set_user_enabled(bool(en))
+                        # "false" from an INI store is not True (B8-1282)
+                        pw.set_user_enabled(en)
         for idx, pw in enumerate(self._d_cascade_widgets):
             v = s.get(f"manual_targen_-D_{idx}")
             if v is not None:
@@ -27158,7 +27192,7 @@ class TabChart(QWidget):
         if self._manual_td_check is not None:
             self._manual_td_check.setChecked(td_saved)
         self._update_manual_lb_visibility()
-        self._apply_instrument_default_margin()
+        self._apply_instrument_default_margin(saved=frozenset(saved_printtarg))
         self._update_isis_preview_banner()
 
         presets = self._load_presets_from_settings()
