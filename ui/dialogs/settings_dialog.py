@@ -5430,7 +5430,11 @@ class SettingsDialog(QDialog):
         self._layout_saved_hint.setWordWrap(True)
         v.addWidget(self._layout_saved_hint)
 
-        self._layout_panel = LayoutOptionsPanel(self, defer_clip_preview=True)
+        # "Clip-border content" is always on screen here, where the defaults
+        # are stored, with the clip border Off too (B8-1362, Knut #182
+        # 5847578917).
+        self._layout_panel = LayoutOptionsPanel(
+            self, defer_clip_preview=True, clip_content_always_shown=True)
         self._layout_panel.changed.connect(self._on_layout_field_changed)
         v.addWidget(self._layout_panel)
 

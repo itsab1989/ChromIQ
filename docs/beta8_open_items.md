@@ -29814,6 +29814,51 @@ would reach.
 - tests: tests/test_k53_the_preflight_groups_like_the_presets_window.py; mutations M-K53-a, M-K53-b (k53 mutations.txt), each red.
 - evidence: test_the_preflight_list_uses_the_presets_windows_grouping, test_every_group_carries_its_metrics_reason_once, test_the_solid_rows_are_one_group_with_the_reason_once, test_a_metric_with_a_reason_of_its_own_is_listed_on_its_own
 
+### B8-1360 · FIXED, awaiting confirmation · The CR30 chosen in printtarg's Instrument after the layout panel had been shown builds an i1Pro chart (regression from 02c41b99)
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: beta 44 challenge round 8 (`~/Desktop/ChromIQ-beta44-proof/challenge-8/cr30-generate/`, K54 analysis `k54-analysis/cells/off-i1-CR30-look/`).
+- note: Create Chart > Manual, the engine on at start (the factory state), the box "Use the ChromIQ layout engine instead of printtarg" unticked, the CR30 chosen in printtarg's own Instrument (-i): the box showed ticked and locked (B8-1353), the layout panel stayed hidden and on the i1Pro, the frame read `printtarg -ii1 -pA4 -t300 -m5 -M5` and Generate built a 441-patch i1Pro chart. CAUSE: 02c41b99 (B8-1295) made `_collect_manual` take the chart's instrument, paper and recipe from the layout panel whenever `_layout_panel_lays_out(-i, setting)` says yes, which it does for the CR30 whatever the box says. -i had moved while the panel was hidden, and nothing carries -i into a hidden panel that was seeded before, so the chart came back as the panel's i1Pro; the frame's own test is asked of that instrument, so it said printtarg, the panel was never shown, and `_should_use_engine` sent the i1Pro to printtarg. Until 02c41b99 the frame took the instrument from -i with the box unticked, so its off-to-on transition (`_engine_was_active`) synced the panel onto the CR30; 02c41b99 removed the only thing that moved it. The engine off at start did not show it, because the first `_collect_manual` seeds the panel from -i. Not 92317bd5 or beeb6e25. FIX: `_align_panel_to_engine_only_instrument`, called by `_collect_manual` (the frame, the estimate and Generate all read it): when -i is an instrument only the engine lays out and the panel is on another, the panel is put on -i and -p exactly as the switch into the engine does (`_sync_engine_panel_selection`, which now takes -i / -p outright), so it takes the CR30's own defaults as choosing it in the panel does. -i is the newer choice whenever they disagree on the CR30 (a shown panel mirrors every change into -i). Not during a panel load, this sync, a target's load, or while the panel's own instrument is moving (`LayoutOptionsPanel._instr_changing`, new): the panel emits `changed` before the tab's mirror has put its choice into -i, and the first cut put a person's i1Pro chosen in the panel straight back on the CR30 (caught by the reverse-path test, M1360-c).
+- on screen: `~/Desktop/ChromIQ-beta44-proof/fixes-8-cr30/` (MATRIX.txt, NOTES.txt; before = 2194eec7, after = this commit), path x start state, every cell built and its .ti2 / .tif opened. Before: the reported path and the reverse path's CR30 build an i1Pro chart (441 patches, printtarg); every other path is right. After: every CR30 path shows the panel on the CR30, the frame names the engine, the estimate is filled, and the built chart is a CR30 engine chart; back to the i1Pro in the panel with the box unticked is printtarg again; i1Pro, i1Pro 3 Plus, ColorMunki, SpectroScan and i1iSis through -i after the panel was shown are printtarg, unchanged.
+- where: `ui/tabs/tab_chart.py` (`_align_panel_to_engine_only_instrument`, `_collect_manual`, `_sync_engine_panel_selection`), `ui/dialogs/layout_options_panel.py` (`_on_instr_changed`, `_instr_changing`).
+- tests: tests/test_b8_1360_the_cr30_is_laid_out_on_the_cr30_from_every_path.py; mutations M1360-a to M1360-d (fixes-8-cr30/mutations.txt), each red.
+- evidence: test_the_reported_path_engine_on_untick_then_cr30_in_printtarg_i, test_engine_off_from_the_start_then_cr30_in_printtarg_i, test_panel_shown_ticked_off_on_and_off_again_then_cr30, test_the_build_asked_before_any_refresh_is_the_cr30, test_a_stored_i1pro_recipe_beside_a_cr30_opens_on_the_cr30, test_the_cr30_chosen_in_the_panel, test_the_cr30_chosen_in_guided_then_manual, test_back_from_the_cr30_to_the_i1pro_is_printtarg_again, test_every_other_instrument_through_i_after_the_panel_was_shown
+
+### B8-1361 · FIXED, awaiting confirmation · A built-in CR30 preset's frame says `printtarg -iCR30 …` above a chart the layout engine builds
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the B8-1360 matrix (preset cells, before and after): the fixed-patch-set built-in "CR30 · A4-360p" read "Uses the bundled 360-patch .ti1 (targen skipped)." over `printtarg -iCR30 -pA4 -t200 -m5 -M5 -c chart`, a command printtarg rejects, while the build (correctly) laid it out with the engine. Also in 2194eec7, so not a regression of this beta.
+- note: the four built-in / existing-patch-set branches of `_refresh_manual_command_preview` printed `printtarg …` literally; they now name the layout with the frame's own `_layout_cmd()` (the engine line when the engine lays the chart out, printtarg's command otherwise, so nothing changes where printtarg builds).
+- on screen: fixes-8-cr30 `after/preset-start{0,1}`: the frame reads "ChromIQ layout engine · CR30 · A4 portrait · 200 dpi …", the chart built is a CR30 engine chart of 360 patches.
+- tests: tests/test_b8_1360_the_cr30_is_laid_out_on_the_cr30_from_every_path.py (both start states); mutation M1361-a red.
+- evidence: test_a_built_in_cr30_presets_frame_names_the_engine_not_printtarg
+
+### B8-1362 · FIXED, awaiting confirmation · Knut #182 5847578917: Preferences > Chart Layout shows "Clip-border content" with the clip border Off, with a note
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5847578917: *"It is wrong that some settings are hidden. Even if Clip-border is set to be default OFF, a user needs to be able to see and set the values for the clip-border content fields (for when a clip-border is actually used) ... instead there could be a note that the clip-border content fields are only relevant when clip-border is set to ON on a chart layout."*
+- note: in Preferences only (`LayoutOptionsPanel(clip_content_always_shown=True)`, passed by `settings_dialog`), the frame in Expert Options stays on screen and editable while the clip border is Off on the ColorMunki, SpectroScan and CR30, with the note "These settings apply only when the clip border is On in a chart layout. They are kept while it is Off." (help text, not §M; German by hand; the twelve others carry the English under the beta rule, both ledgers +1 each). Text, Font and Size are live while Off there. What is set is stored in that instrument / paper / mode's layout preset and used when the clip border is switched On (measured: Side Right and a text set while Off came back in Create Chart after "Reset" to the layout preset and Clip border On). Create Chart is unchanged: its frame still hides while its chart has no clip border, and the note never shows there. THE i1Pro AND i1Pro 3 PLUS ARE LEFT AS THEY WERE: their "Off" is a layout combination of its own (Mode "noclip"), which never has a clip border, so a value set there could never be used. ONE LIMIT, a question for Knut: on the three band instruments the Content choice IS the On / Off switch (Content "Off" = clip border Off), so choosing a Content in the frame switches the clip border On, and switching it On in Create Chart starts on "Notes box" whatever Content was meant; the Content kind itself cannot be kept while Off without a new recipe field.
+- on screen: `~/Desktop/ChromIQ-beta44-proof/fixes-8-cr30/prefs-clip/` (before-*/after-*, CR30, SpectroScan, ColorMunki, i1Pro).
+- where: `ui/dialogs/layout_options_panel.py` (`__init__`, the group's note, `_update_clip_visibility`, `_sync_clip_content_enabled`), `ui/dialogs/settings_dialog.py`, `data/i18n/*.json`, both ledgers.
+- tests: tests/test_b8_1362_preferences_shows_clip_border_content_always.py; mutations M1362-a to M1362-d, each red.
+- evidence: test_preferences_shows_the_frame_and_the_note_with_the_clip_border_off, test_create_chart_keeps_the_frame_hidden_with_the_clip_border_off, test_the_i1pro_off_is_its_own_combination_and_stays_hidden, test_preferences_builds_its_panel_with_the_frame_always_shown
+
+### B8-1363 · OPEN · A target reopened loses "Auto patch count", so its next Generate builds a 14-patch chart while the estimate says 441
+- blocks release: no
+- severity: MAJOR
+- status: OPEN
+- found by: the B8-1360 matrix, per-target cells (both trees): the challenge-8 project (built with "Auto patch count" ticked, -f 0) opened with the tick off, the frame read "(1 page · Auto grey/white/black)" and `targen … -f0`, the estimate column said 441, and Generate built 14 patches (white, black and the grey steps). The run's `create_chart_settings` carry `targen-f` = 0 and no auto-patch tick. Pre-existing: 2194eec7 does the same. Not fixed here (not the CR30, and which stored field the tick belongs in is §1.2's question); registered for the next round.
+
+### B8-1364 · OPEN, a question · Create Chart's preset list marks the built-in presets with ★, which is now also the verification star
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: challenge round 8, C6.
+- note: in Create Chart's preset list ★ has always meant BUILT-IN ("★  i1Pro · A4-1296p-2pages …  ·  built-in"; the Dictionary's "Preset" entry says "ChromIQ ships built-in presets (marked ★)"). Since K51 the presets window uses ★ for "made for verification" (B8-1340). It is not a leftover, so it is not changed: the same mark means two things in two lists a verification user sees side by side, and a built-in without the verification star wears ★ in the dropdown. Question: keep ★ for built-ins, or give built-ins another mark (the "· built-in" suffix alone would do) so ★ means only "made for verification"?
+
 ### B8-1300 · FIXED, awaiting confirmation · With the CR30 and the engine box unticked, more places still ask the engine setting alone while the layout panel is what lays the chart out
 - blocks release: no
 - severity: MINOR
@@ -29996,10 +30041,13 @@ would reach.
 - evidence: test_the_star_follows_rule_4_with_knuts_modifications, test_evenness_counts_under_the_loosest_limit_of_any_set, test_the_star_line_says_the_rule_and_the_constants_agree, test_the_star_means_one_page_and_a_few_hundred_patches, test_the_page_count_is_what_decides_the_star
 - proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (star-data/, runs/*-star/)
 
-### B8-1341 · OPEN · The tooltip of Create Chart's presets button still says the star is "one printed page of a few hundred patches"
+### B8-1341 · FIXED, awaiting confirmation · The tooltip of Create Chart's presets button still says the star is "one printed page of a few hundred patches"
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- fixed: challenge 8 fixes. The sentence now says the rule in the presets window's own words: "A ★ marks a chart made for verification: one or two printed pages, fewer than 900 patches, a patch printed with no ink to measure the paper, and an answer to every metric its patches and its page layout decide, evenness included." German by hand (Du-Form); one key replaced by one, both ledgers unmoved.
+- tests: tests/test_b8_1360_the_cr30_is_laid_out_on_the_cr30_from_every_path.py
+- evidence: test_the_presets_button_help_says_the_stars_rule
 - found by: reading every text that states the star's rule while building B8-1340.
 - note: `ui/tabs/tab_chart.py` (the tooltip of "Which presets can be used for verification?") says "A ★ marks a chart made for verification, which is one printed page of a few hundred patches or fewer that leaves nothing on the table". Untrue since B8-1340. Not changed in this round because another agent was editing tab_chart.py for beta 44; one sentence to reword when the file is free.
 - where: `ui/tabs/tab_chart.py` (the presets button's help).

@@ -539,6 +539,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1362, Knut #182 5847578917): Preferences > Chart Layout shows "Clip-border content" with the clip border Off, with a note that its fields apply only when the clip border is On, 1 key in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the echo budget. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1341): the ★ sentence in the tooltip of "Which presets can be used for verification?" says rule (4) as K51 set it, 1 key replaced by 1. German by hand, does not move; the twelve others carried the old paragraph in English and carry the new one in English, so none moves. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K51 (B8-1330 to B8-1340, Knut #182 5846167083 and 5846297769): the drift sentence and guide line, the information note under a graph (two forms), the three sheet-graph sentences, the record's sentence, the star line and its two help cards, the media-relative line, the i1Pro group's title and help. German by hand; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K53 (B8-1353, Knut #182 5846545713): the engine box locked on the CR30 says why in its tooltip, 1 key in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the echo budget. The instrument help (parameters.yaml, B8-1283) is an overlay and in neither ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K50 (B8-1320, Knut #182 5845519118): the sentence under a graph with no limit line speaks of this report only, never of other limit sets: B8-1274's five reasons out ("ChromIQ has no limit ... in any of its limit sets" and the four "although other limit sets ... have one"), one in ("This report sets no limit for what this graph shows, so no limit line is drawn."). 1 key in, 5 out. German by hand, does not move; the twelve others carry the English under the beta rule and each falls by exactly 4 here and 3 in the echo budget (the "ChromIQ has no limit" key starts with "ChromIQ" and was never an echo there). COUNTED off the tree, BOTH ledgers.
@@ -1065,18 +1067,18 @@ _BUDGET = {
     # twelve others rises by exactly 3. COUNTED off the tree, BOTH ledgers
     # in the same commit.
     "de": 13,
-    "es": 1057,
-    "fr": 1058,
-    "it": 1057,
-    "ja": 1057,
-    "nl": 1057,
-    "no": 1057,
-    "pl": 1057,
-    "pt": 1057,
-    "ru": 1056,
-    "sv": 1057,
-    "zh_CN": 1056,
-    "uk": 1199,
+    "es": 1058,
+    "fr": 1059,
+    "it": 1058,
+    "ja": 1058,
+    "nl": 1058,
+    "no": 1058,
+    "pl": 1058,
+    "pt": 1058,
+    "ru": 1057,
+    "sv": 1058,
+    "zh_CN": 1057,
+    "uk": 1200,
 }
 
 

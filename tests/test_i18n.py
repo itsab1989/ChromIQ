@@ -786,6 +786,8 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1362, Knut #182 5847578917): Preferences > Chart Layout shows "Clip-border content" with the clip border Off, with a note that its fields apply only when the clip border is On, 1 key in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the echo budget. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1341): the ★ sentence in the tooltip of "Which presets can be used for verification?" says rule (4) as K51 set it, 1 key replaced by 1. German by hand, does not move; the twelve others carried the old paragraph in English and carry the new one in English, so none moves. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K51 (B8-1330 to B8-1340, Knut #182 5846167083 and 5846297769): the drift sentence and guide line, the information note under a graph (two forms), the three sheet-graph sentences, the record's sentence, the star line and its two help cards, the media-relative line, the i1Pro group's title and help. German by hand; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K53 (B8-1353, Knut #182 5846545713): the engine box locked on the CR30 says why in its tooltip, 1 key in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the echo budget. The instrument help (parameters.yaml, B8-1283) is an overlay and in neither ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-26, K50 (B8-1320, Knut #182 5845519118): the sentence under a graph with no limit line speaks of this report only, never of other limit sets: B8-1274's five reasons out ("ChromIQ has no limit ... in any of its limit sets" and the four "although other limit sets ... have one"), one in ("This report sets no limit for what this graph shows, so no limit line is drawn."). 1 key in, 5 out. German by hand, does not move; the twelve others carry the English under the beta rule and each falls by exactly 4 here and 3 in the echo budget (the "ChromIQ has no limit" key starts with "ChromIQ" and was never an echo there). COUNTED off the tree, BOTH ledgers.
@@ -1472,17 +1474,17 @@ _IDENTICAL_TO_KEY = {
     # placeholders in, the two retired translations out). COUNTED off the
     # tree with this file's own expression.
     "de": 141,
-    "es": 1404,
-    "fr": 1426,
-    "it": 1415,
-    "ja": 1390,
-    "nl": 1430,
-    "no": 1416,
-    "pl": 1408,
-    "pt": 1406,
-    "ru": 1379,
-    "sv": 1417,
-    "zh_CN": 1384,
+    "es": 1405,
+    "fr": 1427,
+    "it": 1416,
+    "ja": 1391,
+    "nl": 1431,
+    "no": 1417,
+    "pl": 1409,
+    "pt": 1407,
+    "ru": 1380,
+    "sv": 1418,
+    "zh_CN": 1385,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1511,7 +1513,8 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 1557,
+    "uk": 1558,
+    "uk": 1558,
 }
 
 

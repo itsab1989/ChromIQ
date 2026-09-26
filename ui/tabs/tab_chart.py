@@ -7305,6 +7305,8 @@ class TabChart(QWidget):
         _pv.setSpacing(6)
         _pv.addWidget(self._preset_verify_btn, 0,
                       Qt.AlignmentFlag.AlignVCenter)
+        # The ★ sentence says rule (4) as K51 set it (B8-1340, B8-1341), in
+        # the words of the presets window's own star line.
         self._preset_verify_help = TooltipButton(
             tr("Which presets can be used for verification?"),
             tr("Opens a list of every chart preset, marked against the "
@@ -7318,9 +7320,11 @@ class TabChart(QWidget):
             "Click a preset to read that; double-click it to close the window "
             "and load the preset here.\n\n"
             "Nothing is hidden: presets that fall short stay on the list with "
-            "their reasons. A ★ marks a chart made for verification, which is "
-            "one printed page of a few hundred patches or fewer that leaves "
-            "nothing on the table. A preset that comes with its pages already "
+            "their reasons. A ★ marks a chart made for verification: one or "
+            "two printed pages, fewer than 900 patches, a patch printed with no "
+            "ink to measure the paper, and an answer to every metric its "
+            "patches and its page layout decide, evenness included. "
+            "A preset that comes with its pages already "
             "rendered never carries that mark: its sheet cannot be laid out "
             "again, so it cannot be built with From Profile Gamut, and the "
             "list says which metrics that puts out of reach."),
@@ -8475,6 +8479,11 @@ class TabChart(QWidget):
             and (p.layout_recipe is not None
                  or not (p.chromiq_clip_style or p.left_clip_info)))
 
+        # EVERY BRANCH BELOW NAMES THE LAYOUT WITH THIS (B8-1361). The four
+        # built-in / existing-patch-set branches printed `printtarg …`
+        # literally, so a built-in CR30 preset read `printtarg -iCR30 -pA4
+        # -t200 …` (a command printtarg rejects) above a chart the layout
+        # engine built (challenge 8 fixes, preset cells).
         def _layout_cmd() -> str:
             if use_engine:
                 # The engine recipe panel — not the printtarg widgets — is the
@@ -8546,7 +8555,7 @@ class TabChart(QWidget):
                     tr("Built-in preset — re-laid out ({notes}):\n"
                        "Re-arranges the preset's exact patches on the page "
                        "(targen skipped).").format(notes=" · ".join(notes))
-                    + f"\nprinttarg {' '.join(pt_args)}"
+                    + f"\n{_layout_cmd()}"
                 )
             else:
                 info = tr(
@@ -8566,7 +8575,7 @@ class TabChart(QWidget):
                 tr("i1Pro TC9.18 by Pharmacist — fixed patch set ({notes}):\n"
                    "Uses the bundled tc918.ti1 (targen skipped).").format(
                     notes=" · ".join(notes))
-                + f"\nprinttarg {' '.join(pt_args)}\n"
+                + f"\n{_layout_cmd()}\n"
                 + tr("Change a targen setting above to build a fresh chart instead.")
             )
         elif knut_repro:
@@ -8576,7 +8585,7 @@ class TabChart(QWidget):
                 tr("Built-in preset — fixed patch set ({notes}):\n"
                    "Uses the bundled {n}-patch .ti1 (targen skipped).").format(
                     notes=" · ".join(notes), n=npatch)
-                + f"\nprinttarg {' '.join(pt_args)}\n"
+                + f"\n{_layout_cmd()}\n"
                 + tr("Change a targen setting above to build a fresh chart instead.")
             )
         else:
@@ -8588,7 +8597,7 @@ class TabChart(QWidget):
                     tr("Manual mode — chart layout “{layout}” ({notes}):\n"
                        "Lays out the existing patch set (targen skipped).").format(
                         layout=layout, notes=" · ".join(notes))
-                    + f"\nprinttarg {' '.join(pt_args)}"
+                    + f"\n{_layout_cmd()}"
                 )
             else:
                 info = (
@@ -8858,23 +8867,29 @@ class TabChart(QWidget):
         return replace(recipe, instrument=_engine_instrument(instr),
                        paper=str(paper or recipe.paper))
 
-    def _sync_engine_panel_selection(self) -> None:
+    def _sync_engine_panel_selection(self, instr: "str | None" = None,
+                                     paper: "str | None" = None) -> None:
         """Seed the engine layout panel's instrument/paper from the canonical
         Manual selection (printtarg -i/-p) — so enabling the engine after loading
         a preset carries Instrument and Paper into the ChromIQ frame, and the
         threshold lookup / Preferences preselect use the right combo (#93, Knut
         beta-13). Run only on the off→on transition; after that the panel is the
-        source and the reverse mirror keeps printtarg in step."""
+        source and the reverse mirror keeps printtarg in step.
+
+        ``instr`` / ``paper`` name Manual's -i / -p outright (B8-1360), for a
+        caller that must follow them whichever mode is active; by default the
+        active mode's selection."""
         p = getattr(self, "_manual_layout_panel", None)
         if p is None or p.instr is None or p.paper is None:
             return
         if getattr(self, "_syncing_manual_sel", False):
             return
-        eng = {"3p": "p3"}.get(self._active_instrument_flag(),
-                               self._active_instrument_flag())
+        _flag = instr if instr is not None else self._active_instrument_flag()
+        eng = {"3p": "p3"}.get(_flag, _flag)
         if eng not in ("i1", "p3", "CM", "SS", "CR30"):
             eng = "i1"
-        paper = self._active_paper_code() or "A4"
+        paper = (paper if paper is not None
+                 else self._active_paper_code()) or "A4"
         self._syncing_manual_sel = True
         try:
             ii = p.instr.findData(eng)
@@ -8938,6 +8953,68 @@ class TabChart(QWidget):
         """`_layout_panel_lays_out` for what Manual is on now: printtarg's -i
         and the engine setting (B8-1295)."""
         return _panel_lays_out_on(self)
+
+    def _align_panel_to_engine_only_instrument(self) -> bool:
+        """Put the layout panel on printtarg's -i when -i is an instrument
+        only the engine can lay out (the CR30) and the panel is on another
+        one. True when it moved the panel. (B8-1360)
+
+        THE FAULT. `_layout_panel_lays_out` asks -i, and says yes for the
+        CR30 whatever the box says (B8-1295); `_collect_manual` then takes the
+        instrument, paper and recipe FROM THE PANEL. A panel seeded before
+        (the engine on at start, or ticked once and unticked) still stood on
+        the i1Pro, because -i moved while the panel was hidden and nothing
+        carries -i into a hidden panel. So the chart's instrument came back
+        as the i1Pro, the frame's own test (`_refresh_manual_command_preview`,
+        asked of that instrument) said printtarg, the panel was never shown,
+        the command read `printtarg -ii1 …` and Generate built an i1Pro chart
+        (beta 44 challenge round 8, 441 patches for a CR30). Beta 43 took the
+        frame's instrument from -i while the box was unticked, so the off to
+        on transition there synced the panel (`_engine_was_active`); 02c41b99
+        made the panel the source whenever it lays out and so removed the only
+        thing that moved it.
+
+        -i IS THE NEWER CHOICE whenever the two disagree on the CR30: while
+        the panel is shown every change of its instrument is mirrored into -i
+        (`_sync_manual_selection_from_panel`), so a disagreement can only come
+        from -i moving without the panel: printtarg's own row, Guided's
+        instrument (linked to -i), a preset's rows, a stored target's rows.
+        The panel is moved exactly as the switch into the engine moves it
+        (`_sync_engine_panel_selection`: instrument, then -p), so it takes
+        the CR30's own defaults just as choosing the CR30 in the panel does.
+
+        Not while a panel load or this very sync is in progress, and not
+        while a target's settings are being loaded: those set the recipe
+        themselves, and the next frame or build aligns what they leave. AND
+        NOT WHILE THE PANEL'S OWN INSTRUMENT IS MOVING (`_instr_changing`):
+        the panel emits `changed` before the tab's mirror has put its choice
+        into -i, so a person choosing the i1Pro in the panel on the CR30 was
+        read as -i (still CR30) being newer and put straight back (measured
+        by the reverse-path test before this guard)."""
+        from workflow.chart_creator import ENGINE_ONLY_INSTRUMENTS
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None or getattr(panel, "instr", None) is None:
+            return False
+        if (getattr(self, "_syncing_manual_sel", False)
+                or getattr(panel, "_loading", False)
+                or getattr(panel, "_instr_changing", False)
+                or getattr(self, "_loading_target_settings", False)
+                or not getattr(self, "_manual_panel_inited", False)):
+            return False
+        try:
+            instr = str(self._manual_get("printtarg", "-i", "i1") or "")
+        except Exception:      # noqa: BLE001 — a half-built tab
+            return False
+        if instr not in ENGINE_ONLY_INSTRUMENTS:
+            return False
+        if str(panel.instr.currentData() or "") == instr:
+            return False
+        log.info("the layout panel stood on %s while printtarg's -i is %s, "
+                 "which only the layout engine lays out: the panel is put on "
+                 "%s (B8-1360)", panel.instr.currentData(), instr, instr)
+        self._sync_engine_panel_selection(
+            instr, str(self._manual_get("printtarg", "-p", "A4") or "A4"))
+        return True
 
     def _pinned_layout_recipe(self):
         """:meth:`_current_layout_recipe`, pinned — the label style resolved and
@@ -27770,6 +27847,13 @@ class TabChart(QWidget):
                 # the frame seeds it on the same question; a build asked for
                 # before the first refresh must not read an unseeded panel
                 self._init_manual_layout_panel()
+            # …AND A SEEDED PANEL MUST BE ON THE INSTRUMENT THAT MADE IT LAY
+            # THE CHART OUT (B8-1360). See `_align_panel_to_engine_only_
+            # instrument`: the CR30 chosen in printtarg's -i with the box
+            # unticked left a panel seeded earlier on the i1Pro, and this read
+            # its i1Pro, so the frame said `printtarg -ii1` and the build made
+            # an i1Pro chart.
+            self._align_panel_to_engine_only_instrument()
             recipe = self._current_layout_recipe()
             p.instrument = recipe.instrument
             p.paper = recipe.paper

@@ -294,8 +294,19 @@ class LayoutOptionsPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None, *,
                  with_calibration: bool = False, with_selectors: bool = False,
-                 defer_clip_preview: bool = False) -> None:
+                 defer_clip_preview: bool = False,
+                 clip_content_always_shown: bool = False) -> None:
         super().__init__(parent)
+        #: PREFERENCES > CHART LAYOUT SHOWS "Clip-border content" ALWAYS
+        #: (B8-1362, Knut #182 5847578917): *"It is wrong that some settings
+        #: are hidden. Even if Clip-border is set to be default OFF, a user
+        #: needs to be able to see and set the values for the clip-border
+        #: content fields (for when a clip-border is actually used)"*. That
+        #: page is where the defaults are stored, so the frame stays on screen
+        #: and editable with the clip border Off, with a note that it applies
+        #: only when the clip border is On. Create Chart passes nothing and
+        #: keeps the frame hidden while its chart has no clip border.
+        self._clip_content_always_shown = bool(clip_content_always_shown)
         # Set BEFORE any widget exists: constructing the panel already renders
         # the clip preview a handful of times. A caller that is going to load a
         # recipe straight afterwards (Preferences -> Chart Layout) passes True
@@ -2353,7 +2364,25 @@ class LayoutOptionsPanel(QWidget):
 
         # ---- Clip-border content (i1/p3 clip mode) ----
         self._clip_content_grp = QGroupBox(tr("Clip-border content"), self)
-        ccg = QGridLayout(self._clip_content_grp)
+        # A column holding the note above the grid, and the note is BUILT IN
+        # PREFERENCES ONLY (B8-1362): Knut asked for it there, where the frame
+        # now shows with the clip border Off, and Create Chart's sections
+        # print no prose (their notes live in the ⓘ, see
+        # tests/test_the_notes_left_the_sections_for_the_tooltips.py). A
+        # nested layout has no margins of its own, so the frame Create Chart
+        # shows is unchanged.
+        _ccv = QVBoxLayout(self._clip_content_grp)
+        self._clip_content_note = None
+        if self._clip_content_always_shown:
+            self._clip_content_note = QLabel(tr(
+                "These settings apply only when the clip border is On in a "
+                "chart layout. They are kept while it is Off."), self)
+            self._clip_content_note.setWordWrap(True)
+            self._clip_content_note.setObjectName("info")
+            self._clip_content_note.setVisible(False)  # _update_clip_visibility
+            _ccv.addWidget(self._clip_content_note)
+        ccg = QGridLayout()
+        _ccv.addLayout(ccg)
         self.clip_content_mode = ElidingComboBox(self)
         for k, lbl in (("off", tr("Off")), ("text", tr("Custom text")),
                        ("example", tr("Custom text example")),
@@ -2843,6 +2872,19 @@ class LayoutOptionsPanel(QWidget):
         self._sync_hex_flat_top_visibility()
 
     def _on_instr_changed(self, *_a) -> None:
+        """The instrument combo moved. ``_instr_changing`` is True for the
+        whole of it, including the ``changed`` it emits at the end, which is
+        BEFORE the Create Chart tab's mirror into printtarg's -i has run (that
+        slot is connected after this one). The tab reads it so that a frame
+        refreshed in that window does not take -i, still on the instrument
+        before, as the newer choice and put the panel back on it (B8-1360)."""
+        self._instr_changing = True
+        try:
+            self._on_instr_changed_body()
+        finally:
+            self._instr_changing = False
+
+    def _on_instr_changed_body(self) -> None:
         from workflow.layout_engine import papers
         if self.instr is None:
             return
@@ -2996,7 +3038,21 @@ class LayoutOptionsPanel(QWidget):
         # For CM/SS the band (and its content group) appears only when the clip
         # border is turned on — i.e. content is set to something — matching the
         # i1Pro, whose group hides when its clip is off (#93).
-        show_group = clip_mode or (is_band_inst and content_on)
+        # Preferences (B8-1362) shows the frame with the clip border Off on the
+        # instruments whose clip border is a switch INSIDE one layout
+        # combination (ColorMunki, SpectroScan, CR30), so what is set there is
+        # what that combination uses once it is switched On. On the i1Pro and
+        # the i1Pro 3 Plus "Off" is a combination of its own (Mode "noclip"),
+        # which never has a clip border: nothing set there could ever be used,
+        # so the i1Pro is left as it was.
+        always = self._clip_content_always_shown and is_band_inst
+        show_group = clip_mode or (is_band_inst and content_on) or always
+        if getattr(self, "_clip_content_note", None) is not None:
+            self._clip_content_note.setVisible(always)
+            if always and hasattr(self, "clip_text_size"):
+                # a recipe load names the instrument after it has synced the
+                # fields, so they are put live again here
+                self._sync_clip_content_enabled()
         show_width = clip_mode or (is_band_inst and content_on)
         for w in (self.clip_width_label,
                   getattr(self, "_clip_width_row", self.clip_width),
@@ -3019,6 +3075,13 @@ class LayoutOptionsPanel(QWidget):
         # (#164, Knut: *"Only Notes box shall have the text field disabled"*).
         custom_text = mode in ("text", "branding", "image")
         font_modes = mode in ("text", "branding", "notes", "image")
+        if (mode in (None, "off") and self._clip_content_always_shown
+                and ((getattr(self, "instr", None).currentData()
+                      if getattr(self, "instr", None) is not None
+                      else getattr(self, "_inst", "")) in ("CM", "SS", "CR30"))):
+            # Preferences with the clip border Off (B8-1362): every field is
+            # set here for when it is switched On, so none is greyed.
+            custom_text = font_modes = True
         self.clip_text.setEnabled(custom_text)
         self.clip_insert_btn.setEnabled(custom_text)
         # …and grey its LABEL with it. A live-looking "Text:" over a dead box is
