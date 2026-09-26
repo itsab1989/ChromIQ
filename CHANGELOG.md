@@ -1,5 +1,39 @@
 # Changelog
 
+## v4.3.0-beta.44
+
+**The report judges the paper and the solids against the profile, every limit gets a graph line, the preset lists follow the paper for every group, and Save as Defaults brings a session back as it was saved.**
+
+### New
+
+- **Paper and solids judged against the profile:** on a verification, "ΔE00, paper white against the reference paper" compares the paper patch with the paper white of the profile the sheet was printed through (or the run's own). The two solid-colour rows compare the solids with what the profile predicts wherever they were printed raw. A real printer that prints as profiled now passes these rows; before, it failed them by 11 to 50 because they were compared with ideal sRGB. A sheet printed through the profile, or with no profile or paper patch, reads N-A with the reason. The cube-corner table keeps its ideal values.
+- **Every limited row has a graph line:** the Control strip graph shows its maximum too, and three new graphs show the solid colours, the hue of the solids, and the outer and surface gamut.
+- **Graphs with values but no limit** are shown for trending, with a sentence under each saying what it shows and why it has no limit line.
+- The help of the all-patches, control-strip and grey-ramp rows explains how average, P95 and maximum relate: a P95 limit above the maximum limit can never decide anything.
+
+### Changed
+
+- **Built-in preset lists:** Scanner presets are filtered by paper like every other group. A group with presets for the paper but none ticked shows its heading and "▸ N more presets". With a Custom paper, every Custom-paper preset is offered, whatever the width and height boxes say.
+- The gear window's help states the whole rule, and its info icons look like every other info icon.
+- Custom ISO 12647-7 and -8: "Maximum ΔE00, all patches" starts at 4.50.
+- Lines at the same height share one word ("P95 / Max"), and the words keep clear of the axis numbers. "Shell" is now "Surface", as in the rest of the report.
+- The Printing record names every graph it carries.
+- In the report PDF, the guide spacing, the graph limit captions and a page break before "For information".
+- On a FROM PROFILE GAMUT chart, a neutral aim's tone value runs between the chart's paper and its black; the demo presets are larger, and printtarg uses one fixed seed.
+
+### Fixed
+
+- **Save as Defaults** brings a session back as it was saved, for every instrument: a Custom paper no longer comes back as A2, A3+ Portrait no longer as A4, a paper chosen in Guided comes back in Manual too, a saved margin or patch scale is no longer reset, and a saved "off" flag no longer comes back ticked.
+- A layout saved with the ChromIQ layout engine off no longer opens as A4 at 72 dpi when the engine is switched on later, including layouts saved by every earlier version since 3.13. Options set only in the layout panel (helper markers, chart text, four separate margins) are kept when you save with the engine off.
+- On the CR30, which is always laid out by the ChromIQ layout engine, the panel on screen is what is saved and what Generate builds, even with the engine box unticked.
+- Closing Preferences with Cancel, or without a change, no longer changes margins or scale. A changed i1Pro Chart Defaults preset reaches Manual and stays after a restart.
+- Choosing the i1Pro 3 Plus in the layout panel sets printtarg's instrument too.
+- A Custom size equal to a named paper (for example 420 × 297) is no longer filtered as that paper.
+- The paper filter reads the paper shown on screen, so both preset lists agree after a preset is loaded.
+- End and Home work in the open Select preset list.
+- On a relative-intent FROM PROFILE GAMUT chart, a perfectly printed sheet no longer reads close to the limit on the solid rows.
+- A rare crash when the preset layout ran in the background.
+
 ## v4.3.0-beta.43
 
 **Export and import of the preset list, a paper-size filter, one standard for the main button, and report text that names no part of the app.**
