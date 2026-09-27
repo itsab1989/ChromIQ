@@ -41,8 +41,8 @@ def _as_read(s: str) -> str:
     66 "modified" strings and forced a rewrite of their prose in thirteen
     languages for a change of font weight."""
     sys.path.insert(0, str(ROOT))
-    from core.help_markup import strip_markup
-    return strip_markup(s)
+    from core.help_markup import strip_bold
+    return strip_bold(s)
 
 
 def english_strings() -> "dict[str, str]":

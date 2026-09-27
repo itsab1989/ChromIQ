@@ -512,18 +512,22 @@ class _InfoDialog(QDialog):
         fm = label.fontMetrics()
         if marked:
             from PyQt6.QtGui import QFontMetrics
-            from core.help_markup import _BOLD_RE
+            from core.help_markup import _BOLD_RE, _EMPH_RE
             bold_font = label.font()
             bold_font.setBold(True)
             fmb = QFontMetrics(bold_font)
 
             def _advance(ln: str) -> int:
                 w, pos = 0, 0
+                # an emphasised run (B8-1521) is drawn in italic without its
+                # two asterisks; italic is measured as the regular weight
+                def _reg(s: str) -> int:
+                    return fm.horizontalAdvance(_EMPH_RE.sub(r"\1", s))
                 for m in _BOLD_RE.finditer(ln):
-                    w += fm.horizontalAdvance(ln[pos:m.start()])
-                    w += fmb.horizontalAdvance(m.group(1))
+                    w += _reg(ln[pos:m.start()])
+                    w += fmb.horizontalAdvance(_EMPH_RE.sub(r"\1", m.group(1)))
                     pos = m.end()
-                return w + fm.horizontalAdvance(ln[pos:])
+                return w + _reg(ln[pos:])
 
             marked_lines = [ln for ln in marked.split("\n") if ln.strip()]
             widest = max(_advance(ln) for ln in marked_lines)

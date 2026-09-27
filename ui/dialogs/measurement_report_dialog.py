@@ -1344,6 +1344,11 @@ def _evenness_area_name(area: dict) -> str:
         strips=strips, first=rows[0], last=rows[1])
 
 
+def _shown_above_zero(v) -> bool:
+    """True when `v` would print as more than 0.00 in a sentence."""
+    return isinstance(v, (int, float)) and round(float(v), 2) > 0
+
+
 def _evenness_worst_area_sentence(r: "dict | None") -> str:
     """The one sentence naming the ninth of the page furthest from the rest,
     or "" when the sheet was not judged on evenness."""
@@ -1352,6 +1357,15 @@ def _evenness_worst_area_sentence(r: "dict | None") -> str:
     if not b.get("eligible") or len(areas) != 9:
         return ""
     worst = areas[int(b.get("worst_area", 0))]
+    # B8-1502: the filter takes an area to 0 when the noise explains all of its
+    # difference, and on about 2 % of even sheets it does so for all nine.
+    # `worst_area` is then argmax of nine zeros, area 0, and naming it "the
+    # furthest" says a part of the sheet is off when none is. Decided on the
+    # figure as it would be SHOWN, so no sentence ever names an area at 0.00.
+    if not _shown_above_zero(worst.get("de_from_mean")):
+        return tr("On the measured chart, once the noise's average share is "
+                  "taken out, no ninth of the page differs from the average "
+                  "of all nine.")
     return tr("On the measured chart the ninth of the page furthest from the "
               "average of all nine is {area}: {de} ΔE00 from it (ΔL* {dl}, "
               "Δa* {da}, Δb* {db} against its aim values, over {n} "
@@ -1374,11 +1388,15 @@ def _evenness_where_sentence(r: "dict | None") -> str:
     b = _evenness_block(r)
     areas = b.get("areas") or []
     i, j = (b.get("worst_pair") or [0, 1])[:2]
-    out += " " + tr("The two ninths furthest apart are {a} and {b}, {de} "
-                    "ΔE00 apart.").format(
-                        a=_evenness_area_name(areas[int(i)]),
-                        b=_evenness_area_name(areas[int(j)]),
-                        de=_fmt(b.get("pairwise"), 2))
+    if _shown_above_zero(b.get("pairwise")):
+        out += " " + tr("The two ninths furthest apart are {a} and {b}, {de} "
+                        "ΔE00 apart.").format(
+                            a=_evenness_area_name(areas[int(i)]),
+                            b=_evenness_area_name(areas[int(j)]),
+                            de=_fmt(b.get("pairwise"), 2))
+    else:
+        # B8-1502, the same tie on the worst pair (about 0.3 % of even sheets)
+        out += " " + tr("No two ninths differ from each other.")
     out += " " + tr("The measured chart's own noise, the 95th percentile of "
                     "the same figures with its patches shuffled across the "
                     "nine areas, is {pw} ΔE00 between two areas and {fm} "

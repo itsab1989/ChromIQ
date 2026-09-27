@@ -438,6 +438,46 @@ def _restore_the_modal_entry_points() -> None:
 
 
 @pytest.fixture(autouse=True)
+def _the_argyll_path_is_put_back():
+    """Give every test back the Argyll folder it started with (B8-1520).
+
+    Five test files point the worker's store at a folder with no Argyll in it
+    ("a-folder-with-no-argyll", "/nonexistent/argyll/bin") to prove a failed
+    start is reported. Two of them were given their own restore in c73eb4d9
+    after gate 1 on 23db5202 lost a bystander to it
+    (`test_a_demo_preset_the_page_table_cannot_count_takes_its_layouts`, which
+    then cannot lay out a chart); the third, `test_a_failed_start_never_locks_
+    the_app.py`, still did it, and xdist puts files on a worker in a different
+    order every run. One restore here closes the class instead of the file.
+
+    IN TEARDOWN, and restoring what SETUP saw, not the default: a module-scoped
+    fixture that points the path somewhere on purpose has already run when this
+    one sets up, so its value is what comes back after each of its tests.
+    """
+    import core.settings as _cs
+    if isinstance(_cs.QSettings, type):
+        yield                   # not sandboxed: never touch the real store
+        return
+    try:
+        qs = _cs.QSettings("ChromIQ", "ChromIQ")
+        had = qs.contains("argyll_bin_path")
+        before = qs.value("argyll_bin_path")
+    except Exception:      # noqa: BLE001 — a repair must never fail a test
+        yield
+        return
+    yield
+    try:
+        qs = _cs.QSettings("ChromIQ", "ChromIQ")
+        if not had:
+            if qs.contains("argyll_bin_path"):
+                qs.remove("argyll_bin_path")
+        elif qs.value("argyll_bin_path") != before:
+            qs.setValue("argyll_bin_path", before)
+    except Exception:      # noqa: BLE001
+        pass
+
+
+@pytest.fixture(autouse=True)
 def _no_leaked_session_restore():
     """Start every test with "restore the last session" OFF, whatever the test
     before it left in the store.

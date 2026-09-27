@@ -21,10 +21,12 @@
 - A greyed folder button keeps its tab's colour.
 - The demo projects' evenness demonstrations stand on both sides of the new limits. The two demo presets for the old noise estimate are gone.
 - 35 of Knut's built-in presets (ColorMunki, CR30, i1Pro, i1Pro 3 Plus and the photo cards) carry his updated patch sets, with the near-neutral colours set further from grey. Their layouts are unchanged.
-- The CR30 "Letter-170p-1page-Portrait-w16.0mm-Hexagonal" preset is now named "w17.0mm", the width it prints.
+- The CR30 "Letter-170p-1page-Portrait-w16.0mm-Hexagonal" preset is now named "w17.0mm". Its patches are 16.76 mm wide.
 
 ### Fixed
-- "Which presets can be used for verification" said the i1Pro A4 484-patch and 1200-patch "Full layout setup" presets hold 9 white and 8 black patches. It now says what their patch sets hold: 1 and 1, and 2 and 2.
+- On a sheet whose nine areas all read 0 once the noise is taken out, the Measurement Report no longer names one of them as the area furthest from the average. It says that no area differs.
+- A few parameter helps (Cube Surface Steps, Cube Interior Steps, the BCC steps and Patch Distribution) showed a stressed word between asterisks. It is now shown in italic.
+- Picking the i1Pro A4 484-patch or 1200-patch "Full layout setup" preset set White Patches and Black Patches in Create Chart's Manual settings to 9 and 8. They are now what the two patch sets hold: 1 and 1, and 2 and 2.
 
 - A project reopened after a restart builds the chart it was built as: "Auto patch count", the paper, a built-in preset's own patch set, and a patch set loaded from a file, also for projects saved by beta 44. Reopening a chart made by beta 44 no longer holds the window while ChromIQ checks where its patches came from, and the answer is kept, so it is checked only once.
 - A patch set loaded from a file keeps its layout on the next Generate and after a restart. One known limit: a beta 44 project whose patch set was loaded with the layout engine off keeps its patches, but may lay them out on a different sheet.

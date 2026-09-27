@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-27, B8-1502 (beta 45 challenge 3): a sheet the filter takes to 0 everywhere names no area and no pair, 2 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, Knut #182 5856723428 (bold lead-ins in every help window): 107 help texts had their topic lead-ins marked **...**, so 107 keys were renamed in every catalogue and each value moved with its key (an English echo stays an echo, a translation keeps its words and gains the marks where its own paragraph shows the lead-in); and "comes from the instrument" became "may come from the instrument" in the two evenness helps, 2 keys replaced by 2. No key in, none out, no value changed from translated to English or back. Counted off the tree against HEAD with the expressions these tests use: every language identical in both ledgers (de 141 / 13, uk 1642 / 1272, the rest unchanged). COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, Knut #182 5855780690 (the evenness filter, converted ISO limits, the feature description): the two evenness rows' help, their relation guide, three set blurbs, the Report Limits note on the converted cells and the presets window's "can be judged" line, 6 keys replaced and 6 new. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1471 (beta 45 challenge 2, F2): the presets window's evenness sentence on a chart whose last page the report leaves out says "the same ninth of {pages} of the chart's {total} pages" instead of "all {pages} pages", and names the page left out in the report's own (already translated) words: 2 keys in, none out. And Knut's #182 5853818821: the Build Profile tab's calibration help moves its advice for newcomers early, 1 key replaced by 1 (German by hand; the twelve others carried the English before and after, so it does not move a count). German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
@@ -1499,17 +1500,17 @@ _IDENTICAL_TO_KEY = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 141,
-    "es": 1490,
-    "fr": 1512,
-    "it": 1501,
-    "ja": 1476,
-    "nl": 1515,
-    "no": 1501,
-    "pl": 1494,
-    "pt": 1492,
-    "ru": 1464,
-    "sv": 1502,
-    "zh_CN": 1470,
+    "es": 1492,
+    "fr": 1514,
+    "it": 1503,
+    "ja": 1478,
+    "nl": 1517,
+    "no": 1503,
+    "pl": 1496,
+    "pt": 1494,
+    "ru": 1466,
+    "sv": 1504,
+    "zh_CN": 1472,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1538,8 +1539,7 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 1642,
-    "uk": 1642,
+    "uk": 1644,
 }
 
 

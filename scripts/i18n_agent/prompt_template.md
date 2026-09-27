@@ -9,6 +9,7 @@ STYLE (hard requirement from the app's author): ChromIQ's texts are extensive, f
 HARD RULES:
 - {placeholders} must be preserved EXACTLY, including format specs like {limit:.1f} — they are part of the key and verified by tests.
 - "&&" stays "&&" (Qt escape). HTML markup (<b>, <br>, &nbsp;, <span style=…>) preserved exactly.
+- "**...**" marks a bold lead-in or heading in a help window (for example "**How it works:**"). Keep the same number of marks, and put them round the words of YOUR translation that name the same topic, never round other words. If a translation has no such phrase, leave the marks out entirely rather than unbalanced. Never translate a lead-in outside its marks.
 - CLI flags (-d, -G, printtarg -i…), file extensions, file-filter patterns like "(*.ti3);;…" stay untouched; translate only the descriptive words in filters.
 - Singular/plural keys are separate full sentences ("1 patch selected." vs "{n} patches selected.") — translate each naturally.
 - EVERY bracketed log tag stays in English, not just the common four: [INFO]/[OK]/[WARNING]/[ERROR]/[NOTE]/[STOPPED]/[BUSY]/[Report]/[Engine]. One log that prints [ERROR] beside [WARNUNG] looks broken.

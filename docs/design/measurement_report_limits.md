@@ -9603,6 +9603,14 @@ in 51.2 and waits for his confirmation.
   it measures. This supersedes the window verdicts of §16.6 (the one-page
   i1Pro 3 Plus A4 and Letter charts now answer both rows) and the count
   sentences of §50.3 and §50.6, and it took the demo pack's R18 and R19 out.
+* **No area named at 0.00** (B8-1502, told to Knut in #182 5857381652: "It
+  will say instead that no area differs"): when the filter takes every area's
+  difference from the average to what would print as 0.00, the note says *"On
+  the measured chart, once the noise's average share is taken out, no ninth of
+  the page differs from the average of all nine."* instead of naming the first
+  area as the furthest; and when the largest difference between two areas
+  prints as 0.00, *"No two ninths differ from each other."* instead of naming
+  a pair. The wording is not yet approved.
 
 **Verified by:** `tests/test_evenness_filter_and_converted_limits.py`, and
 the retargeted guards in `test_evenness_across_the_sheet.py`,
