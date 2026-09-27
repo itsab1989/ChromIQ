@@ -391,10 +391,11 @@ def ring_mm_of(recipe) -> float:
         return 0.0
     try:
         from workflow.layout_engine import instruments
-        from workflow.layout_engine.presets import LayoutRecipe
-        if isinstance(recipe, dict):
-            recipe = LayoutRecipe.from_dict(recipe)   # B8-1542: one reading
-        geom = instruments.geom_from_build_kwargs(recipe.build_kwargs())
+        from workflow.layout_engine.presets import build_kwargs_as_built
+        # B8-1570: a stored recipe is read as the chart was built (and through
+        # `from_dict`, B8-1542); a live recipe by today's rule.
+        geom = instruments.geom_from_build_kwargs(
+            build_kwargs_as_built(recipe))
         return float(getattr(geom, "hex_ring_mm", 0.0) or 0.0)
     except Exception:      # noqa: BLE001 — a cap that cannot be computed is 0
         return 0.0

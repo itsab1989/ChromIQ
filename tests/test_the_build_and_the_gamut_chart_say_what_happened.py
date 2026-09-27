@@ -257,7 +257,7 @@ def test_the_estimate_column_answers_for_the_gamut_chart(
 
     seen: list = []
     monkeypatch.setattr(tab, "_predict_layout_info",
-                        lambda geom, paper, pages, npat=None:
+                        lambda geom, paper, pages, npat=None, dpi=None:
                         seen.append(npat))
     monkeypatch.setattr(tab, "_manual_engine_check_is_on", lambda: True,
                         raising=False)

@@ -531,9 +531,8 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
         layout = json.loads(read_text(channels)).get("layout") or {}
         recipe = layout.get("recipe") or {}
         from workflow.layout_engine import instruments
-        from workflow.layout_engine.presets import LayoutRecipe
-        rc = LayoutRecipe.from_dict(recipe)     # B8-1542: one reading
-        kw = rc.build_kwargs()
+        from workflow.layout_engine.presets import build_kwargs_as_built
+        kw = build_kwargs_as_built(recipe)      # B8-1570: as it was built
         if not kw.get("edge_spacers"):
             return 0
         geom = instruments.geom_from_build_kwargs(kw)

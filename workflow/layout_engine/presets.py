@@ -59,6 +59,44 @@ def stored_layout_mode(d: dict) -> str:
     return "patch_first" if patch_first_only else "area_first"
 
 
+#: B8-1570. A recipe serialised by a build that has B8-1540's rule says so, so a
+#: sheet already on paper can be described by the rule it was LAID OUT with.
+#: Only :meth:`LayoutRecipe.to_dict` writes it, and every chart's stored recipe
+#: is written that way at Generate (`chart_creator._embed_layout_geometry`, the
+#: relayout dialog), so a stored recipe without it was built before the fix.
+HIDES_PATCH_CONTROLS_KEY = "area_first_hides_patch_controls"
+
+
+def build_kwargs_as_built(recipe) -> dict:
+    """The engine kwargs a chart was BUILT with, for the helpers that describe a
+    sheet already made (B8-1570): the edge-spacer width behind "Show only
+    measured patches", the margin inspector's ink bounds, the hexagon ring cap,
+    the evenness page coverage.
+
+    A new Generate follows :meth:`LayoutRecipe.build_kwargs`, where "Prioritise
+    chart area" gives the hidden patch size, patch scale and chart offset no say
+    (B8-1540). A chart generated before that fix was laid out WITH them, and
+    its stored recipe says area-first all the same; described through
+    `build_kwargs()` it becomes a different sheet (Knut's own case: 14 x 10 mm
+    patches, 22 a strip, 1 page, read back as 20.5 mm, 12 a strip, 3 pages).
+    So a stored recipe dict without :data:`HIDES_PATCH_CONTROLS_KEY` gets the
+    three back, exactly as the engine was handed them then. A live
+    :class:`LayoutRecipe`, or a dict this version wrote, is described by
+    today's rule."""
+    if isinstance(recipe, LayoutRecipe):
+        return recipe.build_kwargs()
+    d = dict(recipe or {})
+    r = LayoutRecipe.from_dict(d)
+    kw = r.build_kwargs()
+    if r.layout_mode == "area_first" and not d.get(HIDES_PATCH_CONTROLS_KEY):
+        kw["pscale"] = r.pscale
+        kw["patch_w"] = r.patch_w_mm or None
+        kw["patch_h"] = r.patch_h_mm or None
+        kw["offset_x"] = r.offset_x_mm
+        kw["offset_y"] = r.offset_y_mm
+    return kw
+
+
 @dataclass
 class LayoutRecipe:
     instrument: str = "i1"
@@ -327,7 +365,9 @@ class LayoutRecipe:
 
     # ---- serialisation (meta.json round-trip) --------------------------
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "LayoutRecipe":

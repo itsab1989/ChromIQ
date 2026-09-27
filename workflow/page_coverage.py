@@ -237,7 +237,6 @@ def predicted_page_coverage(recipe, n_patches: int) -> dict:
     :func:`~workflow.margin_inspector.engine_ink_bounds_px` exactly as
     :func:`~workflow.margin_inspector.measure_from_engine` widens a built
     chart's, so the prediction is the number the panel will show."""
-    from dataclasses import asdict
     from workflow.layout_engine import geometry, instruments, papers
     from workflow.margin_inspector import engine_ink_bounds_px
     kw = recipe.build_kwargs()
@@ -248,7 +247,7 @@ def predicted_page_coverage(recipe, n_patches: int) -> dict:
     dpi = float(getattr(recipe, "dpi", 300) or 300)
     lay = geometry.compute(geom, w_mm, h_mm, int(n_patches))
     rects = geometry.patch_rects_px(geom, w_mm, h_mm, lay, int(dpi))
-    rec = asdict(recipe)
+    rec = recipe.to_dict()          # B8-1570: today's rule, see margin_inspector
     pages: "list[Optional[dict]]" = []
     for pg in range(max(1, int(lay.pages))):
         on = [r for r in rects if int(r.get("page", 0)) == pg]

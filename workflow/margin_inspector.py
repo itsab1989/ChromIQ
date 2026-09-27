@@ -246,16 +246,16 @@ def engine_ink_bounds_px(rects, rec, dpi: float):
     # Resolving it here rather than at the recording end also fixes every chart
     # already on disk, which no migration would reach.
     from workflow.layout_engine import instruments
-    from workflow.layout_engine.presets import LayoutRecipe
+    from workflow.layout_engine.presets import build_kwargs_as_built
     try:
-        _rc0 = LayoutRecipe.from_dict(rec)     # B8-1542: one reading
-        _edge = bool(_rc0.build_kwargs().get("edge_spacers"))
+        # B8-1570: a built chart is described as it was built.
+        _kw_built = build_kwargs_as_built(rec)
+        _edge = bool(_kw_built.get("edge_spacers"))
     except Exception:  # pragma: no cover - defensive
         _edge = bool(rec.get("edge_spacers"))
     if _edge:
         try:
-            _rc = LayoutRecipe.from_dict(rec)
-            _geom = instruments.geom_from_build_kwargs(_rc.build_kwargs())
+            _geom = instruments.geom_from_build_kwargs(_kw_built)
             _sp_px = round(_geom.pspa * dpi / _MM_PER_INCH)
             if _sp_px > 0:
                 y0 -= _sp_px
@@ -385,9 +385,10 @@ def engine_patch_bottom_mm(recipe, patches: int = 0) -> "Optional[float]":
         # DEFAULT recipe: the honeycomb ring band went missing and this
         # answered 19.853 mm where the built chart measures 18.964 -- 0.889 mm,
         # which is the ring correction to the tenth.
-        from dataclasses import asdict as _asdict
+        # `to_dict`, not `asdict`: it carries B8-1570's mark, so a recipe
+        # being planned is read by today's rule, not as a pre-fix chart.
         _x0, _x1, _y0, y1, _pw = engine_ink_bounds_px(
-            page0, _asdict(recipe), dpi)
+            page0, recipe.to_dict(), dpi)
         return float(paper_h_mm) - float(y1) * _MM_PER_INCH / dpi
     except Exception:          # noqa: BLE001 - a prediction, never a blocker
         return None

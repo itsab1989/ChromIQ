@@ -8945,7 +8945,8 @@ class TabChart(QWidget):
             if _npat:
                 _kw["area_target_count"] = int(_npat)
             geom = instruments.geom_from_build_kwargs(_kw)
-            self._predict_layout_info(geom, r.paper, pages_req, npat=_npat)
+            self._predict_layout_info(geom, r.paper, pages_req, npat=_npat,
+                                      dpi=getattr(r, "dpi", None))
         except Exception:
             self._layout_info_panel.clear_estimate()
 
@@ -24041,7 +24042,8 @@ class TabChart(QWidget):
             return None
 
     def _predict_layout_info(self, geom, paper: str, pages_req: int,
-                             npat: "int | None" = None):
+                             npat: "int | None" = None,
+                             dpi: "int | None" = None):
         """Fill the Chart-layout-information panel with the engine's predicted
         grid (#93). With *npat* (the on-screen chart's patch count) the SAME
         patches are laid out under the current settings; otherwise a capacity-
@@ -24074,8 +24076,27 @@ class TabChart(QWidget):
             # patch that is 11.3 × 13.05 (#B8-80). Both numbers are worth having,
             # so both are shown, and the pitch is named as the pitch.
             _flat = bool(getattr(geom, "hex_flat_top", False))
+            _slot_w, _slot_h = geom.pwid, geom.plen
+            # THE PATCH THE RENDERER WILL DRAW, WHEN WE KNOW ITS RESOLUTION
+            # (B8-1571). The "on screen" column reads the first patch the
+            # engine recorded, and `geometry.patch_rects_px` rounds each edge
+            # from its exact position, so a patch that is not a whole number
+            # of pixels comes out a pixel narrower or wider: Knut's 10 x 15 cm
+            # photo card, 7.59 mm at 200 dpi, read 7.49 on screen against 7.59
+            # here, with nothing marked because a pixel is under the amber
+            # tolerance. The first slot of the same layout, snapped by the same
+            # function at the chart's dpi, is the number on screen after
+            # Generate.
+            if dpi:
+                try:
+                    _r0 = geometry.patch_rects_px(geom, w_mm, h_mm, lay,
+                                                  int(dpi))[0]
+                    _slot_w = _r0["w"] * 25.4 / float(dpi)
+                    _slot_h = _r0["h"] * 25.4 / float(dpi)
+                except Exception:   # noqa: BLE001 - fall back to the exact size
+                    pass
             _pw, _ph, _pitch = _panel_patch_size_mm(
-                geom.pwid, geom.plen, instruments.is_hexagonal(geom), _flat)
+                _slot_w, _slot_h, instruments.is_hexagonal(geom), _flat)
             # ...and name the axis, because on a turned sheet that number is a
             # COLUMN pitch across the page and not a row pitch down a strip.
             if hasattr(panel, "set_pitch_axis"):
