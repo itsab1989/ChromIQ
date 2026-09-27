@@ -29958,12 +29958,17 @@ would reach.
 - evidence: test_the_100x150_builtin_puts_minus_p_on_its_paper, test_an_a4_builtin_still_reads_a4
 - where: `ui/tabs/tab_chart.py` (`_seed_knut_preset`).
 
-### B8-1415 · OPEN · "Drift" still appears in help texts outside the report
+### B8-1415 · FIXED, awaiting confirmation · "Drift" still appears in help texts outside the report
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- found by: beta 45 batch 1 and a grep after it. Knut, #182 5849392788: "The word drift is not used at all"; the report and its help follow that since K59, B8-1396 cleaned Create Chart's FROM PROFILE GAMUT help. Still left: "Inspect a measurement" (`ui/dialogs/ti3_info_dialog.py`: "how far the greys drifted away from truly neutral", "Inks and paper can drift over time"), the Getting Started card (`ui/getting_started.py`: "printheads drift", with an em dash), and "Greys are where … a printer drifts first". Sweep every user-facing string with a tr() or a catalogue key for drift/drifted/drifting, say "change" (or "move away from" where that is the meaning), clean em dashes in touched strings, German by hand, both ledgers.
-- where: `ui/dialogs/ti3_info_dialog.py`, `ui/getting_started.py`, and a grep of `data/i18n/de.json` keys.
+- status: FIXED
+- found by: beta 45 batch 1 and a grep after it. Knut, #182 5849392788: "The word drift is not used at all"; the report and its help follow that since K59, B8-1396 cleaned Create Chart's FROM PROFILE GAMUT help.
+- fix: every user-facing text that said drift, drifted, drifting or drifts now says change / changed, "moved away from", slid or slipped, whichever is the meaning: 16 `tr()` texts ("Inspect a measurement" Average cast and Measured on, the Getting Started card, the grey-balance rings of the New patch set window, the calibration, black-generation and out-of-gamut helps of Build Profile, Preferences' Accuracy, i1Pro margin, strip-outlier and placement-agreement helps, the -S and -N texts of Measure, Verify against reference and its 3D map, Reset grid), the -m, -r and -T tooltips of `data/parameters.yaml` and their German overlay, the measurement-windows help (`core/measure_windows.py`, English only, see B8-1418) and the CR30 reflectance warning. Every em dash of a touched text cleaned. German by hand (Du-Form; two old slips fixed on the way: "betten" to "bette", "bis du sich" to "bis du dich"); the other twelve carry the new English (both ledgers +15), except Russian, which keeps its own translation of the Accuracy help because the English's spaced en-dash bullets are refused in ru.json (+14). Em-dash baseline pruned by 13, its ceiling lowered to 1043. Not touched: the report (another stream; it already says change), comments, identifiers (`raw_drift`, `seating_drift`) and the English-only placement diagnostics in the log.
+- guard: `tests/test_b8_1415_no_drift_in_user_facing_text.py` fails on drift in any English text a user reads (every `tr()` literal, `_esc()` literal, the §M catalogue, `data/parameters.yaml`) and any German one (de.json values, parameters.de.yaml); exceptions go to its `ALLOWED` with a reason (none today). Not the eleven other languages: "drift" is an ordinary word in Dutch, Norwegian and Swedish.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch2/1415/` (before and after, EN and DE, 18 texts each opened from its (i) or shown as its tooltip, 0 of 18 say drift after); the English before and after of all 21 texts in `~/Desktop/ChromIQ-beta45-proof/batch2/TEXTS.txt`.
+- tests: tests/test_b8_1415_no_drift_in_user_facing_text.py, tests/test_i18n.py, tests/test_help_cards_untranslated_are_tracked.py, tests/test_no_new_em_dash_in_user_facing_text.py; mutations M1415-a to M1415-f (`~/Desktop/ChromIQ-beta45-proof/batch2/mutations/m1415.txt`), each red.
+- evidence: test_no_english_text_a_user_reads_says_drift, test_no_german_text_a_user_reads_says_drift, test_the_collector_sees_the_surfaces_it_claims, test_the_named_text_says_change_and_german_is_by_hand
+- where: `ui/dialogs/ti3_info_dialog.py`, `ui/getting_started.py`, `ui/dialogs/ti2_relayout_dialog.py`, `ui/tabs/tab_profile.py`, `ui/dialogs/settings_dialog.py`, `ui/tabs/tab_measure.py`, `ui/dialogs/tools_dialogs.py`, `ui/dialogs/scanin_dialog.py`, `core/measure_windows.py`, `workflow/cr30/measurement.py`, `data/parameters.yaml`, `data/i18n/*`.
 
 ### B8-1416 · OPEN · Switching Create Chart's instrument to the ColorMunki, SpectroScan or CR30 keeps the previous instrument's clip content
 - blocks release: no
@@ -30551,7 +30556,20 @@ would reach.
 - evidence: test_the_preferences_note_keeps_its_first_sentence_only
 - where: `ui/dialogs/layout_options_panel.py`, `data/i18n/*.json`.
 
-### B8-1414 · OPEN · Everyday tier: `test_the_next_step_pumps_again` ended early (a stray quit) in 2 of 4 runs during beta 45 batch 1
+### B8-1414 · FIXED, awaiting confirmation · Everyday tier: `test_the_next_step_pumps_again` ended early (a stray quit) in 2 of 4 runs during beta 45 batch 1
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: beta 45 batch 1 (B8-1396 to B8-1413). `tests/test_a_driver_returns_to_a_modal_it_closed.py::test_the_next_step_pumps_again` failed with its own message "run() returned before the second step: the event loop was ended from outside the drive (a stray quit)" in two everyday runs, and passed alone.
+- cause (measured with a probe plugin on every everyday run below: `lastWindowClosed` with its stack, every collection, every window visible at the test's start and every `deleteLater()` of a visible window): NOT B8-1400. The drive's `QApplication.exec()` ended 3 to 157 ms in because Qt's quit-on-last-window-closed fired, never inside a garbage collection. The windows that closed were other tests' top-level widgets that they had shown and then `deleteLater()`'d with no event loop running (`test_log_panes_resizable.py`, `test_a_spinbox_fits_its_own_special_value.py` among them). A deferred delete posted outside any loop is not run by `processEvents()`; it waits for the next loop that starts, and on a worker that was this drive's `exec()`, the first on the worker. Whether it failed depended on which files the worker ran first. The beta 41 guess in the test ("a quit() timer an earlier test left") was wrong: nothing quits the application from a timer. B8-1400's full collection at the first tick after a dialog closes can close a garbage window in a reference cycle the same way (shown in plain Qt, `gc.collect()` inside `exec()` on a visible parentless QWidget ends the loop), but it was not what happened in any failing run.
+- rates, everyday tier (`-n auto`, full runs, under the load of each other and of the on-screen drives): with B8-1400 (the branch tip) 1 of 8 red (batch 1: 2 of 4); with B8-1400 reverted 3 of 8 red; after the fix 0 of 4. Loop of the real predecessor then this file, one worker, under load: branch tip `test_log_panes_resizable.py` 15 of 15 red, `test_a_spinbox_fits_its_own_special_value.py` 5 of 5 red; B8-1400 reverted 10 of 10 red; after the fix 0 of 20 and 0 of 20; the file alone 0 of 10 before and after.
+- fix, in the test harness: `tests/conftest.py::_a_test_deletes_what_it_deleted_later` sends the queued DeferredDelete events in every test's teardown (loop level 0, outside any event delivery and any `exec()`, so a window closed there cannot quit anything), so a test's `deleteLater()` is carried out in that test. The drive test also flushes deferred deletes and collects before its `exec()`, and its comment names the real cause. `core/gc_guard.py` unchanged: it collects only garbage, and the app's main window is always visible.
+- tests: tests/test_b8_1414_a_deferred_delete_does_not_outlive_its_test.py, tests/test_a_driver_returns_to_a_modal_it_closed.py; mutations M1414-a to M1414-c (`~/Desktop/ChromIQ-beta45-proof/batch2/mutations/m1414.txt`), each red; M1414-d, a control, green.
+- evidence: test_a_test_shows_a_window_and_deletes_it_later, test_it_is_gone_when_the_next_test_starts, test_an_event_loop_after_it_runs_until_it_is_told_to_stop, test_the_next_step_pumps_again
+- proof: `~/Desktop/ChromIQ-beta45-proof/batch2/1414/` (probe, probe records of every failing run, loop and full-run summaries).
+- where: `tests/conftest.py`, `tests/test_a_driver_returns_to_a_modal_it_closed.py`.
+
+### B8-1417 · OPEN · The chartread block of `data/parameters.yaml` is shown nowhere, and its -T tooltip names a default of 0.7 where the value is 0.5
 - blocks release: no
 - severity: MINOR
 - status: OPEN
@@ -30643,3 +30661,19 @@ would reach.
 - note: a question for Knut.
 - found by: B8-1440. ChromIQ's evenness compares every patch with its own aim, averaged per ninth (§16), so a typical print's noise is the profile's per-patch scatter shrunk by the count in a ninth. Under 0.5 that needs about 225 patches in a ninth; no preset in the window reaches it, so the row is never judged under the ISO 12647-7:2016 values on a verification chart. §16.5 E6 already records that a licence holder's figure for this row was written for a different statistic (one colour at nine places). Keep judging against 0.5, or leave the row "–" in the read-only ISO 12647-7 column?
 - where: `data/compliance_sets/iso12647.json`, `workflow/compliance_sets.py`.
+- found by: B8-1415 (batch 2 of beta 45). `ParameterWidget` rows are built only in Create Chart (targen and printtarg); Measure builds its own -T row with its own text ("Patch consistency tolerance (-T)"). The yaml's chartread tooltips are therefore not on screen, and the -T one says "the default of 0.7 leaves comfortable headroom" beside `default: 0.5`. Its drift wording was cleaned with the rest; whether the block should be removed or the number corrected is not decided here.
+- where: `data/parameters.yaml` (chartread), `ui/tabs/tab_measure.py` (`_ChartreadOption` key "tolerance").
+
+### B8-1418 · OPEN · The "Measurement windows and their sounds" help is in no translation catalogue
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: B8-1415, on screen: Preferences > Sounds, (i) "Measurement windows and their sounds" is English in the German app (`~/Desktop/ChromIQ-beta45-proof/batch2/1415/after-de/photographs/prefs-measurement-windows-de.png`). `core/measure_windows.py` hands its texts to `tr()` through `_esc()`, which `scripts/i18n_extract.py` does not sweep, so none of them is a key in any catalogue and `tests/test_i18n.py` cannot see them missing. B8-1415's guard reads `_esc()` literals for "drift"; the extractor still does not.
+- where: `core/measure_windows.py`, `scripts/i18n_extract.py`.
+
+### B8-1419 · OPEN · Test runs write into the real application log
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: B8-1415's on-screen drives, run while everyday tiers ran in unpacked tree copies: the app log the drive reads (`core.logger._log_path()`, the real `chromiq.log`) carried 20 to 60 "Settings SANDBOXED to .../pytest-of-Basti/pytest-99/popen-gwN/..." lines per drive from the suite's workers (e.g. `k44audit0/s.ini`, `test_every_pulldown_matches_cr0/s.ini`). `tests/conftest.py` pre-installs a NullHandler so the suite stays off that log; something (probably a child process a test starts) still reaches it. Not traced further.
+- where: `tests/conftest.py`, `core/logger.py`.
