@@ -31021,3 +31021,28 @@ would reach.
 - evidence: test_the_translation_prompt_explains_the_bold_marks
 - where: `scripts/i18n_agent/prompt_template.md`.
 
+
+### B8-1540 · FIXED, awaiting confirmation · A patch size typed under "Prioritise patch size" still decided the chart under "Prioritise chart area"
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5857405680: with the ChromIQ engine, a patch size typed under "Prioritise patch size, then fit to page", then "Prioritise chart area, then fit patches to it" and "By columns / rows": "the preview is totally overruled by the settings in the 'Prioritise patch size, then fit to page' option ... I cannot get the margins or other settings to work".
+- fix: `LayoutRecipe.build_kwargs` passed the patch-first patch size, patch scale and chart offset to the engine in every layout mode, and `instruments.geom_from_build_kwargs` derives an area-first patch size only when the kwargs carry none, so a typed size switched the area fit off altogether. Reproduced on screen (i1Pro, A4, margins 20 mm, 14 x 10 mm typed, 8 strips by 12 rows asked): 11 strips of 22 at 14 mm, 32 / 24 / 26 / 21 mm from the edges. In "Prioritise chart area" the three hidden controls now reach the engine as auto, 1.0 and 0 (the recipe keeps what was typed, so "Prioritise patch size" gets it back); after the fix the same steps lay out 8 strips of 12 at 20.5 mm on 3 pages, 20 mm from the top, right and bottom. The patch-area alignment is left alone: the built-in area-first presets set "top-left" on purpose. This follows docs/design/issue_182_answers.md, "The margins decide where the patch area lands. That holds for the ChromIQ layout engine and for 'Prioritise chart area'".
+- on screen: `~/Desktop/ChromIQ-beta45-proof/layout-mode-leak/` (before/ and after/, four photographs each, record.json), `scripts/drive_b8_1540_layout_mode_leak.py`.
+- tests: tests/test_b8_1540_the_layout_mode_not_chosen_has_no_say.py
+- evidence: test_a_patch_first_setting_does_not_change_an_area_first_chart, test_by_columns_rows_lays_out_the_grid_asked_for_with_a_typed_size, test_the_recipe_keeps_what_was_typed_for_the_way_back (8 of the 10 fail on the old code)
+- where: `workflow/layout_engine/presets.py` `LayoutRecipe.build_kwargs`.
+
+### B8-1541 · OPEN · In "Prioritise chart area" the layout information's estimate column disagrees with the chart on screen
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: B8-1540's on-screen drive, after the fix. With a chart of 231 patches generated and "Auto-update preview" on, the Chart layout information showed "on screen" 240 patches on 3 pages beside "estimate" 96 on 1 page (by columns / rows, 8 x 12), and 234 on screen beside 540 estimated at 8.19 x 8.48 mm where the chart is 12.62 x 13.21 mm (by patch width); the app marks the differing cells in orange. The estimate path is the same one any area-first chart with no typed patch size takes, so the fix did not introduce it, but that was not measured separately. Possibly related to B8-1480.
+- where: `ui/tabs/tab_chart.py` the layout estimate (`_refresh_layout_estimate`, `area_target_count`), `ui/chart_layout_info_panel.py`.
+
+### B8-1542 · OPEN · Four helpers rebuild a stored recipe with the dataclass default mode, which is not the one `from_dict` reads
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: B8-1540. `LayoutRecipe.layout_mode` defaults to "area_first" (since 3b6d655c, 2026-06-28), while `LayoutRecipe.from_dict` reads a recipe with no `layout_mode` as "patch_first". Recipes written before 2026-06-28 carry no mode. Four places rebuild a stored recipe with `LayoutRecipe(**d)` and so read such a recipe as area-first: the ui-state restore (`ui/tabs/tab_chart.py`, engine recipe), the spacer width on hover (`ui/tabs/tab_measure.py`), the margin inspector (`workflow/margin_inspector.py`) and the hexagon ring cap (`workflow/hex_support.py`). Before B8-1540 a typed patch size on such a recipe still reached the engine in area-first, so those helpers agreed with `from_dict`; now they lay it out area-first while the chart's own load reads it patch-first. No recipe in the repository is affected (none stores a layout recipe); only a user's project from before 2026-06-28 with a typed patch size could be. Not measured on a real old project.
+- where: the four call sites above; `workflow/layout_engine/presets.py` `LayoutRecipe`, `from_dict`.

@@ -28,6 +28,7 @@
 - A few parameter helps (Cube Surface Steps, Cube Interior Steps, the BCC steps and Patch Distribution) showed a stressed word between asterisks. It is now shown in italic.
 - Picking the i1Pro A4 484-patch or 1200-patch "Full layout setup" preset set White Patches and Black Patches in Create Chart's Manual settings to 9 and 8. They are now what the two patch sets hold: 1 and 1, and 2 and 2.
 
+- With the ChromIQ layout engine, a patch size typed under "Prioritise patch size, then fit to page" no longer decides the chart after switching to "Prioritise chart area, then fit patches to it": the columns and rows, the minimum patch width and the margins do. The patch scale and the chart offset no longer move it either. All three come back when you switch to "Prioritise patch size" again.
 - A project reopened after a restart builds the chart it was built as: "Auto patch count", the paper, a built-in preset's own patch set, and a patch set loaded from a file, also for projects saved by beta 44. Reopening a chart made by beta 44 no longer holds the window while ChromIQ checks where its patches came from, and the answer is kept, so it is checked only once.
 - A patch set loaded from a file keeps its layout on the next Generate and after a restart. One known limit: a beta 44 project whose patch set was loaded with the layout engine off keeps its patches, but may lay them out on a different sheet.
 - A typed patch count of 0 shows the chart Generate really builds.

@@ -482,7 +482,19 @@ class LayoutRecipe:
 
     # ---- mapping to the engine build kwargs ----------------------------
     def build_kwargs(self) -> dict:
-        """Kwargs for :func:`workflow.layout_engine.chart.build_chart`."""
+        """Kwargs for :func:`workflow.layout_engine.chart.build_chart`.
+
+        THE MODE THAT IS NOT CHOSEN HAS NO SAY (B8-1540, Knut #182 5857405680).
+        "Prioritise chart area" hides the patch size, the patch scale and the
+        chart offset, because it derives the patch size from the margin box.
+        The recipe still HOLDS what was typed there, so switching back to
+        "Prioritise patch size" gives it back, but none of it may reach the
+        engine: a typed patch size made `geom_from_build_kwargs` skip the area
+        fit altogether (a 10 by 20 grid came out as 364 patches), the scale
+        grew the spacers, and the offset moved the block out of the margins.
+        The patch-area alignment is NOT neutralised: the built-in area-first
+        presets set it on purpose."""
+        area = self.layout_mode == "area_first"
         return {
             "instrument": self.instrument,
             "paper": self.paper,
@@ -506,13 +518,13 @@ class LayoutRecipe:
             "edge_spacers": (self.edge_spacers
                              or self.instrument in ("i1", "p3", "CM")),
             "patch_area_align": self.patch_area_align,
-            "pscale": self.pscale,
+            "pscale": 1.0 if area else self.pscale,
             "sscale": self.sscale,
             "border": self.border,
             "margins": (self.margin_top, self.margin_right,
                         self.margin_bottom, self.margin_left),
-            "patch_w": self.patch_w_mm or None,
-            "patch_h": self.patch_h_mm or None,
+            "patch_w": None if area else (self.patch_w_mm or None),
+            "patch_h": None if area else (self.patch_h_mm or None),
             "layout_mode": self.layout_mode,
             "area_method": self.area_method,
             "area_cols": self.area_cols,
@@ -524,8 +536,8 @@ class LayoutRecipe:
             "strip_gap": self.strip_gap_mm or None,
             "max_strip": self.max_strip_mm or None,
             "strip_indicator_gap": self.strip_indicator_gap_mm or None,
-            "offset_x": self.offset_x_mm,
-            "offset_y": self.offset_y_mm,
+            "offset_x": 0.0 if area else self.offset_x_mm,
+            "offset_y": 0.0 if area else self.offset_y_mm,
             "bit16": self.bit16,
             "compression": self.compression,
             "export_pdf": self.export_pdf,

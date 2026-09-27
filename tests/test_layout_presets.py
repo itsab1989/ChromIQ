@@ -196,7 +196,10 @@ def test_spectroscan_defaults_to_patch_first():
 def test_from_build_kwargs_roundtrip_and_detection():
     """A chart whose channels.json stored build-kwargs (not a recipe) must
     reload faithfully — esp. clip_border (kwargs spell it nolpcbord) (#93)."""
+    # "Prioritise patch size", where the patch scale reaches the engine; in the
+    # dataclass default, area-first, it is hidden and sent as 1.0 (B8-1540).
     r = LayoutRecipe(instrument="i1", paper="A4", clip_border=False, border=10.0,
+                     layout_mode="patch_first",
                      pscale=0.95, underline_mode="cycle", cm_density=1,
                      indicator_rotation=90)
     kw = r.build_kwargs()

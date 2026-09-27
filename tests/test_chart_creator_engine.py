@@ -200,7 +200,11 @@ def test_engine_kwargs_uses_full_recipe(tmp_path: Path) -> None:
     from workflow.layout_engine.presets import LayoutRecipe
     creator = ChartCreator(_EngineRunner(), _MockFileManager(tmp_path / "p"),
                            _EngineSettings())
+    # "Prioritise patch size": a typed patch size and a chart offset reach the
+    # engine only there. The dataclass default is area-first, where both are
+    # hidden and inert (B8-1540).
     recipe = LayoutRecipe(instrument="i1", paper="A4", margin_top=10,
+                          layout_mode="patch_first",
                           patch_w_mm=9.0, offset_x_mm=4.0, spacer_mode="bw")
     params = ChartParams(instrument="i1", paper="Letter",
                          layout_recipe=recipe, engine_cal_path="/tmp/c.cal",
