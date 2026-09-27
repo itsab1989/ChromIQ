@@ -30537,3 +30537,10 @@ would reach.
 - tests: tests/test_k61_preset_lists_note_link_and_apply.py; mutation M61-f, red.
 - evidence: test_the_preferences_note_keeps_its_first_sentence_only
 - where: `ui/dialogs/layout_options_panel.py`, `data/i18n/*.json`.
+
+### B8-1414 · OPEN · Everyday tier: `test_the_next_step_pumps_again` ended early (a stray quit) in 2 of 4 runs during beta 45 batch 1
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 45 batch 1 (B8-1396 to B8-1413). `tests/test_a_driver_returns_to_a_modal_it_closed.py::test_the_next_step_pumps_again` failed with its own message "run() returned before the second step: the event loop was ended from outside the drive (a stray quit)" in two everyday runs (both with B8-1400's change in the tree; the run before B8-1400 was green on it), and passed in the third and fourth full runs and every time alone or beside the new tests. The test already names this fault class (beta 41, "a quit() timer an earlier test left on this worker"). Not established whether B8-1400's collection at the tick after a dialog closes changes when such a stray quit lands; not investigated further in this batch.
+- where: `tests/test_a_driver_returns_to_a_modal_it_closed.py`, `core/gc_guard.py`.
