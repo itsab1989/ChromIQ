@@ -30967,3 +30967,38 @@ would reach.
 - status: OPEN
 - found by: beta 45 challenge round 3, territory A. The note under the table says of the two Custom columns: "Neither source is the published tolerances of ISO 12647-7 or ISO 12647-8: where ChromIQ ships those, they are in the read-only ISO column, and a Custom column does not start from them" (and, where no set ships, "which ChromIQ does not hold"). Since B8-1476 the two evenness rows of Custom ISO 12647-7 (1.5 / 1.0) and Custom ISO 12647-8 (3.0 / 2.0) are exactly those standards' published figures converted (`compliance_sets.custom_defaults`, whose own comment says "ISO 12647-7's own figures converted"). The sentence is false for those two rows. On screen: `~/Desktop/ChromIQ-beta45-proof/evenness-build/en-light/photographs/en-light-02-limits-notes.png` shows the sentence under Custom columns reading 1,50 / 1,00 and 3,00 / 2,00.
 - where: `ui/dialogs/thresholds_dialog.py` `_notes_text`; `workflow/compliance_sets.py` the Custom ISO blocks.
+
+### B8-1520 · OPEN · A third test file leaves the worker's Argyll path pointing at a folder that does not exist
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 45 challenge 3b, checking c73eb4d9. That commit made two files put `argyll_bin_path` back; `tests/test_a_failed_start_never_locks_the_app.py` does the same thing and still does not (its `broken_runner` fixture sets "/nonexistent/argyll/bin", and three tests set a tmp "nowhere"). Reproduced in file order on one worker: that file, then `tests/test_b8_1471_to_1475_beta45_challenge2_texts.py`, gives 1 failed (`test_a_demo_preset_the_page_table_cannot_count_takes_its_layouts`, the same victim as gate 1 on 23db5202); the victim alone passes. So the gate can still go red on the same bystander whenever xdist puts these two files on one worker in that order. `test_every_import_door_can_draw_the_pages.py` and `test_verification_print_tab.py` also set the path and did not reproduce it. Proof: `~/Desktop/ChromIQ-beta45-proof/challenge-3b/leak-failed-start.txt`, `leak-victim-alone.txt`.
+- where: `tests/test_a_failed_start_never_locks_the_app.py`; a conftest-level restore of `argyll_bin_path` would close the whole class.
+
+### B8-1521 · OPEN · Six parameter helps show a single-asterisk *emphasis* literally, beside the new bold
+- blocks release: no
+- severity: COSMETIC
+- status: OPEN
+- found by: beta 45 challenge 3b, on screen. The help texts of targen -M ("*surface*"), -m ("*inside*", "*in addition to*"), -b ("*step counter*", "*entire*") and the distribution help ("*perceived*") write emphasis the markdown way, and the ⓘ window shows the asterisks as text. Since B8-1490 the same window renders `**...**` in bold, so the two kinds of mark now sit side by side and one of them shows: exactly what Knut asked to stop ("a heading or a bold font ... disappears in the app"). The translations carry them too (German "*Oberfläche*"). Pre-existing text, but made visible as a fault by the new rendering. Proof: `~/Desktop/ChromIQ-beta45-proof/challenge-3b/italic/photographs/en-light-01.png` (-M, English), `italic-de/photographs/de-light-01.png` (German).
+- where: `data/parameters.yaml` and the `data/i18n/parameters.*.yaml` overlays; `core/help_markup.py` if single-asterisk emphasis is to be rendered rather than removed.
+
+### B8-1522 · OPEN · The beta 45 changelog names the wrong window for the 9 white and 8 black
+- blocks release: no
+- severity: COSMETIC
+- status: OPEN
+- found by: beta 45 challenge 3b. The Fixed line for B8-1478 says "Which presets can be used for verification" said the two Full layout setup presets hold 9 white and 8 black patches. That window shows no white or black count at all (its columns are the name, patches, pages and the verdict, `PresetVerificationDialog._columns`); the declared counts go to Create Chart's Manual targen panel, White Patches (-e) and Black Patches (-B) (`_set_manual_value("targen", "-e", p.white)`). Driven on screen: picking the i1Pro A4 484 preset now sets -f 484, -e 1, -B 1 there. A changelog sentence must be true. Proof: `~/Desktop/ChromIQ-beta45-proof/challenge-3b/wb/record.json`, `wb/photographs/01-create-chart-484.png`.
+- where: `CHANGELOG.md` (v4.3.0-beta.45, Fixed).
+
+### B8-1523 · OPEN · The changelog says the renamed CR30 preset is named for "the width it prints"; it prints 16.76 mm
+- blocks release: no
+- severity: COSMETIC
+- status: OPEN
+- found by: beta 45 challenge 3b. "The CR30 "Letter-170p-1page-Portrait-w16.0mm-Hexagonal" preset is now named "w17.0mm", the width it prints." Its patches are 16.76 mm (ddc36b7c's own commit message and `tests/test_cr30_builtin_presets.py`'s removed exception), which the family check accepts within 0.5 mm; "the width it prints" is 0.24 mm untrue. "Whatever the text, it must be true" (Knut).
+- where: `CHANGELOG.md` (v4.3.0-beta.45).
+
+### B8-1524 · OPEN · The translation agent's prompt does not mention the ** marks
+- blocks release: no
+- severity: COSMETIC
+- status: OPEN
+- found by: beta 45 challenge 3b. `scripts/i18n_agent/prompt_template.md` tells a translator to keep "&&" and HTML markup exactly, and says nothing about `**...**`, which since B8-1490 is part of 107 keys and 15 parameter helps. A new language translated from it may drop the marks (its help shows plain, harmless) or translate the lead-in outside them (a wrong phrase in bold); `tests/test_help_windows_show_their_lead_ins_in_bold.py` catches unbalanced marks but not a mark moved to the wrong words.
+- where: `scripts/i18n_agent/prompt_template.md`.
