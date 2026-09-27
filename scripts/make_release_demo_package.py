@@ -442,6 +442,9 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "not a project: Report Limits: the sentence on the two Custom columns under the table names the evenness rows as the standard's figures converted, with note 4 (B8-1503)",
         "not a project: a run bound by beta 39 or earlier to ChromIQ default: a New report starts on 1.8 and 1.2 for evenness, and reads no “(edited)” (B8-1501)",
     ]),
+    ("§54", "K65:", [
+        "Report-Limits-Evenness/run1, Run type Verification, the report the window opens on: change Report type, Judged against, “Show detailed data”, a tick or a number in Edit limits…: the page, its graphs and its PDF stay as they are and the red line comes up; Deselect all: the red line too, in the words for a greyed Generate report; put the setting back: the line goes; Generate report, Cancel: nothing changes; Update: the report is built again (B8-1591)",
+    ]),
 ]
 
 

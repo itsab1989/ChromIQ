@@ -41,6 +41,15 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest                                                   # noqa: E402
 
 
+def _asks_for_no_press(dlg) -> bool:
+    """The red line in its greyed wording (B8-1034), which asks for no
+    press of a button that refuses it."""
+    from core.i18n import tr
+    return dlg._stale_label.text() == tr(
+        "⚠ Settings changed. “Generate report” is unavailable until the "
+        "reason shown above is resolved.")
+
+
 def _dialog(tmp_path, qapp, dates: int = 1):
     """A report window on one profile run with *dates* dated verifications.
 
@@ -354,8 +363,11 @@ def test_nothing_waits_for_a_button_that_cannot_be_pressed(tmp_path, qapp):
     possible to generate a report, then it makes no sense to allow changing
     settings. The report text should never automatically be updated in any
     situation."* So the page is kept, the settings that cannot un-grey the
-    button are greyed with it, and no red line asks for a dead button
-    (B8-601 still holds: with nothing ticked the line stays down).
+    button are greyed with it, and no red line asks for a dead button.
+
+    **B8-1591 (Knut, #182 5858874320): "Any change in settings will give a
+    red text".** With nothing ticked the line is now UP, in its greyed
+    wording, which asks for no press (it superseded B8-601's line kept down).
 
     MUTATIONS: let `_settings_touched` redraw while Generate is greyed (the
     page changes); drop `_grey_what_cannot_help` (the box stays live).
@@ -390,7 +402,9 @@ def test_nothing_waits_for_a_button_that_cannot_be_pressed(tmp_path, qapp):
         qapp.processEvents()
         assert dlg._view.toHtml() == before, (
             "the report text changed without Generate")
-        assert not dlg._stale_label.isVisible(), (
+        assert dlg._stale_label.isVisible(), (
+            "a setting changed and no red line says so (B8-1591)")
+        assert _asks_for_no_press(dlg), (
             "a red line is telling the reader to press a disabled button")
     finally:
         dlg.close()
@@ -418,8 +432,13 @@ def test_the_last_measurement_unticked_leaves_nothing_to_generate(tmp_path, qapp
             dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
         qapp.processEvents()
         assert not dlg._generate_btn.isEnabled()
-        assert not dlg._stale_label.isVisible(), (
+        # B8-1591: the settings changed, so the line is up, and in the
+        # words that ask for no press (the reason above names the list).
+        assert dlg._stale_label.isVisible(), (
+            "every row unticked and no red line says the settings changed")
+        assert _asks_for_no_press(dlg), (
             "the window is asking for a press it cannot accept")
+        assert "ticked" in dlg._generate_btn.toolTip()
     finally:
         dlg.close()
 

@@ -3385,7 +3385,7 @@ M_REPORT_NOT_WORKED_OUT = _m(
     "The measurement of {dates} is no longer on disk as it was measured, so "
     "it could not be worked out again. Its figures are the ones an earlier "
     "report saved, worked out by the version of ChromIQ that saved it.",
-    approved=False)
+    approved=True)   # Knut, #182 5858874320, 2026-09-27: "Approved."
 
 # --- APPROVED (K59, Knut #182 5849392788; approved in 5850164956): A SHEET PRINTED RAW, OPTION C ---
 # *"use recommended option C"*, with *"The word drift is not used at all ...

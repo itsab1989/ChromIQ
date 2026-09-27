@@ -139,6 +139,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §50 | K61: every quoted metric name is the Report Limits label exactly, "(within gamut)" after it; the presets window names the patches in a ninth and about how many the limit takes; the window judges a laid-out preset on the values printtarg prints; noise-floor demo pairs (R18, R19) and runs (Evenness run9, run10) | 2026-09-27, 5851645723 | the requests are Knut's (Confirmed); what was built NOT confirmed (50.2 to 50.4); two questions open (B8-1447, B8-1448) |
 | §51 | K62: Knut's high-pass filter on both evenness rows; the limits derived from real printers (tight 1.5 / 1.0, default 1.8 / 1.2, quick 2.5 / 1.7, Custom ISO 12647-7 1.5 / 1.0, Custom ISO 12647-8 3.0 / 2.0); the locked ISO sets' evenness figures converted (1.5 / 1.0, 3.0 / 2.0) with a note in Report Limits; the three conversion factors and the ratio guide in the help; the presets window's "can be judged" text | 2026-09-27, 5855259490; 5855780690 | the rulings and texts are Knut's (Confirmed); what was built from them NOT confirmed |
 | §53 | K64: a saved report chosen in "Report shown" is its saved file, nothing recalculated or added; a new or updated report works every date out again with the current filter and limits, and a report of several dates records the figures it judged; a run an older build bound starts new reports on the current evenness limits unless the user chose them; the Report Limits note on the Custom columns | 2026-09-27, 5857473253 | the rulings are Knut's (Confirmed); what was built NOT confirmed |
+| §54 | K65: no setting of the report window changes the page before Generate Report is pressed, on an old or a new report; any change gives the red line, with nothing ticked too; Cancel keeps the page, Update or Create new rebuilds it with the running version | 2026-09-27, 5858874320 | the rule is Knut's (Confirmed); what was built NOT confirmed |
 | §49 | K59: option C for a sheet printed raw (INFO with a numbered note where relevant, N-A with its note, the raw print named once under "Judged against"); "drift" not used in the report, its graphs, guide, help, window or PDF; "Change since the previous raw check"; the raw openings Knut chose (conditional form, plural, Report Scope sentence), true of exactly the rows judged; the mixed opening without "drift"; the two FROM PROFILE GAMUT state lines | 2026-09-26, 5849392788; 5850164956 | the answers are Knut's (Confirmed); the fourteen texts APPROVED by Knut in 5850164956 (Confirmed); K60, his answers D1 to D3 (Confirmed) and what was built from them (NOT confirmed, 49.6); one gap left (B8-1396) |
 | §48 | K58: the ChromIQ branding's wordmark at the end of the clip border, like the Notes box, for Side Left/Right x Flip 180 Off/On, the text in the box beyond it | 2026-09-18 5730034611, 2026-09-26 5848747795 | the design is Knut's; what was built (B8-1390) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
@@ -9611,7 +9612,9 @@ in 51.2 and waits for his confirmation.
   the page differs from the average of all nine."* instead of naming the first
   area as the furthest; and when the largest difference between two areas
   prints as 0.00, *"No two ninths differ from each other."* instead of naming
-  a pair. The wording is not yet approved.
+  a pair. The wording was APPROVED by Knut, 2026-09-27, #182
+  [5858874320](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5858874320)
+  ("Approved."); what the app does with it is still NOT confirmed.
 
 **Verified by:** `tests/test_evenness_filter_and_converted_limits.py`, and
 the retargeted guards in `test_evenness_across_the_sheet.py`,
@@ -9737,7 +9740,8 @@ numbers are too, and nothing is added to it.
   dates whose reports an earlier version saved included. A date whose
   measurement is no longer on disk as it was measured keeps the figures its
   earlier report saved, and the report says so at the foot of Report Scope,
-  naming the dates (M-REPORT-NOT-WORKED-OUT, §M-PROPOSED, our words); a
+  naming the dates (M-REPORT-NOT-WORKED-OUT, words APPROVED by Knut in
+  5858874320); a
   report saved that way keeps saying so.
 * **A report of several dates records the figures it judged.** Each
   measurement entry's `judged` block now carries that date's working
@@ -9759,3 +9763,51 @@ numbers are too, and nothing is added to it.
   each behaviour proved red under its mutation.
 
 **Status:** the rulings are Knut's (Confirmed); what was built NOT confirmed.
+
+## 54. K65: nothing on the page changes before Generate Report is pressed (#182, 2026-09-27, beta 46)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-27, #182
+[5858874320](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5858874320),
+answering our [5857991890](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5857991890),
+for exactly the rule quoted here. What was built from it is in 54.2 and waits
+for his confirmation.
+
+**54.1 The rule, verbatim.** *"Any change in settings will give a red text to
+click generate report, no matter if the loaded report is an old or new report.
+Clicking Generate Report will either create a new report, update the selected
+report (unless canceled.). new or update will always regenerate according to
+the version of ChromIQ that is running. No regenerating or change of the report
+text happens before Generate Report is pressed. This is the rule, mentioned
+several times."*
+
+**This SUPERSEDES** the exception §27.10 recorded from B8-601 ("With NOTHING
+ticked the red line stays down"): with every measurement unticked the settings
+have changed, so the red line is up. It is in its greyed wording ("Settings
+changed. “Generate report” is unavailable until the reason shown above is
+resolved."), because Generate is greyed and the reason above it names the empty
+list, so the line still asks for no press the button refuses. It also closes the
+question our 5857991890 put about a setting moved on a saved report: the page
+does not change at all; only Generate works the report out again.
+
+### ⏳ Awaiting confirmation: what was built from it
+
+**Confirmed by:** *nobody yet.*
+
+**54.2 Built and measured (B8-1591).** Driven on screen on the demo pack's
+Report-Limits-Evenness run1, a saved report shown
+(`~/Desktop/ChromIQ-beta45-proof/generate-rule/`): Report type, Judged
+against, "Show detailed data", a measurement's tick, Deselect all, Select all
+and a number of the report's own column in Edit limits… each leave the page's
+text, its graphs and the key under them exactly as they were, and raise the
+red line; putting the setting back takes it down. Save report as PDF… with a
+setting moved prints the page on screen. Cancel at Generate's question keeps
+the page and the line; Update rebuilds the report with the running version and
+takes the line down. The only change the rule needed was the nothing-ticked
+line above; every other path already kept the page (§27.10).
+Tests: `tests/test_b8_1591_nothing_changes_before_generate.py`, and the two
+B8-601 guards in `tests/test_the_report_waits_for_the_generate_button.py`
+moved to the rule.
+
+**Status:** the rule is Knut's (Confirmed); what was built NOT confirmed.

@@ -5948,7 +5948,8 @@ class MeasurementReportDialog(QDialog):
         #
         # The second half of its own sentence is what is left, and it is the
         # honest instruction here: put the setting back. Ticking a measurement
-        # brings the line, and the button, straight back.
+        # brings the line, and the button, straight back. (Superseded by
+        # B8-1591 below: the line is up, in its greyed wording.)
         #
         # …EXCEPT WHEN THE PAGE HAS LOST WHAT IT WAS DRAWN FROM (Knut, #182
         # 5816794672): a measurement it covers removed, the list cleared, a
@@ -5959,11 +5960,19 @@ class MeasurementReportDialog(QDialog):
         # are, until a report is drawn: the page is still the report shown
         # before it, and the reader is told to set up the new one and press
         # Generate report (Knut, #182 5831246553).
+        #
+        # **AND NOW WITH NOTHING TICKED TOO (B8-1591; Knut, #182 5858874320:
+        # "Any change in settings will give a red text to click generate
+        # report, no matter if the loaded report is an old or new report").**
+        # B8-601 kept the line down with every measurement unticked, because
+        # its only words then asked for a press Generate refuses. B8-1034 has
+        # since given the line its greyed wording ("“Generate report” is
+        # unavailable until the reason shown above is resolved"), and the
+        # reason above it names the empty list, so the line can say that
+        # the settings changed without making a promise.
         self._stale_label.setVisible(
             bool(getattr(self, "_new_report_pending", False))
-            or (self._settings_were_modified()
-                and (not self._nothing_is_ticked()
-                     or self._page_lost_what_it_covers())))
+            or self._settings_were_modified())
         self._word_the_stale_line()
         # **THE PDF DOOR STAYS OPEN, AND THE PDF IS WHAT IS ON SCREEN
         # (B8-364).** Round 21 measured the fault: with the pulldown on `Colour
