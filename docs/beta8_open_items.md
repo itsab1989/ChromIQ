@@ -29958,6 +29958,19 @@ would reach.
 - evidence: test_the_100x150_builtin_puts_minus_p_on_its_paper, test_an_a4_builtin_still_reads_a4
 - where: `ui/tabs/tab_chart.py` (`_seed_knut_preset`).
 
+### B8-1415 · OPEN · "Drift" still appears in help texts outside the report
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 45 batch 1 and a grep after it. Knut, #182 5849392788: "The word drift is not used at all"; the report and its help follow that since K59, B8-1396 cleaned Create Chart's FROM PROFILE GAMUT help. Still left: "Inspect a measurement" (`ui/dialogs/ti3_info_dialog.py`: "how far the greys drifted away from truly neutral", "Inks and paper can drift over time"), the Getting Started card (`ui/getting_started.py`: "printheads drift", with an em dash), and "Greys are where … a printer drifts first". Sweep every user-facing string with a tr() or a catalogue key for drift/drifted/drifting, say "change" (or "move away from" where that is the meaning), clean em dashes in touched strings, German by hand, both ledgers.
+- where: `ui/dialogs/ti3_info_dialog.py`, `ui/getting_started.py`, and a grep of `data/i18n/de.json` keys.
+
+### B8-1416 · OPEN · Switching Create Chart's instrument to the ColorMunki, SpectroScan or CR30 keeps the previous instrument's clip content
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 45 batch 1 (item B8-1402c, `~/Desktop/ChromIQ-beta45-proof/batch1/1402c/`): the layout panel switched from the i1Pro keeps the Notes box, so the clip border is On while Preferences for that instrument says Off. This is part of the instrument-change rule Knut parked (K54, #182 5847631234: "major changes should be avoided, only smaller bugs should be fixed"), so it is recorded, not changed.
+
 ### B8-1300 · FIXED, awaiting confirmation · With the CR30 and the engine box unticked, more places still ask the engine setting alone while the layout panel is what lays the chart out
 - blocks release: no
 - severity: MINOR
