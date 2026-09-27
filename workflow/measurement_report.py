@@ -5646,6 +5646,11 @@ def chart_grid(ti2_path: "str | Path | None") -> dict:
     strip_label: "dict[int, str]" = {}
     row_label: "dict[int, str]" = {}
     for sid, loc in zip(d.sample_ids, d.sample_locs):
+        # printtarg's padding patches (SAMPLE_ID 0) are printed and never
+        # read, so no measurement carries them (B8-407); K61: they are no
+        # patch of any area either, and the pre-print estimate counted one
+        if _is_padding_id(sid):
+            continue
         loc = str(loc).strip().strip('"')
         m = _LOC_ALPHA_NUM.match(loc) or _LOC_NUM_ALPHA.match(loc)
         if not m:
@@ -5664,12 +5669,22 @@ def chart_grid(ti2_path: "str | Path | None") -> dict:
     rgb = {}
     if d.rgb is not None and len(d.rgb):
         for sid, v in zip(d.sample_ids, _rgb_to_0_100(np.asarray(d.rgb, float))):
-            rgb[sid] = v
+            if not _is_padding_id(sid):
+                rgb[sid] = v
     from workflow.page_coverage import chart_page_coverage
     cov = chart_page_coverage(ti2_path, len(pages))
     return {"pages": pages, "rows": rows, "slot": slot,
             "strip_label": strip_label, "row_label": row_label, "rgb": rgb,
             "coverage": cov["pages"], "coverage_source": cov["source"]}
+
+
+def _is_padding_id(sid) -> bool:
+    """Whether *sid* is one of printtarg's padding patches: a numeric id of
+    0 or less (B8-407, `control_strip.chart_device_values`)."""
+    try:
+        return int(str(sid).strip().strip('"')) <= 0
+    except ValueError:
+        return False
 
 
 def evenness_grid_from_layout(strips_per_page: "list[int]", rows: int,
@@ -6398,6 +6413,11 @@ def row_values(report: dict) -> "dict[str, dict]":
         elif ev.get("eligible") and ev.get(key) is not None:
             put(rid, ev[key], notes=[NOTE_EVENNESS_CAUSES])
             out[rid]["noise_p95"] = ev.get(f"noise_{key}_p95")
+            # K61 (Knut, #182 5851645723): the fewest patches any ninth
+            # holds, so a pre-print window withholding the row for its noise
+            # can say how many it has and how many the limit would take
+            counts = ev.get("counts") or []
+            out[rid]["area_min"] = int(min(counts)) if counts else None
         else:
             put(rid, None, ev.get("reason") or REASON_EVENNESS_NO_LAYOUT)
 

@@ -123,7 +123,8 @@ def test_the_solid_rows_share_one_message_block(qapp, rows, choice):
         i = lines.index(labels[0])
         assert lines[i:i + len(labels)] == labels, lines[i:i + 4]
         why = dict(row.assessment.missing)[PE.gamut_only_rows()[0]]
-        reason = PVD.reason_line(why)
+        reason = PVD.reason_line(
+            why, row.assessment.noise_count(PE.gamut_only_rows()[0]))
         assert lines.count(reason) == 1, lines
         assert lines[i + len(labels)] == reason
         remedy = PE.row_remedy(PE.gamut_only_rows()[0], why)
@@ -155,7 +156,8 @@ def test_every_group_carries_exactly_its_metrics_messages(qapp, rows):
             if not missing:
                 continue
             said = PE.layout_failure_detail(row.chart, row.recipe)
-            own = {rid: PVD._missing_messages(rid, w, said)
+            own = {rid: PVD._missing_messages(
+                rid, w, said, row.assessment.noise_count(rid))
                    for rid, w in missing}
             lines = PVD.detail_lines(row)
             start = next(i for i, ln in enumerate(lines)

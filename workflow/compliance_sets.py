@@ -399,7 +399,8 @@ _D_ALL_PATCHES = (
     # K31 (Knut, #182 5801677743, sections 5 and 6): `IN_GAMUT_LABELS`.
     "Where the report splits a sheet's colours into those within the "
     "profile's gamut and those beyond it, this row is judged on the colours "
-    "within the gamut, and its name then ends in \"within gamut\". The "
+    "within the gamut, and the report adds \"(within gamut)\" after its "
+    "name. The "
     "colours beyond the gamut, and all of them together, are shown in the "
     "Overview for information and are never judged. A chart built with FROM "
     "PROFILE GAMUT is never split, because every colour on it was chosen "
@@ -619,7 +620,7 @@ _R_REPEAT_ACROSS = (
 #: carries the likely causes, which he asked for in the help text AND in the
 #: report: *"information on what type of faults may result in uniformity issues
 #: need to be mentioned in the help text, but also as notes on the results in
-#: the report text"*. The 9, the 75 %, the 500 and the 30 are
+#: the report text"*. The 9, the 60 %, the 500 and the fourfold are
 #: `measurement_report.EVENNESS_MIN_GRID`, `EVENNESS_MIN_PAGE_COVERAGE`,
 #: `EVENNESS_SHUFFLES` and the F1 measurement; `tests/test_evenness_across_the_sheet.py` holds the sentence to
 #: the constants.
@@ -670,20 +671,27 @@ _D_EVENNESS = (
     "The report also measures the sheet's own noise: it shuffles the patches "
     "across the nine areas 500 times and takes the 95th percentile of what "
     "the same arithmetic reads. A row is judged only when that noise is below "
-    "the row's limit. On a typical print this takes about 30 patches in "
-    "each area, roughly 270 on a page.\n\n"
+    "the row's limit. The lower the limit, the more patches each area needs: "
+    "on a typical print, four times as many patches halve the noise.\n\n"
     # K31: `IN_GAMUT_LABELS`, the evenness rows among them.
     "Where the report splits a sheet's colours into those within the "
     "profile's gamut and those beyond it, only the patches within the gamut "
-    "are counted, and the two names then end in \"within gamut\".\n\n"
+    "are counted, and the report adds \"(within gamut)\" after the two "
+    "names.\n\n"
     "This method is ChromIQ's own. A standard that limits evenness reads it "
     "its own way, on its own chart.")
+#: K61 (Knut, #182 5851645723): "about 30 in each ninth" was true of a limit
+#: of 1.5 only; under a pairwise limit of 0.5 a page of 72 in each ninth is
+#: still too noisy, and the window said "too few" of it. The lever now says
+#: what the count depends on, and the window names the numbers.
 _R_EVENNESS = (
     "Use a chart whose pages hold at least 9 strips and 9 rows, with patches "
-    "covering at least 60 % of the page, and enough patches that about 30 "
-    "land in each ninth of the page. If a metric reads a difference, measure the same sheet "
-    "again before looking for a cause, since an instrument that changes "
-    "during a long reading makes the strips read last differ from the first.")
+    "covering at least 60 % of the page, and enough patches in each ninth of "
+    "the page for the sheet's own noise to stay below the metric's limit: the "
+    "lower the limit, the more patches that takes. If a metric reads a "
+    "difference, measure the same sheet again before looking for a cause, "
+    "since an instrument that changes during a long reading makes the strips "
+    "read last differ from the first.")
 
 ROWS: "tuple[Row, ...]" = (
     # -- Paper
@@ -905,35 +913,42 @@ ROWS: "tuple[Row, ...]" = (
 ROW_BY_ID: "dict[str, Row]" = {r.id: r for r in ROWS}
 GROUP_ORDER: "tuple[str, ...]" = tuple(dict.fromkeys(r.group for r in ROWS))
 
-#: **"WITHIN GAMUT" IN THE JUDGED NAMES ON A SPLIT SHEET** (K31, Knut, #182
-#: 5801677743, answering 5798697107 sections 5 and 6: *"Use version 1
+#: **"WITHIN GAMUT" BESIDE THE JUDGED NAMES ON A SPLIT SHEET** (K31, Knut,
+#: #182 5801677743, answering 5798697107 sections 5 and 6: *"Use version 1
 #: everywhere and implement your recommendations"*, *"do as recommended"*).
 #: Where a report holds a sheet whose colours were split by the profile's gamut,
 #: these seven rows are judged on the within-gamut patches only
 #: (`measurement_report.graded_de00`, `evenness_block(only_ids=...)`), and
 #: "Average ΔE00, all patches" would then mean the within-gamut figure in
 #: Report Results and all patches together in the Overview. So on such a
-#: report the judged figures carry "within gamut" in their name, and "all
-#: patches" never means two things in one document. English source strings,
-#: displayed through `tr()`; `row_name` is the one door.
+#: report the judged figures say "within gamut", and "all patches" never
+#: means two things in one document.
+#:
+#: **OUTSIDE THE NAME, IN BRACKETS (K61, Knut, #182 5851645723).** Until
+#: beta 45 the words were glued into the name ("Average ΔE00, all patches
+#: within gamut"), so a name quoted in the report was no longer the name the
+#: Report Limits window shows: *"The 'within gamut' is added in a way that it
+#: looks like it is part of the metric label ... Make sure labels match, and
+#: added information is clearly separated from the labels."* The name is now
+#: the row's `label` exactly, and "(within gamut)" follows it: after the
+#: closing quote where the name is quoted (“Average ΔE00, all patches”
+#: (within gamut)), after the name where it is not. The report window builds
+#: both through `tr()` (`MeasurementReportDialog._row_name` and
+#: `_quoted_row_name`); this map is the English form, for the tests and the
+#: scripts that read it.
+WITHIN_GAMUT_ROWS: "tuple[str, ...]" = (
+    "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
+    "all_de00_p95", "uniformity_sd", "uniformity_de00_max_from_mean")
 IN_GAMUT_LABELS: "dict[str, str]" = {
-    "all_de00_avg": "Average ΔE00, all patches within gamut",
-    "best95_de00_avg": "Average ΔE00, lowest 95 % within gamut",
-    "worst5_de00_avg": "Average ΔE00, highest 5 % within gamut",
-    "all_de00_max": "Maximum ΔE00, all patches within gamut",
-    "all_de00_p95": "Maximum ΔE00, lowest 95 % within gamut (95th percentile)",
-    "uniformity_sd":
-        "Maximum ΔE00, between two of the nine sheet areas, within gamut",
-    "uniformity_de00_max_from_mean":
-        "Maximum ΔE00, one sheet area against the whole sheet, within gamut",
-}
+    rid: f"{ROW_BY_ID[rid].label} (within gamut)" for rid in WITHIN_GAMUT_ROWS}
 
 
 def row_name(row_id: str, within_gamut: bool = False) -> str:
-    """The English name of one row: its `label`, or its within-gamut name
-    when *within_gamut* is True and the row is judged on the within-gamut
-    patches of a split sheet (`IN_GAMUT_LABELS`). The id itself for an id
-    no row carries. Display it through `tr()`."""
+    """The English name of one row: its `label`, followed by "(within
+    gamut)" when *within_gamut* is True and the row is judged on the
+    within-gamut patches of a split sheet (`IN_GAMUT_LABELS`). The id itself
+    for an id no row carries. English only: the report window translates
+    the label and the qualifier apart (`MeasurementReportDialog._row_name`)."""
     if within_gamut and row_id in IN_GAMUT_LABELS:
         return IN_GAMUT_LABELS[row_id]
     row = ROW_BY_ID.get(row_id)

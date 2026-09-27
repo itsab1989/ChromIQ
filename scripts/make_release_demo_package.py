@@ -200,6 +200,9 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ("§16", "Evenness: method, noise guard", [
         "Report-Limits-Evenness/run1: even, drift, blotch, noisy",
         "Report-Limits-Evenness/run8: the same four through relative colorimetric",
+        # K61 (Knut, #182 5851645723): the noise guard's own line
+        "Report-Limits-Evenness/run10: the sheet's own noise just over and just under both limits (1.53 / 1.47, 1.03 / 0.97)",
+        "Report-Limits-Evenness/run9: Knut's 648-patch page as a typical print, judged against ChromIQ default, too noisy against ISO 12647-7:2016 values",
     ]),
     ("§16", "9 by 9 stays the minimum grid", [
         "Report-Limits-Evenness/run2: 7 strips on the page",
@@ -421,6 +424,12 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
+    ]),
+    ("§50", "K61:", [
+        "Report-Limits-Evenness/run1, Run type Verification: New report…, all four dates, Full colour check, Custom ISO 12647-7: every quoted name under the graphs, in Report Results, How to read, the Overview and the notes is the Report Limits label, and “(within gamut)” follows it (B8-1442)",
+        "Report-Limits-Evenness/run9: Knut's 648-patch page as a typical print, judged against ChromIQ default and read N-A for its noise against ISO 12647-7:2016 values (B8-1440)",
+        "Report-Limits-Evenness/run10: the measured noise one notch over and under both of ChromIQ default's limits (B8-1446)",
+        "Create Chart presets (verification demos): “Which presets can be used for verification?”, Full colour check, Custom ISO 12647-7: R18 and R19, the noise floor of the two evenness rows, the pane naming the patches in each ninth and about how many the limit takes; R04, R06, R07, R11 and R17 as a 16-bit page prints them (B8-1440, B8-1443, B8-1445, B8-1446)",
     ]),
 ]
 
@@ -1059,7 +1068,7 @@ PROJECT_PURPOSE = {
     "Report-Limits-Border-Values": "exactly on a limit, 0.001 over, 0.001 under, on four rows and sets",
     "Report-Limits-Second-Route": "every cell of the limit-set matrix again, on a different chart and paper",
     "Report-Limits-Renamed": "a project renamed after a report across projects was written",
-    "Report-Limits-Evenness": "evenness across the sheet: judged, too small, too noisy, too little of the page",
+    "Report-Limits-Evenness": "evenness across the sheet: judged, too small, too noisy, too little of the page, and the noise just either side of its limit",
     "Report-Limits-Every-Metric": "one From Profile Gamut chart that answers every metric: all twenty passed, then all twenty failed",
     "Report-Notes-Every-Reason": "every reason a row can read N-A, and older report shapes",
 }

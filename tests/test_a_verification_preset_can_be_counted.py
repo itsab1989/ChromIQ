@@ -53,7 +53,7 @@ _REPO = Path(__file__).resolve().parents[1]
 R11_FAIL = ("Verify R11 FAIL, 12 candidates, "
             "every one 2.1 from the nearest face")
 R11_PASS = ("Verify R11 PASS, the same 12, "
-            "every one exactly 2.0 from the nearest face")
+            "every one 2.0 from the nearest face (printed 1.9989)")
 
 
 @pytest.fixture(scope="module")
@@ -171,9 +171,12 @@ def test_every_demo_preset_that_ships_a_chart_is_counted(demo_pack):
     # R16 is saved at printtarg's -a 0.80, a patch size `data.patch_db` holds
     # no measured table for, so its sheet count stays unknown (0) exactly as
     # the fallback's docstring says (B8-1215). Every other demo is one page.
+    # K61: R19 is saved at -a 1.5, which the table does not hold either, so
+    # it stays at 0 like R16; R18 (-a 0.95) is counted, one page.
     larger = {r.label: r.pages for r in counted
-              if r.label.startswith(("Verify L1 ", "Verify R16 "))}
-    assert sorted(larger.values()) == [0, 0, 2], larger
+              if r.label.startswith(("Verify L1 ", "Verify R16 ",
+                                     "Verify R19 "))}
+    assert sorted(larger.values()) == [0, 0, 0, 0, 2], larger
     counted = [r for r in counted if r.label not in larger]
     assert counted and all(r.pages == 1 for r in counted), \
         [(r.label, r.pages) for r in counted if r.pages != 1]

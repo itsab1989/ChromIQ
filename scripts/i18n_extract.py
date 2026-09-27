@@ -123,9 +123,9 @@ def _compliance_set_keys() -> set[str]:
         # Knut, #182 5841606710: how a row relates to its family
         if getattr(row, "relation", ""):
             out.add(row.relation)
-    # K31: the within-gamut names (`tr(row_name(...))`) and the two halves of
-    # the grey rows' lever (`tr(remedy_for(...))`), both tr() on a variable.
-    out |= set(cs.IN_GAMUT_LABELS.values())
+    # The two halves of the grey rows' lever (`tr(remedy_for(...))`), a tr()
+    # on a variable. (K61: the within-gamut names are no longer keys of their
+    # own; the report window translates the label and "(within gamut)" apart.)
     out.add(cs._R_GREY_RAMP_DEVICE)
     out.add(cs._R_GREY_RAMP_AIMS)
     # K40-2: the same two halves of the tone row's lever

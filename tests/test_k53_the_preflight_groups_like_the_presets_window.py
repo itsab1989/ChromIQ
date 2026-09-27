@@ -99,7 +99,9 @@ def test_every_group_carries_its_metrics_reason_once(rows):
         missing = row.assessment.missing
         if not missing:
             continue
-        own = {PE.row_label(rid): (PVD.reason_line(why),)
+        # K61: a noise reason names its counts when the window has them
+        own = {PE.row_label(rid): (PVD.reason_line(
+            why, row.assessment.noise_count(rid)),)
                for rid, why in missing}
         blocks = _blocks(PVD.summary_lines(row, generic=True))
         named = [n for names, _m in blocks for n in names]
@@ -134,10 +136,12 @@ def test_a_metric_with_a_reason_of_its_own_is_listed_on_its_own(rows):
     """Partial overlaps are not merged: a metric whose reason no other
     missing metric shares is a group of one, directly followed by it."""
     for row in rows:
-        reasons = [PVD.reason_line(w) for _r, w in row.assessment.missing]
-        lonely = [(rid, PVD.reason_line(w))
-                  for rid, w in row.assessment.missing
-                  if reasons.count(PVD.reason_line(w)) == 1]
+        a = row.assessment
+        said = {rid: PVD.reason_line(w, a.noise_count(rid))
+                for rid, w in a.missing}
+        reasons = list(said.values())
+        lonely = [(rid, said[rid]) for rid, _w in a.missing
+                  if reasons.count(said[rid]) == 1]
         if not lonely:
             continue
         blocks = _blocks(PVD.summary_lines(row, generic=True))

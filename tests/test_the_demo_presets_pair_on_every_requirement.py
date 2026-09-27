@@ -122,6 +122,8 @@ PAGE = {1.0: {"strip_patches": 21, "page_strips": 24, "strip_mm": 8.005,
         0.8: {"strip_patches": 27, "page_strips": 30, "strip_mm": 6.405,
               "block_mm": 238.50}}
 SHEET_MM2 = 209.97 * 297.01
+#: A row `_independent` does not judge (K61: the noise pairs' evenness rows).
+SKIP = "__skip__"
 
 #: #182 K49, (b2): the two solid rows only; the paper row is answered by a
 #: chart with a patch printed with no ink (`IND["paper_at"]`).
@@ -244,17 +246,27 @@ def _independent(path: Path, scale: float = 1.0) -> "dict[str, str | None]":
         None if any(min(px) >= IND["paper_at"] for px in rgb)
         else MR.REASON_NO_PAPER_PATCH)
     # the evenness page, from the patch count and printtarg's page as
-    # measured (PAGE): the first page's strips, its rows, and its block
-    page = PAGE[round(float(scale), 2)]
-    strips = min(page["page_strips"],
-                 int(math.ceil(len(ids) / page["strip_patches"])))
-    rows = min(len(ids), page["strip_patches"])
-    cover = strips * page["strip_mm"] * page["block_mm"] / SHEET_MM2
-    even = (CONSTANT_LAYOUT if min(strips, rows) < IND["evenness_grid"]
-            else MR.REASON_EVENNESS_PAGE_COVERAGE
-            if cover < IND["evenness_coverage"] else None)
-    out.update({r: even for r in ("uniformity_sd",
-                                  "uniformity_de00_max_from_mean")})
+    # measured (PAGE): the first page's strips, its rows, and its block.
+    # K61: the noise pairs (R18, R19) are laid out at patch sizes no ruler
+    # has measured, and their rows turn on the ESTIMATED noise of a typical
+    # print, which no second route can re-derive without copying the app's
+    # arithmetic. So does L1 under STRICT (650 patches, its noise ON the
+    # line, `test_the_larger_control_answers_the_evenness_rows_too`). They read SKIP here and are held by
+    # `test_the_noise_pairs_straddle_their_line_on_a_page_that_meets_both_floors`.
+    page = PAGE.get(round(float(scale), 2))
+    if page is None or len(ids) == 650:
+        out.update({r: SKIP for r in ("uniformity_sd",
+                                      "uniformity_de00_max_from_mean")})
+    else:
+        strips = min(page["page_strips"],
+                     int(math.ceil(len(ids) / page["strip_patches"])))
+        rows = min(len(ids), page["strip_patches"])
+        cover = strips * page["strip_mm"] * page["block_mm"] / SHEET_MM2
+        even = (CONSTANT_LAYOUT if min(strips, rows) < IND["evenness_grid"]
+                else MR.REASON_EVENNESS_PAGE_COVERAGE
+                if cover < IND["evenness_coverage"] else None)
+        out.update({r: even for r in ("uniformity_sd",
+                                      "uniformity_de00_max_from_mean")})
 
     # -- the control strip
     declared = [p for p in re.split(r"[,\s]+",
@@ -521,9 +533,12 @@ def test_the_window_says_what_is_missing_in_its_own_words(dialog, req, fail,
                                                           ok):
     """Knut asked the window to *"report what is wrong/missing"*: the detail
     pane carries the sentence for the reason and the metric's own remedy."""
-    _head, item, _row = _row_for(dialog, fail.name)
+    _head, item, row = _row_for(dialog, fail.name)
     shown = _detail_text(dialog, item)
-    assert PVD.reason_line(req.reason) in shown, (req.key, shown)
+    # K61: a noise reason names the patches in each ninth and how many the
+    # limit takes, when the window has them
+    counts = row.assessment.noise_count(req.rows[0])
+    assert PVD.reason_line(req.reason, counts) in shown, (req.key, shown)
     for rid in req.rows:
         assert "✕  " + PE.row_label(rid) in shown, (req.key, rid)
         remedy = PE.row_remedy(rid, req.reason)
@@ -615,13 +630,22 @@ def test_the_larger_control_answers_the_evenness_rows_too(dialog):
     two pages, answers every row a preset can decide, the two evenness rows
     included, which no 78-patch demo can.
 
+    **K61: UNDER THE LIMITS IT IS A CONTROL FOR.** Only its first page is
+    counted, 56 patches to a ninth, so a typical print's noise between two
+    areas is about 1.0: under the 1.5 of ChromIQ's sets and of the loosest
+    limit (the star's question), ON the 1.0 of STRICT, where the patch
+    placement decides the side. Under STRICT the only thing it may be short
+    of is that noise; R18 is the pair that stands on that line.
+
     MUTATION, proven red: build it with 78 patches (``chart_page(78)``)."""
+    from core.preset_store import sidecar_path
     demo = next(d for d in GEN.DEMOS if d.name.startswith("Verify L1 "))
     _head, _item, row = _row_for(dialog, demo.name)
-    missing = dict(row.assessment.missing)
-    assert "uniformity_sd" not in missing, missing
-    assert "uniformity_de00_max_from_mean" not in missing, missing
-    assert not _withheld(dialog, demo), missing
+    chart = sidecar_path("create_chart", demo.name, ".ti1")
+    values = PE.chart_row_values(chart, GEN.layout(chart), lay_out=True)
+    assert PE.evenness_answered(values), values.get("uniformity_sd")
+    got = _withheld(dialog, demo)
+    assert set(got.values()) <= {MR.REASON_EVENNESS_NOISY_PAIRWISE}, got
 
 
 def test_no_open_question_is_left_in_the_pack(dialog):
@@ -683,6 +707,8 @@ def test_the_independent_arithmetic_agrees_with_the_app(dialog, installed):
         want = _independent(chart, d.scale)
         got = dict(_row_for(dialog, d.name)[2].assessment.missing)
         for rid, why in want.items():
+            if why == SKIP:
+                continue
             if got.get(rid) != why:
                 bad.append((d.name, rid, got.get(rid), why))
     assert not bad, bad
@@ -848,3 +874,41 @@ def test_the_pack_readme_sends_the_user_to_the_right_folder(tmp_path):
     assert "~/Library/Preferences/ChromIQ/presets/Create Chart" in text
     assert "%APPDATA%\\ChromIQ\\presets\\Create Chart" in text
     assert "restart ChromIQ" in text
+
+
+# ---------------------------------------------------------------------------
+# K61: the noise floor of the two evenness rows, one pair per row
+# ---------------------------------------------------------------------------
+_NOISE_PAIRS = [(r, f, p) for r, f, p in _PAIRS if r.key in ("R18", "R19")]
+
+
+@pytest.mark.parametrize("req,fail,ok", _NOISE_PAIRS,
+                         ids=[r.key for r, _f, _p in _NOISE_PAIRS])
+def test_the_noise_pairs_straddle_their_line_on_a_page_that_meets_both_floors(
+        dialog, installed, req, fail, ok):
+    """K61 (Knut, #182 5851645723): *"Verify by test that all requirements
+    for all metrics are properly working and that the demo projects are able
+    to detect the threshold areas"*. Until beta 45 the noise floor had no
+    pair. Both sides of each pair are one page of at least 9 by 9, covering
+    at least 60 % of it (both floors met, read off the window's own layout),
+    so the only thing that moves is the estimated noise, which sits on each
+    side of the pair's limit, within 0.06 of it.
+
+    MUTATION, proven red: ``EVENNESS_TYPICAL_SIGMA = 1.0`` (every noise
+    falls by a tenth and both sides of each pair land under the line)."""
+    from core.preset_store import sidecar_path
+    from workflow import compliance_sets as CS
+    lim = CS.effective_limits(req.judged_with, {})
+    rid = req.rows[0]
+    for demo, over in ((fail, True), (ok, False)):
+        chart = sidecar_path("create_chart", demo.name, ".ti1")
+        ev = PE._estimated_evenness(chart, GEN.layout(chart), True)
+        assert ev.get("eligible"), (demo.name, ev.get("reason"))
+        assert len(ev["pages_used"]) == 1, ev["pages_used"]
+        strips, rows = ev["pages"][0]
+        assert min(strips, rows) >= IND["evenness_grid"], (strips, rows)
+        assert ev["coverage"][0] >= IND["evenness_coverage"], ev["coverage"]
+        cell = PE.chart_row_values(chart, GEN.layout(chart))[rid]
+        noise, limit = cell["noise_p95"], lim[rid].number
+        assert abs(noise - limit) < 0.06, (demo.name, noise, limit)
+        assert (noise >= limit) is over, (demo.name, noise, limit)

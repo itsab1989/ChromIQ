@@ -278,7 +278,7 @@ def test_the_one_page_summary_gives_the_judged_figures(tmp_path, qapp,
         judged, src = mr.graded_de00(rep)
         assert src == mr.VERDICT_SOURCE_IN_GAMUT
         # K31 (§26.4): on a split sheet the judged figure says so in its name
-        assert (f"Average ΔE00, all patches within gamut: "
+        assert (f"Average ΔE00, all patches (within gamut): "
                 f"{judged['avg_all']:.2f}") in text
         # the fixture measures exactly what it asked for, so the two averages
         # agree; the COUNT tells the populations apart

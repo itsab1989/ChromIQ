@@ -169,7 +169,7 @@ def test_the_within_gamut_names_are_exactly_the_split_rows():
     assert set(CS.IN_GAMUT_LABELS) == set(mrd.WITHIN_GAMUT_ROWS)
     for rid, name in CS.IN_GAMUT_LABELS.items():
         assert name.startswith(ROW_BY_ID[rid].label.split(" (")[0]), rid
-        assert "within gamut" in name
+        assert name == ROW_BY_ID[rid].label + " (within gamut)", name
         assert CS.row_name(rid, True) == name
         assert CS.row_name(rid, False) == ROW_BY_ID[rid].label
     assert CS.row_name("grey_balance_neutral_ramp_avg", True) == \
@@ -199,10 +199,11 @@ def test_a_split_report_names_the_judged_figures_within_gamut(tmp_path, qapp):
         present = dlg._rows_the_results_show(runs)
         results = _text(dlg._report_results_html(runs, present))
         guide = _text(dlg._how_to_read_html(present))
-        assert "Average ΔE00, all patches within gamut" in results
-        assert "Maximum ΔE00, all patches within gamut" in guide
+        # K61: the words follow the name, outside it
+        assert "Average ΔE00, all patches (within gamut)" in results
+        assert "Maximum ΔE00, all patches (within gamut)" in guide
         detail = _text(dlg._run_detail_html(runs[0]))
-        assert "Average ΔE00, all patches within gamut" in detail
+        assert "Average ΔE00, all patches (within gamut)" in detail
     finally:
         dlg.deleteLater()
 
@@ -538,7 +539,7 @@ def test_the_german_report_texts_address_nobody():
     MUTATION, proven red: German "Wie du die Gleichmäßigkeit beurteilt hast"
     for "How evenness was judged"."""
     de = json.loads((ROOT / "data" / "i18n" / "de.json").read_text("utf-8"))
-    keys = [r.label for r in ROWS] + list(CS.IN_GAMUT_LABELS.values()) + [
+    keys = [r.label for r in ROWS] + ["{metric} (within gamut)"] + [
         "How evenness was judged", APPROVED_LINE,
         "Within and beyond the gamut together", "Darkest black L*",
         "Standard deviation ΔE00, all patches",

@@ -136,6 +136,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §45 | K51: a raw print judges its paper and solid rows against the profile; "–" is not in the report, graphs included; a limit line shown for information where the report judges nothing; the star's rule (4) with the evenness rows; a media-relative FROM PROFILE GAMUT chart judged relative to its paper; the i1Pro group enabled with the engine on | 2026-09-26, 5846167083, 5846297769 | the answers confirmed by Knut (§45.1); built for beta 44 (B8-1330 to B8-1336, B8-1340), NOT confirmed; the two-page rule put to him; challenge 8's fixes to it in 45.7 to 45.9 (B8-1370 to B8-1377), NOT confirmed |
 | §46 | K56: M-VERIFY-SOLIDS-REASON approved; the pre-flight's FROM PROFILE GAMUT paragraph revised as accepted; the opening of a report of raw sheets | 2026-09-26, 5848287278 | the answers (approval and two accepted texts) are Knut's; what was built (when each opening is given) NOT confirmed; four questions (B8-1380, B8-1381, B8-1383, B8-1384) and the analysis of "drift" (B8-1385) put to him |
 | §47 | K57: the "made for verification" mark is ● not ★; a Content chosen in Preferences with the clip border Off leaves it Off; a Content change in Create Chart reloads no other field | 2026-09-26, 5848511977, 5848514529 | the rulings are Knut's; what was built (B8-1387, B8-1388; B8-1389 verified) NOT confirmed |
+| §50 | K61: every quoted metric name is the Report Limits label exactly, "(within gamut)" after it; the presets window names the patches in a ninth and about how many the limit takes; the window judges a laid-out preset on the values printtarg prints; noise-floor demo pairs (R18, R19) and runs (Evenness run9, run10) | 2026-09-27, 5851645723 | the requests are Knut's (Confirmed); what was built NOT confirmed (50.2 to 50.4); two questions open (B8-1447, B8-1448) |
 | §49 | K59: option C for a sheet printed raw (INFO with a numbered note where relevant, N-A with its note, the raw print named once under "Judged against"); "drift" not used in the report, its graphs, guide, help, window or PDF; "Change since the previous raw check"; the raw openings Knut chose (conditional form, plural, Report Scope sentence), true of exactly the rows judged; the mixed opening without "drift"; the two FROM PROFILE GAMUT state lines | 2026-09-26, 5849392788; 5850164956 | the answers are Knut's (Confirmed); the fourteen texts APPROVED by Knut in 5850164956 (Confirmed); K60, his answers D1 to D3 (Confirmed) and what was built from them (NOT confirmed, 49.6); one gap left (B8-1396) |
 | §48 | K58: the ChromIQ branding's wordmark at the end of the clip border, like the Notes box, for Side Left/Right x Flip 180 Off/On, the text in the box beyond it | 2026-09-18 5730034611, 2026-09-26 5848747795 | the design is Knut's; what was built (B8-1390) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
@@ -9398,3 +9399,85 @@ and tooltip. The texts, before and after:
 **Status:** the answers and the fourteen texts confirmed by Knut (49.1, 49.1b);
 what was built (49.2 to 49.6) NOT confirmed, B8-1403 ours under his rule; gap
 B8-1396.
+
+
+## 50. K61: metric names exactly as the Report Limits window shows them, and the evenness noise floor in the presets window (#182, 2026-09-27, beta 45)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-27, #182
+[5851645723](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5851645723),
+for exactly the two requests quoted here. What was built from them is in 50.2
+to 50.5 and waits for his confirmation.
+
+**50.1 The requests, verbatim.**
+
+* On the evenness row of the presets window: *"This is clearly wrong, as
+  there is plenty of patches on these 1 page profiles, so the detection
+  mechanism must be wrong or giving a false positive. Verify by test that all
+  requirements for all metrics are properly working and that the demo
+  projects are able to detect the threshold areas between fulfilling and not
+  fulfilling the metrics detection mechanisms. Test the demo projects
+  on-screen on real app and via simulations, and compare the results to
+  verify that all works well. If the tests fail, recreate the related demo
+  project until you get the functionality correct."*
+* On the names: *"The "within gamut" is added in a way that it looks like it
+  is part of the metric label. Change the text so that it is clear that the
+  labels are matching and not confused with other text added. ... Make sure
+  labels match, and added information is clearly separated from the labels.
+  Applies for all charts that have these text lines below the chart, but also
+  all other places in the report text and PDF where the labels are used, like
+  the Report Results, Overview of Measurement Metrics, and all other places."*
+  His form: “Average ΔE00, all patches” (within gamut).
+
+### ⏳ Awaiting confirmation: what was built from them
+
+**Confirmed by:** *nobody yet.*
+
+Register: B8-1440 to B8-1448. Proof: `~/Desktop/ChromIQ-beta45-proof/k61-report/`
+(on screen, EN and DE, window and PDF, before and after; `MATRIX.txt`,
+`COMPARE-screen-vs-simulation.txt`, `TEXTS.txt`). Tests:
+`tests/test_k61_labels_and_evenness_counts.py` and the pair tests in
+`tests/test_the_demo_presets_pair_on_every_requirement.py`, each red on the
+mutation in its docstring.
+
+**50.2 The names (B8-1442).** Every quoted metric name in the report, its
+graphs, its PDF, the help and the Dictionary is the row's label exactly. On a
+report whose judged sheet was split by the profile's gamut, "(within gamut)"
+follows the name: after the closing quote where it is quoted, after the name
+where it is not ("Average ΔE00, all patches (within gamut)" in Report Results,
+the Overview, How to read, the notes and the graph legends). This supersedes
+the glued form of §26 (K31), "Average ΔE00, all patches within gamut".
+
+**50.3 What the detection found (B8-1440).** The 648-patch i1Pro page meets
+both floors (24 strips by 27 rows, 69 % covered, 72 patches in every ninth).
+Under the ISO 12647-7:2016 value of 0.5 between two areas, a typical print's
+noise on it is 0.87 (§16.4's estimate), so the row cannot be judged there: the
+rule was right and its sentence was not. Measured on ideal pages, that limit
+wants about 225 patches in a ninth, a page of about 2,000; no preset under 900
+patches reaches it, so no preset gets past 9 of 12 under that set. The window
+now says both numbers: *"Each ninth of the page holds at least 72 patches. On
+a typical print the chart's own noise would be below this limit only with
+about 220 patches in each ninth. The report measures the real noise on the
+printed sheet."* The lever and the evenness help no longer say "about 30",
+which was true of a limit of 1.5 only (B8-1441).
+
+**50.4 The systematic check (B8-1443 to B8-1446).** Every requirement, one
+notch either side, asked of the window and of the report
+(`scripts/k61_threshold_matrix.py`): printtarg prints and records device
+values rounded to its page image (10.0 printed as 10.196 on an 8-bit page),
+so the window judges a laid-out preset on those values; printtarg's padding
+patches are no patch of any area; the demo presets are saved for a 16-bit
+page with each value as printed; the noise floor has two new pairs (R18,
+R19) and Report-Limits-Evenness two new runs (run9, Knut's page; run10, the
+measured noise one notch either side of both limits).
+
+**50.5 Open (B8-1447, B8-1448).** On a split sheet the report counts only the
+patches within the profile's gamut, which no pre-print window can know, so a
+typical print of Knut's page reads 1.02 in the report where the window
+estimates 0.87. And whether ISO 12647-7's 0.5 is a number ChromIQ's method
+should be judged against at all (§16.5 E6: a licence holder's figure written
+for a different statistic) is his question to answer.
+
+**Status:** the requests are Knut's (Confirmed); what was built NOT confirmed;
+two questions open.

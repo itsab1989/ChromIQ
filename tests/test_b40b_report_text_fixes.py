@@ -284,16 +284,20 @@ def test_a_split_verification_names_its_limit_lines_within_gamut(
         monkeypatch.setattr(dlg, "_accuracy_thresholds", lambda: (2.0, 3.0))
         notes = dlg._trend_extras(dlg._trend_de)["line_notes"]
         within = dlg._row_name("all_de00_avg", split)
-        assert within.endswith("within gamut"), within
-        assert any(within in n for n in notes), notes
+        assert within.endswith("(within gamut)"), within
+        # K61: the note quotes the name and puts the words after the quote
+        quoted = dlg._quoted_row_name("all_de00_avg", split)
+        assert quoted == "“Average ΔE00, all patches” (within gamut)", quoted
+        assert any(quoted in n for n in notes), notes
         legend = [m[0] for m in dlg._trend_configs()[0][2]]
         assert any(within in x for x in legend), legend
         # and the evenness lines, whose rows are judged within gamut too
         monkeypatch.setattr(dlg, "_judged_trend_limits",
                             lambda: {"uniformity_sd": 1.5})
         even = dlg._trend_extras(dlg._trend_groups["evenness"])["line_notes"]
-        name = dlg._row_name("uniformity_sd", split)
-        assert name.endswith("within gamut") and any(name in n for n in even), even
+        name = dlg._quoted_row_name("uniformity_sd", split)
+        assert name.endswith("” (within gamut)") and any(
+            name in n for n in even), even
     finally:
         dlg.deleteLater()
 
@@ -328,8 +332,8 @@ def test_a_profiling_sheet_or_a_printing_record_uses_the_plain_names(
 def test_every_limit_line_note_quotes_the_rows_name():
     for rid, note in mrd._LIMIT_NOTES.items():
         assert note() == f"the limit for “{ROW_BY_ID[rid].label}”.", rid
-    assert mrd._LIMIT_NOTES["uniformity_sd"]("X, within gamut") == \
-        "the limit for “X, within gamut”."
+    assert mrd._LIMIT_NOTES["uniformity_sd"]("“X” (within gamut)") == \
+        "the limit for “X” (within gamut)."
     assert not any(k.startswith("the limit for the colour cast of the worst")
                    for k in DE)
 
@@ -399,8 +403,11 @@ def test_no_report_text_explains_an_earlier_chromiq():
      "none lies within {tol} percentage points of the tone value",
      "innerhalb von {tol} um den Tonwert",
      "innerhalb von {tol} Prozentpunkten um den Tonwert"),
-    ("With a typical print that wants about 30",
-     "On a typical print this takes about 30", None, None),
+    # K61 (Knut, #182 5851645723): "about 30" was true of a limit of 1.5
+    # only, and the window called a 72-to-a-ninth page "too few" under 0.5
+    ("On a typical print this takes about 30",
+     "four times as many patches halve the noise", None,
+     "halbiert die vierfache Zahl an Messfeldern das Rauschen"),
     ("Every number is a colour difference",
      "Most numbers are colour differences in ΔE00",
      "Jede Zahl ist ein Farbunterschied",

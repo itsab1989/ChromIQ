@@ -357,7 +357,8 @@ def _predicted_grid(chart: Path, recipe: dict) -> dict:
 
 
 def _estimated_evenness(chart: Path, recipe: "dict | None",
-                        lay_out: bool = False) -> dict:
+                        lay_out: bool = False,
+                        grid: "dict | None" = None) -> dict:
     """The evenness block a TYPICAL print of *chart* would give.
 
     The grid is exact where the chart is laid out (see
@@ -367,7 +368,8 @@ def _estimated_evenness(chart: Path, recipe: "dict | None",
     from a fixed seed, and the report's own arithmetic runs on them. The block
     says it is an estimate.
     """
-    grid = _evenness_grid_for(chart, recipe, lay_out)
+    if grid is None:
+        grid = _evenness_grid_for(chart, recipe, lay_out)
     if "reason" in grid:
         block = MR.evenness_from_residuals(grid, {})
     else:
@@ -392,6 +394,22 @@ def _perfect_print(chart: Path, recipe: "dict | None" = None,
     if not len(data.rgb):
         raise Ti3ParseError("The chart carries no device RGB columns.")
     rgb100 = MR._rgb_to_0_100(np.asarray(data.rgb, dtype=float))
+    # **THE DEVICE VALUES THE PRINTED SHEET WILL CARRY (K61).** printtarg
+    # writes into the .ti2 the values it PRINTS, rounded to the page image's
+    # depth (an 8-bit page: 10.0 becomes 10.196, 89.9 becomes 89.804), and
+    # chartread copies them into the measurement, so the report judges the
+    # rounded values. Measured on the demo presets: one notch of 0.1 either
+    # side of a line (a grey spread of 1.0, white at 90, black at 10, a
+    # face at 2.0, the paper at 99.5) moved to the other side in the report
+    # while the window, reading the .ti1, kept it where it was. A preset the
+    # window has laid out answers with the laid-out values; the layout
+    # engine writes the .ti1's own values, so nothing changes for it.
+    grid = _evenness_grid_for(chart, recipe, lay_out)
+    laid = grid.get("rgb") or {}
+    if laid:
+        rgb100 = np.asarray([laid.get(sid, rgb100[i])
+                             for i, sid in enumerate(data.sample_ids)],
+                            dtype=float)
     lab = [MR.xyz_to_lab((x / 100.0, y / 100.0, z / 100.0)) for x, y, z in data.xyz]
     # The aim values ARE the chart's own design colours, which is exactly what
     # `_reference_labs` reads off the sibling .ti2 of a printed preset chart.
@@ -444,7 +462,7 @@ def _perfect_print(chart: Path, recipe: "dict | None" = None,
             rgb100, lab, ref, data.sample_ids),
         "control_strip": MR.control_strip_block(
             lab, ref, data.sample_ids, _declaration_it_would_get(chart)),
-        "evenness": _estimated_evenness(chart, recipe, lay_out),
+        "evenness": _estimated_evenness(chart, recipe, lay_out, grid),
     }
     if colorimetric:
         # The three reference rows are computed from this block and nothing
@@ -1057,6 +1075,15 @@ class Assessment:
     checked: bool = True
     #: why not, when ``checked`` is False (an exception message, for the log)
     unreadable: str = ""
+    #: K61 (Knut, #182 5851645723): for an evenness row withheld for the
+    #: chart's own noise, ``{row_id: (patches in the emptiest ninth, about how
+    #: many that ninth would need under this limit)}``, so the window can say
+    #: both numbers instead of "too few" (`noise_shortfall`)
+    noise_counts: "tuple[tuple[str, tuple[int, int]], ...]" = ()
+
+    def noise_count(self, row_id: str) -> "tuple[int, int] | None":
+        """``(have, need)`` for *row_id*, or None."""
+        return dict(self.noise_counts).get(row_id)
 
     @property
     def answers_everything(self) -> bool:
@@ -1167,19 +1194,50 @@ def assess_rows(chart: "str | Path | None",
         log.info("preset chart %s cannot be assessed: %s", chart, exc)
         return Assessment(asked=asked, answered=(), missing=(),
                           checked=False, unreadable=str(exc))
-    answered, missing = [], []
+    answered, missing, counts = [], [], []
     for rid in asked:
         v = values.get(rid) or {}
-        withheld = (MR.evenness_withheld(rid, v, (limits or {}).get(rid))
-                    if limits else None)
+        lim = (limits or {}).get(rid)
+        withheld = (MR.evenness_withheld(rid, v, lim) if limits else None)
         if withheld:
             missing.append((rid, withheld))
+            pair = noise_shortfall(v, lim)
+            if pair is not None:
+                counts.append((rid, pair))
         elif v.get("value") is not None:
             answered.append(rid)
         else:
             missing.append((rid, v.get("reason") or MR.REASON_NOT_COMPUTED))
     return Assessment(asked=asked, answered=tuple(answered),
-                      missing=tuple(missing))
+                      missing=tuple(missing), noise_counts=tuple(counts))
+
+
+#: How the estimated noise of an evenness row falls as its areas fill: as one
+#: over the square root of the patches in an area, the rule for the mean of
+#: independent residuals. MEASURED on the estimate itself, not assumed: on
+#: ideal pages of 9 by 9 to 90 by 90 (9 to 900 patches in a ninth) the
+#: pairwise noise times the root of the fewest patches in a ninth stays
+#: between 7.2 and 7.9, and the from-the-mean noise between 4.3 and 4.8
+#: (K61, `tests/test_k61_evenness_noise_counts.py`).
+def noise_shortfall(cell: "dict | None", lim) -> "tuple[int, int] | None":
+    """``(have, need)`` for an evenness row withheld for the chart's own
+    noise: the patches in its emptiest ninth, and about how many a ninth
+    would need for the estimated noise to fall below *lim*, rounded up to
+    the next ten. None when the cell does not carry the numbers.
+
+    K61 (Knut, #182 5851645723): a one-page i1Pro chart of 648 patches puts
+    72 in every ninth, which the window called "too few" under a pairwise
+    limit of 0.5 without saying that the limit wants about 220. The window
+    now says both."""
+    import math
+    if not cell or not getattr(lim, "is_numeric", False):
+        return None
+    have, noise = cell.get("area_min"), cell.get("noise_p95")
+    if not have or noise is None or float(lim.number) <= 0:
+        return None
+    need = int(have) * (float(noise) / float(lim.number)) ** 2
+    need = max(int(have) + 1, int(math.ceil(need / 10.0)) * 10)
+    return int(have), int(need)
 
 
 def assess(chart: "str | Path | None", type_id: str, set_id: str,

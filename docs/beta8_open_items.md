@@ -30557,3 +30557,89 @@ would reach.
 - status: OPEN
 - found by: beta 45 batch 1 (B8-1396 to B8-1413). `tests/test_a_driver_returns_to_a_modal_it_closed.py::test_the_next_step_pumps_again` failed with its own message "run() returned before the second step: the event loop was ended from outside the drive (a stray quit)" in two everyday runs (both with B8-1400's change in the tree; the run before B8-1400 was green on it), and passed in the third and fourth full runs and every time alone or beside the new tests. The test already names this fault class (beta 41, "a quit() timer an earlier test left on this worker"). Not established whether B8-1400's collection at the tick after a dialog closes changes when such a stray quit lands; not investigated further in this batch.
 - where: `tests/test_a_driver_returns_to_a_modal_it_closed.py`, `core/gc_guard.py`.
+### B8-1440 · FIXED, awaiting confirmation · The presets window called a 648-patch page "too few patches in each ninth" under ISO 12647-7
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5851645723 (beta 44): "Which presets can be used for verification", ISO 12647-7:2016 values, the i1Pro A4 and Letter 648-patch and Letter 783-patch one-page presets: "✕ Maximum ΔE00, between two of the nine sheet areas", "Too few patches in each ninth of the page…". Reproduced on screen (`~/Desktop/ChromIQ-beta45-proof/k61-report/before/presets-en`).
+- cause: not the detection. The page meets both floors (24 strips by 27 rows, 69 % covered, 72 patches in every ninth). Under the 0.5 the ISO 12647-7:2016 values put on the pairwise row, a typical print's estimated noise on that page is 0.873 (0.799 on the 783-patch page), so the row is withheld by Knut's noise rule (§16, ruling 6), correctly. The sentence was wrong: "too few" with no number reads as a fault on a page that has plenty for the grid, and the lever's "about 30" was true of a limit of 1.5 only. Measured on ideal pages: 0.5 wants about 225 patches in a ninth (a page of about 2,000), so no preset under 900 patches gets past 9 of 12 under that set (`k61-report/MATRIX.txt`, "EVENNESS NOISE LINE").
+- fix: the row's cell carries the fewest patches in any ninth (`row_values`, `area_min`); `preset_eligibility.noise_shortfall` works out about how many a ninth needs for the estimate to fall below the limit (noise falls as one over the root of the count, measured); `Assessment.noise_counts`; the window and the pre-flight say "Each ninth of the page holds at least 72 patches. On a typical print the chart's own noise would be below this limit only with about 220 patches in each ninth. The report measures the real noise on the printed sheet."
+- tests: tests/test_k61_labels_and_evenness_counts.py
+- evidence: test_the_count_is_derived_from_the_noise_and_the_limit, test_the_noise_falls_as_one_over_the_root_of_the_patches_in_a_ninth, test_the_window_names_both_numbers_not_too_few, test_knuts_648_page_under_iso_12647_7_and_chromiq_default; mutations M4, M5, M6, M8 red (`k61-report/mutations.txt`).
+- proof: ~/Desktop/ChromIQ-beta45-proof/k61-report/ (before/ and after/presets-en, presets-de)
+- where: `workflow/measurement_report.py` (`row_values`), `workflow/preset_eligibility.py` (`assess_rows`, `noise_shortfall`, `Assessment`), `ui/dialogs/preset_verification_dialog.py` (`reason_line`, `noise_count_line`).
+
+### B8-1441 · FIXED, awaiting confirmation · The evenness lever and help said "about 30 patches in each ninth", which is true of one limit only
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: B8-1440.
+- fix: `_R_EVENNESS`: "enough patches in each ninth of the page for the sheet's own noise to stay below the metric's limit: the lower the limit, the more patches that takes"; `_D_EVENNESS`: "The lower the limit, the more patches each area needs: on a typical print, four times as many patches halve the noise." German by hand.
+- evidence: test_the_lever_and_the_help_say_no_fixed_patch_count (M7 red); test_the_old_words_are_gone_and_the_new_ones_are_there.
+- tests: tests/test_k61_labels_and_evenness_counts.py, tests/test_b40b_report_text_fixes.py
+- where: `workflow/compliance_sets.py`.
+
+### B8-1442 · FIXED, awaiting confirmation · "within gamut" was glued into the quoted metric names
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5851645723: "the limit for “Average ΔE00, all patches within gamut”": the quoted text was no longer the label the Report Limits window shows.
+- fix: the name is the row's label exactly; on a document whose judged sheet was split by the profile's gamut, "(within gamut)" follows it, after the closing quote where it is quoted (“Average ΔE00, all patches” (within gamut)), after the name where it is not (Report Results, the Overview, How to read, the notes, the detailed chapters, the graph legends and their limit-line sentences, on screen and in the PDF). `MeasurementReportDialog._row_name` / `_quoted_row_name`, `_within_gamut`, `_quoted`; the limit-line notes take the quoted name. The seven glued keys are gone from every catalogue, one key in ("{metric} (within gamut)", German "{metric} (im Gamut)"). The help texts ("the report adds "(within gamut)" after its name") and the Dictionary's example say the same.
+- tests: tests/test_k61_labels_and_evenness_counts.py
+- evidence: test_every_quoted_metric_name_in_the_source_is_a_report_limits_label (every tr() string and its German), test_a_split_report_quotes_only_report_limits_labels (the rendered split report, EN and DE), test_within_gamut_follows_the_name_and_is_never_part_of_it; M1, M2, M3 red.
+- proof: ~/Desktop/ChromIQ-beta45-proof/k61-report/ (before/ and after/report-en, report-de: the page, the graph keys, the PDF and its pages)
+- where: `workflow/compliance_sets.py` (`IN_GAMUT_LABELS`, `row_name`, `WITHIN_GAMUT_ROWS`), `ui/dialogs/measurement_report_dialog.py`, `ui/dialogs/welcome_dialog.py`, `scripts/i18n_extract.py`.
+
+### B8-1443 · FIXED, awaiting confirmation · The presets window judged a printtarg preset on its .ti1 values, while the sheet carries the values printtarg prints
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: the K61 threshold matrix (`scripts/k61_threshold_matrix.py`): printtarg writes into the .ti2 each device value rounded to its page image (8 bits: 10.0 becomes 10.196, 89.9 becomes 89.804, 70.0 becomes 70.196), chartread copies them into the measurement, and the report judges those. A chart one notch or exactly on a line (a grey's spread, black at 10, white at 90, the 30 to 70 % band's ends, a cube face at 2.0, the paper at 99.5) moved to the other side of it in the report while the window kept it where the .ti1 put it: 11 of 38 demo sheets disagreed on their own row.
+- fix: a preset the window lays out is judged on the laid-out device values (`preset_eligibility._perfect_print`, from the grid `chart_grid` already reads). The layout engine writes the .ti1's own values, so nothing changes for it.
+- evidence: test_the_window_judges_the_values_printtarg_prints (M9 red).
+- where: `workflow/preset_eligibility.py`.
+
+### B8-1444 · FIXED, awaiting confirmation · printtarg's padding patches were counted in the pre-print page grid
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the K61 matrix: `chart_grid` gave printtarg's padding patches (SAMPLE_ID 0, printed and never read, B8-407) a slot, so the window's evenness estimate counted a phantom patch, and the laid-out device values carried it.
+- fix: `chart_grid` skips a numeric id of 0 or less (`_is_padding_id`), as `control_strip.chart_device_values` does.
+- evidence: test_a_padding_patch_is_in_no_area (asserts the pad is there first; M10 red).
+- where: `workflow/measurement_report.py`.
+
+### B8-1445 · FIXED, awaiting confirmation · Five demo preset pairs sat on lines a printed sheet cannot carry
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: B8-1443 on the demo pack: R04 (spread 1.0 / 1.1), R06 (90.0 / 89.9), R07 (10.0 / 10.1), R11 (2.0 / 2.1), R17 (99.5 / 99.4) and the band ends of R14's and the control's ramps: on the 8-bit page they were saved for, 0.1 is less than one printed level, so the two sides printed alike or crossed.
+- fix: `make_verification_preset_demos`: the presets are saved for a 16-bit page (0.1 is 65 levels), every value is written as printed (`printed`), a value exactly on a line goes to the level on the side its requirement allows, and a spread is laid on the printed level in whole levels. The PASS names say the printed value ("90.0 (printed 90.0008)"). Measured after: all 19 pairs straddle their line in the window and in the report (`MATRIX.txt`).
+- evidence: test_the_fail_side_withholds_exactly_its_own_rows, test_the_pass_side_answers_them, test_nothing_else_moves_across_the_pair, test_every_demo_preset_that_ships_a_chart_is_counted.
+- tests: tests/test_the_demo_presets_pair_on_every_requirement.py, tests/test_a_verification_preset_can_be_counted.py
+- where: `scripts/make_verification_preset_demos.py`.
+
+### B8-1446 · FIXED, awaiting confirmation · The evenness noise floor had no demo on either side of its line
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5851645723 ("the demo projects are able to detect the threshold areas"): the two noise codes were in the preset pack's UNREACHABLE list ("shown by the built-in presets"), and the report's own noise line was shown only far from it (noise 0.2 or 1.8 against 1.5).
+- fix: two preset pairs, judged under Custom ISO 12647-7 (1.0 on both rows): R18, the pairwise row, 529 / 530 patches at -a 0.95 (a typical print's noise 1.026 / 0.988); R19, the from-the-mean row, 200 / 201 at -a 1.5 (1.030 / 0.985); both sides one page meeting both floors. `Requirement.judged_with`, `shown_under`. Report-Limits-Evenness gains run9 (Knut's 648-patch page as a typical print: judged under ChromIQ default, N-A for its noise under ISO 12647-7:2016 values) and run10 (the 837-patch chart, each sheet's scatter scaled until the report measures 1.53 / 1.47 between two areas and 1.03 / 0.97 from the mean). The L1 control stays at 650 patches; only its first page counts, so its pairwise noise sits on Custom ISO 12647-7's 1.0 and the pair tests hold it to the loosest limit (the star's question), where it is well under.
+- proof: on screen and simulated, the same answer on every pair and every date (`k61-report/COMPARE-screen-vs-simulation.txt`).
+- evidence: test_the_noise_pairs_straddle_their_line_on_a_page_that_meets_both_floors (M11 red), the pair tests, test_the_larger_control_answers_the_evenness_rows_too.
+- where: `scripts/make_verification_preset_demos.py`, `scripts/make_evenness_demo.py`, `scripts/make_release_demo_package.py`.
+
+### B8-1447 · OPEN · Question: the window estimates evenness noise on every patch, the report of a split sheet on the patches within the gamut
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: a question for Knut.
+- found by: the K61 comparison. Knut's 648-patch page as a typical print: the window estimates 0.87 over all 648 patches; the report reads 1.02, because on a sheet split by the profile's gamut only the patches within it count (534 of 648 with Argyll's sRGB standing in for the profile). So under a limit of 1.0 the window says the row can be judged and that sheet's report does not judge it. The same split takes a 20-patch chart to 19 counted patches, and "Average ΔE00, highest 5 %" reads N-A in the report where the window answered it. Before printing there is no profile's gamut to ask for a preset; for the current chart of a run that has a profile there is. Not changed: whether the window should say "on the patches within the gamut the report may count fewer" or ask the run's profile is his call.
+- where: `workflow/preset_eligibility.py` (`_estimated_evenness`), `workflow/measurement_report.py` (`evenness_block(only_ids=…)`).
+
+### B8-1448 · OPEN · Question: ISO 12647-7's 0.5 between two areas needs about 2,000 patches under ChromIQ's method
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: a question for Knut.
+- found by: B8-1440. ChromIQ's evenness compares every patch with its own aim, averaged per ninth (§16), so a typical print's noise is the profile's per-patch scatter shrunk by the count in a ninth. Under 0.5 that needs about 225 patches in a ninth; no preset in the window reaches it, so the row is never judged under the ISO 12647-7:2016 values on a verification chart. §16.5 E6 already records that a licence holder's figure for this row was written for a different statistic (one colour at nine places). Keep judging against 0.5, or leave the row "–" in the read-only ISO 12647-7 column?
+- where: `data/compliance_sets/iso12647.json`, `workflow/compliance_sets.py`.

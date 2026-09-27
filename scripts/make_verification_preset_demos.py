@@ -129,8 +129,11 @@ def write_ti1(path: Path, patches: "list[tuple[float, float, float]]",
               'END_DATA_FORMAT', '',
               f'NUMBER_OF_SETS {len(patches)}', 'BEGIN_DATA']
     for i, rgb in enumerate(patches, start=1):
+        # K61: every value as the 16-bit page prints it (`printed`); a value
+        # already on a printed level stays where it is
+        rgb = tuple(printed(c) for c in rgb)
         x, y, z = aim_xyz(rgb)
-        lines.append(f'{i} {rgb[0]:.4f} {rgb[1]:.4f} {rgb[2]:.4f} '
+        lines.append(f'{i} {rgb[0]:.5f} {rgb[1]:.5f} {rgb[2]:.5f} '
                      f'{x:.4f} {y:.4f} {z:.4f}')
     lines += ['END_DATA', '']
     # **THE TWO TABLES printtarg NEEDS, WHICH EVERY DEMO LACKED UNTIL K40-1.**
@@ -190,6 +193,52 @@ def write_ti1(path: Path, patches: "list[tuple[float, float, float]]",
 #:   the only part with two channels at 99 or over, so it is the only part that
 #:   can put steps on a non-grey ramp axis.
 
+# ---------------------------------------------------------------------------
+# What the printed sheet can carry (K61)
+# ---------------------------------------------------------------------------
+#: **printtarg PRINTS A DEVICE VALUE ROUNDED TO ITS PAGE IMAGE'S DEPTH, AND
+#: WRITES THE ROUNDED VALUE INTO THE .ti2**, which chartread copies into the
+#: measurement the report reads. Measured (K61): on an 8-bit page 10.0 is
+#: printed as 10.196 and 89.9 as 89.804; on a 16-bit page 10.0 is 10.00076
+#: and 70.0 is 69.99924. Every demo here sat ONE NOTCH (0.1) from its line or
+#: exactly on it, so on an 8-bit page half the pairs changed sides between the
+#: window (which read the .ti1) and the report, and on a 16-bit page every
+#: pair "exactly on the line" could round to the wrong side of it.
+#:
+#: So the demos are saved for a 16-bit page (`payload`), where 0.1 is 65
+#: steps and survives, and every value is written AS PRINTED: the nearest of
+#: the 65,536 levels, and a value that sits exactly on one of the lines below
+#: goes to the level on the side the requirement allows. The window lays each
+#: preset out and reads the printed values since K61
+#: (`preset_eligibility._perfect_print`), so both routes see these numbers.
+LEVELS_16 = 65535.0
+
+#: A value exactly ON a line, and which side of it the printed level must
+#: keep: "le" at most, "ge" at least. Black at 10 (at most), white at 90 (at
+#: least), the 30 to 70 % band's two ends (a level of 30 is a tone of 70, so
+#: at least 30; a level of 70 at most), the paper at 99.5 (at least), a cube
+#: face 2.0 away (at most 2.0 from 0, at least 98.0 from 100).
+_LINE_SIDE = {10.0: "le", 90.0: "ge", 30.0: "ge", 70.0: "le", 99.5: "ge",
+              2.0: "le", 98.0: "ge"}
+
+
+def printed(v: float) -> float:
+    """The device value a 16-bit printtarg page prints for *v*."""
+    import math
+    x = float(v) * LEVELS_16 / 100.0
+    side = _LINE_SIDE.get(round(float(v), 6))
+    k = (math.floor(x) if side == "le" else math.ceil(x) if side == "ge"
+         else math.floor(x + 0.5))
+    return k * 100.0 / LEVELS_16
+
+
+def printed_spread(spread: float) -> float:
+    """The largest printable spread that is not over *spread* (a spread of
+    1.0 is 655 levels, 0.99947)."""
+    import math
+    return math.floor(float(spread) * LEVELS_16 / 100.0) * 100.0 / LEVELS_16
+
+
 def greys(levels, spread: float = 0.0) -> "list[tuple[float, float, float]]":
     """Neutrals at each level, optionally *spread* device units out of neutral.
 
@@ -198,14 +247,17 @@ def greys(levels, spread: float = 0.0) -> "list[tuple[float, float, float]]":
     on the 0..255 scale and divide the whole thing by 2.55.
     """
     out = []
+    # K61: the spread is laid on the PRINTED level, in whole printed levels,
+    # so a spread of exactly 1.0 prints as 0.99947 and one of 1.1 as 1.09985
+    d = printed_spread(spread) if spread else 0.0
     for v in levels:
-        v = float(v)
+        v = printed(float(v))
         if not spread:
             out.append((v, v, v))
         elif v < 50.0:
-            out.append((v, v, v + spread))
+            out.append((v, v, v + d))
         else:
-            out.append((v - spread, v, v))
+            out.append((v - d, v, v))
     return out
 
 
@@ -455,6 +507,30 @@ def chart_clumped_ramp(tone_values=(40.0, 59.4, 60.0)):
 #: 1.03.)
 R16_SCALE = 0.80
 
+#: **K61 (Knut, #182 5851645723): THE THIRD EVENNESS FLOOR, THE SHEET'S OWN
+#: NOISE.** A page that meets both floors above is still not judged when the
+#: noise a typical print would have (`preset_eligibility._estimated_evenness`:
+#: a residual of `EVENNESS_TYPICAL_SIGMA` per patch, the report's own shuffle)
+#: is not below the row's limit. That line depends on the LIMIT, so these two
+#: pairs are judged under Custom ISO 12647-7, which puts 1.0 on both rows,
+#: the strictest numbers the pack's STRICT choice asks. MEASURED on the
+#: window's own estimate (`scripts/k61_threshold_matrix.py`), i1Pro, A4:
+#:
+#: * R18, the pairwise row at 1.0: at ``-a 0.95`` a page of 25 strips by 22
+#:   rows (70.4 % covered) reads a noise of 1.026 with 529 patches and 0.988
+#:   with 530;
+#: * R19, the from-the-mean row at 1.0: at ``-a 1.5`` a page of 15 strips by
+#:   14 rows (67.2 % covered) reads 1.030 with 200 patches and 0.985 with
+#:   201. The pairwise row is over its own limit on both sides (1.69, 1.68).
+#:
+#: THE ESTIMATE IS NOT MONOTONIC IN THE COUNT near its line: one patch more
+#: moves every patch's residual (and printtarg places the patches anew), so
+#: it wanders by about 0.05 from one count to the next: 531 reads 1.069
+#: again. Each pair is a crossing with about 0.03 on either side, and the pair
+#: test holds both sides to it.
+R18_SCALE = 0.95
+R19_SCALE = 1.5
+
 
 def chart_page(n: int):
     """The control's patches, topped up with fillers to *n*: every row it
@@ -502,6 +578,11 @@ class Requirement:
     #: K43: printtarg's patch size (-a) both presets are saved with, when it
     #: is not the pack's 1.0 (the page is what R16 is about)
     scale: float = 1.0
+    #: K61: the limit set whose limit the pair straddles, for a requirement
+    #: that depends on a LIMIT (the evenness noise rule): the window shows the
+    #: pair under that set, and `shown_under` says so. "" for every
+    #: requirement a chart meets or misses whatever the set.
+    judged_with: str = ""
 
 
 _CS_ROWS = ("control_strip_de00_avg", "control_strip_de00_max",
@@ -554,7 +635,7 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "measurement_report.GREY_SPREAD_TOL",
         _GREY_ROWS, "no_greys",
         "a ramp built 1.1 units out of neutral",
-        "a ramp built exactly 1.0 unit out of neutral",
+        "a ramp built 1.0 unit out of neutral (printed 0.9995)",
         lambda: chart_grey_spread(1.0 + NOTCH),
         lambda: chart_grey_spread(1.0),
         strip_ids(20), strip_ids(20),
@@ -579,7 +660,7 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "max(levels) < GREY_LIGHTEST_MIN (90.0)  ->  no_white",
         "measurement_report.GREY_LIGHTEST_MIN",
         _GREY_ROWS, "no_white",
-        "the lightest neutral at 89.9", "the lightest neutral at exactly 90.0",
+        "the lightest neutral at 89.9", "the lightest neutral at 90.0 (printed 90.0008)",
         lambda: chart_grey_levels((0.0, 13.0, 26.0, 39.0, 51.0, 64.0, 77.0,
                                    90.0 - NOTCH)),
         lambda: chart_grey_levels((0.0, 13.0, 26.0, 39.0, 51.0, 64.0, 77.0,
@@ -594,7 +675,7 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "min(levels) > GREY_DARKEST_MAX (10.0)  ->  no_black",
         "measurement_report.GREY_DARKEST_MAX",
         _GREY_ROWS, "no_black",
-        "the darkest neutral at 10.1", "the darkest neutral at exactly 10.0",
+        "the darkest neutral at 10.1", "the darkest neutral at 10.0 (printed 9.9992)",
         lambda: chart_grey_levels((10.0 + NOTCH, 23.0, 36.0, 49.0, 61.0, 74.0,
                                    87.0, 100.0)),
         lambda: chart_grey_levels((10.0, 23.0, 36.0, 49.0, 61.0, 74.0, 87.0,
@@ -649,7 +730,7 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "measurement_report.SURFACE_GAMUT_TOL",
         ("surface_gamut_de00_avg",), "too_few_surface_patches",
         "12 candidates, every one 2.1 from the nearest face",
-        "the same 12, every one exactly 2.0 from the nearest face",
+        "the same 12, every one 2.0 from the nearest face (printed 1.9989)",
         lambda: chart_surface(12, 2.0 + NOTCH),
         lambda: chart_surface(12, 2.0),
         strip_ids(20), strip_ids(20),
@@ -737,10 +818,45 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "measurement_report.PAPER_PATCH_TOL, paper_patch_rows",
         ("substrate_de00_max",), "paper_not_measured",
         "the lightest patch at 99.4 on every channel",
-        "the lightest patch at exactly 99.5",
+        "the lightest patch at 99.5 (printed 99.5003)",
         lambda: chart_paper_patch(99.5 - NOTCH),
         lambda: chart_paper_patch(99.5),
         strip_ids(20), strip_ids(20)),
+    # K61 (Knut, #182 5851645723): "Verify by test that all requirements for
+    # all metrics are properly working and that the demo projects are able to
+    # detect the threshold areas". The noise floor of the two evenness rows
+    # had no pair until beta 45: it was in UNREACHABLE, shown only by the
+    # built-in presets, never one notch either side of its line.
+    Requirement(
+        "R18", "Evenness across the sheet, between two of the nine areas",
+        "On a typical print, the chart's own noise between two of the nine "
+        "areas has to be below the metric's limit, so that a difference the "
+        "report reads is the sheet's and not the patches' scatter.",
+        "noise_p95 >= limit  ->  evenness_noisy_pairwise (the estimate of "
+        "preset_eligibility._estimated_evenness, EVENNESS_TYPICAL_SIGMA 1.1)",
+        "measurement_report.evenness_withheld, EVENNESS_TYPICAL_SIGMA",
+        ("uniformity_sd",), "evenness_noisy_pairwise",
+        "529 patches, a typical print's noise 1.026 against a limit of 1.0",
+        "530 patches, noise 0.988",
+        lambda: chart_page(529), lambda: chart_page(530),
+        strip_ids(20), strip_ids(20), scale=R18_SCALE,
+        judged_with="custom_iso_12647_7"),
+    Requirement(
+        "R19", "Evenness across the sheet, one area against the whole sheet",
+        "On a typical print, the chart's own noise between one of the nine "
+        "areas and the whole sheet has to be below the metric's limit.",
+        "noise_p95 >= limit  ->  evenness_noisy_from_mean (the same estimate)",
+        "measurement_report.evenness_withheld, EVENNESS_TYPICAL_SIGMA",
+        ("uniformity_de00_max_from_mean",), "evenness_noisy_from_mean",
+        "200 patches, a typical print's noise 1.030 against a limit of 1.0",
+        "201 patches, noise 0.985",
+        lambda: chart_page(200), lambda: chart_page(201),
+        strip_ids(20), strip_ids(20),
+        ("evenness_noisy_pairwise",),
+        "The pairwise row needs about 56 patches in each ninth under a limit "
+        "of 1.0; these two pages hold 17 to 20, so it is over its own limit "
+        "on both sides (1.69 and 1.68) and does not move with the pair.",
+        scale=R19_SCALE, judged_with="custom_iso_12647_7"),
 )
 
 
@@ -823,6 +939,9 @@ def shown_under(r: "Requirement") -> "tuple[str, str]":
     from workflow import measurement_report as MR
     from workflow import preset_eligibility as PE
     opening = opening_choice()
+    if r.judged_with:
+        # K61: a limit-dependent pair shows under the set it straddles
+        return opening[0], r.judged_with
     types = [opening[0]] + [t for t, _n, _b, _built in MR.REPORT_TYPE_MENU
                             if MR.report_type_is_built(t)
                             and t != opening[0]]
@@ -898,7 +1017,13 @@ def _build_demos() -> "tuple[Demo, ...]":
         n += 1
     out += [
         # K43: the largest demo, two pages, every row a preset can decide
-        # answered, the evenness pair included.
+        # answered, the evenness pair included. K61: only its first page is
+        # counted (the second, 7 strips, is under the coverage floor), 56
+        # patches to a ninth, so a typical print's noise between two areas
+        # is about 1.0: well under the 1.5 of ChromIQ's sets and of the
+        # loosest limit the star asks, and ON the 1.0 of Custom ISO 12647-7,
+        # where printtarg puts each patch decides the side (0.94 on an
+        # 8-bit page, 1.04 on this 16-bit one). R18 is the pair for that line.
         Demo(n, "Verify L1 control, 650 patches on two pages, every row "
                 "answered",
              "The control at size: 650 patches, which printtarg lays out as "
@@ -1015,11 +1140,6 @@ UNREACHABLE: "dict[str, str]" = {
     "evenness_empty_area":
         "Needs a page of at least 9 by 9 whose patches leave a ninth of it "
         "empty, which a chart filled strip by strip cannot do.",
-    "evenness_noisy_pairwise":
-        "Needs the page grid (see grid_too_small); shown by the built-in "
-        "engine presets of one page and 140 to 200 patches.",
-    "evenness_noisy_from_mean":
-        "As the row above.",
     # #182 E2 (Knut, 2026-09-23): the page-coverage floor. K43: no longer
     # here, it is R16's FAIL side.
     "evenness_no_page_geometry":
@@ -1032,10 +1152,9 @@ UNREACHABLE: "dict[str, str]" = {
 #: presets whose page grid the layout engine's own arithmetic predicts. Not by
 #: any demo here, so they stay in UNREACHABLE; the test asserts they really
 #: appear, which is stronger than asserting they do not.
-SHOWN_BY_BUILTINS: "frozenset[str]" = frozenset({
-    "evenness_noisy_pairwise",
-    "evenness_noisy_from_mean",
-})
+SHOWN_BY_BUILTINS: "frozenset[str]" = frozenset()
+#: (K61: the two noise codes were the only members. Each has its own pair
+#: now, R18 and R19, so no code is left that only a built-in preset shows.)
 
 
 # ---------------------------------------------------------------------------
@@ -1062,7 +1181,7 @@ def payload(attached: bool, scale: float = 1.0) -> dict:
         # PRINTTARG_SEED`).
         "printtarg_-R": PRINTTARG_SEED,
         "printtarg_-R_enabled": True,
-        "tiff_16bit": False,
+        "tiff_16bit": True,
         "auto_patches": False,
         "auto_grey": False,
         "auto_white": False,
@@ -1168,9 +1287,14 @@ def assess(chart: "Path | None") -> "dict[str, str]":
             for rid, v in values.items() if v.get("value") is None}
 
 
-def withheld(chart: "Path | None") -> "dict[str, str]":
+def withheld(chart: "Path | None",
+             judged_with: str = "") -> "dict[str, str]":
     """The same, without the code every preset carries, and only over the
     metrics the window can ever ASK.
+
+    With *judged_with* (K61), the evenness noise rule is applied too, under
+    that set's limits, as the window applies it (`evenness_withheld`): the
+    only rule here that depends on a limit rather than on the chart alone.
 
     ChromIQ's two repeatability rows are computed for every chart and asked by
     no combination in the window (`preset_eligibility.rows_asked` leaves out
@@ -1181,8 +1305,18 @@ def withheld(chart: "Path | None") -> "dict[str, str]":
     """
     from workflow import preset_eligibility as PE
     askable = set(PE.rows_any_report_can_ask())
-    return {rid: why for rid, why in assess(chart).items()
-            if why not in CONSTANTS and (rid in askable or rid == "")}
+    out = {rid: why for rid, why in assess(chart).items()
+           if why not in CONSTANTS and (rid in askable or rid == "")}
+    if judged_with and chart is not None:
+        from workflow import compliance_sets as CS
+        from workflow import measurement_report as MR
+        lim = CS.effective_limits(judged_with, {})
+        values = PE.chart_row_values(chart, layout(chart), lay_out=True)
+        for rid in MR.EVENNESS_ROWS:
+            why = MR.evenness_withheld(rid, values.get(rid), lim.get(rid))
+            if why:
+                out[rid] = why
+    return out
 
 
 def in_the_window(chart: "Path | None", r: "Requirement") -> "dict[str, str]":
@@ -1221,7 +1355,8 @@ def check(dest: Path) -> int:
         return None if d.no_chart else dest / (stem + ".ti1")
 
     for r, f, p in pairs():
-        got_f, got_p = withheld(chart_of(f)), withheld(chart_of(p))
+        got_f = withheld(chart_of(f), r.judged_with)
+        got_p = withheld(chart_of(p), r.judged_with)
         want_f = {rid: r.reason for rid in r.rows}
         problems = []
         for rid, code in want_f.items():
@@ -1288,8 +1423,10 @@ def grid(dest: Path) -> int:
 
     print(f"{'req':4} {'metric':34} {'comparison':58} {'FAIL':26} PASS")
     for r, f, p in pairs():
-        gf = sorted({c for c in withheld(chart_of(f)).values()})
-        gp = sorted({c for c in withheld(chart_of(p)).values()})
+        gf = sorted({c for c in withheld(chart_of(f),
+                                         r.judged_with).values()})
+        gp = sorted({c for c in withheld(chart_of(p),
+                                         r.judged_with).values()})
         print(f"{r.key:4} {r.metric[:34]:34} {r.comparison[:58]:58} "
               f"{','.join(gf)[:26]:26} {','.join(gp) or '(nothing)'}")
     return 0

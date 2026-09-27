@@ -316,14 +316,27 @@ def _trend_row_value(pt: dict, row_id: str, limit=None):
 #: One sentence per limit line, keyed by the row the line belongs to. The
 #: accuracy chart's grey pair is keyed by the two rows `legacy_pair` reads.
 #: Composed with the line's word and value by `_limit_line_note`.
+def _quoted(name: str) -> str:
+    """A metric's name in the report's quotation marks: “name”."""
+    return tr("“{metric}”").format(metric=name)
+
+
+def _within_gamut(name: str) -> str:
+    """A name, quoted or not, followed by "(within gamut)" (K61, Knut #182
+    5851645723): the words stand OUTSIDE the name, so the name stays exactly
+    the label the Report Limits window shows."""
+    return tr("{metric} (within gamut)").format(metric=name)
+
+
 def _limit_note_for(rid: str):
     """The note of one row's limit line: "the limit for “<name>”.", the name
     being the row's version 1 name (K31) or, given, the name this document
-    prints for it (the within-gamut name on a split document)."""
-    def note(name: "str | None" = None) -> str:
+    prints for it ALREADY QUOTED (K61: “<name>” (within gamut) on a split
+    document, the words after the closing quote)."""
+    def note(quoted: "str | None" = None) -> str:
         from workflow.compliance_sets import ROW_BY_ID
-        return tr("the limit for “{metric}”.").format(
-            metric=name or tr(ROW_BY_ID[rid].label))
+        return tr("the limit for {metrics}.").format(
+            metrics=quoted or _quoted(tr(ROW_BY_ID[rid].label)))
     return note
 
 
@@ -504,25 +517,26 @@ def _limit_value_text(v: float, unit: str) -> str:
 
 
 def _limit_line_note(word: str, value: float, unit: str, row_id: str,
-                     name: "str | None" = None) -> str:
+                     quoted: "str | None" = None) -> str:
     """The sentence a limit line's word stands for, on screen and in print.
-    *name* is the row's name as the document prints it (B8-944: "…, within
-    gamut" on a split document, as the legend beside the line)."""
+    *quoted* is the row's name as the document prints it, in its quotation
+    marks (`MeasurementReportDialog._quoted_row_name`; K61: “…” (within
+    gamut) on a split document, the words outside the name)."""
     return tr("{word} ({value}): {text}").format(
         word=word, value=_limit_value_text(value, unit),
-        text=_LIMIT_NOTES[row_id](name))
+        text=_LIMIT_NOTES[row_id](quoted))
 
 
 def _limit_line_note_for_rows(word: str, value: float, unit: str,
-                              row_ids: list, names: list) -> str:
+                              row_ids: list, quoted: list) -> str:
     """`_limit_line_note` for a line that is the limit for SEVERAL rows
     (K45-2, Knut #182 5834422633): the Colour accuracy graph's Avg line is the
     limit for every average row the set limits at that number, and its Max
     line for every maximum, so the sentence names each of them. One row reads
-    exactly as `_limit_line_note` always has."""
+    exactly as `_limit_line_note` always has. *quoted* are the names already
+    in their quotation marks (`_quoted_row_name`)."""
     if len(row_ids) == 1:
-        return _limit_line_note(word, value, unit, row_ids[0], names[0])
-    quoted = [tr("“{metric}”").format(metric=n) for n in names]
+        return _limit_line_note(word, value, unit, row_ids[0], quoted[0])
     listed = tr("{items} and {item}").format(items=", ".join(quoted[:-1]),
                                               item=quoted[-1])
     return tr("{word} ({value}): {text}").format(
@@ -7869,7 +7883,7 @@ class MeasurementReportDialog(QDialog):
             covered.update(rids)
             pair_notes.append(_limit_line_note_for_rows(
                 word, thr, "ΔE00", rids,
-                [self._row_name(r, runs) for r in rids]))
+                [self._quoted_row_name(r, runs) for r in rids]))
         groups: "dict[tuple, list]" = {}
         for rid, family in _ACCURACY_LINE_ROWS:
             if rid in covered or rid not in limits:
@@ -7881,7 +7895,7 @@ class MeasurementReportDialog(QDialog):
                     else tr("P95") if rids == ["all_de00_p95"] else tr("Max"))
             extra.append((value, word, _limit_line_note_for_rows(
                 word, value, "ΔE00", rids,
-                [self._row_name(r, runs) for r in rids])))
+                [self._quoted_row_name(r, runs) for r in rids])))
         return pair_notes, extra
 
     def _colour_accuracy_is_judged(self) -> bool:
@@ -16295,7 +16309,7 @@ class MeasurementReportDialog(QDialog):
                 # document judges none), so there is no red x to explain
                 notes.append(_limit_line_note(word(), info[rid],
                                               ROW_BY_ID[rid].unit, rid,
-                                              self._row_name(rid,
+                                              self._quoted_row_name(rid,
                                                              _names_runs)))
                 withheld.append(None)
                 continue
@@ -16303,7 +16317,7 @@ class MeasurementReportDialog(QDialog):
                 continue
             lim = judged[rid]
             notes.append(_limit_line_note(word(), lim, ROW_BY_ID[rid].unit,
-                                          rid, self._row_name(rid,
+                                          rid, self._quoted_row_name(rid,
                                                               _names_runs)))
             withheld.append(lambda pt, rr=rid, ll=lim:
                             _trend_withheld_reason(pt, rr, ll))
@@ -16445,12 +16459,35 @@ class MeasurementReportDialog(QDialog):
         within-gamut name when a sheet of the document is split by the
         profile's gamut and the row is judged on the within-gamut patches
         (K31, Knut #182 5801677743; `compliance_sets.row_name`). *runs*
-        decides when given; otherwise the document being rendered does."""
-        from workflow.compliance_sets import row_name
+        decides when given; otherwise the document being rendered does.
+
+        K61 (Knut, #182 5851645723): the name is the label the Report Limits
+        window shows, EXACTLY, and "(within gamut)" follows it: "Average
+        ΔE00, all patches (within gamut)", never "…, all patches within
+        gamut". Where the name is quoted, `_quoted_row_name` puts the words
+        after the closing quote."""
+        name, within = MeasurementReportDialog._row_name_parts(self, rid, runs)
+        return _within_gamut(name) if within else name
+
+    def _quoted_row_name(self, rid: str, runs: "list | None" = None) -> str:
+        """The same name inside quotation marks, with "(within gamut)" after
+        the closing mark (K61): “Average ΔE00, all patches” (within gamut).
+        The quoted text is always exactly the Report Limits label."""
+        name, within = MeasurementReportDialog._row_name_parts(self, rid, runs)
+        quoted = _quoted(name)
+        return _within_gamut(quoted) if within else quoted
+
+    def _row_name_parts(self, rid: str,
+                        runs: "list | None" = None) -> "tuple[str, bool]":
+        """``(the row's label, translated; whether "(within gamut)" follows
+        it in this document)``."""
+        from workflow.compliance_sets import IN_GAMUT_LABELS, ROW_BY_ID
         split = (MeasurementReportDialog._names_within_gamut(self, runs)
                  if runs is not None
                  else bool(getattr(self, "_names_split", False)))
-        return tr(row_name(rid, split))
+        row = ROW_BY_ID.get(rid)
+        name = tr(row.label) if row is not None else str(rid)
+        return name, bool(split and rid in IN_GAMUT_LABELS)
 
     def _evenness_row_is_in_report(self, r: dict) -> bool:
         """Whether one of the two evenness rows is in this run's part of the

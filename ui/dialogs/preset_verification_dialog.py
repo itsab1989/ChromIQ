@@ -153,8 +153,33 @@ def _solids_reason() -> str:
     return M.M_VERIFY_SOLIDS_REASON.render()[1]
 
 
-def reason_line(code: str) -> str:
-    """What this chart is short of, in one sentence."""
+def noise_count_line(have: int, need: int) -> str:
+    """K61 (Knut, #182 5851645723): an evenness row withheld for the chart's
+    own noise, with the two numbers that say why. "Too few patches in each
+    ninth" was read as a fault on a 648-patch page holding 72 in every
+    ninth, which is plenty for the page grid and not enough for a pairwise
+    limit of 0.5, which wants about 220 (`preset_eligibility.noise_shortfall`).
+    """
+    one = tr("Each ninth of the page holds at least 1 patch. On a typical "
+             "print the chart's own noise would be below this limit only "
+             "with about {need} patches in each ninth. The report measures "
+             "the real noise on the printed sheet.")
+    many = tr("Each ninth of the page holds at least {have} patches. On a "
+              "typical print the chart's own noise would be below this limit "
+              "only with about {need} patches in each ninth. The report "
+              "measures the real noise on the printed sheet.")
+    return (one if int(have) == 1 else many).format(have=int(have),
+                                                      need=int(need))
+
+
+def reason_line(code: str, counts: "tuple[int, int] | None" = None) -> str:
+    """What this chart is short of, in one sentence.
+
+    *counts* is ``(have, need)`` for an evenness row withheld for the
+    chart's own noise (`Assessment.noise_count`); the sentence then names
+    both numbers."""
+    if counts and code in MR.EVENNESS_NOISE_REASONS:
+        return noise_count_line(*counts)
     return {
         # Challenge 8, C5 (B8-1373): in these two windows this reason is
         # only ever given to the two solid rows (`_condition_it_would_get`,
@@ -257,14 +282,17 @@ def reason_line(code: str) -> str:
                "rows.").format(k=MR.EVENNESS_MIN_GRID),
         MR.REASON_EVENNESS_EMPTY_AREA:
             tr("One of the nine areas of the page holds no patch."),
+        # K61 (Knut, #182 5851645723): not "too few patches", which is
+        # false on a page that meets every count the grid asks for; the
+        # window gives the two numbers when it has them (`noise_count_line`)
         MR.REASON_EVENNESS_NOISY_PAIRWISE:
-            tr("Too few patches in each ninth of the page: on a typical print "
-               "the chart's own noise would not be below this limit. The "
-               "report measures the real noise on the printed sheet."),
+            tr("On a typical print the chart's own noise would not be below "
+               "this limit: each ninth of the page would need more patches. "
+               "The report measures the real noise on the printed sheet."),
         MR.REASON_EVENNESS_NOISY_FROM_MEAN:
-            tr("Too few patches in each ninth of the page: on a typical print "
-               "the chart's own noise would not be below this limit. The "
-               "report measures the real noise on the printed sheet."),
+            tr("On a typical print the chart's own noise would not be below "
+               "this limit: each ninth of the page would need more patches. "
+               "The report measures the real noise on the printed sheet."),
         # #182 E2 (Knut, 2026-09-23): the patch block's share of the page,
         # from the same margins "Measured from Preview" shows.
         MR.REASON_EVENNESS_PAGE_COVERAGE:
@@ -372,11 +400,13 @@ class Line:
     indent: int = 0
 
 
-def _missing_messages(rid: str, why: str, said: str = "") -> "tuple[str, ...]":
+def _missing_messages(rid: str, why: str, said: str = "",
+                      counts: "tuple[int, int] | None" = None
+                      ) -> "tuple[str, ...]":
     """Every line the pane prints under one metric the chart cannot answer:
     what it is short of, printtarg's own words when it refused the layout,
     and the metric's lever."""
-    out = [reason_line(why)]
+    out = [reason_line(why, counts)]
     if why == PE.REASON_EVENNESS_LAYOUT_REFUSED and said:
         # printtarg's own words, quoted as its own
         out.append(tr("printtarg said: “{said}”").format(said=said))
@@ -509,7 +539,8 @@ def detail_lines(row: "PresetRow | None", *,
         out.append(Line(tr("This chart cannot answer"), bold=True))
         said = PE.layout_failure_detail(row.chart, row.recipe)
         for rids, messages in group_by_messages(
-                [(rid, _missing_messages(rid, why, said))
+                [(rid, _missing_messages(rid, why, said,
+                                         a.noise_count(rid)))
                  for rid, why in missing]):
             out += [Line("✕  " + tr(PE.row_label(rid)), indent=6)
                     for rid in rids]
@@ -616,7 +647,8 @@ def summary_lines(row: "PresetRow | None", *, generic: bool = False) -> "list[Li
     # lines are identical are listed together with the line once, anything
     # else on its own, in the order of each group's first metric.
     for rids, messages in group_by_messages(
-            [(rid, (reason_line(why),)) for rid, why in a.missing]):
+            [(rid, (reason_line(why, a.noise_count(rid)),))
+             for rid, why in a.missing]):
         out += [Line("✕  " + tr(PE.row_label(rid)), indent=6)
                 for rid in rids]
         out += [Line(m, info=True, indent=22) for m in messages]

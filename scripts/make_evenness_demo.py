@@ -50,6 +50,26 @@ can, beside the pack, so the rows can be driven on screen:
   each aim carried onto the paper. The drift sits at the limit on both
   runs (about 1.5), so which side of 1.5 it lands is not the point of run8;
   that both rows are JUDGED, with a noise near run1's, is.
+* **run9** (K61, Knut #182 5851645723), Knut's own case: the 648-patch i1Pro
+  A4 preset he selected in "Which presets can be used for verification",
+  one page of 24 strips by 27 rows, 72 patches in each ninth, measured as a
+  TYPICAL print. Its noise between two areas is below the 1.5 of ChromIQ
+  default, so the row is judged there, and not below the 0.5 of the
+  ISO 12647-7:2016 values, where it reads N-A for the noise: ONE sheet on
+  both sides of a line that depends on the limit, as the presets window says
+  before it is printed. MEASURED: the window estimates 0.87 over all 648
+  patches (72 to a ninth); the report reads 1.02, because on a sheet split
+  by the profile's gamut only the patches within it count (534 here, with
+  Argyll's sRGB standing in for the profile, 55 to 62 to a ninth). So under
+  Custom ISO 12647-7's 1.0 the window says the row can be judged and this
+  sheet's report does not judge it; the window cannot know the gamut before
+  a profile exists.
+* **run10** (K61), the noise line itself, in the report: the 837-patch chart
+  of run1 printed four times with no place effect at all, each sheet's
+  scatter scaled so that its MEASURED noise lands just over or just under a
+  limit of ChromIQ default: between two areas 1.53 and 1.47 against 1.5, one
+  area against the whole sheet 1.03 and 0.97 against 1.0. Just over reads
+  N-A, just under is judged.
 
 The readings are SYNTHETIC: each patch is the chart's own aim plus the
 residual named above, so what every area should read is known in advance. The
@@ -73,6 +93,8 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(HERE))
 
 NAME = "Report-Limits-Evenness"
+#: K61: Knut's own case, the 648-patch i1Pro A4 preset on one page.
+I1_648 = "i1_w75_a4_648p_1page_portrait_w7_5mm"
 ARGYLL = Path(os.environ.get("CHROMIQ_ARGYLL_BIN", "/Applications/Argyll/bin"))
 SRGB = ARGYLL.parent / "ref" / "sRGB.icm"
 LARGE = "i1_w75max_a4_837p_1page_portrait_w7_5mm_maximised_no_clip_border"
@@ -151,6 +173,43 @@ DATES_UNCOVERED = [
 ]
 DATES_P3_ONE = [
     ("2026-10-01_150000", "2026-10-01T15:00:00", "typical print", _typical),
+]
+#: K61: Knut's 648-patch page as a typical print.
+DATES_648 = [
+    ("2026-10-01_160000", "2026-10-01T16:00:00", "typical print", _typical),
+]
+
+
+class NoiseTarget:
+    """A sheet with no place effect, whose scatter is scaled until the
+    report MEASURES exactly this noise on one of its two rows (K61). The
+    noise is linear in the scatter (the same draws, the same shuffles), so
+    two or three passes land it within 0.004."""
+
+    def __init__(self, key: str, target: float):
+        self.key, self.target = key, float(target)
+
+    def residual(self, sigma: float):
+        def f(page, s, r, S, R, rng):
+            return rng.normal(0, sigma, 3)
+        return f
+
+
+#: K61: the noise line in the report, one notch either side of each of
+#: ChromIQ default's two evenness limits (1.5 between two areas, 1.0 from the
+#: mean). The same seed on every date, so the four sheets differ ONLY in the
+#: size of their scatter.
+DATES_NOISE_LINE = [
+    ("2026-10-01_170000", "2026-10-01T17:00:00",
+     "noise just over the pairwise limit", NoiseTarget("pairwise", 1.53)),
+    ("2026-10-08_170000", "2026-10-08T17:00:00",
+     "noise just under the pairwise limit", NoiseTarget("pairwise", 1.47)),
+    ("2026-10-15_170000", "2026-10-15T17:00:00",
+     "noise just over the from-the-mean limit",
+     NoiseTarget("from_mean", 1.03)),
+    ("2026-10-22_170000", "2026-10-22T17:00:00",
+     "noise just under the from-the-mean limit",
+     NoiseTarget("from_mean", 0.97)),
 ]
 
 
@@ -292,22 +351,38 @@ def _run(proj, run, slug: str, instrument: str, description: str,
     for k, (vid, when, title, residual) in enumerate(dates, start=1):
         v = run.verification(vid)
         v.ensure_dir()
-        ti3 = _sheet(vti2, v.dir / f"{vstem}.ti3", residual, seed0 + k,
-                     instrument, when, paper_lab=paper_lab)
-        mark_verification_ti3(ti3)
-        cdir = DEMO.snapshot(v.dir, vstem, run.verifications_dir)
-        DEMO.write_print_record(cdir, vstem, when, f"{stem}.icc",
-                                "through-profile")
-        # ABSOLUTE colorimetric by default, so every row of the report judges
-        # in absolute Lab. run8 passes "relative", an intent that maps paper
-        # white: the colour accuracy rows then read the sheet relative to its
-        # lightest patch, and evenness, since #182 E8 (beta 39), does not.
-        import json
-        pj = cdir / f"{vstem}.print.json"
-        rec = json.loads(pj.read_text(encoding="utf-8"))
-        rec["intent"] = intent
-        pj.write_text(json.dumps(rec, indent=2), encoding="utf-8")
-        rep = build_report(v.measurement_ti3, argyll_bin=ARGYLL)
+        target = residual if isinstance(residual, NoiseTarget) else None
+        sigma = 1.0
+        # K61: a NoiseTarget sheet is written, measured and rescaled until
+        # the report reads its noise; any other sheet is written once
+        for _pass in range(6 if target else 1):
+            if target is not None:
+                residual = target.residual(sigma)
+            ti3 = _sheet(vti2, v.dir / f"{vstem}.ti3", residual,
+                         (seed0 + 1) if target else (seed0 + k),
+                         instrument, when, paper_lab=paper_lab)
+            mark_verification_ti3(ti3)
+            cdir = DEMO.snapshot(v.dir, vstem, run.verifications_dir)
+            DEMO.write_print_record(cdir, vstem, when, f"{stem}.icc",
+                                    "through-profile")
+            # ABSOLUTE colorimetric by default, so every row of the report
+            # judges in absolute Lab. run8 passes "relative", an intent that
+            # maps paper white: the colour accuracy rows then read the sheet
+            # relative to its lightest patch, and evenness, since #182 E8
+            # (beta 39), does not.
+            import json
+            pj = cdir / f"{vstem}.print.json"
+            rec = json.loads(pj.read_text(encoding="utf-8"))
+            rec["intent"] = intent
+            pj.write_text(json.dumps(rec, indent=2), encoding="utf-8")
+            rep = build_report(v.measurement_ti3, argyll_bin=ARGYLL)
+            if target is None:
+                break
+            got = (rep.get("evenness") or {}).get(
+                f"noise_{target.key}_p95")
+            if got is None or abs(float(got) - target.target) < 0.004:
+                break
+            sigma *= target.target / float(got)
         stamp_verdict(rep, limits.limits, set_id=limits.set_id,
                       set_label=limits.label_en, edited=limits.edited)
         DEMO.file_report(rep, v.measurement_ti3, run, KIND_VERIFICATION, when)
@@ -372,6 +447,21 @@ def build(dest: Path) -> Path:
          "printed, with a drift across the strips, with one area lighter, and "
          "noisy. Evenness is judged as measured whatever the intent.",
          DATES_LARGE, 100, intent="relative", paper_lab=RUN8_PAPER_LAB)
+    run9 = proj.new_run()
+    _run(proj, run9, I1_648, "X-Rite i1Pro 2",
+         "The 648-patch i1Pro A4 preset on one page, 24 strips by 27 rows, 72 "
+         "patches in each ninth, measured as a typical print. Its noise "
+         "between two areas, about 1.0 over the patches within the "
+         "profile's gamut, is below a limit of 1.5, so that row is judged "
+         "there, and not below 0.5, where it is not judged.",
+         DATES_648, 900)
+    run10 = proj.new_run()
+    _run(proj, run10, LARGE, "X-Rite i1Pro 2",
+         "The 837-patch chart of run 1 printed four times with no difference "
+         "between areas, each sheet's scatter set so that its own noise is "
+         "just over or just under a limit: 1.53 and 1.47 between two areas, "
+         "1.03 and 0.97 for one area against the whole sheet.",
+         DATES_NOISE_LINE, 1000)
     return root
 
 
