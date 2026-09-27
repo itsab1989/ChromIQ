@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.3.0-beta.47
+
+**Nine new "by Pharmacist" built-in presets with a full page layout replace seven that were only page images, and the preset lists no longer filter by paper size unless you switch it on.**
+
+### New
+
+- Nine "by Pharmacist" presets: the ColorMunki A4 Landscape TC3.00 Target (300 patches) and its ChromIQ editor equivalent, the ColorMunki A4 Landscape ABW Optimized Target (600 patches, 2 pages), and the i1Pro Real World Target on A4 and on Letter in standard, medium and expert quality (648, 1296 and 1944 patches on 1, 2 and 3 pages). Each carries its page layout, so it builds with the ChromIQ layout engine and can be laid out again. All but the TC3.00 Target are a "Full layout setup"; the TC3.00 Target is marked "Layout, but no editor setup", because it brings its page layout but no design for the patch-set editor.
+- Eight of them are shown in the preset lists by default. The ChromIQ editor equivalent of the TC3.00 Target is listed under the arrow until you tick it in "Settings for built-in presets".
+
+### Changed
+
+- "Filter preset-dropdown list according to selected paper size" in "Settings for built-in presets" is off by default, so both preset lists show every preset you have ticked. If you switched it on or off yourself, your choice is kept.
+- Seven "by Pharmacist" presets that came as pre-rendered page images are removed: the i1Pro A4 1110 ABW-optimized, the three TC9.18 extended greys (i1Pro A4, i1Pro Letter, ColorMunki A3+), the ColorMunki A4 300 TC3.00 and the two i1Pro 1944 extended targets. The new presets replace them. A project already made from one of them keeps its chart. The i1Pro 10x15cm 600, i1Pro 13x18cm 648, ColorMunki A3 924 and ColorMunki A4 702 presets stay.
+
 ## v4.3.0-beta.46
 
 **With nothing to report on, the Measurement Report's red line now says a measurement must be ticked instead of asking for a press of a button that is unavailable.**

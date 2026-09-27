@@ -136,7 +136,7 @@ def script(d):
     yield 1200
     d.shot(d.win, "00-create-chart-manual")
     cb = tab._preset_combo
-    keys = ["__chromiq_tc300_builtin__", "__chromiq_tc918_builtin__",
+    keys = ["__chromiq_abw702_builtin__", "__chromiq_tc918_builtin__",
             "__chromiq_munki324_builtin__", "__chromiq_abw702_builtin__"]
     keys = [k for k in keys if cb.findData(k) >= 0] or [cb.itemData(1)]
     rec["keys"] = keys

@@ -47,7 +47,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 #: A shipped chart that holds all eight cube corners, used as the ordinary
 #: verification chart. Nothing about the pre-flight needs those corners; it is
 #: simply a real chart with a real patch set.
-ORDINARY_CHART = ROOT / "assets/charts/pharmacist/rgb/colormunki/a4/tc300/tc300.ti1"
+ORDINARY_CHART = ROOT / "assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702.ti1"
 
 #: Where a FROM PROFILE GAMUT chart and its colorimetric reference are taken
 #: from, so the gamut half of the proof is a chart the application really

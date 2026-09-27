@@ -64,6 +64,9 @@ def store(tmp_path):
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     s.set("custom_output_path", str(tmp_path / "out"))
+    # The lists follow the paper only with the paper filter on, which is OFF
+    # by default since beta 47 (Knut, #182 5860041950).
+    s.set("builtin_presets_paper_filter", True)
     return s
 
 

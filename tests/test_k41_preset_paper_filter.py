@@ -427,42 +427,53 @@ def test_the_box_is_stored_by_ok_and_discarded_by_close(tab, settings, qapp):
     """MUTATION, proved to land: the box stored whatever ``exec`` returned
     (red on Close); the box not handed to the caller on OK (red)."""
     _manual_paper(tab, "420x297")
-    # ON by default (Knut, #182 5833232475: "It should be default ON")
-    done = _drive(tab, qapp, box=False, end="close")
-    assert done["shown_as"] is True
+    # OFF by default (Knut, #182 5860041950; ON from 5833232475 to beta 46)
+    done = _drive(tab, qapp, box=True, end="close")
+    assert done["shown_as"] is False
     assert done["text"] == ("Filter preset-dropdown list according to "
                             "selected paper size")
-    assert cp.paper_filter_on(settings) is True
-    assert RED_RIVER not in [t for t, _d in _listed(tab)]
-
-    done = _drive(tab, qapp, box=False, end="ok")
     assert cp.paper_filter_on(settings) is False
     assert RED_RIVER in [t for t, _d in _listed(tab)]
 
     done = _drive(tab, qapp, box=True, end="ok")
-    assert done["shown_as"] is False
     assert cp.paper_filter_on(settings) is True
     assert RED_RIVER not in [t for t, _d in _listed(tab)]
+
+    done = _drive(tab, qapp, box=False, end="ok")
+    assert done["shown_as"] is True
+    assert cp.paper_filter_on(settings) is False
+    assert RED_RIVER in [t for t, _d in _listed(tab)]
 
 
 def test_the_setting_survives_a_restart(tmp_path, qapp):
     ini = tmp_path / "restart.ini"
     s = AppSettings()
     s._qs = QSettings(str(ini), QSettings.Format.IniFormat)
-    # A STORED OFF IS KEPT across a restart, now that ON is the default
-    s.set(cp.PAPER_FILTER_KEY, False)
+    # A STORED ON IS KEPT across a restart, now that OFF is the default
+    s.set(cp.PAPER_FILTER_KEY, True)
     s._qs.sync()
     s2 = AppSettings()
     s2._qs = QSettings(str(ini), QSettings.Format.IniFormat)
-    assert cp.paper_filter_on(s2) is False
+    assert cp.paper_filter_on(s2) is True
 
 
-def test_the_box_is_on_for_someone_who_never_touched_it(tmp_path, qapp):
-    """Knut, #182 5833232475: *"It should be default ON."* MUTATION: the
-    default back to False in core/settings.py (red), or in
-    ``paper_filter_on`` (red)."""
+def test_the_box_is_off_for_someone_who_never_touched_it(tmp_path, qapp):
+    """Knut, #182 5860041950: *"The 'Filter preset-dropdown list...' in the
+    'Settings for built-in presets' window shall be OFF by default."* (It was
+    ON from 5833232475.) MUTATION: the default back to True in
+    core/settings.py (red), or in ``paper_filter_on`` (red)."""
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "fresh.ini"), QSettings.Format.IniFormat)
+    assert cp.paper_filter_on(s) is False
+
+
+def test_a_stored_on_from_an_earlier_beta_is_kept(tmp_path, qapp):
+    """No migration drops a stored ON: the window writes the box only when it
+    changes it, so a stored True is somebody's own choice."""
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "chosen.ini"), QSettings.Format.IniFormat)
+    s.set(cp.PAPER_FILTER_KEY, True)
+    s.migrate()
     assert cp.paper_filter_on(s) is True
 
 

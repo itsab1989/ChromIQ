@@ -402,25 +402,24 @@ def test_the_count_line_is_the_sentence_knut_wrote(window, qapp):
 # ---------------------------------------------------------------------------
 # 5. the "by Pharmacist" bundles
 # ---------------------------------------------------------------------------
-def test_every_by_pharmacist_preset_is_a_prebuilt_image_and_no_others_are(
+def test_the_prebuilt_images_are_the_four_kept_by_pharmacist_presets(
         tmp_path):
-    """The set Knut named by NAME is the set the code can name by PROPERTY.
-
-    He wrote *"all the built-in presets called '… by Pharmacist'"* and gave the
-    reason: *"these charts do not have a proper layout and come with pre-made
-    tif files"*. Those are two different ways of picking a set, and this is
-    what makes it safe to implement the property: measured on this tree they
-    are the same eleven presets, so nothing is excluded that he did not name
-    and nothing he named is left in.
+    """The rule was always the PROPERTY: *"these charts do not have a proper
+    layout and come with pre-made tif files"*. Until beta 47 every "by
+    Pharmacist" preset was one, so the name and the property picked the same
+    eleven. Knut then withdrew seven of them and sent nine with a page layout
+    (#182 5860041950), so the name no longer picks the set: the four prebuilt
+    images he kept are the only presets that cannot be laid out again, and the
+    nine new ones can.
     """
     settings, _fm, _ctl = _env(tmp_path)
     rows = verification_preset_rows(settings)
-    by_name = {r.label for r in rows if "by Pharmacist" in r.label}
     by_property = {r.label for r in rows if not r.relayoutable}
-    assert by_name == by_property, (
-        f"named but not excluded: {sorted(by_name - by_property)}; "
-        f"excluded but not named: {sorted(by_property - by_name)}")
-    assert len(by_name) == len(PREBUILT_PRESETS) == 11
+    assert len(by_property) == len(PREBUILT_PRESETS) == 4
+    assert all("by Pharmacist" in lbl for lbl in by_property), by_property
+    laid_out = {r.label for r in rows
+                if "by Pharmacist" in r.label and r.relayoutable}
+    assert len(laid_out) == 8, sorted(laid_out)    # + the "(ChromIQ Editor)" one
 
 
 def test_a_prebuilt_preset_never_carries_the_star_and_leaves_the_filtered_list(
@@ -433,8 +432,9 @@ def test_a_prebuilt_preset_never_carries_the_star_and_leaves_the_filtered_list(
     """
     unfiltered = {it.data(0, Qt.ItemDataRole.UserRole).label
                   for it in _rows_of(window)}
-    pharma = {lbl for lbl in unfiltered if "by Pharmacist" in lbl}
-    assert len(pharma) == 11, f"only {len(pharma)} of the eleven are listed"
+    pharma = {r.label for r in window._rows if not r.relayoutable}
+    assert len(pharma) == 4, f"{len(pharma)} prebuilt images, four were kept"
+    assert pharma <= unfiltered, "a prebuilt image is missing from the list"
     assert not any(r.starred for r in window._rows if not r.relayoutable)
 
     window._only_star.setChecked(True)
@@ -476,7 +476,7 @@ def test_the_gamut_only_metrics_are_the_rows_the_report_itself_withholds():
     finding.
     """
     from core.resource_path import resource_path
-    chart = resource_path(TC.PREBUILT_PRESETS[TC.TC300_PRESET_KEY][0] + ".ti1")
+    chart = resource_path(TC.PREBUILT_PRESETS[TC.ABW702_PRESET_KEY][0] + ".ti1")
     assert chart.is_file(), f"the fixture chart is missing: {chart}"
     values = PE.chart_row_values(chart)
     withheld = tuple(
@@ -492,7 +492,7 @@ def test_made_for_verification_refuses_a_sheet_that_cannot_be_laid_out_again():
     it: the SAME chart, patch count and page count, starred when the sheet can
     be built again and not when it cannot."""
     from core.resource_path import resource_path
-    chart = resource_path(TC.PREBUILT_PRESETS[TC.TC300_PRESET_KEY][0] + ".ti1")
+    chart = resource_path(TC.PREBUILT_PRESETS[TC.ABW702_PRESET_KEY][0] + ".ti1")
     patches = PE.patch_count(chart)
     assert PE.made_for_verification(chart, patches, 1, relayoutable=True)
     assert not PE.made_for_verification(chart, patches, 1, relayoutable=False)
@@ -586,9 +586,9 @@ def test_the_tab_loads_what_the_window_chose_through_the_pulldowns_own_path(
     tab._open_preset_verification_window()
     assert applied == [], "a window closed with no choice applied a preset"
 
-    chosen["key"] = TC.TC300_PRESET_KEY
+    chosen["key"] = TC.ABW702_PRESET_KEY
     tab._open_preset_verification_window()
-    assert applied == [TC.TC300_PRESET_KEY]
+    assert applied == [TC.ABW702_PRESET_KEY]
 
 
 def test_the_window_tells_the_reader_about_the_double_click(window):

@@ -54,6 +54,14 @@
   "__chromiq_knut_scanner_a4_3430p_1page_landscape__": "Scanner · A4-3430p-1page-Landscape-w4.0mm · Profile printer with scanner · Full layout setup",
   "__chromiq_knut_scanner_letter_3250p_1page_landscape__": "Scanner · Letter-3250p-1page-Landscape-w4.0mm · Profile printer with scanner · Full layout setup",
   "__chromiq_knut_redriver_i1pro_a4_2052p_4pages__": "Red River Paper · i1Pro · A4-2052p-4pages · Standard Patch Set v25",
-  "__chromiq_knut_redriver_i1pro_letter_2052p_4pages__": "Red River Paper · i1Pro · Letter-2052p-4pages · Standard Patch Set v25"
+  "__chromiq_knut_redriver_i1pro_letter_2052p_4pages__": "Red River Paper · i1Pro · Letter-2052p-4pages · Standard Patch Set v25",
+  "__chromiq_knut_pharm_cm_a4r_300p_1page_landscape_w9_0mm_tc300__": "ColorMunki · A4-300p-1page-Landscape-w9.0mm-TC3.00 Target-by Pharmacist · Layout, but no editor setup",
+  "__chromiq_knut_pharm_cm_a4r_600p_2pages_landscape_w9_0mm_abw__": "ColorMunki · A4-600p-2pages-Landscape-w9.0mm-ABW Optimized Target-by Pharmacist · Full layout setup",
+  "__chromiq_knut_pharm_i1_a4_648p_1page_portrait_w7_5mm_real_world__": "i1Pro · A4-648p-1page-Portrait-w7.5mm-(standard quality)-Real World Target-by Pharmacist · Full layout setup",
+  "__chromiq_knut_pharm_i1_a4_1296p_2pages_portrait_w7_5mm_real_world__": "i1Pro · A4-1296p-2pages-Portrait-w7.5mm-(medium quality)-Real World Target-by Pharmacist · Full layout setup",
+  "__chromiq_knut_pharm_i1_a4_1944p_3pages_portrait_w7_5mm_real_world__": "i1Pro · A4-1944p-3pages-Portrait-w7.5mm-(expert quality)-Real World Target-by Pharmacist · Full layout setup",
+  "__chromiq_knut_pharm_i1_letter_648p_1page_portrait_w7_5mm_real_world__": "i1Pro · Letter-648p-1page-Portrait-w7.5mm-(standard quality)-Real World Target-by Pharmacist · Full layout setup",
+  "__chromiq_knut_pharm_i1_letter_1296p_2pages_portrait_w7_5mm_real_world__": "i1Pro · Letter-1296p-2pages-Portrait-w7.5mm-(medium quality)-Real World Target-by Pharmacist · Full layout setup",
+  "__chromiq_knut_pharm_i1_letter_1944p_3pages_portrait_w7_5mm_real_world__": "i1Pro · Letter-1944p-3pages-Portrait-w7.5mm-(expert quality)-Real World Target-by Pharmacist · Full layout setup"
  }
 }

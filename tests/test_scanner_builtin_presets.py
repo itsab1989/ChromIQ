@@ -189,8 +189,8 @@ def test_selecting_a_printtarg_builtin_turns_the_engine_off(qapp, tmp_path,
     # engine flag back and hide this test's real subject.
     tab._manual_target_name_edit.setText("ZZ-engine-off-probe")
 
-    idx = tab._preset_combo.findData("__chromiq_tc918eg_a4_builtin__")
-    assert idx > 0, "the TC9.18 built-in is not in the dropdown"
+    idx = tab._preset_combo.findData("__chromiq_abw702_builtin__")
+    assert idx > 0, "the ABW 702 built-in is not in the dropdown"
     _choose(tab, idx)
 
     assert bool(s.get("use_chromiq_layout_engine", False)) is False, (

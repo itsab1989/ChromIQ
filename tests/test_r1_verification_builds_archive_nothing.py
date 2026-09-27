@@ -59,7 +59,7 @@ def test_a_prebuilt_preset_under_verification_archives_nothing(
     ctl.set_profile_run("run1")
     ctl.set_run_type(RUN_TYPE_VERIFICATION)
     run = _with_results(tmp_path)
-    assert tab._apply_prebuilt_preset("__chromiq_tc300_builtin__", "P")
+    assert tab._apply_prebuilt_preset("__chromiq_abw702_builtin__", "P")
     assert _old_folders(tmp_path) == []
     assert run.measurement_ti3.read_text(encoding="utf-8") == "MEASUREMENT"
     assert run.profile_icc.read_bytes() == b"ICC-PROFILE"
@@ -107,7 +107,7 @@ def test_a_prebuilt_preset_under_profiling_still_archives(qapp, tmp_path,
     monkeypatch.setattr(tab, "_confirm_displacing_results", lambda: True)
     monkeypatch.setattr(tab, "_gate_route_and_replace",
                         lambda *a, **k: (True, True))
-    assert tab._apply_prebuilt_preset("__chromiq_tc300_builtin__", "P")
+    assert tab._apply_prebuilt_preset("__chromiq_abw702_builtin__", "P")
     olds = _old_folders(tmp_path)
     assert olds, "a profiling rebuild left the measurement unarchived"
     assert any(p.suffix == ".ti3" for p in olds[0].rglob("*"))

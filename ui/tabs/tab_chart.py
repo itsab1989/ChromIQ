@@ -275,32 +275,19 @@ MUNKI_TARGEN = {
 # orientation, which Knut's names carry, aren't stored for these pre-rendered
 # charts, so they're omitted here.) The *_KEY is the stable identity — labels can
 # change freely, keys must not.
-ABW1110_PRESET_KEY = "__chromiq_abw1110_builtin__"
-ABW1110_PRESET_LABEL = "★  i1Pro · A4-1110p-2pages ABW-optimized by Pharmacist  ·  built-in"
-# TC9.18 extended-greys 1160-patch target, in A4 and US-Letter layouts. Same
-# patch set, two page sizes — the paper is carried in the label so the pair is
-# distinguishable in the dropdown and the overlay.
-TC918EG_A4_PRESET_KEY = "__chromiq_tc918eg_a4_builtin__"
-TC918EG_A4_PRESET_LABEL = "★  i1Pro · A4-1160p-2pages TC9.18 extended greys by Pharmacist  ·  built-in"
-TC918EG_LETTER_PRESET_KEY = "__chromiq_tc918eg_letter_builtin__"
-TC918EG_LETTER_PRESET_LABEL = "★  i1Pro · Letter-1160p-2pages TC9.18 extended greys by Pharmacist  ·  built-in"
-TC300_PRESET_KEY = "__chromiq_tc300_builtin__"
-TC300_PRESET_LABEL = "★  ColorMunki · A4-300p-1page TC3.00 by Pharmacist  ·  built-in"
 ABW702_PRESET_KEY = "__chromiq_abw702_builtin__"
 ABW702_PRESET_LABEL = "★  ColorMunki · A4-702p-2pages ABW-optimized by Pharmacist  ·  built-in"
 # TC9.24 target laid out for the ColorMunki on A3 (single page, 924 patches).
 TC924_CM_A3_PRESET_KEY = "__chromiq_tc924_cm_a3_builtin__"
 TC924_CM_A3_PRESET_LABEL = "★  ColorMunki · A3-924p-1page TC9.24 by Pharmacist  ·  built-in"
-# TC9.18 extended greys laid out for the ColorMunki on A3+ (single page, 1160 patches).
-TC918EG_CM_A3_PRESET_KEY = "__chromiq_tc918eg_cm_a3_builtin__"
-TC918EG_CM_A3_PRESET_LABEL = "★  ColorMunki · A3+-1160p-1page TC9.18 extended greys by Pharmacist  ·  built-in"
-# Extended 1944-patch RGB target (shuffled patch set), in A4 and US-Letter
-# layouts. Same patch set, two page sizes — paper carried in the label so the
-# pair is distinguishable in the dropdown and the overlay.
-EXT1944_A4_PRESET_KEY = "__chromiq_ext1944_a4_builtin__"
-EXT1944_A4_PRESET_LABEL = "★  i1Pro · A4-1944p-3pages extended target by Pharmacist  ·  built-in"
-EXT1944_LETTER_PRESET_KEY = "__chromiq_ext1944_letter_builtin__"
-EXT1944_LETTER_PRESET_LABEL = "★  i1Pro · Letter-1944p-3pages extended target by Pharmacist  ·  built-in"
+# SEVEN OF THE ELEVEN WERE WITHDRAWN BY KNUT, 2026-09-27 (#182 5860041950):
+# the i1Pro A4 1110 ABW, the three TC9.18 extended greys (i1Pro A4, i1Pro
+# Letter, ColorMunki A3+), the ColorMunki A4 TC3.00 and the two i1Pro 1944
+# extended targets. *"The new presets replace the ones removed and have
+# layout settings, which the old did not (only an image)."* They are the
+# `_pharmacist_preset` rows below. A project made from one of them keeps its
+# own copied files; a stored key that no longer exists simply selects no
+# preset (`findData` answers -1), as it did for the withdrawn i1Pro TC9.24.
 # Photo-card targets (Nelson Lau, 2026-09-08): the first built-ins for the two
 # sizes photo paper actually comes in, 10 x 15 cm and 13 x 18 cm. Both are laid
 # out denser than Argyll's own i1 geometry allows (7.3 / 7.6 mm patch length
@@ -379,15 +366,8 @@ PREBUILT_PRESET_NOTES[PHOTOCARD648_PRESET_KEY] = \
 # numbers ARE the orientation and Knut's rule of 2026-09-10/11 reads it off
 # them. It's only the prompt's suggested default — the user can edit it freely.
 PREBUILT_PRESETS = {
-    ABW1110_PRESET_KEY:        ("assets/charts/pharmacist/rgb/i1pro/a4/abw1110/abw1110",        "i1Pro-A4-1110p-2pages-ABW-optimized by Pharmacist"),
-    TC918EG_A4_PRESET_KEY:     ("assets/charts/pharmacist/rgb/i1pro/a4/tc918eg/tc918eg",        "i1Pro-A4-1160p-2pages-TC9.18 extended greys by Pharmacist"),
-    TC918EG_LETTER_PRESET_KEY: ("assets/charts/pharmacist/rgb/i1pro/letter/tc918eg/tc918eg",    "i1Pro-Letter-1160p-2pages-TC9.18 extended greys by Pharmacist"),
-    TC300_PRESET_KEY:          ("assets/charts/pharmacist/rgb/colormunki/a4/tc300/tc300",       "ColorMunki-A4-300p-1page-TC3.00 by Pharmacist"),
     ABW702_PRESET_KEY:         ("assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702",     "ColorMunki-A4-702p-2pages-ABW-optimized by Pharmacist"),
     TC924_CM_A3_PRESET_KEY:    ("assets/charts/pharmacist/rgb/colormunki/a3/tc924/tc924",       "ColorMunki-A3-924p-1page-TC9.24 by Pharmacist"),
-    TC918EG_CM_A3_PRESET_KEY:  ("assets/charts/pharmacist/rgb/colormunki/a3plus/tc918eg/tc918eg", "ColorMunki-A3+-1160p-1page-TC9.18 extended greys by Pharmacist"),
-    EXT1944_A4_PRESET_KEY:     ("assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944",     "i1Pro-A4-1944p-3pages-extended target by Pharmacist"),
-    EXT1944_LETTER_PRESET_KEY: ("assets/charts/pharmacist/rgb/i1pro/letter/extended1944/extended1944", "i1Pro-Letter-1944p-3pages-extended target by Pharmacist"),
     PHOTOCARD600_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600", "i1Pro-100x150mm-600p-4pages-Portrait by Pharmacist"),
     PHOTOCARD648_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648", "i1Pro-130x180mm-648p-3pages-Portrait by Pharmacist"),
 }
@@ -462,6 +442,16 @@ _KNUT_I1, _KNUT_CM = "i1", "CM"
 # (printtarg -r off, no fixed -R seed).
 KNUT_FLS_SUFFIX = " · Full layout setup"
 _KNUT_FLS_DIR = "assets/charts/knut/rgb/fulllayout"
+#: The marker of a built-in that carries a full page layout but no design the
+#: patch-set editor can load (Knut, #182 5860041950, for the ColorMunki A4
+#: 300-patch TC3.00 Target by Pharmacist). Like KNUT_FLS_SUFFIX it is part of
+#: the chart's dropdown row, which names charts in Knut's own words and is not
+#: translated (see `combo_label`).
+KNUT_LAYOUT_ONLY_SUFFIX = " · Layout, but no editor setup"
+#: The "by Pharmacist" charts with a page layout (Knut, #182 5860041950), one
+#: folder each: chart.ti1, layout.json and, for a Full layout setup, recipe.json.
+#: Written by scripts/import_pharmacist_presets.py.
+_PHARMACIST_FLS_DIR = "assets/charts/pharmacist/rgb/fulllayout"
 #: Knut's 8 mm i1Pro family (#164) — its own leaf, like the other families.
 _I1_W8_DIR = "assets/charts/knut/rgb/i1pro"
 
@@ -1513,6 +1503,11 @@ class _Ti1Preset:
     # with a "…" on all nineteen. Driven on screen 2026-09-18: 19 of 19 warned
     # with the stamp on, 0 of 19 with it off, nothing else changed.
     stamp_settings: "bool | None" = None
+    # A PAGE LAYOUT WITHOUT AN EDITOR DESIGN, SAID IN ITS ROW (Knut, #182
+    # 5860041950). The row carries KNUT_LAYOUT_ONLY_SUFFIX where a Full layout
+    # setup carries KNUT_FLS_SUFFIX. Only the ColorMunki A4 300-patch TC3.00
+    # Target by Pharmacist sets it.
+    layout_only: bool = False
 
     @property
     def patch_width_mm(self) -> float:
@@ -1597,6 +1592,8 @@ class _Ti1Preset:
         old name"). Marking ``name`` would rename 121 suggested folders AND
         orphan every custom preset saved under the old recipe keys.
         """
+        if self.layout_only:
+            return self.name + KNUT_LAYOUT_ONLY_SUFFIX
         if not self.has_full_layout_setup or KNUT_FLS_SUFFIX in self.name:
             return self.name          # the #63 family already carries it
         return self.name + KNUT_FLS_SUFFIX
@@ -1655,6 +1652,38 @@ def _cm_preset(slug: str, name: str, paper: str, cols: int, rows: int,
         layout_recipe=dict(_CM_BASE, paper=paper, area_cols=cols,
                            area_rows=rows, margin_left=margin_left,
                            clip_text=clip_text),
+    )
+
+
+def _pharmacist_layout(slug: str) -> dict:
+    """The page layout of a "by Pharmacist" chart, as its export gave it."""
+    path = resource_path(f"{_PHARMACIST_FLS_DIR}/{slug}/layout.json")
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _pharmacist_preset(slug: str, name: str, instrument: str, paper: str,
+                       pages: int, patches: int, white: int, black: int, *,
+                       layout_only: bool = False) -> "_Ti1Preset":
+    """One of the "by Pharmacist" charts Knut sent as exports (#182
+    5860041950): the patch set, and the page layout his export carries,
+    verbatim (`scripts/import_pharmacist_presets.py` clears only the sender's
+    clip-image path). They replace seven prebuilt ones that were only page
+    images. ``white`` / ``black`` are what the bundled .ti1 holds
+    (`tests/test_b8_1478_*` reads them back)."""
+    return _Ti1Preset(
+        slug, name, instrument, paper,
+        1.0,        # printtarg -a: unused, the engine lays these out
+        6,          # printtarg -m: likewise unused (margins live in the recipe)
+        pages,
+        ti1_asset=f"{_PHARMACIST_FLS_DIR}/{slug}/chart.ti1",
+        patches=patches, white=white, black=black,
+        tiff_16bit=False, suffix="",
+        layout_recipe=_pharmacist_layout(slug),
+        layout_only=layout_only,
+        # All nine exports carry "Stamp settings down the right edge" OFF, and
+        # their layouts leave no room for it: left on (the app's default), the
+        # line runs over the patches (seen on screen, the ColorMunki A4 600).
+        stamp_settings=False,
     )
 
 
@@ -2859,6 +2888,38 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                group="Scanner",
                layout_recipe=dict(_KNUT_SCANNER_RECIPE, paper="LetterR")),
 
+    # --- "by Pharmacist" charts with a page layout (Knut, #182 5860041950) ---
+    # They replace seven prebuilt page images (see PREBUILT_PRESETS), and every
+    # one but the TC3.00 Target is a Full layout setup (it has a recipe.json).
+    # Rows printed by: python scripts/import_pharmacist_presets.py <folder>
+    _pharmacist_preset("pharm_cm_a4r_300p_1page_landscape_w9_0mm_tc300_editor",
+                       "A4-300p-1page-Landscape-w9.0mm-TC3.00 Equivalent Target (ChromIQ Editor)",
+                       "CM", "A4R", 1, 300, 1, 1),
+    _pharmacist_preset("pharm_cm_a4r_300p_1page_landscape_w9_0mm_tc300",
+                       "A4-300p-1page-Landscape-w9.0mm-TC3.00 Target-by Pharmacist",
+                       "CM", "A4R", 1, 300, 3, 3, layout_only=True),
+    _pharmacist_preset("pharm_cm_a4r_600p_2pages_landscape_w9_0mm_abw",
+                       "A4-600p-2pages-Landscape-w9.0mm-ABW Optimized Target-by Pharmacist",
+                       "CM", "A4R", 2, 600, 1, 1),
+    _pharmacist_preset("pharm_i1_a4_648p_1page_portrait_w7_5mm_real_world",
+                       "A4-648p-1page-Portrait-w7.5mm-(standard quality)-Real World Target-by Pharmacist",
+                       "i1", "A4", 1, 648, 2, 2),
+    _pharmacist_preset("pharm_i1_a4_1296p_2pages_portrait_w7_5mm_real_world",
+                       "A4-1296p-2pages-Portrait-w7.5mm-(medium quality)-Real World Target-by Pharmacist",
+                       "i1", "A4", 2, 1296, 1, 1),
+    _pharmacist_preset("pharm_i1_a4_1944p_3pages_portrait_w7_5mm_real_world",
+                       "A4-1944p-3pages-Portrait-w7.5mm-(expert quality)-Real World Target-by Pharmacist",
+                       "i1", "A4", 3, 1944, 1, 1),
+    _pharmacist_preset("pharm_i1_letter_648p_1page_portrait_w7_5mm_real_world",
+                       "Letter-648p-1page-Portrait-w7.5mm-(standard quality)-Real World Target-by Pharmacist",
+                       "i1", "Letter", 1, 648, 2, 2),
+    _pharmacist_preset("pharm_i1_letter_1296p_2pages_portrait_w7_5mm_real_world",
+                       "Letter-1296p-2pages-Portrait-w7.5mm-(medium quality)-Real World Target-by Pharmacist",
+                       "i1", "Letter", 2, 1296, 1, 1),
+    _pharmacist_preset("pharm_i1_letter_1944p_3pages_portrait_w7_5mm_real_world",
+                       "Letter-1944p-3pages-Portrait-w7.5mm-(expert quality)-Real World Target-by Pharmacist",
+                       "i1", "Letter", 3, 1944, 1, 1),
+
     # --- Red River Paper vendor family (one shared, locked 2052-patch .ti1) ---
     # Six independent recipes — see the note above the _RR_* dicts.
     _Ti1Preset("redriver_i1pro_a4_2052p_4pages",
@@ -3711,11 +3772,7 @@ BUILTIN_PRESET_SEED_FIXED = False
 # them.
 BUILTIN_PRESET_KEYS = frozenset(PREBUILT_PRESETS) | KNUT_PRESET_KEYS
 BUILTIN_PRESET_LABELS = frozenset({
-    ABW1110_PRESET_LABEL,
-    TC918EG_A4_PRESET_LABEL, TC918EG_LETTER_PRESET_LABEL,
-    TC300_PRESET_LABEL, ABW702_PRESET_LABEL,
-    TC924_CM_A3_PRESET_LABEL, TC918EG_CM_A3_PRESET_LABEL,
-    EXT1944_A4_PRESET_LABEL, EXT1944_LETTER_PRESET_LABEL,
+    ABW702_PRESET_LABEL, TC924_CM_A3_PRESET_LABEL,
     PHOTOCARD600_PRESET_LABEL, PHOTOCARD648_PRESET_LABEL,
 }) | {p.combo_label for p in KNUT_PRESETS}
 
@@ -3776,10 +3833,8 @@ def _group_heading(group: str) -> str:
     return INSTRUMENT_GROUP_LABELS.get(group, group)
 BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
     (_group_heading("ColorMunki"), [
-        (TC300_PRESET_LABEL,   "A4-300p-1page TC3.00 by Pharmacist",          TC300_PRESET_KEY),
         (ABW702_PRESET_LABEL,  "A4-702p-2pages ABW-optimized by Pharmacist",   ABW702_PRESET_KEY),
         (TC924_CM_A3_PRESET_LABEL, "A3-924p-1page TC9.24 by Pharmacist",       TC924_CM_A3_PRESET_KEY),
-        (TC918EG_CM_A3_PRESET_LABEL, "A3+-1160p-1page TC9.18 extended greys by Pharmacist", TC918EG_CM_A3_PRESET_KEY),
         *_KNUT_GROUP_ENTRIES["ColorMunki"],
     ]),
     (_group_heading("i1Pro"), [
@@ -3791,12 +3846,6 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
         # why these labels carry none.
         (PHOTOCARD600_PRESET_LABEL, "10x15cm-600p-4pages by Pharmacist", PHOTOCARD600_PRESET_KEY),
         (PHOTOCARD648_PRESET_LABEL, "13x18cm-648p-3pages by Pharmacist", PHOTOCARD648_PRESET_KEY),
-        # A4 next (ascending patch count), then US-Letter — keep paper grouped.
-        (ABW1110_PRESET_LABEL, "A4-1110p-2pages ABW-optimized by Pharmacist",  ABW1110_PRESET_KEY),
-        (TC918EG_A4_PRESET_LABEL,     "A4-1160p-2pages TC9.18 extended greys by Pharmacist",     TC918EG_A4_PRESET_KEY),
-        (EXT1944_A4_PRESET_LABEL,     "A4-1944p-3pages extended target by Pharmacist",     EXT1944_A4_PRESET_KEY),
-        (TC918EG_LETTER_PRESET_LABEL, "Letter-1160p-2pages TC9.18 extended greys by Pharmacist", TC918EG_LETTER_PRESET_KEY),
-        (EXT1944_LETTER_PRESET_LABEL, "Letter-1944p-3pages extended target by Pharmacist", EXT1944_LETTER_PRESET_KEY),
         *_KNUT_GROUP_ENTRIES["i1Pro"],
     ]),
     # i1Pro 3 Plus family (Knut, 2026-08-18): its own group, not folded into

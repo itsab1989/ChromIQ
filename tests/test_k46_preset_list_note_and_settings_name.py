@@ -132,12 +132,13 @@ def test_select_preset_carries_the_note_for_the_state(tab, settings, on):
 
 def test_the_note_follows_the_box_when_ok_stores_it(tab, settings):
     cb = tab._preset_combo
-    assert cp.paper_filter_on(settings)                  # the default is ON
-    assert cb.note() == NOTE_ON
-    tab._apply_builtin_presets_shown(set(), paper_filter=False)
+    # the default is OFF since beta 47 (Knut, #182 5860041950)
+    assert not cp.paper_filter_on(settings)
     assert cb.note() == NOTE_OFF
     tab._apply_builtin_presets_shown(set(), paper_filter=True)
     assert cb.note() == NOTE_ON
+    tab._apply_builtin_presets_shown(set(), paper_filter=False)
+    assert cb.note() == NOTE_OFF
 
 
 def _open(cb, qapp):
@@ -164,7 +165,8 @@ def test_the_note_is_pinned_under_the_list_scrolled_to_the_top(tab, qapp):
             bar.setValue(0 if where == "top" else bar.maximum())
             qapp.processEvents()
             assert foot is not None and foot.isVisible(), where
-            assert foot.text() == NOTE_ON
+            # the filter is OFF by default since beta 47 (#182 5860041950)
+            assert foot.text() == NOTE_OFF
             g = foot.geometry()
             assert frame.rect().contains(g), (where, g, frame.rect())
             assert g.top() >= view.geometry().bottom(), (where, g,

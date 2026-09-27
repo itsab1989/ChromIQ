@@ -17,18 +17,15 @@ from workflow.margin_inspector import measure_margins, _dense_run
 MM = 25.4
 BUNDLES = [
     "assets/charts/pharmacist/rgb/colormunki/a3/tc924/tc924",
-    "assets/charts/pharmacist/rgb/colormunki/a3plus/tc918eg/tc918eg",
     "assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702",
-    "assets/charts/pharmacist/rgb/colormunki/a4/tc300/tc300",
     "assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600",
     "assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648",
-    "assets/charts/pharmacist/rgb/i1pro/a4/abw1110/abw1110",
-    "assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944",
-    "assets/charts/pharmacist/rgb/i1pro/a4/tc918eg/tc918eg",
-    "assets/charts/pharmacist/rgb/i1pro/letter/extended1944/extended1944",
-    "assets/charts/pharmacist/rgb/i1pro/letter/tc918eg/tc918eg",
 ]
-EXT1944_A4 = "assets/charts/pharmacist/rgb/i1pro/a4/extended1944/extended1944"
+# The bundles these tests were written on (the i1Pro A4 1944 extended target
+# and its siblings) were withdrawn by Knut in beta 47 (#182 5860041950). The
+# 13 x 18 cm photo card is the kept bundle with the same shape of trap: three
+# pages, a 360 dpi sidecar and no recipe.
+MULTIPAGE = "assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648"
 
 
 def _layout(stem: str) -> dict:
@@ -45,16 +42,16 @@ def _pages(stem: str) -> list[Path]:
 def test_bugC_patch_size_uses_the_sidecars_own_dpi():
     """Patch size (mm) must divide the patch rects by layout["dpi"], not 300."""
     from ui.tabs.tab_chart import TabChart
-    lay = _layout(EXT1944_A4)
+    lay = _layout(MULTIPAGE)
     assert lay["dpi"] == 360 and "recipe" not in lay      # the shape of the trap
-    ti2 = resource_path(f"{EXT1944_A4}.ti2")
+    ti2 = resource_path(f"{MULTIPAGE}.ti2")
     w, h, pitch = TabChart._chart_patch_size_mm(ti2)
     assert pitch == 0.0          # square patches: no separate row pitch
     r0 = lay["patches"][0]
     assert w == pytest.approx(r0["w"] * MM / 360, abs=0.01)
     assert h == pytest.approx(r0["h"] * MM / 360, abs=0.01)
-    assert w == pytest.approx(7.49, abs=0.02)             # Knut measured 7.48
-    assert h == pytest.approx(7.76, abs=0.10)             # Knut measured 7.83
+    # divided by 300 instead, the same patch would read 20 % too large
+    assert w != pytest.approx(r0["w"] * MM / 300, abs=0.01)
 
 
 @pytest.mark.parametrize("stem", BUNDLES)
@@ -72,9 +69,9 @@ def test_bugC_every_prebuilt_bundle_reports_its_true_patch_size(stem):
 def test_bugC_sidecar_dpi_is_the_pixel_space_of_the_pages():
     """Cross-check the dpi against physical reality: page px / dpi = paper mm."""
     from PIL import Image
-    lay = _layout(EXT1944_A4)
+    lay = _layout(MULTIPAGE)
     pw_mm, ph_mm = lay["paper_mm"]
-    for tif in _pages(EXT1944_A4):
+    for tif in _pages(MULTIPAGE):
         with Image.open(tif) as im:
             w_px, h_px = im.size
         assert w_px * MM / lay["dpi"] == pytest.approx(pw_mm, abs=0.15)
@@ -135,7 +132,7 @@ def test_bugB_detected_margins_match_the_recorded_geometry_on_every_page(stem):
 
 def test_bugB_top_margin_is_the_same_on_every_page_of_one_chart():
     """Knut: page 1 says ~46 mm, pages 2-3 said 21.4 mm for the same edge."""
-    stem = EXT1944_A4
+    stem = MULTIPAGE
     ti2 = resource_path(f"{stem}.ti2")
     tops = [measure_margins(t, dpi=300, ti2_path=ti2).top_mm
             for t in _pages(stem)]
@@ -143,7 +140,7 @@ def test_bugB_top_margin_is_the_same_on_every_page_of_one_chart():
 
 
 def test_bugB_strip_length_is_the_same_on_every_page_of_one_chart():
-    stem = EXT1944_A4
+    stem = MULTIPAGE
     ti2 = resource_path(f"{stem}.ti2")
     lens = [measure_margins(t, dpi=300, ti2_path=ti2).strip_length_mm
             for t in _pages(stem)]

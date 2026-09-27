@@ -190,19 +190,38 @@ def test_the_export_goes_through_from_table_to_the_same_ticks(dlg, tmp_path):
     assert doc["source"] == mpd.TABLE_SOURCE
 
 
+#: The seven "by Pharmacist" prebuilt charts Knut withdrew in beta 47 (#182
+#: 5860041950). The beta 42 table still lists them, as his users answered it;
+#: three of them were ticked.
+WITHDRAWN_IN_BETA_47 = (
+    "__chromiq_tc300_builtin__", "__chromiq_tc918eg_cm_a3_builtin__",
+    "__chromiq_abw1110_builtin__", "__chromiq_tc918eg_a4_builtin__",
+    "__chromiq_ext1944_a4_builtin__", "__chromiq_tc918eg_letter_builtin__",
+    "__chromiq_ext1944_letter_builtin__",
+)
+
+
 def test_the_shipped_beta42_table_reads_the_same_in_the_window_and_the_script(
-        dlg):
-    """The table on #182 goes through both readers to the same 62."""
+        dlg, tmp_path):
+    """The table on #182 goes through both readers to the same 62, less the
+    three ticked presets Knut withdrew in beta 47. The file is kept as his
+    users filled it in, so the withdrawn rows are left out of a copy here."""
     mpd = _script()
-    path = ROOT / "docs" / "presets" / \
+    src = ROOT / "docs" / "presets" / \
         "builtin-presets-shown-by-default_beta42.csv"
+    raw = src.read_bytes().decode("utf-8-sig").splitlines(keepends=True)
+    assert sum(any(k in ln for k in WITHDRAWN_IN_BETA_47) for ln in raw) == 7
+    path = tmp_path / src.name
+    path.write_text("".join(ln for ln in raw
+                            if not any(k in ln for k in WITHDRAWN_IN_BETA_47)),
+                    encoding="utf-8-sig")
     doc = mpd.from_table(path)
     for k in BUILTIN_PRESET_KEYS:
         dlg.set_ticked(k, False)
     reading = dlg.import_from(path)
     assert reading.skipped == 0
     assert dlg.ticked() == set(doc["shown"])
-    assert len(doc["shown"]) == 62
+    assert len(doc["shown"]) == 62 - 3
 
 
 # ---------------------------------------------------------------------------

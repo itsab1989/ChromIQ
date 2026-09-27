@@ -15,7 +15,7 @@ mechanism works end-to-end and how to add, rename, or re-file one.
 
 Built-ins now come in **three kinds**:
 
-1. **prebuilt-files** (the eleven "by Pharmacist" charts) — a complete, ready-made
+1. **prebuilt-files** (the four "by Pharmacist" page-image charts) — a complete, ready-made
    target is bundled and just copied into the run; **no targen/printtarg**.
 2. **ti1 → printtarg** (the 17 "TC9.18+Spyderprint Grays" charts, see the
    dedicated section below) — one shared `.ti1` is bundled and **printtarg is run
@@ -65,7 +65,7 @@ bundle should be regenerated. That happened once: the i1Pro/A4 `tc924` set,
 whose patch V16 rendered white where the `.ti2` said grey. It was parked, and
 then removed outright in #164 rather than regenerated.
 
-The eleven shipped presets (all RGB). Labels follow the same
+The four shipped presets (all RGB). Labels follow the same
 `Instrument · Paper-NNNNp-Mpages Name by Pharmacist` convention as the
 ti1→printtarg presets below (patch width / orientation omitted — not stored for
 these pre-rendered charts):
@@ -74,20 +74,22 @@ these pre-rendered charts):
 |---------------------------------------------------------------|------------|------------|
 | ★ i1Pro · 10x15cm-600p-4pages by Pharmacist                   | i1Pro      | `i1pro/100x150/photocard600` |
 | ★ i1Pro · 13x18cm-648p-3pages by Pharmacist                   | i1Pro      | `i1pro/130x180/photocard648` |
-| ★ i1Pro · A4-1110p-2pages ABW-optimized by Pharmacist         | i1Pro      | `i1pro/a4/abw1110` |
-| ★ i1Pro · A4-1160p-2pages TC9.18 extended greys by Pharmacist | i1Pro      | `i1pro/a4/tc918eg` |
-| ★ i1Pro · Letter-1160p-2pages TC9.18 extended greys by Pharmacist | i1Pro  | `i1pro/letter/tc918eg` |
-| ★ ColorMunki · A4-300p-1page TC3.00 by Pharmacist             | ColorMunki | `colormunki/a4/tc300` |
 | ★ ColorMunki · A4-702p-2pages ABW-optimized by Pharmacist     | ColorMunki | `colormunki/a4/abw702` |
 | ★ ColorMunki · A3-924p-1page TC9.24 by Pharmacist             | ColorMunki | `colormunki/a3/tc924` |
-| ★ ColorMunki · A3+-1160p-1page TC9.18 extended greys by Pharmacist | ColorMunki | `colormunki/a3plus/tc918eg` |
-| ★ i1Pro · A4-1944p-3pages extended target by Pharmacist          | i1Pro      | `i1pro/a4/extended1944` |
-| ★ i1Pro · Letter-1944p-3pages extended target by Pharmacist      | i1Pro      | `i1pro/letter/extended1944` |
 
-The `tc918eg` pair is the same patch set in two page sizes; the page size lives
-in the label (and is read back from the asset path by `_prebuilt_paper` for the
-tooltip), so the two entries are distinguishable in both the dropdown and the
-overlay.
+**Seven more were withdrawn by Knut in beta 47** (#182 5860041950): the i1Pro
+A4 1110 ABW, the three TC9.18 extended greys (i1Pro A4, i1Pro Letter,
+ColorMunki A3+), the ColorMunki A4 TC3.00 and the two i1Pro 1944 extended
+targets. They were replaced by nine "by Pharmacist" charts WITH a page layout,
+which are not prebuilt-files presets at all but `_Ti1Preset` rows (kind 3,
+ti1 → layout engine): `_pharmacist_preset` in `ui/tabs/tab_chart.py`, one
+folder each under `assets/charts/pharmacist/rgb/fulllayout/<slug>/` holding
+`chart.ti1`, `layout.json` (the export's `layout_recipe`) and, for a "Full
+layout setup", `recipe.json` (its `editor_recipe`). The one without a
+`recipe.json` (the ColorMunki A4 TC3.00 Target) carries the marker
+`KNUT_LAYOUT_ONLY_SUFFIX`, " · Layout, but no editor setup". Re-import with
+`python scripts/import_pharmacist_presets.py <export-folder> --write`, which
+clears the sender's clip-image path and drops `seed_fixed`, and nothing else.
 
 **The two photo-card charts (Nelson Lau, 2026-09-08) are the first whose paper
 folder is a size rather than a name**, and that is a mechanism, not a one-off. A

@@ -449,7 +449,7 @@ def run(app, phase: int, out: Path) -> int:
     # panel's margins do not reach it. So the chart below is an ordinary
     # Manual one, built by the Generate Chart button with no preset loaded.
     pnl = tab._manual_layout_panel
-    base_key = "__chromiq_tc300_builtin__"
+    base_key = "__chromiq_abw702_builtin__"
     if combo.findData(base_key) < 0:
         base_key = [k for _i, es in BUILTIN_PRESET_GROUPS for (_l, _o, k) in es][0]
     if tab._manual_target_name_edit is not None:

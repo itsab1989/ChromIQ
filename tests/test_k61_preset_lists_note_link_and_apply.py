@@ -53,6 +53,9 @@ def settings(tmp_path):
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
     s.set("custom_output_path", str(tmp_path / "out"))
     s.set("use_chromiq_layout_engine", True)
+    # These tests are about the paper filter, which is OFF by default since
+    # beta 47 (Knut, #182 5860041950), so they switch it on as a person would.
+    s.set("builtin_presets_paper_filter", True)
     return s
 
 

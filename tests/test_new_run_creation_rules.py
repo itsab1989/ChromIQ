@@ -65,7 +65,7 @@ def test_prebuilt_preset_creates_the_new_run_and_selects_it(qapp, tmp_path):
     tab, fm, ctl = _tab_on_new_run(tmp_path)
     assert _runs(tmp_path) == ["run1"] and ctl.target.profile_run == ""
 
-    tab._apply_prebuilt_preset("__chromiq_tc300_builtin__", "P")
+    tab._apply_prebuilt_preset("__chromiq_abw702_builtin__", "P")
 
     assert _runs(tmp_path) == ["run1", "run2"]
     assert ctl.target.profile_run == "run2", "the bar moves to the new run"
@@ -114,7 +114,7 @@ def test_a_build_under_a_different_name_starts_its_own_project(qapp, tmp_path):
     tab, fm, ctl = _tab_on_new_run(tmp_path)
     tab._manual_target_name_edit.setText("Something Else")
 
-    tab._apply_prebuilt_preset("__chromiq_tc300_builtin__", "Something Else")
+    tab._apply_prebuilt_preset("__chromiq_abw702_builtin__", "Something Else")
 
     assert _runs(tmp_path) == ["run1"], "the loaded project is untouched"
     assert (tmp_path / "Something-Else" / "runs" / "run1").exists()

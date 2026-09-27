@@ -45,7 +45,7 @@ from workflow import preset_eligibility as PE                      # noqa: E402
 #: Measured over all 177 built-ins, 2026-09-21: this is one of the ones that
 #: does, and `test_the_corner_chart_still_holds_every_corner` fails if it stops
 #: being true instead of the gamut tests quietly testing nothing.
-CORNER_CHART = Path("assets/charts/pharmacist/rgb/colormunki/a4/tc300/tc300.ti1")
+CORNER_CHART = Path("assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702.ti1")
 
 
 @pytest.fixture(scope="module")

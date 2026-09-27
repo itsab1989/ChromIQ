@@ -37,10 +37,14 @@ def test_the_marker_counts_are_what_the_registry_holds():
     # 2026-09-22 (issue #182, K1): +8 of Knut's 7.5 mm i1Pro "Maximised - No
     # Clip-border" charts on A4 and Letter; each ships a recipe.json sidecar,
     # so only the marked count moves.
-    assert len(tc.BUILTIN_PRESET_KEYS) == 185
-    assert len(tc.PREBUILT_PRESETS) == 11       # the "by Pharmacist" rows
-    assert (len(marked), len(unmarked)) == (168, 6)
-    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 185
+    # 2026-09-27 (beta 47, #182 5860041950): seven of the eleven prebuilt "by
+    # Pharmacist" images withdrawn, and nine "by Pharmacist" charts with a page
+    # layout added. Eight ship a recipe.json and are marked; the TC3.00 Target
+    # ships none and carries "Layout, but no editor setup" instead.
+    assert len(tc.BUILTIN_PRESET_KEYS) == 187
+    assert len(tc.PREBUILT_PRESETS) == 4        # the kept prebuilt images
+    assert (len(marked), len(unmarked)) == (176, 7)
+    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 187
 
 
 def test_no_red_river_row_carries_the_marker():
@@ -54,7 +58,8 @@ def test_no_red_river_row_carries_the_marker():
 
 def test_every_other_family_still_carries_it():
     """THE CONTROL. "mark nothing" must not pass the two tests above."""
-    others = [p for p in tc.KNUT_PRESETS if p.display_group != "Red River Paper"]
+    others = [p for p in tc.KNUT_PRESETS if p.display_group != "Red River Paper"
+              and not p.layout_only]
     assert others, "no non-Red-River presets found"
     assert all(p.has_full_layout_setup for p in others)
     assert all(tc.KNUT_FLS_SUFFIX in p.marked_name for p in others)

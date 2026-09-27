@@ -354,7 +354,7 @@ def test_the_presets_window_and_the_preflight_ask_the_same_floor():
 
 
 def test_the_built_in_engine_presets_against_the_60_percent_floor():
-    """The count the register quotes (B8-828), over all 172 built-in engine
+    """The count the register quotes (B8-828), over all 181 built-in engine
     presets: at 60 % four are refused by the coverage, all four the half-page
     i1Pro charts (312 and 324 patches, A4 and Letter, 34 to 37 %), and twelve
     by the 9 by 9 grid first. At 75 % it was 123 by the coverage.
@@ -364,7 +364,9 @@ def test_the_built_in_engine_presets_against_the_60_percent_floor():
     from core.resource_path import resource_path
     from ui.tabs.tab_chart import KNUT_PRESETS
     eng = [p for p in KNUT_PRESETS if getattr(p, "layout_recipe", None)]
-    assert len(eng) == 172
+    # 181 since beta 47: + the nine "by Pharmacist" charts with a layout
+    # (#182 5860041950), none of which the coverage or the grid refuses.
+    assert len(eng) == 181
     by_coverage, by_grid = [], []
     for p in eng:
         g = PE._evenness_grid_for(Path(resource_path(p.ti1_asset)),

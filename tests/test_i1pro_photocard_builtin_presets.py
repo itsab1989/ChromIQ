@@ -522,13 +522,20 @@ def test_only_the_photo_cards_have_an_opinion_on_the_stamp():
     The second decision was taken on 2026-09-22 (K1): Knut's eight 7.5 mm
     "Maximised - No Clip-border" A4/Letter charts carry the stamp OFF too,
     for the same measured reason (a 5 mm right margin, the command line over
-    the patches with it on). See test_i1pro75_maximised_builtin_presets.py."""
+    the patches with it on). See test_i1pro75_maximised_builtin_presets.py.
+
+    The third, beta 47 (B8-1620): the nine "by Pharmacist" charts with a
+    layout, whose exports all carry it OFF; left on, it ran over the patches
+    of the ColorMunki A4 600 on screen."""
     from ui.tabs.tab_chart import KNUT_PRESETS
     opinionated = {q.slug for q in KNUT_PRESETS if q.stamp_settings is not None}
     maximised_a4_letter = {q.slug for q in KNUT_PRESETS
                            if q.slug.startswith("i1_w75max_")}
+    pharmacist = {q.slug for q in KNUT_PRESETS if q.slug.startswith("pharm_")}
     assert len(maximised_a4_letter) == 8
-    assert opinionated == {q.slug for q in PHOTO} | maximised_a4_letter
+    assert len(pharmacist) == 9
+    assert opinionated == ({q.slug for q in PHOTO} | maximised_a4_letter
+                           | pharmacist)
 
 
 def test_a_builtin_preset_gives_its_text_a_home_in_the_project_it_creates():
