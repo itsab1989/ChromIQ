@@ -30939,3 +30939,31 @@ would reach.
 - status: OPEN
 - found by: B8-1490. (1) `data/i18n/parameters.uk.yaml` writes its help bodies as quoted scalars, not blocks, so the script did not carry the marks into Ukrainian; those 15 parameter helps show plain in Ukrainian (they are correct, only not bold). (2) A few help texts are hover tooltips, not ⓘ windows (for example the Preferences box "On (the default): when you read strips, ..."), and a hover tooltip is plain text, so they were left unmarked. Neither shows a stray mark.
 - where: `data/i18n/parameters.uk.yaml`, `ui/dialogs/settings_dialog.py`.
+
+### B8-1500 · OPEN · A report saved before the filter is plotted and judged beside filtered ones, and nothing reads its "filter" mark
+- blocks release: no
+- severity: MAJOR
+- status: OPEN
+- found by: beta 45 challenge round 3, territory A. Not release-blocking only because it is Knut's call what an existing verification history shows across beta 45. B8-1476 writes `"filter": "noise_average_removed"` into every new evenness block, and nothing in ChromIQ reads it. The trend graph (`report_trend`) and a NEW report over several dates (`_judged_by_the_document`, "judged just now against the set") take each date's evenness figure from that date's SAVED report, so a history measured before beta 45 keeps its unfiltered figures and is judged against limits that were set for filtered ones, on the same line as the filtered dates after it, while the rows' help says the noise's average share "is taken away". Measured on the shipped beta 43 demo pack's Report-Limits-Evenness project, copied to a sandbox: the noisy date 2026-10-01 is plotted and judged at 1.235 / 0.685, where beta 45 reads 0.575 / 0.184 from the same .ti3; the even sheet 0.123 / 0.074 against 0.062 / 0.020. A continuing history therefore shows a step at the version change that is the filter, not the printer. Proof: `~/Desktop/ChromIQ-beta45-proof/challenge-3a/old_reports_unfiltered.py` and `.txt` (data computation, no window).
+- where: `workflow/measurement_report.py` `report_trend`, `_trend_row_values`, `row_values`; `ui/dialogs/measurement_report_dialog.py` `_judged_by_the_document`, the trend tab.
+
+### B8-1501 · OPEN · A run an earlier ChromIQ bound keeps the old evenness limits, unconverted, and every report of it reads "(edited)"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 45 challenge round 3, territory A. `run_limits` uses a bound copy's numbers as they were stored (only builds before K31 wrote one; the evenness rows exist on copies bound from 2026-09-22). After B8-1476 such a copy judges the filtered figures against the pre-filter limits, and an ISO 12647-7 copy applies the standard's own 0.5 / 2.0 to ChromIQ's rows, which Knut ruled out ("use the converted values", #182 5855780690). `is_edited` compares the copy with today's set, so each such run now reads "(edited)" though nobody edited anything, the fault class of CH-15's absent-row carve-out arriving through a factory change. Measured: a beta 39 style copy of ChromIQ default judges 1.5 / 1.0 against today's 1.8 / 1.2, edited=True; of ISO 12647-7, 0.5 / 2.0 against 1.5 / 1.0, edited=True. Proof: `~/Desktop/ChromIQ-beta45-proof/challenge-3a/legacy_bound_run.py` and `.txt` (data computation, no window).
+- where: `workflow/run_compliance.py` `run_limits`; `workflow/compliance_sets.py` `is_edited`.
+
+### B8-1502 · OPEN · On an even sheet the report names the first ninth "furthest from the average" at 0.00 ΔE00
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 45 challenge round 3, territory A. The filter takes an area's difference from the average to 0 when the noise explains all of it, and on about 2 % of even sheets (1.7 to 2.2 % at 9 to 100 patches in each ninth) it does so for all nine. `worst_area` is then `argmax` of nine zeros, area 0, and the report's own sentence reads, measured: "On the measured chart the ninth of the page furthest from the average of all nine is strips 1 to 4, rows 1 to 5: 0.00 ΔE00 from it (ΔL* -0.01, ...)". Nothing is furthest; the sentence names a part of the sheet as off that is not. The worst pair has the same tie on about 0.3 %. Proof: `~/Desktop/ChromIQ-beta45-proof/challenge-3a/worst_area_sentence.py`, `all_zero.py` and their `.txt` (data computation through the report window's own `_evenness_where_sentence`, no window).
+- where: `workflow/measurement_report.py` `evenness_from_residuals` (`worst_area`, `worst_pair`); `ui/dialogs/measurement_report_dialog.py` `_evenness_worst_area_sentence`, `_evenness_where_sentence`.
+
+### B8-1503 · OPEN · Report Limits says the Custom columns do not start from the ISO tolerances; their evenness rows now do
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: beta 45 challenge round 3, territory A. The note under the table says of the two Custom columns: "Neither source is the published tolerances of ISO 12647-7 or ISO 12647-8: where ChromIQ ships those, they are in the read-only ISO column, and a Custom column does not start from them" (and, where no set ships, "which ChromIQ does not hold"). Since B8-1476 the two evenness rows of Custom ISO 12647-7 (1.5 / 1.0) and Custom ISO 12647-8 (3.0 / 2.0) are exactly those standards' published figures converted (`compliance_sets.custom_defaults`, whose own comment says "ISO 12647-7's own figures converted"). The sentence is false for those two rows. On screen: `~/Desktop/ChromIQ-beta45-proof/evenness-build/en-light/photographs/en-light-02-limits-notes.png` shows the sentence under Custom columns reading 1,50 / 1,00 and 3,00 / 2,00.
+- where: `ui/dialogs/thresholds_dialog.py` `_notes_text`; `workflow/compliance_sets.py` the Custom ISO blocks.
