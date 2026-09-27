@@ -231,7 +231,13 @@ CLAIM_ALWAYS = {
     "es": r"cumple\s+(?:con\s+)?(?:la\s+)?norma|conforme\s+(?:a|con)\s+(?:la\s+)?norma",
     "fr": r"respecte\s+la\s+norme|conforme\s+(?:à|a)\s+la\s+norme|satisfait\s+(?:à\s+)?la\s+norme",
     "it": r"rispetta\s+(?:la\s+)?norma|conforme\s+alla\s+norma|soddisfa\s+(?:la\s+)?norma",
-    "nl": r"voldoet\s+aan\s+de\s+norm|conform\s+de\s+norm",
+    # Dutch puts the verb LAST in a subordinate clause ("dat de afdruk aan de
+    # norm voldoet"), which is where a claim usually sits; the main-clause
+    # order alone missed every one. Read on 2026-09-28: the nl hits are the
+    # denials and the "likely meets" hedge, all allowed by their English.
+    "nl": r"voldoe\w*\s+aan\s+(?:de|een|die|deze)\s+norm"
+          r"|aan\s+(?:de|een|die|deze)\s+norm\s+(?:te\s+)?voldo\w*"
+          r"|conform\s+(?:de|een|die|deze)\s+norm|normconform",
     "no": r"oppfyller\s+standarden|samsvar\s+med\s+standard|tilfredsstiller\s+standarden",
     "pl": r"spełnia\s+norm|zgodn\w*\s+z\s+norm",
     "pt": r"cumpre\s+(?:a\s+)?norma|conforme\s+(?:a|com)\s+(?:a\s+)?norma|satisfaz\s+(?:a\s+)?norma",
