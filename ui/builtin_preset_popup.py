@@ -183,6 +183,9 @@ class BuiltinPresetPopup(QWidget):
     """
 
     selected = pyqtSignal(str)  # preset key
+    #: The note's ", or click here ⚙" was clicked (K61, B8-1411): the list
+    #: closes and "Settings for built-in presets" is asked for.
+    settings_requested = pyqtSignal()
 
     TAIL_W       = 16   # base width of the tail triangle
     TAIL_H       = 9    # height of the tail (sticks up above the panel)
@@ -205,6 +208,7 @@ class BuiltinPresetPopup(QWidget):
         parent: QWidget | None = None,
         more: dict[str, list[tuple[str, str]]] | None = None,
         note: str = "",
+        note_link: str = "",
     ) -> None:
         super().__init__(parent)
         # NoDropShadowWindowHint suppresses the platform's own popup shadow (see
@@ -220,6 +224,7 @@ class BuiltinPresetPopup(QWidget):
         self._groups  = groups
         self._more    = dict(more or {})
         self._note    = note
+        self._note_link = note_link
         self._open: set[str] = set()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._mode    = "dark"
@@ -378,13 +383,19 @@ class BuiltinPresetPopup(QWidget):
         box keeps the rows' own inset and the scroll thumb's room."""
         return max(40, int(row_w) - 2 * self.NOTE_PAD - self.SCROLLBAR_W - 4)
 
+    def _note_document(self, text_w: int):
+        """The note as the document both measuring and painting use
+        (`ui.preset_note_link`), with its link and gear (B8-1411)."""
+        from ui.preset_note_link import note_document
+        from ui.theme import info_colours
+        return note_document(self._note, self._note_link, self._item_font,
+                             info_colours(self._mode)["text"], text_w)
+
     def _note_height(self, panel_w: int) -> int:
-        fm = QFontMetricsF(self._item_font)
         row_w = panel_w - 12
-        rect = fm.boundingRect(
-            QRectF(0, 0, self._note_text_width(row_w), 10000),
-            int(Qt.TextFlag.TextWordWrap), self._note)
-        return math.ceil(rect.height()) + 2 * self.NOTE_PAD + self.NOTE_GAP
+        doc = self._note_document(self._note_text_width(row_w))
+        return (math.ceil(doc.size().height()) + 2 * self.NOTE_PAD
+                + self.NOTE_GAP)
 
     def _panel_rect(self) -> QRect:
         return QRect(
@@ -585,14 +596,33 @@ class BuiltinPresetPopup(QWidget):
         p.setPen(QPen(QColor(colours["border"]), 1))
         p.setBrush(QColor(colours["bg"]))
         p.drawRoundedRect(box, 6, 6)
-        p.setPen(QColor(colours["text"]))
-        p.setFont(self._item_font)
-        p.drawText(box.adjusted(self.NOTE_PAD, self.NOTE_PAD,
-                                -self.NOTE_PAD, -self.NOTE_PAD),
-                   int(Qt.AlignmentFlag.AlignLeft
-                       | Qt.AlignmentFlag.AlignVCenter
-                       | Qt.TextFlag.TextWordWrap),
-                   self._note)
+        origin, doc = self._note_layout(rect, sb_w)
+        p.save()
+        p.translate(origin)
+        doc.drawContents(p)
+        p.restore()
+
+    def _note_layout(self, rect: QRect, sb_w: int = 0):
+        """``(top left, document)`` of the note's text in ``rect``: inside
+        the box and its padding, centred up and down as the plain note was."""
+        box = QRectF(rect.left(), rect.top() + self.NOTE_GAP,
+                     rect.width() - sb_w - 4,
+                     rect.height() - self.NOTE_GAP).adjusted(
+            self.NOTE_PAD, self.NOTE_PAD, -self.NOTE_PAD, -self.NOTE_PAD)
+        doc = self._note_document(self._note_text_width(rect.width()))
+        dy = max(0.0, (box.height() - doc.size().height()) / 2.0)
+        return QPointF(box.left(), box.top() + dy), doc
+
+    def _on_note_link(self, pt) -> bool:
+        """Whether ``pt`` is on the note's link (B8-1411)."""
+        if not (self._note and self._note_link):
+            return False
+        rect = self._note_rect()
+        if not rect.contains(pt):
+            return False
+        from ui.preset_note_link import link_at
+        origin, doc = self._note_layout(rect, 0)
+        return link_at(doc, QPointF(pt) - origin)
 
     # ------------------------------------------------------------------
     def _index_at(self, pt: QPoint) -> int:
@@ -629,6 +659,9 @@ class BuiltinPresetPopup(QWidget):
             # dragging the thumb: it follows the pointer, the rows scroll
             self._scroll_to_thumb_top(int(event.position().y()) - grab)
             return
+        self.setCursor(Qt.CursorShape.PointingHandCursor
+                       if self._on_note_link(event.position().toPoint())
+                       else Qt.CursorShape.ArrowCursor)
         idx = self._index_at(event.position().toPoint())
         if idx != self._hover_index:
             self._hover_index = idx
@@ -674,6 +707,12 @@ class BuiltinPresetPopup(QWidget):
                 self._scroll_y = max(0, min(self._max_scroll,
                                             self._scroll_y + step))
                 self.update()
+            return
+        if self._on_note_link(pt):
+            # THE NOTE'S LINK (K61, B8-1411): the list closes, and the tab
+            # opens "Settings for built-in presets" from the event loop.
+            self.close()
+            self.settings_requested.emit()
             return
         idx = self._index_at(pt)
         if idx < 0:

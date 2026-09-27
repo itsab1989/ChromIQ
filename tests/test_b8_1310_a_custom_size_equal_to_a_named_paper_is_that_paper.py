@@ -144,7 +144,9 @@ def _expected(settings, sel):
     shown = cp.shown_keys(settings, TC.BUILTIN_PRESET_KEYS)
     out = []
     for h, es in TC.BUILTIN_PRESET_GROUPS:
-        keys = [k for *_x, k in es if _class(TC.builtin_preset_paper(k)) == sel]
+        # K61 (B8-1410): a selection may name several classes, "A4|custom"
+        keys = [k for *_x, k in es
+                if _class(TC.builtin_preset_paper(k)) in sel.split("|")]
         if keys:
             out.append((h, [k for k in keys if k in shown],
                         len([k for k in keys if k not in shown])))
@@ -219,26 +221,32 @@ def test_custom_lists_what_its_size_is(tab, settings, qapp, engine, dims,
                                        want):
     """Custom with the boxes on each size, after A4 (so a stale list would
     show A4's): both lists are the named paper's when the size equals one,
-    Custom's otherwise."""
+    AND every Custom preset (Knut, #182 5851645723, K61, B8-1410: *"Custom
+    should show all types of presets that have selected Custom paper"*);
+    Custom's alone otherwise."""
     _engine(tab, qapp, engine)
     _choose(tab, qapp, engine, "A4")
     _choose(tab, qapp, engine, "custom", dims)
     assert tab._manual_paper_on_screen() == f"{dims[0]}x{dims[1]}"
+    want = cp.custom_selection(want)
     assert tab._preset_paper_selected() == want
     exp = _expected(settings, want)
     assert _pulldown(tab) == exp
     assert _popup(tab) == exp
 
 
-def test_a_custom_size_is_the_named_papers_list_not_customs(tab, settings,
+def test_a_custom_size_is_the_named_papers_list_and_customs(tab, settings,
                                                             qapp):
-    """The point of the ruling, stated as a difference: on Custom 420 x 297
-    the lists are A3 Landscape's, which are not Custom's."""
+    """The point of both rulings, stated as a difference: on Custom 420 x 297
+    the lists are A3 Landscape's (B8-1310) and Custom's (K61, B8-1410), which
+    is neither alone."""
     _engine(tab, qapp, True)
     _choose(tab, qapp, True, "custom", (420, 297))
     a3l, custom = _expected(settings, "420x297"), _expected(settings, "custom")
+    both = _expected(settings, "420x297|custom")
     assert a3l and custom and a3l != custom
-    assert _pulldown(tab) == a3l
+    assert both != a3l and both != custom
+    assert _pulldown(tab) == both
 
 
 def test_a_box_changed_on_custom_follows_the_size(tab, settings, qapp):
@@ -251,9 +259,9 @@ def test_a_box_changed_on_custom_follows_the_size(tab, settings, qapp):
     panel.custom_w.setValue(420)
     panel.custom_h.setValue(297)
     qapp.processEvents()
-    assert tab._preset_paper_selected() == "420x297"
-    assert _pulldown(tab) == _expected(settings, "420x297")
-    assert _popup(tab) == _expected(settings, "420x297")
+    assert tab._preset_paper_selected() == "420x297|custom"
+    assert _pulldown(tab) == _expected(settings, "420x297|custom")
+    assert _popup(tab) == _expected(settings, "420x297|custom")
     panel.custom_w.setValue(250)
     panel.custom_h.setValue(300)
     qapp.processEvents()

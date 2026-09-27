@@ -55,12 +55,18 @@ NAME = "Settings for built-in presets"
 NAME_DE = "Einstellungen für integrierte Presets"
 BOX = "Filter preset-dropdown list according to selected paper size"
 BOX_DE = "Presetliste im Aufklappmenü nach gewählter Papiergröße filtern"
-NOTE_ON = ("This list is filtered by the paper size selected. To show all "
-           "paper sizes, untick “Filter preset-dropdown list according to "
-           "selected paper size” in “Settings for built-in presets”.")
-NOTE_OFF = ("To filter this list of built-in presets by the paper size "
-            "selected, tick “Filter preset-dropdown list according to "
-            "selected paper size” in “Settings for built-in presets”.")
+# Since K61 (Knut, #182 5851645723, B8-1411) both end ", or click here" and
+# the gear, which open the window: `tests/test_k61_*`.
+NOTE_ON_KEY = ("This list is filtered by the paper size selected. To show all "
+               "paper sizes, untick “Filter preset-dropdown list according to "
+               "selected paper size” in “Settings for built-in presets”, or "
+               "{click_here}")
+NOTE_OFF_KEY = ("To filter this list of built-in presets by the paper size "
+                "selected, tick “Filter preset-dropdown list according to "
+                "selected paper size” in “Settings for built-in presets”, or "
+                "{click_here}")
+NOTE_ON = NOTE_ON_KEY.format(click_here="click here")
+NOTE_OFF = NOTE_OFF_KEY.format(click_here="click here")
 
 
 @pytest.fixture(scope="module")
@@ -389,7 +395,7 @@ def test_every_text_that_names_the_window_names_it_in_german():
 
 def test_the_german_notes_name_the_german_box():
     de = _catalogue("de")
-    for key in (NOTE_ON, NOTE_OFF):
+    for key in (NOTE_ON_KEY, NOTE_OFF_KEY):
         assert f"„{BOX_DE}“" in de[key]
         assert f"„{NAME_DE}“" in de[key]
     assert de[BOX] == BOX_DE

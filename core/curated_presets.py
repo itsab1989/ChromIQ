@@ -521,11 +521,30 @@ def paper_class(code: Any) -> str:
     return named_paper_of_size(code) or CUSTOM_PAPER
 
 
+#: Joins the classes of a selection that lists more than one (K61, B8-1410):
+#: "Custom…" on a size equal to a named paper lists that paper AND Custom.
+SELECTION_SEP = "|"
+
+
+def custom_selection(size_class: str) -> str:
+    """What the lists are filtered to while the Paper field is on "Custom…"
+    and its boxes hold a size of class ``size_class`` (:func:`paper_class`).
+
+    Knut, #182 5851645723 (K61, B8-1410): *"we also decided that Custom
+    should show all types of presets that have selected Custom paper."* So
+    Custom lists every Custom preset whatever the boxes hold, and a size that
+    equals a named paper lists that paper's presets as well (B8-1310)."""
+    if not size_class or size_class == CUSTOM_PAPER:
+        return CUSTOM_PAPER
+    return f"{size_class}{SELECTION_SEP}{CUSTOM_PAPER}"
+
+
 def paper_matches(preset_paper: Any, selected: str) -> bool:
-    """True when a preset on ``preset_paper`` belongs in a list filtered to the
-    Paper field entry ``selected`` (a :func:`paper_class`). A preset with no
-    paper is always shown; so is every preset when nothing is selected."""
+    """True when a preset on ``preset_paper`` belongs in a list filtered to
+    ``selected``: a Paper field entry (a :func:`paper_class`), or several
+    joined by :data:`SELECTION_SEP` (:func:`custom_selection`). A preset with
+    no paper is always shown; so is every preset when nothing is selected."""
     mine = paper_class(preset_paper)
     if not mine or not selected:
         return True
-    return mine == selected
+    return mine in str(selected).split(SELECTION_SEP)

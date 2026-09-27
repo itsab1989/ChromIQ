@@ -65,13 +65,14 @@ def _on(preset_paper, sel: str) -> bool:
     """Whether a preset on *preset_paper* belongs to the Paper field entry
     *sel* ("custom" for Custom), judged without the filter's functions."""
     p = str(preset_paper or "")
+    sels = sel.split("|")        # K61 (B8-1410): "A4|custom"
     if p in _NAMED:
-        return p == sel
+        return p in sels
     # A size equal to a named paper is that paper (B8-1310). None of the
     # built-ins' custom sizes (100 x 150, 130 x 180) equals one; asserted
     # here rather than assumed, so a new one cannot be misread silently.
     assert p in ("100x150", "130x180"), f"a new custom preset size {p}"
-    return cp.CUSTOM_PAPER == sel
+    return cp.CUSTOM_PAPER in sels
 
 
 @pytest.fixture(scope="module")
@@ -221,9 +222,11 @@ def test_custom_on_a_named_papers_size_after_a3_landscape_is_that_paper(
     qapp.processEvents()
     _panel_paper(tab, "__custom__", dims)
     qapp.processEvents()
-    assert tab._preset_paper_selected() == named
-    exp = _expected(settings, named)
+    # …and every Custom preset with it (Knut, #182 5851645723, K61, B8-1410)
+    assert tab._preset_paper_selected() == cp.custom_selection(named)
+    exp = _expected(settings, cp.custom_selection(named))
     assert exp and exp != _expected(settings, cp.CUSTOM_PAPER)
+    assert exp != _expected(settings, named)
     assert _pulldown(tab) == exp
     assert _popup(tab) == exp
 
@@ -282,7 +285,12 @@ def test_the_gear_help_states_the_rule(gear):
         # B8-1310: a Custom size equal to a named paper is that paper, so
         # "whatever the width and height boxes say" is no longer true
         assert "whatever the width and height boxes say" not in text
-        assert "count as that paper" in text and "orientation" in text
+        # K61 (B8-1410): Custom lists every Custom preset, and a size equal
+        # to a named paper adds that paper's presets
+        assert "whatever the width and height say" in text
+        assert "presets are listed too" in text or \
+            "presets are shown too" in text
+        assert "orientation" in text
         assert "—" not in text
     assert "Paper filter off" in window
     assert "A ticked preset for that paper is listed directly" in window
@@ -299,6 +307,7 @@ def test_the_german_help_is_by_hand_and_says_the_same():
         assert "auch Scanner" in v
         assert "keines angehakt" in v
         assert "immer angezeigt" not in v
-        assert "zählen sie als dieses Papier" in v            # B8-1310
+        assert "egal was Breite und Höhe sagen" in v          # K61, B8-1410
+        assert "auch die Presets dieses Papiers" in v          # B8-1310
         assert "egal was in den Feldern" not in v
         assert " du " in v or "Klicke" in v or "Nimm" in v    # Du-Form

@@ -280,7 +280,7 @@ def test_the_summary_is_shown_and_names_the_problems(dlg, tmp_path):
     assert "Ticked: 0" in info and "Unticked: 1" in info
     assert "Skipped: 1" in info
     assert "Line 2: “__nope__”" in info
-    assert "OK keeps these ticks" in info
+    assert "“Apply & save” keeps these ticks" in info      # K61, B8-1412
     assert on[0] not in dlg.ticked()
     assert str(path) in dlg._status.text()
 
@@ -440,4 +440,5 @@ def test_export_and_import_sit_bottom_left_and_ok_close_stay_right(
 def test_the_window_says_ok_keeps_an_import_and_close_discards_it(dlg):
     text = dlg._intro.text()
     assert "Export list saves this table as a CSV file" in text
-    assert "an imported list is kept only by OK; Close discards it" in text
+    assert ("an imported list is kept only by “Apply & save”; Close "
+            "discards it") in text      # K61, B8-1412

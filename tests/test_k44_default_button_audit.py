@@ -42,7 +42,9 @@ BEFORE = json.loads((ROOT / "tests" / "data" /
 #: filled (a tool's main action once its inputs are chosen, as it is greyed
 #: until then).
 FILLED_NOW = {
-    "gear window": "OK",
+    # "Apply & save" since K61 (B8-1412); the audit reads a label with its
+    # ampersands dropped, as it drops a mnemonic's
+    "gear window": "Apply && save".replace("&", ""),
     "report question (as built)": "Create New",
     "tool/average": "Average",
     "tool/merge": "Merge",
@@ -234,7 +236,8 @@ def test_the_fill_is_the_windows_own_accent(audit, mode):
 
     def fill(name, text):
         return next(r["fill"] for r in audit[mode][name] if r["text"] == text)
-    assert fill("gear window", "OK").lower() == SPEC_MAGENTA.lower()
+    assert fill("gear window", "Apply && save".replace("&", "")).lower() \
+        == SPEC_MAGENTA.lower()
     assert fill("report question (as built)", "Create New").lower() == \
         SPEC_GREEN.lower()
 

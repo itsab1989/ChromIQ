@@ -542,7 +542,8 @@ def test_the_window_lists_every_built_in_under_the_pulldowns_headings(
         from core.i18n import tr
         buttons = [b for b in dlg.findChildren(QPushButton) if b.isVisibleTo(dlg)]
         assert sorted(b.text() for b in buttons) == sorted(
-            [tr("OK"), tr("Close"), tr("Export list"), tr("Import list")])
+            [tr("Apply && save"), tr("Close"), tr("Export list"),
+             tr("Import list")])      # K61, B8-1412: "Apply & save"
     finally:
         dlg.deleteLater()
 

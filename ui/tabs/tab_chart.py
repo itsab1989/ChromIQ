@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
-from PyQt6.QtCore import QRect, QRectF, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QPointF, QRect, QRectF, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QPainter,
                          QPalette, QPen)
 from PyQt6.QtWidgets import (
@@ -3927,20 +3927,33 @@ def paper_filter_groups(groups: list, selected: str) -> list:
     return out
 
 
+def preset_note_link() -> str:
+    """The words of the note that open "Settings for built-in presets", with
+    the gear drawn after them (Knut, #182 5851645723, K61, B8-1411)."""
+    return tr("click here")
+
+
 def preset_list_note(filter_on: bool) -> str:
     """The coloured note at the bottom of "Select preset" and of the Built-in
     presets list (Knut, #182 5834773589, B8-1171): with the paper filter on,
     that the list is filtered and how to show every paper size; with it off,
     how to filter it. Both name the box and the window it is in by their own
-    labels, never by a description of where they are."""
+    labels, never by a description of where they are.
+
+    Both end ", or click here" and the gear of the window's button, which
+    open the window (Knut, #182 5851645723, K61, B8-1411): *"add after the
+    message shown ", or click here <gear-icon>"*. The link words are
+    :func:`preset_note_link`, the last words of the note."""
+    link = preset_note_link()
     if filter_on:
         return tr("This list is filtered by the paper size selected. To "
                   "show all paper sizes, untick “Filter preset-dropdown list "
                   "according to selected paper size” in “Settings for "
-                  "built-in presets”.")
+                  "built-in presets”, or {click_here}").format(click_here=link)
     return tr("To filter this list of built-in presets by the paper size "
               "selected, tick “Filter preset-dropdown list according to "
-              "selected paper size” in “Settings for built-in presets”.")
+              "selected paper size” in “Settings for built-in presets”, or "
+              "{click_here}").format(click_here=link)
 
 
 def _marked_overlay_label(key: str, label: str) -> str:
@@ -4804,10 +4817,16 @@ class _PresetListNote(QWidget):
     PAD = 8
     INSET = 4
 
+    #: The note's link was clicked (K61, B8-1411): ", or click here" and the
+    #: gear after it open "Settings for built-in presets".
+    link_activated = pyqtSignal()
+
     def __init__(self, parent: QWidget) -> None:
         super().__init__(parent)
         self.setObjectName("preset_list_note")
         self._text = ""
+        self._link = ""
+        self.setMouseTracking(True)
         pol = QSizePolicy(QSizePolicy.Policy.Ignored,
                           QSizePolicy.Policy.Fixed)
         pol.setHeightForWidth(True)
@@ -4816,8 +4835,12 @@ class _PresetListNote(QWidget):
     def text(self) -> str:
         return self._text
 
-    def set_text(self, text: str) -> None:
+    def link(self) -> str:
+        return self._link
+
+    def set_text(self, text: str, link: str = "") -> None:
         self._text = str(text or "")
+        self._link = str(link or "")
         self.setToolTip(self._text)
         self.setAccessibleName(self._text)
         self.updateGeometry()
@@ -4828,15 +4851,20 @@ class _PresetListNote(QWidget):
                             -(self.INSET + 6), -self.INSET)
         return box.adjusted(self.PAD, self.PAD, -self.PAD, -self.PAD)
 
+    def _document(self, text_w: int):
+        """The note as the one document both measuring and painting use
+        (`ui.preset_note_link`), with the link and the gear when it has one."""
+        from ui.preset_note_link import note_document
+        from ui.theme import info_colours
+        return note_document(self._text, self._link, self.font(),
+                             info_colours()["text"], max(40, text_w))
+
     def hasHeightForWidth(self) -> bool:  # noqa: N802 — Qt's name
         return True
 
     def heightForWidth(self, width: int) -> int:  # noqa: N802
         text_w = self._text_rect(QRect(0, 0, max(160, width), 1000)).width()
-        fm = QFontMetrics(self.font())
-        text_h = fm.boundingRect(QRect(0, 0, max(40, text_w), 10000),
-                                 int(Qt.TextFlag.TextWordWrap),
-                                 self._text).height()
+        text_h = int(math.ceil(self._document(text_w).size().height()))
         return text_h + 2 * (self.PAD + self.INSET)
 
     def sizeHint(self) -> QSize:  # noqa: N802
@@ -4845,6 +4873,12 @@ class _PresetListNote(QWidget):
 
     def minimumSizeHint(self) -> QSize:  # noqa: N802
         return QSize(0, self.heightForWidth(self.width() or 300))
+
+    def _doc_origin(self, tr_: QRect, doc) -> QPointF:
+        """Where the document's top left sits: the text rect's left, centred
+        up and down as the plain note was (AlignVCenter)."""
+        dy = max(0.0, (tr_.height() - doc.size().height()) / 2.0)
+        return QPointF(tr_.left(), tr_.top() + dy)
 
     def paintEvent(self, _event) -> None:  # noqa: N802
         from ui.theme import info_colours
@@ -4858,20 +4892,36 @@ class _PresetListNote(QWidget):
         p.setPen(QPen(QColor(colours["border"]), 1))
         p.setBrush(QColor(colours["bg"]))
         p.drawRoundedRect(box, 4, 4)
-        p.setPen(QColor(colours["text"]))
-        p.setFont(self.font())
-        p.drawText(self._text_rect(rect),
-                   int(Qt.AlignmentFlag.AlignLeft
-                       | Qt.AlignmentFlag.AlignVCenter
-                       | Qt.TextFlag.TextWordWrap), self._text)
+        tr_ = self._text_rect(rect)
+        doc = self._document(tr_.width())
+        p.translate(self._doc_origin(tr_, doc))
+        doc.drawContents(p)
         p.end()
 
-    # A click on the note is read, never chosen, and does not close the list.
+    def _on_link(self, pos) -> bool:
+        if not self._link:
+            return False
+        from ui.preset_note_link import link_at
+        tr_ = self._text_rect(self.rect())
+        doc = self._document(tr_.width())
+        return link_at(doc, QPointF(pos) - self._doc_origin(tr_, doc))
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        on = self._on_link(event.position())
+        self.setCursor(Qt.CursorShape.PointingHandCursor if on
+                       else Qt.CursorShape.ArrowCursor)
+        event.accept()
+
+    # A click on the note is read, never chosen, and does not close the list;
+    # a click on its link opens "Settings for built-in presets" (B8-1411).
     def mousePressEvent(self, event) -> None:  # noqa: N802
         event.accept()
 
     def mouseReleaseEvent(self, event) -> None:  # noqa: N802
         event.accept()
+        if (event.button() == Qt.MouseButton.LeftButton
+                and self._on_link(event.position())):
+            self.link_activated.emit()
 
     def mouseDoubleClickEvent(self, event) -> None:  # noqa: N802
         event.accept()
@@ -4942,13 +4992,23 @@ class _CappedComboBox(NoScrollComboBox):
             self._note_footer.setFont(self.font())
             lay.addWidget(self._note_footer)
             self._note_footer.hide()
+            self._note_footer.link_activated.connect(self._on_note_link)
 
-    def set_note(self, text: str) -> None:
-        """The paper-filter note pinned under the open list ("" hides it)."""
+    #: The note's link was clicked (B8-1411): the list is closed first.
+    settings_requested = pyqtSignal()
+
+    def _on_note_link(self) -> None:
+        self.hidePopup()
+        self.settings_requested.emit()
+
+    def set_note(self, text: str, link: str = "") -> None:
+        """The paper-filter note pinned under the open list ("" hides it),
+        with ``link`` (its last words) opening "Settings for built-in
+        presets" (B8-1411)."""
         foot = self._note_footer
         if foot is None:
             return
-        foot.set_text(text)
+        foot.set_text(text, link)
         foot.setVisible(bool(text))
 
     def note(self) -> str:
@@ -7851,6 +7911,9 @@ class TabChart(QWidget):
         # methods, never lambdas: these signals come from the combo's own
         # popup (CLAUDE.md, the fade-scroll crash).
         self._preset_combo.more_row_triggered.connect(self._on_preset_more_row)
+        # The note's ", or click here ⚙" (K61, B8-1411).
+        self._preset_combo.settings_requested.connect(
+            self._open_builtin_presets_shown_soon)
         self._preset_combo.popup_about_to_show.connect(
             self._reveal_current_preset_group)
         # (No `currentIndexChanged` here: the combo is on `activated` only,
@@ -11640,10 +11703,34 @@ class TabChart(QWidget):
             # the W x H the field answers. This reverses B8-1260, which made
             # the Custom ENTRY decide whatever the boxes held.
             code = self._manual_paper_on_screen()
+            if self._manual_paper_is_custom_entry():
+                # "Custom…" LISTS EVERY CUSTOM PRESET, and the named paper its
+                # size equals as well (Knut, #182 5851645723, K61, B8-1410):
+                # *"we also decided that Custom should show all types of
+                # presets that have selected Custom paper."* A Custom
+                # 210 x 297 listed the A4 Portrait presets and no Custom one.
+                from core.curated_presets import custom_selection
+                return custom_selection(paper_class(code))
         else:
             combo = getattr(self, "_paper_combo", None)
             code = combo.currentData() if combo is not None else ""
         return paper_class(code)
+
+    def _manual_paper_is_custom_entry(self) -> bool:
+        """Whether Manual's Paper field on screen is on its Custom entry
+        ("Custom…" in the layout panel, "Custom (enter dimensions)" in
+        printtarg's row), whatever size its boxes hold."""
+        grp = getattr(self, "_manual_layout_grp", None)
+        panel = getattr(self, "_manual_layout_panel", None)
+        try:
+            if grp is not None and not grp.isHidden() and panel is not None \
+                    and getattr(panel, "paper", None) is not None:
+                return panel.paper.currentData() == "__custom__"
+            pw = getattr(self, "_manual_paper_pw", None)
+            combo = getattr(pw, "_custom_combo", None) if pw is not None else None
+            return combo is not None and combo.currentData() == "custom"
+        except Exception:      # noqa: BLE001 — a filter, never a blocker
+            return False
 
     def _manual_paper_on_screen(self) -> str:
         """The paper Manual's Paper field SHOWS, as a ``-p`` code (a Custom
@@ -11792,7 +11879,8 @@ class TabChart(QWidget):
         from core.curated_presets import paper_filter_on
         cb = self._preset_combo
         if hasattr(cb, "set_note"):
-            cb.set_note(preset_list_note(paper_filter_on(self._settings)))
+            cb.set_note(preset_list_note(paper_filter_on(self._settings)),
+                        preset_note_link())
 
     # ------------------------------------------------------------------
     # The curated built-ins: the arrow rows (#182 5818659478)
@@ -11961,6 +12049,12 @@ class TabChart(QWidget):
                      for (_combo, overlay, key) in entries])
             for instr, entries in BUILTIN_PRESET_GROUPS
         ]
+
+    def _open_builtin_presets_shown_soon(self) -> None:
+        """The note's link under either preset list (K61, B8-1411): open
+        "Settings for built-in presets" once the list that was clicked has
+        closed, from the event loop, never inside the click's own delivery."""
+        QTimer.singleShot(0, self._open_builtin_presets_shown)
 
     def _open_builtin_presets_shown(self) -> None:
         """The gear button: choose which built-ins the two lists show.
@@ -12452,9 +12546,12 @@ class TabChart(QWidget):
         from core.curated_presets import paper_filter_on
         popup = BuiltinPresetPopup(
             groups, self, more=more,
-            note=preset_list_note(paper_filter_on(self._settings)))
+            note=preset_list_note(paper_filter_on(self._settings)),
+            note_link=preset_note_link())
         popup.set_appearance(resolve_mode(self._settings.get("appearance", "auto")))
         popup.selected.connect(self._activate_builtin_preset)
+        # The note's ", or click here ⚙" (K61, B8-1411).
+        popup.settings_requested.connect(self._open_builtin_presets_shown_soon)
         # Keep a reference so the popup isn't garbage-collected while shown.
         self._builtin_preset_popup = popup
         popup.show_under(self._builtin_preset_btn)

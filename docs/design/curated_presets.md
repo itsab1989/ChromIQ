@@ -93,7 +93,16 @@ Basti's decision, replacing Knut's "only a Close button; closing applies":
   `WinButtonLayoutStyle` (`main.py`), so a button box would have come out
   right in the app, but the window no longer depends on that.
 * The texts are the existing catalogue keys "OK" and "Close" (German "OK",
-  "Schließen").
+  "Schließen"). **Amended (Knut, #182 5851645723, K61, B8-1412; ⏳ awaiting
+  confirmation):** *"the OK button should be called "Apply & Save", which
+  makes it more understandable that this button applies the changes. This is
+  also same as other windows that uses Apply & Save"*. OK is now **"Apply &
+  save"**, the label, catalogue key ("Apply && save", `&&` being Qt's escape
+  for a literal ampersand) and German ("Anwenden & speichern") of the one
+  other window that has it, "Apply a device-link to an image". Everything in
+  the table above holds for it as for OK: the default button, Return, what
+  stores. Every text of the window that said "OK keeps …" says "“Apply &
+  save” keeps …" (German "„Anwenden & speichern“ übernimmt …").
 
 ### C4. The two lists
 
@@ -281,8 +290,9 @@ are what he meant is his call:
 | "Equal" | to the millimetre, within half a millimetre per side, because the Custom boxes take whole millimetres: 216 × 279 is Letter (215.9 × 279.4), 102 × 152 is 4 × 6 in (101.6 × 152.4) |
 | A preset's own paper | the same rule (his words: "that preset"). No shipped built-in preset changes: the only custom sizes they use, 100 × 150 and 130 × 180 mm, equal no named paper |
 | Any other Custom size | unchanged: every Custom preset, whatever the boxes say (K48) |
+| **Amended (Knut, #182 5851645723, K61, B8-1410; ⏳ awaiting confirmation)** | *"we also decided that Custom should show all types of presets that have selected Custom paper."* So "Custom…" on a size equal to a named paper lists that paper's presets **and every Custom preset** (210 × 297: A4 Portrait's and the 10 × 15 and 13 × 18 cm cards); any other Custom size lists every Custom preset as above. A named paper chosen from the list as itself (A4) still lists its own presets only. Both lists alike; engine on and off. Built as the selection "A4\|custom" (`core.curated_presets.custom_selection`), read by `paper_matches` |
 | "Save as Defaults" | unchanged: it stores the size (`210x297`, `420x297`) and the next start shows that size again (measured with the engine on, before and after, `save-as-defaults-table.txt` of the proof); the lists read it by the same rule, so a saved 210 × 297 lists A4 Portrait's presets after the restart too |
-| The help | both help icons of "Settings for built-in presets" say it (B8-1310), where they used to say "whatever the width and height boxes say" |
+| The help | both help icons of "Settings for built-in presets" say it (B8-1310), where they used to say "whatever the width and height boxes say". **Amended (K61, B8-1410):** they now say Custom lists every preset on a size the paper list does not name "whatever the width and height say", and that a size equal to a named paper adds that paper's presets ("210 × 297 adds the A4 Portrait presets") |
 
 ### C8. The groups come in the Instrument pulldown's order (Knut, #182 5833490026, beta 43, B8-1146)
 
@@ -324,11 +334,32 @@ that may be misunderstood."*
 | Where | ~~the LAST row of "Select preset" and of the Built-in presets list, after Red River Paper's arrow~~ **Amended (Knut, #182 5839478031, B8-1226; ⏳ awaiting confirmation):** *"The message in red at the bottom of select preset dropdown and built-in presets button is not visible before scrolling to the bottom. Can the message be made to always stay visible at the bottom, so that it is not scrolled out of view when scrolling the list?"* PINNED at the bottom of each open list, under the rows, which scroll above it: in "Select preset" a part of the list's frame under the scrolling list (no longer an entry of the combo at all); in the Built-in presets list under the scrolling rows, inside the bubble. Whatever the list is scrolled to, the note is shown whole, and the last row can still be scrolled fully into view above it. In both lists, at every paper, filter on or off |
 | Filter ON | "This list is filtered by the paper size selected. To show all paper sizes, untick “Filter preset-dropdown list according to selected paper size” in “Settings for built-in presets”." German: "Diese Liste ist nach der gewählten Papiergröße gefiltert. Um alle Papiergrößen zu zeigen, nimm in „Einstellungen für integrierte Presets“ das Häkchen bei „Presetliste im Aufklappmenü nach gewählter Papiergröße filtern“ weg." |
 | Filter OFF | "To filter this list of built-in presets by the paper size selected, tick “Filter preset-dropdown list according to selected paper size” in “Settings for built-in presets”." German: "Um diese Liste der integrierten Presets nach der gewählten Papiergröße zu filtern, hake in „Einstellungen für integrierte Presets“ das Kästchen „Presetliste im Aufklappmenü nach gewählter Papiergröße filtern“ an." |
-| Follows the box | the text changes when OK stores the box (C3a, C7); Close changes nothing |
+| Follows the box | the text changes when OK ("Apply & save" since K61) stores the box (C3a, C7); Close changes nothing |
 | Its look | a rounded box in the app's information colours (`QLabel#info`: `ui.theme.info_colours`): Light pink ground, magenta text and edge; Dark the dark magenta ground, magenta text and edge; Neutral, which has no coloured note, its surface, main ink and border. The text wraps to the list's width; the note never widens a list |
 | Never a choice | in "Select preset" ~~it is disabled and not selectable at all times, open or closed, so Up, Down, End, PageDown, the wheel and type-ahead step over it; a click on it is swallowed; the preset handler refuses it (userData `NOTE_ROW_DATA`, `is_not_a_preset`), as it refuses an arrow row~~ **(B8-1226)** it is not an entry of the list at all, so Up, Down, End, PageDown, the wheel, type-ahead and the preset handler cannot reach it; a click on it is swallowed and leaves the list open. In the Built-in presets list it is not among the rows the keyboard moves through, the mouse finds nothing on it, and it is never emitted or closes the list |
 | The window's name | "Settings for built-in presets" (German "Einstellungen für integrierte Presets", after the existing "Integrierte Presets"), in the window's title, the gear's tooltip (its first line) and accessible name, the list's accessible name, the Manual Presets help line, the arrow rows' tooltip, the window's two help icons and the note. No user-facing text calls it "the gear window", "this window's list" or "Built-in presets in the lists" any more |
 | Not built | the window has no masthead (it never had one), so the name is its title bar only |
+
+### C9a. The note's link to the window (Knut, #182 5851645723, K61, B8-1411)
+
+⏳ **Awaiting confirmation. Confirmed by:** *nobody yet.* Knut asked for it;
+driven on screen with a real mouse (`~/Desktop/ChromIQ-beta45-proof/batch1/k61/`),
+which proves what the app does; whether it is what he meant is his call.
+
+Knut: *"The message at the bottom of the two preset pulldown lists (select
+presets and built-in presets button) notifying user where to go to change the
+"settings for built-in presets": could you add after the message shown ", or
+click here <gear-icon>", where the <gear-icon> is the icon same as what was
+used in the button for the used "settings for built-in presets", and which
+upon clicked opens the same "settings for built-in presets" window?"*
+
+| What | Behaviour |
+|---|---|
+| The text | both notes of C9 end ", or click here" (the final full stop gone), then the gear: "… in “Settings for built-in presets”, or click here ⚙". German "…, oder klicke hier ⚙" |
+| The link | "click here" and the gear after it are one link, underlined, in the note's own colour; the pointer turns into a hand over it |
+| The gear | the gear of the "Settings for built-in presets" button (`set_folder_twin_icon(…, "gear", "folder_create")`: magenta in Light and Dark, ACTION in Neutral) |
+| A click on it | closes the list and opens "Settings for built-in presets", as the gear button does; in "Select preset" and in the Built-in presets list alike |
+| A click anywhere else on the note | as before (C9): swallowed, the list stays open, nothing is chosen |
 
 ### C10. Which Paper field the filter reads while the ChromIQ layout engine is on (Knut, #182 5838170697 to 5838625234, beta 43, B8-1221 to B8-1224)
 

@@ -30020,7 +30020,7 @@ would reach.
 - on screen: `~/Desktop/ChromIQ-beta44-proof/k50-create-chart/before/lists-and-frames` (4d04dce9: Custom 420 x 297 and 210 x 297 both list the Custom presets, engine on and off) and `after/lists-and-frames` (420 x 297 A3 Landscape's lists, 210 x 297 A4 Portrait's, engine on and off; 250 x 300 the Custom presets); "Save as Defaults" on those sizes and a restart in `after/save-as-defaults`.
 - where: `core/curated_presets.py` (`named_paper_of_size`, `paper_class`), `ui/tabs/tab_chart.py` (`_preset_paper_selected`), `ui/dialogs/builtin_presets_shown_dialog.py`, `data/i18n/*.json`.
 - tests: tests/test_b8_1310_a_custom_size_equal_to_a_named_paper_is_that_paper.py (renamed from B8-1260's file), tests/test_k48_preset_lists_scanner_custom_and_the_gear_help.py. Mutations M1310-a to M1310-c (k50 mutations.txt), each red.
-- evidence: test_the_class_of_a_custom_size, test_custom_lists_what_its_size_is, test_a_custom_size_is_the_named_papers_list_not_customs, test_a_box_changed_on_custom_follows_the_size, test_guided_filters_by_its_named_paper, test_custom_on_a_named_papers_size_after_a3_landscape_is_that_paper, test_the_gear_help_states_the_rule
+- evidence: test_the_class_of_a_custom_size, test_custom_lists_what_its_size_is, test_a_custom_size_is_the_named_papers_list_and_customs, test_a_box_changed_on_custom_follows_the_size, test_guided_filters_by_its_named_paper, test_custom_on_a_named_papers_size_after_a3_landscape_is_that_paper, test_the_gear_help_states_the_rule
 
 ### B8-1311 · FIXED, awaiting confirmation · Knut #182 5845588201: Create Chart > Manual's Output and Presets frames fold away with an arrow, open by default
 - blocks release: no
@@ -30493,3 +30493,47 @@ would reach.
 - found by: Knut, #182 5850330710.
 - where: `ui/dialogs/measurement_report_dialog.py` (`_PAIRING_HELP`, the window's help, `_how_to_read_html`), `ui/dialogs/welcome_dialog.py` (Dictionary, Getting Started), `workflow/compliance_sets.py` (`SETS` blurbs), `data/i18n/*.json`.
 - approved: Knut, #182 5850782488 (2026-09-26): "All messages approved." The old-report COND tooltip stays ("should that tooltip go too?" "No.").
+
+### B8-1410 · FIXED, awaiting confirmation · K61: with the paper filter on, "Custom…" lists every Custom-paper preset, and the named paper its size equals too
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5851645723 (K61, his test of beta 44): *"we also decided that Custom should show all types of presets that have selected Custom paper."* A Custom 210 x 297 listed only the A4 Portrait presets and no Custom one.
+- fix: Manual's Paper on its Custom entry filters both lists to that size's class and Custom (`core.curated_presets.custom_selection`, "A4|custom"; `paper_matches` reads either); a size equal to no named paper lists the Custom presets as before; a named paper chosen as itself lists its own only; Guided has no Custom. The help of both ⓘ in "Settings for built-in presets" says so ("whatever the width and height say. When they equal a named paper, orientation included, that paper's presets are listed too"); German by hand. Spec: `docs/design/curated_presets.md` C7a, amended ⏳.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch1/k61A/` (Custom 210 x 297, both lists open): before A4 only; after A4 and the 10 x 15 / 13 x 18 cm cards, in both lists.
+- tests: tests/test_k61_preset_lists_note_link_and_apply.py, tests/test_b8_1310_a_custom_size_equal_to_a_named_paper_is_that_paper.py, tests/test_k48_preset_lists_scanner_custom_and_the_gear_help.py; mutations M61-a, M61-b (`~/Desktop/ChromIQ-beta45-proof/batch1/mutations/m61.txt`), each red.
+- evidence: test_the_rule_in_one_line, test_custom_210_x_297_lists_a4_portrait_and_every_custom_preset, test_custom_on_a_size_no_paper_names_lists_the_custom_presets, test_a_named_paper_chosen_as_itself_lists_only_its_own, test_the_built_in_presets_list_is_filtered_the_same_way, test_the_help_texts_say_custom_adds_the_named_paper, test_a_custom_size_is_the_named_papers_list_and_customs
+- where: `core/curated_presets.py`, `ui/tabs/tab_chart.py` (`_preset_paper_selected`, `_manual_paper_is_custom_entry`), `ui/dialogs/builtin_presets_shown_dialog.py`.
+
+### B8-1411 · FIXED, awaiting confirmation · K61: the note under both preset lists ends ", or click here" and the gear, which opens "Settings for built-in presets"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5851645723: *"could you add after the message shown ", or click here <gear-icon>", where the <gear-icon> is the icon same as what was used in the button for the used "settings for built-in presets", and which upon clicked opens the same "settings for built-in presets" window?"*
+- fix: both notes end "…in “Settings for built-in presets”, or click here" and the gear of that button (magenta in Light and Dark, ACTION in Neutral), one underlined link; the pointer is a hand over it; a click closes the list and opens the window (queued, from the event loop); a click elsewhere on the note is swallowed as before. One document for both lists (`ui/preset_note_link.py`). German "…, oder klicke hier". The note is governed by the curated presets spec (C9), not §M: added there as C9a, ⏳ awaiting confirmation.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch1/k61B/` (EN and DE): both lists open, the link clicked with a real mouse (Quartz), the window opened each time.
+- tests: tests/test_k61_preset_lists_note_link_and_apply.py, tests/test_k46_preset_list_note_and_settings_name.py; mutations M61-c, M61-d, M61-g, each red.
+- evidence: test_the_note_ends_with_click_here_in_both_states, test_the_select_preset_note_opens_the_window, test_the_built_in_presets_note_opens_the_window, test_the_gear_in_the_note_is_the_buttons_gear
+- where: `ui/preset_note_link.py`, `ui/tabs/tab_chart.py` (`preset_list_note`, `preset_note_link`, `_PresetListNote`, `_CappedComboBox.set_note`, `_open_builtin_presets_shown_soon`), `ui/builtin_preset_popup.py`, `docs/design/curated_presets.md`.
+
+### B8-1412 · FIXED, awaiting confirmation · K61: the OK of "Settings for built-in presets" is "Apply & save"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5851645723: *"the OK button should be called "Apply & Save", which makes it more understandable that this button applies the changes. This is also same as other windows that uses Apply & Save"*.
+- fix: the one window that had the label is "Apply a device-link to an image": "Apply && save" (displayed "Apply & save"; German "Anwenden & speichern"). The gear window uses that key, so label and translation match exactly (lower-case "save", as that window has it; Knut wrote "Save"). Still the default button, still what stores. Every text of the window that said "OK keeps …" says "“Apply & save” keeps …" (six texts, German by hand). Spec C3a amended ⏳.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch1/k61C/` (before OK; after EN and DE).
+- tests: tests/test_k61_preset_lists_note_link_and_apply.py, tests/test_k44_default_button_audit.py, tests/test_curated_builtin_presets.py, tests/test_k39_preset_list_export_import.py, tests/test_k42_own_presets_paragraph_is_true_with_the_filter.py; mutation M61-e, red.
+- evidence: test_the_window_accepts_with_apply_and_save
+- where: `ui/dialogs/builtin_presets_shown_dialog.py`, `data/i18n/*.json`.
+
+### B8-1413 · FIXED, awaiting confirmation · K61: Preferences' clip-border note keeps only "These settings apply only when the clip border is On in a chart layout."
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- ruling: Knut, #182 5851645723: *"In preference Chart layout, the new text message for the Clip-border content: "... They are kept while it is off." This part is not relevant to know and should be removed."*
+- fix: the second sentence removed (B8-1362's note); German by hand ("Diese Einstellungen gelten nur, wenn der Klemmrand in einem Chart-Layout auf „An“ steht."). Both ledgers unmoved (the twelve others carried the English and still do).
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch1/k61D/` (Preferences > Chart Layout, ColorMunki, clip border Off; before, after, after in German).
+- tests: tests/test_k61_preset_lists_note_link_and_apply.py; mutation M61-f, red.
+- evidence: test_the_preferences_note_keeps_its_first_sentence_only
+- where: `ui/dialogs/layout_options_panel.py`, `data/i18n/*.json`.

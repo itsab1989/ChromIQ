@@ -20,8 +20,9 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
 OWN = ("Your own presets are not affected: neither the ticks nor the paper "
-       "filter below changes them, and they always stay at the top. OK keeps "
-       "your choice; Close leaves the lists as they were.")
+       "filter below changes them, and they always stay at the top. “Apply & "
+       "save” keeps your choice; Close leaves the lists as they were.")
+# ("OK" is "Apply & save" since K61, B8-1412.)
 
 
 @pytest.fixture(scope="module")
@@ -60,7 +61,7 @@ def test_a_help_icon_for_the_window_and_one_right_of_the_box(qapp):
         assert isinstance(win, TooltipButton) and win.isVisible()
         assert isinstance(box, TooltipButton) and box.isVisible()
         body = win.dialog_body()
-        for words in ("▸ N more presets", "OK keeps", "Export list",
+        for words in ("▸ N more presets", "“Apply & save” keeps", "Export list",
                       "Import list", "Paper filter", "Your own presets"):
             assert words in body, words
         b = box.dialog_body()

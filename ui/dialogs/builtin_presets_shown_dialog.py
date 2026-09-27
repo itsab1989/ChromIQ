@@ -123,12 +123,12 @@ class BuiltinPresetsShownDialog(QDialog):
             # built-in presets only, and the window says so here.
             + tr("Your own presets are not affected: neither the ticks nor "
                  "the paper filter below changes them, and they always "
-                 "stay at the top. OK keeps your choice; Close leaves the "
-                 "lists as they were.") + "\n\n"
+                 "stay at the top. “Apply & save” keeps your choice; Close "
+                 "leaves the lists as they were.") + "\n\n"
             + tr("Export list saves this table as a CSV file, with the ticks "
                  "as they are now. Import list sets the ticks from such a "
                  "file. Like any change here, an imported list is kept only "
-                 "by OK; Close discards it."),
+                 "by “Apply & save”; Close discards it."),
             self)
         self._intro.setWordWrap(True)
         self._intro.setObjectName("builtin_presets_shown_intro")
@@ -151,10 +151,10 @@ class BuiltinPresetsShownDialog(QDialog):
                "it, Scanner too. The orientation counts: A3 Portrait and A3 "
                "Landscape are two papers."
                "\n\n•  Custom paper: every preset laid out on a size the "
-               "paper list does not name. A Custom width and height that "
-               "equal a named paper, orientation included, count as that "
-               "paper: 210 × 297 lists the A4 Portrait presets, 297 × 210 "
-               "the A4 Landscape ones."
+               "paper list does not name, whatever the width and height say. "
+               "When they equal a named paper, orientation included, that "
+               "paper's presets are listed too: 210 × 297 adds the A4 "
+               "Portrait presets, 297 × 210 the A4 Landscape ones."
                "\n\n•  A ticked preset for that paper is listed directly. The "
                "group's other presets for that paper wait under “▸ N more "
                "presets”: click it, or select it and press the Right arrow "
@@ -164,12 +164,13 @@ class BuiltinPresetsShownDialog(QDialog):
                "with no preset for that paper is not shown."
                "\n\n•  Paper filter off: every built-in preset, the ticked "
                "ones directly and the rest under “▸ N more presets”."
-               "\n\nA group's own box ticks or clears the whole group. OK "
-               "keeps the ticks and the paper filter. Close, Escape and the "
+               "\n\nA group's own box ticks or clears the whole group. "
+               "“Apply & save” keeps the ticks and the paper filter. Close, "
+               "Escape and the "
                "window's close box leave both lists as they were."
                "\n\nExport list saves this table as a CSV file, with the "
                "ticks as they are now. Import list sets the ticks from such "
-               "a file; OK keeps them."
+               "a file; “Apply & save” keeps them."
                "\n\nYour own presets are never changed by any of this: they "
                "are always listed, at the top."), self)
         # NOT RENAMED (Knut, #182 5840677938, K48): the style sheets draw
@@ -247,18 +248,19 @@ class BuiltinPresetsShownDialog(QDialog):
                "orientation counts: A3 Portrait shows only the portrait A3 "
                "presets, A3 Landscape only the landscape ones.\n\nWith a "
                "Custom paper, every preset laid out on a size the paper "
-               "list does not name is shown. A Custom width and height that "
-               "equal a named paper, orientation included, count as that "
-               "paper: 210 × 297 shows the A4 Portrait presets, 297 × 210 "
-               "the A4 Landscape ones.\n\nThe ticks and the arrows still apply within "
+               "list does not name is shown, whatever the width and height "
+               "say. When they equal a named paper, orientation included, "
+               "that paper's presets are shown too: 210 × 297 adds the A4 "
+               "Portrait presets, 297 × 210 the A4 Landscape ones.\n\nThe "
+               "ticks and the arrows still apply within "
                "what the filter leaves: the ticked presets of that paper "
                "are listed directly, and “▸ N more presets” opens the rest "
                "of that paper's presets. A group with presets for the paper "
                "but none of them ticked shows its heading and “▸ N more "
                "presets” only; a group with none for the paper is not "
                "shown.\n\nUntick the box to list every built-in preset "
-               "whatever the paper. OK keeps the choice; Close discards "
-               "it."), self)
+               "whatever the paper. “Apply & save” keeps the choice; Close "
+               "discards it."), self)
         box_row = QHBoxLayout()
         box_row.setContentsMargins(0, 0, 0, 0)
         box_row.addWidget(self._paper_filter)
@@ -293,13 +295,21 @@ class BuiltinPresetsShownDialog(QDialog):
         self._import_btn.setObjectName("builtin_presets_shown_import")
         self._import_btn.setAutoDefault(False)
         self._import_btn.setToolTip(
-            tr("Set the ticks from a CSV file saved with Export list. OK "
-               "keeps them; Close discards them."))
+            tr("Set the ticks from a CSV file saved with Export list. "
+               "“Apply & save” keeps them; Close discards them."))
         self._import_btn.clicked.connect(self._on_import)
         row.addWidget(self._export_btn)
         row.addWidget(self._import_btn)
         row.addStretch(1)
-        self._ok_btn = QPushButton(tr("OK"), bb)
+        # "APPLY & SAVE" (Knut, #182 5851645723, K61, B8-1412): *"the OK
+        # button should be called "Apply & Save", which makes it more
+        # understandable that this button applies the changes. This is also
+        # same as other windows that uses Apply & Save"*. The label of the
+        # one window that has it, "Apply a device-link to an image", and its
+        # catalogue key and German ("Apply && save": the && is Qt's escape
+        # for a literal ampersand). Still the default button (Return), still
+        # what stores the ticks and the paper filter.
+        self._ok_btn = QPushButton(tr("Apply && save"), bb)
         self._ok_btn.setObjectName("builtin_presets_shown_ok")
         self._ok_btn.setDefault(True)
         self._ok_btn.clicked.connect(self.accept)
@@ -542,8 +552,8 @@ class BuiltinPresetsShownDialog(QDialog):
             return
         self._show_import_summary(reading)
         self._set_status(
-            tr("Imported {path}. OK keeps these ticks; Close discards "
-               "them.").format(path=path))
+            tr("Imported {path}. “Apply & save” keeps these ticks; Close "
+               "discards them.").format(path=path))
 
     def import_summary(self, reading: "cp.TableReading"
                        ) -> tuple[str, list[str]]:
@@ -602,8 +612,8 @@ class BuiltinPresetsShownDialog(QDialog):
                 info += "\n" + tr("And {count} more, listed under the "
                                    "details.").format(
                     count=len(problems) - len(shown))
-        info += "\n\n" + tr("Nothing is stored yet: OK keeps these ticks, "
-                               "Close discards them.")
+        info += "\n\n" + tr("Nothing is stored yet: “Apply & save” keeps "
+                               "these ticks, Close discards them.")
         self._message(
             QMessageBox.Icon.Warning if problems
             else QMessageBox.Icon.Information,

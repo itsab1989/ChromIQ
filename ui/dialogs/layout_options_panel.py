@@ -2389,9 +2389,12 @@ class LayoutOptionsPanel(QWidget):
         _ccv = QVBoxLayout(self._clip_content_grp)
         self._clip_content_note = None
         if self._clip_content_always_shown:
+            # Knut, #182 5851645723 (K61): "They are kept while it is Off"
+            # is not relevant to know, so the note says the first sentence
+            # only (B8-1413).
             self._clip_content_note = QLabel(tr(
                 "These settings apply only when the clip border is On in a "
-                "chart layout. They are kept while it is Off."), self)
+                "chart layout."), self)
             self._clip_content_note.setWordWrap(True)
             self._clip_content_note.setObjectName("info")
             self._clip_content_note.setVisible(False)  # _update_clip_visibility
