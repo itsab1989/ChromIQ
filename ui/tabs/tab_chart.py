@@ -4644,6 +4644,75 @@ def _same_stored_value(stored, ref) -> bool:
     return str(stored) == str(ref)
 
 
+_BUNDLED_TARGEN_SETS: "dict | None" = None
+
+
+def _is_a_bundled_targen_patch_set(ti1) -> bool:
+    """Is this .ti1 byte for byte a built-in preset's bundled patch set that
+    targen wrote (B8-1363)?
+
+    A chart built before its sidecar recorded `patch_set_given` cannot say
+    that its patch set was given, and a set written by targen reads like one
+    ChromIQ may make again from the rows on screen. Two bundled sets are like
+    that (Red River's locked 2052-patch set among them); a run's copy of one
+    is identical to it, so the file itself answers. Sizes first, so an
+    ordinary chart costs one stat."""
+    global _BUNDLED_TARGEN_SETS
+    import hashlib
+    try:
+        if _BUNDLED_TARGEN_SETS is None:
+            sets: dict = {}
+            for pr in KNUT_PRESETS:
+                f = resource_path(pr.ti1_asset)
+                try:
+                    data = Path(f).read_bytes()
+                except OSError:
+                    continue
+                if b'ORIGINATOR "Argyll targen"' not in data[:2048]:
+                    continue
+                sets.setdefault(len(data), set()).add(
+                    hashlib.sha256(data).hexdigest())
+            _BUNDLED_TARGEN_SETS = sets
+        size = Path(ti1).stat().st_size
+        if size not in _BUNDLED_TARGEN_SETS:
+            return False
+        return (hashlib.sha256(Path(ti1).read_bytes()).hexdigest()
+                in _BUNDLED_TARGEN_SETS[size])
+    except OSError:
+        return False
+
+
+def _auto_patches_from_registry(reg) -> "bool | None":
+    """Was "Auto patch count" ticked, read from a record that predates the
+    tick being stored (B8-1363)? None when the record cannot say.
+
+    Ticking the box writes 0 into Total Patch Count (-f), so every record
+    written with it ticked holds -f = 0. With it unticked -f is the number
+    typed, and 0 there asks targen for the fixed patches alone (white, black
+    and the grey steps), a chart nobody builds on purpose. So -f = 0 is read
+    as ticked. Only for a record that carries no tick of its own."""
+    if not isinstance(reg, dict):
+        return None
+    row = reg.get("targen-f")
+    if not isinstance(row, dict) or "value" not in row:
+        return None
+    try:
+        return int(float(row.get("value") or 0)) == 0
+    except (TypeError, ValueError):
+        return None
+
+
+def _with_auto_patches_derived(ui_state: dict, reg) -> dict:
+    """``ui_state`` with an "auto" bucket derived from ``reg`` when it has
+    none of its own (a target stored before B8-1363); otherwise unchanged."""
+    if not isinstance(ui_state, dict) or "auto" in ui_state:
+        return ui_state
+    derived = _auto_patches_from_registry(reg)
+    if derived is None:
+        return ui_state
+    return {**ui_state, "auto": {"patches": derived}}
+
+
 def _unseen_panel_shape(recipe) -> "str | None":
     """The release range whose unseen-panel placeholder `recipe` is
     (B8-1290, B8-1298), or None for a real recipe.
@@ -10120,7 +10189,8 @@ class TabChart(QWidget):
         # when it is regenerated (#147). This has to happen AFTER
         # _restore_chart_settings, because the signature we store is only
         # meaningful once the panels hold this chart's own settings.
-        self._rebind_patch_set_from_run(ti1)
+        self._rebind_patch_set_from_run(
+            ti1, given=getattr(self, "_restored_patch_set_given", False))
         # §2.2: the panel has just been brought to this chart's own settings, so
         # nothing is pending. `_on_target_changed` marks again at the end of its
         # own episode; this covers the other caller, `_load_existing_profile`
@@ -10129,7 +10199,8 @@ class TabChart(QWidget):
         # Let Print / Measure pick the chart up, as if it had just been built.
         self.chart_finished.emit(list(tiffs), ti2, False)
 
-    def _rebind_patch_set_from_run(self, ti1: Path | None) -> None:
+    def _rebind_patch_set_from_run(self, ti1: Path | None,
+                                   given: bool = False) -> None:
         """Re-attach the run's own patch set so regenerating reproduces it (#147).
 
         Knut printed a chart, duplicated its run, then went back to the first
@@ -10163,7 +10234,14 @@ class TabChart(QWidget):
             # the same arguments, so regenerating already returns it unchanged.
             head = Path(ti1).read_text(encoding="utf-8", errors="replace")[:2048]
             m = re.search(r'^ORIGINATOR\s+"([^"]*)"', head, re.MULTILINE)
-            if m and "targen" in m.group(1).lower():
+            # …UNLESS IT WAS GIVEN (B8-1363). A built-in's bundled .ti1 says
+            # targen too, and was made with targen settings nobody has on
+            # screen: rebuilt from the rows it came back as another 600
+            # patches, not these. The chart's sidecar says whether its patch
+            # set was given (`patch_set_given`).
+            # A chart older than that record is recognised by its file.
+            if (m and "targen" in m.group(1).lower() and not given
+                    and not _is_a_bundled_targen_patch_set(ti1)):
                 return
             self._preset_ti1_path = Path(ti1)
             self._preset_ti1_targen_sig = self._targen_signature()
@@ -11202,6 +11280,25 @@ class TabChart(QWidget):
     # ------------------------------------------------------------------
     # Auto patch-count (Manual mode)
     # ------------------------------------------------------------------
+
+    def _apply_stored_auto_patches(self, auto) -> None:
+        """Put a target's stored "Auto patch count" tick on screen (B8-1363).
+
+        ``auto`` is the ``create_chart_ui["auto"]`` bucket. Absent means
+        neutral (§4 S4): the saved default, factory ON (Knut: all four Auto
+        options default on). The handler runs whether or not the tick moved,
+        so -f, Pages and the panel's Pages always agree with it.
+        """
+        cb = getattr(self, "_manual_auto_patches_check", None)
+        if cb is None:
+            return
+        from ui.parameter_widget import as_bool
+        if isinstance(auto, dict) and "patches" in auto:
+            on = as_bool(auto["patches"])
+        else:
+            on = as_bool(self._settings.get("manual_auto_patches", True))
+        cb.setChecked(on)
+        self._on_auto_patches_toggled(on)
 
     def _on_auto_patches_toggled(self, checked: bool) -> None:
         """Enable/disable -f and Pages spinboxes; show 'Auto' placeholder in -f.
@@ -15448,28 +15545,58 @@ class TabChart(QWidget):
         # other sheet entirely).
         self._restored_exact_recipe = None
         self._restored_chart_date = ""
+        sidecar = Path(ti2_path).with_suffix(".channels.json")
+        self._restored_notes_stamp = False
+        self._restored_patch_set_given = False
+        doc = None
+        if sidecar.is_file():
+            try:
+                doc = _json.loads(read_text(sidecar))
+            except Exception:  # noqa: BLE001 — never block a load on a bad sidecar
+                log.warning("could not restore chart settings from %s",
+                            sidecar, exc_info=True)
+                doc = None
+        # "AUTO PATCH COUNT" AS THE CHART WAS BUILT (B8-1363). The sidecar
+        # records the tick since then; an older one is read from its -f (0
+        # while ticked, see `_auto_patches_from_registry`). Only a chart that
+        # can say neither is pinned to its own total, as before: this untick
+        # with the count pinned used to be the rule for every chart, and the
+        # target's own store (-f = 0 with Auto on) then replaced the pinned
+        # count on the way in, so a 528-patch chart rebuilt as 22.
+        auto_built = None
+        if isinstance(doc, dict):
+            self._restored_patch_set_given = bool(doc.get("patch_set_given"))
+            if "auto_patches" in doc:
+                from ui.parameter_widget import as_bool
+                auto_built = as_bool(doc.get("auto_patches"))
+            else:
+                auto_built = _auto_patches_from_registry(
+                    doc.get("create_chart_settings"))
         # Patch count from the .ti2 itself — works for every chart kind.
         try:
-            txt = read_text(Path(ti2_path), lenient=True)
-            m = _re.search(r"NUMBER_OF_SETS\s+(\d+)", txt)
-            if m:
-                self._set_manual_value("targen", "-f", int(m.group(1)))
+            if auto_built is True:
                 if self._manual_auto_patches_check is not None:
-                    # Pin the count: with Auto on it would be recomputed from
-                    # the layout and drift away from the loaded chart's total.
-                    self._manual_auto_patches_check.setChecked(False)
+                    self._manual_auto_patches_check.setChecked(True)
+                    self._on_auto_patches_toggled(True)
+            elif auto_built is None:
+                txt = read_text(Path(ti2_path), lenient=True)
+                m = _re.search(r"NUMBER_OF_SETS\s+(\d+)", txt)
+                if m:
+                    self._set_manual_value("targen", "-f", int(m.group(1)))
+                    if self._manual_auto_patches_check is not None:
+                        # Pin the count: with Auto on it would be recomputed
+                        # from the layout and drift from the chart's total.
+                        self._manual_auto_patches_check.setChecked(False)
+            elif self._manual_auto_patches_check is not None:
+                # Built with a count of its own: that count is the chart's
+                # recorded -f, applied with the registry below (not the
+                # sheet's total, which printtarg pads to whole strips).
+                self._manual_auto_patches_check.setChecked(False)
+                self._on_auto_patches_toggled(False)
         except Exception:  # noqa: BLE001 — count seeding is best-effort
             log.warning("could not seed patch count from %s", ti2_path,
                         exc_info=True)
-        sidecar = Path(ti2_path).with_suffix(".channels.json")
-        self._restored_notes_stamp = False
-        if not sidecar.is_file():
-            return False
-        try:
-            doc = _json.loads(read_text(sidecar))
-        except Exception:  # noqa: BLE001 — never block a load on a bad sidecar
-            log.warning("could not restore chart settings from %s", sidecar,
-                        exc_info=True)
+        if not isinstance(doc, dict):
             return False
         restored_full = False
         try:
@@ -15613,13 +15740,25 @@ class TabChart(QWidget):
                             exc_info=True)
             finally:
                 self._loading_target_settings = was_loading
-            try:
-                m = _re.search(r"NUMBER_OF_SETS\s+(\d+)",
-                               read_text(Path(ti2_path), lenient=True))
-                if m:
-                    self._set_manual_value("targen", "-f", int(m.group(1)))
-            except Exception:  # noqa: BLE001
-                pass
+            # A chart whose tick is known keeps the registry's -f: 0 under
+            # Auto, or the count that was typed (B8-1363). Re-pinning the
+            # sheet's total over it is only for a chart that cannot say.
+            if auto_built is None:
+                try:
+                    m = _re.search(r"NUMBER_OF_SETS\s+(\d+)",
+                                   read_text(Path(ti2_path), lenient=True))
+                    if m:
+                        self._set_manual_value("targen", "-f",
+                                               int(m.group(1)))
+                except Exception:  # noqa: BLE001
+                    pass
+            elif (auto_built is True
+                  and self._manual_auto_patches_check is not None):
+                # the registry's own -f = 0 has just been written under the
+                # tick; run the handler again so -f reads "Auto" and Pages
+                # is live, whatever the rows did on the way
+                self._manual_auto_patches_check.setChecked(True)
+                self._on_auto_patches_toggled(True)
         return restored_full
 
     def _snapshot_printtarg_fields(self) -> list:
@@ -16842,6 +16981,12 @@ class TabChart(QWidget):
             # Built from an existing patch set (targen not run) → the stamp names the
             # chart layout instead of a misleading targen command (#70).
             params.chart_layout_name = self._active_layout_name()
+            # A GIVEN PATCH SET, SO SAY SO IN THE SIDECAR (B8-1363): targen
+            # cannot make it again from the rows on screen, and a reopened
+            # target has to lay out this very .ti1. The live preview re-lays
+            # out the run's own chart through here too, which is a given set
+            # only when the chart on screen already was one.
+            params.patch_set_given = (not preview) or self._ti1_preset_active()
             self._last_target_name = base_name
             self._log.clear()
             self._preview.clear()
@@ -18677,6 +18822,7 @@ class TabChart(QWidget):
         # is filed under verifications/ — keep the run's profiling chart.
         self._arm_verification_snapshot()
         params = self._collect_params()
+        params.patch_set_given = True       # a loaded patch set (B8-1363)
         self._preview.clear()
         self._generate_btn.setEnabled(False)
         self._creator.load_ti1_and_generate_preview(
@@ -19754,7 +19900,8 @@ class TabChart(QWidget):
                 # run's calibration on screen, and the next write filed it
                 # (Sebastian's beta.5 check 3).
                 if isinstance(ui_state, dict):
-                    self._apply_ui_state(ui_state)
+                    self._apply_ui_state(
+                        _with_auto_patches_derived(ui_state, stored))
             except Exception:      # noqa: BLE001
                 log.warning("Could not apply the target's Create Chart ui "
                             "state", exc_info=True)
@@ -19937,6 +20084,16 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001
             pass
         try:
+            # "Auto patch count on/off" is per target (§1.2), and nothing
+            # stored it (B8-1363): the rows record -f as 0 while it is ticked,
+            # so a reopened target came back with the box off and -f 0 and
+            # built the fixed patches alone. A dict, so the chart-imposed
+            # shield (`_note_what_the_chart_imposed`) can compare it by field.
+            out["auto"] = {
+                "patches": bool(self._manual_auto_patches_check.isChecked())}
+        except Exception:      # noqa: BLE001
+            pass
+        try:
             out["guided"] = dict(self._shared_get("guided"))
         except Exception:      # noqa: BLE001
             pass
@@ -20035,6 +20192,18 @@ class TabChart(QWidget):
                     else bool(self._settings.get("chart_stamp_commands", True)))
             except Exception:      # noqa: BLE001
                 pass
+        # "AUTO PATCH COUNT" IS THE TARGET'S OWN (§1.2, B8-1363). An EMPTY
+        # record is a target with nothing stored and opens on the saved
+        # default, factory ON (§4 S4). A record that predates the tick is given
+        # one by `load_target_settings`, read from its -f; any other record
+        # without it says nothing about the box and leaves it alone. Not while
+        # Run type = Calibration holds the box off and disabled
+        # (`_apply_calibration_knobs`, which runs before this load and puts the
+        # tick back itself on the way out).
+        if (not built_here
+                and getattr(self, "_pre_cal_snapshot", None) is None
+                and ("auto" in stored or not stored)):
+            self._apply_stored_auto_patches(stored.get("auto"))
         # The Guided row was outside the guard until 2026-08-22, when Basti hit
         # it from source, twice in a row: Guided, SpectroScan, 4x6, Generate —
         # "generated the chart but went to manual module on its own and i think
@@ -20280,7 +20449,21 @@ class TabChart(QWidget):
                 # — marked as such so the verification default cannot override
                 # it.
                 self._user_chose_module = True
-                self._switch_mode(mode)
+                # …AND IT IS A LOAD, NOT A PERSON CROSSING OVER (B8-1363).
+                # `_switch_mode` carries what changed in the module being left
+                # into the one being opened, and then pushes Manual's -i / -p
+                # into the layout panel. Every value it would carry was put
+                # there by this very load, so the carry only re-applied the
+                # load's own values in the wrong order: a built-in preset's
+                # 100 x 150 panel was put back on -p's A4 after a restart, and
+                # Generate built 600 patches on A4 under a 100 x 150 preview
+                # (measured on screen, with a stack for every paper change).
+                _was = getattr(self, "_mode_transfer_active", False)
+                self._mode_transfer_active = True
+                try:
+                    self._switch_mode(mode)
+                finally:
+                    self._mode_transfer_active = _was
 
     def _target_has_stored_settings(self) -> bool:
         """Whether the selected target has ever filed Create Chart settings.
@@ -22036,6 +22219,7 @@ class TabChart(QWidget):
             # first, then the normal build, which lays the pages at the run root
             # — and, for a verification, files them back under verifications/.
             restored_recipe = False
+            self._restored_patch_set_given = False
             if ti2.is_file():
                 restored_recipe = self._restore_chart_settings(ti2)
                 self._forget_what_the_chart_imposed()
@@ -22082,6 +22266,9 @@ class TabChart(QWidget):
             self._arm_verification_snapshot()
             params = self._collect_params()
             params.target_name = self._file_mgr.get_target_name()
+            # the restored chart's own word on its patch set (B8-1363)
+            params.patch_set_given = bool(
+                getattr(self, "_restored_patch_set_given", False))
             self._pin_restored_recipe(params)
             # THE CHART ITSELF MUST SURVIVE THE REDRAW.
             #
@@ -27671,6 +27858,14 @@ class TabChart(QWidget):
             p.settings_snapshot = snapshot(self)
         except Exception:      # noqa: BLE001 — a snapshot must never block
             pass
+        # …and the "Auto patch count" tick beside it (B8-1363): the registry
+        # records -f as 0 while the box is ticked, and a chart reopened without
+        # the tick built the fixed patches alone. Recorded in Guided too, as
+        # the registry is: it is Manual's state as the chart left it, and the
+        # reopened target shows Manual as it was.
+        cb = getattr(self, "_manual_auto_patches_check", None)
+        if cb is not None:
+            p.auto_patches = bool(cb.isChecked())
         return p
 
     def _collect_guided(self) -> ChartParams:

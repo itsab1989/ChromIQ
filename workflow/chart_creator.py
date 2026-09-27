@@ -597,6 +597,19 @@ class ChartParams:
     # loaded with charts json file"). Empty for charts made by paths that
     # never ran the tab (the editor, built-ins), which restore their own way.
     settings_snapshot: dict = field(default_factory=dict)
+    # Whether Manual's "Auto patch count" box was ticked at Generate (B8-1363).
+    # The registry above records -f as 0 whenever it is, so without this a
+    # chart built with Auto on reopened with the box off and -f 0, and the
+    # next Generate built the fixed patches alone (528 became 22). None for a
+    # build that never ran Create Chart's collector (the editor, for one),
+    # which records nothing.
+    auto_patches: "bool | None" = None
+    # True when this chart lays out a patch set it was GIVEN (a built-in's
+    # bundled .ti1, a preset's attached one, a loaded patch set), so targen was
+    # not run and cannot make it again from the settings on screen (B8-1363).
+    # Recorded in the sidecar; reopening the chart binds its own .ti1 again,
+    # as a patch set not written by targen always was.
+    patch_set_given: bool = False
     # When the chart was laid out from an existing patch set (a preset, a loaded
     # .ti1, a prebuilt chart, or one applied from the editor), targen was NOT run
     # — so the command stamp shows the chart-LAYOUT name instead of a misleading
@@ -2134,8 +2147,16 @@ class ChartCreator:
         from ui.tiff_preview import resolve_ink_channels
         channels = resolve_ink_channels(params.device_type, params.extra_targen_args)
         sidecar = work_dir / f"{stem}.channels.json"
+        extra = {}
+        if params.auto_patches is not None:
+            # B8-1363: the tick that decided the count, so reopening the chart
+            # puts it back (see ChartParams.auto_patches).
+            extra["auto_patches"] = bool(params.auto_patches)
+        if params.patch_set_given:
+            extra["patch_set_given"] = True
         try:
             sidecar.write_text(json.dumps({
+                **extra,
                 "ink_channels": channels,
                 # Create Chart restores these two when the chart is loaded
                 # again — the TIFF stamp itself can't be read back (mavtop,

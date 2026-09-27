@@ -29846,12 +29846,19 @@ would reach.
 - tests: tests/test_b8_1362_preferences_shows_clip_border_content_always.py; mutations M1362-a to M1362-d, each red.
 - evidence: test_preferences_shows_the_frame_and_the_note_with_the_clip_border_off, test_create_chart_keeps_the_frame_hidden_with_the_clip_border_off, test_the_i1pro_off_is_its_own_combination_and_stays_hidden, test_preferences_builds_its_panel_with_the_frame_always_shown
 
-### B8-1363 · OPEN · A target reopened loses "Auto patch count", so its next Generate builds a 14-patch chart while the estimate says 441
+### B8-1363 · FIXED, awaiting confirmation · A target reopened loses "Auto patch count", so its next Generate builds a 14-patch chart while the estimate says 441
 - blocks release: no
 - severity: MAJOR
-- status: OPEN
+- status: FIXED
 - found by: the B8-1360 matrix, per-target cells (both trees): the challenge-8 project (built with "Auto patch count" ticked, -f 0) opened with the tick off, the frame read "(1 page · Auto grey/white/black)" and `targen … -f0`, the estimate column said 441, and Generate built 14 patches (white, black and the grey steps). The run's `create_chart_settings` carry `targen-f` = 0 and no auto-patch tick. Pre-existing: 2194eec7 does the same. Not fixed here (not the CR30, and which stored field the tick belongs in is §1.2's question); registered for the next round.
 - round 9 (2026-09-26, `~/Desktop/ChromIQ-beta44-proof/challenge-9/autocount/`): NOT a beta 44 regression, beta 43 does exactly the same, and it is wider: i1Pro engine off 528 then 22; engine on 525 then 16 (estimate still 525); a built-in preset (100x150, 600) reopens with the panel on A4 portrait and builds 600 on A4 while the preview shows 100x150. The second Generate overwrites run1 without asking. The Auto tick is not stored per target; `_restore_chart_settings` unticks it and the stored `targen-f = 0` decides. MAJOR, pre-existing; for beta 45.
+- cause (measured on screen, beta 45 round): three faults. (1) "Auto patch count on/off" is per target in §1.2 of per_target_settings.md, and nothing stored it: not the target's `create_chart_ui`, not the chart's sidecar. The rows record -f as 0 while the box is ticked. Opening the project showed the chart first (`_restore_chart_settings` unticked Auto and pinned -f to the sheet's total), then the bar moved to run 1 and the target's own load put its stored -f = 0 back; the second pass over the chart is skipped (same chart stamp), so -f 0 with Auto off reached Generate: targen made only white, black and the grey steps (9), padded to 22 or 16. (2) The built-in preset's A4: the target's stored module (Manual) is put back through `_switch_mode`, whose Guided-to-Manual carry pushes Manual's -p (A4, stale: the preset's panel holds 100 x 150, B8-1409) into the layout panel after the recipe was loaded (a stack for every change of the panel's paper, `b8-1363/probe/`). (3) Found by the sweep: a built-in whose bundled .ti1 targen wrote (Red River's locked 2052-patch set) is not bound again on reopen, so Generate ran targen from the rows and built another 2052 patches (B8-1406).
+- fix: the tick is stored with the target (`create_chart_ui["auto"] = {"patches": …}`: `_collect_ui_state`, and `_apply_ui_state` through `_apply_stored_auto_patches`; an empty record, a target with nothing stored, opens on the saved default, §4 S4; not while Run type = Calibration holds the box off) and with the chart (`ChartParams.auto_patches`, sidecar `auto_patches`). `_restore_chart_settings` puts the chart's tick back: Auto on keeps -f on Auto, a typed count keeps the registry's -f (not the sheet's padded total, which targen would read as another set); only a chart that can say neither is pinned as before. A record or sidecar written before this is read from its -f (0 = ticked, `_auto_patches_from_registry`; a hand-typed -f 0, which builds the fixed patches alone, would be read as Auto). The stored module is restored without the carry (`_mode_transfer_active` around `_switch_mode` in `_apply_ui_state`). No spec change: §1.2 already names the tick per target.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/b8-1363/` (NOTES.txt): each cell built, the app restarted, the target reopened, the estimate read, Generate pressed, the built .ti2 read and its pages opened; i1Pro, ColorMunki and CR30, engine on and off, Auto on and off, typed counts, three built-ins, a user preset, Guided and Manual. Before (e8b969d5): 8 of 17 built a different chart (i1Pro 528 -> 22, engine 525 -> 16, ColorMunki 90 -> 15 and 48 -> 16, CR30 345 -> 14 and 299 -> 14, 100 x 150 -> A4, Red River the same count in other colours). After: every cell the same chart (count, paper, pages, engine, the same .ti1 colours), and the estimate equal to the build; targets stored by e8b969d5 and reopened by the fixed tree: the same.
+- the second Generate: by §4's table ("Chart only: none") a run with no measurement is replaced without a question; with a measurement in the run the §4 question appears on this path (cell i1-on-auto-measured). Whether a chart-only run should ask is B8-1408.
+- evidence: test_the_target_record_carries_the_tick, test_loading_the_record_puts_the_tick_back, test_a_record_without_the_tick_opens_on_the_saved_default, test_a_partial_record_says_nothing_about_the_box, test_calibration_keeps_the_box_off, test_an_older_record_is_read_from_its_count, test_the_target_load_puts_auto_back_for_an_older_record, test_a_chart_built_with_auto_reopens_with_auto, test_a_typed_count_comes_back_as_typed_not_as_the_padded_total, test_an_older_chart_is_read_from_its_count, test_a_chart_that_cannot_say_is_pinned_as_before, test_the_sidecar_records_the_tick_and_a_given_patch_set, test_generate_collects_the_tick, test_restoring_the_stored_module_does_not_push_minus_p_into_the_panel, test_a_person_crossing_over_still_carries_the_paper
+- tests: tests/test_b8_1363_a_reopened_target_builds_the_chart_it_was.py; mutations M1363-a to M1363-m (`b8-1363/mutations.txt`), each red.
+- where: `ui/tabs/tab_chart.py` (`_collect_ui_state`, `_apply_ui_state`, `_apply_stored_auto_patches`, `_auto_patches_from_registry`, `_with_auto_patches_derived`, `load_target_settings`, `_restore_chart_settings`, `_collect_params`), `workflow/chart_creator.py` (`ChartParams.auto_patches`, `_write_channel_sidecar`).
 
 ### B8-1364 · SUPERSEDED · Create Chart's preset list marks the built-in presets with ★, which is now also the verification star
 - blocks release: no
@@ -29890,6 +29897,38 @@ would reach.
 - severity: MINOR
 - status: OPEN
 - found by: the beta 44 release check (downloaded macOS app, `~/Desktop/ChromIQ-beta44-proof/release/downloaded-app-beta44-main.png`). Basti's rule for Create Chart's folder buttons (magenta in Light and Dark, neutral in Neutral, as the Presets row) is applied to the layout panel since beta 44, not to Guided's refinement browse. Older than beta 44.
+
+### B8-1406 · FIXED, awaiting confirmation · A built-in whose bundled patch set targen wrote (Red River) reopened without it, and Generate made another 2052 patches
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: the B8-1363 sweep on screen (`~/Desktop/ChromIQ-beta45-proof/b8-1363/before/builtin-redriver`): "i1Pro · A4-2052p-4pages · Standard Patch Set v25" built, restart, reopen, Generate: 2075 sets again, but other colours (the .ti1 compared row for row). `_rebind_patch_set_from_run` binds the run's .ti1 only when its ORIGINATOR is not targen, on the reasoning that targen makes the same set again from the same rows; a bundled set was made with rows nobody has on screen. Two bundled sets say "Argyll targen" (Red River's and the provisional verification set); every other built-in's says "ChromIQ" and was bound as before.
+- fix: the chart records that its patch set was given (`ChartParams.patch_set_given`, sidecar `patch_set_given`: set by `_generate_from_ti1` for a real build, and for the live preview only when the chart on screen already was a given set; by the loaded patch set route; carried by Restore Used Chart's redraw), and the reopen binds it whatever wrote it. A chart built before that record is recognised by its bytes (`_is_a_bundled_targen_patch_set`, against the built-in presets' own targen-written sets). After: the same 2052 colours, for a chart made by the fixed tree and for one made by e8b969d5.
+- evidence: test_a_given_patch_set_is_bound_again_although_targen_wrote_it, test_the_restore_reads_whether_the_patch_set_was_given, test_an_older_chart_on_a_bundled_targen_set_is_bound_by_its_file, test_both_patch_set_routes_say_the_set_was_given, test_the_sidecar_records_the_tick_and_a_given_patch_set
+- tests: tests/test_b8_1363_a_reopened_target_builds_the_chart_it_was.py; mutations M1363-h, M1363-i and M1363-l, each red.
+- where: `ui/tabs/tab_chart.py` (`_rebind_patch_set_from_run`, `_is_a_bundled_targen_patch_set`, `_generate_from_ti1`, the loaded .ti1 route, `rebuild_verification_pages`), `workflow/chart_creator.py`.
+
+### B8-1407 · OPEN · With "Auto patch count" off and -f 0 the estimate describes the chart on screen, while Generate builds the fixed patches alone
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the B8-1363 round (before the fix, i1-on-auto / cm-on-auto / cr30-auto reopened: estimate 525 / 48 / 345, build 16 / 16 / 14). `_estimate_patch_total` falls back to the chart in the preview when -f is 0, which "Auto off, -f 0" is not: targen then makes only white, black and the grey steps. A reopen no longer reaches this state (B8-1363); typing 0 by hand still does. Not changed here: the honest number needs the fixed-patch count the build computes (`_apply_auto_neutrals`), a change to the estimate on its own.
+- where: `ui/tabs/tab_chart.py` (`_estimate_patch_total`).
+
+### B8-1408 · OPEN · Question: should replacing a run's chart ask when the run holds nothing but that chart?
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: a question for Knut.
+- found by: B8-1363 round 9 ("The second Generate overwrites run1 without asking"). By `unified_measurement_management.md` §4 ("Chart only | either | none | none") that is the rule, not a missing question: the question is asked when a measurement or profile would be displaced, and it is on this path (on screen: `b8-1363/after/i1-on-auto-measured`, "This run already holds work made with the chart you are about to replace"). What remains: a chart printed but not yet measured is replaced without a word, and even when the new chart is the same patch set (as it now is after a reopen) a fresh seed shuffles the sheet unless "Use a fixed seed" is ticked (§2.2). Asking for chart-only runs would change a table, so it is not built.
+- where: `ui/tabs/tab_chart.py` (`_confirm_displacing_results`).
+
+### B8-1409 · OPEN · A built-in on a custom paper leaves printtarg's -p on A4, and the run's record carries it
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the B8-1363 probe (`b8-1363/probe/`): the 100 x 150 built-in lays out on the panel's 100 x 150 while -p stays A4 (the preset is applied with the panel's mirror held off), and the registry stored with the chart records `printtarg-p = A4`. Harmless while the panel lays the chart out; it was the A4 of B8-1363 once something pushed -p into the panel (that push is gone). Unticking the engine box on such a target would show A4.
+- where: `ui/tabs/tab_chart.py` (the built-in preset loader, `_sync_manual_selection_from_panel`).
 
 ### B8-1300 · FIXED, awaiting confirmation · With the CR30 and the engine box unticked, more places still ask the engine setting alone while the layout panel is what lays the chart out
 - blocks release: no
