@@ -20964,12 +20964,8 @@ class TabChart(QWidget):
                       "(the run's stored copy is the older one)")
         elif isinstance(rec_d, dict):
             try:
-                import dataclasses as _dc
-
                 from workflow.layout_engine.presets import LayoutRecipe
-                names = {f.name for f in _dc.fields(LayoutRecipe)}
-                rec = LayoutRecipe(
-                    **{k: v for k, v in rec_d.items() if k in names})
+                rec = LayoutRecipe.from_dict(rec_d)   # B8-1542: one reading
                 self._set_engine_recipe(rec)
             except Exception:      # noqa: BLE001
                 log.debug("ui-state: engine recipe not applied", exc_info=True)

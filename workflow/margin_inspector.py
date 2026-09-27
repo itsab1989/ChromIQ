@@ -245,18 +245,16 @@ def engine_ink_bounds_px(rects, rec, dpi: float):
     #
     # Resolving it here rather than at the recording end also fixes every chart
     # already on disk, which no migration would reach.
-    from dataclasses import fields as _fields
     from workflow.layout_engine import instruments
     from workflow.layout_engine.presets import LayoutRecipe
-    _valid = {f.name for f in _fields(LayoutRecipe)}
     try:
-        _rc0 = LayoutRecipe(**{k: v for k, v in rec.items() if k in _valid})
+        _rc0 = LayoutRecipe.from_dict(rec)     # B8-1542: one reading
         _edge = bool(_rc0.build_kwargs().get("edge_spacers"))
     except Exception:  # pragma: no cover - defensive
         _edge = bool(rec.get("edge_spacers"))
     if _edge:
         try:
-            _rc = LayoutRecipe(**{k: v for k, v in rec.items() if k in _valid})
+            _rc = LayoutRecipe.from_dict(rec)
             _geom = instruments.geom_from_build_kwargs(_rc.build_kwargs())
             _sp_px = round(_geom.pspa * dpi / _MM_PER_INCH)
             if _sp_px > 0:

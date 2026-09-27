@@ -530,11 +530,9 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
     try:
         layout = json.loads(read_text(channels)).get("layout") or {}
         recipe = layout.get("recipe") or {}
-        from dataclasses import fields as _fields
         from workflow.layout_engine import instruments
         from workflow.layout_engine.presets import LayoutRecipe
-        valid = {f.name for f in _fields(LayoutRecipe)}
-        rc = LayoutRecipe(**{k: v for k, v in recipe.items() if k in valid})
+        rc = LayoutRecipe.from_dict(recipe)     # B8-1542: one reading
         kw = rc.build_kwargs()
         if not kw.get("edge_spacers"):
             return 0

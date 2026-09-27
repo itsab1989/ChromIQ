@@ -31,6 +31,34 @@ SUPPORTED_INSTRUMENTS = ("i1", "p3", "CM", "41", "51", "SS", "CR30")
 TEXT_EDGE_DEFAULT_MM = 4.0
 
 
+def stored_layout_mode(d: dict) -> str:
+    """The layout mode of a stored recipe dict that does not name one (B8-1542).
+
+    ``layout_mode`` arrived on 2026-06-28 with area-first itself (d4902a7d), so
+    a recipe without it was laid out patch-first. 3b6d655c let such a recipe
+    open in area-first, Knut's default, because with the counts on auto
+    area-first filled the page exactly as patch-first did. That stopped being
+    true for one kind of recipe when B8-1540 made area-first ignore the three
+    things only patch-first honours: a typed patch size, a patch scale, a chart
+    offset. A recipe carrying any of them keeps its patch-first chart; every
+    other one keeps opening in area-first, as before.
+
+    Every place that rebuilds a stored recipe goes through
+    :meth:`LayoutRecipe.from_dict`, which asks this, so the chart's own load,
+    the ui-state restore, the hover spacer, the margin inspector and the
+    hexagon ring cap cannot read one recipe two ways."""
+    def _num(key: str, default: float) -> float:
+        try:
+            return float(d.get(key, default) or default)
+        except (TypeError, ValueError):
+            return default
+    patch_first_only = (
+        _num("patch_w_mm", 0.0) > 0.0 or _num("patch_h_mm", 0.0) > 0.0
+        or abs(_num("pscale", 1.0) - 1.0) > 1e-9
+        or _num("offset_x_mm", 0.0) != 0.0 or _num("offset_y_mm", 0.0) != 0.0)
+    return "patch_first" if patch_first_only else "area_first"
+
+
 @dataclass
 class LayoutRecipe:
     instrument: str = "i1"
@@ -309,7 +337,10 @@ class LayoutRecipe:
         if isinstance(d, dict) and ("nolpcbord" in d or "draw_indicators" in d):
             return cls.from_build_kwargs(d)
         known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in d.items() if k in known})
+        kw = {k: v for k, v in d.items() if k in known}
+        if "layout_mode" not in kw:
+            kw["layout_mode"] = stored_layout_mode(d)
+        return cls(**kw)
 
     @classmethod
     def from_build_kwargs(cls, d: dict) -> "LayoutRecipe":

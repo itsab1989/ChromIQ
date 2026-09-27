@@ -390,14 +390,10 @@ def ring_mm_of(recipe) -> float:
     if recipe is None or not recipe_is_hexagonal(recipe):
         return 0.0
     try:
-        from dataclasses import fields as _fields
-
         from workflow.layout_engine import instruments
         from workflow.layout_engine.presets import LayoutRecipe
         if isinstance(recipe, dict):
-            valid = {f.name for f in _fields(LayoutRecipe)}
-            recipe = LayoutRecipe(**{k: v for k, v in recipe.items()
-                                     if k in valid})
+            recipe = LayoutRecipe.from_dict(recipe)   # B8-1542: one reading
         geom = instruments.geom_from_build_kwargs(recipe.build_kwargs())
         return float(getattr(geom, "hex_ring_mm", 0.0) or 0.0)
     except Exception:      # noqa: BLE001 — a cap that cannot be computed is 0
