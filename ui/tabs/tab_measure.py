@@ -2693,9 +2693,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Suppress warning messages (-S)"), True,
             tr("Suppress Warnings (-S)"),
             tr("Suppresses non-fatal instrument warnings from chartread.\n\n"
-            "Suppressed messages include: calibration drift notices,\n"
-            "reflectance range warnings on very dark patches, and strip\n"
-            "timing cautions. These rarely affect measurement quality.\n\n"
+            "Suppressed messages include: notices that the calibration\n"
+            "has changed, reflectance range warnings on very dark\n"
+            "patches, and strip timing cautions. These rarely affect\n"
+            "measurement quality.\n\n"
             "Fatal errors that would prevent a .ti3 from being written are\n"
             "always shown regardless of this setting."),
         )
@@ -3246,9 +3247,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Suppress warning messages (-S)"), True,
             tr("Suppress Warnings (-S)"),
             tr("Suppresses non-fatal instrument warnings from chartread.\n\n"
-            "Suppressed messages include: calibration drift notices,\n"
-            "reflectance range warnings on very dark patches, and strip\n"
-            "timing cautions. These rarely affect measurement quality.\n\n"
+            "Suppressed messages include: notices that the calibration\n"
+            "has changed, reflectance range warnings on very dark\n"
+            "patches, and strip timing cautions. These rarely affect\n"
+            "measurement quality.\n\n"
             "Fatal errors that would prevent a .ti3 from being written are\n"
             "always shown regardless of this setting."),
         )
@@ -6734,8 +6736,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "[NOTE] Skip initial calibration (-N) is switched on, so your "
                 "instrument will not be calibrated before this measurement.\n"
                 "That is fine if you calibrated it earlier in this session. If "
-                "you did not, readings can drift and whole patches may come "
-                "back as “inconsistent” — switch the option off in the "
+                "you did not, readings can change and whole patches may come "
+                "back as “inconsistent”. Switch the option off in the "
                 "measurement options and start again.")
                 if not params.external_values else
                 "\n" + tr(

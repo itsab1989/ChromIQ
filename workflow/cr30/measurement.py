@@ -159,7 +159,7 @@ class Measurement:
             self.metadata["warning"] = (
                 f"peak {hi:.1f} %R exceeds {SUSPICIOUS_REFLECTANCE:.0f} %. "
                 "Plausible for a strongly brightened paper, but also the early "
-                "sign of a drifting white reference.")
+                "sign of a white reference that has changed.")
         if self.lab is not None:
             if not all(math.isfinite(x) for x in self.lab):
                 raise MeasurementError("non-finite Lab")

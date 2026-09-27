@@ -1760,14 +1760,14 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
     RUN_LABEL   = tr("Verify")
     HELP = (
         tr("This tool tells you how close your colours came out compared to where "
-        "they were supposed to be — without building a profile first.\n\n"
+        "they were supposed to be, without building a profile first.\n\n"
         "The idea is simple: you give it what you actually measured, and what the "
         "colours were meant to be, and it tells you how far apart they are. That "
-        "gap is measured as \"ΔE\" (delta-E) — think of it as a colour-difference "
+        "gap is measured as \"ΔE\" (delta-E). Think of it as a colour-difference "
         "score where smaller is better and 0 would be a perfect match.\n\n"
         "Here's how:\n\n"
         "1. Pick the chart you measured (your .ti3 measurement file).\n"
-        "2. Give it the reference to compare against — either a reference "
+        "2. Give it the reference to compare against: either a reference "
         "measurement file, or a set of expected values you load or paste in.\n"
         "3. Click Verify.\n\n"
         "You'll see the ΔE for every single patch plus an overall average. If most "
@@ -1775,13 +1775,13 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         "misread or a problem patch on the print.\n\n"
         "A tip if the numbers look alarmingly high: if your reference values were "
         "made for a different paper or finish (for example glossy values checked "
-        "against a matte print), the deep shadows can't match — matte simply can't "
-        "go as dark. ChromIQ tells you when an error is mostly lightness (a "
+        "against a matte print), the deep shadows can't match, because matte simply "
+        "can't go as dark. ChromIQ tells you when an error is mostly lightness (a "
         "black-point limit you can't avoid) versus a real colour shift. You can "
         "also point it at your own profile (.icc) and it will skip the colours your "
         "paper physically can't reproduce, so they stop dominating the score.\n\n"
         "It's a quick way to sanity-check a profile, compare one paper or ink "
-        "batch against another, or keep an eye on a printer drifting over time — "
+        "batch against another, or keep an eye on how a printer changes over time, "
         "all without building anything."))
     MIN_WIDTH   = 660
     DESCRIPTION = (
@@ -1927,7 +1927,7 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                 "finishes. Every patch is drawn as a short line from the colour you "
                 "asked for (a green dot) to the colour you actually measured (a red "
                 "dot), placed in 3D colour space. Long lines all leaning the same way "
-                "tell you the print drifts consistently in that direction; a few long "
+                "tell you the print has moved consistently in that direction; a few long "
                 "lines among short ones point to specific problem patches. Drag to "
                 "rotate, scroll to zoom."),
                 self, min_width=500, color=_indicator_color(self._settings),

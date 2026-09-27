@@ -1816,14 +1816,14 @@ class _NewChartDialog(QDialog):
             "field accepts any profile made for this exact printer and ink "
             "set. On RGB printers this set is always available.")
         tip_rings_nch = tr(
-            "Greys are where your eyes are pickiest, and where a printer "
-            "drifts first. This set places rings of patches around the grey "
+            "Greys are where your eyes are pickiest, and where a printer's "
+            "output changes first. This set places rings of patches around the grey "
             "axis, so the profile learns exactly how much cyan, magenta and "
-            "yellow your printer needs for a clean, cast-free neutral — the "
+            "yellow your printer needs for a clean, cast-free neutral: the "
             "classic \"grey balance\" chart, built in.\n\n"
             "Without a preconditioning profile the rings are centred on "
             "equal amounts of C, M and Y. On a real printer that mix "
-            "usually looks slightly warm or green — that's expected, and "
+            "usually looks slightly warm or green. That's expected, and "
             "it's exactly why the rings exist: they bracket the neutral "
             "region generously, and the measurement finds the true neutral "
             "inside them. Tip: keep the ring offset at its default or "
@@ -1831,7 +1831,7 @@ class _NewChartDialog(QDialog):
             "With a preconditioning profile (see the field above) the same "
             "rings are re-centred on your printer's actual neutral, so "
             "every patch lands closer to where it matters most. Same "
-            "checkbox — the app simply aims better once it knows your "
+            "checkbox: the app simply aims better once it knows your "
             "printer.")
         for name in self._GEN_CUBE_BOUND:
             cb = getattr(self, f"_gen_{name}")

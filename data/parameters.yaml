@@ -826,13 +826,13 @@ parameters:
         your printer supports borderless printing.
 
         Selecting an i1Pro / i1Pro 2 / i1Pro 3 / i1Pro 3 Plus instrument
-        auto-bumps this to 10 mm so the strip-reader optics don't drift
+        auto-bumps this to 10 mm so the strip-reader optics don't slide
         onto the bare paper edge ("not enough patches read" errors).
         Switching to ColorMunki / SpectroScan returns it to 6 mm. A
         custom value (anything other than 6 or 10) is preserved across
         instrument changes.
 
-        Patch-per-page lookup tables exist for 6 and 10 mm only — other
+        Patch-per-page lookup tables exist for 6 and 10 mm only. Other
         values trigger a live binary-search recalculation.
 
     - flag: "-r"
@@ -844,9 +844,10 @@ parameters:
       tooltip_title: "No Randomisation (-r)"
       tooltip_body: |
         By default printtarg randomises patch positions to reduce
-        instrument drift artefacts.  Enable this flag only if you
-        are testing a specific patch sequence or if your instrument
-        requires ordered patches.
+        artefacts from instrument readings that change slowly during
+        a measurement.  Enable this flag only if you are testing a
+        specific patch sequence or if your instrument requires
+        ordered patches.
 
     - flag: "-b"
       name: "Force B&&W Spacers"
@@ -1184,19 +1185,20 @@ parameters:
       expert_only: true
       tooltip_title: "Patch Tolerance Multiplier (-T)"
       tooltip_body: |
-        A multiplier on chartread's built-in patch consistency threshold —
+        A multiplier on chartread's built-in patch consistency threshold,
         not a delta-E value. chartread re-reads each patch and rejects
         strips where the readings disagree by more than the threshold ×
         this number.
 
         Lower = stricter. A strict setting catches real problems early:
-        clogged inkjet nozzles, low ink, dirty drum rollers, drifting
-        laser toner. On a healthy printer + spectrophotometer combination
-        the default of 0.7 leaves comfortable headroom; experienced users
-        on printerknowledge.com run 0.4 with i1 Pro 2 / 3.
+        clogged inkjet nozzles, low ink, dirty drum rollers, laser toner
+        whose output has changed. On a healthy printer +
+        spectrophotometer combination the default of 0.7 leaves
+        comfortable headroom; experienced users on printerknowledge.com
+        run 0.4 with i1 Pro 2 / 3.
 
         Raise to 0.8–1.5 if you get false "inconsistent patch" errors on
-        textured, matte, or fine-art papers — the surface itself
+        textured, matte, or fine-art papers: the surface itself
         contributes real variance there. Values above 2 mostly mask
         genuine issues; if you need them, fix the printer first.
 

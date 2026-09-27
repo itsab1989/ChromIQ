@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-27, B8-1415 (Knut #182 5849392788, "The word drift is not used at all"): every user-facing text outside the report that said drift, drifted, drifting or drifts now says change, changed, moved away from, slid or slipped (Getting Started, "Inspect a measurement", the grey-balance, Accuracy, black-generation, out-of-gamut, calibration, placement-agreement, strip-outlier, -S and -N texts, Verify against reference and its 3D map, Reset grid), their em dashes cleaned, 16 keys replaced by 16. German by hand, does not move; the twelve others had 15 of the 16 translated and carry the new English under the beta rule, so each rises by exactly 15, here and in the other ledger, except Russian, which keeps its own translation of the Accuracy help (the English carries spaced en-dash bullets, which test_russian_keeps_one_dash_and_it_is_the_em_dash refuses in ru.json) and rises by 14. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, K61 (Knut #182 5851645723; B8-1410 to B8-1413): the two help icons of "Settings for built-in presets" say Custom lists every Custom preset and the named paper its size equals too; its OK is "Apply & save" and six of its texts say so; the note under both preset lists ends ", or {click_here}" ("click here", 1 key in); Preferences' clip-border note keeps its first sentence. 9 keys replaced by 9, 1 replaced by 1, 1 in. German by hand, does not move; the twelve others carried the English of the replaced keys and carry the new English, so the echo budget does not move and the other ledger rises by exactly 1 ("click here" is too short to be an echo). COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1391: the "too long for the page" check covers the branding's lines against the room beside the ChromIQ wordmark, 1 key in ("⚠ The clip border text is too long for the room beside the ChromIQ wordmark. …"), none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1396 (Knut #182 5849392788, "The word drift is not used at all"): the FROM PROFILE GAMUT module help and its patch count help say "changed" and "a change in the printer" instead of "drifted" and "a drifting printer", their em dashes cleaned, 2 keys replaced by 2. German by hand, does not move; the twelve others had these two translated and carry the new English under the beta rule, so each rises by exactly 2, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
@@ -1492,17 +1493,17 @@ _IDENTICAL_TO_KEY = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 141,
-    "es": 1454,
-    "fr": 1476,
-    "it": 1465,
-    "ja": 1440,
-    "nl": 1479,
-    "no": 1465,
-    "pl": 1458,
-    "pt": 1456,
-    "ru": 1429,
-    "sv": 1466,
-    "zh_CN": 1434,
+    "es": 1469,
+    "fr": 1491,
+    "it": 1480,
+    "ja": 1455,
+    "nl": 1494,
+    "no": 1480,
+    "pl": 1473,
+    "pt": 1471,
+    "ru": 1443,
+    "sv": 1481,
+    "zh_CN": 1449,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1531,8 +1532,8 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 1606,
-    "uk": 1606,
+    "uk": 1621,
+    "uk": 1621,
 }
 
 

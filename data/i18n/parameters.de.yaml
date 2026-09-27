@@ -640,7 +640,7 @@ parameters:
       name: "Rand (mm)"
       tooltip_title: "Rand (-m / -M)"
       tooltip_body: |
-        Setzt den Rand in Millimetern — sowohl für den bedruckbaren
+        Setzt den Rand in Millimetern, sowohl für den bedruckbaren
         Bereich (-m) als auch für die TIFF-Dateimaße (-M).  Beide bleiben
         synchron.  6 mm entspricht den Mindesträndern der meisten Drucker.
         Nur verringern, wenn dein Drucker randlos drucken kann.
@@ -652,7 +652,7 @@ parameters:
         Ein eigener Wert (alles außer 6 oder 10) bleibt über Gerätewechsel
         hinweg erhalten.
 
-        Felder-pro-Seite-Tabellen existieren nur für 6 und 10 mm — andere
+        Felder-pro-Seite-Tabellen existieren nur für 6 und 10 mm. Andere
         Werte lösen eine Live-Neuberechnung per binärer Suche aus.
 
     "-r":
@@ -660,9 +660,10 @@ parameters:
       tooltip_title: "Keine Randomisierung (-r)"
       tooltip_body: |
         Standardmäßig randomisiert printtarg die Feldpositionen, um
-        Drift-Artefakte des Messgeräts zu verringern.  Aktiviere
-        dieses Flag nur, wenn du eine bestimmte Feldsequenz testest oder
-        dein Gerät geordnete Felder verlangt.
+        Artefakte durch Messwerte zu verringern, die sich während einer
+        Messung langsam verändern.  Aktiviere dieses Flag nur, wenn du
+        eine bestimmte Feldsequenz testest oder dein Gerät geordnete
+        Felder verlangt.
 
     "-b":
       name: "S&&W-Trennfelder erzwingen"
@@ -903,21 +904,21 @@ parameters:
       name: "Feld-Konsistenztoleranz"
       tooltip_title: "Feld-Toleranzfaktor (-T)"
       tooltip_body: |
-        Ein Multiplikator auf chartreads eingebaute Feld-Konsistenzschwelle —
+        Ein Multiplikator auf chartreads eingebaute Feld-Konsistenzschwelle,
         kein Delta-E-Wert. chartread liest jedes Feld mehrfach und lehnt
         Streifen ab, deren Messungen um mehr als Schwelle × diesen Faktor
         auseinanderliegen.
 
         Niedriger = strenger. Eine strenge Einstellung erkennt echte
         Probleme früh: verstopfte Tintendüsen, niedriger Tintenstand,
-        verschmutzte Walzen, driftender Lasertoner. Auf einer gesunden
-        Drucker-Spektralfotometer-Kombination lässt der Standard 0.7
-        bequemen Spielraum; erfahrene Nutzer auf printerknowledge.com
-        fahren 0.4 mit i1 Pro 2 / 3.
+        verschmutzte Walzen, Lasertoner, dessen Ergebnis sich verändert
+        hat. Auf einer gesunden Drucker-Spektralfotometer-Kombination
+        lässt der Standard 0.7 bequemen Spielraum; erfahrene Nutzer auf
+        printerknowledge.com fahren 0.4 mit i1 Pro 2 / 3.
 
         Auf 0.8–1.5 erhöhen, wenn du auf strukturierten, matten oder
-        Fine-Art-Papieren falsche „inconsistent patch“-Fehler bekommst —
-        dort trägt die Oberfläche selbst echte Varianz bei. Werte über 2
+        Fine-Art-Papieren falsche „inconsistent patch“-Fehler bekommst:
+        Dort trägt die Oberfläche selbst echte Varianz bei. Werte über 2
         verschleiern meist echte Probleme; wer sie braucht, sollte zuerst
         den Drucker in Ordnung bringen.
 

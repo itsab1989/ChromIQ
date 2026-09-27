@@ -226,7 +226,7 @@ def _verifying() -> "list[tuple[str, str]]":
     return [
         (tr("Why check at all"),
          tr("A profile describes how your printer behaved on the day you "
-            "measured. Ink ages, paper batches differ, printheads drift — a "
+            "measured. Ink ages, paper batches differ, printheads change. A "
             "check tells you whether the profile still holds, with numbers "
             "instead of a feeling.")),
         (tr("The short version"),

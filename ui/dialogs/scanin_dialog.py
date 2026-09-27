@@ -2271,8 +2271,8 @@ class ScannerProfileDialog(_ToolDialogBase):
         self._reset_btn.clicked.connect(self._marquee._reset_view)
         self._reset_grid_btn = QPushButton(tr("Reset grid"), self)
         self._reset_grid_btn.setToolTip(tr(
-            "Re-centre the reading grid at the size computed from this target — use "
-            "it if the grid has drifted off-screen (e.g. after loading an image at a "
+            "Re-centre the reading grid at the size computed from this target. Use "
+            "it if the grid has moved off-screen (e.g. after loading an image at a "
             "different resolution)."))
         self._reset_grid_btn.clicked.connect(self._marquee.reset_selection_grid)
         # "⤢ Pop out", not "⤢ Pop out for a bigger view" (beta 8, AGENT-S).

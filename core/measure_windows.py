@@ -128,7 +128,7 @@ def windows_and_sounds_html() -> str:
             "A failed strip does not always mean the same thing, so ChromIQ "
             "reads ArgyllCMS's own wording and picks the sound that fits. Only "
             "a genuinely hurried scan is told to slow down: saying that to "
-            "someone who hesitated, or whose instrument drifted off the strip, "
+            "someone who hesitated, or whose instrument slid off the strip, "
             "would send them the wrong way.") + "</p>",
         _table(("#", "What ArgyllCMS reports", "What it means", "Sound"),
                FAILURE_ROWS),

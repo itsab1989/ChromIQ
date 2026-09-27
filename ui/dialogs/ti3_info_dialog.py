@@ -597,7 +597,7 @@ class Ti3InfoDialog(QDialog):
                "ramp). These are what we measure the cast from."))
         self._row_kv(
             tr("Average cast"), tr("{c:.1f} C*").format(c=a.mean_cast),
-            tr("On average, how far the greys drifted away from truly neutral "
+            tr("On average, how far the greys moved away from truly neutral "
                "(their chroma). 0 would be perfectly neutral; a few units is "
                "normal for an unprofiled printer."))
         self._row_kv(
@@ -716,7 +716,7 @@ class Ti3InfoDialog(QDialog):
                "recompute the colours under different lighting (see below)."))
         if kw.get("CREATED"):
             self._row_kv(tr("Measured on"), kw["CREATED"], tr(
-                "When the chart was read. Inks and paper can drift over time, so "
+                "When the chart was read. Inks and paper can change over time, so "
                 "an old measurement may no longer match today's prints."))
 
         # --- Tone & contrast ---------------------------------------------
