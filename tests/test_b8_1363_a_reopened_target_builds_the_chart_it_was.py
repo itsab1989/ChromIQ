@@ -225,7 +225,9 @@ def test_the_sidecar_records_the_tick_and_a_given_patch_set(tmp_path):
     assert doc["auto_patches"] is True and doc["patch_set_given"] is True
     cc._write_channel_sidecar(tmp_path, "b", ChartParams())
     doc = json.loads((tmp_path / "b.channels.json").read_text(encoding="utf-8"))
-    assert "auto_patches" not in doc and "patch_set_given" not in doc
+    # B8-1460: "not given" is written too, so a sidecar WITHOUT the key is
+    # recognisably an older chart's.
+    assert "auto_patches" not in doc and doc["patch_set_given"] is False
 
 
 def test_generate_collects_the_tick(qapp, tmp_path):
@@ -278,9 +280,15 @@ def test_the_restore_reads_whether_the_patch_set_was_given(qapp, tmp_path):
                                  "create_chart_settings": _reg(600)})
     tab._restore_chart_settings(ti2)
     assert tab._restored_patch_set_given is True
-    ti2 = _chart(tmp_path, 600, {"create_chart_settings": _reg(600)})
+    ti2 = _chart(tmp_path, 600, {"patch_set_given": False,
+                                 "create_chart_settings": _reg(600)})
     tab._restore_chart_settings(ti2)
     assert tab._restored_patch_set_given is False
+    # B8-1460: a sidecar written before the record says nothing (None), and
+    # the reopen then judges the patch set from its files.
+    ti2 = _chart(tmp_path, 600, {"create_chart_settings": _reg(600)})
+    tab._restore_chart_settings(ti2)
+    assert tab._restored_patch_set_given is None
     tab.deleteLater()
 
 

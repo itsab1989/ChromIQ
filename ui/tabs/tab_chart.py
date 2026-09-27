@@ -4695,6 +4695,55 @@ def _is_a_bundled_targen_patch_set(ti1) -> bool:
         return False
 
 
+def _ti1_device_rows(text: str) -> "list[tuple[str, ...]] | None":
+    """The device values of a .ti1's patches, one tuple per patch (the
+    first table only; its SAMPLE_ID and colorimetry left out), or None when
+    the text is not a readable patch table (B8-1460).
+
+    Written to four decimals, so "100.0000" and "100.00000" are one value:
+    this compares WHICH PATCHES a file holds, not how it spells them."""
+    fmt = re.search(r"^BEGIN_DATA_FORMAT\s*$(.*?)^END_DATA_FORMAT\s*$",
+                    text, re.S | re.M)
+    data = re.search(r"^BEGIN_DATA\s*$(.*?)^END_DATA\s*$", text,
+                     re.S | re.M)
+    if not fmt or not data:
+        return None
+    fields = fmt.group(1).split()
+    keep = [i for i, f in enumerate(fields)
+            if f != "SAMPLE_ID"
+            and not f.startswith(("XYZ_", "LAB_", "SPEC_", "STDEV"))]
+    if not keep:
+        return None
+    rows = []
+    try:
+        for line in data.group(1).splitlines():
+            parts = line.split()
+            if not parts:
+                continue
+            if len(parts) < len(fields):
+                return None
+            rows.append(tuple(f"{float(parts[i]):.4f}" for i in keep))
+    except ValueError:
+        return None
+    return rows or None
+
+
+def _targen_args_for(p, count: int, stem: str) -> "list[str]":
+    """The targen arguments Generate builds for ``p`` and ``count``
+    (`ChartCreator._build_targen_args`), writing ``stem``.ti1."""
+
+    class _Stem:
+        @staticmethod
+        def chart_stem(cal_target=False):
+            return stem
+
+    class _Args:
+        _file_mgr = _Stem()
+
+    from workflow.chart_creator import ChartCreator
+    return ChartCreator._build_targen_args(_Args(), p, count)
+
+
 def _auto_patches_from_registry(reg) -> "bool | None":
     """Was "Auto patch count" ticked, read from a record that predates the
     tick being stored (B8-1363)? None when the record cannot say.
@@ -8861,7 +8910,13 @@ class TabChart(QWidget):
             else:
                 _auto = (self._manual_auto_patches_check is not None
                          and self._manual_auto_patches_check.isChecked())
-                _npat = None if _auto else self._estimate_patch_total()
+                # …BUT A PATCH SET THAT IS ARMED IS LAID OUT AS IT IS, Auto or
+                # not (B8-1464): Generate lays out that file and never asks
+                # for a capacity fill. With Auto on this column went on
+                # promising 525 patches in orange beside a bound 200-patch
+                # set, which Generate then built as 208.
+                _npat = (self._pending_patch_set_total() if _auto
+                         else self._estimate_patch_total())
             # AREA-FIRST SIZES THE PATCH FROM THE COUNT, SO THE COUNT HAS TO BE
             # IN THE KWARGS. `build_kwargs()` does not carry it: `build_chart`
             # injects `area_target_count` from the .ti1 it is laying out
@@ -10303,9 +10358,21 @@ class TabChart(QWidget):
             # patches, not these. The chart's sidecar says whether its patch
             # set was given (`patch_set_given`).
             # A chart older than that record is recognised by its file.
+            unchecked = False
             if (m and "targen" in m.group(1).lower() and not given
                     and not _is_a_bundled_targen_patch_set(ti1)):
-                return
+                if given is not None:
+                    return          # its record says: not a given set
+                # …AND AN OLDER RECORD SAYS NOTHING (B8-1460). A patch set
+                # loaded with "Load patch set" in beta 44 or before carries no
+                # mark, and a .ti1 targen wrote elsewhere reads like one of
+                # ChromIQ's own: it reopened unbound and Generate made 525
+                # new patches where the sheet held 208. targen itself is
+                # asked whether the settings on screen make these patches.
+                verdict = self._older_patch_set_verdict(ti1)
+                if verdict == "targen":
+                    return
+                unchecked = verdict == "unknown"
             self._preset_ti1_path = Path(ti1)
             self._preset_ti1_targen_sig = self._targen_signature()
             # SHOW the lock, don't just hold it. `_ti1_preset_active` is true
@@ -10336,8 +10403,161 @@ class TabChart(QWidget):
             self._update_patch_count()
             log.info("Create Chart: this run's own patch set (%s) is attached, "
                      "so regenerating reproduces it", Path(ti1).name)
+            if unchecked:
+                self._say_patch_set_kept_unchecked()
         except Exception as exc:  # noqa: BLE001 — never block showing a chart
             log.warning("Could not re-attach the run's patch set: %s", exc)
+
+    def _older_patch_set_verdict(self, ti1) -> str:
+        """Where the patch set of a chart older than the `patch_set_given`
+        record came from, as far as its files can say (B8-1460):
+
+        * "given": it must be laid out again as it is, because it is a
+          built-in's bundled set, or not targen's, or targen does NOT make
+          these patches from the settings on screen;
+        * "targen": targen makes exactly these patches from the settings on
+          screen, so Generate builds this chart again without a binding;
+        * "unknown": targen could not be asked (not installed, failed, or a
+          file it needs is missing). Treated as given, and said so.
+
+        Exact, never a guess: the only question asked is whether targen,
+        given the arguments Generate would give it, writes these patches.
+        """
+        try:
+            head = Path(ti1).read_text(encoding="utf-8",
+                                       errors="replace")[:2048]
+        except OSError:
+            return "unknown"
+        m = re.search(r'^ORIGINATOR\s+"([^"]*)"', head, re.MULTILINE)
+        if not (m and "targen" in m.group(1).lower()):
+            return "given"
+        if _is_a_bundled_targen_patch_set(ti1):
+            return "given"
+        made = self._targen_makes_this_patch_set(ti1)
+        if made is None:
+            return "unknown"
+        return "targen" if made else "given"
+
+    def _targen_makes_this_patch_set(self, ti1) -> "bool | None":
+        """Does targen, with the settings on screen, write exactly the
+        patches in ``ti1``? None when it cannot be asked (B8-1460).
+
+        The arguments are the ones Generate would pass
+        (`ChartCreator._build_targen_args`), for BOTH modules: Manual's rows
+        (`_collect_manual`, into which the chart's own settings were just
+        restored) and Guided's (`_collect_guided`). Both, because the chart is
+        shown before the target's stored module is put back, so the module on
+        screen at this moment need not be the one the chart was built in:
+        measured on screen, a beta 44 Manual chart with 300 typed patches was
+        asked with Guided's -e4 -B4 -g28 where it was built with -e3 -B3 -g17.
+        If either module's arguments write these patches, targen makes them.
+
+        One exception, and it is forced: with "Auto patch count" ticked
+        Generate asks for as many patches as the layout holds, a count the
+        chart already answered when it was built, so the chart's own count
+        stands in for it, with Auto's white, black and grey steps worked out
+        from it as Generate works them out; Guided's count, when it has none,
+        is the chart's too. targen is deterministic: the same arguments write
+        the same patches (the B8-1363 sweep compared 18 rebuilds with their
+        originals, byte for byte). A patch set loaded from elsewhere (another
+        -d, another count, another tool's points) is not what these arguments
+        make, and that difference is the evidence.
+
+        About a second for 500 patches, four for 2,000, per argument list;
+        asked once per chart file and argument list, and only for a chart
+        whose record is older than the mark that makes the question
+        unnecessary.
+        """
+        try:
+            text = Path(ti1).read_text(encoding="latin-1")
+            want = _ti1_device_rows(text)
+            if not want:
+                return None
+            n = len(want)
+            candidates = []
+            p = self._collect_manual()
+            count = int(p.patches)
+            auto = getattr(self, "_manual_auto_patches_check", None)
+            if auto is not None and auto.isChecked():
+                p.patches = count = n
+                self._apply_auto_neutrals(p, use_estimate=True)
+            candidates.append(_targen_args_for(p, count, "patchset"))
+            try:
+                g = self._collect_guided()
+                gcount = int(g.patches) if int(g.patches) > 0 else n
+                ga = _targen_args_for(g, gcount, "patchset")
+                if ga not in candidates:
+                    candidates.append(ga)
+            except Exception:      # noqa: BLE001 — Guided is a second opinion
+                log.debug("Guided's arguments could not be built",
+                          exc_info=True)
+            st = Path(ti1).stat()
+            fid = (str(ti1), st.st_mtime_ns, st.st_size)
+        except Exception:      # noqa: BLE001 — a question, never a blocker
+            log.debug("could not put the patch-set question to targen",
+                      exc_info=True)
+            return None
+        answers = [self._targen_writes(ti1, fid, args, want)
+                   for args in candidates]
+        if True in answers:
+            return True
+        if None in answers:
+            return None
+        return False
+
+    def _targen_writes(self, ti1, fid, args, want) -> "bool | None":
+        """Whether targen run with ``args`` writes the patches ``want``;
+        None when it could not be run. Kept per chart file and argument
+        list (B8-1460)."""
+        cache = getattr(self, "_targen_makes_cache", None)
+        if cache is None:
+            cache = self._targen_makes_cache = {}
+        key = fid + (tuple(args),)
+        if key in cache:
+            return cache[key]
+        answer = None
+        from PyQt6.QtWidgets import QApplication
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            import subprocess
+            targen = self._runner.resolve_tool("targen")
+            with tempfile.TemporaryDirectory(prefix="chromiq-patchset-") as tmp:
+                r = subprocess.run([str(targen)] + list(args), cwd=tmp,
+                                   capture_output=True, timeout=180,
+                                   stdin=subprocess.DEVNULL)
+                out = Path(tmp) / "patchset.ti1"
+                if r.returncode == 0 and out.is_file():
+                    got = _ti1_device_rows(out.read_text(encoding="latin-1"))
+                    if got:
+                        answer = sorted(got) == sorted(want)
+                else:
+                    log.info("targen could not be asked about %s (exit %s)",
+                             Path(ti1).name, r.returncode)
+        except Exception:      # noqa: BLE001 — a question, never a blocker
+            # including subprocess.TimeoutExpired: it did not finish
+            log.info("targen did not answer about %s", Path(ti1).name,
+                     exc_info=True)
+            answer = None
+        finally:
+            QApplication.restoreOverrideCursor()
+        cache[key] = answer
+        log.info("Create Chart: targen %s the patches of %s (targen %s)",
+                 {True: "makes", False: "does not make",
+                  None: "could not say whether it makes"}[answer],
+                 Path(ti1).name, " ".join(args[:-1]))
+        return answer
+
+    def _say_patch_set_kept_unchecked(self) -> None:
+        """M-PATCHSET-KEPT-UNCHECKED, in the tab's log (B8-1460): an older
+        chart keeps its own patch set because nothing could tell whether
+        the settings on screen make it. The text is the catalogue's."""
+        from workflow import measurement_messages as M
+        try:
+            title, body = M.M_PATCHSET_KEPT_UNCHECKED.render()
+            self._log.appendPlainText(title)
+            self._log.appendPlainText(body)
+        except Exception:      # noqa: BLE001 — never fail a chart over a line
+            log.debug("could not say the patch set was kept", exc_info=True)
 
     def _load_yaml_params(self) -> dict:
         path = resource_path("data/parameters.yaml")
@@ -15651,7 +15871,9 @@ class TabChart(QWidget):
         self._restored_chart_date = ""
         sidecar = Path(ti2_path).with_suffix(".channels.json")
         self._restored_notes_stamp = False
-        self._restored_patch_set_given = False
+        # None: the chart does not say (no sidecar, or one written before the
+        # record was kept, B8-1460). The reopen then asks the files.
+        self._restored_patch_set_given = None
         doc = None
         if sidecar.is_file():
             try:
@@ -15669,7 +15891,8 @@ class TabChart(QWidget):
         # count on the way in, so a 528-patch chart rebuilt as 22.
         auto_built = None
         if isinstance(doc, dict):
-            self._restored_patch_set_given = bool(doc.get("patch_set_given"))
+            if "patch_set_given" in doc:
+                self._restored_patch_set_given = bool(doc["patch_set_given"])
             if "auto_patches" in doc:
                 from ui.parameter_widget import as_bool
                 auto_built = as_bool(doc.get("auto_patches"))
@@ -18925,6 +19148,20 @@ class TabChart(QWidget):
         # Run type = Verification lays the chart down at the run root before it
         # is filed under verifications/ — keep the run's profiling chart.
         self._arm_verification_snapshot()
+        # THE SHIELD AGAIN, HERE, WHERE THE BUILD STARTS (B8-1461). It was
+        # raised above, before the destination was asked, and the answer
+        # consumes it: a new project, or the bar moved to "New run", is a
+        # target change, and `_on_target_changed` lowers the flag after its
+        # one protected load. So the build finished with it down, the bar then
+        # landed on the new run, and that run, with nothing stored yet, was
+        # opened on the rows' factory values (§4 S4): the sheet was laid out
+        # with the -a / -m on screen (Preferences' i1Pro layout, -a 0.95
+        # -m 10), and the panel and the record went to -a 1.0 -m 6, so the
+        # next Generate laid the same patches out as another sheet (220 sets
+        # became 210). A loaded .ti1 decides the target's settings as a preset
+        # does (§3 W3 beside W2, §4b P-1), and `_on_generate` and
+        # `_generate_from_ti1` raise the flag at this same point.
+        self._layout_owned_by_build = True
         params = self._collect_params()
         params.patch_set_given = True       # a loaded patch set (B8-1363)
         self._preview.clear()
@@ -22370,9 +22607,13 @@ class TabChart(QWidget):
             self._arm_verification_snapshot()
             params = self._collect_params()
             params.target_name = self._file_mgr.get_target_name()
-            # the restored chart's own word on its patch set (B8-1363)
-            params.patch_set_given = bool(
-                getattr(self, "_restored_patch_set_given", False))
+            # the restored chart's own word on its patch set (B8-1363); an
+            # older chart's is read from its files (B8-1460), so the redraw's
+            # sidecar does not record a loaded set as targen's
+            recorded = getattr(self, "_restored_patch_set_given", False)
+            params.patch_set_given = (
+                bool(recorded) if recorded is not None
+                else self._older_patch_set_verdict(ti1) != "targen")
             self._pin_restored_recipe(params)
             # THE CHART ITSELF MUST SURVIVE THE REDRAW.
             #

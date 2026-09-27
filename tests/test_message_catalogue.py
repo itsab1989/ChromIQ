@@ -138,6 +138,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # too — so a second window at Generate time
                                  # interrupted a decision already made.
                                  "M-PATCHSET-MISSING",
+                                 # B8-1460, beta 45: an older chart whose patch
+                                 # set targen could not be asked about keeps
+                                 # it; the log line saying so is new wording.
+                                 "M-PATCHSET-KEPT-UNCHECKED",
                                  # #182, beta 22: ChromIQ now writes a
                                  # control-strip declaration beside every
                                  # verification chart it creates, and Knut
@@ -663,6 +667,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_show_verification_saved"),
     ("ui.tabs.tab_measure", "TabMeasure", "_ask_how_printed"),
     ("ui.tabs.tab_chart", "TabChart", "_patchset_missing_message"),
+    ("ui.tabs.tab_chart", "TabChart", "_say_patch_set_kept_unchecked"),
     ("ui.tabs.tab_chart", "TabChart", "_project_exists_message"),
     ("ui.tabs.tab_measure", "TabMeasure", "_cr30_stock_reader_window"),
     # The verification pre-flight (#182, Knut, 2026-09-21). Its frame is

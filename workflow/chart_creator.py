@@ -2152,8 +2152,10 @@ class ChartCreator:
             # B8-1363: the tick that decided the count, so reopening the chart
             # puts it back (see ChartParams.auto_patches).
             extra["auto_patches"] = bool(params.auto_patches)
-        if params.patch_set_given:
-            extra["patch_set_given"] = True
+        # ALWAYS WRITTEN, true or false (B8-1460): a sidecar without the key
+        # is an older chart's, whose patch set the reopen has to judge from
+        # its files. Written only when true, a false said nothing either.
+        extra["patch_set_given"] = bool(params.patch_set_given)
         try:
             sidecar.write_text(json.dumps({
                 **extra,

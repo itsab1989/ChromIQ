@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-27, B8-1460 (on top of B8-1451): an older chart whose patch set targen could not be asked about keeps it, and says so in Create Chart's log (M-PATCHSET-KEPT-UNCHECKED, §M-PROPOSED), 2 keys in (title and body), none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1451: the presets window's evenness sentence names the counts the report pools over every page and one needed count per limit: the two K61 keys (one patch / many, "about {need}") out, four in (one page or several, ninths equal or not, "at least {need}"). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 2, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1418: the Preferences > Sounds help "Measurement windows and their sounds" (core/measure_windows.py) puts its four paragraphs, its bold lead-ins and its column headings through tr() literals, which were `_esc("...")` and a key in no catalogue; em dashes of the touched texts cleaned. 14 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule. Their counts had slack before this change (the help-card echoes were 6 under this budget, the identical values 5 under the other), so each is now set to the count measured off the tree: +7 echoes (the seven keys of 25 characters or more) and +14 identical values per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1415 (Knut #182 5849392788, "The word drift is not used at all"): every user-facing text outside the report that said drift, drifted, drifting or drifts now says change, changed, moved away from, slid or slipped (Getting Started, "Inspect a measurement", the grey-balance, Accuracy, black-generation, out-of-gamut, calibration, placement-agreement, strip-outlier, -S and -N texts, Verify against reference and its 3D map, Reset grid), their em dashes cleaned, 16 keys replaced by 16. German by hand, does not move; the twelve others had 15 of the 16 translated and carry the new English under the beta rule, so each rises by exactly 15, here and in the other ledger, except Russian, which keeps its own translation of the Accuracy help (the English carries spaced en-dash bullets, which test_russian_keeps_one_dash_and_it_is_the_em_dash refuses in ru.json) and rises by 14. COUNTED off the tree, BOTH ledgers.
@@ -1088,18 +1089,18 @@ _BUDGET = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 1121,
-    "fr": 1122,
-    "it": 1121,
-    "ja": 1121,
-    "nl": 1121,
-    "no": 1121,
-    "pl": 1121,
-    "pt": 1121,
-    "ru": 1119,
-    "sv": 1121,
-    "zh_CN": 1120,
-    "uk": 1262,
+    "es": 1123,
+    "fr": 1124,
+    "it": 1123,
+    "ja": 1123,
+    "nl": 1123,
+    "no": 1123,
+    "pl": 1123,
+    "pt": 1123,
+    "ru": 1121,
+    "sv": 1123,
+    "zh_CN": 1122,
+    "uk": 1264,
 }
 
 

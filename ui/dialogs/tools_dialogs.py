@@ -2508,6 +2508,11 @@ def open_tool_dialog(
                             initial_chart=initial_chart, project=project)
     if dlg is not None:
         dlg.exec()
+        # The patch set editor is parented to the main window, which kept every
+        # closed one alive (B8-1462): free it now that its loop has ended.
+        dispose = getattr(dlg, "dispose", None)
+        if key == "ti2_relayout" and dispose is not None:
+            dispose()
 
 
 #: Every key :func:`build_tool_dialog` knows, in its order.

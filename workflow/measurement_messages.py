@@ -933,6 +933,27 @@ M_PATCHSET_MISSING = _m(
     "\u201cGenerate Chart\u201d.",
     approved=False)
 
+# --- PROPOSED: an older chart keeps its patch set, unchecked (B8-1460) -----
+# A chart made before its sidecar recorded whether its patch set was given
+# (beta 44 and earlier) is judged from its files when it is shown again: targen
+# is asked whether the settings on screen make exactly its patches. When targen
+# cannot be asked (not installed, a failure, a file it needs is gone), nothing
+# can tell, so the chart keeps its own patches rather than Generate replacing
+# them in silence, and this says so in Create Chart's log.
+M_PATCHSET_KEPT_UNCHECKED = _m(
+    "M-PATCHSET-KEPT-UNCHECKED",
+    "This chart keeps its own patch set",
+    "This chart was made by an earlier version of ChromIQ, which did not "
+    "record where its patches came from, and ChromIQ could not check whether "
+    "the settings on screen make the same patches. So that a sheet you have "
+    "already printed still matches, \u201cGenerate Chart\u201d lays out this "
+    "chart\u2019s own patches again.\n\n"
+    "To make a new set of patches from your settings instead, tick "
+    "\u201cEdit patch recipe (override preset)\u201d and change a setting of "
+    "the patch recipe. The next \u201cGenerate Chart\u201d then makes a new "
+    "set.",
+    approved=False)
+
 # --- PROPOSED: a verification chart that cannot carry a control strip ------
 # #182, beta 22. ChromIQ now writes a control-strip declaration beside every
 # verification chart it creates (`workflow/control_strip.py`), which is what
@@ -3677,6 +3698,7 @@ CATALOGUE = {m.id: m for m in (
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
     M_ENGINE_FELL_BACK,
     M_PATCHSET_MISSING,
+    M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
     M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,
     M_REPORT_PATCH_COUNTS_DIFFER,

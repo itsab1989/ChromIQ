@@ -8858,6 +8858,34 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             self.resize(self.width(), want)
         self._keep_inside_the_work_area()
 
+    def dispose(self) -> None:
+        """Free the window once its modal loop has ended (B8-1462).
+
+        Tools > "Edit / create chart patch set" parents the editor to the main
+        window, so the window owned it after it closed: some 570 widgets and
+        20 top-level windows (its menus, pop-ups and sub-dialogs) stayed alive
+        per opening, for the life of the app. Every opening builds a new
+        editor and nothing reads the old one after `exec()` returns: Save &
+        apply hands its chart over inside the loop, and the host copies what
+        it needs out of the staging folder before the loop ends.
+
+        A preview render still running is waited for first, as the window's
+        X does, and a render that will not stop in time keeps the window
+        alive rather than destroying a running thread (which aborts the app).
+        """
+        worker = getattr(self, "_worker", None)
+        if worker is not None and worker.isRunning():
+            worker.wait(3000)
+            if worker.isRunning():
+                log.warning("patch set editor: a preview render is still "
+                            "running, so the closed window is kept")
+                return
+        try:
+            self._preview_tmp.cleanup()
+        except Exception:      # noqa: BLE001 — a temp folder, never a blocker
+            pass
+        self.deleteLater()
+
     def closeEvent(self, ev) -> None:  # noqa: N802
         # The window-corner X gets the same unsaved-changes guard as the
         # Close button (#49). Saves clear the flag first, so closing right

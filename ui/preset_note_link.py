@@ -61,12 +61,16 @@ def note_document(text: str, link: str, font: QFont, colour: str,
                            else font.pointSizeF() * 96 / 72))
         doc.addResource(QTextDocument.ResourceType.ImageResource,
                         QUrl(_GEAR_URL), gear_image(px))
+        # THREE ANCHORS, ONE LINK (B8-1463). The words and the gear are
+        # underlined; the space between them is not, but it is still the
+        # link, so a click there opens the window as before. One anchor
+        # round all three underlined the space too.
+        a = f'<a href="{LINK_HREF}" style="color:{colour}; text-decoration: '
         body = (html.escape(text[:i])
-                + f'<a href="{LINK_HREF}" style="color:{colour};'
-                  f' text-decoration: underline;">'
-                + html.escape(link)
-                + f'&nbsp;<img src="{_GEAR_URL}" width="{px}" height="{px}"'
-                  ' style="vertical-align: middle"></a>'
+                + a + 'underline;">' + html.escape(link) + '</a>'
+                + a + 'none;">&nbsp;</a>'
+                + a + f'underline;"><img src="{_GEAR_URL}" width="{px}"'
+                  f' height="{px}" style="vertical-align: middle"></a>'
                 + html.escape(text[i + len(link):]))
     doc.setHtml(f'<div style="color:{colour}">{body}</div>')
     doc.setTextWidth(max(1.0, float(width)))
