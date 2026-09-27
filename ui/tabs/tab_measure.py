@@ -2879,16 +2879,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         for opt in self._chartread_opts:
             if opt.key == "tolerance":
-                # -T IS NOT FORCED ON ANY MORE. It used to be ticked here at
-                # 0.7 for everybody, and chartread hands that number to the
-                # instrument, where it scales the driver's own
+                # -T is ON at 0.7 by default, and that default is
+                # `core.settings.DEFAULTS` (which `AppSettings.get` answers
+                # before the fallbacks written here). chartread hands the
+                # number to the instrument, where it scales the driver's own
                 # patch-recognition threshold while a strip is being swiped
-                # (munki_imp.c:5353). Every measurement anybody made was
-                # therefore judged stricter than the manufacturer's setting,
-                # and on a ColorMunki that reads as a swipe the driver will not
-                # recognise at all — Knut, beta.139: *"no strip is ever
-                # finished without the 'Strip Read Failed' window"*. The row
-                # stays visible so the option is still one tick away.
+                # (munki_imp.c:5353). beta.140 switched it off after Knut's
+                # beta.139 log showed many misreads; that log's failures had
+                # been provoked on purpose, and he asked for 0.7 back, which
+                # 37d70704 did in DEFAULTS and not here (B8-1417 corrected this
+                # comment, which still said the opposite). The row stays
+                # visible so the option is always one tick away.
                 opt.checkbox.setChecked(
                     bool(self._settings.get("measure_tolerance_enabled", False)))
                 if opt.widget is not None:
@@ -15525,9 +15526,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # `shlex.join`, not `" ".join`: `measure_manager` re-splits
             # this with `shlex.split`, so a value containing a space is
             # torn in two on the way back. No option row carries one
-            # today, but `data/parameters.yaml` already declares a
-            # `-X file.ccmx` row, and a path with a space is the normal
-            # case the day that is wired up. `tab_chart` does this
+            # today, but chartread's `-X file.ccmx` takes a path, and a
+            # path with a space is the normal case the day a row offers
+            # it. `tab_chart` does this
             # round trip correctly already.
             extra_args          = shlex.join(extra_args),
         )
@@ -15550,9 +15551,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # `shlex.join`, not `" ".join`: `measure_manager` re-splits
             # this with `shlex.split`, so a value containing a space is
             # torn in two on the way back. No option row carries one
-            # today, but `data/parameters.yaml` already declares a
-            # `-X file.ccmx` row, and a path with a space is the normal
-            # case the day that is wired up. `tab_chart` does this
+            # today, but chartread's `-X file.ccmx` takes a path, and a
+            # path with a space is the normal case the day a row offers
+            # it. `tab_chart` does this
             # round trip correctly already.
             extra_args          = shlex.join(extra_args),
         )

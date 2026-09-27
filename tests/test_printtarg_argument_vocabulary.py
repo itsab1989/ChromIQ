@@ -355,8 +355,9 @@ def test_chartread_extra_args_survive_a_path_with_a_space():
     round trip: it tears a value with a space in two.
 
     Latent rather than live today, because no chartread option row carries a
-    space — but `data/parameters.yaml` already declares a `-X file.ccmx` row,
-    and a path with a space is the ordinary case the day that is wired up.
+    space — but chartread's `-X file.ccmx` takes a path (the unused chartread
+    block `data/parameters.yaml` carried until B8-1417 declared it), and a path
+    with a space is the ordinary case the day a row offers it.
     `tab_chart` has always done this correctly with `shlex.join`, which is what
     makes the Measure tab's version an oversight rather than a policy.
     """
