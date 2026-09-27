@@ -65,6 +65,14 @@ ALLOWED_CONTEXTS = (
     # every reference set, so the word "certification" appears here only to be
     # refused. Read, and kept.
     "It is not a certification, approval or endorsement by",
+    # #182, Knut 5855780690 (2026-09-27): the converted ISO evenness limits are
+    # the standard's figures turned into ChromIQ's method "so that a PASS still
+    # is deemed as a likely compliance". The English says "likely meets the
+    # standard"; a translation of it carries its own word for "meets" beside
+    # its own word for "likely", which the sweep cannot tell from a claim. Read
+    # in es and it on 2026-09-28: both keep the hedge (probablemente,
+    # probabilmente). A translation must keep it.
+    "so that a PASS means the sheet likely meets the standard",
 )
 
 #: The denials must not merely be legal, they must EXIST. Deleting one would
@@ -95,6 +103,14 @@ REQUIRED_DENIALS = (
     # no claim being made. Deleting the credit line would otherwise pass every
     # other check in this file.
     "It is not a certification, approval or endorsement by",
+    # #182, Knut 5855780690 (2026-09-27): the converted ISO evenness limits are
+    # the standard's figures turned into ChromIQ's method "so that a PASS still
+    # is deemed as a likely compliance". The English says "likely meets the
+    # standard"; a translation of it carries its own word for "meets" beside
+    # its own word for "likely", which the sweep cannot tell from a claim. Read
+    # in es and it on 2026-09-28: both keep the hedge (probablemente,
+    # probabilmente). A translation must keep it.
+    "so that a PASS means the sheet likely meets the standard",
 )
 
 
