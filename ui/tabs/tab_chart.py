@@ -15265,6 +15265,13 @@ class TabChart(QWidget):
                                         seed_fixed=BUILTIN_PRESET_SEED_FIXED))
                 self._set_engine_recipe(recipe)
                 self._manual_layout_panel.set_pages(p.pages)
+                # PRINTTARG'S -i / -p FOLLOW THE PRESET'S PAPER (B8-1409). The
+                # recipe goes in with the panel's mirror held off (`set_recipe`
+                # runs under `_loading`), so a built-in on a custom paper, the
+                # 100 x 150 mm one, left -p on the A4 before, and the registry
+                # stored with the chart recorded that A4. Mirrored once here,
+                # the way a paper chosen in the panel is.
+                self._sync_manual_selection_from_panel()
             if self._bit16_radio is not None and self._bit8_radio is not None:
                 (self._bit16_radio if p.tiff_16bit
                  else self._bit8_radio).setChecked(True)

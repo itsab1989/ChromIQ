@@ -29943,12 +29943,16 @@ would reach.
 - decided by: Knut
 - because: Knut, #182 5851662703: "No." A run that holds only its chart is replaced without a question, as the §4 table of unified_measurement_management.md says; no change.
 
-### B8-1409 · OPEN · A built-in on a custom paper leaves printtarg's -p on A4, and the run's record carries it
+### B8-1409 · FIXED, awaiting confirmation · A built-in on a custom paper left printtarg's -p on A4, and the run's record carried it
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- found by: the B8-1363 probe (`b8-1363/probe/`): the 100 x 150 built-in lays out on the panel's 100 x 150 while -p stays A4 (the preset is applied with the panel's mirror held off), and the registry stored with the chart records `printtarg-p = A4`. Harmless while the panel lays the chart out; it was the A4 of B8-1363 once something pushed -p into the panel (that push is gone). Unticking the engine box on such a target would show A4.
-- where: `ui/tabs/tab_chart.py` (the built-in preset loader, `_sync_manual_selection_from_panel`).
+- status: FIXED
+- found by: the B8-1363 probe (`b8-1363/probe/`).
+- fix: `_seed_knut_preset` mirrors the layout panel's instrument and paper into printtarg's -i / -p once the preset's recipe is in (`_sync_manual_selection_from_panel`, the mirror a paper chosen in the panel goes through), since the recipe goes in with the mirror held off.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch1/1409/` ("i1Pro · 100x150mm-600p-4pages-Portrait-w7.5mm" chosen from "Select preset", built): before, -p A4 and the run's `create_chart_settings` `printtarg-p` = A4; after, 100x150 in both, and 100x150 with the engine box unticked.
+- tests: tests/test_b8_1409_a_builtin_on_custom_paper_sets_printtargs_paper.py; mutation M1409-a (`~/Desktop/ChromIQ-beta45-proof/batch1/mutations/m1409.txt`), red.
+- evidence: test_the_100x150_builtin_puts_minus_p_on_its_paper, test_an_a4_builtin_still_reads_a4
+- where: `ui/tabs/tab_chart.py` (`_seed_knut_preset`).
 
 ### B8-1300 · FIXED, awaiting confirmation · With the CR30 and the engine box unticked, more places still ask the engine setting alone while the layout panel is what lays the chart out
 - blocks release: no
