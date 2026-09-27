@@ -30897,3 +30897,13 @@ would reach.
 - status: OPEN
 - found by: B8-1476. Since the window withholds no evenness row on the estimated noise, `noise_count_line`, `_noise_count_body`, the two noise lines of `reason_line` and `preset_eligibility.noise_shortfall` / `model_need` are reached only by their own tests, and their keys are translated in every catalogue for nothing. Kept for now, because Knut's acceptance of the presets-window text is the one ruling this rests on; remove them, and their keys from both ledgers, once he confirms the built result.
 - where: `ui/dialogs/preset_verification_dialog.py`, `workflow/preset_eligibility.py`, `data/i18n/*.json`.
+
+### B8-1478 · FIXED, awaiting confirmation · Two built-in presets declared whites and blacks their patch sets do not hold
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Basti's agent while putting in Knut's updated presets; Knut, #182 5856955264: "the correct is what the color patches show in the ti1 file. If the preset window says 9 white and 8 black you should investigate why?"
+- fix: the counts in `KNUT_PRESETS` are typed by hand and nothing tied them to the file. The i1Pro A4 484-patch and 1200-patch "Full layout setup" presets said 9 / 8 over patch sets of 1 / 1 and 2 / 2; corrected. Measured over all 174 presets that ship a patch set: these two were the only ones. A test now reads every shipped patch set and compares.
+- tests: tests/test_b8_1478_a_preset_declares_the_whites_and_blacks_its_patch_set_holds.py
+- evidence: test_the_declared_counts_are_the_patch_sets_own (fails on both presets with the old values)
+- where: `ui/tabs/tab_chart.py` (`KNUT_PRESETS`), `tests/test_knut_spyderprint_presets.py` (its synthetic copy of the 484 preset).

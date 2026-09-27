@@ -24,6 +24,7 @@
 - The CR30 "Letter-170p-1page-Portrait-w16.0mm-Hexagonal" preset is now named "w17.0mm", the width it prints.
 
 ### Fixed
+- "Which presets can be used for verification" said the i1Pro A4 484-patch and 1200-patch "Full layout setup" presets hold 9 white and 8 black patches. It now says what their patch sets hold: 1 and 1, and 2 and 2.
 
 - A project reopened after a restart builds the chart it was built as: "Auto patch count", the paper, a built-in preset's own patch set, and a patch set loaded from a file, also for projects saved by beta 44. Reopening a chart made by beta 44 no longer holds the window while ChromIQ checks where its patches came from, and the answer is kept, so it is checked only once.
 - A patch set loaded from a file keeps its layout on the next Generate and after a restart. One known limit: a beta 44 project whose patch set was loaded with the layout engine off keeps its patches, but may lay them out on a different sheet.

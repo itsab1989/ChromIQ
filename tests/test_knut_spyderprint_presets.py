@@ -236,7 +236,7 @@ _SYNTHETIC = _Ti1Preset(
     _KNUT_I1, "A4", 0.93, 10, 2,
     ti1_asset="assets/charts/knut/rgb/fulllayout/"
               "fls_i1pro_a4_484p_1page_portrait/chart.ti1",
-    patches=484, white=9, black=8, no_strip_limit=False,
+    patches=484, white=1, black=1, no_strip_limit=False,
     suppress_left_clip=False, tiff_16bit=False, suffix=" (test only)")
 KNUT_PRESETS_BY_KEY.setdefault(_SYNTHETIC.key, _SYNTHETIC)
 _FLS_KEY = _SYNTHETIC.key
