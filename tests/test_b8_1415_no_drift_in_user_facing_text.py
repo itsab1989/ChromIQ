@@ -24,9 +24,10 @@ docstrings, identifiers (`raw_drift`, `seating_drift`, the `chromiq_drift_`
 temp-file prefix), and the diagnostic log lines of the scan placement
 (`workflow/scan_auto_align.py`, `workflow/scan_placement.py`,
 `workflow/hex_block_search.py`, `ui/dialogs/scanin_dialog.py`), which go to
-the application log in English and never through `tr()`. Nor the other eleven
-languages: "drift" is an ordinary word in Dutch, Norwegian and Swedish
-("operation"), so a substring rule would be wrong there.
+the application log in English and never through `tr()`. The other twelve
+languages are held by B8-1472 below, each by ITS word for drift: "drift" is
+an ordinary word in Dutch, Norwegian and Swedish ("operation"), so the
+English substring rule would be wrong there.
 
 An exception, if one is ever needed (ArgyllCMS's own words quoted to the user,
 say), goes into `ALLOWED` with the reason. There is none today.
@@ -146,6 +147,75 @@ def test_no_german_text_a_user_reads_says_drift():
         + "\n  ".join(bad[:15])
         + "\n\nSay \"verändern\" / \"Veränderung\", or \"sich entfernen\" "
           "(B8-1415).")
+
+
+# --- B8-1472: every other language, in its own word for drift ---------------
+#
+# Challenge 2 of beta 45, F4: the -r tooltip still said "drift-artefacten",
+# "drift-artefakter" and "driftartefakter" in the Dutch, Norwegian and Swedish
+# overlays, and its Spanish, French, Italian, Portuguese, Polish, Russian,
+# Ukrainian, Japanese and Chinese said the same in their own words. A plain
+# "drift" substring is wrong outside English and German (Norwegian
+# "framdrift" is progress, "bedrift" a company; Spanish "deriva la misma
+# referencia" is "derives"), so each language has the pattern of ITS word
+# for the drift of a reading, measured over every value of its catalogue and
+# every text of its overlay.
+_DRIFT_WORD = {
+    "nl": r"\bdrift",
+    "no": r"\bdrift",
+    "sv": r"\bdrift",
+    "es": r"\b(?:de|la|una) deriva\b",
+    "pt": r"\b(?:de|da|a|uma) deriva\b|\bderivar para\b",
+    "it": r"\b(?:da|di|la|una) deriva\b",
+    "fr": r"\b(?:de|des|la|une) dérives?\b",
+    "pl": r"dryf",
+    "ru": r"дрейф",
+    "uk": r"дрейф",
+    "ja": r"ドリフト",
+    "zh_CN": r"漂移",
+}
+
+
+def _language_texts(code: str) -> "dict[str, str]":
+    cat = _catalogue(code)
+    texts = {v: f"{code}.json value of {k[:50]!r}" for k, v in cat.items()
+             if not k.startswith("@") and isinstance(v, str)}
+    for s, where in _yaml_texts(ROOT / f"data/i18n/parameters.{code}.yaml"):
+        texts.setdefault(s, where)
+    return texts
+
+
+def test_every_language_has_a_drift_word():
+    """A language added later must name its word, or say why it has none."""
+    codes = {p.stem for p in (ROOT / "data/i18n").glob("*.json")}
+    assert codes - {"en", "de"} <= set(_DRIFT_WORD), sorted(
+        codes - {"en", "de"} - set(_DRIFT_WORD))
+
+
+@pytest.mark.parametrize("code", sorted(_DRIFT_WORD))
+def test_no_translation_says_drift_in_its_own_word(code):
+    rx = re.compile(_DRIFT_WORD[code], re.IGNORECASE)
+    bad = sorted(f"[{where}] {' '.join(s[max(0, m.start() - 50):m.end() + 50].split())}"
+                 for s, where in _language_texts(code).items()
+                 for m in [rx.search(s)] if m)
+    assert not bad, (f"\n{len(bad)} {code} text(s) say drift:\n  "
+                     + "\n  ".join(bad[:15]))
+
+
+def test_the_r_tooltip_says_what_the_english_says_in_every_language():
+    """The text F4 found: no overlay keeps the old drift sentence, and each
+    carries a translation of "readings that change slowly during a
+    measurement" (or the English)."""
+    slow = {"nl": "langzaam", "no": "langsomt", "sv": "långsamt",
+            "es": "lentamente", "fr": "lentement", "it": "lentamente",
+            "pt": "lentamente", "pl": "powoli", "ru": "медленно",
+            "uk": "повільно", "ja": "ゆっくり", "zh_CN": "缓慢",
+            "de": "langsam"}
+    for code, word in slow.items():
+        doc = yaml.safe_load((ROOT / f"data/i18n/parameters.{code}.yaml")
+                             .read_text(encoding="utf-8"))
+        body = doc["parameters"]["printtarg"]["-r"]["tooltip_body"]
+        assert word in body or "change slowly" in body, (code, body[:160])
 
 
 def test_the_collector_sees_the_surfaces_it_claims():

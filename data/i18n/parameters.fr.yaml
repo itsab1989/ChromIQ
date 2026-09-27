@@ -652,7 +652,8 @@ parameters:
       tooltip_title: "Pas de randomisation (-r)"
       tooltip_body: |-
         Par défaut, printtarg randomise les positions des plages pour
-        réduire les artefacts de dérive de l'instrument.
+        réduire les artefacts dus à des lectures de l'instrument qui
+        changent lentement pendant une mesure.
         N'active cette option que si tu testes une séquence de plages
         précise ou si ton instrument exige des plages ordonnées.
     "-b":

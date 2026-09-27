@@ -225,7 +225,7 @@ def test_knuts_648_page_under_iso_12647_7_and_chromiq_default(qapp):
     iso = PE.assess(chart, MR.REPORT_TYPE_FULL, "iso_12647_7", recipe=recipe)
     assert dict(iso.missing).get("uniformity_sd") == \
         MR.REASON_EVENNESS_NOISY_PAIRWISE
-    have, need, pages, low, high = iso.noise_count("uniformity_sd")
+    have, need, pages, low, high = iso.noise_count("uniformity_sd")[:5]
     assert (have, need, pages, low, high) == (72, 238, 1, 72, 72)
     assert "uniformity_de00_max_from_mean" in iso.answered
     cq = PE.assess(chart, MR.REPORT_TYPE_FULL, "chromiq_default",

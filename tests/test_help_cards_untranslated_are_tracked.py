@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-27, B8-1471 (beta 45 challenge 2, F2): the presets window's evenness sentence on a chart whose last page the report leaves out says "the same ninth of {pages} of the chart's {total} pages" instead of "all {pages} pages", and names the page left out in the report's own (already translated) words: 2 keys in, none out. And Knut's #182 5853818821: the Build Profile tab's calibration help moves its advice for newcomers early, 1 key replaced by 1 (German by hand; the twelve others carried the English before and after, so it does not move a count). German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1460 (on top of B8-1451): an older chart whose patch set targen could not be asked about keeps it, and says so in Create Chart's log (M-PATCHSET-KEPT-UNCHECKED, §M-PROPOSED), 2 keys in (title and body), none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1451: the presets window's evenness sentence names the counts the report pools over every page and one needed count per limit: the two K61 keys (one patch / many, "about {need}") out, four in (one page or several, ninths equal or not, "at least {need}"). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 2, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1418: the Preferences > Sounds help "Measurement windows and their sounds" (core/measure_windows.py) puts its four paragraphs, its bold lead-ins and its column headings through tr() literals, which were `_esc("...")` and a key in no catalogue; em dashes of the touched texts cleaned. 14 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule. Their counts had slack before this change (the help-card echoes were 6 under this budget, the identical values 5 under the other), so each is now set to the count measured off the tree: +7 echoes (the seven keys of 25 characters or more) and +14 identical values per language. COUNTED off the tree, BOTH ledgers.
@@ -1089,18 +1090,18 @@ _BUDGET = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 1123,
-    "fr": 1124,
-    "it": 1123,
-    "ja": 1123,
-    "nl": 1123,
-    "no": 1123,
-    "pl": 1123,
-    "pt": 1123,
-    "ru": 1121,
-    "sv": 1123,
-    "zh_CN": 1122,
-    "uk": 1264,
+    "es": 1125,
+    "fr": 1126,
+    "it": 1125,
+    "ja": 1125,
+    "nl": 1125,
+    "no": 1125,
+    "pl": 1125,
+    "pt": 1125,
+    "ru": 1123,
+    "sv": 1125,
+    "zh_CN": 1124,
+    "uk": 1266,
 }
 
 

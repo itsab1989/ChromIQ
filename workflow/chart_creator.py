@@ -609,7 +609,7 @@ class ChartParams:
     # not run and cannot make it again from the settings on screen (B8-1363).
     # Recorded in the sidecar; reopening the chart binds its own .ti1 again,
     # as a patch set not written by targen always was.
-    patch_set_given: bool = False
+    patch_set_given: "bool | None" = False
     # When the chart was laid out from an existing patch set (a preset, a loaded
     # .ti1, a prebuilt chart, or one applied from the editor), targen was NOT run
     # — so the command stamp shows the chart-LAYOUT name instead of a misleading
@@ -2155,7 +2155,10 @@ class ChartCreator:
         # ALWAYS WRITTEN, true or false (B8-1460): a sidecar without the key
         # is an older chart's, whose patch set the reopen has to judge from
         # its files. Written only when true, a false said nothing either.
-        extra["patch_set_given"] = bool(params.patch_set_given)
+        # …EXCEPT None (B8-1470): a redraw of an older chart whose origin is
+        # not yet known keeps saying nothing, so the reopen still asks.
+        if params.patch_set_given is not None:
+            extra["patch_set_given"] = bool(params.patch_set_given)
         try:
             sidecar.write_text(json.dumps({
                 **extra,

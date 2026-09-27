@@ -624,7 +624,7 @@ parameters:
       tooltip_title: "Bez losowania (-r)"
       tooltip_body: |-
         Domyślnie printtarg losuje pozycje pól, aby zmniejszyć artefakty
-        dryfu przyrządu.
+        odczytów przyrządu, które zmieniają się powoli w trakcie pomiaru.
         Włącz tę opcję tylko, gdy testujesz konkretną sekwencję pól albo
         gdy przyrząd wymaga pól uporządkowanych.
     "-b":

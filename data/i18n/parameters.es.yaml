@@ -644,7 +644,8 @@ parameters:
       tooltip_title: "Sin aleatorización (-r)"
       tooltip_body: |-
         Por defecto printtarg aleatoriza las posiciones de los parches
-        para reducir los artefactos de deriva del instrumento.
+        para reducir los artefactos de lecturas del instrumento que
+        cambian lentamente durante una medición.
         Activa esta opción solo si pruebas una secuencia de parches
         concreta o si tu instrumento exige parches ordenados.
     "-b":

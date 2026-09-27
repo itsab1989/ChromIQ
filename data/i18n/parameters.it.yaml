@@ -635,7 +635,8 @@ parameters:
       tooltip_title: "Nessuna randomizzazione (-r)"
       tooltip_body: |-
         Per impostazione predefinita printtarg randomizza le posizioni dei
-        tasselli per ridurre gli artefatti da deriva dello strumento.
+        tasselli per ridurre gli artefatti dovuti a letture dello
+        strumento che cambiano lentamente durante una misura.
         Attiva questa opzione solo se stai testando una sequenza specifica
         di tasselli o se il tuo strumento richiede tasselli ordinati.
     "-b":

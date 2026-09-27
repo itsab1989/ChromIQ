@@ -602,7 +602,8 @@ parameters:
       tooltip_title: "Ingen randomisering (-r)"
       tooltip_body: |-
         Som standard randomiserar printtarg fältpositionerna för att
-        minska driftartefakter från instrumentet.  Aktivera denna flagga
+        minska artefakter från mätvärden som ändras långsamt under en
+        mätning.  Aktivera denna flagga
         bara om du testar en specifik fältsekvens eller om ditt instrument
         kräver ordnade fält.
     "-b":

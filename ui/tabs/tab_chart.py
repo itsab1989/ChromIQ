@@ -4728,6 +4728,15 @@ def _ti1_device_rows(text: str) -> "list[tuple[str, ...]] | None":
     return rows or None
 
 
+#: Where an older chart's "does targen make these patches?" answer is kept,
+#: inside the chart's run's cache/ folder (B8-1470).
+_PATCH_SET_ORIGIN_FILE = "patch-set-origin.json"
+
+#: How long targen may take to answer it before it is treated as "could not
+#: say" (the chart then keeps its own patches, and the log says so).
+_PATCH_SET_PROBE_TIMEOUT_MS = 180_000
+
+
 def _targen_args_for(p, count: int, stem: str) -> "list[str]":
     """The targen arguments Generate builds for ``p`` and ``count``
     (`ChartCreator._build_targen_args`), writing ``stem``.ti1."""
@@ -10318,7 +10327,9 @@ class TabChart(QWidget):
         self.chart_finished.emit(list(tiffs), ti2, False)
 
     def _rebind_patch_set_from_run(self, ti1: Path | None,
-                                   given: bool = False) -> None:
+                                   given: "bool | None" = False, *,
+                                   sig: "list | None" = None,
+                                   unchecked: bool = False) -> None:
         """Re-attach the run's own patch set so regenerating reproduces it (#147).
 
         Knut printed a chart, duplicated its run, then went back to the first
@@ -10344,7 +10355,18 @@ class TabChart(QWidget):
         moment, which preserves the existing escape hatch: change a setting that
         defines the patch *set* and Generate still builds a fresh one, while
         changing only the *layout* re-lays-out the very same patches.
+
+        ``sig`` and ``unchecked`` are the answer of the older-chart question
+        (B8-1470), which binds through here when targen has answered: the
+        signature the panels had when the question was put, and whether it
+        could not be answered at all.
         """
+        # A new chart is shown: a question still out about the last one is
+        # no longer anybody's (B8-1470).
+        if sig is None:
+            _cancel = getattr(self, "_cancel_patch_set_question", None)
+            if _cancel is not None:
+                _cancel()
         try:
             if ti1 is None or not Path(ti1).is_file():
                 return
@@ -10358,7 +10380,6 @@ class TabChart(QWidget):
             # patches, not these. The chart's sidecar says whether its patch
             # set was given (`patch_set_given`).
             # A chart older than that record is recognised by its file.
-            unchecked = False
             if (m and "targen" in m.group(1).lower() and not given
                     and not _is_a_bundled_targen_patch_set(ti1)):
                 if given is not None:
@@ -10369,12 +10390,19 @@ class TabChart(QWidget):
                 # ChromIQ's own: it reopened unbound and Generate made 525
                 # new patches where the sheet held 208. targen itself is
                 # asked whether the settings on screen make these patches.
-                verdict = self._older_patch_set_verdict(ti1)
-                if verdict == "targen":
-                    return
-                unchecked = verdict == "unknown"
+                #
+                # OFF THE GUI THREAD, AND ONCE PER CHART (B8-1470). Asked
+                # here with subprocess.run the window froze for 0.4 s at 48
+                # patches and 9.9 s at 2,000, for Manual's arguments AND
+                # Guided's, on every reopen of every beta 44 chart in every
+                # session. The answer is now kept in the run's cache/ and
+                # targen runs as a QProcess; this binds when it answers, and
+                # Generate waits for it.
+                self._ask_patch_set_origin(ti1)
+                return
             self._preset_ti1_path = Path(ti1)
-            self._preset_ti1_targen_sig = self._targen_signature()
+            self._preset_ti1_targen_sig = (
+                sig if sig is not None else self._targen_signature())
             # SHOW the lock, don't just hold it. `_ti1_preset_active` is true
             # the moment `_preset_ti1_path` is set, which is what puts the
             # "Edit patch recipe (override preset)" box on screen and greys the
@@ -10408,7 +10436,7 @@ class TabChart(QWidget):
         except Exception as exc:  # noqa: BLE001 — never block showing a chart
             log.warning("Could not re-attach the run's patch set: %s", exc)
 
-    def _older_patch_set_verdict(self, ti1) -> str:
+    def _older_patch_set_verdict(self, ti1, *, ask: bool = True) -> str:
         """Where the patch set of a chart older than the `patch_set_given`
         record came from, as far as its files can say (B8-1460):
 
@@ -10418,10 +10446,13 @@ class TabChart(QWidget):
         * "targen": targen makes exactly these patches from the settings on
           screen, so Generate builds this chart again without a binding;
         * "unknown": targen could not be asked (not installed, failed, or a
-          file it needs is missing). Treated as given, and said so.
+          file it needs is missing), or ``ask`` is False and no answer is
+          kept for this chart yet (B8-1470). Treated as given, and said so.
 
         Exact, never a guess: the only question asked is whether targen,
         given the arguments Generate would give it, writes these patches.
+        Synchronous: the reopen asks through `_ask_patch_set_origin`, which
+        does not hold the window.
         """
         try:
             head = Path(ti1).read_text(encoding="utf-8",
@@ -10433,14 +10464,19 @@ class TabChart(QWidget):
             return "given"
         if _is_a_bundled_targen_patch_set(ti1):
             return "given"
-        made = self._targen_makes_this_patch_set(ti1)
+        if ask:
+            made = self._targen_makes_this_patch_set(ti1)
+        else:
+            q = self._patch_set_question(ti1)
+            made = None if q is None else self._known_patch_set_answer(q)
         if made is None:
             return "unknown"
         return "targen" if made else "given"
 
-    def _targen_makes_this_patch_set(self, ti1) -> "bool | None":
-        """Does targen, with the settings on screen, write exactly the
-        patches in ``ti1``? None when it cannot be asked (B8-1460).
+    def _patch_set_question(self, ti1) -> "dict | None":
+        """What targen is asked about ``ti1``: the patches it holds, and the
+        argument lists Generate would pass (B8-1460). None when the chart has
+        no readable patch table or the arguments cannot be built.
 
         The arguments are the ones Generate would pass
         (`ChartCreator._build_targen_args`), for BOTH modules: Manual's rows
@@ -10450,7 +10486,9 @@ class TabChart(QWidget):
         screen at this moment need not be the one the chart was built in:
         measured on screen, a beta 44 Manual chart with 300 typed patches was
         asked with Guided's -e4 -B4 -g28 where it was built with -e3 -B3 -g17.
-        If either module's arguments write these patches, targen makes them.
+        If either module's arguments write these patches, targen makes them,
+        so Manual's are asked first and Guided's only when Manual's do not
+        (B8-1470).
 
         One exception, and it is forced: with "Auto patch count" ticked
         Generate asks for as many patches as the layout holds, a count the
@@ -10462,15 +10500,11 @@ class TabChart(QWidget):
         originals, byte for byte). A patch set loaded from elsewhere (another
         -d, another count, another tool's points) is not what these arguments
         make, and that difference is the evidence.
-
-        About a second for 500 patches, four for 2,000, per argument list;
-        asked once per chart file and argument list, and only for a chart
-        whose record is older than the mark that makes the question
-        unnecessary.
         """
+        import hashlib
         try:
-            text = Path(ti1).read_text(encoding="latin-1")
-            want = _ti1_device_rows(text)
+            raw = Path(ti1).read_bytes()
+            want = _ti1_device_rows(raw.decode("latin-1"))
             if not want:
                 return None
             n = len(want)
@@ -10491,30 +10525,134 @@ class TabChart(QWidget):
             except Exception:      # noqa: BLE001 — Guided is a second opinion
                 log.debug("Guided's arguments could not be built",
                           exc_info=True)
-            st = Path(ti1).stat()
-            fid = (str(ti1), st.st_mtime_ns, st.st_size)
         except Exception:      # noqa: BLE001 — a question, never a blocker
             log.debug("could not put the patch-set question to targen",
                       exc_info=True)
             return None
-        answers = [self._targen_writes(ti1, fid, args, want)
-                   for args in candidates]
+        return {"ti1": Path(ti1), "want": want, "candidates": candidates,
+                "sha": hashlib.sha256(raw).hexdigest()}
+
+    @staticmethod
+    def _patch_set_origin_file(ti1) -> "Path | None":
+        """Where the answer about ``ti1`` is kept between sessions: the
+        cache/ folder of the run (or calibration, or dated verification)
+        whose chart it is (B8-1470). None for a chart that is not a
+        project's, which is then only remembered for the session.
+
+        NOT the chart's sidecar. Rewriting an older run's `.channels.json`
+        changes a file Restore Used Chart compares by content with its stored
+        copy (`slot_live_differs`, `live_differs_from_snapshot`), so every
+        older measured run would start saying its chart had changed; and it
+        would touch a record the user never asked to be rewritten. cache/ is
+        "tool intermediates, always safe to delete": losing it costs one
+        targen run, nothing else."""
+        from core.file_manager import CACHE_DIRNAME
+        try:
+            d = Path(ti1).resolve().parent
+        except OSError:
+            return None
+        for anc in [d] + list(d.parents)[:4]:
+            if (anc / "project.json").is_file():
+                if anc == d:
+                    return None     # not a chart folder of the project
+                return d / CACHE_DIRNAME / _PATCH_SET_ORIGIN_FILE
+        return None
+
+    @staticmethod
+    def _patch_set_answer_key(q: dict, args) -> str:
+        """The chart's bytes and the arguments asked, without the output
+        name (the last argument)."""
+        return q["sha"] + " " + " ".join(str(a) for a in args[:-1])
+
+    def _read_patch_set_answers(self, q: dict) -> dict:
+        f = self._patch_set_origin_file(q["ti1"])
+        if f is None or not f.is_file():
+            return {}
+        try:
+            doc = json.loads(f.read_text(encoding="utf-8"))
+            return doc if isinstance(doc, dict) else {}
+        except Exception:      # noqa: BLE001 — a cache, never a blocker
+            return {}
+
+    def _patch_set_answer(self, q: dict, args) -> "bool | None":
+        """The kept answer for ``args`` on this chart, or None when targen
+        has not been asked (or could not answer: that is never kept)."""
+        key = self._patch_set_answer_key(q, args)
+        cache = getattr(self, "_targen_makes_cache", None)
+        if cache is None:
+            cache = self._targen_makes_cache = {}
+        if key in cache:
+            return cache[key]
+        got = self._read_patch_set_answers(q).get(key)
+        if isinstance(got, bool):
+            cache[key] = got
+            return got
+        return None
+
+    def _keep_patch_set_answer(self, q: dict, args, answer) -> None:
+        """Remember targen's answer, in the session and, for a project's
+        chart, in its cache/ (B8-1470). "Could not say" is not kept: the
+        next reopen asks again."""
+        if answer is None or args is None:
+            return
+        key = self._patch_set_answer_key(q, args)
+        cache = getattr(self, "_targen_makes_cache", None)
+        if cache is None:
+            cache = self._targen_makes_cache = {}
+        cache[key] = bool(answer)
+        f = self._patch_set_origin_file(q["ti1"])
+        if f is None:
+            return
+        try:
+            doc = self._read_patch_set_answers(q)
+            doc[key] = bool(answer)
+            f.parent.mkdir(parents=True, exist_ok=True)
+            tmp = f.with_name(f.name + ".tmp")
+            tmp.write_text(json.dumps(doc, indent=1, sort_keys=True),
+                           encoding="utf-8")
+            tmp.replace(f)
+        except Exception:      # noqa: BLE001 — a cache, never a blocker
+            log.debug("could not keep the patch-set answer", exc_info=True)
+
+    def _known_patch_set_answer(self, q: dict) -> "bool | None":
+        """True as soon as any kept answer says targen makes the patches;
+        False when every argument list has a kept "does not make"; None when
+        targen still has to be asked."""
+        answers = [self._patch_set_answer(q, a) for a in q["candidates"]]
         if True in answers:
             return True
+        if answers and all(a is False for a in answers):
+            return False
+        return None
+
+    def _targen_makes_this_patch_set(self, ti1) -> "bool | None":
+        """Does targen, with the settings on screen, write exactly the
+        patches in ``ti1``? None when it cannot be asked (B8-1460).
+
+        See `_patch_set_question` for which arguments are asked. Stops at the
+        first "makes" (B8-1470), and a kept answer is not asked again.
+        Synchronous, so it holds the window while targen runs: about a second
+        for 500 patches, four for 2,000, per argument list. The reopen uses
+        `_ask_patch_set_origin` instead.
+        """
+        q = self._patch_set_question(ti1)
+        if q is None:
+            return None
+        answers = []
+        for args in q["candidates"]:
+            a = self._patch_set_answer(q, args)
+            if a is None:
+                a = self._targen_writes(ti1, q, args)
+            if a is True:
+                return True
+            answers.append(a)
         if None in answers:
             return None
         return False
 
-    def _targen_writes(self, ti1, fid, args, want) -> "bool | None":
-        """Whether targen run with ``args`` writes the patches ``want``;
-        None when it could not be run. Kept per chart file and argument
-        list (B8-1460)."""
-        cache = getattr(self, "_targen_makes_cache", None)
-        if cache is None:
-            cache = self._targen_makes_cache = {}
-        key = fid + (tuple(args),)
-        if key in cache:
-            return cache[key]
+    def _targen_writes(self, ti1, q, args) -> "bool | None":
+        """Whether targen run with ``args`` writes the patches of ``q``;
+        None when it could not be run. Kept (B8-1470)."""
         answer = None
         from PyQt6.QtWidgets import QApplication
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
@@ -10525,14 +10663,8 @@ class TabChart(QWidget):
                 r = subprocess.run([str(targen)] + list(args), cwd=tmp,
                                    capture_output=True, timeout=180,
                                    stdin=subprocess.DEVNULL)
-                out = Path(tmp) / "patchset.ti1"
-                if r.returncode == 0 and out.is_file():
-                    got = _ti1_device_rows(out.read_text(encoding="latin-1"))
-                    if got:
-                        answer = sorted(got) == sorted(want)
-                else:
-                    log.info("targen could not be asked about %s (exit %s)",
-                             Path(ti1).name, r.returncode)
+                answer = self._patch_set_verdict_from(
+                    ti1, q, r.returncode, Path(tmp))
         except Exception:      # noqa: BLE001 — a question, never a blocker
             # including subprocess.TimeoutExpired: it did not finish
             log.info("targen did not answer about %s", Path(ti1).name,
@@ -10540,12 +10672,237 @@ class TabChart(QWidget):
             answer = None
         finally:
             QApplication.restoreOverrideCursor()
-        cache[key] = answer
+        self._keep_patch_set_answer(q, args, answer)
+        self._log_patch_set_answer(ti1, args, answer)
+        return answer
+
+    @staticmethod
+    def _patch_set_verdict_from(ti1, q, code, tmp: Path) -> "bool | None":
+        """targen's answer, read from what it wrote into ``tmp``."""
+        out = tmp / "patchset.ti1"
+        if code == 0 and out.is_file():
+            got = _ti1_device_rows(out.read_text(encoding="latin-1"))
+            if got:
+                return sorted(got) == sorted(q["want"])
+            return None
+        log.info("targen could not be asked about %s (exit %s)",
+                 Path(ti1).name, code)
+        return None
+
+    @staticmethod
+    def _log_patch_set_answer(ti1, args, answer) -> None:
         log.info("Create Chart: targen %s the patches of %s (targen %s)",
                  {True: "makes", False: "does not make",
                   None: "could not say whether it makes"}[answer],
-                 Path(ti1).name, " ".join(args[:-1]))
-        return answer
+                 Path(ti1).name, " ".join(str(a) for a in (args or [])[:-1]))
+
+    # ---- the same question, off the GUI thread (B8-1470) ------------------
+
+    def _ask_patch_set_origin(self, ti1) -> None:
+        """Ask targen about an older chart's patch set WITHOUT holding the
+        window, and bind the set (or leave it unbound) when it answers.
+
+        A kept answer is used at once. Otherwise targen runs as a QProcess,
+        one argument list at a time, Manual's first, and stops at the first
+        "makes". While it runs the tab shows a busy cursor, Generate Chart is
+        greyed and refuses, and the live preview waits: nothing may be built
+        from a patch set whose binding is not yet decided. An answer that
+        arrives after another chart was shown is dropped.
+        """
+        self._cancel_patch_set_question()
+        sig = self._targen_signature()
+        q = self._patch_set_question(ti1)
+        if q is None:
+            self._patch_set_question_answered(ti1, None, sig)
+            return
+        q["sig"] = sig
+        known = self._known_patch_set_answer(q)
+        if known is not None:
+            self._patch_set_question_answered(ti1, known, sig)
+            return
+        q["pending"] = [a for a in q["candidates"]
+                        if self._patch_set_answer(q, a) is None]
+        q["answers"] = []
+        q["shown"] = getattr(self, "_shown_chart_ti2", None)
+        q["armed"] = getattr(self, "_preset_ti1_path", None)
+        # Generate's own state, to give back: the button is also what
+        # `_chart_build_in_flight` reads, so greying it holds the live
+        # preview as well.
+        q["btn_was"] = self._generate_btn.isEnabled()
+        self._patch_set_q = q
+        self.setCursor(Qt.CursorShape.BusyCursor)
+        self._generate_btn.setEnabled(False)
+        self._next_patch_set_probe()
+
+    def _next_patch_set_probe(self) -> None:
+        from PyQt6.QtCore import QProcess
+        q = getattr(self, "_patch_set_q", None)
+        if q is None:
+            return
+        if not q["pending"]:
+            answers = q["answers"]
+            self._finish_patch_set_question(
+                None if (None in answers or not answers) else False)
+            return
+        args = q["pending"].pop(0)
+        q["args"] = args
+        q["tmp"] = tempfile.TemporaryDirectory(prefix="chromiq-patchset-")
+        proc = QProcess(self)
+        proc.setWorkingDirectory(q["tmp"].name)
+        proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
+        proc.setStandardInputFile(QProcess.nullDevice())
+        proc.finished.connect(self._on_patch_set_probe_finished)
+        proc.errorOccurred.connect(self._on_patch_set_probe_error)
+        q["proc"] = proc
+        timer = QTimer(self)
+        timer.setSingleShot(True)
+        timer.timeout.connect(self._on_patch_set_probe_timeout)
+        q["timer"] = timer
+        try:
+            targen = str(self._runner.resolve_tool("targen"))
+        except Exception:      # noqa: BLE001
+            targen = "targen"
+        timer.start(_PATCH_SET_PROBE_TIMEOUT_MS)
+        proc.start(targen, [str(a) for a in args])
+
+    def _end_patch_set_probe(self, q: dict) -> None:
+        timer = q.pop("timer", None)
+        if timer is not None:
+            timer.stop()
+            timer.deleteLater()
+        proc = q.pop("proc", None)
+        if proc is not None:
+            try:
+                proc.finished.disconnect(self._on_patch_set_probe_finished)
+                proc.errorOccurred.disconnect(self._on_patch_set_probe_error)
+            except (TypeError, RuntimeError):
+                pass
+            from PyQt6.QtCore import QProcess
+            if proc.state() != QProcess.ProcessState.NotRunning:
+                proc.kill()
+                proc.waitForFinished(2000)
+            proc.deleteLater()
+        tmp = q.pop("tmp", None)
+        if tmp is not None:
+            try:
+                tmp.cleanup()
+            except Exception:      # noqa: BLE001
+                pass
+
+    def _probe_answered(self, answer) -> None:
+        q = getattr(self, "_patch_set_q", None)
+        if q is None:
+            return
+        args = q.get("args")
+        self._end_patch_set_probe(q)
+        self._keep_patch_set_answer(q, args, answer)
+        self._log_patch_set_answer(q["ti1"], args, answer)
+        if answer is True:
+            self._finish_patch_set_question(True)
+            return
+        q["answers"].append(answer)
+        self._next_patch_set_probe()
+
+    def _on_patch_set_probe_finished(self, code, _status=None) -> None:
+        q = getattr(self, "_patch_set_q", None)
+        if q is None or self.sender() is not q.get("proc"):
+            return
+        from PyQt6.QtCore import QProcess
+        ok = q["proc"].exitStatus() == QProcess.ExitStatus.NormalExit
+        try:
+            answer = self._patch_set_verdict_from(
+                q["ti1"], q, code if ok else -1, Path(q["tmp"].name))
+        except Exception:      # noqa: BLE001 — a question, never a blocker
+            answer = None
+        self._probe_answered(answer)
+
+    def _on_patch_set_probe_error(self, err) -> None:
+        from PyQt6.QtCore import QProcess
+        q = getattr(self, "_patch_set_q", None)
+        if q is None or self.sender() is not q.get("proc"):
+            return
+        # Only a process that never started sends no `finished`.
+        if err == QProcess.ProcessError.FailedToStart:
+            log.info("targen could not be started to ask about %s",
+                     q["ti1"].name)
+            self._probe_answered(None)
+
+    def _on_patch_set_probe_timeout(self) -> None:
+        q = getattr(self, "_patch_set_q", None)
+        if q is None:
+            return
+        log.info("targen did not finish within %d s about %s",
+                 _PATCH_SET_PROBE_TIMEOUT_MS // 1000, q["ti1"].name)
+        self._probe_answered(None)
+
+    def _finish_patch_set_question(self, made) -> None:
+        q = getattr(self, "_patch_set_q", None)
+        if q is None:
+            return
+        self._end_patch_set_probe(q)
+        self._patch_set_q = None
+        self._release_patch_set_wait(q)
+        # Still the chart it was asked about, and nothing else armed since
+        # (a preset). Every build path either waits for the answer or drops
+        # the question before it starts (`_cancel_patch_set_question`).
+        still_shown = (getattr(self, "_current_ti1_path", None) == q["ti1"]
+                       and getattr(self, "_shown_chart_ti2", None)
+                       == q["shown"]
+                       and getattr(self, "_preset_ti1_path", None)
+                       == q["armed"])
+        if not still_shown:
+            log.info("the answer about %s came after another chart was "
+                     "shown, and is not used", q["ti1"].name)
+            return
+        self._patch_set_question_answered(q["ti1"], made, q["sig"])
+
+    def _patch_set_question_answered(self, ti1, made, sig) -> None:
+        """Bind, or leave unbound, as targen answered: True (targen makes
+        these patches) leaves the chart to Generate; False binds it; None
+        binds it and says it could not be checked."""
+        if made is True:
+            return
+        was_applied = False
+        try:
+            base = getattr(self, "_applied_sig", None)
+            was_applied = (base is not None
+                           and base == self._chart_settings_fingerprint())
+        except Exception:      # noqa: BLE001
+            pass
+        self._rebind_patch_set_from_run(ti1, given=True, sig=sig,
+                                        unchecked=made is None)
+        if was_applied:
+            # binding is not an edit: the panel still describes the chart
+            self._mark_settings_applied()
+
+    def _release_patch_set_wait(self, q: dict) -> None:
+        self.unsetCursor()
+        if q.get("btn_was") and not self._runner.is_running:
+            self._generate_btn.setEnabled(True)
+
+    def _cancel_patch_set_question(self) -> None:
+        """Drop a question still out (another chart is shown, or the tab
+        goes). Its answer would belong to no chart on screen."""
+        q = getattr(self, "_patch_set_q", None)
+        if q is None:
+            return
+        self._patch_set_q = None
+        self._end_patch_set_probe(q)
+        self._release_patch_set_wait(q)
+
+    def _patch_set_question_pending(self) -> bool:
+        """True while targen is still being asked about the chart on
+        screen: Generate and the live preview wait (B8-1470)."""
+        return getattr(self, "_patch_set_q", None) is not None
+
+    def _refuse_while_patch_set_pending(self) -> bool:
+        """Generate's door while the question is out (B8-1470)."""
+        if not self._patch_set_question_pending():
+            return False
+        log.info("Generate waits: targen is still being asked whether the "
+                 "settings on screen make this chart's patches")
+        self._generate_btn.setEnabled(False)
+        return True
 
     def _say_patch_set_kept_unchecked(self) -> None:
         """M-PATCHSET-KEPT-UNCHECKED, in the tab's log (B8-1460): an older
@@ -17141,6 +17498,8 @@ class TabChart(QWidget):
             if self._runner.is_running:
                 log.warning("A process is already running")
                 return False
+            if self._refuse_while_patch_set_pending():      # B8-1470
+                return False
             self._log_chart_build("live preview" if not ask else "user", ti1_path)
             self._cancel_pending_auto_preview()
             # `preview` IS THE ONE CALLER THAT MAY NOT OPEN A WINDOW.
@@ -18309,6 +18668,8 @@ class TabChart(QWidget):
             if self._runner.is_running:
                 log.warning("A process is already running")
                 return
+            if self._refuse_while_patch_set_pending():      # B8-1470
+                return
             self._log_chart_build("Generate Chart", "targen")
             self._cancel_pending_auto_preview()
             # #133: the FROM PROFILE GAMUT module has its own generate route — the
@@ -18977,6 +19338,9 @@ class TabChart(QWidget):
         )
         if not path:
             return
+        # another patch set is being loaded: a question still out about the
+        # chart on screen is nobody's any more (B8-1470)
+        self._cancel_patch_set_question()
         src = Path(path)
         self._log.clear()
         from workflow.ti2_relayout import NO_RECIPE
@@ -22543,6 +22907,9 @@ class TabChart(QWidget):
             #
             # `restore_slot` had already put the right files back. It was this
             # redraw that then laid the wrong chart over them.
+            # the redraw builds: nothing may answer about this chart while
+            # it is being laid out again (B8-1470)
+            self._cancel_patch_set_question()
             run_id = None
             if calibration:
                 cal = proj.calibration
@@ -22609,11 +22976,18 @@ class TabChart(QWidget):
             params.target_name = self._file_mgr.get_target_name()
             # the restored chart's own word on its patch set (B8-1363); an
             # older chart's is read from its files (B8-1460), so the redraw's
-            # sidecar does not record a loaded set as targen's
+            # sidecar does not record a loaded set as targen's. Only an answer
+            # already KEPT is used (B8-1470): asking targen here held the
+            # window. Without one the redraw's sidecar says nothing either
+            # (None leaves the key out), so the reopen asks, off the GUI
+            # thread, exactly as it would have before the redraw.
             recorded = getattr(self, "_restored_patch_set_given", False)
-            params.patch_set_given = (
-                bool(recorded) if recorded is not None
-                else self._older_patch_set_verdict(ti1) != "targen")
+            if recorded is not None:
+                params.patch_set_given = bool(recorded)
+            else:
+                verdict = self._older_patch_set_verdict(ti1, ask=False)
+                params.patch_set_given = (
+                    None if verdict == "unknown" else verdict != "targen")
             self._pin_restored_recipe(params)
             # THE CHART ITSELF MUST SURVIVE THE REDRAW.
             #
@@ -27892,6 +28266,10 @@ class TabChart(QWidget):
         if (self._chart_build_in_flight()
                 or self._current_mode() != "manual"
                 or not bool(self._settings.get("auto_update_preview", False))):
+            return
+        # …nor while targen is still being asked whether this chart's patch
+        # set is its own (B8-1470): the binding decides what is laid out.
+        if self._patch_set_question_pending():
             return
         # THE TIMER IS ARMED FOR A LAYOUT, NOT FOR A MOMENT. Re-check the
         # fingerprint it was armed for, because whoever re-baselined it in the

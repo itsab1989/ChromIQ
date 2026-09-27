@@ -600,7 +600,8 @@ parameters:
       tooltip_title: "Ingen randomisering (-r)"
       tooltip_body: |-
         Som standard randomiserer printtarg feltposisjonene for å redusere
-        drift-artefakter fra instrumentet.  Slå på dette valget bare hvis
+        artefakter fra måleverdier som endrer seg langsomt under en
+        måling.  Slå på dette valget bare hvis
         du tester en bestemt feltrekkefølge eller instrumentet ditt krever
         ordnede felt.
     "-b":

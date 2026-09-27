@@ -30806,3 +30806,72 @@ would reach.
 - tests: tests/test_b8_1460_an_older_loaded_patch_set_reopens_bound.py; mutation M1464-a.
 - evidence: test_with_auto_on_the_estimate_lays_out_the_armed_set
 - where: `ui/tabs/tab_chart.py` (`_refresh_layout_estimate`).
+
+### B8-1470 · FIXED, awaiting confirmation · Reopening a beta 44 targen chart froze the window while targen ran (up to 9.6 s, every session)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 2 of beta 45, F1: B8-1460's older-chart question ran targen with `subprocess.run` on the GUI thread, for Manual's arguments and then Guided's even after Manual's said "makes", for every ordinary beta 44 targen chart, and again in every session because the answer lived in memory only. Measured then: 0.4 s at 48 patches to 9.9 s at 2,000; worst case 2 × 180 s. A regression of B8-1460 in this beta.
+- cause: `_rebind_patch_set_from_run` called `_older_patch_set_verdict` synchronously; `_targen_makes_this_patch_set` built every argument list's answer before looking at any; `_targen_makes_cache` was a dict on the tab.
+- decided: the answer is NOT written into the chart's sidecar. Rewriting an older run's `.channels.json` changes a file Restore Used Chart compares by content with its stored copy (`slot_live_differs`, `live_differs_from_snapshot`, `.channels.json` is in `PROFILING_CHART_SUFFIXES` and not a side file), so every measured beta 44 run would start reporting a changed chart; and it rewrites a record nobody asked to change. It goes into `patch-set-origin.json` in the run's (or calibration's, or dated verification's) `cache/` folder ("tool intermediates, always safe to delete"), keyed by the SHA-256 of the .ti1 and the targen arguments; only beside a chart inside a project (a folder with project.json above it). "Could not say" is never kept.
+- fix: the reopen hands the question to `_ask_patch_set_origin`: a kept answer is used at once; otherwise targen runs as a QProcess (no Python thread), one argument list at a time, Manual's first, and stops at the first "makes"; a 180 s timer treats a hung targen as "could not say". While it is out the tab shows the busy cursor, Generate Chart is greyed and `_on_generate` / `_generate_from_ti1` refuse (logged "Generate waits…"), and the live preview waits. The answer binds (or leaves unbound) only if the same chart is still shown and nothing else was armed since; showing another chart, Load patch set and the Restore Used Chart redraw drop the question and kill targen. The synchronous `_targen_makes_this_patch_set` (kept for scripts and tests) also stops at the first "makes" and uses the kept answers. The redraw no longer runs targen: it uses a kept answer or leaves `patch_set_given` out of its new sidecar (`ChartParams.patch_set_given = None`), so the reopen still asks.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/fixes-2/freeze/` (SUMMARY.txt, NOTES.txt), the beta 44 targets challenge 2 built with `git archive v4.3.0-beta.44`, reopened sandboxed, a 50 ms heartbeat timer measuring the longest time the event loop stood still, two sessions each. Before (0edfbd25): 2,000 typed 9.6 s both sessions, A3 1,800 8.1 / 8.2 s, i1 Auto 525 2.3 s, loaded set 1.1 / 1.2 s, Guided 484 1.2 s, ColorMunki 48 0.4 s; targen asked 1 to 2 times in EVERY session. After: every cell 0.25 to 0.51 s except the A3 1,800-patch chart at 0.88 / 0.83 s, which is the chart's own display (the second session asks targen 0 times and reads the same); targen asked once per chart (twice only where Manual's answer is "does not make", the loaded sets), 0 times in the second session. Generate clicked with the real mouse and called directly while the question was out: greyed, refused, no .ti2 written. The builds are the same before and after (2000, 1800, 525, 484, 48, and the loaded sets 208 / 210 bound).
+- tests: tests/test_b8_1470_the_older_chart_question_does_not_hold_the_window.py, tests/test_b8_1460_an_older_loaded_patch_set_reopens_bound.py (now waits for the answer; asked once; the redraw uses a kept answer only); mutations M1470-a to M1470-i (`~/Desktop/ChromIQ-beta45-proof/fixes-2/mutations.txt`), each red.
+- evidence: test_the_reopen_asks_without_holding_the_window, test_it_stops_at_the_first_makes, test_the_answer_is_kept_for_the_next_session, test_generate_and_the_live_preview_wait_for_the_answer, test_an_answer_for_a_chart_no_longer_shown_is_dropped, test_a_new_chart_cancels_the_question_still_out, test_could_not_say_is_not_kept, test_the_answer_is_kept_only_beside_a_projects_chart, test_a_redraw_of_an_unknown_older_chart_leaves_the_record_unsaid, test_the_reopen_never_calls_the_synchronous_question
+- where: `ui/tabs/tab_chart.py` (`_rebind_patch_set_from_run`, `_ask_patch_set_origin` and the probe methods after it, `_patch_set_question`, `_patch_set_origin_file`, `_keep_patch_set_answer`, `_targen_makes_this_patch_set`, `_on_generate`, `_generate_from_ti1`, `_auto_regenerate_preview`, `_on_load_ti1`, the Restore Used Chart redraw), `workflow/chart_creator.py` (`ChartParams.patch_set_given`, `_write_channel_sidecar`).
+
+### B8-1471 · FIXED, awaiting confirmation · "The same ninth of all 8 pages" on a 9-page chart
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 2 of beta 45, F2: Red River "ColorMunki · A4-2052p-9pages" under ISO 12647-7:2016 values; its Pages column said 9, and the report leaves page 9 out (its patches cover 43 % of the page, under the 60 % floor).
+- cause: B8-1451's sentence counts the pages the report reads (`area_pages`, `pages_used`) and called them "all"; nothing carried the pages it leaves out.
+- fix: the report's row cell also carries the pages it leaves out and why (`area_pages_left`: small, uncovered, unmeasured, the report's own three), `NoiseCount.left_out` passes them on, and the sentence then reads "the same ninth of 8 of the chart's 9 pages together" and ends with the report's own sentence for each page left out ("The patches on page 9 cover 43.1 % of the page, less than 60 %, so it is not counted."). A chart whose every page is read says "all" as before. The model is unchanged. 2 keys in, German by hand; the twelve others English under the beta rule (+2 in both ledgers). The page sentences are the report's existing, already translated keys.
+- on screen: `fixes-2/texts/{before,after}-{en,de}/`: before "The report counts the same ninth of all 8 pages together."; after "…of 8 of the chart's 9 pages together. … The patches on page 9 cover 43.1 % of the page, less than 60 %, so it is not counted." German "…von 8 der 9 Seiten des Charts zusammen…".
+- tests: tests/test_b8_1471_to_1475_beta45_challenge2_texts.py, tests/test_b8_1451_evenness_counts_are_true_and_consistent.py (every withheld row of every built-in preset: the pages read plus the pages left out are the chart's pages, each left-out page is named); mutations M1471-a to M1471-c.
+- evidence: test_the_report_cell_carries_the_pages_it_leaves_out, test_red_rivers_nine_page_sentence_counts_eight_of_nine, test_each_reason_is_the_reports_own_sentence, test_a_chart_with_every_page_read_keeps_all, test_the_new_sentences_are_german_by_hand, test_every_number_in_every_sentence_is_the_page_grids
+- where: `workflow/measurement_report.py` (`row_values`, `_cov_of`), `workflow/preset_eligibility.py` (`NoiseCount.left_out`, `noise_shortfall`), `ui/dialogs/preset_verification_dialog.py` (`noise_count_line`, `_noise_count_body`, `_left_out_sentences`).
+
+### B8-1472 · FIXED, awaiting confirmation · The -r tooltip still said drift in Dutch, Norwegian, Swedish and nine other languages
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 2 of beta 45, F4 (a): "drift-artefacten", "drift-artefakter", "driftartefakter" in the nl, no and sv overlays. Measured over every catalogue and overlay: the same tooltip said drift in its own word in es, fr, it, pt, pl, ru, uk, ja and zh_CN too, the pt and uk -m tooltips said the optics "drift" onto the paper edge, and three French accuracy messages said "dérives de couleur".
+- cause: B8-1415's guard held English and German only, on purpose (a substring "drift" is an ordinary word in nl, no and sv), so nothing looked at the other twelve.
+- fix: each of the twelve -r tooltips says what the English says (artefacts from readings that change slowly during a measurement), written in the language; pt and uk -m "slide"; French "décalages de couleur" (the English says "colour shifts"). The guard now holds every language by its own word for drift (nl/no/sv `\bdrift`, which leaves "framdrift" and "bedrift" alone; es/pt/it the noun "deriva", not the verb "derivar"; fr "dérive(s)" as a noun; pl "dryf"; ru/uk "дрейф"; ja "ドリフト"; zh "漂移"), a language added later must name its word, and every overlay's -r tooltip must carry the "slowly" of the English.
+- tests: tests/test_b8_1415_no_drift_in_user_facing_text.py; mutations M1472-a to M1472-c.
+- evidence: test_every_language_has_a_drift_word, test_no_translation_says_drift_in_its_own_word, test_the_r_tooltip_says_what_the_english_says_in_every_language
+- where: `data/i18n/parameters.{nl,no,sv,es,fr,it,pt,pl,ru,uk,ja,zh_CN}.yaml`, `data/i18n/fr.json`, `tests/test_b8_1415_no_drift_in_user_facing_text.py`.
+
+### B8-1473 · FIXED, awaiting confirmation · The R19 demo presets showed an empty Pages cell
+- blocks release: no
+- severity: COSMETIC
+- status: FIXED
+- found by: challenge 2 of beta 45, F5.
+- cause: a user preset's page count comes from the measured page table (`_preset_sheet_count`), which has no entry for R19's patch scale (printtarg -a 1.5), so it is 0, drawn as an empty cell; the window had already laid the preset out for its evenness rows and knew the page.
+- fix: once a row is assessed and its layout is known, a preset the table could not count takes its page count from that layout (`_count_laid_out_pages`); it never starts a layout itself, so a row still being worked out (or a chart that cannot be read) keeps its cell until the layout arrives. The demo is unchanged.
+- on screen: `fixes-2/texts/`: before R19 FAIL and PASS read "205 / (empty)" and "206 / (empty)"; after "205 / 1" and "206 / 1", English and German. R18 read 1 before and after.
+- tests: tests/test_b8_1471_to_1475_beta45_challenge2_texts.py, tests/test_the_demo_presets_pair_on_every_requirement.py; mutations M1473-a to M1473-c.
+- evidence: test_a_demo_preset_the_page_table_cannot_count_takes_its_layouts, test_a_layout_still_being_worked_out_leaves_the_cell, test_the_count_never_starts_a_layout, test_the_window_counts_the_pages_where_it_assesses, test_a_preset_whose_chart_cannot_be_read_says_so
+- where: `ui/dialogs/preset_verification_dialog.py` (`_count_laid_out_pages`, `_refresh`, the layout poll).
+
+### B8-1474 · FIXED, awaiting confirmation · The calibration help put its advice for newcomers last
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Knut, #182 5853818821 (decided): "When a user is inexperienced or just wants to know simple instructions, then messages like this … should come early in the text (rewritten to be logical early in the text), so that the user can choose if he wants to continue reading or not."
+- fix: the Build Profile tab's (i) help with calibration on ("Calibration is an optional extra…") now says, as its second paragraph: "New to this, or you just want a good profile? Then you do not need calibration: turn calibration mode off in Preferences and use the simple 4-tab flow until you're comfortable. Calibration is for people chasing extra accuracy on printers that aren't perfectly stable from batch to batch. If that is you, read on." The same advice at the end is gone. German by hand (Du-Form); the twelve others carried the English before and after, so neither ledger moves. Text for Knut: `fixes-2/TEXTS.txt`.
+- on screen: `fixes-2/texts/help-{before,after}-{en,de}/`: the advice at character 2989 of 3209 before, 419 of 3301 after (German 3263 of 3543, 476 of 3662), visible without scrolling.
+- tests: tests/test_b8_1471_to_1475_beta45_challenge2_texts.py; mutation M1474-a.
+- evidence: test_the_newcomer_advice_comes_early_in_the_calibration_help, test_the_calibration_help_is_german_by_hand_and_du
+- where: `ui/tabs/tab_profile.py` (`_TOOLTIP_BODY_CAL`), `data/i18n/*.json`.
+
+### B8-1475 · FIXED, awaiting confirmation · The beta 45 changelog left out a known limit and overstated a translation
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 2 of beta 45, F4 (b): a beta 44 project whose set was loaded with the engine off reopens 220 -> 210 (B8-1461's known limit), which the entry did not say; "The Measurement windows and their sounds help is translated" is German only.
+- fix: the entry now states the limit ("a beta 44 project whose patch set was loaded with the layout engine off keeps its patches, but may lay them out on a different sheet") and "is translated into German"; it also names what B8-1470, B8-1471, B8-1472 and B8-1474 change for a user.
+- tests: tests/test_b8_1471_to_1475_beta45_challenge2_texts.py; mutations M1475-a, M1475-b.
+- evidence: test_the_changelog_states_the_loaded_set_limit, test_the_changelog_says_which_language_the_help_is_in
+- where: `CHANGELOG.md`.

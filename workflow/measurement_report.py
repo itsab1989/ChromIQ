@@ -5824,6 +5824,16 @@ def _area_means(areas: np.ndarray, resid: np.ndarray,
                      for c in range(3)], axis=-1) / counts[:, None]
 
 
+def _cov_of(block: dict, page: int) -> "float | None":
+    """The coverage the evenness block recorded for 1-based *page*."""
+    cov = list(block.get("coverage") or [])
+    try:
+        c = cov[int(page) - 1] if 0 < int(page) <= len(cov) else None
+        return None if c is None else float(c)
+    except (TypeError, ValueError):
+        return None
+
+
 def evenness_from_residuals(grid: dict, residuals, *,
                             shuffles: int = EVENNESS_SHUFFLES,
                             seed: int = EVENNESS_SEED) -> dict:
@@ -6472,6 +6482,16 @@ def row_values(report: dict) -> "dict[str, dict]":
             out[rid]["area_max"] = int(max(counts)) if counts else None
             out[rid]["area_effective"] = evenness_effective_count(counts)
             out[rid]["area_pages"] = len(ev.get("pages_used") or ()) or None
+            # B8-1471: and the pages it leaves out, and why, so a sentence
+            # about "the same ninth of N pages" can name the page the chart
+            # has and the report does not count (a partly filled last page)
+            out[rid]["area_pages_left"] = (
+                [["small", int(p), None]
+                 for p in ev.get("pages_small") or ()]
+                + [["uncovered", int(p), _cov_of(ev, p)]
+                   for p in ev.get("pages_uncovered") or ()]
+                + [["unmeasured", int(p), None]
+                   for p in ev.get("pages_unmeasured") or ()])
         else:
             put(rid, None, ev.get("reason") or REASON_EVENNESS_NO_LAYOUT)
 

@@ -170,7 +170,13 @@ def test_when_targen_cannot_be_asked_the_chart_keeps_its_patches_and_says_so(
     assert tab._targen_makes_this_patch_set(ti1) is None
     assert tab._older_patch_set_verdict(ti1) == "unknown"
     tab._preset_ti1_path = None
+    tab._current_ti1_path = ti1
     tab._rebind_patch_set_from_run(ti1, given=None)
+    # asked off the GUI thread since B8-1470: the answer arrives by event
+    import time
+    t0 = time.monotonic()
+    while tab._patch_set_question_pending() and time.monotonic() - t0 < 30:
+        QApplication.processEvents()
     assert tab._preset_ti1_path == ti1
     log = tab._log.toPlainText()
     title, body = M.M_PATCHSET_KEPT_UNCHECKED.render()
@@ -195,7 +201,8 @@ def test_targen_is_asked_once_per_chart(qapp, tmp_path, monkeypatch):
     monkeypatch.setattr(subprocess, "run", counting)
     assert tab._targen_makes_this_patch_set(ti1) is True
     first = len(calls)
-    assert 1 <= first <= 2          # Manual's arguments, and Guided's
+    # Manual's arguments make it, so Guided's are not asked (B8-1470)
+    assert first == 1
     assert tab._targen_makes_this_patch_set(ti1) is True
     assert len(calls) == first
     tab.deleteLater()
@@ -232,7 +239,8 @@ def test_the_restore_of_used_chart_judges_an_older_record_too():
     import inspect
     src = inspect.getsource(TabChart)
     i = src.index("the restored chart's own word on its patch set (B8-1363)")
-    assert "_older_patch_set_verdict(ti1)" in src[i:i + 600]
+    # …from an answer already kept, never by running targen (B8-1470)
+    assert "_older_patch_set_verdict(ti1, ask=False)" in src[i:i + 900]
 
 
 # ---- B8-1461: the loaded .ti1's layout is the record's --------------------

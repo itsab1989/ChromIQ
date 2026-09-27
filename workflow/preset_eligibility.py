@@ -1124,6 +1124,11 @@ class NoiseCount(NamedTuple):
     #: the fewest and the most patches in a ninth
     low: int = 0
     high: int = 0
+    #: B8-1471: the chart's pages the report does NOT read, each as
+    #: ``(why, page, coverage)`` with *why* "small", "uncovered" or
+    #: "unmeasured" (the report's own three), so the sentence does not call
+    #: 8 pages "all" of a 9-page chart
+    left_out: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -1300,9 +1305,11 @@ def noise_shortfall(row_id: str, cell: "dict | None",
     need = model_need(key, float(lim.number))
     if need is None:
         return None
+    left = tuple((str(w), int(p), None if c is None else float(c))
+                 for w, p, c in (cell.get("area_pages_left") or ()))
     return NoiseCount(int(have), int(need), int(cell.get("area_pages") or 1),
                       int(cell.get("area_min") or have),
-                      int(cell.get("area_max") or have))
+                      int(cell.get("area_max") or have), left)
 
 
 def assess(chart: "str | Path | None", type_id: str, set_id: str,

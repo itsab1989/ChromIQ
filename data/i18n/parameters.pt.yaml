@@ -629,7 +629,7 @@ parameters:
 
         Selecionar um i1Pro / i1Pro 2 / i1Pro 3 / i1Pro 3 Plus sobe
         automaticamente o valor para 10 mm, para a ótica do leitor de
-        tiras não derivar para a borda nua do papel (erros \"not enough
+        tiras não deslizar para a borda nua do papel (erros \"not enough
         patches read\").  Voltar a ColorMunki / SpectroScan repõe 6 mm.
         Um valor personalizado (diferente de 6 ou 10) é preservado nas
         mudanças de instrumento.
@@ -642,7 +642,8 @@ parameters:
       tooltip_title: "Sem aleatorização (-r)"
       tooltip_body: |-
         Por omissão, o printtarg aleatoriza as posições das amostras para
-        reduzir os artefactos de deriva do instrumento.
+        reduzir os artefactos de leituras do instrumento que mudam
+        lentamente durante uma medição.
         Ative esta opção apenas se está a testar uma sequência de
         amostras específica ou se o instrumento exige amostras ordenadas.
     "-b":

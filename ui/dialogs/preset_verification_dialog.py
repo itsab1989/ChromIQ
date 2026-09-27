@@ -93,6 +93,31 @@ SORT_PULLDOWN = "pulldown_order"
 SORT_MOST_ANSWERED = "most_answered"
 
 
+def _count_laid_out_pages(row) -> None:
+    """A preset whose page count the fast table could not give
+    (`tab_chart._preset_sheet_count`: a patch scale or spacer it has no
+    measurement for, or a layout-engine recipe) takes it from the layout
+    this window has just worked out for its evenness rows (B8-1473).
+
+    The demo presets for R18 and R19 are printtarg at -a 1.5: their Pages
+    cell was empty, beside evenness figures the window had worked out from
+    the very page it would not count. Only a finished layout is read; one
+    still being worked out leaves the cell as it is until it arrives."""
+    if row.pages or row.is_current_chart or row.chart is None \
+            or not row.recipe or not row.assessment.checked:
+        return
+    try:
+        # never the one to START a layout: a chart the assessment could not
+        # read has none coming, and would read "still checking" for ever
+        if not PE.layout_is_ready(row.chart, row.recipe):
+            return
+        grid = PE._evenness_grid_for(Path(row.chart), row.recipe, False)
+        pages = grid.get("pages") if isinstance(grid, dict) else None
+        row.pages = len(pages) if pages else 0
+    except Exception:      # noqa: BLE001 — a cell, never an error
+        return
+
+
 # ---------------------------------------------------------------------------
 # One row of the list
 # ---------------------------------------------------------------------------
@@ -155,7 +180,8 @@ def _solids_reason() -> str:
 
 def noise_count_line(have: int, need: int, pages: int = 1,
                      low: "int | None" = None,
-                     high: "int | None" = None) -> str:
+                     high: "int | None" = None,
+                     left_out: tuple = ()) -> str:
     """K61 (Knut, #182 5851645723): an evenness row withheld for the chart's
     own noise, with the two numbers that say why. "Too few patches in each
     ninth" was read as a fault on a 648-patch page holding 72 in every
@@ -178,11 +204,75 @@ def noise_count_line(have: int, need: int, pages: int = 1,
 
     No singular: a page the report reads has at least 9 strips and 9 rows,
     so each of its ninths holds at least 6 patches.
+
+    B8-1471: "the same ninth of all 8 pages" on a 9-page chart, because the
+    report leaves out a page it cannot compare (a partly filled last page).
+    With *left_out* the sentence counts the pages it reads OF the chart's
+    pages, and names each page left out and why, in the report's own words
+    (`measurement_report_dialog._evenness_noise_sentence`).
     """
+    text = _noise_count_body(have, need, pages, low, high,
+                             total=int(pages) + len(left_out or ()))
+    tail = _left_out_sentences(left_out)
+    return f"{text} {tail}" if tail else text
+
+
+def _left_out_sentences(left_out) -> str:
+    """The report's sentences for the pages it does not count."""
+    if not left_out:
+        return ""
+    from workflow.measurement_report import EVENNESS_MIN_GRID
+    from ui.dialogs.measurement_report_dialog import (_coverage_pct,
+                                                      _min_coverage_pct)
+    small = [p for w, p, _c in left_out if w == "small"]
+    uncovered = [(p, c) for w, p, c in left_out if w == "uncovered"]
+    unmeasured = [p for w, p, _c in left_out if w == "unmeasured"]
+    out = []
+    if small:
+        out.append(tr("Page {p} has fewer than {k} strips or rows and is "
+                      "not counted.").format(p=small[0], k=EVENNESS_MIN_GRID)
+                   if len(small) == 1 else
+                   tr("Pages {p} have fewer than {k} strips or rows and are "
+                      "not counted.").format(
+                          p=", ".join(str(x) for x in small),
+                          k=EVENNESS_MIN_GRID))
+    if uncovered:
+        if len(uncovered) == 1:
+            p, c = uncovered[0]
+            out.append(tr("The patches on page {p} cover {x} % of the page, "
+                          "less than {k} %, so it is not counted.").format(
+                              p=p, x=_coverage_pct(c),
+                              k=_min_coverage_pct()))
+        else:
+            out.append(tr("The patches on pages {p} cover less than {k} % "
+                          "of their page, so they are not counted.").format(
+                              p=", ".join(str(x) for x, _c in uncovered),
+                              k=_min_coverage_pct()))
+    if unmeasured:
+        out.append(tr("Where the patches sit on page {p} is not recorded, "
+                      "so it is not counted.").format(p=unmeasured[0])
+                   if len(unmeasured) == 1 else
+                   tr("Where the patches sit on pages {p} is not recorded, "
+                      "so they are not counted.").format(
+                          p=", ".join(str(x) for x in unmeasured)))
+    return " ".join(out)
+
+
+def _noise_count_body(have, need, pages, low, high, total) -> str:
     have, need, pages = int(have), int(need), int(pages)
     low = have if low is None else int(low)
     high = have if high is None else int(high)
+    total = max(int(total), pages)
     if low == high:
+        if pages > 1 and total > pages:
+            return tr("The report counts the same ninth of {pages} of the "
+                      "chart's {total} pages together, and together each "
+                      "ninth holds {have} patches. On a typical print the "
+                      "chart's own noise would be below this limit only with "
+                      "at least {need} patches in each ninth, all counted "
+                      "pages together. The report measures the real noise on "
+                      "the printed sheet."
+                      ).format(have=have, need=need, pages=pages, total=total)
         if pages > 1:
             return tr("The report counts the same ninth of all {pages} pages "
                       "together, and together each ninth holds {have} "
@@ -196,6 +286,17 @@ def noise_count_line(have: int, need: int, pages: int = 1,
                   "with at least {need} patches in each ninth. The report "
                   "measures the real noise on the printed sheet."
                   ).format(have=have, need=need)
+    if pages > 1 and total > pages:
+        return tr("The report counts the same ninth of {pages} of the "
+                  "chart's {total} pages together. Together the ninths hold "
+                  "{low} to {high} patches, {have} on average as the noise "
+                  "weighs them, where a ninth with fewer patches counts for "
+                  "more. On a typical print the chart's own noise would be "
+                  "below this limit only with an average of at least {need}, "
+                  "weighed the same way. The report measures the real noise "
+                  "on the printed sheet."
+                  ).format(have=have, need=need, pages=pages, total=total,
+                           low=low, high=high)
     if pages > 1:
         return tr("The report counts the same ninth of all {pages} pages "
                   "together. Together the ninths hold {low} to {high} "
@@ -1220,6 +1321,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                 continue
             row.assessment = PE.assess(row.chart, type_id, set_id,
                                        self._overrides, recipe=row.recipe)
+            _count_laid_out_pages(row)
             row.starred = PE.made_for_verification(
                 row.chart, row.patches, row.pages,
                 relayoutable=row.relayoutable, recipe=row.recipe)
@@ -1351,6 +1453,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                 continue
             row.assessment = PE.assess(row.chart, type_id, set_id,
                                        self._overrides, recipe=row.recipe)
+            _count_laid_out_pages(row)
             if not row.is_current_chart:
                 row.starred = PE.made_for_verification(
                     row.chart, row.patches, row.pages,

@@ -177,6 +177,13 @@ _TOOLTIP_BODY_CAL = (
     "predictably. The profile is then built on top of that steadied "
     "behaviour. This helps most on inkjet printers whose output changes "
     "over time or from one run to the next.\n\n"
+    # Knut, #182 5853818821: advice for someone new, or who only wants the
+    # simple instructions, comes EARLY, so they can decide whether to read on.
+    "New to this, or you just want a good profile? Then you do not need "
+    "calibration: turn calibration mode off in Preferences and use the "
+    "simple 4-tab flow until you're comfortable. Calibration is for people "
+    "chasing extra accuracy on printers that aren't perfectly stable from "
+    "batch to batch. If that is you, read on.\n\n"
     "This tab has three buttons (“Create Calibration File”, “Build "
     "Profile” and “Apply Calibration”), but they are NOT clicked one straight after "
     "another. Two of the steps below happen back on tabs 1–3. Here is the "
@@ -223,11 +230,7 @@ _TOOLTIP_BODY_CAL = (
     "would double-correct the colour.\n\n"
     "In short: make the calibration → use it when you print the real "
     "chart → measure → build the profile → (optionally) fold the "
-    "calibration into the profile.\n\n"
-    "New to this? Turn calibration mode off in Preferences and use the "
-    "simple 4-tab flow until you're comfortable. Calibration is here for "
-    "people chasing extra accuracy on printers that aren't perfectly "
-    "stable batch-to-batch."
+    "calibration into the profile."
 )
 
 

@@ -615,8 +615,9 @@ parameters:
       name: "Meetveldvolgorde behouden (niet randomiseren)"
       tooltip_title: "Geen randomisatie (-r)"
       tooltip_body: |-
-        Standaard randomiseert printtarg de meetveldposities om drift-artefacten
-        van het instrument te verminderen.  Schakel deze optie alleen in
+        Standaard randomiseert printtarg de meetveldposities om artefacten
+        te verminderen van meetwaarden die tijdens een meting langzaam
+        veranderen.  Schakel deze optie alleen in
         als je een specifieke meetveldvolgorde test of je instrument geordende
         meetvelden vereist.
     "-b":

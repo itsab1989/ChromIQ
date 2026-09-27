@@ -260,10 +260,22 @@ def test_every_number_in_every_sentence_is_the_page_grids(sweep):
                 line = PVD.reason_line(why, c)
                 assert f" {c.need}" in line, line
                 assert f" {c.have} " in line, line
-                if c.pages > 1:
+                # B8-1471: the pages the report reads, OF the chart's pages;
+                # every page it leaves out is named (Red River's 9-page
+                # ColorMunki chart read "all 8 pages")
+                total = len(grid["pages"])
+                assert c.pages + len(c.left_out) == total, (r.label, c)
+                for _why, pg, _cov in c.left_out:
+                    assert f"page {pg} " in line.lower() or \
+                        f"pages {pg}" in line.lower(), (r.label, line)
+                if c.pages > 1 and c.left_out:
+                    assert (f"{c.pages} of the chart's {total} pages "
+                            "together") in line, line
+                    assert f"all {c.pages} pages" not in line, line
+                elif c.pages > 1:
                     assert f"all {c.pages} pages together" in line, line
                     assert "Each ninth of the page holds" not in line, line
-                else:
+                elif not c.left_out:
                     assert "pages" not in line, line
                 if c.low == c.high:
                     assert "on average" not in line, line
