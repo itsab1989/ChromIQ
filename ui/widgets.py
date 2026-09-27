@@ -3949,6 +3949,23 @@ def open_dir_dialog(
     return ""
 
 
+#: How strongly a tab-coloured folder glyph shows on a greyed button (B8-1405).
+DISABLED_ICON_OPACITY = 0.4
+
+
+def faded_pixmap(src: QPixmap, opacity: float) -> QPixmap:
+    """*src* drawn at *opacity*, same size and device pixel ratio."""
+    from PyQt6.QtGui import QPainter
+    out = QPixmap(src.size())
+    out.setDevicePixelRatio(src.devicePixelRatio())
+    out.fill(Qt.GlobalColor.transparent)
+    p = QPainter(out)
+    p.setOpacity(opacity)
+    p.drawPixmap(0, 0, src)
+    p.end()
+    return out
+
+
 def load_folder_icon(name: str) -> QIcon:
     """Load a colored folder icon from assets/folder/<name>.png.
 
@@ -4001,7 +4018,19 @@ def load_folder_icon(name: str) -> QIcon:
             recoloured.setDevicePixelRatio(dpr)
             return QIcon(recoloured)
         scaled.setDevicePixelRatio(dpr)
-        return QIcon(scaled)
+        icon = QIcon(scaled)
+        if name != "folder":
+            # B8-1405: A GREYED BUTTON KEEPS ITS TAB'S HUE. Left to itself Qt
+            # draws a disabled icon as a grey copy of it, so a tab's folder
+            # button read as the plain folder whenever it was greyed (Guided's
+            # "Refinement profile" browse, greyed until its box is ticked,
+            # beside the magenta Presets row: the beta 44 release check).
+            # Light and Dark keep the hue and fade it, the way a greyed
+            # control fades its text; Neutral (above) keeps Qt's grey, which
+            # is that theme's one disabled look.
+            icon.addPixmap(faded_pixmap(scaled, DISABLED_ICON_OPACITY),
+                           QIcon.Mode.Disabled)
+        return icon
     return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
 
 

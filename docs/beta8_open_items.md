@@ -29892,11 +29892,18 @@ would reach.
 - status: OPEN
 - found by: beta 44 challenge round 9 (`challenge-9/strips/`): the branding text box ignores the content offsets, so an Offset Y moves the wordmark over the text; `build_kwargs`/`from_build_kwargs` do not carry `clip_content_when_on` (B8-1388), so a chart restored from its build settings loses the kept content. Separately (as in beta 43): Create Chart's ColorMunki panel opens with the clip border On (Notes box) although the Preferences default is Off.
 
-### B8-1405 · OPEN · Guided's "Refinement profile" folder button is the plain folder, not the Create Chart magenta
+### B8-1405 · FIXED, awaiting confirmation · Guided's "Refinement profile" folder button looked like the plain folder, not the Create Chart magenta
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- found by: the beta 44 release check (downloaded macOS app, `~/Desktop/ChromIQ-beta44-proof/release/downloaded-app-beta44-main.png`). Basti's rule for Create Chart's folder buttons (magenta in Light and Dark, neutral in Neutral, as the Presets row) is applied to the layout panel since beta 44, not to Guided's refinement browse. Older than beta 44.
+- status: FIXED
+- found by: the beta 44 release check (downloaded macOS app, `~/Desktop/ChromIQ-beta44-proof/release/downloaded-app-beta44-main.png`).
+- cause (measured on screen): the button already asked for "folder_create", the Presets row's glyph. It is GREYED until "Refinement profile" is ticked, and Qt draws a disabled icon as a grey copy of it, so it read as the plain folder; ticked, it was magenta. The same held for every greyed folder button of every tab (the four targen / printtarg "Browse…" rows of Create Chart among them).
+- fix: `load_folder_icon` gives a tab-coloured folder (not the plain "folder") a Disabled pixmap of its own: the same glyph in its own hue at 40 % (`DISABLED_ICON_OPACITY`, `faded_pixmap`), in Light and Dark. Neutral keeps Qt's grey, its one disabled look (its enabled folders are ACTION). One loader, so the theme walker's reload keeps it, and every tab's greyed folder keeps its tab's hue.
+- checked, every folder / browse button of Create Chart (Guided and Manual, `~/Desktop/ChromIQ-beta45-proof/batch1/1405/*/facts.json`): the refinement browse, the presets folder, the four targen / printtarg "Browse…" rows, the clip-border image and the .cal browse all carry "folder_create"; the gear carries its twin. No other one is plain.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch1/1405/` before and after, Light, Dark and Neutral, greyed and ticked, with close-ups.
+- tests: tests/test_b8_1405_a_greyed_folder_button_keeps_its_hue.py; mutations M1405-a to M1405-d (`~/Desktop/ChromIQ-beta45-proof/batch1/mutations/m1405.txt`), each red.
+- evidence: test_a_greyed_create_chart_folder_is_still_magenta, test_every_tab_folder_keeps_its_hue_greyed, test_the_plain_folder_and_neutral_keep_qts_grey, test_guideds_refinement_browse_is_the_create_chart_folder
+- where: `ui/widgets.py` (`load_folder_icon`, `faded_pixmap`, `DISABLED_ICON_OPACITY`).
 
 ### B8-1406 · FIXED, awaiting confirmation · A built-in whose bundled patch set targen wrote (Red River) reopened without it, and Generate made another 2052 patches
 - blocks release: no
