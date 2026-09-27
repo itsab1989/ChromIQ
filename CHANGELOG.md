@@ -3006,6 +3006,101 @@ Chart Layout preference instead of a number in the code, the chart note is
 checked at 150 dpi as well, and the chartread answer is written into the two
 design documents that still asked it.
 
+## v4.2.7
+
+**The output pane stops dragging you back to the bottom.** One fix, reported by
+a user who was trying to read what had already scrolled past while a profile was
+still building.
+
+### Fixed
+
+- **A log pane follows the tail only while you are already at the bottom.** Scroll
+  up to read something and the next line of output no longer throws you back
+  down; scroll to the bottom again and it resumes following. Nine panes across
+  the app had the old behaviour, not one: Create Chart, Measure, Build Profile,
+  Check and Refine, the spot-read window and the tool windows.
+
+  Two further doors into the same panes needed their own fixes. The Create Chart
+  tab collapses the patch-arranging output into one live percentage line and
+  rewrites that line in place rather than appending, so it asked the "are you at
+  the bottom?" question using the answer left by the last appended line: a reader
+  who scrolled up after the percentage started ticking was thrown back down on
+  every tick. And the line naming your instrument is replaced by removing it and
+  adding the new one, so the question was asked of a log one line shorter than
+  the one you were reading. A reader one line from the bottom was pulled down,
+  and a reader at the bottom was thrown to the very top of the log. That last one
+  has been there as long as the line has, on Build Profile and on Check and
+  Refine, and nobody had reported it.
+
+## v4.2.6
+
+**A profile built from an i1Profiler measurement could record its paper white as
+almost black, and nothing said so.** That fault has been on the stable line for
+as long as the import has existed, and it is what this release is for. The rest
+of it is the same road in: a complete measurement turned away as partial, a
+measurement already sitting in a run that carried the fault in silence, an
+export ChromIQ refused to read at all, and a chart in the project you have open
+offered to you as another project's.
+
+### Fixed
+
+- **A profile built from an i1Profiler export recorded its paper white at
+  lightness 8 instead of 95.** An i1Profiler CGATS export can write its XYZ
+  columns on the 0 to 1 reflectance scale. ArgyllCMS's converter scales the
+  device columns and the spectral columns and passes the colour columns
+  straight through, so the converted measurement reached the profile builder a
+  hundredfold too small. Relative colorimetric normalises the paper white away,
+  so the profiles looked ordinary, while absolute colorimetric, paper
+  simulation and every figure in the Measurement Report were wrong and nothing
+  reported it. The scale is corrected on the way in now, using ArgyllCMS's own
+  `spec2cie` rather than ChromIQ's arithmetic, so the numbers the profile
+  builder is handed are the numbers it would have worked out for itself.
+
+  **It decides by asking the file, not by the size of the numbers.** A chart
+  made only of very dark patches has genuinely small colour numbers, and
+  ChromIQ can generate exactly such a set, so a rule that rescaled anything
+  small would destroy a correct measurement. The patch printed with no ink is
+  the bare paper, and no printable medium is black: a file whose no ink patch is
+  also its lightest and still reads almost black is on the wrong scale and can
+  be nothing else. Where a file has no bare paper patch, the measured spectra
+  are asked instead, and only when they can be trusted. A file that offers
+  neither is left exactly as it is and nothing is said, because guessing can
+  ruin a good measurement and saying nothing cannot. Every measurement file in
+  the project, 426 of them, is byte for byte unchanged by this.
+
+  **If you have a profile built from such a file, build it again, and import
+  the measurement again first.** The correction happens on the way in, so
+  re-importing the i1Profiler export is what produces a measurement with its
+  colours on the right scale. Building again from the file already in the run
+  folder would reproduce the fault exactly.
+
+- **A measurement already in a run now says when its colours are on the wrong
+  scale.** A file converted by an earlier version still carries the fault, and
+  Build Profile used to arm its button and say nothing. The measurement line
+  names it, and the Build button's tooltip explains what to do about it. Your
+  file is not touched and the build is not forbidden: what it owes you is that
+  it is not silent.
+
+- **A complete measurement of a ChromIQ chart was refused as partial.** A
+  printed sheet is filled to the end of its last strip, so a 400 colour chart
+  is laid out as 414 patches. Two places counted those fill up rows as colours
+  you were meant to measure. The Measure tab refused a complete import outright
+  ("Nothing has been imported, measure again") and the Build Profile import
+  filed it with "part of the chart was not measured". Both go through one
+  counting rule now, and it knows the fill up rows of both layout engines.
+
+- **An i1Profiler export of device values and spectral readings is read.** Such
+  a file converts cleanly and comes out with no separate colour columns.
+  ArgyllCMS builds a profile from it without complaint; ChromIQ asked for a
+  colour column that was never going to be there and turned the file away.
+
+- **A chart in the project you have open was announced as another project's.**
+  The check compared the open project's folder as configured against the
+  chart's folder as resolved, so the moment your ChromIQ folder was reached
+  through a symlink the two spellings of one folder disagreed and the run's own
+  chart was offered as a stranger's. No chart was ever lost to it; the question
+  you were asked was the wrong one.
+
 ## v4.2.5
 
 **Five things an audit of the beta-4 plan found on the stable line.** None of
