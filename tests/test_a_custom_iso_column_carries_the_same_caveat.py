@@ -337,6 +337,7 @@ def test_that_sweep_can_actually_see_those_files():
 _DENIAL_BY_LANGUAGE: "dict[str, str]" = {
     # "it is not a test against that standard"
     "de": "keine Prüfung gegen diese Norm",
+    "fr": "ce n'est pas un test par rapport à cette norme",
 }
 
 #: Every sentence whose job includes the denial. Taken from the module rather
