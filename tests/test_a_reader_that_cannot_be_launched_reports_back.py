@@ -39,6 +39,19 @@ import tempfile
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _argyll_path_is_put_back():
+    """These tests point the worker's shared settings at a folder with no
+    Argyll in it. Put the value back, or a later test on the same worker
+    cannot lay out a chart (gate 1 on 23db5202 lost
+    test_a_demo_preset_the_page_table_cannot_count_takes_its_layouts to it)."""
+    from core.settings import AppSettings
+    s = AppSettings()
+    before = s.get("argyll_bin_path")
+    yield
+    s.set("argyll_bin_path", before)
+
+
 @pytest.fixture
 def runner_with_no_argyll(qapp, monkeypatch, tmp_path):
     from core.argyll_runner import ArgyllRunner
