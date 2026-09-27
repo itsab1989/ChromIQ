@@ -2205,6 +2205,62 @@ def limits_from_json(doc: "dict | None",
     return out
 
 
+#: **EVERY NUMBER CHROMIQ HAS SHIPPED ON THE TWO EVENNESS ROWS BEFORE BETA 45,
+#: PER SET (B8-1501).** A run an earlier ChromIQ bound (before K31, beta 40)
+#: carries a COPY of its set's numbers, and `run_limits` starts a new report of
+#: that run from the copy. The evenness rows changed meaning in beta 45: the
+#: filter takes the noise's average share out, and the limits were set for the
+#: filtered figure (B8-1476). Knut, #182 5857473253: a new report *"will
+#: recreate the whole report according to the new standard"*. So a copied
+#: number that is one ChromIQ shipped for that set is not the user's; it is
+#: replaced by what the set holds now, and a number the user changed stays.
+#: From `git log -G'uniformity_' -- workflow/compliance_sets.py`: 63aafc37
+#: (2026-09-23), 86083f46 (E3), c8e2b3bf (B8-1099), superseded by 9e32ecea.
+#: The two read-only ISO sets are never the user's, so their rows always take
+#: what the set holds now (the standard's figures, converted).
+FORMER_EVENNESS_FACTORY: "dict[str, dict[str, frozenset]]" = {
+    "chromiq_default": {"uniformity_sd": frozenset({1.5}),
+                        "uniformity_de00_max_from_mean": frozenset({1.0})},
+    "chromiq_tight": {"uniformity_sd": frozenset({0.75}),
+                      "uniformity_de00_max_from_mean": frozenset({0.5})},
+    "chromiq_quick": {"uniformity_sd": frozenset({3.0, 1.5}),
+                      "uniformity_de00_max_from_mean": frozenset({2.0, 1.0})},
+    "custom_iso_12647_7": {"uniformity_sd": frozenset({1.5, 1.0}),
+                           "uniformity_de00_max_from_mean": frozenset({1.0})},
+    "custom_iso_12647_8": {"uniformity_sd": frozenset({1.5}),
+                           "uniformity_de00_max_from_mean": frozenset({1.0})},
+}
+
+EVENNESS_ROW_IDS: "tuple[str, ...]" = (
+    "uniformity_sd", "uniformity_de00_max_from_mean")
+
+
+def refresh_bound_evenness(values: "dict[str, Limit]", set_id: str,
+                           overrides: "dict | None") -> "dict[str, Limit]":
+    """*values*, a run's bound copy of *set_id*, with the two evenness rows
+    brought to what the set holds now where the copy holds a number ChromIQ
+    shipped for them before beta 45 (B8-1501, `FORMER_EVENNESS_FACTORY`), and
+    always on a read-only ISO set. A number the user chose, or a row the copy
+    does not carry, is left as it is. Every other row is untouched."""
+    if not is_known_set(set_id):
+        return values
+    now = effective_limits(set_id, overrides)
+    former = FORMER_EVENNESS_FACTORY.get(set_id, {})
+    read_only = not SET_BY_ID[set_id].editable
+    out = dict(values)
+    for rid in EVENNESS_ROW_IDS:
+        if rid not in out or rid not in now:
+            continue
+        cell = out[rid]
+        num = cell.number if getattr(cell, "is_numeric", False) else None
+        was_factory = (num is not None
+                       and any(abs(float(num) - f) < 1e-9
+                               for f in former.get(rid, ())))
+        if read_only or was_factory:
+            out[rid] = now[rid]
+    return out
+
+
 def is_edited(values: "dict[str, Limit]", set_id: str,
               overrides: "dict | None") -> bool:
     """True when a run's stored copy differs from its set's effective values on

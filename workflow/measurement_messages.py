@@ -3367,6 +3367,26 @@ M_REPORT_WORKED_OUT_EARLIER = _m(
     "out the current way.",
     approved=True)   # Knut, #182 5831246553 (the UI reference removed)
 
+# --- PROPOSED: a new report with a date whose measurement is gone (B8-1500) --
+# Knut, #182 5857473253: a new or updated report is made entirely by the
+# current version, every date worked out again from its measurement. Where a
+# date's measurement is no longer on disk as it was measured, nothing can be
+# worked out again, and its figures are the ones an earlier report saved. The
+# report says so, rather than mixing them silently with this version's.
+M_REPORT_NOT_WORKED_OUT = _m(
+    "M-REPORT-NOT-WORKED-OUT",
+    "Figures an earlier report saved",
+    "The measurements of {dates} are no longer on disk as they were "
+    "measured, so they could not be worked out again. Their figures are the "
+    "ones an earlier report saved, worked out by the version of ChromIQ that "
+    "saved it.",
+    count_key="n",
+    body_one=
+    "The measurement of {dates} is no longer on disk as it was measured, so "
+    "it could not be worked out again. Its figures are the ones an earlier "
+    "report saved, worked out by the version of ChromIQ that saved it.",
+    approved=False)
+
 # --- APPROVED (K59, Knut #182 5849392788; approved in 5850164956): A SHEET PRINTED RAW, OPTION C ---
 # *"use recommended option C"*, with *"The word drift is not used at all ...
 # Use the word "Change" instead of "Drift""* and, on the cell word, *"can we
@@ -3675,7 +3695,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE,
     M_REPORT_STRIP_CORNERS_PREDICTED, M_REPORT_STRIP_CORNERS_IDEAL,
     M_REPORT_SOLIDS_PREDICTED, M_REPORT_PAPER_AGAINST_PROFILE,
-    M_REPORT_WORKED_OUT_EARLIER,
+    M_REPORT_WORKED_OUT_EARLIER, M_REPORT_NOT_WORKED_OUT,
     *K59_TEXTS, M_REPORT_MIXED_OPENING_RUNS,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,

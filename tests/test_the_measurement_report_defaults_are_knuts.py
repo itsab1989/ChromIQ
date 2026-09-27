@@ -883,7 +883,19 @@ def test_the_detailed_section_survives_a_report_of_another_shape(tmp_path,
     try:
         dlg._detail_check.setChecked(True)
         qapp.processEvents()
-        html = dlg._report_body_html(dlg._runs_for_report(), for_pdf=False)
+        # **THE ROWS ARE THE FILES THEMSELVES (B8-1500).** Ticking the box
+        # moves a setting, and since Knut's ruling (#182 5857473253) a report
+        # whose settings moved is the report as it would be updated: every
+        # date worked out again from its measurement, which is not this
+        # shape. The shape is what a SAVED report holds, and the renderer is
+        # what must survive it, so the page is drawn from the saved files.
+        rows = []
+        for r in dlg._runs_for_report():
+            p = Path(r["_origin_dir"]) / "reports" / r["_report_file"]
+            rep = json.loads(p.read_text(encoding="utf-8"))
+            rep.update({k: v for k, v in r.items() if k.startswith("_")})
+            rows.append(rep)
+        html = dlg._report_body_html(rows, for_pdf=False)
         assert html, "the document did not render at all"
         # …and what it could print, it printed: the L* it has, and the patch
         # named by the key the file uses.

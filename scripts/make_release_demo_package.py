@@ -437,6 +437,11 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "not a project: Report Limits: the raised 4 after the two evenness cells of the ISO 12647-7:2016 and ISO 12647-8:2021 values columns, and its note under the table; the (i) of either evenness row: the description, the three conversion factors and both standards' figures (B8-1476)",
         "Create Chart presets: “Which presets can be used for verification?”, any preset whose pages meet the page rules: “This chart can be judged on these metrics.” under the two evenness rows (B8-1476)",
     ]),
+    ("§53", "K64:", [
+        "Report-Limits-Evenness/run1 of a package of beta 44 or earlier (its reports were saved before the filter), Run type Verification: the report the window opens on reads the evenness figures its file holds; New report…, all four dates, Generate report: the same rows read this version's working, with the filter (B8-1500)",
+        "not a project: Report Limits: the sentence on the two Custom columns under the table names the evenness rows as the standard's figures converted, with note 4 (B8-1503)",
+        "not a project: a run bound by beta 39 or earlier to ChromIQ default: a New report starts on 1.8 and 1.2 for evenness, and reads no “(edited)” (B8-1501)",
+    ]),
 ]
 
 
@@ -553,6 +558,10 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     # one.
     "M-REPORT-WORKED-OUT-EARLIER": [
         "not reachable from this package: every report in it is written by this version; open a report saved by beta 41 or earlier on a FROM PROFILE GAMUT date (for example Report-Limits-Second-Route/run2 from the beta 41 package)",
+    ],
+    # B8-1500: a new report over a date whose measurement is gone.
+    "M-REPORT-NOT-WORKED-OUT": [
+        "Report-Limits-Evenness/run1: move one dated verification's .ti3 out of its folder, then New report…, all four dates: the foot of Report Scope names that date",
     ],
     "M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW": [
         "not reachable from this package: every report in it is written by this version; select a report saved by beta 41 or earlier on a FROM PROFILE GAMUT date (for example Report-Limits-Second-Route/run2, 2029-03-26, from the beta 41 package), change nothing, and press Generate report",

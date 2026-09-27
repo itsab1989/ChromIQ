@@ -72,8 +72,19 @@ def test_the_report_neither_speaks_to_the_reader_nor_explains_chromiq(
             dlg._forget_limits()
             dlg._sync_limit_controls()
         # the printing block names the route; put the one K18 is about on it
+        # …ON DISK TOO (B8-1500): with a setting moved the page is the report
+        # as it would be updated, every date worked out again from its
+        # measurement and its print record, so a route written only into the
+        # rows in memory is not what that page reads.
         for r in dlg._runs_for_report():
             r.setdefault("printing", {})["route"] = "chromiq"
+            origin = r.get("_origin_dir")
+            if origin and r.get("ti3"):
+                stem = Path(str(r["ti3"])).stem
+                (Path(origin) / f"{stem}.print.json").write_text(
+                    json.dumps(dict(r["printing"])), encoding="utf-8")
+        dlg._session_workings = {}
+        dlg._judged_cache = {}
         dlg._detail_check.setChecked(True)
         text = _text(dlg)
         assert "Colour management at the printer" in text

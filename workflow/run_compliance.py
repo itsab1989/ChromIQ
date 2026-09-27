@@ -196,6 +196,13 @@ def run_limits(run: "Run | None", overrides: "dict | None",
     limits = limits_from_json(meta.compliance_thresholds,
                               meta.compliance_set_id)
     known = is_known_set(meta.compliance_set_id)
+    if known:
+        # B8-1501 (Knut, #182 5857473253): a new report is made by the
+        # current version, so an earlier ChromIQ's copy of the evenness rows
+        # takes what the set holds now, unless the user chose the number.
+        from workflow.compliance_sets import refresh_bound_evenness
+        limits = refresh_bound_evenness(limits, meta.compliance_set_id,
+                                        overrides)
     return RunLimits(
         meta.compliance_set_id,
         set_label(meta.compliance_set_id, meta.compliance_set_label),

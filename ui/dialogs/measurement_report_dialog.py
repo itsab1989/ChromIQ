@@ -928,6 +928,14 @@ RECORD_KEY = "_record"
 #: Session key: this version works the row out differently from the earlier
 #: version that saved it (`_worked_out_differently`).
 WORKED_OUT_EARLIER_KEY = "_worked_out_earlier"
+#: Session key: the row IS this version's working of its measurement, done in
+#: this session (built by `build_report` when the window read it, or by
+#: `_worked_out_again`), so a new report need not work it out again (B8-1500).
+WORKED_OUT_NOW_KEY = "_worked_out_now"
+#: Session key: a NEW report's row that could not be worked out again, because
+#: its measurement is no longer on disk as it was, so its figures are the ones
+#: an earlier report saved (B8-1500; the page says so, M-REPORT-NOT-WORKED-OUT).
+NOT_WORKED_OUT_AGAIN_KEY = "_not_worked_out_again"
 
 
 def _worked_out_differently(saved: dict, rebuilt: dict) -> bool:
@@ -1017,9 +1025,9 @@ def _the_saved_record(saved: dict, rebuilt: dict) -> "dict | None":
     B8-1091), or None when it kept no verdict (it is then judged live, from
     the rebuilt report, as before).
 
-    §6: a saved report is a record; the rebuild computes the blocks it never
-    had and re-grades nothing. So the record is the saved report itself,
-    completed with the blocks it lacks, and never overwritten by them: its
+    §6: a saved report is a record, and since B8-1500 (Knut, #182
+    5857473253) it is shown EXACTLY as it was saved: the record is the saved
+    report itself, never completed with blocks from the rebuild: its
     numbers, its yardstick, its print record and its paper white are the
     ones its verdict was worked out from. A rule block it lacks
     (`RULE_BLOCKS`) is NOT taken from the rebuild, because that block would
@@ -1036,7 +1044,17 @@ def _the_saved_record(saved: dict, rebuilt: dict) -> "dict | None":
     rec = dict(rebuilt or {})
     if saved.get("schema", 0) >= REPORT_SCHEMA \
             and (saved.get("de00") or {}).get("avg_all") is not None:
-        rec.update(saved)
+        # **EXACTLY AS IT WAS SAVED (B8-1500; Knut, #182 5857473253: "Old
+        # reports should stay exactly as they were saved, without
+        # recalculating").** This used to be the saved report COMPLETED with
+        # the blocks it never had, taken from this version's working: a report
+        # saved before evenness existed showed an evenness figure it never
+        # held, worked out with a filter it never had. A block the saved
+        # report lacks now stays absent, and its row says it is not in this
+        # saved report (`row_values`, ``not_computed``). Only a report of an
+        # older SCHEMA, which cannot lend its metric block at all, still takes
+        # the rebuild's numbers below.
+        rec = dict(saved)
     else:
         rec.update({k: saved[k] for k in
                     ("pass_thresholds", "verdict", "compliance",
@@ -4204,6 +4222,7 @@ class MeasurementReportDialog(QDialog):
                         # were judged" line cannot contradict its words.
                         record = _the_saved_record(saved_rep, dict(rep))
                         rep.update(kept)
+                        rep[WORKED_OUT_NOW_KEY] = True
                         if record is not None:
                             rep[RECORD_KEY] = record
                     except Exception:  # noqa: BLE001
@@ -4247,6 +4266,7 @@ class MeasurementReportDialog(QDialog):
                         rep = build_report(cand, argyll_bin=self._argyll_bin())
                         rep["_origin_dir"] = str(d)
                         rep["_fresh"] = True       # never saved: graded live
+                        rep[WORKED_OUT_NOW_KEY] = True
                         runs.append(rep)
                     except Exception:  # noqa: BLE001 — one bad date must
                         continue       # not empty the whole history
@@ -4303,6 +4323,7 @@ class MeasurementReportDialog(QDialog):
             fresh = build_report(ti3, argyll_bin=self._argyll_bin())
             fresh["_origin_dir"] = str(ti3.parent)
             fresh["_fresh"] = True
+            fresh[WORKED_OUT_NOW_KEY] = True
             runs.append(fresh)
         runs.sort(key=lambda r: str(r.get("created") or ""))
         from workflow.measurement_report import annotate_raw_drift
@@ -7006,7 +7027,10 @@ class MeasurementReportDialog(QDialog):
         report's or any other's: they are read-only history (section 25).
         """
         from datetime import datetime as _dt
-        from workflow.measurement_report import (JUDGED_KEY, document_file,
+        from workflow.measurement_report import (JUDGED_KEY,
+                                                 JUDGED_REPORT_KEY,
+                                                 NOT_WORKED_OUT_AGAIN,
+                                                 document_file,
                                                  document_home,
                                                  document_measurement_key,
                                                  document_updated_stamps,
@@ -7129,6 +7153,21 @@ class MeasurementReportDialog(QDialog):
                     stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                                   set_label=lim.label_en, edited=lim.edited)
                     m2[JUDGED_KEY] = judged_block(rep)
+                    # **AND THE FIGURES IT WAS JUDGED ON (B8-1500; Knut, #182
+                    # 5857473253).** A report of several dates recorded only
+                    # the verdicts, and read each date's numbers from that
+                    # date's own saved report, so the page, the graphs and the
+                    # PDF showed an earlier version's numbers under this
+                    # version's words, and would show whatever that file held
+                    # later. The working it was judged on is recorded with the
+                    # verdict, and a saved report of several dates is shown
+                    # from it, exactly as it was saved.
+                    snap = {k: v for k, v in rep.items()
+                            if k not in ("pass_thresholds", "compliance",
+                                         "verdict", "document")}
+                    if r.get(NOT_WORKED_OUT_AGAIN_KEY):
+                        snap[NOT_WORKED_OUT_AGAIN] = True
+                    m2[JUDGED_KEY][JUDGED_REPORT_KEY] = snap
                 doc_members.append(m2)
         #: The document file it had before this press (Update only).
         old_doc_file = (Path(str(updating["file"]))
@@ -7202,8 +7241,14 @@ class MeasurementReportDialog(QDialog):
         elif one is not None:
             try:
                 rep = dict(by_key.get(one_key) or self._worked_out_again(one))
+                gone = bool(rep.get(NOT_WORKED_OUT_AGAIN_KEY))
                 for k in [k for k in rep if k.startswith("_")]:
                     rep.pop(k, None)
+                # B8-1500: said on the page wherever this report is shown.
+                if gone:
+                    rep[NOT_WORKED_OUT_AGAIN] = True
+                else:
+                    rep.pop(NOT_WORKED_OUT_AGAIN, None)
                 stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                               set_label=lim.label_en, edited=lim.edited)
                 if _tid:
@@ -13150,7 +13195,8 @@ class MeasurementReportDialog(QDialog):
         §25.3 is one set for the whole report, always, and the Printing record
         is a report.
         """
-        from workflow.measurement_report import (recorded_document,
+        from workflow.measurement_report import (JUDGED_REPORT_KEY,
+                                                 recorded_document,
                                                  recorded_judgement)
         if not rows:
             return rows
@@ -13163,6 +13209,23 @@ class MeasurementReportDialog(QDialog):
                                     r.get("_origin_dir") or "")
                  if doc is not None else None)
             if j is not None:
+                snap = j.get(JUDGED_REPORT_KEY)
+                if isinstance(snap, dict):
+                    # **THE NUMBERS THE REPORT WAS JUDGED ON (B8-1500; Knut,
+                    # #182 5857473253: "the exact data that was saved at the
+                    # time it was saved, is recreated and shown").** A report
+                    # of several dates written since beta 45 records each
+                    # date's working beside its verdict, and is shown from
+                    # it, never from the date's own saved report.
+                    c = dict(snap)
+                    c.update({k: v for k, v in r.items()
+                              if k.startswith("_") and k not in (
+                                  RECORD_KEY, WORKED_OUT_EARLIER_KEY,
+                                  NOT_WORKED_OUT_AGAIN_KEY)})
+                    c.update({k: v for k, v in j.items()
+                              if k != JUDGED_REPORT_KEY})
+                    out.append(c)
+                    continue
                 # THE DOCUMENT'S WORDS BESIDE THE RECORD'S EXPLANATION (M1,
                 # B8-1091): what the document recorded of how the colours
                 # were judged (since this fix, `judged_block`), else what the
@@ -13269,13 +13332,31 @@ class MeasurementReportDialog(QDialog):
         # ONE WORKING PER MEASUREMENT PER PRESS (K39-2): the question after
         # the press and the write both ask, and must be given the same rows.
         cache = getattr(self, "_press_cache", None)
+        pressing = isinstance(cache, dict)
+        # **AND A NEW REPORT ON THE PAGE IS WORKED OUT THE SAME WAY (B8-1500;
+        # Knut, #182 5857473253: "When updating a report or creating a new
+        # report, then the new version of the app will recreate the whole
+        # report according to the new standard").** Outside a press the page
+        # asks too (`_judged_live`), and it asks on every repaint, so the
+        # working is kept for the window's session. A press still reads the
+        # disk again (M4), and what it reads replaces the kept working.
+        if not pressing:
+            if r.get(WORKED_OUT_NOW_KEY):
+                return r
+            cache = getattr(self, "_session_workings", None)
+            if cache is None:
+                cache = self._session_workings = {}
         ck = (repr(self._run_key(r)), origin, str(r.get("ti3") or ""))
-        if isinstance(cache, dict) and ck in cache:
+        if ck in cache:
             hit = cache[ck]
             return r if hit is None else dict(hit)
         new = self._worked_out_again_from_disk(r, origin)
-        if isinstance(cache, dict):
-            cache[ck] = None if new is r else dict(new)
+        cache[ck] = None if new is r else dict(new)
+        if pressing:
+            kept = getattr(self, "_session_workings", None)
+            if kept is None:
+                kept = self._session_workings = {}
+            kept[ck] = cache[ck]
         return new
 
     def _worked_out_again_from_disk(self, r: dict, origin: str) -> dict:
@@ -13310,7 +13391,9 @@ class MeasurementReportDialog(QDialog):
                 new[k] = r[k]
         new.update({k: v for k, v in r.items()
                     if k.startswith("_") and k != RECORD_KEY
-                    and k != WORKED_OUT_EARLIER_KEY})
+                    and k != WORKED_OUT_EARLIER_KEY
+                    and k != NOT_WORKED_OUT_AGAIN_KEY})
+        new[WORKED_OUT_NOW_KEY] = True
         return new
 
     def _judged_live(self, r: dict, lim) -> dict:
@@ -13328,7 +13411,22 @@ class MeasurementReportDialog(QDialog):
         hit = cache.get(key)
         if hit is not None and hit[0] is r:
             return hit[1]
-        c = dict(r)
+        # **A NEW REPORT IS MADE ENTIRELY BY THIS VERSION (B8-1500; Knut,
+        # #182 5857473253).** This judged the row the window READ, which for
+        # a date an earlier version reported is that report's saved numbers:
+        # a report over dates saved before beta 45 plotted and judged their
+        # unfiltered evenness against the filtered limits, beside the filtered
+        # dates after them. Every row is now worked out again from its
+        # measurement (`_worked_out_again`); a row whose measurement is no
+        # longer on disk keeps what was saved and SAYS SO on the page
+        # (`NOT_WORKED_OUT_AGAIN_KEY`, M-REPORT-NOT-WORKED-OUT).
+        base = self._worked_out_again(r)
+        c = dict(base)
+        c.pop(RECORD_KEY, None)
+        c.pop(WORKED_OUT_EARLIER_KEY, None)
+        if (base is r and r.get("_origin_dir")
+                and not r.get(WORKED_OUT_NOW_KEY)):
+            c[NOT_WORKED_OUT_AGAIN_KEY] = True
         stamp_verdict(c, lim.limits, set_id=lim.set_id,
                       set_label=lim.label_en, edited=lim.edited)
         if len(cache) > 4000:
@@ -14078,6 +14176,7 @@ class MeasurementReportDialog(QDialog):
                     + html.escape(note) + "</div>")
         return (out + self._scope_deleted_runs_html()
                 + self._worked_out_earlier_html(runs)
+                + self._not_worked_out_again_html(runs)
                 + self._scope_warnings_html(sc["warnings"])
                 + self._scope_notes_html(sc.get("notes") or []))
 
@@ -14099,6 +14198,31 @@ class MeasurementReportDialog(QDialog):
             return ""
         from workflow import measurement_messages as M
         title, body = M.M_REPORT_WORKED_OUT_EARLIER.render()
+        return (f"<div style='color:{_C['dim']};margin-top:10px'><b>"
+                + html.escape(title) + "</b><br>" + html.escape(body)
+                + "</div>")
+
+    @staticmethod
+    def _not_worked_out_again_html(runs: list) -> str:
+        """One line naming the dates of a report whose measurement was no
+        longer on disk when the report was made, so their figures are an
+        earlier report's (B8-1500; Knut, #182 5857473253: a new report is made
+        entirely by the current version; M-REPORT-NOT-WORKED-OUT). Empty when
+        every date was worked out. Never raises."""
+        from workflow.measurement_report import NOT_WORKED_OUT_AGAIN
+        try:
+            dates = [str(r.get("created") or "")[:10] or "?"
+                     for r in runs or []
+                     if isinstance(r, dict)
+                     and (r.get(NOT_WORKED_OUT_AGAIN_KEY)
+                          or r.get(NOT_WORKED_OUT_AGAIN))]
+        except Exception:                              # noqa: BLE001
+            return ""
+        if not dates:
+            return ""
+        from workflow import measurement_messages as M
+        title, body = M.M_REPORT_NOT_WORKED_OUT.render(
+            dates=", ".join(dates), n=len(dates))
         return (f"<div style='color:{_C['dim']};margin-top:10px'><b>"
                 + html.escape(title) + "</b><br>" + html.escape(body)
                 + "</div>")

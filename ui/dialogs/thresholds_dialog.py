@@ -1351,18 +1351,40 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             # from it: Knut's researched figures stay their starting numbers,
             # and since 2026-09-24 (#182 5815346140) a user's own file does
             # not replace them either.
-            custom = tr(
-                "The two Custom columns start from limits researched from "
-                "industry practice, and from ChromIQ's own numbers on the rows "
-                "that research does not cover, so that every row ChromIQ can "
-                "measure has a limit to be judged against. Neither source is "
-                "the published tolerances of ISO 12647-7 or ISO 12647-8: "
-                "where ChromIQ ships those, they are in the read-only ISO "
-                "column, and a Custom column does not start from them. "
-                "Figures you supply from your own copy with "
-                "\u201cReference values\u2026\u201d at the top of this window "
-                "go into that read-only column too, never into a Custom one. "
-                "Every limit here is yours to change.")
+            # **THE EVENNESS ROWS ARE THE EXCEPTION (B8-1503).** Since B8-1476
+            # the two Custom columns' evenness rows ARE the standards' figures
+            # converted, so "Neither source is the published tolerances" was
+            # false for them. Knut accepted this wording verbatim, #182
+            # 5857473253 on our 5857381652, item 3. It names note \u2074, so the
+            # reference is written only when note \u2074 is (an ISO column hidden
+            # takes the note away; a pointer to a note that is not there is
+            # the fault the legend's comment above describes).
+            if self._converted_sets_shown():
+                custom = tr(
+                    "The two Custom columns start from limits researched "
+                    "from industry practice, and from ChromIQ's own numbers "
+                    "on the rows that research does not cover, so that every "
+                    "row ChromIQ can measure has a limit to be judged "
+                    "against. Apart from the two evenness rows, which are the "
+                    "standard's figures converted to ChromIQ's method (note "
+                    "\u2074), neither source is the published tolerances of "
+                    "ISO 12647-7 or ISO 12647-8: where ChromIQ ships those, "
+                    "they are in the read-only ISO column, and a Custom "
+                    "column does not start from them. Every limit here is "
+                    "yours to change.")
+            else:
+                custom = tr(
+                    "The two Custom columns start from limits researched "
+                    "from industry practice, and from ChromIQ's own numbers "
+                    "on the rows that research does not cover, so that every "
+                    "row ChromIQ can measure has a limit to be judged "
+                    "against. Apart from the two evenness rows, which are the "
+                    "standard's figures converted to ChromIQ's method, "
+                    "neither source is the published tolerances of "
+                    "ISO 12647-7 or ISO 12647-8: where ChromIQ ships those, "
+                    "they are in the read-only ISO column, and a Custom "
+                    "column does not start from them. Every limit here is "
+                    "yours to change.")
         else:
             custom = tr(
                 "The two Custom columns start from limits researched from "

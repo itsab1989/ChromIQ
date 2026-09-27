@@ -138,6 +138,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §47 | K57: the "made for verification" mark is ● not ★; a Content chosen in Preferences with the clip border Off leaves it Off; a Content change in Create Chart reloads no other field | 2026-09-26, 5848511977, 5848514529 | the rulings are Knut's; what was built (B8-1387, B8-1388; B8-1389 verified) NOT confirmed |
 | §50 | K61: every quoted metric name is the Report Limits label exactly, "(within gamut)" after it; the presets window names the patches in a ninth and about how many the limit takes; the window judges a laid-out preset on the values printtarg prints; noise-floor demo pairs (R18, R19) and runs (Evenness run9, run10) | 2026-09-27, 5851645723 | the requests are Knut's (Confirmed); what was built NOT confirmed (50.2 to 50.4); two questions open (B8-1447, B8-1448) |
 | §51 | K62: Knut's high-pass filter on both evenness rows; the limits derived from real printers (tight 1.5 / 1.0, default 1.8 / 1.2, quick 2.5 / 1.7, Custom ISO 12647-7 1.5 / 1.0, Custom ISO 12647-8 3.0 / 2.0); the locked ISO sets' evenness figures converted (1.5 / 1.0, 3.0 / 2.0) with a note in Report Limits; the three conversion factors and the ratio guide in the help; the presets window's "can be judged" text | 2026-09-27, 5855259490; 5855780690 | the rulings and texts are Knut's (Confirmed); what was built from them NOT confirmed |
+| §53 | K64: a saved report chosen in "Report shown" is its saved file, nothing recalculated or added; a new or updated report works every date out again with the current filter and limits, and a report of several dates records the figures it judged; a run an older build bound starts new reports on the current evenness limits unless the user chose them; the Report Limits note on the Custom columns | 2026-09-27, 5857473253 | the rulings are Knut's (Confirmed); what was built NOT confirmed |
 | §49 | K59: option C for a sheet printed raw (INFO with a numbered note where relevant, N-A with its note, the raw print named once under "Judged against"); "drift" not used in the report, its graphs, guide, help, window or PDF; "Change since the previous raw check"; the raw openings Knut chose (conditional form, plural, Report Scope sentence), true of exactly the rows judged; the mixed opening without "drift"; the two FROM PROFILE GAMUT state lines | 2026-09-26, 5849392788; 5850164956 | the answers are Knut's (Confirmed); the fourteen texts APPROVED by Knut in 5850164956 (Confirmed); K60, his answers D1 to D3 (Confirmed) and what was built from them (NOT confirmed, 49.6); one gap left (B8-1396) |
 | §48 | K58: the ChromIQ branding's wordmark at the end of the clip border, like the Notes box, for Side Left/Right x Flip 180 Off/On, the text in the box beyond it | 2026-09-18 5730034611, 2026-09-26 5848747795 | the design is Knut's; what was built (B8-1390) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
@@ -9678,5 +9679,83 @@ waits for his confirmation.
   plain otherwise. `tests/test_help_windows_show_their_lead_ins_in_bold.py`
   holds the renderer, the pairs in every catalogue, the German marks, the
   evenness help, and that no window shows a mark as two asterisks.
+
+**Status:** the rulings are Knut's (Confirmed); what was built NOT confirmed.
+
+## 53. K64: a saved report is shown as it was saved, a new report is made by the current version (#182, 2026-09-27, beta 45)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-27, #182
+[5857473253](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5857473253),
+answering our [5857381652](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5857381652)
+(challenge round 3 of beta 45, B8-1500, B8-1501, B8-1503), for exactly the
+rulings quoted here. What was built from them is in 53.2 and waits for his
+confirmation.
+
+**53.1 The rulings, verbatim.**
+
+* On reports saved before beta 45 (B8-1500): *"Old reports should stay
+  exactly as the they were saved, without recalculating. When updating a
+  report or creating a new report, then the new version of the app will
+  recreate the whole report according to the new standard."*
+* On runs whose limits an older build stored (B8-1501): *"I repeat. Old
+  reports should stay exactly as the they were saved, without recalculating.
+  This means when viewing a report, but selecting a report in the Report
+  shown pulldown, the exact data that was saved at the time it was saved, is
+  recreated and shown on screen, and if a pdf is created. When updating a
+  report or creating a new report, then the new version of the app will
+  recreate the whole report according to the new standard, and making a pdf
+  will print the new information as it is presented, as usual."*
+* On the Report Limits note (B8-1503): *"yes"* to our wording.
+
+**This SUPERSEDES** the revision of §6 that completed a saved report with the
+blocks it never had ("a report missing a block the current builder always
+writes is stale, at any schema", and the rebuild "computes rows that were
+never computed"), and B8-1091's record "completed with the blocks it lacks"
+(§33.6's amendment). A saved report's verdict was already kept; now its
+numbers are too, and nothing is added to it.
+
+### ⏳ Awaiting confirmation: what was built from them
+
+**Confirmed by:** *nobody yet.*
+
+**53.2 Built.**
+
+* **A saved report, chosen in "Report shown", is its saved file.** Its
+  numbers, verdict words and explanations are the ones it was saved with; a
+  block it does not hold stays absent, and its row says it is not in this
+  saved report. The PDF prints the same page. Two older cases are unchanged
+  and named here so they are not mistaken for this rule: a report of an older
+  schema (no `avg_all`) cannot lend its metric block at all and
+  still takes the rebuild's numbers beside its saved verdict; a report saved
+  with no verdict at all is still judged live against the run's set and says
+  so (§6).
+* **A new or updated report works every date out again** from its
+  measurement with this version's filter and the limits it is judged against,
+  on the page before Generate, in the file Generate writes, and in its PDF;
+  dates whose reports an earlier version saved included. A date whose
+  measurement is no longer on disk as it was measured keeps the figures its
+  earlier report saved, and the report says so at the foot of Report Scope,
+  naming the dates (M-REPORT-NOT-WORKED-OUT, §M-PROPOSED, our words); a
+  report saved that way keeps saying so.
+* **A report of several dates records the figures it judged.** Each
+  measurement entry's `judged` block now carries that date's working
+  (`report`) beside its verdict, and the report opened again is drawn from
+  it, never from the date's own file, which may say something else by then.
+  A report of several dates written before beta 45 has no working recorded
+  and is shown as before, from the dates' own files.
+* **A run whose limits an older build stored (B8-1501).** A new report of it
+  starts from the current limits on the two evenness rows: a copied number
+  that is one ChromIQ shipped for that set before beta 45 takes what the set
+  holds now (converted, for the two ISO sets, whose rows are never the
+  user's); a number the user chose stays the user's. So an untouched copy no
+  longer reads "(edited)". Every other row of the copy is as stored.
+* **The Report Limits note (B8-1503)** carries the accepted wording, with
+  "(note ⁴)" only when note ⁴ is on the page (an ISO column hidden takes it
+  away). Where ChromIQ ships no ISO figures at all, the older sentence
+  "which ChromIQ does not hold" is unchanged and not yet reworded.
+* Tests: `tests/test_b8_1500_a_saved_report_as_saved_a_new_one_worked_out_now.py`,
+  each behaviour proved red under its mutation.
 
 **Status:** the rulings are Knut's (Confirmed); what was built NOT confirmed.

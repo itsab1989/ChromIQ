@@ -200,6 +200,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # Re-challenge R1 of beta 39: an Update that
                                  # would leave a report of nothing is refused.
                                  "M-REPORT-UPDATE-NOTHING-LEFT",
+                                 # B8-1500 (Knut, #182 5857473253): a new
+                                 # report with a date whose measurement is no
+                                 # longer on disk says its figures are an
+                                 # earlier report's. Our words.
+                                 "M-REPORT-NOT-WORKED-OUT",
                                  "M-REPORT-DELETE-FAILED",
                                  "M-REPORT-NOT-WRITABLE",
                                  # (#182 K49, (b2): the two notes on the

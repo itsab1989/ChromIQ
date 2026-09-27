@@ -3328,6 +3328,21 @@ JUDGED_EXPLANATION_KEYS: "tuple[str, ...]" = (
     "strip_corner_aims", "condition_reference")
 
 
+#: Inside a `JUDGED_KEY` block written since beta 45 (B8-1500; Knut, #182
+#: 5857473253): the measurement's report as the document's version worked it
+#: out, less the three verdict keys beside it. A report of several dates is
+#: shown from it when it is opened again, so it shows the numbers it was
+#: judged on, whatever the date's own saved report says. A block without it was
+#: written earlier and is shown as before, from the date's own report.
+JUDGED_REPORT_KEY = "report"
+
+#: Written into a report (or a `JUDGED_REPORT_KEY` working) whose measurement
+#: was no longer on disk when the report was made, so its figures are the ones
+#: an earlier report saved and not this version's working (B8-1500). The page
+#: says so wherever it is shown (M-REPORT-NOT-WORKED-OUT).
+NOT_WORKED_OUT_AGAIN = "not_worked_out_again"
+
+
 def judged_block(report: dict) -> dict:
     """The three keys `stamp_verdict` wrote on *report*, as a `JUDGED_KEY`
     value, with how the colours were judged (`JUDGED_EXPLANATION_KEYS`)."""

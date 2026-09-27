@@ -334,7 +334,12 @@ def test_the_report_names_no_part_of_the_app(qapp, tmp_path, which):
     try:
         if which == "graded":
             choose_report_type(dlg, mr.REPORT_TYPE_FULL)
-        dlg._detail_check.setChecked(True)
+        # A SAVED report's own page, its settings untouched (B8-1500): a
+        # moved setting makes the page the report as it would be updated,
+        # which this version works out and which says nothing of an earlier
+        # one. The detail is drawn either way for the other two scenes.
+        if which != "saved-earlier":
+            dlg._detail_check.setChecked(True)
         qapp.processEvents()
         texts = []
         for for_pdf in (True, False):

@@ -30940,18 +30940,24 @@ would reach.
 - found by: B8-1490. (1) `data/i18n/parameters.uk.yaml` writes its help bodies as quoted scalars, not blocks, so the script did not carry the marks into Ukrainian; those 15 parameter helps show plain in Ukrainian (they are correct, only not bold). (2) A few help texts are hover tooltips, not ⓘ windows (for example the Preferences box "On (the default): when you read strips, ..."), and a hover tooltip is plain text, so they were left unmarked. Neither shows a stray mark.
 - where: `data/i18n/parameters.uk.yaml`, `ui/dialogs/settings_dialog.py`.
 
-### B8-1500 · OPEN · A report saved before the filter is plotted and judged beside filtered ones, and nothing reads its "filter" mark
+### B8-1500 · FIXED, awaiting confirmation · A report saved before the filter is plotted and judged beside filtered ones, and nothing reads its "filter" mark
 - blocks release: no
 - severity: MAJOR
-- status: OPEN
+- status: FIXED
 - found by: beta 45 challenge round 3, territory A. Not release-blocking only because it is Knut's call what an existing verification history shows across beta 45. B8-1476 writes `"filter": "noise_average_removed"` into every new evenness block, and nothing in ChromIQ reads it. The trend graph (`report_trend`) and a NEW report over several dates (`_judged_by_the_document`, "judged just now against the set") take each date's evenness figure from that date's SAVED report, so a history measured before beta 45 keeps its unfiltered figures and is judged against limits that were set for filtered ones, on the same line as the filtered dates after it, while the rows' help says the noise's average share "is taken away". Measured on the shipped beta 43 demo pack's Report-Limits-Evenness project, copied to a sandbox: the noisy date 2026-10-01 is plotted and judged at 1.235 / 0.685, where beta 45 reads 0.575 / 0.184 from the same .ti3; the even sheet 0.123 / 0.074 against 0.062 / 0.020. A continuing history therefore shows a step at the version change that is the filter, not the printer. Proof: `~/Desktop/ChromIQ-beta45-proof/challenge-3a/old_reports_unfiltered.py` and `.txt` (data computation, no window).
+- fix: Knut ruled, #182 5857473253 (confirmed back in 5857483490): a saved report is shown exactly as it was saved, and a new or updated report is made entirely by the current version. So `_the_saved_record` no longer completes a saved report with the blocks it lacks (a missing block stays absent and its row says it is not in the saved report); `_judged_live` judges this version's working of every date (`_worked_out_again`, kept for the window's session outside a press), so the page of a new report, the file Generate writes and its PDF carry the filtered figures for dates an earlier version reported; a report of several dates records each date's working beside its verdict (`judged.report`, `measurement_report.JUDGED_REPORT_KEY`) and is drawn from it when opened again. A date whose measurement is no longer on disk keeps its saved figures and the report says so (M-REPORT-NOT-WORKED-OUT, §M-PROPOSED, our words, flagged for Knut). Spec: `measurement_report_limits.md` §53, superseding the §6 revision that completed saved reports.
+- tests: tests/test_b8_1500_a_saved_report_as_saved_a_new_one_worked_out_now.py
+- evidence: test_a_saved_report_is_shown_with_its_saved_figures, test_a_block_the_saved_report_lacks_is_not_filled_in, test_a_new_report_works_every_date_out_again, test_a_date_whose_measurement_is_gone_says_so, test_a_report_of_several_dates_records_the_figures_it_judged (three of them red under their mutations, `~/Desktop/ChromIQ-beta45-proof/saved-vs-new/mutations.txt`)
 - where: `workflow/measurement_report.py` `report_trend`, `_trend_row_values`, `row_values`; `ui/dialogs/measurement_report_dialog.py` `_judged_by_the_document`, the trend tab.
 
-### B8-1501 · OPEN · A run an earlier ChromIQ bound keeps the old evenness limits, unconverted, and every report of it reads "(edited)"
+### B8-1501 · FIXED, awaiting confirmation · A run an earlier ChromIQ bound keeps the old evenness limits, unconverted, and every report of it reads "(edited)"
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: beta 45 challenge round 3, territory A. `run_limits` uses a bound copy's numbers as they were stored (only builds before K31 wrote one; the evenness rows exist on copies bound from 2026-09-22). After B8-1476 such a copy judges the filtered figures against the pre-filter limits, and an ISO 12647-7 copy applies the standard's own 0.5 / 2.0 to ChromIQ's rows, which Knut ruled out ("use the converted values", #182 5855780690). `is_edited` compares the copy with today's set, so each such run now reads "(edited)" though nobody edited anything, the fault class of CH-15's absent-row carve-out arriving through a factory change. Measured: a beta 39 style copy of ChromIQ default judges 1.5 / 1.0 against today's 1.8 / 1.2, edited=True; of ISO 12647-7, 0.5 / 2.0 against 1.5 / 1.0, edited=True. Proof: `~/Desktop/ChromIQ-beta45-proof/challenge-3a/legacy_bound_run.py` and `.txt` (data computation, no window).
+- fix: `compliance_sets.refresh_bound_evenness`, called by `run_limits`: a bound copy's evenness number that ChromIQ shipped for that set before beta 45 (`FORMER_EVENNESS_FACTORY`, from the git history of the set tables) takes what the set holds now, and the two read-only ISO sets always do (the standards' figures converted); a number the user chose stays. `is_edited` then reads an untouched copy as unedited. Knut, #182 5857473253: a new report is made according to the new standard.
+- tests: tests/test_b8_1500_a_saved_report_as_saved_a_new_one_worked_out_now.py
+- evidence: test_a_copy_of_a_shipped_evenness_limit_takes_todays (six sets), test_a_limit_the_user_chose_stays_the_users (all seven red with the call removed)
 - where: `workflow/run_compliance.py` `run_limits`; `workflow/compliance_sets.py` `is_edited`.
 
 ### B8-1502 · FIXED, awaiting confirmation · On an even sheet the report names the first ninth "furthest from the average" at 0.00 ΔE00
@@ -30964,11 +30970,14 @@ would reach.
 - evidence: test_an_even_sheet_that_reads_zero_everywhere_names_no_area, test_a_pair_that_reads_zero_is_not_named, test_a_sheet_with_a_real_difference_still_names_it (the first two red with `_shown_above_zero` always True)
 - where: `workflow/measurement_report.py` `evenness_from_residuals` (`worst_area`, `worst_pair`); `ui/dialogs/measurement_report_dialog.py` `_evenness_worst_area_sentence`, `_evenness_where_sentence`.
 
-### B8-1503 · OPEN · Report Limits says the Custom columns do not start from the ISO tolerances; their evenness rows now do
+### B8-1503 · FIXED, awaiting confirmation · Report Limits says the Custom columns do not start from the ISO tolerances; their evenness rows now do
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: beta 45 challenge round 3, territory A. The note under the table says of the two Custom columns: "Neither source is the published tolerances of ISO 12647-7 or ISO 12647-8: where ChromIQ ships those, they are in the read-only ISO column, and a Custom column does not start from them" (and, where no set ships, "which ChromIQ does not hold"). Since B8-1476 the two evenness rows of Custom ISO 12647-7 (1.5 / 1.0) and Custom ISO 12647-8 (3.0 / 2.0) are exactly those standards' published figures converted (`compliance_sets.custom_defaults`, whose own comment says "ISO 12647-7's own figures converted"). The sentence is false for those two rows. On screen: `~/Desktop/ChromIQ-beta45-proof/evenness-build/en-light/photographs/en-light-02-limits-notes.png` shows the sentence under Custom columns reading 1,50 / 1,00 and 3,00 / 2,00.
+- fix: the note carries the wording Knut accepted (#182 5857473253, "yes", on our 5857381652 item 3), "(note ⁴)" only when note ⁴ is on the page. German by hand; the twelve others carry the English under the beta rule (+4 in both ledgers). The branch for a build that ships no ISO figures keeps its older sentence ("which ChromIQ does not hold"), unchanged and not reworded.
+- tests: tests/test_b8_1500_a_saved_report_as_saved_a_new_one_worked_out_now.py
+- evidence: test_the_note_carries_knuts_accepted_wording
 - where: `ui/dialogs/thresholds_dialog.py` `_notes_text`; `workflow/compliance_sets.py` the Custom ISO blocks.
 
 ### B8-1520 · FIXED, awaiting confirmation · A third test file leaves the worker's Argyll path pointing at a folder that does not exist

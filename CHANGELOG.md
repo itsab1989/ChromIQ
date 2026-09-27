@@ -24,6 +24,10 @@
 - The CR30 "Letter-170p-1page-Portrait-w16.0mm-Hexagonal" preset is now named "w17.0mm". Its patches are 16.76 mm wide.
 
 ### Fixed
+- A saved report chosen in "Report shown" is shown, and printed to PDF, exactly as it was saved. A report an earlier version saved is no longer filled in with figures that version never worked out.
+- A new or updated report works every date out again with this version's evenness filter and limits, dates whose reports an earlier version saved included, and a report of several dates keeps the figures it was judged on. Where a date's measurement is no longer on disk, the report says that date's figures are the ones an earlier report saved.
+- A run whose limits an earlier version stored starts new reports on this version's evenness limits, unless you chose the limit yourself, and no longer reads "(edited)" when nobody edited it.
+- The Report Limits note no longer says the Custom columns' evenness rows are not the ISO figures: they are those figures converted to ChromIQ's method.
 - On a sheet whose nine areas all read 0 once the noise is taken out, the Measurement Report no longer names one of them as the area furthest from the average. It says that no area differs.
 - A few parameter helps (Cube Surface Steps, Cube Interior Steps, the BCC steps and Patch Distribution) showed a stressed word between asterisks. It is now shown in italic.
 - Picking the i1Pro A4 484-patch or 1200-patch "Full layout setup" preset set White Patches and Black Patches in Create Chart's Manual settings to 9 and 8. They are now what the two patch sets hold: 1 and 1, and 2 and 2.
