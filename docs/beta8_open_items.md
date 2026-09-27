@@ -30746,3 +30746,63 @@ would reach.
 - tests: tests/test_b8_1453_register_entries_hold_their_own_text.py; mutations M1453-a, M1453-b (`~/Desktop/ChromIQ-beta45-proof/fixes-1a/mutations.txt`).
 - evidence: test_no_entry_tells_another_entrys_story, test_no_entry_carries_a_second_story, test_every_entry_is_listed_once
 - where: `docs/beta8_open_items.md`, `tests/test_b8_1453_register_entries_hold_their_own_text.py`.
+
+### B8-1460 · FIXED, awaiting confirmation · A beta 44 target built from a loaded .ti1 reopened as another chart (208 patches became 525)
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: challenge 1 of beta 45, F2 (`~/Desktop/ChromIQ-beta45-proof/challenge-1/reopen/b44-to-head/c1-ti1-loaded`): built in beta 44 with the i1Pro, the engine on, Auto on and a 200-patch set made by `targen -d3 -f200` loaded with "Load patch set" (208 sets); reopened in HEAD the estimate said 525 in orange and Generate built 525 new targen patches without asking. Pre-existing.
+- cause: B8-1406 binds a chart's .ti1 again when its sidecar says `patch_set_given`, or when the file is byte for byte a bundled targen set. A record written before that mark (beta 44 and earlier) says nothing, and a set targen wrote elsewhere reads like one of ChromIQ's own, so the reopen left it unbound and Generate ran targen from the rows.
+- fix: exact, never a guess. The sidecar now always writes `patch_set_given` (true or false), so a sidecar without it is recognisably older; `_restore_chart_settings` reads that as None. For such a chart whose .ti1 targen wrote (and that is not a bundled set), `_older_patch_set_verdict` asks targen itself, with the arguments Generate would give it for Manual's rows (the chart's own settings, just restored) and for Guided's, whether it writes exactly these patches (`_targen_makes_this_patch_set`, the device values compared as a set; with Auto on the chart's own count stands in for the capacity fill, with Auto's neutrals from it). It does: nothing changes (ChromIQ's own chart, Generate builds it again). It does not: the chart is bound to its own patch set, as a given set is. targen cannot be asked (missing, failing, a file it needs gone): the chart is bound too and Create Chart's log says so, M-PATCHSET-KEPT-UNCHECKED (new text, §M-PROPOSED, German by hand). Restore Used Chart's redraw judges an older record the same way, so its new sidecar does not write a loaded set down as targen's. targen is deterministic (the B8-1363 sweep: 18 rebuilds byte for byte); about a second per 500 patches, once per chart file and argument list, only for an older record.
+- found while fixing: the chart is shown before the target's stored module is put back, so the module on screen then is not always the chart's; asked with Guided's arguments only, a beta 44 Manual chart (300 typed) was judged not targen's. Both modules are asked.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/fixes-1b/` (NOTES.txt), targets built by `git archive v4.3.0-beta.44` and reopened, sandboxed. Before (2bfe8bea): the loaded set 208 -> 525 other patches (engine on), 220 -> 504 (engine off). After: 208 -> 208 and 220 -> 210, the same 200 patches both times (the 210 is B8-1461's record, below); ChromIQ's own beta 44 charts (Auto 525, typed 300, Guided ColorMunki 105) and the bundled Red River set unchanged, the same chart, the own ones not bound.
+- tests: tests/test_b8_1460_an_older_loaded_patch_set_reopens_bound.py, tests/test_b8_1363_a_reopened_target_builds_the_chart_it_was.py (the sidecar and restore tests follow the new contract), tests/test_message_catalogue.py; mutations M1460-a to M1460-i (`~/Desktop/ChromIQ-beta45-proof/fixes-1b/mutations.txt`).
+- evidence: test_an_older_loaded_set_targen_wrote_elsewhere_is_bound, test_chromiqs_own_older_chart_is_not_bound, test_the_chart_is_judged_whichever_module_is_on_screen, test_when_targen_cannot_be_asked_the_chart_keeps_its_patches_and_says_so, test_a_record_that_says_not_given_is_believed, test_the_sidecar_always_says_whether_the_set_was_given, test_the_restore_of_used_chart_judges_an_older_record_too
+- where: `ui/tabs/tab_chart.py` (`_rebind_patch_set_from_run`, `_older_patch_set_verdict`, `_targen_makes_this_patch_set`, `_targen_writes`, `_ti1_device_rows`, `_targen_args_for`, `_say_patch_set_kept_unchecked`, `_restore_chart_settings`, the Restore Used Chart redraw), `workflow/chart_creator.py` (`_write_channel_sidecar`), `workflow/measurement_messages.py`, `docs/design/unified_measurement_management.md` (§M-PROPOSED).
+
+### B8-1461 · FIXED, awaiting confirmation · A loaded .ti1 with the engine off was laid out with -a 0.95 -m 10, and the panel and the record went to -a 1.0 -m 6
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: challenge 1 of beta 45, F3 (`challenge-1/reopen/head-to-head/c1-ti1-loaded-off`). Also in beta 44.
+- cause (a stack of every change of -a on screen, `fixes-1b/reopen/probe-f3/`): "Load patch set" raised `_layout_owned_by_build` before asking where the patches go, and the answer (a new project, or the bar on "New run") is a target change, whose handler lowers the flag after its one protected load. So the build finished with it down; `_on_generate_finished` then moved the bar onto the new run (`_default_bar_to_current_run`), and that run, with nothing stored yet, was opened on the rows' factory values (`_open_this_target_on_its_defaults`, §4 S4) before the W1 write filed them. The sheet had been laid out with what the panel showed (Preferences' i1Pro layout); the panel and meta.json then held -a 1.0 -m 6.
+- decided: the load's printtarg arguments are right. They are what the panel showed when "Load patch set" was pressed and what a plain Generate in the same state builds (-a 0.95 -m 10); a loaded .ti1 decides its target's settings as a preset does (§3 W3 beside W2, §4b P-1). No spec change.
+- fix: the load raises the flag again where the build starts, after the destination was answered, as `_on_generate` and `_generate_from_ti1` do.
+- on screen: before (2bfe8bea): the load built 220 sets, the panel then read `printtarg -ii1 -pA4 -t300 -L -M6`, the record -a 1.0 -m 6, the next Generate in the same session 210 and the reopen 210. After: 220, the panel `-a0.95 -m10 -M10`, the record and sidecar -a 0.95 -m 10, the next Generate 220, the reopen 220. Engine on: 208 throughout, and the record now holds the layout it was built with.
+- known limit: a target a beta 44 load already wrote carries -a 1.0 -m 6 in its record; it now reopens with its own patches (B8-1460) laid out by that record (210, not 220). Nothing in the files says exactly which -a / -m the record should have held, so it is not rewritten.
+- tests: tests/test_b8_1460_an_older_loaded_patch_set_reopens_bound.py; mutation M1461-a.
+- evidence: test_the_load_builds_with_the_shield_up, test_a_run_opened_while_the_build_owns_the_rows_keeps_them
+- where: `ui/tabs/tab_chart.py` (`_on_load_ti1`).
+
+### B8-1462 · FIXED, awaiting confirmation · The patch set editor stayed alive after every closing, some 680 widgets and 24 windows each
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 1 of beta 45, F5 (`challenge-1/memory/`): Tools > "Edit / create chart patch set" is parented to the main window and never deleted.
+- fix: `open_tool_dialog` calls the editor's `dispose()` once its loop ends: a preview render still running is waited for (as the window's X does), the preview folder cleaned, and the window deleted (`deleteLater`); a render that will not stop keeps the window rather than destroy a running thread. Every opening builds a new editor and nothing reads the old one afterwards (Save & apply hands its chart over inside the loop and the host copies the .ti1 out of the staging folder before it returns); nothing of it needs to survive in settings.
+- on screen (`fixes-1b/f5/`, opened and closed 6 times, live widgets / top-levels 1.5 s after each close): before 2766/104 rising 680/24 per opening to 6846/248, six editors left alive; after 2766/104 at every sample.
+- tests: tests/test_b8_1460_an_older_loaded_patch_set_reopens_bound.py; mutations M1462-a, M1462-b.
+- evidence: test_the_editor_is_freed_after_its_loop, test_a_render_that_will_not_stop_keeps_the_window
+- where: `ui/dialogs/tools_dialogs.py` (`open_tool_dialog`), `ui/dialogs/ti2_relayout_dialog.py` (`Ti2RelayoutDialog.dispose`).
+
+### B8-1463 · FIXED, awaiting confirmation · ", or click here ⚙" underlined the space before the gear
+- blocks release: no
+- severity: COSMETIC
+- status: FIXED
+- found by: challenge 1 of beta 45, F8.
+- fix: the link is three anchors to the same target: "click here" underlined, the space not, the gear underlined (Qt draws no underline under an image, so the gear shows none, as before). The space is still the link.
+- on screen (`fixes-1b/f8/`, "Select preset" open, English and German, this app's windows only): before, the underline ran on under the space; after, it stops at "here" / "hier". The real mouse (Quartz) clicking the space opened "Settings for built-in presets" before and after.
+- tests: tests/test_b8_1460_an_older_loaded_patch_set_reopens_bound.py, tests/test_k61_preset_lists_note_link_and_apply.py; mutations M1463-a, M1463-b.
+- evidence: test_the_space_before_the_gear_is_not_underlined_but_is_the_link
+- where: `ui/preset_note_link.py` (`note_document`).
+
+### B8-1464 · FIXED, awaiting confirmation · With Auto on, the estimate promised a capacity fill beside a bound patch set
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: fixing B8-1460 on screen: the reopened target was bound and Generate built 208, while the estimate column still said 525 in orange. The same held for a set loaded in beta 45 itself (`challenge-1/reopen/head-to-head/c1-ti1-loaded`: 525 beside 208).
+- fix: `_refresh_layout_estimate` lays out the armed patch set with Auto on too (`_pending_patch_set_total`, the file Generate lays out); with nothing armed Auto still estimates the capacity fill.
+- on screen: after, the reopened and the freshly loaded target read 208 in the estimate, and Generate built 208.
+- tests: tests/test_b8_1460_an_older_loaded_patch_set_reopens_bound.py; mutation M1464-a.
+- evidence: test_with_auto_on_the_estimate_lays_out_the_armed_set
+- where: `ui/tabs/tab_chart.py` (`_refresh_layout_estimate`).
