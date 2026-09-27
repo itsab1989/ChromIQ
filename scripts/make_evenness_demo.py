@@ -11,7 +11,7 @@ can, beside the pack, so the rows can be driven on screen:
   ninth), measured four times:
 
   1. evenly printed: both rows PASS;
-  2. a drift across the strips, about 2.2 ΔE b* from one side to the other:
+  2. a change across the strips, about 2.2 ΔE b* from one side to the other:
      the pairwise row FAILs first, the from-the-mean row still passes;
   3. one ninth of the page 1.35 L* lighter, a blotch: the from-the-mean row
      FAILs first, the pairwise row still passes;
@@ -25,11 +25,11 @@ can, beside the pack, so the rows can be driven on screen:
   26 rows, with the i1Pro's 26 mm clip border and its 38 mm top its patches
   cover 68.4 % of the page. Under the first 75 % floor both rows read N-A;
   since Knut lowered the floor to 60 % (5792912682) the page is counted and
-  both rows are judged: evenly printed, with the drift, and with the blotch
+  both rows are judged: evenly printed, with the change, and with the blotch
   (#182 K29, so each row is tripped on more than one chart);
 * **run5** (#182 E4, beta 38), Knut's 308-patch i1Pro 3 Plus A4 preset on two
   pages, 11 strips by 14 rows each, 65.3 % of each page covered: Knut's
-  multi-page case, judged at 60 %, evenly printed, with the drift and with
+  multi-page case, judged at 60 %, evenly printed, with the change and with
   the blotch;
 * **run6** (#182 E2 at 60 %), the 312-patch i1Pro A4 preset that fills the
   left half of the page: 12 strips by 26 rows, its patches cover 37.3 % of
@@ -47,7 +47,7 @@ can, beside the pack, so the rows can be driven on screen:
   on a real paper (`RUN8_PAPER_LAB`, L* 95.5, b* -3): the same four kinds of
   sheet as run1. The colour accuracy rows read it relative to its paper
   white; evenness, since Knut's E8 ruling ("Yes"), reads it as measured, with
-  each aim carried onto the paper. The drift sits at the limit on both
+  each aim carried onto the paper. The change sits at the limit on both
   runs (about 1.5), so which side of 1.5 it lands is not the point of run8;
   that both rows are JUDGED, with a noise near run1's, is.
 * **run9** (K61, Knut #182 5851645723), Knut's own case: the 648-patch i1Pro
@@ -145,7 +145,7 @@ def _typical(page, s, r, S, R, rng):
 
 DATES_LARGE = [
     ("2026-10-01_100000", "2026-10-01T10:00:00", "even", _even),
-    ("2026-10-08_100000", "2026-10-08T10:00:00", "drift across the strips",
+    ("2026-10-08_100000", "2026-10-08T10:00:00", "change across the strips",
      _drift),
     ("2026-10-15_100000", "2026-10-15T10:00:00", "one area lighter", _blotch),
     ("2026-10-22_100000", "2026-10-22T10:00:00", "noisy", _noisy),
@@ -153,18 +153,18 @@ DATES_LARGE = [
 DATES_SMALL = [
     ("2026-10-01_110000", "2026-10-01T11:00:00", "even", _even),
 ]
-#: #182 K29: the drift and the blotch AGAIN, on two charts other than run1's,
+#: #182 K29: the change and the blotch AGAIN, on two charts other than run1's,
 #: so each evenness row is tripped from more than one chart (a 22 by 26 i1Pro
 #: page, and the i1Pro 3 Plus on two pages) and not only on the 837-patch one.
 DATES_572 = [
     ("2026-10-01_120000", "2026-10-01T12:00:00", "even", _even),
-    ("2026-10-08_120000", "2026-10-08T12:00:00", "drift across the strips",
+    ("2026-10-08_120000", "2026-10-08T12:00:00", "change across the strips",
      _drift),
     ("2026-10-15_120000", "2026-10-15T12:00:00", "one area lighter", _blotch),
 ]
 DATES_P3 = [
     ("2026-10-01_130000", "2026-10-01T13:00:00", "even", _even),
-    ("2026-10-08_130000", "2026-10-08T13:00:00", "drift across the strips",
+    ("2026-10-08_130000", "2026-10-08T13:00:00", "change across the strips",
      _drift),
     ("2026-10-15_130000", "2026-10-15T13:00:00", "one area lighter", _blotch),
 ]
@@ -411,7 +411,7 @@ def build(dest: Path) -> Path:
     run1 = proj.current_run()
     _run(proj, run1, LARGE, "X-Rite i1Pro 2",
          "An 837-patch i1Pro sheet with no clip border, its patches covering "
-         "80 % of the page, measured four times: evenly printed, with a drift "
+         "80 % of the page, measured four times: evenly printed, with a change "
          "across the strips, with one area lighter, and noisy.",
          DATES_LARGE, 100)
     run2 = proj.new_run()
@@ -444,7 +444,7 @@ def build(dest: Path) -> Path:
     _run(proj, run8, LARGE, "X-Rite i1Pro 2",
          "The 837-patch chart of run 1, printed through its profile with "
          "relative colorimetric, an intent that maps paper white: evenly "
-         "printed, with a drift across the strips, with one area lighter, and "
+         "printed, with a change across the strips, with one area lighter, and "
          "noisy. Evenness is judged as measured whatever the intent.",
          DATES_LARGE, 100, intent="relative", paper_lab=RUN8_PAPER_LAB)
     run9 = proj.new_run()

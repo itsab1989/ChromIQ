@@ -9434,7 +9434,7 @@ to 50.5 and waits for his confirmation.
 
 **Confirmed by:** *nobody yet.*
 
-Register: B8-1440 to B8-1448. Proof: `~/Desktop/ChromIQ-beta45-proof/k61-report/`
+Register: B8-1440 to B8-1448, B8-1451. Proof: `~/Desktop/ChromIQ-beta45-proof/k61-report/`, `fixes-1a/`
 (on screen, EN and DE, window and PDF, before and after; `MATRIX.txt`,
 `COMPARE-screen-vs-simulation.txt`, `TEXTS.txt`). Tests:
 `tests/test_k61_labels_and_evenness_counts.py` and the pair tests in
@@ -9478,6 +9478,21 @@ typical print of Knut's page reads 1.02 in the report where the window
 estimates 0.87. And whether ISO 12647-7's 0.5 is a number ChromIQ's method
 should be judged against at all (§16.5 E6: a licence holder's figure written
 for a different statistic) is his question to answer.
+
+**50.6 The counts the sentence names (B8-1451, beta 45 challenge 1).** The
+sentence of 50.3 was not true of a chart of several pages, and presets
+contradicted each other: a 10-page chart "held at least 200 in each ninth of
+the page" (about 20 on each page), and under 0.5 one preset said about 170
+would do while another holding 216 was withheld. Built, awaiting
+confirmation: the window's noise is one model for every chart (the report's
+own shuffle as a constant, over the root of the ninths' effective count, the
+harmonic mean of the nine, every page the report reads pooled as §16 item 3
+pools them); one limit gives one needed count (0.5: 238, 1.0: 60, 1.5: 27
+between two areas; 1.0: 22 from the mean), and a row is withheld exactly
+when the chart counts fewer. The sentence says "The report counts the same
+ninth of all {pages} pages together" where there are several, and where the
+ninths differ, "{low} to {high} patches, {have} on average as the noise
+weighs them". The §16.6 i1Pro 3 Plus verdicts do not move.
 
 **Status:** the requests are Knut's (Confirmed); what was built NOT confirmed;
 two questions open.

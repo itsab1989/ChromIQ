@@ -148,15 +148,19 @@ def test_a_split_report_quotes_only_report_limits_labels(tmp_path, qapp, lang):
 # 2. the evenness counts
 # ---------------------------------------------------------------------------
 def test_the_count_is_derived_from_the_noise_and_the_limit():
-    """72 patches in a ninth, a noise of 0.873 against 0.5: about 220.
+    """72 patches in every ninth against 0.5 between two areas: the model
+    wants 238, whatever the chart (B8-1451; K61 said "about 220" off the
+    chart's own random draw).
 
     MUTATION, proven red: ``need = have * noise / limit`` (linear)."""
     lim = CS.Limit.value(0.5)
-    assert PE.noise_shortfall({"area_min": 72, "noise_p95": 0.873}, lim) == \
-        (72, 220)
-    assert PE.noise_shortfall({"area_min": 72, "noise_p95": 0.873},
+    cell = {"area_effective": 72, "area_min": 72, "area_max": 72,
+            "area_pages": 1}
+    assert PE.noise_shortfall("uniformity_sd", cell, lim) == \
+        PE.NoiseCount(72, 238, 1, 72, 72)
+    assert PE.noise_shortfall("uniformity_sd", cell,
                               CS.Limit.none()) is None
-    assert PE.noise_shortfall({"noise_p95": 0.873}, lim) is None
+    assert PE.noise_shortfall("uniformity_sd", {"area_min": 72}, lim) is None
 
 
 def test_the_noise_falls_as_one_over_the_root_of_the_patches_in_a_ninth():
@@ -182,13 +186,11 @@ def test_the_noise_falls_as_one_over_the_root_of_the_patches_in_a_ninth():
 def test_the_window_names_both_numbers_not_too_few():
     """MUTATION, proven red: `reason_line` ignoring *counts*."""
     from ui.dialogs import preset_verification_dialog as PVD
-    line = PVD.reason_line(MR.REASON_EVENNESS_NOISY_PAIRWISE, (72, 220))
-    assert "at least 72 patches" in line and "about 220" in line, line
+    line = PVD.reason_line(MR.REASON_EVENNESS_NOISY_PAIRWISE, (72, 238))
+    assert "holds 72 patches" in line and "at least 238" in line, line
     assert "Too few" not in line
     plain = PVD.reason_line(MR.REASON_EVENNESS_NOISY_PAIRWISE)
     assert "Too few" not in plain and "noise" in plain
-    assert "at least 1 patch." in PVD.reason_line(
-        MR.REASON_EVENNESS_NOISY_FROM_MEAN, (1, 30))
 
 
 def test_the_lever_and_the_help_say_no_fixed_patch_count():
@@ -211,7 +213,7 @@ def _knuts_648():
 def test_knuts_648_page_under_iso_12647_7_and_chromiq_default(qapp):
     """Knut's case, through the window's own call: 24 strips by 27 rows, 72
     in every ninth, 69 % covered. Under ISO 12647-7:2016 values the pairwise
-    row is withheld for the noise, with 72 and about 220; under ChromIQ
+    row is withheld for the noise, with 72 and 238 (B8-1451); under ChromIQ
     default it is answered.
 
     MUTATION, proven red: `assess_rows` passing no limits to
@@ -223,8 +225,8 @@ def test_knuts_648_page_under_iso_12647_7_and_chromiq_default(qapp):
     iso = PE.assess(chart, MR.REPORT_TYPE_FULL, "iso_12647_7", recipe=recipe)
     assert dict(iso.missing).get("uniformity_sd") == \
         MR.REASON_EVENNESS_NOISY_PAIRWISE
-    have, need = iso.noise_count("uniformity_sd")
-    assert have == 72 and 200 <= need <= 240, (have, need)
+    have, need, pages, low, high = iso.noise_count("uniformity_sd")
+    assert (have, need, pages, low, high) == (72, 238, 1, 72, 72)
     assert "uniformity_de00_max_from_mean" in iso.answered
     cq = PE.assess(chart, MR.REPORT_TYPE_FULL, "chromiq_default",
                    recipe=recipe)

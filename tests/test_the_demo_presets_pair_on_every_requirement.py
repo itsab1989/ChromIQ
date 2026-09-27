@@ -912,3 +912,8 @@ def test_the_noise_pairs_straddle_their_line_on_a_page_that_meets_both_floors(
         noise, limit = cell["noise_p95"], lim[rid].number
         assert abs(noise - limit) < 0.06, (demo.name, noise, limit)
         assert (noise >= limit) is over, (demo.name, noise, limit)
+        # B8-1451: one count either side of the model's line, which is the
+        # same for every chart under this limit
+        need = PE.model_need(MR.EVENNESS_ROWS[rid], limit)
+        assert cell["area_effective"] == (need - 1 if over else need), \
+            (demo.name, cell["area_effective"], need)

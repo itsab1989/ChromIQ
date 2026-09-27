@@ -71,7 +71,7 @@ import os
 import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import numpy as np
 
@@ -378,8 +378,55 @@ def _estimated_evenness(chart: Path, recipe: "dict | None",
         noise = rng.normal(0.0, MR.EVENNESS_TYPICAL_SIGMA, (n, 3))
         block = MR.evenness_from_residuals(
             grid, noise, shuffles=MR.EVENNESS_ESTIMATE_SHUFFLES)
+        _apply_noise_model(block)
     block["estimated"] = True
     return block
+
+
+def model_noise(key: str, n: int) -> float:
+    """The noise a typical print would have on the evenness figure *key*
+    (``"pairwise"`` or ``"from_mean"``) when the ninths count as *n* patches
+    each, all pages the report reads together
+    (:func:`~workflow.measurement_report.evenness_effective_count`,
+    :data:`~workflow.measurement_report.EVENNESS_NOISE_PER_ROOT_PATCH`).
+    Rounded as the report rounds its own noise figures."""
+    import math
+    k = MR.EVENNESS_NOISE_PER_ROOT_PATCH[key] * MR.EVENNESS_TYPICAL_SIGMA
+    return round(k / math.sqrt(max(1, int(n))), 3)
+
+
+def model_need(key: str, limit: float) -> "int | None":
+    """The fewest patches the ninths must count as for :func:`model_noise`
+    to be below *limit*, the line `evenness_withheld` draws. The same number for
+    every chart under the same limit (B8-1451). None for a limit of zero or
+    less, which no count can get under."""
+    import math
+    lim = float(limit)
+    if lim <= 0:
+        return None
+    k = MR.EVENNESS_NOISE_PER_ROOT_PATCH[key] * MR.EVENNESS_TYPICAL_SIGMA
+    n = max(1, int(math.ceil((k / lim) ** 2)))
+    # the figure is rounded before it is compared, so settle the edge on
+    # the rounded figure, exactly as the rule will
+    while model_noise(key, n) >= lim:
+        n += 1
+    while n > 1 and model_noise(key, n - 1) < lim:
+        n -= 1
+    return n
+
+
+def _apply_noise_model(block: dict) -> None:
+    """B8-1451: the estimate's two noise figures from the model, on the
+    ninths' effective count, so the same count reads the same noise on every
+    chart. The shuffle of the random draw is kept beside them for whoever
+    wants to see how far one draw wanders; nothing judges it."""
+    n = MR.evenness_effective_count(block.get("counts"))
+    if not block.get("eligible") or n is None:
+        return
+    for key in MR.EVENNESS_NOISE_PER_ROOT_PATCH:
+        block[f"noise_{key}_shuffled_p95"] = block.get(f"noise_{key}_p95")
+        block[f"noise_{key}_p95"] = model_noise(key, n)
+    block["noise_model"] = "per_root_patch"
 
 
 def _perfect_print(chart: Path, recipe: "dict | None" = None,
@@ -1062,6 +1109,23 @@ def rows_the_patches_decide(values: "dict[str, dict]") -> "tuple[str, ...]":
     return tuple(out)
 
 
+class NoiseCount(NamedTuple):
+    """B8-1451: the numbers behind an evenness row withheld for the chart's
+    own noise, as the report counts them (the same ninth of every page it
+    reads, pooled)."""
+    #: the ninths' effective count, which the noise model works on
+    #: (`MR.evenness_effective_count`); the count in each when they are equal
+    have: int
+    #: the effective count the limit takes (:func:`model_need`), the same for
+    #: every chart under the same limit
+    need: int
+    #: the pages the report reads, pooled
+    pages: int = 1
+    #: the fewest and the most patches in a ninth
+    low: int = 0
+    high: int = 0
+
+
 @dataclass(frozen=True)
 class Assessment:
     """What one chart can answer, for one (report type, limit set) pair."""
@@ -1076,13 +1140,14 @@ class Assessment:
     #: why not, when ``checked`` is False (an exception message, for the log)
     unreadable: str = ""
     #: K61 (Knut, #182 5851645723): for an evenness row withheld for the
-    #: chart's own noise, ``{row_id: (patches in the emptiest ninth, about how
-    #: many that ninth would need under this limit)}``, so the window can say
-    #: both numbers instead of "too few" (`noise_shortfall`)
-    noise_counts: "tuple[tuple[str, tuple[int, int]], ...]" = ()
+    #: chart's own noise, ``{row_id: NoiseCount}``, so the window can say how
+    #: many patches the ninths hold and how many the limit takes instead of
+    #: "too few" (`noise_shortfall`). B8-1451: the counts are the report's,
+    #: the same ninth of every page it reads pooled.
+    noise_counts: "tuple[tuple[str, NoiseCount], ...]" = ()
 
-    def noise_count(self, row_id: str) -> "tuple[int, int] | None":
-        """``(have, need)`` for *row_id*, or None."""
+    def noise_count(self, row_id: str) -> "NoiseCount | None":
+        """The :class:`NoiseCount` for *row_id*, or None."""
         return dict(self.noise_counts).get(row_id)
 
     @property
@@ -1201,7 +1266,7 @@ def assess_rows(chart: "str | Path | None",
         withheld = (MR.evenness_withheld(rid, v, lim) if limits else None)
         if withheld:
             missing.append((rid, withheld))
-            pair = noise_shortfall(v, lim)
+            pair = noise_shortfall(rid, v, lim)
             if pair is not None:
                 counts.append((rid, pair))
         elif v.get("value") is not None:
@@ -1212,32 +1277,32 @@ def assess_rows(chart: "str | Path | None",
                       missing=tuple(missing), noise_counts=tuple(counts))
 
 
-#: How the estimated noise of an evenness row falls as its areas fill: as one
-#: over the square root of the patches in an area, the rule for the mean of
-#: independent residuals. MEASURED on the estimate itself, not assumed: on
-#: ideal pages of 9 by 9 to 90 by 90 (9 to 900 patches in a ninth) the
-#: pairwise noise times the root of the fewest patches in a ninth stays
-#: between 7.2 and 7.9, and the from-the-mean noise between 4.3 and 4.8
-#: (K61, `tests/test_k61_evenness_noise_counts.py`).
-def noise_shortfall(cell: "dict | None", lim) -> "tuple[int, int] | None":
-    """``(have, need)`` for an evenness row withheld for the chart's own
-    noise: the patches in its emptiest ninth, and about how many a ninth
-    would need for the estimated noise to fall below *lim*, rounded up to
-    the next ten. None when the cell does not carry the numbers.
+def noise_shortfall(row_id: str, cell: "dict | None",
+                    lim) -> "NoiseCount | None":
+    """The :class:`NoiseCount` of an evenness row withheld for the chart's
+    own noise, or None when the cell does not carry the numbers.
 
     K61 (Knut, #182 5851645723): a one-page i1Pro chart of 648 patches puts
     72 in every ninth, which the window called "too few" under a pairwise
-    limit of 0.5 without saying that the limit wants about 220. The window
-    now says both."""
-    import math
-    if not cell or not getattr(lim, "is_numeric", False):
+    limit of 0.5 without saying how many that limit wants.
+
+    B8-1451: *need* comes from ONE model for every chart (it was worked out
+    from each chart's own random draw, so presets contradicted each other),
+    and *have* is what the model reads, on what the report counts: the same
+    ninth of every page it reads, pooled. A row is withheld exactly when
+    ``have < need``."""
+    key = MR.EVENNESS_ROWS.get(row_id)
+    if key is None or not cell or not getattr(lim, "is_numeric", False):
         return None
-    have, noise = cell.get("area_min"), cell.get("noise_p95")
-    if not have or noise is None or float(lim.number) <= 0:
+    have = cell.get("area_effective")
+    if not have:
         return None
-    need = int(have) * (float(noise) / float(lim.number)) ** 2
-    need = max(int(have) + 1, int(math.ceil(need / 10.0)) * 10)
-    return int(have), int(need)
+    need = model_need(key, float(lim.number))
+    if need is None:
+        return None
+    return NoiseCount(int(have), int(need), int(cell.get("area_pages") or 1),
+                      int(cell.get("area_min") or have),
+                      int(cell.get("area_max") or have))
 
 
 def assess(chart: "str | Path | None", type_id: str, set_id: str,

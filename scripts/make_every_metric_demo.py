@@ -26,7 +26,7 @@ projects of the release package:
   3. **everything over its limit**: all 20 FAIL. Every colour is 5 ΔE00 off
      its aim (lighter, and yellower), the solids further and turned in hue,
      the paper yellowed, the second print of each repeated colour further
-     off than the first, and the sheet drifts from one side to the other,
+     off than the first, and the sheet changes from one side to the other,
      which the two evenness metrics catch.
 
 The readings are SYNTHETIC: each patch is what the report compares it with

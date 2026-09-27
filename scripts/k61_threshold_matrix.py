@@ -181,7 +181,10 @@ _ALWAYS_APART = {MR.REASON_NEEDS_REFERENCE_FILE}
 
 
 def noise_lines() -> "list[str]":
-    """The patches in a ninth the estimate needs, per numeric limit."""
+    """The patches in a ninth the estimate needs, per numeric limit: the
+    window's model (B8-1451, `preset_eligibility.model_need`, one count for
+    every chart), and beside it the first ideal page whose REPORT shuffle,
+    on a typical print's residuals, reads under the line."""
     out = []
     lims = sorted({(rid, CS.effective_limits(s.id, {})[rid].number)
                    for s in CS.SETS for rid in MR.EVENNESS_ROWS
@@ -205,15 +208,21 @@ def noise_lines() -> "list[str]":
                          if (CS.effective_limits(s.id, {}).get(rid) or
                              CS.Limit.none()).is_numeric
                          and CS.effective_limits(s.id, {})[rid].number == limit)
+        need = PE.model_need(MR.EVENNESS_ROWS[rid], limit)
+        model = (f"the window's model needs the ninths to count as {need} "
+                 f"(noise {PE.model_noise(MR.EVENNESS_ROWS[rid], need):.3f}, "
+                 f"{PE.model_noise(MR.EVENNESS_ROWS[rid], need - 1):.3f} "
+                 f"at {need - 1}); ")
         if first:
             n, t = first
-            out.append(f"  {PE.row_label(rid)} at {limit:g} ({sets}): first "
-                       f"ideal page below the line {n} by {n}, {t[0]} "
-                       f"patches in a ninth, {n * n} on the page "
-                       f"(noise {t[key]:.3f})")
+            out.append(f"  {PE.row_label(rid)} at {limit:g} ({sets}): "
+                       + model + f"the report's shuffle: first ideal page "
+                       f"below the line {n} by {n}, {t[0]} patches in a "
+                       f"ninth, {n * n} on the page (noise {t[key]:.3f})")
         else:
-            out.append(f"  {PE.row_label(rid)} at {limit:g} ({sets}): no "
-                       f"page up to 90 by 90 is below it")
+            out.append(f"  {PE.row_label(rid)} at {limit:g} ({sets}): "
+                       + model + "the report's shuffle: no ideal page up to "
+                       "90 by 90 is below it")
     return out
 
 
@@ -254,8 +263,9 @@ def knuts_presets() -> "list[str]":
                     f" noise {v[rid].get('noise_p95')} vs limit "
                     f"{lim[rid].number:g}: "
                     + (f"withheld {why}" if why else "answered")
-                    + (f" (have {c[0]} in a ninth, need about {c[1]})"
-                       if c else ""))
+                    + (f" (the ninths count as {c.have} over {c.pages} "
+                       f"page(s), {c.low} to {c.high}; the limit needs "
+                       f"{c.need})" if c else ""))
             out.append(f"     {CS.SET_BY_ID[sid].label:34} "
                        f"{len(a.answered)} of {len(a.asked)}; "
                        + "; ".join(bits))

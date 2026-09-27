@@ -19,10 +19,11 @@ build below):
   paper, all over 60 %, so coverage refuses none of them;
 * the two 84-patch charts are refused by the grid (7 strips);
 * the one-page A4 (154) and Letter (143) charts pass both floors but hold
-  about 17 patches in each ninth, and a typical print's own noise (2.0 / 1.2)
-  is over ChromIQ default's 1.5 / 1.0, so they are refused by the noise rule;
+  12 to 30 patches in a ninth (15 and 14 as the noise weighs them, B8-1451),
+  and a typical print's own noise (2.0 / 1.2) is over ChromIQ default's
+  1.5 / 1.0, so they are refused by the noise rule;
 * every chart of two pages or more answers both rows, and so does the
-  one-page A3 (35 patches in each ninth, noise 1.24 / 0.75).
+  one-page A3 (35 to 42 patches in a ninth, noise 1.27 / 0.76).
 
 Every test names the mutation it was run against.
 """
@@ -47,32 +48,36 @@ NOISE = (MR.REASON_EVENNESS_NOISY_PAIRWISE, MR.REASON_EVENNESS_NOISY_FROM_MEAN)
 
 #: slug -> (strips on every page, rows, pages, coverage of each page in %,
 #:          estimated noise (pairwise, from the mean) on a typical print, or
-#:          None where the grid refuses the chart first)
+#:          None where the grid refuses the chart first). B8-1451: the noise
+#:          is the window's model on the ninths' effective count (their
+#:          harmonic mean); the one-draw shuffle it replaced read within 0.07
+#:          of every figure here (1.35 / 0.84 on the two-page A4, 1.38 /
+#:          0.83 now)
 FAMILY = {
     "p3_a4_84p_1page_portrait_w25_0mm": (7, 12, 1, 65.4, None),
-    "p3_a4_154p_1page_portrait_w16_0mm": (11, 14, 1, 65.3, (2.04, 1.22)),
-    "p3_a4_308p_2pages_portrait_w16_0mm": (11, 14, 2, 65.3, (1.35, 0.84)),
-    "p3_a4_462p_3pages_portrait_w16_0mm": (11, 14, 3, 65.3, (1.16, 0.69)),
-    "p3_a4_616p_4pages_portrait_w16_0mm": (11, 14, 4, 65.3, (0.99, 0.59)),
-    "p3_a4_924p_6pages_portrait_w16_0mm": (11, 14, 6, 65.3, (0.76, 0.46)),
-    "p3_a4_1232p_8pages_portrait_w16_0mm": (11, 14, 8, 65.3, (0.71, 0.42)),
-    "p3_a4_1540p_10pages_portrait_w16_0mm": (11, 14, 10, 65.3, (0.65, 0.39)),
-    "p3_a4_2002p_13pages_portrait_w16_0mm": (11, 14, 13, 65.3, (0.55, 0.32)),
+    "p3_a4_154p_1page_portrait_w16_0mm": (11, 14, 1, 65.3, (1.99, 1.19)),
+    "p3_a4_308p_2pages_portrait_w16_0mm": (11, 14, 2, 65.3, (1.38, 0.83)),
+    "p3_a4_462p_3pages_portrait_w16_0mm": (11, 14, 3, 65.3, (1.14, 0.68)),
+    "p3_a4_616p_4pages_portrait_w16_0mm": (11, 14, 4, 65.3, (0.98, 0.59)),
+    "p3_a4_924p_6pages_portrait_w16_0mm": (11, 14, 6, 65.3, (0.80, 0.48)),
+    "p3_a4_1232p_8pages_portrait_w16_0mm": (11, 14, 8, 65.3, (0.69, 0.41)),
+    "p3_a4_1540p_10pages_portrait_w16_0mm": (11, 14, 10, 65.3, (0.62, 0.37)),
+    "p3_a4_2002p_13pages_portrait_w16_0mm": (11, 14, 13, 65.3, (0.54, 0.33)),
     "p3_letter_84p_1page_portrait_w25_0mm": (7, 12, 1, 64.7, None),
-    "p3_letter_143p_1page_portrait_w16_0mm": (11, 13, 1, 64.6, (2.00, 1.19)),
-    "p3_letter_286p_2pages_portrait_w16_0mm": (11, 13, 2, 64.6, (1.39, 0.82)),
-    "p3_letter_429p_3pages_portrait_w16_0mm": (11, 13, 3, 64.6, (1.23, 0.72)),
-    "p3_letter_572p_4pages_portrait_w16_0mm": (11, 13, 4, 64.6, (1.03, 0.61)),
-    "p3_letter_858p_6pages_portrait_w16_0mm": (11, 13, 6, 64.6, (0.85, 0.52)),
-    "p3_letter_1144p_8pages_portrait_w16_0mm": (11, 13, 8, 64.6, (0.74, 0.43)),
-    "p3_letter_1430p_10pages_portrait_w16_0mm": (11, 13, 10, 64.6, (0.61, 0.37)),
-    "p3_letter_2002p_14pages_portrait_w16_0mm": (11, 13, 14, 64.6, (0.54, 0.33)),
-    "p3_a3_336p_1page_portrait_w16_0mm": (16, 21, 1, 74.7, (1.24, 0.75)),
-    "p3_a3_672p_2pages_portrait_w16_0mm": (16, 21, 2, 74.7, (0.98, 0.58)),
-    "p3_a3_1008p_3pages_portrait_w16_0mm": (16, 21, 3, 74.7, (0.74, 0.44)),
-    "p3_a3_1344p_4pages_portrait_w16_0mm": (16, 21, 4, 74.7, (0.64, 0.36)),
-    "p3_a3_1680p_5pages_portrait_w16_0mm": (16, 21, 5, 74.7, (0.54, 0.33)),
-    "p3_a3_2016p_6pages_portrait_w16_0mm": (16, 21, 6, 74.7, (0.50, 0.30)),
+    "p3_letter_143p_1page_portrait_w16_0mm": (11, 13, 1, 64.6, (2.06, 1.24)),
+    "p3_letter_286p_2pages_portrait_w16_0mm": (11, 13, 2, 64.6, (1.43, 0.86)),
+    "p3_letter_429p_3pages_portrait_w16_0mm": (11, 13, 3, 64.6, (1.16, 0.70)),
+    "p3_letter_572p_4pages_portrait_w16_0mm": (11, 13, 4, 64.6, (1.00, 0.60)),
+    "p3_letter_858p_6pages_portrait_w16_0mm": (11, 13, 6, 64.6, (0.82, 0.49)),
+    "p3_letter_1144p_8pages_portrait_w16_0mm": (11, 13, 8, 64.6, (0.71, 0.42)),
+    "p3_letter_1430p_10pages_portrait_w16_0mm": (11, 13, 10, 64.6, (0.63, 0.38)),
+    "p3_letter_2002p_14pages_portrait_w16_0mm": (11, 13, 14, 64.6, (0.54, 0.32)),
+    "p3_a3_336p_1page_portrait_w16_0mm": (16, 21, 1, 74.7, (1.27, 0.76)),
+    "p3_a3_672p_2pages_portrait_w16_0mm": (16, 21, 2, 74.7, (0.90, 0.54)),
+    "p3_a3_1008p_3pages_portrait_w16_0mm": (16, 21, 3, 74.7, (0.73, 0.44)),
+    "p3_a3_1344p_4pages_portrait_w16_0mm": (16, 21, 4, 74.7, (0.63, 0.38)),
+    "p3_a3_1680p_5pages_portrait_w16_0mm": (16, 21, 5, 74.7, (0.57, 0.34)),
+    "p3_a3_2016p_6pages_portrait_w16_0mm": (16, 21, 6, 74.7, (0.52, 0.31)),
 }
 
 #: What "Which presets can be used for verification?" says of each preset's

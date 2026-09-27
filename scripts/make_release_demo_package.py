@@ -198,7 +198,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Paper-Classes/run4: Custom ISO 12647-7 on office paper",
     ]),
     ("§16", "Evenness: method, noise guard", [
-        "Report-Limits-Evenness/run1: even, drift, blotch, noisy",
+        "Report-Limits-Evenness/run1: even, a change across the strips, blotch, noisy",
         "Report-Limits-Evenness/run8: the same four through relative colorimetric",
         # K61 (Knut, #182 5851645723): the noise guard's own line
         "Report-Limits-Evenness/run10: the sheet's own noise just over and just under both limits (1.53 / 1.47, 1.03 / 0.97)",
@@ -212,7 +212,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Evenness/run2", "Report-Notes-Every-Reason/run5",
     ]),
     ("§16.5", "E3 all three ChromIQ sets carry 1.5 / 1.0", [
-        "Report-Limits-Evenness/run1: the drift crosses 1.5, the blotch crosses 1.0",
+        "Report-Limits-Evenness/run1: the change across the strips crosses 1.5, the blotch crosses 1.0",
     ]),
     ("§16.5", "E4 the evenness rows decide a preset's star (K51, §45.3)", [
         "Create Chart presets (verification demos): the presets window",
@@ -409,7 +409,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Strip-And-Gamut/run4, Measure tab, Run type Verification, the run set to ISO 12647-7: the pre-flight's FROM PROFILE GAMUT paragraph as Knut accepted it (B8-1374), and M-VERIFY-SOLIDS-REASON, approved (B8-1373), under the two solid rows",
     ]),
     ("\u00a749", "K59:", [
-        "Report-Limits-Border-Conditions/run3, Run type Verification: New report\u2026, both dates, Full colour check, ISO 12647-7:2016 values: the paper and solid rows PASS or FAIL against the profile, every other cell INFO with the raised number of M-REPORT-RAW-PRINT-INFO, \u201cJudged against\u201d reads the set \u201c(printed raw)\u201d, the opening with Knut's clause and the Report Scope sentence, and no \u201cdrift\u201d anywhere (B8-1393, B8-1394, B8-1381, B8-1384)",
+        "Report-Limits-Border-Conditions/run3, Run type Verification: New report\u2026, both dates, Full colour check, ISO 12647-7:2016 values: the paper and solid rows PASS or FAIL against the profile, every other cell INFO with the raised number of M-REPORT-RAW-PRINT-INFO, \u201cJudged against\u201d reads the set \u201c(printed raw)\u201d, the opening with Knut's clause and the Report Scope sentence, and every change called a change (B8-1393, B8-1394, B8-1381, B8-1384)",
         "Report-Limits-Border-Conditions/run3, the same under ChromIQ default: the two repeatability rows PASS or FAIL (K60, D3), every other cell INFO or N-A with its note, Overall the repeatability rows' word, \u201cChromIQ default (printed raw)\u201d, the opening in Knut's conditional form; Detailed data: \u201cChange since the previous raw check\u201d under the second date (B8-1393, B8-1394, B8-1398)",
         "Report-Limits-Border-Conditions/run3: move Report-Limits-Border-Conditions.icc out of runs/run3 and delete both dates' reports/ folders (no profile can be read), then New report…, both dates, ISO 12647-7:2016 values: the paper and solid rows N-A, the opening in Knut's D1 sentence, \u201c\u2026 where the limit set has a limit for them and the measurement can answer them\u201d (K60, B8-1395); under Custom ISO 12647-7 the same opening beside judged repeatability rows",
         "Report-Limits-Border-Conditions/run3 + run1 (run1 printed through the profile), run1 added with \u201cAdd Profile's Measurements\u2026\u201d: M-REPORT-MIXED-OPENING-RUNS (K60, D2, B8-1397); run1's sheets recorded raw instead: the plural raw opening with \u201cjudged against the profiles\u201d under ISO 12647-7, without it under ChromIQ default (K60, D1, B8-1403)",
@@ -848,6 +848,10 @@ def coverage_matrix(root: Path) -> dict:
     locations = report_locations(root)
     index = rule_map(spec_index_rows(), {p.name for p in root.iterdir()
                                          if p.is_dir()})
+    for row in index:
+        for k in ("subject", "status"):
+            if isinstance(row.get(k), str):
+                row[k] = in_the_words_users_read(row[k])
     paper_rows = paper_facts(reps)
     return {
         "package": root.name,
@@ -1208,6 +1212,52 @@ _DEV_PATTERNS = (
 )
 
 
+#: B8-1452 (beta 45 challenge 1, F6): Knut, #182 5849392788, "The word drift
+#: is not used at all". The design record's index quotes the word where it
+#: records that very ruling, and the package prints the index; these say the
+#: same in the words the app uses. `retired_words_in` fails --verify on any
+#: the list does not cover, so a new index row cannot bring the word back.
+_RETIRED_WORDING = (
+    (r'the analysis of "drift"', "the analysis of the word for a change"),
+    (r'"drift" not used in the report', 'a change called "change" in the report'),
+    (r'the mixed opening without "drift"', 'the mixed opening saying "change"'),
+)
+_RETIRED = re.compile(r"(?i)\bdrift")
+
+
+def in_the_words_users_read(text: str) -> str:
+    """*text* with the design record's quotations of the retired word said
+    as the app says them (`_RETIRED_WORDING`)."""
+    for pat, rep in _RETIRED_WORDING:
+        text = re.sub(pat, rep, text)
+    return text
+
+
+def retired_words_in(root: Path) -> "list[str]":
+    """Every text a user of the package reads that still says drift: the
+    README, the coverage files, and each run's description and notes."""
+    out = []
+    names = [root / n for n in ("README.txt", "COVERAGE.md",
+                                "coverage-matrix.json")]
+    names += sorted(root.glob("*/runs/*/meta.json"))
+    names += sorted(root.glob("*/project.json"))
+    for f in names:
+        if not f.is_file():
+            continue
+        text = f.read_text(encoding="utf-8", errors="replace")
+        if f.name == "meta.json":
+            try:
+                doc = json.loads(text)
+            except ValueError:
+                doc = {}
+            text = " ".join(str(doc.get(k) or "")
+                            for k in ("description", "notes"))
+        for m in _RETIRED.finditer(text):
+            out.append(f"{f.relative_to(root)}: ..."
+                       f"{text[max(0, m.start() - 40):m.end() + 30]}...")
+    return out
+
+
 def for_the_reader(text: str) -> str:
     """*text* with the developer references in `_DEV_PATTERNS` taken out."""
     for pat, rep in _DEV_PATTERNS:
@@ -1385,6 +1435,7 @@ def verify(path: Path) -> "list[str]":
         gaps += matrix_faults(coverage_matrix(root))
         gaps += [f"path of the build machine left in {x}"
                  for x in path_leaks(root)]
+        gaps += [f"the retired word in {x}" for x in retired_words_in(root)]
         return gaps
     finally:
         if tmp is not None:

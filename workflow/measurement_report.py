@@ -4581,6 +4581,54 @@ EVENNESS_TYPICAL_SIGMA = 1.1
 #: one that cannot be judged.
 EVENNESS_ESTIMATE_SHUFFLES = 200
 
+#: **THE PRE-PRINT NOISE MODEL, ONE FOR EVERY CHART** (B8-1451). The noise a
+#: typical print would have on a row is ``multiplier * EVENNESS_TYPICAL_SIGMA
+#: / sqrt(n)``, where *n* is the ninths' EFFECTIVE count
+#: (:func:`evenness_effective_count`), every page the report reads pooled as
+#: the report pools them (§16 item 3). The multiplier is the 95th percentile
+#: of the report's own shuffle on residuals of one unit, times the root of the
+#: patches in a ninth, and it does not depend on the chart: MEASURED with
+#: :func:`evenness_from_residuals`, 20 seeds, 2,000 shuffles each, ideal pages
+#: of 60 by 60 (400 in each ninth), 6.99 +- 0.12 between two areas and
+#: 4.21 +- 0.06 from the mean
+#: (`tests/test_b8_1451_evenness_counts_are_true_and_consistent.py`
+#: re-measures it).
+#:
+#: It replaced the shuffle of one random draw per chart. That draw wandered
+#: by about 0.05 from one chart to the next, so under the same limit one
+#: preset said about 170 patches in a ninth would do while another holding
+#: 216 was withheld (118 such pairs under the ISO 12647-7:2016 values, beta 45
+#: challenge 1). A model with one constant per row gives one needed count per
+#: limit, and "answered" is exactly "counts at least that many".
+EVENNESS_NOISE_PER_ROOT_PATCH: "dict[str, float]" = {
+    "pairwise": 7.0,
+    "from_mean": 4.2,
+}
+
+
+def evenness_effective_count(counts) -> "int | None":
+    """How many patches the nine ninths count as, for the noise: their
+    HARMONIC mean, rounded down. None when a ninth is empty or there are no
+    counts.
+
+    WHY THE HARMONIC MEAN (B8-1451). The noise of a ninth's mean falls as one
+    over the root of its patches, so what the two figures are made of is
+    ``1/n_i + 1/n_j`` for a pair of ninths, and ``1/n_i`` against the mean of
+    all nine. Averaged over the 36 pairs, or over the nine ninths, both come
+    to a multiple of ``sum(1/n_i) / 9``, one over the harmonic mean. On a
+    page whose ninths are equal it is simply the count in each. On a page
+    whose middle bands are wider (3 + 5 + 3 strips by 4 + 6 + 4 rows holds
+    12 to 30 in a ninth) it lies between the fewest and the plain mean, and
+    the report's shuffle of that page reads about what equal ninths of the
+    harmonic mean read; the fewest alone would read a noise a sixth too high
+    and refuse Knut's two-page i1Pro 3 Plus charts (§16.6, confirmed)."""
+    from fractions import Fraction
+    cs = [int(c) for c in (counts or [])]
+    if not cs or min(cs) <= 0:
+        return None
+    h = Fraction(len(cs)) / sum(Fraction(1, c) for c in cs)
+    return int(h)                       # int() of a Fraction rounds down
+
 #: Reason codes for a row that could not be computed. The report window turns
 #: them into sentences through tr(); the JSON keeps the code.
 REASON_NO_GREYS = "no_greys"
@@ -6418,6 +6466,12 @@ def row_values(report: dict) -> "dict[str, dict]":
             # can say how many it has and how many the limit would take
             counts = ev.get("counts") or []
             out[rid]["area_min"] = int(min(counts)) if counts else None
+            # B8-1451: the counts are over every page the block reads, the
+            # same ninth of each pooled (§16 item 3), so the sentence says
+            # over how many pages; and the count the noise model works on
+            out[rid]["area_max"] = int(max(counts)) if counts else None
+            out[rid]["area_effective"] = evenness_effective_count(counts)
+            out[rid]["area_pages"] = len(ev.get("pages_used") or ()) or None
         else:
             put(rid, None, ev.get("reason") or REASON_EVENNESS_NO_LAYOUT)
 

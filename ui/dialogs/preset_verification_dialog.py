@@ -153,31 +153,76 @@ def _solids_reason() -> str:
     return M.M_VERIFY_SOLIDS_REASON.render()[1]
 
 
-def noise_count_line(have: int, need: int) -> str:
+def noise_count_line(have: int, need: int, pages: int = 1,
+                     low: "int | None" = None,
+                     high: "int | None" = None) -> str:
     """K61 (Knut, #182 5851645723): an evenness row withheld for the chart's
     own noise, with the two numbers that say why. "Too few patches in each
     ninth" was read as a fault on a 648-patch page holding 72 in every
     ninth, which is plenty for the page grid and not enough for a pairwise
-    limit of 0.5, which wants about 220 (`preset_eligibility.noise_shortfall`).
+    limit of 0.5 (`preset_eligibility.noise_shortfall`).
+
+    B8-1451, the numbers are the REPORT'S and the same for every chart:
+
+    * the report adds the same ninth of every page it reads together (§16
+      item 3), so a chart of several pages says so: "each ninth of the page
+      holds at least 200" was false of every page of a 10-page chart, which
+      puts about 20 in a ninth of each;
+    * *need* is one figure per limit for every chart
+      (`preset_eligibility.model_need`), and *have* is the count the same
+      model reads. Where the ninths hold different numbers of patches that
+      is their harmonic mean (`MR.evenness_effective_count`), which the
+      sentence calls an average weighed as the noise weighs it, with the
+      range beside it, so no number in it is a count the chart does not
+      have.
+
+    No singular: a page the report reads has at least 9 strips and 9 rows,
+    so each of its ninths holds at least 6 patches.
     """
-    one = tr("Each ninth of the page holds at least 1 patch. On a typical "
-             "print the chart's own noise would be below this limit only "
-             "with about {need} patches in each ninth. The report measures "
-             "the real noise on the printed sheet.")
-    many = tr("Each ninth of the page holds at least {have} patches. On a "
-              "typical print the chart's own noise would be below this limit "
-              "only with about {need} patches in each ninth. The report "
-              "measures the real noise on the printed sheet.")
-    return (one if int(have) == 1 else many).format(have=int(have),
-                                                      need=int(need))
+    have, need, pages = int(have), int(need), int(pages)
+    low = have if low is None else int(low)
+    high = have if high is None else int(high)
+    if low == high:
+        if pages > 1:
+            return tr("The report counts the same ninth of all {pages} pages "
+                      "together, and together each ninth holds {have} "
+                      "patches. On a typical print the chart's own noise "
+                      "would be below this limit only with at least {need} "
+                      "patches in each ninth, all pages together. The report "
+                      "measures the real noise on the printed sheet."
+                      ).format(have=have, need=need, pages=pages)
+        return tr("Each ninth of the page holds {have} patches. On a typical "
+                  "print the chart's own noise would be below this limit only "
+                  "with at least {need} patches in each ninth. The report "
+                  "measures the real noise on the printed sheet."
+                  ).format(have=have, need=need)
+    if pages > 1:
+        return tr("The report counts the same ninth of all {pages} pages "
+                  "together. Together the ninths hold {low} to {high} "
+                  "patches, {have} on average as the noise weighs them, where "
+                  "a ninth with fewer patches counts for more. On a typical "
+                  "print the chart's own noise would be below this limit only "
+                  "with an average of at least {need}, weighed the same way. "
+                  "The report measures the real noise on the printed sheet."
+                  ).format(have=have, need=need, pages=pages, low=low,
+                           high=high)
+    return tr("The ninths of the page hold {low} to {high} patches, {have} on "
+              "average as the noise weighs them, where a ninth with fewer "
+              "patches counts for more. On a typical print the chart's own "
+              "noise would be below this limit only with an average of at "
+              "least {need}, weighed the same way. The report measures the "
+              "real noise on the printed sheet."
+              ).format(have=have, need=need, low=low, high=high)
 
 
-def reason_line(code: str, counts: "tuple[int, int] | None" = None) -> str:
+def reason_line(code: str,
+                counts: "tuple[int, ...] | None" = None) -> str:
     """What this chart is short of, in one sentence.
 
-    *counts* is ``(have, need)`` for an evenness row withheld for the
-    chart's own noise (`Assessment.noise_count`); the sentence then names
-    both numbers."""
+    *counts* is a `preset_eligibility.NoiseCount` (have, need, pages, low,
+    high; a plain ``(have, need)`` is one page of equal ninths) for an
+    evenness row withheld for the chart's own noise
+    (`Assessment.noise_count`); the sentence then names the numbers."""
     if counts and code in MR.EVENNESS_NOISE_REASONS:
         return noise_count_line(*counts)
     return {
@@ -401,7 +446,7 @@ class Line:
 
 
 def _missing_messages(rid: str, why: str, said: str = "",
-                      counts: "tuple[int, int] | None" = None
+                      counts: "tuple[int, int, int] | None" = None
                       ) -> "tuple[str, ...]":
     """Every line the pane prints under one metric the chart cannot answer:
     what it is short of, printtarg's own words when it refused the layout,

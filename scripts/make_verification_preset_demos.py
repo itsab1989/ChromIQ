@@ -509,25 +509,31 @@ R16_SCALE = 0.80
 
 #: **K61 (Knut, #182 5851645723): THE THIRD EVENNESS FLOOR, THE SHEET'S OWN
 #: NOISE.** A page that meets both floors above is still not judged when the
-#: noise a typical print would have (`preset_eligibility._estimated_evenness`:
-#: a residual of `EVENNESS_TYPICAL_SIGMA` per patch, the report's own shuffle)
+#: noise a typical print would have (`preset_eligibility._estimated_evenness`)
 #: is not below the row's limit. That line depends on the LIMIT, so these two
 #: pairs are judged under Custom ISO 12647-7, which puts 1.0 on both rows,
-#: the strictest numbers the pack's STRICT choice asks. MEASURED on the
-#: window's own estimate (`scripts/k61_threshold_matrix.py`), i1Pro, A4:
+#: the strictest numbers the pack's STRICT choice asks.
+#:
+#: B8-1451: the estimate is a MODEL, one for every chart: the noise is
+#: `EVENNESS_NOISE_PER_ROOT_PATCH` times `EVENNESS_TYPICAL_SIGMA` over the
+#: root of the ninths' effective count (their harmonic mean, rounded down,
+#: `MR.evenness_effective_count`), so under 1.0 the pairwise row wants 60 and
+#: the from-the-mean row 22 (`preset_eligibility.model_need`). Measured on the
+#: window's own call, i1Pro, A4:
 #:
 #: * R18, the pairwise row at 1.0: at ``-a 0.95`` a page of 25 strips by 22
-#:   rows (70.4 % covered) reads a noise of 1.026 with 529 patches and 0.988
-#:   with 530;
+#:   rows (70.4 % covered) counts as 59 with 544 patches (noise 1.002) and
+#:   60 with 545 (0.994);
 #: * R19, the from-the-mean row at 1.0: at ``-a 1.5`` a page of 15 strips by
-#:   14 rows (67.2 % covered) reads 1.030 with 200 patches and 0.985 with
-#:   201. The pairwise row is over its own limit on both sides (1.69, 1.68).
+#:   14 rows (67.2 % covered) counts as 21 with 205 patches (1.008) and 22
+#:   with 206 (0.985). The pairwise row is over its own limit on both sides
+#:   (1.68, 1.64).
 #:
-#: THE ESTIMATE IS NOT MONOTONIC IN THE COUNT near its line: one patch more
-#: moves every patch's residual (and printtarg places the patches anew), so
-#: it wanders by about 0.05 from one count to the next: 531 reads 1.069
-#: again. Each pair is a crossing with about 0.03 on either side, and the pair
-#: test holds both sides to it.
+#: THE COUNT IS NOT MONOTONIC IN THE PATCHES near its line: printtarg places
+#: every patch anew for one patch more, and the fullest and emptiest ninths
+#: trade places (535 patches count as 58 again, below 534's 59). Each pair is
+#: the first crossing from the line's FAIL side to its PASS side, and the
+#: pair test holds both sides to it.
 R18_SCALE = 0.95
 R19_SCALE = 1.5
 
@@ -836,9 +842,9 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "preset_eligibility._estimated_evenness, EVENNESS_TYPICAL_SIGMA 1.1)",
         "measurement_report.evenness_withheld, EVENNESS_TYPICAL_SIGMA",
         ("uniformity_sd",), "evenness_noisy_pairwise",
-        "529 patches, a typical print's noise 1.026 against a limit of 1.0",
-        "530 patches, noise 0.988",
-        lambda: chart_page(529), lambda: chart_page(530),
+        "544 patches, a typical print's noise 1.002 against a limit of 1.0",
+        "545 patches, noise 0.994",
+        lambda: chart_page(544), lambda: chart_page(545),
         strip_ids(20), strip_ids(20), scale=R18_SCALE,
         judged_with="custom_iso_12647_7"),
     Requirement(
@@ -848,14 +854,15 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "noise_p95 >= limit  ->  evenness_noisy_from_mean (the same estimate)",
         "measurement_report.evenness_withheld, EVENNESS_TYPICAL_SIGMA",
         ("uniformity_de00_max_from_mean",), "evenness_noisy_from_mean",
-        "200 patches, a typical print's noise 1.030 against a limit of 1.0",
-        "201 patches, noise 0.985",
-        lambda: chart_page(200), lambda: chart_page(201),
+        "205 patches, a typical print's noise 1.008 against a limit of 1.0",
+        "206 patches, noise 0.985",
+        lambda: chart_page(205), lambda: chart_page(206),
         strip_ids(20), strip_ids(20),
         ("evenness_noisy_pairwise",),
-        "The pairwise row needs about 56 patches in each ninth under a limit "
-        "of 1.0; these two pages hold 17 to 20, so it is over its own limit "
-        "on both sides (1.69 and 1.68) and does not move with the pair.",
+        "The pairwise row needs its ninths to count as 60 patches under a "
+        "limit of 1.0; these two pages count as 21 and 22, so it is over its "
+        "own limit on both sides (1.68 and 1.64) and does not move with the "
+        "pair.",
         scale=R19_SCALE, judged_with="custom_iso_12647_7"),
 )
 
