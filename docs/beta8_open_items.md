@@ -29915,13 +29915,15 @@ would reach.
 - found by: the B8-1363 round (before the fix, i1-on-auto / cm-on-auto / cr30-auto reopened: estimate 525 / 48 / 345, build 16 / 16 / 14). `_estimate_patch_total` falls back to the chart in the preview when -f is 0, which "Auto off, -f 0" is not: targen then makes only white, black and the grey steps. A reopen no longer reaches this state (B8-1363); typing 0 by hand still does. Not changed here: the honest number needs the fixed-patch count the build computes (`_apply_auto_neutrals`), a change to the estimate on its own.
 - where: `ui/tabs/tab_chart.py` (`_estimate_patch_total`).
 
-### B8-1408 · OPEN · Question: should replacing a run's chart ask when the run holds nothing but that chart?
+### B8-1408 · DEFERRED · Question: should replacing a run's chart ask when the run holds nothing but that chart?
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: DEFERRED
 - note: a question for Knut.
 - found by: B8-1363 round 9 ("The second Generate overwrites run1 without asking"). By `unified_measurement_management.md` §4 ("Chart only | either | none | none") that is the rule, not a missing question: the question is asked when a measurement or profile would be displaced, and it is on this path (on screen: `b8-1363/after/i1-on-auto-measured`, "This run already holds work made with the chart you are about to replace"). What remains: a chart printed but not yet measured is replaced without a word, and even when the new chart is the same patch set (as it now is after a reopen) a fresh seed shuffles the sheet unless "Use a fixed seed" is ticked (§2.2). Asking for chart-only runs would change a table, so it is not built.
 - where: `ui/tabs/tab_chart.py` (`_confirm_displacing_results`).
+- decided by: Knut
+- because: Knut, #182 5851662703: "No." A run that holds only its chart is replaced without a question, as the §4 table of unified_measurement_management.md says; no change.
 
 ### B8-1409 · OPEN · A built-in on a custom paper leaves printtarg's -p on A4, and the run's record carries it
 - blocks release: no
