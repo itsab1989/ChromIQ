@@ -1399,21 +1399,30 @@ def created_stamp_for(ti3_path: str | Path, *,
 
 
 def build_report(ti3_path: str | Path, worst_n: int = 16,
-                 argyll_bin: "str | Path | None" = None) -> dict:
+                 argyll_bin: "str | Path | None" = None, *,
+                 at: "str | Path | None" = None) -> dict:
     """Compute a measurement report from a measured ``.ti3``.
 
     Finds the sibling ``.ti2`` for the expected reference. Returns a JSON-able
     dict; ``de`` blocks are absent when no reference is available (then only
     white/black and patch-count are reported).
+
+    *at* (B8-1551): the place the measurement was MEASURED, when the file read
+    is a copy ChromIQ archived into an ``old/<when>/`` folder since. The
+    readings and their ``created`` stamp come from *ti3_path*; everything a
+    report looks up beside a measurement (its chart, its print record, its
+    profile, its page geometry, its sheet kind, the dated measurements before
+    it) is looked up at *at*, as it was when the sheet was measured there.
     """
-    ti3_path = Path(ti3_path)
-    data = parse_ti3(ti3_path)
+    src = Path(ti3_path)
+    data = parse_ti3(src)
+    ti3_path = Path(at) if at is not None else src
     lab = [xyz_to_lab((x / 100.0, y / 100.0, z / 100.0)) for x, y, z in data.xyz]
     # The readings as MEASURED, kept because `lab` may be re-read below in the
     # media-relative yardstick, and one row must not see both (K15).
     absolute_lab = lab
 
-    _created = created_stamp_for(ti3_path, keywords=data.keywords)
+    _created = created_stamp_for(src, keywords=data.keywords)
     report: dict = {
         "schema": REPORT_SCHEMA,
         "created": _created,

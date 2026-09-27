@@ -26,6 +26,8 @@
 ### Fixed
 - A saved report chosen in "Report shown" is shown, and printed to PDF, exactly as it was saved. A report an earlier version saved is no longer filled in with figures that version never worked out.
 - A new or updated report works every date out again with this version's evenness filter and limits, dates whose reports an earlier version saved included, and a report of several dates keeps the figures it was judged on. Where a date's measurement is no longer on disk, the report says that date's figures are the ones an earlier report saved.
+- A saved report of a sheet printed raw keeps the "Change since the previous raw check" it was saved with. It was worked out again each time the report was opened, so it changed when an earlier date left the run.
+- A new report finds a measurement ChromIQ kept in the run's "old" folder when the sheet was measured again, and works it out from there, provided the chart it was measured with has not changed since.
 - A run whose limits an earlier version stored starts new reports on this version's evenness limits, unless you chose the limit yourself, and no longer reads "(edited)" when nobody edited it.
 - The Report Limits note no longer says the Custom columns' evenness rows are not the ISO figures: they are those figures converted to ChromIQ's method.
 - On a sheet whose nine areas all read 0 once the noise is taken out, the Measurement Report no longer names one of them as the area furthest from the average. It says that no area differs.

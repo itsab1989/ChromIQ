@@ -936,6 +936,11 @@ WORKED_OUT_NOW_KEY = "_worked_out_now"
 #: its measurement is no longer on disk as it was, so its figures are the ones
 #: an earlier report saved (B8-1500; the page says so, M-REPORT-NOT-WORKED-OUT).
 NOT_WORKED_OUT_AGAIN_KEY = "_not_worked_out_again"
+#: Session key: a SAVED report's "Change since the previous raw check" as this
+#: version works it out from the measurements on disk now, for a NEW report
+#: only (B8-1550). The saved report itself keeps the ``raw_drift`` its file
+#: holds, or none when it saved none.
+RAW_DRIFT_NOW_KEY = "_raw_drift_now"
 
 
 def _worked_out_differently(saved: dict, rebuilt: dict) -> bool:
@@ -4327,7 +4332,29 @@ class MeasurementReportDialog(QDialog):
             runs.append(fresh)
         runs.sort(key=lambda r: str(r.get("created") or ""))
         from workflow.measurement_report import annotate_raw_drift
+        # **A SAVED REPORT KEEPS THE CHANGE FIGURE IT WAS SAVED WITH (B8-1550;
+        # Knut, #182 5857473253: "Old reports should stay exactly as they
+        # were saved, without recalculating").** `annotate_raw_drift` works
+        # the figure out from the measurements on disk NOW and wrote it over
+        # every row, so a saved report of a raw sheet said "it is the
+        # baseline" once the earlier date had left the run, while its file
+        # held "average 0.60 against 2026-12-03", and a beta 43 report, which
+        # saved no figure, was shown with one it never held. The figure of
+        # now is kept beside a saved row (`RAW_DRIFT_NOW_KEY`) for a NEW
+        # report, which `_worked_out_again` gives it; the saved row shows
+        # what its file holds, or nothing.
+        saved_drift = {id(r): ("raw_drift" in r, r.get("raw_drift"))
+                       for r in runs if not r.get(WORKED_OUT_NOW_KEY)}
         annotate_raw_drift(runs)
+        for r in runs:
+            if id(r) not in saved_drift:
+                continue
+            had, value = saved_drift[id(r)]
+            now = r.pop("raw_drift", None)
+            if now is not None:
+                r[RAW_DRIFT_NOW_KEY] = now
+            if had:
+                r["raw_drift"] = value
         name = runs[-1].get("chart") or ti3.stem
         return name, runs
 
@@ -4951,6 +4978,66 @@ class MeasurementReportDialog(QDialog):
         if any(c and c != want for c in (dates_here or set())):
             return None
         return live
+
+    @staticmethod
+    def _archived_measurement_for(rep: dict, run_dir: Path,
+                                  name: str) -> "Path | None":
+        """The copy ChromIQ ARCHIVED of a saved report's measurement, or None
+        (B8-1551).
+
+        Measuring a sheet again leaves the earlier measurement in an
+        ``old/<when>/`` folder (`MeasurementSession.begin` beside the file,
+        `Run.archive_to_old` in the run, a verification Replace in
+        ``verifications/old/``), under the same name or ``<stem>_N.ti3``.
+        A copy there is this report's measurement only when its own stamp is
+        the report's ``created`` and its own facts do not contradict the
+        report (`facts_disagree`), the two tests `_measurement_for` asks of
+        the file in the folder.
+
+        AND ONLY WHILE ITS CHART IS STILL THE CHART IT WAS MEASURED WITH.
+        It is worked out at the place it was measured, so its reference is
+        the chart there TODAY, and a profiling run's chart can be generated
+        again since (`_measurement_for`'s reasons for not using an archive).
+        So every patch must still hold the device values that chart asks for
+        (`verify_patch_identity`); a copy the chart no longer matches is
+        refused, and the report keeps what was saved and says so."""
+        import glob as _glob
+        from core.file_manager import VERIFICATIONS_DIRNAME
+        from workflow.measurement_report import (
+            _find_reference_ti2, created_stamp_for, facts_disagree,
+            parse_ti3, verify_patch_identity)
+        want = str(rep.get("created") or "")
+        name = Path(str(name or rep.get("ti3") or "")).name
+        if not want or not name:
+            return None
+        stem, suffix = Path(name).stem, Path(name).suffix or ".ti3"
+        roots = [run_dir / "old"]
+        if run_dir.parent.name == VERIFICATIONS_DIRNAME:
+            roots += [run_dir.parent / "old", run_dir.parent.parent / "old"]
+        for root in roots:
+            try:
+                whens = sorted(d for d in root.iterdir() if d.is_dir())
+            except OSError:
+                continue
+            for when in whens:
+                cands = [when / name] + sorted(
+                    when.glob(f"{_glob.escape(stem)}_[0-9]*{suffix}"))
+                for cand in cands:
+                    if not cand.is_file():
+                        continue
+                    try:
+                        if created_stamp_for(cand) != want \
+                                or facts_disagree(rep, cand):
+                            continue
+                        ident = verify_patch_identity(
+                            parse_ti3(cand),
+                            _find_reference_ti2(run_dir / name))
+                    except Exception:                  # noqa: BLE001
+                        continue
+                    if ident.get("verdict") == "mismatch":
+                        continue
+                    return cand
+        return None
 
     @staticmethod
     def _report_is_about(r: dict, ti3: Path) -> bool:
@@ -13376,19 +13463,40 @@ class MeasurementReportDialog(QDialog):
         if ti3 is None and r.get("_fresh"):
             cand = Path(origin) / Path(str(r.get("ti3") or "")).name
             ti3 = cand if cand.is_file() else None
+        # **THE MEASUREMENT CHROMIQ ARCHIVED ITSELF IS STILL ITS MEASUREMENT
+        # (B8-1551).** A sheet measured again leaves its earlier measurement
+        # in an ``old/<when>/`` folder; this asked only the folder the report
+        # was saved in, and the new report said "no longer on disk" about a
+        # file ChromIQ keeps. It is read from the archive and worked out AT
+        # THE PLACE IT WAS MEASURED (`build_report`'s *at*), so its chart,
+        # print record and sheet kind are the ones it was measured with.
+        at = None
+        if ti3 is None:
+            ti3 = self._archived_measurement_for(r, Path(origin),
+                                                 opened.name)
+            if ti3 is not None:
+                at = Path(origin) / opened.name
         if ti3 is None:
             log.info("Generate: %s is not on disk as it was, so its row is "
                      "written as the window read it", r.get("ti3"))
             return r
         try:
-            new = build_report(ti3, argyll_bin=self._argyll_bin())
+            new = (build_report(ti3, argyll_bin=self._argyll_bin(), at=at)
+                   if at is not None
+                   else build_report(ti3, argyll_bin=self._argyll_bin()))
         except Exception as exc:                       # noqa: BLE001
             log.warning("Generate: %s could not be worked out again (%s); "
                         "its row is written as the window read it", ti3, exc)
             return r
-        for k in ("created", "raw_drift", "report_type"):
+        for k in ("created", "report_type"):
             if k in r:
                 new[k] = r[k]
+        # A NEW report's change figure is this version's (B8-1550): the one
+        # worked out now when the row is a saved report, else the row's own.
+        if RAW_DRIFT_NOW_KEY in r:
+            new["raw_drift"] = r[RAW_DRIFT_NOW_KEY]
+        elif "raw_drift" in r:
+            new["raw_drift"] = r["raw_drift"]
         new.update({k: v for k, v in r.items()
                     if k.startswith("_") and k != RECORD_KEY
                     and k != WORKED_OUT_EARLIER_KEY
