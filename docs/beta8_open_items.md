@@ -30406,13 +30406,17 @@ would reach.
 - found by: building B8-1381 (K59) against challenge 9's rule that the clause be true of exactly the rows judged.
 - where: `ui/dialogs/measurement_report_dialog.py` (`_what_this_report_judges`, `_raw_clause`).
 
-### B8-1396 · OPEN · Create Chart's FROM PROFILE GAMUT help still says "has anything drifted" and "a drifting printer"
+### B8-1396 · FIXED, awaiting confirmation · Create Chart's FROM PROFILE GAMUT help said "has anything drifted" and "a drifting printer"
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: the K59 sweep for "drift" (B8-1394).
-- note: Two help texts of the FROM PROFILE GAMUT module in the Create Chart tab (the module's ⓘ, "has anything drifted since I made this profile?", and the patch count's, "a drifting printer shows in the ..."), which describe verification. Not changed here: `ui/tabs/tab_chart.py` is being worked on by another agent for beta 44 (as B8-1391). Wants "changed" for "drifted", as B8-1394 did everywhere else, with German.
-- where: `ui/tabs/tab_chart.py` (the FROM PROFILE GAMUT help texts near its module ⓘ).
+- ruling: Knut, #182 5849392788: *"The word drift is not used at all ... Use the word "Change" instead of "Drift"."*
+- fix: the module's help ("has anything changed since I made this profile?". That is a genuinely useful question, ...) and the patch count's help ("A change in the printer shows in the greys first, ..."). Every em dash of the two texts cleaned (a colon, a comma or a full stop). German by hand ("verändert", "Eine Veränderung des Druckers"), which also puts the count help's paragraphs in the English order; the twelve others had these two translated and carry the new English under the beta rule (both ledgers +2 each); the em-dash baseline pruned (15 stale entries, the two old texts among them). Other uses of "drift" in Create Chart's help are left: "Greys are where ... a printer drifts first" (a patch generator's help) and "Inks and paper can drift over time" (a tooltip of the Measure tab) are the physical sense B8-1394 kept; a question for Knut whether they should read "change" too.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch1/1396/` (before, before-de, after, after-de: both help windows opened from their ⓘ, photographed, the text read back: before 5 and 3 em dashes and "drift", after none).
+- tests: tests/test_b8_1396_gamut_help_says_change.py; mutations M1396-a to M1396-d (`~/Desktop/ChromIQ-beta45-proof/batch1/mutations/m1396.txt`), each red.
+- evidence: test_the_help_says_change_not_drift, test_the_module_help_asks_what_changed, test_german_is_written_by_hand_and_says_change, test_every_catalogue_has_the_new_key
+- where: `ui/tabs/tab_chart.py` (`_GAMUT_MODULE_HELP_BODY`, `_GAMUT_SIZE_HELP_BODY`), `data/i18n/*.json`, both ledgers, `tests/data/em_dash_baseline.json`.
 
 ### B8-1397 · FIXED, wording APPROVED by Knut · QUESTION ANSWERED (K60): a report across runs whose sheets were printed both ways opens with Knut's D2 sentence
 - blocks release: no
