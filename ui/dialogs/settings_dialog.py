@@ -2047,7 +2047,7 @@ class SettingsDialog(QDialog):
             "three columns of useful info (chart summary + print reminders, "
             "a fill-in-the-blank form for archival notes, and scanning-table "
             "orientation instructions).\n\n"
-            "How it works behind the scenes:\n"
+            "**How it works behind the scenes:**\n"
             "  1. printtarg is always told to suppress the native clip strip "
             "(-L), so it can use the whole page width for patches.\n"
             "  2. ChromIQ then shifts the patch block to the right inside the "
@@ -2055,7 +2055,7 @@ class SettingsDialog(QDialog):
             "printtarg would have reserved natively (~28 mm).\n"
             "  3. The ChromIQ left-strip content is stamped into that new "
             "white area.\n\n"
-            "Trade-off: Argyll's small vertical ID line on the RIGHT edge of "
+            "**Trade-off:** Argyll's small vertical ID line on the RIGHT edge of "
             "the chart gets pushed off the page by the shift, so the right-"
             "margin command/notes stamp is disabled while this is on (those "
             "options are hidden in the Create Chart tab).\n\n"
@@ -2228,7 +2228,7 @@ class SettingsDialog(QDialog):
             "operating system's one — that window has its own Quick Access list "
             "and its own preview pane instead (in Explorer, turn on the Preview "
             "pane from the View menu).\n\n"
-            "Nothing else changes: the same files are offered either way, and you "
+            "**Nothing else changes:** the same files are offered either way, and you "
             "can switch back at any time. This only affects how the browser "
             "windows look — not your charts, measurements, or profiles."),
             self,
@@ -2279,7 +2279,7 @@ class SettingsDialog(QDialog):
                "One tab has no log panel to hide: Print Chart does its work "
                "through the system print dialog and has nothing of its own to "
                "report.\n\n"
-               "Default: off (the log is shown)."),
+               "**Default:** off (the log is shown)."),
             self,
             min_width=560,
         )
@@ -2408,7 +2408,7 @@ class SettingsDialog(QDialog):
             "always has: a finished measurement takes you straight on to Build "
             "Profile with no extra window and no extra files. Turn it on only if "
             "you want the option to read charts repeatedly for extra precision.\n\n"
-            "Tip: two reads already remove most of the random noise; three or four "
+            "**Tip:** two reads already remove most of the random noise; three or four "
             "give diminishing returns. There is no benefit to averaging reads of "
             "DIFFERENT charts — this is only for re-reading one and the same chart.\n\n"
             "With thanks to Alan Goldhammer, who suggested this feature."),
@@ -2586,7 +2586,7 @@ class SettingsDialog(QDialog):
             "the six-sided patch it really is so you can see it sitting on the "
             "chart. Check the profile before you trust it; if a scan is "
             "refused, switch this back off and print the chart with square "
-            "patches instead.\n\nDefault: off"),
+            "patches instead.\n\n**Default:** off"),
             self,
             min_width=680,
         )
@@ -2688,7 +2688,7 @@ class SettingsDialog(QDialog):
             "─────────────────────────────────\n"
             "What each one gives you\n"
             "─────────────────────────────────\n\n"
-            "Only with the ChromIQ engine:\n"
+            "**Only with the ChromIQ engine:**\n"
             "  • your readings are saved after every strip\n"
             "  • click a strip in the preview to jump to it\n"
             "  • the preview fills in each patch as you read\n"
@@ -2698,23 +2698,23 @@ class SettingsDialog(QDialog):
             "  • the offer to read a hurried strip again\n"
             "  • per-strip figures in the end-of-measurement summary\n"
             "  • only the sounds you chose are heard\n\n"
-            "The same either way:\n"
+            "**The same either way:**\n"
             "  • the measured values themselves, down to the numbers\n"
             "  • ArgyllCMS's own “Slow Down!” cue\n"
             "  • the right sound for the right kind of failure\n"
             "  • the strip-failure window and its advice\n"
             "  • the total measuring time in the summary\n\n"
-            "Why reading pace needs the engine: ArgyllCMS tells our own code "
+            "**Why reading pace needs the engine:** ArgyllCMS tells our own code "
             "the exact moment the instrument fires, so a swipe can be timed. "
             "The separate chartread program only prints that it is ready and "
             "then that the strip was read, and the time between those two "
             "includes you picking the instrument up and lining it up — so it "
             "cannot be used to judge how fast you swiped.\n\n"
-            "The last row has the same cause: the beeps built into ArgyllCMS "
+            "**The last row has the same cause:** the beeps built into ArgyllCMS "
             "are silenced in the engine, because it runs inside ChromIQ. The "
             "separate chartread program beeps on its own and offers no way to "
             "turn that off, so with it you may hear both its beeps and your "
-            "chosen sounds.\n\nDefault: on"),
+            "chosen sounds.\n\n**Default:** on"),
             self,
             min_width=680,
         )
@@ -2747,7 +2747,7 @@ class SettingsDialog(QDialog):
             "you own one of these and want to help, turn it on and check the "
             "result; if anything looks wrong, switch it back off and the "
             "measurement runs the classic way. Needs the chart-reading engine "
-            "above to be on.\n\nDefault: off"),
+            "above to be on.\n\n**Default:** off"),
             self,
             min_width=680,
         )
@@ -2795,7 +2795,7 @@ class SettingsDialog(QDialog):
             "designed to have. ChromIQ draws a bright red outline around a patch "
             "that looks like a likely misread — a smudge, a skipped row, the "
             "strip swiped the wrong way — so it jumps out at you straight away.\n\n"
-            "Important: the design colour is an sRGB value, and a printer does "
+            "**Important:** the design colour is an sRGB value, and a printer does "
             "NOT reproduce sRGB — so vivid colours (a deep red, a saturated "
             "green) can legitimately measure 30–40 ΔE away on a perfectly good "
             "print. That is expected, not a mistake. If ChromIQ flagged every "
@@ -2822,7 +2822,7 @@ class SettingsDialog(QDialog):
             "patches; raise it if you only want the most extreme ones. It "
             "changes only the red outline in the preview — never your "
             "measurements.\n\n"
-            "Default: 50 ΔE"),
+            "**Default:** 50 ΔE"),
             self))
         _meas.addLayout(_pw_row)
         _fence_row = QHBoxLayout()
@@ -2836,20 +2836,20 @@ class SettingsDialog(QDialog):
             "print, because a printer does not reproduce sRGB. Flagging "
             "every patch past the limit above would light up half of a "
             "healthy chart in red.\n\n"
-            "On (the default): a patch gets the red outline only when it is "
+            "**On (the default):** a patch gets the red outline only when it is "
             "past the limit above AND clearly stands out from the other "
             "patches of its own strip. A real misread (a smudge, a doubled "
             "patch, a swipe that slipped onto the next row) spikes far above its "
             "neighbours, so it is caught; the normal, even difference "
             "between print and design stays quiet.\n\n"
-            "Off: the limit above means exactly what it says, and every "
+            "**Off:** the limit above means exactly what it says, and every "
             "patch past it is flagged. Choose this when you already suspect "
             "the chart is wrong and want to see everything the limit "
             "catches.\n\n"
             "This applies to strip reading only. Reading patch by patch, "
             "there is no strip to compare against, so there the limit above "
             "is always the whole rule.\n\n"
-            "Default: on"),
+            "**Default:** on"),
             self))
         _meas.addLayout(_fence_row)
 
@@ -2890,7 +2890,7 @@ class SettingsDialog(QDialog):
             "ArgyllCMS's own reader so you can still measure.\n\n"
             "Set it to 0 to turn automatic retries off entirely. This only "
             "affects the ChromIQ chart-reading engine.\n\n"
-            "Default: 3 (four attempts in total)"),
+            "**Default:** 3 (four attempts in total)"),
             self,
             min_width=620))
         _meas.addLayout(_car_row)
@@ -2924,7 +2924,7 @@ class SettingsDialog(QDialog):
             "adapter is always kept, and USB instruments are never affected. "
             "Nothing about your measurements changes, only how quickly the "
             "connection is made.\n\n"
-            "When to turn it OFF: if your instrument is not found at all. On "
+            "**When to turn it OFF:** if your instrument is not found at all. On "
             "some computers, older Macs in particular, this shortcut is what "
             "stops it being seen, and the same instrument that works on a "
             "newer machine reports “No instrument found” on the older one, "
@@ -2933,7 +2933,7 @@ class SettingsDialog(QDialog):
             "pause of a few seconds before the calibration prompt appears, "
             "and nothing else. The no-instrument window offers the same "
             "switch, so you do not have to come here mid-measurement.\n\n"
-            "Default: on"),
+            "**Default:** on"),
             self))
         _meas.addLayout(_fc_row)
 
@@ -2958,14 +2958,14 @@ class SettingsDialog(QDialog):
             "by a patch or two. If it clearly would, it stops and tells you — "
             "and offers to jump straight back and re-measure just that one "
             "strip. Your other strips and everything read so far are untouched.\n\n"
-            "It is deliberately cautious: it only speaks up when a shift makes a "
+            "**It is deliberately cautious:** it only speaks up when a shift makes a "
             "big, unmistakable improvement, so a normal good read — where vivid "
             "colours naturally differ from the design — never triggers it. And "
             "it only ever warns; it never changes your measurements on its own.\n\n"
             "Leave it off (the default) and nothing changes. Most misreads are "
             "already caught by the ‘wrong strip’ warning; this catches the "
             "subtler one-patch slips that slip past it.\n\n"
-            "Default: off"),
+            "**Default:** off"),
             self))
         _meas.addLayout(_sn_row)
 
@@ -2999,7 +2999,7 @@ class SettingsDialog(QDialog):
             "heading beside it.\n\n"
             "Turn it off and neither the percentage nor the bar appears, and "
             "ChromIQ does not count patches at all.\n\n"
-            "Default: on"),
+            "**Default:** on"),
             self))
         _meas.addLayout(_pb_row)
         _meas.addSpacing(10)
@@ -3096,7 +3096,7 @@ class SettingsDialog(QDialog):
                "quietly sorts those loose ChromIQ files into the right sub-folders "
                "first, creating them if needed, so the folder ends up as neat as a "
                "brand-new project. Then the file you asked for opens as usual.\n\n"
-               "It is completely safe: only files ChromIQ itself made are moved, "
+               "**It is completely safe:** only files ChromIQ itself made are moved, "
                "and only into sub-folders — nothing is renamed, nothing is "
                "deleted, your own files and the chart's core files are never "
                "touched, and a folder with nothing to tidy is left exactly as it "
@@ -3558,7 +3558,7 @@ class SettingsDialog(QDialog):
                "mentioning the speed, so a hurried strip passes without comment. "
                "Worth leaving on unless the window is interrupting you more "
                "often than it is helping.\n\n"
-               "Default: on."),
+               "**Default:** on."),
             self)
         pace_row = QHBoxLayout()
         pace_row.setContentsMargins(0, 0, 0, 0)
@@ -3813,7 +3813,7 @@ class SettingsDialog(QDialog):
             "more margin — and this is how close to the limit a strip has to be "
             "before ChromIQ mentions it in amber.\n\n"
             "Set it to 0% to be told only when a strip is genuinely too fast."
-        ) + example + tr("\n\nDefault: 10%"))
+        ) + example + tr("\n\n**Default:** 10%"))
 
     def _refresh_pace_estimates(self) -> None:
         """Update every instrument's "fastest a strip may be read" figure.
@@ -3997,7 +3997,7 @@ class SettingsDialog(QDialog):
                "why it isn't switched on for everybody. If you turn it on and "
                "your sounds stop, turn it straight back off and they will "
                "return.\n\n"
-               "Default: off"), page))
+               "**Default:** off"), page))
         _wu.addStretch(1)
         v.addLayout(_wu)
 
@@ -4106,7 +4106,7 @@ class SettingsDialog(QDialog):
             "files. Turn it off if you don't want this history. The Measure "
             "tab's “Save measurement report” box starts from this setting and "
             "can be changed there for a run.\n\n"
-            "Default: on"),
+            "**Default:** on"),
             self))
         sg.addLayout(_rep_row)
         v.addWidget(save_grp)
@@ -4203,7 +4203,7 @@ class SettingsDialog(QDialog):
                "run that has never generated one, “New report…” chosen in "
                "“Report shown”, and the report ChromIQ writes by itself after "
                "a measurement.\n\n"
-               "The type belongs to the report: a report keeps the type it "
+               "**The type belongs to the report:** a report keeps the type it "
                "was made with, and choosing another in the report window "
                "changes only the report shown. So this is where every new "
                "report starts, of every profile run.\n\n"
@@ -4223,7 +4223,7 @@ class SettingsDialog(QDialog):
                "chosen there. A calibration run's report is never of an ISO "
                "type: it starts as a Full colour check, and any limit set "
                "may be chosen for it.\n\n"
-               "Default: Full colour check"),
+               "**Default:** Full colour check"),
             self))
         gl.addLayout(_type_row)
         # **"SHOW ALL MEASUREMENT RUNS, BY DEFAULT" IS GONE (B8-590).** The
@@ -4251,7 +4251,7 @@ class SettingsDialog(QDialog):
                "setting it was made with.\n\n"
                "The report ChromIQ writes by itself after a measurement never "
                "carries it.\n\n"
-               "Default: on"),
+               "**Default:** on"),
             self))
         gl.addLayout(_det_row)
         v.addWidget(defaults_grp)
@@ -4314,7 +4314,7 @@ class SettingsDialog(QDialog):
                "the profile (chart) name, giving the title “<your text> - "
                "<profile name>” and the file name “<your text> - <profile "
                "name> - <date_time>.pdf”.\n\n"
-               "Default: the three suggested lines, profile name on."),
+               "**Default:** the three suggested lines, profile name on."),
             self))
         tgl.addLayout(_apn_row)
         v.addWidget(title_grp)
@@ -4529,7 +4529,7 @@ class SettingsDialog(QDialog):
         _row(3, tr("Check alignment: flag placements below (0.5–0.99):"),
              self._scan_check_spin,
              tr("Placement agreement (Check alignment and building)"),
-             tr("In short: this asks \"is my reading grid really on the "
+             tr("**In short:** this asks \"is my reading grid really on the "
                 "patches, or would it fit better a little to one side?\" If a "
                 "nearby position would fit better, ChromIQ tells you, and "
                 "names the patches that look most wrong.\n\n"
@@ -4542,14 +4542,14 @@ class SettingsDialog(QDialog):
                 "have: a low worst with a high average means a few patches "
                 "are off (a pulled corner, a local wrinkle), while both low "
                 "means the whole grid has slipped.\n\n"
-                "What to change: if you get warnings on scans you've checked "
+                "**What to change:** if you get warnings on scans you've checked "
                 "by eye and know are fine, lower this. Raise it to be warned "
                 "earlier. The default is calibrated on real scanned targets: "
                 "a correctly placed grid reads about 90 % or better at any "
                 "sample area, a single corner dragged inwards by a fiftieth "
                 "of the grid already collapses the worst patch, and any offset "
                 "under about 5 % of a patch passes.\n\n"
-                "How it works, if you're curious: ChromIQ samples the scan at "
+                "**How it works, if you're curious:** ChromIQ samples the scan at "
                 "your grid position and again at every rung of a ladder "
                 "around it: 24 steps of 5 % of a patch, in all 8 directions. "
                 "Each patch is then ranked on its own ladder: its best "
@@ -4575,7 +4575,7 @@ class SettingsDialog(QDialog):
         _row(5, tr("Warn when this many patches sit on an edge (Off, 1–9):"),
              self._scan_flank_min_combo,
              tr("How many patches on an edge before you're warned"),
-             tr("In short: ChromIQ checks each reading box separately to see "
+             tr("**In short:** ChromIQ checks each reading box separately to see "
                 "whether it is sitting on the border between two patches "
                 "instead of squarely inside one. This setting says how many "
                 "patches have to be caught doing that, at the same time, "
@@ -4584,11 +4584,11 @@ class SettingsDialog(QDialog):
                 "sensing cells inside a single patch. Choose Off to switch "
                 "edge detection off completely; the placement-agreement check "
                 "above keeps running either way.\n\n"
-                "What to change: lower it (1 or 2) to be warned as soon as a "
+                "**What to change:** lower it (1 or 2) to be warned as soon as a "
                 "single patch lands on a border. Raise it if a target's own "
                 "printed design keeps triggering warnings on grids you know "
                 "are correct.\n\n"
-                "Why the default is 2: an edge has to look like a straight "
+                "**Why the default is 2:** an edge has to look like a straight "
                 "border line before a patch is counted at all (see the "
                 "settings below), so grain, specks and a target's own "
                 "printed features can't inflate the count — on real "
@@ -4608,13 +4608,13 @@ class SettingsDialog(QDialog):
         _row(6, tr("…counting a patch as on an edge above (0.02–0.5):"),
              self._scan_flank_spin,
              tr("How strong an edge has to be to count"),
-             tr("In short: this is how obvious a patch border has to look "
+             tr("**In short:** this is how obvious a patch border has to look "
                 "before ChromIQ decides a reading box is sitting on it. "
                 "Lower = stricter, so fainter borders count. It works "
                 "together with the setting above: this one decides which "
                 "patches are \"on an edge\", that one decides how many of "
                 "them it takes to warn you.\n\n"
-                "What the number means: it is NOT a percentage difference "
+                "**What the number means:** it is NOT a percentage difference "
                 "between two patches. It measures how STEEPLY the colour "
                 "changes inside the box, compared with the gentle speckle of "
                 "print grain and scanner noise on the same page. 0.20 means "
@@ -4622,11 +4622,11 @@ class SettingsDialog(QDialog):
                 "brightness range steeper than that grain. A patch border is "
                 "a sharp step, so it towers over grain even when the two "
                 "patches themselves are similar in colour.\n\n"
-                "What to change: below about 0.06 you start counting the "
+                "**What to change:** below about 0.06 you start counting the "
                 "grain itself and will get false warnings. Above about 0.30, "
                 "genuinely misplaced boxes go unnoticed. If you scan a very "
                 "noisy or textured paper, raise it a little.\n\n"
-                "How it works, if you're curious: every patch carries a fine "
+                "**How it works, if you're curious:** every patch carries a fine "
                 "grid of 30×30 small sensing cells (15×15 on low-resolution "
                 "scans), spread over 85 % of the patch's width and height — "
                 "shaped with the same equal-margin rule as the reading box, "
@@ -4646,7 +4646,7 @@ class SettingsDialog(QDialog):
                 "target's own printed bars and wedges from counting. The "
                 "box's edge strength is then its third-strongest cell — the "
                 "scale this limit is calibrated on.\n\n"
-                "Where the default comes from: on real 600 dpi IT8 scans the "
+                "**Where the default comes from:** on real 600 dpi IT8 scans the "
                 "page grain sits around 0.04 and reaches 0.05 on the noisiest "
                 "patches. Half of all real patch borders are above 0.08, and "
                 "the borders a misplaced box actually lands on read 0.20 and "
@@ -4662,7 +4662,7 @@ class SettingsDialog(QDialog):
         _row(7, tr("…needing this many sensing cells in a row (2–20):"),
              self._scan_flank_cells_combo,
              tr("How many sensing cells make an edge"),
-             tr("In short: this protects you against grain and dust specks "
+             tr("**In short:** this protects you against grain and dust specks "
                 "in the scan being mistaken for patch edges. Each patch is "
                 "checked with a fine grid of small sensing cells; a patch "
                 "border is only believed when at least this many cells "
@@ -4681,13 +4681,13 @@ class SettingsDialog(QDialog):
                 "The maximum of 20 is 20 of the 30 cells along one side of "
                 "that grid: two thirds of a patch have to lie on a straight "
                 "colour change in a row before it can count as an edge.\n\n"
-                "What to change: if a grainy or textured scan keeps "
+                "**What to change:** if a grainy or textured scan keeps "
                 "flagging patches you know are clean, raise this — a real "
                 "border crosses the whole box, so it easily lights more "
                 "cells than any speck, and there is room up to 20. Lower it "
                 "if you want the earliest possible warning and your scans "
                 "are very clean.\n\n"
-                "Why the default is 8: on real 600 dpi scans, grain and "
+                "**Why the default is 8:** on real 600 dpi scans, grain and "
                 "even a long narrow speck of grey inside a patch light "
                 "straight runs of only a few cells, while a genuine border "
                 "crosses the whole reading box — dozens of cells in a row. "
@@ -4697,7 +4697,7 @@ class SettingsDialog(QDialog):
                 "lights a few cells in one corner while a real border "
                 "crosses elsewhere in the same box, the border still "
                 "counts — the speck can't mask it.\n\n"
-                "How it works, if you're curious: every patch carries a "
+                "**How it works, if you're curious:** every patch carries a "
                 "30×30 grid of sensing cells (15×15 on low-resolution "
                 "scans), spread over 85 % of the patch's width and height "
                 "and shaped with the same equal-margin rule as the reading "
@@ -4761,12 +4761,12 @@ class SettingsDialog(QDialog):
             tr("These are your INSTRUMENT margins (not printer margins): how much "
                "blank white paper a chart should have around its patches so it's "
                "comfortable to measure.\n\n"
-               "Why it matters: many spectrophotometers (i1Pro, ColorMunki…) are "
+               "**Why it matters:** many spectrophotometers (i1Pro, ColorMunki…) are "
                "slid by hand along the chart, usually in a ruler or holder (a "
                "'jig' or 'rig'). If the patches sit too close to the edge of the "
                "page, the instrument can slip off the paper or bump the rail and "
                "the reading fails — so each edge needs a minimum margin.\n\n"
-               "How to use this tab:\n"
+               "**How to use this tab:**\n"
                "• Pick an Instrument and a Paper size (with orientation) at the "
                "top — each combination has its own set of minimums.\n"
                "• Optionally type a Description, e.g. which ruler the values are "
@@ -4778,7 +4778,7 @@ class SettingsDialog(QDialog):
                "actual margins and compares them to the values here: anything "
                "below the minimum is flagged. It's only a friendly heads-up — you "
                "can always print anyway.\n\n"
-               "Tip about orientation: a sheet you place sideways in the jig is "
+               "**Tip about orientation:** a sheet you place sideways in the jig is "
                "laid out the other way round on paper, so the margins are always "
                "in the orientation shown in the preview (which is what these "
                "values refer to). The two checkboxes above let you hide the whole "
@@ -5351,7 +5351,7 @@ class SettingsDialog(QDialog):
                "Instrument + Paper + Mode has its own saved set of values — so "
                "your i1Pro on A4 can differ from your ColorMunki on A3, and each "
                "remembers what you set.\n\n"
-               "How to use it:\n"
+               "**How to use it:**\n"
                "• Pick an Instrument, a Paper size and a Mode at the top.\n"
                "• Adjust the patch and page settings below. The green line shows "
                "roughly how many patches fit on one sheet with those settings.\n"

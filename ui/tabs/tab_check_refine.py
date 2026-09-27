@@ -322,7 +322,7 @@ class TabCheckRefine(QWidget):
                 "(.icc) and reports how accurately the profile predicts your "
                 "printer's behaviour, so you know whether to trust it for real "
                 "prints.\n\n"
-                "How to use this screen:\n"
+                "**How to use this screen:**\n"
                 "• The .ti3 and .icc fields are pre-filled if you came from step 4. "
                 "You can also load any older pair to re-check an existing profile.\n"
                 "• Click “Analyse Profile Quality” to see the error report. Lower "
@@ -338,7 +338,7 @@ class TabCheckRefine(QWidget):
                 "The 3D viewer on the right shows your profile's gamut — the volume "
                 "of colours your printer can reproduce. Bigger and smoother is "
                 "generally better; sharp dents usually indicate measurement issues.\n\n"
-                "When you're happy: install the .icc and use it in your image "
+                "**When you're happy:** install the .icc and use it in your image "
                 "editor's “soft-proofing” or print dialog."
             ),
         ))

@@ -7,11 +7,11 @@ parameters:
       tooltip_body: |-
         Definierar färgmedelskombinationen för din utdataenhet.
 
-        Tryckrymder är subtraktiva: enhetsvärde 0 = vitt (inget bläck),
+        **Tryckrymder är subtraktiva:** enhetsvärde 0 = vitt (inget bläck),
         max = svart (fullt bläck).  Video-/skärmrymder är additiva:
         enhetsvärde 0 = svart, max = vitt.
 
-        Vanliga val:
+        **Vanliga val:**
           • Tryck grå (-d 0)   — enkanals gråskaleskrivare
           • Video grå (-d 1)   — enkanals bildskärm/monitor
           • Tryck RGB (-d 2)   — vanlig RGB-bläckstråle (standard, rekommenderas)
@@ -48,7 +48,7 @@ parameters:
         till eller ta bort ett enskilt färgmedel.  Finns det valda färgmedlet
         redan i uppsättningen tas det bort; saknas det läggs det till.
 
-        Typisk användning:
+        **Typisk användning:**
           • Lägg till orange (-D 5) i standard-CMYK för vidare gamut
           • Lägg till ljus cyan (-D 11) / ljus magenta (-D 12) i CMYK
             för mjukare övergångar i högdagrarna
@@ -90,7 +90,7 @@ parameters:
           • Hög kvalitet: 1500–2000
           • Mycket hög: 2500–3000
 
-        Auto (bredvid talrutan): ibockat beräknas fältantalet löpande från
+        **Auto (bredvid talrutan):** ibockat beräknas fältantalet löpande från
         valt papper, instrument, double density, vänsterkant, fältskala,
         marginal och sid-talrutan i printtarg-avsnittet — det största värdet
         som fyller exakt så många ark utan tomrum.  Talrutan är nedtonad
@@ -110,7 +110,7 @@ parameters:
         är — det förankrar profilens ljusa ände. 4 är en bra standard;
         mycket glättade papper kan gynnas av några fler.
 
-        Auto (kryssruta):
+        **Auto (kryssruta):**
         Slå på "Auto" så väljer ChromIQ talet åt dig, utifrån hur många
         fält hela diagrammet rymmer — ett litet ensidesdiagram får några få
         vitfält och ett stort flersidesdiagram fler, utan att du behöver
@@ -134,7 +134,7 @@ parameters:
         ton din skrivare kan göra — det förankrar profilens skuggände.
         4 är en bra standard för RGB-skrivare.
 
-        Auto (kryssruta):
+        **Auto (kryssruta):**
         Slå på "Auto" så väljer ChromIQ talet åt dig, utifrån hur många
         fält hela diagrammet rymmer — ett litet diagram får några få
         svartfält, ett stort diagram fler.
@@ -157,7 +157,7 @@ parameters:
         Tumregel vid manuell inställning: 0 för en snabb profil,
         50–100 för en standard, 128+ för hög kvalitet.
 
-        Auto (kryssruta):
+        **Auto (kryssruta):**
         Slå på "Auto" så väljer ChromIQ talet åt dig, skalat efter hur
         många fält hela diagrammet rymmer — ett större diagram får en
         längre, finare gråtrappa.
@@ -252,7 +252,7 @@ parameters:
           • -n lägger till explicita, profilhärledda neutralfält utöver
             vad resten av fördelningen ger.
 
-        När du bör använda det:
+        **När du bör använda det:**
           • Du har redan en ICC-profil från första omgången för detta
             papper och bygger ett förbättringsdiagram.  Läs in den profilen
             under Förkonditioneringsprofil (-c) och sätt -n till 32–64 för
@@ -261,7 +261,7 @@ parameters:
             förkonditioneringsprofil finns ingen "sann" neutralaxel att
             sampla från, och -g täcker redan enhetsrymdens ramp.
 
-        Typiska förbättringsvärden: 32 för vanligt arbete, 64 för
+        **Typiska förbättringsvärden:** 32 för vanligt arbete, 64 för
         fine-art / provtryck där neutralitet är kritisk.
 
         Kräver att -c är angiven; har annars ingen effekt.
@@ -293,7 +293,7 @@ parameters:
         flamma eller till och med riva papperet — och profilen byggd av
         sådana fält förutsäger färger skrivaren faktiskt inte kan göra.
 
-        Så väljer du ett värde:
+        **Så väljer du ett värde:**
           • De flesta CMYK-bläckstråle:   260 – 320 %
           • Bestruket / glättat papper:   320 – 360 %
           • Tidningspapper, låg kvalitet: 220 – 260 %
@@ -304,7 +304,7 @@ parameters:
         vägledning, eller mät: skriv ut en liten bläckgräns-testkil och
         välj det högsta värde som torkar rent utan att flyta ut.
 
-        För RGB-arbetsflöden: låt vanligen vara avstängt — RGB-bläckstråle-
+        **För RGB-arbetsflöden:** låt vanligen vara avstängt — RGB-bläckstråle-
         skrivare sköter sin bläckbegränsning internt, så targen behöver
         inte budgetera över kanaler.
 
@@ -320,35 +320,35 @@ parameters:
         Välj EN. De utesluter varandra — att välja någon av dem ersätter
         standard-OFPS-placeringen helt.
 
-        OFPS (standard, rekommenderas):
+        **OFPS (standard, rekommenderas):**
         Optimised Farthest Point Sampling. Placerar varje nytt fält
         iterativt så långt som möjligt från varje befintligt fält — den
         jämnaste täckningen av alla algoritmer här. Långsammare än
         alternativen, men guldstandarden för profilkvalitet. Kombinera
         med "Grundlig optimering (-G)" för bästa resultat.
 
-        Incremental Far Point (-t):
+        **Incremental Far Point (-t):**
         En enklare fjärrpunktsmetod. Snabbare än OFPS, något mindre jämn.
         Använd när OFPS är för långsam vid mycket stora fältantal och du
         accepterar en liten kvalitetsförlust.
 
-        Slumpmässig — enhetsrymd (-r):
+        **Slumpmässig — enhetsrymd (-r):**
         Likformigt slumpade fält i råa enhetsvärden (t.ex. RGB). Snabbast
         möjligt, men täckningen i *upplevd* färg är ojämn — slösar fält i
         områden ögat knappt skiljer på.
 
-        Slumpmässig — perceptuell rymd (-R):
+        **Slumpmässig — perceptuell rymd (-R):**
         Likformigt slumpad i upplevd färg (Lab). Bättre än -r om det måste
         vara slumpmässigt, eftersom fälten sprids jämnt efter vad ögat ser.
         Fortfarande mindre optimal än OFPS för samma antal.
 
-        Kvasislumpmässig rymdfyllande (-q / -Q):
+        **Kvasislumpmässig rymdfyllande (-q / -Q):**
         Lågdiskrepanssekvenser (Sobol-liknande) som fyller rymden jämnare
         än äkta slump, utan OFPS iterativa kostnad.
         -q i enhetsrymd, -Q i perceptuell rymd. En bra medelväg när OFPS
         är för långsam.
 
-        Kubiskt rymdcentrerat gitter (-i / -I):
+        **Kubiskt rymdcentrerat gitter (-i / -I):**
         Ett fast regelbundet gitter (varje fält omgivet av 8 grannar i ett
         kubmönster). Deterministiskt och mycket jämnt, men oflexibelt —
         bara vissa fältantal passar gittret. -i i enhetsrymd,
@@ -399,13 +399,13 @@ parameters:
         Sätt till 0 (standard) för att hoppa över — nästan alltid rätt
         val. OFPS täcker redan kubens inre effektivare.
 
-        När du bör använda det:
+        **När du bör använda det:**
           • Repeterbarhet mellan maskiner: ett fast rutnät är likadant
             varje gång, oavsett vilka OFPS-placeringar targen valde —
             det underlättar jämförelser av profiler mellan körningar.
           • Diagnosdiagram med förutsägbara, namngivna kubpositioner.
 
-        Typiska värden vid användning: 3 – 6 (steg per axel). Talen växer
+        **Typiska värden vid användning:** 3 – 6 (steg per axel). Talen växer
         snabbt — 6 steg i RGB är 216 fält, 8 är 512.
 
         Bocka i rutan för att aktivera.
@@ -419,13 +419,13 @@ parameters:
 
         Sätt till 0 (standard) för att hoppa över.
 
-        När du bör använda det:
+        **När du bör använda det:**
           • Du vill specifikt spika gamutgränsen och primär-/sekundär-
             hörnen utan -m:s inre kostnad.
           • Jämförelser av hur olika bläck/papper förskjuter gamuthöljet —
             ytfält påverkas mest.
 
-        Typiska värden vid användning: 4 – 8 steg per yta.
+        **Typiska värden vid användning:** 4 – 8 steg per yta.
 
         Bocka i rutan för att aktivera.
     "-b":
@@ -438,13 +438,13 @@ parameters:
 
         Sätt till 0 (standard) för att hoppa över — detta är en nischratt.
 
-        När du bör använda det:
+        **När du bör använda det:**
           • Du vill ha regelbundna, gitterjusterade fältpositioner men med
             bättre packning än -m ger, utan att gå hela vägen till OFPS.
           • Forsknings-/repeterbarhetsscenarier där själva BCC-strukturen
             är poängen.
 
-        Obs: detta är *stegräknar*-formen (lägger till i din fältlista);
+        **Obs:** detta är *stegräknar*-formen (lägger till i din fältlista);
         för ett diagram vars *hela* fördelning är BCC, använd väljaren
         "Fältfördelning" ovan och välj BCC-alternativet där.
 
@@ -655,7 +655,7 @@ parameters:
         .cal-filen bäddas också in i .ti2-filen så att colprof kan
         referera till den när ICC-profilen byggs.
 
-        Typisk användning: skrivbordsbläckstråleskrivare utan inbyggd
+        **Typisk användning:** skrivbordsbläckstråleskrivare utan inbyggd
         linearisering, styrda direkt från en TIFF utan mellanliggande RIP.
 
         Utesluter "Bädda in kalibrering" (-I) — bara ett kalibrerings-
@@ -674,7 +674,7 @@ parameters:
         kalibreringen.  -I bäddar in .cal-filen i .ti2-utdata enbart som
         metadata och lämnar alla fältvärden orörda.
 
-        Typisk användning: professionella bläckstråle-RIP:ar (t.ex. EFI
+        **Typisk användning:** professionella bläckstråle-RIP:ar (t.ex. EFI
         Fiery, Wasatch, ColorBurst) eller skrivare med inbyggd
         linearisering som är aktiv under profileringsutskriften.
 
@@ -984,7 +984,7 @@ parameters:
         Styr hur mycket extra utjämning som tillämpas på kalibrerings-
         kurvorna.  Högre värden ger mjukare men mindre exakta kurvor.
 
-        Standard: 1.0 — bra för de flesta skrivare.
+        **Standard:** 1.0 — bra för de flesta skrivare.
         Öka (t.ex. 2.0–5.0) om skrivarens tonrespons ser oregelbunden ut
         eller kalibreringskurvorna ser taggiga ut.
     "-z":

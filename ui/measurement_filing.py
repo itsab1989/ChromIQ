@@ -258,7 +258,7 @@ def _cannot_file(parent, reason: str, *, project: str = "") -> bool:
     InfoDialog(
         tr("ChromIQ could not file the measurement"),
         tr("Nothing has been changed, and your own file is untouched where it "
-           "is.\n\nThe reason: {reason}.\n\nThis usually means the folder is "
+           "is.\n\n**The reason:** {reason}.\n\nThis usually means the folder is "
            "read-only, the disk is full, it lives on a drive or share that is "
            "no longer connected, or the project's own {manifest} file has been "
            "damaged. Check the project and try again, or choose another one."
@@ -691,7 +691,7 @@ def refuse_it_does_not_belong(parent, reason: str) -> None:
     InfoDialog(
         tr("This measurement does not belong to that chart"),
         tr("ChromIQ did not file it, and nothing has been changed.\n\n"
-           "The reason: {reason}.").format(reason=reason),
+           "**The reason:** {reason}.").format(reason=reason),
         parent, min_width=560).exec()
 
 
@@ -1191,7 +1191,7 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
             tr("ChromIQ could not write into that project"),
             tr("The measurement has not been filed, and nothing has been "
                "changed. Your own file is untouched where it is.\n\n"
-               "The reason: {reason}.\n\nThis usually means the folder is "
+               "**The reason:** {reason}.\n\nThis usually means the folder is "
                "read-only, the disk is full, or it lives on a drive or share "
                "that is no longer connected. Check the folder and try again, "
                "or choose another project."

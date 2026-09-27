@@ -1955,7 +1955,8 @@ def numbered_prose_html(body: str) -> "str | None":
         return None                       # the items are not contiguous blocks
 
     def _esc(t: str) -> str:
-        return html.escape(t).replace("\n", " ")
+        from core.help_markup import escape_bold
+        return escape_bold(t).replace("\n", " ")
 
     out: list[str] = []
     for b in blocks[:idx[0]]:
@@ -3710,7 +3711,15 @@ class WelcomeDialog(QDialog):
                     body = QLabel(rich, self._steps_host)
                     body.setTextFormat(Qt.TextFormat.RichText)
                 else:
-                    body = QLabel(wf["body"], self._steps_host)
+                    from core.help_markup import has_markup, to_html
+                    if has_markup(str(wf["body"])):
+                        # Bold lead-ins, as in every help window (Knut,
+                        # #182 5856723428); plain otherwise, as always.
+                        body = QLabel(to_html(str(wf["body"])),
+                                      self._steps_host)
+                        body.setTextFormat(Qt.TextFormat.RichText)
+                    else:
+                        body = QLabel(wf["body"], self._steps_host)
             bf = QFont()
             bf.setPixelSize(13)
             body.setFont(bf)

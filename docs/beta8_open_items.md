@@ -30914,3 +30914,28 @@ would reach.
 - status: OPEN
 - found by: Knut #182 5856919947, while fixing the Pharmacist presets. Picked from the list with generate-on-select off and the four auto-fill boxes on (as our first conversion saved them), `i1Pro-A4-1296p-2pages` showed, under Chart layout information, an estimate of 621 patches with 21 fill-up on 1 page, where Generate builds 1296 on 2 pages; the 648p preset picked after the 1944p one showed 1944 on 3 pages. Photographs: `~/Desktop/ChromIQ-beta45-proof/knut-presets-0927/fix2/asis/photographs/03-selected.png` and `05-selected.png`. Generate itself builds the right chart, and a preset with generate-on-select on is not affected (it builds at once). Cause not established: `_refresh_layout_estimate` reads the armed patch set with Auto on (B8-1464), so the stale figure points at the refresh running before the set is armed, or not again after. Save Preset also stores the four auto-fill boxes for a preset that brings its own patch set, where they decide nothing on Generate.
 - where: `ui/tabs/tab_chart.py` `_refresh_layout_estimate`, `_on_preset_activated`, `_on_preset_save`.
+
+### B8-1490 · FIXED, awaiting confirmation · Help windows show their topic lead-ins and headings in bold; "may come from the instrument"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Knut, #182 5856723428: *"When you write a heading or a bold font to indicate a new topic or section, that disappears in the app, but this should be visible in the help windows, everywhere in the app."* and, of the evenness advice, *"Sure, but say 'may come from'"*.
+- fix: a lead-in is marked `**...**` in the text (`core/help_markup.py`: `has_markup`, `strip_markup`, `escape_bold`, `to_html`); `ui/tooltip_button._InfoDialog` shows a marked body as rich text with the runs bold and everything else escaped in `white-space: pre-wrap` (an unmarked body stays plain text), and measures a hand-wrapped line with its bold run in bold; the printed help cards and the on-screen prose card read the same marks. Report Limits' row help puts its three section headings in bold (`thresholds_dialog._heading`, the key stays plain). 107 help texts marked (every help-body paragraph that opens with a short colon label, and by hand the headings written as short sentences, the evenness five among them) and 15 parameter helps in `data/parameters.yaml`; §M messages not marked. Keys renamed in all thirteen catalogues with their values; German marked run for run by hand where the script could not ("Suppressed messages include:", `-M`); the eleven others marked where the translation's paragraph shows the lead-in, plain otherwise (two over-long CJK runs cut at the first 。). The em-dash rule compares the text as read, without marks (`scripts/em_dash_check._as_read`). Both ledgers re-measured: unchanged.
+- tests: tests/test_help_windows_show_their_lead_ins_in_bold.py, tests/test_a_chart_build_that_raises_puts_the_tab_back.py
+- evidence: test_the_info_window_shows_a_marked_body_in_bold, test_an_unmarked_body_is_still_plain_text, test_every_mark_in_a_catalogue_is_a_pair_on_one_line, test_the_german_catalogue_carries_the_marks_of_its_english, test_the_evenness_help_has_its_headings_and_lead_ins_in_bold, test_no_window_shows_a_mark_as_asterisks
+- on screen: `~/Desktop/ChromIQ-beta45-proof/help-headings/`
+- where: `core/help_markup.py`, `ui/tooltip_button.py`, `ui/dialogs/thresholds_dialog.py`, `ui/help_card_print.py`, `ui/dialogs/welcome_dialog.py`, `workflow/compliance_sets.py`, `data/parameters.yaml`, `data/i18n/*`, `scripts/em_dash_check.py`, `docs/design/measurement_report_limits.md` §52.
+
+### B8-1491 · OPEN · 66 of the texts now marked in bold still carry a grandfathered em dash
+- blocks release: no
+- severity: COSMETIC
+- status: OPEN
+- found by: B8-1490. Marking a lead-in changes a key, and the em-dash rule says a touched string cleans its dash. Doing that for 66 help texts would mean rewriting their prose in nine languages that keep the dash (the English check only allows what the English has) for a change of font weight, so the rule now compares the text as read, marks removed, and these 66 stay in the baseline as they were. Basti's call whether that reading of the rule stands; otherwise they are a translation pass, before a final.
+- where: `scripts/em_dash_check.py` (`_as_read`), `tests/data/em_dash_baseline.json`.
+
+### B8-1492 · OPEN · Two places carry help-style lead-ins that cannot be bold
+- blocks release: no
+- severity: COSMETIC
+- status: OPEN
+- found by: B8-1490. (1) `data/i18n/parameters.uk.yaml` writes its help bodies as quoted scalars, not blocks, so the script did not carry the marks into Ukrainian; those 15 parameter helps show plain in Ukrainian (they are correct, only not bold). (2) A few help texts are hover tooltips, not ⓘ windows (for example the Preferences box "On (the default): when you read strips, ..."), and a hover tooltip is plain text, so they were left unmarked. Neither shows a stray mark.
+- where: `data/i18n/parameters.uk.yaml`, `ui/dialogs/settings_dialog.py`.

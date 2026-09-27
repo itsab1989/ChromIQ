@@ -196,12 +196,13 @@ def test_the_live_preview_is_put_back_without_a_window(tab, qapp, monkeypatch):
 
 def test_the_message_is_one_the_catalogues_carry(tab):
     """No new title: the key the import door already uses, translated into all
-    twelve languages. The body is new and was translated with it."""
+    twelve languages. The body is new and was translated with it. Its lead-in
+    "The reason:" is marked bold (Knut, #182 5856723428)."""
     import json
     from pathlib import Path
     root = Path(__file__).resolve().parent.parent
     body = ("ChromIQ could not write into your projects folder, so this chart "
-            "was not made.\n\nThe reason: {reason}.\n\nThis usually means the "
+            "was not made.\n\n**The reason:** {reason}.\n\nThis usually means the "
             "folder is read-only, the disk is full, or it lives on a drive or "
             "share that is no longer connected. Check the folder ChromIQ "
             "writes to in Preferences, then press Generate Chart again.")

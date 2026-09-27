@@ -25,11 +25,11 @@ parameters:
       tooltip_body: |
         Legt die Farbmittel-Kombination deines Ausgabegeräts fest.
 
-        Druck-Farbräume sind subtraktiv: Gerätewert 0 = Weiß (keine Tinte),
+        **Druck-Farbräume sind subtraktiv:** Gerätewert 0 = Weiß (keine Tinte),
         Maximum = Schwarz (volle Tinte).  Video-/Display-Farbräume sind
         additiv: Gerätewert 0 = Schwarz, Maximum = Weiß.
 
-        Übliche Auswahl:
+        **Übliche Auswahl:**
           • Druck Grau (-d 0)  — einkanaliger Graustufen-Drucker
           • Video Grau (-d 1)  — einkanaliges Display/Monitor
           • Druck RGB (-d 2)   — üblicher RGB-Tintenstrahler (Standard, empfohlen)
@@ -71,7 +71,7 @@ parameters:
         das gewählte Farbmittel bereits im Satz, wird es entfernt; fehlt es,
         wird es hinzugefügt.
 
-        Typische Verwendungen:
+        **Typische Verwendungen:**
           • Orange (-D 5) zu Standard-CMYK für erweiterten Farbumfang
           • Light Cyan (-D 11) / Light Magenta (-D 12) zu CMYK
             für weichere Verläufe in den Lichtern
@@ -94,7 +94,7 @@ parameters:
           • Hohe Qualität: 1500–2000
           • Sehr hoch:   2500–3000
 
-        Auto (neben dem Zahlenfeld): Wenn angekreuzt, wird die Feldanzahl
+        **Auto (neben dem Zahlenfeld):** Wenn angekreuzt, wird die Feldanzahl
         live aus Papier, Messgerät, Double-Density, linkem Rand, Feldgröße,
         Rand und dem Seiten-Feld im printtarg-Bereich berechnet — als der
         größte Wert, der genau diese Blattzahl ohne Leerraum füllt.  Das
@@ -116,7 +116,7 @@ parameters:
         das verankert das helle Ende des Profils. 4 ist ein guter Standard;
         sehr glänzende Papiere profitieren von ein paar mehr.
 
-        Auto (Kästchen):
+        **Auto (Kästchen):**
         Schalte „Auto“ ein und ChromIQ wählt die Zahl für dich — anhand
         der Gesamtgröße des Charts. Ein kleines einseitiges Chart bekommt
         wenige Weißfelder, ein großes mehrseitiges mehr, ohne dass du
@@ -141,7 +141,7 @@ parameters:
         Ton zu lernen, den dein Drucker erzeugen kann — das verankert das
         Schattenende des Profils. 4 ist für RGB-Drucker ein guter Standard.
 
-        Auto (Kästchen):
+        **Auto (Kästchen):**
         Schalte „Auto“ ein und ChromIQ wählt die Zahl für dich — anhand
         der Gesamtgröße des Charts. Ein kleines Chart bekommt wenige
         Schwarzfelder, ein großes mehr.
@@ -165,7 +165,7 @@ parameters:
         Faustregel bei Handeingabe: 0 für ein schnelles Profil,
         50–100 für ein normales, 128+ für hohe Qualität.
 
-        Auto (Kästchen):
+        **Auto (Kästchen):**
         Schalte „Auto“ ein und ChromIQ wählt die Zahl für dich —
         skaliert mit der Gesamtgröße des Charts. Ein größeres Chart bekommt
         eine längere, feinere Graureihe.
@@ -266,7 +266,7 @@ parameters:
           • -n ergänzt explizite, vom Profil abgeleitete Neutralfelder —
             zusätzlich zu dem, was der Rest der Verteilung erzeugt.
 
-        Wann verwenden:
+        **Wann verwenden:**
           • Du hast bereits ein Erstprofil für dieses Papier und baust
             ein Verfeinerungs-Chart.  Lade das Profil unter
             Vorkonditionierungs-Profil (-c) und setze -n auf 32–64,
@@ -275,7 +275,7 @@ parameters:
             Vorkonditionierungs-Profil gibt es keine „echte“ Neutralachse
             zum Abtasten, und -g deckt die Geräteraum-Rampe bereits ab.
 
-        Typische Verfeinerungswerte: 32 für Routinearbeit, 64 für
+        **Typische Verfeinerungswerte:** 32 für Routinearbeit, 64 für
         Fine-Art / Proofing, wo Neutralität kritisch ist.
 
         Erfordert ein gesetztes -c; sonst ohne Wirkung.
@@ -312,7 +312,7 @@ parameters:
         das daraus gebaute Profil sagt Farben voraus, die dein Drucker
         gar nicht erzeugen kann.
 
-        So wähle einen Wert:
+        **So wähle einen Wert:**
           • Die meisten CMYK-Tintenstrahler: 260 – 320 %
           • Gestrichene / glänzende Papiere: 320 – 360 %
           • Zeitungspapier, geringe Qualität: 220 – 260 %
@@ -323,7 +323,7 @@ parameters:
         prüfen — oder messen: einen kleinen Tintenlimit-Testkeil drucken
         und den höchsten Wert wählen, der sauber und ohne Verlaufen trocknet.
 
-        Für RGB-Workflows: in der Regel deaktiviert lassen — RGB-
+        **Für RGB-Workflows:** in der Regel deaktiviert lassen — RGB-
         Tintenstrahler regeln ihr Tintenlimit intern, targen muss hier
         nicht über Kanäle hinweg haushalten.
 
@@ -349,38 +349,38 @@ parameters:
         Wähle EINEN. Die Optionen schließen sich gegenseitig aus —
         jede Auswahl ersetzt die Standard-OFPS-Platzierung vollständig.
 
-        OFPS (Standard, empfohlen):
+        **OFPS (Standard, empfohlen):**
         Optimised Farthest Point Sampling. Platziert jedes neue Feld
         iterativ so weit wie möglich von allen vorhandenen entfernt —
         die gleichmäßigste Abdeckung aller Algorithmen hier. Langsamer
         als die Alternativen, aber der Goldstandard für Profilqualität.
         Für beste Ergebnisse mit „Gründliche Optimierung (-G)“ kombinieren.
 
-        Inkrementeller Fernpunkt (-t):
+        **Inkrementeller Fernpunkt (-t):**
         Eine einfachere Fernpunkt-Methode. Schneller als OFPS, etwas
         weniger gleichmäßig. Verwenden, wenn OFPS bei sehr großen
         Feldzahlen zu langsam ist und ein kleiner Qualitätsverlust
         akzeptabel ist.
 
-        Zufällig — Geräteraum (-r):
+        **Zufällig — Geräteraum (-r):**
         Gleichverteilt zufällige Felder in rohen Gerätewerten (z. B. RGB).
         Am schnellsten, aber die Abdeckung der *wahrgenommenen* Farben ist
         ungleichmäßig — Felder werden in Regionen verschwendet, die das
         Auge kaum unterscheidet.
 
-        Zufällig — perzeptiver Raum (-R):
+        **Zufällig — perzeptiver Raum (-R):**
         Gleichverteilt zufällig in wahrgenommener Farbe (Lab). Besser als
         -r, wenn es zufällig sein muss, weil die Felder nach dem verteilt
         werden, was das Auge sieht. Bei gleicher Anzahl trotzdem schlechter
         als OFPS.
 
-        Quasi-zufällig raumfüllend (-q / -Q):
+        **Quasi-zufällig raumfüllend (-q / -Q):**
         Sequenzen geringer Diskrepanz (Sobol-artig), die den Raum
         gleichmäßiger füllen als echter Zufall — ohne die iterativen
         Kosten von OFPS. -q im Geräteraum, -Q im perzeptiven Raum.
         Ein guter Mittelweg, wenn OFPS zu langsam ist.
 
-        Kubisch-raumzentriertes Gitter (-i / -I):
+        **Kubisch-raumzentriertes Gitter (-i / -I):**
         Ein festes regelmäßiges Gitter (jedes Feld von 8 Nachbarn im
         Würfelmuster umgeben). Deterministisch und sehr gleichmäßig, aber
         unflexibel — nur bestimmte Feldzahlen passen ins Gitter. -i im
@@ -426,14 +426,14 @@ parameters:
         Auf 0 lassen (Standard) — fast immer die richtige Wahl.
         OFPS deckt das Würfelinnere bereits effizienter ab.
 
-        Wann verwenden:
+        **Wann verwenden:**
           • Wiederholbarkeit über Maschinen hinweg: Ein festes Raster ist
             jedes Mal identisch, unabhängig davon, welche OFPS-Plätze
             targen gewählt hat — das hilft beim Vergleichen von Profilen
             über Läufe hinweg.
           • Diagnose-Charts mit vorhersagbaren, benannten Würfelpositionen.
 
-        Typische Werte, falls genutzt: 3 – 6 (Stufen je Achse). Die Zahlen
+        **Typische Werte, falls genutzt:** 3 – 6 (Stufen je Achse). Die Zahlen
         wachsen schnell — 6 Stufen in RGB sind 216 Felder, 8 sind 512.
 
         Zum Aktivieren das Kästchen ankreuzen.
@@ -449,7 +449,7 @@ parameters:
 
         Auf 0 lassen (Standard), um es zu überspringen.
 
-        Wann verwenden:
+        **Wann verwenden:**
           • Du willst gezielt die Gamut-Grenze und die Primär-/Sekundär-
             Ecken festnageln, ohne den Innenraum-Aufwand von -m.
           • Vergleich, wie verschiedene Tinten/Papiere die Gamut-Hülle
@@ -465,14 +465,14 @@ parameters:
 
         Auf 0 lassen (Standard) — ein Nischen-Regler.
 
-        Wann verwenden:
+        **Wann verwenden:**
           • Du willst regelmäßige, gitterausgerichtete Feldpositionen,
             aber dichter gepackt als mit -m — ohne gleich auf OFPS zu
             wechseln.
           • Forschungs-/Wiederholbarkeits-Szenarien, in denen die
             BCC-Struktur selbst der Zweck ist.
 
-        Hinweis: Dies ist die *Stufenzähler*-Form (sie ergänzt deine
+        **Hinweis:** Dies ist die *Stufenzähler*-Form (sie ergänzt deine
         Feldliste); soll die *gesamte* Verteilung BCC sein, nutze
         oben die „Messfeld-Verteilung“ und wählen dort die kubisch-
         raumzentrierte Option.
@@ -717,7 +717,7 @@ parameters:
         Die .cal wird außerdem in die .ti2 eingebettet, damit colprof sie
         beim Erstellen des ICC-Profils berücksichtigen kann.
 
-        Typische Verwendung: Desktop-Tintenstrahler ohne eingebaute
+        **Typische Verwendung:** Desktop-Tintenstrahler ohne eingebaute
         Linearisierung, direkt aus einem TIFF und ohne RIP angesteuert.
 
         Schließt sich mit „Kalibrierung einbetten“ (-I) gegenseitig aus —
@@ -737,7 +737,7 @@ parameters:
         Kalibrierung wissen.  -I bettet die .cal-Datei nur als Metadaten
         in die .ti2 ein und lässt alle Feldwerte unangetastet.
 
-        Typische Verwendung: professionelle Inkjet-RIPs (z. B. EFI Fiery,
+        **Typische Verwendung:** professionelle Inkjet-RIPs (z. B. EFI Fiery,
         Wasatch, ColorBurst) oder Drucker mit eingebauter Linearisierung,
         die während des Profilierungs-Drucks aktiv ist.
 
@@ -1091,7 +1091,7 @@ parameters:
         Steuert, wie stark die Kalibrierungskurven zusätzlich geglättet
         werden.  Höhere Werte ergeben glattere, aber weniger präzise Kurven.
 
-        Standard: 1.0 — gut für die meisten Drucker.
+        **Standard:** 1.0 — gut für die meisten Drucker.
         Erhöhen (z. B. 2.0–5.0), wenn der Drucker eine unruhige Tonwert-
         antwort hat oder die Kalibrierungskurven zackig aussehen.
 

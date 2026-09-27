@@ -2241,14 +2241,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "on the printed chart and records what colour your printer actually "
                 "produced. ChromIQ pairs each measurement with the RGB value that "
                 "was requested in step 1, and saves the result as a .ti3 file.\n\n"
-                "Before you start:\n"
+                "**Before you start:**\n"
                 "• Your measurement device (e.g. i1Pro, ColorMunki, ColorMeter) "
                 "MUST be plugged in via USB before you open this tab. If ChromIQ "
                 "doesn't see it, unplug and replug, then restart the app.\n"
                 "• The print must be fully dry — wet ink gives wrong readings.\n"
                 "• Have the printed chart in front of you, well-lit, on a flat "
                 "surface. Avoid direct sunlight.\n\n"
-                "How to use this screen:\n"
+                "**How to use this screen:**\n"
                 "• Guided mode walks you through reading the chart one strip (row) "
                 "at a time. Recommended for first-timers.\n"
                 "• Manual mode exposes every chartread option for advanced users.\n"
@@ -2257,7 +2257,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "beep before moving to the next.\n\n"
                 "If you misread a patch, you can usually re-do that strip from the "
                 "prompt. Don't rush — accurate reads now mean an accurate profile.\n\n"
-                "Next step: build the ICC profile on tab 4.")
+                "**Next step:** build the ICC profile on tab 4.")
             ),
             trailing_widget=_hdr_trailing,
         ))
@@ -2475,7 +2475,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                "report after each measurement”, and you can change it here for "
                "this run. Like every other setting on this tab, the run "
                "remembers what you chose.\n\n"
-               "Nothing is overwritten: each measurement gets its own dated "
+               "**Nothing is overwritten:** each measurement gets its own dated "
                "report, and the Measurement Report window can rebuild any of "
                "them from the measurement itself at any time."),
             btn_outer, min_width=460)
@@ -2693,7 +2693,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Suppress warning messages (-S)"), True,
             tr("Suppress Warnings (-S)"),
             tr("Suppresses non-fatal instrument warnings from chartread.\n\n"
-            "Suppressed messages include: notices that the calibration\n"
+            "**Suppressed messages include:** notices that the calibration\n"
             "has changed, reflectance range warnings on very dark\n"
             "patches, and strip timing cautions. These rarely affect\n"
             "measurement quality.\n\n"
@@ -2746,7 +2746,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "patch you have just read is the only one that has arrived. So this "
             "mode asks the plainer question on its own: is this patch past your "
             "limit?\n\n"
-            "What that means in practice: patch by patch flags MORE patches "
+            "**What that means in practice:** patch by patch flags MORE patches "
             "than strip reading does on the same chart, and vivid colours are "
             "among them. That is the honest consequence of having no "
             "neighbours to compare with — not a fault, and not something to "
@@ -3248,7 +3248,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Suppress warning messages (-S)"), True,
             tr("Suppress Warnings (-S)"),
             tr("Suppresses non-fatal instrument warnings from chartread.\n\n"
-            "Suppressed messages include: notices that the calibration\n"
+            "**Suppressed messages include:** notices that the calibration\n"
             "has changed, reflectance range warnings on very dark\n"
             "patches, and strip timing cautions. These rarely affect\n"
             "measurement quality.\n\n"
@@ -3294,7 +3294,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "patch you have just read is the only one that has arrived. So this "
             "mode asks the plainer question on its own: is this patch past your "
             "limit?\n\n"
-            "What that means in practice: patch by patch flags MORE patches "
+            "**What that means in practice:** patch by patch flags MORE patches "
             "than strip reading does on the same chart, and vivid colours are "
             "among them. That is the honest consequence of having no "
             "neighbours to compare with — not a fault, and not something to "
@@ -4699,7 +4699,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "of colour patches — that row is called a \"strip\". You can slide\n"
             "it either way: left-to-right or right-to-left. This setting tells\n"
             "the measuring tool which sliding directions to accept.\n\n"
-            "Why it matters: if the tool expects one direction but you slide\n"
+            "**Why it matters:** if the tool expects one direction but you slide\n"
             "the other way, it can't tell which patch is which, so it rejects\n"
             "the read and makes you scan the strip again. The right setting\n"
             "here lets a strip be accepted however you happen to slide it.\n\n"

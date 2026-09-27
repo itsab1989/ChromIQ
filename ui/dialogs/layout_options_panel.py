@@ -235,7 +235,7 @@ class LayoutOptionsPanel(QWidget):
                        "default; hexagonal is worth considering on a CR30, for "
                        "a reason that does not apply to the other "
                        "instruments.\n\n"
-                       "The CR30 is a ROUND instrument: a 33 mm barrel reading "
+                       "**The CR30 is a ROUND instrument:** a 33 mm barrel reading "
                        "through a 4 mm circular window. A round window can "
                        "never use the corners of a square patch, so on a "
                        "square grid that paper is spent for nothing. Hexagons "
@@ -258,7 +258,7 @@ class LayoutOptionsPanel(QWidget):
                        "of patches, and a CR30 never does. You lift it onto "
                        "one patch, press the button on the instrument, and "
                        "lift it onto the next.\n\n"
-                       "One cost, and one limit. The scanner and camera tools "
+                       "**One cost, and one limit.** The scanner and camera tools "
                        "turn a honeycomb chart away unless you switch them on "
                        "for it in Preferences → Beta; and of the two ruler "
                        "helper marker combs only the left and right one is "
@@ -696,7 +696,7 @@ class LayoutOptionsPanel(QWidget):
                "off and keep only these, which is what you want when every "
                "patch is read on its own. Turn it on for any chart you want to "
                "read by hand, or off to get the space back.\n\n"
-               "Where the labels sit. They start at a fixed distance from the "
+               "**Where the labels sit.** They start at a fixed distance from the "
                "left edge of the paper, and you choose that distance yourself "
                "with “Clip” under “Text distance from edge”. If the chart has "
                "a clip border down the same edge, the labels start at the "
@@ -704,7 +704,7 @@ class LayoutOptionsPanel(QWidget):
                "two, so the border cannot be printed on top of them. The band "
                "itself is as wide as the widest label at the size you chose, "
                "plus 1 mm of air to the left of the text.\n\n"
-               "How much paper it takes. The left margin has to hold the "
+               "**How much paper it takes.** The left margin has to hold the "
                "whole band, so ChromIQ widens it when the one you asked for "
                "is too narrow. The width it needs is the starting distance, "
                "plus the width of the label text, plus 1 mm before it and "
@@ -719,7 +719,7 @@ class LayoutOptionsPanel(QWidget):
                "margin and you get 33 mm.\n"
                "Whenever the margin is widened like that, it is reported "
                "under the preview with both numbers in it.\n\n"
-               "Moving the labels. Raise “Clip” to push them to the right, "
+               "**Moving the labels.** Raise “Clip” to push them to the right, "
                "towards the patches, and lower it to bring them back towards "
                "the paper edge. They never come closer to the paper edge than "
                "“Clip” says, and when the left margin is wider than they "
@@ -728,7 +728,7 @@ class LayoutOptionsPanel(QWidget):
                "with a clip border, a “Clip” value smaller than the border's "
                "width changes nothing, because the labels are already being "
                "held clear of the border.\n\n"
-               "When they can be covered. Nothing moves the patches or the "
+               "**When they can be covered.** Nothing moves the patches or the "
                "clip-border content to make room for these labels. So if they "
                "are printed where the clip border's text, notes box or "
                "picture is, they are printed underneath it and you may see "
@@ -1101,7 +1101,7 @@ class LayoutOptionsPanel(QWidget):
         self.cm_stagger_cb.toggled.connect(self._emit)
         self._cm_stagger_tip = TooltipButton(
             tr("Offset every second strip"),
-            tr("ColorMunki only: shifts every second strip down by half a patch so "
+            tr("**ColorMunki only:** shifts every second strip down by half a patch so "
                "the columns interleave like a brick wall — matching ArgyllCMS "
                "printtarg's measuring-rig layout. Reserves a little space at the "
                "top and bottom for the offset, so the patch count drops slightly. "
@@ -1275,19 +1275,19 @@ class LayoutOptionsPanel(QWidget):
             tr("Straight strips"),
             tr("Turns the honeycomb 30°, so every strip runs straight down the "
                "page instead of zigzagging from side to side.\n\n"
-               "The patches themselves do not change. It is the same hexagon, "
+               "**The patches themselves do not change.** It is the same hexagon, "
                "the same size, simply stood on a flat side instead of a point, "
                "so nothing is stretched and each patch holds the same amount of "
                "ink. What changes is how the strips line up: on the standard "
                "honeycomb every second patch in a strip sits half a patch to the "
                "side, and with this on they sit one under another.\n\n"
-               "Why you might want it. A strip you read patch by patch is easier "
+               "**Why you might want it.** A strip you read patch by patch is easier "
                "to follow when it is straight, and a straight strip is easier to "
                "lay a ruler along. The ruler helper markers follow the turn with "
                "it: on a standard honeycomb the left and right dashes are the "
                "ones that line up with the patches, and on a turned one it is "
                "the top and bottom dashes.\n\n"
-               "What it costs. The strips and rows come out a different length, "
+               "**What it costs.** The strips and rows come out a different length, "
                "so the number of patches on a sheet can move a little in either "
                "direction. Watch the patch count beside the preview and adjust "
                "the margins or patch size if you want it back.\n\n"
@@ -1796,14 +1796,14 @@ class LayoutOptionsPanel(QWidget):
                        "reads this the way ArgyllCMS's printtarg does; in practice "
                        "it decides whether strips are labelled with LETTERS or "
                        "NUMBERS.\n\n"
-                       "Valid examples:\n"
+                       "**Valid examples:**\n"
                        "• A-Z, A-Z — the default: letters A, B, C … Z, then AA, "
                        "AB, AC … once past 26 strips (like spreadsheet columns).\n"
                        "• A-Z — plain letters A, B, C … (same result while a chart "
                        "has 26 strips or fewer).\n"
                        "• 1-999 — numbers 1, 2, 3 …\n"
                        "• 0-9 — also numbers 1, 2, 3 …\n\n"
-                       "Rule: any pattern that contains “A-Z” labels with letters; "
+                       "**Rule:** any pattern that contains “A-Z” labels with letters; "
                        "anything else counts in plain numbers (no zero-padding). "
                        "This works together with the Patch pattern below — the two "
                        "combine into each location label, strip then patch (e.g. "
@@ -1816,9 +1816,9 @@ class LayoutOptionsPanel(QWidget):
                        "of a location, e.g. the “12” in A12. The patch label is "
                        "joined to the strip label to form each patch's full "
                        "location (strip then patch, e.g. A12).\n\n"
-                       "The one rule that always applies: if the pattern contains "
+                       "**The one rule that always applies:** if the pattern contains "
                        "“A-Z” you get LETTERS, otherwise you get NUMBERS.\n\n"
-                       "Common patterns:\n"
+                       "**Common patterns:**\n"
                        "• 0-9,@-9,@-9;1-999 — the default: numbers 1, 2, 3 …\n"
                        "• 1-999 — numbers 1, 2, 3 … (simpler, same result).\n"
                        "• A-Z, A-Z — letters A, B, C … Z, AA, AB ….\n"
@@ -1833,7 +1833,7 @@ class LayoutOptionsPanel(QWidget):
                        "• To keep every number the same width WITH leading zeros "
                        "(01, 02, … 09, 10), use a fixed-width digit range such as "
                        "00-99 (two digits) or 000-999 (three).\n\n"
-                       "Note: ChromIQ's own layout engine keeps patch numbers "
+                       "**Note:** ChromIQ's own layout engine keeps patch numbers "
                        "simple (1, 2, 3 …) whatever the digit details; the “@” "
                        "and leading-zero options above take effect when a chart "
                        "is built with the classic printtarg engine. Leave the "
@@ -1907,7 +1907,7 @@ class LayoutOptionsPanel(QWidget):
                     tr("Also export a PDF"),
                     tr("Saves a press-ready PDF of the chart next to the usual "
                        "TIFF — the TIFF is still made, this just adds a PDF copy.\n\n"
-                       "When it helps:\n"
+                       "**When it helps:**\n"
                        "• Your print shop or RIP prefers PDF, or asks for one.\n"
                        "• You want a file that prints at the exact paper size, with "
                        "no print dialog quietly scaling it down.\n"
@@ -1918,7 +1918,7 @@ class LayoutOptionsPanel(QWidget):
                        "device colours and the labels stay crisp at any zoom — and "
                        "it uses the same fonts as the chart. All pages are in one "
                        "file.\n\n"
-                       "One rule matters more than the rest: nothing between "
+                       "**One rule matters more than the rest:** nothing between "
                        "this file and the paper may convert the colours. That is "
                        "not the same advice as for the TIFF, and the reason is in "
                        "the PDF format rather than in any one system. Both files "
@@ -1954,11 +1954,11 @@ class LayoutOptionsPanel(QWidget):
                        "conversion measures the conversion rather than your "
                        "printer, and nothing afterwards can tell that it "
                        "happened.\n\n"
-                       "How to use it: tick this, build the chart as usual, and "
+                       "**How to use it:** tick this, build the chart as usual, and "
                        "you'll find a .pdf beside the .tif in the chart folder.\n\n"
                        "Leave it off if you only print through ChromIQ or just need "
                        "the TIFF.\n\n"
-                       "Default: off."), self))
+                       "**Default:** off."), self))
         _expert_v.addWidget(og)
 
         # ---- Ruler helper markers (#152, moved here by #158) ----
@@ -2002,7 +2002,7 @@ class LayoutOptionsPanel(QWidget):
             tr("Prints short dashes along all four edges of the sheet, so you "
                "can lay a ruler against the paper and line your instrument up "
                "with a row of patches.\n\n"
-               "What you get: a dash at the centre of every patch and one "
+               "**What you get:** a dash at the centre of every patch and one "
                "between each pair, evenly spaced the whole way along. They "
                "follow your patch spacing automatically, so they stay correct "
                "whatever else you change.\n\n"
@@ -2010,12 +2010,12 @@ class LayoutOptionsPanel(QWidget):
                "along a ruler. Leave it off for a chart you read without one — "
                "the dashes cost nothing but ink, and some people prefer a clean "
                "sheet.\n\n"
-               "Press Generate Chart after changing this: the dashes are "
+               "**Press Generate Chart after changing this:** the dashes are "
                "printed onto the sheet, and the preview only shows you where "
                "they will land. If \u201cAuto-update preview when a layout setting "
                "changes\u201d is ticked, the sheet is rebuilt for you and there is "
                "nothing more to do.\n\n"
-               "Default: off.")
+               "**Default:** off.")
             # WHY THE TWO EDGE BOXES GO GREY, IN THE HELP AND NOT ONLY IN A
             # TOOLTIP ON THE DEAD CONTROL. Knut, 2026-09-16: *"It is not clear
             # why they are unavailable and help text does not say the
@@ -2056,7 +2056,7 @@ class LayoutOptionsPanel(QWidget):
                        "If a dash would land where the strip labels or the "
                        "clip-border text sit, they may overlap: move whichever "
                        "one is in the way.\n\n"
-                       "Default: 2.0 mm."), self)))
+                       "**Default:** 2.0 mm."), self)))
         self._hm_rows.append(add_row(hmg, 2, tr("Marker length (mm):"), cell(self.helper_marker_len),
                 align_left=True, tip=TooltipButton(
                     tr("Marker length"),
@@ -2068,7 +2068,7 @@ class LayoutOptionsPanel(QWidget):
                        "The four sets of dashes never cross in the corners — a "
                        "dash is left out where it would run into the dashes "
                        "coming from the edge next to it.\n\n"
-                       "Default: 2.0 mm."), self)))
+                       "**Default:** 2.0 mm."), self)))
         self._hm_rows.append(add_row(hmg, 3, tr("Markers per patch:"),
                 cell(self.helper_marker_per_patch),
                 align_left=True, tip=TooltipButton(
@@ -2086,7 +2086,7 @@ class LayoutOptionsPanel(QWidget):
                        "you pick. With an even number there is no dash at the "
                        "centre of the patch — the middle one is replaced by two "
                        "sitting either side of it.\n\n"
-                       "Default: 3."), self)))
+                       "**Default:** 3."), self)))
         # WHICH EDGES CARRY THE DASHES (#164, Knut): *"for some layouts, it
         # might be an idea to have checkbox choice … Then a user can choose to
         # turn off the ones not needed, especially as the strip markers are the
@@ -2155,7 +2155,7 @@ class LayoutOptionsPanel(QWidget):
                        "With both unticked no dashes are printed at all, the "
                        "same as turning the markers off. Leave it that way and "
                        "this ⓘ says so, at the top, before this help.\n\n"
-                       "Default: both ticked."), self)
+                       "**Default:** both ticked."), self)
         self._hm_rows.append(add_row(hmg, 4, tr("Show markers for:"), QWidget(self),
                 align_left=True, tip=self._hm_edges_tip))
         hmg.addWidget(self.helper_markers_top_bottom, 5, 0, 1, 2)
@@ -2260,14 +2260,14 @@ class LayoutOptionsPanel(QWidget):
                     tr("Where the bottom lines sit across the page. Both of "
                        "them follow this: your Custom text and, when it is on, "
                        "the layout summary.\n\n"
-                       "Left margin: each line starts at the patch area's "
+                       "**Left margin:** each line starts at the patch area's "
                        "left margin, so the two share a left edge and a long "
                        "line grows to the right only.\n\n"
-                       "Centre of available space: each line is centred "
+                       "**Centre of available space:** each line is centred "
                        "between the two side limits, which are the distances "
                        "under “Text distance from edge (mm)”, the clip border "
                        "and the margin on the clip border's side.\n\n"
-                       "Centre between left and right margin: each line is "
+                       "**Centre between left and right margin:** each line is "
                        "centred on the patch area instead, so it lines up with "
                        "the patches above it rather than with the paper.\n\n"
                        "Whichever you pick, a line is never started inside a "
@@ -2555,7 +2555,7 @@ class LayoutOptionsPanel(QWidget):
                        "“Clip” distance under “Text distance from edge (mm)” "
                        "rather than being cut, which the message under the "
                        "measured margins tells you about.\n\n"
-                       "Set a size and nothing shrinks: the text is printed at "
+                       "**Set a size and nothing shrinks:** the text is printed at "
                        "exactly the size you typed, below 7 pt included. Use "
                        "that when the auto text looks too large and you want to "
                        "keep the strip narrow and maximise patch space.\n\n"
@@ -2613,7 +2613,7 @@ class LayoutOptionsPanel(QWidget):
                        "Anything you push past the edge of the band is cut off, "
                        "and the Preview below shows that before it reaches "
                        "paper.\n\n"
-                       "Default: 0°, 100 %."), self))
+                       "**Default:** 0°, 100 %."), self))
         self._clip_image_move_row = add_row(
                 ccg, 6, tr("Content move:"), self._clip_image_move_w,
                 tip=TooltipButton(
@@ -2634,7 +2634,7 @@ class LayoutOptionsPanel(QWidget):
                     tr("The size of the printable clip-border strip — width × "
                        "height in millimetres — where your text or branding is "
                        "placed.\n\n"
-                       "Where the numbers come from:\n"
+                       "**Where the numbers come from:**\n"
                        "  • Width is the “Clip border width” you set above (or the "
                        "clip-side page margin, whichever is larger — the engine "
                        "reserves the bigger of the two on that edge).\n"

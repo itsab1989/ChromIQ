@@ -152,10 +152,10 @@ _TOOLTIP_BODY_NORMAL = (
     "This screen turns the measurements from step 3 into an .icc "
     "profile — the file that applications like Lightroom, Photoshop, "
     "or Preview use to print accurate colour on your printer.\n\n"
-    "Before you build:\n"
+    "**Before you build:**\n"
     "• You need a finished .ti3 measurement file from step 3. ChromIQ "
     "pre-fills it for you if you came straight from tab 3.\n\n"
-    "How to use this screen:\n"
+    "**How to use this screen:**\n"
     "• Quality controls how detailed the profile's colour tables are. "
     "Higher = more accurate but slower to build and slightly larger. "
     "\"Medium\" is a fine starting point.\n"
@@ -164,7 +164,7 @@ _TOOLTIP_BODY_NORMAL = (
     "you can tell profiles apart.\n"
     "• Click “Build Profile” and ChromIQ runs Argyll's colprof. When it's done "
     "you'll have a .icc file you can install on macOS.\n\n"
-    "What happens next: install the .icc into ~/Library/ColorSync/"
+    "**What happens next:** install the .icc into ~/Library/ColorSync/"
     "Profiles (ChromIQ can do this for you), then verify it on tab 5 "
     "before relying on it for important prints."
 )
@@ -970,14 +970,14 @@ class TabProfile(QWidget):
         mode_row.addWidget(self._pc_mode_combo, stretch=1)
         mode_row.addWidget(TooltipButton(
             tr("Calibration Mode"),
-            tr("Initial calibration (-i): creates a brand-new .cal file from your\n"
+            tr("**Initial calibration (-i):** creates a brand-new .cal file from your\n"
             "calibration target measurement. Use this the first time.\n\n"
-            "Re-calibrate (-r): refines an existing .cal by comparing new\n"
+            "**Re-calibrate (-r):** refines an existing .cal by comparing new\n"
             "measurements to the previous target. Useful for keeping a\n"
             "printer consistent over time.\n\n"
-            "Verify (-e): checks how well a printer still matches a prior .cal\n"
+            "**Verify (-e):** checks how well a printer still matches a prior .cal\n"
             "without writing any new files.\n\n"
-            "Imitation target (-I): creates a calibration target from an existing\n"
+            "**Imitation target (-I):** creates a calibration target from an existing\n"
             ".ti3 using a null (identity) calibration. Useful for deriving a\n"
             "calibration target when no previous .cal exists."),
             grp,
@@ -1457,11 +1457,11 @@ class TabProfile(QWidget):
         mode_row.addWidget(self._ac_mode_combo, stretch=1)
         mode_row.addWidget(TooltipButton(
             tr("applycal Mode"),
-            tr("Apply: bakes the calibration curves into the ICC profile so\n"
+            tr("**Apply:** bakes the calibration curves into the ICC profile so\n"
             "that any app using the profile automatically gets calibration.\n\n"
-            "Remove: strips previously applied calibration curves out of\n"
+            "**Remove:** strips previously applied calibration curves out of\n"
             "the profile, reverting it to its uncalibrated state.\n\n"
-            "Check: reports whether the profile has calibration curves\n"
+            "**Check:** reports whether the profile has calibration curves\n"
             "applied, without modifying anything."),
             grp,
             min_width=480,
@@ -2609,12 +2609,12 @@ class TabProfile(QWidget):
             tr("Profile Algorithm (-a)"),
             tr("Selects the mathematical model used to map device values (ink percentages)\n"
             "to colours.\n\n"
-            "Lab cLUT: a full 3-dimensional lookup table, connecting through L*a*b*.\n"
+            "**Lab cLUT:** a full 3-dimensional lookup table, connecting through L*a*b*.\n"
             "It captures the complex, non-linear relationship between ink and colour\n"
             "that every real inkjet printer has, and it is the only kind of printer\n"
             "profile that can carry all four rendering intents. This is almost always\n"
             "the right choice.\n\n"
-            "XYZ cLUT: the same kind of table, connecting through XYZ instead. It can\n"
+            "**XYZ cLUT:** the same kind of table, connecting through XYZ instead. It can\n"
             "suit an additive device better, and ArgyllCMS warns that it is a lot less\n"
             "robust on a patch set that is sparse or unevenly spaced.\n\n"
             "There is no third choice here, and that is ArgyllCMS\u2019s rule rather than\n"
@@ -2813,7 +2813,7 @@ class TabProfile(QWidget):
             "Requires spectral measurements — not supported by all instruments.\n\n"
             "The illuminant sets the lighting condition used to compute the FWA effect.\n"
             "Use for papers with optical brighteners (bright white coated stock).\n\n"
-            "Important: ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
+            "**Important:** ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
             "fail with an error if this option is enabled. UV-capable instruments such as\n"
             "the X-Rite i1Pro 2/3 are required for FWA compensation."),
             grp,
@@ -2880,7 +2880,7 @@ class TabProfile(QWidget):
             "(1.0 = straight line, below 1 eases in gradually, above 1 rises "
             "quickly and then levels off). A typical gentle curve is "
             "0 / 0.1 / 0.9 / 1 / 1.\n\n"
-            "Proportional (-K): normally the curve sets the black value "
+            "**Proportional (-K):** normally the curve sets the black value "
             "itself. With this ticked, the curve sets the proportion of the "
             "black that is possible at each colour instead. Strong colours "
             "leave less room for black ink, and the proportional form "
@@ -2945,28 +2945,28 @@ class TabProfile(QWidget):
             tr("Lets the engine try a physical model of how your printer's "
                "inks mix on paper (halftone dot physics, including paper "
                "gloss), instead of relying on curve fitting alone.\n\n"
-               "How it works: the engine builds both models and holds back "
+               "**How it works:** the engine builds both models and holds back "
                "a share of your measured patches as an exam. Only if the "
                "physics model predicts those unseen patches clearly better "
                "is it used for the profile — otherwise the build silently "
                "keeps the standard model. Ticking this can therefore never "
                "make a profile worse; it can only win or change nothing.\n\n"
-               "When it helps most: printers with many inks (CMYK plus "
+               "**When it helps most:** printers with many inks (CMYK plus "
                "orange, green, violet …), where a chart can never cover "
                "every ink combination — physics fills those gaps far "
                "better than interpolation. On ChromIQ's synthetic test "
                "bench, multi-ink profiles came out 20–36% closer to the "
                "true colours with this enabled.\n\n"
-               "What it needs: a chart measured in spectral mode (the "
+               "**What it needs:** a chart measured in spectral mode (the "
                "high-resolution setting in the Measure tab) and a printer "
                "driven through its real ink channels. RGB printer drivers "
                "— the usual ChromIQ workflow — hide the inks, so there "
                "this option simply does nothing.\n\n"
-               "Why it is off by default: the resulting tables trade a "
+               "**Why it is off by default:** the resulting tables trade a "
                "small amount of internal round-trip consistency for the "
                "accuracy gain. For proofing-style work where soft-proof "
                "round-trips matter more than absolute accuracy, leave it "
-               "off.\n\nDefault: off."),
+               "off.\n\n**Default:** off."),
             grp,
             min_width=560,
         ))
@@ -3003,7 +3003,7 @@ class TabProfile(QWidget):
                "older RIP but also deliver profiles to clients on modern "
                "pipelines. Installing and the rest of the ChromIQ "
                "workflow keep using the v2 file.\n\n"
-               "Default: Version 2."),
+               "**Default:** Version 2."),
             grp,
             min_width=520,
         ))
@@ -3021,7 +3021,7 @@ class TabProfile(QWidget):
                "white and black patches on the chart) and fits the "
                "profile so it follows your printer instead of chasing "
                "that noise.\n\n"
-               "How it stays safe: the engine first diagnoses the chart "
+               "**How it stays safe:** the engine first diagnoses the chart "
                "itself — the repeated white and black patches reveal how "
                "much your readings actually scatter. Only when that "
                "scatter is clearly above what a healthy instrument "
@@ -3031,16 +3031,16 @@ class TabProfile(QWidget):
                "would have gotten anyway — bit for bit. Ticking this can "
                "therefore never make a profile worse, and the log always "
                "tells you which way it went.\n\n"
-               "When it helps: older or budget instruments, strip "
+               "**When it helps:** older or budget instruments, strip "
                "readings that occasionally jitter, charts measured in a "
                "hurry. On a deliberately noisy test measurement it cut "
                "the profile's errors by roughly 15–20% and reduced "
                "false \"please remeasure this patch\" warnings from "
                "dozens to a handful.\n\n"
-               "Bonus either way: the build log gains a confidence map — "
+               "**Bonus either way:** the build log gains a confidence map — "
                "plain sentences telling you how well each region "
                "(shadows, midtones, highlights, saturated colours) is "
-               "supported by your chart.\n\nDefault: off."),
+               "supported by your chart.\n\n**Default:** off."),
             grp,
             min_width=560,
         ))
@@ -3079,7 +3079,7 @@ class TabProfile(QWidget):
                "you like what you see, use it.\n\n"
                "Only applies while the intent overrides (-t / -T) are "
                "unset. An explicit intent always uses the Argyll "
-               "behaviour.\n\nDefault: Argyll-matched."),
+               "behaviour.\n\n**Default:** Argyll-matched."),
             grp,
             min_width=560,
         ))
@@ -3107,7 +3107,7 @@ class TabProfile(QWidget):
             "builds the perceptual (and saturation) gamut-mapping tables. "
             "Matching this to where your source image actually lives makes the "
             "print look more like what you saw on screen.\n\n"
-            "Important: this setting ONLY does anything when you've also set a "
+            "**Important:** this setting ONLY does anything when you've also set a "
             "Gamut Source profile (the -s or -S row above). Without a gamut "
             "source there is no gamut mapping, so there is nothing for these "
             "viewing conditions to influence.\n\n"
@@ -3149,7 +3149,7 @@ class TabProfile(QWidget):
             "when it builds the perceptual (and saturation) gamut-mapping "
             "tables — so that the print looks correct to a viewer in that "
             "specific lighting.\n\n"
-            "Important: this setting ONLY does anything when you've also set a "
+            "**Important:** this setting ONLY does anything when you've also set a "
             "Gamut Source profile (the -s or -S row above). Without a gamut "
             "source there is no gamut mapping, so there is nothing for these "
             "viewing conditions to influence.\n\n"
@@ -3653,12 +3653,12 @@ class TabProfile(QWidget):
             tr("Profile Algorithm (-a)"),
             tr("Selects the mathematical model used to map device values (ink percentages)\n"
             "to colours.\n\n"
-            "Lab cLUT: a full 3-dimensional lookup table, connecting through L*a*b*.\n"
+            "**Lab cLUT:** a full 3-dimensional lookup table, connecting through L*a*b*.\n"
             "It captures the complex, non-linear relationship between ink and colour\n"
             "that every real inkjet printer has, and it is the only kind of printer\n"
             "profile that can carry all four rendering intents. This is almost always\n"
             "the right choice.\n\n"
-            "XYZ cLUT: the same kind of table, connecting through XYZ instead. It can\n"
+            "**XYZ cLUT:** the same kind of table, connecting through XYZ instead. It can\n"
             "suit an additive device better, and ArgyllCMS warns that it is a lot less\n"
             "robust on a patch set that is sparse or unevenly spaced.\n\n"
             "There is no third choice here, and that is ArgyllCMS\u2019s rule rather than\n"
@@ -3849,7 +3849,7 @@ class TabProfile(QWidget):
             "Requires spectral measurements — not supported by all instruments.\n\n"
             "The illuminant sets the lighting condition used to compute the FWA effect.\n"
             "Use for papers with optical brighteners (bright white coated stock).\n\n"
-            "Important: ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
+            "**Important:** ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
             "fail with an error if this option is enabled. UV-capable instruments such as\n"
             "the X-Rite i1Pro 2/3 are required for FWA compensation."),
             _adv,
@@ -4415,7 +4415,7 @@ class TabProfile(QWidget):
         except (ReferenceConvertError, OSError, ValueError) as exc:
             InfoDialog(tr("The file could not be converted"),
                        tr("ChromIQ could not read “{name}” as a measurement.\n\n"
-                          "The reason: {reason}.").format(name=src.name,
+                          "**The reason:** {reason}.").format(name=src.name,
                                                           reason=exc),
                        self, min_width=560).exec()
             return None
@@ -5860,10 +5860,10 @@ class TabProfile(QWidget):
                "Description below instead, so the file is as easy to find in "
                "the folder as the description is in an app's "
                "colour-management menu.\n\n"
-               "Nothing else changes: only the installed copy gets the new "
+               "**Nothing else changes:** only the installed copy gets the new "
                "name, the profile inside your project keeps its own, and "
                "every part of ChromIQ keeps working exactly as before.\n\n"
-               "Good to know: characters a file name cannot contain are "
+               "**Good to know:** characters a file name cannot contain are "
                "replaced with “_”; installing over a profile that already "
                "has that name replaces it, which is the normal way to update "
                "one; and while the description is empty the copy simply "

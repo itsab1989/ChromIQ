@@ -9613,3 +9613,62 @@ the retargeted guards in `test_evenness_across_the_sheet.py`,
 
 **Status:** the rulings and texts are Knut's (Confirmed); what was built NOT
 confirmed.
+
+## 52. K63: bold lead-ins in every help window, and "may come from" (#182, 2026-09-27, beta 45)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-27, #182
+[5856723428](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5856723428),
+for exactly the rulings quoted here. What was built from them is in 52.2 and
+waits for his confirmation.
+
+**52.1 The rulings, verbatim.**
+
+* The evenness advice on reading order: *"Sure, but say 'may come from'"*,
+  so the sentence reads *"If a difference runs steadily from the first strip
+  read to the last, measure the sheet again in the opposite order: a
+  difference that turns round with the reading may come from the
+  instrument."*
+* Headings: *"When you write a heading or a bold font to indicate a new topic
+  or section, that disappears in the app, but this should be visible in the
+  help windows, everywhere in the app. This increases the readibility
+  considerably."*
+
+### ⏳ Awaiting confirmation: what was built from them
+
+**Confirmed by:** *nobody yet.*
+
+**52.2 Built.**
+
+* **The mark is written into the text**: a topic lead-in is `**...**` in the
+  English source, and the catalogue key carries it (`core/help_markup.py`).
+  Nothing in the punctuation tells a topic ("How the sheet is divided.") from
+  an ordinary short sentence ("Mutually exclusive with Double density."), so
+  it is not guessed at render time.
+* **Every ⓘ window** (`ui/tooltip_button._InfoDialog`, which every help icon
+  and every `InfoDialog` in the app opens) shows a marked body as rich text:
+  the marked runs bold, everything else escaped and laid out exactly as the
+  plain text was (`white-space: pre-wrap`). An unmarked body is plain text as
+  before. The printed and on-screen help cards read the same marks.
+* **Report Limits**: each row's help shows its section headings ("How ChromIQ
+  decides your chart can be judged on this row", "What you can do about it",
+  "How this row relates to the others") in bold; the evenness description's
+  lead-ins ("How the sheet is divided.", "What is compared.", "The noise, and
+  the filter.", "Choosing the two limits.", "From a standard's figures.") are
+  bold.
+* **Which texts carry marks**: 107 help texts across the app (the evenness
+  and other Report Limits helps, Preferences, Create Chart and its layout
+  options, Measure, Build Profile, Print, Check & Refine, the Tools windows)
+  and 15 parameter helps of `data/parameters.yaml`: each paragraph that opens
+  with a short label ending in a colon ("How it works:", "Default:", "Tip:"),
+  and, chosen by hand, the headings written as short sentences. §M messages
+  are not marked: they are not help windows and their text is approved as it
+  is.
+* **Translations**: German marked by hand run for run; the other eleven carry
+  the marks where the translation's own paragraph shows the lead-in, and are
+  plain otherwise. `tests/test_help_windows_show_their_lead_ins_in_bold.py`
+  holds the renderer, the pairs in every catalogue, the German marks, the
+  evenness help, and that no window shows a mark as two asterisks.
+
+**Status:** the rulings are Knut's (Confirmed); what was built NOT confirmed.

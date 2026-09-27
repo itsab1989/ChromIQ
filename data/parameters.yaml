@@ -34,11 +34,11 @@ parameters:
       tooltip_body: |
         Defines the colorant combination of your output device.
 
-        Print spaces are subtractive: device value 0 = white (no ink),
+        **Print spaces are subtractive:** device value 0 = white (no ink),
         maximum = black (full ink).  Video/display spaces are additive:
         device value 0 = black, maximum = white.
 
-        Common choices:
+        **Common choices:**
           • Print grey (-d 0)  — single-channel greyscale printer
           • Video grey (-d 1)  — single-channel display/monitor
           • Print RGB (-d 2)   — standard RGB inkjet (default, recommended)
@@ -85,7 +85,7 @@ parameters:
         or removing one individual colorant.  If the chosen colorant is
         already present in the set it is removed; if absent it is added.
 
-        Typical uses:
+        **Typical uses:**
           • Add Orange (-D 5) to standard CMYK for extended gamut
           • Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK
             for smoother highlight gradients
@@ -114,7 +114,7 @@ parameters:
           • High quality: 1500–2000
           • Very high:  2500–3000
 
-        Auto (next to the spinbox): when ticked, the patch count is
+        **Auto (next to the spinbox):** when ticked, the patch count is
         computed live from the chosen paper, instrument, double-density,
         left-border, patch scale, margin, and the Pages spinbox in the
         printtarg section — picking the largest value that fills exactly
@@ -145,7 +145,7 @@ parameters:
         is, which anchors the bright end of the profile. 4 is a good
         default; very glossy papers can benefit from a few more.
 
-        Auto (checkbox):
+        **Auto (checkbox):**
         Turn on "Auto" and ChromIQ picks this number for you, based on
         how many patches the whole chart holds — so a small one-page
         chart gets a few white patches and a big multi-page chart gets
@@ -178,7 +178,7 @@ parameters:
         printer can produce, which anchors the shadow end of the profile.
         4 is a good default for RGB printers.
 
-        Auto (checkbox):
+        **Auto (checkbox):**
         Turn on "Auto" and ChromIQ picks this number for you, based on
         how many patches the whole chart holds — a small chart gets a
         few black patches, a big chart gets more.
@@ -210,7 +210,7 @@ parameters:
         Rough guide if you set it by hand: 0 for a quick profile,
         50–100 for a standard one, 128+ for high quality.
 
-        Auto (checkbox):
+        **Auto (checkbox):**
         Turn on "Auto" and ChromIQ picks this number for you, scaled to
         how many patches the whole chart holds — a bigger chart gets a
         longer, finer grey ramp.
@@ -341,7 +341,7 @@ parameters:
           • -n adds explicit, profile-derived neutral patches on top
             of whatever the rest of the distribution produces.
 
-        When to use it:
+        **When to use it:**
           • You already have a first-pass ICC profile for this paper
             and you're building a refinement chart.  Load that profile
             under Pre-conditioning Profile (-c), then set -n to 32–64
@@ -351,7 +351,7 @@ parameters:
             neutral axis to sample from, and -g already covers the
             device-space ramp.
 
-        Typical refinement values: 32 for routine work, 64 for
+        **Typical refinement values:** 32 for routine work, 64 for
         fine-art / proofing where neutrality is critical.
 
         Requires -c to be set; has no effect otherwise.
@@ -409,7 +409,7 @@ parameters:
         from such patches predicts colours your printer can't actually
         produce.
 
-        How to choose a value:
+        **How to choose a value:**
           • Most CMYK inkjets:        260 – 320 %
           • Coated / glossy papers:   320 – 360 %
           • Newsprint, low-quality:   220 – 260 %
@@ -420,7 +420,7 @@ parameters:
         guidance, or measure: print a small ink-limit test wedge and
         pick the highest value that dries cleanly without bleeding.
 
-        For RGB workflows: usually leave this disabled — RGB inkjets
+        **For RGB workflows:** usually leave this disabled — RGB inkjets
         handle their own ink limiting internally, so targen doesn't
         need to budget across channels.
 
@@ -452,35 +452,35 @@ parameters:
         Pick ONE. These are mutually exclusive — selecting any of them
         replaces the default OFPS placement entirely.
 
-        OFPS (default, recommended):
+        **OFPS (default, recommended):**
         Optimised Farthest Point Sampling. Iteratively places each new
         patch as far as possible from every existing patch, producing
         the most even coverage of any algorithm here. Slower than the
         alternatives but the gold standard for profile quality. Pair
         with "Thorough Optimisation (-G)" for best results.
 
-        Incremental Far Point (-t):
+        **Incremental Far Point (-t):**
         A simpler farthest-point method. Faster than OFPS, slightly
         less even. Use when OFPS is too slow on very large patch counts
         and you accept a small quality drop.
 
-        Random — device space (-r):
+        **Random — device space (-r):**
         Uniformly random patches in raw device values (e.g. RGB).
         Fastest possible, but coverage in *perceived* colour is uneven
         — wastes patches in regions our eye barely distinguishes.
 
-        Random — perceptual space (-R):
+        **Random — perceptual space (-R):**
         Uniformly random in perceived colour (Lab). Better than -r if
         you must use random, since patches are spread evenly by what
         the eye sees. Still less optimal than OFPS for the same count.
 
-        Quasi-random space-filling (-q / -Q):
+        **Quasi-random space-filling (-q / -Q):**
         Low-discrepancy sequences (Sobol-like) that fill space more
         evenly than true random without OFPS's iterative cost.
         -q in device space, -Q in perceptual space. A good middle
         ground when OFPS is too slow.
 
-        Body-centered cubic lattice (-i / -I):
+        **Body-centered cubic lattice (-i / -I):**
         A fixed regular lattice (each patch surrounded by 8 neighbours
         in a cube pattern). Deterministic and very even, but inflexible
         — exact patch counts that fit the lattice are limited. -i in
@@ -540,14 +540,14 @@ parameters:
         Set to 0 (default) to skip — almost always the right choice.
         OFPS already covers the cube interior more efficiently.
 
-        When to use it:
+        **When to use it:**
           • Repeatability across machines: a fixed grid is the same
             every time, regardless of which OFPS placements targen
             picked, which can help compare profiles across runs.
           • Diagnostic charts where you want predictable, named cube
             positions.
 
-        Typical values when used: 3 – 6 (steps per axis). Numbers
+        **Typical values when used:** 3 – 6 (steps per axis). Numbers
         grow fast — 6 steps in RGB is 216 patches, 8 is 512.
 
         Tick the checkbox to enable.
@@ -571,14 +571,14 @@ parameters:
 
         Set to 0 (default) to skip.
 
-        When to use it:
+        **When to use it:**
           • You specifically want to nail down the gamut boundary and
             primary/secondary corners without the interior overhead
             of -m.
           • Comparing how different inks/papers shift the gamut
             envelope — surface patches are the ones most affected.
 
-        Typical values when used: 4 – 8 steps per face.
+        **Typical values when used:** 4 – 8 steps per face.
 
         Tick the checkbox to enable.
 
@@ -601,14 +601,14 @@ parameters:
 
         Set to 0 (default) to skip — this is a niche knob.
 
-        When to use it:
+        **When to use it:**
           • You want regular, lattice-aligned patch positions but
             with better packing than -m gives, without going all the
             way to OFPS.
           • Research / repeatability scenarios where the BCC structure
             itself is the point.
 
-        Note: this is the *step counter* form (adds to your patch list);
+        **Note:** this is the *step counter* form (adds to your patch list);
         for a chart whose *entire* distribution is BCC, use the
         "Patch Distribution" selector above and pick the body-centered
         cubic option there.
@@ -928,7 +928,7 @@ parameters:
         The .cal is also embedded in the .ti2 file so that colprof
         can reference it when building the ICC profile.
 
-        Typical use: desktop inkjet printers without built-in
+        **Typical use:** desktop inkjet printers without built-in
         linearisation, driven directly from a TIFF with no
         intervening RIP.
 
@@ -956,7 +956,7 @@ parameters:
         file into the .ti2 output as metadata only, leaving all patch
         values untouched.
 
-        Typical use: professional inkjet RIPs (e.g. EFI Fiery,
+        **Typical use:** professional inkjet RIPs (e.g. EFI Fiery,
         Wasatch, ColorBurst) or printers with built-in linearisation
         that is active during the profiling print run.
 
@@ -1458,7 +1458,7 @@ parameters:
         Controls how much extra smoothing is applied to the calibration
         curves.  Higher values produce smoother but less precise curves.
 
-        Default: 1.0 — good for most printers.
+        **Default:** 1.0 — good for most printers.
         Increase (e.g. 2.0–5.0) if the printer has noisy tone response
         or the calibration curves look jagged.
 

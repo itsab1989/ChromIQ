@@ -7,11 +7,11 @@ parameters:
       tooltip_body: |-
         Define la combinación de colorantes de tu dispositivo de salida.
 
-        Los espacios de impresión son sustractivos: valor de dispositivo
+        **Los espacios de impresión son sustractivos:** valor de dispositivo
         0 = blanco (sin tinta), máximo = negro (tinta plena).  Los espacios
         de vídeo/pantalla son aditivos: valor 0 = negro, máximo = blanco.
 
-        Elecciones comunes:
+        **Elecciones comunes:**
           • Impresión gris (-d 0) — impresora monocanal en escala de grises
           • Vídeo gris (-d 1)     — pantalla/monitor monocanal
           • Impresión RGB (-d 2)  — inyección RGB estándar (predeterminado,
@@ -49,7 +49,7 @@ parameters:
         (-d) añadiendo o quitando un colorante concreto.  Si el colorante
         elegido ya está en el conjunto se quita; si falta, se añade.
 
-        Usos típicos:
+        **Usos típicos:**
           • Añadir naranja (-D 5) al CMYK estándar para gama extendida
           • Añadir cian claro (-D 11) / magenta claro (-D 12) al CMYK
             para degradados más suaves en las luces
@@ -91,7 +91,7 @@ parameters:
           • Alta calidad:  1500–2000
           • Altísima:      2500–3000
 
-        Auto (junto al campo numérico): si está marcado, el número de
+        **Auto (junto al campo numérico):** si está marcado, el número de
         parches se calcula en tiempo real a partir del papel, instrumento,
         double density, borde izquierdo, escala de parche, margen y el
         campo Páginas de la sección printtarg — eligiendo el valor más
@@ -115,7 +115,7 @@ parameters:
         predeterminado; los papeles muy brillantes pueden beneficiarse de
         algún parche más.
 
-        Auto (casilla):
+        **Auto (casilla):**
         Activa "Auto" y ChromIQ elige el número por ti, según cuántos
         parches contiene toda la carta — una carta pequeña de una página
         recibe pocos parches blancos y una grande de varias páginas más,
@@ -139,7 +139,7 @@ parameters:
         la impresora puede producir — anclando el extremo oscuro del
         perfil. 4 es un buen predeterminado para impresoras RGB.
 
-        Auto (casilla):
+        **Auto (casilla):**
         Activa "Auto" y ChromIQ elige el número por ti, según cuántos
         parches contiene toda la carta — una carta pequeña recibe pocos
         parches negros, una grande más.
@@ -162,7 +162,7 @@ parameters:
         y tonos neutros. Guía aproximada si lo fijas a mano: 0 para un
         perfil rápido, 50–100 para uno estándar, 128+ para alta calidad.
 
-        Auto (casilla):
+        **Auto (casilla):**
         Activa "Auto" y ChromIQ elige el número por ti, en proporción a
         cuántos parches contiene toda la carta — una carta más grande
         recibe una rampa de grises más larga y fina.
@@ -262,7 +262,7 @@ parameters:
           • -n añade parches neutros explícitos, derivados del perfil,
             además de lo que el resto de la distribución produce.
 
-        Cuándo usarlo:
+        **Cuándo usarlo:**
           • Ya tienes un perfil ICC de primera pasada para este papel y
             estás creando una carta de refinado.  Carga ese perfil en
             Perfil de preacondicionamiento (-c) y pon -n en 32–64 para
@@ -272,7 +272,7 @@ parameters:
             muestrear, y -g ya cubre la rampa en el espacio del
             dispositivo.
 
-        Valores de refinado típicos: 32 para trabajo normal, 64 para
+        **Valores de refinado típicos:** 32 para trabajo normal, 64 para
         bellas artes / pruebas de color donde la neutralidad es crítica.
 
         Requiere que -c esté definido; si no, no tiene efecto.
@@ -306,7 +306,7 @@ parameters:
         con esos parches predice colores que la impresora en realidad no
         puede producir.
 
-        Cómo elegir un valor:
+        **Cómo elegir un valor:**
           • Mayoría de inyecciones CMYK:        260 – 320 %
           • Papeles estucados / brillantes:     320 – 360 %
           • Papel prensa, baja calidad:         220 – 260 %
@@ -318,7 +318,7 @@ parameters:
         prueba del límite de tinta y elige el valor más alto que seca
         limpio sin emborronar.
 
-        Para flujos RGB: normalmente déjalo desactivado — las inyecciones
+        **Para flujos RGB:** normalmente déjalo desactivado — las inyecciones
         RGB gestionan el límite de tinta internamente, así que targen no
         necesita repartir presupuesto entre canales.
 
@@ -334,7 +334,7 @@ parameters:
         Elige UNO. Se excluyen mutuamente — seleccionar uno sustituye por
         completo la colocación OFPS predeterminada.
 
-        OFPS (predeterminado, recomendado):
+        **OFPS (predeterminado, recomendado):**
         Optimised Farthest Point Sampling. Coloca iterativamente cada
         nuevo parche lo más lejos posible de todos los existentes — la
         cobertura más uniforme de todos los algoritmos listados aquí. Más
@@ -342,31 +342,31 @@ parameters:
         perfil. Combínalo con "Optimización precisa (-G)" para el mejor
         resultado.
 
-        Incremental Far Point (-t):
+        **Incremental Far Point (-t):**
         Un método de punto más lejano más simple. Más rápido que OFPS,
         algo menos uniforme. Úsalo cuando OFPS sea demasiado lento con
         números de parches muy altos y aceptes una pequeña pérdida de
         calidad.
 
-        Aleatoria — espacio del dispositivo (-r):
+        **Aleatoria — espacio del dispositivo (-r):**
         Parches uniformemente aleatorios en los valores brutos del
         dispositivo (p. ej. RGB). Lo más rápido posible, pero la cobertura
         en color *percibido* es desigual — desperdicia parches en zonas
         que el ojo apenas distingue.
 
-        Aleatoria — espacio perceptual (-R):
+        **Aleatoria — espacio perceptual (-R):**
         Uniformemente aleatoria en color percibido (Lab). Mejor que -r si
         tiene que ser aleatoria, porque los parches se reparten
         uniformemente según lo que el ojo ve. Aun así menos óptima que
         OFPS a igual número.
 
-        Cuasialeatoria de relleno (-q / -Q):
+        **Cuasialeatoria de relleno (-q / -Q):**
         Secuencias de baja discrepancia (tipo Sobol) que llenan el espacio
         más uniformemente que el azar puro, sin el coste iterativo de
         OFPS. -q en espacio del dispositivo, -Q en espacio perceptual. Un
         buen compromiso cuando OFPS es demasiado lento.
 
-        Retícula cúbica centrada en el cuerpo (-i / -I):
+        **Retícula cúbica centrada en el cuerpo (-i / -I):**
         Una retícula regular fija (cada parche rodeado de 8 vecinos en un
         patrón cúbico). Determinista y muy uniforme, pero rígida — solo
         ciertos números de parches encajan en la retícula. -i en espacio
@@ -421,14 +421,14 @@ parameters:
         elección correcta. OFPS ya cubre el interior del cubo de forma más
         eficiente.
 
-        Cuándo usarlo:
+        **Cuándo usarlo:**
           • Repetibilidad entre máquinas: una rejilla fija es igual cada
             vez, independientemente de las colocaciones OFPS que elija
             targen — útil para comparar perfiles entre ejecuciones.
           • Cartas de diagnóstico con posiciones del cubo predecibles y
             con nombre.
 
-        Valores típicos cuando se usa: 3 – 6 (pasos por eje). Los números
+        **Valores típicos cuando se usa:** 3 – 6 (pasos por eje). Los números
         crecen rápido — 6 pasos en RGB son 216 parches, 8 son 512.
 
         Marca la casilla para activarlo.
@@ -443,14 +443,14 @@ parameters:
 
         Ponlo a 0 (predeterminado) para omitirlo.
 
-        Cuándo usarlo:
+        **Cuándo usarlo:**
           • Quieres clavar específicamente el límite de la gama y las
             esquinas primarias/secundarias sin el sobrecoste interior
             de -m.
           • Comparar cómo distintas tintas/papeles desplazan la envolvente
             de la gama — los parches de superficie son los más afectados.
 
-        Valores típicos cuando se usa: 4 – 8 pasos por cara.
+        **Valores típicos cuando se usa:** 4 – 8 pasos por cara.
 
         Marca la casilla para activarlo.
     "-b":
@@ -465,14 +465,14 @@ parameters:
         Ponlo a 0 (predeterminado) para omitirlo — es una perilla de
         nicho.
 
-        Cuándo usarlo:
+        **Cuándo usarlo:**
           • Quieres posiciones de parches regulares, alineadas a la
             retícula, pero con mejor empaquetado que -m, sin llegar a
             OFPS.
           • Escenarios de investigación / repetibilidad donde la propia
             estructura BCC es el objetivo.
 
-        Nota: esta es la forma de *contador de pasos* (añade a tu lista de
+        **Nota:** esta es la forma de *contador de pasos* (añade a tu lista de
         parches); para una carta cuya distribución *entera* sea BCC, usa
         el selector "Distribución de parches" de arriba y elige allí la
         opción cúbica centrada en el cuerpo.
@@ -698,7 +698,7 @@ parameters:
         del dispositivo.  El .cal también se incrusta en el archivo .ti2
         para que colprof pueda consultarlo al crear el perfil ICC.
 
-        Uso típico: inyecciones de escritorio sin linealización
+        **Uso típico:** inyecciones de escritorio sin linealización
         integrada, controladas directamente con un TIFF sin RIP
         intermedio.
 
@@ -718,7 +718,7 @@ parameters:
         calibración.  -I incrusta el archivo .cal en el .ti2 de salida
         solo como metadatos, dejando todos los valores intactos.
 
-        Uso típico: RIP de inyección profesionales (p. ej. EFI Fiery,
+        **Uso típico:** RIP de inyección profesionales (p. ej. EFI Fiery,
         Wasatch, ColorBurst) o impresoras con linealización integrada
         activa durante la impresión de perfilado.
 
@@ -1046,7 +1046,7 @@ parameters:
         calibración.  Valores más altos producen curvas más suaves pero
         menos precisas.
 
-        Predeterminado: 1.0 — adecuado para la mayoría de impresoras.
+        **Predeterminado:** 1.0 — adecuado para la mayoría de impresoras.
         Súbelo (p. ej. 2.0–5.0) si la respuesta tonal de la impresora
         parece irregular o las curvas se ven dentadas.
     "-z":

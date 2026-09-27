@@ -34,6 +34,7 @@ import html
 import re
 from typing import Any
 
+from core.help_markup import escape_bold
 from core.stem_paths import artefact
 
 from PyQt6.QtCore import QSizeF
@@ -286,7 +287,9 @@ def _as_html(text: str) -> str:
     for para in paras:
         if not para.strip():
             continue
-        out.append("<p>" + "<br>".join(html.escape(ln) for ln in
+        # A **lead-in** prints in bold, as it shows in every help window
+        # (Knut, #182 5856723428); everything else is escaped as before.
+        out.append("<p>" + "<br>".join(escape_bold(ln) for ln in
                                        para.split("\n")) + "</p>")
     return "".join(out)
 

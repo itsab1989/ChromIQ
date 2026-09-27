@@ -633,7 +633,7 @@ _EVEN_CAUSES = (
     "difference across the strips rather than down them. If a difference "
     "runs steadily from the first strip read to the last, measure the sheet "
     "again in the opposite order: a difference that turns round with the "
-    "reading comes from the instrument.")
+    "reading may come from the instrument.")
 #: THE FEATURE'S DESCRIPTION, Knut, #182 5855780690 (2026-09-27): *"The texts
 #: are accepted, given they are corrected with any changes from above
 #: comments"*, the texts being 5855451413 section 5 and the two of 5855259490.
@@ -663,7 +663,7 @@ _D_EVENNESS = (
     "ChromIQ can judge these two rows on a verification sheet whose chart "
     "file records where each patch is printed, which every chart ChromIQ lays "
     "out does.\n\n"
-    "How the sheet is divided. Each page is divided into three bands of "
+    "**How the sheet is divided.** Each page is divided into three bands of "
     "strips and three bands of rows, whole strips and rows only, with any "
     "remainder in the middle band. The same ninth of every page is counted "
     "together. Only pages with at least 9 strips and 9 rows whose patches "
@@ -671,14 +671,14 @@ _D_EVENNESS = (
     "one such page. The share is worked out from the distance between each "
     "paper edge and the first patch, the four margins Create Chart shows as "
     "Measured from Preview.\n\n"
-    "What is compared. Every patch is compared with its own aim value, the "
+    "**What is compared.** Every patch is compared with its own aim value, the "
     "same one the colour accuracy rows use, and the differences are averaged "
     "in each of the nine areas. Nothing is matched by brightness or by grey. "
     "The readings are used exactly as the instrument took them. On a sheet "
     "printed with an intent that makes the paper the white, every aim colour "
     "is moved onto the paper by the same amount, so the paper's own tint does "
     "not count as unevenness.\n\n"
-    "The noise, and the filter. Every measurement carries a little noise: the "
+    "**The noise, and the filter.** Every measurement carries a little noise: the "
     "instrument, the paper, and the profile's own small errors at each "
     "colour. Averaged over a ninth of the page, that noise makes even a "
     "perfectly even sheet read a little above zero, like a water level under "
@@ -719,7 +719,7 @@ _R_EVENNESS = (
 #: `tests/test_evenness_filter_and_converted_limits.py` holds every number in
 #: this text to them.
 _REL_EVENNESS = (
-    "Choosing the two limits. The limit for \u201cMaximum \u0394E00, between "
+    "**Choosing the two limits.** The limit for \u201cMaximum \u0394E00, between "
     "two of the nine sheet areas\u201d must be more than 1.125 times and less "
     "than 2 times the limit for \u201cMaximum \u0394E00, one sheet area "
     "against the whole sheet\u201d. Outside that range one of the two metrics "
@@ -729,7 +729,7 @@ _REL_EVENNESS = (
     "clearly visible. A limit meant to catch visible unevenness stays below "
     "that with a margin, for example 1.8 and 1.2. A good photo printer on "
     "photo paper usually reads well under 1.0.\n\n"
-    "From a standard's figures. A standard that limits evenness states two "
+    "**From a standard's figures.** A standard that limits evenness states two "
     "figures of its own, read on one colour at nine places of its own chart: "
     "the standard deviation of L*, a* and b* over the nine readings, and the "
     "maximum difference from the average, which is the largest \u0394E00 "

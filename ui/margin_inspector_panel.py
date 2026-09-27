@@ -178,7 +178,7 @@ class MarginInspectorPanel(QGroupBox):
                "patch sits too close to the edge of the page, the instrument "
                "can run off the paper or bump the ruler, and the reading fails. "
                "This panel helps you catch that before you print.\n\n"
-               "What the numbers mean:\n"
+               "**What the numbers mean:**\n"
                "• Left, Right, Top, Bottom — how much white space there is "
                "between each edge of the paper and the first PATCH, shown in "
                "both millimetres and inches.\n\n"
@@ -200,7 +200,7 @@ class MarginInspectorPanel(QGroupBox):
                "ruler or jig. If a margin is below its minimum, that row turns "
                "red and a short warning appears; when everything is fine you'll "
                "see a friendly green 'Margins: OK'.\n\n"
-               "You decide those minimums yourself: open Preferences → "
+               "**You decide those minimums yourself:** open Preferences → "
                "Instrument Margins and set them for each instrument and paper "
                "size (the starting values are sensible defaults you can adjust "
                "to your own ruler). They're only a helpful warning — you can "
@@ -334,9 +334,9 @@ class MarginInspectorPanel(QGroupBox):
                "the sheet, because the page is drawn slightly inside the "
                "preview's white border — a 0 mm margin would sit right on that "
                "line.\n\n"
-               "The minimums are yours to set: Preferences → Instrument "
+               "**The minimums are yours to set:** Preferences → Instrument "
                "Margins, per instrument and paper size.\n\n"
-               "Default: off."), self), 0, 1, _align)
+               "**Default:** off."), self), 0, 1, _align)
         bottom.addWidget(TooltipButton(
             tr("Margin guide lines"),
             tr("Draws a long dotted line at each of the four margins ChromIQ "
@@ -347,7 +347,7 @@ class MarginInspectorPanel(QGroupBox):
                "It is a different thing from the instrument-margin lines above, "
                "which show what your ruler NEEDS rather than what the chart "
                "HAS — and you can have both sets on at once to compare them.\n\n"
-               "Default: off."), self), 1, 1, _align)
+               "**Default:** off."), self), 1, 1, _align)
         bottom.addWidget(TooltipButton(
             tr("Measurement coordinates on pointer"),
             tr("Turns your mouse into a ruler.\n\n"
@@ -360,7 +360,7 @@ class MarginInspectorPanel(QGroupBox):
                "It is the easiest way to check a real distance on screen: "
                "hover over the edge of a patch, or over a margin, and read off "
                "exactly where it sits.\n\n"
-               "Default: off."), self), 2, 1, _align)
+               "**Default:** off."), self), 2, 1, _align)
 
         # (The ruler helper markers moved to Create Chart -> Manual -> Expert
         # Options -> "Ruler helper markers" in #158. They are printed on the

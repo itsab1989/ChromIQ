@@ -114,6 +114,15 @@ class ReportLimitsColumn:
                                 self._meta.compliance_set_id)
 
 
+def _heading(text: str) -> str:
+    """A section heading of a row's help, in bold in the help window (Knut,
+    #182 5856723428: a heading that is plain in the app "disappears"). The
+    marks go round the TRANSLATED heading, so the catalogue key stays the
+    plain English phrase."""
+    from core.help_markup import MARK
+    return MARK + text + MARK
+
+
 def _stored_column(run) -> "dict | None":
     """Everything about the run that a Report limits window can write, straight
     off its `meta.json`, so that another window's write can be seen.
@@ -1190,19 +1199,20 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         """
         parts = [tr(row.blurb)]
         if row.detect:
-            parts.append(tr("How ChromIQ decides your chart can be judged on "
-                            "this row") + "\n" + tr(row.detect))
+            parts.append(_heading(tr("How ChromIQ decides your chart can be "
+                                     "judged on this row"))
+                         + "\n" + tr(row.detect))
         # …AND THE LEVER, which every other help text in this app ends with and
         # the first version of these thirty did not. Only where there is one:
         # on a row that needs a gloss meter, advice would be invention.
         if row.remedy:
-            parts.append(tr("What you can do about it") + "\n"
+            parts.append(_heading(tr("What you can do about it")) + "\n"
                          + tr(row.remedy))
         # Knut, #182 5841606710: how the statistic relates to the others of
         # its family, and what that means for choosing limits.
         if getattr(row, "relation", ""):
-            parts.append(tr("How this row relates to the others") + "\n"
-                         + tr(row.relation))
+            parts.append(_heading(tr("How this row relates to the others"))
+                         + "\n" + tr(row.relation))
         if not row.detect and row.note:
             parts.append(tr("ChromIQ does not evaluate this row: {why}. There "
                             "is nothing to detect on your chart, and the cell "

@@ -668,7 +668,7 @@ class GamutPanel(QWidget):
                 "Cusps are the most saturated colours in each of the six main hue directions:\n"
                 "red, yellow, green, cyan, blue, and magenta. On a printer profile these represent\n"
                 "the extremes of what the ink set can achieve.\n\n"
-                "Marking them helps you:\n"
+                "**Marking them helps you:**\n"
                 "  • See at a glance how far the gamut extends in each hue direction\n"
                 "  • Compare the saturation envelope of one profile against another\n"
                 "  • Spot compression or irregularities in specific hue regions"),

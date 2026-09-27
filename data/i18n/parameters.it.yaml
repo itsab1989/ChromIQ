@@ -7,11 +7,11 @@ parameters:
       tooltip_body: |-
         Definisce la combinazione di coloranti del tuo dispositivo di output.
 
-        Gli spazi di stampa sono sottrattivi: valore dispositivo 0 = bianco
+        **Gli spazi di stampa sono sottrattivi:** valore dispositivo 0 = bianco
         (niente inchiostro), massimo = nero (inchiostro pieno).  Gli spazi
         video/schermo sono additivi: valore 0 = nero, massimo = bianco.
 
-        Scelte comuni:
+        **Scelte comuni:**
           • Stampa grigio (-d 0)  — stampante in scala di grigi monocanale
           • Video grigio (-d 1)   — schermo/monitor monocanale
           • Stampa RGB (-d 2)     — inkjet RGB standard (predefinito,
@@ -48,7 +48,7 @@ parameters:
         aggiungendo o rimuovendo un singolo colorante.  Se il colorante
         scelto è già nel set viene rimosso; se è assente viene aggiunto.
 
-        Usi tipici:
+        **Usi tipici:**
           • Aggiungere arancio (-D 5) al CMYK standard per un gamut esteso
           • Aggiungere ciano chiaro (-D 11) / magenta chiaro (-D 12) al
             CMYK per gradienti più morbidi nelle alte luci
@@ -90,7 +90,7 @@ parameters:
           • Alta qualità: 1500–2000
           • Altissima:   2500–3000
 
-        Auto (accanto alla casella numerica): se spuntato, il numero di
+        **Auto (accanto alla casella numerica):** se spuntato, il numero di
         tasselli viene calcolato in tempo reale da carta, strumento, double
         density, bordo sinistro, scala tasselli, margine e dalla casella
         Pagine nella sezione printtarg — scegliendo il valore più grande
@@ -113,7 +113,7 @@ parameters:
         predefinito; carte molto lucide possono trarre vantaggio da qualche
         tassello in più.
 
-        Auto (casella):
+        **Auto (casella):**
         Attiva "Auto" e ChromIQ sceglie il numero per te, in base a quanti
         tasselli contiene l'intero grafico — un piccolo grafico monopagina
         riceve pochi tasselli bianchi e un grande grafico multipagina di
@@ -137,7 +137,7 @@ parameters:
         che la stampante può produrre — ancorando l'estremo scuro del
         profilo. 4 è un buon predefinito per stampanti RGB.
 
-        Auto (casella):
+        **Auto (casella):**
         Attiva "Auto" e ChromIQ sceglie il numero per te, in base a quanti
         tasselli contiene l'intero grafico — un grafico piccolo riceve
         pochi tasselli neri, uno grande di più.
@@ -160,7 +160,7 @@ parameters:
         neutri. Guida approssimativa se lo imposti a mano: 0 per un profilo
         rapido, 50–100 per uno standard, 128+ per alta qualità.
 
-        Auto (casella):
+        **Auto (casella):**
         Attiva "Auto" e ChromIQ sceglie il numero per te, in scala con
         quanti tasselli contiene l'intero grafico — un grafico più grande
         riceve una scala di grigi più lunga e fine.
@@ -260,7 +260,7 @@ parameters:
           • -n aggiunge tasselli neutri espliciti, derivati dal profilo,
             in aggiunta a quello che il resto della distribuzione produce.
 
-        Quando usarlo:
+        **Quando usarlo:**
           • Hai già un profilo ICC di primo passaggio per questa carta e
             stai creando un grafico di affinamento.  Carica quel profilo
             in Profilo di precondizionamento (-c), poi imposta -n a 32–64
@@ -269,7 +269,7 @@ parameters:
             precondizionamento non esiste un asse neutro \"vero\" da
             campionare, e -g copre già la rampa nello spazio dispositivo.
 
-        Valori tipici di affinamento: 32 per lavoro ordinario, 64 per
+        **Valori tipici di affinamento:** 32 per lavoro ordinario, 64 per
         fine-art / prove colore dove la neutralità è critica.
 
         Richiede che -c sia impostato; altrimenti non ha effetto.
@@ -303,7 +303,7 @@ parameters:
         carta — e il profilo costruito da quei tasselli prevede colori che
         la stampante in realtà non può produrre.
 
-        Come scegliere un valore:
+        **Come scegliere un valore:**
           • Maggior parte delle inkjet CMYK: 260 – 320 %
           • Carte patinate / lucide:         320 – 360 %
           • Carta da giornale, bassa qualità: 220 – 260 %
@@ -315,7 +315,7 @@ parameters:
         del limite d'inchiostro e scegli il valore più alto che asciuga
         pulito senza sbavare.
 
-        Per flussi RGB: di solito lascialo disattivato — le inkjet RGB
+        **Per flussi RGB:** di solito lascialo disattivato — le inkjet RGB
         gestiscono internamente la limitazione dell'inchiostro, quindi
         targen non deve fare budget tra i canali.
 
@@ -331,7 +331,7 @@ parameters:
         Scegline UNO. Si escludono a vicenda — selezionarne uno sostituisce
         completamente il posizionamento OFPS predefinito.
 
-        OFPS (predefinito, consigliato):
+        **OFPS (predefinito, consigliato):**
         Optimised Farthest Point Sampling. Posiziona iterativamente ogni
         nuovo tassello il più lontano possibile da ogni tassello esistente
         — la copertura più uniforme di tutti gli algoritmi qui elencati.
@@ -339,30 +339,30 @@ parameters:
         profilo. Abbinalo a \"Ottimizzazione accurata (-G)\" per il
         risultato migliore.
 
-        Incremental Far Point (-t):
+        **Incremental Far Point (-t):**
         Un metodo del punto più lontano più semplice. Più veloce di OFPS,
         leggermente meno uniforme. Usalo quando OFPS è troppo lento con
         numeri di tasselli molto alti e accetti un piccolo calo di qualità.
 
-        Casuale — spazio dispositivo (-r):
+        **Casuale — spazio dispositivo (-r):**
         Tasselli uniformemente casuali nei valori grezzi del dispositivo
         (es. RGB). Il più veloce possibile, ma la copertura nel colore
         *percepito* è disuguale — spreca tasselli in zone che l'occhio
         distingue appena.
 
-        Casuale — spazio percettivo (-R):
+        **Casuale — spazio percettivo (-R):**
         Uniformemente casuale nel colore percepito (Lab). Meglio di -r se
         proprio dev'essere casuale, perché i tasselli sono distribuiti
         uniformemente secondo ciò che l'occhio vede. Comunque meno ottimale
         di OFPS a parità di numero.
 
-        Quasi-casuale riempi-spazio (-q / -Q):
+        **Quasi-casuale riempi-spazio (-q / -Q):**
         Sequenze a bassa discrepanza (tipo Sobol) che riempiono lo spazio
         più uniformemente del vero casuale, senza il costo iterativo di
         OFPS. -q nello spazio dispositivo, -Q nello spazio percettivo. Un
         buon compromesso quando OFPS è troppo lento.
 
-        Reticolo cubico a corpo centrato (-i / -I):
+        **Reticolo cubico a corpo centrato (-i / -I):**
         Un reticolo regolare fisso (ogni tassello circondato da 8 vicini
         in un motivo cubico). Deterministico e molto uniforme, ma rigido —
         solo certi numeri di tasselli entrano nel reticolo. -i nello
@@ -416,14 +416,14 @@ parameters:
         Imposta a 0 (predefinito) per saltare — quasi sempre la scelta
         giusta. OFPS copre già l'interno del cubo in modo più efficiente.
 
-        Quando usarlo:
+        **Quando usarlo:**
           • Ripetibilità tra macchine: una griglia fissa è uguale ogni
             volta, indipendentemente dai posizionamenti OFPS scelti da
             targen — utile per confrontare profili tra esecuzioni.
           • Grafici diagnostici con posizioni del cubo prevedibili e
             nominate.
 
-        Valori tipici quando usato: 3 – 6 (passi per asse). I numeri
+        **Valori tipici quando usato:** 3 – 6 (passi per asse). I numeri
         crescono in fretta — 6 passi in RGB sono 216 tasselli, 8 sono 512.
 
         Spunta la casella per attivare.
@@ -437,13 +437,13 @@ parameters:
 
         Imposta a 0 (predefinito) per saltare.
 
-        Quando usarlo:
+        **Quando usarlo:**
           • Vuoi inchiodare specificamente il confine del gamut e gli
             angoli primari/secondari senza il sovraccarico interno di -m.
           • Confrontare come inchiostri/carte diversi spostano l'inviluppo
             del gamut — i tasselli di superficie sono i più colpiti.
 
-        Valori tipici quando usato: 4 – 8 passi per faccia.
+        **Valori tipici quando usato:** 4 – 8 passi per faccia.
 
         Spunta la casella per attivare.
     "-b":
@@ -457,13 +457,13 @@ parameters:
 
         Imposta a 0 (predefinito) per saltare — è una manopola di nicchia.
 
-        Quando usarlo:
+        **Quando usarlo:**
           • Vuoi posizioni dei tasselli regolari, allineate al reticolo,
             ma con un impaccamento migliore di -m, senza arrivare a OFPS.
           • Scenari di ricerca / ripetibilità dove la struttura BCC stessa
             è il punto.
 
-        Nota: questa è la forma a *contatore di passi* (aggiunge alla tua
+        **Nota:** questa è la forma a *contatore di passi* (aggiunge alla tua
         lista di tasselli); per un grafico la cui *intera* distribuzione è
         BCC, usa il selettore \"Distribuzione tasselli\" qui sopra e scegli
         lì l'opzione cubica a corpo centrato.
@@ -689,7 +689,7 @@ parameters:
         Il .cal viene anche incorporato nel file .ti2 così che colprof
         possa farvi riferimento nella creazione del profilo ICC.
 
-        Uso tipico: inkjet desktop senza linearizzazione integrata,
+        **Uso tipico:** inkjet desktop senza linearizzazione integrata,
         pilotate direttamente da un TIFF senza RIP intermedio.
 
         Si esclude a vicenda con \"Incorpora calibrazione\" (-I) — solo
@@ -708,7 +708,7 @@ parameters:
         calibrazione.  -I incorpora il file .cal nel .ti2 di output solo
         come metadati, lasciando tutti i valori intatti.
 
-        Uso tipico: RIP inkjet professionali (es. EFI Fiery, Wasatch,
+        **Uso tipico:** RIP inkjet professionali (es. EFI Fiery, Wasatch,
         ColorBurst) o stampanti con linearizzazione integrata attiva
         durante la stampa di profilazione.
 
@@ -1030,7 +1030,7 @@ parameters:
         calibrazione.  Valori più alti producono curve più morbide ma meno
         precise.
 
-        Predefinito: 1.0 — adatto alla maggior parte delle stampanti.
+        **Predefinito:** 1.0 — adatto alla maggior parte delle stampanti.
         Aumenta (es. 2.0–5.0) se la risposta tonale della stampante sembra
         irregolare o le curve appaiono frastagliate.
     "-z":

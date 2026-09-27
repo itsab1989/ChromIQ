@@ -7,11 +7,11 @@ parameters:
       tooltip_body: |-
         Definerer fargestoffkombinasjonen til utdataenheten din.
 
-        Trykkrom er subtraktive: enhetsverdi 0 = hvit (uten blekk),
+        **Trykkrom er subtraktive:** enhetsverdi 0 = hvit (uten blekk),
         maksimum = svart (fullt blekk).  Video-/skjermrom er additive:
         enhetsverdi 0 = svart, maksimum = hvit.
 
-        Vanlige valg:
+        **Vanlige valg:**
           • Trykk grå (-d 0)   — énkanals gråtoneskriver
           • Video grå (-d 1)   — énkanals skjerm/monitor
           • Trykk RGB (-d 2)   — vanlig RGB-blekkskriver (standard, anbefalt)
@@ -47,7 +47,7 @@ parameters:
         fjerne ett enkelt fargestoff.  Er det valgte fargestoffet allerede i
         settet, fjernes det; mangler det, legges det til.
 
-        Typisk bruk:
+        **Typisk bruk:**
           • Legg til oransje (-D 5) i standard-CMYK for et videre gamut
           • Legg til lys cyan (-D 11) / lys magenta (-D 12) i CMYK
             for jevnere overganger i høylysene
@@ -89,7 +89,7 @@ parameters:
           • Høy kvalitet: 1500–2000
           • Svært høy: 2500–3000
 
-        Auto (ved siden av tallfeltet): avkrysset beregnes feltantallet
+        **Auto (ved siden av tallfeltet):** avkrysset beregnes feltantallet
         fortløpende ut fra valgt papir, instrument, double density,
         venstrekant, feltskala, marg og side-tallfeltet i printtarg-
         seksjonen — den største verdien som fyller nøyaktig så mange ark
@@ -110,7 +110,7 @@ parameters:
         forankrer den lyse enden av profilen. 4 er en god standard; svært
         glanset papir kan dra nytte av noen flere.
 
-        Auto (avkrysning):
+        **Auto (avkrysning):**
         Slå på "Auto", så velger ChromIQ tallet for deg ut fra hvor mange
         felt hele kartet rommer — et lite énsideskart får noen få hvitfelt
         og et stort flersideskart flere, uten at du må tenke på det.
@@ -133,7 +133,7 @@ parameters:
         skriveren din kan lage — det forankrer skyggeenden av profilen.
         4 er en god standard for RGB-skrivere.
 
-        Auto (avkrysning):
+        **Auto (avkrysning):**
         Slå på "Auto", så velger ChromIQ tallet for deg ut fra hvor mange
         felt hele kartet rommer — et lite kart får noen få svartfelt, et
         stort kart flere.
@@ -156,7 +156,7 @@ parameters:
         Tommelfingerregel ved manuell innstilling: 0 for en rask profil,
         50–100 for en standard, 128+ for høy kvalitet.
 
-        Auto (avkrysning):
+        **Auto (avkrysning):**
         Slå på "Auto", så velger ChromIQ tallet for deg, skalert etter hvor
         mange felt hele kartet rommer — et større kart får en lengre,
         finere gråtrapp.
@@ -250,7 +250,7 @@ parameters:
           • -n legger til eksplisitte, profilavledede nøytralfelt i tillegg
             til det resten av fordelingen gir.
 
-        Når du bør bruke det:
+        **Når du bør bruke det:**
           • Du har allerede en ICC-profil fra første runde for dette papiret
             og bygger et forbedringskart.  Last den profilen under
             Forkondisjoneringsprofil (-c) og sett -n til 32–64 for å
@@ -259,7 +259,7 @@ parameters:
             forkondisjoneringsprofil finnes ingen "sann" nøytralakse å
             prøveta fra, og -g dekker allerede enhetsrommets rampe.
 
-        Typiske forbedringsverdier: 32 for vanlig arbeid, 64 for
+        **Typiske forbedringsverdier:** 32 for vanlig arbeid, 64 for
         fine-art / prøvetrykk der nøytralitet er kritisk.
 
         Krever at -c er angitt; har ellers ingen effekt.
@@ -291,7 +291,7 @@ parameters:
         sakte, flekke eller til og med rive papiret — og profilen bygget
         av slike felt forutsier farger skriveren faktisk ikke kan lage.
 
-        Slik velger du en verdi:
+        **Slik velger du en verdi:**
           • De fleste CMYK-blekkskrivere:  260 – 320 %
           • Bestrøket / glanset papir:     320 – 360 %
           • Avispapir, lav kvalitet:       220 – 260 %
@@ -302,7 +302,7 @@ parameters:
         veiledning, eller mål det — skriv ut en liten blekkgrense-testkile
         og velg den høyeste verdien som tørker rent uten å flyte ut.
 
-        For RGB-arbeidsflyter: la vanligvis stå av — RGB-blekkskrivere
+        **For RGB-arbeidsflyter:** la vanligvis stå av — RGB-blekkskrivere
         håndterer blekkbegrensningen internt, så targen trenger ikke
         budsjettere over kanaler.
 
@@ -318,35 +318,35 @@ parameters:
         Velg ÉN. De utelukker hverandre — å velge en av dem erstatter
         standard-OFPS-plasseringen fullstendig.
 
-        OFPS (standard, anbefalt):
+        **OFPS (standard, anbefalt):**
         Optimised Farthest Point Sampling. Plasserer hvert nye felt
         iterativt så langt som mulig fra hvert eksisterende felt — den
         jevneste dekningen av alle algoritmene her. Tregere enn
         alternativene, men gullstandarden for profilkvalitet. Kombiner
         med "Grundig optimalisering (-G)" for best resultat.
 
-        Incremental Far Point (-t):
+        **Incremental Far Point (-t):**
         En enklere fjernpunkt-metode. Raskere enn OFPS, litt mindre jevn.
         Bruk når OFPS er for treg ved svært store feltantall og du godtar
         et lite kvalitetstap.
 
-        Tilfeldig — enhetsrom (-r):
+        **Tilfeldig — enhetsrom (-r):**
         Jevnt tilfeldige felt i rå enhetsverdier (f.eks. RGB). Raskest
         mulig, men dekningen i *opplevd* farge er ujevn — sløser felt i
         områder øyet knapt skiller.
 
-        Tilfeldig — perseptuelt rom (-R):
+        **Tilfeldig — perseptuelt rom (-R):**
         Jevnt tilfeldig i opplevd farge (Lab). Bedre enn -r hvis det må
         være tilfeldig, siden feltene spres jevnt etter det øyet ser.
         Fortsatt mindre optimalt enn OFPS for samme antall.
 
-        Kvasi-tilfeldig romfyllende (-q / -Q):
+        **Kvasi-tilfeldig romfyllende (-q / -Q):**
         Lav-diskrepans-sekvenser (Sobol-aktige) som fyller rommet jevnere
         enn ekte tilfeldighet, uten OFPS' iterative kostnad.
         -q i enhetsrom, -Q i perseptuelt rom. En god mellomvei når OFPS
         er for treg.
 
-        Kubisk romsentrert gitter (-i / -I):
+        **Kubisk romsentrert gitter (-i / -I):**
         Et fast regelmessig gitter (hvert felt omgitt av 8 naboer i et
         kubemønster). Deterministisk og svært jevnt, men lite fleksibelt
         — bare bestemte feltantall passer gitteret. -i i enhetsrom,
@@ -397,13 +397,13 @@ parameters:
         Sett til 0 (standard) for å hoppe over — nesten alltid riktig
         valg. OFPS dekker kubens indre mer effektivt allerede.
 
-        Når du bør bruke det:
+        **Når du bør bruke det:**
           • Reproduserbarhet mellom maskiner: et fast gitter er likt hver
             gang, uansett hvilke OFPS-plasseringer targen valgte — det
             hjelper med å sammenligne profiler mellom kjøringer.
           • Diagnosekart med forutsigbare, navngitte kubeposisjoner.
 
-        Typiske verdier ved bruk: 3 – 6 (trinn per akse). Tallene vokser
+        **Typiske verdier ved bruk:** 3 – 6 (trinn per akse). Tallene vokser
         raskt — 6 trinn i RGB er 216 felt, 8 er 512.
 
         Kryss av boksen for å aktivere.
@@ -417,13 +417,13 @@ parameters:
 
         Sett til 0 (standard) for å hoppe over.
 
-        Når du bør bruke det:
+        **Når du bør bruke det:**
           • Du vil spesifikt fastlegge gamutgrensen og primær-/sekundær-
             hjørnene uten den indre kostnaden til -m.
           • Sammenligning av hvordan ulike blekk/papirer forskyver
             gamutomhyllingen — overflatefelt påvirkes mest.
 
-        Typiske verdier ved bruk: 4 – 8 trinn per flate.
+        **Typiske verdier ved bruk:** 4 – 8 trinn per flate.
 
         Kryss av boksen for å aktivere.
     "-b":
@@ -436,13 +436,13 @@ parameters:
 
         Sett til 0 (standard) for å hoppe over — dette er en nisjeknapp.
 
-        Når du bør bruke det:
+        **Når du bør bruke det:**
           • Du vil ha regelmessige, gitterjusterte feltposisjoner, men med
             bedre pakking enn -m gir, uten å gå helt til OFPS.
           • Forsknings-/reproduserbarhetsscenarioer der selve BCC-
             strukturen er poenget.
 
-        Merk: dette er *trinnteller*-formen (legger til i feltlisten din);
+        **Merk:** dette er *trinnteller*-formen (legger til i feltlisten din);
         for et kart der *hele* fordelingen er BCC, bruk velgeren
         "Feltfordeling" ovenfor og velg BCC-valget der.
 
@@ -653,7 +653,7 @@ parameters:
         i .ti2-filen slik at colprof kan referere til den når ICC-profilen
         bygges.
 
-        Typisk bruk: skrivebords-blekkskrivere uten innebygd linearisering,
+        **Typisk bruk:** skrivebords-blekkskrivere uten innebygd linearisering,
         styrt direkte fra en TIFF uten mellomliggende RIP.
 
         Utelukker "Bygg inn kalibrering" (-I) — bare ett kalibreringsvalg
@@ -672,7 +672,7 @@ parameters:
         kalibreringen.  -I bygger .cal-filen inn i .ti2-utdataene kun som
         metadata og lar alle feltverdier være urørt.
 
-        Typisk bruk: profesjonelle blekkskriver-RIP-er (f.eks. EFI Fiery,
+        **Typisk bruk:** profesjonelle blekkskriver-RIP-er (f.eks. EFI Fiery,
         Wasatch, ColorBurst) eller skrivere med innebygd linearisering som
         er aktiv under profilerings-utskriften.
 
@@ -979,7 +979,7 @@ parameters:
         Styrer hvor mye ekstra glatting som brukes på kalibrerings-
         kurvene.  Høyere verdier gir glattere, men mindre presise kurver.
 
-        Standard: 1.0 — bra for de fleste skrivere.
+        **Standard:** 1.0 — bra for de fleste skrivere.
         Øk (f.eks. 2.0–5.0) hvis skriveren har støyende tonerespons eller
         kalibreringskurvene ser hakkete ut.
     "-z":

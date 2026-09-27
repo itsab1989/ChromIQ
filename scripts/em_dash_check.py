@@ -31,13 +31,36 @@ BASELINE = ROOT / "tests" / "data" / "em_dash_baseline.json"
 ALLOWED = ROOT / "tests" / "data" / "em_dash_allowed.json"
 
 
+def _as_read(s: str) -> str:
+    """*s* as a reader sees it: without the ``**`` marks that put a help
+    text's lead-ins in bold (Knut, #182 5856723428).
+
+    A mark changes the weight of a phrase, not one of its words, so it is not
+    an edit of the prose this rule is about. Comparing the marked string
+    instead would have made marking 66 grandfathered help texts in bold into
+    66 "modified" strings and forced a rewrite of their prose in thirteen
+    languages for a change of font weight."""
+    sys.path.insert(0, str(ROOT))
+    from core.help_markup import strip_markup
+    return strip_markup(s)
+
+
 def english_strings() -> "dict[str, str]":
     """Every English string a user can read, as {string: where it came from}.
 
     Three sources, because text enters the app three ways: `tr()` literals in
     the code, the tooltips and labels in `data/parameters.yaml`, and the §M
     message catalogue. Missing one of the three would leave a door open.
+
+    Each string is returned as it is READ (:func:`_as_read`), so a help text
+    whose lead-ins were only marked in bold is still the string the baseline
+    froze.
     """
+    out = _english_strings_as_written()
+    return {_as_read(s): where for s, where in out.items()}
+
+
+def _english_strings_as_written() -> "dict[str, str]":
     import yaml
 
     import i18n_extract as X
@@ -128,7 +151,7 @@ def key_id(s: str) -> str:
     list does not need reading — its rule is mechanical — and storing 498 more
     copies of long help texts made the file five times bigger for nothing.
     """
-    return hashlib.sha256(s.encode("utf-8")).hexdigest()[:16]
+    return hashlib.sha256(_as_read(s).encode("utf-8")).hexdigest()[:16]
 
 
 def load_baseline() -> "dict":
