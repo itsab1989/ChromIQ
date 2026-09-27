@@ -203,3 +203,22 @@ def test_update_rebuilds_the_page_and_takes_the_line_down(tmp_path, qapp):
         assert not dlg._stale_label.isVisible()
     finally:
         dlg.close()
+
+
+def test_with_nothing_ticked_the_line_says_a_measurement_is_needed(
+        tmp_path, qapp):
+    """B8-1592 (Knut, #182 5859248797): with every measurement unticked,
+    Generate is greyed and the red line names the reason, "at least one
+    measurement must be ticked", instead of pointing at a reason elsewhere."""
+    from core.i18n import tr
+    dlg = _saved(tmp_path, qapp)
+    try:
+        dlg._deselect_all_btn.click()
+        qapp.processEvents()
+        assert not dlg._generate_btn.isEnabled()
+        assert dlg._stale_label.isVisible()
+        assert dlg._stale_label.text() == tr(
+            "⚠ Settings changed. At least one measurement must be ticked "
+            "to generate a report.")
+    finally:
+        dlg.close()

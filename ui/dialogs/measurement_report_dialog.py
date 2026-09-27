@@ -6051,6 +6051,14 @@ class MeasurementReportDialog(QDialog):
                 M_REPORT_NEW_REPORT_SETTINGS)
             label.setText("⚠ " + M_REPORT_NEW_REPORT_SETTINGS.render()[1])
             return
+        if greyed and self._nothing_is_ticked():
+            # B8-1592 (Knut, #182 5859248797): with every measurement
+            # unticked the reason is known, so the line names it instead of
+            # pointing at a reason elsewhere.
+            label.setText(
+                tr("⚠ Settings changed. At least one measurement must be "
+                   "ticked to generate a report."))
+            return
         # Two literals, not a variable: the catalogue extractor cannot see
         # what a tr(variable) will be asked for.
         label.setText(

@@ -31145,3 +31145,13 @@ would reach.
 - tests: tests/test_b8_1591_nothing_changes_before_generate.py, tests/test_the_report_waits_for_the_generate_button.py
 - evidence: test_a_setting_moved_on_a_saved_report_changes_nothing_on_the_page, test_a_number_changed_in_edit_limits_changes_nothing_on_the_page, test_cancel_at_generate_keeps_the_page_and_the_red_line, test_update_rebuilds_the_page_and_takes_the_line_down (the nothing-ticked case red with B8-601's rule back; all but one red with a redraw in `_settings_touched`)
 - where: `ui/dialogs/measurement_report_dialog.py` `_show_stale_banner`; `docs/design/measurement_report_limits.md` §54; `docs/design/unified_measurement_management.md` M-REPORT-NOT-WORKED-OUT.
+
+### B8-1592 · FIXED, awaiting confirmation · With nothing ticked, the red line pointed at "the reason shown above" instead of naming it
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Knut, #182 5859248797, on B8-1591's line with every measurement unticked: "If the Generate Report button is deactivated when no measurements are available, the default red text, which says to click generate, is not the correct message... The wording should instead say something like '...minimum one measurement is required to ...'"
+- fix: `_word_the_stale_line` gives the nothing-ticked case its own sentence, "⚠ Settings changed. At least one measurement must be ticked to generate a report." Every other greyed state keeps the B8-1034 wording. German by hand; the twelve others carry the English under the beta rule (+1 in both ledgers).
+- tests: tests/test_b8_1591_nothing_changes_before_generate.py, tests/test_the_report_waits_for_the_generate_button.py
+- evidence: test_with_nothing_ticked_the_line_says_a_measurement_is_needed
+- where: `ui/dialogs/measurement_report_dialog.py` `_word_the_stale_line`.

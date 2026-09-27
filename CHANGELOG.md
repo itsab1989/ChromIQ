@@ -6,7 +6,7 @@
 
 ### Fixed
 
-- With every measurement unticked in the Measurement Report, the red line now says the settings changed, as it does for every other change; the page itself still changes only when Generate report is pressed.
+- With every measurement unticked in the Measurement Report, the red line now says the settings changed and that at least one measurement must be ticked to generate a report, as it does for every other change; the page itself still changes only when Generate report is pressed.
 
 ## v4.3.0-beta.45
 

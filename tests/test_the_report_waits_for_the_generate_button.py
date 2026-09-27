@@ -45,9 +45,12 @@ def _asks_for_no_press(dlg) -> bool:
     """The red line in its greyed wording (B8-1034), which asks for no
     press of a button that refuses it."""
     from core.i18n import tr
-    return dlg._stale_label.text() == tr(
-        "⚠ Settings changed. “Generate report” is unavailable until the "
-        "reason shown above is resolved.")
+    return dlg._stale_label.text() in (
+        tr("⚠ Settings changed. “Generate report” is unavailable until the "
+           "reason shown above is resolved."),
+        # B8-1592: with nothing ticked the line names the reason itself.
+        tr("⚠ Settings changed. At least one measurement must be ticked "
+           "to generate a report."))
 
 
 def _dialog(tmp_path, qapp, dates: int = 1):
