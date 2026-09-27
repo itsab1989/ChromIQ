@@ -61,6 +61,11 @@ def _tab(tmp_path):
     tab._manual_engine_check.setChecked(True)
     if tab._manual_auto_patches_check is not None:
         tab._manual_auto_patches_check.setChecked(False)
+    # THESE TESTS ARE ABOUT THE PREVIEW STANDING IN, so targen is kept from
+    # answering. With Auto off and -f 0 it now does (B8-1407: the fixed
+    # patches alone, what Generate builds), and the chart on screen stands in
+    # only where it cannot.
+    tab._fixed_patches_only_count = lambda: None
     from workflow.layout_engine.presets import LayoutRecipe
     base = tab._manual_layout_panel.get_recipe()
     tab._manual_layout_panel.set_recipe(

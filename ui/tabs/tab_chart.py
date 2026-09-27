@@ -23184,7 +23184,76 @@ class TabChart(QWidget):
         n = self._targen_patch_count()
         if n:
             return n
+        # …AND A 0 TYPED WITH "Auto patch count" OFF IS A COUNT TOO (B8-1407).
+        # targen then makes the fixed patches alone (white, black, the grey
+        # and single-channel steps), which is what a calibration chart is
+        # (`_CAL_VALUES`: -f 0, -s 20). This fell through to the chart on
+        # screen, so the estimate said 525 where Generate built 16.
+        n = self._fixed_patches_only_count()
+        if n:
+            return n
         return self._onscreen_patch_total()
+
+    def _fixed_patches_only_count(self) -> "int | None":
+        """How many patches targen makes for the next Generate when "Auto
+        patch count" is off and -f is 0: the fixed patches alone. None in any
+        other state, or when targen cannot say.
+
+        ASKED OF targen ITSELF, with the arguments Generate will give it
+        (`ChartCreator._build_targen_args` on the params `_collect_manual`
+        makes, which with Auto off already carry the -e / -B / -g Generate
+        uses), because the count is targen's arithmetic (a grey ramp shares
+        its white and black ends with -e and -B: -e4 -B4 -g9 makes 15, not
+        17). With -f 0 targen runs in some 40 ms; the answer is kept per
+        argument list, so moving an unrelated control does not run it again.
+        """
+        auto = getattr(self, "_manual_auto_patches_check", None)
+        if auto is None or auto.isChecked():
+            return None
+        pw = getattr(self, "_manual_f_pw", None)
+        ctl = getattr(pw, "_control", None) if pw is not None else None
+        try:
+            if ctl is None or int(ctl.value()) != 0:
+                return None
+            p = self._collect_manual()
+            if p.patches != 0:
+                return None
+
+            class _Stem:
+                @staticmethod
+                def chart_stem(cal_target=False):
+                    return "fixed"
+
+            class _Args:
+                _file_mgr = _Stem()
+
+            from workflow.chart_creator import ChartCreator
+            args = ChartCreator._build_targen_args(_Args(), p, 0)
+        except Exception:      # noqa: BLE001 — an estimate, never a blocker
+            return None
+        key = tuple(args)
+        cache = getattr(self, "_fixed_only_cache", None)
+        if cache is not None and cache[0] == key:
+            return cache[1]
+        n = None
+        try:
+            import subprocess
+            import tempfile
+            targen = self._runner.resolve_tool("targen")
+            with tempfile.TemporaryDirectory(prefix="chromiq-fixed-") as tmp:
+                r = subprocess.run([str(targen)] + list(args), cwd=tmp,
+                                   capture_output=True, timeout=20,
+                                   stdin=subprocess.DEVNULL)
+                ti1 = Path(tmp) / "fixed.ti1"
+                if r.returncode == 0 and ti1.is_file():
+                    m = re.search(r"^NUMBER_OF_SETS\s+(\d+)",
+                                  ti1.read_text(encoding="latin-1"),
+                                  re.MULTILINE)
+                    n = int(m.group(1)) if m else None
+        except Exception:      # noqa: BLE001 — an estimate, never a blocker
+            n = None
+        self._fixed_only_cache = (key, n)
+        return n
 
     def _targen_patch_count(self) -> "int | None":
         """The targen ``-f`` value, i.e. the number of patches the next

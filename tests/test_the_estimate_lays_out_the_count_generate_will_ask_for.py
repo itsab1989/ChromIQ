@@ -166,13 +166,22 @@ def test_a_changed_f_value_moves_the_estimate(qapp, tmp_path):
     assert int(big[0]) > int(small[0])
 
 
-def test_an_f_of_zero_falls_back_to_the_chart_on_screen(qapp, tmp_path):
-    """-f 0 is the app's "not pinned here" default, so it is not an answer and
-    the chart in the preview still stands in."""
+def test_an_f_of_zero_is_the_fixed_patches_targen_makes(qapp, tmp_path):
+    """-f 0 with "Auto patch count" off is not "not pinned": Generate then has
+    targen make the fixed patches alone, and the estimate says that count
+    (B8-1407; this test said the chart on screen stood in, which is the fault:
+    525 promised, 16 built). The preview stands in only where targen cannot
+    answer."""
     tab = _tab(tmp_path)
     _chart_on_screen(tab, tmp_path, 192, "z192")
     _set_f(tab, 0)
     assert tab._targen_patch_count() is None
+    fixed = tab._fixed_patches_only_count()
+    if fixed is None:
+        pytest.skip("targen is not installed here")
+    assert fixed != 192
+    assert tab._estimate_patch_total() == fixed
+    tab._fixed_patches_only_count = lambda: None      # targen cannot answer
     assert tab._estimate_patch_total() == 192
 
 

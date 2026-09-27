@@ -29922,12 +29922,16 @@ would reach.
 - tests: tests/test_b8_1363_a_reopened_target_builds_the_chart_it_was.py; mutations M1363-h, M1363-i and M1363-l, each red.
 - where: `ui/tabs/tab_chart.py` (`_rebind_patch_set_from_run`, `_is_a_bundled_targen_patch_set`, `_generate_from_ti1`, the loaded .ti1 route, `rebuild_verification_pages`), `workflow/chart_creator.py`.
 
-### B8-1407 · OPEN · With "Auto patch count" off and -f 0 the estimate describes the chart on screen, while Generate builds the fixed patches alone
+### B8-1407 · FIXED, awaiting confirmation · With "Auto patch count" off and -f 0 the estimate described the chart on screen, while Generate built the fixed patches alone
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- found by: the B8-1363 round (before the fix, i1-on-auto / cm-on-auto / cr30-auto reopened: estimate 525 / 48 / 345, build 16 / 16 / 14). `_estimate_patch_total` falls back to the chart in the preview when -f is 0, which "Auto off, -f 0" is not: targen then makes only white, black and the grey steps. A reopen no longer reaches this state (B8-1363); typing 0 by hand still does. Not changed here: the honest number needs the fixed-patch count the build computes (`_apply_auto_neutrals`), a change to the estimate on its own.
-- where: `ui/tabs/tab_chart.py` (`_estimate_patch_total`).
+- status: FIXED
+- found by: the B8-1363 round.
+- fix: the estimate and the build agree; no refusal (a 0 is legitimate: it is what a calibration chart is, `_CAL_VALUES` -f 0 -s 20, so no new text). With Auto off and -f 0, `_estimate_patch_total` asks targen itself (`_fixed_patches_only_count`: `ChartCreator._build_targen_args` on the params Generate collects, in a temporary folder, some 40 ms, kept per argument list), because the count is targen's arithmetic (-e4 -B4 -g9 makes 15, not 17: the grey ramp's ends are the white and black). The chart on screen stands in only where targen cannot answer.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch1/1407/` (i1Pro A4, engine, Auto off, 0 typed, Generate): before, estimate 525 and 25 x 21 while the build made 16 (14 + 2 fill-up); after, estimate 16 (14 + 2 fill-up, 4 x 4) and the build 16.
+- tests: tests/test_b8_1407_a_typed_zero_is_estimated_as_built.py, tests/test_the_estimate_lays_out_the_count_generate_will_ask_for.py (its "-f 0 falls back to the chart on screen" test now says the fixed patches), tests/test_the_layout_estimate_follows_the_chart_on_screen.py (keeps targen from answering, to test the stand-in); mutations M1407-a to M1407-d (`~/Desktop/ChromIQ-beta45-proof/batch1/mutations/m1407.txt`), each red.
+- evidence: test_a_typed_zero_is_the_fixed_patches_targen_makes, test_a_calibration_like_chart_is_estimated_as_built, test_the_answer_follows_the_settings, test_auto_on_or_a_typed_count_is_not_this_path, test_an_f_of_zero_is_the_fixed_patches_targen_makes
+- where: `ui/tabs/tab_chart.py` (`_estimate_patch_total`, `_fixed_patches_only_count`).
 
 ### B8-1408 · DEFERRED · Question: should replacing a run's chart ask when the run holds nothing but that chart?
 - blocks release: no
