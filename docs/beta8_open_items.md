@@ -30907,3 +30907,10 @@ would reach.
 - tests: tests/test_b8_1478_a_preset_declares_the_whites_and_blacks_its_patch_set_holds.py
 - evidence: test_the_declared_counts_are_the_patch_sets_own (fails on both presets with the old values)
 - where: `ui/tabs/tab_chart.py` (`KNUT_PRESETS`), `tests/test_knut_spyderprint_presets.py` (its synthetic copy of the 484 preset).
+
+### B8-1480 · OPEN · A patch-set preset selected with Auto patch count on shows the wrong estimate
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: Knut #182 5856919947, while fixing the Pharmacist presets. Picked from the list with generate-on-select off and the four auto-fill boxes on (as our first conversion saved them), `i1Pro-A4-1296p-2pages` showed, under Chart layout information, an estimate of 621 patches with 21 fill-up on 1 page, where Generate builds 1296 on 2 pages; the 648p preset picked after the 1944p one showed 1944 on 3 pages. Photographs: `~/Desktop/ChromIQ-beta45-proof/knut-presets-0927/fix2/asis/photographs/03-selected.png` and `05-selected.png`. Generate itself builds the right chart, and a preset with generate-on-select on is not affected (it builds at once). Cause not established: `_refresh_layout_estimate` reads the armed patch set with Auto on (B8-1464), so the stale figure points at the refresh running before the set is armed, or not again after. Save Preset also stores the four auto-fill boxes for a preset that brings its own patch set, where they decide nothing on Generate.
+- where: `ui/tabs/tab_chart.py` `_refresh_layout_estimate`, `_on_preset_activated`, `_on_preset_save`.
