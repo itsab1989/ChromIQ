@@ -2738,9 +2738,13 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     _cr30_preset("cr30_letter_150p_1page_portrait_w17_0mm",
                  "Letter-150p-1page-Portrait-w17.0mm",
                  "Letter", 10, 15, 150, 1, 1, 1),
+    # THE SLUG STILL SAYS w16_0mm, THE NAME SAYS w17.0mm (Knut, #182
+    # 5856646931, 2026-09-27: the chart prints 16.76 mm wide, so he renamed
+    # it). The slug is the preset's identity, baked into the key projects and
+    # settings store, so it keeps the old width; only the name moved.
     _cr30_preset("cr30_letter_170p_1page_portrait_w16_0mm_hexagonal",
-                 "Letter-170p-1page-Portrait-w16.0mm-Hexagonal",
-                 # 18.0 pt, NOT 16.0: the "w16.0mm" in the name is the PATCH
+                 "Letter-170p-1page-Portrait-w17.0mm-Hexagonal",
+                 # 18.0 pt, NOT 17.0: the "w17.0mm" in the name is the PATCH
                  # width, and Knut named 18.0 for this chart and the 153p one
                  # together. Taking the label size from the name instead would
                  # be inventing a rule he did not state.

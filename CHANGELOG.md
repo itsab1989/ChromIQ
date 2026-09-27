@@ -20,6 +20,8 @@
 - The Build Profile tab's help with calibration on starts with the advice for anyone new to it: turn calibration mode off and use the simple 4-tab flow.
 - A greyed folder button keeps its tab's colour.
 - The demo projects' evenness demonstrations stand on both sides of the new limits. The two demo presets for the old noise estimate are gone.
+- 35 of Knut's built-in presets (ColorMunki, CR30, i1Pro, i1Pro 3 Plus and the photo cards) carry his updated patch sets, with the near-neutral colours set further from grey. Their layouts are unchanged.
+- The CR30 "Letter-170p-1page-Portrait-w16.0mm-Hexagonal" preset is now named "w17.0mm", the width it prints.
 
 ### Fixed
 

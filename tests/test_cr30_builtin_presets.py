@@ -116,7 +116,7 @@ PROMISED = {
     "A4-1260p-3pages-Portrait-w11.0mm-Hexagonal": ("A4", 1260, 3, 11.0, True, False),
     "Letter-88p-1page-Portrait-w22.0mm": ("Letter", 88, 1, 22.0, False, False),
     "Letter-150p-1page-Portrait-w17.0mm": ("Letter", 150, 1, 17.0, False, False),
-    "Letter-170p-1page-Portrait-w16.0mm-Hexagonal": ("Letter", 170, 1, 16.0, True, False),
+    "Letter-170p-1page-Portrait-w17.0mm-Hexagonal": ("Letter", 170, 1, 17.0, True, False),
     "Letter-184p-1page-Portrait-w11.0mm": ("Letter", 184, 1, 11.0, False, False),
     "Letter-368p-1page-Portrait-w11.0mm": ("Letter", 368, 1, 11.0, False, False),
     "Letter-390p-1page-Portrait-w11.0mm-Hexagonal": ("Letter", 390, 1, 11.0, True, False),
@@ -138,14 +138,9 @@ PROMISED = {
 #: pinned at what they measure so a change to either end is caught.
 WIDTH_EXCEPTIONS = {
     "Letter-150p-1page-Portrait-w17.0mm": 17.53,
-    # 16.76 SINCE 2026-09-16, and the 0.12 mm is the left margin no longer
-    # being raised behind the recipe's back. It used to ask for 13.0 and be
-    # given 14.382 by the row-label band; it now asks for 14.0 and is given
-    # 14.0, so the patch area is 0.38 mm wider and each of its ten columns
-    # gains a thirty-eighth of that. The name was already 0.64 mm out and is
-    # now 0.76 mm out; both are Knut's numbers and neither is a rounding this
-    # test may absorb quietly. Still flagged for him.
-    "Letter-170p-1page-Portrait-w16.0mm-Hexagonal": 16.76,
+    # "Letter-170p ... Hexagonal" LEFT THIS LIST ON 2026-09-27: it prints
+    # 16.76 mm and was named w16.0mm, and Knut renamed it w17.0mm (#182
+    # 5856646931), which is inside the 0.5 mm the family check allows.
 }
 
 
@@ -337,7 +332,7 @@ def test_the_two_low_patch_hex_charts_carry_the_larger_label():
                     if p.layout_recipe["indicator_size_mm"] == 6.35)
     assert bigger == [
         "A4-153p-1page-Portrait-w18.0mm-Hexagonal",
-        "Letter-170p-1page-Portrait-w16.0mm-Hexagonal",
+        "Letter-170p-1page-Portrait-w17.0mm-Hexagonal",
     ]
     # NOBODY ELSE MOVES IT. Every other chart in the family is on 3.88 if it
     # is a honeycomb and on the base's "auto" if it is not, so a size typed
