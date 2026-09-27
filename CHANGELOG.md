@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.3.0-beta.46
+
+**The patch scale works in "Prioritise chart area" again, so every built-in preset lays out exactly as it did in beta 44.**
+
+### Changed
+
+- "Patch scale" is shown in "Prioritise chart area" as well as in "Prioritise patch size", and its help says what it does there: the patches are sized to fill the chart area, so the scale changes the spacers between them.
+
+### Fixed
+
+- Beta 45 stopped the patch scale from having any effect in "Prioritise chart area", together with the typed patch size and the chart offset, which that mode hides. That changed 19 of Knut's built-in photo-card presets (patches 0.03 mm shorter, spacers 0.03 mm wider) and any preset of your own with a patch scale. The scale applies again; only the typed patch size and the chart offset still have no say in "Prioritise chart area". Every one of the 172 built-in layout-engine presets now lays out as in beta 44.
+- A chart made with beta 45 is still described as it was made (for "Show only measured patches", the margin inspector and the page coverage), with its patch scale held back as beta 45 held it.
+
 ## v4.3.0-beta.45
 
 **A reopened project builds the chart it was built as, evenness takes the measurement noise out and has new limits, the ISO evenness figures are converted to ChromIQ's method, metric names match the Report Limits window, and "drift" is gone from every text.**

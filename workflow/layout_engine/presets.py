@@ -38,10 +38,13 @@ def stored_layout_mode(d: dict) -> str:
     a recipe without it was laid out patch-first. 3b6d655c let such a recipe
     open in area-first, Knut's default, because with the counts on auto
     area-first filled the page exactly as patch-first did. That stopped being
-    true for one kind of recipe when B8-1540 made area-first ignore the three
-    things only patch-first honours: a typed patch size, a patch scale, a chart
-    offset. A recipe carrying any of them keeps its patch-first chart; every
-    other one keeps opening in area-first, as before.
+    true for one kind of recipe when B8-1540 made area-first ignore the two
+    things only patch-first shows: a typed patch size and a chart offset. A
+    recipe carrying either keeps its patch-first chart; every other one keeps
+    opening in area-first, as before. The patch scale is NOT one of them: both
+    modes show it and both honour it (B8-1590, Knut #182 5858752082), so a
+    recipe that only scales its patches opens in area-first exactly as it did
+    in beta 44.
 
     Every place that rebuilds a stored recipe goes through
     :meth:`LayoutRecipe.from_dict`, which asks this, so the chart's own load,
@@ -54,7 +57,6 @@ def stored_layout_mode(d: dict) -> str:
             return default
     patch_first_only = (
         _num("patch_w_mm", 0.0) > 0.0 or _num("patch_h_mm", 0.0) > 0.0
-        or abs(_num("pscale", 1.0) - 1.0) > 1e-9
         or _num("offset_x_mm", 0.0) != 0.0 or _num("offset_y_mm", 0.0) != 0.0)
     return "patch_first" if patch_first_only else "area_first"
 
@@ -64,7 +66,20 @@ def stored_layout_mode(d: dict) -> str:
 #: Only :meth:`LayoutRecipe.to_dict` writes it, and every chart's stored recipe
 #: is written that way at Generate (`chart_creator._embed_layout_geometry`, the
 #: relayout dialog), so a stored recipe without it was built before the fix.
+#:
+#: ITS VALUE IS THE RULE'S VERSION (B8-1590). Three rules have laid charts out
+#: in "Prioritise chart area", and a printed sheet must be described by the one
+#: it was made with:
+#:
+#: * no mark: before beta 45, when the typed patch size, the patch scale and
+#:   the chart offset all reached the engine;
+#: * ``True``: beta 45, when B8-1540 held all three back, the patch scale too;
+#: * :data:`HIDES_PATCH_CONTROLS_RULE` (2) and up: from beta 46, when the patch
+#:   scale reaches the engine again, because "Prioritise chart area" shows it
+#:   and Knut's presets rely on it, and only the typed patch size and the chart
+#:   offset, which that mode hides, are held back.
 HIDES_PATCH_CONTROLS_KEY = "area_first_hides_patch_controls"
+HIDES_PATCH_CONTROLS_RULE = 2
 
 
 def build_kwargs_as_built(recipe) -> dict:
@@ -80,20 +95,25 @@ def build_kwargs_as_built(recipe) -> dict:
     `build_kwargs()` it becomes a different sheet (Knut's own case: 14 x 10 mm
     patches, 22 a strip, 1 page, read back as 20.5 mm, 12 a strip, 3 pages).
     So a stored recipe dict without :data:`HIDES_PATCH_CONTROLS_KEY` gets the
-    three back, exactly as the engine was handed them then. A live
-    :class:`LayoutRecipe`, or a dict this version wrote, is described by
-    today's rule."""
+    three back, exactly as the engine was handed them then; one a beta 45 build
+    wrote (the mark ``True``) was laid out with the patch scale held back as
+    well, and is described so (B8-1590). A live :class:`LayoutRecipe`, or a
+    dict this version wrote, is described by today's rule."""
     if isinstance(recipe, LayoutRecipe):
         return recipe.build_kwargs()
     d = dict(recipe or {})
     r = LayoutRecipe.from_dict(d)
     kw = r.build_kwargs()
-    if r.layout_mode == "area_first" and not d.get(HIDES_PATCH_CONTROLS_KEY):
-        kw["pscale"] = r.pscale
+    if r.layout_mode != "area_first":
+        return kw
+    mark = d.get(HIDES_PATCH_CONTROLS_KEY)
+    if not mark:                         # before beta 45: all three reached it
         kw["patch_w"] = r.patch_w_mm or None
         kw["patch_h"] = r.patch_h_mm or None
         kw["offset_x"] = r.offset_x_mm
         kw["offset_y"] = r.offset_y_mm
+    elif mark is True or mark == 1:      # beta 45: the patch scale held back too
+        kw["pscale"] = 1.0
     return kw
 
 
@@ -366,7 +386,7 @@ class LayoutRecipe:
     # ---- serialisation (meta.json round-trip) --------------------------
     def to_dict(self) -> dict:
         d = asdict(self)
-        d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
+        d[HIDES_PATCH_CONTROLS_KEY] = HIDES_PATCH_CONTROLS_RULE  # B8-1570/1590
         return d
 
     @classmethod
@@ -555,16 +575,23 @@ class LayoutRecipe:
     def build_kwargs(self) -> dict:
         """Kwargs for :func:`workflow.layout_engine.chart.build_chart`.
 
-        THE MODE THAT IS NOT CHOSEN HAS NO SAY (B8-1540, Knut #182 5857405680).
-        "Prioritise chart area" hides the patch size, the patch scale and the
-        chart offset, because it derives the patch size from the margin box.
-        The recipe still HOLDS what was typed there, so switching back to
-        "Prioritise patch size" gives it back, but none of it may reach the
+        WHAT A MODE HIDES HAS NO SAY; WHAT IT SHOWS DOES (B8-1540, Knut #182
+        5857405680; B8-1590, 5858752082). "Prioritise chart area" derives the
+        patch size from the margin box, so it hides the typed patch size and
+        the chart offset. The recipe still HOLDS them, so switching back to
+        "Prioritise patch size" gives them back, but neither may reach the
         engine: a typed patch size made `geom_from_build_kwargs` skip the area
-        fit altogether (a 10 by 20 grid came out as 364 patches), the scale
-        grew the spacers, and the offset moved the block out of the margins.
-        The patch-area alignment is NOT neutralised: the built-in area-first
-        presets set it on purpose."""
+        fit altogether (a 10 by 20 grid came out as 364 patches), and the
+        offset moved the block out of the margins.
+
+        THE PATCH SCALE IS SHOWN IN BOTH MODES AND HONOURED IN BOTH. B8-1540
+        held it back as well, and beta 45 shipped so; Knut: "it has been the
+        intention that it should work, and did work before. If this is removed
+        that is a change not approved and it will change other presets when
+        loading them." In area-first it scales the spacers the patches are
+        fitted around, which is how his 19 photo cards were laid out.
+        The patch-area alignment is NOT neutralised either: the built-in
+        area-first presets set it on purpose."""
         area = self.layout_mode == "area_first"
         return {
             "instrument": self.instrument,
@@ -589,7 +616,7 @@ class LayoutRecipe:
             "edge_spacers": (self.edge_spacers
                              or self.instrument in ("i1", "p3", "CM")),
             "patch_area_align": self.patch_area_align,
-            "pscale": 1.0 if area else self.pscale,
+            "pscale": self.pscale,
             "sscale": self.sscale,
             "border": self.border,
             "margins": (self.margin_top, self.margin_right,

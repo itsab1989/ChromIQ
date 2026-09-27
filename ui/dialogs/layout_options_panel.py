@@ -1157,7 +1157,16 @@ class LayoutOptionsPanel(QWidget):
                        "1.0 is the instrument's standard size. Below 1.0 fits more "
                        "patches per sheet but each is harder for the instrument to "
                        "read reliably — watch the warning if patches get too "
-                       "small."), self))
+                       "small.")
+                    # B8-1590: the row is shown in both modes now, so the help
+                    # says what it does in the one that sizes the patches
+                    # itself. A paragraph of its own, so the sentence above
+                    # keeps its translations.
+                    + "\n\n" + tr(
+                        "With “Prioritise chart area”, ChromIQ sizes the "
+                        "patches to fill the chart area, so there the scale "
+                        "changes the spacers between them, and the patches "
+                        "take the room that is left."), self))
         add_row(g, 2, tr("Spacers:"), self.spacer_mode,
                 tip=TooltipButton(
                     tr("Spacers"),
@@ -3767,12 +3776,17 @@ class LayoutOptionsPanel(QWidget):
         # all "Prioritise patch size" concerns — area-first sizes patches to fill
         # the margin box, so hide them there (Knut #93).
         _patch_first_rows = [getattr(self, "_patch_size_row", []),
-                             getattr(self, "_patch_scale_row", []),
                              getattr(self, "_patch_align_row", []),
                              getattr(self, "_offset_row", [])]
         for row in _patch_first_rows:
             for w in row:
                 w.setVisible(not area)
+        # THE PATCH SCALE BELONGS TO BOTH MODES (B8-1590, Knut #182
+        # 5858752082: "This setting should be part of the 'Prioritise chart
+        # area' mode"). The engine honours it in both, so the row is shown in
+        # both: under the patch size in "Prioritise patch size", under the area
+        # fields in "Prioritise chart area".
+        self._place_patch_scale_row(area)
         self._sync_max_strip_for_layout(area)
         for w in (getattr(self, "nolimit", None), getattr(self, "_nolimit_tip", None)):
             if w is not None:
@@ -3924,6 +3938,46 @@ class LayoutOptionsPanel(QWidget):
             hexed = bool(getattr(self, "_recipe_hflag", False))
         return bool(hexed and instruments.hex_capable(str(inst)))
 
+    #: The row the patch scale takes at the foot of the area-first grid; the
+    #: area rows above it are 0 to 4.
+    _AREA_PATCH_SCALE_GRID_ROW = 5
+
+    def _place_patch_scale_row(self, area: bool) -> None:
+        """Put the "Patch scale" row in the grid of the mode on screen (B8-1590).
+
+        ONE SPIN BOX, MOVED, NOT TWO KEPT IN STEP. The row lives in the
+        patch-first grid, whose whole container "Prioritise chart area" hides,
+        so the same three widgets are moved between that grid and the
+        area-first one. Each is taken out of the layout it is in before it is
+        added to the other, so Qt never has a widget in two layouts, and no
+        other row's cell is touched."""
+        row = getattr(self, "_patch_scale_row", None) or []
+        pfg = getattr(self, "_patch_fields_grid", None)
+        afg = getattr(self, "_area_fields_grid", None)
+        if not row or pfg is None or afg is None:
+            return
+        if getattr(self, "_patch_scale_in_area", None) is area:
+            for w in row:
+                w.setVisible(True)
+            return
+        grid, r = ((afg, self._AREA_PATCH_SCALE_GRID_ROW) if area
+                   else (pfg, 1))
+        for w in row:
+            pfg.removeWidget(w)
+            afg.removeWidget(w)
+        from PyQt6.QtCore import Qt
+        lbl, control = row[0], row[1]
+        grid.addWidget(lbl, r, 0, Qt.AlignmentFlag.AlignRight)
+        grid.addWidget(control, r, 1)
+        if len(row) > 2:
+            grid.addWidget(row[2], r, 2)
+        for w in row:
+            w.setVisible(True)
+        if not area:
+            lbl.setMinimumWidth(0)
+        self._patch_scale_in_area = area
+        self._pin_area_label_column()
+
     def _pin_area_label_column(self) -> None:
         """Give the area-first label column the width of its WIDEST label, over
         every row, not only the rows the chosen method shows.
@@ -3962,8 +4016,13 @@ class LayoutOptionsPanel(QWidget):
             return
         from PyQt6.QtGui import QFontMetrics
         widest = 0
-        for attr in ("_area_row_method", "_area_row_minpatch", "_area_row_ratio",
-                     "_area_row_cols", "_area_row_rows"):
+        # The patch scale row (B8-1590) is not pinned: it is shown under either
+        # method, so it cannot make the column move, and a pinned label cannot
+        # wrap, which widened the panel past its pane in Spanish, French and
+        # Portuguese.
+        _attrs = ["_area_row_method", "_area_row_minpatch", "_area_row_ratio",
+                  "_area_row_cols", "_area_row_rows"]
+        for attr in _attrs:
             row = getattr(self, attr, None) or []
             for w in row:
                 if isinstance(w, QLabel):
@@ -3975,8 +4034,7 @@ class LayoutOptionsPanel(QWidget):
         # one, and the top line is cut in half. Giving every label the same
         # minimum width makes them all wide enough not to wrap, which is the
         # same alignment with none of the clipping. Bisected on screen.
-        for attr in ("_area_row_method", "_area_row_minpatch", "_area_row_ratio",
-                     "_area_row_cols", "_area_row_rows"):
+        for attr in _attrs:
             for w in (getattr(self, attr, None) or []):
                 if isinstance(w, QLabel):
                     w.setMinimumWidth(widest)
