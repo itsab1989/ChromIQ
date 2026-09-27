@@ -1,18 +1,22 @@
-"""B8-1590 (Knut, #182 5858752082): the patch scale belongs to "Prioritise chart
-area" as well.
+"""B8-1590, REVERTED by Knut's ruling (#182 5859162180): in "Prioritise chart
+area" the patch scale is neither shown nor used, also for the photo cards.
 
-B8-1540 fixed Knut's report that a patch size typed under "Prioritise patch
-size" still ruled a "Prioritise chart area" chart, and in doing so held back the
-patch scale and the chart offset too. Beta 45 shipped that. Knut: "it has been
-the intention that it should work, and did work before. If this is removed that
-is a change not approved and it will change other presets when loading them.
-This setting should be part of the 'Prioritise chart area' mode."
+B8-1540 made "Prioritise chart area" ignore the three controls it hides: the
+typed patch size, the chart offset and the patch scale. Knut first asked for the
+scale back (5858752082), then checked beta 44 and found the row had only ever
+been shown under "Prioritise patch size": "That field shall not be visible or
+usable in 'Prioritise chart area', also for the photo cards." So beta 45's rule
+stands, and this file pins what it does to every built-in engine preset.
 
-Measured against the v4.3.0-beta.44 code, every one of the 172 built-in engine
-presets: beta 45 laid 19 out differently (the photo cards, patch scale 0.95);
-with the scale restored all 172 equal beta 44 again. The snapshot was
-generated from the beta 44 tag, so this compares with what beta 44 did, not
-with what this tree thinks it did."""
+Both snapshots were generated from release tags, never from this tree:
+
+* every built-in engine preset as the v4.3.0-beta.44 code laid it out, and
+* the 19 photo cards as the v4.3.0-beta.45 code lays them out. They carry a
+  patch scale of 0.95, which beta 44 applied and chart-area mode now ignores:
+  the same patches, strips and pages, the patches 0.03 mm shorter and the gaps
+  0.03 mm wider.
+
+Every other built-in preset must still equal beta 44."""
 from __future__ import annotations
 
 import json
@@ -22,12 +26,40 @@ import pytest
 
 from workflow.layout_engine import geometry, papers
 from workflow.layout_engine.instruments import geom_from_build_kwargs
-from workflow.layout_engine.presets import LayoutRecipe
+from workflow.layout_engine.presets import (HIDES_PATCH_CONTROLS_KEY,
+                                            LayoutRecipe, build_kwargs_as_built)
 
 ROOT = Path(__file__).resolve().parents[1]
-SNAPSHOT = json.loads(
+BETA44 = json.loads(
     (ROOT / "tests/data/b8_1590_builtin_geometry_beta44.json").read_text(
         encoding="utf-8"))
+BETA45_PHOTO_CARDS = json.loads(
+    (ROOT / "tests/data/b8_1590_photo_cards_geometry_beta45.json").read_text(
+        encoding="utf-8"))
+
+#: The presets Knut's ruling moves away from beta 44, named one by one so a
+#: preset cannot join or leave the list without this file changing.
+PHOTO_CARDS = (
+    "__chromiq_knut_i1_photo_100x150mm_1080p_6pages_portrait_w7_5mm_maximised_no_clip_border__",
+    "__chromiq_knut_i1_photo_100x150mm_1200p_8pages_portrait_w7_5mm__",
+    "__chromiq_knut_i1_photo_100x150mm_1260p_7pages_portrait_w7_5mm_maximised_no_clip_border__",
+    "__chromiq_knut_i1_photo_100x150mm_1440p_8pages_portrait_w7_5mm_maximised_no_clip_border__",
+    "__chromiq_knut_i1_photo_100x150mm_1500p_10pages_portrait_w7_5mm__",
+    "__chromiq_knut_i1_photo_100x150mm_150p_1page_portrait_w7_5mm__",
+    "__chromiq_knut_i1_photo_100x150mm_180p_1page_portrait_w7_5mm_maximised_no_clip_border__",
+    "__chromiq_knut_i1_photo_100x150mm_600p_4pages_portrait_w7_5mm__",
+    "__chromiq_knut_i1_photo_100x150mm_720p_4pages_portrait_w7_5mm_maximised_no_clip_border__",
+    "__chromiq_knut_i1_photo_100x150mm_900p_6pages_portrait_w7_5mm__",
+    "__chromiq_knut_i1_photo_130x180mm_1080p_5pages_portrait_w8_0mm__",
+    "__chromiq_knut_i1_photo_130x180mm_1152p_4pages_portrait_w7_5mm_maximised_no_clip_border__",
+    "__chromiq_knut_i1_photo_130x180mm_1296p_6pages_portrait_w8_0mm__",
+    "__chromiq_knut_i1_photo_130x180mm_1440p_5pages_portrait_w7_5mm_maximised_no_clip_border__",
+    "__chromiq_knut_i1_photo_130x180mm_1512p_7pages_portrait_w8_0mm__",
+    "__chromiq_knut_i1_photo_130x180mm_216p_1page_portrait_w8_0mm__",
+    "__chromiq_knut_i1_photo_130x180mm_288p_1page_portrait_w7_5mm_maximised_no_clip_border__",
+    "__chromiq_knut_i1_photo_130x180mm_648p_3pages_w8_0mm__",
+    "__chromiq_knut_i1_photo_130x180mm_864p_3pages_portrait_w7_5mm_maximised_no_clip_border__",
+)
 
 
 def _presets():
@@ -41,7 +73,7 @@ def _laid_out(p) -> dict:
     w, h = papers.dimensions_mm(rec.paper)
     lay = geometry.compute(g, w, h, int(p.patches))
     out = {}
-    for f in SNAPSHOT["fields"]:
+    for f in BETA44["fields"]:
         v = getattr(g, f) if hasattr(g, f) else getattr(lay, f)
         out[f] = round(v, 4) if isinstance(v, float) else v
     out["pages"] = lay.pages
@@ -49,43 +81,65 @@ def _laid_out(p) -> dict:
 
 
 def test_every_built_in_engine_preset_is_in_the_snapshot(qapp):
-    assert set(_presets()) == set(SNAPSHOT["presets"])
-    assert len(SNAPSHOT["presets"]) >= 170
+    assert set(_presets()) == set(BETA44["presets"])
+    assert len(BETA44["presets"]) >= 170
 
 
-def test_every_built_in_engine_preset_lays_out_as_in_beta_44(qapp):
+def test_the_photo_card_snapshot_holds_exactly_the_named_presets():
+    assert set(BETA45_PHOTO_CARDS["presets"]) == set(PHOTO_CARDS)
+
+
+def test_every_other_built_in_preset_lays_out_as_in_beta_44(qapp):
     presets = _presets()
-    moved = {k: (want, _laid_out(presets[k]))
-             for k, want in SNAPSHOT["presets"].items()
-             if _laid_out(presets[k]) != want}
-    assert not moved, sorted(moved)[:5]
+    moved = sorted(k for k, want in BETA44["presets"].items()
+                   if k not in PHOTO_CARDS and _laid_out(presets[k]) != want)
+    assert not moved, moved[:5]
 
 
-def test_the_photo_cards_carry_the_scale_that_moved_them(qapp):
-    """The 19 that beta 45 moved are the ones with a patch scale of 0.95, and
-    that scale now reaches the engine."""
-    scaled = [p for p in _presets().values()
-              if abs(float(dict(p.layout_recipe).get("pscale", 1.0)) - 1.0) > 1e-9]
-    assert len(scaled) == 19
-    for p in scaled:
-        rec = LayoutRecipe.from_dict(dict(p.layout_recipe))
-        assert rec.layout_mode == "area_first"
-        assert rec.build_kwargs()["pscale"] == pytest.approx(0.95)
+def test_the_photo_cards_lay_out_as_in_beta_45(qapp):
+    presets = _presets()
+    wrong = sorted(k for k in PHOTO_CARDS
+                   if _laid_out(presets[k]) != BETA45_PHOTO_CARDS["presets"][k])
+    assert not wrong, wrong[:5]
 
 
-def test_the_typed_size_and_offset_still_have_no_say_in_chart_area():
-    """Knut's original report stays fixed."""
+def test_the_photo_cards_keep_their_patches_strips_and_pages(qapp):
+    """What the ruling moves is 0.03 mm, never the count of anything."""
+    for k in PHOTO_CARDS:
+        old, new = BETA44["presets"][k], BETA45_PHOTO_CARDS["presets"][k]
+        for f in ("patches_per_page", "strips_per_page", "pages", "pwid",
+                  "rpstrip"):
+            assert old[f] == new[f], (k, f)
+        assert abs(old["plen"] - new["plen"]) <= 0.031, k
+        assert abs(old["pspa"] - new["pspa"]) <= 0.031, k
+
+
+def test_the_patch_scale_has_no_say_in_chart_area():
     r = LayoutRecipe(instrument="i1", paper="A4", layout_mode="area_first",
                      patch_w_mm=14.0, patch_h_mm=10.0, offset_x_mm=6.0,
                      offset_y_mm=6.0, pscale=0.75)
     kw = r.build_kwargs()
     assert (kw["patch_w"], kw["patch_h"], kw["offset_x"], kw["offset_y"]) \
         == (None, None, 0.0, 0.0)
-    assert kw["pscale"] == 0.75
+    assert kw["pscale"] == 1.0
 
 
-def test_the_patch_scale_row_is_shown_in_both_modes(qapp):
-    """What a mode shows, it honours: the row is on screen in both."""
+def test_the_patch_scale_still_applies_in_patch_size_mode():
+    r = LayoutRecipe(instrument="i1", paper="A4", layout_mode="patch_first",
+                     pscale=0.75)
+    assert r.build_kwargs()["pscale"] == 0.75
+
+
+def test_a_chart_marked_by_the_unreleased_beta_46_build_reads_like_beta_45():
+    """10bdcf20 wrote the mark as 2 before it was taken out again; no release
+    carries it, but a development project might. It is read like True."""
+    d = LayoutRecipe(instrument="i1", paper="A4", layout_mode="area_first",
+                     pscale=0.95).to_dict()
+    d[HIDES_PATCH_CONTROLS_KEY] = 2
+    assert build_kwargs_as_built(d)["pscale"] == 1.0
+
+
+def test_the_patch_scale_row_is_shown_only_in_patch_size_mode(qapp):
     from ui.dialogs.layout_options_panel import LayoutOptionsPanel
     panel = LayoutOptionsPanel()
     try:
@@ -93,9 +147,8 @@ def test_the_patch_scale_row_is_shown_in_both_modes(qapp):
         for mode in ("area_first", "patch_first", "area_first"):
             panel.layout_mode.setCurrentIndex(panel.layout_mode.findData(mode))
             qapp.processEvents()
-            assert all(w.isVisible() for w in panel._patch_scale_row), mode
-            size_shown = any(w.isVisible() for w in panel._patch_size_row)
-            assert size_shown == (mode == "patch_first")
+            shown = any(w.isVisible() for w in panel._patch_scale_row)
+            assert shown == (mode == "patch_first"), mode
     finally:
         panel.close()
         panel.deleteLater()

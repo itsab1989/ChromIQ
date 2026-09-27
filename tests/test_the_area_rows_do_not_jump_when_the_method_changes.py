@@ -239,10 +239,9 @@ def test_nothing_shares_a_cell_with_a_label_in_the_area_grid(panel, qapp):
                 seen.setdefault((rr, cc), []).append(i)
     shared = {k: v for k, v in seen.items() if len(v) > 1}
     assert not shared, f"the area grid has items sharing a cell: {shared}"
-    assert lay.rowCount() == 6, (
-        f"the area grid has {lay.rowCount()} rows; the six it is meant to "
-        "have are the method, the two by-width rows, the two by-grid ones and "
-        "the patch scale, which area-first shows too (B8-1590)")
+    assert lay.rowCount() == 5, (
+        f"the area grid has {lay.rowCount()} rows; the five it is meant to "
+        "have are the method, the two by-width rows and the two by-grid ones")
 
 
 def test_no_two_widgets_share_a_cell_in_the_area_grid(panel, qapp):

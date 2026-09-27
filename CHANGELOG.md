@@ -2,16 +2,11 @@
 
 ## v4.3.0-beta.46
 
-**The patch scale works in "Prioritise chart area" again, so every built-in preset lays out exactly as it did in beta 44.**
-
-### Changed
-
-- "Patch scale" is shown in "Prioritise chart area" as well as in "Prioritise patch size", and its help says what it does there: the patches are sized to fill the chart area, so the scale changes the spacers between them.
+**The Measurement Report changes only when Generate report is pressed, whatever setting is changed.**
 
 ### Fixed
 
-- Beta 45 stopped the patch scale from having any effect in "Prioritise chart area", together with the typed patch size and the chart offset, which that mode hides. That changed 19 of Knut's built-in photo-card presets (patches 0.03 mm shorter, spacers 0.03 mm wider) and any preset of your own with a patch scale. The scale applies again; only the typed patch size and the chart offset still have no say in "Prioritise chart area". Every one of the 172 built-in layout-engine presets now lays out as in beta 44.
-- A chart made with beta 45 is still described as it was made (for "Show only measured patches", the margin inspector and the page coverage), with its patch scale held back as beta 45 held it.
+- With every measurement unticked in the Measurement Report, the red line now says the settings changed, as it does for every other change; the page itself still changes only when Generate report is pressed.
 
 ## v4.3.0-beta.45
 

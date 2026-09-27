@@ -24,7 +24,6 @@ import pytest
 
 from workflow.layout_engine import instruments
 from workflow.layout_engine.presets import (HIDES_PATCH_CONTROLS_KEY,
-                                            HIDES_PATCH_CONTROLS_RULE,
                                             LayoutRecipe,
                                             build_kwargs_as_built)
 
@@ -87,12 +86,11 @@ def test_the_margin_inspector_widens_by_the_sheets_spacer():
 
 
 def test_a_recipe_written_now_is_read_by_todays_rule():
-    """The same settings saved by this version: the hidden size and offset
-    have no say, exactly as for the Generate that wrote them, and the patch
-    scale, which the mode shows, has (B8-1590)."""
+    """The same settings saved by this version: the hidden three have no say,
+    exactly as for the Generate that wrote them."""
     rec = LayoutRecipe.from_dict(_layout()["recipe"])
     d = rec.to_dict()
-    assert d[HIDES_PATCH_CONTROLS_KEY] == HIDES_PATCH_CONTROLS_RULE == 2
+    assert d[HIDES_PATCH_CONTROLS_KEY] is True
     assert build_kwargs_as_built(d) == rec.build_kwargs()
     assert build_kwargs_as_built(rec) == rec.build_kwargs()
     assert rec.build_kwargs()["patch_w"] is None
@@ -105,34 +103,18 @@ def test_a_patch_first_recipe_is_unchanged_either_way():
 
 
 def test_a_honeycomb_ring_is_the_one_it_was_built_with():
-    """The hexagon ring cap reads the ring through the same door. A beta 45
-    chart (mark ``True``) was laid out with the patch scale held back; every
-    other one with it (B8-1590)."""
+    """The hexagon ring cap reads the ring through the same door."""
     from workflow.hex_support import ring_mm_of
     base = LayoutRecipe(instrument="CR30", paper="A4", layout_mode="area_first",
                         hflag=True, pscale=1.5, patch_w_mm=12.0,
                         patch_h_mm=12.0)
-    beta45 = dict(base.to_dict(), **{HIDES_PATCH_CONTROLS_KEY: True})
-    # What the beta 45 engine was handed, spelled out, not derived.
-    b45_kw = dict(base.build_kwargs(), pscale=1.0)
-    built = instruments.geom_from_build_kwargs(b45_kw).hex_ring_mm
+    before_fix = {k: v for k, v in base.to_dict().items()
+                  if k != HIDES_PATCH_CONTROLS_KEY}
+    # What the engine was handed before the fix, spelled out, not derived.
+    old_kw = dict(base.build_kwargs(), pscale=1.5, patch_w=12.0, patch_h=12.0)
+    built = instruments.geom_from_build_kwargs(old_kw).hex_ring_mm
     today = instruments.geom_from_build_kwargs(base.build_kwargs()).hex_ring_mm
     assert built != pytest.approx(today)            # the two rules differ here
-    assert ring_mm_of(beta45) == pytest.approx(built)
+    assert ring_mm_of(before_fix) == pytest.approx(built)
     assert ring_mm_of(base.to_dict()) == pytest.approx(today)
     assert ring_mm_of(base) == pytest.approx(today)
-
-
-def test_a_beta_45_chart_is_described_with_the_patch_scale_held_back():
-    """B8-1590. Beta 45 wrote the mark as ``True`` and laid area-first charts
-    out with the patch scale at 1.0; a chart it made is described so, while
-    one written now (the mark 2) and one from before beta 45 (no mark) keep
-    their scale."""
-    base = LayoutRecipe(instrument="i1", paper="A4", layout_mode="area_first",
-                        pscale=0.95)
-    now = base.to_dict()
-    b45 = dict(now, **{HIDES_PATCH_CONTROLS_KEY: True})
-    before = {k: v for k, v in now.items() if k != HIDES_PATCH_CONTROLS_KEY}
-    assert build_kwargs_as_built(b45)["pscale"] == 1.0
-    assert build_kwargs_as_built(now)["pscale"] == 0.95
-    assert build_kwargs_as_built(before)["pscale"] == 0.95

@@ -2409,3 +2409,27 @@ screen (`~/Desktop/ChromIQ-beta44-proof/k53/`):
   store or preset saved with the box unticked on a CR30 opens with the box
   locked on and its own layout (B8-1353).
 
+
+## 2aa. Knut's ruling of 2026-09-27: in "Prioritise chart area" the patch scale is neither shown nor used (B8-1540, B8-1590)
+
+### Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-27, on #182 (comment 5859162180), for exactly
+what he said. He had first asked for the patch scale back in "Prioritise chart
+area" (5858752082); after checking beta 44 he corrected himself:
+
+> *"Sorry, my mixup then. I cannot find Patch scale visible for "Prioritise
+> chart area" in beta 44, so then I guess that was not used. It was only
+> visible in frame "Layout" when "Prioritise patch size...", so this was a
+> misunderstanding. That field shall not be visible or usable in "Prioritise
+> chart area", also for the photo cards."*
+
+So with "Prioritise chart area" selected the Patch scale row is not shown and
+the patch scale has no effect on the chart, for every chart and every built-in
+preset, the photo cards included. It is shown and applies under "Prioritise
+patch size" only. This is the rule beta 45 shipped with (B8-1540); the
+unreleased change that restored the scale (B8-1590) was taken back out.
+`tests/test_b8_1590_the_patch_scale_belongs_to_chart_area_too.py` holds every
+built-in engine preset to the v4.3.0-beta.44 geometry, and the 19 photo cards,
+whose recipes carry a patch scale of 0.95, to the v4.3.0-beta.45 geometry (the
+same patches, strips and pages; patches 0.03 mm shorter, gaps 0.03 mm wider).

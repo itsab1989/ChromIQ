@@ -5,7 +5,9 @@ Picks, in Create Chart > Manual, one of Knut's i1Pro 7.5 mm presets (its 0.75
 is the SPACER scale) and one of his photo cards (patch scale 0.95), each
 generating on selection, and photographs the window with Chart layout
 information in view. Then photographs the Layout panel's Basic section in
-"Prioritise chart area", where the Patch scale row is shown from beta 46 on.
+"Prioritise chart area", where, by Knut's ruling (#182 5859162180), the Patch
+scale row is not shown and the patch scale has no effect: the photo card lays
+out as beta 45 laid it out (plen 7.36, pspa 0.60).
 
 Run from the tree whose behaviour you want (the fix, or an exported beta 45):
 

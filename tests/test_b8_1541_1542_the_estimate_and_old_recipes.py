@@ -90,8 +90,9 @@ def _old(**kw) -> dict:
 
 
 @pytest.mark.parametrize("kw", [dict(patch_w_mm=14.0, patch_h_mm=10.0),
-                                dict(patch_w_mm=14.0), dict(offset_x_mm=6.0)],
-                         ids=["size", "width-only", "offset"])
+                                dict(patch_w_mm=14.0), dict(pscale=1.3),
+                                dict(offset_x_mm=6.0)],
+                         ids=["size", "width-only", "scale", "offset"])
 def test_an_old_recipe_with_patch_first_settings_reads_patch_first(kw):
     r = LayoutRecipe.from_dict(_old(**kw))
     assert r.layout_mode == "patch_first"
@@ -101,11 +102,8 @@ def test_an_old_recipe_with_patch_first_settings_reads_patch_first(kw):
 
 
 def test_an_old_recipe_without_them_keeps_the_area_first_default():
-    """3b6d655c's rule, unchanged for everything B8-1540 did not affect. A
-    patch scale alone is not a patch-first setting: area-first shows it and
-    honours it (B8-1590), so such a recipe opens as it did in beta 44."""
+    """3b6d655c's rule, unchanged for everything B8-1540 did not affect."""
     assert LayoutRecipe.from_dict(_old()).layout_mode == "area_first"
-    assert LayoutRecipe.from_dict(_old(pscale=1.3)).layout_mode == "area_first"
     assert stored_layout_mode({}) == "area_first"
 
 

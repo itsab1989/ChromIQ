@@ -786,7 +786,6 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
-    # RE-MEASURED 2026-09-27, B8-1590 (Knut #182 5858752082): the patch scale is shown and honoured in "Prioritise chart area" too, and its help gains a paragraph saying what it does there, 1 key in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1 here and in the other ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1500 and B8-1503 (Knut #182 5857473253): M-REPORT-NOT-WORKED-OUT (§M-PROPOSED, a title and a singular and a plural body, 3 keys in) says a new report's date whose measurement is gone carries an earlier report's figures; the Report Limits note on the Custom columns takes Knut's accepted wording (1 key out, 2 in: with and without the pointer to note ⁴). German by hand, does not move; the twelve others carried the old note in English and carry the new English under the beta rule, so each rises by exactly 4, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1502 (beta 45 challenge 3): a sheet the filter takes to 0 everywhere names no area and no pair, 2 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, Knut #182 5856723428 (bold lead-ins in every help window): 107 help texts had their topic lead-ins marked **...**, so 107 keys were renamed in every catalogue and each value moved with its key (an English echo stays an echo, a translation keeps its words and gains the marks where its own paragraph shows the lead-in); and "comes from the instrument" became "may come from the instrument" in the two evenness helps, 2 keys replaced by 2. No key in, none out, no value changed from translated to English or back. Counted off the tree against HEAD with the expressions these tests use: every language identical in both ledgers (de 141 / 13, uk 1642 / 1272, the rest unchanged). COUNTED off the tree, BOTH ledgers.
@@ -1502,17 +1501,17 @@ _IDENTICAL_TO_KEY = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 141,
-    "es": 1497,
-    "fr": 1519,
-    "it": 1508,
-    "ja": 1483,
-    "nl": 1522,
-    "no": 1508,
-    "pl": 1501,
-    "pt": 1499,
-    "ru": 1471,
-    "sv": 1509,
-    "zh_CN": 1477,
+    "es": 1496,
+    "fr": 1518,
+    "it": 1507,
+    "ja": 1482,
+    "nl": 1521,
+    "no": 1507,
+    "pl": 1500,
+    "pt": 1498,
+    "ru": 1470,
+    "sv": 1508,
+    "zh_CN": 1476,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1541,7 +1540,7 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 1649,
+    "uk": 1648,
 }
 
 
