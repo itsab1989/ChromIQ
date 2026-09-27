@@ -345,8 +345,8 @@ def test_the_converted_cells_carry_the_mark_and_the_note_explains_them(
         assert f" {mark} These two evenness limits are the standard's own " \
                "figures converted" in notes
         loc = re.sub(r"\s", " ", notes)
-        for std, sd, fm, pw, fm2 in (("ISO 12647-7:2016 values", 0.5, 2.0, 1.5, 1.0),
-                                     ("ISO 12647-8:2021 values", 1.5, 2.0, 3.0, 2.0)):
+        for std, sd, fm, pw, fm2 in (("ISO 12647-7:2016", 0.5, 2.0, 1.5, 1.0),
+                                     ("ISO 12647-8:2021", 1.5, 2.0, 3.0, 2.0)):
             from PyQt6.QtCore import QLocale
             n = lambda x: QLocale.system().toString(float(x), "f", 1)  # noqa: E731
             assert (f"{std} states a standard deviation of {n(sd)} and a "

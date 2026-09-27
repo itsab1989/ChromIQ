@@ -1093,6 +1093,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
     CONVERTED_MARK = "\u2074"           # ⁴
     _CONVERTED_SETS = ("iso_12647_7", "iso_12647_8")
     _CONVERTED_ROWS = ("uniformity_sd", "uniformity_de00_max_from_mean")
+    #: the standard's own designation, not the column's name ("... values
+    #: states" read wrong on screen); a designation is not translated
+    _STANDARD_NAMES = {"iso_12647_7": "ISO 12647-7:2016",
+                       "iso_12647_8": "ISO 12647-8:2021"}
 
     def _cell_is_converted(self, col: str, row_id: str) -> bool:
         if col not in self._CONVERTED_SETS or row_id not in self._CONVERTED_ROWS:
@@ -1125,7 +1129,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "{standard} states a standard deviation of {sd} and a maximum "
                 "difference from the average of {fm}, which become {pw} and "
                 "{fm2}").format(
-                    standard=tr(SET_BY_ID[sid].label), sd=num(fig["sd"]),
+                    standard=self._STANDARD_NAMES[sid], sd=num(fig["sd"]),
                     fm=num(fig["from_mean"]),
                     pw=num(lim["uniformity_sd"].number),
                     fm2=num(lim["uniformity_de00_max_from_mean"].number)))
