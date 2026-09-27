@@ -389,3 +389,37 @@ def test_with_auto_on_the_estimate_lays_out_the_armed_set(qapp, tmp_path):
     got = tab._layout_info_panel.predicted()["total"]
     assert fill > 400 and 200 <= got < 240, (fill, got)
     tab.deleteLater()
+
+
+@needs_targen
+def test_a_guided_chart_is_recognised_by_guideds_arguments(qapp, tmp_path):
+    """A chart Guided built: Manual's rows would make other patches, and
+    Guided's arguments make these (on screen: beta 44's Guided ColorMunki
+    105-patch chart)."""
+    tab = _tab(tmp_path)
+    tab._switch_mode("guided")
+    g = tab._collect_guided()
+    n = int(g.patches) if int(g.patches) > 0 else 60
+    ti1 = _targen(tmp_path, "guided",
+                  TC._targen_args_for(g, n, "guided")[:-1])
+    tab._switch_mode("manual")
+    tab._manual_auto_patches_check.setChecked(False)
+    tab._set_manual_value("targen", "-f", n + 30)
+    assert tab._targen_makes_this_patch_set(ti1) is True
+    tab.deleteLater()
+
+
+def test_a_sidecar_without_the_mark_is_read_as_not_saying(qapp, tmp_path):
+    """An older sidecar (no `patch_set_given`) is None, not "not given":
+    only then does the reopen ask the files."""
+    tab = _tab(tmp_path)
+    ti2 = tmp_path / "c.ti2"
+    ti2.write_text("CTI2\nNUMBER_OF_SETS 208\nBEGIN_DATA\nEND_DATA\n",
+                   encoding="utf-8")
+    (tmp_path / "c.channels.json").write_text(json.dumps(
+        {"create_chart_settings": {"targen-f": {"enabled": True,
+                                                "value": 0}}}),
+        encoding="utf-8")
+    tab._restore_chart_settings(ti2)
+    assert tab._restored_patch_set_given is None
+    tab.deleteLater()
