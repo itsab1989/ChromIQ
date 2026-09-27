@@ -130,24 +130,28 @@ def test_download_page_linux(fresh_module):
 # ---------------------------------------------------------------------------
 # log_dir
 # ---------------------------------------------------------------------------
+# Each unsets CHROMIQ_LOG_DIR, which the suite sets for itself (B8-1419), to
+# pin what the app answers on a user's machine.
 
 def test_log_dir_windows(fresh_module):
-    pp = fresh_module("win32", {"LOCALAPPDATA": r"C:\Users\test\AppData\Local"})
+    pp = fresh_module("win32", {"LOCALAPPDATA": r"C:\Users\test\AppData\Local",
+                                "CHROMIQ_LOG_DIR": None})
     assert pp.log_dir() == Path(r"C:\Users\test\AppData\Local") / "ChromIQ" / "Logs"
 
 
 def test_log_dir_macos(fresh_module):
-    pp = fresh_module("darwin")
+    pp = fresh_module("darwin", {"CHROMIQ_LOG_DIR": None})
     assert pp.log_dir() == Path.home() / "Library" / "Logs" / "ChromIQ"
 
 
 def test_log_dir_linux_xdg(fresh_module):
-    pp = fresh_module("linux", {"XDG_STATE_HOME": "/var/test-xdg/state"})
+    pp = fresh_module("linux", {"XDG_STATE_HOME": "/var/test-xdg/state",
+                                "CHROMIQ_LOG_DIR": None})
     assert pp.log_dir() == Path("/var/test-xdg/state") / "ChromIQ" / "logs"
 
 
 def test_log_dir_linux_fallback(fresh_module):
-    pp = fresh_module("linux", {"XDG_STATE_HOME": None})
+    pp = fresh_module("linux", {"XDG_STATE_HOME": None, "CHROMIQ_LOG_DIR": None})
     assert pp.log_dir() == Path.home() / ".local" / "state" / "ChromIQ" / "logs"
 
 

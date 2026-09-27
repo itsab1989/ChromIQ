@@ -147,8 +147,24 @@ def default_output_root() -> Path:
     return Path.home() / "ChromIQ"
 
 
+#: Moves :func:`log_dir`, and with it `chromiq.log` and `chromiq-crash.log`.
+#: The test suite sets it (B8-1419): its workers' own log lines were already
+#: kept off the real log by a NullHandler, but every CHILD process a test
+#: starts (``subprocess.run([sys.executable, "-c", ...])``) imports `core` with
+#: no conftest in it, configured logging from scratch and appended to the
+#: user's real `chromiq.log`: 20 to 60 "Settings SANDBOXED to .../pytest-of-..."
+#: lines per on-screen drive while an everyday tier ran. A child inherits the
+#: environment, so this reaches it where the NullHandler cannot.
+LOG_DIR_ENV = "CHROMIQ_LOG_DIR"
+
+
 def log_dir() -> Path:
-    """Directory where ChromIQ writes its rotating log file."""
+    """Directory where ChromIQ writes its rotating log file.
+
+    ``CHROMIQ_LOG_DIR`` overrides it (see :data:`LOG_DIR_ENV`)."""
+    override = os.environ.get(LOG_DIR_ENV, "").strip()
+    if override:
+        return Path(override)
     if is_windows():
         base = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ChromIQ" / "Logs"
     elif is_macos():

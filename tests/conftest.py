@@ -277,6 +277,42 @@ if not _root_logger.handlers:
     _root_logger.addHandler(_logging.NullHandler())
     _root_logger.setLevel(_logging.DEBUG)
 
+# …AND EVERY CHILD PROCESS A TEST STARTS, which the NullHandler cannot reach
+# (B8-1419). A test that runs `subprocess.run([sys.executable, "-c", PROBE])`
+# starts a fresh interpreter with no conftest in it: its first `core` import
+# configured logging from scratch and appended to the user's REAL chromiq.log.
+# Measured during beta 45: 20 to 60 "Settings SANDBOXED to
+# .../pytest-of-Basti/pytest-99/popen-gwN/..." lines per on-screen drive while
+# an everyday tier ran, from `test_every_pulldown_matches_create_chart_...`,
+# the K44 audit and their kind. A child inherits the environment, so the
+# sandbox goes there, the way `CHROMIQ_SETTINGS_FILE` and
+# `CHROMIQ_PRESETS_DIR` do: `core.platform_paths.log_dir()` answers this
+# folder, so `chromiq.log` and `chromiq-crash.log` both land in it.
+#
+# ONE PER PROCESS, assigned rather than `setdefault`: under xdist every worker
+# inherits the controller's environment, and twelve workers (and their
+# children) rotating one shared 5 MB file is the Windows WinError 32 above.
+# The prefix is `chromiq-`, so a folder a crashed run leaves behind is one
+# `_sweep_stale_temp_dirs` recognises by name; `pytest_unconfigure` removes it
+# when the process ends. `tests/test_b8_1419_the_suite_never_writes_the_real_
+# log.py` is the guard.
+#
+# ONCE PER PROCESS, not once per import of this module: a test that imports it
+# again under another name (`import tests.conftest`, a reload) would otherwise
+# make a second folder, point the environment at it and leave it behind, since
+# only the registered module's `pytest_unconfigure` runs. The owner's pid rides
+# with the path; a child process inherits the pair, sees a pid that is not its
+# own, and makes its own.
+import tempfile as _tempfile
+if (os.environ.get("CHROMIQ_SUITE_LOG_OWNER") == str(os.getpid())
+        and os.path.isdir(os.environ.get("CHROMIQ_LOG_DIR", ""))):
+    _SUITE_LOG_DIR = pathlib.Path(os.environ["CHROMIQ_LOG_DIR"])
+else:
+    _SUITE_LOG_DIR = pathlib.Path(
+        _tempfile.mkdtemp(prefix="chromiq-suite-log-"))
+    os.environ["CHROMIQ_LOG_DIR"] = str(_SUITE_LOG_DIR)
+    os.environ["CHROMIQ_SUITE_LOG_OWNER"] = str(os.getpid())
+
 
 #: The highest worker count this suite is currently RELIABLE at — see CLAUDE.md
 #: for the measurements. Kept here as a fact, not enforced: capping ``-n auto``
@@ -1103,6 +1139,15 @@ def pytest_sessionfinish(session, exitstatus):
             pass
     if not base.exists() and freed:
         print(f"\n[cleanup] removed this run's temp files ({freed / 1e9:.2f} GB)")
+
+
+def pytest_unconfigure(config):
+    """Remove this process's log sandbox (B8-1419) as the process ends.
+
+    Every process removes only its own: the controller and each worker made
+    one each at import. Whatever a crash leaves is `chromiq-`-prefixed, so the
+    next run's sweep takes it by name."""
+    shutil.rmtree(_SUITE_LOG_DIR, ignore_errors=True)
 
 
 def pytest_sessionstart(session):
