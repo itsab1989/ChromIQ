@@ -84,7 +84,7 @@ def _dialog(cls=SpotReadDialog):
     # of test_space_bar_focus.py, fixed the same night.
     from PyQt6.QtTest import QTest
     d.activateWindow()
-    QTest.qWaitForWindowActive(d, 2000)
+    QTest.qWaitForWindowActive(d, 10000)   # a loaded gate needs longer than 2 s (beta 47 gate 1)
     QApplication.processEvents()
     return d
 
