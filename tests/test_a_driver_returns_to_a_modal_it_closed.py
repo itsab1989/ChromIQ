@@ -174,10 +174,20 @@ def test_the_next_step_pumps_again(userdrive, qapp, tmp_path, monkeypatch):
         seen["pumped"] = dd.app.calls - before
 
     monkeypatch.setattr(d, "app", d.app)
-    # A quit() timer an earlier test left on this worker ends `run`'s event
-    # loop after the first step (beta 41 gate, loaded machine, `seen` empty).
-    # Flush what is already queued, and say so plainly if the loop still ends
-    # before the step this test is about.
+    # `run` calls QApplication.exec(), the first event loop many workers ever
+    # start, and Qt quits it by itself when the last visible window closes
+    # (B8-1414, measured with a probe: 3 to 157 ms in, `seen` empty). What
+    # closed it was other tests' visible windows: ones they had deleteLater()'d
+    # with no loop running (conftest now deletes those in the test's own
+    # teardown), or, in principle, a garbage window in a reference cycle that
+    # the GUI thread's collector frees at its first tick. Both are done here,
+    # before the loop, where closing a window cannot quit anything. The beta 41
+    # guess, "a quit() timer an earlier test left", was never it: nothing in
+    # the suite or the app quits the application from a timer.
+    import gc
+    from PyQt6.QtCore import QCoreApplication, QEvent
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    gc.collect()
     for _ in range(3):
         qapp.processEvents()
     rc = d.run(script)

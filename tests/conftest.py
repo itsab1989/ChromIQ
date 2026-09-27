@@ -651,6 +651,36 @@ def _the_collector_is_given_back_between_tests():
 
 
 @pytest.fixture(autouse=True)
+def _a_test_deletes_what_it_deleted_later():
+    """B8-1414: a `deleteLater()` a test posts is carried out in THAT test's
+    teardown, not in the next test that happens to start an event loop.
+
+    Qt runs a deferred delete posted outside any event loop only once a loop
+    starts: plain `processEvents()` leaves it queued. Dozens of tests show a
+    top-level widget and end with `w.deleteLater()` (measured with a probe:
+    `test_log_panes_resizable.py`, `test_a_spinbox_fits_its_own_special_value.py`
+    and others), so those visible windows waited, on that worker, for the
+    first `QApplication.exec()`: the one in
+    `test_a_driver_returns_to_a_modal_it_closed.py::test_the_next_step_pumps_again`.
+    Its loop then destroyed them at its first turn, the last visible window
+    closed, and Qt's quit-on-last-window-closed ended the loop 3 to 157 ms in,
+    before the step the test is about: the "stray quit", in 1 or 2 of every 4
+    everyday runs, with and without B8-1400's collection.
+
+    Sending the queued DeferredDelete events here, at loop level 0 and outside
+    any event delivery, deletes exactly what the test asked to delete. A
+    teardown is not inside an exec(), so closing a window here can never quit
+    anything."""
+    yield
+    try:
+        from PyQt6.QtCore import QCoreApplication, QEvent
+    except Exception:                                    # pragma: no cover
+        return
+    if QCoreApplication.instance() is not None:
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+
+@pytest.fixture(autouse=True)
 def _no_real_editor_render(monkeypatch):
     try:
         from ui.dialogs.ti2_relayout_dialog import Ti2RelayoutDialog
