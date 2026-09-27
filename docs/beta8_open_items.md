@@ -29870,12 +29870,16 @@ would reach.
 - found by: challenge round 8, C6.
 - note: in Create Chart's preset list ★ has always meant BUILT-IN ("★  i1Pro · A4-1296p-2pages …  ·  built-in"; the Dictionary's "Preset" entry says "ChromIQ ships built-in presets (marked ★)"). Since K51 the presets window uses ★ for "made for verification" (B8-1340). It is not a leftover, so it is not changed: the same mark means two things in two lists a verification user sees side by side, and a built-in without the verification star wears ★ in the dropdown. Question: keep ★ for built-ins, or give built-ins another mark (the "· built-in" suffix alone would do) so ★ means only "made for verification"?
 
-### B8-1400 · OPEN · Round 9: closed Preferences windows stay alive until a full collection (B8-1392's GC timer)
+### B8-1400 · FIXED, awaiting confirmation · Round 9: closed Preferences windows stayed alive until a full collection (B8-1392's GC timer)
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- found by: beta 44 challenge round 9 (`~/Desktop/ChromIQ-beta44-proof/challenge-9/gc-soak/`): 15 cycles over ~10 min; shipped: 98 collections, 9,927 live widgets at the end, RSS 3.55 GB; with automatic collection: 309 collections, ~3,100 widgets, 3.28 GB. About 1,170 widgets per closed Preferences window wait for a rare full collection; no crash, no leak without bound, no temp-file leftovers. Suggested: collect (generation 2) when a top-level dialog closes, from the GUI thread. Also: the gc_guard docstring's "the timer tick is the only thing Qt is delivering to" is not true inside a nested event loop (exec(), processEvents); theoretical, not reproduced.
-- where: `core/gc_guard.py`.
+- status: FIXED
+- found by: beta 44 challenge round 9 (`~/Desktop/ChromIQ-beta44-proof/challenge-9/gc-soak/`).
+- fix: the GUI thread's collector (`core/gc_guard.py`) notes which top-level dialogs are on screen at each tick (their C++ addresses, no reference held) and, when one it saw is gone, collects all generations (`gc.collect()`) from that tick: queued to the timer, never inside the close or any event delivery (B8-1392's rule). The docstring now states the nested-event-loop limit round 9 raised.
+- measured on screen (`~/Desktop/ChromIQ-beta45-proof/batch1/1400/`, Preferences opened and cancelled 10 times, live widgets 1.5 s after each close): before 3,940 → 9,810, rising 1,174 per window, no generation-2 collection; after 2,766 or 3,940 at every sample (flat, one window's widgets at most still waiting), 10 generation-2 collections, 11 to 37 ms each.
+- tests: tests/test_b8_1400_a_closed_dialog_is_collected.py, tests/test_b8_1392_no_collection_inside_event_delivery.py; mutations M1400-a to M1400-c (`~/Desktop/ChromIQ-beta45-proof/batch1/mutations/m1400.txt`), each red.
+- evidence: test_a_closed_dialog_in_a_cycle_is_collected_at_the_next_tick, test_nothing_is_collected_while_no_dialog_closes, test_the_rule_holds_no_reference_to_what_it_watches
+- where: `core/gc_guard.py` (`_GuiThreadCollector.tick`, `a_dialog_closed`).
 
 ### B8-1401 · DEFERRED · "● modified" in Create Chart's frame line shares its symbol with the verification mark
 - blocks release: no

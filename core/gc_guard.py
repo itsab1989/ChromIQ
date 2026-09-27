@@ -35,6 +35,21 @@ of its event loop: then the only object Qt is delivering to is that timer.
 Everything that is garbage is still collected, a few hundred milliseconds
 later at most, and plain reference counting frees everything else at once as
 before.
+
+**A CLOSED DIALOG IS COLLECTED AT THE NEXT TICK, ALL GENERATIONS (B8-1400).**
+CPython's thresholds reach a generation-2 collection rarely, and a closed
+window left in a reference cycle waits for exactly that: challenge 9 of beta
+44 counted 9,927 live widgets after 15 Preferences cycles (about 1,170 per
+closed window), against about 3,100 with automatic collection. So the tick
+also looks at which top-level dialogs are on screen, and when one it saw
+last time is gone it runs ``gc.collect()``: queued to the timer, never inside
+the close itself.
+
+One limit, stated rather than assumed away: inside a NESTED event loop (a
+modal ``exec()``, a ``processEvents()`` call) the timer also fires, and there
+the object Qt is delivering to is the timer, but an outer delivery further
+down the stack may still be under way. Not reproduced; the tick is the
+narrowest place there is.
 """
 from __future__ import annotations
 
@@ -88,13 +103,43 @@ def _make_collector(app):
             self.timer.timeout.connect(self.tick)
             self.timer.start()
 
+            #: The C++ addresses of the top-level dialogs that were on
+            #: screen at the last tick (B8-1400): ints, so this rule keeps
+            #: no Python reference to any dialog between ticks.
+            self._open_dialogs: "set[int]" = set()
+
         def tick(self) -> None:
             # somebody's restore switched it back on (an import guard, a
             # test): off again, or the next allocation inside an event
             # collects there
             if gc.isenabled():
                 gc.disable()
+            if self.a_dialog_closed():
+                # B8-1400: A CLOSED DIALOG IS COLLECTED NOW, ALL GENERATIONS.
+                # A closed Preferences window left in a reference cycle is
+                # some 1,170 widgets that only a generation-2 collection
+                # frees, and CPython's thresholds reach one rarely: challenge
+                # 9 of beta 44 counted 9,927 live widgets after 15 cycles.
+                # Still from this timer, so still never inside Qt's delivery
+                # of an event (B8-1392): Qt is delivering to the timer.
+                gc.collect()
+                return
             collect_if_due()
+
+        def a_dialog_closed(self) -> bool:
+            """Whether a top-level dialog on screen at the last tick is gone
+            from the screen now (closed, hidden or deleted)."""
+            try:
+                from PyQt6 import sip
+                from PyQt6.QtWidgets import QApplication, QDialog
+                now = {sip.unwrapinstance(w)
+                       for w in QApplication.topLevelWidgets()
+                       if isinstance(w, QDialog) and w.isVisible()}
+            except Exception:      # noqa: BLE001 — a collector never raises
+                return False
+            gone = bool(self._open_dialogs - now)
+            self._open_dialogs = now
+            return gone
 
     return _GuiThreadCollector(app)
 
