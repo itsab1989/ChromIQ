@@ -2,20 +2,24 @@
 
 ## v4.3.0-beta.45
 
-**A reopened project builds the chart it was built as, the evenness figures are true for every chart, metric names match the Report Limits window, and "drift" is gone from every text.**
+**A reopened project builds the chart it was built as, evenness takes the measurement noise out and has new limits, the ISO evenness figures are converted to ChromIQ's method, metric names match the Report Limits window, and "drift" is gone from every text.**
 
 ### Changed
 
 - With the paper filter on, "Custom…" lists every Custom-paper preset, plus the presets of the named paper its size equals, in either orientation.
 - The note under both preset lists ends ", or click here" with the gear, which opens "Settings for built-in presets"; that window's OK is now "Apply & save".
 - In Preferences > Chart Layout, the clip-border note keeps only its first sentence.
-- "Which presets can be used for verification" gives an evenness metric's numbers: how many patches each ninth of the page holds and how many the limit needs, and which pages the report does not count (a partly filled last page, for example). Every chart is judged by the same rule, so one limit needs the same number for every chart.
+- Evenness across the sheet takes away what the measurement noise adds to a result on average before it is compared with the limit, so a result reads the unevenness itself. The noise that is left is still measured on the printed sheet, and a metric is judged only when it is below the limit.
+- New evenness limits, found from real printers: ChromIQ tight 1.5 and 1.0, ChromIQ default 1.8 and 1.2, Quick check 2.5 and 1.7, Custom ISO 12647-7 1.5 and 1.0, Custom ISO 12647-8 3.0 and 2.0. A limit you set yourself is kept.
+- The ISO 12647-7:2016 and ISO 12647-8:2021 values sets judge evenness with the standard's figures converted to ChromIQ's method (1.5 and 1.0, and 3.0 and 2.0), so a PASS means the sheet likely meets the standard. The Report Limits window marks these cells with a raised number and a note.
+- The evenness metrics' help names both metrics, explains the noise and how it is taken out, and says how to choose the two limits and how to convert a standard's figures.
+- "Which presets can be used for verification" says a chart whose pages meet the page rules can be judged on evenness, and that the report decides from the noise of the printed sheet. It no longer holds a chart back on an estimate of that noise.
 - The verification window judges a chart's device values as printtarg prints them, and no longer counts printtarg's padding patches.
 - Metric names in the report are exactly the labels of the Report Limits window, with "(within gamut)" after the name where it applies.
 - No text says "drift" any more, in the app or the demo projects, in any language; "change" is used instead.
 - The Build Profile tab's help with calibration on starts with the advice for anyone new to it: turn calibration mode off and use the simple 4-tab flow.
 - A greyed folder button keeps its tab's colour.
-- The demo projects have new evenness demonstrations on both sides of the line.
+- The demo projects' evenness demonstrations stand on both sides of the new limits. The two demo presets for the old noise estimate are gone.
 
 ### Fixed
 

@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-27, Knut #182 5855780690 (the evenness filter, converted ISO limits, the feature description): the two evenness rows' help, their relation guide, three set blurbs, the Report Limits note on the converted cells and the presets window's "can be judged" line, 6 keys replaced and 6 new. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1471 (beta 45 challenge 2, F2): the presets window's evenness sentence on a chart whose last page the report leaves out says "the same ninth of {pages} of the chart's {total} pages" instead of "all {pages} pages", and names the page left out in the report's own (already translated) words: 2 keys in, none out. And Knut's #182 5853818821: the Build Profile tab's calibration help moves its advice for newcomers early, 1 key replaced by 1 (German by hand; the twelve others carried the English before and after, so it does not move a count). German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1460 (on top of B8-1451): an older chart whose patch set targen could not be asked about keeps it, and says so in Create Chart's log (M-PATCHSET-KEPT-UNCHECKED, §M-PROPOSED), 2 keys in (title and body), none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1451: the presets window's evenness sentence names the counts the report pools over every page and one needed count per limit: the two K61 keys (one patch / many, "about {need}") out, four in (one page or several, ninths equal or not, "at least {need}"). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 2, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
@@ -1497,17 +1498,17 @@ _IDENTICAL_TO_KEY = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 141,
-    "es": 1484,
-    "fr": 1506,
-    "it": 1495,
-    "ja": 1470,
-    "nl": 1509,
-    "no": 1495,
-    "pl": 1488,
-    "pt": 1486,
-    "ru": 1458,
-    "sv": 1496,
-    "zh_CN": 1464,
+    "es": 1490,
+    "fr": 1512,
+    "it": 1501,
+    "ja": 1476,
+    "nl": 1515,
+    "no": 1501,
+    "pl": 1494,
+    "pt": 1492,
+    "ru": 1464,
+    "sv": 1502,
+    "zh_CN": 1470,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1536,8 +1537,8 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 1636,
-    "uk": 1636,
+    "uk": 1642,
+    "uk": 1642,
 }
 
 

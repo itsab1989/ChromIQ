@@ -352,19 +352,22 @@ def test_the_star_follows_rule_4_with_knuts_modifications(tmp_path,
     assert not ok(chart, 308, 2)
 
 
-def test_evenness_counts_under_the_loosest_limit_of_any_set():
-    """The star is a property of the chart: the evenness rows are asked
-    under the loosest limit any set puts on them (1.5 and 2.0), the
-    pre-flight's set-independent question.
+def test_evenness_counts_whatever_the_limit():
+    """The star is a property of the chart: its pages meet the page rules.
+    Until beta 45 the evenness rows were asked under the loosest limit any
+    set puts on them, against the estimated noise of a typical print. Since
+    Knut's filter (#182 5855780690, the presets-window text he accepted) no
+    window withholds a row on that estimate, so no limit moves the answer.
 
-    MUTATION, proven red: use ChromIQ default's 1.0 on the from-the-mean
-    row in `evenness_answered`."""
+    MUTATION, proven red: put the `evenness_withheld` step back into
+    `evenness_answered`, and ChromIQ tight's 1.0 refuses the second call."""
     v = _values(evenness=(1.2, 1.4))
     for rid in MR.EVENNESS_ROWS:
         v[rid]["noise_p95"] = 1.2
     assert PE.evenness_answered(v)
-    assert not PE.evenness_answered(v, CS.effective_limits("chromiq_default",
-                                                          {}))
+    assert PE.evenness_answered(v, CS.effective_limits("chromiq_tight", {}))
+    v = _values(evenness=(None, 1.4))
+    assert not PE.evenness_answered(v)
 
 
 def test_the_star_line_says_the_rule_and_the_constants_agree():

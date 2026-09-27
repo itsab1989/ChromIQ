@@ -178,6 +178,39 @@ def _solids_reason() -> str:
     return M.M_VERIFY_SOLIDS_REASON.render()[1]
 
 
+def evenness_judged_line(n: int = 1) -> str:
+    """What the window says of an evenness row a chart can be judged on.
+
+    Knut accepted this text (#182 5855780690, the presets-window text of
+    5855451413 section 6): a chart that meets the page rules can be judged,
+    the report takes the noise's average share out of the result, and the
+    rest of the noise, measured on the printed sheet, decides whether a
+    verdict is given. The window withholds nothing for noise any more
+    (`preset_eligibility.assess_rows`). *n* is how many of the two rows the
+    line stands under: the plural is the same text for both."""
+    if int(n) > 1:
+        return tr("This chart can be judged on these metrics. Before a "
+                  "result is compared with its limit, the report takes away "
+                  "what the measurement noise adds to it on average, so what "
+                  "remains is the unevenness itself. The noise also varies at "
+                  "random, and that part cannot be taken away: the report "
+                  "gives a verdict only when it is below the metric's limit "
+                  "on the printed sheet. How large it is depends on the "
+                  "printer, the paper, the instrument and the profile used, "
+                  "and it gets smaller with more patches in each ninth of the "
+                  "page, so the lower the limit, the more patches it takes.")
+    return tr("This chart can be judged on this metric. Before the result is "
+              "compared with the limit, the report takes away what the "
+              "measurement noise adds to it on average, so what remains is "
+              "the unevenness itself. The noise also varies at random, and "
+              "that part cannot be taken away: the report gives a verdict "
+              "only when it is below the metric's limit on the printed "
+              "sheet. How large it is depends on the printer, the paper, the "
+              "instrument and the profile used, and it gets smaller with more "
+              "patches in each ninth of the page, so the lower the limit, the "
+              "more patches it takes.")
+
+
 def noise_count_line(have: int, need: int, pages: int = 1,
                      low: "int | None" = None,
                      high: "int | None" = None,
@@ -667,8 +700,14 @@ def detail_lines(row: "PresetRow | None", *,
 
     if a.answered:
         out.append(Line(tr("This chart can answer"), bold=True))
-        out += [Line("✓  " + tr(PE.row_label(rid)), indent=6)
-                for rid in a.answered]
+        even = [rid for rid in a.answered if rid in MR.EVENNESS_ROWS]
+        for rid in a.answered:
+            out.append(Line("✓  " + tr(PE.row_label(rid)), indent=6))
+            # Knut's text (#182 5855780690), once, after the last evenness
+            # row this chart answers
+            if even and rid == even[-1]:
+                out.append(Line(evenness_judged_line(len(even)), info=True,
+                                indent=22))
     # K40-1: a metric whose page is still being laid out behind the scenes
     # is not one the chart "cannot answer" yet; it is listed on its own.
     working = [(rid, why) for rid, why in a.missing

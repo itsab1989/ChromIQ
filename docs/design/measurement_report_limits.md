@@ -137,6 +137,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §46 | K56: M-VERIFY-SOLIDS-REASON approved; the pre-flight's FROM PROFILE GAMUT paragraph revised as accepted; the opening of a report of raw sheets | 2026-09-26, 5848287278 | the answers (approval and two accepted texts) are Knut's; what was built (when each opening is given) NOT confirmed; four questions (B8-1380, B8-1381, B8-1383, B8-1384) and the analysis of "drift" (B8-1385) put to him |
 | §47 | K57: the "made for verification" mark is ● not ★; a Content chosen in Preferences with the clip border Off leaves it Off; a Content change in Create Chart reloads no other field | 2026-09-26, 5848511977, 5848514529 | the rulings are Knut's; what was built (B8-1387, B8-1388; B8-1389 verified) NOT confirmed |
 | §50 | K61: every quoted metric name is the Report Limits label exactly, "(within gamut)" after it; the presets window names the patches in a ninth and about how many the limit takes; the window judges a laid-out preset on the values printtarg prints; noise-floor demo pairs (R18, R19) and runs (Evenness run9, run10) | 2026-09-27, 5851645723 | the requests are Knut's (Confirmed); what was built NOT confirmed (50.2 to 50.4); two questions open (B8-1447, B8-1448) |
+| §51 | K62: Knut's high-pass filter on both evenness rows; the limits derived from real printers (tight 1.5 / 1.0, default 1.8 / 1.2, quick 2.5 / 1.7, Custom ISO 12647-7 1.5 / 1.0, Custom ISO 12647-8 3.0 / 2.0); the locked ISO sets' evenness figures converted (1.5 / 1.0, 3.0 / 2.0) with a note in Report Limits; the three conversion factors and the ratio guide in the help; the presets window's "can be judged" text | 2026-09-27, 5855259490; 5855780690 | the rulings and texts are Knut's (Confirmed); what was built from them NOT confirmed |
 | §49 | K59: option C for a sheet printed raw (INFO with a numbered note where relevant, N-A with its note, the raw print named once under "Judged against"); "drift" not used in the report, its graphs, guide, help, window or PDF; "Change since the previous raw check"; the raw openings Knut chose (conditional form, plural, Report Scope sentence), true of exactly the rows judged; the mixed opening without "drift"; the two FROM PROFILE GAMUT state lines | 2026-09-26, 5849392788; 5850164956 | the answers are Knut's (Confirmed); the fourteen texts APPROVED by Knut in 5850164956 (Confirmed); K60, his answers D1 to D3 (Confirmed) and what was built from them (NOT confirmed, 49.6); one gap left (B8-1396) |
 | §48 | K58: the ChromIQ branding's wordmark at the end of the clip border, like the Notes box, for Side Left/Right x Flip 180 Off/On, the text in the box beyond it | 2026-09-18 5730034611, 2026-09-26 5848747795 | the design is Knut's; what was built (B8-1390) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
@@ -3250,6 +3251,13 @@ For one measured sheet:
    left", because which way up a strip runs depends on the instrument.
 
 ### 16.2 The rows, the limits, the heading
+
+> **The numbers below are SUPERSEDED by §51 (Knut, #182 5855780690,
+> 2026-09-27):** tight 1.5 / 1.0, default 1.8 / 1.2, quick 2.5 / 1.7,
+> Custom ISO 12647-7 1.5 / 1.0, Custom ISO 12647-8 3.0 / 2.0, and the two
+> read-only ISO columns their standard's figures converted (1.5 / 1.0 and
+> 3.0 / 2.0), all on the filtered numbers. The reason the two limits
+> differ, below, still holds.
 
 The two ids are **kept** (`outer_gamut_226` is the precedent): a run's stored
 limits, a saved verdict and a licence holder's values file key on them. They
@@ -9449,6 +9457,11 @@ where it is not ("Average ΔE00, all patches (within gamut)" in Report Results,
 the Overview, How to read, the notes and the graph legends). This supersedes
 the glued form of §26 (K31), "Average ΔE00, all patches within gamut".
 
+> **50.3 and 50.6 are SUPERSEDED in the window by §51 (Knut, #182
+> 5855780690):** no window withholds an evenness row on the estimated
+> noise of a typical print any more, so the count sentences are not
+> shown; the report's own noise rule is unchanged.
+
 **50.3 What the detection found (B8-1440).** The 648-patch i1Pro page meets
 both floors (24 strips by 27 rows, 69 % covered, 72 patches in every ninth).
 Under the ISO 12647-7:2016 value of 0.5 between two areas, a typical print's
@@ -9496,3 +9509,107 @@ weighs them". The §16.6 i1Pro 3 Plus verdicts do not move.
 
 **Status:** the requests are Knut's (Confirmed); what was built NOT confirmed;
 two questions open.
+
+## 51. K62: the evenness filter, the limits from real printers, the converted ISO figures, the guide to choosing limits (#182, 2026-09-27, beta 45)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-27, #182
+[5855259490](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5855259490)
+and
+[5855780690](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5855780690),
+for exactly the rulings and texts quoted here. They answer the analysis of
+5854662899, 5855299199 and its repost 5855451413. What was built from them is
+in 51.2 and waits for his confirmation.
+
+**51.1 The rulings, verbatim.**
+
+* The filter: *"I vote for implementing the filter, as you have shown that it
+  works... The limits we find the best fit (plus a reasonable margin) must take
+  this into account."* (5855259490)
+* The two help texts of 5855259490 (the noise, the water level) *"are
+  accepted"*, and in 5855780690: *"The texts are accepted, given they are
+  corrected with any changes from above comments, if relevant."* (the feature
+  description of 5855451413 section 5 and the presets-window text of section
+  6, with limit numbers in the description: *"yes"*).
+* The limits: *"Use '2.5 / 1.7 (recommended): it tolerates lower-end
+  printers.' for the Quick limit set."*, *"Use the new recommended limits in
+  the table under '3. The recommended limits'"* (tight 1.5 / 1.0, default
+  1.8 / 1.2), *"Custom ISO 12647-8, with quick B"* (3.0 / 2.0).
+* The conversion: *"Three conversion factors must be defined: 1. The
+  conversion factor between the two metrics in ChromIQ ... 2. The factor for
+  the metric the standard uses ... converted to ChromIQ value, one for each of
+  the two metrics in ChromIQ. ... This should be visible in the help text."*;
+  *"The help text must explain what 'maximum difference from the average' is
+  and that it comes from the standard, and what that value is for the two
+  standards, so a user knows the reference used."*; the guide: *"Ok"*.
+* The locked ISO sets: *"the whole point of defining the conversion factors
+  is that the limits must be changed so that thresholds given by the standard
+  are set to fit the ChromIQ metric method, and that the help text explains
+  this, so that a PASS still is deemed as a likely compliance to the
+  standards required metric. So use the converted values. To make this more
+  visible in the Report Layout window, maybe add a superscript number
+  reference that points to a note that explains this in the window."*
+* Weighting by how well the profile knows each colour, and identical colours
+  in every ninth: *"this can wait for later. Uncertain if that shall be added
+  later at all"*.
+
+### ⏳ Awaiting confirmation: what was built from them
+
+**Confirmed by:** *nobody yet.*
+
+**51.2 Built.**
+
+* **The filter** (`measurement_report._filtered_nine`, `_within_variance`):
+  from each squared ΔE00 between two areas, `σ²(1/n_i + 1/n_j)` is taken away,
+  and from each area's squared ΔE00 to the plain mean of the nine,
+  `σ²((1/n_i)(1 - 2/9) + Σ(1/n)/81)`, with σ² the pooled scatter inside the
+  nine areas weighted into ΔE00 near neutral grey (1, 2.25, 1 for L\*, a\*,
+  b\*); the root of what is left, never below zero. The shuffle noise runs the
+  same filter. A saved block carries `"filter": "noise_average_removed"`, the
+  unfiltered figures and the scatter, so a report saved before it is told
+  apart. The pre-print model's multipliers are 6.35 and 3.73 (were 6.99 and
+  4.21).
+* **The limits** (`compliance_sets._CHROMIQ_FACTORY`, `_CUSTOM_INDUSTRY`):
+  tight 1.5 / 1.0, default 1.8 / 1.2, quick 2.5 / 1.7, Custom ISO 12647-7
+  1.5 / 1.0, Custom ISO 12647-8 3.0 / 2.0. Every pair keeps "between two
+  areas" at about 1.5 times "one area against the whole sheet", inside the
+  1.125 to 2 in which both rows can fail on their own. A value the user set
+  keeps winning over the factory number; a report keeps the limits it was
+  made with.
+* **The conversion** (`compliance_sets.convert_iso_evenness`): the standard
+  deviation times 2, and the standard's own maximum difference from the
+  average as it is, the stricter for the second row; the standard deviation
+  times 3 for the first row, brought to 1.5 times the second where it falls
+  outside 1.125 to 2 times it. Applied in `factory_limits` to whatever file
+  supplies a read-only ISO column, the shipped one or a licence holder's own;
+  the file keeps the standard's figures. ISO 12647-7:2016 (0.5, 2.0) reads
+  1.5 / 1.0; ISO 12647-8:2021 (1.5, 2.0) reads 3.0 / 2.0.
+* **Report Limits**: a raised ⁴ after the two evenness cells of each
+  read-only ISO column, and a note under the table naming each standard's
+  two figures and what they became. The recommendation mark became ⁵.
+* **The help texts**: the feature description split over the rows' four
+  help parts (what the metric is, how the sheet is divided and what the
+  filter does, what to do, how to choose the two limits and convert a
+  standard's figures), with the three factors, the ratio guide, both
+  standards' figures and every set's starting pair; the quick set's and the
+  two ISO sets' one-line descriptions say what their evenness limits are.
+* **The presets window**: under the evenness rows a chart answers, Knut's
+  text *"This chart can be judged on this metric. ..."* (the plural,
+  *"on these metrics"*, where both are answered, is the same text for two
+  rows and is his to confirm). No window withholds an evenness row on the
+  estimated noise of a print that does not exist yet
+  (`preset_eligibility.assess_rows`); the report alone does, from the noise
+  it measures. This supersedes the window verdicts of §16.6 (the one-page
+  i1Pro 3 Plus A4 and Letter charts now answer both rows) and the count
+  sentences of §50.3 and §50.6, and it took the demo pack's R18 and R19 out.
+
+**Verified by:** `tests/test_evenness_filter_and_converted_limits.py`, and
+the retargeted guards in `test_evenness_across_the_sheet.py`,
+`test_b8_1451_evenness_counts_are_true_and_consistent.py`,
+`test_beta38_i1pro3plus_evenness.py`, `test_k61_labels_and_evenness_counts.py`,
+`test_the_demo_presets_pair_on_every_requirement.py`. **Proof:**
+`~/Desktop/ChromIQ-beta45-proof/evenness-build/`.
+
+**Status:** the rulings and texts are Knut's (Confirmed); what was built NOT
+confirmed.

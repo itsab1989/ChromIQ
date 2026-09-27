@@ -427,9 +427,15 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ]),
     ("§50", "K61:", [
         "Report-Limits-Evenness/run1, Run type Verification: New report…, all four dates, Full colour check, Custom ISO 12647-7: every quoted name under the graphs, in Report Results, How to read, the Overview and the notes is the Report Limits label, and “(within gamut)” follows it (B8-1442)",
-        "Report-Limits-Evenness/run9: Knut's 648-patch page as a typical print, judged against ChromIQ default and read N-A for its noise against ISO 12647-7:2016 values (B8-1440)",
-        "Report-Limits-Evenness/run10: the measured noise one notch over and under both of ChromIQ default's limits (B8-1446)",
-        "Create Chart presets (verification demos): “Which presets can be used for verification?”, Full colour check, Custom ISO 12647-7: R18 and R19, the noise floor of the two evenness rows, the pane naming the patches in each ninth and about how many the limit takes; R04, R06, R07, R11 and R17 as a 16-bit page prints them (B8-1440, B8-1443, B8-1445, B8-1446)",
+        "Report-Limits-Evenness/run9: Knut's 648-patch page as a typical print, judged against every limit set since the filter of §51 (B8-1440, B8-1476)",
+        "Report-Limits-Evenness/run10: the measured noise one notch over and under both of ChromIQ default's limits (B8-1446, retargeted by B8-1476)",
+        "Create Chart presets (verification demos): “Which presets can be used for verification?”, Full colour check, Custom ISO 12647-7: R04, R06, R07, R11 and R17 as a 16-bit page prints them (B8-1440, B8-1443, B8-1445)",
+    ]),
+    ("§51", "K62:", [
+        "Report-Limits-Evenness/run1, Run type Verification: New report…, ChromIQ default: the evenly printed sheet reads close to zero on both evenness rows, the change across the strips fails the pairwise row first and the one lighter area the from-the-mean row, all with the noise's average share taken out (B8-1476)",
+        "Report-Limits-Evenness/run10: the measured noise one notch over and under ChromIQ default's 1.8 and 1.2 (B8-1476)",
+        "not a project: Report Limits: the raised 4 after the two evenness cells of the ISO 12647-7:2016 and ISO 12647-8:2021 values columns, and its note under the table; the (i) of either evenness row: the description, the three conversion factors and both standards' figures (B8-1476)",
+        "Create Chart presets: “Which presets can be used for verification?”, any preset whose pages meet the page rules: “This chart can be judged on these metrics.” under the two evenness rows (B8-1476)",
     ]),
 ]
 

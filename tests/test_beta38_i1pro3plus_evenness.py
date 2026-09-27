@@ -18,12 +18,15 @@ build below):
 * every page covers 64.6 % (Letter), 65.3 % (A4) or 74.7 % (A3) of the
   paper, all over 60 %, so coverage refuses none of them;
 * the two 84-patch charts are refused by the grid (7 strips);
-* the one-page A4 (154) and Letter (143) charts pass both floors but hold
-  12 to 30 patches in a ninth (15 and 14 as the noise weighs them, B8-1451),
-  and a typical print's own noise (2.0 / 1.2) is over ChromIQ default's
-  1.5 / 1.0, so they are refused by the noise rule;
+* the one-page A4 (154) and Letter (143) charts pass both floors and hold
+  12 to 30 patches in a ninth (15 and 14 as the noise weighs them, B8-1451).
+  Until beta 45 a typical print's own noise on them was over ChromIQ
+  default's limits and the window refused them. Since Knut's filter (#182
+  5855780690, the presets-window text he accepted) no window withholds a row
+  on the estimated noise of a print that does not exist yet: they answer
+  both rows, and the report decides from the noise of the printed sheet;
 * every chart of two pages or more answers both rows, and so does the
-  one-page A3 (35 to 42 patches in a ninth, noise 1.27 / 0.76).
+  one-page A3 (35 to 42 patches in a ninth).
 
 Every test names the mutation it was run against.
 """
@@ -55,29 +58,29 @@ NOISE = (MR.REASON_EVENNESS_NOISY_PAIRWISE, MR.REASON_EVENNESS_NOISY_FROM_MEAN)
 #:          0.83 now)
 FAMILY = {
     "p3_a4_84p_1page_portrait_w25_0mm": (7, 12, 1, 65.4, None),
-    "p3_a4_154p_1page_portrait_w16_0mm": (11, 14, 1, 65.3, (1.99, 1.19)),
-    "p3_a4_308p_2pages_portrait_w16_0mm": (11, 14, 2, 65.3, (1.38, 0.83)),
-    "p3_a4_462p_3pages_portrait_w16_0mm": (11, 14, 3, 65.3, (1.14, 0.68)),
-    "p3_a4_616p_4pages_portrait_w16_0mm": (11, 14, 4, 65.3, (0.98, 0.59)),
-    "p3_a4_924p_6pages_portrait_w16_0mm": (11, 14, 6, 65.3, (0.80, 0.48)),
-    "p3_a4_1232p_8pages_portrait_w16_0mm": (11, 14, 8, 65.3, (0.69, 0.41)),
-    "p3_a4_1540p_10pages_portrait_w16_0mm": (11, 14, 10, 65.3, (0.62, 0.37)),
-    "p3_a4_2002p_13pages_portrait_w16_0mm": (11, 14, 13, 65.3, (0.54, 0.33)),
+    "p3_a4_154p_1page_portrait_w16_0mm": (11, 14, 1, 65.3, (1.80, 1.06)),
+    "p3_a4_308p_2pages_portrait_w16_0mm": (11, 14, 2, 65.3, (1.25, 0.74)),
+    "p3_a4_462p_3pages_portrait_w16_0mm": (11, 14, 3, 65.3, (1.03, 0.60)),
+    "p3_a4_616p_4pages_portrait_w16_0mm": (11, 14, 4, 65.3, (0.89, 0.52)),
+    "p3_a4_924p_6pages_portrait_w16_0mm": (11, 14, 6, 65.3, (0.72, 0.42)),
+    "p3_a4_1232p_8pages_portrait_w16_0mm": (11, 14, 8, 65.3, (0.63, 0.37)),
+    "p3_a4_1540p_10pages_portrait_w16_0mm": (11, 14, 10, 65.3, (0.56, 0.33)),
+    "p3_a4_2002p_13pages_portrait_w16_0mm": (11, 14, 13, 65.3, (0.49, 0.29)),
     "p3_letter_84p_1page_portrait_w25_0mm": (7, 12, 1, 64.7, None),
-    "p3_letter_143p_1page_portrait_w16_0mm": (11, 13, 1, 64.6, (2.06, 1.24)),
-    "p3_letter_286p_2pages_portrait_w16_0mm": (11, 13, 2, 64.6, (1.43, 0.86)),
-    "p3_letter_429p_3pages_portrait_w16_0mm": (11, 13, 3, 64.6, (1.16, 0.70)),
-    "p3_letter_572p_4pages_portrait_w16_0mm": (11, 13, 4, 64.6, (1.00, 0.60)),
-    "p3_letter_858p_6pages_portrait_w16_0mm": (11, 13, 6, 64.6, (0.82, 0.49)),
-    "p3_letter_1144p_8pages_portrait_w16_0mm": (11, 13, 8, 64.6, (0.71, 0.42)),
-    "p3_letter_1430p_10pages_portrait_w16_0mm": (11, 13, 10, 64.6, (0.63, 0.38)),
-    "p3_letter_2002p_14pages_portrait_w16_0mm": (11, 13, 14, 64.6, (0.54, 0.32)),
-    "p3_a3_336p_1page_portrait_w16_0mm": (16, 21, 1, 74.7, (1.27, 0.76)),
-    "p3_a3_672p_2pages_portrait_w16_0mm": (16, 21, 2, 74.7, (0.90, 0.54)),
-    "p3_a3_1008p_3pages_portrait_w16_0mm": (16, 21, 3, 74.7, (0.73, 0.44)),
-    "p3_a3_1344p_4pages_portrait_w16_0mm": (16, 21, 4, 74.7, (0.63, 0.38)),
-    "p3_a3_1680p_5pages_portrait_w16_0mm": (16, 21, 5, 74.7, (0.57, 0.34)),
-    "p3_a3_2016p_6pages_portrait_w16_0mm": (16, 21, 6, 74.7, (0.52, 0.31)),
+    "p3_letter_143p_1page_portrait_w16_0mm": (11, 13, 1, 64.6, (1.87, 1.10)),
+    "p3_letter_286p_2pages_portrait_w16_0mm": (11, 13, 2, 64.6, (1.30, 0.76)),
+    "p3_letter_429p_3pages_portrait_w16_0mm": (11, 13, 3, 64.6, (1.05, 0.62)),
+    "p3_letter_572p_4pages_portrait_w16_0mm": (11, 13, 4, 64.6, (0.91, 0.53)),
+    "p3_letter_858p_6pages_portrait_w16_0mm": (11, 13, 6, 64.6, (0.74, 0.43)),
+    "p3_letter_1144p_8pages_portrait_w16_0mm": (11, 13, 8, 64.6, (0.64, 0.38)),
+    "p3_letter_1430p_10pages_portrait_w16_0mm": (11, 13, 10, 64.6, (0.57, 0.34)),
+    "p3_letter_2002p_14pages_portrait_w16_0mm": (11, 13, 14, 64.6, (0.48, 0.28)),
+    "p3_a3_336p_1page_portrait_w16_0mm": (16, 21, 1, 74.7, (1.15, 0.68)),
+    "p3_a3_672p_2pages_portrait_w16_0mm": (16, 21, 2, 74.7, (0.81, 0.48)),
+    "p3_a3_1008p_3pages_portrait_w16_0mm": (16, 21, 3, 74.7, (0.66, 0.39)),
+    "p3_a3_1344p_4pages_portrait_w16_0mm": (16, 21, 4, 74.7, (0.57, 0.34)),
+    "p3_a3_1680p_5pages_portrait_w16_0mm": (16, 21, 5, 74.7, (0.51, 0.30)),
+    "p3_a3_2016p_6pages_portrait_w16_0mm": (16, 21, 6, 74.7, (0.47, 0.28)),
 }
 
 #: What "Which presets can be used for verification?" says of each preset's
@@ -86,8 +89,6 @@ FAMILY = {
 REFUSED = {
     "p3_a4_84p_1page_portrait_w25_0mm": (GRID, GRID),
     "p3_letter_84p_1page_portrait_w25_0mm": (GRID, GRID),
-    "p3_a4_154p_1page_portrait_w16_0mm": NOISE,
-    "p3_letter_143p_1page_portrait_w16_0mm": NOISE,
 }
 
 
@@ -160,10 +161,10 @@ def test_each_presets_estimated_noise_on_a_typical_print(slug):
 
 @pytest.mark.parametrize("slug", sorted(FAMILY))
 def test_a_one_page_i1pro3plus_chart_fails_and_a_multi_page_one_answers(slug):
-    """Knut's E4 expectation, as shipped at 60 %: the one-page A4 and Letter
-    charts cannot be judged (the 84-patch ones for their grid, the 154 and
-    143 for the noise of a typical print), every chart of two pages or more
-    answers both rows, and so does the one-page A3.
+    """Knut's E4 expectation, as shipped at 60 %, and since his filter (#182
+    5855780690): the two 84-patch charts cannot be judged (their grid); every
+    other chart answers both rows, the one-page 154 and 143 included, because
+    the window no longer withholds a row on the estimated noise.
 
     MUTATION: put `EVENNESS_MIN_PAGE_COVERAGE` back to 0.75 and every preset
     past the grid reads "cover at least 75 %"; this goes red on 22."""
@@ -177,13 +178,14 @@ def test_a_one_page_i1pro3plus_chart_fails_and_a_multi_page_one_answers(slug):
 
 
 def test_the_family_splits_four_refused_twenty_answering():
-    """The count the register quotes (B8-829): 4 of the 24 refused, all four
-    one-page charts; the other 20 answer both rows.
+    """The count the register quoted (B8-829) was 4 of the 24 refused, all
+    four one-page charts. Since Knut's filter (#182 5855780690) it is 2: the
+    two 84-patch charts, for their grid; the other 22 answer both rows.
 
     MUTATION: put `EVENNESS_MIN_PAGE_COVERAGE` back to 0.75 and none answers."""
     answered = [p.slug for p in _presets()
                 if not ({PAIR, FROM_MEAN} & set(_missing(p)))]
-    assert len(answered) == 20
+    assert len(answered) == 22
     assert sorted(set(FAMILY) - set(answered)) == sorted(REFUSED)
     assert all(FAMILY[s][2] == 1 for s in REFUSED)
 

@@ -102,8 +102,10 @@ def test_the_new_sentences_are_german_by_hand():
 
 def test_a_demo_preset_the_page_table_cannot_count_takes_its_layouts(
         qapp, tmp_path, monkeypatch):
-    """R19's FAIL preset: printtarg at -a 1.5. `_preset_sheet_count` says 0
-    (no measured table for that scale); the window's own layout says 1."""
+    """R16's FAIL preset: printtarg at -a 0.80. `_preset_sheet_count` says 0
+    (no measured table for that scale); the window's own layout says 1.
+    (It was R19's at -a 1.5 until R19 left the pack with Knut's filter,
+    #182 5855780690.)"""
     import sys
     sys.path.insert(0, str(ROOT / "scripts"))
     import make_verification_preset_demos as D
@@ -112,7 +114,7 @@ def test_a_demo_preset_the_page_table_cannot_count_takes_its_layouts(
     from workflow.preset_layout import layout_for_user_preset
     built = D.build(tmp_path / "presets")
     demo, chart = next((d, c) for d, c in built
-                       if d.name.startswith("Verify R19 FAIL"))
+                       if d.name.startswith("Verify R16 FAIL"))
     data = D.payload(True, demo.scale)
     s = AppSettings()
     assert _preset_sheet_count(data, chart, s) == 0     # the cause

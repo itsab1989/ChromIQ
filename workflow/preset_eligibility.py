@@ -1267,14 +1267,14 @@ def assess_rows(chart: "str | Path | None",
     answered, missing, counts = [], [], []
     for rid in asked:
         v = values.get(rid) or {}
-        lim = (limits or {}).get(rid)
-        withheld = (MR.evenness_withheld(rid, v, lim) if limits else None)
-        if withheld:
-            missing.append((rid, withheld))
-            pair = noise_shortfall(rid, v, lim)
-            if pair is not None:
-                counts.append((rid, pair))
-        elif v.get("value") is not None:
+        # NO ROW IS WITHHELD ON AN ESTIMATE OF A PRINT THAT DOES NOT EXIST YET.
+        # Knut accepted (#182 5855780690, the presets-window text of
+        # 5855451413 section 6): a chart that meets the page rules can be
+        # judged on the two evenness rows, and whether the report gives a
+        # verdict depends on the noise measured on the printed sheet. The
+        # report alone withholds a row for its noise (`judge`,
+        # `MR.evenness_withheld`); *limits* no longer moves anything here.
+        if v.get("value") is not None:
             answered.append(rid)
         else:
             missing.append((rid, v.get("reason") or MR.REASON_NOT_COMPUTED))
@@ -1387,16 +1387,14 @@ PAPER_ROW = "substrate_de00_max"
 
 def evenness_answered(values: "dict[str, dict]",
                       limits: "dict | None" = None) -> bool:
-    """Whether both evenness rows have a value on this chart and neither is
-    withheld for the sheet's own noise, under *limits* (default: the loosest
-    limit any limit set puts on each row, :func:`loosest_limits`, the same
-    set-independent question the pre-flight asks)."""
-    limits = loosest_limits() if limits is None else limits
+    """Whether both evenness rows have a value on this chart: its pages meet
+    the page rules. *limits* is accepted for the callers that pass it and moves
+    nothing: since Knut's filter (#182 5855780690) no window withholds an
+    evenness row on the estimated noise of a print that does not exist yet
+    (:func:`assess_rows`)."""
     for rid in MR.EVENNESS_ROWS:
         v = values.get(rid) or {}
         if v.get("value") is None:
-            return False
-        if MR.evenness_withheld(rid, v, limits.get(rid)):
             return False
     return True
 

@@ -877,43 +877,15 @@ def test_the_pack_readme_sends_the_user_to_the_right_folder(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# K61: the noise floor of the two evenness rows, one pair per row
+# K61 gave the noise floor of the two evenness rows a pair each, R18 and R19.
+# Since Knut's filter (#182 5855780690) the window withholds no row on the
+# estimated noise, so the pack has no noise line to stand either side of:
+# `test_the_unreachable_four_really_are_unreachable_here` holds that no
+# preset reads either noise code in the window any more.
 # ---------------------------------------------------------------------------
-_NOISE_PAIRS = [(r, f, p) for r, f, p in _PAIRS if r.key in ("R18", "R19")]
-
-
-@pytest.mark.parametrize("req,fail,ok", _NOISE_PAIRS,
-                         ids=[r.key for r, _f, _p in _NOISE_PAIRS])
-def test_the_noise_pairs_straddle_their_line_on_a_page_that_meets_both_floors(
-        dialog, installed, req, fail, ok):
-    """K61 (Knut, #182 5851645723): *"Verify by test that all requirements
-    for all metrics are properly working and that the demo projects are able
-    to detect the threshold areas"*. Until beta 45 the noise floor had no
-    pair. Both sides of each pair are one page of at least 9 by 9, covering
-    at least 60 % of it (both floors met, read off the window's own layout),
-    so the only thing that moves is the estimated noise, which sits on each
-    side of the pair's limit, within 0.06 of it.
-
-    MUTATION, proven red: ``EVENNESS_TYPICAL_SIGMA = 1.0`` (every noise
-    falls by a tenth and both sides of each pair land under the line)."""
-    from core.preset_store import sidecar_path
-    from workflow import compliance_sets as CS
-    lim = CS.effective_limits(req.judged_with, {})
-    rid = req.rows[0]
-    for demo, over in ((fail, True), (ok, False)):
-        chart = sidecar_path("create_chart", demo.name, ".ti1")
-        ev = PE._estimated_evenness(chart, GEN.layout(chart), True)
-        assert ev.get("eligible"), (demo.name, ev.get("reason"))
-        assert len(ev["pages_used"]) == 1, ev["pages_used"]
-        strips, rows = ev["pages"][0]
-        assert min(strips, rows) >= IND["evenness_grid"], (strips, rows)
-        assert ev["coverage"][0] >= IND["evenness_coverage"], ev["coverage"]
-        cell = PE.chart_row_values(chart, GEN.layout(chart))[rid]
-        noise, limit = cell["noise_p95"], lim[rid].number
-        assert abs(noise - limit) < 0.06, (demo.name, noise, limit)
-        assert (noise >= limit) is over, (demo.name, noise, limit)
-        # B8-1451: one count either side of the model's line, which is the
-        # same for every chart under this limit
-        need = PE.model_need(MR.EVENNESS_ROWS[rid], limit)
-        assert cell["area_effective"] == (need - 1 if over else need), \
-            (demo.name, cell["area_effective"], need)
+def test_the_noise_pairs_left_the_pack():
+    """MUTATION, proven red: put R18 back into `REQUIREMENTS`."""
+    assert not {"R18", "R19"} & {r.key for r in GEN.REQUIREMENTS}
+    for code in (MR.REASON_EVENNESS_NOISY_PAIRWISE,
+                 MR.REASON_EVENNESS_NOISY_FROM_MEAN):
+        assert code in GEN.UNREACHABLE, code

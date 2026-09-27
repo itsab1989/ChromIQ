@@ -132,10 +132,27 @@ def test_the_solid_rows_are_one_group_with_the_reason_once(rows):
     assert lines.count(reason) == 1, lines
 
 
-def test_a_metric_with_a_reason_of_its_own_is_listed_on_its_own(rows):
+def test_a_metric_with_a_reason_of_its_own_is_listed_on_its_own(rows,
+                                                               tmp_path):
     """Partial overlaps are not merged: a metric whose reason no other
-    missing metric shares is a group of one, directly followed by it."""
-    for row in rows:
+    missing metric shares is a group of one, directly followed by it.
+
+    Until beta 45 the built-in presets carried such a metric (an evenness
+    row withheld for the estimated noise, with its own count sentence). Since
+    Knut's filter (#182 5855780690) no preset is withheld for that, and none
+    of them may carry one, so a chart missing a metric for a reason of its
+    own is made here, beside the two solid rows that share theirs."""
+    import workflow.measurement_report as MR
+    made = PVD.PresetRow(
+        group="g", label="made", chart=tmp_path / "x.ti1", patches=100,
+        pages=1, builtin=False, recipe=None,
+        assessment=PE.Assessment(
+            asked=tuple(PE.gamut_only_rows()) + ("worst5_de00_avg",),
+            answered=(),
+            missing=tuple((rid, MR.REASON_NEEDS_REFERENCE_FILE)
+                          for rid in PE.gamut_only_rows())
+            + (("worst5_de00_avg", MR.REASON_SMALL_SAMPLE),)))
+    for row in list(rows) + [made]:
         a = row.assessment
         said = {rid: PVD.reason_line(w, a.noise_count(rid))
                 for rid, w in a.missing}

@@ -149,7 +149,8 @@ def test_a_split_report_quotes_only_report_limits_labels(tmp_path, qapp, lang):
 # ---------------------------------------------------------------------------
 def test_the_count_is_derived_from_the_noise_and_the_limit():
     """72 patches in every ninth against 0.5 between two areas: the model
-    wants 238, whatever the chart (B8-1451; K61 said "about 220" off the
+    wants 196 on the filtered figure, whatever the chart (B8-1451; it was
+    238 before Knut's filter, #182 5855780690; K61 said "about 220" off the
     chart's own random draw).
 
     MUTATION, proven red: ``need = have * noise / limit`` (linear)."""
@@ -157,7 +158,7 @@ def test_the_count_is_derived_from_the_noise_and_the_limit():
     cell = {"area_effective": 72, "area_min": 72, "area_max": 72,
             "area_pages": 1}
     assert PE.noise_shortfall("uniformity_sd", cell, lim) == \
-        PE.NoiseCount(72, 238, 1, 72, 72)
+        PE.NoiseCount(72, 196, 1, 72, 72)
     assert PE.noise_shortfall("uniformity_sd", cell,
                               CS.Limit.none()) is None
     assert PE.noise_shortfall("uniformity_sd", {"area_min": 72}, lim) is None
@@ -165,7 +166,11 @@ def test_the_count_is_derived_from_the_noise_and_the_limit():
 
 def test_the_noise_falls_as_one_over_the_root_of_the_patches_in_a_ninth():
     """What `noise_shortfall` rests on, measured on the estimate itself:
-    four times the patches in a ninth, half the noise, within 10 %.
+    four times the patches in a ninth, half the noise, within 10 % between
+    two areas and within 20 % from the mean. Since Knut's filter (#182
+    5855780690) the figure is the difference with the noise's average share
+    taken out, whose tail at 36 patches in a ninth is a little heavier than
+    at 144 (2.21 measured on the smallest pair below).
 
     MUTATION, proven red: `evenness_from_residuals` dividing the area sums
     by the count squared."""
@@ -179,8 +184,8 @@ def test_the_noise_falls_as_one_over_the_root_of_the_patches_in_a_ninth():
         return b["noise_pairwise_p95"], b["noise_from_mean_p95"]
     for small, big in ((18, 36), (24, 48), (45, 90)):
         a, b = noise(small), noise(big)
-        for x, y in zip(a, b):
-            assert 1.8 < x / y < 2.2, (small, big, x, y)
+        for (x, y), lo, hi in zip(zip(a, b), (1.8, 1.7), (2.2, 2.4)):
+            assert lo < x / y < hi, (small, big, x, y)
 
 
 def test_the_window_names_both_numbers_not_too_few():
@@ -212,25 +217,25 @@ def _knuts_648():
 
 def test_knuts_648_page_under_iso_12647_7_and_chromiq_default(qapp):
     """Knut's case, through the window's own call: 24 strips by 27 rows, 72
-    in every ninth, 69 % covered. Under ISO 12647-7:2016 values the pairwise
-    row is withheld for the noise, with 72 and 238 (B8-1451); under ChromIQ
-    default it is answered.
+    in every ninth, 69 % covered. Until beta 45 the pairwise row was withheld
+    under ISO 12647-7:2016 values for a typical print's noise (72 against
+    238, B8-1451). Since Knut's filter and the converted ISO limits (#182
+    5855780690) the page rules decide in the window: both rows are answered
+    under ISO 12647-7 and ChromIQ default alike, with no count sentence.
 
-    MUTATION, proven red: `assess_rows` passing no limits to
-    `evenness_withheld` (answered under ISO 12647-7 too)."""
+    This pins Knut's own page; the rule itself is held by B8-1451's
+    `test_no_preset_is_withheld_for_the_estimated_noise_of_a_typical_print`.
+    MUTATION, proven red: a `factory_limits` that skips the ISO conversion
+    (0.5 again) together with the old withholding step in `assess_rows`."""
     chart, recipe = _knuts_648()
     ev = PE._estimated_evenness(chart, recipe, True)
     assert ev["pages"] == [[24, 27]] and set(ev["counts"]) == {72}
     assert ev["coverage"][0] >= MR.EVENNESS_MIN_PAGE_COVERAGE
-    iso = PE.assess(chart, MR.REPORT_TYPE_FULL, "iso_12647_7", recipe=recipe)
-    assert dict(iso.missing).get("uniformity_sd") == \
-        MR.REASON_EVENNESS_NOISY_PAIRWISE
-    have, need, pages, low, high = iso.noise_count("uniformity_sd")[:5]
-    assert (have, need, pages, low, high) == (72, 238, 1, 72, 72)
-    assert "uniformity_de00_max_from_mean" in iso.answered
-    cq = PE.assess(chart, MR.REPORT_TYPE_FULL, "chromiq_default",
-                   recipe=recipe)
-    assert "uniformity_sd" in cq.answered
+    for sid in ("iso_12647_7", "chromiq_default", "chromiq_tight"):
+        a = PE.assess(chart, MR.REPORT_TYPE_FULL, sid, recipe=recipe)
+        for rid in ("uniformity_sd", "uniformity_de00_max_from_mean"):
+            assert rid in a.answered, (sid, rid, a.missing)
+            assert a.noise_count(rid) is None, (sid, rid)
 
 
 # ---------------------------------------------------------------------------

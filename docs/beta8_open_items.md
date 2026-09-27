@@ -25272,7 +25272,7 @@ would reach.
   test_the_help_text_quotes_the_numbers_the_code_uses
   test_the_causes_note_is_customer_text
   test_the_report_names_the_area_by_the_labels_printed_on_it
-  test_a_laid_out_small_chart_is_told_its_noise_would_be_too_high
+  test_a_laid_out_small_chart_that_meets_the_page_rules_can_be_judged
   test_a_preset_not_laid_out_yet_says_so_and_keeps_its_star
   test_the_estimate_reproduces_the_real_sheets_noise
   test_the_predicted_grid_is_the_grid_the_engine_builds
@@ -30155,7 +30155,7 @@ would reach.
 - note: Measured first (`k51/star-data/`): with the evenness rows in the star no one-page i1Pro 3 Plus preset on A4 or Letter answers them (84: grid under 9 by 9; 143, 154: noise over 1.5), only A3 (336); the two-page ones do (A4 308, Letter 286). Built: at most two pages, fewer than 900 patches, laid out again, a paper patch, no patch shortfall, both evenness rows answered under the loosest limits (`evenness_answered`). Starred: 48 before, 36 after (i1Pro 15 to 8, i1Pro 3 Plus 5 to 4, ColorMunki 14 to 13, CR30 14 to 11); the two-page rule is put to Knut. The ★ line and both help cards say the rule; German by hand, Du-Form.
 - where: `workflow/preset_eligibility.py` (`VERIFICATION_MAX_PAGES`, `VERIFICATION_PATCHES_UNDER`, `made_for_verification`, `evenness_answered`), `ui/dialogs/preset_verification_dialog.py`, `ui/dialogs/welcome_dialog.py`, `data/i18n/*.json`.
 - tests: tests/test_k51_rulings.py, tests/test_the_preset_window_says_what_a_chart_can_answer.py, tests/test_a_verification_preset_can_be_counted.py, tests/test_the_presets_window_sorts_within_each_group.py (amended)
-- evidence: test_the_star_follows_rule_4_with_knuts_modifications, test_evenness_counts_under_the_loosest_limit_of_any_set, test_the_star_line_says_the_rule_and_the_constants_agree, test_the_star_means_one_page_and_a_few_hundred_patches, test_the_page_count_is_what_decides_the_star
+- evidence: test_the_star_follows_rule_4_with_knuts_modifications, test_evenness_counts_whatever_the_limit, test_the_star_line_says_the_rule_and_the_constants_agree, test_the_star_means_one_page_and_a_few_hundred_patches, test_the_page_count_is_what_decides_the_star
 - proof: ~/Desktop/ChromIQ-beta44-proof/k51/ (star-data/, runs/*-star/)
 
 ### B8-1341 · FIXED, awaiting confirmation · The tooltip of Create Chart's presets button still says the star is "one printed page of a few hundred patches"
@@ -30644,29 +30644,33 @@ would reach.
 - tests: tests/test_the_demo_presets_pair_on_every_requirement.py, tests/test_a_verification_preset_can_be_counted.py
 - where: `scripts/make_verification_preset_demos.py`.
 
-### B8-1446 · FIXED, awaiting confirmation · The evenness noise floor had no demo on either side of its line
+### B8-1446 · SUPERSEDED · The evenness noise floor had no demo on either side of its line
 - blocks release: no
 - severity: MAJOR
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-1476
+- note: since Knut's filter (#182 5855780690) the presets window withholds no row on the estimated noise, so the preset pairs R18 and R19 left the pack; run9 and run10 of Report-Limits-Evenness stay, retargeted to the new limits (B8-1476).
 - found by: Knut, #182 5851645723 ("the demo projects are able to detect the threshold areas"): the two noise codes were in the preset pack's UNREACHABLE list ("shown by the built-in presets"), and the report's own noise line was shown only far from it (noise 0.2 or 1.8 against 1.5).
 - fix: two preset pairs, judged under Custom ISO 12647-7 (1.0 on both rows): R18, the pairwise row, 529 / 530 patches at -a 0.95 (a typical print's noise 1.026 / 0.988); R19, the from-the-mean row, 200 / 201 at -a 1.5 (1.030 / 0.985); both sides one page meeting both floors. `Requirement.judged_with`, `shown_under`. Report-Limits-Evenness gains run9 (Knut's 648-patch page as a typical print: judged under ChromIQ default, N-A for its noise under ISO 12647-7:2016 values) and run10 (the 837-patch chart, each sheet's scatter scaled until the report measures 1.53 / 1.47 between two areas and 1.03 / 0.97 from the mean). The L1 control stays at 650 patches; only its first page counts, so its pairwise noise sits on Custom ISO 12647-7's 1.0 and the pair tests hold it to the loosest limit (the star's question), where it is well under.
 - proof: on screen and simulated, the same answer on every pair and every date (`k61-report/COMPARE-screen-vs-simulation.txt`).
 - evidence: test_the_noise_pairs_straddle_their_line_on_a_page_that_meets_both_floors (M11 red), the pair tests, test_the_larger_control_answers_the_evenness_rows_too.
 - where: `scripts/make_verification_preset_demos.py`, `scripts/make_evenness_demo.py`, `scripts/make_release_demo_package.py`.
 
-### B8-1447 · OPEN · Question: the window estimates evenness noise on every patch, the report of a split sheet on the patches within the gamut
+### B8-1447 · SUPERSEDED · Question: the window estimates evenness noise on every patch, the report of a split sheet on the patches within the gamut
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- note: a question for Knut.
+- status: SUPERSEDED
+- superseded by: B8-1476
+- note: answered by the presets-window text Knut accepted (#182 5855780690): the window no longer judges a row on an estimate of the noise, so what the estimate counts no longer decides anything there.
 - found by: the K61 comparison. Knut's 648-patch page as a typical print: the window estimates 0.87 over all 648 patches; the report reads 1.02, because on a sheet split by the profile's gamut only the patches within it count (534 of 648 with Argyll's sRGB standing in for the profile). So under a limit of 1.0 the window says the row can be judged and that sheet's report does not judge it. The same split takes a 20-patch chart to 19 counted patches, and "Average ΔE00, highest 5 %" reads N-A in the report where the window answered it. Before printing there is no profile's gamut to ask for a preset; for the current chart of a run that has a profile there is. Not changed: whether the window should say "on the patches within the gamut the report may count fewer" or ask the run's profile is his call.
 - where: `workflow/preset_eligibility.py` (`_estimated_evenness`), `workflow/measurement_report.py` (`evenness_block(only_ids=…)`).
 
-### B8-1448 · OPEN · Question: ISO 12647-7's 0.5 between two areas needs about 2,000 patches under ChromIQ's method
+### B8-1448 · SUPERSEDED · Question: ISO 12647-7's 0.5 between two areas needs about 2,000 patches under ChromIQ's method
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- note: a question for Knut.
+- status: SUPERSEDED
+- superseded by: B8-1476
+- note: answered, Knut #182 5855780690: "So use the converted values." The read-only ISO columns judge evenness with the standard's figures converted to ChromIQ's method (1.5 / 1.0 and 3.0 / 2.0).
 - found by: B8-1440. ChromIQ's evenness compares every patch with its own aim, averaged per ninth (§16), so a typical print's noise is the profile's per-patch scatter shrunk by the count in a ninth. Under 0.5 that needs about 225 patches in a ninth; no preset in the window reaches it, so the row is never judged under the ISO 12647-7:2016 values on a verification chart. §16.5 E6 already records that a licence holder's figure for this row was written for a different statistic (one colour at nine places). Keep judging against 0.5, or leave the row "–" in the read-only ISO 12647-7 column?
 - where: `data/compliance_sets/iso12647.json`, `workflow/compliance_sets.py`.
 
@@ -30722,7 +30726,7 @@ would reach.
 - demos: R18 and R19 re-laid on the model's line (R18 544 / 545 patches at -a 0.95, counting as 59 / 60; R19 205 / 206 at -a 1.5, 21 / 22); Report-Limits-Evenness runs 9 and 10 are report demos and did not move. Pack rebuilt, `--verify` clean (`fixes-1a/pack-verify.txt`).
 - guard: `tests/test_b8_1451_evenness_counts_are_true_and_consistent.py`: the multipliers are the report's shuffle (re-measured); the effective count is the harmonic mean; on the uneven two-page page the model reads what the report's shuffle reads; each limit's need sits exactly on the rule's line; for every built-in preset under every choice of both report types, one need per choice, withheld exactly under it, answered never under it, and every number of every sentence equals the page grid's (per page, pooled over the pages the report reads).
 - tests: tests/test_b8_1451_evenness_counts_are_true_and_consistent.py, tests/test_k61_labels_and_evenness_counts.py, tests/test_beta38_i1pro3plus_evenness.py, tests/test_the_demo_presets_pair_on_every_requirement.py, tests/test_i18n.py, tests/test_help_cards_untranslated_are_tracked.py; mutations M1451-a to M1451-f (`~/Desktop/ChromIQ-beta45-proof/fixes-1a/mutations.txt`).
-- evidence: test_the_multiplier_is_the_reports_own_shuffle, test_the_effective_count_is_the_harmonic_mean_rounded_down, test_on_an_uneven_page_the_model_reads_what_the_report_reads, test_one_limit_gives_one_needed_count_and_the_line_is_exact, test_one_limit_one_need_and_answered_exactly_at_or_over_it, test_every_number_in_every_sentence_is_the_page_grids
+- evidence: test_the_multiplier_is_the_reports_own_shuffle, test_the_effective_count_is_the_harmonic_mean_rounded_down, test_on_an_uneven_page_the_model_reads_what_the_report_reads, test_one_limit_gives_one_needed_count_and_the_line_is_exact, test_no_preset_is_withheld_for_the_estimated_noise_of_a_typical_print
 - proof: `~/Desktop/ChromIQ-beta45-proof/fixes-1a/` (before/ and after/, EN and DE, NOTES.txt, TEXTS.txt).
 - where: `workflow/measurement_report.py` (`EVENNESS_NOISE_PER_ROOT_PATCH`, `evenness_effective_count`, `row_values`), `workflow/preset_eligibility.py`, `ui/dialogs/preset_verification_dialog.py` (`noise_count_line`, `reason_line`), `scripts/make_verification_preset_demos.py`, `scripts/k61_threshold_matrix.py`, `data/i18n/*.json`.
 
@@ -30829,7 +30833,7 @@ would reach.
 - fix: the report's row cell also carries the pages it leaves out and why (`area_pages_left`: small, uncovered, unmeasured, the report's own three), `NoiseCount.left_out` passes them on, and the sentence then reads "the same ninth of 8 of the chart's 9 pages together" and ends with the report's own sentence for each page left out ("The patches on page 9 cover 43.1 % of the page, less than 60 %, so it is not counted."). A chart whose every page is read says "all" as before. The model is unchanged. 2 keys in, German by hand; the twelve others English under the beta rule (+2 in both ledgers). The page sentences are the report's existing, already translated keys.
 - on screen: `fixes-2/texts/{before,after}-{en,de}/`: before "The report counts the same ninth of all 8 pages together."; after "…of 8 of the chart's 9 pages together. … The patches on page 9 cover 43.1 % of the page, less than 60 %, so it is not counted." German "…von 8 der 9 Seiten des Charts zusammen…".
 - tests: tests/test_b8_1471_to_1475_beta45_challenge2_texts.py, tests/test_b8_1451_evenness_counts_are_true_and_consistent.py (every withheld row of every built-in preset: the pages read plus the pages left out are the chart's pages, each left-out page is named); mutations M1471-a to M1471-c.
-- evidence: test_the_report_cell_carries_the_pages_it_leaves_out, test_red_rivers_nine_page_sentence_counts_eight_of_nine, test_each_reason_is_the_reports_own_sentence, test_a_chart_with_every_page_read_keeps_all, test_the_new_sentences_are_german_by_hand, test_every_number_in_every_sentence_is_the_page_grids
+- evidence: test_the_report_cell_carries_the_pages_it_leaves_out, test_red_rivers_nine_page_sentence_counts_eight_of_nine, test_each_reason_is_the_reports_own_sentence, test_a_chart_with_every_page_read_keeps_all, test_the_new_sentences_are_german_by_hand, test_no_preset_is_withheld_for_the_estimated_noise_of_a_typical_print
 - where: `workflow/measurement_report.py` (`row_values`, `_cov_of`), `workflow/preset_eligibility.py` (`NoiseCount.left_out`, `noise_shortfall`), `ui/dialogs/preset_verification_dialog.py` (`noise_count_line`, `_noise_count_body`, `_left_out_sentences`).
 
 ### B8-1472 · FIXED, awaiting confirmation · The -r tooltip still said drift in Dutch, Norwegian, Swedish and nine other languages
@@ -30875,3 +30879,21 @@ would reach.
 - tests: tests/test_b8_1471_to_1475_beta45_challenge2_texts.py; mutations M1475-a, M1475-b.
 - evidence: test_the_changelog_states_the_loaded_set_limit, test_the_changelog_says_which_language_the_help_is_in
 - where: `CHANGELOG.md`.
+
+### B8-1476 · FIXED, awaiting confirmation · Evenness: Knut's filter, the limits from real printers, the ISO figures converted, the guide to choosing limits
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5855259490 ("I vote for implementing the filter") and 5855780690 (the limits, the conversion factors, "use the converted values", the superscript note, the texts accepted), answering the analysis of 5854662899 and 5855451413.
+- fix: `measurement_report._filtered_nine` takes the noise's expected share out of every squared difference (between two areas `σ²(1/n_i + 1/n_j)`, against the mean `σ²((1/n_i)(1 - 2/9) + Σ(1/n)/81)`, σ² the pooled scatter inside the areas, weighted 1, 2.25, 1), and the shuffle runs the same filter; a saved block says `"filter": "noise_average_removed"` and keeps the unfiltered figures. Limits: tight 1.5 / 1.0, default 1.8 / 1.2, quick 2.5 / 1.7, Custom ISO 12647-7 1.5 / 1.0, Custom ISO 12647-8 3.0 / 2.0; `convert_iso_evenness` turns whatever file fills a read-only ISO column into 1.5 / 1.0 and 3.0 / 2.0 (the file keeps the standard's figures). Report Limits marks those four cells ⁴ with a note naming both standards' figures (the recommendation mark is ⁵). The rows' help carries the accepted description, the three factors, the ratio guide and the standards' figures; the quick and ISO set descriptions say what their evenness limits are. The presets window says a chart that meets the page rules can be judged, in Knut's text, and withholds no row on the estimated noise; R18 and R19 left the demo pack; Report-Limits-Evenness retargeted (the change, the blotch, the noisy sheet and run10's noise line to 1.8 / 1.2). The pre-print model's multipliers re-measured on the filtered figure: 6.35 and 3.73. German by hand; the twelve others English under the beta rule (+6 in both ledgers).
+- on screen: `~/Desktop/ChromIQ-beta45-proof/evenness-build/` (Report Limits with the note, Light and Dark; the evenness help in English and German; a report of the demo's filtered rows; the presets window's line); `TEXTS.txt` holds the final English texts.
+- tests: tests/test_evenness_filter_and_converted_limits.py, tests/test_evenness_across_the_sheet.py, tests/test_b8_1451_evenness_counts_are_true_and_consistent.py, tests/test_beta38_i1pro3plus_evenness.py, tests/test_k61_labels_and_evenness_counts.py, tests/test_the_demo_presets_pair_on_every_requirement.py, tests/test_compliance_sets.py
+- evidence: test_the_filter_is_the_formula_knut_was_shown, test_an_even_sheet_reads_close_to_zero_and_below_its_unfiltered_reading, test_a_known_unevenness_is_read_closer_to_the_truth_with_the_filter, test_the_noise_a_limit_must_clear_is_the_noise_of_the_filtered_number, test_every_set_carries_knuts_limits, test_both_rows_can_fail_on_their_own_in_every_set, test_the_conversion_of_both_standards, test_a_licence_holders_own_file_is_converted_too, test_a_value_the_user_set_is_kept, test_the_guide_quotes_the_numbers_the_tables_hold, test_the_converted_cells_carry_the_mark_and_the_note_explains_them, test_the_presets_window_says_a_chart_that_meets_the_page_rules_can_be_judged, test_no_preset_is_withheld_for_the_estimated_noise_of_a_typical_print, test_the_noise_pairs_left_the_pack
+- where: `workflow/measurement_report.py`, `workflow/compliance_sets.py`, `workflow/preset_eligibility.py`, `ui/dialogs/thresholds_dialog.py`, `ui/dialogs/preset_verification_dialog.py`, `scripts/make_verification_preset_demos.py`, `scripts/make_evenness_demo.py`, `docs/design/measurement_report_limits.md` §51.
+
+### B8-1477 · OPEN · The presets window's evenness count sentences can no longer be reached
+- blocks release: no
+- severity: COSMETIC
+- status: OPEN
+- found by: B8-1476. Since the window withholds no evenness row on the estimated noise, `noise_count_line`, `_noise_count_body`, the two noise lines of `reason_line` and `preset_eligibility.noise_shortfall` / `model_need` are reached only by their own tests, and their keys are translated in every catalogue for nothing. Kept for now, because Knut's acceptance of the presets-window text is the one ruling this rests on; remove them, and their keys from both ledgers, once he confirms the built result.
+- where: `ui/dialogs/preset_verification_dialog.py`, `workflow/preset_eligibility.py`, `data/i18n/*.json`.

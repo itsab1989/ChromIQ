@@ -4589,10 +4589,18 @@ EVENNESS_ESTIMATE_SHUFFLES = 200
 #: of the report's own shuffle on residuals of one unit, times the root of the
 #: patches in a ninth, and it does not depend on the chart: MEASURED with
 #: :func:`evenness_from_residuals`, 20 seeds, 2,000 shuffles each, ideal pages
-#: of 60 by 60 (400 in each ninth), 6.99 +- 0.12 between two areas and
-#: 4.21 +- 0.06 from the mean
+#: of 60 by 60 (400 in each ninth), 6.35 +- 0.12 between two areas and
+#: 3.73 +- 0.06 from the mean, on the FILTERED numbers (Knut's filter, #182
+#: 5855259490); they were 6.99 and 4.21 before it
 #: (`tests/test_b8_1451_evenness_counts_are_true_and_consistent.py`
 #: re-measures it).
+#:
+#: SINCE THE FILTER NOTHING BEFORE PRINTING JUDGES THIS FIGURE. Knut accepted
+#: (#182 5855780690) the presets window saying a chart that meets the page
+#: rules can be judged, with the result depending on the noise of the printed
+#: sheet; the report alone decides from the noise it measures. The estimate
+#: is kept in the block for whoever reads it, and no window withholds a row
+#: on it (`preset_eligibility.assess_rows`).
 #:
 #: It replaced the shuffle of one random draw per chart. That draw wandered
 #: by about 0.05 from one chart to the next, so under the same limit one
@@ -4601,8 +4609,8 @@ EVENNESS_ESTIMATE_SHUFFLES = 200
 #: challenge 1). A model with one constant per row gives one needed count per
 #: limit, and "answered" is exactly "counts at least that many".
 EVENNESS_NOISE_PER_ROOT_PATCH: "dict[str, float]" = {
-    "pairwise": 7.0,
-    "from_mean": 4.2,
+    "pairwise": 6.35,
+    "from_mean": 3.73,
 }
 
 
@@ -5824,6 +5832,73 @@ def _area_means(areas: np.ndarray, resid: np.ndarray,
                      for c in range(3)], axis=-1) / counts[:, None]
 
 
+#: **KNUT'S HIGH-PASS FILTER** (#182 5854565185, built on his vote in
+#: 5855259490: *"I vote for implementing the filter, as you have shown that it
+#: works"*). Near the neutral grey every area colour is built on
+#: (:data:`EVENNESS_BASE_LAB`), ΔE00 squared is close to
+#: ``dL*² + (1.5 da*)² + db*²``: at zero chroma ΔE00's G is 0.5, so a* is
+#: scaled by 1.5, and S_L = S_C = S_H = 1 at L* 50. These are the weights of
+#: that sum, and so what a residual scatter of σ² per component adds to a
+#: squared ΔE00 on average.
+EVENNESS_FILTER_WEIGHTS = (1.0, 2.25, 1.0)
+
+#: What a saved evenness block's two numbers are, so a report saved before the
+#: filter (no key) and one saved after it can be told apart. The shuffle's
+#: noise is always of the same statistic as the number beside it.
+EVENNESS_FILTER = "noise_average_removed"
+
+
+def _within_variance(sums: np.ndarray, sq: np.ndarray,
+                     counts: np.ndarray) -> np.ndarray:
+    """The pooled scatter of the residuals INSIDE the nine areas, per L*, a*,
+    b* component, for stacks ``(k, 9, 3)`` of sums and sums of squares ->
+    ``(k, 3)``. Pooled over the nine areas with ``N - 9`` degrees of freedom,
+    because every area's own mean was taken out of its own patches."""
+    c = np.asarray(counts, float)[None, :, None]
+    ss = sq - sums ** 2 / c
+    dof = max(1.0, float(np.sum(counts)) - 9.0)
+    return np.clip(ss.sum(axis=1), 0.0, None) / dof
+
+
+def _filtered_nine(means: np.ndarray, within: np.ndarray, counts: np.ndarray
+                   ) -> "tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]":
+    """The two evenness numbers with the noise's average share taken out.
+
+    For stacks ``(k, 9, 3)`` of area means and ``(k, 3)`` of the scatter inside
+    the areas -> ``(pairwise max, from-mean max, the 36 pairs, the nine
+    areas)``, the last two of shape ``(k, 36)`` and ``(k, 9)``.
+
+    From each SQUARED difference, what the noise alone is expected to add to
+    it is taken away, and the root of what is left (never below zero) is the
+    difference itself. Between two areas *i* and *j* the noise adds
+    ``σ²(1/n_i + 1/n_j)`` per component; between an area and the plain mean of
+    all nine it adds ``σ²((1/n_i)(1 - 2/9) + Σ(1/n)/81)``, both weighted into
+    ΔE00 by :data:`EVENNESS_FILTER_WEIGHTS`. This is the formula of the
+    analysis Knut was shown and voted on (#182 5854662899, 5855451413; the
+    working is ``~/Desktop/ChromIQ-beta45-proof/evenness-2/tools/estim.py``,
+    ``debiased``), measured there on four real sheets and on simulated sheets
+    with a known unevenness.
+    """
+    from workflow.profile_engine.metrics import delta_e_2000
+    labs = np.asarray(means, float) + np.asarray(EVENNESS_BASE_LAB)
+    k = labs.shape[0]
+    s2 = (np.asarray(within, float)
+          * np.asarray(EVENNESS_FILTER_WEIGHTS)).sum(axis=-1)       # (k,)
+    inv = 1.0 / np.asarray(counts, float)
+    a = labs[:, _IU[0], :].reshape(-1, 3)
+    b = labs[:, _IU[1], :].reshape(-1, 3)
+    pair2 = delta_e_2000(a, b).reshape(k, -1) ** 2
+    pair = np.sqrt(np.clip(
+        pair2 - s2[:, None] * (inv[_IU[0]] + inv[_IU[1]])[None], 0.0, None))
+    centre = labs.mean(axis=1, keepdims=True)
+    fm2 = delta_e_2000(labs.reshape(-1, 3),
+                       np.repeat(centre, 9, axis=1).reshape(-1, 3)
+                       ).reshape(k, 9) ** 2
+    var_fm = inv * (1.0 - 2.0 / 9.0) + inv.sum() / 81.0
+    area = np.sqrt(np.clip(fm2 - s2[:, None] * var_fm[None], 0.0, None))
+    return pair.max(axis=1), area.max(axis=1), pair, area
+
+
 def _cov_of(block: dict, page: int) -> "float | None":
     """The coverage the evenness block recorded for 1-based *page*."""
     cov = list(block.get("coverage") or [])
@@ -5910,33 +5985,51 @@ def evenness_from_residuals(grid: dict, residuals, *,
         block["reason"] = REASON_EVENNESS_EMPTY_AREA
         return block
     means = _area_means(areas, resid, counts)
-    pw, fm = _nine_numbers(means[None])
-    # the noise: the same patches, their areas shuffled. One array of
-    # shuffles and one bincount per Lab component over all of them at once:
-    # the presets window runs this for 170 charts on one click.
+    sq = np.stack([np.bincount(areas, weights=resid[:, c] ** 2, minlength=9)
+                   for c in range(3)], axis=-1)
+    within = _within_variance((means * counts[:, None])[None], sq[None],
+                              counts)
+    raw_pw, raw_fm = _nine_numbers(means[None])
+    # KNUT'S FILTER (#182 5855259490): the noise's average share is taken out
+    # of both numbers before anything compares them with a limit.
+    pw, fm, pair_de, dfm = _filtered_nine(means[None], within, counts)
+    pair_de, dfm = pair_de[0], dfm[0]
+    # the noise: the same patches, their areas shuffled, and the SAME filter
+    # on every shuffle, so the noise a limit must be above is the noise of the
+    # number the limit is compared with. One array of shuffles and one
+    # bincount per Lab component over all of them at once: the presets window
+    # runs this for 170 charts on one click.
     rng = np.random.default_rng(int(seed))
     k = int(shuffles)
     perm = rng.permuted(np.tile(areas, (k, 1)), axis=1)
     flat = (np.arange(k)[:, None] * 9 + perm).ravel()
     sums = np.stack([np.bincount(flat, weights=np.tile(resid[:, c], k),
-                                 minlength=9 * k) for c in range(3)], axis=-1)
-    sh_means = sums.reshape(k, 9, 3) / counts[None, :, None]
-    npw, nfm = _nine_numbers(sh_means)
+                                 minlength=9 * k) for c in range(3)],
+                    axis=-1).reshape(k, 9, 3)
+    sqs = np.stack([np.bincount(flat, weights=np.tile(resid[:, c] ** 2, k),
+                                minlength=9 * k) for c in range(3)],
+                   axis=-1).reshape(k, 9, 3)
+    sh_means = sums / counts[None, :, None]
+    sh_within = _within_variance(sums, sqs, counts)
+    npw, nfm, _pairs, _areas = _filtered_nine(sh_means, sh_within, counts)
     block.update({
         "eligible": True, "reason": None,
         "pairwise": round(float(pw[0]), 3),
         "from_mean": round(float(fm[0]), 3),
         "noise_pairwise_p95": round(_nearest_rank_p95(npw), 3),
         "noise_from_mean_p95": round(_nearest_rank_p95(nfm), 3),
+        "filter": EVENNESS_FILTER,
+        # what the two numbers read before the filter, and the scatter inside
+        # the areas the filter worked from, for whoever wants to see how much
+        # the noise's average share was
+        "pairwise_unfiltered": round(float(raw_pw[0]), 3),
+        "from_mean_unfiltered": round(float(raw_fm[0]), 3),
+        "within_sd": [round(float(math.sqrt(v)), 3) for v in within[0]],
     })
     # WHERE: each area's own deviation, so the report can say which part of
     # the page it is (Knut, 2026-09-22: *"return indications of which part of
-    # the page are not uniform against other areas"*).
-    from workflow.profile_engine.metrics import delta_e_2000
-    labs = means + np.asarray(EVENNESS_BASE_LAB)
-    centre = labs.mean(axis=0)
-    dfm = delta_e_2000(labs, np.repeat(centre[None], 9, axis=0))
-    pair_de = delta_e_2000(labs[_IU[0]], labs[_IU[1]])
+    # the page are not uniform against other areas"*). Filtered as well, so
+    # the worst pair and area are the ones the two numbers were read from.
     worst = int(np.argmax(pair_de))
     block["worst_pair"] = [int(_IU[0][worst]), int(_IU[1][worst])]
     block["worst_area"] = int(np.argmax(dfm))

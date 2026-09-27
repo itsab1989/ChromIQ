@@ -1075,13 +1075,72 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
     # below the table in the Report Limits window (and in the report text also
     # a number on the metric name, pointing to a note in the report text)."*
     #
-    # The marker is ⁴ because the three notes already under this table are
-    # ¹ ² ³; one series, continuing, so a reader has one numbered list to
-    # look down rather than two notations. `_notes_text` writes the fourth
-    # item, and it is written ONLY when some visible column really marks a row
-    # a recommendation -- after the same ruling's point 5 no ChromIQ set does,
-    # so on a stock install there is no marker and no fourth note at all.
-    RECOMMENDED_MARK = "\u2074"          # ⁴
+    # The marker is ⁵ because the notes already under this table are ¹ ² ³
+    # and ⁴ (the converted evenness limits below); one series, continuing, so
+    # a reader has one numbered list to look down rather than two notations.
+    # `_notes_text` writes the item, and it is written ONLY when some visible
+    # column really marks a row a recommendation -- after the same ruling's
+    # point 5 no ChromIQ set does, so on a stock install there is no marker
+    # and no such note at all.
+    RECOMMENDED_MARK = "\u2075"          # ⁵
+
+    # **THE LOCKED ISO SETS' EVENNESS LIMITS ARE CONVERTED, AND SAY SO**
+    # (Knut, #182 5855780690: "use the converted values. To make this more
+    # visible in the Report Layout window, maybe add a superscript number
+    # reference that points to a note that explains this in the window").
+    # The mark sits on the CELL, not on the row's name, because the other
+    # columns' numbers on the same row are not conversions.
+    CONVERTED_MARK = "\u2074"           # ⁴
+    _CONVERTED_SETS = ("iso_12647_7", "iso_12647_8")
+    _CONVERTED_ROWS = ("uniformity_sd", "uniformity_de00_max_from_mean")
+
+    def _cell_is_converted(self, col: str, row_id: str) -> bool:
+        if col not in self._CONVERTED_SETS or row_id not in self._CONVERTED_ROWS:
+            return False
+        lim = self._limits_of(col).get(row_id)
+        return lim is not None and lim.is_numeric
+
+    def _converted_sets_shown(self) -> "list[str]":
+        return [c for c in self._CONVERTED_SETS
+                if c in self._column_ids() and self._column_shown(c)
+                and any(self._cell_is_converted(c, r)
+                        for r in self._CONVERTED_ROWS)]
+
+    def _converted_note_text(self) -> str:
+        """⁴'s note: which standard's figures, and how they became the two
+        numbers in the column (the guide the rows' help gives in full)."""
+        from workflow.compliance_sets import iso_evenness_figures
+        from PyQt6.QtCore import QLocale
+        loc = QLocale.system()
+
+        def num(x: float) -> str:
+            return loc.toString(float(x), "f", 1)
+        parts = []
+        for sid in self._converted_sets_shown():
+            fig = iso_evenness_figures(sid)
+            lim = self._limits_of(sid)
+            if "sd" not in fig or "from_mean" not in fig:
+                continue
+            parts.append(tr(
+                "{standard} states a standard deviation of {sd} and a maximum "
+                "difference from the average of {fm}, which become {pw} and "
+                "{fm2}").format(
+                    standard=tr(SET_BY_ID[sid].label), sd=num(fig["sd"]),
+                    fm=num(fig["from_mean"]),
+                    pw=num(lim["uniformity_sd"].number),
+                    fm2=num(lim["uniformity_de00_max_from_mean"].number)))
+        head = tr("These two evenness limits are the standard's own figures "
+                  "converted to ChromIQ's method, so that a PASS means the "
+                  "sheet likely meets the standard.")
+        tail = tr("The standard deviation is multiplied by about 3 for "
+                  "\u201cbetween two of the nine sheet areas\u201d and by about "
+                  "2 for \u201cone sheet area against the whole sheet\u201d, "
+                  "the standard's maximum difference from the average is used "
+                  "as it is where it is stricter, and the first limit is kept "
+                  "under twice the second. The help of the two rows explains "
+                  "it.")
+        body = (" " + "; ".join(parts) + ".") if parts else ""
+        return head + body + " " + tail
 
     def _row_is_recommended(self, row_id: str) -> bool:
         """Does any column this window is SHOWING mark *row_id* a should?"""
@@ -1187,7 +1246,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     and row.status in ("now", "build", "ref")
                     and lim.kind in ("value", "should", "none", "unknown"))
         if not editable:
-            lab = QLabel(self._cell_text(lim), self)
+            txt = self._cell_text(lim)
+            if self._cell_is_converted(col, row_id):
+                txt += self.CONVERTED_MARK
+            lab = QLabel(txt, self)
             # B8-556: AND THE VERTICAL HALF, WHICH AlignRight DOES NOT CARRY.
             # `setAlignment` REPLACES the whole alignment rather than adding to
             # it, and `AlignRight` has no vertical bit, so Qt fell back to the
@@ -1252,6 +1314,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         # ruling's point 5 took the last recommendation out of ChromIQ's own
         # sets, so this appears when a licence holder's file marks a row
         # "should" or a user marks one in an editable Custom column.
+        if self._converted_sets_shown():
+            foot += " " + self.CONVERTED_MARK + " " + self._converted_note_text()
         if self._any_row_is_recommended():
             foot += " " + self.RECOMMENDED_MARK + " " + _recommended_note_text()
         # WHOSE NUMBERS THE TWO CUSTOM COLUMNS HOLD, said at the table where

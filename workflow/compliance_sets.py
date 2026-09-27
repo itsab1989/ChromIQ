@@ -630,49 +630,66 @@ _EVEN_CAUSES = (
     "flat or not the same all over, or, on an instrument that reads whole "
     "strips, the instrument changing while it reads. The strips are read "
     "one after another, so such a change during the reading shows as a "
-    "difference across the strips rather than down them.")
+    "difference across the strips rather than down them. If a difference "
+    "runs steadily from the first strip read to the last, measure the sheet "
+    "again in the opposite order: a difference that turns round with the "
+    "reading comes from the instrument.")
+#: THE FEATURE'S DESCRIPTION, Knut, #182 5855780690 (2026-09-27): *"The texts
+#: are accepted, given they are corrected with any changes from above
+#: comments"*, the texts being 5855451413 section 5 and the two of 5855259490.
+#: Split over the four parts of a row's help, so each part says one thing: the
+#: blurb what the metric is (the report quotes it too), the detection how the
+#: sheet is divided and what the filter does, the lever what to do, and the
+#: relation how to choose the two limits and how a standard's figures become
+#: them. The limit numbers in the relation are allowed there (Knut, same
+#: comment: "yes"), and a test holds them to the factory tables.
+_EVEN_INTRO = (
+    "Evenness checks whether the printed sheet shows the same colour "
+    "everywhere. It has two metrics, \u201cMaximum \u0394E00, between two of "
+    "the nine sheet areas\u201d and \u201cMaximum \u0394E00, one sheet area "
+    "against the whole sheet\u201d.")
 _B_EVEN_PAIRWISE = (
-    "Whether the sheet prints the same colour everywhere. Every patch is "
-    "compared with its own aim value, the differences are averaged over each "
-    "ninth of the page, and this row is the maximum difference between any "
-    "two of those nine areas.\n\n" + _EVEN_CAUSES)
+    _EVEN_INTRO + "\n\n"
+    "This one is the largest difference between any two of the nine areas. "
+    "A gradual change from one side of the sheet to the other shows here "
+    "first, because the two far sides differ most.\n\n" + _EVEN_CAUSES)
 _B_EVEN_FROM_MEAN = (
-    "The ninth of the page that sits furthest from the sheet as a whole: the "
-    "maximum difference between one of the nine areas and the average of all "
-    "nine. One area on its own that is off, a blotch, shows here first; a "
+    _EVEN_INTRO + "\n\n"
+    "This one is the largest difference between one area and the average of "
+    "all nine. A single area that is off, a blotch, shows here first; a "
     "gradual change from one side to the other shows first in the row "
     "above.\n\n" + _EVEN_CAUSES)
 _D_EVENNESS = (
     "ChromIQ can judge these two rows on a verification sheet whose chart "
     "file records where each patch is printed, which every chart ChromIQ lays "
-    "out does. Each page is divided into three bands of strips and three "
-    "bands of rows, whole strips and rows only, with any remainder in the "
-    "middle band, and the same ninth of every page is counted together. Only "
-    "pages with at least 9 strips and 9 rows whose patches cover at least "
-    "60 % of the page are used, so the chart needs at least one such page. "
-    "The share is worked out from the distance between each paper edge and "
-    "the first patch, the four margins Create Chart shows as Measured from "
-    "Preview.\n\n"
-    "Every patch is compared with its own aim value, the same one the colour "
-    "accuracy rows use, and the differences are averaged in each of the nine "
-    "areas. No patches are matched by brightness or by grey.\n\n"
-    # K31 (Knut, #182 5801677743, section 3: "Both texts approved").
-    "Which readings are used. Evenness compares the nine areas of this one "
-    "sheet with each other, so it uses the readings exactly as the "
-    "instrument took them. How the sheet was colour-managed does not matter "
-    "here: a colour that prints differently in one corner than in another is "
-    "a fault of the printer or the paper either way.\n\n"
-    "Some sheets are printed with an intent that makes the paper the white, "
-    "and on those the colour accuracy figures are worked out relative to the "
-    "paper. On such a sheet ChromIQ moves every aim colour onto the paper by "
-    "the same amount instead. The paper's own tint then does not count as "
-    "unevenness, and because every aim moves by the same amount, no area of "
-    "the page can come out different from another because of it.\n\n"
-    "The report also measures the sheet's own noise: it shuffles the patches "
-    "across the nine areas 500 times and takes the 95th percentile of what "
-    "the same arithmetic reads. A row is judged only when that noise is below "
-    "the row's limit. The lower the limit, the more patches each area needs: "
-    "on a typical print, four times as many patches halve the noise.\n\n"
+    "out does.\n\n"
+    "How the sheet is divided. Each page is divided into three bands of "
+    "strips and three bands of rows, whole strips and rows only, with any "
+    "remainder in the middle band. The same ninth of every page is counted "
+    "together. Only pages with at least 9 strips and 9 rows whose patches "
+    "cover at least 60 % of the page are used, so the chart needs at least "
+    "one such page. The share is worked out from the distance between each "
+    "paper edge and the first patch, the four margins Create Chart shows as "
+    "Measured from Preview.\n\n"
+    "What is compared. Every patch is compared with its own aim value, the "
+    "same one the colour accuracy rows use, and the differences are averaged "
+    "in each of the nine areas. Nothing is matched by brightness or by grey. "
+    "The readings are used exactly as the instrument took them. On a sheet "
+    "printed with an intent that makes the paper the white, every aim colour "
+    "is moved onto the paper by the same amount, so the paper's own tint does "
+    "not count as unevenness.\n\n"
+    "The noise, and the filter. Every measurement carries a little noise: the "
+    "instrument, the paper, and the profile's own small errors at each "
+    "colour. Averaged over a ninth of the page, that noise makes even a "
+    "perfectly even sheet read a little above zero, like a water level under "
+    "the waves you want to measure. ChromIQ works out how high that level is "
+    "from how much the patches inside each area scatter, and takes it away, "
+    "so the result reads the unevenness itself and can be compared with the "
+    "limit directly. What cannot be taken away is the noise's random up and "
+    "down. The report measures it on the printed sheet, by shuffling the "
+    "patches across the nine areas 500 times, and gives a verdict only when "
+    "it is below the limit. More patches in each ninth make it smaller: four "
+    "times as many halve it.\n\n"
     # K31: `IN_GAMUT_LABELS`, the evenness rows among them.
     "Where the report splits a sheet's colours into those within the "
     "profile's gamut and those beyond it, only the patches within the gamut "
@@ -692,6 +709,51 @@ _R_EVENNESS = (
     "difference, measure the same sheet again before looking for a cause, "
     "since an instrument that changes during a long reading makes the strips "
     "read last differ from the first.")
+#: THE GUIDE TO CHOOSING THE TWO LIMITS, AND THE THREE CONVERSION FACTORS
+#: (Knut, #182 5855780690). The factors and the ratio are
+#: `EVENNESS_SD_TO_BETWEEN`, `EVENNESS_SD_TO_FROM_MEAN`, `EVENNESS_RATIO_RANGE`
+#: and `EVENNESS_RATIO_AIM`; the ISO sets' numbers are their factory limits.
+#: No ChromIQ set's numbers and no relation between sets (Knut, K60, #182
+#: 5850330710): only the standards' figures and what they become, which is
+#: what 5855780690 asked the help to explain.
+#: `tests/test_evenness_filter_and_converted_limits.py` holds every number in
+#: this text to them.
+_REL_EVENNESS = (
+    "Choosing the two limits. The limit for \u201cMaximum \u0394E00, between "
+    "two of the nine sheet areas\u201d must be more than 1.125 times and less "
+    "than 2 times the limit for \u201cMaximum \u0394E00, one sheet area "
+    "against the whole sheet\u201d. Outside that range one of the two metrics "
+    "can never fail on its own. About 1.5 times works best: a blotch then "
+    "fails the second metric first, and a gradual change the first.\n\n"
+    "For separated areas of one sheet, a difference of about 2 \u0394E00 is "
+    "clearly visible. A limit meant to catch visible unevenness stays below "
+    "that with a margin, for example 1.8 and 1.2. A good photo printer on "
+    "photo paper usually reads well under 1.0.\n\n"
+    "From a standard's figures. A standard that limits evenness states two "
+    "figures of its own, read on one colour at nine places of its own chart: "
+    "the standard deviation of L*, a* and b* over the nine readings, and the "
+    "maximum difference from the average, which is the largest \u0394E00 "
+    "between the average of the nine readings and any one of them. ISO "
+    "12647-7:2016 allows a standard deviation of 0.5 and a maximum difference "
+    "from the average of 2.0; ISO 12647-8:2021 allows 1.5 and 2.0. Neither is "
+    "one of ChromIQ's metrics, so they are converted with three factors:\n"
+    "\u2022 the standard deviation times about 3 gives \u201cbetween two of "
+    "the nine sheet areas\u201d;\n"
+    "\u2022 the standard deviation times about 2 gives \u201cone sheet area "
+    "against the whole sheet\u201d;\n"
+    "\u2022 the first limit is kept more than 1.125 times and less than 2 "
+    "times the second, as above.\n"
+    "The maximum difference from the average is the same measure as the "
+    "second metric and is used as it is. A sheet must meet both of the "
+    "standard's figures, so the stricter of the two is used for the second "
+    "metric. A standard deviation of 0.5 with a maximum difference of 2.0 "
+    "becomes 1.5 and 1.0; 1.5 with 2.0 becomes 3.0 and 2.0, the first "
+    "brought down from 4.5 to stay under twice the second. The factors are a "
+    "guide: they depend on the shape of the unevenness, and they are chosen "
+    "so that the result is rather stricter than the standard.\n\n"
+    "The ISO 12647-7:2016 and ISO 12647-8:2021 values sets use exactly these "
+    "converted limits, 1.5 and 1.0, and 3.0 and 2.0, so that a PASS means "
+    "the sheet likely meets the standard.")
 
 ROWS: "tuple[Row, ...]" = (
     # -- Paper
@@ -862,13 +924,15 @@ ROWS: "tuple[Row, ...]" = (
         "Maximum ΔE00, between two of the nine sheet areas", "ΔE00", "build",
         blurb=_B_EVEN_PAIRWISE,
         detect=_D_EVENNESS,
-        remedy=_R_EVENNESS),
+        remedy=_R_EVENNESS,
+        relation=_REL_EVENNESS),
     Row("uniformity_de00_max_from_mean", "evenness",
         "Maximum ΔE00, one sheet area against the whole sheet", "ΔE00",
         "build",
         blurb=_B_EVEN_FROM_MEAN,
         detect=_D_EVENNESS,
-        remedy=_R_EVENNESS),
+        remedy=_R_EVENNESS,
+        relation=_REL_EVENNESS),
     # -- Not evaluated by ChromIQ (✕ rows; notes in the report)
     Row("macro_uniformity_score", "not_evaluated",
         "Macro-uniformity score", "", "unmeasurable",
@@ -1018,14 +1082,19 @@ SETS: "tuple[SetDef, ...]" = (
                  "where a small colour difference matters."),
     SetDef("chromiq_quick", "Quick check", "chromiq", True,
            blurb="Wider limits than ChromIQ default: a quick health check "
-                 "that only a printer that has clearly changed fails."),
+                 "that only a printer that has clearly changed fails. The "
+                 "evenness limits of this set are meant to catch gross "
+                 "unevenness on printers that cannot do better; a difference "
+                 "just under them can be visible."),
     SetDef("iso_12647_7", "ISO 12647-7:2016 values", "iso", False,
            blurb="The published tolerance values of ISO 12647-7:2016 "
-                 "(contract proofs), applied to the chart you printed. "
+                 "(contract proofs), applied to the chart you printed, its "
+                 "evenness figures converted to ChromIQ's method. "
                  "Read-only."),
     SetDef("iso_12647_8", "ISO 12647-8:2021 values", "iso", False,
            blurb="The published tolerance values of ISO 12647-8:2021 "
-                 "(validation prints), applied to the chart you printed. "
+                 "(validation prints), applied to the chart you printed, its "
+                 "evenness figures converted to ChromIQ's method. "
                  "Read-only."),
     # THE BLURBS SAY WHAT THE COLUMN REALLY HOLDS, AND TWICE THEY HAVE NOT.
     #
@@ -1190,14 +1259,18 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         # maxima from 0.32 to 1.999, median 0.698.
         "repeat_patches_de00_max": Limit.value(2.0),
         "repeat_measurement_de00_max": Limit.value(3.0),
-        # EVENNESS ACROSS THE SHEET, Knut 2026-09-22: *"keep 1.5 for pairwise
-        # row. largest diff 1.0 I think may be ok"*. The 1.0 was Basti's
-        # proposal and awaits Knut's confirmation (§16 of the limits spec).
-        # With nine areas the pairwise figure P and the from-the-mean figure D
-        # satisfy 1.125 D <= P <= 2 D, so 1.5 and 1.0 make each row catch a
-        # fault the other misses: a blotch trips D first, a gradient P first.
-        "uniformity_sd": Limit.value(1.5),
-        "uniformity_de00_max_from_mean": Limit.value(1.0),
+        # EVENNESS ACROSS THE SHEET, Knut, #182 5855780690 (2026-09-27): the
+        # limits derived from real printers in 5855451413, with the noise's
+        # average share taken out of both rows (his filter). Default sits
+        # between tight and quick and stays under the about 2 ΔE00 at which a
+        # difference between separated areas is clearly visible; it passed
+        # all three ET-8550 sheets from about 40 patches in each ninth. With
+        # nine areas the pairwise figure P and the from-the-mean figure D
+        # satisfy 1.125 D <= P <= 2 D, so each pair keeps P at about 1.5 D and
+        # each row catches a fault the other misses: a blotch trips D first,
+        # a gradient P first (`EVENNESS_RATIO_RANGE`).
+        "uniformity_sd": Limit.value(1.8),
+        "uniformity_de00_max_from_mean": Limit.value(1.2),
     },
     "chromiq_tight": {
         "all_de00_avg": Limit.value(1.0), "best95_de00_avg": Limit.value(1.0),
@@ -1207,10 +1280,10 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "grey_balance_neutral_ramp_max": Limit.value(2.0),
         "repeat_patches_de00_max": Limit.value(1.0),
         "repeat_measurement_de00_max": Limit.value(1.5),
-        # NOT half of default, unlike every other row here. Knut, E3
-        # (2026-09-23): all three ChromIQ sets carry 1.5 / 1.0, because at
-        # 0.75 the sheet's own noise must fall under 0.75 too, and most
-        # charts then read N-A on these two.
+        # NOT half of default, unlike every other row here. Knut, #182
+        # 5855397830 and 5855780690 (2026-09-27): tight must still pass a good
+        # ET-8550-class sheet, with a margin; 1.5 / 1.0 passed it on photo
+        # paper and a good plain paper from 20 patches in each ninth.
         "uniformity_sd": Limit.value(1.5),
         "uniformity_de00_max_from_mean": Limit.value(1.0),
     },
@@ -1222,9 +1295,12 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "grey_balance_neutral_ramp_max": Limit.value(7.0),
         "repeat_patches_de00_max": Limit.value(4.0),
         "repeat_measurement_de00_max": Limit.value(6.0),
-        # E3, as in tight above: the same 1.5 / 1.0 as default.
-        "uniformity_sd": Limit.value(1.5),
-        "uniformity_de00_max_from_mean": Limit.value(1.0),
+        # Knut, #182 5855780690: "Use 2.5 / 1.7 (recommended): it tolerates
+        # lower-end printers." Above the about 2 ΔE00 of visible unevenness
+        # on purpose, and the set's description says so: it catches gross
+        # unevenness on printers that cannot do better.
+        "uniformity_sd": Limit.value(2.5),
+        "uniformity_de00_max_from_mean": Limit.value(1.7),
     },
 }
 
@@ -1353,9 +1429,11 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         "all_de00_max": Limit.value(4.5),                # ΔE00
         "surface_gamut_de00_avg": Limit.value(3.0),      # ΔE00
         "ramps_30_70_dl_max": Limit.value(2.0),          # ΔL*
-        # Evenness, from his file of 2026-09-21 (never read until Knut, #182
-        # 5831860724: "I thought I gave you the default numbers")
-        "uniformity_sd": Limit.value(1.0),                  # ΔE00
+        # Evenness, Knut, #182 5855780690 (2026-09-27): ISO 12647-7's own
+        # figures converted to ChromIQ's method (`convert_iso_evenness`), with
+        # the filter. His file's 1.0 / 1.0 of 2026-09-21 left the second row
+        # unable ever to fail on its own.
+        "uniformity_sd": Limit.value(1.5),                  # ΔE00
         "uniformity_de00_max_from_mean": Limit.value(1.0),  # ΔE00
     },
     "iso_12647_8": {
@@ -1380,9 +1458,11 @@ _CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
         # block above. It was 2.0 (K33).
         "all_de00_max": Limit.value(4.5),                # ΔE00
         "outer_gamut_226_de00_avg": Limit.value(2.5),    # ΔE00
-        # Evenness, from his file of 2026-09-21 (#182 5831860724)
-        "uniformity_sd": Limit.value(1.5),                  # ΔE00
-        "uniformity_de00_max_from_mean": Limit.value(1.0),  # ΔE00
+        # Evenness, Knut, #182 5855780690 (2026-09-27): "Custom ISO 12647-8,
+        # with quick B", ISO 12647-8's own figures converted to ChromIQ's
+        # method (`convert_iso_evenness`), with the filter. It was 1.5 / 1.0.
+        "uniformity_sd": Limit.value(3.0),                  # ΔE00
+        "uniformity_de00_max_from_mean": Limit.value(2.0),  # ΔE00
     },
 }
 
@@ -1436,10 +1516,10 @@ _CUSTOM_CHROMIQ_FILL: "dict[str, Limit]" = {
     "repeat_measurement_de00_max": Limit.value(3.0),  # ΔE00
     # EVENNESS ACROSS THE SHEET, computable since 2026-09-22: ChromIQ
     # default's own two numbers, by the rule this table follows. Both Custom
-    # columns now take Knut's own figures instead (`_CUSTOM_INDUSTRY`, #182
-    # 5831860724), so these are reached only if his table loses a row.
-    "uniformity_sd": Limit.value(1.5),                  # ΔE00
-    "uniformity_de00_max_from_mean": Limit.value(1.0),  # ΔE00
+    # columns take Knut's own figures instead (`_CUSTOM_INDUSTRY`, #182
+    # 5855780690), so these are reached only if his table loses a row.
+    "uniformity_sd": Limit.value(1.8),                  # ΔE00
+    "uniformity_de00_max_from_mean": Limit.value(1.2),  # ΔE00
 }
 
 
@@ -1936,7 +2016,108 @@ def factory_limits(set_id: str) -> "dict[str, Limit]":
                     out[rid] = defaults[rid]
                 elif out[rid].is_numeric:
                     out[rid] = Limit.unknown()
+        else:
+            # THE READ-ONLY ISO COLUMN'S TWO EVENNESS ROWS ARE CHROMIQ'S
+            # CONVERSION, not the file's figures (Knut, #182 5855780690: "use
+            # the converted values"). The file, shipped or a licence holder's
+            # own, keeps the standard's figures as the standard states them;
+            # whatever it holds goes through the same conversion here, so an
+            # installed file of 0.5 / 2.0 reads 1.5 / 1.0 like the shipped one.
+            out.update(convert_iso_evenness_limits(
+                out.get("uniformity_sd"),
+                out.get("uniformity_de00_max_from_mean")))
     return mark_unmeasurable(out)
+
+
+# ---------------------------------------------------------------------------
+# From a standard's evenness figures to ChromIQ's two rows (#182, 2026-09-27)
+# ---------------------------------------------------------------------------
+#: **THE THREE CONVERSION FACTORS**, Knut, #182 5855780690: *"Three
+#: conversion factors must be defined: 1. The conversion factor between the
+#: two metrics in ChromIQ ... 2. The factor for the metric the standard uses
+#: ... converted to ChromIQ value, one for each of the two metrics"*.
+#:
+#: A standard states its evenness limit as the standard deviation of L*, a*
+#: and b* of one colour at nine places (ISO 12647-7:2016: 0.5; ISO
+#: 12647-8:2021: 1.5). On ChromIQ's rows that reads, as a median over the
+#: shapes an unevenness takes (a blotch, a tilt, a change across the strips,
+#: random area differences), about 4 times the deviation between two areas
+#: and about 2 times it from the mean; 3 and 2 are the pair chosen to be
+#: rather stricter than the standard (86 % agreement with ISO 12647-7 on
+#: simulated sheets of every shape, and 2 % of the sheets it fails passed;
+#: the working is in #182 5855451413 and ``~/Desktop/ChromIQ-beta45-proof/
+#: evenness-2/round4/NUMBERS.json``).
+EVENNESS_SD_TO_BETWEEN = 3.0
+EVENNESS_SD_TO_FROM_MEAN = 2.0
+#: …and between ChromIQ's own two rows: with nine areas, "between two areas"
+#: is always between 1.125 and 2 times "one area against the whole sheet", so
+#: a pair of limits outside that range leaves one row unable ever to fail on
+#: its own. About 1.5 times splits the work as designed: a blotch fails the
+#: second row first, a gradual change the first.
+EVENNESS_RATIO_RANGE = (1.125, 2.0)
+EVENNESS_RATIO_AIM = 1.5
+
+
+def convert_iso_evenness(sd: "float | None", from_mean: "float | None"
+                         ) -> "tuple[float, float] | None":
+    """A standard's two evenness figures, converted to ChromIQ's two rows:
+    ``(between two areas, one area against the whole sheet)``, or None when
+    the standard gives neither.
+
+    The rule Knut accepted (#182 5855780690, the guide of 5855451413):
+
+    1. the standard deviation times :data:`EVENNESS_SD_TO_FROM_MEAN`, and the
+       standard's own "maximum difference from the average" as it is, since
+       that is the same measure as ChromIQ's second row; the STRICTER of the
+       two is used, because a sheet must meet both clauses;
+    2. the standard deviation times :data:`EVENNESS_SD_TO_BETWEEN` for the
+       first row, kept inside :data:`EVENNESS_RATIO_RANGE` of the second, and
+       brought to :data:`EVENNESS_RATIO_AIM` times it where it is not.
+
+    ISO 12647-7:2016 (0.5 and 2.0) gives 1.5 and 1.0; ISO 12647-8:2021 (1.5
+    and 2.0) gives 3.0 and 2.0, its first row's 4.5 coming down because above
+    4.0 it could never fail on its own.
+    """
+    fm_candidates = [float(x) for x in (
+        None if sd is None else sd * EVENNESS_SD_TO_FROM_MEAN, from_mean)
+        if x is not None and float(x) > 0]
+    if not fm_candidates:
+        return None
+    fm = min(fm_candidates)
+    pw = (float(sd) * EVENNESS_SD_TO_BETWEEN if sd is not None and sd > 0
+          else fm * EVENNESS_RATIO_AIM)
+    lo, hi = EVENNESS_RATIO_RANGE
+    if not (lo * fm < pw < hi * fm):
+        pw = fm * EVENNESS_RATIO_AIM
+    return round(pw, 2), round(fm, 2)
+
+
+def convert_iso_evenness_limits(sd: "Limit | None", from_mean: "Limit | None"
+                                ) -> "dict[str, Limit]":
+    """:func:`convert_iso_evenness` on two cells of a read-only ISO column.
+    A cell that is not a number (``?``, ``–``) stays what it is when the other
+    cannot stand in for it; the converted rows are required limits."""
+    num = {k: (float(v.number) if v is not None and v.is_numeric else None)
+           for k, v in (("sd", sd), ("fm", from_mean))}
+    got = convert_iso_evenness(num["sd"], num["fm"])
+    if got is None:
+        return {}
+    return {"uniformity_sd": Limit.value(got[0]),
+            "uniformity_de00_max_from_mean": Limit.value(got[1])}
+
+
+def iso_evenness_figures(set_id: str) -> "dict[str, float]":
+    """The standard's own two evenness figures as the values file holds them
+    (``{"sd": ..., "from_mean": ...}``, either may be absent), before the
+    conversion: what the Report Limits window's note names as the reference."""
+    numbers = _load_iso_numbers().get(set_id, {})
+    out: "dict[str, float]" = {}
+    for key, rid in (("sd", "uniformity_sd"),
+                     ("from_mean", "uniformity_de00_max_from_mean")):
+        lim = numbers.get(rid)
+        if lim is not None and lim.is_numeric:
+            out[key] = float(lim.number)
+    return out
 
 
 def effective_limits(set_id: str, overrides: "dict | None") -> "dict[str, Limit]":

@@ -171,12 +171,11 @@ def test_every_demo_preset_that_ships_a_chart_is_counted(demo_pack):
     # R16 is saved at printtarg's -a 0.80, a patch size `data.patch_db` holds
     # no measured table for, so its sheet count stays unknown (0) exactly as
     # the fallback's docstring says (B8-1215). Every other demo is one page.
-    # K61: R19 is saved at -a 1.5, which the table does not hold either, so
-    # it stays at 0 like R16; R18 (-a 0.95) is counted, one page.
+    # (K61's R18 and R19 left the pack with Knut's filter, #182 5855780690:
+    # the window has no noise line for them to stand either side of.)
     larger = {r.label: r.pages for r in counted
-              if r.label.startswith(("Verify L1 ", "Verify R16 ",
-                                     "Verify R19 "))}
-    assert sorted(larger.values()) == [0, 0, 0, 0, 2], larger
+              if r.label.startswith(("Verify L1 ", "Verify R16 "))}
+    assert sorted(larger.values()) == [0, 0, 2], larger
     counted = [r for r in counted if r.label not in larger]
     assert counted and all(r.pages == 1 for r in counted), \
         [(r.label, r.pages) for r in counted if r.pages != 1]

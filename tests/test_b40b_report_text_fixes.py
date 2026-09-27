@@ -405,9 +405,11 @@ def test_no_report_text_explains_an_earlier_chromiq():
      "innerhalb von {tol} Prozentpunkten um den Tonwert"),
     # K61 (Knut, #182 5851645723): "about 30" was true of a limit of 1.5
     # only, and the window called a 72-to-a-ninth page "too few" under 0.5
+    # …and since Knut's filter (#182 5855780690, the accepted text) the
+    # sentence reads "four times as many halve it"
     ("On a typical print this takes about 30",
-     "four times as many patches halve the noise", None,
-     "halbiert die vierfache Zahl an Messfeldern das Rauschen"),
+     "four times as many halve it", None,
+     "die vierfache Zahl halbiert es"),
     ("Every number is a colour difference",
      "Most numbers are colour differences in ΔE00",
      "Jede Zahl ist ein Farbunterschied",

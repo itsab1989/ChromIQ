@@ -94,10 +94,12 @@ def test_most_answered_sorts_within_each_group(qapp, rows, only_star):
         dlg._only_star.setChecked(only_star)
         if only_star:
             # K51 (B8-1340): a starred chart answers every metric its patches
-            # decide AND both evenness rows under the loosest limits, so under
-            # the default selection every starred preset answers the same
-            # count and nothing can move. Custom ISO 12647-7's evenness
-            # limit (1.0 on the pairs) separates them again (15 or 16 of 16).
+            # decide AND both evenness rows. Until beta 45 Custom ISO
+            # 12647-7's evenness limit separated them on the estimated noise;
+            # since Knut's filter (#182 5855780690) no window withholds a row
+            # on that estimate, so every starred preset answers the same
+            # count under every selection, and the sort must keep the
+            # pulldown order among them (the tie rule below).
             dlg._set_combo.setCurrentIndex(
                 dlg._set_combo.findData("custom_iso_12647_7"))
         qapp.processEvents()
@@ -125,7 +127,10 @@ def test_most_answered_sorts_within_each_group(qapp, rows, only_star):
                 if n(a) == n(b):
                     assert pos[a.label] < pos[b.label], (g, a.label, b.label)
             moved = moved or [r.label for r in old] != [r.label for r in new]
-        assert moved, "no group changed order, so this proves nothing"
+        if only_star:
+            assert not moved, "every starred preset ties, so none may move"
+        else:
+            assert moved, "no group changed order, so this proves nothing"
         # back to the default gives the original order again
         dlg._sort_combo.setCurrentIndex(0)
         qapp.processEvents()

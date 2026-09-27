@@ -227,18 +227,14 @@ def test_the_overview_block_is_within_and_beyond_together(tmp_path, qapp):
 # ---------------------------------------------------------------------------
 APPROVED_LINE = ("from the readings as the instrument took them, by comparing "
                  "the nine areas of this sheet with each other.")
+#: The K31 paragraphs (5801677743) were replaced by the feature description
+#: Knut accepted on 2026-09-27 (#182 5855780690, the text of 5855451413
+#: section 5), which says the same in its "What is compared" paragraph.
 APPROVED_HELP = (
-    "Which readings are used. Evenness compares the nine areas of this one "
-    "sheet with each other, so it uses the readings exactly as the "
-    "instrument took them. How the sheet was colour-managed does not matter "
-    "here: a colour that prints differently in one corner than in another is "
-    "a fault of the printer or the paper either way.\n\n"
-    "Some sheets are printed with an intent that makes the paper the white, "
-    "and on those the colour accuracy figures are worked out relative to the "
-    "paper. On such a sheet ChromIQ moves every aim colour onto the paper by "
-    "the same amount instead. The paper's own tint then does not count as "
-    "unevenness, and because every aim moves by the same amount, no area of "
-    "the page can come out different from another because of it.")
+    "The readings are used exactly as the instrument took them. On a sheet "
+    "printed with an intent that makes the paper the white, every aim colour "
+    "is moved onto the paper by the same amount, so the paper's own tint does "
+    "not count as unevenness.")
 
 
 def test_both_evenness_help_icons_carry_the_approved_text():

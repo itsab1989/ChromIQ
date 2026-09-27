@@ -50,10 +50,10 @@ def test_the_noise_note_names_the_noise_and_the_limit_and_no_patch_count(
             assert "too noisy" in n, n
             assert "emptiest ninth" not in n and "too few" not in n, n
             assert "patches in" not in n, n
-        # each note names the limit of ITS row: 1.50 and 1.00 under ChromIQ
-        # default (Knut's ruling 4)
+        # each note names the limit of ITS row: 1.80 and 1.20 under ChromIQ
+        # default (Knut's ruling 4; the numbers of #182 5855780690)
         joined = " ".join(notes)
-        assert "limit of 1.50" in joined and "limit of 1.00" in joined, joined
+        assert "limit of 1.80" in joined and "limit of 1.20" in joined, joined
     finally:
         dlg.deleteLater()
 

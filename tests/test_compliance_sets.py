@@ -594,7 +594,11 @@ def test_chromiqs_own_half_of_the_defaults_is_anybody_elses_published_figure():
 #: the new digest with the snippet in the failure message and put it here in
 #: the same commit that changes the table.
 _INDUSTRY_DIGEST = \
-    "082b139f7679876a72761358d5574432b99ab75f02217f533be19ce4efafd329"
+    "0bf62d96d5cb72665eea491ca2227739259e182665bd12102829661b4deddd9c"
+#: (Changed 2026-09-27 on Knut's instruction, #182 5855780690: the evenness
+#: pair of each Custom column is its standard's figures converted, "Custom
+#: ISO 12647-8, with quick B": 1.5 / 1.0 and 3.0 / 2.0, from 1.0 / 1.0 and
+#: 1.5 / 1.0.)
 #: (Changed 2026-09-26 on Knut's instruction, #182 5841606710: "(a) Max
 #: higher, so it sits above P95 4.0 ... set to 4.50." Both columns'
 #: "Maximum ΔE00, all patches", 2.0 until then.)
@@ -791,7 +795,16 @@ def test_the_read_only_iso_columns_are_untouched_by_the_placeholders(
     try:
         for sid in ("iso_12647_7", "iso_12647_8"):
             shipped = shipped_limits(sid)
+            # …EXCEPT THE TWO EVENNESS ROWS, which are ChromIQ's conversion
+            # of the file's figures (Knut, #182 5855780690: "use the converted
+            # values"); `test_evenness_filter_and_converted_limits` holds them.
+            conv = cs.convert_iso_evenness_limits(
+                shipped.get("uniformity_sd"),
+                shipped.get("uniformity_de00_max_from_mean"))
             for rid, lim in factory_limits(sid).items():
+                if rid in conv:
+                    assert lim == conv[rid], (sid, rid, lim, conv[rid])
+                    continue
                 if lim.is_numeric:
                     assert shipped.get(rid) == lim, (
                         f"{sid}.{rid} holds {lim}, which is not the shipped "

@@ -109,7 +109,9 @@ DATES = [
          0.0, 0.25, 0.0, 0.0, 0.0, 0.0, 0.0, PASS_ALL),
     Date("2026-11-16_100000", "2026-11-16T10:00:00",
          "Everything over its limit",
-         5.0, 0.25, 5.0, 4.0, 5.0, 4.0, 3.5, FAIL_ALL),
+         # drift 8.0, not 5.0: Custom ISO 12647-8's evenness limits are 3.0
+         # and 2.0 since #182 5855780690, and a 5.0 change read 2.8 and 1.4
+         5.0, 0.25, 8.0, 4.0, 5.0, 4.0, 3.5, FAIL_ALL),
 ]
 
 #: The rows the report judges on this run: every row ChromIQ can compute.

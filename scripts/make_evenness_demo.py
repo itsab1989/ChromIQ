@@ -11,9 +11,10 @@ can, beside the pack, so the rows can be driven on screen:
   ninth), measured four times:
 
   1. evenly printed: both rows PASS;
-  2. a change across the strips, about 2.2 ΔE b* from one side to the other:
-     the pairwise row FAILs first, the from-the-mean row still passes;
-  3. one ninth of the page 1.35 L* lighter, a blotch: the from-the-mean row
+  2. a change across the strips, about 3 ΔE b* from one side to the other
+     (the far bands about 2.0 apart): the pairwise row FAILs first, the
+     from-the-mean row still passes;
+  3. one ninth of the page 1.6 L* lighter, a blotch: the from-the-mean row
      FAILs first, the pairwise row still passes;
   4. a noisy sheet, no place effect at all: both rows N-A, the noise named;
 
@@ -39,36 +40,30 @@ can, beside the pack, so the rows can be driven on screen:
   same 11 by 14 page as run5 on ONE page, measured as a TYPICAL print (the
   residual the presets window's estimate assumes, 1.1 per component, where
   every other demo sheet uses 0.25): coverage and grid pass, but about 17
-  patches in each ninth leave the sheet's own noise above the limits, so both
-  rows N-A for the noise. Knut: "a one page target will not fulfil the
+  patches in each ninth leave the sheet's own noise between two areas above
+  ChromIQ default's limit, so that row reads N-A for the noise, while the
+  from-the-mean row is judged. Knut: "a one page target will not fulfil the
   requirement".
 * **run8** (#182 E8, beta 39), the 837-patch chart of run1 printed through
   its profile with RELATIVE colorimetric, the intent that maps paper white,
   on a real paper (`RUN8_PAPER_LAB`, L* 95.5, b* -3): the same four kinds of
   sheet as run1. The colour accuracy rows read it relative to its paper
   white; evenness, since Knut's E8 ruling ("Yes"), reads it as measured, with
-  each aim carried onto the paper. The change sits at the limit on both
-  runs (about 1.5), so which side of 1.5 it lands is not the point of run8;
+  each aim carried onto the paper. The change sits near the limit on both
+  runs, so which side of it it lands is not the point of run8;
   that both rows are JUDGED, with a noise near run1's, is.
 * **run9** (K61, Knut #182 5851645723), Knut's own case: the 648-patch i1Pro
   A4 preset he selected in "Which presets can be used for verification",
   one page of 24 strips by 27 rows, 72 patches in each ninth, measured as a
-  TYPICAL print. Its noise between two areas is below the 1.5 of ChromIQ
-  default, so the row is judged there, and not below the 0.5 of the
-  ISO 12647-7:2016 values, where it reads N-A for the noise: ONE sheet on
-  both sides of a line that depends on the limit, as the presets window says
-  before it is printed. MEASURED: the window estimates 0.87 over all 648
-  patches (72 to a ninth); the report reads 1.02, because on a sheet split
-  by the profile's gamut only the patches within it count (534 here, with
-  Argyll's sRGB standing in for the profile, 55 to 62 to a ninth). So under
-  Custom ISO 12647-7's 1.0 the window says the row can be judged and this
-  sheet's report does not judge it; the window cannot know the gamut before
-  a profile exists.
+  TYPICAL print. Its noise, measured on the patches within the profile's
+  gamut, is below the limits of every limit set, so both rows are judged
+  under each of them: the case the presets window describes, a chart that
+  meets the page rules can be judged.
 * **run10** (K61), the noise line itself, in the report: the 837-patch chart
   of run1 printed four times with no place effect at all, each sheet's
   scatter scaled so that its MEASURED noise lands just over or just under a
-  limit of ChromIQ default: between two areas 1.53 and 1.47 against 1.5, one
-  area against the whole sheet 1.03 and 0.97 against 1.0. Just over reads
+  limit of ChromIQ default: between two areas 1.83 and 1.77 against 1.8, one
+  area against the whole sheet 1.23 and 1.17 against 1.2. Just over reads
   N-A, just under is judged.
 
 The readings are SYNTHETIC: each patch is the chart's own aim plus the
@@ -118,7 +113,10 @@ def _even(page, s, r, S, R, rng):
 
 def _drift(page, s, r, S, R, rng):
     d = rng.normal(0, _SIGMA, 3)
-    d[2] += (s / (S - 1) - 0.5) * 2.2
+    # Knut's limits of #182 5855780690 (ChromIQ default 1.8 / 1.2): the far
+    # bands differ by about 2.0, the pairwise row over its 1.8, and each band
+    # sits about 1.0 from the sheet, the from-the-mean row under its 1.2
+    d[2] += (s / (S - 1) - 0.5) * 3.0
     return d
 
 
@@ -128,12 +126,17 @@ def _blotch(page, s, r, S, R, rng):
     ra, rm, _ = MR.evenness_bands(R)
     d = rng.normal(0, _SIGMA, 3)
     if s >= a + m and r >= ra + rm:
-        d[0] += 1.35
+        # 1.6 L*: about 1.4 from the sheet, over ChromIQ default's 1.2, and
+        # 1.6 from the other areas, under its 1.8 (#182 5855780690)
+        d[0] += 1.6
     return d
 
 
 def _noisy(page, s, r, S, R, rng):
-    return rng.normal(0, 2.4, 3)
+    # 3.4, not 2.4: with the noise's average share taken out (#182
+    # 5855780690) the shuffle's noise of a 2.4 sheet fell under ChromIQ
+    # default's new 1.8 / 1.2, and a noisy sheet is meant to read N-A on both
+    return rng.normal(0, 3.4, 3)
 
 
 def _typical(page, s, r, S, R, rng):
@@ -196,20 +199,20 @@ class NoiseTarget:
 
 
 #: K61: the noise line in the report, one notch either side of each of
-#: ChromIQ default's two evenness limits (1.5 between two areas, 1.0 from the
-#: mean). The same seed on every date, so the four sheets differ ONLY in the
+#: ChromIQ default's two evenness limits (1.8 between two areas, 1.2 from the
+#: mean, #182 5855780690). The same seed on every date, so the four sheets differ ONLY in the
 #: size of their scatter.
 DATES_NOISE_LINE = [
     ("2026-10-01_170000", "2026-10-01T17:00:00",
-     "noise just over the pairwise limit", NoiseTarget("pairwise", 1.53)),
+     "noise just over the pairwise limit", NoiseTarget("pairwise", 1.83)),
     ("2026-10-08_170000", "2026-10-08T17:00:00",
-     "noise just under the pairwise limit", NoiseTarget("pairwise", 1.47)),
+     "noise just under the pairwise limit", NoiseTarget("pairwise", 1.77)),
     ("2026-10-15_170000", "2026-10-15T17:00:00",
      "noise just over the from-the-mean limit",
-     NoiseTarget("from_mean", 1.03)),
+     NoiseTarget("from_mean", 1.23)),
     ("2026-10-22_170000", "2026-10-22T17:00:00",
      "noise just under the from-the-mean limit",
-     NoiseTarget("from_mean", 0.97)),
+     NoiseTarget("from_mean", 1.17)),
 ]
 
 
@@ -439,7 +442,8 @@ def build(dest: Path) -> Path:
     _run(proj, run7, P3_ONE_PAGE, "X-Rite i1Pro 3 Plus",
          "A 154-patch i1Pro 3 Plus chart on one page, 11 strips by 14 rows: "
          "too few patches in each ninth of the page for the sheet's own "
-         "noise to stay under the limits.", DATES_P3_ONE, 700)
+         "noise between two areas to stay under its limit.", DATES_P3_ONE,
+         700)
     run8 = proj.new_run()
     _run(proj, run8, LARGE, "X-Rite i1Pro 2",
          "The 837-patch chart of run 1, printed through its profile with "
@@ -450,17 +454,16 @@ def build(dest: Path) -> Path:
     run9 = proj.new_run()
     _run(proj, run9, I1_648, "X-Rite i1Pro 2",
          "The 648-patch i1Pro A4 preset on one page, 24 strips by 27 rows, 72 "
-         "patches in each ninth, measured as a typical print. Its noise "
-         "between two areas, about 1.0 over the patches within the "
-         "profile's gamut, is below a limit of 1.5, so that row is judged "
-         "there, and not below 0.5, where it is not judged.",
+         "patches in each ninth, measured as a typical print. Its own noise, "
+         "over the patches within the profile's gamut, is below the limits "
+         "of every limit set, so both rows are judged under each of them.",
          DATES_648, 900)
     run10 = proj.new_run()
     _run(proj, run10, LARGE, "X-Rite i1Pro 2",
          "The 837-patch chart of run 1 printed four times with no difference "
          "between areas, each sheet's scatter set so that its own noise is "
-         "just over or just under a limit: 1.53 and 1.47 between two areas, "
-         "1.03 and 0.97 for one area against the whole sheet.",
+         "just over or just under a limit: 1.83 and 1.77 between two areas, "
+         "1.23 and 1.17 for one area against the whole sheet.",
          DATES_NOISE_LINE, 1000)
     return root
 

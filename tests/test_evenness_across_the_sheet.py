@@ -187,17 +187,20 @@ def test_an_even_sheet_passes_both_rows_and_carries_the_causes_note(chart):
 
 
 def test_a_gradient_across_the_sheet_fails_the_pairwise_row_first(chart):
-    """A left-to-right drift: P is about twice D, so 1.5 on P fires while
-    1.0 on D does not. This is the reason the two limits differ (§16).
+    """A left-to-right change: P is about twice D, so ChromIQ default's 1.8
+    on P fires while its 1.2 on D does not. This is the reason the two limits
+    differ (§16; Knut, #182 5855780690, the limits with the filter).
 
     MUTATION: swap the two keys in `EVENNESS_ROWS` and both words flip.
     """
     ti2, where = chart
     grad = lambda page, s, r, rng: (0.0, 0.0,  # noqa: E731
-                                    (s - 5.5) / 5.5 * 1.1 + rng.normal(0, .15))
+                                    (s - 5.5) / 5.5 * 1.35 + rng.normal(0, .15))
     rep = MR.build_report(_write_sheet(ti2, where, grad))
     ev = rep["evenness"]
-    assert ev["pairwise"] > 1.5 > ev["from_mean"] * 1.5 >= 0, ev
+    lim = CS.factory_limits("chromiq_default")
+    assert ev["pairwise"] > lim[PAIR].number, ev
+    assert ev["from_mean"] < lim[FROM_MEAN].number, ev
     w = _words(rep)
     assert w[PAIR]["word"] == CS.FAIL, w
     assert w[FROM_MEAN]["word"] == CS.PASS, w
@@ -435,42 +438,30 @@ def test_the_rows_are_computable_under_their_own_heading():
 
 
 def test_the_limits_knut_gave_and_the_half_and_double_rule():
-    """1.5 and 1.0 in ChromIQ default (Knut, 2026-09-22; the 1.0 awaits his
-    confirmation), the same in tight and quick (E3), Knut's own figures in
-    the two Custom columns (5831860724), and nothing in the two read-only ISO
-    columns.
+    """Knut, #182 5855780690 (2026-09-27), the limits derived from real
+    printers with the filter: tight 1.5 / 1.0, default 1.8 / 1.2, quick
+    2.5 / 1.7, Custom ISO 12647-7 1.5 / 1.0, Custom ISO 12647-8 3.0 / 2.0; the
+    two read-only ISO columns hold their file's figures CONVERTED.
 
     MUTATION: change either default number and this goes red.
     """
     f = {s: CS.factory_limits(s) for s in CS.SET_IDS}
-    assert (f["chromiq_default"][PAIR].number,
-            f["chromiq_default"][FROM_MEAN].number) == (1.5, 1.0)
-    # E3 (Knut, 2026-09-23): tight and quick carry default's numbers too.
-    assert (f["chromiq_tight"][PAIR].number,
-            f["chromiq_tight"][FROM_MEAN].number) == (1.5, 1.0)
-    assert (f["chromiq_quick"][PAIR].number,
-            f["chromiq_quick"][FROM_MEAN].number) == (1.5, 1.0)
-    # The two Custom columns take Knut's own evenness figures from his file
-    # of 2026-09-21 (#182 5831860724: "I thought I gave you the default
-    # numbers"), no longer ChromIQ default's.
-    assert (f["custom_iso_12647_7"][PAIR].number,
-            f["custom_iso_12647_7"][FROM_MEAN].number) == (1.0, 1.0)
-    assert (f["custom_iso_12647_8"][PAIR].number,
-            f["custom_iso_12647_8"][FROM_MEAN].number) == (1.5, 1.0)
-    # THE TWO READ-ONLY ISO COLUMNS HOLD WHAT THE SHIPPED FILE GIVES THEM
-    # (#182 S-2, §23), read from that file here and never written into this
-    # source, and none of ChromIQ's own numbers. A row the file leaves out has
-    # no number at all. MUTATION: fill a read-only column from ChromIQ
-    # default's evenness numbers and this goes red on any row the shipped
-    # figure differs from them, and on every row the file does not carry.
+    want = {"chromiq_tight": (1.5, 1.0), "chromiq_default": (1.8, 1.2),
+            "chromiq_quick": (2.5, 1.7), "custom_iso_12647_7": (1.5, 1.0),
+            "custom_iso_12647_8": (3.0, 2.0)}
+    for sid, pair in want.items():
+        assert (f[sid][PAIR].number, f[sid][FROM_MEAN].number) == pair, sid
+    # THE TWO READ-ONLY ISO COLUMNS HOLD THE SHIPPED FILE'S FIGURES, CONVERTED
+    # (#182 S-2, §23; Knut 5855780690, "use the converted values"), read from
+    # that file here and never written into this source. MUTATION: skip the
+    # conversion in `factory_limits` and 0.5 / 2.0 comes back.
     from tests.helpers.iso_files import shipped_limits
-    for s in ("iso_12647_7", "iso_12647_8"):
+    for s, pair in (("iso_12647_7", (1.5, 1.0)), ("iso_12647_8", (3.0, 2.0))):
         shipped = shipped_limits(s)
-        for rid in (PAIR, FROM_MEAN):
-            if rid in shipped:
-                assert f[s][rid] == shipped[rid], (s, rid)
-            else:
-                assert not f[s][rid].is_numeric, (s, rid)
+        conv = CS.convert_iso_evenness(shipped[PAIR].number,
+                                       shipped[FROM_MEAN].number)
+        assert conv == pair, (s, conv)
+        assert (f[s][PAIR].number, f[s][FROM_MEAN].number) == pair, s
 
 
 def test_the_help_text_quotes_the_numbers_the_code_uses():
@@ -483,7 +474,9 @@ def test_the_help_text_quotes_the_numbers_the_code_uses():
     assert f"at least {MR.EVENNESS_MIN_GRID} strips and " \
            f"{MR.EVENNESS_MIN_GRID} rows" in d
     assert f"{MR.EVENNESS_SHUFFLES} times" in d
-    assert "95th percentile" in d
+    # Knut's filter (#182 5855259490, the accepted text): the noise's
+    # average height is taken away, and more patches make the rest smaller
+    assert "takes it away" in d and "four times as many halve it" in d
     for rid in (PAIR, FROM_MEAN):
         blurb = CS.ROW_BY_ID[rid].blurb
         for cause in ("banding", "print head", "paper", "changing"):
@@ -534,28 +527,32 @@ def test_the_report_names_the_area_by_the_labels_printed_on_it(chart):
 # ---------------------------------------------------------------------------
 # 8: the presets window and the pre-flight
 # ---------------------------------------------------------------------------
-def test_a_laid_out_small_chart_is_told_its_noise_would_be_too_high(tmp_path):
-    """The Measure tab's pre-flight and the presets window's first line are
-    about a LAID-OUT chart: the page grid is exact, the noise is estimated for
-    a typical print, and the report's own rule decides.
+def test_a_laid_out_small_chart_that_meets_the_page_rules_can_be_judged(
+        tmp_path):
+    """The Measure tab's pre-flight and the presets window are about a
+    LAID-OUT chart: the page grid is exact, and a chart that meets the page
+    rules can be judged. Knut accepted (#182 5855780690) that the window says
+    so, and that the noise of the PRINTED sheet decides whether the report
+    gives a verdict: no window withholds a row on the estimated noise of a
+    print that does not exist yet, under the strictest set either.
 
-    MUTATION: drop the `evenness_withheld` step from `assess_rows` and the
-    9-by-9 chart reads as answering both rows.
+    MUTATION: put the `evenness_withheld` step back into `assess_rows` and
+    the 9-by-9 chart reads as missing both rows under ChromIQ tight.
     """
     small, _ = _write_chart(tmp_path / "s", pages=(9,), rows=9)
     large, _ = _write_chart(tmp_path / "l", pages=(22,), rows=26)
     PE.clear_cache()
-    a = dict(PE.assess(small, MR.REPORT_TYPE_FULL, "chromiq_default").missing)
-    assert a.get(PAIR) == MR.REASON_EVENNESS_NOISY_PAIRWISE, a
-    b = PE.assess(large, MR.REPORT_TYPE_FULL, "chromiq_default")
-    assert PAIR in b.answered and FROM_MEAN in b.answered, b.missing
-    # the pre-flight asks with the loosest limit any set has; since E3
-    # (Knut, 2026-09-23) every ChromIQ set carries 1.5
-    c = dict(PE.assess_any(small).missing)
-    loosest = PE.loosest_limits()[PAIR].number
-    assert loosest == 1.5
-    assert (PAIR in c) == (PE.chart_row_values(small)[PAIR]["noise_p95"]
-                          >= loosest)
+    for sid in ("chromiq_tight", "chromiq_default", "iso_12647_7"):
+        for chart in (small, large):
+            a = PE.assess(chart, MR.REPORT_TYPE_FULL, sid)
+            assert PAIR in a.answered and FROM_MEAN in a.answered, (
+                sid, a.missing)
+    # the 9-by-9 chart's estimated noise IS over tight's limit, so the line
+    # above is the rule and not a coincidence
+    assert PE.chart_row_values(small)[PAIR]["noise_p95"] >= \
+        CS.factory_limits("chromiq_tight")[PAIR].number
+    c = PE.assess_any(small)
+    assert PAIR in c.answered and FROM_MEAN in c.answered, c.missing
     PE.clear_cache()
 
 

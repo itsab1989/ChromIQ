@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-27, Knut #182 5855780690 (the evenness filter, converted ISO limits, the feature description): the two evenness rows' help, their relation guide, three set blurbs, the Report Limits note on the converted cells and the presets window's "can be judged" line, 6 keys replaced and 6 new. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1471 (beta 45 challenge 2, F2): the presets window's evenness sentence on a chart whose last page the report leaves out says "the same ninth of {pages} of the chart's {total} pages" instead of "all {pages} pages", and names the page left out in the report's own (already translated) words: 2 keys in, none out. And Knut's #182 5853818821: the Build Profile tab's calibration help moves its advice for newcomers early, 1 key replaced by 1 (German by hand; the twelve others carried the English before and after, so it does not move a count). German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1460 (on top of B8-1451): an older chart whose patch set targen could not be asked about keeps it, and says so in Create Chart's log (M-PATCHSET-KEPT-UNCHECKED, §M-PROPOSED), 2 keys in (title and body), none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1451: the presets window's evenness sentence names the counts the report pools over every page and one needed count per limit: the two K61 keys (one patch / many, "about {need}") out, four in (one page or several, ninths equal or not, "at least {need}"). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 2, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
@@ -1090,18 +1091,18 @@ _BUDGET = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 13,
-    "es": 1125,
-    "fr": 1126,
-    "it": 1125,
-    "ja": 1125,
-    "nl": 1125,
-    "no": 1125,
-    "pl": 1125,
-    "pt": 1125,
-    "ru": 1123,
-    "sv": 1125,
-    "zh_CN": 1124,
-    "uk": 1266,
+    "es": 1131,
+    "fr": 1132,
+    "it": 1131,
+    "ja": 1131,
+    "nl": 1131,
+    "no": 1131,
+    "pl": 1131,
+    "pt": 1131,
+    "ru": 1129,
+    "sv": 1131,
+    "zh_CN": 1130,
+    "uk": 1272,
 }
 
 

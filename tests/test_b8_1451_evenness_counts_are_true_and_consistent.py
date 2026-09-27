@@ -182,103 +182,45 @@ def sweep(qapp):
 
 
 def test_the_sweep_sees_what_the_challenge_saw(sweep):
-    """Guard the guard: the list is the window's, it holds multi-page
-    presets with the rows withheld, and ninths that differ.
+    """Guard the guard: the list is the window's, and it holds multi-page
+    presets whose ninths differ.
 
     MUTATION, proven red: `verification_preset_rows` returning [] (every
     other test here would pass on nothing)."""
     rows, grids, cases = sweep
     assert len(rows) > 150, len(rows)
-    withheld = [(r, a.noise_count(rid)) for rs in cases.values()
-                for r, a in rs for rid in ROWS if a.noise_count(rid)]
-    assert any(c.pages > 1 for _r, c in withheld)
-    assert any(c.low != c.high for _r, c in withheld)
-    assert any(r.label.startswith("A4-2040p-10pages") for r, _c in withheld)
+    many = [r for r in rows if len(grids[r.label].get("pages") or ()) > 1]
+    assert any(r.label.startswith("A4-2040p-10pages") for r in many)
 
 
-def test_one_limit_one_need_and_answered_exactly_at_or_over_it(sweep):
-    """No two presets contradict each other: under one report type and set,
-    every withheld preset names the same need, counts fewer than it, and
-    every preset answered on the row counts at least as many.
+def test_no_preset_is_withheld_for_the_estimated_noise_of_a_typical_print(
+        sweep):
+    """Since Knut's filter (#182 5855780690, the presets-window text he
+    accepted from 5855451413 section 6): a chart that meets the page rules
+    can be judged on both evenness rows, under every report type and every
+    "Judged against", and the report alone decides from the noise of the
+    printed sheet. So no preset is missing an evenness row for noise, none
+    carries a count sentence, and a row is answered exactly when the laid-out
+    chart has a value for it (its pages meet the page rules).
 
-    MUTATION, proven red: `_estimated_evenness` without `_apply_noise_model`
-    (the shuffle of each chart's own draw decides again: 118 pairs under
-    ISO 12647-7:2016 values in the challenge)."""
+    MUTATION, proven red: put the `evenness_withheld` step back into
+    `assess_rows` (ChromIQ tight withholds the one-page presets again)."""
     _rows, _grids, cases = sweep
     bad = []
-    for (tid, sid), rs in cases.items():
-        for rid in ROWS:
-            needs = {a.noise_count(rid).need for _r, a in rs
-                     if a.noise_count(rid)}
-            assert len(needs) <= 1, (tid, sid, rid, needs)
-            if not needs:
-                continue
-            need = needs.pop()
-            for r, a in rs:
-                c = a.noise_count(rid)
-                if c is not None and c.have >= need:
-                    bad.append(("withheld at or over", sid, rid, r.label, c))
-                if rid in a.answered:
-                    cell = PE.chart_row_values(r.chart, r.recipe)[rid]
-                    if cell["area_effective"] < need:
-                        bad.append(("answered under", sid, rid, r.label,
-                                    cell["area_effective"], need))
-    assert not bad, bad[:10]
-
-
-def test_every_number_in_every_sentence_is_the_page_grids(sweep):
-    """For every withheld row: the counts are the sums of each page's own
-    ninths over the pages the report reads, the effective count is theirs,
-    and the sentence the pane prints names those numbers, says the pages are
-    counted together exactly when there is more than one, and never says a
-    ninth of one page holds the pooled count.
-
-    MUTATION, proven red: `noise_count_line` ignoring *pages* (the one-page
-    sentence on the 10-page chart, "Each ninth of the page holds 200");
-    and, separately, `row_values` counting ``pages`` instead of
-    ``pages_used``."""
-    from ui.dialogs import preset_verification_dialog as PVD
-    _rows, grids, cases = sweep
     seen = 0
     for (tid, sid), rs in cases.items():
         for r, a in rs:
+            missing = dict(a.missing)
             for rid in ROWS:
-                c = a.noise_count(rid)
-                if c is None:
+                if rid not in a.asked:
                     continue
                 seen += 1
-                grid = grids[r.label]
-                block = PE._estimated_evenness(Path(r.chart), r.recipe, True)
-                used = block["pages_used"]
-                per_page = _page_ninths(grid, used)
-                pooled = [sum(p[i] for p in per_page) for i in range(9)]
-                assert pooled == block["counts"], (r.label, pooled)
-                assert c.pages == len(used), (r.label, c, used)
-                assert (c.low, c.high) == (min(pooled), max(pooled))
-                assert c.have == MR.evenness_effective_count(pooled)
-                why = dict(a.missing)[rid]
-                line = PVD.reason_line(why, c)
-                assert f" {c.need}" in line, line
-                assert f" {c.have} " in line, line
-                # B8-1471: the pages the report reads, OF the chart's pages;
-                # every page it leaves out is named (Red River's 9-page
-                # ColorMunki chart read "all 8 pages")
-                total = len(grid["pages"])
-                assert c.pages + len(c.left_out) == total, (r.label, c)
-                for _why, pg, _cov in c.left_out:
-                    assert f"page {pg} " in line.lower() or \
-                        f"pages {pg}" in line.lower(), (r.label, line)
-                if c.pages > 1 and c.left_out:
-                    assert (f"{c.pages} of the chart's {total} pages "
-                            "together") in line, line
-                    assert f"all {c.pages} pages" not in line, line
-                elif c.pages > 1:
-                    assert f"all {c.pages} pages together" in line, line
-                    assert "Each ninth of the page holds" not in line, line
-                elif not c.left_out:
-                    assert "pages" not in line, line
-                if c.low == c.high:
-                    assert "on average" not in line, line
-                else:
-                    assert f"{c.low} to {c.high} patches" in line, line
+                if missing.get(rid) in MR.EVENNESS_NOISE_REASONS \
+                        or a.noise_count(rid):
+                    bad.append((tid, sid, rid, r.label, missing.get(rid)))
+                has = PE.chart_row_values(r.chart, r.recipe)[rid]
+                if (has.get("value") is not None) != (rid in a.answered):
+                    bad.append(("answered differs from the page rules", sid,
+                                rid, r.label))
+    assert not bad, bad[:10]
     assert seen > 300, seen

@@ -828,42 +828,13 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         lambda: chart_paper_patch(99.5 - NOTCH),
         lambda: chart_paper_patch(99.5),
         strip_ids(20), strip_ids(20)),
-    # K61 (Knut, #182 5851645723): "Verify by test that all requirements for
-    # all metrics are properly working and that the demo projects are able to
-    # detect the threshold areas". The noise floor of the two evenness rows
-    # had no pair until beta 45: it was in UNREACHABLE, shown only by the
-    # built-in presets, never one notch either side of its line.
-    Requirement(
-        "R18", "Evenness across the sheet, between two of the nine areas",
-        "On a typical print, the chart's own noise between two of the nine "
-        "areas has to be below the metric's limit, so that a difference the "
-        "report reads is the sheet's and not the patches' scatter.",
-        "noise_p95 >= limit  ->  evenness_noisy_pairwise (the estimate of "
-        "preset_eligibility._estimated_evenness, EVENNESS_TYPICAL_SIGMA 1.1)",
-        "measurement_report.evenness_withheld, EVENNESS_TYPICAL_SIGMA",
-        ("uniformity_sd",), "evenness_noisy_pairwise",
-        "544 patches, a typical print's noise 1.002 against a limit of 1.0",
-        "545 patches, noise 0.994",
-        lambda: chart_page(544), lambda: chart_page(545),
-        strip_ids(20), strip_ids(20), scale=R18_SCALE,
-        judged_with="custom_iso_12647_7"),
-    Requirement(
-        "R19", "Evenness across the sheet, one area against the whole sheet",
-        "On a typical print, the chart's own noise between one of the nine "
-        "areas and the whole sheet has to be below the metric's limit.",
-        "noise_p95 >= limit  ->  evenness_noisy_from_mean (the same estimate)",
-        "measurement_report.evenness_withheld, EVENNESS_TYPICAL_SIGMA",
-        ("uniformity_de00_max_from_mean",), "evenness_noisy_from_mean",
-        "205 patches, a typical print's noise 1.008 against a limit of 1.0",
-        "206 patches, noise 0.985",
-        lambda: chart_page(205), lambda: chart_page(206),
-        strip_ids(20), strip_ids(20),
-        ("evenness_noisy_pairwise",),
-        "The pairwise row needs its ninths to count as 60 patches under a "
-        "limit of 1.0; these two pages count as 21 and 22, so it is over its "
-        "own limit on both sides (1.68 and 1.64) and does not move with the "
-        "pair.",
-        scale=R19_SCALE, judged_with="custom_iso_12647_7"),
+    # K61 (Knut, #182 5851645723) gave the noise floor of the two evenness
+    # rows a pair each, R18 and R19. Since Knut's filter (#182 5855780690,
+    # the presets-window text he accepted) no window withholds a row on the
+    # estimated noise of a print that does not exist yet, so the window has
+    # no noise line left to stand either side of: both codes are in
+    # UNREACHABLE, and the report's own noise rule is proved on measured
+    # sheets (the Report-Limits-Evenness demo project).
 )
 
 
@@ -1144,6 +1115,12 @@ UNREACHABLE: "dict[str, str]" = {
         "reference code above: laid out by printtarg on A4 for an i1Pro, 78 "
         "patches fill 3 strips, and both evenness rows want 9 strips and 9 "
         "rows. The larger demos of K43 (R16 and L1) have 24 to 31 strips.",
+    "evenness_noisy_pairwise":
+        "Since Knut's filter (#182 5855780690) the window judges a chart that "
+        "meets the page rules as one that can be judged, and the report alone "
+        "withholds a row for the noise it measures on the printed sheet. No "
+        "preset can reach it in the window; R18 was its pair until beta 45.",
+    "evenness_noisy_from_mean": "As the code above; R19 was its pair.",
     "evenness_empty_area":
         "Needs a page of at least 9 by 9 whose patches leave a ninth of it "
         "empty, which a chart filled strip by strip cannot do.",
@@ -1160,8 +1137,8 @@ UNREACHABLE: "dict[str, str]" = {
 #: any demo here, so they stay in UNREACHABLE; the test asserts they really
 #: appear, which is stronger than asserting they do not.
 SHOWN_BY_BUILTINS: "frozenset[str]" = frozenset()
-#: (K61: the two noise codes were the only members. Each has its own pair
-#: now, R18 and R19, so no code is left that only a built-in preset shows.)
+#: (K61: the two noise codes were the only members, then had a pair each,
+#: R18 and R19; since Knut's filter no preset reaches them in the window.)
 
 
 # ---------------------------------------------------------------------------
