@@ -5134,7 +5134,8 @@ only a triple that DIFFERS from the rule's answer would stop it.
   fix.
 - evidence:
   test_the_two_controls_leave_the_measured_frame_alone, test_an_imported_image_s_caption_is_checked_too,
-  test_the_branding_mode_is_left_alone_on_purpose,
+  test_the_branding_is_checked_against_the_box_beside_its_wordmark (since
+  B8-1391, in place of the test that pinned the branding as left out),
   test_an_empty_notes_box_is_never_blamed,
   test_a_typed_note_still_gets_the_per_lever_wording,
   test_the_stamp_is_on_by_default_and_no_recipe_can_clear_it,
@@ -29886,11 +29887,17 @@ would reach.
 - decided by: Knut
 - because: the "● modified" line is in Create Chart and the ● verification mark is in the presets window, so the two never appear together and do not confuse (Knut, #182 5849622329).
 
-### B8-1402 · OPEN · Clip border: an Offset Y moves the branding wordmark into the text, and `clip_content_when_on` does not travel in build kwargs
+### B8-1402 · FIXED, awaiting confirmation · Clip border: an Offset Y moved the branding wordmark into the text, and `clip_content_when_on` did not travel in build kwargs
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- found by: beta 44 challenge round 9 (`challenge-9/strips/`): the branding text box ignores the content offsets, so an Offset Y moves the wordmark over the text; `build_kwargs`/`from_build_kwargs` do not carry `clip_content_when_on` (B8-1388), so a chart restored from its build settings loses the kept content. Separately (as in beta 43): Create Chart's ColorMunki panel opens with the clip border On (Notes box) although the Preferences default is Off.
+- status: FIXED
+- found by: beta 44 challenge round 9 (`challenge-9/strips/`).
+- (a) cause: `_vwordmark` moved the wordmark by the content offsets and measured the lines' box from where the wordmark would be unmoved. fix: the box's near edge follows the moved wordmark's last ink plus the K58 gap (`_branding_box_len`, one rule shared with the panel's check through `branding_text_box_px`), and never runs past the strip. Offset X moves the wordmark across the band; the lines stay centred, clear of it along the band. On screen (`~/Desktop/ChromIQ-beta45-proof/batch1/1402a/`, i1Pro A4, Offset Y -100 mm, two lines, the chart GENERATED and its TIFF opened in a window): before, "ChromIQ" printed over "Knut Petersen, …"; after, the lines end 3.5 mm before the wordmark.
+- (b) fix: `LayoutRecipe.build_kwargs` carries `clip_content_when_on` and `from_build_kwargs` reads it (absent = "", the notes box, as before); `build_chart` takes it and draws nothing with it. No on-screen path shows it today: a Manual chart stores the whole recipe (which carried it already) and Guided has no clip content; this was latent for a chart whose sidecar stores raw build kwargs. Proved by tests only.
+- (c) checked, not changed (as asked): reproduced on screen (`~/Desktop/ChromIQ-beta45-proof/batch1/1402c/`, before and after alike): Create Chart, Manual, engine on, the panel's instrument changed from the i1Pro to the ColorMunki: Content stays "Notes box", clip border On, while Preferences > Chart Layout for the ColorMunki reads Off. Cause: `LayoutOptionsPanel._on_instr_changed_body` keeps the content the previous instrument had; it has a rule for a switch TO the i1Pro / i1Pro 3 Plus (Off becomes Notes box) and none for a switch to the ColorMunki, SpectroScan or CR30 (whose default is Off), and it does not read the layout preset Preferences stores. A question for Knut: should a switch to one of those three take the stored layout preset's clip border (Off by default)?
+- tests: tests/test_b8_1402_branding_offsets_and_kept_content.py, tests/test_clip_branding_wordmark.py; mutations M1402-a to M1402-e (`~/Desktop/ChromIQ-beta45-proof/batch1/mutations/m1402.txt`), each red.
+- evidence: test_an_offset_y_toward_the_text_keeps_the_gap, test_an_offset_y_away_from_the_text_lets_the_box_follow, test_a_wordmark_moved_off_the_strip_leaves_a_box_no_longer_than_the_strip, test_offset_x_moves_the_wordmark_across_and_the_text_stays_clear, test_the_generated_page_keeps_the_gap_with_an_offset_y, test_the_kept_content_travels_in_the_build_settings, test_build_settings_written_before_read_as_the_notes_box, test_the_engine_accepts_every_build_setting
+- where: `workflow/layout_engine/raster.py` (`_wordmark_geometry`, `_branding_box_len`, `branding_text_box_px`, `_vwordmark`), `workflow/layout_engine/presets.py`, `workflow/layout_engine/chart.py`.
 
 ### B8-1405 · FIXED, awaiting confirmation · Guided's "Refinement profile" folder button looked like the plain folder, not the Create Chart magenta
 - blocks release: no
@@ -30360,13 +30367,16 @@ would reach.
 - tests: tests/test_clip_branding_wordmark.py; mutations K58-a to K58-c (`k56/mutations-k58.txt`), each red.
 - evidence: test_the_branding_sits_at_the_same_end_as_the_notes_box, test_the_wordmark_sits_at_the_bottom_end_and_the_lines_in_the_box, test_text_never_shrinks_the_wordmark, test_a_line_that_fills_the_box_keeps_the_gap_to_the_wordmark
 
-### B8-1391 · OPEN · The branding's lines now go through `_vtext`, but the "too long for the page" check still skips the branding
+### B8-1391 · FIXED, awaiting confirmation · The "too long for the page" check skipped the branding's lines
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: B8-1390.
-- note: `TabChart._engine_text_notes` measures a clip line against the page for every mode that draws through `_vtext` and leaves "branding" out, because its lines went through `_vwordmark`'s own fit (`test_the_branding_mode_is_left_alone_on_purpose`). Since K58 they are drawn by `_vtext` in the box beyond the wordmark, so the check could cover them against the box's length. Not changed here: `tab_chart.py` is being worked on by another agent for beta 44.
-- where: `ui/tabs/tab_chart.py` (`_engine_text_notes`), `tests/test_a_clip_line_too_long_for_the_page_is_reported.py`.
+- fix: `TabChart._engine_text_notes` measures the branding's longest line, at the size the renderer uses (the typed Size, else the automatic floor, else the smaller size `_vwordmark` draws a stack at that cannot fit across the band), against the box beside the wordmark (`raster.branding_text_box_px`, following Offset Y since B8-1402), and says so in red: "⚠ The clip border text is too long for the room beside the ChromIQ wordmark. Its longest line needs {need} mm along the page and the wordmark leaves it {avail} mm, so {short} mm of it runs off, {half} mm at each end. The line is centred in that room, so what does not fit is cut at both ends with nothing on the sheet to show it. Shorten the line, set a smaller Size or Scale under “Clip-border content”, or use a taller paper." (a panel notice like its Custom text sibling, not a §M message; German by hand; the twelve others carry the English, both ledgers +1 each). The test that pinned the branding as left out is replaced.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch1/1391/` (i1Pro A4, branding with a 300-character line, generated): before nothing was said; after "1 warning" with the sentence above (needs 265 mm, the wordmark leaves 240).
+- tests: tests/test_a_clip_line_too_long_for_the_page_is_reported.py; mutations M1391-a to M1391-d (`~/Desktop/ChromIQ-beta45-proof/batch1/mutations/m1391.txt`), each red.
+- evidence: test_the_branding_is_checked_against_the_box_beside_its_wordmark, test_a_typed_size_is_measured_at_that_size
+- where: `ui/tabs/tab_chart.py` (`_engine_text_notes`), `workflow/layout_engine/raster.py` (`branding_text_box_px`), `data/i18n/*.json`, both ledgers.
 ### B8-1392 · FIXED, awaiting confirmation · The everyday tier lost a worker to SIGSEGV in `sendThroughObjectEventFilters`: a garbage collection inside Qt's event delivery deleted the receiver
 - blocks release: yes
 - severity: BLOCKER

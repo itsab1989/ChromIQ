@@ -25514,10 +25514,7 @@ class TabChart(QWidget):
                 # 287.61 mm canvas and lost 147.18 mm, 73.59 at each end, and
                 # the panel said "Margins: OK".
                 #
-                # "branding" is deliberately NOT here: its extra lines go
-                # through `_vwordmark`, which is a different renderer with a
-                # different fit, and warning about it from this arithmetic
-                # would be a guess. Reported instead.
+                # "branding" is checked below, against its own box (B8-1391).
                 if _clip_zone > 0 and _clip_band_exists and _clip_len_lines:
                     try:
                         from workflow.layout_engine import geometry as _gm2
@@ -25556,6 +25553,75 @@ class TabChart(QWidget):
                                 # names “Sheet text”, and this line's size box
                                 # lives under “Clip-border content”, which the
                                 # message has already named.
+                    except Exception:      # noqa: BLE001 — never fatal
+                        pass
+                # THE BRANDING'S LINES HAVE A LENGTH TOO (B8-1391). Since K58
+                # they are drawn by the same `_vtext`, centred in the box past
+                # the wordmark (`raster.branding_text_box_px`, the renderer's
+                # own measure, following Offset Y since B8-1402), so a line
+                # longer than that box is cut at both ends exactly as a Custom
+                # text is cut by the band. The size is the one the renderer
+                # would use: the typed Size, else the automatic floor, else,
+                # where the stack cannot fit across the band at the floor, the
+                # smaller size `_vwordmark` then draws at.
+                if (_clip_zone > 0 and _clip_band_exists
+                        and str(getattr(r, "clip_content_mode", "off"))
+                        == "branding"):
+                    try:
+                        from workflow.layout_engine import geometry as _gm3
+                        from workflow.layout_engine import raster as _ras3
+                        from workflow.layout_engine import papers as _pp3
+                        _b_lines = _ras3.clip_text_lines(
+                            _ras3.resolve_placeholders(
+                                getattr(r, "clip_text", "") or "",
+                                self._text_placeholder_context(r)))
+                        _pw3, _ph3 = _pp3.dimensions_mm(str(r.paper))
+                        _area3 = _gm3.clip_area_mm(geom, _ph3, _pw3, 0, 0.0)
+                        if _b_lines and _area3 is not None:
+                            _dpi3 = float(getattr(r, "dpi", 300) or 300)
+                            _px3 = _dpi3 / 25.4
+                            _w3 = max(1, round(float(_area3[2]) * _px3))
+                            _h3 = max(1, round(float(_area3[3]) * _px3))
+                            _box_px, _wm_px = _ras3.branding_text_box_px(
+                                _w3, _h3, _dpi3,
+                                float(getattr(r, "clip_image_scale", 100.0)
+                                      or 100.0),
+                                float(getattr(r, "clip_image_offset_y_mm", 0.0)
+                                      or 0.0) * _px3)
+                            _typed = float(getattr(r, "clip_text_size_mm", 0.0)
+                                           or 0.0)
+                            if _typed > 0:
+                                _size_mm = _typed
+                            else:
+                                _floor_px = text_edge_fit.pt_to_px(
+                                    text_edge_fit.AUTO_SHRINK_FLOOR_PT, _dpi3)
+                                _across = _w3 * 0.98 / (1.2 * len(_b_lines))
+                                _size_mm = (min(_floor_px, max(1.0, _across))
+                                            / _px3)
+                            _need3 = _ras3.sheet_text_width_mm(
+                                _b_lines, _size_mm,
+                                str(getattr(r, "clip_text_font", "") or ""),
+                                dpi=_dpi3)
+                            _lo3 = text_edge_fit.clip_line_overflow(
+                                max(0.0, _box_px / _px3), _need3)
+                            if _lo3 is not None:
+                                over.append(tr(
+                                    "⚠ The clip border text is too long for "
+                                    "the room beside the ChromIQ wordmark. Its "
+                                    "longest line needs {need:.0f} mm along "
+                                    "the page and the wordmark leaves it "
+                                    "{avail:.0f} mm, so {short:.0f} mm of it "
+                                    "runs off, {half:.0f} mm at each end. The "
+                                    "line is centred in that room, so what "
+                                    "does not fit is cut at both ends with "
+                                    "nothing on the sheet to show it. Shorten "
+                                    "the line, set a smaller Size or Scale "
+                                    "under “Clip-border content”, or use a "
+                                    "taller paper.").format(
+                                        need=_lo3.needed_mm,
+                                        avail=max(0.0, _lo3.available_mm),
+                                        short=_lo3.overlap_mm,
+                                        half=_lo3.overlap_mm / 2.0))
                     except Exception:      # noqa: BLE001 — never fatal
                         pass
             # The STRIP AND ROW LABEL overflow warnings only apply in "margins

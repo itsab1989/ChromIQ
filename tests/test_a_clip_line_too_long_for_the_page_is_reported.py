@@ -202,15 +202,68 @@ def test_an_imported_image_s_caption_is_checked_too(tab):
         assert got, f"clip_content_mode={mode!r}: the line is cut and nothing is said"
 
 
-def test_the_branding_mode_is_left_alone_on_purpose(tab):
-    """Its extra lines go through `_vwordmark`, a different renderer with a
-    different fit, so warning about it from this arithmetic would be a guess.
-    Reported for a round of its own rather than silently covered."""
+def _branding(tab, text, *, size_mm=0.0, offset_y=0.0, scale=100.0):
+    panel = tab._manual_layout_panel
+    r = panel.get_recipe()
+    r.clip_border = True
+    r.clip_side = "left"
+    r.clip_content_mode = "branding"
+    r.clip_text = text
+    r.clip_text_size_mm = size_mm
+    r.clip_border_width_mm = 26.0
+    r.clip_image_offset_y_mm = offset_y
+    r.clip_image_scale = scale
+    panel.set_recipe(r)
+    from ui.tabs.tab_chart import TabChart
+    return [w for w in TabChart._engine_text_notes(tab)[1]
+            if "beside the ChromIQ wordmark" in w]
+
+
+def _box_mm(tab, offset_y=0.0) -> float:
+    from workflow.layout_engine import geometry as gm
+    from workflow.layout_engine import instruments, papers, raster
+    r = tab._current_layout_recipe()
+    geom = instruments.geom_from_build_kwargs(r.build_kwargs())
+    pw, ph = papers.dimensions_mm(str(r.paper))
+    area = gm.clip_area_mm(geom, ph, pw, 0, 0.0)
+    px = float(r.dpi) / 25.4
+    box, _ = raster.branding_text_box_px(
+        round(area[2] * px), round(area[3] * px), float(r.dpi), 100.0,
+        offset_y * px)
+    return box / px
+
+
+def test_the_branding_is_checked_against_the_box_beside_its_wordmark(tab):
+    """B8-1391. Since K58 the branding's lines go through `_vtext`, in the box
+    past the wordmark, and are cut at both ends like a Custom text. A line
+    that fits the page but not that box is reported; a short line is not.
+
+    MUTATIONS, proven red: M1391-a the branding branch removed; M1391-b the
+    box measured as the whole band (no wordmark subtracted); M1391-c the
+    offset left out of the box."""
     from workflow.layout_engine import raster
-    import inspect
-    src = inspect.getsource(raster.render_clip_strip)
-    i = src.find('if mode == "branding"')
-    assert i > 0, "the branding mode is gone"
-    assert "_vwordmark(" in src[i:i + 600], (
-        "branding now draws through the same renderer as the others; the "
-        "length check should cover it")
+    r0 = tab._current_layout_recipe()
+    font = str(getattr(r0, "clip_text_font", "") or "")
+    floor_mm = tef.AUTO_SHRINK_FLOOR_PT * 25.4 / 72.0
+    assert not _branding(tab, _SHORT), "a short line is reported"
+    box = _box_mm(tab)
+    # a line longer than the box, shorter than the whole band
+    text = None
+    for n in range(1, 400):
+        cand = (_UNIT * 3)[:n * 2]
+        w = raster.sheet_text_width_mm([cand], floor_mm, font, dpi=float(r0.dpi))
+        if box * tef.CLIP_LINE_FILL + 5.0 < w:
+            text = cand
+            break
+    assert text is not None
+    got = _branding(tab, text)
+    assert got, "a branding line longer than its box is cut and nothing is said"
+    assert "—" not in got[0]
+    # moving the wordmark away from the text gives it the room, and the
+    # notice follows (B8-1402)
+    assert not _branding(tab, text, offset_y=40.0)
+
+
+def test_a_typed_size_is_measured_at_that_size(tab):
+    assert not _branding(tab, "Epson P900", size_mm=3.0)
+    assert _branding(tab, (_UNIT * 2).strip(), size_mm=6.0)

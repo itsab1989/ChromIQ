@@ -1549,6 +1549,72 @@ _BRANDING_TEXT_GAP_MM = 3.5
 _BRANDING_MAX_LEN_FRAC = 0.35
 
 
+def _wordmark_geometry(width_px: int, height_px: int, dpi: float,
+                       scale: float = 100.0) -> dict:
+    """What `_vwordmark` draws, measured: its size, the end pad and the length
+    of its ink along the band. ONE PLACE, because Create Chart's "too long for
+    the page" check (B8-1391) asks how much of the band the wordmark leaves
+    for the lines, and a second copy of this rule would drift from the sheet.
+    """
+    mm2px = float(dpi) / 25.4
+    L, T = max(1, height_px), max(1, width_px)       # length x thickness (px)
+    pad = max(2, round(2.0 * mm2px))                 # the Notes box's own end pad
+    d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
+    # The wordmark's size comes from the band's width by the Notes box's own
+    # rule (`_draw_wordmark_h`: 0.74 of the height it is given, here the band
+    # less the end pad on both sides), and is held to a share of the strip's
+    # length so a wide band on a short page keeps room for the lines.
+    ref = 100
+    f_ref = _font(ref, WORDMARK_FONT)
+    wm_ref = (d.textlength("Chrom", font=f_ref)
+              + d.textlength("IQ", font=f_ref) * 1.25) or 1.0
+    size = min(max(1.0, T - 2 * pad) * 0.74,
+               (L * _BRANDING_MAX_LEN_FRAC) * ref / wm_ref)
+    sc = max(0.05, float(scale or 100.0) / 100.0)
+    if sc != 1.0:
+        # CEILING, NOT JUST A FLOOR (#164): the Scale box runs to 50 000 %, and
+        # a solved size multiplied by that asks Pillow for a glyph tile it
+        # refuses as a decompression bomb.
+        ceiling = max(_BRANDING_MIN_PX * 2.0,
+                      min(_MAX_BRANDING_SIZE_FACTOR * width_px,
+                          _MAX_BRANDING_SIZE_PX))
+        size = min(ceiling, size * sc)
+    size = max(_BRANDING_MIN_PX, int(size))
+    f = _font(size, WORDMARK_FONT)
+    asc, desc = f.getmetrics()
+    f_iq = _font(size, WORDMARK_FONT, italic=True)
+    iq_tile, iq_base, iq_left = _italic_tile("IQ", f_iq, WORDMARK_IQ_RGB + (255,),
+                                             shear=0.0)
+    chrom_w = d.textlength("Chrom", font=f)
+    kern = size * 0.02
+    # to the wordmark's last INK, not the italic tile's padded edge
+    _bb = iq_tile.getbbox()
+    ink_w = chrom_w + kern + ((_bb[2] if _bb else iq_tile.width) - iq_left)
+    return {"pad": pad, "size": size, "font": f, "asc": asc, "desc": desc,
+            "iq_tile": iq_tile, "iq_base": iq_base, "iq_left": iq_left,
+            "chrom_w": chrom_w, "kern": kern, "ink_w": ink_w}
+
+
+def branding_text_box_px(width_px: int, height_px: int, dpi: float,
+                         scale: float = 100.0,
+                         offset_y_px: float = 0.0) -> "tuple[int, int]":
+    """``(box length, wordmark size)`` in px: the length of the box the
+    branding's lines are drawn in (the band past the wordmark, its end pad and
+    the K58 gap, following the wordmark wherever Offset Y moves it, B8-1402)
+    and the wordmark's size, which caps the lines in auto."""
+    g = _wordmark_geometry(width_px, height_px, dpi, scale)
+    return _branding_box_len(g, max(1, height_px), dpi, offset_y_px), int(g["size"])
+
+
+def _branding_box_len(g: dict, L: int, dpi: float, offset_y_px: float) -> int:
+    """The lines' box: the band past the wordmark's last ink and the K58 gap,
+    measured from where Offset Y has moved the wordmark (B8-1402), and never
+    longer than the band."""
+    mm2px = float(dpi) / 25.4
+    return int(min(L, L - (g["pad"] + g["ink_w"] + _BRANDING_TEXT_GAP_MM * mm2px)
+                   + round(offset_y_px)))
+
+
 def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
                font_family: str = "Inter", extra_size_px: float = 0.0,
                scale: float = 100.0, offset_x_px: float = 0.0,
@@ -1584,38 +1650,12 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
     the imported image is placed (#164); the text box starts after the
     wordmark wherever the scale leaves its end.
     """
-    mm2px = float(dpi) / 25.4
     L, T = max(1, height_px), max(1, width_px)       # length x thickness (px)
-    pad = max(2, round(2.0 * mm2px))                 # the Notes box's own end pad
-    d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
-    # The wordmark's size comes from the band's width by the Notes box's own
-    # rule (`_draw_wordmark_h`: 0.74 of the height it is given, here the band
-    # less the end pad on both sides), and is held to a share of the strip's
-    # length so a wide band on a short page keeps room for the lines.
-    ref = 100
-    f_ref = _font(ref, WORDMARK_FONT)
-    wm_ref = (d.textlength("Chrom", font=f_ref)
-              + d.textlength("IQ", font=f_ref) * 1.25) or 1.0
-    size = min(max(1.0, T - 2 * pad) * 0.74,
-               (L * _BRANDING_MAX_LEN_FRAC) * ref / wm_ref)
-    sc = max(0.05, float(scale or 100.0) / 100.0)
-    if sc != 1.0:
-        # CEILING, NOT JUST A FLOOR (#164): the Scale box runs to 50 000 %, and
-        # a solved size multiplied by that asks Pillow for a glyph tile it
-        # refuses as a decompression bomb.
-        ceiling = max(_BRANDING_MIN_PX * 2.0,
-                      min(_MAX_BRANDING_SIZE_FACTOR * width_px,
-                          _MAX_BRANDING_SIZE_PX))
-        size = min(ceiling, size * sc)
-    size = max(_BRANDING_MIN_PX, int(size))
-    f = _font(size, WORDMARK_FONT)
-    asc, desc = f.getmetrics()
-    f_iq = _font(size, WORDMARK_FONT, italic=True)
-    iq_tile, iq_base, iq_left = _italic_tile("IQ", f_iq, WORDMARK_IQ_RGB + (255,),
-                                             shear=0.0)
-    chrom_w = d.textlength("Chrom", font=f)
-    kern = size * 0.02
-    wm_w = chrom_w + kern + (iq_tile.width - iq_left)
+    g = _wordmark_geometry(width_px, height_px, dpi, scale)
+    pad, size, f = g["pad"], g["size"], g["font"]
+    asc, desc = g["asc"], g["desc"]
+    iq_tile, iq_base, iq_left = g["iq_tile"], g["iq_base"], g["iq_left"]
+    chrom_w, kern = g["chrom_w"], g["kern"]
     # -- the wordmark on its own landscape layer, at the start of the length
     mark = Image.new("RGBA", (L, T), (0, 0, 0, 0))
     md = ImageDraw.Draw(mark)
@@ -1633,10 +1673,13 @@ def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
     out.paste(mark, (round(offset_x_px), round(offset_y_px)), mark)
     # -- the lines, in the box beyond the wordmark and the gap
     if extra_lines:
-        # from the wordmark's last INK, not the italic tile's padded edge
-        _bb = iq_tile.getbbox()
-        ink_w = chrom_w + kern + ((_bb[2] if _bb else iq_tile.width) - iq_left)
-        box_len = int(L - (pad + ink_w + _BRANDING_TEXT_GAP_MM * mm2px))
+        # THE BOX ENDS WHERE THE MOVED WORDMARK BEGINS (B8-1402). The offsets
+        # move the wordmark along the band (Offset Y) and across it (Offset X);
+        # the box was measured from the wordmark's unmoved place, so an Offset
+        # Y toward the text laid the wordmark over the lines. The box's near
+        # edge now follows the wordmark's last ink plus the gap, wherever the
+        # offset puts it, and never reaches past the strip.
+        box_len = _branding_box_len(g, L, dpi, offset_y_px)
         if box_len > 0:
             fixed = float(extra_size_px or 0.0)
             if not fixed:

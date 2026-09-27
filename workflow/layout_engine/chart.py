@@ -263,6 +263,10 @@ def build_chart(
     clip_border_width: float = 26.0,
     clip_side: str = "left",
     clip_content_mode: str = "off",
+    # B8-1402: carried by `LayoutRecipe.build_kwargs` so a chart restored from
+    # its build settings keeps the kind a clip border switched On takes (K57).
+    # A setting of the panel, not of the sheet: nothing here draws with it.
+    clip_content_when_on: str = "",
     clip_text: str = "",
     clip_text_font: str = "Inter",
     clip_text_size_mm: float = 0.0,

@@ -400,6 +400,10 @@ class LayoutRecipe:
             clip_border_width_mm=float(d.get("clip_border_width") or 26.0),
             clip_side=d.get("clip_side") or "left",
             clip_content_mode=d.get("clip_content_mode", "off"),
+            # B8-1402: the kind a clip border switched On takes (K57, B8-1388)
+            # travels with the build settings too; absent in kwargs written
+            # before it, which read as "" (the notes box), as before.
+            clip_content_when_on=str(d.get("clip_content_when_on") or ""),
             clip_text=d.get("clip_text", ""),
             clip_text_font=d.get("clip_text_font", "Inter"),
             clip_text_size_mm=float(d.get("clip_text_size_mm") or 0.0),
@@ -587,6 +591,7 @@ class LayoutRecipe:
             "clip_border_width": self.clip_border_width_mm or 26.0,
             "clip_side": self.clip_side or "left",
             "clip_content_mode": self.clip_content_mode,
+            "clip_content_when_on": self.clip_content_when_on or "",
             "clip_text": self.clip_text,
             "clip_text_font": self.clip_text_font,
             "clip_text_size_mm": self.clip_text_size_mm,
