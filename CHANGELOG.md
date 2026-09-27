@@ -1,5 +1,31 @@
 # Changelog
 
+## v4.3.0-beta.45
+
+**A reopened project builds the chart it was built as, the evenness figures are true for every chart, metric names match the Report Limits window, and "drift" is gone from every text.**
+
+### Changed
+
+- With the paper filter on, "Custom…" lists every Custom-paper preset, plus the presets of the named paper its size equals, in either orientation.
+- The note under both preset lists ends ", or click here" with the gear, which opens "Settings for built-in presets"; that window's OK is now "Apply & save".
+- In Preferences > Chart Layout, the clip-border note keeps only its first sentence.
+- "Which presets can be used for verification" gives an evenness metric's numbers: how many patches each ninth of the page holds and how many the limit needs. Every chart is judged by the same rule, so one limit needs the same number for every chart.
+- The verification window judges a chart's device values as printtarg prints them, and no longer counts printtarg's padding patches.
+- Metric names in the report are exactly the labels of the Report Limits window, with "(within gamut)" after the name where it applies.
+- No text says "drift" any more, in the app or the demo projects; "change" is used instead.
+- A greyed folder button keeps its tab's colour.
+- The demo projects have new evenness demonstrations on both sides of the line.
+
+### Fixed
+
+- A project reopened after a restart builds the chart it was built as: "Auto patch count", the paper, a built-in preset's own patch set, and a patch set loaded from a file, also for projects saved by beta 44.
+- A patch set loaded from a file keeps its layout on the next Generate and after a restart.
+- A typed patch count of 0 shows the chart Generate really builds.
+- A built-in preset on a custom paper records that paper.
+- The ChromIQ branding's text keeps clear of a moved wordmark, and too long a branding line is reported.
+- Closed windows, and the patch set editor, free their memory.
+- The "Measurement windows and their sounds" help is translated.
+
 ## v4.3.0-beta.44
 
 **The report judges the paper and the solids against the profile, a metric switched off is left out, every limit gets a graph line, a new rule for which presets are made for verification, the preset lists follow the paper for every group, and Save as Defaults brings a session back as it was saved.**
