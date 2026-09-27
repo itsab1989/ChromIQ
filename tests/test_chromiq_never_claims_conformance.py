@@ -235,9 +235,10 @@ CLAIM_ALWAYS = {
     # norm voldoet"), which is where a claim usually sits; the main-clause
     # order alone missed every one. Read on 2026-09-28: the nl hits are the
     # denials and the "likely meets" hedge, all allowed by their English.
-    "nl": r"voldoe\w*\s+aan\s+(?:de|een|die|deze)\s+norm"
-          r"|aan\s+(?:de|een|die|deze)\s+norm\s+(?:te\s+)?voldo\w*"
-          r"|conform\s+(?:de|een|die|deze)\s+norm|normconform",
+    # "norm(?:en)?\b": the plural is a claim too, and "normaal" is not one.
+    "nl": r"voldoe\w*\s+aan\s+(?:de|een|die|deze)\s+norm(?:en)?\b"
+          r"|aan\s+(?:de|een|die|deze)\s+norm(?:en)?\s+(?:te\s+)?voldo\w*"
+          r"|conform\s+(?:de|een|die|deze)\s+norm(?:en)?\b|normconform",
     "no": r"oppfyller\s+standarden|samsvar\s+med\s+standard|tilfredsstiller\s+standarden",
     "pl": r"spełnia\s+norm|zgodn\w*\s+z\s+norm",
     "pt": r"cumpre\s+(?:a\s+)?norma|conforme\s+(?:a|com)\s+(?:a\s+)?norma|satisfaz\s+(?:a\s+)?norma",
