@@ -31156,17 +31156,22 @@ would reach.
 - evidence: test_with_nothing_ticked_the_line_says_a_measurement_is_needed
 - where: `ui/dialogs/measurement_report_dialog.py` `_word_the_stale_line`.
 
-### B8-1600 · OPEN · After "New report…", with nothing ticked or the list cleared, the red line still asks for a press of the greyed Generate report
+### B8-1600 · FIXED, awaiting confirmation · After "New report…", with nothing ticked or the list cleared, the red line still asks for a press of the greyed Generate report
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: beta 46 challenge round. `_word_the_stale_line` returns the M-REPORT-NEW-REPORT-SETTINGS wording ("New report: change the settings as wanted, then press “Generate report” to make it …") before it looks at whether Generate is greyed, so after "New report…" followed by Deselect all, or by Clear List, the line asks for a press the greyed button refuses, which B8-1034 and B8-1592 ruled out for every other state. Older than the beta 46 range (K39-3 put the branch first); measured on screen in English and German on Report-Limits-Evenness run1: `generate_enabled` false, the red line the New report sentence, the grey line above it "No measurement is ticked in the list, so there is nothing to report on. Tick one to generate a report."
-- evidence: `~/Desktop/ChromIQ-beta45-proof/challenge-b46/en/photographs/en-02-new-report-nothing-ticked.png`, `en-03-list-cleared.png`, the German pair in `de/photographs/`, and both `record.json` (states `new_report_then_deselect_all`, `clear_list`).
 - where: `ui/dialogs/measurement_report_dialog.py` `_word_the_stale_line`.
+- fix: `_word_the_stale_line` checks a greyed Generate before the "New report…" wording, so with nothing ticked the line says a measurement must be ticked (B8-1592), and with another greyed reason it takes the B8-1034 wording.
+- tests: tests/test_k39_update_question_and_new_report.py
+- evidence: test_new_report_with_nothing_ticked_asks_for_no_press (fails without the fix); on screen: `~/Desktop/ChromIQ-beta45-proof/challenge-b46/en/photographs/en-02-new-report-nothing-ticked.png`, `en-03-list-cleared.png`, the German pair in `de/photographs/`, and both `record.json` (states `new_report_then_deselect_all`, `clear_list`).
 
-### B8-1601 · OPEN · The beta 46 changelog's headline presents a beta 45 behaviour as new
+### B8-1601 · FIXED, awaiting confirmation · The beta 46 changelog's headline presents a beta 45 behaviour as new
 - blocks release: no
 - severity: COSMETIC
-- status: OPEN
+- status: FIXED
 - found by: beta 46 challenge round. The section's bold summary reads "The Measurement Report changes only when Generate report is pressed, whatever setting is changed." B8-1591's own measurement (and the post to Knut, #182 5859190710) found beta 45 already did that for every setting; the only change in beta 46 is the red line with nothing ticked (B8-1591, B8-1592). A reader of the release notes is told a behaviour changed that did not.
 - where: `CHANGELOG.md` `## v4.3.0-beta.46`.
+- fix: the beta 46 headline now names the one change the section holds, and a second Fixed line covers B8-1600.
+- tests: tests/test_release_notes.py
+- evidence: test_the_current_release_renders_every_section_it_actually_has, over the beta 46 section of CHANGELOG.md

@@ -2,11 +2,12 @@
 
 ## v4.3.0-beta.46
 
-**The Measurement Report changes only when Generate report is pressed, whatever setting is changed.**
+**With nothing to report on, the Measurement Report's red line now says a measurement must be ticked instead of asking for a press of a button that is unavailable.**
 
 ### Fixed
 
 - With every measurement unticked in the Measurement Report, the red line now says the settings changed and that at least one measurement must be ticked to generate a report, as it does for every other change; the page itself still changes only when Generate report is pressed.
+- After "New report…", with every measurement unticked or the list cleared, the red line asked for a press of "Generate report" while the button was unavailable. It now says the same as above.
 
 ## v4.3.0-beta.45
 

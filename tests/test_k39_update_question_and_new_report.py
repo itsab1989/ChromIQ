@@ -403,3 +403,24 @@ def test_the_pdf_after_new_report_is_the_report_shown(tmp_path, qapp):
             "the PDF of the report shown lost what it says of its own report")
     finally:
         dlg.close()
+
+
+def test_new_report_with_nothing_ticked_asks_for_no_press(tmp_path, qapp):
+    """B8-1600 (beta 46 challenge): after "New report…", unticking every
+    measurement greys Generate, and the red line must stop asking for a
+    press of it; it names the reason instead (B8-1592)."""
+    import ui.dialogs.measurement_report_dialog as mrd
+    from core.i18n import tr
+    dlg, _run, _vs = _window(tmp_path, qapp)
+    try:
+        _pick(dlg, qapp, mrd.NEW_REPORT_KEY)
+        assert dlg._stale_label.text() == _new_report_line()
+        dlg._deselect_all_btn.click()
+        qapp.processEvents()
+        assert not dlg._generate_btn.isEnabled()
+        assert dlg._stale_label.isVisible()
+        assert dlg._stale_label.text() == tr(
+            "⚠ Settings changed. At least one measurement must be ticked "
+            "to generate a report.")
+    finally:
+        dlg.close()

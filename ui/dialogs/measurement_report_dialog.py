@@ -6045,7 +6045,9 @@ class MeasurementReportDialog(QDialog):
             return
         gen = getattr(self, "_generate_btn", None)
         greyed = gen is not None and not gen.isEnabled()
-        if getattr(self, "_new_report_pending", False):
+        # B8-1600: a greyed Generate is checked FIRST, so the line after
+        # "New report…" never asks for a press the button refuses either.
+        if getattr(self, "_new_report_pending", False) and not greyed:
             # K39-3: "New report…" was chosen over a report on the page.
             from workflow.measurement_messages import (
                 M_REPORT_NEW_REPORT_SETTINGS)
