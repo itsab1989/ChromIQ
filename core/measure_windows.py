@@ -94,6 +94,16 @@ FAILURE_ROWS = [
 
 
 def _esc(text: str) -> str:
+    """Escape a text for the HTML table.
+
+    It still passes the text through `tr()`: the rows above are translated
+    when this module is IMPORTED, and a translated text is its own miss, so a
+    second `tr()` is a no-op on it and a rescue for an import that came before
+    the language was set. Every literal below is written as ``tr("...")`` so
+    that `scripts/i18n_extract.py` sees it as a key (B8-1418: written as
+    ``_esc("...")`` it was a key in no catalogue, and the German app showed
+    this help in English).
+    """
     return html.escape(tr(text), quote=False)
 
 
@@ -114,30 +124,33 @@ def windows_and_sounds_html() -> str:
     contains a table.
     """
     return "\n\n".join([
-        "<p>" + _esc(
+        "<p>" + _esc(tr(
             "Every window a measurement can raise, and the sound played as it "
-            "opens — not when you answer it. The names in the sound columns "
+            "opens, not when you answer it. The names in the sound columns "
             "are the ones in Preferences → Sounds, so you can change any of "
-            "them there.") + "</p>",
-        _table(("#", "Window", "Reading mode", "Sound played when it opens"),
+            "them there.")) + "</p>",
+        _table(("#", tr("Window"), tr("Reading mode"),
+                tr("Sound played when it opens")),
                WINDOW_ROWS),
-        "<p><b>" + _esc("Sounds that are not windows") + "</b> — "
-        + _esc("these mark an event as it happens.") + "</p>",
-        _table(("#", "Event", "Reading mode", "Sound"), EVENT_ROWS),
-        "<p><b>" + _esc("Row 1 in full.") + "</b> " + _esc(
+        "<p><b>" + _esc(tr("Sounds that are not windows.")) + "</b> "
+        + _esc(tr("These mark an event as it happens.")) + "</p>",
+        _table(("#", tr("Event"), tr("Reading mode"), tr("Sound")),
+               EVENT_ROWS),
+        "<p><b>" + _esc(tr("Row 1 in full.")) + "</b> " + _esc(tr(
             "A failed strip does not always mean the same thing, so ChromIQ "
             "reads ArgyllCMS's own wording and picks the sound that fits. Only "
             "a genuinely hurried scan is told to slow down: saying that to "
             "someone who hesitated, or whose instrument slid off the strip, "
-            "would send them the wrong way.") + "</p>",
-        _table(("#", "What ArgyllCMS reports", "What it means", "Sound"),
+            "would send them the wrong way.")) + "</p>",
+        _table(("#", tr("What ArgyllCMS reports"), tr("What it means"),
+                tr("Sound")),
                FAILURE_ROWS),
-        "<p><b>" + _esc("Two things worth knowing.") + "</b> " + _esc(
+        "<p><b>" + _esc(tr("Two things worth knowing.")) + "</b> " + _esc(tr(
             "The completion sound waits half a second so the last strip's own "
-            "cue can finish first — they used to arrive on top of each other. "
+            "cue can finish first (they used to arrive on top of each other). "
             "And ChromIQ plays none of these while stock ArgyllCMS chartread "
             "is doing the reading: it beeps for itself there and cannot be "
             "silenced, so ChromIQ would only double every event. On ChromIQ's "
             "own reading engine, Argyll's beeps are silenced and these sounds "
-            "are the only ones you hear.") + "</p>",
+            "are the only ones you hear.")) + "</p>",
     ])

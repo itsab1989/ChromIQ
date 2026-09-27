@@ -155,7 +155,7 @@ def test_the_collector_sees_the_surfaces_it_claims():
     assert any(s.startswith("On average, how far the greys moved away from "
                             "truly neutral") for s in en), "tr() literals"
     assert any("whose instrument slid off the strip" in s for s in en), \
-        "_esc() literals of core/measure_windows.py"
+        "the measurement-windows help (core/measure_windows.py)"
     assert any("randomises patch positions" in s for s in en), \
         "data/parameters.yaml"
     de = german_texts()
