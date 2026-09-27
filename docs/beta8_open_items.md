@@ -30569,12 +30569,20 @@ would reach.
 - proof: `~/Desktop/ChromIQ-beta45-proof/batch2/1414/` (probe, probe records of every failing run, loop and full-run summaries).
 - where: `tests/conftest.py`, `tests/test_a_driver_returns_to_a_modal_it_closed.py`.
 
-### B8-1417 · OPEN · The chartread block of `data/parameters.yaml` is shown nowhere, and its -T tooltip names a default of 0.7 where the value is 0.5
+### B8-1417 · FIXED, awaiting confirmation · The chartread block of `data/parameters.yaml` is shown nowhere, and its -T tooltip names a default of 0.7 where the value is 0.5
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- found by: beta 45 batch 1 (B8-1396 to B8-1413). `tests/test_a_driver_returns_to_a_modal_it_closed.py::test_the_next_step_pumps_again` failed with its own message "run() returned before the second step: the event loop was ended from outside the drive (a stray quit)" in two everyday runs (both with B8-1400's change in the tree; the run before B8-1400 was green on it), and passed in the third and fourth full runs and every time alone or beside the new tests. The test already names this fault class (beta 41, "a quit() timer an earlier test left on this worker"). Not established whether B8-1400's collection at the tick after a dialog closes changes when such a stray quit lands; not investigated further in this batch.
-- where: `tests/test_a_driver_returns_to_a_modal_it_closed.py`, `core/gc_guard.py`.
+- status: FIXED
+- found by: B8-1415 (batch 2 of beta 45). `ParameterWidget` rows are built only in Create Chart (targen and printtarg); Measure builds its own -T row with its own text ("Patch consistency tolerance (-T)"). The yaml's chartread tooltips are therefore not on screen, and the -T one says "the default of 0.7 leaves comfortable headroom" beside `default: 0.5`.
+- cause (code history): the block was DEAD from the first public commit. 689bb115 (v0.1.0-dev) added it to the yaml and, in the same commit, built the Measure tab's chartread rows by hand (`_ChartreadOption`, with the same tooltip titles); nothing has ever read `params["chartread"]` (only `TabChart` builds `ParameterWidget` rows, for `targen` and `printtarg`), and the README of that commit described the yaml as "All targen/printtarg/colprof flags". So it was never meant to be the source of the Measure rows, and its text went wrong where nobody could see it: `default: 0.5` against the app's real default, which is ON at 0.7 (`core.settings.DEFAULTS`, restored by 37d70704 after beta.140 had switched it off), and a description of -T as a re-read of each patch where chartread hands the number to the instrument's own patch-recognition threshold. The text a user does read (Measure, (i) "Patch consistency tolerance (-T)") already said 0.7 and "switched on by default", both true.
+- fix: REMOVED, not corrected: the chartread block (-B -b -S -N -p -H -T -l -X) is gone from `data/parameters.yaml` and from all 13 `parameters.<code>.yaml` overlays (checked by a script: every other tool block of every file parses identical before and after). The Measure tab's rows stay the one source. The comment at the Measure tab's -T row, which still said "-T IS NOT FORCED ON ANY MORE", now says what DEFAULTS does; two comments that cited "the yaml's -X row" say it takes a path. No user-facing text changed, so neither ledger moves (the overlays are in neither).
+- guard: `tests/test_b8_1417_measure_options_have_one_source.py`: no chartread block in the yaml or any overlay; `TabChart` builds yaml rows for targen and printtarg only and no other ui file builds a `ParameterWidget`; the -T help a user reads names the value and the on-state `DEFAULTS` has, in English and German.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch3/1418/after-{en,de}/` (Measure, Guided: the -T row ticked at 0.7, its (i) "ChromIQ starts you at 0.7" / "ChromIQ startet dich bei 0.7").
+- tests: tests/test_b8_1417_measure_options_have_one_source.py, tests/test_i18n.py; mutations M1417-a to M1417-c (`~/Desktop/ChromIQ-beta45-proof/batch3/mutations/mutations.txt`), each red.
+- evidence: test_parameters_yaml_has_no_chartread_block_and_no_overlay_does, test_the_app_builds_yaml_rows_for_targen_and_printtarg_only, test_the_tolerance_help_names_the_default_the_settings_have
+- note: the colprof, profcheck, printcal and applycal blocks are unread in the same way (B8-1449).
+- where: `data/parameters.yaml`, `data/i18n/parameters.*.yaml`, `ui/tabs/tab_measure.py`, `tests/test_printtarg_argument_vocabulary.py`.
+
 ### B8-1440 · FIXED, awaiting confirmation · The presets window called a 648-patch page "too few patches in each ninth" under ISO 12647-7
 - blocks release: no
 - severity: MAJOR
@@ -30661,19 +30669,42 @@ would reach.
 - note: a question for Knut.
 - found by: B8-1440. ChromIQ's evenness compares every patch with its own aim, averaged per ninth (§16), so a typical print's noise is the profile's per-patch scatter shrunk by the count in a ninth. Under 0.5 that needs about 225 patches in a ninth; no preset in the window reaches it, so the row is never judged under the ISO 12647-7:2016 values on a verification chart. §16.5 E6 already records that a licence holder's figure for this row was written for a different statistic (one colour at nine places). Keep judging against 0.5, or leave the row "–" in the read-only ISO 12647-7 column?
 - where: `data/compliance_sets/iso12647.json`, `workflow/compliance_sets.py`.
-- found by: B8-1415 (batch 2 of beta 45). `ParameterWidget` rows are built only in Create Chart (targen and printtarg); Measure builds its own -T row with its own text ("Patch consistency tolerance (-T)"). The yaml's chartread tooltips are therefore not on screen, and the -T one says "the default of 0.7 leaves comfortable headroom" beside `default: 0.5`. Its drift wording was cleaned with the rest; whether the block should be removed or the number corrected is not decided here.
-- where: `data/parameters.yaml` (chartread), `ui/tabs/tab_measure.py` (`_ChartreadOption` key "tolerance").
 
-### B8-1418 · OPEN · The "Measurement windows and their sounds" help is in no translation catalogue
+### B8-1418 · FIXED, awaiting confirmation · The "Measurement windows and their sounds" help is in no translation catalogue
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: B8-1415, on screen: Preferences > Sounds, (i) "Measurement windows and their sounds" is English in the German app (`~/Desktop/ChromIQ-beta45-proof/batch2/1415/after-de/photographs/prefs-measurement-windows-de.png`). `core/measure_windows.py` hands its texts to `tr()` through `_esc()`, which `scripts/i18n_extract.py` does not sweep, so none of them is a key in any catalogue and `tests/test_i18n.py` cannot see them missing. B8-1415's guard reads `_esc()` literals for "drift"; the extractor still does not.
-- where: `core/measure_windows.py`, `scripts/i18n_extract.py`.
+- cause, measured: the table ROWS were already `tr("...")` and translated; what showed in English were the help's four paragraphs, its two bold lead-ins and its nine column headings, written `_esc("...")` (14 distinct texts).
+- fix: every one of them is a `tr("...")` literal now, so the extractor and every guard that reads `tr()` see it (`_esc` still passes its text through `tr()`, a no-op on a translated text and a rescue for rows translated at import). Em dashes of the touched texts cleaned ("opens, not when you answer it", "first (they used to arrive on top of each other)", "Sounds that are not windows." as a lead-in like the other two); the rows' own older texts are unchanged and keep theirs (em-dash baseline). German by hand (Du-Form); the twelve others carry the English under the beta rule. Both ledgers set to the count measured off the tree: +7 help-card echoes (the keys of 25 characters or more) and +14 identical values per language, after the slack both had (6 and 5).
+- guard: `tests/test_b8_1418_the_windows_and_sounds_help_is_translated.py` reads the RENDERED help, so a text added by any route is caught: every text it shows is a key `i18n_extract` finds and German translates, the German app shows none of it in English, and the help's own paragraphs carry no em dash.
+- on screen: `~/Desktop/ChromIQ-beta45-proof/batch3/1418/after-de/photographs/prefs-measurement-windows-de*.png` (three pages, the whole help, all German) and the English beside it in `after-en/`.
+- tests: tests/test_b8_1418_the_windows_and_sounds_help_is_translated.py, tests/test_windows_and_sounds_table.py, tests/test_i18n.py, tests/test_help_cards_untranslated_are_tracked.py, tests/test_b8_1415_no_drift_in_user_facing_text.py; mutations M1418-a to M1418-c, each red.
+- evidence: test_every_text_the_help_shows_is_a_key_the_extractor_finds, test_every_text_the_help_shows_has_its_german, test_the_german_app_shows_the_help_in_german, test_the_texts_it_added_carry_no_em_dash
+- where: `core/measure_windows.py`, `data/i18n/*.json`.
 
-### B8-1419 · OPEN · Test runs write into the real application log
+### B8-1419 · FIXED, awaiting confirmation · Test runs write into the real application log
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: B8-1415's on-screen drives, run while everyday tiers ran in unpacked tree copies: the app log the drive reads (`core.logger._log_path()`, the real `chromiq.log`) carried 20 to 60 "Settings SANDBOXED to .../pytest-of-Basti/pytest-99/popen-gwN/..." lines per drive from the suite's workers (e.g. `k44audit0/s.ini`, `test_every_pulldown_matches_cr0/s.ini`). `tests/conftest.py` pre-installs a NullHandler so the suite stays off that log; something (probably a child process a test starts) still reaches it.
+- cause, traced: the CHILD processes. `test_every_pulldown_matches_create_chart_in_every_appearance`, the K44 audit and their kind start `subprocess.run([sys.executable, "-c", PROBE])` with `CHROMIQ_SETTINGS_FILE` set; the child has no conftest, so its first `core` import configured logging from scratch, found no handler, and appended to the real `chromiq.log` (and a child that runs `main.py` opens `chromiq-crash.log` there). Reproduced with HOME moved to a fake home: the branch tip's child wrote its "Settings SANDBOXED" line into the fake home's `Library/Logs/ChromIQ/chromiq.log`; with the fix nothing creates that file (`~/Desktop/ChromIQ-beta45-proof/batch3/1419/`).
+- fix: `CHROMIQ_LOG_DIR` moves `core.platform_paths.log_dir()` (so `chromiq.log`, `chromiq-crash.log` and the Log file row of Preferences), as `CHROMIQ_SETTINGS_FILE` moves the settings. `tests/conftest.py` sets it at import, before the first `core` import, to a `chromiq-suite-log-*` folder in the system temp folder: one per process (the controller and each worker, assigned rather than inherited, so twelve workers never rotate one file), inherited by every child a test starts. `pytest_unconfigure` removes it; the `chromiq-` prefix lets `_sweep_stale_temp_dirs` take by name whatever a crash leaves. ONE folder per process, however often the module is imported: several test files import `tests.conftest` for its helpers, and a second copy of the module runs its code again (`tests/test_a_leaked_modal_never_reaches_the_next_test.py` already names that trap), so the folder's owner pid rides with it (`CHROMIQ_SUITE_LOG_OWNER`) and a copy in the same process reuses it; measured: the first everyday tier with the fix, green, still left one empty `chromiq-suite-log-*`. The NullHandler stays, so the workers themselves still write nothing. `tests/test_platform_paths.py`'s four log_dir tests unset it to pin the app's own answer.
+- guard: `tests/test_b8_1419_the_suite_never_writes_the_real_log.py`: the session's log folder is set, is `log_dir()`, and is a `chromiq-` folder in the system temp folder; a child process started like the offending tests logs into it and its line is not in the real log (a marker carrying the test's own tmp path, so a concurrently running app cannot confuse it); a worker's own log line is not in the real log and no root handler writes it; importing the conftest three times in one process makes one folder; a pytest session run with the temp folder moved leaves no `chromiq-suite-log-*` behind.
+- tests: tests/test_b8_1419_the_suite_never_writes_the_real_log.py, tests/test_platform_paths.py; mutations M1419-a to M1419-e (run with HOME moved to a fake home, so no mutation wrote the real log), each red.
+- evidence: test_the_session_log_is_a_sandbox_the_sweep_recognises, test_a_child_process_logs_into_the_sandbox_not_the_real_log, test_a_worker_logging_directly_does_not_reach_the_real_log, test_importing_the_conftest_again_makes_no_second_sandbox, test_each_process_removes_its_own_sandbox_when_it_ends
+- where: `core/platform_paths.py` (`LOG_DIR_ENV`, `log_dir`), `tests/conftest.py`, `tests/test_platform_paths.py`.
+
+### B8-1449 · OPEN · Question: the colprof, profcheck, printcal and applycal blocks of `data/parameters.yaml` are read by nothing either
 - blocks release: no
 - severity: MINOR
 - status: OPEN
-- found by: B8-1415's on-screen drives, run while everyday tiers ran in unpacked tree copies: the app log the drive reads (`core.logger._log_path()`, the real `chromiq.log`) carried 20 to 60 "Settings SANDBOXED to .../pytest-of-Basti/pytest-99/popen-gwN/..." lines per drive from the suite's workers (e.g. `k44audit0/s.ini`, `test_every_pulldown_matches_cr0/s.ini`). `tests/conftest.py` pre-installs a NullHandler so the suite stays off that log; something (probably a child process a test starts) still reaches it. Not traced further.
-- where: `tests/conftest.py`, `core/logger.py`.
+- found by: B8-1417. `TabChart` builds `ParameterWidget` rows from `targen` and `printtarg` only; no other code reads `params["colprof"]`, `["profcheck"]`, `["printcal"]` or `["applycal"]` (the controls for those tools are built by hand, with their own `tr()` texts; measured by a search for every read of the parsed yaml). Their tooltips and their thirteen overlays are translated and shown nowhere, like the chartread block was, and can go wrong unseen the same way. Not removed here: B8-1417 was the chartread block. Remove them as well, or keep them as a reference of every flag? Basti's call.
+- where: `data/parameters.yaml`, `data/i18n/parameters.*.yaml`.
+
+### B8-1450 · OPEN · The German -T help of Measure breaks its lines in the middle of sentences
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: B8-1417's on-screen drive (`~/Desktop/ChromIQ-beta45-proof/batch3/1418/after-de/photographs/measure-T-help-de.png`): the English source is written with hard line breaks sized for English ("...WITHIN a\nsingle patch."), and the German translation keeps breaks of its own, so the help window shows one-word lines ("gleichmäßig", "Deshalb", "den", "du", "der") between full ones. The English help reads cleanly. Probably not the only help written with hard breaks whose German keeps them; not surveyed.
+- where: `ui/tabs/tab_measure.py` (the -T `tooltip_body`), `data/i18n/de.json`.
