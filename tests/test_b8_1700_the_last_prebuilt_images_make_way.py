@@ -138,7 +138,13 @@ def test_the_four_prebuilt_images_are_gone_and_no_other_is_left():
     assert not set(REMOVED) & rows
     for leaf in ("colormunki/a4/abw702", "colormunki/a3/tc924",
                  "i1pro/100x150/photocard600", "i1pro/130x180/photocard648"):
-        assert not (ROOT / "assets/charts/pharmacist/rgb" / leaf).exists(), leaf
+        # A FOLDER FINDER LEFT A .DS_Store IN IS NOT A SHIPPED CHART: git
+        # ignores it, a clean checkout (CI, the build) has no such folder, and
+        # a developer's machine keeps the folder after the move. Real files
+        # are what must be gone.
+        d = ROOT / "assets/charts/pharmacist/rgb" / leaf
+        left = [f for f in d.rglob("*") if f.is_file() and f.name != ".DS_Store"] if d.exists() else []
+        assert not left, (leaf, left)
 
 
 def test_the_count_is_188():
