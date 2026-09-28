@@ -1892,7 +1892,7 @@ class SettingsDialog(QDialog):
         # bottom-row buttons render wider on macOS than the headless fallback
         # font suggests, so a fixed width clipped the row once #56 added the
         # "Request a Feature…" button — fit the real sizeHint instead.
-        _w = max(1040, self.sizeHint().width())
+        _w = max(1040, self.sizeHint().width(), self._width_for_every_tab())
         self.setMinimumWidth(_w)
         # Open (and floor) ~50% taller than the bare sizeHint: now that each tab
         # scrolls, the natural hint is short, which left a lot of the content
@@ -1900,6 +1900,28 @@ class SettingsDialog(QDialog):
         _h = int(self.sizeHint().height() * 1.5)
         self.setMinimumHeight(_h)
         self.resize(_w, _h)
+
+    def _width_for_every_tab(self) -> int:
+        """The window width at which the whole tab bar shows (B8-756).
+
+        The floor used to be `max(1040, sizeHint)`, and the tab bar's own
+        hint is wider than that in every shipped language (English 1089 against
+        1040), so Preferences opened with scroll arrows and the Beta tab, where
+        a user opts into betas, off the edge. The tab bar's hint plus the
+        window's side margins, capped at 90 % of the screen like the rest of
+        this window; past the cap the arrows still reach every tab."""
+        try:
+            bar = self._tabs.tabBar()
+            bar.ensurePolished()
+            margins = self.layout().contentsMargins() if self.layout() else None
+            side = (margins.left() + margins.right()) if margins else 40
+            need = bar.sizeHint().width() + side + 24
+            screen = self.screen()
+            if screen is not None:
+                need = min(need, int(screen.availableGeometry().width() * 0.9))
+            return need
+        except Exception:      # noqa: BLE001 - sizing must never raise
+            return 0
 
     # ------------------------------------------------------------------
 

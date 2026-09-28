@@ -12,6 +12,10 @@
 - The printed help card for CMY+N charts fits one page in every language. It took two pages in ten of them; its text now steps down a size only when a language needs the room.
 - Japanese and Chinese called the paper-white fill-up patches by the publishing word for filler text in Chart layout information and its help. They now use the word the rest of each language uses for fill-up patches.
 
+- Preferences opens wide enough to show all its tabs, so "Beta" and "Licences" are no longer hidden behind scroll arrows. This was the case in every language, English included.
+- In the light appearance, a ticked box you cannot change is drawn in a soft grey. It had looked like a solid dark square, as in the Measurement Report's "Show detailed data for each run".
+- The help for the Measure tab's scan tolerance (-T) reads in whole paragraphs in every language. The translations had broken their lines in the middle of sentences.
+- The macOS, Windows and Linux builds are made with the same PyInstaller and Qt versions as this beta. A newer PyInstaller had produced a Mac app that did not start.
 - A calibration file found in the project is filled into the ChromIQ layout engine's "Printer calibration" only while its Mode is still "None" and its path is empty. With a mode already chosen it is left alone, so no Generate applies a calibration you did not pick, and the line under the calibration fields appears only when something was filled.
 
 ## v4.3.0-beta.48

@@ -20921,8 +20921,12 @@ would reach.
   said the window was correct, and by its own terms it was.
 - evidence: test_the_sets_are_listed_in_set_number_order
 
-### B8-555 · OPEN · A macOS build made with PyInstaller 6.19.0 does not launch at all
-- status: OPEN
+### B8-555 · FIXED, awaiting confirmation · A macOS build made with PyInstaller 6.19.0 does not launch at all
+- status: FIXED
+- fix (2026-09-28, before 4.3.0 stable): `requirements-build.txt` pins, with ==, what built v4.3.0-beta.48 on all three runners, read from those runs' own logs: pyinstaller 6.22.3, pyinstaller-hooks-contrib 2026.7, altgraph 0.17.5, macholib 1.16.4 (macOS), pefile 2024.8.26 (Windows), PyQt6 6.11.0, PyQt6-Qt6 6.11.2, PyQt6-sip 13.12.0, PyQt6-WebEngine 6.11.0, PyQt6-WebEngine-Qt6 6.11.2. `build-release.yml`, `build-linux.yml` and `build-windows.yml` install `-r requirements-build.txt` beside their requirements; the bare `pip3 install pyinstaller` is gone. A newer PyInstaller now reaches a release only by editing that file.
+- tests: tests/test_release_builds_are_pinned.py (an unpinned `pip install pyinstaller` in any workflow fails it; mutation checked).
+- evidence: test_the_build_requirements_pin_pyinstaller_and_qt_exactly, test_the_workflow_installs_from_the_pinned_file, test_no_workflow_installs_pyinstaller_around_the_pin
+- still worth doing once: download the first stable's macOS asset and look for `QtWebEngineCore.framework/Helpers`, as below.
 - blocks release: no
 - but the RELEASE ASSET must be checked before anyone is
   told to download it.
@@ -21255,8 +21259,12 @@ would reach.
   `scripts/proof_help_cards_through_the_real_printer.py` re-run clean over all
   21 cards
 
-### B8-638 · OPEN · "Save as PDF…" prints as "ave as PDF" in the Welcome window
-- status: OPEN
+### B8-638 · FIXED, awaiting confirmation · "Save as PDF…" prints as "ave as PDF" in the Welcome window
+- status: FIXED
+- fixed by f3834ae8 (2026-09-21, the same day it was filed): `WelcomeDialog._balance_footer` gives each footer button at least its own size hint. The register was never updated. Re-checked on screen 2026-09-28 in all fourteen languages on a help card: every footer button is at least as wide as its label needs (Russian "Сохранить как PDF…" 190/190, French 189/189), photographed whole.
+- tests: tests/test_a_long_language_does_not_push_a_control_off.py (mutation in its docstring: delete the `_balance_footer()` call).
+- evidence: test_the_help_card_footer_gives_its_buttons_the_room_they_need
+- proof: `~/Desktop/ChromIQ-430-stable-prep/fixes-a/welcome-footer-6-languages.png`, `~/Desktop/ChromIQ-430-stable-prep/fixes-a/*-light-welcome.png`
 - blocks release: no
 - INHERITED, not from this batch. Photographed on screen 2026-09-21 in the
   Welcome window's button row, at 2x, on every card: the leftmost button reads
@@ -23518,9 +23526,13 @@ would reach.
 - evidence: test_the_auto_preview_option_can_wrap_instead_of_clipping
 - picture: `~/Desktop/ChromIQ-beta30-proof/panel-overflow/final/manual-uk-autopreview.png`
 
-### B8-756 · OPEN · Preferences opens too narrow for its own tab bar, in all fourteen languages including English
+### B8-756 · FIXED, awaiting confirmation · Preferences opens too narrow for its own tab bar, in all fourteen languages including English
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- fix (2026-09-28): `SettingsDialog._width_for_every_tab` adds the tab bar's own size hint and the dialog's side margins to the opening width's `max(...)`, capped at 90 % of the screen's work area. On screen after, every language opens with its last tab inside the bar: en 1153 px (bar 1089), de 1229 (1165), fr 1253 (1189), uk 1299, the widest; all inside 1360, 90 % of a 1512 px work area.
+- tests: tests/test_b8_756_preferences_opens_wide_enough_for_its_tabs.py (on a 1512 x 982 work area; mutation: drop the call, 5 of 6 fail).
+- evidence: test_every_tab_fits_when_the_window_opens, test_the_tab_width_never_asks_for_more_than_the_screen
+- proof: `~/Desktop/ChromIQ-430-stable-prep/fixes-a/en-light-preferences.png`, `~/Desktop/ChromIQ-430-stable-prep/fixes-a/de-light-preferences.png`
 - not fixed here: inherited, older than this change set, and it touches a
   dialog nothing else in beta 31 goes near. Beta 31 is one layout fix and its
   round; this is the next batch.
@@ -28438,10 +28450,15 @@ would reach.
 - note: challenge 4 of beta 42, m3. "ЗБЕРЕГТИ ЗА ЗАМОВЧУВАННЯМ" runs under the panel edge; the preview's "ПОПЕРЕДН" and "НАСТУПНА" are cut. Not the option rows changed in bca004fd, which fit. Probably inherited; to be checked against beta 41. Not fixed in this round.
 - proof: ~/Desktop/ChromIQ-beta42-proof/challenge-4/runs/uk-s6/photographs/uk-s6-05-measure-tab-1150.png
 
-### B8-1078 · OPEN · The greyed, ticked "Show detailed data" box draws as a solid dark square in the light appearance
+### B8-1078 · FIXED, awaiting confirmation · The greyed, ticked "Show detailed data" box draws as a solid dark square in the light appearance
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- cause: `tools_dialogs._disabled_indicator_qss` gave Light and Dark the same #4a4a4a fill for a ticked, disabled box. A ticked box in ChromIQ is a filled square with no tick drawn, so on a light window that fill was the darkest thing in it. It reaches every window built on `neutral_controls_qss`, the report window among them, so the fix is app-wide from one place.
+- fix (2026-09-28): Light fills with `LM_BORDER_HI` (#b0aba4), the light palette's own border grey: still a fill, so still distinct from an unticked disabled box, and no longer dark. Dark keeps #4a4a4a. Neutral is unchanged by rule (no fill on a disabled control, the handoff's rule and the owner's of 2026-09-02); note that there a disabled ticked box and a disabled unticked one look alike, which is that rule's consequence, not this fault.
+- tests: tests/test_neutral_controls.py
+- evidence: test_a_ticked_greyed_box_in_light_is_not_a_dark_square, test_the_two_shipped_disabled_indicator_rules_did_not_move
+- proof: `~/Desktop/ChromIQ-430-stable-prep/fixes-a/checkbox-light-dark-neutral.png` (on screen, under the report window's own `neutral_controls_qss`)
 - note: challenge 4 of beta 42, m4. Visible in every report-window photograph of that round; a reader may take it for a tick box in some third state. Not fixed in this round.
 - proof: ~/Desktop/ChromIQ-beta42-proof/challenge-4/runs/*/photographs/ (report window)
 
@@ -30706,10 +30723,13 @@ would reach.
 - found by: B8-1417. `TabChart` builds `ParameterWidget` rows from `targen` and `printtarg` only; no other code reads `params["colprof"]`, `["profcheck"]`, `["printcal"]` or `["applycal"]` (the controls for those tools are built by hand, with their own `tr()` texts; measured by a search for every read of the parsed yaml). Their tooltips and their thirteen overlays are translated and shown nowhere, like the chartread block was, and can go wrong unseen the same way. Not removed here: B8-1417 was the chartread block. Remove them as well, or keep them as a reference of every flag? Basti's call.
 - where: `data/parameters.yaml`, `data/i18n/parameters.*.yaml`.
 
-### B8-1450 · OPEN · The German -T help of Measure breaks its lines in the middle of sentences
+### B8-1450 · FIXED, awaiting confirmation · The German -T help of Measure breaks its lines in the middle of sentences
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
+- surveyed: all thirteen translations carried hard breaks in this help, not only German. Each is now eight paragraphs with no break inside one, except after the two headings; the window wraps the rest. Ukrainian's second heading also said "ВИБІР ЦІННОСТІ" (a value as in worth) and now says "ВИБІР ЗНАЧЕННЯ". The English source is the catalogue key and is unchanged; its breaks sit inside the window's width, which is why English read cleanly.
+- tests: tests/test_b8_1450_the_T_help_reads_in_paragraphs.py (fails on the old German, paragraph 1).
+- evidence: test_no_line_break_inside_a_paragraph, test_the_english_source_is_still_the_key
 - found by: B8-1417's on-screen drive (`~/Desktop/ChromIQ-beta45-proof/batch3/1418/after-de/photographs/measure-T-help-de.png`): the English source is written with hard line breaks sized for English ("...WITHIN a\nsingle patch."), and the German translation keeps breaks of its own, so the help window shows one-word lines ("gleichmäßig", "Deshalb", "den", "du", "der") between full ones. The English help reads cleanly. Probably not the only help written with hard breaks whose German keeps them; not surveyed.
 - where: `ui/tabs/tab_measure.py` (the -T `tooltip_body`), `data/i18n/de.json`.
 

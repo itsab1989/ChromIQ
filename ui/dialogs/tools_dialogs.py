@@ -55,7 +55,8 @@ from ui.styles import (
 )
 from ui import neutral_styles
 from ui.theme import (
-    APPEARANCE_NEUTRAL, accent_for, active_mode, resolve_mode,
+    APPEARANCE_LIGHT, APPEARANCE_NEUTRAL, accent_for, active_mode,
+    resolve_mode,
 )
 from ui.tab_header import dialog_masthead
 from ui.tooltip_button import TooltipButton
@@ -147,8 +148,9 @@ def neutral_controls_qss(color: str, popup: str | None = None,
 def _disabled_indicator_qss(mode: "str | None" = None) -> str:
     """How a DISABLED checkbox or radio reads, per appearance.
 
-    Light and Dark keep the mid-grey block they have always had — a fill that
-    is neither the accent nor the ground.
+    Dark keeps the mid-grey block it has always had, a fill that is neither
+    the accent nor the ground. Light fills with its own border grey instead
+    (B8-1078): the same #4a4a4a was the darkest thing on a light window.
 
     Neutral cannot use a fill at all. Its rule is the handoff's, and it is a
     shape rather than a value: **enabled controls carry a fill and a solid 1px
@@ -162,11 +164,23 @@ def _disabled_indicator_qss(mode: "str | None" = None) -> str:
     back. A ticked box that is disabled loses its ACTION fill; that, and the
     DISABLED value, are what carry it.
     """
-    if (mode or active_mode()) == APPEARANCE_NEUTRAL:
+    mode = mode or active_mode()
+    if mode == APPEARANCE_NEUTRAL:
         return (f"QCheckBox::indicator:checked:disabled,"
                 f" QRadioButton::indicator:checked:disabled {{"
                 f" background: transparent;"
                 f" border: 1px solid {neutral_styles.NM_DISABLED}; }}")
+    if mode == APPEARANCE_LIGHT:
+        # B8-1078: a ticked box here is a filled square with no tick drawn, so
+        # the #4a4a4a block below became the darkest thing on a light window
+        # and read as a solid dark square in some third state. A muted mid
+        # grey still reads as "filled", so still distinct from an unticked
+        # disabled box, without shouting. LM_BORDER_HI is the light palette's
+        # own hover/focus border grey.
+        from ui.light_styles import LM_BORDER_HI
+        return ("QCheckBox::indicator:checked:disabled,"
+                " QRadioButton::indicator:checked:disabled {"
+                f" background: {LM_BORDER_HI}; border-color: {LM_BORDER_HI}; }}")
     return ("QCheckBox::indicator:checked:disabled,"
             " QRadioButton::indicator:checked:disabled {"
             " background: #4a4a4a; border-color: #4a4a4a; }")
