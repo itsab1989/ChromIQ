@@ -343,6 +343,7 @@ _DENIAL_BY_LANGUAGE: "dict[str, str]" = {
     "pt": "não é um teste face a essa norma",
     "nl": "geen toets tegen die norm",
     "sv": "inte en kontroll mot den standarden",
+    "no": "ikke en test mot den standarden",
 }
 
 #: Every sentence whose job includes the denial. Taken from the module rather
