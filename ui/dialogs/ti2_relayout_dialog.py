@@ -4882,9 +4882,16 @@ class _EditorSnapshot:
 class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
     def __init__(self, runner, settings, parent: QWidget | None = None,
                  on_apply: "Callable[[Path, str], bool | None] | None" = None,
-                 initial_chart: "Path | None" = None) -> None:
+                 initial_chart: "Path | None" = None,
+                 preset_recipe: "dict | None" = None) -> None:
         super().__init__(parent)
         self._settings = settings
+        # The design of the preset selected in Create Chart, which "New Patch
+        # Set…" opens with until this window makes or loads a chart of its own
+        # (Knut, #182 5872273862). See `TabChart.recipe_for_new_patch_set`.
+        self._preset_recipe = (dict(preset_recipe)
+                               if isinstance(preset_recipe, dict)
+                               and preset_recipe else None)
         # Callback that hands a freshly-saved chart folder to the Create Chart
         # tab (set by the main window). When present, the action footer offers
         # "Save & apply" instead of the plain colour-export button.
@@ -5990,6 +5997,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             "All files (*)", start_dir=start)
         if not path:
             return
+        # A chart the person loads here is no longer the preset's.
+        self._preset_recipe = None
         self._load_chart_from(Path(path))
 
     def _load_chart_from(self, path: Path) -> bool:
@@ -6106,12 +6115,17 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         return True
 
     def _new_chart(self) -> None:
-        # Pre-load the current chart's recipe (if any) so the design can be
-        # tweaked/recreated; capture the recipe the dialog reports back.
+        # Pre-load the selected preset's design while this window still shows
+        # the chart it was opened on, otherwise the current chart's recipe (if
+        # any), so the design can be tweaked/recreated; capture the recipe the
+        # dialog reports back.
+        initial = (self._preset_recipe if self._preset_recipe is not None
+                   else self._chart_recipe)
         dlg = _NewChartDialog(self._bin_dir, self._settings, self,
-                              initial_recipe=self._chart_recipe)
+                              initial_recipe=initial)
         if dlg.exec() != QDialog.DialogCode.Accepted or dlg.result_spec is None:
             return
+        self._preset_recipe = None       # this window's own design from here on
         if dlg.result_options is not None:
             self._options = dlg.result_options
         self._basename = dlg.result_basename or "chart"

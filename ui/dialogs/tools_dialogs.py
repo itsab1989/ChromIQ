@@ -2510,16 +2510,19 @@ def open_tool_dialog(
     on_apply: "Callable[[Path, str], bool | None] | None" = None,
     initial_chart: "Path | None" = None,
     project=None,
+    preset_recipe: "dict | None" = None,
 ) -> None:
     """Open the dialog for the given tool key (no-op for unknown keys).
 
     ``on_apply`` is forwarded to the TI2 layout editor so its "Save & apply"
     button can hand a freshly-saved chart folder back to the Create Chart tab.
     ``initial_chart`` pre-loads that editor with the Create Chart tab's current
-    chart so it opens ready to edit (#45).
+    chart so it opens ready to edit (#45). ``preset_recipe`` is the design of
+    the preset selected there, which "New Patch Set…" opens with.
     """
     dlg = build_tool_dialog(key, runner, settings, parent, on_apply=on_apply,
-                            initial_chart=initial_chart, project=project)
+                            initial_chart=initial_chart, project=project,
+                            preset_recipe=preset_recipe)
     if dlg is not None:
         dlg.exec()
         # The patch set editor is parented to the main window, which kept every
@@ -2546,6 +2549,7 @@ def build_tool_dialog(
     on_apply: "Callable[[Path, str], bool | None] | None" = None,
     initial_chart: "Path | None" = None,
     project=None,
+    preset_recipe: "dict | None" = None,
 ) -> "QDialog | None":
     """The dialog :func:`open_tool_dialog` opens for ``key``, built and not
     shown, or None for an unknown key. Split out so a check can build every
@@ -2557,7 +2561,8 @@ def build_tool_dialog(
     elif key == "ti2_relayout":
         from ui.dialogs.ti2_relayout_dialog import Ti2RelayoutDialog
         dlg = Ti2RelayoutDialog(runner, settings, parent, on_apply=on_apply,
-                                initial_chart=initial_chart)
+                                initial_chart=initial_chart,
+                                preset_recipe=preset_recipe)
     elif key == "average":
         dlg = AverageMeasurementsDialog(runner, settings, parent)
     elif key == "merge":

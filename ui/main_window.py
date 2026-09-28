@@ -2124,8 +2124,16 @@ class MainWindow(QMainWindow):
         # (#45) — same accessor as the 3D-cube tool, guarded on the project
         # manifest existing (project() would otherwise materialise one).
         initial_chart = None
+        preset_recipe = None
         if key == "ti2_relayout":
             initial_chart = self._current_chart_ti2()
+            # "New Patch Set…" opens with the SELECTED preset's design, not the
+            # run's last build (Knut, #182 5872273862).
+            try:
+                preset_recipe = self._tab_chart.recipe_for_new_patch_set()
+            except Exception:  # noqa: BLE001 — never block opening the tool
+                log.warning("could not read the selected preset's design",
+                            exc_info=True)
         # The Verify-a-Profile tool points its file pickers at the loaded
         # project's run + verification history (#130). Guarded — a missing
         # manifest must never block opening a tool.
@@ -2150,7 +2158,7 @@ class MainWindow(QMainWindow):
                 project = None
         open_tool_dialog(key, self._runner, self._settings, self,
                          on_apply=on_apply, initial_chart=initial_chart,
-                         project=project)
+                         project=project, preset_recipe=preset_recipe)
 
     def _current_chart_ti2(self) -> "Path | None":
         """The SELECTED target's generated chart .ti2, or None when there isn't

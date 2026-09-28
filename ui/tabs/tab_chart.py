@@ -46,7 +46,9 @@ from PyQt6.QtWidgets import (
 from core.logger import get_logger
 from core.platform_paths import file_manager_name
 from core.preset_store import (
+    find_sidecar as _find_preset_sidecar,
     load_presets as _load_tab_presets,
+    same_file_name as _same_preset_file,
     reveal_in_file_manager,
     save_presets as _save_tab_presets,
     sidecar_path as _preset_sidecar_path,
@@ -4078,7 +4080,7 @@ def comparable_presets(settings) -> list[tuple[str, list[tuple[str, "Path"]]]]:
                 data = presets.get(key)
                 if not (isinstance(data, dict) and data.get("attached_ti1")):
                     continue
-                p = _preset_sidecar_path("create_chart", key, ".ti1")
+                p = _find_preset_sidecar("create_chart", key, ".ti1")
             else:
                 asset = TabChart._builtin_ti1_asset(key)
                 if not asset:
@@ -4320,7 +4322,7 @@ def verification_preset_rows(settings) -> list:
     for name, data in _load_tab_presets("create_chart", settings).items():
         chart = None
         if isinstance(data, dict) and data.get("attached_ti1"):
-            sc = _preset_sidecar_path("create_chart", str(name), ".ti1")
+            sc = _find_preset_sidecar("create_chart", str(name), ".ti1")
             if sc.is_file():
                 chart = sc
         own.append(PresetRow(
@@ -14149,8 +14151,15 @@ class TabChart(QWidget):
                 # Carry the preset's stored New-chart recipe (Set B), if any, so a
                 # chart generated from it reopens in the editor with this design
                 # pre-loaded into New chart / Add (#70, Knut follow-up).
+                #
+                # AN OWN PRESET WITH NO DESIGN CLEARS THE RECORD, like a built-in
+                # without one (#164). `None` means "ask the run", so building such
+                # a preset left the previous preset's design on the run, and "New
+                # Patch Set…" then opened with it (Knut, #182 5872273862).
+                from workflow.ti2_relayout import NO_RECIPE
                 rec = pdata.get("editor_recipe") if isinstance(pdata, dict) else None
-                self._pending_editor_recipe = rec if isinstance(rec, dict) and rec else None
+                self._pending_editor_recipe = (
+                    rec if isinstance(rec, dict) and rec else NO_RECIPE)
                 self._builtin_ti1_path = None     # a user preset, not a built-in
                 # A user preset that bundled a .ti1 builds from it (skip targen). Point
                 # Generate at the sidecar file if it's present; otherwise fall back to
@@ -14158,7 +14167,7 @@ class TabChart(QWidget):
                 self._preset_ti1_path = None
                 self._preset_ti1_targen_sig = None
                 if isinstance(pdata, dict) and pdata.get("attached_ti1"):
-                    p = _preset_sidecar_path("create_chart", str(name), ".ti1")
+                    p = _find_preset_sidecar("create_chart", str(name), ".ti1")
                     if p.is_file():
                         self._preset_ti1_path = p
                         # Snapshot targen so the override box can opt into a fresh
@@ -15382,7 +15391,11 @@ class TabChart(QWidget):
         # the existing key so the match replaces it cleanly.
         existing = self._load_presets_from_settings()
         nkey = _preset_match_key(name)
-        match = next((k for k in existing if _preset_match_key(k) == nkey), None)
+        # …and on the FILE the name is stored in: "a/b" and "a_b" are two names
+        # but one .json and one .ti1, so saving the second silently replaced
+        # the first preset's files under the first one's name.
+        match = next((k for k in existing if _preset_match_key(k) == nkey
+                      or _same_preset_file(k, name)), None)
         if match is not None:
             if not self._confirm_overwrite_preset(match):
                 return
@@ -15466,6 +15479,28 @@ class TabChart(QWidget):
         synced = dict(recipe)
         synced["layout"] = recipe_layout_from_options(opts)
         return synced
+
+    def recipe_for_new_patch_set(self) -> dict | None:
+        """The design "New Patch Set…" in the patch set editor opens with.
+
+        THE SELECTED PRESET'S DESIGN, NOT THE RUN'S LAST BUILD. The editor
+        opens on the run's chart and read its design from the run's meta.json,
+        which only a build writes. An own preset is only loaded when it is
+        chosen, not built, so after choosing one (or saving one and choosing
+        another) "New Patch Set…" opened with whatever the run was built from
+        last, and with no chart at all with the app-wide last-used settings
+        (Knut, #182 5872273862: *"a previous used is coming up instead"*).
+        Driven on screen: a preset of cube 9 opened as the run's cube 11.
+
+        `_pending_editor_recipe` is the one slot that follows the selection
+        (and an applied editor chart). None when it holds no design, so the
+        editor falls back to the chart's own design as before.
+        """
+        from workflow.ti2_relayout import NO_RECIPE
+        pending = getattr(self, "_pending_editor_recipe", None)
+        if pending is NO_RECIPE or not isinstance(pending, dict) or not pending:
+            return None
+        return dict(pending)
 
     def _current_chart_recipe(self) -> dict | None:
         """The current run's stored New-chart creation recipe (Set B), or None.

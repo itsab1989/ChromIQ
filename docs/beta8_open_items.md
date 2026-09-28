@@ -31394,3 +31394,57 @@ would reach.
 - tests: tests/test_b8_1680_knuts_i1pro_names_keep_their_keys.py, tests/test_i1pro_w8_builtin_presets.py, tests/test_i1pro3_builtin_presets.py (their name pattern allows the patch-set tail)
 - evidence: test_the_old_key_reaches_the_renamed_preset (56 cases), test_the_shipped_ticks_are_the_ones_beta_49_shipped, test_a_tick_stored_under_the_old_key_still_holds, test_the_dropdown_lists_the_old_key_under_the_new_name
 - open question: the suggested target name follows #68's sortable convention and moves the width token to the end, so "i1Pro-A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6" is suggested as "i1Pro-A4-324p-1page-Portrait-Uniform 6x6x6-w7.5mm". Unchanged here, as it already was for the ColorMunki "Fast Reading Speed" and i1Pro "Maximised" names; it is Knut's call whether his file name should be the target name as written.
+
+### B8-1690 · FIXED, awaiting confirmation · "New Patch Set…" opened with the run's last build, not the preset selected in Create Chart
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: Knut, #182 5872273862: *"Sometimes, when saving a preset and giving it a new name, after saving the settings used for the patch set is not showing (a previous used is coming up instead) when entering 'New Patch Set...'"*. Driven in a real window (`scripts/drive_preset_save_new_patch_set.py`, proof in `~/Desktop/ChromIQ-430-stable-prep/preset-save-bug/before/`): the patch set editor opens on the run's chart and took its design from the run's meta.json, which only a build writes. An own preset is loaded when it is chosen, not built, so choosing the older "Mine B attached" (cube 9) after saving "Mine cube 11" opened New Patch Set… at cube 11 (step 9); with no chart on screen, after reopening the app, it opened with the app-wide last-used settings, a mix of two designs (step 10). The "sometimes" is whether a build happened between the choice and the editor.
+- where: `ui/dialogs/ti2_relayout_dialog.py` `_new_chart`, `ui/main_window.py` `_launch_tool`, `ui/tabs/tab_chart.py` `recipe_for_new_patch_set`.
+- fix: the main window hands the editor the selected preset's design (`TabChart.recipe_for_new_patch_set`, from `_pending_editor_recipe`), and New Patch Set… opens with it until the editor makes or loads a chart of its own. A selection with no design (Default, a recipe-less built-in or own preset) still falls back to the chart's own design, then to last-used, as before: the alternative, saying in the window which design it shows, needs a new text for Knut.
+- tests: tests/test_new_patch_set_opens_the_selected_preset.py
+- evidence: test_new_patch_set_opens_with_the_selected_preset_not_the_run (fails without the fix); the after drive, 11 of 11 steps PASS, in `.../preset-save-bug/after/report.md`
+
+### B8-1691 · FIXED, awaiting confirmation · Building an own preset with no design left the previous preset's design on the run
+- blocks release: yes
+- severity: MINOR
+- status: FIXED
+- found by: reading the selection code for B8-1690. The own-preset branch put `None` ("ask the run") in `_pending_editor_recipe` where the built-in branch puts `NO_RECIPE` since #164, so building a preset saved from a plain targen chart kept the previous design in meta.json, New Patch Set… showed it, and a preset saved from that run copied it.
+- where: `ui/tabs/tab_chart.py` `_on_preset_selected`, the own-preset branch.
+- fix: an own preset with no `editor_recipe` puts `NO_RECIPE` in the slot.
+- tests: tests/test_new_patch_set_opens_the_selected_preset.py
+- evidence: test_an_own_preset_with_no_design_clears_the_record (fails without the fix)
+
+### B8-1692 · OPEN · The six scanner built-ins' designs name A4 portrait for their landscape A4 and Letter sheets
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the preset-name audit for #182 5872273862 (`tests/test_every_preset_s_names_agree.py`). `assets/charts/knut/rgb/scanner/*/recipe.json` say `"paper": "A4"`, 210 x 297, where the presets are A4R / LetterR, so New Patch Set… and "Load setup from preset" open them on the wrong sheet. Their `"instr": "i1"` is not the fault: the editor has no scanner instrument. Not fixed here because `assets/charts/knut/` was being renamed in a parallel change; the six keys are listed in the test's `KNOWN_WRONG_PAPER`, which fails when one is put right so the entry goes with the fix.
+- where: `assets/charts/knut/rgb/scanner/{a4,letter,a4_2page,letter_2page,a4_3page,letter_3page}/recipe.json`.
+
+### B8-1693 · FIXED, awaiting confirmation · Five "by Pharmacist" designs named A4 portrait for Letter and A4-landscape charts
+- blocks release: yes
+- severity: MINOR
+- status: FIXED
+- found by: the preset-name audit for #182 5872273862. The three i1Pro Letter charts and the two ColorMunki A4R charts with a design shipped `"paper": "A4"`, 210 x 297, copied verbatim from the senders' exports (`scripts/import_pharmacist_presets.py`), so New Patch Set… opened them on A4 portrait.
+- where: `assets/charts/pharmacist/rgb/fulllayout/*/recipe.json`, `scripts/import_pharmacist_presets.py`.
+- fix: the five designs name their chart's paper and size; the import now writes the instrument and paper from the layout, so a re-import cannot bring the fault back.
+- tests: tests/test_every_preset_s_names_agree.py
+- evidence: test_a_built_in_s_design_names_its_chart (five cases fail without the fix)
+
+### B8-1694 · FIXED, awaiting confirmation · An own preset's .json name, the name inside it and its .ti1 could stop agreeing, and then the preset quietly built from targen or vanished
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: the preset-name audit for #182 5872273862, driven in a real window (step 12). Four shapes: a preset whose .json and .ti1 were renamed by hand (or by a download, which takes the spaces out of an attachment's name) looked for a .ti1 named after the name inside, did not find it and built from targen with only a log line, and the first save then left the .ti1 orphaned; a duplicate made in Finder ("Mine copy.json" says "Mine") showed as one preset and the next save deleted the copy; and "a/b" and "a_b", two names stored in one file, were saved over each other without the overwrite question.
+- where: `core/preset_store.py` `load_presets`, `ui/tabs/tab_chart.py` `_on_preset_save` and the three sidecar readers.
+- fix: a preset keeps the name recorded inside its file (a first version listed it under its file name, which would have renamed every preset that arrived through a download); two files claiming one name are both listed, the copy under its file name; `find_sidecar` finds the .ti1 beside the .json that records the name; `save_presets` moves that .ti1 along when it writes the .json under the name's own file; `same_file_name` makes the overwrite question fire for two names that share a file. Deleting a preset still removes only its own .ti1.
+- tests: tests/test_every_preset_s_names_agree.py, tests/test_new_patch_set_opens_the_selected_preset.py
+- evidence: test_a_duplicate_made_in_finder_is_two_presets_and_survives_a_save, test_a_file_renamed_outside_keeps_its_name_and_its_patch_set, test_a_preset_renamed_in_finder_keeps_its_patch_set, test_two_names_stored_in_one_file_are_asked_about (each fails without the fix)
+
+### B8-1695 · OPEN · Closing the window with no project open made a project folder nobody asked for
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: the B8-1690 drive, 2026-09-28. The app reopened with no project, an own preset chosen, the patch set editor opened and closed, then the main window closed: the log records `created a NEW project 'Printer_Paper_Type_Instr_2026-09-28_17-01'` at the close, beside the window-geometry writes. The same shape as #164 (*"It must not create another project that I did not ask for"*). The caller was not traced.
+- where: not yet found; something on the close path asks for `working_dir()` / `project()` instead of `has_project()`.

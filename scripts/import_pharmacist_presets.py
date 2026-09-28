@@ -57,6 +57,11 @@ CHARTS = {
 }
 
 
+#: The editor's paper spin boxes for each printtarg paper, as Knut's other
+#: recipes store them (whole millimetres).
+PAPER_MM = {"A4": (210, 297), "A4R": (297, 210), "Letter": (216, 279)}
+
+
 def ti1_counts(path: Path) -> tuple[int, int, int]:
     text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
     fmt = text.split("\nBEGIN_DATA_FORMAT\n", 1)[1].split("\nEND_DATA_FORMAT", 1)[0].split()
@@ -109,6 +114,14 @@ def main() -> int:
                 if not isinstance(editor, dict) or not editor:
                     print(f"REFUSED {stem}: no editor design to ship", file=sys.stderr)
                     return 1
+                # THE DESIGN NAMES THE CHART'S PAPER. The exports' editor
+                # designs all said A4 portrait, the Letter and A4-landscape
+                # ones too, so "New Patch Set…" and "Load setup from preset"
+                # opened them on the wrong sheet (#182 5872273862, the audit).
+                editor = dict(editor)
+                editor["instr"] = instr
+                editor["paper"] = paper
+                editor["paper_w"], editor["paper_h"] = PAPER_MM[paper]
                 rec.write_text(json.dumps(editor, indent=1, ensure_ascii=False) + "\n",
                                encoding="utf-8")
     for r in rows:
