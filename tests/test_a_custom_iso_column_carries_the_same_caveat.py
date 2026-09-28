@@ -346,6 +346,7 @@ _DENIAL_BY_LANGUAGE: "dict[str, str]" = {
     "no": "ikke en test mot den standarden",
     "pl": "nie jest to test względem tej normy",
     "ru": "не испытание по этому стандарту",
+    "zh_CN": "并非针对该标准的测试",
 }
 
 #: Every sentence whose job includes the denial. Taken from the module rather
