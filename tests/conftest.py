@@ -438,6 +438,24 @@ def _restore_the_modal_entry_points() -> None:
 
 
 @pytest.fixture(autouse=True)
+def _the_ui_language_is_put_back():
+    """Give every test back the UI language it started with.
+
+    `core.i18n.set_language` is process-wide, and dozens of test files switch
+    it to check a translation. One that did not switch it back left a worker
+    in Ukrainian: on 2026-09-28 eight tests in
+    `test_the_help_knows_about_the_usage_scenarios.py` read their English help
+    cards in Ukrainian and failed, and passed alone. Restoring what SETUP saw,
+    as the Argyll fixture below does, keeps a module fixture that sets a
+    language on purpose working for all of its tests."""
+    import core.i18n as _i18n
+    before = _i18n._language
+    yield
+    if _i18n._language != before:
+        _i18n.set_language(before)
+
+
+@pytest.fixture(autouse=True)
 def _the_argyll_path_is_put_back():
     """Give every test back the Argyll folder it started with (B8-1520).
 
