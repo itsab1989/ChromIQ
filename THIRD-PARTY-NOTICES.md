@@ -283,7 +283,8 @@ Listed so the sweep is exhaustive:
   Until 4.3.0 four of them shipped as his rendered page images, which printed
   "Patch sampling and layout design by Nelson Lau © for ChromIQ" on the sheet;
   those were withdrawn in 4.3.1 at his and Knut's request, and the charts that
-  ship now do not print that line (see "Still open").
+  ship now do not print that line. The preset names credit him instead; Basti
+  confirmed on 2026-09-28 that the presets are right as they are.
 
 - **Limit sets for the Measurement Report** are in `data/compliance_sets/`.
   ChromIQ's own files, under the project's own licence, and **empty of any third
@@ -496,10 +497,3 @@ recorded above under **Scanner target recognition files**.)
    copyright string with it. Excluding it (and anything else under `assets/` that
    is source rather than runtime data) from the spec is a packaging decision, not
    a licensing one, so it is left here rather than made.
-
-3. **The printed credit for Nelson Lau's charts.** This file used to say "the
-   credit stays on the sheets". Since 4.3.1 no shipped chart prints it: the
-   layout engine does not stamp it, and the rendered pages that carried it are
-   gone. Whether his permission asks for the credit on the printed sheet is not
-   recorded here; the preset names credit him ("by Pharmacist"). Recorded
-   2026-09-28 by the 4.3.1 challenge round, for Basti to settle with him.
