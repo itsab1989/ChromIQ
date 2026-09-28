@@ -253,6 +253,18 @@ def _one_qapplication_per_worker():
     # freed receiver (`core/gc_guard.py`).
     from core.gc_guard import install_gui_thread_collector
     install_gui_thread_collector(_PINNED_QAPP)
+    # THE HELP CARDS ARE TRANSLATED WHEN THEIR MODULE IS IMPORTED
+    # (`welcome_dialog.WORKFLOWS` is built with tr() at import). The first
+    # test on a worker that switched the language and then built a window
+    # imported it in that language for the rest of the worker's life, and
+    # the English help-card tests then read Ukrainian (2026-09-28, only in
+    # --runslow runs, whose file order differs). Import it here, in English,
+    # before any test can switch. A test that needs the cards in another
+    # language already runs them in a process of its own
+    # (`test_helpcard_sheets_in_every_language.py`).
+    import core.i18n as _i18n
+    if _i18n._language == _i18n.SOURCE_LANGUAGE:
+        import ui.dialogs.welcome_dialog  # noqa: F401
     yield _PINNED_QAPP
     # Deliberately NOT destroyed: tearing it down at session end would delete
     # every QObject still alive during other fixtures' teardown, which is the
@@ -435,6 +447,26 @@ def _restore_the_modal_entry_points() -> None:
     for _owner, _name, _orig in _PRISTINE_MODALS:
         if _owner.__dict__.get(_name) is not _orig:
             setattr(_owner, _name, _orig)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _every_file_starts_in_english():
+    """Each test FILE starts in English and hands English on.
+
+    The per-test restore below cannot catch a MODULE-scoped fixture that
+    switches the language and never switches it back: the next file on the
+    worker then starts in that language, and the per-test fixture takes it as
+    the starting point. That is how `test_the_help_knows_about_the_usage_
+    scenarios.py` read its English cards in another language again on
+    2026-09-28 after the per-test restore was in. An autouse fixture of module
+    scope sets up before a file's own module fixtures, so a file that wants a
+    language still gets it."""
+    import core.i18n as _i18n
+    if _i18n._language != _i18n.SOURCE_LANGUAGE:
+        _i18n.set_language(_i18n.SOURCE_LANGUAGE)
+    yield
+    if _i18n._language != _i18n.SOURCE_LANGUAGE:
+        _i18n.set_language(_i18n.SOURCE_LANGUAGE)
 
 
 @pytest.fixture(autouse=True)
