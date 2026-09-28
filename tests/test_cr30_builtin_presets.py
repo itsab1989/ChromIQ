@@ -208,8 +208,8 @@ def test_every_row_carries_the_full_layout_setup_marker():
         assert p.has_full_layout_setup, p.name
         assert p.marked_name == p.name + " · Full layout setup"
         assert p.combo_label == f"★  CR30 · {p.marked_name}  ·  built-in"
-        # The suggested PROJECT FOLDER keeps the sortable #68 convention and
-        # never carries the marker.
+        # The stamped "Chart layout" name (B8-1704) is the instrument token
+        # plus the preset name as written, and never carries the marker.
         assert p.default_target_name.startswith("CR30-")
         assert "Full layout setup" not in p.default_target_name
 

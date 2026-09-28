@@ -130,8 +130,8 @@ def test_each_row_carries_the_full_layout_setup_marker():
     for p in MAX:
         assert p.has_full_layout_setup, p.name
         assert p.combo_label == f"★  i1Pro · {p.marked_name}  ·  built-in"
-        # The suggested PROJECT FOLDER keeps the sortable #68 convention (the
-        # width token moves to the end) and never carries the marker.
+        # The stamped "Chart layout" name (B8-1704) is the instrument token
+        # plus the preset name as written, and never carries the marker.
         assert p.default_target_name.startswith("i1Pro-")
         assert "Full layout setup" not in p.default_target_name
 
