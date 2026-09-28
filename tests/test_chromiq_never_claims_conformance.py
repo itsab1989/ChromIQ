@@ -239,7 +239,18 @@ CLAIM_ALWAYS = {
     "nl": r"voldoe\w*\s+aan\s+(?:de|een|die|deze)\s+norm(?:en)?\b"
           r"|aan\s+(?:de|een|die|deze)\s+norm(?:en)?\s+(?:te\s+)?voldo\w*"
           r"|conform\s+(?:de|een|die|deze)\s+norm(?:en)?\b|normconform",
-    "no": r"oppfyller\s+standarden|samsvar\s+med\s+standard|tilfredsstiller\s+standarden",
+    # Norwegian says "meets the standard" as often through its REQUIREMENTS
+    # ("oppfyller kravene i standarden", "standardens krav er oppfylt") as
+    # directly, and the 4.3.0 pass wrote the first form six times; the direct
+    # form alone caught none of them. Read on 2026-09-28: the hits are the
+    # denials and the "sannsynligvis" (likely) hedge, all allowed by their
+    # English; one denial with no English cognate was reworded instead.
+    "no": r"oppfyller\s+standarden|samsvar\s+med\s+standard|tilfredsstiller\s+standarden"
+          r"|oppfyll\w*\s+(?:alle\s+)?krav\w*\s+(?:i|til|fra)\s+(?:en\s+|den\s+|denne\s+)?(?:standard|ISO\b)"
+          r"|oppfyll\w*\s+(?:en\s+|den\s+|denne\s+)?(?:ISO\s*\d|standardkrav)"
+          r"|(?:standardens|standardenes)\s+krav\w*\s+(?:er\s+|blir\s+)?oppfylt"
+          r"|krav\w*\s+i\s+(?:en\s+|den\s+|denne\s+)?standard\w*\s+(?:er\s+|blir\s+)?oppfylt"
+          r"|tilfredsstill\w*\s+(?:kravene\s+i\s+)?(?:en\s+|den\s+)?standard",
     "pl": r"spełnia\s+norm|zgodn\w*\s+z\s+norm",
     "pt": r"cumpre\s+(?:a\s+)?norma|conforme\s+(?:a|com)\s+(?:a\s+)?norma|satisfaz\s+(?:a\s+)?norma",
     "ru": r"соответству\w*\s+(?:требованиям\s+)?станд|отвечает\s+требованиям\s+станд",
