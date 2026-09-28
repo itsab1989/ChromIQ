@@ -31445,9 +31445,30 @@ would reach.
 - tests: tests/test_every_preset_s_names_agree.py, tests/test_new_patch_set_opens_the_selected_preset.py
 - evidence: test_a_duplicate_made_in_finder_is_two_presets_and_survives_a_save, test_a_file_renamed_outside_keeps_its_name_and_its_patch_set, test_a_preset_renamed_in_finder_keeps_its_patch_set, test_two_names_stored_in_one_file_are_asked_about (each fails without the fix)
 
-### B8-1695 · OPEN · Closing the window with no project open made a project folder nobody asked for
+### B8-1695 · REPORTED, NOT A FAULT · Closing the window with no project open made a project folder nobody asked for
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- found by: the B8-1690 drive, 2026-09-28. The app reopened with no project, an own preset chosen, the patch set editor opened and closed, then the main window closed: the log records `created a NEW project 'Printer_Paper_Type_Instr_2026-09-28_17-01'` at the close, beside the window-geometry writes. The same shape as #164 (*"It must not create another project that I did not ask for"*). The caller was not traced.
-- where: not yet found; something on the close path asks for `working_dir()` / `project()` instead of `has_project()`.
+- status: VERIFIED
+- found by: the B8-1690 drive, 2026-09-28: a folder `Printer_Paper_Type_Instr_<date>` appeared after the app was closed with no project open.
+- outcome: the driver made it, not the app. `scripts/drive_preset_save_new_patch_set.py` `run_recipe` called `_file_mgr.project()` with no project open, and `project()` invents one. The challenge round before 4.3.0 reproduced the exact folder name with that one call, and drove the app path alone (choose a preset, open and close the patch set editor from the Tools menu, close the window) at 4fd43ca5 and at 59bcdbd3 in real windows: no folder either time. The driver now asks `has_project()` first.
+- evidence: ~/Desktop/ChromIQ-430-stable-prep/challenge-beta50/close1695b-old and close1695b-new; the preset suite afterwards, `pytest --runslow -n auto` over the preset_store tests and the three B8-1690..1694 files: 727 passed, exit 0.
+
+### B8-1696 · FIXED, awaiting confirmation · After a Profile-run switch, "New Patch Set…" opened the other run's preset design over this run's chart
+- blocks release: yes
+- severity: MINOR
+- status: FIXED
+- found by: the challenge round before 4.3.0, driven on screen: run1 built from a cube-7 built-in, run2 from a cube-9 one, back to run1: New Patch Set showed cube 9 over run1's chart. At 4fd43ca5 it showed run1's own cube 7; the regression came with B8-1690.
+- where: `ui/tabs/tab_chart.py` `_on_target_changed`.
+- fix: the switch clears the pending preset design, as opening a project already does (#70), so the incoming run's own design is shown.
+- tests: tests/test_new_patch_set_opens_the_selected_preset.py
+- evidence: test_a_profile_run_switch_drops_the_preset_s_design (fails without the fix); driven again with the fix: back to run1 shows cube 7, 484 patches, ~/Desktop/ChromIQ-430-stable-prep/challenge-beta50/runswitch-runswitch-fixed/
+
+### B8-1697 · FIXED, awaiting confirmation · Saving any own preset deleted another preset whose file name differed from its stored name only in case or Unicode form
+- blocks release: yes
+- severity: MAJOR
+- status: FIXED
+- found by: the challenge round before 4.3.0. A preset file `mine.json` holding the name "Mine" (a download or a hand rename, the case B8-1694 is about): on APFS the save writes `Mine.json` into that same file, and the clean-up loop of `save_presets` then deleted `mine.json` as unwanted. The same with a decomposed umlaut. Older than 4.3.0's own changes: identical at 4fd43ca5.
+- where: `core/preset_store.py` `save_presets`.
+- fix: the clean-up skips any file that is the same file (same inode) as one just written.
+- tests: tests/test_a_save_keeps_a_preset_whose_file_differs_in_case.py
+- evidence: test_a_lower_case_file_survives_saving_another_preset and test_a_decomposed_umlaut_file_survives_saving_another_preset fail without the fix; on screen at 4fd43ca5 only the newly saved preset was left, with the fix `mine.json` survives, ~/Desktop/ChromIQ-430-stable-prep/challenge-beta50/caseloss-new/

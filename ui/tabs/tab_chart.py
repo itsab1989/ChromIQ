@@ -23458,6 +23458,12 @@ class TabChart(QWidget):
             self._chart_imposed = {}
             self._release_imposed_connections()
             self._refresh_target_text()
+            # THE INCOMING RUN'S CHART BRINGS ITS OWN DESIGN. The design of the
+            # preset chosen last belongs to the run it was chosen for; kept
+            # across a Profile-run switch, "New Patch Set…" opened run2's design
+            # over run1's loaded chart (challenge round before 4.3.0). Opening
+            # a project clears it for the same reason (#70).
+            self._pending_editor_recipe = None
             # RUN TYPE = CALIBRATION SETS THE CHART UP (#137) — BEFORE the load,
             # so the incoming target's own values always have the last word (F3,
             # Knut/Sebastian 2026-08-11: a setting's owner is the SELECTED

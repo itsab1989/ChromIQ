@@ -240,3 +240,21 @@ def test_a_preset_renamed_in_finder_keeps_its_patch_set(
     _choose(tab, "Mine")
     assert tab._preset_ti1_path == d / "Renamed.ti1"
     assert tab.recipe_for_new_patch_set()["sp"] == {"cube_n": 9}
+
+
+def test_a_profile_run_switch_drops_the_preset_s_design(
+        qapp, tmp_path, presets_dir):
+    """The design of the preset chosen last belongs to the run it was chosen
+    for. Kept across a Profile-run switch, New Patch Set… opened run2's design
+    over run1's loaded chart (challenge round before 4.3.0, driven on screen:
+    run1 built as cube 7, run2 as cube 9, back to run1 showed cube 9)."""
+    tab = _tab(tmp_path)
+    from ui.measurement_target_bar import MeasurementTargetController
+    tab._manual_target_name_edit.setText("ZZ-run-switch-probe")
+    tab.set_target_controller(MeasurementTargetController(tab._file_mgr))
+    tab._pending_editor_recipe = dict(CUBE_9)
+    assert tab.recipe_for_new_patch_set() == CUBE_9
+    tab._on_target_changed()
+    assert tab.recipe_for_new_patch_set() is None, (
+        "the last preset's design survived a Profile-run switch")
+    tab.deleteLater()

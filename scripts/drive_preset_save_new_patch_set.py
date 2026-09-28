@@ -226,6 +226,10 @@ def generate(win) -> None:
 
 
 def run_recipe(win):
+    # has_project() first: project() with none open INVENTS one, which is how
+    # this driver made the folder B8-1695 reported.
+    if not win._file_mgr.has_project():
+        return None
     try:
         return win._file_mgr.project().current_run().load_meta().editor_recipe
     except Exception:  # noqa: BLE001
