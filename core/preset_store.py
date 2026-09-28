@@ -211,8 +211,27 @@ def save_presets(tab: str, presets: dict[str, Any]) -> None:
                     except OSError as exc:
                         log.warning("preset_store: could not move %s (%s)",
                                     extra, exc)
+    # THE FILE JUST WRITTEN IS NOT A LEFTOVER, WHATEVER IT IS CALLED. On a
+    # case- and normalisation-insensitive disk (APFS, NTFS) writing
+    # "Mine.json" goes into an existing "mine.json", or into a "Grün.json"
+    # spelled in decomposed form, and the directory keeps that spelling; the
+    # name test below then deleted the preset it had just saved. Saving ANY
+    # preset lost it.
+    written: set[tuple[int, int]] = set()
+    for fname in wanted:
+        try:
+            st = (d / fname).stat()
+        except OSError:
+            continue
+        written.add((st.st_dev, st.st_ino))
     for p in d.glob("*.json"):
         if p.name not in wanted:
+            try:
+                st = p.stat()
+                if (st.st_dev, st.st_ino) in written:
+                    continue
+            except OSError:
+                pass
             try:
                 p.unlink()
             except OSError as exc:
