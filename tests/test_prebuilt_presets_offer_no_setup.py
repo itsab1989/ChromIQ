@@ -6,6 +6,11 @@ with no design behind them, so there is no setup to load — but nothing on
 screen said that, and a list that silently omits eleven charts reads as a fault.
 Basti chose a sentence in the tooltip over listing them greyed, on the grounds
 that eleven permanently dead entries make the list worse.
+
+B8-1702 (4.3.2): since 4.3.1 thirteen of the fourteen "by Pharmacist" charts
+carry a design and ARE listed, so a sentence naming them as absent was false.
+It now names what is absent: a preset with a layout but no editor setup
+(Knut, #182 5879221943).
 """
 import pytest
 
@@ -43,12 +48,32 @@ def test_the_tooltip_explains_the_absence():
                 if k.startswith("Load the full New-chart setup")), None)
     assert tip, "the 'Load setup from preset' tooltip is not a translatable string"
 
-    assert "by Pharmacist" in tip, (
-        "the tooltip does not mention the charts it leaves out")
-    assert "already laid out" in tip or "no setup" in tip.lower(), (
+    assert "by Pharmacist" not in tip, (
+        "the tooltip says the by Pharmacist charts are not listed, and since "
+        "4.3.1 all but one of them are (B8-1702)")
+    assert "layout but no editor setup" in tip, (
+        "the tooltip does not say which presets it leaves out")
+    assert "no setup behind it" in tip, (
         "the tooltip does not say WHY they are absent")
     assert "Presets" in tip, "it does not say where to find them instead"
     for rotting in (" nine ", " ten ", " eight "):
         assert rotting not in tip, (
             f"the tooltip hard-codes a count ({rotting.strip()!r}); it would be "
             "silently wrong the day a chart is added or removed")
+
+
+def test_a_preset_with_a_layout_and_no_editor_setup_is_what_is_absent():
+    """B8-1702: what the tooltip's last paragraph claims. The one built-in
+    whose row says "Layout, but no editor setup" (the TC3.00 Target by
+    Pharmacist) has no setup to load, and the other "by Pharmacist" built-ins,
+    which the old sentence called absent, do."""
+    from ui.tabs.tab_chart import KNUT_PRESETS, builtin_preset_recipe
+    layout_only = [p for p in KNUT_PRESETS if p.layout_only]
+    assert layout_only, "no layout-only preset, so this test proves nothing"
+    for p in layout_only:
+        assert builtin_preset_recipe(p.key) is None, p.name
+    listed = [p for p in KNUT_PRESETS
+              if "Pharmacist" in p.name and not p.layout_only]
+    assert listed
+    for p in listed:
+        assert builtin_preset_recipe(p.key) is not None, p.name

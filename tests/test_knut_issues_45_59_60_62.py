@@ -286,16 +286,17 @@ def test_preset_seeds_name_only_when_field_empty(qapp, settings):
     assert f.text() == default                       # fallback seeded
 
 
-def test_sortable_builtin_name_normalisation():
-    # #68 #3: instrument leads; "-wXmm" and the colour-set name move to the tail.
-    from ui.tabs.tab_chart import _sortable_builtin_name, KNUT_SUFFIX
-    assert _sortable_builtin_name(
-        "i1Pro", "A4-1168p-2pages-w7.5mm-Portrait" + KNUT_SUFFIX, KNUT_SUFFIX
-    ) == "i1Pro-A4-1168p-2pages-Portrait-w7.5mm-TC9.18+Spyderprint Grays"
-    # No width token, different family suffix.
-    assert _sortable_builtin_name(
-        "ColorMunki", "A3-1575p-3pages-Portrait · Full layout setup", " · Full layout setup"
-    ) == "ColorMunki-A3-1575p-3pages-Portrait-Full layout setup"
+def test_builtin_layout_name_keeps_the_name_as_written():
+    # B8-1704 (Knut, #182 5879401111): the instrument leads and NOTHING in the
+    # preset's name moves. Until 4.3.2 (#68 #3) the "-wXmm" width and the
+    # family suffix were moved to the tail.
+    from ui.tabs.tab_chart import _builtin_layout_name, KNUT_SUFFIX
+    assert _builtin_layout_name(
+        "i1Pro", "A4-1168p-2pages-w7.5mm-Portrait" + KNUT_SUFFIX
+    ) == "i1Pro-A4-1168p-2pages-w7.5mm-Portrait TC9.18+Spyderprint Grays"
+    assert _builtin_layout_name(
+        "ColorMunki", "A3-1575p-3pages-Portrait · Full layout setup"
+    ) == "ColorMunki-A3-1575p-3pages-Portrait · Full layout setup"
 
 
 def test_create_chart_suggest_includes_patches_and_orientation(qapp, settings, tmp_path):

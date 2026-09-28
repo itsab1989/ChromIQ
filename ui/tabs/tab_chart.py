@@ -1328,31 +1328,23 @@ _CR30_STRAIGHT: dict = {
 _WIDTH_TOKEN_RE = re.compile(r"-w\d+(?:\.\d+)?mm")
 
 
-def _sortable_builtin_name(instr_label: str, full_name: str, suffix: str) -> str:
-    """Normalise a built-in preset's name to the sortable convention (#68):
+def _builtin_layout_name(instr_label: str, full_name: str) -> str:
+    """A built-in preset's name as the sheet's "Chart layout" stamp prints it:
+    the instrument token, a hyphen, and the preset's name EXACTLY as written.
 
-        <instrument>-<paper>-<patches>p-<pages>pages-<orientation>-<extras>
+        i1Pro-A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6
 
-    The instrument leads (so sorting groups by device), and the two non-sorting
-    bits — the layout's ``-w<number>mm`` patch width and the colour-set name
-    (e.g. "TC9.18+Spyderprint Grays") — move to the tail as "additional text",
-    exactly where the user's own free text would sit. Earlier the width sat in
-    the middle and the instrument was missing, which broke folder sorting and
-    re-ordered inconsistently.
+    Nothing in the name moves. Until 4.3.2 this put the ``-w<number>mm`` patch
+    width and any family suffix (" · Full layout setup", " · Profile printer
+    with scanner", " · Standard Patch Set v25") at the end, so the sheet said
+    "…-Portrait-Uniform 6x6x6-w7.5mm". Knut, #182 5879401111: *"The names
+    given to the presets shall not be altered. The sequence shall stay, as it
+    was given when the preset was saved"*, and 5879774498 for the stamp line
+    (B8-1704). A suffix that is part of ``name`` stays where it is written;
+    the display-only marker of ``marked_name`` is not part of the name and is
+    not printed.
     """
-    base = full_name
-    set_name = ""
-    if suffix and base.endswith(suffix):
-        base = base[: -len(suffix)]
-        set_name = suffix.strip(" ·")          # " · Full layout setup" → "Full layout setup"
-    width = ""
-    m = _WIDTH_TOKEN_RE.search(base)
-    if m:
-        width = m.group(0)[1:]                  # "-w11.5mm" → "w11.5mm"
-        base = base[: m.start()] + base[m.end():]   # leaves "…-<orientation>"
-    name = f"{instr_label}-{base}"
-    tail = "-".join(t for t in (width, set_name) if t)
-    return f"{name}-{tail}" if tail else name
+    return f"{instr_label}-{full_name}"
 
 
 # The heading each instrument's presets are grouped under, in the dropdown and
@@ -1393,7 +1385,7 @@ class _Ti1Preset:
     suppress_left_clip: bool = False    # printtarg -L
     no_randomise: bool = False          # printtarg -r (False = randomise, the default)
     tiff_16bit: bool = True             # 16-bit TIFF (→ -T)
-    suffix: str = KNUT_SUFFIX           # family name tail (stripped for target name)
+    suffix: str = KNUT_SUFFIX           # family name tail (kept in place by the stamp line)
     # Scanner family (#100) extensions: an engine-built preset carries the full
     # ChromIQ layout-engine recipe (LayoutRecipe.to_dict()); selecting it turns
     # the engine on and seeds the layout panel instead of the printtarg widgets.
@@ -1514,13 +1506,13 @@ class _Ti1Preset:
     def marked_name(self) -> str:
         """``name`` plus the "Full layout setup" marker, for DISPLAY only.
 
-        NEVER put this in ``name``. ``name`` feeds two identities:
-        ``default_target_name`` (the suggested PROJECT FOLDER) via
-        ``_sortable_builtin_name``, and ``_recipe_display_key`` (the key a user
-        preset is de-duplicated against, whose own docstring warns that
+        NEVER put this in ``name``. ``name`` feeds two things:
+        ``default_target_name`` (the "Chart layout" stamp line on the sheet)
+        via ``_builtin_layout_name``, and ``_recipe_display_key`` (the key a
+        user preset is de-duplicated against, whose own docstring warns that
         widening it "would orphan every custom preset already saved under the
-        old name"). Marking ``name`` would rename 121 suggested folders AND
-        orphan every custom preset saved under the old recipe keys.
+        old name"). Marking ``name`` would print the marker on every stamped
+        sheet AND orphan every custom preset saved under the old recipe keys.
         """
         if self.layout_only:
             return self.name + KNUT_LAYOUT_ONLY_SUFFIX
@@ -1542,7 +1534,10 @@ class _Ti1Preset:
 
     @property
     def default_target_name(self) -> str:
-        return _sortable_builtin_name(self.file_group, self.name, self.suffix)
+        """What the sheet's "Chart layout" stamp line names this preset:
+        ``<instrument token>-<name exactly as written>`` (B8-1704). No project
+        name is suggested from it any more (Knut, #182 5879401111)."""
+        return _builtin_layout_name(self.file_group, self.name)
 
 
 def _recipe_mode_word(rec: dict) -> str:

@@ -31494,13 +31494,16 @@ would reach.
 - tests: tests/test_i1pro_photocard_builtin_presets.py
 - evidence: test_they_open_the_i1pro_group_smallest_sheet_first
 
-### B8-1702 · OPEN · The "Load setup from preset" help says the "by Pharmacist" charts are not in its list, and since beta 47 most of them are
+### B8-1702 · FIXED · The "Load setup from preset" help says the "by Pharmacist" charts are not in its list, and since beta 47 most of them are
 - blocks release: no
 - decided: Knut, #182 5879221943: "Yes, include that for whatever next release comes, together with other fixes."
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: B8-1700, reading `tests/test_prebuilt_presets_offer_no_setup.py`. The tooltip of "Load setup from preset" in the New Patch Set window ends: "The ready-made “by Pharmacist” charts are not in this list. Each of those is a finished chart that is already laid out and ready to print, so there is no setup behind it to load". True of the eleven page images it was written for; since beta 47 eight "by Pharmacist" charts carry a design and ARE listed, and since 4.3.1 thirteen of the fourteen are (only the TC3.00 Target, "Layout, but no editor setup", is not). Not changed here: it is a translated text in fourteen languages, and what it should say instead is Knut's and Basti's call.
 - where: `ui/dialogs/ti2_relayout_dialog.py` (the tooltip), `data/i18n/*.json`.
+- fix (4.3.2): the last paragraph now says what is really absent, in all fourteen languages: "A preset that has a layout but no editor setup is not in this list, because there is no setup behind it to load. Pick it straight from the “Presets” list in Create Chart instead." It names no count and no family, so it stays true when a chart gains or loses a design (it is also true of the six Red River charts, which have a layout and no editor setup). The first paragraph's two em dashes became brackets, because a touched string leaves the em-dash baseline.
+- tests: tests/test_prebuilt_presets_offer_no_setup.py, tests/test_i18n.py, tests/test_no_new_em_dash_in_user_facing_text.py
+- evidence: test_the_tooltip_explains_the_absence, test_a_preset_with_a_layout_and_no_editor_setup_is_what_is_absent; on screen (real window, sandboxed): ~/Desktop/ChromIQ-430-stable-prep/fix-432/
 
 ### B8-1703 · REPORTED, NOT A FAULT · "No shipped preset answers every metric of Full colour check" was a measurement without the window's background layout
 - blocks release: no
@@ -31511,11 +31514,15 @@ would reach.
 - evidence: ~/Desktop/ChromIQ-430-stable-prep/b8-1703-window/window.png; `pytest --runslow -n auto` over the 36 test files that use `verification_preset_rows`, `preset_eligibility` or `PresetVerificationDialog`: 730 passed, 3 skipped, exit 0.
 - open for a later release (Knut, 5879221943): ship small pre-made page images of the presets so the window has no layouts to work out when it opens.
 
-### B8-1704 · OPEN · The sheet's "Chart layout" stamp line reorders a built-in preset's name
+### B8-1704 · FIXED · The sheet's "Chart layout" stamp line reorders a built-in preset's name
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: Knut's answer on #182 (5879401111, 2026-09-28): "The names given to the presets shall not be altered. The sequence shall stay, as it was given when the preset was saved". Read in the code, not yet driven on screen: `_KnutPreset.default_target_name` (`ui/tabs/tab_chart.py`, via `_sortable_builtin_name`) puts the instrument first and moves the `-w…mm` width to the end, and `_active_layout_name` stamps it as "Chart layout <name>" when "Stamp settings down the right edge" is ticked (`workflow/chart_creator.py`).
 - where: `ui/tabs/tab_chart.py` `_sortable_builtin_name`, `default_target_name`, `_active_layout_name`.
 - measured on screen 2026-09-29 (4.3.1 source, real window, sandboxed): i1Pro "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6" with "Stamp settings down the right edge" ticked prints "Chart layout i1Pro-A4-324p-1page-Portrait-Uniform 6x6x6-w7.5mm | ChromIQ layout engine | ChromIQ 4.3.1" beside the patches; ~/Desktop/ChromIQ-430-stable-prep/b8-1704-stamp/ (stamp-line.png, main-window.png, result.txt).
-- next: stamp the preset's name exactly, once Knut says yes (offered in 5879434678). Nothing else reads `default_target_name` for a user-visible text any more. Also for a later release, Knut: an example name in the project-name window (new text, §M first).
+- decided: Knut, #182 5879774498: the stamp line prints the preset's name exactly as written, with the instrument in front.
+- fix (4.3.2): `_sortable_builtin_name` is replaced by `_builtin_layout_name`, which returns "<instrument token>-<name exactly as written>"; nothing in the name moves. The i1Pro example now stamps "Chart layout i1Pro-A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6". The 14 built-ins whose name carries a family suffix print it where the name has it, " · " included ("i1Pro-A4-484p-1page-Portrait-w7.5mm-Uniform 7x7x7 · Full layout setup", "Scanner-A4-3430p-1page-Landscape-w4.0mm · Profile printer with scanner", "Red River Paper-i1Pro · A4-2052p-4pages · Standard Patch Set v25"). The display-only "Full layout setup" marker that the list adds to a name that does not carry it is not printed. The preset list, keys, ticks and file names are unchanged; `_predicted_chart_layout_name` reads the same `_active_layout_name`, so the "Measured from Preview" note-length prediction measures the new line.
+- tests: tests/test_the_stamp_line_prints_the_preset_name_as_written.py, tests/test_knut_issues_45_59_60_62.py
+- evidence: test_every_builtin_is_stamped_with_its_name_unchanged, test_knuts_example_keeps_the_width_where_he_wrote_it, test_a_suffix_stays_in_its_written_place, test_the_stamper_prints_the_line_knut_asked_for, test_the_tab_stamps_and_predicts_the_same_name, test_builtin_layout_name_keeps_the_name_as_written (four of them fail on the 4.3.1 code); on screen (real window, sandboxed): ~/Desktop/ChromIQ-430-stable-prep/fix-432/
+- next (a later release, Knut): an example name in the project-name window (new text, §M first). Nothing else reads `default_target_name` for a user-visible text any more. Also for a later release, Knut: an example name in the project-name window (new text, §M first).

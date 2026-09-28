@@ -84,8 +84,8 @@ def test_the_target_name_is_the_name_he_gave_it():
     default target name must come out as his own file name, unchanged.
 
     The 156p chart, because it is one whose name carries no patch-set tail
-    (#182 5872273862 renamed the rest). A tail moves the width behind it
-    (#68's sortable convention, `_sortable_builtin_name`)."""
+    (#182 5872273862 renamed the rest). Since 4.3.2 no name is reordered
+    (B8-1704, `_builtin_layout_name`), a tail or not."""
     p = next(q for q in W8 if q.patches == 156 and q.paper == "A4")
     assert p.suffix == ""
     assert p.default_target_name == "i1Pro-A4-156p-1page-Portrait-w8.0mm"

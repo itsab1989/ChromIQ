@@ -1075,16 +1075,18 @@ class _NewChartDialog(QDialog):
         pr_row.addWidget(self._preset_setup_combo, 1)
         pr_row.addWidget(_magenta_tip(
             tr("Load setup from preset"),
-            tr("Load the full New-chart setup — colour sets, instrument, "
-               "paper and layout — that was saved with a preset, so you can "
+            # B8-1702: the last paragraph used to say the "by Pharmacist"
+            # charts are not listed; since 4.3.1 all but the one that has a
+            # layout and no editor setup are, so it says that instead.
+            tr("Load the full New-chart setup (colour sets, instrument, "
+               "paper and layout) that was saved with a preset, so you can "
                "reuse or tweak an existing design instead of setting "
                "everything by hand.\n\nOnly presets saved with such a setup "
                "show up here, so the list stays empty (just \"None\") until "
-               "you save one.\n\nThe ready-made \u201cby Pharmacist\u201d "
-               "charts are not in this list. Each of those is a finished chart "
-               "that is already laid out and ready to print, so there is no "
-               "setup behind it to load \u2014 pick one straight from the "
-               "\u201cPresets\u201d list in Create Chart instead.")))
+               "you save one.\n\nA preset that has a layout but no editor "
+               "setup is not in this list, because there is no setup behind "
+               "it to load. Pick it straight from the \u201cPresets\u201d "
+               "list in Create Chart instead.")))
         lay.addLayout(pr_row)
 
         # --- Chart identity --------------------------------------------------
