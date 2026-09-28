@@ -66,6 +66,10 @@ import test_helpcard_blank_letter_sheet as H
 import ui.pdf_layout as pdf_layout
 if %(disable_rule)r:
     pdf_layout.drop_orphan_tail = lambda *a, **k: None
+    # B8-1657: the CMYK+N card also steps its text down to fit, which would
+    # hide the sheet the rule saves; the control measures its natural layout.
+    import ui.help_card_print as _hcp
+    _hcp.PROSE_CARD_FIT_STEPS_PX = ()
 import tempfile, pathlib
 tmp = pathlib.Path(tempfile.mkdtemp(prefix="chromiq-test-"))
 only_colophon, thin = [], []

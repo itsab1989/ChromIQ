@@ -31300,12 +31300,16 @@ would reach.
 - evidence: test_the_printed_card_numbers_with_dots_and_still_fits_one_page, test_the_cmyk_card_test_pins_english
 - where: `tests/test_cmyk_n_numbered_list.py`.
 
-### B8-1657 · OPEN · The printed CMYK+N help card takes two pages in German, French, Polish and Ukrainian
+### B8-1657 · FIXED, awaiting confirmation · The printed CMYK+N help card took two pages in ten of fourteen languages
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: B8-1656's probe: the English card fits one page, and the same card printed in de, fr, pl and uk takes two. Knut objected to a second sheet holding one line elsewhere in that batch.
 - where: `ui/help_card_print.py` `render_card`, the CMYK+N card in `ui/dialogs/welcome_dialog.py`.
+- measured: the card is translated when `WORKFLOWS` is built, at import, so every in-process probe had measured English. One process per language: English fills 99.9 % of an A4 page, and de, es, fr, it, ja, nl, pl, pt, ru and uk printed two pages (Russian needed 121 %).
+- fix: `build_document` steps the one prose card's body text down from 14 px (13, 12, 11) only while it still overflows its page. English keeps 14 px, every language now prints one page, and no other card changes.
+- tests: tests/test_cmyk_n_numbered_list.py
+- evidence: test_the_printed_card_fits_one_page_in_every_language (a child process reloading the card per language; fails without the fix), test_english_keeps_its_14_px
 
 ### B8-1654 · FIXED, awaiting confirmation · Two Ukrainian texts called the run's `old` folder "the old folder"
 - blocks release: no

@@ -180,6 +180,12 @@ def test_the_orphan_rule_is_what_is_saving_those_sheets(qapp, tmp_path,
     from ui.dialogs.welcome_dialog import WORKFLOWS
 
     monkeypatch.setattr(pdf_layout, "drop_orphan_tail", lambda *a, **k: None)
+    # B8-1657 steps the CMYK+N card's text down until it fits its page, which
+    # on US Letter also removes the one line the orphan rule used to save. The
+    # control measures the rule on the card's natural 14 px layout, so the
+    # step-down is switched off with it.
+    import ui.help_card_print as help_card_print
+    monkeypatch.setattr(help_card_print, "PROSE_CARD_FIT_STEPS_PX", ())
     found = []
     for wf in WORKFLOWS:
         for size in _SIZES:

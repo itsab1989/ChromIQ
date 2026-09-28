@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-28, the 4.3.0 translation pass (every language translated, reviewed a second time and checked on screen; German's eight long help texts translated): the ceilings came DOWN from the hundreds to what is left identical on purpose (names, units, symbols, the verdict words), so a new untranslated string is noticed again. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1592 (Knut #182 5859248797): with every measurement unticked the red line says one must be ticked, 1 key in. German by hand, does not move; the twelve others carry the English under the beta rule: +1 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1500 and B8-1503 (Knut #182 5857473253): M-REPORT-NOT-WORKED-OUT (§M-PROPOSED, a title and a singular and a plural body, 3 keys in) says a new report's date whose measurement is gone carries an earlier report's figures; the Report Limits note on the Custom columns takes Knut's accepted wording (1 key out, 2 in: with and without the pointer to note ⁴). German by hand, does not move; the twelve others carried the old note in English and carry the new English under the beta rule, so each rises by exactly 4, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1502 (beta 45 challenge 3): a sheet the filter takes to 0 everywhere names no area and no pair, 2 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
@@ -1501,18 +1502,18 @@ _IDENTICAL_TO_KEY = {
     # Dictionary entry, the presets button's tooltip). German by hand; each of
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
-    "de": 141,
-    "es": 1497,
-    "fr": 1519,
-    "it": 1508,
-    "ja": 1483,
-    "nl": 1522,
-    "no": 1508,
-    "pl": 1501,
-    "pt": 1499,
-    "ru": 1471,
-    "sv": 1509,
-    "zh_CN": 1477,
+    "de": 134,
+    "es": 116,
+    "fr": 138,
+    "it": 123,
+    "ja": 94,
+    "nl": 141,
+    "no": 123,
+    "pl": 118,
+    "pt": 116,
+    "ru": 89,
+    "sv": 127,
+    "zh_CN": 90,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1541,7 +1542,7 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 1649,
+    "uk": 77,
 }
 
 

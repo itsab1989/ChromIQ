@@ -9,6 +9,8 @@
 - German uses "Preset" for a preset everywhere, as the main controls already did. The Create Chart group heading, its label and its dropdown said "Vorgaben", "Voreinstellungen" and "Vorlage", and "Vorlage" also meant a template.
 
 ### Fixed
+- The printed help card for CMY+N charts fits one page in every language. It took two pages in ten of them; its text now steps down a size only when a language needs the room.
+- Japanese and Chinese called the paper-white fill-up patches by the publishing word for filler text in Chart layout information and its help. They now use the word the rest of each language uses for fill-up patches.
 
 - A calibration file found in the project is filled into the ChromIQ layout engine's "Printer calibration" only while its Mode is still "None" and its path is empty. With a mode already chosen it is left alone, so no Generate applies a calibration you did not pick, and the line under the calibration fields appears only when something was filled.
 

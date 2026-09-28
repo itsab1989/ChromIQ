@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-28, the 4.3.0 translation pass (every language translated, reviewed a second time and checked on screen; German's eight long help texts translated): the ceilings came DOWN from the hundreds to what is left identical on purpose (names, units, symbols, the verdict words), so a new untranslated string is noticed again. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1592 (Knut #182 5859248797): with every measurement unticked the red line says one must be ticked, 1 key in. German by hand, does not move; the twelve others carry the English under the beta rule: +1 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1500 and B8-1503 (Knut #182 5857473253): M-REPORT-NOT-WORKED-OUT (§M-PROPOSED, a title and a singular and a plural body, 3 keys in) says a new report's date whose measurement is gone carries an earlier report's figures; the Report Limits note on the Custom columns takes Knut's accepted wording (1 key out, 2 in: with and without the pointer to note ⁴). German by hand, does not move; the twelve others carried the old note in English and carry the new English under the beta rule, so each rises by exactly 4, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1502 (beta 45 challenge 3): a sheet the filter takes to 0 everywhere names no area and no pair, 2 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
@@ -1094,19 +1095,19 @@ _BUDGET = {
     # Dictionary entry, the presets button's tooltip). German by hand; each of
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
-    "de": 13,
-    "es": 1138,
-    "fr": 1139,
-    "it": 1138,
-    "ja": 1138,
-    "nl": 1138,
-    "no": 1138,
-    "pl": 1138,
-    "pt": 1138,
-    "ru": 1136,
-    "sv": 1138,
-    "zh_CN": 1137,
-    "uk": 1279,
+    "de": 5,
+    "es": 5,
+    "fr": 6,
+    "it": 5,
+    "ja": 3,
+    "nl": 6,
+    "no": 5,
+    "pl": 5,
+    "pt": 5,
+    "ru": 4,
+    "sv": 5,
+    "zh_CN": 4,
+    "uk": 1,
 }
 
 

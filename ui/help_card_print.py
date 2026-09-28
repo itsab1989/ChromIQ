@@ -408,6 +408,12 @@ def card_html(wf: dict, doc=None, lang: str = "en",
     return "<body>" + "".join(parts) + "</body>"
 
 
+#: The body sizes the one prose card (CMYK+N) steps down through, only while it
+#: still overflows its page (B8-1657). A module constant so a test that must
+#: measure the card's natural 14 px layout can switch the step-down off.
+PROSE_CARD_FIT_STEPS_PX: "tuple[int, ...]" = (13, 12, 11)
+
+
 def build_document(wf: dict, width_mm: float = _PAGE_WIDTH_MM, lang: str = "en",
                    height_mm: float = _PAGE_HEIGHT_MM):
     """A :class:`QTextDocument` of *wf*, laid out for a page *width_mm* across.
@@ -442,6 +448,24 @@ def build_document(wf: dict, width_mm: float = _PAGE_WIDTH_MM, lang: str = "en",
     # Giving the document a PAGE makes it paginate itself, at 96 dpi, in the
     # space we actually have — and `print` then just paints the pages.
     doc.setPageSize(QSizeF(width_mm * _PX_PER_MM, height_mm * _PX_PER_MM))
+    # THE ONE PROSE CARD (CMYK+N) FITS ITS ONE PAGE IN EVERY LANGUAGE (B8-1657).
+    # English fills 99.9 % of an A4 page at 14 px, and ten of the thirteen
+    # translations needed up to 121 % (Russian), so they printed a second sheet
+    # holding a few lines, the waste Knut objected to. Rewording ten
+    # translations by a fifth would cost information; stepping this card's body
+    # text down until it fits does not, and stops at 11 px, which is still
+    # readable on paper. English keeps its 14 px, and no other card changes.
+    if wf.get("kind") == "richtext" and doc.pageCount() > 1:
+        for px in PROSE_CARD_FIT_STEPS_PX:
+            doc.setDefaultStyleSheet(_PRINT_CSS.replace(
+                "color: #000000; font-size: 14px;",
+                f"color: #000000; font-size: {px}px;"))
+            doc.setHtml(card_html(wf, doc, lang=lang, width_mm=width_mm,
+                                  height_mm=height_mm))
+            doc.setPageSize(QSizeF(width_mm * _PX_PER_MM,
+                                   height_mm * _PX_PER_MM))
+            if doc.pageCount() <= 1:
+                break
     return doc
 
 
