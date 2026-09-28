@@ -28,7 +28,7 @@ def store(tmp_path, monkeypatch):
 
 def _case_insensitive(d) -> bool:
     probe = d / "CaseProbe"
-    probe.write_text("x")
+    probe.write_text("x", encoding="utf-8")
     try:
         return (d / "caseprobe").exists()
     finally:

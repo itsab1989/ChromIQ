@@ -81,6 +81,11 @@ VERSIONS = [
     "v9.9.9",
     "v4.3.0-beta.32",
     "v4.3.0-beta.32-rc1+build.20260922.arm64",
+    # THE TEXT ALSO NAMES THE RUNNING VERSION, so how long a line is depends on
+    # core/version.py. At 4.3.0 stable the build-metadata version above fit on
+    # one line and the "raises the floor" test measured no wrap at all; this
+    # one wraps whatever this build is called.
+    "v4.3.0-beta.32-rc1+build.20260922.arm64.extra-long-suffix-for-wrapping",
 ]
 
 
