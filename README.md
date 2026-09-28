@@ -32,14 +32,13 @@ ArgyllCMS does all the colour science; ChromIQ gives it a calm, guided interface
 so you never have to memorise a single flag.
 
 > [!TIP]
-> **What is new in 4.3** (in the 4.3 betas, not yet in the 4.2 download): the
+> **What is new in 4.3**: the
 > [Measurement Report](#measurement-report-new-in-43) with six report types,
 > limit sets that include the published values of ISO 12647-7 and ISO 12647-8,
-> trend graphs and PDF reports; 185 built-in chart presets (154 in 4.2) with a
-> gear button to choose which are listed; and a Ukrainian translation. The
-> newest beta on the
-> [releases page](https://github.com/itsab1989/ChromIQ/releases) carries all
-> of it; an earlier beta may lack some.
+> evenness across the sheet, trend graphs and PDF reports; 187 built-in chart
+> presets (154 in 4.2) with a gear button to choose which are listed; and
+> ChromIQ complete in 14 languages, Ukrainian among them. The full list is in
+> the [release notes](https://github.com/itsab1989/ChromIQ/releases/latest).
 
 > [!NOTE]
 > **New to printer profiling?** That's exactly who ChromIQ is for. Every screen
@@ -210,7 +209,7 @@ Choose Guided or Manual, name your target, and click **Generate Chart**. The
 patch grid appears in the preview on the right. Optionally tick **Refinement
 profile** to base a second, improved pass on an existing `.icc`/`.icm`.
 
-Or start from one of **185 ready-made chart presets** (154 in 4.2), grouped by
+Or start from one of **187 ready-made chart presets** (154 in 4.2), grouped by
 instrument: ColorMunki / i1Studio / ColorChecker Studio, i1Pro / i1Pro 2 /
 i1Pro 3, i1Pro 3 Plus, CR30, scanner, and Red River Paper.
 
@@ -493,7 +492,7 @@ on their own, outside the five-step flow:
 - **Measurements**: **Read single patches** (spot readings off any material),
   **Average measurements** (combine repeat reads of the same chart for lower
   noise), **Merge measurements** (fold extra measurements into an existing set),
-  **Inspect a measurement**, and **Measurement report (accuracy & drift)**.
+  **Inspect a measurement**, and **Measurement report (accuracy & trends)**.
 - **Charts & patch sets**: **Edit / create chart patch set**, the full layout
   editor and colour-set generator described above (reorder strips, recolour
   patches and spacers, combine charts, generate custom colour sets), and
@@ -522,11 +521,12 @@ on their own, outside the five-step flow:
   profile records which calibration it was built with.
 - **Verification runs, kept as history.** Measure a chart printed *through* a
   finished profile and the result is filed by date with its own report. Earlier
-  checks are never overwritten, so you can watch a profile drift over months.
+  checks are never overwritten, so you can watch how a profile changes over
+  months.
 
 ### Measurement Report (new in 4.3)
 Any measurement becomes a **Measurement Report**, from the Measure tab or from
-**Tools ▸ Measurement report (accuracy & drift)**. Choose what kind of document
+**Tools ▸ Measurement report (accuracy & trends)**. Choose what kind of document
 you need and which set of limits it is judged against. ChromIQ measures every
 metric your chart can answer and marks each one PASS or FAIL against its
 limit (INFO where a set gives it no limit), and marks N-A, with the reason,
@@ -541,8 +541,9 @@ the ones this chart cannot answer.
   be judged against an ISO limit set.
 - **Limit sets**, in the **Report limits** window:
   - ChromIQ's own: **ChromIQ default** (2.0 on the averages, 3.0 on the
-    maxima), **ChromIQ tight** (half of those ΔE00 limits) and **Quick
-    check** (twice them), each with grey-balance limits of its own;
+    maxima), **ChromIQ tight** (half of those accuracy limits) and **Quick
+    check** (twice them), each with grey-balance and evenness limits of its
+    own;
   - **ISO 12647-7:2016 values** (contract proofs) and **ISO 12647-8:2021
     values** (validation prints), the standards' published tolerance values,
     read-only;
@@ -554,7 +555,12 @@ the ones this chart cannot answer.
 - **Grey balance, tone ramps and evenness**: the grey ramp is judged for
   colour cast (the mid-tone ramps with it under ISO 12647-8 and the two Custom
   ISO sets), and the sheet is split into nine areas and compared, so a band or
-  an uneven dry-down shows up as a number.
+  an uneven dry-down shows up as a number. The measurement's own noise is
+  taken out first, so the number is the unevenness itself, and the ISO sets
+  judge it with the standards' figures converted to ChromIQ's method.
+- **A saved report stays as it was saved.** Reopening it shows exactly the
+  figures, verdicts and limits it was made with; a new or updated report is
+  worked out by the version you are running.
 - **Trend graphs**: every judged metric over time, across your dated
   verifications, each with its own limit line.
 - **Save report as PDF**: the whole report, or the one-page summary to hand

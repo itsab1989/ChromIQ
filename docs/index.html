@@ -455,7 +455,7 @@ footer .sp{flex:1}
           <li>A short chart, not the full target &mdash; and it can be built from your own
             profile&rsquo;s gamut, so it samples where that profile actually lives.</li>
           <li>Every check is filed under its own date, with its own report. Earlier checks
-            are never overwritten, so you can watch a profile drift over months.</li>
+            are never overwritten, so you can watch how a profile changes over months.</li>
           <li>A detailed report: average and worst-case &Delta;E, the patches that moved
             most, and a 3D difference map showing which way each colour went.</li>
           <li>The chart a check was measured with is kept beside the result, so a number can
@@ -497,9 +497,11 @@ footer .sp{flex:1}
           <li><b>Grey balance, tone ramps and evenness.</b> The grey ramp is judged for colour
             cast (the mid-tone ramps with it under ISO 12647-8 and the two Custom ISO sets),
             and the sheet is split into nine areas and
-            compared, so a band or an uneven dry-down shows up as a number.</li>
+            compared, so a band or an uneven dry-down shows up as a number. The
+            measurement's own noise is taken out first, so the number is the unevenness
+            itself.</li>
           <li><b>Trend graphs.</b> Every judged metric over time, across your dated
-            verifications, each with its own limit line, so drift is visible before it
+            verifications, each with its own limit line, so a change is visible before it
             fails.</li>
           <li><b>Save report as PDF:</b> the whole report, or the one-page summary to hand over
             with a job. The save window opens in that report&rsquo;s own <code>reports/</code>
@@ -512,7 +514,7 @@ footer .sp{flex:1}
           <div class="grp">ChromIQ&rsquo;s own</div>
           <dt>ChromIQ default</dt><dd>2.0 on the averages, 3.0 on the maxima; the right choice for checking a profile you built</dd>
           <dt>ChromIQ tight</dt><dd>half of ChromIQ default's ΔE00 limits, for critical work</dd>
-          <dt>Quick check</dt><dd>twice ChromIQ default's ΔE00 limits: only a clearly drifted printer fails</dd>
+          <dt>Quick check</dt><dd>twice ChromIQ default's ΔE00 limits: only a printer that has clearly changed fails</dd>
           <div class="grp">Published values, read-only</div>
           <dt>ISO 12647-7:2016 values</dt><dd>contract proofs</dd>
           <dt>ISO 12647-8:2021 values</dt><dd>validation prints</dd>
@@ -652,7 +654,7 @@ footer .sp{flex:1}
 <div class="feat"><span class="feat-dot" style="background:var(--amb)"></span>
       <h4>Every run keeps its own work</h4><p>A profile run holds its own chart, measurement, settings and description, so going back to an older run shows what that run was actually made with. Nothing you made is deleted — only archived, with the date.</p></div>
 <div class="feat"><span class="feat-dot" style="background:var(--mag)"></span>
-      <h4>Verification runs, kept as history</h4><p>Measure a chart printed <em>through</em> a finished profile and the result is filed by date with its own report. Earlier checks are never overwritten, so you can watch a profile drift over months.</p></div>
+      <h4>Verification runs, kept as history</h4><p>Measure a chart printed <em>through</em> a finished profile and the result is filed by date with its own report. Earlier checks are never overwritten, so you can watch how a profile changes over months.</p></div>
 <div class="feat"><span class="feat-dot" style="background:var(--amb)"></span>
       <h4>Measurement Report <span class="new43" style="font-size:.7rem">NEW IN 4.3</span></h4><p>Six report types, limit sets from ChromIQ&rsquo;s own to the published ISO 12647-7 and -8 values, trend graphs and PDF reports. Measured against those values, never certified.</p></div>
 <div class="feat"><span class="feat-dot" style="background:var(--grn)"></span>
@@ -678,7 +680,7 @@ footer .sp{flex:1}
         each a small guided dialog with its own plain-language help.</p>
     </div>
     <div class="tool-grid reveal">
-      <div class="toolgrp"><h4>Measurements</h4><ul><li>Read single patches</li><li>Average measurements</li><li>Merge measurements</li><li>Inspect a measurement</li><li>Measurement report (accuracy &amp; drift)</li></ul></div>
+      <div class="toolgrp"><h4>Measurements</h4><ul><li>Read single patches</li><li>Average measurements</li><li>Merge measurements</li><li>Inspect a measurement</li><li>Measurement report (accuracy &amp; trends)</li></ul></div>
 <div class="toolgrp"><h4>Charts &amp; patch sets</h4><ul><li>Edit / create chart patch set</li><li>Show patch distribution (3D)</li></ul></div>
 <div class="toolgrp"><h4>Scanner &amp; camera</h4><ul><li>Create scanner or camera target (.cht + .cie)</li><li>Build profile with scanner or camera (from a scan or photo)</li></ul></div>
 <div class="toolgrp"><h4>i1Profiler interchange</h4><ul><li>Convert TI1 → i1Profiler</li><li>Convert i1Profiler → TI3</li><li>Convert i1Profiler → TI1</li></ul></div>
@@ -732,7 +734,7 @@ footer .sp{flex:1}
           <li>The gamut your chart measured, keeping the dents your printer really has.</li>
           <li>Against sRGB, Adobe RGB, Display P3 &mdash; or any ICC profile, version 2 or 4.</li>
           <li>How much fits inside how much, both ways round, because they are different questions.</li>
-          <li>Two papers side by side, a cross-section at any lightness, and the drift between two readings.</li>
+          <li>Two papers side by side, a cross-section at any lightness, and the change between two readings.</li>
           <li>Open a photograph and see which of its colours the paper can print.</li>
         </ul>
         <p style="margin-top:1.3rem">
