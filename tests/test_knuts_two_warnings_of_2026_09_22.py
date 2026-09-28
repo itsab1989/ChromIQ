@@ -369,10 +369,11 @@ def test_and_the_preflight_leaves_it_out_when_the_chart_does_not(prebuilt_bundle
     "Nothing is missing: every metric this chart is asked for can be measured
     on it.", which is the same sentence contradicting itself.
 
-    Since 4.3.1 no SHIPPED preset reaches that state: the ones that did were
-    the prebuilt page images, the only built-ins whose page geometry answers
-    the two evenness rows before a chart is built (B8-1703). They are
-    registered from tests/fixtures for this guard."""
+    This guard assesses the bare chart, without the layout the window works
+    out behind the scenes (B8-1121), so it needs a chart whose page geometry
+    comes with it: the prebuilt page images, withdrawn from the shipped list
+    in 4.3.1 and registered from tests/fixtures here. In the real window 172
+    of the 188 shipped presets reach this state (B8-1703)."""
     import dataclasses
     from core.settings import AppSettings
     from ui.tabs.tab_chart import verification_preset_rows

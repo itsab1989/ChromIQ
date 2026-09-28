@@ -31496,14 +31496,18 @@ would reach.
 
 ### B8-1702 · OPEN · The "Load setup from preset" help says the "by Pharmacist" charts are not in its list, and since beta 47 most of them are
 - blocks release: no
+- decided: Knut, #182 5879221943: "Yes, include that for whatever next release comes, together with other fixes."
 - severity: MINOR
 - status: OPEN
 - found by: B8-1700, reading `tests/test_prebuilt_presets_offer_no_setup.py`. The tooltip of "Load setup from preset" in the New Patch Set window ends: "The ready-made “by Pharmacist” charts are not in this list. Each of those is a finished chart that is already laid out and ready to print, so there is no setup behind it to load". True of the eleven page images it was written for; since beta 47 eight "by Pharmacist" charts carry a design and ARE listed, and since 4.3.1 thirteen of the fourteen are (only the TC3.00 Target, "Layout, but no editor setup", is not). Not changed here: it is a translated text in fourteen languages, and what it should say instead is Knut's and Basti's call.
 - where: `ui/dialogs/ti2_relayout_dialog.py` (the tooltip), `data/i18n/*.json`.
 
-### B8-1703 · OPEN · Since 4.3.1 no shipped preset answers every metric of "Full colour check" against "ChromIQ default" before it is built
+### B8-1703 · REPORTED, NOT A FAULT · "No shipped preset answers every metric of Full colour check" was a measurement without the window's background layout
 - blocks release: no
 - severity: MINOR
-- status: OPEN
-- found by: the 4.3.1 gate (B8-1700), `tests/test_knuts_two_warnings_of_2026_09_22.py`, which looked for a shipped preset with nothing missing and found none. Measured over all 188 built-ins with `preset_eligibility.assess`: every one misses exactly the two evenness rows (`uniformity_sd`, `uniformity_de00_max_from_mean`). The four prebuilt page images withdrawn in 4.3.1 were the only built-ins that answered them, because their bundled page geometry (`channels.json`) lets the evenness grid be read before a chart is built; a layout-engine preset has that geometry only once it is generated. So "Which presets can be used for verification?" and the pre-flight window no longer show any built-in with "Nothing is missing" for that combination. Not changed here: whether the window should work out an engine preset's geometry from its recipe, or say why the two rows cannot be judged yet, is Knut's and Basti's call. The guard now holds the rule on the withdrawn bundles (tests/fixtures).
-- where: `workflow/preset_eligibility.py` (`assess`, the evenness grid), `ui/dialogs/preset_verification_dialog.py`.
+- status: VERIFIED
+- found by: the 4.3.1 build (B8-1700), from `tests/test_knuts_two_warnings_of_2026_09_22.py`, which asks `verification_preset_rows` for a preset with nothing missing and assesses its bare chart, without the layout B8-1121 works out behind the scenes. Reported to Knut on #182 (5878215347) as a question; he answered that it had been decided and built (5879221943), and he was right.
+- outcome: measured in the real window on 4.3.1 (sandboxed, Full colour check, ChromIQ default, background layouts finished in 4 s): 188 presets listed, 172 answer every metric asked, 57 marked as made for verification; the five new Pharmacist presets answer 9 of 9. Correction posted on #182 (5879282163). The test's docstring and message that repeated the claim are corrected; its guard still uses the prebuilt fixtures, which are a real "nothing missing" chart without a layout step.
+- evidence: ~/Desktop/ChromIQ-430-stable-prep/b8-1703-window/window.png; `pytest --runslow -n auto` over the 36 test files that use `verification_preset_rows`, `preset_eligibility` or `PresetVerificationDialog`: 730 passed, 3 skipped, exit 0.
+- open for a later release (Knut, 5879221943): ship small pre-made page images of the presets so the window has no layouts to work out when it opens.
+
