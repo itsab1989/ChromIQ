@@ -26,10 +26,10 @@ not `tc924_a4.ti1`). Resolve a file at runtime with
 
 | Path | Preset (Create Chart → Manual) | Kind | Files |
 |------|--------------------------------|------|-------|
-|| `pharmacist/rgb/fulllayout/<slug>/` | the fourteen "by Pharmacist" charts with a page layout (nine of beta 47, #182 5860041950; five of 4.3.1, #182 5875467209) | ti1 → layout engine | `chart.ti1` `layout.json` `recipe.json` (no `recipe.json` for the "Layout, but no editor setup" TC3.00 Target) |
+| `pharmacist/rgb/fulllayout/<slug>/` | the fourteen "by Pharmacist" charts with a page layout (nine of beta 47, #182 5860041950; five of 4.3.1, #182 5875467209) | ti1 → layout engine | `chart.ti1` `layout.json` `recipe.json` (no `recipe.json` for the "Layout, but no editor setup" TC3.00 Target) |
 
 No prebuilt-files chart ships since 4.3.1; the last four moved to
-`tests/fixtures/charts/prebuilt/`, where the suite still builds from them.|
+`tests/fixtures/charts/prebuilt/`, where the suite still builds from them.
 
 Knut's charts don't ship rendered pages — the app builds them on selection — so
 they are filed by **family** rather than by paper, one folder per chart holding
