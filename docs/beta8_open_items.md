@@ -31393,7 +31393,7 @@ would reach.
 - fix: only the names changed. The slugs, and so the keys that settings and the ticks store, are kept (the rule of the CR30 w17 rename), so the shipped ticks are beta 49's 25 of 56 and a person's own ticks still reach the renamed rows. Every row keeps its "Full layout setup" label and its built-in star.
 - tests: tests/test_b8_1680_knuts_i1pro_names_keep_their_keys.py, tests/test_i1pro_w8_builtin_presets.py, tests/test_i1pro3_builtin_presets.py (their name pattern allows the patch-set tail)
 - evidence: test_the_old_key_reaches_the_renamed_preset (56 cases), test_the_shipped_ticks_are_the_ones_beta_49_shipped, test_a_tick_stored_under_the_old_key_still_holds, test_the_dropdown_lists_the_old_key_under_the_new_name
-- open question: the suggested target name follows #68's sortable convention and moves the width token to the end, so "i1Pro-A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6" is suggested as "i1Pro-A4-324p-1page-Portrait-Uniform 6x6x6-w7.5mm". Unchanged here, as it already was for the ColorMunki "Fast Reading Speed" and i1Pro "Maximised" names; it is Knut's call whether his file name should be the target name as written.
+- open question: CLOSED, the premise was wrong. No project name is suggested any more ("Give this project a name" opens empty; Knut, #182 5879401111). The reordered `default_target_name` survives only as the sheet's "Chart layout …" stamp line: see B8-1704.
 
 ### B8-1690 · FIXED, awaiting confirmation · "New Patch Set…" opened with the run's last build, not the preset selected in Create Chart
 - blocks release: yes
@@ -31511,3 +31511,10 @@ would reach.
 - evidence: ~/Desktop/ChromIQ-430-stable-prep/b8-1703-window/window.png; `pytest --runslow -n auto` over the 36 test files that use `verification_preset_rows`, `preset_eligibility` or `PresetVerificationDialog`: 730 passed, 3 skipped, exit 0.
 - open for a later release (Knut, 5879221943): ship small pre-made page images of the presets so the window has no layouts to work out when it opens.
 
+### B8-1704 · OPEN · The sheet's "Chart layout" stamp line reorders a built-in preset's name
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: Knut's answer on #182 (5879401111, 2026-09-28): "The names given to the presets shall not be altered. The sequence shall stay, as it was given when the preset was saved". Read in the code, not yet driven on screen: `_KnutPreset.default_target_name` (`ui/tabs/tab_chart.py`, via `_sortable_builtin_name`) puts the instrument first and moves the `-w…mm` width to the end, and `_active_layout_name` stamps it as "Chart layout <name>" when "Stamp settings down the right edge" is ticked (`workflow/chart_creator.py`).
+- where: `ui/tabs/tab_chart.py` `_sortable_builtin_name`, `default_target_name`, `_active_layout_name`.
+- next: drive a built-in with the stamp ticked and photograph the line; if confirmed, stamp the preset's name exactly (offered to Knut in 5879434678). Also for a later release, Knut: an example name in the project-name window (new text, §M first).
