@@ -96,3 +96,32 @@ def test_the_tooltip_does_not_say_the_list_is_empty_while_built_ins_fill_it(qapp
         type("S", (), {"_settings": None})())
     assert any(n.startswith("★ ") for n in listed), (
         "no built-in preset is offered, so the tooltip's claim is false")
+
+
+def test_every_translation_calls_a_preset_by_its_own_catalogue_word():
+    """Challenge round 4.3.2: each paragraph of the English help speaks of
+    presets, and each translation must use the word its catalogue gives
+    "Preset" everywhere else. The Ukrainian one called them "попереднім
+    налаштуванням" in the first paragraph and "стилі" (styles) in the
+    rewritten second, and only "Пресет" in the third, so the one list the
+    help is about had three names in one tooltip."""
+    import json
+    import pathlib as _p
+
+    root = _p.Path(__file__).resolve().parent.parent / "data" / "i18n"
+    checked = 0
+    for f in sorted(root.glob("*.json")):
+        cat = json.loads(f.read_text(encoding="utf-8"))
+        key = next((k for k in cat if k.startswith("Load the full New-chart setup")),
+                   None)
+        if key is None or not cat.get("Preset"):
+            continue
+        word = cat["Preset"].lower()[:5]
+        paras = cat[key].lower().split("\n\n")
+        assert len(paras) == len(key.split("\n\n")), f.name
+        for i, para in enumerate(paras, 1):
+            assert word in para, (
+                f"{f.name}: paragraph {i} of the Load setup help does not call a "
+                f"preset {cat['Preset']!r}: {para!r}")
+        checked += 1
+    assert checked >= 13, checked
