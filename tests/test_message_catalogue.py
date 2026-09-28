@@ -200,10 +200,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # Re-challenge R1 of beta 39: an Update that
                                  # would leave a report of nothing is refused.
                                  "M-REPORT-UPDATE-NOTHING-LEFT",
-                                 # B8-1655: a calibration found while the
-                                 # engine lays out is offered to the engine
-                                 # panel; the words are ours.
-                                 "M-CAL-FOUND-ENGINE",
+                                 # (B8-1655's M-CAL-FOUND-ENGINE was
+                                 # APPROVED by Knut, #182 5865088296, and
+                                 # left this list.)
                                  # (B8-1500's M-REPORT-NOT-WORKED-OUT was
                                  # APPROVED by Knut, #182 5858874320, and
                                  # left this list.)

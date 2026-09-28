@@ -3121,7 +3121,7 @@ M_CAL_FOUND_ENGINE = _m(
     "the mode you want there. “Apply & embed (-K)” reprints every patch "
     "through the calibration; “Embed only (-I)” only records it in the chart "
     "file.",
-    approved=False)
+    approved=True)   # Knut, #182 5865088296, 2026-09-28: "Message 1 is ok"
 
 # --- PROPOSED (challenge C, beta 39, #7): Delete Selected Report could not
 # move the report ----------------------------------------------------------
