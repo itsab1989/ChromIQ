@@ -116,3 +116,19 @@ def test_the_workflow_uses_the_generator():
     assert "scripts/release_notes.py --tag" in text
     # …and still falls back, so a note is never empty.
     assert "awk" in text
+
+
+def test_a_lead_paragraph_is_not_counted_as_a_fix(monkeypatch):
+    """4.3.0 opens with a paragraph saying what the release is. It must come
+    first in the note, and never be shown or counted under "Fixed"."""
+    import scripts.release_notes as rn
+
+    body = ("\n**The report grows up.** A sentence about the release.\n\n"
+            + BODY).splitlines()
+    got = split_sections(body)
+    assert any("grows up" in ln for ln in got["intro"])
+    assert not any("grows up" in ln for ln in got["fixed"])
+    monkeypatch.setattr(rn, "_versions", lambda: [("v9.9.9", body)])
+    note = rn.build(["v9.9.9"], "v9.9.9")
+    assert note.index("grows up") < note.index("### ")
+    assert "2 fixed problems" in note.splitlines()[2]

@@ -310,7 +310,10 @@ def test_the_sites_beta_link_names_no_beta_number():
     text = (ROOT / "docs" / "index.html").read_text(encoding="utf-8")
     anchors = re.findall(
         r'<a [^>]*releases/tag/v[^"]*"[^>]*>(.*?)</a>', text, re.S)
-    assert anchors
+    ns: dict = {}
+    exec((ROOT / "core" / "version.py").read_text(encoding="utf-8"), ns)
+    # A stable release offers no beta link: the Download buttons cover it.
+    assert anchors or "-" not in ns["APP_VERSION"]
     for a in anchors:
         assert not re.search(r"beta\s*\.?\s*\d", a), a
     assert "in that beta" not in re.sub(r"\s+", " ", text)

@@ -14,6 +14,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def _beta45() -> str:
     text = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    if "## v4.3.0-beta.45" not in text:
+        # THE BETA SECTIONS ARE FOLDED INTO v4.3.0 AT THE STABLE RELEASE, by
+        # design (the release notes are written for someone updating from
+        # 4.2.7). These lines guarded a beta's own wording; the beta 45
+        # section as released stays readable in the GitHub release.
+        pytest.skip("the beta 45 section was folded into v4.3.0")
     start = text.index("## v4.3.0-beta.45")
     return text[start:text.index("\n## ", start + 5)]
 
