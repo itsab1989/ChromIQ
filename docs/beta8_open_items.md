@@ -31317,16 +31317,22 @@ would reach.
 - evidence: test_ukrainian_names_the_runs_old_folder_as_it_is_on_disk
 - where: `data/i18n/uk.json`.
 
-### B8-1660 · OPEN · The engine calibration offer fills the path into a Mode the user already chose, so the build applies a calibration nobody picked, and the line says Mode is still "None"
+### B8-1660 · FIXED, awaiting confirmation · The engine calibration offer fills the path into a Mode the user already chose, so the build applies a calibration nobody picked, and the line says Mode is still "None"
 - blocks release: yes
 - severity: MAJOR
-- status: OPEN
+- status: FIXED
 - found by: challenge round before 4.3.0 stable (B8-1655, c13bb60d). Driven in a real window (`scratch_b46_cal_states.py`, proof in `~/Desktop/ChromIQ-beta48-proof/challenge/b8-1655/`, state `c_mode_apply_empty_path`): the engine panel's Mode set to "Apply & embed (-K)" with the path empty, then the offer runs. It fills the project's `.cal` because the path is empty, and `cal_settings()` returns `(that path, True)`: the next Generate reprints every patch through a calibration file the user never chose, where before B8-1655 the same state built with no calibration. The status line, M-CAL-FOUND-ENGINE, still says "with Mode still on “None”", which is false in that state. "ChromIQ may offer, not choose" (#137 D4) is broken as soon as a mode is already set: with a mode chosen, filling the path IS choosing.
 - where: `ui/tabs/tab_chart.py` `_check_for_cal_file` (the B8-1655 block), `workflow/measurement_messages.py` M-CAL-FOUND-ENGINE.
+- fix: `_check_for_cal_file` fills the engine panel's calibration path only while its Mode is still "None" and the path is empty; with a mode already chosen it leaves the path alone.
+- tests: tests/test_calibration_prefill.py
+- evidence: test_with_the_engine_a_chosen_mode_is_never_given_a_file (fails without the fix)
 
-### B8-1661 · OPEN · M-CAL-FOUND-ENGINE says the project's calibration "is filled into" Printer calibration when a path of the user's own was kept
+### B8-1661 · FIXED, awaiting confirmation · M-CAL-FOUND-ENGINE says the project's calibration "is filled into" Printer calibration when a path of the user's own was kept
 - blocks release: yes
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: challenge round before 4.3.0 stable, the same drive, state `b_own_path_kept`: with "/Users/me/other-printer.cal" already typed, the offer correctly keeps it (only an empty path is filled), and the line still reads "Calibration file found: Test-Printer-cal.cal. It is filled into “Printer calibration” … with Mode still on “None”". Neither half is what happened. The message is a promise; it needs a variant for "found, not filled because a file is already set", and the "Mode still None" clause only where it is true (see B8-1660). The wording is PROPOSED and waits for Knut (#182 5863200239), so the variants go to him with it.
 - where: `ui/tabs/tab_chart.py` `_check_for_cal_file`, `workflow/measurement_messages.py` M-CAL-FOUND-ENGINE, `docs/design/unified_measurement_management.md` §M-PROPOSED.
+- fix: the M-CAL-FOUND-ENGINE line is shown only when this call really filled the path; otherwise it is hidden.
+- tests: tests/test_calibration_prefill.py
+- evidence: test_with_the_engine_a_path_already_there_is_kept (fails without the fix)

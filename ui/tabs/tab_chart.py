@@ -9699,13 +9699,24 @@ class TabChart(QWidget):
             # the Mode left as it is ("None" unless the user chose).
             panel = getattr(self, "_manual_layout_panel", None)
             engine_path = getattr(panel, "cal_path_edit", None)
+            engine_mode = getattr(panel, "cal_mode", None)
             if (engine_path is not None and self._manual_panel_lays_out()):
-                if not engine_path.text().strip():
+                # B8-1660: ONLY while the Mode is still "None". With a mode
+                # already chosen and the path empty, filling the path would
+                # make the next Generate apply a calibration nobody picked.
+                # B8-1661: and the line says so only when it is true, i.e.
+                # when this call really filled the path.
+                mode_is_none = (engine_mode is None
+                                or engine_mode.currentData() == "off")
+                if mode_is_none and not engine_path.text().strip():
                     engine_path.setText(cal_str)
-                from workflow.measurement_messages import M_CAL_FOUND_ENGINE
-                self._cal_status_lbl.setText(
-                    M_CAL_FOUND_ENGINE.render(name=cal_file.name)[1])
-                self._cal_status_lbl.setVisible(True)
+                    from workflow.measurement_messages import (
+                        M_CAL_FOUND_ENGINE)
+                    self._cal_status_lbl.setText(
+                        M_CAL_FOUND_ENGINE.render(name=cal_file.name)[1])
+                    self._cal_status_lbl.setVisible(True)
+                else:
+                    self._cal_status_lbl.setVisible(False)
                 return
             self._cal_status_lbl.setText(
                 tr("Calibration file found: {name} — filled into the “Apply "

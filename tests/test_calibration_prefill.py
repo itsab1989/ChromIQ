@@ -143,3 +143,33 @@ def test_with_the_engine_a_path_already_there_is_kept(cal_home, qapp):
     tab._manual_layout_panel.cal_path_edit.setText("/somewhere/else.cal")
     tab._check_for_cal_file("Test-Printer")
     assert tab._manual_layout_panel.cal_path_edit.text() == "/somewhere/else.cal"
+    # B8-1661: nothing was filled, so the line must not say it was.
+    # isHidden, not isVisible: the tab is never shown in this test, so
+    # isVisible is False whatever the code set.
+    assert tab._cal_status_lbl.isHidden(), (
+        "the line says the project's file was filled in, and it was not")
+
+
+def test_with_the_engine_a_chosen_mode_is_never_given_a_file(cal_home, qapp):
+    """B8-1660 (beta 48 challenge): with the Mode already on "Apply & embed
+    (-K)" and the path empty, filling the path made the next Generate print
+    every patch through a calibration nobody picked. The offer stays out."""
+    from tests.conftest_calibration import CalSettings
+
+    settings = CalSettings(cal_home, calibration_mode=True,
+                           use_chromiq_layout_engine=True)
+    fm = FileManager(settings)
+    fm.set_target_name("Test-Printer")
+    cal = fm.project().calibration
+    cal.ensure_dir()
+    cal.cal_path.write_text("a calibration", encoding="utf-8")
+    tab = TabChart(ArgyllRunner(settings), fm, settings)
+    panel = tab._manual_layout_panel
+    panel.cal_path_edit.setText("")
+    panel.cal_mode.setCurrentIndex(panel.cal_mode.findData("apply"))
+    tab._check_for_cal_file("Test-Printer")
+    assert panel.cal_path_edit.text() == "", (
+        "a calibration was filled in under a mode the user chose for "
+        "another file, and the next Generate would apply it")
+    path, apply_cal = panel.cal_settings()
+    assert not path, "the build would now use the project's calibration"

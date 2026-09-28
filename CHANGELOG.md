@@ -1,5 +1,17 @@
 # Changelog
 
+## v4.3.0-beta.49
+
+**The last beta before 4.3.0: German says "Preset" everywhere, and a found calibration file is never applied without your choice.**
+
+### Changed
+
+- German uses "Preset" for a preset everywhere, as the main controls already did. The Create Chart group heading, its label and its dropdown said "Vorgaben", "Voreinstellungen" and "Vorlage", and "Vorlage" also meant a template.
+
+### Fixed
+
+- A calibration file found in the project is filled into the ChromIQ layout engine's "Printer calibration" only while its Mode is still "None" and its path is empty. With a mode already chosen it is left alone, so no Generate applies a calibration you did not pick, and the line under the calibration fields appears only when something was filled.
+
 ## v4.3.0-beta.48
 
 **The paper lists and a few report lines say what they mean in every language, and Japanese and Chinese keep their full report row names.**
