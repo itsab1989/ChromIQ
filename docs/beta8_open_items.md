@@ -30926,11 +30926,13 @@ would reach.
 - on screen: `~/Desktop/ChromIQ-beta45-proof/help-headings/`
 - where: `core/help_markup.py`, `ui/tooltip_button.py`, `ui/dialogs/thresholds_dialog.py`, `ui/help_card_print.py`, `ui/dialogs/welcome_dialog.py`, `workflow/compliance_sets.py`, `data/parameters.yaml`, `data/i18n/*`, `scripts/em_dash_check.py`, `docs/design/measurement_report_limits.md` §52.
 
-### B8-1491 · OPEN · 66 of the texts now marked in bold still carry a grandfathered em dash
+### B8-1491 · DEFERRED · 66 of the texts now marked in bold still carry a grandfathered em dash
 - blocks release: no
 - severity: COSMETIC
-- status: OPEN
+- status: DEFERRED
 - found by: B8-1490. Marking a lead-in changes a key, and the em-dash rule says a touched string cleans its dash. Doing that for 66 help texts would mean rewriting their prose in nine languages that keep the dash (the English check only allows what the English has) for a change of font weight, so the rule now compares the text as read, marks removed, and these 66 stay in the baseline as they were. Basti's call whether that reading of the rule stands; otherwise they are a translation pass, before a final.
+- decided by: Basti, 2026-09-28: "leave it, this is too much". The reading of the rule stands (the text as read, marks removed); the 66 stay in the baseline.
+- because: cleaning them would rewrite 66 help texts in nine languages for a change of font weight, right after the 4.3.0 translation pass.
 - where: `scripts/em_dash_check.py` (`_as_read`), `tests/data/em_dash_baseline.json`.
 
 ### B8-1492 · OPEN · Two places carry help-style lead-ins that cannot be bold
