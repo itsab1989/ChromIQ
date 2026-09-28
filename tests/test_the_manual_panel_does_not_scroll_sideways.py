@@ -294,7 +294,7 @@ def test_the_filter_that_makes_labels_cost_something_is_on(qapp, tmp_path):
     """Control — prove the measurement can SEE a long label at all.
 
     Not a proxy: the number checked is the one the packing uses. A German
-    "Auf Vorgabe zurücksetzen" must arrive at the layout carrying its own
+    "Auf Preset zurücksetzen" must arrive at the layout carrying its own
     label's width. Without `CompositeAppFilter` it arrives as the app
     stylesheet's flat `_APP_MIN_BUTTON_WIDTH` content box plus padding and
     border — the same number in every language — and the whole file becomes an
@@ -322,16 +322,16 @@ def test_the_filter_that_makes_labels_cost_something_is_on(qapp, tmp_path):
     tab, _area = _manual_scroll_area(qapp, "de", tmp_path)
     try:
         btn = tab._manual_preset_reset_btn
-        assert btn.text() == "Auf Vorgabe zurücksetzen", btn.text()
+        assert btn.text() == "Auf Preset zurücksetzen", btn.text()
         rule = re.search(r"min-width:\s*(\d+)px", btn.styleSheet())
         assert rule, (
             f"ButtonFontFilter has written no per-label min-width rule on "
-            f"'Auf Vorgabe zurücksetzen', so no label in any language can "
+            f"'Auf Preset zurücksetzen', so no label in any language can "
             f"widen this pane and every assertion in this file is vacuous: "
             f"{btn.styleSheet()!r}")
         declared = int(rule.group(1))
         assert declared > _APP_MIN_BUTTON_WIDTH, (
-            f"the rule on 'Auf Vorgabe zurücksetzen' declares {declared} px — "
+            f"the rule on 'Auf Preset zurücksetzen' declares {declared} px — "
             f"the flat {_APP_MIN_BUTTON_WIDTH} px floor every button gets, not "
             f"this label's own width. Nothing in this file can then be widened "
             f"by a translation")
