@@ -31526,3 +31526,22 @@ would reach.
 - tests: tests/test_the_stamp_line_prints_the_preset_name_as_written.py, tests/test_knut_issues_45_59_60_62.py
 - evidence: test_every_builtin_is_stamped_with_its_name_unchanged, test_knuts_example_keeps_the_width_where_he_wrote_it, test_a_suffix_stays_in_its_written_place, test_the_stamper_prints_the_line_knut_asked_for, test_the_tab_stamps_and_predicts_the_same_name, test_builtin_layout_name_keeps_the_name_as_written (four of them fail on the 4.3.1 code); on screen (real window, sandboxed): ~/Desktop/ChromIQ-430-stable-prep/fix-432/
 - next (a later release, Knut): an example name in the project-name window (new text, §M first). Nothing else reads `default_target_name` for a user-visible text any more. Also for a later release, Knut: an example name in the project-name window (new text, §M first).
+
+### B8-1705 · FIXED, awaiting confirmation · "Print info in left clip area" was not under "Stamp settings down the right edge"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Knut, screenshot of 4.3.2 relayed by Basti (2026-09-29): Manual, layout engine off, i1Pro, A3; the box sat far right of the stamp box above it. Basti: "checkbox should be under the one above it". The option itself is Basti's first custom clip border for plain printtarg (3.7.6) and shows by design only with the engine off, i1Pro or i1Pro 3 Plus, -L off and A4/Letter or larger (driven: engine on, -L on or ColorMunki hide it).
+- where: `ui/tabs/tab_chart.py` (the left-clip row's indent; `_FollowWidth`).
+- fix: the row's indent takes the stamp row's indent width instead of the label column's full width, and leaves `_LabelColumnFitter`'s fixed list.
+- tests: tests/test_the_left_clip_box_sits_under_the_stamp_box.py
+- evidence: test_the_left_clip_box_starts_where_the_stamp_box_starts (x=202 against x=41 without the fix); on screen, real window, en and de at 1600 and 1100 px: both boxes at x=40; ~/Desktop/ChromIQ-430-stable-prep/left-clip-432/
+
+### B8-1706 · REPORTED, NOT A FAULT · With printtarg, a line down the right margin appears with every stamp setting off
+- blocks release: no
+- severity: MINOR
+- status: VERIFIED
+- found by: Knut, screenshots relayed by Basti (2026-09-29): "There is a text coming on the right margin, even though all the settings are off for the margin text".
+- outcome: it is printtarg's own chart label, `ArgyllCMS - Chart "<name>" (Random Start <n>) <date>` (the format string is in the printtarg binary; printtarg's documentation has no option to leave it out). ChromIQ does not write it; "Stamp settings down the right edge" adds ChromIQ's own line beside it. The ChromIQ layout engine draws its own sheet and prints no such line.
+- evidence: `strings /Applications/Argyll/bin/printtarg` shows `ArgyllCMS - Chart "%s" (%s %d) %s`; `pytest --runslow -n auto` over the 28 test files that use `stamp_commands`, `stamp_chart_metadata` or the left clip, plus the B8-1705 test: 389 passed, 188 skipped, exit 0.
+

@@ -4847,6 +4847,29 @@ def _extra_args_have_patch_source(extra: str) -> bool:
     return False
 
 
+class _FollowWidth(QObject):
+    """Keeps *follower* exactly as wide as *leader*, whenever the leader is
+    resized or shown. Used to line one row's indent up with another's."""
+
+    def __init__(self, leader: QWidget, follower: QWidget):
+        super().__init__(leader)
+        self._leader = leader
+        self._follower = follower
+        leader.installEventFilter(self)
+
+    def eventFilter(self, obj, event):  # noqa: N802 — Qt override
+        if obj is self._leader and event.type() in (
+                QEvent.Type.Resize, QEvent.Type.Show):
+            self.sync()
+        return False
+
+    def sync(self) -> None:
+        try:
+            self._follower.setFixedWidth(self._leader.width())
+        except RuntimeError:        # one of them is already gone
+            pass
+
+
 class _LabelColumnFitter(QObject):
     """KEEPS A LABEL COLUMN AS WIDE AS ITS WIDEST TEXT IN THE FONT IT IS SHOWN IN.
 
@@ -7295,10 +7318,17 @@ class TabChart(QWidget):
         self._manual_label_fitter = _LabelColumnFitter(
             _name_lbl,
             [_name_lbl, self._manual_run_desc_lbl,
-             self._manual_chart_notes_lbl, _left_clip_lbl_spacer],
+             self._manual_chart_notes_lbl],
             [_stamp_lbl_spacer],
             self._target_text_label_candidates, _OUTPUT_LBL_W)
         left_clip_row.addWidget(_left_clip_lbl_spacer)
+        # UNDER THE BOX ABOVE IT (Basti, 2026-09-29, on Knut's screenshot of
+        # 4.3.2: "checkbox should be under the one above it"). This spacer was
+        # held at the label column's full width while the stamp row's spacer
+        # above only has a maximum and sits narrower, so the two tick boxes
+        # started at different x. It now takes the stamp spacer's real width.
+        self._left_clip_indent = _FollowWidth(_stamp_lbl_spacer,
+                                              _left_clip_lbl_spacer)
         self._manual_left_clip_check = QCheckBox(
             tr("Print info in left clip area"), self._manual_left_clip_row
         )
