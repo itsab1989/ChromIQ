@@ -2102,28 +2102,63 @@ class WrappingCheckBox(QCheckBox):
         un-escaping itself — but every measurement uses this."""
         return text.replace("&&", "&")
 
+    @staticmethod
+    def _units(text: str) -> list:
+        """The label as ``(piece, glue)`` pairs a line may break between.
+
+        A space is the only break a Latin, Cyrillic or Greek label has, so
+        there a piece is a word and its glue a space. JAPANESE AND CHINESE ARE
+        WRITTEN WITHOUT SPACES (B8-757): split on whitespace, the whole of
+        "余白のガイド線をプレビューに表示（長い点線）" was one word, so the box
+        could not wrap at all and clipped 38 px on Create Chart at 1280 x 800.
+        A word holding such a script is broken at its Unicode line-break
+        opportunities instead, glued with nothing, which is where the
+        language itself allows a line to end.
+        """
+        from PyQt6.QtCore import QTextBoundaryFinder
+        out = []
+        for word in text.split():
+            if not any("\u2e80" <= c <= "\u9fff" or "\uac00" <= c <= "\ud7af"
+                       or "\uff00" <= c <= "\uffef" for c in word):
+                out.append((word, " "))
+                continue
+            bf = QTextBoundaryFinder(QTextBoundaryFinder.BoundaryType.Line,
+                                     word)
+            start, first = 0, True
+            while True:
+                end = bf.toNextBoundary()
+                if end == -1 or end > len(word):
+                    break
+                if end > start:
+                    out.append((word[start:end], " " if first else ""))
+                    first = False
+                    start = end
+            if start < len(word):
+                out.append((word[start:], " " if first else ""))
+        return out
+
     def _lines(self, width: int) -> list:
         """Greedy word wrap of the label into *width* pixels. Lines are RAW
         (still escaped), because they are drawn through the style."""
         fm = self.fontMetrics()
-        words = self.text().split()
-        if not words:
+        units = self._units(self.text())
+        if not units:
             return [""]
-        lines, cur = [], words[0]
-        for word in words[1:]:
-            trial = f"{cur} {word}"
+        lines, cur = [], units[0][0]
+        for piece, glue in units[1:]:
+            trial = f"{cur}{glue}{piece}"
             if fm.horizontalAdvance(self._shown(trial)) <= width:
                 cur = trial
             else:
                 lines.append(cur)
-                cur = word
+                cur = piece
         lines.append(cur)
         return lines
 
     def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
         base = super().minimumSizeHint()
         fm = self.fontMetrics()
-        words = self.text().split()
+        words = [piece for piece, _glue in self._units(self.text())]
         if not words:
             return base
         widest_word = max(fm.horizontalAdvance(self._shown(w)) for w in words)

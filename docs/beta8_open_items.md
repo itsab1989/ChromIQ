@@ -19901,8 +19901,8 @@ would reach.
   account of its own work and the correction belongs beside it, not inside it.
 - evidence: test_nothing_else_moves_across_the_pair
 
-### B8-504 · OPEN · The window's minimum width does NOT stay at 995 px, and in German it reaches 1286
-- status: OPEN
+### B8-504 · VERIFIED · The window's minimum width does NOT stay at 995 px, and in German it reaches 1286
+- status: VERIFIED
 - blocks release: no
 - B8-460 records *"at 1000 / 1200 / 1500 px the window's minimum is now 995 /
   995 / 1019 … narrower everywhere, and it no longer grows with the window."*
@@ -19924,8 +19924,11 @@ would reach.
 - what is open is the CLAIM, not the layout: a measurement taken by resizing one
   window is not the number a window opens at, and the German build was never
   measured at all. Re-measure the way above before the number is quoted again.
-- evidence: none yet — nothing is built and nothing is changed; the numbers are
-  in `~/Desktop/ChromIQ-beta26-proof/round-29/shots/result.json`.
+- round 29's numbers: `~/Desktop/ChromIQ-beta26-proof/round-29/shots/result.json`.
+- re-measured 2026-09-28 the way this entry asks, ON SCREEN, a FRESH report window opened at 1000, 1200 and 1500 px, in all fourteen languages (`scripts/drive_before_stable_b8_504_757_1342.py widths <lang>`, Report-Limits-Border-Conditions run3). `minimumSizeHint().width()` at 1000/1200/1500: en 689/689/689, de 701/701/701, es 764, fr 837, it 768, no 681, pl 811, pt 776, sv 712, uk 790 (flat at every width); nl 1004/769/769, ru 1001/810/810, zh_CN 999/602/602, ja 996/1199/1498.
+- the four that track the window are ONE widget, measured child by child (`probe-ja`, `probe-nl`, `probe-zh_CN`): the orange "Some limits cannot be checked…" strip, which elides and reports its current width as its hint. Nothing enforces it: every probed window narrowed to 800 px on request. Everything else in every language fits under 840, so the window fits a 1280 screen in all fourteen, and nothing clipped in any of them at 1000, 1200 or 1500 except that strip's own elision (nl, 4 px, its design).
+- evidence: on screen, 14 PASS of 14 languages, `CHROMIQ_DEMO_PACK=<pack> python scripts/drive_before_stable_b8_504_757_1342.py widths <lang> <out>`; with the guard `QT_QPA_PLATFORM=offscreen pytest tests/test_b40_report_window_buttons_fit_at_the_minimum_width.py` (3 passed)
+- proof: ~/Desktop/ChromIQ-430-stable-prep/fixes-b/after-fix/widths-<lang>/ (504-<lang>-report-window-1000.png, record.json) and ~/Desktop/ChromIQ-430-stable-prep/fixes-b/probe-{ja,nl,zh_CN}/record.json
 
 ### B8-510 · FIXED · `setFixedHeight` cannot make a button short in this app, and a guard that never shows the dialog cannot see that
 - status: FIXED
@@ -22630,9 +22633,9 @@ would reach.
   test_the_report_window_does_not_print_a_saved_completeness_claim,
   test_the_false_sentence_is_still_a_live_string;
   `~/Desktop/ChromIQ-beta30-proof/challenge-round-33/report2.json`
-### B8-711 · OPEN · The one-page summary says the unchecked values "are listed below" and lists nothing
+### B8-711 · FIXED, awaiting confirmation · The one-page summary says the unchecked values "are listed below" and lists nothing
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - **HALF DONE 2026-09-22, and the other half is a conflict between two of
   Knut's own requirements.**
 - DONE: the promise is now CONDITIONAL. `SUMMARY_REASONS` has three ISO
@@ -22678,6 +22681,11 @@ would reach.
 - for whoever takes it: the window's D25 mismatch strip does name nine of the
   ten rows, but it is window chrome and reaches no PDF, so it cannot be what
   the sentence means by "below".
+- 2026-09-28, before 4.3.0 stable (Basti: "fix the items from the before list"): closed on Knut's LATER ruling, K28, that the N-A reference numbers and their notes are what says what was left out and that "This also applies to the one-page summary". So the page carries no list, and no sentence on it points at one: the ISO sentence is the `iso_partial_page` variant (count, no "listed below"), and the two B8-724 sentences lost their pointers the same way. No new wording.
+- tests: tests/test_b8_711_724_the_one_page_summary_points_at_nothing_it_lacks.py
+- evidence: test_no_sentence_on_the_page_points_at_a_part_it_lacks, test_the_page_says_the_same_without_the_pointer
+- proof: ~/Desktop/ChromIQ-430-stable-prep/fixes-b/scenes/ (711-724-one-page-summary.png, the PDF, and its page photographed in a real window: 711-724-one-page-summary-pdf-page1.png; record.json: no pointer on the page or in the PDF)
+
 ### B8-712 · FIXED · Two user-facing sentences still taught the COND rule Knut's N-A ruling deleted
 - blocks release: yes
 - status: FIXED
@@ -22939,9 +22947,9 @@ would reach.
   "ChromIQ default (recommended) (edited)" in the window and in the PDF for a set
   nobody edited. `compliance_sets.recorded_reason` is the precedent for a
   carve-out on a stored field a later build knows to be wrong; `edited` has none.
-### B8-724 · OPEN · Two summary sentences point at parts the one-page report has not got
+### B8-724 · FIXED, awaiting confirmation · Two summary sentences point at parts the one-page report has not got
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - reachability NOT established, see below.
 - found by: challenge round 34b (same family as B8-711).
 - detail: T1 prints `summary_text(sm)` as visible body text under "Result"
@@ -22956,7 +22964,11 @@ would reach.
   reproduced. The sentences are false OF the page; whether a user can reach
   either state on T1 is unproven, and this entry says so rather than claiming a
   fault nobody can see.
-- evidence: `~/Desktop/ChromIQ-beta30-proof/challenge-round-34b/04_one_page_summary_three_patches.png`
+- found-by photograph: `~/Desktop/ChromIQ-beta30-proof/challenge-round-34b/04_one_page_summary_three_patches.png`
+- fixed 2026-09-28: the one-page summary swaps `nothing_checked` and `nothing_graded` for `nothing_checked_page` / `nothing_graded_page` (`MeasurementReportDialog._one_page_summary`), which are the SAME sentences with the pointing clause removed, not new wording: "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge." and "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge." Every catalogue carries its own first sentence as the page variant. The full report keeps the pointer, where the rows and notes are.
+- reachability is still not shown on screen (the demo run reaches PASS on T1), so the proof is the unit test, which builds the Summary directly.
+- tests: tests/test_b8_711_724_the_one_page_summary_points_at_nothing_it_lacks.py
+- evidence: test_the_page_says_the_same_without_the_pointer, test_the_full_report_keeps_its_pointers, test_every_language_has_the_page_sentences_as_its_own_first_sentence
 
 ### B8-730 · FIXED · An older ChromIQ ERASES every field a newer one wrote, and the schema number never moved
 - blocks release: no
@@ -23553,9 +23565,9 @@ would reach.
   with it. Reachable by the arrows, so not a loss, but nobody finds it.
 - fix, when it is taken: let the floor account for the tab bar's own hint.
 
-### B8-757 · OPEN · Eight languages clip a button or label on Create Chart Manual, and Japanese gets worse on a small screen
+### B8-757 · FIXED, awaiting confirmation · Eight languages clip a button or label on Create Chart Manual, and Japanese gets worse on a small screen
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - not fixed here: each needs either a wrapping/eliding widget or a shorter
   translation, and translations are swept once before a final, not during a
   beta. Ukrainian is CLEAN on this list.
@@ -23569,6 +23581,11 @@ would reach.
   47, 34 and 8 px on three `ChartLayoutInfoPanel` labels, because that panel
   is in the resizable right pane.
 - clean at both sizes: en, it, pl, pt, ru, zh_CN, uk.
+- re-measured 2026-09-28 on screen at 1280 x 800, Manual with the ChromIQ layout engine's panel on screen and every section open, all fourteen languages. The nl/sv/fr/no/es buttons of this entry no longer clip; why was not traced. Two languages still did: de 19 px "auf dem Bildschirm" (the Chart layout information header lost "auf"), and ja: two "Measured from Preview" check boxes (51, 38 px) and three layout-information row names (8, 47, 34 px).
+- fixed without touching a translation: `WrappingCheckBox` breaks a word written in a script without spaces (Japanese, Chinese, Korean) at its Unicode line-break opportunities, so the Japanese boxes wrap instead of setting a floor that squeezed the panel beside them; and the two value columns of Chart layout information are as wide as their headers need, never under the old 72 px. After: 0 clipped in all fourteen.
+- tests: tests/test_b8_757_create_chart_manual_clips_nothing_at_1280.py
+- evidence: test_a_japanese_check_box_can_wrap, test_a_latin_label_still_breaks_only_at_its_spaces, test_the_layout_panel_headers_show_their_whole_text_in_german
+- proof: ~/Desktop/ChromIQ-430-stable-prep/fixes-b/widths-<lang>/ (before) and ~/Desktop/ChromIQ-430-stable-prep/fixes-b/after-fix/widths-<lang>/ (after): 757-<lang>-create-chart-manual-1280x800.png and record.json
 
 ### B8-758 · OPEN · `i18n_extract.py --missing uk` says "0 missing" while 1,079 strings render in English
 - blocks release: no
@@ -30186,16 +30203,21 @@ would reach.
 - note: `ui/tabs/tab_chart.py` (the tooltip of "Which presets can be used for verification?") says "A ★ marks a chart made for verification, which is one printed page of a few hundred patches or fewer that leaves nothing on the table". Untrue since B8-1340. Not changed in this round because another agent was editing tab_chart.py for beta 44; one sentence to reword when the file is free.
 - where: `ui/tabs/tab_chart.py` (the presets button's help).
 
-### B8-1342 · OPEN · A report of raw drift checks says it covers 0 of the project's measurements
+### B8-1342 · FIXED, awaiting confirmation · A report of raw drift checks says it covers 0 of the project's measurements
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: the K51 on-screen proof (`~/Desktop/ChromIQ-beta44-proof/k51/runs/*-report-D/`): Report-Limits-Border-Conditions, run3, both raw dates ticked, reads "This report covers 0 of the 9 measurements recorded for this project." Seen before the K51 change too (before-report-D), so not caused by it.
 - note: the coverage sentence counts the document's measurements that are not raw drift checks (`_is_raw_drift` in the two `covered` counts of the Report Scope code), so a document of drift checks covers "0". Since K51 a drift column can carry verdicts, which makes the 0 plainer still. Wants one rule for what "covered" counts; not changed here.
 - challenge 8 of beta 44 (C6): seen again beside the drift columns' verdicts. Still not changed: whether a raw sheet counts as "covered" is the rule to decide, and the total (every measurement of the project, because a document of raw sheets has no kind) moves with it.
 - where: `ui/dialogs/measurement_report_dialog.py` (the two `covered = len(...)` lines of the scope sentence).
 - cause (K53, traced on screen with the panel's Content combo watched, `~/Desktop/ChromIQ-beta44-proof/k53/b8-1312-trace/`): the box never decides the clip content. The save, the restore and the conversion store and show what the panel holds. What differs is WHEN the layout panel is first set up, and for which instrument. Unticked, the panel is first set up only when the CR30 is chosen, from the CR30's own default layout (`workflow/layout_engine/presets.py`: CM, SS and CR30 default to Content "off", "the notes band is opt-in", Sebastian), so "off". Ticked, the panel was set up at start for the i1Pro, whose default is "notes", and choosing the CR30 in it keeps the Content the panel already had: the instrument switch writes a default Content only for the i1Pro / i1Pro 3 (off -> notes), never for CM, SS or CR30 (`LayoutOptionsPanel` instrument change, the `inst in ("i1", "p3")` branch). Same for the ColorMunki reached from an i1Pro in the panel (cell on-cm: notes). Basti's rule for instrument defaults (2026-09-02, `_may_default`): a default may set a value the person has not chosen; the "notes" the CR30 keeps is the i1Pro's default, not a choice.
 - after B8-1353 (the box locked on the CR30): NOT gone. Measured again on the locked tree (`k53/b8-1312-trace-after-lock/`): the box shows ticked on both paths, and the Content is still "off" when the CR30 is picked from printtarg's Instrument with the person's box unticked, "notes" when it is picked in the panel after an i1Pro. New saves follow the same path. Nothing changed for this (the fix touches ColorMunki and SpectroScan too, and which Content the CR30 should get is Knut's question); answer and recommendation in `k53/ANSWER-B8-1312.txt`.
+- fixed 2026-09-28, the rule decided by the confirmed ones: §11 K14 counts "the measurements selected in included measurements", and R.3 says "A report covers exactly the measurements that are ticked. Always". A raw check is a ticked column with its own verdict word since K51/K59, so it is covered. Both `covered` counts in `_scope_html` count every measurement of the document; raw checks are verification sheets, so a document of them is counted as a verification document ("recorded for this profile run"), not against the whole project.
+- on screen: Report-Limits-Border-Conditions run3, one of its two raw checks ticked, Full colour check: "This report covers 1 of the 2 measurements recorded for this profile run." Both ticked: no sentence (it covers everything).
+- tests: tests/test_b8_1342_raw_checks_are_covered.py
+- evidence: test_a_raw_check_in_the_document_is_covered_by_it, test_every_raw_check_of_the_run_leaves_nothing_uncovered
+- proof: ~/Desktop/ChromIQ-430-stable-prep/fixes-b/scenes/photographs/1342-raw-check-report-scope.png
 
 ### B8-1370 · FIXED, awaiting confirmation · A raw drift check saved by beta 43 reads as judged in beta 44: N-A, INFO, a false sentence and the profiling footnote (regression from B8-1330)
 - blocks release: yes

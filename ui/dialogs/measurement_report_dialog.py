@@ -14094,7 +14094,12 @@ class MeasurementReportDialog(QDialog):
         # window's vocabulary: it states what this document covers, counted
         # against what the run holds. Whether they were unticked or judged on
         # other numbers is the same fact to the reader: not in here.
-        covered = len([r for r in runs if not _is_raw_drift(r)])
+        # B8-1342: EVERY MEASUREMENT IN THE DOCUMENT IS COVERED BY IT, a raw
+        # check included. The count used to leave raw sheets out, from when
+        # they were drawn apart from the report's columns; since K51 and K59
+        # they are columns with their own verdict word, and a document of raw
+        # checks said it covered "0 of the 9 measurements".
+        covered = len(list(runs))
         # THE RUN'S OWN MEASUREMENTS, NOT EVERYTHING LOADED. `self._history` is
         # every row in the window's list, and a person can load a second
         # project's measurement beside this one: round 11 photographed "This
@@ -14205,8 +14210,7 @@ class MeasurementReportDialog(QDialog):
             if not _p.startswith("external:"):
                 _mine.setdefault(_ident(_p), _p)
         covered = len([r for r in runs
-                       if not _is_raw_drift(r)
-                       and _ident(_project_of(r)) in _mine])
+                       if _ident(_project_of(r)) in _mine])
         # A FOLDER THAT HAS GONE IS NOT A PROJECT WITH NOTHING IN IT. Rename a
         # project in Finder while its report is open and the disk count drops
         # to zero, `max(total, covered)` makes the two equal, and the sentence
@@ -14231,8 +14235,7 @@ class MeasurementReportDialog(QDialog):
         # measurements, a verification document against the dated
         # verifications of the runs it is drawn from. A document mixing the
         # two kinds keeps the old count of everything.
-        _kinds = {bool(r.get("is_verification")) for r in runs
-                  if not _is_raw_drift(r)}
+        _kinds = {bool(r.get("is_verification")) for r in runs}
         _kind = ("verification" if _kinds == {True} else
                  "profiling" if _kinds == {False} else None)
         # THE RUNS OF EVERY ROW IN THE "INCLUDED MEASUREMENTS" LIST, not only
@@ -16112,7 +16115,13 @@ class MeasurementReportDialog(QDialog):
         swap = {SUMMARY_REASONS.get("iso_with_unchecked"):
                 SUMMARY_REASONS.get("iso_partial_page"),
                 SUMMARY_REASONS.get("iso_with_one_unchecked"):
-                SUMMARY_REASONS.get("iso_partial_page_one")}
+                SUMMARY_REASONS.get("iso_partial_page_one"),
+                # B8-724: the rows above and the note below are not on
+                # this page, so neither is the sentence that points at them.
+                SUMMARY_REASONS.get("nothing_checked"):
+                SUMMARY_REASONS.get("nothing_checked_page"),
+                SUMMARY_REASONS.get("nothing_graded"):
+                SUMMARY_REASONS.get("nothing_graded_page")}
         new = swap.get(getattr(sm, "reason", None))
         if new:
             return dataclasses.replace(sm, reason=new)

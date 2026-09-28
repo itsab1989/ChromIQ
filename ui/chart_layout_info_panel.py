@@ -72,10 +72,17 @@ class ChartLayoutInfoPanel(QGroupBox):
 
         hdr_screen = QLabel(tr("on screen"), self)
         hdr_est = QLabel(tr("estimate"), self)
+        # A column is as wide as its header needs, and never narrower than
+        # _COLW (B8-757): German's "auf dem Bildschirm" is wider than 72 px and
+        # lost its first word on Create Chart at 1280 x 800.
         for w in (hdr_screen, hdr_est):
             w.setAlignment(Qt.AlignmentFlag.AlignRight)
             w.setStyleSheet("color: #909090; font-size: 10px;")
-            w.setFixedWidth(_COLW)
+            w.ensurePolished()
+        colw = {id(w): max(_COLW, w.fontMetrics().horizontalAdvance(w.text()) + 2)
+                for w in (hdr_screen, hdr_est)}
+        for w in (hdr_screen, hdr_est):
+            w.setFixedWidth(colw[id(w)])
         grid.addWidget(hdr_screen, 0, 1)
         grid.addWidget(hdr_est, 0, 2)
 
@@ -102,7 +109,7 @@ class ChartLayoutInfoPanel(QGroupBox):
                 val.setAlignment(Qt.AlignmentFlag.AlignRight
                                  | Qt.AlignmentFlag.AlignVCenter)
                 val.setStyleSheet("font-family: Menlo; font-size: 11px;")
-                val.setFixedWidth(_COLW)
+                val.setFixedWidth(colw[id(hdr_screen if col == 1 else hdr_est)])
                 grid.addWidget(val, r, col)
                 store[key] = val
         grid.setColumnStretch(0, 1)

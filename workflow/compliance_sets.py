@@ -2562,6 +2562,17 @@ SUMMARY_REASONS: "dict[str, str]" = {
                             "could not be worked out from this measurement. "
                             "This limit set is named after a standard; it is "
                             "not a test against that standard.",
+    # …AND THE OTHER TWO THIS PAGE CANNOT KEEP (B8-724). "The rows above
+    # say what is missing" and "The note below says why each was left
+    # ungraded" point at a row table and a note list the one-page summary
+    # does not have. Here they are the same sentences without the pointer;
+    # the full report keeps the pointer, where the rows and notes are.
+    "nothing_checked_page": "The test chart used supplied none of the values "
+                            "this limit set puts a limit on, so there is "
+                            "nothing to judge.",
+    "nothing_graded_page": "None of the values this limit set puts a limit on "
+                           "was graded on this sheet, so there is nothing to "
+                           "judge.",
     "cond_both": "{checked} of {total} values checked, none over a required "
                  "limit; {not_computed} not computed and {cond} over a "
                  "recommended value.",

@@ -10,6 +10,9 @@
 
 ### Fixed
 - The printed help card for CMY+N charts fits one page in every language. It took two pages in ten of them; its text now steps down a size only when a language needs the room.
+- The one-page Colour summary no longer points at rows above or a note below that it does not have. When nothing could be judged, it says so and stops; the full report keeps the pointer, where the rows and notes are.
+- A report of raw checks (printed with no profile) said it covered "0 of" the measurements. Every measurement in the report counts as covered now, a raw check included, so one of two raw checks reads "covers 1 of the 2".
+- Create Chart Manual cuts off no text at 1280 x 800 in any language. In German the "on screen" column heading of Chart layout information lost its first word; in Japanese two tick boxes could not wrap, having no spaces, and squeezed the panel beside them.
 - Japanese and Chinese called the paper-white fill-up patches by the publishing word for filler text in Chart layout information and its help. They now use the word the rest of each language uses for fill-up patches.
 
 - Preferences opens wide enough to show all its tabs, so "Beta" and "Licences" are no longer hidden behind scroll arrows. This was the case in every language, English included.
