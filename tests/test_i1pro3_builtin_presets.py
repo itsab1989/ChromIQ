@@ -44,7 +44,11 @@ OWN_FIELDS = {"paper", "area_cols", "area_rows"}
 
 _NAME_RE = re.compile(
     r"^(?P<sheet>A4|A3Plus|A3|Letter)-(?P<patches>\d+)p-(?P<pages>\d+)pages?-"
-    r"(?P<orientation>Portrait|Landscape)-w(?P<width>[\d.]+)mm$")
+    r"(?P<orientation>Portrait|Landscape)-w(?P<width>[\d.]+)mm"
+    # Knut, #182 5872273862: the patch set's own name follows the width
+    # ("-Uniform 5x5x5", "-8x8x8-Skintones-Plus"). The four charts not in that
+    # batch (84p, 154p, 143p) keep the name without it.
+    r"(?:-(?P<patch_set>.+))?$")
 
 
 # ---------------------------------------------------------------------------

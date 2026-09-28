@@ -31382,3 +31382,15 @@ would reach.
 - fix: the M-CAL-FOUND-ENGINE line is shown only when this call really filled the path; otherwise it is hidden.
 - tests: tests/test_calibration_prefill.py
 - evidence: test_with_the_engine_a_path_already_there_is_kept (fails without the fix)
+
+### B8-1680 · FIXED, awaiting confirmation · 56 i1Pro and i1Pro 3 Plus built-ins carry Knut's new names, with the patch set in the name
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Knut, #182 5872273862 (2026-09-28): an update of most i1Pro and i1Pro 3 Plus preset names, each the old name plus the patch set's own name ("-Uniform 6x6x6", "-9x9x9-Skintones-Plus"), to replace every preset with the same beginning, keeping its tick in "Settings for built-in presets".
+- where: `ui/tabs/tab_chart.py` KNUT_PRESETS (the 34 i1Pro and 20 i1Pro 3 Plus rows, and the two i1Pro Full layout setup rows), `data/preset_defaults.json` (the readers' names only).
+- measured: all 56 exports match exactly one shipped preset by the beginning of the name, and no shipped preset is matched twice. Every export's .ti1 is byte-for-byte the shipped chart.ti1, and every colour-set recipe equals the shipped recipe.json after the importer's `normalise_recipe`; the layouts differ only in the bookkeeping flags `layout_explicit`, `label_style_explicit` and `clip_content_when_on` (and `area_ratio` on the two Full layout setup rows), as in ddc36b7c. So no patch set changed and no asset was replaced, and the B8-1590 geometry snapshots stand as they are.
+- fix: only the names changed. The slugs, and so the keys that settings and the ticks store, are kept (the rule of the CR30 w17 rename), so the shipped ticks are beta 49's 25 of 56 and a person's own ticks still reach the renamed rows. Every row keeps its "Full layout setup" label and its built-in star.
+- tests: tests/test_b8_1680_knuts_i1pro_names_keep_their_keys.py, tests/test_i1pro_w8_builtin_presets.py, tests/test_i1pro3_builtin_presets.py (their name pattern allows the patch-set tail)
+- evidence: test_the_old_key_reaches_the_renamed_preset (56 cases), test_the_shipped_ticks_are_the_ones_beta_49_shipped, test_a_tick_stored_under_the_old_key_still_holds, test_the_dropdown_lists_the_old_key_under_the_new_name
+- open question: the suggested target name follows #68's sortable convention and moves the width token to the end, so "i1Pro-A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6" is suggested as "i1Pro-A4-324p-1page-Portrait-Uniform 6x6x6-w7.5mm". Unchanged here, as it already was for the ColorMunki "Fast Reading Speed" and i1Pro "Maximised" names; it is Knut's call whether his file name should be the target name as written.

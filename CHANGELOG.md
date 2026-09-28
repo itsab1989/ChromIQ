@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.3.0-beta.50
+
+### Changed
+
+- 56 of the i1Pro and i1Pro 3 Plus built-in presets have new names that also name their patch set, for example "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6". The charts, the "Full layout setup" labels and the ticks in "Settings for built-in presets" stay as they were.
+
 ## v4.3.0-beta.49
 
 **The last beta before 4.3.0: German says "Preset" everywhere, and a found calibration file is never applied without your choice.**
