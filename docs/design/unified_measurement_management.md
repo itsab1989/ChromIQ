@@ -2520,8 +2520,9 @@ chart exists but the profile does not.*
 ArgyllCMS `chartread` matches that keyword against its own instrument table and
 refuses the chart before reading a patch, so a CR30 chart is readable only by
 ChromIQ's own chartread fork. Raised BEFORE anything is armed, when the loaded
-chart is a CR30 and Preferences → Measurement → "Chart-reading engine" is set
-to ArgyllCMS chartread. The window offers to change that setting; declining
+chart is a CR30 and Preferences → Measurement → "ChromIQ chart-reading engine"
+is switched off (B8-1643: the control became a checkbox; the wording followed on
+2026-09-28, still awaiting approval). The window offers to change that setting; declining
 cancels the measurement rather than starting one that cannot succeed. This is
 the guard that keeps `_blocked_by_unusable_target_instrument`'s claim true:
 "CR30" is in `KNOWN_INSTRUMENTS`, so that window no longer fires for a CR30
@@ -2529,9 +2530,9 @@ chart — and this one asks the question that is still open.*
 
 > **This chart can only be read by ChromIQ**
 >
-> This chart was made for the CR30, and ChromIQ reads that instrument itself. Standard ArgyllCMS chartread does not know the CR30 at all — it would refuse the chart before reading a single patch, whichever instrument you have connected.
+> This chart was made for the CR30, and ChromIQ reads that instrument itself. Standard ArgyllCMS chartread does not know the CR30 at all: it would refuse the chart before reading a single patch, whichever instrument you have connected.
 >
-> Right now, Preferences → Measurement has "Chart-reading engine" set to ArgyllCMS chartread. Switch it to ChromIQ's own reader and this chart measures normally. The setting applies to every chart, and every other chart reads the same either way.
+> Right now, "ChromIQ chart-reading engine" in Preferences → Measurement is switched off, so ArgyllCMS chartread reads your charts. Switch it on and this chart measures normally. The setting applies to every chart, and every other chart reads the same either way.
 >
 > Nothing is wrong with the chart, and nothing you have already measured is affected.
 

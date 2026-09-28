@@ -74,13 +74,13 @@ M_CR30_STOCK_READER = _m(
     "M-CR30-STOCK-READER",
     "This chart can only be read by ChromIQ",
     "This chart was made for the CR30, and ChromIQ reads that instrument "
-    "itself. Standard ArgyllCMS chartread does not know the CR30 at all — it "
+    "itself. Standard ArgyllCMS chartread does not know the CR30 at all: it "
     "would refuse the chart before reading a single patch, whichever "
     "instrument you have connected.\n\n"
-    "Right now, Preferences → Measurement has “Chart-reading engine” set to "
-    "ArgyllCMS chartread. Switch it to ChromIQ's own reader and this chart "
-    "measures normally. The setting applies to every chart, and every other "
-    "chart reads the same either way.\n\n"
+    "Right now, “ChromIQ chart-reading engine” in Preferences → Measurement "
+    "is switched off, so ArgyllCMS chartread reads your charts. Switch it on "
+    "and this chart measures normally. The setting applies to every chart, "
+    "and every other chart reads the same either way.\n\n"
     "Nothing is wrong with the chart, and nothing you have already measured "
     "is affected.",
     approved=False)

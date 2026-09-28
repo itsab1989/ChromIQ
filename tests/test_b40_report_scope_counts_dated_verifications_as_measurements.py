@@ -34,7 +34,8 @@ def test_two_dates_of_one_run_are_two_measurements(two_dated):
     assert len(runs) == 2, "both dates are loaded"
     assert dlg._report_kind(runs) == "verification"
     txt = _text(dlg._scope_html(runs))
-    assert "· 2 measurements" in txt, txt
+    # B8-1641: a label value, which every language can say after a number
+    assert "· Measurements: 2" in txt, txt
     assert "verification runs" not in txt.replace(
         "The following verification runs are included:", ""), txt
 
@@ -42,7 +43,7 @@ def test_two_dates_of_one_run_are_two_measurements(two_dated):
 def test_one_date_is_one_measurement(two_dated):
     dlg, _older, _newer = two_dated
     txt = _text(dlg._scope_html(list(dlg._history)[:1]))
-    assert "· 1 measurement" in txt and "· 1 measurements" not in txt, txt
+    assert "· Measurements: 1" in txt, txt
 
 
 def test_the_german_words_are_the_list_headers_own():
@@ -52,5 +53,5 @@ def test_the_german_words_are_the_list_headers_own():
     from pathlib import Path
     de = json.loads((Path(__file__).resolve().parent.parent / "data" / "i18n"
                      / "de.json").read_text(encoding="utf-8"))
-    assert de["measurement"] == "Messung"
-    assert de["measurements"] == "Messungen"
+    assert de["Measurements: {n}"] == "Messungen: {n}"
+    assert de["Profile runs: {n}"] == "Profilläufe: {n}"

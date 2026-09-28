@@ -496,7 +496,7 @@ def test_a_calibration_row_counts_measurements_not_runs(tmp_path, qapp):
     dlg = _window(_settings(), ti3, qapp)
     try:
         head = dlg._profile_list.item(0).text()
-        assert "1 measurement" in head and " run" not in head, head
+        assert "Measurements: 1" in head and " run" not in head, head   # B8-1641
     finally:
         dlg.close()
 

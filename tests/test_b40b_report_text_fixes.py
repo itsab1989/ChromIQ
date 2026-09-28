@@ -466,7 +466,7 @@ def test_a_heading_over_one_entry_is_singular(tmp_path, qapp):
     try:
         runs = dlg._runs_for_report()[:1]
         txt = _text(dlg._scope_html(runs))
-        assert "· 1 measurement" in txt
+        assert "· Measurements: 1" in txt
         assert "runs are included" not in txt, txt
         assert "run is included" in txt, txt
     finally:

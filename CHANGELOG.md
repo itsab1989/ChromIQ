@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.3.0-beta.48
+
+**The paper lists and a few report lines say what they mean in every language, and Japanese and Chinese keep their full report row names.**
+
+### Fixed
+
+- The paper lists in Create Chart and in the patch-set editor say "Portrait" and "Landscape" in your language, and the editor's "Custom (enter dimensions)" row is translated too. Chart names, the printed sheet and saved settings keep the English paper names they always had.
+- The Measurement Report's list header and its Report Scope say "Measurements: 3" and "Profile runs: 2" instead of "3 measurements" and "2 profile runs", which Polish, Russian and Ukrainian could not say correctly for 2, 3 and 4.
+- The patch-set editor's two gap boxes each have their own name, so a language can say horizontal and vertical there instead of borrowing the word for height.
+- The message for a CR30 chart while ChromIQ's own chart-reading engine is off names the checkbox Preferences really has, "ChromIQ chart-reading engine", instead of a setting it no longer has.
+- The "Generate colour sets" help calls the Saturated edges boxes "between" and "faces", as the row does, instead of "per edge" and "per face".
+- A line break between two Japanese or Chinese characters no longer counts as a broken word in the Measurement Report, so the ten Japanese and four Chinese report row names that had been shortened to fit are whole again.
+
 ## v4.3.0-beta.47
 
 **Nine new "by Pharmacist" built-in presets with a full page layout replace seven that were only page images, and the preset lists no longer filter by paper size unless you switch it on.**

@@ -281,6 +281,25 @@ PAPER_LABELS: dict[str, str] = {
 _CUSTOM_MM_SIZE = re.compile(r"^\d+(?:\.\d+)?x\d+(?:\.\d+)?$")
 
 
+def paper_display_label(code: str) -> str:
+    """The paper list's label as a READER sees it (B8-1640).
+
+    ``PAPER_LABELS`` stays English: chart and profile names, the printed
+    sheet's stamp and every parser read it. Only the orientation word at the
+    end of a dropdown row is translated here, so "A4 (210 × 297 mm) Portrait"
+    reads "… Hochformat" in German while the combo's data stays the code.
+    """
+    from core.i18n import tr
+    label = PAPER_LABELS.get(code, code)
+    # Two literals, not a variable: the catalogue extractor cannot see what a
+    # tr(variable) will be asked for.
+    if label.endswith(" Portrait"):
+        return label[:-len("Portrait")] + tr("Portrait")
+    if label.endswith(" Landscape"):
+        return label[:-len("Landscape")] + tr("Landscape")
+    return label
+
+
 def paper_name_token(code: str) -> str:
     """A filesystem-safe, readable paper token for generated chart/profile names
     (#68, Knut). Named sizes use their short name with special characters made

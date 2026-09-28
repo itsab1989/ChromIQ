@@ -123,13 +123,16 @@ _GEN_SETS_HELP = (
     "the chart then holds every combination (for example 6 steps makes "
     "6\u00d76\u00d76 = 216 patches). A solid, neutral foundation for almost any "
     "profile.\n\n"
-    "\u2022 Saturated edges: the most vivid colours the printer can manage. "
-    "'Per edge' traces the twelve edges of the colour cube, the gamut "
-    "wireframe (black up to each pure colour and on to white, plus the "
-    "colourful edges between); 'per face' goes further and also fills the "
-    "six cube faces, the full gamut surface, with that many patches per "
-    "side, or leave it at 0 for edges only. This outer boundary is exactly "
-    "where profiles tend to go wrong, so it pays to sample it well.\n\n"
+    "\u2022 Saturated edges: the most vivid colours the printer can manage, "
+    "on the outer boundary of the colour cube. 'between' puts that many "
+    "patches evenly between each pair of neighbouring 3D cube dots along "
+    "the cube's twelve edges, the gamut wireframe (black up to each pure "
+    "colour and on to white, plus the colourful edges between); 'faces' "
+    "does the same inside each square of the cube's six faces, the full "
+    "gamut surface, or leave it at 0 for edges only. Because the spacing "
+    "follows the 3D cube, the fill stays even at any setting. This outer "
+    "boundary is exactly where profiles tend to go wrong, so it pays to "
+    "sample it well.\n\n"
     "\u2022 Gamut-corner emphasis: a few extra patches right on the gamut "
     "edge lines next to each of the eight corners of the colour cube, "
     "where the deepest colours live and profiles err most. 'Edge' is how "
@@ -542,6 +545,7 @@ _STRIP_INSTRUMENTS = frozenset({"i1", "3p"})
 
 # Paper sizes the new-chart dropdown offers — matches the Create Chart tab.
 from data.patch_db import (PAPER_LABELS, PAPER_PRINTTARG_ARG, orientation_word,
+                           paper_display_label,
                            paper_name_token)
 from core.i18n import count_phrase, tr
 from core.text_io import read_text
@@ -563,6 +567,22 @@ _PAPER_ORDER = ("A2", "594x420", "329x483", "483x329", "A3", "420x297",
                 "203x254", "127x178", "4x6", "custom")
 _PAPER_LABELS_WITH_CUSTOM = {**PAPER_LABELS,
                               "custom": "Custom (enter dimensions)"}
+
+
+def _gap_letter(translated: str, key: str, english: str) -> str:
+    """The one-letter gap labels (B8-1642). ``tr("H")`` is also the Height
+    fields' key, so a language could not say "horizontal" here; each gap label
+    has a key of its own, and English, which has no catalogue, still reads the
+    single letter."""
+    return english if translated == key else translated
+
+
+def _paper_row_label(code: str) -> str:
+    """A paper dropdown row as the reader sees it (B8-1640): the orientation
+    word and the Custom row translated, the English table kept for names."""
+    if code == "custom":
+        return tr("Custom (enter dimensions)")
+    return paper_display_label(code)
 
 
 def _paper_code_known(code: str) -> bool:
@@ -1087,7 +1107,7 @@ class _NewChartDialog(QDialog):
         self._paper = NoScrollComboBox(chart_box)
         for code in _PAPER_ORDER:
             self._paper.addItem(
-                _PAPER_LABELS_WITH_CUSTOM.get(code, code), code)
+                _paper_row_label(code), code)
         _as_compact(self._instr, self._paper)
         # The compact closed combo (max-height 22px) otherwise yields cramped
         # dropdown rows; give each popup view a comfortable row height so the
@@ -5176,7 +5196,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         _crow3.setSpacing(6)
         self._gap_lbl = QLabel(tr("Gap (px):"), self)
         _crow3.addWidget(self._gap_lbl)
-        self._gap_h_lbl = QLabel(tr("H"), self)
+        self._gap_h_lbl = QLabel(_gap_letter(
+            tr("H (horizontal gap)"), "H (horizontal gap)", "H"), self)
         _crow3.addWidget(self._gap_h_lbl)
         self._gap_h_spin = _NSpin(self)
         self._gap_h_spin.setRange(1, 30)
@@ -5184,7 +5205,8 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         self._gap_h_spin.setMinimumWidth(70)        # 2 digits + arrows, no suffix
         self._gap_h_spin.valueChanged.connect(self._set_gap_sizes)
         _crow3.addWidget(self._gap_h_spin)
-        self._gap_v_lbl = QLabel(tr("V"), self)
+        self._gap_v_lbl = QLabel(_gap_letter(
+            tr("V (vertical gap)"), "V (vertical gap)", "V"), self)
         _crow3.addWidget(self._gap_v_lbl)
         self._gap_v_spin = _NSpin(self)
         self._gap_v_spin.setRange(1, 30)
@@ -5487,7 +5509,7 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         self._pt_paper = NoScrollComboBox(paper_container)
         for code in _PAPER_ORDER:
             self._pt_paper.addItem(
-                _PAPER_LABELS_WITH_CUSTOM.get(code, code), code)
+                _paper_row_label(code), code)
         self._pt_paper.currentIndexChanged.connect(self._on_pt_paper_changed)
         paper_v.addWidget(self._pt_paper)
         self._pt_paper_custom_row = QWidget(paper_container)

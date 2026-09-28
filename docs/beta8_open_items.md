@@ -31186,3 +31186,53 @@ would reach.
 - evidence: test_seven_prebuilt_images_are_withdrawn_and_four_stay, test_the_markers_are_the_ones_knut_named, test_all_but_the_editor_equivalent_are_shown_by_default, test_the_patch_set_is_the_senders_byte_for_byte, test_the_pharmacist_charts_lay_out_as_in_beta_47, test_the_box_is_off_for_someone_who_never_touched_it, test_the_prebuilt_images_are_the_four_kept_by_pharmacist_presets, test_the_declared_counts_are_the_patch_sets_own
 - where: `ui/tabs/tab_chart.py` (`PREBUILT_PRESETS`, `_pharmacist_preset`, `KNUT_PRESETS`), `core/settings.py`, `core/curated_presets.py`, `data/preset_defaults.json`, `assets/charts/pharmacist/`.
 - on screen: `~/Desktop/ChromIQ-beta46-proof/pharmacist-builtins/proof/photographs/` (both preset lists, Settings for built-in presets, the i1Pro A4 648 and ColorMunki A4 600 generated with exactly the sender's patches); driver `scripts/drive_b8_1620_pharmacist_presets.py`.
+
+### B8-1640 · FIXED, awaiting confirmation · The paper lists showed "Portrait" and "Landscape" in English in every language
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the 4.3.0 translation pass (seen on screen in the French beta 47 build, and by the Norwegian review).
+- fix: `data.patch_db.paper_display_label` translates the orientation word at the end of a paper row where it is SHOWN; `PAPER_LABELS` stays English for chart and profile names, the printed sheet's stamp and every parser, and the combos carry the paper code as their data. The patch-set editor's "Custom (enter dimensions)" row goes through `tr()` too. `scripts/i18n_extract.py` scans `data/patch_db.py`, so the keys are extracted. Two keys in all 13 catalogues.
+- tests: tests/test_b8_1640_what_the_translation_pass_found_in_the_code.py
+- evidence: test_the_orientation_word_is_translated_where_it_is_shown, test_the_paper_combos_carry_the_code_not_the_label
+- where: `data/patch_db.py`, `ui/tabs/tab_chart.py` `_rebuild_paper_combo`, `ui/dialogs/ti2_relayout_dialog.py` `_paper_row_label`, `scripts/i18n_extract.py`.
+
+### B8-1641 · FIXED, awaiting confirmation · "3 measurements" and "2 profile runs" put a counted noun after a number that Polish, Russian and Ukrainian cannot inflect
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the Polish and Russian reviews of the 4.3.0 translation pass ("3 pomiarów", "3 измерений").
+- fix: the report list header and Report Scope carry the count as a label value, "Measurements: {n}" and "Profile runs: {n}", which every language can say after any number. The four old keys left every catalogue. One site is left as it is: the patch-set generator's "fill chart to: [spin box] patches in total", whose wording is Knut's (#93); rewording it is his call.
+- tests: tests/test_b8_1640_what_the_translation_pass_found_in_the_code.py, tests/test_b40_report_scope_counts_dated_verifications_as_measurements.py
+- evidence: test_no_counted_noun_follows_a_number_in_the_report_window, test_two_dates_of_one_run_are_two_measurements
+- where: `ui/dialogs/measurement_report_dialog.py` (the list header, `_scope_html`).
+
+### B8-1642 · FIXED, awaiting confirmation · The patch-set editor's gap labels shared the Height fields' key
+- blocks release: no
+- severity: COSMETIC
+- status: FIXED
+- found by: the Polish and Chinese reviews: `tr("H")` is also "Height" in parameter_widget.py and tools_dialogs.py, so the gap row read "Wys. / Pion." (height / vertical).
+- fix: each gap label has its own key, "H (horizontal gap)" and "V (vertical gap)", and `_gap_letter` shows the single letter in English, which has no catalogue. The unused "V" key left every catalogue.
+- tests: tests/test_b8_1640_what_the_translation_pass_found_in_the_code.py
+- evidence: test_the_gap_letters_read_h_and_v_in_english, test_the_gap_labels_do_not_share_the_height_key
+- where: `ui/dialogs/ti2_relayout_dialog.py` `_gap_letter`.
+
+### B8-1643 · FIXED, awaiting confirmation · M-CR30-STOCK-READER named a Preferences setting that no longer exists
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the sweep for quoted control names after the Chinese translator reported labels the UI no longer has. The sweep's other candidates were real labels quoted without their bracketed tail, button texts with a line break or a "+", tooltip headings, examples or the printer drivers' own words; "Apply Calibration File" and "Include Calibration File" are the current names of printtarg -K and -I.
+- fix: the message (still PROPOSED, awaiting Knut) said "Chart-reading engine" is "set to ArgyllCMS chartread"; the control is the checkbox "ChromIQ chart-reading engine", so it now says that box is switched off and to switch it on. Its em dash went with the edit. §M-PROPOSED updated to match, and every catalogue carries the new wording. The fr, ru, ja and zh_CN names of that checkbox still said "(beta)", which the English label no longer does; dropped. And, found by the German translator, the "About “Generate colour sets”" help called the Saturated edges boxes 'Per edge' and 'per face'; the row reads "between:" and "faces:", so the paragraph now names them so and says what they do (patches between neighbouring 3D cube dots along the edges, and inside each face square), in all 13 languages. The Ukrainian "faces:" read «обличчя:» (human faces); it is «грані:».
+- tests: tests/test_b8_1640_what_the_translation_pass_found_in_the_code.py
+- evidence: test_the_cr30_message_names_the_checkbox_the_window_has
+- where: `workflow/measurement_messages.py` M_CR30_STOCK_READER, `docs/design/unified_measurement_management.md` §M-PROPOSED.
+
+### B8-1644 · FIXED, awaiting confirmation · The results-table check called every break between two Japanese or Chinese characters a broken word
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the Japanese and Chinese translators of the 4.3.0 pass, who shortened ten and four report row names to pass it.
+- fix: `_is_word_cut` accepts a line break beside a Han, kana, Hangul or CJK/fullwidth punctuation character, which is ordinary typesetting in those languages, and still counts a cut inside a Latin word. The ten Japanese and four Chinese row names are whole again, and every quote of them follows. Mutation-proven both ways: letting every character break passes a cut Latin word (red), and the old rule fails the results table with the full labels (4 red).
+- tests: tests/test_b8_1640_what_the_translation_pass_found_in_the_code.py
+- evidence: test_a_latin_word_cut_inside_a_japanese_text_still_is, test_a_break_between_japanese_or_chinese_characters_is_no_cut_word, test_the_full_japanese_and_chinese_labels_are_back
+- where: `ui/dialogs/measurement_report_dialog.py` `_breaks_anywhere`, `_is_word_cut`, `_words_broken_across_lines`; `data/i18n/ja.json`, `data/i18n/zh_CN.json`.

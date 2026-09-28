@@ -707,11 +707,31 @@ _TABLE_FIT_SLACK_PX = 1.5
 _SCREEN_TABLE_WIDTH = "99.5%"
 
 
+def _breaks_anywhere(ch: str) -> bool:
+    """True for a character a line may break beside without breaking a word
+    (B8-1644): Han, kana, Hangul and the CJK and fullwidth punctuation.
+    Japanese and Chinese have no spaces between words, and a line break
+    between two of their characters is ordinary typesetting, not a cut word."""
+    o = ord(ch)
+    return (0x3000 <= o <= 0x30FF or 0x31F0 <= o <= 0x31FF
+            or 0x3400 <= o <= 0x4DBF or 0x4E00 <= o <= 0x9FFF
+            or 0xAC00 <= o <= 0xD7AF or 0xF900 <= o <= 0xFAFF
+            or 0xFF00 <= o <= 0xFFEF)
+
+
+def _is_word_cut(prev: str, nxt: str) -> bool:
+    """Whether a line ending between *prev* and *nxt* cuts a word."""
+    return (not prev.isspace() and not nxt.isspace() and prev != "/"
+            and not _breaks_anywhere(prev) and not _breaks_anywhere(nxt))
+
+
 def _words_broken_across_lines(doc) -> "list[str]":
     """The texts of *doc* whose layout breaks a WORD over two lines.
 
     A cell narrower than its longest word is squeezed by Qt's table layout,
     and the word is then cut wherever the edge falls: "(recommende" over "d)".
+    A break beside a Japanese or Chinese character is not a cut word
+    (:func:`_breaks_anywhere`); a Latin word cut inside such a text still is.
     """
     out = []
     b = doc.begin()
@@ -720,8 +740,7 @@ def _words_broken_across_lines(doc) -> "list[str]":
         for i in range((lay.lineCount() if lay else 0) - 1):
             ln = lay.lineAt(i)
             end = ln.textStart() + ln.textLength()
-            if 0 < end < len(t) and not t[end - 1].isspace() \
-                    and not t[end].isspace() and t[end - 1] != "/":
+            if 0 < end < len(t) and _is_word_cut(t[end - 1], t[end]):
                 out.append(t)
                 break
         b = b.next()
@@ -5146,9 +5165,12 @@ class MeasurementReportDialog(QDialog):
                 # under this header are measurements, one per date, and
                 # "· 3 runs" stood above three dates of ONE run. So every
                 # header counts measurements.
+                # B8-1641: the count is a label value ("Measurements: 3"), not a
+                # number followed by a noun, which Polish, Russian and
+                # Ukrainian cannot inflect with only a singular and a plural.
                 self._profile_list.addItem(
-                    f'{s["name"]}  ·  {n} '
-                    + (tr("measurement") if n == 1 else tr("measurements"))
+                    f'{s["name"]}  ·  '
+                    + tr("Measurements: {n}").format(n=n)
                     + (the_colour_scale_tag() if s.get("scale_note") else ""))
                 self._list_rows.append(("source", si, None))
                 # One checkable row per dated run: unticking leaves it out of
@@ -13929,15 +13951,16 @@ class MeasurementReportDialog(QDialog):
         # Three dates of one profile run read "· 3 verification runs" while
         # the list header and the running header of the same report said
         # "3 measurements"; there was one profile run.
+        # B8-1641: a label value, not "3 measurements" (see the list header).
         def _count_label(n: int) -> str:
             if calibration or verification:
-                return tr("measurement") if n == 1 else tr("measurements")
-            return tr("profile run") if n == 1 else tr("profile runs")
+                return tr("Measurements: {n}").format(n=n)
+            return tr("Profile runs: {n}").format(n=n)
 
         items = "".join(
             "<li>" + html.escape(p["name"]) + ", "
             + html.escape(tr("Instrument: {inst}").format(inst=p["instrument"]))
-            + f" <span style='color:{_C['faint']}'>· {p['n']} "
+            + f" <span style='color:{_C['faint']}'>· "
             + html.escape(_count_label(p["n"]))
             + "</span></li>"
             for p in sc["profiles"])

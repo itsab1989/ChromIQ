@@ -63,6 +63,7 @@ from data.patch_db import (
     PAPER_SIZES,
     i1_defaults_from_preset,
     orientation_word,
+    paper_display_label,
     paper_name_token,
     query_patches,
 )
@@ -18189,7 +18190,7 @@ class TabChart(QWidget):
         self._paper_combo.clear()
         for size in PAPER_SIZES:
             if size not in excluded:
-                self._paper_combo.addItem(PAPER_LABELS.get(size, size), size)
+                self._paper_combo.addItem(paper_display_label(size), size)
         self._paper_combo.blockSignals(False)
 
         target = current if current not in excluded else PAPER_FALLBACK.get(current, "A4")

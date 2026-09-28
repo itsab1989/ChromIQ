@@ -22,7 +22,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCAN_DIRS = ("ui", "workflow", "core", "main.py")
+#: `data/patch_db.py` translates the paper list's orientation word (B8-1640).
+SCAN_DIRS = ("ui", "workflow", "core", "main.py", "data/patch_db.py")
 
 
 def _python_files() -> "list[Path]":
