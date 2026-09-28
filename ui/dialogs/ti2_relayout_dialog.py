@@ -1077,13 +1077,15 @@ class _NewChartDialog(QDialog):
             tr("Load setup from preset"),
             # B8-1702: the last paragraph used to say the "by Pharmacist"
             # charts are not listed; since 4.3.1 all but the one that has a
-            # layout and no editor setup are, so it says that instead.
+            # layout and no editor setup are, so it says that instead. The
+            # middle one said the list "stays empty until you save one",
+            # which the built-in rows (★) have contradicted since they came.
             tr("Load the full New-chart setup (colour sets, instrument, "
                "paper and layout) that was saved with a preset, so you can "
                "reuse or tweak an existing design instead of setting "
                "everything by hand.\n\nOnly presets saved with such a setup "
-               "show up here, so the list stays empty (just \"None\") until "
-               "you save one.\n\nA preset that has a layout but no editor "
+               "show up here: the built-in ones, marked \u2605, and your own "
+               "as soon as you save one.\n\nA preset that has a layout but no editor "
                "setup is not in this list, because there is no setup behind "
                "it to load. Pick it straight from the \u201cPresets\u201d "
                "list in Create Chart instead.")))

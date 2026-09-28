@@ -77,3 +77,22 @@ def test_a_preset_with_a_layout_and_no_editor_setup_is_what_is_absent():
     assert listed
     for p in listed:
         assert builtin_preset_recipe(p.key) is not None, p.name
+
+
+def test_the_tooltip_does_not_say_the_list_is_empty_while_built_ins_fill_it(qapp):
+    """The middle paragraph said the list "stays empty (just "None") until you
+    save one". The built-in presets that carry a setup are listed first, with a
+    ★, so on a fresh install the list is never empty (found with B8-1702)."""
+    import json
+    import pathlib as _p
+    from ui.dialogs.ti2_relayout_dialog import _NewChartDialog
+
+    de = _p.Path(__file__).resolve().parent.parent / "data" / "i18n" / "de.json"
+    tip = next(k for k in json.loads(de.read_text(encoding="utf-8"))
+               if k.startswith("Load the full New-chart setup"))
+    assert "stays empty" not in tip, tip
+    assert "built-in ones, marked ★" in tip, tip
+    listed = _NewChartDialog._available_preset_recipes(
+        type("S", (), {"_settings": None})())
+    assert any(n.startswith("★ ") for n in listed), (
+        "no built-in preset is offered, so the tooltip's claim is false")

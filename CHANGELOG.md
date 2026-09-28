@@ -7,7 +7,7 @@
 ### Fixed
 
 - The "Chart layout" line printed down the right edge of a sheet names a built-in preset exactly as it is written in the preset list, with the instrument in front. It used to move the patch width and the name's tail to the end.
-- The help for "Load setup from preset" in the New Patch Set window no longer says the "by Pharmacist" charts are missing from the list. It now says that a preset with a layout but no editor setup is not listed.
+- The help for "Load setup from preset" in the New Patch Set window no longer says the "by Pharmacist" charts are missing from the list, or that the list stays empty until you save a preset. It now says that the built-in presets with a setup are listed, marked ★, and that a preset with a layout but no editor setup is not.
 
 ## v4.3.1
 
