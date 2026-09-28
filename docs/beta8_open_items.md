@@ -31236,3 +31236,81 @@ would reach.
 - tests: tests/test_b8_1640_what_the_translation_pass_found_in_the_code.py
 - evidence: test_a_latin_word_cut_inside_a_japanese_text_still_is, test_a_break_between_japanese_or_chinese_characters_is_no_cut_word, test_the_full_japanese_and_chinese_labels_are_back
 - where: `ui/dialogs/measurement_report_dialog.py` `_breaks_anywhere`, `_is_word_cut`, `_words_broken_across_lines`; `data/i18n/ja.json`, `data/i18n/zh_CN.json`.
+
+
+### B8-1650 · FIXED, awaiting confirmation · The Create Chart Output labels were cut to the exact rounded width of their text
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the 4.3.0 final translation check (de, nl, no, pl): "Printer profile project name:" read as cut ("…drukark") in Create Chart, Manual.
+- fix: measured on screen 2026-09-28, the column came out EXACTLY the rounded advance of its widest text (Polish 197 for 197, Dutch 215 for 215, Norwegian 193 for 193), and the fractional advance runs up to half a pixel past it (194.48 for 194), so the last glyph lost a sliver. Not a late font, and not the word: a shorter translation did not help. `_LabelColumnFitter` re-measures the Manual and the Guided column with the label's own font plus a few pixels of room when shown or restyled, and never narrows it.
+- tests: tests/test_b8_1650_what_the_final_translation_check_found.py
+- evidence: test_the_label_column_gets_room_past_its_rounded_width, test_the_fitter_never_narrows_a_column, test_both_output_columns_carry_a_fitter; on screen `~/Desktop/ChromIQ-beta47-proof/final-code/labels/{de,pl,nl,no}/` (record.json: fits, with width_before_the_fit)
+- where: `ui/tabs/tab_chart.py` `_LabelColumnFitter`, the Output groups of Manual and Guided.
+
+### B8-1651 · FIXED, awaiting confirmation · Preferences showed "560 patches" in every language
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the 4.3.0 final translation check (all four Romance languages and the Germanic group).
+- fix: the grey-ramp box's suffix goes through tr(" patches"), with the key in all 13 catalogues in each one's own patch word. The box steps in tens (200 to 2000), so every value it shows ends in 0 and Polish, Russian and Ukrainian are grammatical with one form. Seen on screen in French: "560 plages".
+- tests: tests/test_b8_1650_what_the_final_translation_check_found.py
+- evidence: test_the_grey_ramp_suffix_is_translated; on screen `~/Desktop/ChromIQ-beta47-proof/final-code/buttons/fr/photographs/01-preferences.png`
+- where: `ui/dialogs/settings_dialog.py`; `data/i18n/*.json`.
+
+### B8-1652 · FIXED, awaiting confirmation · The on-screen audit reported an English Cancel the app does not show
+- blocks release: no
+- severity: COSMETIC
+- status: FIXED
+- found by: the 4.3.0 final translation check, which reported Preferences' Cancel in English in every language.
+- fix: the app is right: Qt's own translator covers OK, Cancel and Close in every language (Norwegian through `data/i18n/qt/no.json`), and Preferences in a real French window reads "OK" and "ANNULER". The audit script set the language but never installed that translator, so its windows showed "Cancel". `scripts/i18n_onscreen_audit.py` now installs it right after the language, as `main()` does.
+- tests: tests/test_b8_1650_what_the_final_translation_check_found.py
+- evidence: test_the_onscreen_audit_translates_qts_own_buttons; on screen `~/Desktop/ChromIQ-beta47-proof/final-code/buttons/{fr,de}/record.json` (button texts)
+- where: `scripts/i18n_onscreen_audit.py`.
+
+### B8-1653 · FIXED, awaiting confirmation · A Report Limits heading narrower than its longest word ran into the next one
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: the 4.3.0 final translation check (nl): "Waarden van ISO 12647-8:2021" wrapped before the number, and "12647-8:2021" ran into "Aangepast ISO 12647-7".
+- fix: a wrapped heading never breaks inside a word, so each heading's minimum width is now its longest word in the bold font it is shown in, and each keeps a left margin of the column gap so a right-aligned heading cannot touch the one before it. On screen in nl, ru, uk and en every heading word fits its column, and the Dutch table fits the window.
+- tests: tests/test_b8_1650_what_the_final_translation_check_found.py
+- evidence: test_every_report_limits_heading_holds_its_longest_word; on screen `~/Desktop/ChromIQ-beta47-proof/final-code/report-limits/{nl,ru,uk,en}/`
+- where: `ui/dialogs/thresholds_dialog.py` `_build_head`.
+
+### B8-1655 · FIXED, awaiting confirmation · With the layout engine on, a found calibration went where the build ignores it
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: the 4.3.0 final translation check (ru, uk, ja, zh_CN), from the "Calibration file found" message.
+- fix: decision 7 of `calibration_run_type.md` (2026-08-05) fills the found `.cal` into the printtarg -K and -I fields and says so. An engine build does not read those fields: `_collect_manual` takes its calibration from the engine panel's "Printer calibration" group (`cal_settings`). With the engine the default, the offer landed where the build ignores it and the line told the user to switch on a field that does nothing. The engine panel's path is now offered on the same terms (only when empty, Mode left on "None"), and the line for that case is M-CAL-FOUND-ENGINE, PROPOSED in §M: the words await approval. With printtarg laying out, nothing changes. The Russian and Chinese translations of the old line had been rewritten to describe the engine panel; they now say what the old English says, and their engine wording went to the new line.
+- tests: tests/test_calibration_prefill.py
+- evidence: test_with_the_engine_the_offer_goes_to_the_engine_panel, test_with_the_engine_a_path_already_there_is_kept, test_the_status_line_says_neither_is_on
+- where: `ui/tabs/tab_chart.py` `_check_for_cal_file`; `workflow/measurement_messages.py` M_CAL_FOUND_ENGINE; `docs/design/unified_measurement_management.md` §M-PROPOSED.
+
+### B8-1656 · FIXED, awaiting confirmation · The CMYK+N card test read whatever language an earlier test left
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: two red multi-file runs on 2026-09-28 that passed alone.
+- fix: the card is rendered through tr(). Proved by setting a language and not restoring it: in de, fr, pl and uk the card takes two pages, so a worker left in one of them failed the English test. The conftest fixture of 244a7c56 now gives every test back its language, and the test pins English itself.
+- tests: tests/test_cmyk_n_numbered_list.py, tests/test_b8_1650_what_the_final_translation_check_found.py
+- evidence: test_the_printed_card_numbers_with_dots_and_still_fits_one_page, test_the_cmyk_card_test_pins_english
+- where: `tests/test_cmyk_n_numbered_list.py`.
+
+### B8-1657 · OPEN · The printed CMYK+N help card takes two pages in German, French, Polish and Ukrainian
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: B8-1656's probe: the English card fits one page, and the same card printed in de, fr, pl and uk takes two. Knut objected to a second sheet holding one line elsewhere in that batch.
+- where: `ui/help_card_print.py` `render_card`, the CMYK+N card in `ui/dialogs/welcome_dialog.py`.
+
+### B8-1654 · FIXED, awaiting confirmation · Two Ukrainian texts called the run's `old` folder "the old folder"
+- blocks release: no
+- severity: COSMETIC
+- status: FIXED
+- found by: the 4.3.0 final translation check (uk).
+- fix: of the Ukrainian texts that say «стара папка», two point at the run's folder named `old` on disk; they now say «папки «old»», as every other language quotes it. The other two mean an ordinary previous folder and stay.
+- tests: tests/test_b8_1650_what_the_final_translation_check_found.py
+- evidence: test_ukrainian_names_the_runs_old_folder_as_it_is_on_disk
+- where: `data/i18n/uk.json`.

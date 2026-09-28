@@ -40,6 +40,7 @@ holds up to two hundred spin boxes.
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QFontMetrics
 from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QDialog, QFrame,
                              QGridLayout, QHBoxLayout, QLabel, QPushButton,
                              QRadioButton, QScrollArea, QSizePolicy,
@@ -847,7 +848,21 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             hdr.setStyleSheet("font-weight: bold;")
             hdr.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
             hdr.setWordWrap(True)
-            hdr.setMinimumWidth(CELL_W + 20)
+            # B8-1653: a wrapped heading never breaks INSIDE a word, so its
+            # column must be at least as wide as its longest word, in the bold
+            # font it is shown in. Dutch "Waarden van ISO 12647-8:2021" wraps
+            # before the number, and "12647-8:2021" ran into the next heading.
+            _bold = QFont(hdr.font())
+            _bold.setBold(True)
+            _fm = QFontMetrics(_bold)
+            _longest = max((_fm.horizontalAdvance(w)
+                            for w in hdr.text().split()), default=0)
+            # …and its text keeps a gap from the heading to its left. A
+            # wrapped label fills its whole cell, so without a margin of its
+            # own a right-aligned heading could start at the cell's left edge
+            # and touch the one before it ("12647-8:2021Aangepast").
+            hdr.setContentsMargins(COLUMN_GAP, 0, 0, 0)
+            hdr.setMinimumWidth(max(CELL_W + 20, _longest + 8 + COLUMN_GAP))
             g.addWidget(hdr, 0, ci)
             self._column_widgets.setdefault(col, []).append(hdr)
             # row 1: the read-only mark / Restore defaults / locked note

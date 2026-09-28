@@ -2084,7 +2084,7 @@ class SettingsDialog(QDialog):
         self._grey_ref_spin = NoScrollSpinBox(self)
         self._grey_ref_spin.setRange(200, 2000)
         self._grey_ref_spin.setSingleStep(10)
-        self._grey_ref_spin.setSuffix(" patches")
+        self._grey_ref_spin.setSuffix(tr(" patches"))
         self._grey_ref_spin.setMinimumWidth(140)
         gr_row.addWidget(self._grey_ref_spin)
         gr_row.addStretch()

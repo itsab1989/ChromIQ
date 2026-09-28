@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import yaml
-from PyQt6.QtCore import QPointF, QRect, QRectF, QSize, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import (QEvent, QObject, QPointF, QRect, QRectF, QSize, Qt,
+                          QTimer, pyqtSignal)
 from PyQt6.QtGui import (QColor, QFont, QFontMetrics, QIcon, QPainter,
                          QPalette, QPen)
 from PyQt6.QtWidgets import (
@@ -4912,6 +4913,60 @@ def _extra_args_have_patch_source(extra: str) -> bool:
     return False
 
 
+class _LabelColumnFitter(QObject):
+    """KEEPS A LABEL COLUMN AS WIDE AS ITS WIDEST TEXT IN THE FONT IT IS SHOWN IN.
+
+    B8-1650: the Output labels ("Printer profile project name:" and the run
+    description / chart notes labels) were sized once, from ``sizeHint`` while
+    the tab was built, and the column came out EXACTLY as wide as the rounded
+    text advance, with no pixel to spare. Measured on screen 2026-09-28: Polish
+    197 for 197, Dutch 215 for 215, Norwegian 193 for 193. The real, fractional
+    advance runs up to half a pixel past the rounded one (194.48 for 194), so the
+    last glyph lost a sliver and the final check read the label as cut
+    ("…drukark"). A shorter translation did not help, because the fault was the
+    measure, not the word.
+
+    This re-measures with the anchor label's own font metrics, plus a few pixels
+    of room, when it is shown or its font or style changes, and never goes below
+    the width set at construction, so nothing that fitted before moves.
+    """
+
+    def __init__(self, anchor: QLabel, fixed: "list", capped: "list",
+                 probe_texts, floor: int):
+        super().__init__(anchor)
+        self._anchor = anchor
+        self._fixed = list(fixed)
+        self._capped = list(capped)
+        self._probe_texts = probe_texts
+        self._floor = self._width = int(floor)
+        anchor.installEventFilter(self)
+
+    def eventFilter(self, obj, event):  # noqa: N802 — Qt override
+        if obj is self._anchor and event.type() in (
+                QEvent.Type.Show, QEvent.Type.FontChange,
+                QEvent.Type.StyleChange, QEvent.Type.Polish):
+            QTimer.singleShot(0, self.refit)
+        return False
+
+    def refit(self) -> None:
+        a = self._anchor
+        try:
+            fm = a.fontMetrics()
+            texts = [a.text()] + list(self._probe_texts())
+        except RuntimeError:        # the label is already gone
+            return
+        m = a.contentsMargins()
+        need = (max(fm.horizontalAdvance(t) for t in texts)
+                + m.left() + m.right() + 2 * a.margin() + 4)
+        if need <= self._width:
+            return
+        self._width = need
+        for lbl in self._fixed:
+            lbl.setFixedWidth(need)
+        for sp in self._capped:
+            sp.setMaximumWidth(need)
+
+
 class _PresetListNote(QWidget):
     """THE PAPER-FILTER NOTE, PINNED UNDER THE OPEN "Select preset" LIST
     (Knut, #182 5839478031, B8-1226).
@@ -6630,6 +6685,10 @@ class TabChart(QWidget):
                for _t in self._target_text_label_candidates()])
         _guided_name_lbl.setFixedWidth(_guided_lbl_w)
         self._guided_run_desc_lbl.setFixedWidth(_guided_lbl_w)
+        # B8-1650: measured again once the label has its real font.
+        self._guided_label_fitter = _LabelColumnFitter(
+            _guided_name_lbl, [_guided_name_lbl, self._guided_run_desc_lbl], [],
+            self._target_text_label_candidates, _guided_lbl_w)
         self._target_name_hint = QLabel("", inner)
         self._target_name_hint.setWordWrap(True)
         set_ink(self._target_name_hint, "#d08a3a", " font-size: 11px;")
@@ -7297,6 +7356,14 @@ class TabChart(QWidget):
         left_clip_row.setContentsMargins(0, 0, 0, 0)
         _left_clip_lbl_spacer = QLabel("", self._manual_left_clip_row)
         _left_clip_lbl_spacer.setFixedWidth(_OUTPUT_LBL_W)
+        # B8-1650: the column above was measured before the tab's font was
+        # applied; measure it again with the font the labels are shown in.
+        self._manual_label_fitter = _LabelColumnFitter(
+            _name_lbl,
+            [_name_lbl, self._manual_run_desc_lbl,
+             self._manual_chart_notes_lbl, _left_clip_lbl_spacer],
+            [_stamp_lbl_spacer],
+            self._target_text_label_candidates, _OUTPUT_LBL_W)
         left_clip_row.addWidget(_left_clip_lbl_spacer)
         self._manual_left_clip_check = QCheckBox(
             tr("Print info in left clip area"), self._manual_left_clip_row
@@ -9625,6 +9692,21 @@ class TabChart(QWidget):
             for pw in (self._manual_cal_k_pw, self._manual_cal_i_pw):
                 if pw is not None and not str(pw.get_raw_value() or "").strip():
                     self._fill_without_enabling(pw, cal_str)
+            # B8-1655: an ENGINE build takes its calibration from the engine
+            # panel's own "Printer calibration" group, never from the -K / -I
+            # fields above, so with the engine laying the chart out the offer
+            # goes there too, on the same terms: only into an empty path, and
+            # the Mode left as it is ("None" unless the user chose).
+            panel = getattr(self, "_manual_layout_panel", None)
+            engine_path = getattr(panel, "cal_path_edit", None)
+            if (engine_path is not None and self._manual_panel_lays_out()):
+                if not engine_path.text().strip():
+                    engine_path.setText(cal_str)
+                from workflow.measurement_messages import M_CAL_FOUND_ENGINE
+                self._cal_status_lbl.setText(
+                    M_CAL_FOUND_ENGINE.render(name=cal_file.name)[1])
+                self._cal_status_lbl.setVisible(True)
+                return
             self._cal_status_lbl.setText(
                 tr("Calibration file found: {name} — filled into the “Apply "
                    "Calibration File” and “Include Calibration File” fields "

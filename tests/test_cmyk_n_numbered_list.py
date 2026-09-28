@@ -88,6 +88,20 @@ def test_every_translation_keeps_the_list_shape(qapp, path):
 def test_the_printed_card_numbers_with_dots_and_still_fits_one_page(qapp, tmp_path):
     """`1.` not `1)`, and NOT at the cost of a second sheet holding one line —
     that waste is what Knut objected to elsewhere in the same batch."""
+    # B8-1656: IN ENGLISH, whatever an earlier test left behind. The card is
+    # rendered through tr(), and a worker left in another language printed it
+    # longer, on two pages (German, French, Polish and Ukrainian all do, which
+    # is B8-1657), so this failed twice in multi-file runs and passed alone.
+    import core.i18n as _i18n
+    _before = _i18n._language
+    _i18n.set_language("en")
+    try:
+        _render_and_check_the_card(tmp_path)
+    finally:
+        _i18n.set_language(_before)
+
+
+def _render_and_check_the_card(tmp_path):
     from PyQt6.QtCore import QMarginsF
     from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter
     from PyQt6.QtPdf import QPdfDocument

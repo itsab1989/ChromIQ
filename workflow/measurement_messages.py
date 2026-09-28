@@ -3102,6 +3102,27 @@ M_REPORT_UPDATE_NOTHING_LEFT = _m(
     "“Create New” writes a new report of what is ticked.",
     approved=False)
 
+# --- PROPOSED (B8-1655, 2026-09-28): a calibration file found while the
+# ChromIQ layout engine lays the chart out -------------------------------
+#
+# The prefill of decision 7 (calibration_run_type.md, 2026-08-05) fills the
+# printtarg -K and -I fields and says so. An engine build does not read those
+# fields: it takes its calibration from the engine panel's own "Printer
+# calibration" group (``LayoutOptionsPanel.cal_settings``). With the engine the
+# default, the found .cal went where the build ignores it, and the status line
+# told the user to switch on a field that does nothing. The engine panel's path
+# is now offered the same way (filled only when empty, Mode left on "None"),
+# and this is the status line for that case. The words are ours.
+M_CAL_FOUND_ENGINE = _m(
+    "M-CAL-FOUND-ENGINE",
+    "Calibration file found",
+    "Calibration file found: {name}. It is filled into “Printer calibration” "
+    "in the ChromIQ layout section below, with Mode still on “None”: choose "
+    "the mode you want there. “Apply & embed (-K)” reprints every patch "
+    "through the calibration; “Embed only (-I)” only records it in the chart "
+    "file.",
+    approved=False)
+
 # --- PROPOSED (challenge C, beta 39, #7): Delete Selected Report could not
 # move the report ----------------------------------------------------------
 #
@@ -3679,6 +3700,7 @@ def report_gone_line(entry: dict) -> str:
 
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
+    M_CAL_FOUND_ENGINE,
     M_REPORT_CHART_MISMATCH, M_REPORT_CHART_MISMATCH_LAYOUT,
     M_REPORT_CHART_MISMATCH_NO_GREY,
     M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,

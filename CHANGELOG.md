@@ -12,6 +12,10 @@
 - The message for a CR30 chart while ChromIQ's own chart-reading engine is off names the checkbox Preferences really has, "ChromIQ chart-reading engine", instead of a setting it no longer has.
 - The "Generate colour sets" help calls the Saturated edges boxes "between" and "faces", as the row does, instead of "per edge" and "per face".
 - A line break between two Japanese or Chinese characters no longer counts as a broken word in the Measurement Report, so the ten Japanese and four Chinese report row names that had been shortened to fit are whole again.
+- In Create Chart, "Printer profile project name:" and the labels under it are no longer cut at their last letter in German, Dutch, Norwegian and Polish.
+- Preferences shows the grey-ramp reference as "560 Messfelder", "560 plages" and so on in your language, instead of "560 patches".
+- The Report Limits column headings no longer run into each other when a language wraps one before a long word, as Dutch did with "Waarden van ISO 12647-8:2021".
+- With the ChromIQ layout engine laying the chart out, a calibration file found in the project is now offered in the layout section's "Printer calibration", which is where the engine takes it from, with the mode left on "None". It used to go only into the printtarg fields, which an engine build does not read.
 
 ## v4.3.0-beta.47
 
