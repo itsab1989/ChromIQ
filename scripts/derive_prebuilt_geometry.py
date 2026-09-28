@@ -27,10 +27,15 @@ from workflow.layout_from_render import (RenderGeometryError,
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parent.parent / "assets/charts/pharmacist"
+    # 4.3.1 ships no prebuilt bundle; the four withdrawn ones live on as the
+    # suite's fixtures, and a bundle added to assets/ again is found there.
+    repo = Path(__file__).resolve().parent.parent
+    roots = [repo / "assets/charts/pharmacist",
+             repo / "tests/fixtures/charts/prebuilt/pharmacist"]
     failures = 0
-    for ti2 in sorted(root.rglob("*.ti2")):
+    for ti2 in sorted(t for r in roots for t in r.rglob("*.ti2")):
         d, stem = ti2.parent, ti2.stem
+        root = next(r for r in roots if r in ti2.parents)
         tiffs = sorted(d.glob(f"{stem}_*.tif")) or \
             ([d / f"{stem}.tif"] if (d / f"{stem}.tif").is_file() else [])
         label = str(d.relative_to(root))

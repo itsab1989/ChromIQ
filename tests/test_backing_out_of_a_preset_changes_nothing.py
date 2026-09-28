@@ -38,6 +38,7 @@ from ui.tabs.tab_chart import (  # noqa: E402
     TC918_PRESET_KEY,
     TabChart,
 )
+from tests._prebuilt_fixture import ABW702_KEY  # noqa: E402
 
 # DETERMINISTIC KEYS, NOT `list(FROZENSET)[0]`. `KNUT_PRESET_KEYS` is a
 # frozenset, so indexing it picks a different preset in every process — two
@@ -49,7 +50,16 @@ _ENGINE_KEY = sorted(p.key for p in KNUT_PRESETS
 # rows a person can see moved come from the prebuilt family instead.
 assert not [p for p in KNUT_PRESETS if p.layout_recipe is None and not p.engine], \
     "a printtarg-based Spyderprint preset is back — cover it here as well"
-_PREBUILT_KEY = sorted(PREBUILT_PRESETS)[0]
+# THE PREBUILT FAMILY SHIPS NO PRESET SINCE 4.3.1 (#182 5875467209), and its
+# code is all still there, so it is covered on the four withdrawn bundles,
+# registered for every test in this file (tests/_prebuilt_fixture.py). This is
+# the key 4.3.0 picked here, sorted(PREBUILT_PRESETS)[0].
+_PREBUILT_KEY = ABW702_KEY
+
+
+@pytest.fixture(autouse=True)
+def _the_withdrawn_bundles(prebuilt_bundles):
+    return prebuilt_bundles
 
 
 def test_only_two_preset_families_can_be_reached_from_the_dropdown():

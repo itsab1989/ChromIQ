@@ -363,11 +363,16 @@ def test_the_preflight_says_it_too_when_the_chart_falls_short(a_real_chart):
     assert "threshold to zero" not in short
 
 
-def test_and_the_preflight_leaves_it_out_when_the_chart_does_not(qapp):
+def test_and_the_preflight_leaves_it_out_when_the_chart_does_not(prebuilt_bundles, qapp):
     """The other direction, which M7a proved nothing was checking. The
     paragraph would otherwise sit directly under this window's own line
     "Nothing is missing: every metric this chart is asked for can be measured
-    on it.", which is the same sentence contradicting itself."""
+    on it.", which is the same sentence contradicting itself.
+
+    Since 4.3.1 no SHIPPED preset reaches that state: the ones that did were
+    the prebuilt page images, the only built-ins whose page geometry answers
+    the two evenness rows before a chart is built (B8-1703). They are
+    registered from tests/fixtures for this guard."""
     import dataclasses
     from core.settings import AppSettings
     from ui.tabs.tab_chart import verification_preset_rows
@@ -381,7 +386,7 @@ def test_and_the_preflight_leaves_it_out_when_the_chart_does_not(qapp):
             whole = dataclasses.replace(r, assessment=a)
             break
     assert whole is not None, (
-        "no shipped preset answers every metric of the everyday combination, "
+        "no preset answers every metric of the everyday combination, "
         "so this guard would prove nothing")
     body = _preflight_body(whole)
     assert "is decided by the limit set" not in body, body[-600:]

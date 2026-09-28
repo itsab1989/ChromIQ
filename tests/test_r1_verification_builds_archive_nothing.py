@@ -46,8 +46,7 @@ def _old_folders(tmp_path) -> "list[Path]":
     return sorted((tmp_path / "P" / "runs").glob("run*/old"))
 
 
-def test_a_prebuilt_preset_under_verification_archives_nothing(
-        qapp, tmp_path):
+def test_a_prebuilt_preset_under_verification_archives_nothing(prebuilt_bundles, qapp, tmp_path):
     """The tester's case: TC3.00 built under Verification into run 1, which
     has a measurement and a profile. No ``runs/run1/old/`` appears, and the
     measurement and profile keep their bytes.
@@ -92,7 +91,7 @@ def test_an_applied_editor_chart_under_verification_archives_nothing(
     assert run.profile_icc.read_bytes() == b"ICC-PROFILE"
 
 
-def test_a_prebuilt_preset_under_profiling_still_archives(qapp, tmp_path,
+def test_a_prebuilt_preset_under_profiling_still_archives(prebuilt_bundles, qapp, tmp_path,
                                                           monkeypatch):
     """The other side, so the fix cannot pass by never archiving: the same
     build under Profiling, agreed to, archives the measurement it displaces

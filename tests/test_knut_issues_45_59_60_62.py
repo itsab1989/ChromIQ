@@ -325,7 +325,7 @@ def test_create_chart_suggest_includes_patches_and_orientation(qapp, settings, t
     assert t._suggest_target_name() == "i1Pro-A4-484p-1page-Portrait"
 
 
-def test_loaded_ti1_patch_count_for_builtin_presets(qapp, settings):
+def test_loaded_ti1_patch_count_for_builtin_presets(prebuilt_bundles, qapp, settings):
     # #62 follow-up (Knut): a BUILT-IN preset's bundled .ti1 must also feed the
     # patch count — it doesn't use _preset_ti1_path (that's for user presets), so
     # _builtin_ti1_path must supply it. Reproduces "manual mode built-in shows no

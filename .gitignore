@@ -43,6 +43,8 @@ assets/exported/
 # (each chart set lives in its own subfolder, hence the recursive **).
 !assets/charts/**/*.tif
 !assets/charts/**/*.tiff
+# …and the withdrawn prebuilt bundles the suite still builds from (4.3.1).
+!tests/fixtures/charts/prebuilt/**/*.tif
 
 # CI-generated icons (rebuilt by scripts/build_icons.py during the build)
 assets/app_icon.ico

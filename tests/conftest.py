@@ -730,6 +730,15 @@ def _the_update_check_never_reaches_the_network(monkeypatch):
 
 
 @pytest.fixture()
+def prebuilt_bundles(monkeypatch):
+    """The four withdrawn prebuilt page-image presets, registered for one test
+    from ``tests/fixtures`` (4.3.1 ships none; ``tests/_prebuilt_fixture.py``).
+    Answers the registered ``PREBUILT_PRESETS``."""
+    from tests._prebuilt_fixture import register
+    return register(monkeypatch)
+
+
+@pytest.fixture()
 def automatic_gc():
     """For a test that measures what `workflow.preset_layout` does with
     AUTOMATIC collection (B8-1161, B8-1191, B8-1262): the session runs with it

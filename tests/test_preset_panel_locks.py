@@ -60,9 +60,9 @@ from core.file_manager import FileManager  # noqa: E402
 from core.settings import AppSettings  # noqa: E402
 from ui.tabs.tab_chart import (  # noqa: E402
     KNUT_PRESET_KEYS,
-    PREBUILT_PRESETS,
     TabChart,
 )
+from tests._prebuilt_fixture import ABW702_KEY  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -142,10 +142,10 @@ def test_knut_targen_override_unlocks(qapp, settings, monkeypatch):
 # Prebuilt preset: both greyed, two override boxes
 # ---------------------------------------------------------------------------
 
-def test_prebuilt_preset_locks_both(qapp, settings, monkeypatch):
+def test_prebuilt_preset_locks_both(qapp, settings, monkeypatch, prebuilt_bundles):
     tab = _make_tab(qapp, settings)
     monkeypatch.setattr(tab, "_create_prebuilt_target", lambda *a, **k: None)
-    key = next(iter(PREBUILT_PRESETS))
+    key = ABW702_KEY
     tab._apply_prebuilt_preset(key, "prebuilt-test")
 
     assert tab._prebuilt_active
@@ -158,10 +158,10 @@ def test_prebuilt_preset_locks_both(qapp, settings, monkeypatch):
     assert tab._prebuilt_printtarg_sig is not None
 
 
-def test_prebuilt_overrides_unlock_independently(qapp, settings, monkeypatch):
+def test_prebuilt_overrides_unlock_independently(qapp, settings, monkeypatch, prebuilt_bundles):
     tab = _make_tab(qapp, settings)
     monkeypatch.setattr(tab, "_create_prebuilt_target", lambda *a, **k: None)
-    tab._apply_prebuilt_preset(next(iter(PREBUILT_PRESETS)), "prebuilt-test")
+    tab._apply_prebuilt_preset(ABW702_KEY, "prebuilt-test")
 
     tab._override_printtarg_check.setChecked(True)
     assert _printtarg_enabled(tab)
@@ -187,7 +187,7 @@ def _route_prebuilt(qapp, settings, monkeypatch, edit=None):
                         lambda *a, **k: calls.append("relayout"))
     # The fresh-targen path falls through; abort it cleanly before it runs.
     monkeypatch.setattr(tab, "_handle_target_rename", lambda *a, **k: False)
-    tab._apply_prebuilt_preset(next(iter(PREBUILT_PRESETS)), "route-test")
+    tab._apply_prebuilt_preset(ABW702_KEY, "route-test")
     calls.clear()   # the initial apply copies the bundle; only score the Generate
     if edit == "printtarg":
         tab._override_printtarg_check.setChecked(True)
@@ -201,15 +201,15 @@ def _route_prebuilt(qapp, settings, monkeypatch, edit=None):
     return calls[-1]
 
 
-def test_prebuilt_generate_copies_when_untouched(qapp, settings, monkeypatch):
+def test_prebuilt_generate_copies_when_untouched(qapp, settings, monkeypatch, prebuilt_bundles):
     assert _route_prebuilt(qapp, settings, monkeypatch) == "copy"
 
 
-def test_prebuilt_generate_relayout_on_printtarg_change(qapp, settings, monkeypatch):
+def test_prebuilt_generate_relayout_on_printtarg_change(qapp, settings, monkeypatch, prebuilt_bundles):
     assert _route_prebuilt(qapp, settings, monkeypatch, edit="printtarg") == "relayout"
 
 
-def test_prebuilt_generate_fresh_on_targen_change(qapp, settings, monkeypatch):
+def test_prebuilt_generate_fresh_on_targen_change(qapp, settings, monkeypatch, prebuilt_bundles):
     assert _route_prebuilt(qapp, settings, monkeypatch, edit="targen") == "fresh"
 
 
@@ -217,10 +217,10 @@ def test_prebuilt_generate_fresh_on_targen_change(qapp, settings, monkeypatch):
 # Leaving a preset clears the locks
 # ---------------------------------------------------------------------------
 
-def test_leaving_prebuilt_restores_panels(qapp, settings, monkeypatch):
+def test_leaving_prebuilt_restores_panels(qapp, settings, monkeypatch, prebuilt_bundles):
     tab = _make_tab(qapp, settings)
     monkeypatch.setattr(tab, "_create_prebuilt_target", lambda *a, **k: None)
-    tab._apply_prebuilt_preset(next(iter(PREBUILT_PRESETS)), "prebuilt-test")
+    tab._apply_prebuilt_preset(ABW702_KEY, "prebuilt-test")
     tab._override_printtarg_check.setChecked(True)
 
     tab._leave_prebuilt()

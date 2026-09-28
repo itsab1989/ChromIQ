@@ -15,7 +15,8 @@ pytest.importorskip("PyQt6")
 from PyQt6.QtCore import QSettings  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
-from ui.tabs.tab_chart import TabChart, PHOTOCARD600_PRESET_KEY  # noqa: E402
+from tests._prebuilt_fixture import PHOTOCARD600_KEY as PHOTOCARD600_PRESET_KEY  # noqa: E402
+from ui.tabs.tab_chart import TabChart  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -38,7 +39,7 @@ def _make_tab(qapp, tmp_path):
     return tab, s
 
 
-def test_prebuilt_preset_reveals_engine_panel_on_toggle(qapp, tmp_path):
+def test_prebuilt_preset_reveals_engine_panel_on_toggle(prebuilt_bundles, qapp, tmp_path):
     tab, s = _make_tab(qapp, tmp_path)
     tab.show()
     qapp.processEvents()

@@ -12,9 +12,10 @@ import pytest
 pytestmark = pytest.mark.usefixtures("qapp")
 
 
-def test_no_prebuilt_chart_offers_a_setup_to_load():
+def test_no_prebuilt_chart_offers_a_setup_to_load(prebuilt_bundles):
     """The invariant the sentence describes. If a prebuilt chart ever DOES
-    carry a recipe this must fail, because the tooltip would then be lying."""
+    carry a recipe this must fail, because the tooltip would then be lying.
+    None ships since 4.3.1, so it is held on the four withdrawn bundles."""
     from ui.tabs.tab_chart import PREBUILT_PRESETS, builtin_recipe_choices
 
     names = {v[1] for v in PREBUILT_PRESETS.values()}

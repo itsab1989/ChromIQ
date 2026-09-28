@@ -1,6 +1,12 @@
 """Nelson Lau's two photo-card built-ins (10 x 15 cm and 13 x 18 cm, i1Pro).
 
-The first built-in charts for the sizes photo paper is actually sold in.
+The first built-in charts for the sizes photo paper is actually sold in. They
+shipped until 4.3.0; Knut withdrew them in 4.3.1 (#182 5875467209), with the
+last two other prebuilt page images. The prebuilt-files mechanism they went
+through is still in the app, so these tests keep holding it, on the same
+bundles moved to ``tests/fixtures`` and registered for each test
+(``tests/_prebuilt_fixture.py``). That they are gone from what ships is
+``tests/test_b8_1700_the_last_prebuilt_images_make_way.py``.
 Prebuilt-files presets (kind 1 in ``docs/dev_builtin_presets.md``): a complete
 target is bundled and copied into the run, so nothing runs at selection and
 everything a user gets is decided by what is on disk here.
@@ -30,13 +36,10 @@ import pytest
 import tifffile
 
 from core.resource_path import resource_path
-from ui.tabs.tab_chart import (BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS,
-                               BUILTIN_PRESET_LABELS, PHOTOCARD600_PRESET_KEY,
-                               PHOTOCARD600_PRESET_LABEL,
-                               PHOTOCARD648_PRESET_KEY,
-                               PHOTOCARD648_PRESET_LABEL, PREBUILT_PRESETS,
-                               PREBUILT_PRESET_NOTES, TabChart,
-                               _prebuilt_paper)
+from tests._prebuilt_fixture import PHOTOCARD600_KEY as PHOTOCARD600_PRESET_KEY
+from tests._prebuilt_fixture import PHOTOCARD648_KEY as PHOTOCARD648_PRESET_KEY
+from ui.tabs import tab_chart as TC
+from ui.tabs.tab_chart import TabChart, _prebuilt_paper
 from workflow.ti2_relayout import analyze_randomisation
 
 #: key -> everything the preset's own name and label claim about the chart.
@@ -56,8 +59,13 @@ CHARTS = {
 KEYS = list(CHARTS)
 
 
+@pytest.fixture(autouse=True)
+def _the_withdrawn_bundles(prebuilt_bundles):
+    return prebuilt_bundles
+
+
 def _stem(key: str) -> Path:
-    return resource_path(PREBUILT_PRESETS[key][0])
+    return resource_path(TC.PREBUILT_PRESETS[key][0])
 
 
 def _cgats(path: Path) -> tuple[dict, list[dict]]:
@@ -73,44 +81,14 @@ def _cgats(path: Path) -> tuple[dict, list[dict]]:
 
 
 # --------------------------------------------------------------------------
-# the registry
+# the bundle
 # --------------------------------------------------------------------------
-@pytest.mark.parametrize("key", KEYS)
-def test_the_preset_is_registered_everywhere_one_registry_feeds(key):
-    """One row must reach the dropdown, the overlay and the delete guard."""
-    assert key in PREBUILT_PRESETS
-    assert key in BUILTIN_PRESET_KEYS
-    label = {PHOTOCARD600_PRESET_KEY: PHOTOCARD600_PRESET_LABEL,
-             PHOTOCARD648_PRESET_KEY: PHOTOCARD648_PRESET_LABEL}[key]
-    assert label in BUILTIN_PRESET_LABELS, \
-        "a built-in missing from BUILTIN_PRESET_LABELS can be shadowed by a " \
-        "user preset file of the same name"
-    rows = [r for _g, entries in BUILTIN_PRESET_GROUPS for r in entries]
-    assert [r for r in rows if r[2] == key], \
-        "not in BUILTIN_PRESET_GROUPS, so neither the Presets dropdown nor " \
-        "the ★ overlay would list it"
-
-
-def test_the_photo_cards_head_the_i1pro_group():
-    """Smallest sheet first, which is all this block has ever done: it ran
-    A4-1110, A4-1160, A4-1944, Letter-1160, Letter-1944, i.e. paper then count.
-    These are the two smallest sheets ChromIQ ships a chart for.
-
-    NOT Knut's paper-then-width-then-count rule, which belongs to the Knut
-    families further down the same group: a prebuilt bundle stores no patch
-    width, which is why these labels carry none."""
-    group = next(entries for name, entries in BUILTIN_PRESET_GROUPS
-                 if name.startswith("i1Pro /"))
-    assert [r[2] for r in group[:2]] == [PHOTOCARD600_PRESET_KEY,
-                                         PHOTOCARD648_PRESET_KEY]
-
-
 @pytest.mark.parametrize("key", KEYS)
 def test_the_bundle_is_complete_on_disk(key):
     stem = _stem(key)
     want = CHARTS[key]
     assert str(stem).endswith(want["leaf"].rsplit("/", 1)[-1])
-    assert want["leaf"] in PREBUILT_PRESETS[key][0]
+    assert want["leaf"] in TC.PREBUILT_PRESETS[key][0]
     assert stem.with_suffix(".ti1").is_file()
     assert stem.with_suffix(".ti2").is_file()
     assert stem.with_suffix(".channels.json").is_file(), \
@@ -267,17 +245,17 @@ def test_the_tooltip_says_the_sheet_is_printed_to_the_edge(key):
     other bundled chart keeps 12 mm or more top and bottom, so a bordered print
     trims the crop marks and part of the printed text. The preset's own tooltip
     is where the user meets that, before the Print tab's borderless warning."""
-    assert key in PREBUILT_PRESET_NOTES
+    assert key in TC.PREBUILT_PRESET_NOTES
     tip = TabChart._prebuilt_tooltip(None, _prebuilt_paper(key),
-                                     PREBUILT_PRESET_NOTES[key])
+                                     TC.PREBUILT_PRESET_NOTES[key])
     assert CHARTS[key]["paper_label"] in tip
     assert "edge to edge" in tip
     assert "borderless" in tip
 
 
 def test_no_other_prebuilt_preset_grew_a_note_by_accident():
-    assert set(PREBUILT_PRESET_NOTES) == set(KEYS)
-    for key in set(PREBUILT_PRESETS) - set(KEYS):
+    assert set(TC.PREBUILT_PRESET_NOTES) == set(KEYS)
+    for key in set(TC.PREBUILT_PRESETS) - set(KEYS):
         assert TabChart._prebuilt_tooltip(None, _prebuilt_paper(key)) == \
             TabChart._prebuilt_tooltip(None, _prebuilt_paper(key), "")
 

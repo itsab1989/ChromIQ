@@ -26,10 +26,10 @@ not `tc924_a4.ti1`). Resolve a file at runtime with
 
 | Path | Preset (Create Chart → Manual) | Kind | Files |
 |------|--------------------------------|------|-------|
-| `pharmacist/rgb/i1pro/a4/tc924/` | ★ i1Pro TC9.24 (A4) by Pharmacist | prebuilt-files | `tc924.ti1` `tc924.ti2` `tc924_01.tif` `tc924_02.tif` |
-| `pharmacist/rgb/colormunki/a4/abw702/` | ★ ColorMunki 702 ABW-optimized (A4) by Pharmacist | prebuilt-files | `abw702.ti1` `abw702.ti2` `abw702_01.tif` `abw702_02.tif` |
-| `pharmacist/rgb/colormunki/a3/tc924/` | ★ ColorMunki TC9.24 (A3) by Pharmacist | prebuilt-files | `tc924.ti1` `tc924.ti2` `tc924_01.tif` |
-| `pharmacist/rgb/fulllayout/<slug>/` | the nine "by Pharmacist" charts with a page layout (beta 47, #182 5860041950) | ti1 → layout engine | `chart.ti1` `layout.json` `recipe.json` (no `recipe.json` for the "Layout, but no editor setup" TC3.00 Target) |
+|| `pharmacist/rgb/fulllayout/<slug>/` | the fourteen "by Pharmacist" charts with a page layout (nine of beta 47, #182 5860041950; five of 4.3.1, #182 5875467209) | ti1 → layout engine | `chart.ti1` `layout.json` `recipe.json` (no `recipe.json` for the "Layout, but no editor setup" TC3.00 Target) |
+
+No prebuilt-files chart ships since 4.3.1; the last four moved to
+`tests/fixtures/charts/prebuilt/`, where the suite still builds from them.|
 
 Knut's charts don't ship rendered pages — the app builds them on selection — so
 they are filed by **family** rather than by paper, one folder per chart holding

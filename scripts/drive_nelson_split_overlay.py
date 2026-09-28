@@ -46,7 +46,7 @@ from core.resource_path import resource_path                    # noqa: E402
 
 REAL_PLIST = Path.home() / "Library/Preferences/com.chromiq.ChromIQ.plist"
 SHOTS = Path.home() / "Desktop" / "ChromIQ-hex-proof" / "09-for-nelson"
-BUNDLE = ROOT / "assets/charts/pharmacist/rgb/i1pro/100x150/photocard600"
+BUNDLE = ROOT / "tests/fixtures/charts/prebuilt/pharmacist/rgb/i1pro/100x150/photocard600"
 
 
 def pump(app, ms):

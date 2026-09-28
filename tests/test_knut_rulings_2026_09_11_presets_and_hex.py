@@ -54,7 +54,7 @@ from PyQt6.QtWidgets import QApplication                 # noqa: E402
 from core.argyll_runner import ArgyllRunner              # noqa: E402
 from core.file_manager import FileManager                # noqa: E402
 from core.settings import AppSettings                    # noqa: E402
-from ui.tabs.tab_chart import (KNUT_PRESETS, PREBUILT_PRESETS,   # noqa: E402
+from ui.tabs.tab_chart import (KNUT_PRESETS,   # noqa: E402
                                TabChart)
 from workflow.hex_support import (hex_patch_width_row_note,      # noqa: E402
                                   hex_two_heights_note)
@@ -122,15 +122,15 @@ def test_the_suggested_name_is_the_one_knut_asked_for(qapp, tmp_path):
     assert name.endswith("Portrait"), name
 
 
-def test_the_two_photo_card_presets_spell_the_sheet_the_same_way(qapp):
-    """The shipped default target names have to agree with the generator, which
-    is the whole reason they are spelled in millimetres rather than "10x15cm"
-    like their labels."""
-    from ui.tabs.tab_chart import (PHOTOCARD600_PRESET_KEY,
-                                   PHOTOCARD648_PRESET_KEY)
-    assert PREBUILT_PRESETS[PHOTOCARD600_PRESET_KEY][1].startswith(
+def test_the_two_photo_card_presets_spell_the_sheet_the_same_way(qapp,
+                                                                  prebuilt_bundles):
+    """The default target names have to agree with the generator, which is the
+    whole reason they are spelled in millimetres rather than "10x15cm" like
+    their labels. (Withdrawn in 4.3.1; held on the fixture bundles.)"""
+    from tests._prebuilt_fixture import PHOTOCARD600_KEY, PHOTOCARD648_KEY
+    assert prebuilt_bundles[PHOTOCARD600_KEY][1].startswith(
         "i1Pro-100x150mm-")
-    assert PREBUILT_PRESETS[PHOTOCARD648_PRESET_KEY][1].startswith(
+    assert prebuilt_bundles[PHOTOCARD648_KEY][1].startswith(
         "i1Pro-130x180mm-")
 
 

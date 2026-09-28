@@ -272,93 +272,24 @@ MUNKI_TARGEN = {
 # files into a fresh ~/ChromIQ/<name> folder (renamed to <name>…) and loads them.
 # targen AND printtarg are skipped entirely — the param panels are greyed out
 # while such a preset is active, because none of those options apply.
-# The eleven "by Pharmacist" targets below are the full prebuilt-files
-# line-up (seven i1Pro, four ColorMunki) — every one a prebuilt-files preset.
-# Labels follow the same convention as Knut's presets — instrument · paper +
-# patch count + page count, then the set name + "by Pharmacist". (Patch width and
-# orientation, which Knut's names carry, aren't stored for these pre-rendered
-# charts, so they're omitted here.) The *_KEY is the stable identity — labels can
-# change freely, keys must not.
-ABW702_PRESET_KEY = "__chromiq_abw702_builtin__"
-ABW702_PRESET_LABEL = "★  ColorMunki · A4-702p-2pages ABW-optimized by Pharmacist  ·  built-in"
-# TC9.24 target laid out for the ColorMunki on A3 (single page, 924 patches).
-TC924_CM_A3_PRESET_KEY = "__chromiq_tc924_cm_a3_builtin__"
-TC924_CM_A3_PRESET_LABEL = "★  ColorMunki · A3-924p-1page TC9.24 by Pharmacist  ·  built-in"
-# SEVEN OF THE ELEVEN WERE WITHDRAWN BY KNUT, 2026-09-27 (#182 5860041950):
-# the i1Pro A4 1110 ABW, the three TC9.18 extended greys (i1Pro A4, i1Pro
-# Letter, ColorMunki A3+), the ColorMunki A4 TC3.00 and the two i1Pro 1944
-# extended targets. *"The new presets replace the ones removed and have
-# layout settings, which the old did not (only an image)."* They are the
-# `_pharmacist_preset` rows below. A project made from one of them keeps its
-# own copied files; a stored key that no longer exists simply selects no
-# preset (`findData` answers -1), as it did for the withdrawn i1Pro TC9.24.
-# Photo-card targets (Nelson Lau, 2026-09-08): the first built-ins for the two
-# sizes photo paper actually comes in, 10 x 15 cm and 13 x 18 cm. Both are laid
-# out denser than Argyll's own i1 geometry allows (7.3 / 7.6 mm patch length
-# against printtarg's 10 mm floor, 0.56 mm spacers against its 1 mm), which is
-# what puts 600 patches on four small cards instead of the NINE sheets
-# `printtarg -ii1 -p100x150 -t300 -a0.95 -m10 -M10` needs, which is exactly the
-# command ChromIQ builds for an i1Pro on that sheet. (Seven is what comes out
-# with `-L` added, and ChromIQ does not add it: `-L` in Guided comes from
-# `chart_disable_left_border` (core/settings.py), which ships False. Measured
-# twice with the leftover pages deleted between runs, because not deleting them
-# is how "seven" got written here in the first place.)
-# That is the same trade every "by Pharmacist"
-# i1Pro chart already shipping makes; these two just take it a step further.
 #
-# THE PAPER IS SPELLED TWO WAYS ON PURPOSE, AND BOTH ARE RIGHT WHERE THEY ARE.
-# The LABEL says "10x15cm" because that is what is printed on the packet of
-# paper the user is holding, and a label is prose. The DEFAULT TARGET NAME says
-# "100x150mm-…-Portrait" because that is what `paper_name_token` and
-# `_paper_name_and_orientation` produce for a custom size, and the name becomes
-# a folder, a file stem and the "Chart layout" line stamped on the sheet. A
-# name that disagreed with the one the app generates for the same sheet would
-# be the inconsistency, not this.
+# NONE SHIPS SINCE 4.3.1. There were eleven, all "by Pharmacist". Seven were
+# withdrawn by Knut in beta 47 (#182 5860041950) for charts WITH a page layout,
+# the `_pharmacist_preset` rows below, and the last four in 4.3.1 (#182
+# 5875467209): the i1Pro 10x15cm 600, the i1Pro 13x18cm 648, the ColorMunki A3
+# 924 and the ColorMunki A4 702, replaced by five more such rows. The mechanism
+# stays, with its tests (they register a bundle from tests/fixtures), so a chart
+# that can only come as page images still has somewhere to go.
 #
-# THE TWO NAMES CHANGED ON 2026-09-11, and this is the reason they had to. They
-# read "i1Pro-100x150-600p-4pages" and "i1Pro-130x180-648p-3pages" until Knut
-# corrected the generator twice in two days: the size carries its unit ("you
-# forgot the mm in the custom paper size in the name, as used in the presets
-# given"), and the orientation is worked out from the two numbers. 100 < 150 and
-# 130 < 180, so both sheets are Portrait. The generator is the rule; these rows
-# follow it, as the paragraph above says they must.
+# A PROJECT MADE FROM A WITHDRAWN ONE KEEPS ITS OWN COPIED FILES: nothing in a
+# run points back at the bundle. A stored key that no longer exists simply
+# selects no preset (`findData` answers -1), as it did for the withdrawn i1Pro
+# TC9.24, and a stored tick for it is kept, harmlessly
+# (`core.curated_presets`).
 #
-# NO COLOUR-SET NAME, unlike every other row in this family. They are two
-# DIFFERENT sets (only 256 device values in common, and different neutral
-# ramps), so one shared name would say they are a pair when they are not, and
-# "photo card" would only repeat the paper token. Nelson has been asked for
-# real set names; adding them later is a label change, and the key is the
-# identity, so nothing breaks when they arrive.
-PHOTOCARD600_PRESET_KEY = "__chromiq_photocard600_builtin__"
-PHOTOCARD600_PRESET_LABEL = "★  i1Pro · 10x15cm-600p-4pages by Pharmacist  ·  built-in"
-PHOTOCARD648_PRESET_KEY = "__chromiq_photocard648_builtin__"
-PHOTOCARD648_PRESET_LABEL = "★  i1Pro · 13x18cm-648p-3pages by Pharmacist  ·  built-in"
-
 # Extra tooltip lines for prebuilt presets that need one. Keyed by preset key;
 # absent means the shared body is the whole tooltip.
-#
-# THESE TWO SHEETS CARRY INK TO WITHIN ~1 MM OF THE PAPER EDGE (measured on
-# every page: 1.0 to 1.6 mm on the 13 x 18, 1.3 to 5.0 mm on the 10 x 15),
-# where every other bundled chart keeps 12 mm or more at top and bottom. The
-# patches themselves stay 12 mm from the bottom and 5 to 7 mm from the right,
-# so a bordered print still measures; what it trims is the crop marks and part
-# of the printed identification text. Nelson prints "print with borderless
-# setting" on the sheet itself, and the Print tab warns against borderless
-# because the driver's expansion enlarges the page. Both are right about
-# different things, so the tooltip says what is actually at stake instead of
-# taking a side.
-PREBUILT_PRESET_NOTES = {
-    PHOTOCARD600_PRESET_KEY: (
-        "This sheet is printed almost edge to edge, so a bordered print will\n"
-        "trim the crop marks and some of the text at the edges. The patches\n"
-        "sit far enough in to be measured either way. If your printer driver\n"
-        "can print borderless with expansion turned off, use that; if it\n"
-        "cannot, print with borders, because an enlarged chart is worse than\n"
-        "trimmed crop marks."
-    ),
-}
-PREBUILT_PRESET_NOTES[PHOTOCARD648_PRESET_KEY] = \
-    PREBUILT_PRESET_NOTES[PHOTOCARD600_PRESET_KEY]
+PREBUILT_PRESET_NOTES: dict[str, str] = {}
 
 # key -> (asset stem under assets/charts, default target name). Charts are filed
 # by creator/colorspace/instrument/paper/target; the stem locates <stem>.ti1,
@@ -369,12 +300,7 @@ PREBUILT_PRESET_NOTES[PHOTOCARD648_PRESET_KEY] = \
 # the "additional text" tail) — EXCEPT on a custom paper size, where the two
 # numbers ARE the orientation and Knut's rule of 2026-09-10/11 reads it off
 # them. It's only the prompt's suggested default — the user can edit it freely.
-PREBUILT_PRESETS = {
-    ABW702_PRESET_KEY:         ("assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702",     "ColorMunki-A4-702p-2pages-ABW-optimized by Pharmacist"),
-    TC924_CM_A3_PRESET_KEY:    ("assets/charts/pharmacist/rgb/colormunki/a3/tc924/tc924",       "ColorMunki-A3-924p-1page-TC9.24 by Pharmacist"),
-    PHOTOCARD600_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600", "i1Pro-100x150mm-600p-4pages-Portrait by Pharmacist"),
-    PHOTOCARD648_PRESET_KEY:   ("assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648", "i1Pro-130x180mm-648p-3pages-Portrait by Pharmacist"),
-}
+PREBUILT_PRESETS: dict[str, tuple[str, str]] = {}
 
 #: Paper folders whose name is not a printtarg ``-p`` code, mapped to one.
 #: A folder named ``<W>x<H>`` (millimetres) IS a valid printtarg custom size and
@@ -1684,7 +1610,7 @@ def _pharmacist_preset(slug: str, name: str, instrument: str, paper: str,
         tiff_16bit=False, suffix="",
         layout_recipe=_pharmacist_layout(slug),
         layout_only=layout_only,
-        # All nine exports carry "Stamp settings down the right edge" OFF, and
+        # All fourteen exports carry "Stamp settings down the right edge" OFF, and
         # their layouts leave no room for it: left on (the app's default), the
         # line runs over the patches (seen on screen, the ColorMunki A4 600).
         stamp_settings=False,
@@ -2192,6 +2118,13 @@ def _paper_area_mm2(paper: str) -> float:
     dims = _PAPER_MM.get(paper)
     if dims:
         return dims[0] * dims[1]
+    # "4x6" is inches too (101.6 x 152.4 mm). Read here, for the ORDER of the
+    # preset lists only, since the first built-in on it arrived (4.3.1): split
+    # as millimetres it came out as 24 mm² and sorted before every photo card.
+    # Not added to _PAPER_MM, whose other readers (the Guided paper match, the
+    # margin-threshold preselection) were never asked about this sheet.
+    if paper == "4x6":
+        return 101.6 * 152.4
     if "x" in paper:
         try:
             w, h = paper.split("x", 1)
@@ -2923,6 +2856,24 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     _pharmacist_preset("pharm_i1_letter_1944p_3pages_portrait_w7_5mm_real_world",
                        "Letter-1944p-3pages-Portrait-w7.5mm-(expert quality)-Real World Target-by Pharmacist",
                        "i1", "Letter", 3, 1944, 1, 1),
+    # 4.3.1 (Knut, #182 5875467209): five more "by Pharmacist", quality checked
+    # by Knut, in place of the last four prebuilt page images. All five are a
+    # Full layout setup. Rows printed by the same script.
+    _pharmacist_preset("pharm_cm_a3plus_924p_1page_landscape_w14_0mm_ergonomical",
+                       "A3Plus-924p-1page-Landscape-w14.0mm-Ergonomical target by Pharmacist",
+                       "CM", "483x329", 1, 924, 1, 1),
+    _pharmacist_preset("pharm_cm_a4_624p_2pages_portrait_w14_0mm_ergonomical",
+                       "A4-624p-2pages-Portrait-w14.0mm-Ergonomical target by Pharmacist",
+                       "CM", "A4", 2, 624, 2, 2),
+    _pharmacist_preset("pharm_cm_a3_725p_1page_landscape_w14_0mm_ergonomical",
+                       "A3-725p-1page-Landscape-w14.0mm-Ergonomical target by Pharmacist",
+                       "CM", "420x297", 1, 725, 1, 1),
+    _pharmacist_preset("pharm_i1_4x6in_600p_4pages_w7_5mm_real_world",
+                       "4x6in-600p-4pages-w7.5mm-(standard quality)-Real World Target-by Pharmacist",
+                       "i1", "4x6", 4, 600, 2, 2),
+    _pharmacist_preset("pharm_i1_5x7in_702p_3pages_w8_0mm_real_world",
+                       "5x7in-702p-3pages-w8.0mm-(standard quality)-Real World Target-by Pharmacist",
+                       "i1", "127x178", 3, 702, 2, 2),
 
     # --- Red River Paper vendor family (one shared, locked 2052-patch .ti1) ---
     # Six independent recipes — see the note above the _RR_* dicts.
@@ -3771,14 +3722,10 @@ DISABLED_BUILTIN_PRESET_KEYS: frozenset = frozenset()
 #: both the seed and the tag from a preset the user saves.
 BUILTIN_PRESET_SEED_FIXED = False
 
-# Every built-in (non-deletable) preset key — all four are prebuilt-files. Used
-# to protect them from the delete button and to keep disk presets from shadowing
-# them.
+# Every built-in (non-deletable) preset key. Used to protect them from the
+# delete button and to keep disk presets from shadowing them.
 BUILTIN_PRESET_KEYS = frozenset(PREBUILT_PRESETS) | KNUT_PRESET_KEYS
-BUILTIN_PRESET_LABELS = frozenset({
-    ABW702_PRESET_LABEL, TC924_CM_A3_PRESET_LABEL,
-    PHOTOCARD600_PRESET_LABEL, PHOTOCARD648_PRESET_LABEL,
-}) | {p.combo_label for p in KNUT_PRESETS}
+BUILTIN_PRESET_LABELS = frozenset({p.combo_label for p in KNUT_PRESETS})
 
 # Built-in presets grouped by the instrument they target — the single source of
 # truth shared by the Manual presets dropdown (_populate_preset_combo) and the
@@ -3837,19 +3784,9 @@ def _group_heading(group: str) -> str:
     return INSTRUMENT_GROUP_LABELS.get(group, group)
 BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
     (_group_heading("ColorMunki"), [
-        (ABW702_PRESET_LABEL,  "A4-702p-2pages ABW-optimized by Pharmacist",   ABW702_PRESET_KEY),
-        (TC924_CM_A3_PRESET_LABEL, "A3-924p-1page TC9.24 by Pharmacist",       TC924_CM_A3_PRESET_KEY),
         *_KNUT_GROUP_ENTRIES["ColorMunki"],
     ]),
     (_group_heading("i1Pro"), [
-        # Smallest sheet first. That is all this block has ever done (it ran
-        # A4-1110, A4-1160, A4-1944, Letter-1160, Letter-1944: paper, then
-        # count), and these are the two smallest sheets ChromIQ ships a chart
-        # for. Not Knut's paper-then-width-then-count rule, which belongs to the
-        # Knut families below: a prebuilt bundle stores no patch width, which is
-        # why these labels carry none.
-        (PHOTOCARD600_PRESET_LABEL, "10x15cm-600p-4pages by Pharmacist", PHOTOCARD600_PRESET_KEY),
-        (PHOTOCARD648_PRESET_LABEL, "13x18cm-648p-3pages by Pharmacist", PHOTOCARD648_PRESET_KEY),
         *_KNUT_GROUP_ENTRIES["i1Pro"],
     ]),
     # i1Pro 3 Plus family (Knut, 2026-08-18): its own group, not folded into

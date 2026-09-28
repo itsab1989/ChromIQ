@@ -40,7 +40,9 @@ from ui.dialogs import preset_verification_dialog as PVD           # noqa: E402
 from workflow import measurement_report as MR                      # noqa: E402
 from workflow import preset_eligibility as PE                      # noqa: E402
 
-CORNER_CHART = Path("assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702.ti1")
+#: The ColorMunki A4 702 by Pharmacist, a real chart with all eight cube
+#: corners. It shipped until 4.3.0 and is a fixture since.
+CORNER_CHART = Path("tests/fixtures/charts/prebuilt/pharmacist/rgb/colormunki/a4/abw702/abw702.ti1")
 #: The strictest shipped combination: it puts a limit on the three metrics a
 #: colorimetric reference is the only key to, so it is the one that can tell a
 #: gamut chart from an ordinary one.

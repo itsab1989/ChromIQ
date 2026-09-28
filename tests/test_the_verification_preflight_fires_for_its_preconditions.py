@@ -40,12 +40,12 @@ from ui.measurement_target_bar import MeasurementTargetController  # noqa: E402
 from workflow import measurement_report as MR                      # noqa: E402
 from workflow import preset_eligibility as PE                      # noqa: E402
 
-#: A shipped chart that really holds all eight cube corners, so the FROM
-#: PROFILE GAMUT case below can be modelled on a chart rather than on a fake.
-#: Measured over all 177 built-ins, 2026-09-21: this is one of the ones that
-#: does, and `test_the_corner_chart_still_holds_every_corner` fails if it stops
+#: A real chart that holds all eight cube corners, so the FROM PROFILE GAMUT
+#: case below can be modelled on a chart rather than on a fake. Measured over
+#: all 177 built-ins, 2026-09-21: this is one of the ones that does. It shipped
+#: until 4.3.0 (the ColorMunki A4 702 by Pharmacist) and is a fixture since, and `test_the_corner_chart_still_holds_every_corner` fails if it stops
 #: being true instead of the gamut tests quietly testing nothing.
-CORNER_CHART = Path("assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702.ti1")
+CORNER_CHART = Path("tests/fixtures/charts/prebuilt/pharmacist/rgb/colormunki/a4/abw702/abw702.ti1")
 
 
 @pytest.fixture(scope="module")

@@ -1,5 +1,18 @@
 # Changelog
 
+## v4.3.1
+
+**Five new "by Pharmacist" chart presets, made by Pharmacist and quality checked by Knut, take the place of the last four that came only as page images.**
+
+### New
+
+- Five "by Pharmacist" presets with a full page layout: the ColorMunki Ergonomical target on A3+ landscape (924 patches, 1 page), on A3 landscape (725 patches, 1 page) and on A4 portrait (624 patches, 2 pages), and the i1Pro Real World Target in standard quality on 4x6" photo paper (600 patches, 4 pages) and on 5x7" photo paper (702 patches, 3 pages). Thanks to Pharmacist for the charts and to Knut for checking them.
+- Each of the five is a "Full layout setup": it builds with the ChromIQ layout engine, can be laid out again on another sheet, and brings its design for the patch-set editor. All five are shown in the preset lists straight away.
+
+### Changed
+
+- The last four "by Pharmacist" presets that came as pre-rendered page images are removed: the i1Pro 10x15cm 600 and 13x18cm 648 photo cards, the ColorMunki A3 924 TC9.24 and the ColorMunki A4 702 ABW-optimized. A project you already made from one of them keeps its chart and opens as before. ChromIQ now has 188 built-in chart presets.
+
 ## v4.3.0
 
 **The Measurement Report grows up.** ChromIQ 4.3.0 turns the report into six report types judged against named limit sets, including the published ISO 12647-7 and ISO 12647-8 values, adds evenness across the sheet and repeatability, and keeps every report as a dated document you can reopen exactly as it was saved. Create Chart gets a curated list of 187 ready-made presets, a finer layout engine and clearer sheet text, and ChromIQ is now complete in 14 languages.

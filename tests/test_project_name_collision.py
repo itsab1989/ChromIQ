@@ -581,8 +581,7 @@ def test_a_project_holding_only_a_calibration_is_not_empty(tmp_path):
 # 8. every route that adopts the typed name asks first
 # ---------------------------------------------------------------------------
 
-def test_choosing_a_prebuilt_preset_asks_before_it_adopts(
-        chart_tab, tmp_path, monkeypatch):
+def test_choosing_a_prebuilt_preset_asks_before_it_adopts(prebuilt_bundles, chart_tab, tmp_path, monkeypatch):
     """Knut's exact report, on the one route the first fix missed: MERELY
     choosing a prebuilt-files preset from the dropdown adopts the typed name
     and resets the run's chart artefacts."""
@@ -1008,7 +1007,7 @@ def test_generate_cancels_the_DEBOUNCED_preview_too(chart_tab, tmp_path):
 # 15. a preset the user was told was not applied must not stay in the dropdown
 # ---------------------------------------------------------------------------
 
-def test_a_refused_preset_leaves_the_dropdown_where_it_was(chart_tab, tmp_path,
+def test_a_refused_preset_leaves_the_dropdown_where_it_was(prebuilt_bundles, chart_tab, tmp_path,
                                                            monkeypatch):
     """Answer the project window with Cancel, whose button says it changes
     nothing, and the dropdown went on showing a preset that had not been
@@ -1048,8 +1047,7 @@ def test_a_refused_preset_leaves_the_dropdown_where_it_was(chart_tab, tmp_path,
     assert not fm.is_named(), "Cancel adopted the project anyway"
 
 
-def test_a_refusal_after_a_preset_was_applied_goes_back_to_that_preset(
-        chart_tab, tmp_path, monkeypatch):
+def test_a_refusal_after_a_preset_was_applied_goes_back_to_that_preset(prebuilt_bundles, chart_tab, tmp_path, monkeypatch):
     """Basti's ruling, 2026-08-27: a refused preset leaves the tab exactly as it
     was — which includes the dropdown showing the preset that WAS applied.
 

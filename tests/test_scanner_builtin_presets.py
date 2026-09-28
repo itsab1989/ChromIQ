@@ -167,7 +167,7 @@ def test_selecting_scanner_preset_turns_engine_on(qapp, tmp_path, monkeypatch):
     assert built and built[-1].name == "chart.ti1"     # the bundled patch set
 
 
-def test_selecting_a_printtarg_builtin_turns_the_engine_off(qapp, tmp_path,
+def test_selecting_a_printtarg_builtin_turns_the_engine_off(prebuilt_bundles, qapp, tmp_path,
                                                             monkeypatch):
     """The other half of the pair, SPLIT OUT so neither can hide the other.
 
@@ -205,7 +205,7 @@ def test_scanner_tooltip_mentions_scan_workflow(qapp, tmp_path):
     assert "printtarg" not in tip            # engine preset, no printtarg line
 
 
-def test_the_parking_mechanism_is_still_wired(qapp, tmp_path):
+def test_the_parking_mechanism_is_still_wired(prebuilt_bundles, qapp, tmp_path):
     """Nothing is parked today, and the machinery to park something must survive
     that.
 
@@ -219,8 +219,8 @@ def test_the_parking_mechanism_is_still_wired(qapp, tmp_path):
     """
     import inspect
 
-    from ui.tabs.tab_chart import (DISABLED_BUILTIN_PRESET_KEYS, TabChart,
-                                   TC924_CM_A3_PRESET_KEY)
+    from tests._prebuilt_fixture import TC924_CM_A3_KEY as TC924_CM_A3_PRESET_KEY
+    from ui.tabs.tab_chart import DISABLED_BUILTIN_PRESET_KEYS, TabChart
     assert DISABLED_BUILTIN_PRESET_KEYS == frozenset()
     src = inspect.getsource(TabChart._add_builtin_preset_item)
     assert "temporarily unavailable" in src
@@ -238,7 +238,8 @@ def test_the_parking_mechanism_is_still_wired(qapp, tmp_path):
         tab._apply_preset_collapse()
         combo = tab._preset_combo
         # …and the ColorMunki A3 TC9.24, a different chart entirely, is
-        # untouched by that removal.
+        # untouched by that removal. (Withdrawn itself in 4.3.1, it is
+        # registered from tests/fixtures for this test.)
         # Not PARKED: listed, and without the parking label. (Whether it is
         # enabled while the list is closed depends on the curated list since
         # K35: a preset under a closed "N more presets" arrow is disabled too,

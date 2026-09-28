@@ -234,9 +234,11 @@ def test_builtin_fulllayout_recipes_appear_starred(qapp):
     # issue #182), and his eight 7.5 mm "Maximised - No Clip-border" i1Pro
     # charts on A4 and Letter (2026-09-22, issue #182), and eight of the nine
     # "by Pharmacist" charts with a layout (beta 47, #182 5860041950: the
-    # TC3.00 Target ships no editor design), two of them ColorMunki.
-    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19 + 26 + 19 + 8 + 8
-    assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45 + 2
+    # TC3.00 Target ships no editor design), two of them ColorMunki, and the
+    # five "by Pharmacist" charts of 4.3.1 (#182 5875467209), three of them
+    # ColorMunki.
+    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19 + 26 + 19 + 8 + 8 + 5
+    assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45 + 2 + 3
     assert sum(1 for n in starred if n.startswith("★ i1Pro 3 Plus")) == 24
     assert sum(1 for n in starred if n.startswith("★ CR30 ")) == 26
     assert sum(1 for n in starred if "Scanner" in n) == 6

@@ -8,6 +8,10 @@ layout replace seven that were only page images.
   "Layout, but no editor setup".
 * All but the "(ChromIQ Editor)" TC3.00 Equivalent are shown by default.
 * Each builds exactly the sender's patch set.
+
+4.3.1 (#182 5875467209) withdrew the four that stayed and added five more with
+a page layout; that change is ``test_b8_1700_the_last_prebuilt_images_make_way.py``.
+The nine of beta 47 are still held here, by their slugs.
 """
 from __future__ import annotations
 
@@ -22,6 +26,7 @@ from ui.tabs import tab_chart as TC
 
 ROOT = Path(__file__).resolve().parents[1]
 
+#: Kept in beta 47, withdrawn in 4.3.1 (B8-1700).
 KEPT = {
     "__chromiq_photocard600_builtin__", "__chromiq_photocard648_builtin__",
     "__chromiq_tc924_cm_a3_builtin__", "__chromiq_abw702_builtin__",
@@ -37,13 +42,28 @@ EDITOR_EQUIVALENT = \
     "__chromiq_knut_pharm_cm_a4r_300p_1page_landscape_w9_0mm_tc300_editor__"
 
 
+#: The nine of beta 47.
+NINE = {
+    "pharm_cm_a4r_300p_1page_landscape_w9_0mm_tc300_editor",
+    "pharm_cm_a4r_300p_1page_landscape_w9_0mm_tc300",
+    "pharm_cm_a4r_600p_2pages_landscape_w9_0mm_abw",
+    "pharm_i1_a4_648p_1page_portrait_w7_5mm_real_world",
+    "pharm_i1_a4_1296p_2pages_portrait_w7_5mm_real_world",
+    "pharm_i1_a4_1944p_3pages_portrait_w7_5mm_real_world",
+    "pharm_i1_letter_648p_1page_portrait_w7_5mm_real_world",
+    "pharm_i1_letter_1296p_2pages_portrait_w7_5mm_real_world",
+    "pharm_i1_letter_1944p_3pages_portrait_w7_5mm_real_world",
+}
+
+
 def _new():
-    return [p for p in TC.KNUT_PRESETS if p.slug.startswith("pharm_")]
+    return [p for p in TC.KNUT_PRESETS if p.slug in NINE]
 
 
-def test_seven_prebuilt_images_are_withdrawn_and_four_stay():
-    assert set(TC.PREBUILT_PRESETS) == KEPT
-    assert not WITHDRAWN & TC.BUILTIN_PRESET_KEYS
+def test_seven_prebuilt_images_are_withdrawn_and_the_other_four_later():
+    """Seven in beta 47; the four kept then went in 4.3.1 (B8-1700)."""
+    assert set(TC.PREBUILT_PRESETS) == set()
+    assert not (WITHDRAWN | KEPT) & TC.BUILTIN_PRESET_KEYS
     for leaf in ("i1pro/a4/abw1110", "i1pro/a4/tc918eg", "i1pro/letter/tc918eg",
                  "colormunki/a4/tc300", "colormunki/a3plus/tc918eg",
                  "i1pro/a4/extended1944", "i1pro/letter/extended1944"):

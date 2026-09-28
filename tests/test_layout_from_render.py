@@ -19,7 +19,7 @@ from tests.argyll_env import argyll_tool  # noqa: E402
 from workflow.layout_from_render import (RenderGeometryError,  # noqa: E402
                                          derive_layout_from_render)
 
-ASSETS = Path(__file__).resolve().parent.parent / "assets/charts/pharmacist"
+ASSETS = Path(__file__).resolve().parent.parent / "tests/fixtures/charts/prebuilt/pharmacist"
 ARGYLL_TARGEN = argyll_tool("targen")
 
 

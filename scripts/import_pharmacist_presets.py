@@ -54,12 +54,26 @@ CHARTS = {
         ("pharm_i1_letter_1296p_2pages_portrait_w7_5mm_real_world", "i1", "Letter", False),
     "i1Pro-Letter-1944p-3pages-Portrait-w7.5mm-(expert quality)-Real World Target-by Pharmacist":
         ("pharm_i1_letter_1944p_3pages_portrait_w7_5mm_real_world", "i1", "Letter", False),
+    # 4.3.1 (Knut, #182 5875467209): five more, quality checked by Knut.
+    "ColorMunki-A3Plus-924p-1page-Landscape-w14.0mm-Ergonomical target by Pharmacist":
+        ("pharm_cm_a3plus_924p_1page_landscape_w14_0mm_ergonomical", "CM", "483x329", False),
+    "ColorMunki-A4-624p-2pages-Portrait-w14.0mm-Ergonomical target by Pharmacist":
+        ("pharm_cm_a4_624p_2pages_portrait_w14_0mm_ergonomical", "CM", "A4", False),
+    "ColorMunki-A3-725p-1page-Landscape-w14.0mm-Ergonomical target by Pharmacist":
+        ("pharm_cm_a3_725p_1page_landscape_w14_0mm_ergonomical", "CM", "420x297", False),
+    "i1Pro-4x6in-600p-4pages-w7.5mm-(standard quality)-Real World Target-by Pharmacist":
+        ("pharm_i1_4x6in_600p_4pages_w7_5mm_real_world", "i1", "4x6", False),
+    "i1Pro-5x7in-702p-3pages-w8.0mm-(standard quality)-Real World Target-by Pharmacist":
+        ("pharm_i1_5x7in_702p_3pages_w8_0mm_real_world", "i1", "127x178", False),
 }
 
 
 #: The editor's paper spin boxes for each printtarg paper, as Knut's other
 #: recipes store them (whole millimetres).
-PAPER_MM = {"A4": (210, 297), "A4R": (297, 210), "Letter": (216, 279)}
+#: 4x6 is inches, so its sheet is 101.6 x 152.4 mm, rounded as Letter's is.
+PAPER_MM = {"A4": (210, 297), "A4R": (297, 210), "Letter": (216, 279),
+            "420x297": (420, 297), "483x329": (483, 329),
+            "4x6": (102, 152), "127x178": (127, 178)}
 
 
 def ti1_counts(path: Path) -> tuple[int, int, int]:
@@ -79,7 +93,16 @@ def main() -> int:
     ap.add_argument("--write", action="store_true")
     args = ap.parse_args()
     rows = []
-    for stem, (slug, instr, paper, layout_only) in CHARTS.items():
+    # Knut sends the charts in batches, so a folder holds only its own batch:
+    # a stem the folder does not hold is skipped, and a folder holding none
+    # of them is refused.
+    present = {s: v for s, v in CHARTS.items()
+               if (args.src / f"{s}.json").is_file()}
+    if not present:
+        print(f"REFUSED {args.src}: it holds none of the known exports",
+              file=sys.stderr)
+        return 1
+    for stem, (slug, instr, paper, layout_only) in present.items():
         exp = json.loads((args.src / f"{stem}.json").read_text(encoding="utf-8"))
         data = exp["data"]
         layout = dict(data["layout_recipe"])

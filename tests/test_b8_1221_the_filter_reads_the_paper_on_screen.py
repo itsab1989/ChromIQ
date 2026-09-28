@@ -356,7 +356,16 @@ def test_a_group_with_none_ticked_on_the_paper_shows_its_heading_and_arrow(
     presets" and list none of them directly; i1Pro keeps its ticked ones and
     its arrow. B8-1227 listed ColorMunki's 8 directly.
     MUTATION: put B8-1227's rule back in `_apply_preset_collapse` (red:
-    pulldown) or in `_open_builtin_preset_overlay` (red: popup)."""
+    pulldown) or in `_open_builtin_preset_overlay` (red: popup).
+
+    4.3.1 SHIPS ONE TICKED: the ColorMunki A3 725 "by Pharmacist" (B8-1700)
+    is on A3 Landscape and shown by default, so the case Knut described, none
+    ticked, is now the case of a person who unticked it. That is set here as
+    the person's own choice, through the gear window's own OK path, and
+    ColorMunki then has nine under its arrow."""
+    tab._apply_builtin_presets_shown(
+        cp.shown_keys(tab._settings, TC.BUILTIN_PRESET_KEYS)
+        - {"__chromiq_knut_pharm_cm_a3_725p_1page_landscape_w14_0mm_ergonomical__"})
     shown = cp.shown_keys(tab._settings, TC.BUILTIN_PRESET_KEYS)
     cm = _on_paper(CM, "420x297")
     assert cm and not set(cm) & shown, "the case: none of them ticked"
@@ -377,7 +386,7 @@ def test_a_group_with_none_ticked_on_the_paper_shows_its_heading_and_arrow(
     assert not view.isRowHidden(i1_arrow)
     assert cb.itemData(i1_arrow, TC.Qt.ItemDataRole.UserRole + 44) \
         == len(set(i1) - shown)
-    # Opening the arrow shows exactly those 8.
+    # Opening the arrow shows exactly those nine.
     tab._on_preset_more_row(arrow, "open")
     for k in cm:
         assert not view.isRowHidden(cb.findData(k)), k

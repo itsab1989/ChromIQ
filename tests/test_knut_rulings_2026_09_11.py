@@ -156,20 +156,22 @@ def test_both_name_generators_answer_a_square_sheet_the_same_way(qapp, settings)
     ("100x150", "i1Pro-100x150mm-600p-4pages-Portrait by Pharmacist"),
     ("130x180", "i1Pro-130x180mm-648p-3pages-Portrait by Pharmacist"),
 ])
-def test_the_two_custom_paper_builtins_are_named_by_their_own_rule(marker, name):
+def test_the_two_custom_paper_builtins_are_named_by_their_own_rule(marker, name,
+                                                                 prebuilt_bundles):
     """A BUILT-IN'S DEFAULT TARGET NAME IS THE NAME OF A FOLDER ON DISK, and it
     has to be the name the generator would produce for the same sheet, or the
     app disagrees with the rule its own help icon explains. These two read
     ``i1Pro-100x150-600p-4pages`` and ``i1Pro-130x180-648p-3pages`` until
     2026-09-11: no unit, and no orientation, on the only two bundled charts
     whose paper is a custom size. 100 < 150 and 130 < 180, so both are
-    Portrait."""
+    Portrait. (4.3.1 withdrew both; the rule is held on the same bundles,
+    registered from tests/fixtures, for the next one.)"""
     from ui.tabs.tab_chart import PREBUILT_PRESETS
     got = next(v[1] for v in PREBUILT_PRESETS.values() if marker in v[0])
     assert got == name
 
 
-def test_every_custom_paper_builtin_agrees_with_the_generator():
+def test_every_custom_paper_builtin_agrees_with_the_generator(prebuilt_bundles):
     """The rule, not the two strings: any bundled chart filed under a
     ``<W>x<H>`` paper folder must carry that folder's generated paper token and
     orientation in its default target name. A twelfth photo-card size added next
@@ -302,7 +304,8 @@ def test_the_untick_runs_after_the_dispatch_for_every_builtin(qapp):
     assert call < locks
 
 
-def test_selecting_a_prebuilt_file_preset_unticks_the_box(qapp, tmp_path, monkeypatch):
+def test_selecting_a_prebuilt_file_preset_unticks_the_box(qapp, tmp_path, monkeypatch,
+                                                         prebuilt_bundles):
     """THE BRANCH THAT WAS ACTUALLY BROKEN, driven through the dropdown slot.
 
     The eleven "by Pharmacist" presets copy a pre-rendered chart and hand the

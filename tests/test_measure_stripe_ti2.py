@@ -29,7 +29,7 @@ from ui.tabs.tab_measure import TabMeasure  # noqa: E402
 
 # A bundled single-page chart (47 strips, 940 patches) whose descriptive caption
 # is printed down the right margin — the exact shape that fools the label counter.
-_ASSET_STEM = "assets/charts/pharmacist/rgb/colormunki/a3/tc924/tc924"
+_ASSET_STEM = "tests/fixtures/charts/prebuilt/pharmacist/rgb/colormunki/a3/tc924/tc924"
 _EXPECTED_STRIPS = 47
 
 

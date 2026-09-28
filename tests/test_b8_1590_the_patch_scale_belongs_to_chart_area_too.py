@@ -20,7 +20,9 @@ Every other built-in preset must still equal beta 44.
 
 The nine "by Pharmacist" charts Knut added in beta 47 (#182 5860041950) did not
 exist in beta 44, so they are pinned to a third snapshot, taken from the beta 47
-code that first shipped them, and a later change cannot move one either."""
+code that first shipped them, and a later change cannot move one either. The
+five of 4.3.1 (#182 5875467209) are pinned the same way, to a fourth snapshot
+taken from the 4.3.1 code."""
 from __future__ import annotations
 
 import json
@@ -42,6 +44,11 @@ BETA45_PHOTO_CARDS = json.loads(
         encoding="utf-8"))
 BETA47_PHARMACIST = json.loads(
     (ROOT / "tests/data/b8_1590_pharmacist_geometry_beta47.json").read_text(
+        encoding="utf-8"))
+#: The five of 4.3.1 (#182 5875467209), from the 4.3.1 code that first ships
+#: them (B8-1700).
+V431_PHARMACIST = json.loads(
+    (ROOT / "tests/data/b8_1590_pharmacist_geometry_431.json").read_text(
         encoding="utf-8"))
 
 #: The presets Knut's ruling moves away from beta 44, named one by one so a
@@ -89,15 +96,26 @@ def _laid_out(p) -> dict:
 
 def test_every_built_in_engine_preset_is_in_the_snapshot(qapp):
     assert set(_presets()) == (set(BETA44["presets"])
-                               | set(BETA47_PHARMACIST["presets"]))
+                               | set(BETA47_PHARMACIST["presets"])
+                               | set(V431_PHARMACIST["presets"]))
     assert len(BETA44["presets"]) >= 170
     assert len(BETA47_PHARMACIST["presets"]) == 9
+    assert len(V431_PHARMACIST["presets"]) == 5
     assert not set(BETA44["presets"]) & set(BETA47_PHARMACIST["presets"])
+    assert not (set(BETA44["presets"]) | set(BETA47_PHARMACIST["presets"])) \
+        & set(V431_PHARMACIST["presets"])
 
 
 def test_the_pharmacist_charts_lay_out_as_in_beta_47(qapp):
     presets = _presets()
     wrong = sorted(k for k, want in BETA47_PHARMACIST["presets"].items()
+                   if _laid_out(presets[k]) != want)
+    assert not wrong, wrong[:5]
+
+
+def test_the_431_pharmacist_charts_lay_out_as_in_4_3_1(qapp):
+    presets = _presets()
+    wrong = sorted(k for k, want in V431_PHARMACIST["presets"].items()
                    if _laid_out(presets[k]) != want)
     assert not wrong, wrong[:5]
 

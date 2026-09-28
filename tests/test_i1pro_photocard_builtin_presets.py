@@ -279,36 +279,31 @@ def test_they_are_i1pro_charts_not_a_family_of_their_own():
     assert all(p.key in keys for p in PHOTO)
 
 
-def test_they_sit_beside_the_pharmacist_photo_cards():
-    """Basti: the two cards go under the existing i1Pro heading, beside the
-    Pharmacist ones, which stay exactly as they are.
+def test_they_open_the_i1pro_group_smallest_sheet_first():
+    """Basti: the cards go under the existing i1Pro heading.
 
-    All SEVEN Pharmacist rows are hard-coded at the head of the group and the
-    Knut rows are appended after them in ``_paper_sort_key`` order, so the
-    photo cards land at the head of the Knut block — before every A4 chart he
-    ever exported. Both halves are pinned: the two prebuilt photo cards still
-    open the group, and all nineteen of his open the Knut block, unbroken.
+    Until 4.3.0 two prebuilt "by Pharmacist" photo cards were hard-coded at
+    the head of the group and Knut's nineteen followed them, unbroken. 4.3.1
+    withdrew those two (#182 5875467209) and added two "by Pharmacist" charts
+    WITH a layout on the photo sizes between his, 4x6" and 5x7", which sort
+    with his by sheet like every other row. So the group now opens with the
+    small sheets, smallest first: his ten 100 x 150 mm cards, the 4x6", the
+    5x7", then his nine 130 x 180 mm cards, and every chart after them is on a
+    named sheet (A4 / Letter / A3).
     """
     entries = dict(BUILTIN_PRESET_GROUPS)[INSTRUMENT_LABELS["i1"]]
     overlays = [o for (_c, o, _k) in entries]
     keys = [k for (_c, _o, k) in entries]
-    # The Pharmacist block did not move: its two photo cards still open it.
-    assert overlays[:2] == ["10x15cm-600p-4pages by Pharmacist",
-                            "13x18cm-648p-3pages by Pharmacist"]
-    knut = {p.key for p in KNUT_PRESETS}
-    first_knut = next(i for i, k in enumerate(keys) if k in knut)
     photo = {p.key for p in PHOTO}
-    block = keys[first_knut:first_knut + len(PHOTO)]
-    assert set(block) == photo, "the photo cards no longer open the Knut block"
-    # The small card comes before the large one (the sort is area-based), and
-    # the very first of his is still the 600-patch chart he sent in September.
-    assert overlays[first_knut] == "100x150mm-150p-1page-Portrait-w7.5mm"
-    assert [o[:7] for o in overlays[first_knut:first_knut + len(PHOTO)]] == (
-        ["100x150"] * 10 + ["130x180"] * 9)
-    # …and every Knut chart after them is on a named sheet (A4 / Letter / A3),
-    # so nothing of his is left stranded between the cards and the A4 block.
-    assert all(not o[0].isdigit()
-               for o in overlays[first_knut + len(PHOTO):])
+    small = len(PHOTO) + 2
+    assert [o[:7] for o in overlays[:small]] == (
+        ["100x150"] * 10 + ["4x6in-6", "5x7in-7"] + ["130x180"] * 9)
+    assert set(keys[:small]) - photo == {
+        "__chromiq_knut_pharm_i1_4x6in_600p_4pages_w7_5mm_real_world__",
+        "__chromiq_knut_pharm_i1_5x7in_702p_3pages_w8_0mm_real_world__"}
+    # the very first is still the 150-patch chart he sent in September
+    assert overlays[0] == "100x150mm-150p-1page-Portrait-w7.5mm"
+    assert all(not o[0].isdigit() for o in overlays[small:])
 
 
 def test_each_row_carries_the_full_layout_setup_marker():
@@ -526,14 +521,15 @@ def test_only_the_photo_cards_have_an_opinion_on_the_stamp():
 
     The third, beta 47 (B8-1620): the nine "by Pharmacist" charts with a
     layout, whose exports all carry it OFF; left on, it ran over the patches
-    of the ColorMunki A4 600 on screen."""
+    of the ColorMunki A4 600 on screen. 4.3.1 added five more, whose exports
+    carry it OFF too."""
     from ui.tabs.tab_chart import KNUT_PRESETS
     opinionated = {q.slug for q in KNUT_PRESETS if q.stamp_settings is not None}
     maximised_a4_letter = {q.slug for q in KNUT_PRESETS
                            if q.slug.startswith("i1_w75max_")}
     pharmacist = {q.slug for q in KNUT_PRESETS if q.slug.startswith("pharm_")}
     assert len(maximised_a4_letter) == 8
-    assert len(pharmacist) == 9
+    assert len(pharmacist) == 14
     assert opinionated == ({q.slug for q in PHOTO} | maximised_a4_letter
                            | pharmacist)
 

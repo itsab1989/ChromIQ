@@ -69,6 +69,7 @@ from ui.measurement_target_bar import (                            # noqa: E402
 from ui.tabs import tab_chart as TC                                # noqa: E402
 from ui.tabs.tab_chart import (PREBUILT_PRESETS, TabChart,         # noqa: E402
                                verification_preset_rows)
+from tests._prebuilt_fixture import ABW702_KEY                     # noqa: E402
 from workflow import compliance_sets as CS                         # noqa: E402
 from workflow import control_strip as CSP                          # noqa: E402
 from workflow import measurement_messages as MM                    # noqa: E402
@@ -402,28 +403,26 @@ def test_the_count_line_is_the_sentence_knut_wrote(window, qapp):
 # ---------------------------------------------------------------------------
 # 5. the "by Pharmacist" bundles
 # ---------------------------------------------------------------------------
-def test_the_prebuilt_images_are_the_four_kept_by_pharmacist_presets(
-        tmp_path):
+def test_no_shipped_preset_is_a_prebuilt_image_since_4_3_1(tmp_path):
     """The rule was always the PROPERTY: *"these charts do not have a proper
     layout and come with pre-made tif files"*. Until beta 47 every "by
     Pharmacist" preset was one, so the name and the property picked the same
-    eleven. Knut then withdrew seven of them and sent nine with a page layout
-    (#182 5860041950), so the name no longer picks the set: the four prebuilt
-    images he kept are the only presets that cannot be laid out again, and the
-    nine new ones can.
+    eleven. Knut withdrew seven of them in beta 47 (#182 5860041950) and the
+    last four in 4.3.1 (#182 5875467209), each time for charts with a page
+    layout. So no shipped preset is a prebuilt image any more, and every "by
+    Pharmacist" preset can be laid out again. The property is still held,
+    on the withdrawn bundles, by the tests below.
     """
     settings, _fm, _ctl = _env(tmp_path)
     rows = verification_preset_rows(settings)
-    by_property = {r.label for r in rows if not r.relayoutable}
-    assert len(by_property) == len(PREBUILT_PRESETS) == 4
-    assert all("by Pharmacist" in lbl for lbl in by_property), by_property
+    assert PREBUILT_PRESETS == {}
+    assert not [r.label for r in rows if not r.relayoutable]
     laid_out = {r.label for r in rows
                 if "by Pharmacist" in r.label and r.relayoutable}
-    assert len(laid_out) == 8, sorted(laid_out)    # + the "(ChromIQ Editor)" one
+    assert len(laid_out) == 13, sorted(laid_out)   # + the "(ChromIQ Editor)" one
 
 
-def test_a_prebuilt_preset_never_carries_the_star_and_leaves_the_filtered_list(
-        window, qapp):
+def test_a_prebuilt_preset_never_carries_the_star_and_leaves_the_filtered_list(prebuilt_bundles, window, qapp):
     """*"when ticking 'Show only the presets made for verification' these
     presets should not show up in the list."*
 
@@ -446,8 +445,7 @@ def test_a_prebuilt_preset_never_carries_the_star_and_leaves_the_filtered_list(
         f"still listed with the tick box on: {sorted(filtered & pharma)}")
 
 
-def test_the_detail_pane_says_from_profile_gamut_and_names_the_metrics(
-        window, qapp):
+def test_the_detail_pane_says_from_profile_gamut_and_names_the_metrics(prebuilt_bundles, window, qapp):
     """*"noted as 'not usable for verification using From Profile Gamut' and
     then also mention which metrics cannot be fulfilled."*"""
     label = next(r.label for r in window._rows if not r.relayoutable)
@@ -465,7 +463,7 @@ def test_the_detail_pane_says_from_profile_gamut_and_names_the_metrics(
             f"pane does not say so")
 
 
-def test_the_gamut_only_metrics_are_the_rows_the_report_itself_withholds():
+def test_the_gamut_only_metrics_are_the_rows_the_report_itself_withholds(prebuilt_bundles):
     """The list in the pane is not a second opinion.
 
     `gamut_only_rows` reads the row table; the report withholds a row with
@@ -476,7 +474,7 @@ def test_the_gamut_only_metrics_are_the_rows_the_report_itself_withholds():
     finding.
     """
     from core.resource_path import resource_path
-    chart = resource_path(TC.PREBUILT_PRESETS[TC.ABW702_PRESET_KEY][0] + ".ti1")
+    chart = resource_path(TC.PREBUILT_PRESETS[ABW702_KEY][0] + ".ti1")
     assert chart.is_file(), f"the fixture chart is missing: {chart}"
     values = PE.chart_row_values(chart)
     withheld = tuple(
@@ -487,12 +485,12 @@ def test_the_gamut_only_metrics_are_the_rows_the_report_itself_withholds():
     assert PE.gamut_only_rows() == withheld
 
 
-def test_made_for_verification_refuses_a_sheet_that_cannot_be_laid_out_again():
+def test_made_for_verification_refuses_a_sheet_that_cannot_be_laid_out_again(prebuilt_bundles):
     """The rule, at the level it is applied, with the negative control beside
     it: the SAME chart, patch count and page count, starred when the sheet can
     be built again and not when it cannot."""
     from core.resource_path import resource_path
-    chart = resource_path(TC.PREBUILT_PRESETS[TC.ABW702_PRESET_KEY][0] + ".ti1")
+    chart = resource_path(TC.PREBUILT_PRESETS[ABW702_KEY][0] + ".ti1")
     patches = PE.patch_count(chart)
     assert PE.made_for_verification(chart, patches, 1, relayoutable=True)
     assert not PE.made_for_verification(chart, patches, 1, relayoutable=False)
@@ -555,8 +553,7 @@ def test_every_row_carries_the_key_the_pulldown_uses(tmp_path, qapp):
         qapp.processEvents()
 
 
-def test_the_tab_loads_what_the_window_chose_through_the_pulldowns_own_path(
-        verification_tab, qapp, monkeypatch):
+def test_the_tab_loads_what_the_window_chose_through_the_pulldowns_own_path(prebuilt_bundles, verification_tab, qapp, monkeypatch):
     """Item 6's second half: *"equivalent to selecting and loading a preset
     from the 'Select preset' pulldown list."*
 
@@ -586,9 +583,9 @@ def test_the_tab_loads_what_the_window_chose_through_the_pulldowns_own_path(
     tab._open_preset_verification_window()
     assert applied == [], "a window closed with no choice applied a preset"
 
-    chosen["key"] = TC.ABW702_PRESET_KEY
+    chosen["key"] = ABW702_KEY
     tab._open_preset_verification_window()
-    assert applied == [TC.ABW702_PRESET_KEY]
+    assert applied == [ABW702_KEY]
 
 
 def test_the_window_tells_the_reader_about_the_double_click(window):

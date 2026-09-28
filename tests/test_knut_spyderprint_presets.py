@@ -98,10 +98,11 @@ def test_registry_shape():
     # test_i1pro_photocard_builtin_presets.py), and his eight 7.5 mm
     # "Maximised - No Clip-border" i1Pro charts on A4 and Letter (2026-09-22,
     # issue #182 — see test_i1pro75_maximised_builtin_presets.py), and the
-    # nine "by Pharmacist" charts with a page layout (#182 5860041950, beta 47).
-    assert len(KNUT_PRESETS) == 183      # 121 + 26 CR30 + 19 photo + 8 max + 9
-    assert len(KNUT_PRESET_KEYS) == 183  # all keys unique
-    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("pharm_")) == 9
+    # nine "by Pharmacist" charts with a page layout (#182 5860041950, beta 47)
+    # and five more in 4.3.1 (#182 5875467209).
+    assert len(KNUT_PRESETS) == 188      # 121 + 26 CR30 + 19 photo + 8 max + 14
+    assert len(KNUT_PRESET_KEYS) == 188  # all keys unique
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("pharm_")) == 14
     # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
     # Knut's request (#164, 2026-08-23).
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 2

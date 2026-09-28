@@ -65,7 +65,15 @@ bundle should be regenerated. That happened once: the i1Pro/A4 `tc924` set,
 whose patch V16 rendered white where the `.ti2` said grey. It was parked, and
 then removed outright in #164 rather than regenerated.
 
-The four shipped presets (all RGB). Labels follow the same
+**None ships since 4.3.1.** The last four (below) were withdrawn by Knut
+(#182 5875467209) for five more "by Pharmacist" charts with a page layout,
+imported the same way as the nine of beta 47 (next paragraph). The mechanism is
+all still here, and its tests build from the four bundles moved to
+`tests/fixtures/charts/prebuilt/` and registered per test by the
+`prebuilt_bundles` fixture (`tests/_prebuilt_fixture.py`), so a chart that
+can only come as page images still has somewhere to go.
+
+The four that shipped until 4.3.0 (all RGB). Labels follow the same
 `Instrument · Paper-NNNNp-Mpages Name by Pharmacist` convention as the
 ti1→printtarg presets below (patch width / orientation omitted — not stored for
 these pre-rendered charts):
@@ -89,7 +97,12 @@ layout setup", `recipe.json` (its `editor_recipe`). The one without a
 `recipe.json` (the ColorMunki A4 TC3.00 Target) carries the marker
 `KNUT_LAYOUT_ONLY_SUFFIX`, " · Layout, but no editor setup". Re-import with
 `python scripts/import_pharmacist_presets.py <export-folder> --write`, which
-clears the sender's clip-image path and drops `seed_fixed`, and nothing else.
+clears the sender's clip-image path and drops `seed_fixed`, and nothing else
+but re-point the editor design at the chart's own instrument and paper. It
+imports the stems the folder holds, so a batch (4.3.1 sent five) needs no
+other file. Knut's 4.3.1 batch: ColorMunki A3+ 924, A4 624 and A3 725
+"Ergonomical target", i1Pro 4x6" 600 and 5x7" 702 "Real World Target", all
+five a Full layout setup.
 
 **The two photo-card charts (Nelson Lau, 2026-09-08) are the first whose paper
 folder is a size rather than a name**, and that is a mechanism, not a one-off. A

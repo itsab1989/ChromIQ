@@ -16,16 +16,16 @@ from workflow.margin_inspector import measure_margins, _dense_run
 
 MM = 25.4
 BUNDLES = [
-    "assets/charts/pharmacist/rgb/colormunki/a3/tc924/tc924",
-    "assets/charts/pharmacist/rgb/colormunki/a4/abw702/abw702",
-    "assets/charts/pharmacist/rgb/i1pro/100x150/photocard600/photocard600",
-    "assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648",
+    "tests/fixtures/charts/prebuilt/pharmacist/rgb/colormunki/a3/tc924/tc924",
+    "tests/fixtures/charts/prebuilt/pharmacist/rgb/colormunki/a4/abw702/abw702",
+    "tests/fixtures/charts/prebuilt/pharmacist/rgb/i1pro/100x150/photocard600/photocard600",
+    "tests/fixtures/charts/prebuilt/pharmacist/rgb/i1pro/130x180/photocard648/photocard648",
 ]
 # The bundles these tests were written on (the i1Pro A4 1944 extended target
 # and its siblings) were withdrawn by Knut in beta 47 (#182 5860041950). The
 # 13 x 18 cm photo card is the kept bundle with the same shape of trap: three
 # pages, a 360 dpi sidecar and no recipe.
-MULTIPAGE = "assets/charts/pharmacist/rgb/i1pro/130x180/photocard648/photocard648"
+MULTIPAGE = "tests/fixtures/charts/prebuilt/pharmacist/rgb/i1pro/130x180/photocard648/photocard648"
 
 
 def _layout(stem: str) -> dict:
