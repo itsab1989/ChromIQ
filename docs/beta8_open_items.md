@@ -31415,12 +31415,15 @@ would reach.
 - tests: tests/test_new_patch_set_opens_the_selected_preset.py
 - evidence: test_an_own_preset_with_no_design_clears_the_record (fails without the fix)
 
-### B8-1692 · OPEN · The six scanner built-ins' designs name A4 portrait for their landscape A4 and Letter sheets
+### B8-1692 · FIXED, awaiting confirmation · The six scanner built-ins' designs name A4 portrait for their landscape A4 and Letter sheets
 - blocks release: no
 - severity: MINOR
-- status: OPEN
+- status: FIXED
 - found by: the preset-name audit for #182 5872273862 (`tests/test_every_preset_s_names_agree.py`). `assets/charts/knut/rgb/scanner/*/recipe.json` say `"paper": "A4"`, 210 x 297, where the presets are A4R / LetterR, so New Patch Set… and "Load setup from preset" open them on the wrong sheet. Their `"instr": "i1"` is not the fault: the editor has no scanner instrument. Not fixed here because `assets/charts/knut/` was being renamed in a parallel change; the six keys are listed in the test's `KNOWN_WRONG_PAPER`, which fails when one is put right so the entry goes with the fix.
 - where: `assets/charts/knut/rgb/scanner/{a4,letter,a4_2page,letter_2page,a4_3page,letter_3page}/recipe.json`.
+- fix: the three A4 designs now say A4R, 297 x 210, and the three Letter designs LetterR, 279 x 216, the paper of their presets. Only those three fields changed; the charts are untouched.
+- tests: tests/test_every_preset_s_names_agree.py (KNOWN_WRONG_PAPER is empty now)
+- evidence: test_a_built_in_s_design_names_its_chart (the six scanner cases fail without the fix); driven on screen 2026-09-28, the A4 1-page and Letter 2-page scanner presets open New Patch Set on A4R and LetterR; ~/Desktop/ChromIQ-430-stable-prep/preset-save-bug/scanner-paper/
 
 ### B8-1693 · FIXED, awaiting confirmation · Five "by Pharmacist" designs named A4 portrait for Letter and A4-landscape charts
 - blocks release: yes

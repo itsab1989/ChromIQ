@@ -6,6 +6,12 @@
 
 - 56 of the i1Pro and i1Pro 3 Plus built-in presets have new names that also name their patch set, for example "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6". The charts, the "Full layout setup" labels and the ticks in "Settings for built-in presets" stay as they were.
 
+### Fixed
+
+- "New Patch Set…" opens with the design of the preset chosen in Create Chart, not the design of the last chart built.
+- An own preset renamed or copied outside ChromIQ keeps its patch set, and a copy no longer disappears.
+- Five "by Pharmacist" presets and the six scanner presets open "New Patch Set…" on their own paper.
+
 ## v4.3.0-beta.49
 
 **The last beta before 4.3.0: German says "Preset" everywhere, and a found calibration file is never applied without your choice.**

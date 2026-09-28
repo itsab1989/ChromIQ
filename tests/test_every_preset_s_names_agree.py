@@ -37,18 +37,7 @@ from ui.tabs import tab_chart as T                            # noqa: E402
 #: Designs that still name the wrong paper, and why they are still here.
 #: THIS LIST ONLY SHRINKS: a test below fails when an entry has been put right,
 #: so the entry has to go with the fix.
-KNOWN_WRONG_PAPER = {
-    # assets/charts/knut/ was being renamed in a parallel change when this was
-    # found (B8-1692): the six scanner designs say "A4" portrait for their
-    # A4R / LetterR sheets. The editor has no scanner instrument, so their
-    # "i1" is the nearest it can show and is not the fault.
-    "__chromiq_knut_scanner_a4_3430p_1page_landscape__",
-    "__chromiq_knut_scanner_letter_3250p_1page_landscape__",
-    "__chromiq_knut_scanner_a4_6860p_2pages_landscape__",
-    "__chromiq_knut_scanner_letter_6500p_2pages_landscape__",
-    "__chromiq_knut_scanner_a4_10290p_3pages_landscape__",
-    "__chromiq_knut_scanner_letter_9750p_3pages_landscape__",
-}
+KNOWN_WRONG_PAPER: set[str] = set()
 
 #: The instruments the New Patch Set window can show.
 EDITOR_INSTRUMENTS = {"i1", "3p", "CM"}
