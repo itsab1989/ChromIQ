@@ -1,0 +1,271 @@
+"""Scoring one built profile (Agent 6).
+
+Every number is computed from the profile BYTES through a CMM readout
+(:mod:`cmm`), against ground truth (synthetic) or held-out measurements
+(real). Per reader:
+
+* ``a2b``        forward table vs truth at dense TAC-respecting device points
+                 (quasi-random); dE00 and dE ITP stats, plus L*<20 shadows,
+                 L*>85 highlights and near-neutral (C* < 5) subsets.
+* ``b2a``        inverse end to end: ask the table for the ink of an in-gamut
+                 colour, print that ink on the truth printer, compare.
+* ``roundtrip``  A2B(B2A(lab)) vs lab (table self-consistency).
+* ``neutral``    the grey ramp L* from just above the printer's black to 100
+                 at 0.25 steps through B2A, printed on the truth: dE00, the
+                 printed chroma, L* reversals, a banding proxy (max second
+                 difference of printed Lab per step), and the separation
+                 (max per-channel change per 1 L*, total-variation excess).
+* ``ramps``      the same separation smoothness on straight Lab ramps from
+                 paper white to each primary solid and on to the black.
+* ``white/black``  ink put into paper white, printed L* of B2A(0,0,0), TAC.
+
+Real data: ``a2b`` at the held-out patches only; ``b2a`` and ``neutral``
+are printed through a PROXY printer (the colprof -qh profile of ALL
+patches, read by Argyll), labelled ``proxy`` - an estimate, not truth.
+"""
+from __future__ import annotations
+
+import numpy as np
+
+from benchmarks.research import cmm, colour
+
+
+def stats(de: np.ndarray) -> dict:
+    de = np.asarray(de, float)
+    if de.size == 0:
+        return {"n": 0}
+    return {"n": int(de.size), "mean": float(de.mean()),
+            "median": float(np.median(de)),
+            "p95": float(np.percentile(de, 95)),
+            "p99": float(np.percentile(de, 99)), "max": float(de.max())}
+
+
+def _subsets(lab_true: np.ndarray, de: np.ndarray, de_itp: np.ndarray | None
+             ) -> dict:
+    c = np.hypot(lab_true[:, 1], lab_true[:, 2])
+    out = {"all": stats(de),
+           "shadow_L<20": stats(de[lab_true[:, 0] < 20]),
+           "highlight_L>85": stats(de[lab_true[:, 0] > 85]),
+           "neutral_C<5": stats(de[c < 5])}
+    if de_itp is not None:
+        out["itp"] = stats(de_itp)
+    return out
+
+
+def eval_device(n_channels: int, additive: bool, tac: float | None, n: int,
+                seed: int = 7) -> np.ndarray:
+    from benchmarks.synthetic import halton
+    pts = halton(n, n_channels, seed)
+    if tac is not None and not additive:
+        from workflow.profile_engine.b2a import project_tac
+        pts = project_tac(pts, tac / 100.0)
+    return pts
+
+
+def lab_uniform_index(lab: np.ndarray, cell: float = 4.0, seed: int = 3
+                      ) -> np.ndarray:
+    """One point per occupied Lab voxel: a sample uniform over the printed
+    gamut's volume instead of over device space (device-uniform points
+    crowd the dark end, where many ink combinations print alike)."""
+    key = np.floor(lab / cell).astype(np.int64)
+    rng = np.random.default_rng(seed)
+    order = rng.permutation(len(lab))
+    _, first = np.unique(key[order], axis=0, return_index=True)
+    return np.sort(order[first])
+
+
+def highlight_device(n_channels: int, additive: bool, n: int, seed: int = 13
+                     ) -> np.ndarray:
+    """Every channel at most 30 % coverage: where light colours live."""
+    from benchmarks.synthetic import halton
+    pts = halton(n, n_channels, seed) * 0.30
+    if n_channels > 4:
+        # at most three inks per point, or 5-7 inks at 30 % leave nothing
+        # above L* 85 (measured on X7/X8: an empty sample)
+        rng = np.random.default_rng(seed)
+        keep = np.argsort(rng.uniform(size=pts.shape), axis=1) < 3
+        pts = pts * keep
+    return 1.0 - pts if additive else pts
+
+
+class Truth:
+    """Uniform access: a synthetic printer, or a proxy profile for real data."""
+
+    def __init__(self, printer=None, proxy_icc=None, illuminant: str = "D50"):
+        self.printer = printer
+        self.proxy = proxy_icc
+        self.illuminant = illuminant or "D50"
+
+    @property
+    def is_proxy(self) -> bool:
+        return self.printer is None
+
+    def lab(self, device: np.ndarray) -> np.ndarray:
+        if self.printer is not None:
+            return self.printer.lab_rel(device, self.illuminant)
+        return cmm.a2b(self.proxy, device, "argyll")
+
+
+def _separation(dev: np.ndarray, l_axis: np.ndarray) -> dict:
+    dl = np.abs(np.diff(l_axis))
+    step = np.abs(np.diff(dev, axis=0))
+    rate = step / np.maximum(dl, 1e-9)[:, None]
+    tv = step.sum(0)
+    net = np.abs(dev[-1] - dev[0])
+    return {"max_step": float(step.max()),
+            "max_rate_per_L": float(rate.max()),
+            "tv_excess": float((tv - net).sum()),
+            "tv_excess_per_channel": [float(v) for v in tv - net]}
+
+
+def neutral_axis(prof, reader: str, truth: Truth, black_l: float, n_ch: int,
+                 additive: bool) -> dict:
+    ls = np.arange(max(black_l + 1.0, 1.0), 100.0 + 1e-9, 0.25)
+    target = np.stack([ls, np.zeros_like(ls), np.zeros_like(ls)], 1)
+    dev = cmm.b2a(prof, target, reader)
+    printed = truth.lab(dev)
+    de = colour.de2000(printed, target)
+    chroma = np.hypot(printed[:, 1], printed[:, 2])
+    dL = np.diff(printed[:, 0])
+    d2 = np.linalg.norm(np.diff(printed, 2, axis=0), axis=1)
+    out = {"de": stats(de), "chroma_max": float(chroma.max()),
+           "chroma_median": float(np.median(chroma)),
+           "a_range": [float(printed[:, 1].min()), float(printed[:, 1].max())],
+           "b_range": [float(printed[:, 2].min()), float(printed[:, 2].max())],
+           "L_reversals": int((dL < -0.05).sum()),
+           "L_min_step": float(dL.min()),
+           "banding_max_d2": float(d2.max()),
+           "separation": _separation(dev, ls)}
+    # shadow third of the ramp on its own (F-00 lives there)
+    sh = ls < 30
+    if sh.sum() > 3:
+        out["shadow"] = {"de": stats(de[sh]),
+                         "separation": _separation(dev[sh], ls[sh]),
+                         "banding_max_d2": float(np.linalg.norm(
+                             np.diff(printed[sh], 2, axis=0), axis=1).max())}
+    return out
+
+
+def ramps(prof, reader: str, truth: Truth, n_ch: int, additive: bool) -> dict:
+    """Paper -> solid -> black straight Lab ramps, separation smoothness."""
+    white_dev = np.full((1, n_ch), 1.0 if additive else 0.0)
+    solids = []
+    for i in range(n_ch):
+        d = white_dev.copy()
+        d[0, i] = 0.0 if additive else 1.0
+        solids.append(d[0])
+    solid_lab = truth.lab(np.array(solids))
+    black_lab = cmm.a2b(prof, np.full((1, n_ch), 0.0) if additive else
+                        _black_dev(n_ch), reader)[0]
+    worst = {"max_step": 0.0, "max_rate_per_L": 0.0, "tv_excess": 0.0}
+    per = {}
+    t = np.linspace(0, 1, 121)[:, None]
+    for i, s in enumerate(solid_lab):
+        path = np.vstack([np.array([100.0, 0, 0]) * (1 - t) + s * t,
+                          s * (1 - t[1:]) + black_lab * t[1:]])
+        dev = cmm.b2a(prof, path, reader)
+        arc = np.concatenate([[0], np.cumsum(np.linalg.norm(np.diff(path, axis=0), axis=1))])
+        sep = _separation(dev, arc)
+        per[str(i)] = {k: sep[k] for k in ("max_step", "max_rate_per_L", "tv_excess")}
+        for k in worst:
+            worst[k] = max(worst[k], sep[k])
+    return {"worst": worst, "per_solid": per}
+
+
+def _black_dev(n_ch: int) -> np.ndarray:
+    d = np.zeros((1, n_ch))
+    d[0, :min(4, n_ch)] = 1.0
+    return d
+
+
+def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
+          light: bool = False) -> dict:
+    """All metrics for one profile under one reader."""
+    n = dataset.n_channels
+    additive = dataset.color_rep.startswith(("iRGB", "RGB"))
+    out: dict = {"reader": reader, "truth": "proxy" if truth.is_proxy else "printer"}
+    if dataset.kind == "real":
+        pred = cmm.a2b(prof, dataset.holdout_device, reader)
+        de = colour.de2000(pred, dataset.holdout_lab)
+        out["a2b_heldout"] = _subsets(dataset.holdout_lab, de,
+                                      colour.de_itp(pred, dataset.holdout_lab))
+        dev = eval_device(n, additive, dataset.ink_limit, n_eval // 4)
+    else:
+        dev = eval_device(n, additive, dataset.ink_limit, n_eval)
+        lab_t = truth.lab(dev)
+        pred = cmm.a2b(prof, dev, reader)
+        de = colour.de2000(pred, lab_t)
+        out["a2b"] = _subsets(lab_t, de, colour.de_itp(pred, lab_t))
+    lab_t = truth.lab(dev)
+    ink = cmm.b2a(prof, lab_t, reader)
+    printed = truth.lab(ink)
+    de_b = colour.de2000(printed, lab_t)
+    out["b2a"] = _subsets(lab_t, de_b, colour.de_itp(printed, lab_t))
+    uni = lab_uniform_index(lab_t)
+    out["b2a"]["lab_uniform"] = stats(de_b[uni])
+    # dedicated highlight sample (true L* > 85): the device-uniform grid
+    # holds only a handful of points there (12 of 20,000 on S3)
+    hdev = highlight_device(n, additive, max(n_eval // 4, 2000))
+    hlab = truth.lab(hdev)
+    keep = hlab[:, 0] > 85
+    hdev, hlab = hdev[keep], hlab[keep]
+    if len(hlab):
+        hp = truth.lab(cmm.b2a(prof, hlab, reader))
+        out["b2a"]["highlight_sample"] = stats(colour.de2000(hp, hlab))
+        if dataset.kind != "real":
+            out["a2b"]["highlight_sample"] = stats(
+                colour.de2000(cmm.a2b(prof, hdev, reader), hlab))
+    if not additive:
+        tac = ink.sum(1) * 100.0
+        out["b2a"]["tac_max"] = float(tac.max())
+        if dataset.ink_limit:
+            out["b2a"]["over_limit_frac"] = float(
+                np.mean(tac > dataset.ink_limit + 1.0))
+    rt = cmm.a2b(prof, ink, reader)
+    out["roundtrip"] = stats(colour.de2000(rt, lab_t))
+    if light:
+        return out
+    # white and black
+    wd = cmm.b2a(prof, np.array([[100.0, 0, 0]]), reader)[0]
+    white_ink = (1.0 - wd) if additive else wd
+    out["white"] = {"max_ink_pct": float(white_ink.max() * 100),
+                    "a2b_white_de": float(colour.de2000(
+                        cmm.a2b(prof, np.full((1, n), 1.0 if additive else 0.0), reader),
+                        np.array([[100.0, 0, 0]]))[0])}
+    bd = cmm.b2a(prof, np.array([[0.0, 0, 0]]), reader)
+    blab = truth.lab(bd)[0]
+    out["black"] = {"printed_L": float(blab[0]), "printed_ab": [float(blab[1]), float(blab[2])],
+                    "tac_pct": float(bd.sum() * 100) if not additive else None}
+    out["neutral"] = neutral_axis(prof, reader, truth, float(blab[0]), n, additive)
+    if not additive:
+        out["ramps"] = ramps(prof, reader, truth, n, additive)
+    return out
+
+
+def raw_neutral_column(icc_path) -> dict | None:
+    """F-00's own metric, read from the B2A1 CLUT bytes: the node column at
+    a* = b* = 0 of a Lab-PCS table (as tests/test_engine_accurate_mode.py
+    reads it). None for XYZ-PCS tables."""
+    import struct
+    data = open(icc_path, "rb").read()
+    if data[20:24] != b"Lab ":
+        return None
+    ntags = struct.unpack(">I", data[128:132])[0]
+    off = None
+    for i in range(ntags):
+        sig, o, _ = struct.unpack(">4sII", data[132 + 12 * i:144 + 12 * i])
+        if sig == b"B2A1":
+            off = o
+    if off is None or data[off:off + 4] != b"mft2":
+        return None
+    n_in, n_out, grid = data[off + 8], data[off + 9], data[off + 10]
+    n_ine, _ = struct.unpack(">HH", data[off + 48:off + 52])
+    clut_off = off + 52 + 2 * n_in * n_ine
+    clut = np.frombuffer(data, dtype=">u2", count=grid ** 3 * n_out,
+                         offset=clut_off).reshape(grid, grid, grid, n_out)
+    mid = grid // 2
+    col = clut[:, mid, mid, :].astype(float) / 0xFFFF
+    step = np.abs(np.diff(col, axis=0))
+    return {"grid": int(grid), "max_node_step": float(step.max()),
+            "argmax_node": int(step.max(1).argmax()),
+            "column": col.round(4).tolist()}
