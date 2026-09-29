@@ -38,10 +38,13 @@ String-concatenating paths anywhere else is a code smell.
 from __future__ import annotations
 
 import fnmatch
+import errno
 import json
 import os
 import re
 import shutil
+import stat as _stat_module
+import time
 import unicodedata
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
@@ -285,6 +288,116 @@ def nfc(name: str) -> str:
     return unicodedata.normalize("NFC", name)
 
 
+def _has_no_other_spelling(name: str) -> bool:
+    """Whether *name* is the only string that can name this file.
+
+    A name has an alternative spelling only when it is one member of a Unicode
+    canonical-equivalence class with more than one member. Two things put it in
+    such a class, and nothing else does: a character that HAS a canonical
+    decomposition (``ü`` -> ``u`` + U+0308, and every Hangul syllable), or two
+    combining marks that could be written in another order. So a name with no
+    combining marks that NFD leaves alone is alone in its class, and a directory
+    listing could not possibly turn up another spelling of it.
+
+    THIS REPLACED ``str.isascii()``, WHICH WAS THE WRONG QUESTION. It is the
+    right answer for ASCII, but it made every non-ASCII name pay for a listing
+    — and Greek, Turkish, Cyrillic, CJK and emoji names have no other spelling
+    either, so they paid for a scan that could never match (review round 2).
+    ASCII is still checked first because it is a single flag test on the str
+    object, and it is the overwhelming majority.
+    """
+    if name.isascii():
+        return True
+    if any(unicodedata.combining(ch) for ch in name):
+        return False                         # marks: they can be reordered
+    return unicodedata.normalize("NFD", name) == name
+
+
+def resolve_existing(path: Path) -> Path:
+    """*path* as this volume really spells it — the accent spelling, and only that.
+
+    WHY A PATH HAS TO BE RESOLVED AT ALL
+    ------------------------------------
+    ``Path.exists()`` is the filesystem's answer, and the filesystems disagree.
+    macOS (APFS/HFS+) is normalisation-INSENSITIVE, so
+    ``(run.dir / "Müller.ti2").exists()`` is True whether the name on disk is
+    composed or decomposed. **NTFS is normalisation-SENSITIVE, and so is every
+    ordinary Linux volume**: the two spellings are two different names, and one
+    does not find the other. A project that came home from a Mac OS Extended
+    backup therefore holds decomposed file names, and on Windows
+    ``chart_ti2.exists()`` answers False with the chart sitting in the folder —
+    measured on NTFS, not reasoned (``tests/test_a_decomposed_name_finds_its_files.py``).
+
+    :func:`files_matching` already solves this for LISTINGS. This solves it for
+    the single named artefact, which a listing cannot: ``<stem>.ti2`` is one
+    file, asked for by name.
+
+    IT RETURNS A PATH THAT OPENS, WHICH IS THE WHOLE POINT. Answering "yes it
+    is there" and handing back a spelling that ``open()`` then refuses would
+    move the failure rather than fix it, so the *existing* spelling is what
+    comes back — ready to be read, copied or written through.
+
+    THE EXACT SPELLING ALWAYS WINS. The first thing this does is ask for the
+    path it was given; only when that is not there does it look for a name that
+    differs from it by normalisation alone. So when BOTH spellings exist — two
+    genuinely different files on a sensitive volume — the caller gets the one it
+    named, exactly as before, and nothing is ever silently swapped for a
+    neighbour. When neither exists, the path is returned unchanged, so writers
+    still create the canonical (composed) spelling on a fresh run; when a
+    decomposed file IS there, a writer overwrites *it* rather than laying a
+    second, identical-looking chart beside it.
+
+    CASE IS FOLDED EXACTLY WHERE THE FILESYSTEM FOLDS IT, and nowhere else —
+    ``_NAME_CASEFOLD``, the same flag :func:`files_matching` uses eighty lines
+    above, so the two cannot drift apart. They did, and it mattered: rename a
+    restored project's folder to another case and the stem arrives upper-case
+    while the file is lower-case AND decomposed. NTFS folds the case but not the
+    accents, so ``exists()`` says no; a comparison that folds the accents but
+    not the case says no as well; and ``stem_files``, which folds both, went on
+    finding the file. The listing saw a chart the accessor did not — this fix
+    switched itself off (review round 2, A-1). Folding here can never conflate
+    two real files, because on the one platform where it is done the filesystem
+    itself refuses to hold two names differing only by case. On Linux, and on a
+    case-SENSITIVE APFS volume, ``_NAME_CASEFOLD`` is False and two such names
+    stay two files.
+
+    IT COSTS ONE ``stat`` IN EVERY CASE THAT WORKS TODAY. The hit path is the
+    ``exists()`` that was already being paid. The directory listing happens only
+    when the file is genuinely absent under the given spelling AND the name
+    could have another spelling at all — which is decided by
+    :func:`_has_no_other_spelling`, not by ``str.isascii()``. That mattered: a
+    Greek, Turkish, Cyrillic, CJK or emoji project name is not ASCII and paid
+    for a listing that could never match.
+    """
+    if path.exists():
+        return path                          # the spelling asked for is there
+    name = path.name
+    if _has_no_other_spelling(name):
+        return path                          # nothing else could be on disk
+    want = nfc(name)
+    if _NAME_CASEFOLD:
+        want = want.lower()
+    try:
+        with os.scandir(str(path.parent)) as entries:
+            same = sorted(
+                e.path for e in entries
+                if (nfc(e.name).lower() if _NAME_CASEFOLD else nfc(e.name)) == want)
+    except (OSError, ValueError):
+        return path                          # unreadable parent: nothing to add
+    if not same:
+        return path
+    if len(same) > 1:
+        # Canonically equivalent yet distinct names (combining marks in another
+        # order). SORTED, so the answer is the same on every call and on every
+        # volume — not "whichever one the directory happened to list first",
+        # which is an ordering neither Python nor the filesystem promises.
+        # `tests/…::test_which_of_several_spellings_wins_is_not_the_listing_order`
+        # feeds the entries in reverse to prove the sort is what decides.
+        log.warning("More than one spelling of %s on disk: %s — using %s",
+                    name, [Path(p).name for p in same], Path(same[0]).name)
+    return Path(same[0])
+
+
 def _existing_folder_spelling(parent: Path, name: str) -> str:
     """The name *parent* really holds for *name*, when the two are one folder.
 
@@ -308,6 +421,33 @@ def _existing_folder_spelling(parent: Path, name: str) -> str:
     mark, so the two spellings do not compare equal and the loop walks past.
     An explicit NFC guard stood here as well and was removed, because no
     mutation of it could be made to change any outcome.
+
+    AND THE ACCENT CASE IS THEREFORE NOT HANDLED HERE — DELIBERATELY, WITH A
+    KNOWN COST. On a normalisation-sensitive volume (NTFS, ext4) a project whose
+    folder arrived decomposed is NOT found by the composed name the user types
+    into the Create Chart name box, so `working_dir()` points at a folder that
+    does not exist and the next `project()` call CREATES it: two project folders,
+    side by side, spelled differently and drawn identically by every font on the
+    machine. Reproduced on NTFS (review round 2, E-1) and pinned by
+    ``tests/test_a_decomposed_name_finds_its_files.py::
+    test_a_typed_composed_name_does_not_yet_find_a_decomposed_project_folder``
+    so it is a measured fact rather than a surprise.
+
+    Adopting the folder's accent spelling here would fix it and would break
+    something load-bearing: `_sanitise` normalises to NFC (
+    ``test_the_folder_name_is_always_nfc``) and `working_dir` RE-CLEANS the
+    stored target name on every call and compares it to what it stored — so a
+    decomposed `_target_name` would not survive its own round trip, the way a
+    differently-CASED one does (`_sanitise` preserves case, so case is a fixed
+    point and an accent spelling is not). Making it work means changing either
+    the NFC invariant or that compare, and both are pinned behaviour with a
+    documented reason. That is a decision to be taken and reviewed, not one to
+    slip into a bug fix — so it is named here and left.
+
+    Note what this does NOT affect: every route that reaches a project through
+    the FOLDER rather than a typed name — the project picker, `open_project_at`,
+    session restore — takes the folder's own spelling and works today. It is the
+    name box alone.
     """
     if not name:
         return name
@@ -516,6 +656,51 @@ def ensure_subdir(path: Path) -> Path:
         return path.parent
 
 
+#: The flag bits that stop a file being renamed over or deleted. Named rather
+#: than spelled 0o2 in two places, because "immutable" and "append only" are
+#: what they mean and the numbers say nothing. ``stat`` has them on every
+#: platform that has ``chflags``; the getattr fallbacks keep this importable on
+#: one that does not.
+_LOCK_BITS = (getattr(_stat_module, "UF_IMMUTABLE", 0x00000002)
+              | getattr(_stat_module, "UF_APPEND", 0x00000004)
+              | getattr(_stat_module, "SF_IMMUTABLE", 0x00020000)
+              | getattr(_stat_module, "SF_APPEND", 0x00040000))
+
+
+def _unlock_scratch_file(tmp: Path) -> None:
+    """Take the lock bits off the scratch file, so the cleanup can delete it.
+
+    Only ever the SCRATCH file: the user's own file is never touched. A
+    platform without ``os.chflags`` (Windows) has nothing to do here, and a
+    failure is never fatal - this exists so a cleanup cannot be blocked, and
+    refusing to write because the cleanup might be untidy would be worse.
+
+    AND "NEVER TOUCHED" HAS TO MEAN THE LINK TOO. ``stat`` and ``chflags``
+    FOLLOW a symlink, so with the scratch NAME standing as a link to the
+    user's own manifest this reached through it and cleared the Lock on the
+    user's file - the one thing the paragraph above promises it does not do.
+    Measured, combined round 11 (`A-result.json`, shape 20): a
+    ``project.json`` locked in the Finder came out of a failed write unlocked.
+    ``lstat``/``lchflags`` ask about the name in hand, so a scratch name that
+    is a link carries no lock bits of its own and this leaves everything
+    alone, which is right: a link is not a file this helper created.
+    """
+    chflags = getattr(os, "lchflags", None) or getattr(os, "chflags", None)
+    if chflags is None:
+        return
+    try:
+        st = os.lstat(tmp)
+    except OSError:
+        return
+    flags = getattr(st, "st_flags", 0)
+    if not flags & _LOCK_BITS:
+        return
+    try:
+        chflags(tmp, flags & ~_LOCK_BITS)
+    except OSError:
+        log.debug("could not unlock the scratch file %s", tmp, exc_info=True)
+
+
 def write_json_atomically(path: Path, payload: dict) -> None:
     """Write *payload* to *path* so a crash can never leave it half-written.
 
@@ -532,27 +717,178 @@ def write_json_atomically(path: Path, payload: dict) -> None:
 
     ``fsync`` before the rename, so a power loss cannot leave the rename
     committed while the contents are still sitting in a buffer.
+
+    AND `os.replace` SWAPS THE NAME, NOT THE FILE, so the two things that costs
+    are paid for here. Measured on this helper, combined round 9, on a real
+    ``project.json``:
+
+    * pointed at a SYMLINK it deleted the link and left a regular file in its
+      place; the real file kept the old contents and every other reader went on
+      seeing them. ``os.path.realpath`` first, so the write goes THROUGH the
+      link the way ``write_text`` did.
+    * the new file is a new inode, so it carries the creating process's mode
+      and no extended attributes: a manifest that was ``0600`` came back
+      ``0644``, a Finder tag on it was destroyed, and a manifest the user had
+      made read-only was silently overwritten and left writable.
+      ``shutil.copystat`` carries mode, times and flags across.
+
+    TWO LOSSES REMAIN AND ARE STATED RATHER THAN HIDDEN. A hard link cannot
+    survive a rename and stops tracking. And extended attributes are NOT
+    carried on macOS: ``shutil.copystat`` copies them only where
+    ``os.listxattr`` exists, which is Linux - measured here, ``os.listxattr``
+    is absent on this platform - so a Finder tag or comment on a manifest is
+    still lost. Carrying them would take ``copyfile(3)`` through ctypes, which
+    is a lot of machinery for a property nothing in ChromIQ sets and no user
+    has been shown missing.
+
+    AND ``copystat`` CARRIES THE LOCK TOO, WHICH IS THE ONE PROPERTY THAT MUST
+    NOT REACH THE SCRATCH FILE. ``shutil.copystat`` copies ``st_flags`` on
+    macOS, so a ``project.json`` the user had LOCKED in the Finder (Get Info,
+    Locked - ``UF_IMMUTABLE``) made the scratch file immutable as well. The
+    rename over a locked file fails either way and always did - what changed is
+    that the cleanup below could no longer delete what it had just made, and a
+    ``project.json.tmp`` was left in the project folder that neither the Finder,
+    nor ``unlink``, nor ``rm -f`` would remove. Measured A/B against the helper
+    as it stood before that change (combined round 10, `E2-locked-manifest.json`):
+    no scratch file before, an undeletable one after. The immutable and
+    append-only bits are dropped from the scratch file for that reason - on a
+    locked target they can only make this write fail in a worse way, and on an
+    unlocked one there is nothing to drop.
     """
+    if path.is_symlink():
+        # THROUGH the link, the way `write_text` went. Only when there IS one:
+        # `Path(...)` built afresh picks its flavour from `os.name`, which a
+        # test may legitimately have set to "nt" on this host, and a symlink in
+        # a PARENT directory changes nothing for `os.replace` anyway - only the
+        # final component is the name being swapped.
+        path = type(path)(os.path.realpath(path))
+    # A READ-ONLY FILE MUST STILL REFUSE THE WRITE, AND ATOMICITY QUIETLY TOOK
+    # THAT AWAY. `write_text` on a file the user had made read-only raised
+    # PermissionError and the caller told them so. `os.replace` does not need
+    # write permission on the TARGET, only on the directory, so the rename
+    # succeeds and the content is replaced without a word -- `copystat` even
+    # carries the 0444 back, so the file still looks protected afterwards.
+    # Caught by `test_a_set_change_asks_before_it_rewrites_history.py`, which
+    # marks one saved report read-only and expects the window to report that it
+    # could not be written. The check is here rather than in one caller because
+    # this helper also writes `project.json` and `meta.json`, where the same
+    # silent overwrite was already possible.
+    if path.exists() and not os.access(path, os.W_OK):
+        raise PermissionError(
+            errno.EACCES, "the file is read-only", str(path))
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
+    # `finally` AND A FLAG, NOT `except Exception`. The cleanup below used to
+    # hang off `except Exception`, which does not catch `KeyboardInterrupt` or
+    # `SystemExit` -- and a write interrupted by Ctrl-C is exactly the case
+    # this helper exists for. Found while writing the guard for the measurement
+    # report: a KeyboardInterrupt during the dump left `report_….json.tmp`
+    # sitting in the reports folder.
+    done = False
     try:
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
             fh.flush()
             os.fsync(fh.fileno())
+        if path.exists():
+            # Never fatal: a volume that cannot carry an xattr must not lose
+            # the write. What this protects is a property of a file the user
+            # set, not the file itself.
+            #
+            # **AND NOT THE TIMESTAMPS.** `copystat` carries `st_mtime` too, so
+            # a rewrite left the file claiming it had not changed, and anything
+            # keyed on the mtime went on serving the old contents. It cost
+            # B8-312: the Measurement Report's label cache is keyed on
+            # `st_mtime_ns`, so after a recalculation the selector went on
+            # reading "Quick check" over a file that now held `chromiq_default`,
+            # for the rest of the session. A freshly opened window was right,
+            # which is why no test that reopens the dialog could see it.
+            #
+            # The mtime is restored to what the write really did: NOW. Mode,
+            # flags and xattrs still cross, which is what this block is for.
+            try:
+                _before = os.stat(path)
+                shutil.copystat(path, tmp)
+                os.utime(tmp, ns=(_before.st_atime_ns, time.time_ns()))
+            except OSError:
+                log.debug("could not carry %s's properties across", path,
+                          exc_info=True)
+            _unlock_scratch_file(tmp)
         os.replace(tmp, path)
-    except Exception:
-        # Never leave the scratch file behind to be mistaken for real data.
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
-        raise
+        done = True
+    finally:
+        if not done:
+            # Never leave the scratch file behind to be mistaken for real data.
+            # THE UNLOCK COMES FIRST, because the failure this cleans up after
+            # may be the very lock that would stop the delete. See the
+            # docstring.
+            _unlock_scratch_file(tmp)
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------------------
 # Manifest dataclasses
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# A manifest written by a NEWER ChromIQ must survive being read by this one
+# ---------------------------------------------------------------------------
+#: The field every manifest dataclass carries for the keys THIS build does not
+#: recognise. It never reaches disk under this name: :func:`meta_to_json` folds
+#: it back out at the top level, where it came from.
+UNKNOWN_FIELDS_ATTR = "unknown_fields"
+
+
+def split_known_fields(cls, d: "dict | None") -> "tuple[dict, dict]":
+    """``(the fields *cls* declares, everything else)`` out of a stored dict.
+
+    **A FIELD THIS BUILD HAS NEVER HEARD OF IS NOT A FIELD TO BE DELETED.**
+    Every manifest dataclass here filtered a stored dict down to its own field
+    names and every ``save_meta`` then wrote ``asdict(meta)`` back over the
+    file, so anything a newer ChromIQ had written was silently erased by the
+    first ordinary save an older one did.
+
+    MEASURED, 2026-09-22, with both builds' real code: ``SCHEMA_VERSION`` is 3
+    in v4.2.7 and 3 in 4.3.0-beta.30 -- it did not move across the whole of
+    #182 -- so ``schema_too_new`` cannot fire and nothing warns. v4.2.7 doing
+    nothing but ``Run.for_dir(...).load_meta()`` then ``.save_meta(meta)``
+    erased all seven of the run's #182 fields: ``compliance_set_id``,
+    ``compliance_set_label``, ``compliance_thresholds`` (32 rows),
+    ``compliance_bound_at``, ``compliance_unlocked``, ``compliance_columns``
+    and ``report_type``. The run's frozen copy of its limits -- the thing
+    Knut's D20 exists to protect, *"so a later change to the set in
+    Preferences never re-grades a run that was already judged"* -- was gone,
+    and the run read ``bound=False`` again.
+
+    The owner ships a stable build and a beta side by side over one
+    ``~/ChromIQ`` folder, so opening one project in the older of the two once
+    was enough. Nothing can repair a build that has already shipped; this stops
+    the class, so that from here on an older ChromIQ CARRIES what it cannot
+    read instead of destroying it.
+    """
+    known = {f.name for f in fields(cls)} - {UNKNOWN_FIELDS_ATTR}
+    mine, rest = {}, {}
+    for k, v in (d or {}).items():
+        (mine if k in known else rest)[k] = v
+    return mine, rest
+
+
+def meta_to_json(meta) -> dict:
+    """*meta* as the dict to write, with the carried-through fields folded back.
+
+    The build's OWN fields always win: a key it recognises is written from the
+    dataclass, never from the carried set, which cannot hold one anyway.
+    """
+    d = asdict(meta)
+    extra = d.pop(UNKNOWN_FIELDS_ATTR, None) or {}
+    out = {k: v for k, v in extra.items() if k not in d}
+    out.update(d)
+    return out
+
+
 
 @dataclass
 class ProjectManifest:
@@ -562,6 +898,11 @@ class ProjectManifest:
     target_name: str = ""
     current_run: str = "run1"
     runs: list[str] = field(default_factory=lambda: ["run1"])
+    #: The names this project's files carried before a rename, oldest first
+    #: (#182 beta 38, F2). A saved report records its measurements' folders
+    #: under the name the project had when it was written; these tell the
+    #: report window that such a folder is this project's own.
+    former_names: list[str] = field(default_factory=list)
 
     @classmethod
     def fresh(cls, target_name: str) -> "ProjectManifest":
@@ -573,10 +914,14 @@ class ProjectManifest:
             runs=["run1"],
         )
 
+    #: Keys a NEWER ChromIQ wrote that this build does not declare. Carried,
+    #: never written under this name — see :func:`split_known_fields`.
+    unknown_fields: dict = field(default_factory=dict, repr=False, compare=False)
+
     @classmethod
     def from_dict(cls, d: dict) -> "ProjectManifest":
-        known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in d.items() if k in known})
+        mine, rest = split_known_fields(cls, d)
+        return cls(**mine, unknown_fields=rest)
 
 
 @dataclass
@@ -696,6 +1041,36 @@ class RunMeta:
     # where its files came from without letting it claim to BE the source run.
     # Knut, 2026-08-01: "meta.json not copied. duplicated_from: runN note added."
     duplicated_from: str | None = None
+    # #182 (Knut, D9/D20/D23/K-b): the Measurement Report's LIMIT SET belongs
+    # to the profile run, and every dated verification under
+    # runs/runN/verifications/ is judged with it. Bound at the run's first
+    # verification measurement (or when the user picks a set in the report
+    # window before that), the set's limits are COPIED here, so a later change
+    # to the set in Preferences never re-grades a run that was already judged.
+    # "" / {} mean "not bound yet", which is every run written before this
+    # existed; such a run is judged with the Preferences default and bound the
+    # first time a report is stamped for it.
+    compliance_set_id: str = ""
+    #: the set's English label at binding time, shown when the id is no longer
+    #: known to a later ChromIQ ("<label> (historical)", D23)
+    compliance_set_label: str = ""
+    #: {row_id: limit as JSON}: the run's own copy of the limits (D20 "copied
+    #: into the report, where they may be edited")
+    compliance_thresholds: dict = field(default_factory=dict)
+    compliance_bound_at: str = ""
+    #: "Unlock this run's limits" was ticked: the copy may differ from any set
+    #: and every dated report of the run was recalculated (D23)
+    compliance_unlocked: bool = False
+    #: K-b: which limit-set columns the Report limits window shows for this
+    #: run; [] = all
+    compliance_columns: list = field(default_factory=list)
+    #: #182 (D9, D28): which of the six Measurement Report TYPES this run's
+    #: verifications are reported as. Like the limit set it belongs to the
+    #: run, so every dated verification of the run produces the same kind of
+    #: document. "" means the user never chose, which is read as
+    #: `REPORT_TYPE_DEFAULT` — today's report, so nothing on disk changes
+    #: meaning on the day the pulldown arrives.
+    report_type: str = ""
 
     @classmethod
     def fresh(cls, run_id: str, parent: str | None = None) -> "RunMeta":
@@ -705,10 +1080,14 @@ class RunMeta:
             parent_run=parent,
         )
 
+    #: Keys a NEWER ChromIQ wrote that this build does not declare. Carried,
+    #: never written under this name — see :func:`split_known_fields`.
+    unknown_fields: dict = field(default_factory=dict, repr=False, compare=False)
+
     @classmethod
     def from_dict(cls, d: dict) -> "RunMeta":
-        known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in d.items() if k in known})
+        mine, rest = split_known_fields(cls, d)
+        return cls(**mine, unknown_fields=rest)
 
 
 # ---------------------------------------------------------------------------
@@ -970,10 +1349,14 @@ class CalibrationMeta:
     profile_settings: dict = field(default_factory=dict)
 
 
+    #: Keys a NEWER ChromIQ wrote that this build does not declare. Carried,
+    #: never written under this name — see :func:`split_known_fields`.
+    unknown_fields: dict = field(default_factory=dict, repr=False, compare=False)
+
     @classmethod
     def from_dict(cls, data: dict) -> "CalibrationMeta":
-        known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in (data or {}).items() if k in known})
+        mine, rest = split_known_fields(cls, data)
+        return cls(**mine, unknown_fields=rest)
 
 
 class Calibration:
@@ -994,22 +1377,30 @@ class Calibration:
 
     @property
     def dir(self) -> Path:                    return self._root / "cal"
+
+    def artefact(self, ext: str) -> Path:
+        """``cal/<stem><ext>`` as the volume spells it — see
+        :func:`resolve_existing`. A calibration restored from a Mac OS Extended
+        backup has decomposed file names, and on NTFS a composed path does not
+        find them."""
+        return resolve_existing(self.dir / f"{self.stem}{ext}")
+
     @property
-    def cal_path(self) -> Path:               return self.dir / f"{self.stem}.cal"
+    def cal_path(self) -> Path:               return self.artefact(".cal")
     @property
-    def ti1(self) -> Path:                    return self.dir / f"{self.stem}.ti1"
+    def ti1(self) -> Path:                    return self.artefact(".ti1")
     @property
-    def ti2(self) -> Path:                    return self.dir / f"{self.stem}.ti2"
+    def ti2(self) -> Path:                    return self.artefact(".ti2")
     @property
-    def ti3(self) -> Path:                    return self.dir / f"{self.stem}.ti3"
+    def ti3(self) -> Path:                    return self.artefact(".ti3")
     @property
-    def icc(self) -> Path:                    return self.dir / f"{self.stem}.icc"
+    def icc(self) -> Path:                    return self.artefact(".icc")
     @property
-    def cht(self) -> Path:                    return self.dir / f"{self.stem}.cht"
+    def cht(self) -> Path:                    return self.artefact(".cht")
     @property
-    def ps(self) -> Path:                     return self.dir / f"{self.stem}.ps"
+    def ps(self) -> Path:                     return self.artefact(".ps")
     @property
-    def channels_json(self) -> Path:          return self.dir / f"{self.stem}.channels.json"
+    def channels_json(self) -> Path:          return self.artefact(".channels.json")
     @property
     def meta_path(self) -> Path:              return self.dir / "meta.json"
 
@@ -1025,7 +1416,7 @@ class Calibration:
         return CalibrationMeta.from_dict(raw)
 
     def save_meta(self, meta: "CalibrationMeta") -> None:
-        write_json_atomically(self.meta_path, asdict(meta))
+        write_json_atomically(self.meta_path, meta_to_json(meta))
 
     # ---- v2 sub-folders (#127)
     @property
@@ -1553,16 +1944,45 @@ class Run:
     # <stem>.icc), so the whole chart chain shares the project-name stem. The
     # per-run folder removes the need for prefixes/suffixes; reads/ and the
     # role files (merged/preconditioning/calibrated) stay role-named.
+    def artefact(self, ext: str) -> Path:
+        """``<run dir>/<stem><ext>`` AS THE VOLUME SPELLS IT.
+
+        PUBLIC, because the fix was incomplete while it was not. A guard that
+        learned to resolve in front of work that still built its own names with
+        an f-string is worse than a guard that stayed shut: it ACTIVATES a code
+        path that was dead, and the path then acts on files that are not there.
+        Two of those shipped in round 1 — `adopt_run_chart_as_verify` orphaned a
+        single-page TIFF, and `workflow.chart_import.archive_run_for_replace`
+        left a whole chart chain unarchived so `chart_cht` answered with the OLD
+        chart's recognition file for the NEW `.ti2`. Anything outside this class
+        that needs `<stem><ext>` asks for it here.
+
+        Every named artefact this run owns goes through here, so the accent
+        spelling is dealt with once rather than at each of the ~155 places that
+        ask a ``Run`` for a file. See :func:`resolve_existing`: the exact
+        spelling always wins, an absent file comes back unchanged (so a writer
+        still creates the composed name), and a name normalisation cannot
+        change — every ASCII one — costs a single ``str.isascii()``.
+
+        WHY HERE AND NOT AT THE CALL SITE. ``if run.chart_ti2.exists()`` reads
+        as a question about a file and is one; making every caller ask it a
+        longer way fixes the call sites that exist and not the next one somebody
+        writes — the same argument this module already makes for patterns (see
+        :func:`stem_files`). ``ui/main_window.py:2238`` is why it matters: it
+        did not refuse, it quietly used the ``.ti1`` instead.
+        """
+        return resolve_existing(self.dir / f"{self.stem}{ext}")
+
     @property
-    def chart_ti1(self) -> Path:              return self.dir / f"{self.stem}.ti1"
+    def chart_ti1(self) -> Path:              return self.artefact(".ti1")
     @property
-    def chart_ti2(self) -> Path:              return self.dir / f"{self.stem}.ti2"
+    def chart_ti2(self) -> Path:              return self.artefact(".ti2")
     @property
-    def chart_cht(self) -> Path:              return self.dir / f"{self.stem}.cht"
+    def chart_cht(self) -> Path:              return self.artefact(".cht")
     @property
-    def chart_ps(self) -> Path:               return self.dir / f"{self.stem}.ps"
+    def chart_ps(self) -> Path:               return self.artefact(".ps")
     @property
-    def chart_channels_json(self) -> Path:    return self.dir / f"{self.stem}.channels.json"
+    def chart_channels_json(self) -> Path:    return self.artefact(".channels.json")
 
     def chart_tiffs(self) -> list[Path]:
         """All chart page bitmaps in this run, sorted.
@@ -1599,7 +2019,7 @@ class Run:
     # (reading ``<stem>.ti2`` produces ``<stem>.ti3``). Per-read averaging
     # snapshots live in reads/readN.ti3 and are averaged back into <stem>.ti3.
     @property
-    def measurement_ti3(self) -> Path:        return self.dir / f"{self.stem}.ti3"
+    def measurement_ti3(self) -> Path:        return self.artefact(".ti3")
     @property
     def reads_dir(self) -> Path:              return self.dir / "reads"
 
@@ -1678,7 +2098,7 @@ class Run:
         each site, so it can never be forgotten by one of them — which is how it
         came to be left behind when a re-generation archived the .ti3 it belongs
         to (Knut, #130 2026-07-30)."""
-        return self.dir / f"{self.stem}.ti3.engine-partial"
+        return self.artefact(".ti3.engine-partial")
 
     def recoverable_partial_ti3(self) -> "Path | None":
         """The partial measurement when it is the ONLY record of those readings —
@@ -1712,7 +2132,7 @@ class Run:
     # colprof reading <stem>.ti3 writes <stem>.icc (stem-coupled). When a merge
     # ran, the deliverable is merged.icc instead — see built_profile_icc().
     @property
-    def profile_icc(self) -> Path:            return self.dir / f"{self.stem}.icc"
+    def profile_icc(self) -> Path:            return self.artefact(".icc")
 
     def built_profile_icc(self) -> Path:
         """The profile a user should treat as the run's output.
@@ -1750,17 +2170,24 @@ class Run:
     def verifications_dir(self) -> Path:      return self.dir / VERIFICATIONS_DIRNAME
     @property
     def verify_stem(self) -> str:             return f"{self.stem}-verify"
+
+    def _verify_artefact(self, ext: str) -> Path:
+        """``verifications/<verify stem><ext>``, spelled as the volume has it —
+        the same rule as :meth:`artefact`, for the other folder and stem."""
+        return resolve_existing(
+            self.verifications_dir / f"{self.verify_stem}{ext}")
+
     @property
-    def verify_chart_ti1(self) -> Path:       return self.verifications_dir / f"{self.verify_stem}.ti1"
+    def verify_chart_ti1(self) -> Path:       return self._verify_artefact(".ti1")
     @property
-    def verify_chart_ti2(self) -> Path:       return self.verifications_dir / f"{self.verify_stem}.ti2"
+    def verify_chart_ti2(self) -> Path:       return self._verify_artefact(".ti2")
     @property
-    def verify_chart_cht(self) -> Path:       return self.verifications_dir / f"{self.verify_stem}.cht"
+    def verify_chart_cht(self) -> Path:       return self._verify_artefact(".cht")
     @property
-    def verify_chart_ps(self) -> Path:        return self.verifications_dir / f"{self.verify_stem}.ps"
+    def verify_chart_ps(self) -> Path:        return self._verify_artefact(".ps")
     @property
     def verify_chart_channels_json(self) -> Path:
-        return self.verifications_dir / f"{self.verify_stem}.channels.json"
+        return self._verify_artefact(".channels.json")
 
     def verify_chart_tiffs(self) -> list[Path]:
         return stem_files(self.verifications_dir, self.verify_stem, "*.tif")
@@ -1818,7 +2245,12 @@ class Run:
         old, new = self.stem, self.verify_stem
         moved_ti2: "Path | None" = None
         for ext in self._CHART_EXTS:
-            src = self.dir / f"{old}{ext}"
+            # `_artefact`, not an f-string: the guard above now passes for a
+            # chart whose files came off an HFS+ volume, and a raw composed
+            # path would find none of them — so the chart would be cleared for
+            # a move that then moved nothing. The DESTINATION stays composed;
+            # it is a name being written, and composed is ChromIQ's spelling.
+            src = self.artefact(ext)
             if src.exists():
                 dst = self.verifications_dir / f"{new}{ext}"
                 shutil.move(str(src), str(dst))
@@ -1829,17 +2261,21 @@ class Run:
         # `str.replace` would find nothing and move the page to verifications/
         # still carrying the PROFILING stem — a verify chart with a page the
         # verify glob cannot see.
-        for tif in self.stem_files(old, "_*.tif"):
+        #
+        # BOTH TAILS IN ONE LOOP, AND BOTH THROUGH `stem_files`. A single-page
+        # chart's TIFF has no "_NN" — it is just "<stem>.tif" — and that case
+        # used to be a second block built from a raw f-string. Once the guard at
+        # the top of this method learned to resolve, that block was reached for
+        # the first time on a restored project and could not see the file: the
+        # chart moved into verifications/ and its only page stayed ORPHANED in
+        # the run root, leaving exactly the "pages but no .ti2" contradiction
+        # this change removes everywhere else, and a verify chart that never
+        # previews (Knut #130: "Run type = Verification shows no preview").
+        # Measured, review round 2, defect 1.
+        for tif in self.stem_files(old, "_*.tif", ".tif", ".TIF"):
             dst = self.verifications_dir / nfc(tif.name).replace(nfc(old),
                                                                 nfc(new), 1)
             shutil.move(str(tif), str(dst))
-        # A single-page chart's TIFF has no "_NN" suffix — it's just "<stem>.tif"
-        # — so the glob above misses it. Move that too, or a single-page verify
-        # chart lands in verifications/ with no page bitmap and never previews
-        # (Knut #130: "Run type = Verification shows no preview").
-        single_tif = self.dir / f"{old}.tif"
-        if single_tif.exists():
-            shutil.move(str(single_tif), str(self.verifications_dir / f"{new}.tif"))
         # The chart's hand-off sidecars (exports/) belong with the verify chart.
         exp = self.exports_dir
         if exp.exists():
@@ -1953,7 +2389,7 @@ class Run:
         return RunMeta.from_dict(raw)
 
     def save_meta(self, meta: RunMeta) -> None:
-        write_json_atomically(self.meta_path, asdict(meta))
+        write_json_atomically(self.meta_path, meta_to_json(meta))
 
     # ---- lifecycle
     def ensure_dir(self) -> Path:
@@ -2007,7 +2443,11 @@ class Run:
         one-page `.ti2`.
         """
         def _leftovers():
-            return ([self.dir / n for n in self.chart_artefact_names()]
+            # `resolve_existing`, for the same reason as the drop loop in
+            # `reset_chart_artefacts`: a leftover spelled the other way is a
+            # leftover, and this is the sweep that is supposed to catch it.
+            return ([resolve_existing(self.dir / n)
+                     for n in self.chart_artefact_names()]
                     + list(self.chart_tiffs()))
         settle_chart_stash(self.dir, stash, built=built, leftovers=_leftovers)
 
@@ -2052,9 +2492,14 @@ class Run:
         # document them) to old/<timestamp>/ first. Chart files (below) are
         # regenerated, so they may be dropped. Only archives when results exist,
         # so iterating on a not-yet-measured chart doesn't spawn old/ folders.
-        results = [self.dir / f"{s}.ti3", self.partial_ti3,
-                   self.dir / f"{s}.icc",
-                   self.dir / f"{s}.icm", self.dir / "merged.ti3",
+        # THROUGH `artefact`, not an f-string. `partial_ti3` beside these
+        # already resolved, so a restored project archived the engine partial
+        # and left the measurement it belongs to unarchived — and then the drop
+        # loop below could not see it either, so the next build wrote a second
+        # `.ti3` beside it. Same shape as review round 2's two defects.
+        results = [self.artefact(".ti3"), self.partial_ti3,
+                   self.artefact(".icc"),
+                   self.artefact(".icm"), self.dir / "merged.ti3",
                    self.dir / "merged.icc", self.dir / "calibrated.icc"]
         if keep_results:
             results = []
@@ -2080,12 +2525,42 @@ class Run:
         # the sidecars are rebuilt from the chart on every build, so it broke
         # the rule that a run with no results spawns no `old/` folder — every
         # live-preview render started leaving one behind.
+        # …BUT THE NEW-RUN BLOCK IS NOT DERIVED, AND IT LIVES IN cache/.
+        # §4a N-4 puts the settings a user typed for a run that does not exist
+        # yet in `cache/new_run.json`, and every live-preview render came
+        # through here and deleted the folder, so the block was destroyed by
+        # the act of watching the preview redraw. Sweep the CONTENTS of cache/
+        # and leave that one file, rather than the folder.
+        from workflow.per_target_settings import (
+            NEW_RUN_FILENAME as _NEW_RUN_FILENAME)
         for sub in (self.exports_dir, self.cache_dir):
-            if sub.exists():
+            if not sub.exists():
+                continue
+            # EQUALITY, NOT IDENTITY. `cache_dir` is a property that builds a
+            # fresh Path on every call, so `is` was never true and the branch
+            # below never ran: the block was still being deleted while the test
+            # for it read as if it passed.
+            if sub == self.cache_dir:
+                for item in sub.iterdir():
+                    if item.name == _NEW_RUN_FILENAME:
+                        continue
+                    try:
+                        shutil.rmtree(item) if item.is_dir() else item.unlink()
+                    except OSError as exc:
+                        log.warning("Could not delete %s: %s", item, exc)
+                # …and if nothing was worth keeping, the folder goes too, so a
+                # run with no New-run block is left exactly as it was before:
+                # `cache/` is derived and a run that has none should show none.
                 try:
-                    shutil.rmtree(sub)
+                    if not any(sub.iterdir()):
+                        sub.rmdir()
                 except OSError as exc:
                     log.warning("Could not delete %s: %s", sub, exc)
+                continue
+            try:
+                shutil.rmtree(sub)
+            except OSError as exc:
+                log.warning("Could not delete %s: %s", sub, exc)
         def _drop(p: Path) -> None:
             """Delete, or set aside in the stash when the caller asked for one."""
             nonlocal stash_dir
@@ -2102,19 +2577,27 @@ class Run:
             except OSError as exc:
                 log.warning("Could not delete %s: %s", p, exc)
 
-        for name in (
-            f"{s}.ti1", f"{s}.ti2", f"{s}.cht", f"{s}.cie", f"{s}.ps",
-            f"{s}.pdf",                  # vector-PDF export (was left stale, Basti)
-            f"{s}.channels.json", f"{s}.strips.json",
-            f"{s}.print.json",           # how the chart that is GOING was printed
+        # STEM-NAMED ONES THROUGH `artefact`, ROLE-NAMED ONES AS THEY ARE. The
+        # stem side has to resolve or a regenerate leaves the restored chart in
+        # the folder and writes a second one beside it under a name that looks
+        # identical on screen — "two charts under one name", which is the state
+        # `files_matching`'s docstring was written about.
+        stem_exts = (
+            ".ti1", ".ti2", ".cht", ".cie", ".ps",
+            ".pdf",                      # vector-PDF export (was left stale, Basti)
+            ".channels.json", ".strips.json",
+            ".print.json",               # how the chart that is GOING was printed
         ) + ((
-            f"{s}.ti3",                  # the measurement (chartread output)
-            f"{s}.ti3.engine-partial",   # …and the engine partial beside it
-            f"{s}.icc",                  # the profile (colprof output)
+            ".ti3",                      # the measurement (chartread output)
+            ".ti3.engine-partial",       # …and the engine partial beside it
+            ".icc",                      # the profile (colprof output)
+        ) if not keep_results else ())
+        role_named = () if keep_results else (
             "merged.ti3", "merged.icc",  # build-time refinement merge outputs
             "calibrated.icc",            # applycal output
-        ) if not keep_results else ()):
-            p = self.dir / name
+        )
+        for p in ([self.artefact(ext) for ext in stem_exts]
+                  + [self.dir / n for n in role_named]):
             if p.exists():
                 _drop(p)
         for tiff in self.chart_tiffs():
@@ -2160,7 +2643,7 @@ class Verification:
     @property
     def stem(self) -> str:                    return self._run.verify_stem
     @property
-    def measurement_ti3(self) -> Path:        return self.dir / f"{self.stem}.ti3"
+    def measurement_ti3(self) -> Path:        return resolve_existing(self.dir / f"{self.stem}.ti3")
     @property
     def reads_dir(self) -> Path:              return self.dir / "reads"
     @property
@@ -2173,6 +2656,161 @@ class Verification:
         return self.dir
 
     def exists(self) -> bool:                 return self.measurement_ti3.exists()
+
+    def archive_reports(self, when: "datetime | None" = None) -> "Path | None":
+        """**Copy** every saved report of this dated verification into
+        ``reports/old/<timestamp>/`` and return that folder, or None when
+        there was nothing to archive.
+
+        #182 (D23, R4): unlocking a run's limits recalculates every dated
+        report of the run, and a record that is about to be rewritten is kept
+        first, never deleted. A COPY, not a move, because the live file is
+        rewritten in place under its own name so the history keeps one report
+        per date (CH-29/CH-30). ``list_reports`` looks only one level deep, so
+        nothing under ``old/`` is ever listed as a run.
+        """
+        live = sorted(self.reports_dir.glob("report_*.json")) \
+            if self.reports_dir.is_dir() else []
+        done, _failed = archive_report_files(live, when, raise_errors=True)
+        return done.get(self.reports_dir.resolve())
+
+
+def archive_report_files(paths, when: "datetime | None" = None, *,
+                         raise_errors: bool = False
+                         ) -> "tuple[dict[Path, Path], set[Path]]":
+    """**Copy** saved report files into ``<their reports dir>/old/<stamp>/``
+    before something rewrites them, and say where each folder went.
+
+    Returns ``({reports_dir: archive_folder}, {reports_dir that failed})``.
+    A folder appears in neither when every one of its files already has an
+    identical copy under ``old/`` (the content is kept; nothing new to keep).
+
+    **ONE RULE FOR EVERY REWRITE (D23, "nothing is deleted").** This began as
+    `Verification.archive_reports`, used by the recalculation that unlocking a
+    run's limits triggers. The Measurement Report's Update rewrote the same
+    files in place with no archive at all (critic round, 2026-09-22: 11 files
+    rewritten, 0 copies in ``old/``), and a profiling run's own
+    ``runs/runN/reports/`` had no archive helper to call. So the rule lives
+    here, keyed on the files' own folder, and both callers use it.
+
+    A COPY, not a move: the live file is rewritten in place under its own name
+    so the history keeps one report per date (CH-29/CH-30). ``list_reports``
+    looks only one level deep, so nothing under ``old/`` is listed as a run.
+    Only content that has no copy yet is copied (review F11, N2), so a second
+    press does not duplicate an identical archive.
+    """
+    import hashlib
+    import shutil
+    by_dir: "dict[Path, list[Path]]" = {}
+    spelled: "dict[Path, Path]" = {}     # resolved -> the caller's own spelling
+    for p in paths:
+        p = Path(p)
+        if p.is_file():
+            key = p.parent.resolve()
+            spelled.setdefault(key, p.parent)
+            by_dir.setdefault(key, []).append(p)
+    done: "dict[Path, Path]" = {}
+    failed: "set[Path]" = set()
+    stamp = (when or datetime.now()).strftime("%Y-%m-%d_%H%M%S")
+    for rdir, files in by_dir.items():
+        try:
+            old_root = spelled[rdir] / "old"
+            have: set = set()
+            if old_root.is_dir():
+                for c in old_root.glob("*/report_*.json"):
+                    try:
+                        have.add(hashlib.sha256(c.read_bytes()).hexdigest())
+                    except OSError:
+                        continue
+            todo = [p for p in files
+                    if hashlib.sha256(p.read_bytes()).hexdigest() not in have]
+            if not todo:
+                continue
+            target = old_root / stamp
+            n = 1
+            while target.exists():
+                n += 1
+                target = old_root / f"{stamp}_{n}"
+            target.mkdir(parents=True, exist_ok=True)
+            for p in todo:
+                shutil.copy2(p, target / p.name)
+            done[rdir] = target
+        except OSError:
+            if raise_errors:
+                raise
+            failed.add(rdir)
+    return done, failed
+
+
+def move_report_files(paths, dest: Path) -> "tuple[list[Path], Path | None]":
+    """Move saved report files into *dest*, ALL OR NOTHING (challenge C,
+    beta 39, #7): ``([where each went], None)``, or ``([], folder)`` with
+    the folder that stopped it and every file where it was.
+
+    `shutil.move` out of a read-only folder cannot rename, so it COPIES and
+    then fails to delete: the report was in ``old/`` and still in the list,
+    twice on disk. So every source folder and the destination are asked
+    first, each file then moves by `os.rename` (or copy and unlink across
+    volumes), and a step that fails anyway puts back every file already
+    moved and removes the folders this made.
+    """
+    import shutil
+    srcs = [Path(p) for p in paths]
+    dest = Path(dest)
+    for p in srcs:
+        if not os.access(p.parent, os.W_OK | os.X_OK):
+            return [], p.parent
+    probe = dest
+    while not probe.exists() and probe.parent != probe:
+        probe = probe.parent
+    if not os.access(probe, os.W_OK | os.X_OK):
+        return [], probe
+    made: "list[Path]" = []
+    up = dest
+    while not up.exists() and up.parent != up:
+        made.append(up)
+        up = up.parent
+    done: "list[tuple[Path, Path]]" = []
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        for p in srcs:
+            target = dest / p.name
+            n = 1
+            while target.exists():
+                target = dest / f"{p.stem}_{n}{p.suffix}"
+                n += 1
+            try:
+                os.rename(p, target)
+            except OSError as exc:
+                if exc.errno != errno.EXDEV:
+                    raise
+                shutil.copy2(p, target)
+                try:
+                    p.unlink()
+                except OSError:
+                    target.unlink()
+                    raise
+            done.append((p, target))
+    except OSError as exc:
+        log.warning("could not move the report files into %s (%s); putting "
+                    "back the %d already moved", dest, exc, len(done))
+        for src, target in reversed(done):
+            try:
+                os.rename(target, src)
+            except OSError:
+                try:
+                    shutil.copy2(target, src)
+                    target.unlink()
+                except OSError:
+                    log.error("could not put %s back to %s", target, src)
+        for d in made:                     # innermost first
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+        failed = Path(getattr(exc, "filename", "") or dest)
+        return [], (failed.parent if failed.suffix == ".json" else failed)
+    return [t for _s, t in done], None
 
 
 # ---------------------------------------------------------------------------
@@ -2204,6 +2842,66 @@ real ink on real paper. Everything in cache/ is always safe to delete.
 #: (#130, Knut 2026-07-27). Underscores rather than parentheses, which some
 #: tools and shells treat specially on one platform or another.
 CONFLICT_MARKER = "_conflicted_at_renaming_procedure"
+
+
+def same_entry(a: "Path | str", b: "Path | str") -> bool:
+    """Whether *a* and *b* name ONE entry on disk (#182 beta 38, F1).
+
+    **ON A CASE-INSENSITIVE VOLUME, "report-limits.icc" EXISTS WHEN ONLY
+    "Report-Limits.icc" IS THERE.** macOS formats APFS case-insensitive by
+    default, so ``dst.exists()`` on a name that differs from the file's own
+    only in case (or only in its Unicode normalisation) answers True about the
+    file itself. `Project.rename` took that for a stranger, moved the project's
+    built profile aside as ``…_conflicted_at_renaming_procedure.icc``, and then
+    failed to rename the file that was no longer there; the message said the
+    project was open as it was.
+
+    Asked of the disk (`os.path.samefile`), so it is right on every kind of
+    volume; False when either side is missing or cannot be asked.
+    """
+    try:
+        return os.path.samefile(str(a), str(b))
+    except OSError:
+        return False
+
+
+class ProjectRenameRefused(OSError):
+    """A rename refused BEFORE anything was touched, or undone after a step
+    failed (#182 beta 38, F1).
+
+    ``reason`` is a plain sentence for the person (§M-PROPOSED,
+    M-PROJECT-FOLDER-RENAME-FAILED's ``{error}``), never a bare path.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+    def __str__(self) -> str:                        # noqa: D105
+        return self.reason
+
+
+def _rename_via_temporary(src: Path, dst: Path) -> "list[tuple[Path, Path]]":
+    """Rename *src* to *dst* in two steps, through a temporary name beside it;
+    the steps done, as ``[(from, to)]``, so a caller can undo them.
+
+    A rename that changes only the CASE (or the normalisation) of a name is a
+    rename onto itself on a case-insensitive volume; some file systems and
+    network shares ignore it or refuse it. Through a name nothing else holds
+    it is two ordinary renames on every volume (#182 beta 38, F1).
+    """
+    import uuid
+    tmp = src.with_name(f".{src.name}.chromiq-renaming-{uuid.uuid4().hex[:8]}")
+    done: "list[tuple[Path, Path]]" = []
+    src.rename(tmp)
+    done.append((src, tmp))
+    try:
+        tmp.rename(dst)
+    except OSError:
+        tmp.rename(src)
+        raise
+    done.append((tmp, dst))
+    return done
 
 
 def _move_aside_conflict(path: Path) -> "Path | None":
@@ -2258,6 +2956,21 @@ DUPLICATE_META_FRESH: frozenset = frozenset({
     # Lifecycle, and nothing in the app reads or writes it — leave it at the
     # fresh default rather than propagate a state nothing maintains.
     "status",
+    # #182: the copy has no verifications/, so nothing has been judged with
+    # its limits yet: the binding moment is fresh and the copy starts locked
+    # ("duplicating a run carries the chosen set and clears the binding").
+    "compliance_bound_at", "compliance_unlocked",
+    # …and the COPY of the limits: the duplicate is bound afresh, to the set
+    # it carries, at its own first verification (review F13).
+    "compliance_thresholds",
+    # The fields a NEWER ChromIQ wrote that this build cannot read. Carried
+    # through a save so they are never destroyed (`split_known_fields`), and
+    # deliberately NOT carried into a DUPLICATE: this build cannot tell whether
+    # any of them is an identity, a binding moment or a signature, and those are
+    # exactly the kinds of value already listed above as fresh. The source run
+    # keeps every one of them; the copy simply starts without them, and the
+    # ChromIQ that understands them fills in what it wants.
+    "unknown_fields",
 })
 
 DUPLICATE_META_CARRY: frozenset = frozenset({
@@ -2278,6 +2991,12 @@ DUPLICATE_META_CARRY: frozenset = frozenset({
     "parent_run", "preconditioning_source_run",
     # TI2-editor state, which cannot be recovered from the .ti2 alone.
     "editor_layout", "editor_basename", "editor_recipe",
+    # #182: the chosen limit set, its copied limits and the column choice
+    # travel with the run they describe.
+    "compliance_set_id", "compliance_set_label", "compliance_columns",
+    # …and the kind of report the run is verified with: a duplicate made to
+    # repeat a job is verified the same way or the two cannot be compared.
+    "report_type",
 })
 
 
@@ -2347,17 +3066,33 @@ class Project:
                 "Project %s has schema_version %s (this build knows %s) — "
                 "opening without migration; update ChromIQ.",
                 root, proj._manifest.schema_version, SCHEMA_VERSION)
-        elif proj._manifest.schema_version < SCHEMA_VERSION:
-            # Cumulative, idempotent migrations. Capture the ORIGINAL version
-            # first — _migrate_v1_to_v2 bumps schema_version to SCHEMA_VERSION,
-            # which would otherwise make the v2→v3 check skip itself.
-            orig = proj._manifest.schema_version
-            if orig < 2:
-                proj._migrate_v1_to_v2()
-            if orig < 3:
-                proj._migrate_v2_to_v3()
-            proj._manifest.schema_version = SCHEMA_VERSION
-            proj.save_manifest()
+        else:
+            # THE SCHEMA NUMBER CANNOT BE THE GATE, BECAUSE THE NUMBER ALREADY
+            # LIED. A pre-redesign project has its chart, measurement and
+            # profile loose in the project folder, and the migration below only
+            # ever looked INSIDE `runs/runN` — so it moved nothing, stamped the
+            # manifest with the current schema and reported success. The next
+            # load then read that stamp, decided there was nothing to do, and
+            # said nothing at all. A tester saw both halves and described them
+            # exactly: a first load that announced a conversion that did not
+            # happen, and later loads that announced nothing.
+            #
+            # So this asks the DISK, every time, and is therefore also the
+            # repair for every project already stamped by the broken version.
+            # It is free on a project that is already laid out properly.
+            proj._adopt_flat_layout()
+            if proj._manifest.schema_version < SCHEMA_VERSION:
+                # Cumulative, idempotent migrations. Capture the ORIGINAL
+                # version first — _migrate_v1_to_v2 bumps schema_version to
+                # SCHEMA_VERSION, which would otherwise make the v2→v3 check
+                # skip itself.
+                orig = proj._manifest.schema_version
+                if orig < 2:
+                    proj._migrate_v1_to_v2()
+                if orig < 3:
+                    proj._migrate_v2_to_v3()
+                proj._manifest.schema_version = SCHEMA_VERSION
+                proj.save_manifest()
         # Backfill the README for projects created before it shipped — and
         # rewrite a 0-byte file, which is exactly the artefact a pre-fix Windows
         # build left behind: write_readme crashed mid-write (UnicodeEncodeError
@@ -2451,7 +3186,18 @@ class Project:
             log.info("opened the EXISTING project at %s (%s run(s) on disk)",
                      root, runs if runs >= 0 else "?")
             return proj
-        log.info("created a NEW project '%s' at %s", target_name, root)
+        # A FOLDER FULL OF SOMEBODY'S WORK IS NOT A NEW PROJECT. Without this,
+        # a pre-redesign project (no manifest, chart + measurement + profile
+        # loose in the folder) got a fresh manifest and an EMPTY `runs/run1`
+        # built around it, and `peek_project` then read the whole thing as
+        # holding nothing — so the "this project already exists" guard never
+        # fired and a build could land on top of it in silence.
+        moved = migrate_flat_project(root, "run1")
+        if moved:
+            log.info("adopted a pre-runs project at %s (%d file(s) into runs/run1)",
+                     root, moved)
+        else:
+            log.info("created a NEW project '%s' at %s", target_name, root)
         return cls.create(root, target_name)
 
     # ---- v1 → v2 migration (#127)
@@ -2494,6 +3240,35 @@ class Project:
             log.info("migration: %s -> %s/", src.name, dst_dir.name)
         except OSError as exc:
             log.warning("migration: could not move %s: %s", src, exc)
+
+    def _adopt_flat_layout(self) -> int:
+        """Bring a pre-``runs/`` project into ``runs/<current_run>/``.
+
+        The step that was missing entirely. Returns how many files moved; 0
+        leaves the project bit-for-bit as it was found. Only after a real move
+        is the manifest touched, so a refusal cannot leave a folder claiming a
+        layout it does not have — which is the exact state this fixes.
+        """
+        run_id = self._manifest.current_run or "run1"
+        moved = migrate_flat_project(self._root, run_id)
+        if not moved:
+            return 0
+        if run_id not in self._manifest.runs:
+            self._manifest.runs.append(run_id)
+        self._manifest.current_run = run_id
+        self.save_manifest()
+        # The other door into this (`create_or_load` on a folder with no
+        # manifest) goes on to `create`, which writes a run meta. Write one
+        # here too, or the same project ends up shaped differently depending
+        # on which door it came through.
+        run = self.run(run_id)
+        if not run.meta_path.exists():
+            run.save_meta(RunMeta.fresh(run_id))
+        # The guide describes the layout the user now actually has.
+        self.write_readme()
+        log.info("Adopted the pre-runs layout at %s into runs/%s (%d file(s))",
+                 self._root, run_id, moved)
+        return moved
 
     def _migrate_v1_to_v2(self) -> None:
         """Tidy a flat (schema 1) project into the v2 sub-folder layout."""
@@ -2574,20 +3349,40 @@ class Project:
             d.name for d in self.runs_root.glob("run*") if d.is_dir()]
         for rid in rids:
             run = Run(self, rid)
-            legacy = run.dir / f"{run.stem}-verify.ti3"
+            legacy = run.artefact("-verify.ti3")
             if not legacy.is_file():
                 continue
             when = datetime.fromtimestamp(legacy.stat().st_mtime)
             v = run.new_verification(when)
             v.ensure_dir()
             self._migrate_move(legacy, v.dir)
-            legacy_ti2 = run.dir / f"{run.stem}-verify.ti2"
+            legacy_ti2 = run.artefact("-verify.ti2")
             if legacy_ti2.is_file():
                 self._migrate_move(legacy_ti2, run.verifications_dir)
 
     def save_manifest(self) -> None:
+        """``project.json``, written so a crash cannot leave it half-written.
+
+        This was the ONE manifest in the project still written with a plain
+        ``write_text``, while ``Run.save_meta`` and ``Calibration``'s own meta
+        have gone through :func:`write_json_atomically` all along. It is also
+        the one that decides whether a project opens at all: a truncated
+        ``project.json`` is not survived the way ``meta.json`` is (see
+        :meth:`Run.load_meta`, which treats "unreadable" as "absent") — it
+        names ``current_run`` and every run the project has.
+
+        Knut, #130 (2026-08-06), asking for exactly this: *"Write the updated
+        JSON data to a temporary file in the same directory, then rename
+        (replace) the original file with the temporary one. This prevents file
+        corruption if the process crashes mid-write."*
+
+        Recorded as a lead by combined round 7 and closed here. Graded
+        honestly: it is a consistency fix against a rule already written down,
+        NOT a fault anybody has been shown — a power loss inside one
+        ``write_text`` is not something this round could drive.
+        """
         self._root.mkdir(parents=True, exist_ok=True)
-        self.manifest_path.write_text(json.dumps(asdict(self._manifest), indent=2), encoding="utf-8")
+        write_json_atomically(self.manifest_path, meta_to_json(self._manifest))
 
     def write_readme(self) -> None:
         """Write a user-facing "Where are my files.txt" at the project root.
@@ -2641,7 +3436,15 @@ class Project:
         # verification measurements (verifications/<date>/<stem>-verify.ti3), so a
         # project rename carries them along too (#130, Hole 8).
         protected = {self.MANIFEST, self.README, "meta.json"}
-        tail_re = re.compile(r"(-cal|-verify)?(-i1profiler|-colours)?(_\d+)?\.[\w.]+$")
+        # **AND A HYPHEN BEFORE THE EXTENSION (#182 beta 38, F3).** The
+        # extension part was `\.[\w.]+`, which cannot hold the hyphen in
+        # ``.control-strip.json``: every rename, the ordinary one and the
+        # folder chooser's, left each ``<stem>-verify.control-strip.json``
+        # under the old name, and the renamed chart had no control-strip
+        # declaration, so the control-strip rows could not be answered.
+        tail_re = re.compile(
+            r"(-cal|-verify)?(-i1profiler|-colours)?(_\d+)?"
+            r"(\.control-strip)?\.[\w.]+$")
 
         # NFC ON BOTH SIDES. `old_stem` comes from a name ChromIQ composed;
         # the names on disk may be decomposed, because a project restored from
@@ -2649,6 +3452,7 @@ class Project:
         # skipped every accented artefact and left the whole chart behind under
         # the old name while the project moved on.
         old_stem_nfc = nfc(old_stem)
+        plan: "list[tuple[Path, Path, str]]" = []   # (file, new name, how)
         for f in sorted(self._root.rglob("*")):
             if not f.is_file() or f.name in protected:
                 continue
@@ -2659,7 +3463,13 @@ class Project:
             if not tail_re.fullmatch(tail):
                 continue
             dst = f.with_name(new_stem + tail)
-            if dst.exists():
+            if same_entry(f, dst):
+                # **THE FILE ITSELF, UNDER ANOTHER SPELLING (F1).** A
+                # case-only (or normalisation-only) rename on a
+                # case-insensitive volume: nothing is in the way, so nothing
+                # is moved aside; two steps, through a temporary name.
+                plan.append((f, dst, "self"))
+            elif dst.exists():
                 # Something in the folder is already called what this file is
                 # about to be called. ChromIQ never generates such a pair —
                 # its own artefacts all carry the project stem — so this can
@@ -2671,16 +3481,111 @@ class Project:
                 # later rename ever repaired it. The stranger is moved aside
                 # instead, so the rename can finish correctly and nothing is
                 # lost.
-                _move_aside_conflict(dst)
-                if dst.exists():           # could not be moved: leave well alone
-                    log.warning("Rename target already exists, skipping: %s", dst)
-                    continue
-            f.rename(dst)
+                plan.append((f, dst, "aside"))
+            else:
+                plan.append((f, dst, "plain"))
 
-        self._manifest.target_name = new_stem
-        self.save_manifest()
+        # **NOTHING IS MOVED ASIDE UNLESS THE RENAME CAN THEN FINISH (F1).**
+        # Asked of the whole plan before the first file is touched: two files
+        # that would take one name, and a folder ChromIQ may not write in, are
+        # refused here, with nothing changed.
+        from core.i18n import tr
+        taken: "dict[str, Path]" = {}
+        for f, dst, _how in plan:
+            k = nfc(str(dst)).casefold()
+            if k in taken and not same_entry(taken[k], f):
+                raise ProjectRenameRefused(tr(
+                    "Two of its files would both be called \u201c{name}\u201d "
+                    "after the rename.").format(name=dst.name))
+            taken[k] = f
+            if not os.access(f.parent, os.W_OK | os.X_OK):
+                raise ProjectRenameRefused(tr(
+                    "ChromIQ is not allowed to change the files in the folder "
+                    "\u201c{folder}\u201d.").format(folder=f.parent.name))
+
+        # **AND WHAT WAS DONE IS UNDONE WHEN A STEP FAILS ANYWAY**, so the
+        # failure message's "The project is open as it was" is true: every
+        # rename and every move aside is recorded and reversed, newest first.
+        done: "list[tuple[Path, Path]]" = []
+        try:
+            for f, dst, how in plan:
+                if how == "self":
+                    done.extend(_rename_via_temporary(f, dst))
+                    continue
+                if how == "aside":
+                    aside = _move_aside_conflict(dst)
+                    if aside is None or dst.exists():
+                        raise ProjectRenameRefused(tr(
+                            "A file called \u201c{name}\u201d is already there "
+                            "and could not be moved out of the way.").format(
+                                name=dst.name))
+                    done.append((dst, aside))
+                f.rename(dst)
+                done.append((f, dst))
+            _was_name = self._manifest.target_name
+            _was_former = list(self._manifest.former_names)
+            # **THE NAME IT HAD IS KEPT (F2).** A report written before the
+            # rename records its measurements' folders under the project's
+            # old name. With the old name recorded here, the report window
+            # knows those are THIS project's, and never reaches into another
+            # folder that merely shares the old name (a Finder duplicate's
+            # original, beside it).
+            if old_stem not in self._manifest.former_names:
+                self._manifest.former_names.append(old_stem)
+            self._manifest.target_name = new_stem
+            try:
+                self.save_manifest()
+            except OSError:
+                self._manifest.target_name = _was_name
+                self._manifest.former_names = _was_former
+                raise
+        except OSError:
+            for a, b in reversed(done):
+                try:
+                    b.rename(a)
+                except OSError as exc:              # pragma: no cover
+                    log.error("could not undo %s -> %s after a failed rename: "
+                              "%s", a, b, exc)
+            raise
+
         self.write_readme()
         log.info("Renamed project stem %s -> %s at %s", old_stem, new_stem, self._root)
+        self._rename_report_references([old_stem, *_was_former], new_stem)
+
+    def _rename_report_references(self, olds: "list[str]",
+                                  new_stem: str) -> None:
+        """**THE REPORTS THAT NAME THE PROJECT GET ITS NEW NAME (challenge C,
+        beta 39, #2).** A saved report records its measurements by folder,
+        and a report across projects lives OUTSIDE the project, in
+        ``<ChromIQ folder>/reports/``: after a rename it went on naming the
+        old folder, the other project's window found "1 of the 3", and an
+        Update from that side narrowed the report to what it found.
+
+        `core.report_refs` rewrites only those references (the recorded
+        folders and the stems), in the project's reports, the folder across
+        projects and the projects beside it, all or nothing and archiving
+        nothing. Never fatal: the rename has already succeeded, and a report
+        that could not be rewritten is still found through ``former_names``
+        (`workflow.measurement_report.resolve_recorded_folder`)."""
+        try:
+            from core.report_refs import (apply_plan, plan_is_writable,
+                                          rename_references_plan)
+            plan = rename_references_plan(self._root, olds, new_stem)
+            if not plan:
+                return
+            stuck = plan_is_writable(plan)
+            if stuck:
+                log.warning("the reports that name %s were left as they are: "
+                            "ChromIQ may not write in %s; they are still "
+                            "found by the project's former name", new_stem,
+                            ", ".join(str(s) for s in stuck))
+                return
+            if apply_plan(plan):
+                log.info("renamed %s in %d report(s) that name the project",
+                         new_stem, len(plan.changes))
+        except Exception:                             # noqa: BLE001
+            log.warning("could not rewrite the reports that name %s",
+                        new_stem, exc_info=True)
 
     # ---- run access
     def run(self, run_id: str) -> Run:
@@ -3437,17 +4342,52 @@ class FileManager:
         # The NEW name goes beside the old project, not at the top level: a
         # rename must not also move a project out of the group it is filed in.
         new_root = old_root.parent / self._sanitise(cleaned)
-        if new_root == old_root:
-            return old_root
         if not (old_root / Project.MANIFEST).exists():
             raise FileNotFoundError(old_root)
-        if new_root.exists():
-            raise FileExistsError(new_root)
+        if new_root == old_root:
+            # **THE FOLDER ALREADY HAS THE NAME; ITS FILES MAY NOT (#182
+            # K26).** A project duplicated or renamed outside ChromIQ ("X
+            # copy", or "X-2") is opened from a folder whose name is not
+            # the name its files and project.json carry, and every run then
+            # looks for files that are not there (`Run.stem` is the folder's
+            # name). This returned here and renamed nothing, so it could not
+            # repair that case; the files are renamed in place instead.
+            proj = Project.load(old_root)
+            if nfc(proj.target_name) != nfc(new_root.name):
+                _was = self._project_identity()
+                proj.rename(new_root.name)
+                self._target_name = new_root.name
+                self._project_root_override = (
+                    new_root if new_root.parent != self.root_dir() else None)
+                self._project = proj
+                self._notify_named_state(_was)
+            return old_root
+        # **A NAME THAT DIFFERS ONLY IN CASE IS THIS FOLDER, NOT ANOTHER ONE
+        # (#182 beta 38, F1).** On a case-insensitive volume `new_root.exists()`
+        # is True about the project itself; it is renamed in two steps,
+        # through a temporary name, instead of refused as taken.
+        case_only = same_entry(old_root, new_root)
+        if new_root.exists() and not case_only:
+            raise FileExistsError(errno.EEXIST, "already exists", str(new_root))
 
         _was = self._project_identity()
-        shutil.move(str(old_root), str(new_root))
+        if case_only:
+            moved = _rename_via_temporary(old_root, new_root)
+        else:
+            shutil.move(str(old_root), str(new_root))
+            moved = [(old_root, new_root)]
         proj = Project.load(new_root)
-        proj.rename(new_root.name)
+        try:
+            proj.rename(new_root.name)
+        except OSError:
+            # The files are as they were (`Project.rename` undoes its own
+            # steps); the folder goes back too, so nothing has moved.
+            for a, b in reversed(moved):
+                try:
+                    Path(b).rename(a)
+                except OSError as exc:              # pragma: no cover
+                    log.error("could not move %s back to %s: %s", b, a, exc)
+            raise
         self._target_name = new_root.name
         # Keep the override pointing at where the project now is, or a nested
         # one silently detaches the moment it is renamed.
@@ -3457,6 +4397,28 @@ class FileManager:
         # A rename changes which folder is open and told nobody at all.
         self._notify_named_state(_was)
         return new_root
+
+    @staticmethod
+    def name_its_files_carry(root: "Path") -> "str | None":
+        """The name a project's files and ``project.json`` carry, when it is
+        NOT its folder's name; None when they agree or cannot be read (#182
+        K26, Knut 5792484060, Q5).
+
+        A project copied or renamed outside ChromIQ (a duplicate "X copy") keeps
+        the old name inside, and `Run.stem` is the folder's name, so such a
+        project finds none of its charts, measurements or reports. Compared in
+        NFC, as `Project.rename` compares names. Reads only."""
+        root = Path(root)
+        try:
+            import json as _json
+            data = _json.loads((root / Project.MANIFEST).read_text(
+                encoding="utf-8"))
+        except Exception:                         # noqa: BLE001
+            return None
+        stored = str((data or {}).get("target_name") or "")
+        if not stored or nfc(stored) == nfc(root.name):
+            return None
+        return stored
 
     def project_has_built_profile(self, name: str) -> bool:
         """True if a project ``name`` exists on disk and any run holds a built
@@ -3577,6 +4539,190 @@ def is_a_project(folder: "Path | None") -> bool:
         return (Path(folder) / Project.MANIFEST).is_file()
     except OSError:
         return False
+
+
+#: The chart chain's own spelling: ``<stem>.<ext>`` and ``<stem>_NN.<ext>``.
+#: The same predicate `_migrate_v1_to_v2._protected` uses to decide what must
+#: never be swept into `cache/` — there it names the files that must STAY, here
+#: the files that must MOVE, and it is one rule either way: these are the files
+#: Argyll couples by stem, so they travel together or not at all.
+def _chain_re(stem: str) -> "re.Pattern":
+    return re.compile(rf"{re.escape(nfc(stem))}(_\d+)?\.[\w.]+\Z")
+
+
+#: Characters that stop a string being the name of a CHILD of the folder it is
+#: joined to. The three separators are obvious; ``:`` is the one that is not.
+#: Windows resolves a bare drive spec against that drive's own current
+#: directory, so ``Path(root) / "runs" / "D:"`` is ``D:`` — the other drive,
+#: outside the project altogether — and ``"C:"`` collapses to the ``runs``
+#: folder itself rather than a run inside it. The Windows spellings are refused
+#: on every platform on purpose: a manifest travels with the project, so the
+#: value being judged here may have been written on a different one.
+_NOT_IN_A_FOLDER_NAME = ("/", "\\", "\0", ":")
+
+
+def is_a_plain_folder_name(value: object) -> bool:
+    """True when *value* can only ever name a child of the folder it joins.
+
+    A MANIFEST IS A FILE PEOPLE CAN EDIT, AND PROJECTS GET MAILED AROUND.
+    ``current_run`` reaches both the reader (`peek_project`) and the mover
+    (`migrate_flat_project`) straight out of ``project.json``, and neither
+    ``ProjectManifest.from_dict`` nor anything on the load path sanitises it.
+    ONE rule in ONE place, because the two had their own and only one of them
+    was strict enough: the mover's own check listed the three separators and
+    missed the drive letter, which is the spelling that carries files out of a
+    project on the platform where it matters.
+
+    Leading or trailing blanks are refused as well. A run folder is named by
+    ChromIQ (``run1``, ``run2``, …), never by a person, so a value that is not
+    already clean is a value that has been tampered with or corrupted, and the
+    honest response from something that MOVES somebody's measurements is to do
+    nothing at all.
+    """
+    v = str(value or "")
+    if not v or v != v.strip() or v.strip(".") == "":
+        return False
+    return not any(c in v for c in _NOT_IN_A_FOLDER_NAME)
+
+
+def flat_legacy_chain(root: "Path | None") -> "list[Path]":
+    """Every run-owned file sitting loose in the project folder *root*.
+
+    THE LAYOUT THIS FINDS IS OLDER THAN THE ONE THE MIGRATION KNEW ABOUT, and
+    that gap is the whole fault. `tests/golden/project_v1` — the fixture the
+    v1→v2 matrix is tested against — already has `runs/`, so every test passed
+    while `_migrate_v1_to_v2` iterated `runs/runN` and found nothing to do. But
+    ChromIQ shipped a flatter layout before the folder redesign (`c1fe7a0b`,
+    2026-05-27): the chart, the measurement and the profile sat directly in the
+    project folder, with no `runs/` anywhere. A tester's three projects from
+    2026-02 are exactly that, and loading them moved nothing while announcing
+    that it had.
+
+    Empty for a project already laid out in `runs/` — a v2 project keeps
+    nothing matching the chain at its root, so asking is free and never
+    misfires. Read-only: this never creates, moves or migrates anything.
+
+    THE PROJECT'S OWN BOOKKEEPING IS NOT A RUN'S CHART, whatever it is called.
+    The stem this matches on is the FOLDER's name, so a project a person names
+    ``project`` makes ``project.json`` — its own manifest — match the chain
+    exactly, and the mover then carried the manifest into ``runs/run1``. The
+    manifest was written back at the root a moment later by `save_manifest`, so
+    nothing was lost; what was left was a stray copy of it inside the run
+    folder and, from the next open onwards, a warning on every single load
+    saying the run "already holds 1 chart file(s) of its own". ``Where are my
+    files.txt`` is the same trap for a folder hand-named ``Where are my files``.
+    `_migrate_v1_to_v2` already protects these two names from being swept into
+    `cache/` from INSIDE a run; they must equally never be picked UP from the
+    project folder, and it is the same list either way.
+    """
+    if root is None:
+        return []
+    root = Path(root)
+    rx = _chain_re(root.name)
+    own = {nfc(Project.MANIFEST), nfc(Project.README)}
+    try:
+        return sorted(f for f in root.iterdir()
+                      if f.is_file() and nfc(f.name) not in own
+                      and rx.fullmatch(nfc(f.name)))
+    except OSError:
+        return []
+
+
+def migrate_flat_project(root: "Path", run_id: str = "run1") -> int:
+    """Move a pre-``runs/`` project's loose chain into ``runs/<run_id>/``.
+
+    Returns how many files moved. **0 means the folder is exactly as it was
+    found** — either there was nothing loose, or the move was refused. There is
+    no third outcome: this never leaves a project half moved, which is the one
+    failure a migration of somebody's measurements is not allowed to have.
+
+    HOW IT REFUSES. If the run folder already holds a chain of its own, the
+    loose files are not the same work and merging them would silently pick a
+    winner per filename; if any single destination already exists, likewise.
+    Both cases log and change nothing.
+
+    HOW IT CANNOT HALF-FINISH. ``runs/`` is inside *root*, so every move is a
+    same-volume ``os.replace`` — atomic per file, so no file is ever truncated
+    or duplicated. Should one still fail (a permission change mid-run, a file
+    locked by another program), the moves already made are put back before
+    returning 0.
+    """
+    loose = flat_legacy_chain(root)
+    if not loose:
+        return 0
+    root = Path(root)
+
+    # A MANIFEST IS A FILE PEOPLE CAN EDIT, AND PROJECTS GET MAILED AROUND.
+    # `run_id` reaches here from `project.json`'s `current_run`, and
+    # `ProjectManifest.from_dict` does not sanitise it - only `peek_project`
+    # does, for exactly this reason. Everything else that builds a path from it
+    # only READS; this MOVES somebody's measurements, so a `current_run` of
+    # "../.." would carry them out of the project altogether. Anything that is
+    # not a plain folder name is refused, which here means the folder is left
+    # exactly as it was found.
+    #
+    # THE CHECK USED TO BE WRITTEN OUT HERE AND IT WAS NOT THE SAME CHECK the
+    # reader used. It listed the three separators and missed `:`, so a
+    # `current_run` of "D:" was accepted and, on Windows, named the OTHER DRIVE
+    # rather than a folder in this project - the one spelling that defeats a
+    # traversal guard on the platform ChromIQ also ships to. `peek_project`
+    # shares the rule now, so there is one of it.
+    if not is_a_plain_folder_name(run_id):
+        log.warning("flat migration: %r is not a usable run folder name - "
+                    "leaving %s alone", run_id, root)
+        return 0
+
+    run_dir = root / "runs" / run_id
+    rx = _chain_re(root.name)
+
+    if run_dir.is_dir():
+        try:
+            held = [f for f in run_dir.iterdir()
+                    if f.is_file() and rx.fullmatch(nfc(f.name))]
+        except OSError as exc:
+            log.warning("flat migration: cannot read %s (%s) — leaving %s alone",
+                        run_dir, exc, root)
+            return 0
+        if held:
+            log.warning(
+                "flat migration: %s already holds %d chart file(s) of its own — "
+                "leaving the %d loose file(s) in %s untouched",
+                run_dir, len(held), len(loose), root)
+            return 0
+
+    plan = [(f, run_dir / f.name) for f in loose]
+    clash = [d.name for _, d in plan if d.exists()]
+    if clash:
+        log.warning("flat migration: %s already exists in %s — leaving %s alone",
+                    ", ".join(sorted(clash)[:3]), run_dir, root)
+        return 0
+
+    try:
+        run_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        log.warning("flat migration: cannot create %s (%s) — leaving %s alone",
+                    run_dir, exc, root)
+        return 0
+
+    done: "list[tuple[Path, Path]]" = []
+    for srcf, dstf in plan:
+        try:
+            os.replace(srcf, dstf)
+        except OSError as exc:
+            log.error("flat migration: %s failed (%s) — putting %d file(s) back",
+                      srcf.name, exc, len(done))
+            for back_src, back_dst in reversed(done):
+                try:
+                    os.replace(back_dst, back_src)
+                except OSError as undo_exc:      # pragma: no cover - disk gone
+                    log.error("flat migration: could NOT put %s back: %s",
+                              back_dst, undo_exc)
+            return 0
+        done.append((srcf, dstf))
+
+    log.info("flat migration: moved %d file(s) from %s into runs/%s",
+             len(done), root, run_id)
+    return len(done)
 
 
 def dir_holds(folder: "Path | None", path: "Path | None") -> bool:
@@ -3705,14 +4851,49 @@ class ProjectPeek:
         return self.run_id or "1"
 
 
+def _loose_run_peek(loose: "list[Path]", rid: str = "run1") -> "RunPeek":
+    """What a pre-redesign project's loose chain amounts to, as one run."""
+    sfx = {f.suffix.lower() for f in loose}
+    return RunPeek(rid,
+                   chart=bool(sfx & {".ti1", ".ti2"}),
+                   measurement=".ti3" in sfx,
+                   profile=bool(sfx & {".icc", ".icm"}))
+
+
 def peek_project(root: "Path | None") -> ProjectPeek:
     """Read-only: what is in the project at *root*? Never creates or migrates."""
     if root is None:
         return ProjectPeek(Path(""), exists=False)
     root = Path(root)
     manifest = root / Project.MANIFEST
+    # A PRE-REDESIGN PROJECT IS STILL SOMEBODY'S WORK. It has no manifest and
+    # no `runs/` - the chart, the measurement and the profile lie loose in the
+    # folder - and answering "nothing of that name" for it is how a build came
+    # to land on top of one in silence. `Project.create_or_load` now adopts
+    # such a folder into `runs/run1` rather than building an empty project
+    # around it, so "it exists and it holds work" is also the true answer.
+    # Still read-only: asking never moves anything.
+    #
+    # LOOKED UP LAZILY, because this function is asked ON EVERY KEYSTROKE while
+    # somebody types a project name (see `tab_chart`'s name field). An
+    # unconditional `iterdir` here would put a directory read on every
+    # character typed, in a folder that can hold hundreds of page bitmaps.
+    # Both call sites below are cold paths.
+    _loose: "list[Path] | None" = None
+
+    def loose_chain() -> "list[Path]":
+        nonlocal _loose
+        if _loose is None:
+            _loose = flat_legacy_chain(root)
+        return _loose
+
     try:
         if not manifest.is_file():
+            if loose_chain():
+                lr = _loose_run_peek(loose_chain())
+                return ProjectPeek(root, exists=True, run_id="run1",
+                                   chart=lr.chart, measurement=lr.measurement,
+                                   profile=lr.profile, runs=(lr,))
             return ProjectPeek(root, exists=False)
         data = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -3738,10 +4919,12 @@ def peek_project(root: "Path | None") -> ProjectPeek:
     # These ids become path components below, so a `current_run` of "../.." or
     # "/etc" would walk this read straight out of the project — the same shape
     # as the journal traversal fixed in 4.1.3-beta.18. Anything that is not a
-    # plain folder name is dropped.
+    # plain folder name is dropped, by the SAME rule the mover applies: this
+    # one only reads, so it also tolerates the blanks a hand-edited value picks
+    # up, and judges what is left.
     def _safe_id(value) -> str:
         v = str(value or "").strip()
-        return v if v and v not in (".", "..") and "/" not in v and "\\" not in v else ""
+        return v if is_a_plain_folder_name(v) else ""
 
     run_id = _safe_id(data.get("current_run"))
     runs = [r for r in (_safe_id(x) for x in (data.get("runs") or [])) if r]
@@ -3812,6 +4995,16 @@ def peek_project(root: "Path | None") -> ProjectPeek:
         )
 
     peeked = tuple(r for r in (_peek_run(i) for i in ids) if r is not None)
+    # ...and the same for a project the broken migration already stamped: a
+    # manifest saying schema 3, `runs: ["run1"]`, and every file still loose in
+    # the project folder. Only counted when the run itself holds nothing, so a
+    # properly laid-out project is unaffected.
+    if not any(r.holds_anything for r in peeked) and loose_chain():
+        lr = _loose_run_peek(loose_chain(), rid=run_id)
+        return ProjectPeek(root, exists=True, run_id=run_id,
+                           chart=lr.chart, measurement=lr.measurement,
+                           profile=lr.profile, calibration=calibration,
+                           runs=(lr,))
     current = next((r for r in peeked if r.id == run_id), None)
     if current is None:
         return ProjectPeek(root, exists=True, run_id=run_id,

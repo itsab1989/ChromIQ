@@ -151,12 +151,14 @@ class BuiltinPresetButton(QToolButton):
 
 @dataclass(frozen=True)
 class _VisualRow:
-    """One painted line: an instrument header, or a selectable preset."""
-    kind:   str          # "header" | "item"
+    """One painted line: an instrument header, a selectable preset, or the
+    arrow that opens and closes a group's other presets."""
+    kind:   str          # "header" | "item" | "more" | "note"
     text:   str
-    key:    str | None   # preset key for "item" rows, else None
+    key:    str | None   # preset key for "item" rows, the group for "more"
     top:    int          # y of the row within the widget
     height: int
+    group:  str = ""     # the heading an "item" under an arrow belongs to
 
 
 class BuiltinPresetPopup(QWidget):
@@ -164,9 +166,26 @@ class BuiltinPresetPopup(QWidget):
 
     ``groups`` is ``[(instrument, [(overlay_label, key), …]), …]`` — exactly
     what the tab derives from BUILTIN_PRESET_GROUPS. Emits ``selected(key)``.
+
+    ``more`` is ``{instrument: [(overlay_label, key), …]}``: the presets of a
+    group that are NOT ticked in the window behind Create Chart's gear button
+    (#182 5818659478). They wait under an arrow row after the group's ticked
+    ones, pointing right while closed and down while open, exactly as in the
+    "Select preset" pulldown. A click on the arrow, or Return, Space or the
+    Right arrow key on it, opens the group and leaves the list open; Left
+    closes it again. Up and Down move through the rows, Return picks a preset.
+
+    ``note`` is the paper-filter note (Knut, #182 5834773589, B8-1171), the
+    list's last row, painted in the app's information colours
+    (:func:`ui.theme.info_colours`) and wrapped to the panel's width. It is
+    never selectable: Up and Down skip it, a click on it does nothing, and
+    it can never be emitted as a preset.
     """
 
     selected = pyqtSignal(str)  # preset key
+    #: The note's ", or click here ⚙" was clicked (K61, B8-1411): the list
+    #: closes and "Settings for built-in presets" is asked for.
+    settings_requested = pyqtSignal()
 
     TAIL_W       = 16   # base width of the tail triangle
     TAIL_H       = 9    # height of the tail (sticks up above the panel)
@@ -187,6 +206,9 @@ class BuiltinPresetPopup(QWidget):
         self,
         groups: list[tuple[str, list[tuple[str, str]]]],
         parent: QWidget | None = None,
+        more: dict[str, list[tuple[str, str]]] | None = None,
+        note: str = "",
+        note_link: str = "",
     ) -> None:
         super().__init__(parent)
         # NoDropShadowWindowHint suppresses the platform's own popup shadow (see
@@ -200,6 +222,11 @@ class BuiltinPresetPopup(QWidget):
         self.setMouseTracking(True)
 
         self._groups  = groups
+        self._more    = dict(more or {})
+        self._note    = note
+        self._note_link = note_link
+        self._open: set[str] = set()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._mode    = "dark"
         self._palette = _PALETTE_DARK
         self._hover_index: int = -1
@@ -221,6 +248,9 @@ class BuiltinPresetPopup(QWidget):
         self._viewport_h  = 0
         self._content_h   = 0
         self._content_top = 0
+        self._note_h      = 0     # the pinned note under the rows (B8-1226)
+        #: While the scroll thumb is dragged: the press's offset into it.
+        self._thumb_grab: "int | None" = None
 
         self._rows: list[_VisualRow] = []
         self._build_rows()
@@ -247,21 +277,88 @@ class BuiltinPresetPopup(QWidget):
             for label, key in entries:
                 self._rows.append(_VisualRow("item", label, key, y, self.ROW_H))
                 y += self.ROW_H
+            rest = self._more.get(instr) or []
+            if not rest:
+                continue
+            is_open = instr in self._open
+            self._rows.append(_VisualRow(
+                "more", self._more_text(len(rest), is_open), instr, y,
+                self.ROW_H))
+            y += self.ROW_H
+            if is_open:
+                for label, key in rest:
+                    self._rows.append(_VisualRow("item", label, key, y,
+                                                 self.ROW_H, group=instr))
+                    y += self.ROW_H
+        # The note is NOT a row (B8-1226): it is pinned under the scrolling
+        # rows, see `_note_rect`.
 
-    def _compute_size(self) -> None:
+    @staticmethod
+    def _more_text(count: int, is_open: bool) -> str:
+        words = (tr("1 more preset") if count == 1 else
+                 tr("{count} more presets").format(count=count))
+        return f"{'▾' if is_open else '▸'}  {words}"
+
+    def is_open(self, group: str) -> bool:
+        return group in self._open
+
+    def toggle_group(self, group: str, is_open: bool | None = None) -> None:
+        """Open or close a group's arrow. The panel keeps its top edge and
+        grows or shrinks below it, and the arrow row stays in view."""
+        if group not in self._more:
+            return
+        if is_open is None:
+            is_open = group not in self._open
+        if is_open:
+            self._open.add(group)
+        else:
+            self._open.discard(group)
+        scroll = self._scroll_y
+        self._build_rows()
+        self._compute_size(keep_scroll=scroll)
+        for i, row in enumerate(self._rows):
+            if row.kind == "more" and row.key == group:
+                self._hover_index = i
+                self._ensure_visible(i)
+                break
+        self.update()
+
+    def _ensure_visible(self, index: int) -> None:
+        row = self._rows[index]
+        top = row.top
+        if index > 0 and self._rows[index - 1].kind == "header":
+            top = self._rows[index - 1].top      # keep a group's heading with it
+        if top < self._scroll_y:
+            self._scroll_y = max(0, top)
+        elif row.top + row.height > self._scroll_y + self._viewport_h:
+            self._scroll_y = min(self._max_scroll,
+                                 row.top + row.height - self._viewport_h)
+
+    def _compute_size(self, keep_scroll: int = 0) -> None:
         item_fm   = QFontMetricsF(self._item_font)
         header_fm = QFontMetricsF(self._header_font)
         text_w = 0.0
-        for row in self._rows:
-            if row.kind == "item":
+        # Measured over EVERY preset, the ones under a closed arrow included,
+        # so the panel does not change width when an arrow is opened.
+        # Not the note: it wraps to the panel, it does not widen it.
+        texts = [(r.kind, r.text) for r in self._rows]
+        for rest in self._more.values():
+            texts.extend(("item", label) for label, _k in rest)
+        for kind, text in texts:
+            if kind != "header":
                 # Items inset by ROW(6)+TEXT(12)+ITEM_INDENT on the left.
-                w = item_fm.horizontalAdvance(row.text) + self.ITEM_INDENT
+                w = item_fm.horizontalAdvance(text) + self.ITEM_INDENT
             else:
-                w = header_fm.horizontalAdvance(row.text)
+                w = header_fm.horizontalAdvance(text)
             text_w = max(text_w, w)
         inner = 2 * (6 + 12)
         panel_w = math.ceil(text_w) + inner + self.H_PAD + self.SCROLLBAR_W
         panel_w = max(panel_w, 260)
+        # THE NOTE IS PINNED UNDER THE ROWS (Knut, #182 5839478031, B8-1226):
+        # *"always stay visible at the bottom, so that it is not scrolled out
+        # of view"*. It takes its own height under the viewport; the rows
+        # above scroll as before.
+        self._note_h = self._note_height(panel_w) if self._note else 0
 
         self._content_h = sum(r.height for r in self._rows)
         # Cap the viewport to one header + MAX_VISIBLE_ITEMS entries; scroll the
@@ -269,13 +366,36 @@ class BuiltinPresetPopup(QWidget):
         cap_h = self.HEADER_H + self.MAX_VISIBLE_ITEMS * self.ROW_H
         self._viewport_h = min(self._content_h, cap_h)
         self._max_scroll = self._content_h - self._viewport_h
-        self._scroll_y = 0
+        self._scroll_y = max(0, min(keep_scroll, self._max_scroll))
 
         self._content_top = self.PANEL_MARGIN + self.TAIL_H + self.V_PAD
-        panel_h = self._viewport_h + 2 * self.V_PAD
+        panel_h = self._viewport_h + 2 * self.V_PAD + self._note_h
         w = panel_w + 2 * self.PANEL_MARGIN
         h = panel_h + 2 * self.PANEL_MARGIN + self.TAIL_H
         self.setFixedSize(w, h)
+
+    #: The note's padding inside its box, and the gap above the box.
+    NOTE_PAD = 8
+    NOTE_GAP = 6
+
+    def _note_text_width(self, row_w: float) -> int:
+        """The width the note's text wraps to in a row ``row_w`` wide: the
+        box keeps the rows' own inset and the scroll thumb's room."""
+        return max(40, int(row_w) - 2 * self.NOTE_PAD - self.SCROLLBAR_W - 4)
+
+    def _note_document(self, text_w: int):
+        """The note as the document both measuring and painting use
+        (`ui.preset_note_link`), with its link and gear (B8-1411)."""
+        from ui.preset_note_link import note_document
+        from ui.theme import info_colours
+        return note_document(self._note, self._note_link, self._item_font,
+                             info_colours(self._mode)["text"], text_w)
+
+    def _note_height(self, panel_w: int) -> int:
+        row_w = panel_w - 12
+        doc = self._note_document(self._note_text_width(row_w))
+        return (math.ceil(doc.size().height()) + 2 * self.NOTE_PAD
+                + self.NOTE_GAP)
 
     def _panel_rect(self) -> QRect:
         return QRect(
@@ -289,6 +409,56 @@ class BuiltinPresetPopup(QWidget):
         """The scrolling content region inside the panel (rows are clipped here)."""
         panel = self._panel_rect()
         return QRect(panel.left(), self._content_top, panel.width(), self._viewport_h)
+
+    def _note_rect(self) -> QRect:
+        """Where the pinned note sits: under the viewport, the rows' width."""
+        panel = self._panel_rect()
+        return QRect(panel.left() + 6, self._content_top + self._viewport_h,
+                     panel.width() - 12, self._note_h)
+
+    #: How far left of the painted thumb a press still counts as the scroll
+    #: bar's: the thumb is 4 px wide, and a bar a person has to hit to the
+    #: pixel is one that chooses the row beside it instead (B8-1319).
+    SCROLL_GRAB_W = 12
+
+    def _thumb_rect(self) -> QRect:
+        """Where the scroll thumb is painted, empty when the list fits."""
+        if self._max_scroll <= 0:
+            return QRect()
+        viewport = self._viewport_rect()
+        panel = self._panel_rect()
+        track_h = viewport.height()
+        thumb_h = max(24, int(track_h * self._viewport_h / self._content_h))
+        travel = track_h - thumb_h
+        frac = self._scroll_y / self._max_scroll if self._max_scroll else 0
+        return QRect(panel.right() - self.SCROLLBAR_W - 3,
+                     viewport.top() + int(travel * frac),
+                     self.SCROLLBAR_W, thumb_h)
+
+    def _scroll_strip_rect(self) -> QRect:
+        """The scroll bar a mouse can use: the thumb's track, the full height
+        of the rows, from :attr:`SCROLL_GRAB_W` left of the thumb to the
+        panel's edge. Empty when the list fits (B8-1319)."""
+        if self._max_scroll <= 0:
+            return QRect()
+        viewport = self._viewport_rect()
+        panel = self._panel_rect()
+        left = panel.right() - self.SCROLLBAR_W - 3 - self.SCROLL_GRAB_W // 2
+        return QRect(left, viewport.top(), panel.right() - left + 1,
+                     viewport.height())
+
+    def _scroll_to_thumb_top(self, top: int) -> None:
+        viewport = self._viewport_rect()
+        thumb = self._thumb_rect()
+        travel = viewport.height() - thumb.height()
+        if travel <= 0:
+            return
+        frac = (top - viewport.top()) / travel
+        new_y = max(0, min(self._max_scroll,
+                           int(round(frac * self._max_scroll))))
+        if new_y != self._scroll_y:
+            self._scroll_y = new_y
+            self.update()
 
     def _row_rect(self, row: _VisualRow) -> QRect:
         panel = self._panel_rect()
@@ -403,22 +573,56 @@ class BuiltinPresetPopup(QWidget):
 
         # Scroll thumb on the right edge of the viewport.
         if self._max_scroll > 0:
-            track_h = viewport.height()
-            thumb_h = max(24, int(track_h * self._viewport_h / self._content_h))
-            travel  = track_h - thumb_h
-            frac    = self._scroll_y / self._max_scroll if self._max_scroll else 0
-            thumb_y = viewport.top() + int(travel * frac)
-            thumb_x = panel.right() - self.SCROLLBAR_W - 3
             thumb   = QColor(pal["text"])
             thumb.setAlpha(70)
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(thumb)
-            p.drawRoundedRect(
-                QRect(thumb_x, thumb_y, self.SCROLLBAR_W, thumb_h),
-                2, 2,
-            )
+            p.drawRoundedRect(self._thumb_rect(), 2, 2)
+
+        if self._note:
+            self._paint_note(p, self._note_rect(), 0)
 
         p.end()
+
+    def _paint_note(self, p: QPainter, rect: QRect, sb_w: int) -> None:
+        """The paper-filter note: a box in the app's information colours for
+        this appearance, the text wrapped inside it."""
+        from ui.theme import info_colours
+        colours = info_colours(self._mode)
+        box = QRectF(rect.left(), rect.top() + self.NOTE_GAP,
+                     rect.width() - sb_w - 4,
+                     rect.height() - self.NOTE_GAP).adjusted(0.5, 0.5,
+                                                            -0.5, -0.5)
+        p.setPen(QPen(QColor(colours["border"]), 1))
+        p.setBrush(QColor(colours["bg"]))
+        p.drawRoundedRect(box, 6, 6)
+        origin, doc = self._note_layout(rect, sb_w)
+        p.save()
+        p.translate(origin)
+        doc.drawContents(p)
+        p.restore()
+
+    def _note_layout(self, rect: QRect, sb_w: int = 0):
+        """``(top left, document)`` of the note's text in ``rect``: inside
+        the box and its padding, centred up and down as the plain note was."""
+        box = QRectF(rect.left(), rect.top() + self.NOTE_GAP,
+                     rect.width() - sb_w - 4,
+                     rect.height() - self.NOTE_GAP).adjusted(
+            self.NOTE_PAD, self.NOTE_PAD, -self.NOTE_PAD, -self.NOTE_PAD)
+        doc = self._note_document(self._note_text_width(rect.width()))
+        dy = max(0.0, (box.height() - doc.size().height()) / 2.0)
+        return QPointF(box.left(), box.top() + dy), doc
+
+    def _on_note_link(self, pt) -> bool:
+        """Whether ``pt`` is on the note's link (B8-1411)."""
+        if not (self._note and self._note_link):
+            return False
+        rect = self._note_rect()
+        if not rect.contains(pt):
+            return False
+        from ui.preset_note_link import link_at
+        origin, doc = self._note_layout(rect, 0)
+        return link_at(doc, QPointF(pt) - origin)
 
     # ------------------------------------------------------------------
     def _index_at(self, pt: QPoint) -> int:
@@ -426,8 +630,10 @@ class BuiltinPresetPopup(QWidget):
         gaps, the scrolled-away region, or the transparent margin."""
         if not self._viewport_rect().contains(pt):
             return -1
+        if self._scroll_strip_rect().contains(pt):
+            return -1               # the scroll bar is never a row (B8-1319)
         for i, row in enumerate(self._rows):
-            if row.kind != "item":
+            if row.kind == "header":
                 continue
             if self._row_rect(row).contains(pt):
                 return i
@@ -448,6 +654,14 @@ class BuiltinPresetPopup(QWidget):
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        grab = getattr(self, "_thumb_grab", None)
+        if grab is not None:
+            # dragging the thumb: it follows the pointer, the rows scroll
+            self._scroll_to_thumb_top(int(event.position().y()) - grab)
+            return
+        self.setCursor(Qt.CursorShape.PointingHandCursor
+                       if self._on_note_link(event.position().toPoint())
+                       else Qt.CursorShape.ArrowCursor)
         idx = self._index_at(event.position().toPoint())
         if idx != self._hover_index:
             self._hover_index = idx
@@ -477,10 +691,82 @@ class BuiltinPresetPopup(QWidget):
         if not self._panel_rect().contains(pt):
             self.close()
             return
+        if self._scroll_strip_rect().contains(pt):
+            # THE SCROLL BAR SCROLLS, AND NEVER CHOOSES (B8-1319, Knut's
+            # user on #182 5845615756). It was painted and nothing more: a
+            # press on it did nothing, and a press a pixel left of it chose
+            # the row underneath and closed the list. The thumb drags; a
+            # press on the track above or below it pages towards the press.
+            thumb = self._thumb_rect()
+            if thumb.top() <= pt.y() <= thumb.bottom():
+                self._thumb_grab = pt.y() - thumb.top()
+            else:
+                self._thumb_grab = None
+                page = max(self.ROW_H, self._viewport_h - self.ROW_H)
+                step = page if pt.y() > thumb.bottom() else -page
+                self._scroll_y = max(0, min(self._max_scroll,
+                                            self._scroll_y + step))
+                self.update()
+            return
+        if self._on_note_link(pt):
+            # THE NOTE'S LINK (K61, B8-1411): the list closes, and the tab
+            # opens "Settings for built-in presets" from the event loop.
+            self.close()
+            self.settings_requested.emit()
+            return
         idx = self._index_at(pt)
         if idx < 0:
             return
-        key = self._rows[idx].key
+        self._activate(idx)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:  # noqa: N802
+        if getattr(self, "_thumb_grab", None) is not None:
+            self._thumb_grab = None
+            return
+        super().mouseReleaseEvent(event)
+
+    def _activate(self, idx: int) -> None:
+        row = self._rows[idx]
+        if row.kind not in ("item", "more"):
+            return                  # a heading or the note is never chosen
+        if row.kind == "more":
+            self.toggle_group(str(row.key))
+            return
+        key = row.key
         self.close()
         if key is not None:
             self.selected.emit(key)
+
+    def _selectable(self) -> list[int]:
+        return [i for i, r in enumerate(self._rows)
+                if r.kind in ("item", "more")]
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        """The list by keyboard: Up and Down move, Return or Space picks a
+        preset or opens an arrow, Right opens and Left closes an arrow (Left on
+        a preset under an open arrow goes back up to it), Escape closes."""
+        rows = self._selectable()
+        key = event.key()
+        cur = self._hover_index
+        if key in (Qt.Key.Key_Down, Qt.Key.Key_Up) and rows:
+            if cur not in rows:
+                nxt = rows[0] if key == Qt.Key.Key_Down else rows[-1]
+            else:
+                pos = rows.index(cur) + (1 if key == Qt.Key.Key_Down else -1)
+                nxt = rows[max(0, min(len(rows) - 1, pos))]
+            self._hover_index = nxt
+            self._ensure_visible(nxt)
+            self.update()
+            return
+        if cur in rows:
+            row = self._rows[cur]
+            if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+                self._activate(cur)
+                return
+            if row.kind == "more" and key in (Qt.Key.Key_Right, Qt.Key.Key_Left):
+                self.toggle_group(str(row.key), key == Qt.Key.Key_Right)
+                return
+            if row.kind == "item" and row.group and key == Qt.Key.Key_Left:
+                self.toggle_group(row.group, True)   # stays open, goes up
+                return
+        super().keyPressEvent(event)

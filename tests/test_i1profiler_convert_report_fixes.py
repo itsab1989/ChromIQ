@@ -114,6 +114,12 @@ def test_report_pdf_anchors_on_origin_not_temp(qapp, tmp_path, monkeypatch):
 
     host = types.SimpleNamespace(_sources=[], _ti3=None)
     host._source_key = types.MethodType(M._source_key, host)
+    host._source_keys = types.MethodType(M._source_keys, host)
+    host._reload_sources = lambda: None      # the real one needs a window
+    host._rebuild_from_sources = lambda: None
+    host._disk_stamp = M._disk_stamp
+    host._source_has_moved_on = types.MethodType(M._source_has_moved_on, host)
+    host._reread_one_source = types.MethodType(M._reread_one_source, host)
     host._gather_runs = lambda t: (t.stem, [{"created": "2026-01-01"}])
     types.MethodType(M._append_source, host)(temp_ti3, origin=origin)
 
@@ -140,20 +146,34 @@ def test_report_as_ti3_raises_on_bad_file(qapp, settings, tmp_path, monkeypatch)
 
 def test_source_key_standalone_by_file_project_by_folder(qapp, tmp_path, monkeypatch):
     """Standalone/imported measurements key by FILE (so several in one folder each
-    add); a ChromIQ project keys by FOLDER (all its runs = one source)."""
+    add); a ChromIQ project keys by FOLDER (all its runs = one source).
+
+    **THE PROPERTIES, NOT THE SPELLING.** The second half of each key used to be
+    the path as typed, and that let one measurement be added twice under a
+    second spelling of its own name: `/private/tmp` and a symlink, which
+    `resolve()` collapses, and a firmlink or another capitalisation, which it
+    does not (measured: +1 row each). It is the file's own device and inode
+    now, so what this test pins is what the docstring always said it was.
+    """
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog as M
 
     host = types.SimpleNamespace()
     key = types.MethodType(M._source_key, host)
     ti3 = tmp_path / "m.ti3"
     ti3.write_text("x", encoding="utf-8")
+    other = tmp_path / "m2.ti3"
+    other.write_text("y", encoding="utf-8")
     monkeypatch.setattr(
         "workflow.measurement_report.list_project_reports", lambda d: [])
-    assert key(ti3) == ("file", str(ti3))
+    assert key(ti3)[0] == "file"
+    assert key(ti3) != key(other), "two loose files in one folder collapsed"
+    assert key(ti3) == key(tmp_path / "m.ti3"), "one file, two calls, two keys"
     monkeypatch.setattr(
         "workflow.measurement_report.list_project_reports",
         lambda d: [tmp_path / "r.json"])
-    assert key(ti3) == ("dir", str(tmp_path))
+    assert key(ti3)[0] == "dir"
+    assert key(ti3) == key(other), (
+        "two measurements of one project folder must be one source")
 
 
 def test_several_loose_ti3_in_one_folder_each_add(qapp, tmp_path, monkeypatch):
@@ -167,6 +187,12 @@ def test_several_loose_ti3_in_one_folder_each_add(qapp, tmp_path, monkeypatch):
     b = tmp_path / "m2.ti3"; b.write_text("y", encoding="utf-8")
     host = types.SimpleNamespace(_sources=[], _ti3=None)
     host._source_key = types.MethodType(M._source_key, host)
+    host._source_keys = types.MethodType(M._source_keys, host)
+    host._reload_sources = lambda: None      # the real one needs a window
+    host._rebuild_from_sources = lambda: None
+    host._disk_stamp = M._disk_stamp
+    host._source_has_moved_on = types.MethodType(M._source_has_moved_on, host)
+    host._reread_one_source = types.MethodType(M._reread_one_source, host)
     host._gather_runs = lambda ti3: (ti3.stem, [{"created": "2026-01-01"}])
     append = types.MethodType(M._append_source, host)
     assert append(a) is True

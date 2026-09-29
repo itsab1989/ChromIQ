@@ -78,7 +78,7 @@ def main() -> int:
     if src is None:
         print("No cached Demo-Full-RGB. Run the test suite once to build it.")
         return 2
-    work = Path(tempfile.mkdtemp(prefix="new-run-seed-"))
+    work = Path(tempfile.mkdtemp(prefix="chromiq-new-run-seed-"))
     shutil.copytree(src, work / src.name)
     print(f"subject: {work / src.name}")
 
@@ -109,7 +109,7 @@ def main() -> int:
         app.installEventFilter(F(app))
 
     import core.settings as cs
-    ini = Path(tempfile.mkdtemp()) / "drive.ini"
+    ini = Path(tempfile.mkdtemp(prefix="chromiq-test-")) / "drive.ini"
     cs.QSettings = lambda *a, **k: _QS(str(ini), _QS.Format.IniFormat)
     s = cs.AppSettings()
     s.set("custom_output_path", str(work))

@@ -34,11 +34,11 @@ parameters:
       tooltip_body: |
         Defines the colorant combination of your output device.
 
-        Print spaces are subtractive: device value 0 = white (no ink),
+        **Print spaces are subtractive:** device value 0 = white (no ink),
         maximum = black (full ink).  Video/display spaces are additive:
         device value 0 = black, maximum = white.
 
-        Common choices:
+        **Common choices:**
           • Print grey (-d 0)  — single-channel greyscale printer
           • Video grey (-d 1)  — single-channel display/monitor
           • Print RGB (-d 2)   — standard RGB inkjet (default, recommended)
@@ -85,7 +85,7 @@ parameters:
         or removing one individual colorant.  If the chosen colorant is
         already present in the set it is removed; if absent it is added.
 
-        Typical uses:
+        **Typical uses:**
           • Add Orange (-D 5) to standard CMYK for extended gamut
           • Add Light Cyan (-D 11) / Light Magenta (-D 12) to CMYK
             for smoother highlight gradients
@@ -114,7 +114,7 @@ parameters:
           • High quality: 1500–2000
           • Very high:  2500–3000
 
-        Auto (next to the spinbox): when ticked, the patch count is
+        **Auto (next to the spinbox):** when ticked, the patch count is
         computed live from the chosen paper, instrument, double-density,
         left-border, patch scale, margin, and the Pages spinbox in the
         printtarg section — picking the largest value that fills exactly
@@ -145,7 +145,7 @@ parameters:
         is, which anchors the bright end of the profile. 4 is a good
         default; very glossy papers can benefit from a few more.
 
-        Auto (checkbox):
+        **Auto (checkbox):**
         Turn on "Auto" and ChromIQ picks this number for you, based on
         how many patches the whole chart holds — so a small one-page
         chart gets a few white patches and a big multi-page chart gets
@@ -178,7 +178,7 @@ parameters:
         printer can produce, which anchors the shadow end of the profile.
         4 is a good default for RGB printers.
 
-        Auto (checkbox):
+        **Auto (checkbox):**
         Turn on "Auto" and ChromIQ picks this number for you, based on
         how many patches the whole chart holds — a small chart gets a
         few black patches, a big chart gets more.
@@ -210,7 +210,7 @@ parameters:
         Rough guide if you set it by hand: 0 for a quick profile,
         50–100 for a standard one, 128+ for high quality.
 
-        Auto (checkbox):
+        **Auto (checkbox):**
         Turn on "Auto" and ChromIQ picks this number for you, scaled to
         how many patches the whole chart holds — a bigger chart gets a
         longer, finer grey ramp.
@@ -341,7 +341,7 @@ parameters:
           • -n adds explicit, profile-derived neutral patches on top
             of whatever the rest of the distribution produces.
 
-        When to use it:
+        **When to use it:**
           • You already have a first-pass ICC profile for this paper
             and you're building a refinement chart.  Load that profile
             under Pre-conditioning Profile (-c), then set -n to 32–64
@@ -351,7 +351,7 @@ parameters:
             neutral axis to sample from, and -g already covers the
             device-space ramp.
 
-        Typical refinement values: 32 for routine work, 64 for
+        **Typical refinement values:** 32 for routine work, 64 for
         fine-art / proofing where neutrality is critical.
 
         Requires -c to be set; has no effect otherwise.
@@ -409,7 +409,7 @@ parameters:
         from such patches predicts colours your printer can't actually
         produce.
 
-        How to choose a value:
+        **How to choose a value:**
           • Most CMYK inkjets:        260 – 320 %
           • Coated / glossy papers:   320 – 360 %
           • Newsprint, low-quality:   220 – 260 %
@@ -420,7 +420,7 @@ parameters:
         guidance, or measure: print a small ink-limit test wedge and
         pick the highest value that dries cleanly without bleeding.
 
-        For RGB workflows: usually leave this disabled — RGB inkjets
+        **For RGB workflows:** usually leave this disabled — RGB inkjets
         handle their own ink limiting internally, so targen doesn't
         need to budget across channels.
 
@@ -431,14 +431,14 @@ parameters:
       type: flag_choice
       choices: ["", "-t", "-r", "-R", "-q", "-Q", "-i", "-I"]
       labels:
-        - "OFPS — optimised farthest point (recommended)"
-        - "Incremental Far Point (-t) — faster, less even"
-        - "Even random — device space (-r)"
-        - "Even random — perceptual space (-R)"
-        - "Quasi-random space-filling — device space (-q)"
-        - "Quasi-random space-filling — perceptual space (-Q)"
-        - "Body-centered cubic lattice — device space (-i)"
-        - "Body-centered cubic lattice — perceptual space (-I)"
+        - "OFPS: optimised farthest point (recommended)"
+        - "Incremental Far Point (-t): faster, less even"
+        - "Even random: device space (-r)"
+        - "Even random: perceptual space (-R)"
+        - "Quasi-random space-filling: device space (-q)"
+        - "Quasi-random space-filling: perceptual space (-Q)"
+        - "Body-centered cubic lattice: device space (-i)"
+        - "Body-centered cubic lattice: perceptual space (-I)"
       default: ""
       affects_preview: true
       expert_only: true
@@ -452,35 +452,35 @@ parameters:
         Pick ONE. These are mutually exclusive — selecting any of them
         replaces the default OFPS placement entirely.
 
-        OFPS (default, recommended):
+        **OFPS (default, recommended):**
         Optimised Farthest Point Sampling. Iteratively places each new
         patch as far as possible from every existing patch, producing
         the most even coverage of any algorithm here. Slower than the
         alternatives but the gold standard for profile quality. Pair
         with "Thorough Optimisation (-G)" for best results.
 
-        Incremental Far Point (-t):
+        **Incremental Far Point (-t):**
         A simpler farthest-point method. Faster than OFPS, slightly
         less even. Use when OFPS is too slow on very large patch counts
         and you accept a small quality drop.
 
-        Random — device space (-r):
+        **Random — device space (-r):**
         Uniformly random patches in raw device values (e.g. RGB).
         Fastest possible, but coverage in *perceived* colour is uneven
         — wastes patches in regions our eye barely distinguishes.
 
-        Random — perceptual space (-R):
+        **Random — perceptual space (-R):**
         Uniformly random in perceived colour (Lab). Better than -r if
         you must use random, since patches are spread evenly by what
         the eye sees. Still less optimal than OFPS for the same count.
 
-        Quasi-random space-filling (-q / -Q):
+        **Quasi-random space-filling (-q / -Q):**
         Low-discrepancy sequences (Sobol-like) that fill space more
         evenly than true random without OFPS's iterative cost.
         -q in device space, -Q in perceptual space. A good middle
         ground when OFPS is too slow.
 
-        Body-centered cubic lattice (-i / -I):
+        **Body-centered cubic lattice (-i / -I):**
         A fixed regular lattice (each patch surrounded by 8 neighbours
         in a cube pattern). Deterministic and very even, but inflexible
         — exact patch counts that fit the lattice are limited. -i in
@@ -540,14 +540,14 @@ parameters:
         Set to 0 (default) to skip — almost always the right choice.
         OFPS already covers the cube interior more efficiently.
 
-        When to use it:
+        **When to use it:**
           • Repeatability across machines: a fixed grid is the same
             every time, regardless of which OFPS placements targen
             picked, which can help compare profiles across runs.
           • Diagnostic charts where you want predictable, named cube
             positions.
 
-        Typical values when used: 3 – 6 (steps per axis). Numbers
+        **Typical values when used:** 3 – 6 (steps per axis). Numbers
         grow fast — 6 steps in RGB is 216 patches, 8 is 512.
 
         Tick the checkbox to enable.
@@ -571,14 +571,14 @@ parameters:
 
         Set to 0 (default) to skip.
 
-        When to use it:
+        **When to use it:**
           • You specifically want to nail down the gamut boundary and
             primary/secondary corners without the interior overhead
             of -m.
           • Comparing how different inks/papers shift the gamut
             envelope — surface patches are the ones most affected.
 
-        Typical values when used: 4 – 8 steps per face.
+        **Typical values when used:** 4 – 8 steps per face.
 
         Tick the checkbox to enable.
 
@@ -601,14 +601,14 @@ parameters:
 
         Set to 0 (default) to skip — this is a niche knob.
 
-        When to use it:
+        **When to use it:**
           • You want regular, lattice-aligned patch positions but
             with better packing than -m gives, without going all the
             way to OFPS.
           • Research / repeatability scenarios where the BCC structure
             itself is the point.
 
-        Note: this is the *step counter* form (adds to your patch list);
+        **Note:** this is the *step counter* form (adds to your patch list);
         for a chart whose *entire* distribution is BCC, use the
         "Patch Distribution" selector above and pick the body-centered
         cubic option there.
@@ -640,46 +640,47 @@ parameters:
       tooltip_body: |
         Tells the chart generator which spectrophotometer you will use to
         read the printed chart. The patch grid is built around that
-        instrument's strip width, patch size and spacing — so getting
+        instrument's strip width, patch size and spacing, so getting
         this right is essential.
 
-          •  i1Pro / i1Pro 2 / i1Pro 3 — handheld strip reader, the most
+          •  i1Pro / i1Pro 2 / i1Pro 3: handheld strip reader, the most
              common choice. Reads a column of patches in one sweep.
 
-          •  i1Pro 3 Plus — larger-aperture version of the i1Pro 3.
+          •  i1Pro 3 Plus: larger-aperture version of the i1Pro 3.
              Reads bigger patches, so far fewer fit per sheet (~5× less
              than the regular i1Pro).
 
-          •  ColorMunki / i1Studio / ColorChecker Studio — entry-level
+          •  ColorMunki / i1Studio / ColorChecker Studio: entry-level
              device. Reads one patch at a time on its own; with the
              optional measuring rig it pairs them up (see Double Density).
 
-          •  SpectroScan — flatbed XY scanner. A motorised arm reads
+          •  SpectroScan: flatbed XY scanner. A motorised arm reads
              each patch individually, so it packs far more colours per
              sheet than any strip reader.
 
-          •  CR30 (ChnSpec) — small hand-held colorimeter that reads
+          •  CR30 (ChnSpec): small hand-held colorimeter that reads
              ONE patch at a time. You place it on a patch and press the
              button on the instrument; ChromIQ records that patch and
              highlights the next one. The chart is a plain grid with row
              numbers and column letters so you can find the patch being
-             asked for. Its patch size is PROVISIONAL (12 mm squares —
-             a reasoned starting point, not a measured minimum), and each
+             asked for. Its patch size is PROVISIONAL (12 mm squares, a
+             reasoned starting point and not a measured minimum), and each
              patch is a placement and a press of about two seconds, so a
              full A4 sheet of ~345 patches is a long sitting. A CR30 chart is
              ALWAYS laid out by ChromIQ's own layout engine, and can
-             only be read by ChromIQ — standard ArgyllCMS chartread does
+             only be read by ChromIQ: standard ArgyllCMS chartread does
              not know this instrument and refuses the chart.
 
-          •  i1iSis (via i1Profiler) — automatic sheet-fed chart reader.
-             ChromIQ cannot drive this device directly: instead it will
-             save the patch list in i1Profiler's own format alongside
-             the chart, and you finish the workflow there (print, scan,
-             build profile). ChromIQ's Print and Measure tabs are not
-             used for this device.
+          •  i1iSis (via i1Profiler): automatic sheet-fed chart reader
+             that ChromIQ cannot drive. Choose it only when you will
+             measure the chart in i1Profiler and import the measurements
+             back into ChromIQ, for example to make a Measurement Report.
+             ChromIQ saves the patch list in i1Profiler's own format
+             beside the chart; its Print and Measure tabs are not used
+             for this device.
 
         Picking the wrong instrument produces a chart your device cannot
-        align to or read reliably — you'll see "patches not found" or
+        align to or read reliably, and you'll see "patches not found" or
         alignment errors when measuring. In Guided mode the layout
         adapts to this choice automatically.
 
@@ -825,13 +826,13 @@ parameters:
         your printer supports borderless printing.
 
         Selecting an i1Pro / i1Pro 2 / i1Pro 3 / i1Pro 3 Plus instrument
-        auto-bumps this to 10 mm so the strip-reader optics don't drift
+        auto-bumps this to 10 mm so the strip-reader optics don't slide
         onto the bare paper edge ("not enough patches read" errors).
         Switching to ColorMunki / SpectroScan returns it to 6 mm. A
         custom value (anything other than 6 or 10) is preserved across
         instrument changes.
 
-        Patch-per-page lookup tables exist for 6 and 10 mm only — other
+        Patch-per-page lookup tables exist for 6 and 10 mm only. Other
         values trigger a live binary-search recalculation.
 
     - flag: "-r"
@@ -843,9 +844,10 @@ parameters:
       tooltip_title: "No Randomisation (-r)"
       tooltip_body: |
         By default printtarg randomises patch positions to reduce
-        instrument drift artefacts.  Enable this flag only if you
-        are testing a specific patch sequence or if your instrument
-        requires ordered patches.
+        artefacts from instrument readings that change slowly during
+        a measurement.  Enable this flag only if you are testing a
+        specific patch sequence or if your instrument requires
+        ordered patches.
 
     - flag: "-b"
       name: "Force B&&W Spacers"
@@ -926,7 +928,7 @@ parameters:
         The .cal is also embedded in the .ti2 file so that colprof
         can reference it when building the ICC profile.
 
-        Typical use: desktop inkjet printers without built-in
+        **Typical use:** desktop inkjet printers without built-in
         linearisation, driven directly from a TIFF with no
         intervening RIP.
 
@@ -954,7 +956,7 @@ parameters:
         file into the .ti2 output as metadata only, leaving all patch
         values untouched.
 
-        Typical use: professional inkjet RIPs (e.g. EFI Fiery,
+        **Typical use:** professional inkjet RIPs (e.g. EFI Fiery,
         Wasatch, ColorBurst) or printers with built-in linearisation
         that is active during the profiling print run.
 
@@ -1094,137 +1096,6 @@ parameters:
         contrast against dark patches.
 
   # ====================================================================
-  # chartread — measure printed chart with instrument (.ti2 → .ti3)
-  # ====================================================================
-  chartread:
-
-    - flag: "-B"
-      name: "Disable Bidirectional Strip Recognition"
-      type: boolean
-      default: false
-      expert_only: false
-      tooltip_title: "Disable Bidirectional Reading (-B)"
-      tooltip_body: |
-        Stops chartread from auto-detecting whether you scanned a strip
-        forwards or backwards. ChromIQ leaves this off by default so the
-        instrument can read strips in either direction.
-
-        Turn it on only if your instrument reports false strip-direction
-        errors during measurement.
-
-    - flag: "-b"
-      name: "Force Bidirectional Strip Recognition"
-      type: boolean
-      default: false
-      expert_only: false
-      tooltip_title: "Force Bidirectional Reading (-b)"
-      tooltip_body: |
-        Forces chartread to accept a strip scanned in either direction.
-
-        Normally chartread only auto-detects strip direction on randomised
-        charts; on a fixed-order chart it reads one direction only and
-        rejects strips scanned backwards. Turn this on to force the
-        detection regardless — useful for the i1 Pro family, which reads
-        either way. This is the opposite of -B; only one can apply.
-
-    - flag: "-S"
-      name: "Suppress Warning Messages"
-      type: boolean
-      default: true
-      expert_only: false
-      tooltip_title: "Suppress Warnings (-S)"
-      tooltip_body: |
-        Suppresses non-fatal measurement warning dialogs from chartread.
-        Recommended for unattended or batch measurement sessions.
-        Errors that would prevent profile generation are still reported.
-
-    - flag: "-N"
-      name: "Disable Initial Calibration"
-      type: boolean
-      default: false
-      expert_only: false
-      tooltip_title: "Disable Initial Calibration (-N)"
-      tooltip_body: |
-        Skips the automatic instrument white-tile calibration at startup.
-        Only use this if you have already calibrated the instrument in
-        this session and want to measure additional charts without
-        re-calibrating.
-
-    - flag: "-p"
-      name: "Patch-by-Patch Mode"
-      type: boolean
-      default: false
-      expert_only: false
-      tooltip_title: "Patch-by-Patch Mode (-p)"
-      tooltip_body: |
-        Switches from strip-reading to individual patch measurement.
-        Useful for hand-held single measurements or if strip reading
-        fails on a particular paper.  Significantly slower for large
-        charts.
-
-    - flag: "-H"
-      name: "High Resolution Spectral Mode"
-      type: boolean
-      default: false
-      expert_only: true
-      tooltip_title: "High Resolution Spectrum (-H)"
-      tooltip_body: |
-        Enables high-resolution spectral sampling on instruments that
-        support it (e.g. i1Pro 2/3).  Produces more accurate Lab values
-        but increases measurement time slightly.
-
-    - flag: "-T"
-      name: "Patch Consistency Tolerance"
-      type: float
-      min: 0.1
-      max: 5.0
-      default: 0.5
-      step: 0.1
-      expert_only: true
-      tooltip_title: "Patch Tolerance Multiplier (-T)"
-      tooltip_body: |
-        A multiplier on chartread's built-in patch consistency threshold —
-        not a delta-E value. chartread re-reads each patch and rejects
-        strips where the readings disagree by more than the threshold ×
-        this number.
-
-        Lower = stricter. A strict setting catches real problems early:
-        clogged inkjet nozzles, low ink, dirty drum rollers, drifting
-        laser toner. On a healthy printer + spectrophotometer combination
-        the default of 0.7 leaves comfortable headroom; experienced users
-        on printerknowledge.com run 0.4 with i1 Pro 2 / 3.
-
-        Raise to 0.8–1.5 if you get false "inconsistent patch" errors on
-        textured, matte, or fine-art papers — the surface itself
-        contributes real variance there. Values above 2 mostly mask
-        genuine issues; if you need them, fix the printer first.
-
-    - flag: "-l"
-      name: "Save D50 L*a*b* Values"
-      type: boolean
-      default: false
-      expert_only: true
-      tooltip_title: "Save L*a*b* Instead of XYZ (-l)"
-      tooltip_body: |
-        Saves measurement data as D50 L*a*b* values instead of XYZ.
-        Most workflows use XYZ (default).  Enable only if downstream
-        tools specifically require L*a*b* input.
-
-    - flag: "-X"
-      name: "Colorimeter Correction Matrix"
-      type: file_path
-      default: ""
-      filter: "Correction matrices (*.ccmx *.ccss)"
-      expert_only: true
-      tooltip_title: "Colorimeter Correction Matrix (-X)"
-      tooltip_body: |
-        Applies a colorimeter correction matrix (.ccmx) or calibration
-        spectral set (.ccss) to improve colorimeter accuracy.
-        Only relevant for colorimeters (not spectrophotometers).
-        Obtain the correct file from the instrument manufacturer or
-        create it with ArgyllCMS ccss/ccmx tools.
-
-  # ====================================================================
   # colprof — create ICC printer profile from measurements (.ti3 → .icc)
   # ====================================================================
   colprof:
@@ -1252,17 +1123,20 @@ parameters:
     - flag: "-a"
       name: "Profile Algorithm"
       type: choice
-      choices: ["l", "x", "X", "g", "G", "s", "S", "m", "M"]
+      # TWO CHOICES, BECAUSE THIS IS A PRINTER PROFILE. colprof 3.5.0's -a
+      # switch accepts l L x X Y g G s S m (profile/colprof.c:599-631) and no
+      # "M", but the letter is only half the rule: for a DEVICE_CLASS "OUTPUT"
+      # measurement colprof.c:1244-1246 answers everything but a cLUT with
+      # "Output profile can only be a cLUT algorithm" and writes nothing, and
+      # X / Y are accepted but inert (the OUTPUT call site passes mtxtoo=0, so
+      # they build a file bit-identical to -ax). MEASURED against the binary on
+      # real printer .ti3 files. Kept in step with
+      # workflow/profile_builder.OUTPUT_ALGORITHM_CHOICES and the two Build
+      # Profile combos by tests/test_colprof_algorithms_fit_the_device_class.py.
+      choices: ["l", "x"]
       labels:
-        - "l — Lab cLUT (recommended for RGB printers)"
-        - "x — XYZ cLUT"
-        - "X — XYZ cLUT (Absolute)"
-        - "g — Gamma + matrix (fast, less accurate)"
-        - "G — Gamma + matrix (forced)"
-        - "s — Single gamma + matrix"
-        - "S — Single gamma + matrix (forced)"
-        - "m — Matrix only"
-        - "M — Matrix only (forced)"
+        - "l: Lab cLUT (recommended for RGB printers)"
+        - "x: XYZ cLUT"
       default: "l"
       no_space: true
       expert_only: false
@@ -1273,8 +1147,10 @@ parameters:
           Uses a full 3D lookup table in L*a*b* space.  Recommended.
         • XYZ cLUT (-ax): Similar to Lab but in XYZ space.
           Sometimes produces smoother neutral gradients.
-        • Matrix/gamma (-ag, -as): Simpler model, less accurate
-          for complex printer behaviour but faster to compute.
+        There is no third choice: ArgyllCMS builds a printer profile
+        only as a lookup table, and refuses the gamma, shaper and
+        matrix models for one. Those suit a scanner, a camera or a
+        display, and ChromIQ offers them in the scanner window.
         Always use Lab cLUT (-al) for first-time RGB printer profiles.
 
     - flag: "-q"
@@ -1282,10 +1158,10 @@ parameters:
       type: choice
       choices: ["l", "m", "h", "u"]
       labels:
-        - "l — Low (fast, ~30 s)"
-        - "m — Medium (recommended, ~2 min)"
-        - "h — High (~10 min)"
-        - "u — Ultra (~30+ min)"
+        - "l: Low (fast, ~30 s)"
+        - "m: Medium (recommended, ~2 min)"
+        - "h: High (~10 min)"
+        - "u: Ultra (~30+ min)"
       default: "m"
       no_space: true
       expert_only: false
@@ -1305,11 +1181,11 @@ parameters:
       choices: ["", "l", "m", "h", "u", "n"]
       labels:
         - "Same as profile quality (default)"
-        - "l — Low"
-        - "m — Medium"
-        - "h — High"
-        - "u — Ultra"
-        - "n — None (omit B2A tables)"
+        - "l: Low"
+        - "m: Medium"
+        - "h: High"
+        - "u: Ultra"
+        - "n: None (omit B2A tables)"
       default: ""
       no_space: true
       expert_only: true
@@ -1440,8 +1316,8 @@ parameters:
       type: choice
       choices: ["2", "1"]
       labels:
-        - "2 — Per-patch (required for strip analysis)"
-        - "1 — Summary only"
+        - "2: Per-patch (required for strip analysis)"
+        - "1: Summary only"
       default: "2"
       no_space: true
       expert_only: false
@@ -1456,8 +1332,8 @@ parameters:
       type: choice
       choices: ["a", "r"]
       labels:
-        - "a — Absolute colorimetric (default)"
-        - "r — Relative colorimetric"
+        - "a: Absolute colorimetric (default)"
+        - "r: Relative colorimetric"
       default: "a"
       no_space: false
       expert_only: false
@@ -1582,7 +1458,7 @@ parameters:
         Controls how much extra smoothing is applied to the calibration
         curves.  Higher values produce smoother but less precise curves.
 
-        Default: 1.0 — good for most printers.
+        **Default:** 1.0 — good for most printers.
         Increase (e.g. 2.0–5.0) if the printer has noisy tone response
         or the calibration curves look jagged.
 

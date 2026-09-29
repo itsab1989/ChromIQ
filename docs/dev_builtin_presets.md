@@ -15,7 +15,7 @@ mechanism works end-to-end and how to add, rename, or re-file one.
 
 Built-ins now come in **three kinds**:
 
-1. **prebuilt-files** (the ten "by Pharmacist" charts) — a complete, ready-made
+1. **prebuilt-files** (the four "by Pharmacist" page-image charts) — a complete, ready-made
    target is bundled and just copied into the run; **no targen/printtarg**.
 2. **ti1 → printtarg** (the 17 "TC9.18+Spyderprint Grays" charts, see the
    dedicated section below) — one shared `.ti1` is bundled and **printtarg is run
@@ -65,27 +65,69 @@ bundle should be regenerated. That happened once: the i1Pro/A4 `tc924` set,
 whose patch V16 rendered white where the `.ti2` said grey. It was parked, and
 then removed outright in #164 rather than regenerated.
 
-The ten shipped presets (all RGB). Labels follow the same
+**None ships since 4.3.1.** The last four (below) were withdrawn by Knut
+(#182 5875467209) for five more "by Pharmacist" charts with a page layout,
+imported the same way as the nine of beta 47 (next paragraph). The mechanism is
+all still here, and its tests build from the four bundles moved to
+`tests/fixtures/charts/prebuilt/` and registered per test by the
+`prebuilt_bundles` fixture (`tests/_prebuilt_fixture.py`), so a chart that
+can only come as page images still has somewhere to go.
+
+The four that shipped until 4.3.0 (all RGB). Labels follow the same
 `Instrument · Paper-NNNNp-Mpages Name by Pharmacist` convention as the
 ti1→printtarg presets below (patch width / orientation omitted — not stored for
 these pre-rendered charts):
 
 | Label (in the dropdown)                                       | Instrument | Asset leaf |
 |---------------------------------------------------------------|------------|------------|
-| ★ i1Pro · A4-1110p-2pages ABW-optimized by Pharmacist         | i1Pro      | `i1pro/a4/abw1110` |
-| ★ i1Pro · A4-1160p-2pages TC9.18 extended greys by Pharmacist | i1Pro      | `i1pro/a4/tc918eg` |
-| ★ i1Pro · Letter-1160p-2pages TC9.18 extended greys by Pharmacist | i1Pro  | `i1pro/letter/tc918eg` |
-| ★ ColorMunki · A4-300p-1page TC3.00 by Pharmacist             | ColorMunki | `colormunki/a4/tc300` |
+| ★ i1Pro · 10x15cm-600p-4pages by Pharmacist                   | i1Pro      | `i1pro/100x150/photocard600` |
+| ★ i1Pro · 13x18cm-648p-3pages by Pharmacist                   | i1Pro      | `i1pro/130x180/photocard648` |
 | ★ ColorMunki · A4-702p-2pages ABW-optimized by Pharmacist     | ColorMunki | `colormunki/a4/abw702` |
 | ★ ColorMunki · A3-924p-1page TC9.24 by Pharmacist             | ColorMunki | `colormunki/a3/tc924` |
-| ★ ColorMunki · A3+-1160p-1page TC9.18 extended greys by Pharmacist | ColorMunki | `colormunki/a3plus/tc918eg` |
-| ★ i1Pro · A4-1944p-3pages extended target by Pharmacist          | i1Pro      | `i1pro/a4/extended1944` |
-| ★ i1Pro · Letter-1944p-3pages extended target by Pharmacist      | i1Pro      | `i1pro/letter/extended1944` |
 
-The `tc918eg` pair is the same patch set in two page sizes; the page size lives
-in the label (and is read back from the asset path by `_prebuilt_paper` for the
-tooltip), so the two entries are distinguishable in both the dropdown and the
-overlay.
+**Seven more were withdrawn by Knut in beta 47** (#182 5860041950): the i1Pro
+A4 1110 ABW, the three TC9.18 extended greys (i1Pro A4, i1Pro Letter,
+ColorMunki A3+), the ColorMunki A4 TC3.00 and the two i1Pro 1944 extended
+targets. They were replaced by nine "by Pharmacist" charts WITH a page layout,
+which are not prebuilt-files presets at all but `_Ti1Preset` rows (kind 3,
+ti1 → layout engine): `_pharmacist_preset` in `ui/tabs/tab_chart.py`, one
+folder each under `assets/charts/pharmacist/rgb/fulllayout/<slug>/` holding
+`chart.ti1`, `layout.json` (the export's `layout_recipe`) and, for a "Full
+layout setup", `recipe.json` (its `editor_recipe`). The one without a
+`recipe.json` (the ColorMunki A4 TC3.00 Target) carries the marker
+`KNUT_LAYOUT_ONLY_SUFFIX`, " · Layout, but no editor setup". Re-import with
+`python scripts/import_pharmacist_presets.py <export-folder> --write`, which
+clears the sender's clip-image path and drops `seed_fixed`, and nothing else
+but re-point the editor design at the chart's own instrument and paper. It
+imports the stems the folder holds, so a batch (4.3.1 sent five) needs no
+other file. Knut's 4.3.1 batch: ColorMunki A3+ 924, A4 624 and A3 725
+"Ergonomical target", i1Pro 4x6" 600 and 5x7" 702 "Real World Target", all
+five a Full layout setup.
+
+**The two photo-card charts (Nelson Lau, 2026-09-08) are the first whose paper
+folder is a size rather than a name**, and that is a mechanism, not a one-off. A
+folder called `<W>x<H>` (millimetres) is already a valid printtarg `-p` custom
+size, so `_prebuilt_paper_code` returns it verbatim and
+`ParameterWidget.set_value` routes it to the layout panel's "Custom (enter
+dimensions)" row with the W and H boxes filled. Nothing has to be added to
+`data.patch_db.PAPER_SIZES` for a new sheet size, which matters: that list feeds
+seven other hand-maintained tables (the `-p` choices in `parameters.yaml`, the
+`labels` overlay in thirteen translations, the layout engine's papers, the
+`.ti2` reverse map, the Patch Set Editor's own order, `EXCLUDED_PAPERS` and
+`ENGINE_EXCLUDED_PAPERS`) plus sixteen measured capacity tables. Adding a size
+to the dropdown WITHOUT its capacity rows makes the app report a five-fold
+over-estimate: measured, `_binary_search` answers **443** for a 100x150 sheet
+whose true i1 capacity is **90**.
+
+`_prebuilt_paper` gives such a folder a readable label, and
+`_PREBUILT_PAPER_LABELS` names one better where the paper is sold under a name
+("10 × 15 cm (100 × 150 mm)" rather than "100 × 150 mm").
+
+These two also carry a `PREBUILT_PRESET_NOTES` entry, an extra tooltip
+paragraph for a chart that needs something said about it. Theirs is that the
+sheet is printed almost edge to edge: ink reaches within about 1 mm of the paper
+on the 13 x 18, where every other bundled chart keeps 12 mm or more top and
+bottom.
 
 ---
 
@@ -428,6 +470,283 @@ and checks each lands on the page count its name promises, holds its patch set
 with **no white padding**, and prints patches within 0.5 mm of the width in its
 name.
 
+### The CR30 family (2026-09-06) — 20 charts, and the first with two shapes
+
+Knut's line-up for the ChnSpec CR30, curated to twenty by Basti: ten on A4 and
+ten on US Letter, portrait, one to three sheets, patches 11 mm to 24 mm wide.
+Kind 3 again (`_CR30_BASE` + `_cr30_preset()`, assets at
+`assets/charts/knut/rgb/cr30/<slug>/chart.ti1` with the usual `recipe.json`),
+imported by the same script:
+
+```bash
+python scripts/import_knut_presets.py cr30 <folder-of-exports> --write
+```
+
+**It could not have been any other kind.** Argyll has no layout for the CR30, so
+`chart_creator._should_use_engine` forces the ChromIQ engine on for that
+instrument and printtarg never sees one of these charts. The kind-3 route is
+therefore the only route, not a preference.
+
+**What the sheet is cut for.** The CR30 is a ROUND hand-held colorimeter set
+down on one patch at a time, so this is a sheet for a hand and a ruler rather
+than for a strip reader's jig: **no spacers at all** (nothing is rolled along a
+row, so a spacer would cost sheet area and buy nothing), helper marks every
+**third** patch top and bottom so a ruler lines up with the row being read, and
+a **26 mm clip band down the right** carrying the automatic notes box, flipped
+180° because the sheet is turned to read it. That last point is why the family
+gets a branch in `_knut_tooltip`: the shared engine tooltip calls a wide band
+"the run-up your instrument needs before the first patch", and a CR30 has no
+run-up.
+
+**THE FIRST FAMILY WITH TWO CUTS, AND THE MECHANISM IT ADDED.** Half the
+line-up is hexagonal, which packs more round patches per sheet at the same
+width. Eight charts carry `hflag` and every one of them moves the same four
+other fields with it (`margin_left` 13, `margin_top`/`margin_bottom` 13,
+`text_edge_top_mm` 4, against the rectangular 15/17/12/8). Spelling five keyword
+arguments out on eight rows would bury the two fields a chart really owns, so
+the shape has a NAME: `_CR30_HEX` says what the cut is, once, and a row says
+`hexagonal=True`. Three Letter hex charts pull their top and bottom margins in
+further and still spell those out, so nothing hides inside the flag.
+
+The importer learned the same idea as `Family.overlay` (an `Overlay(keyword,
+discriminator, delta)`): a chart matching the discriminator is diffed against
+`base | delta` rather than against `base`, so it emits the flag plus only what
+it really owns. A family with one shape passes `overlay=None` and behaves
+exactly as before.
+
+Fields a single chart may own here are wider than in the i1Pro 3 Plus family:
+the sheet and the grid, plus `margin_top`, `margin_bottom` and
+`area_min_patch_mm` (four of Knut's exports carry a patch-size floor of 10.5,
+16.5 or 17.5 mm; it is carried through rather than flattened). All twenty
+exports needed their Set B re-pointed — every one said `instr: "CM"` or `"i1"`
+from earlier work.
+
+The group heading is `INSTRUMENT_LABELS["CR30"]` ("CR30 (ChnSpec)") and the
+group sits **before Scanner** in `BUILTIN_PRESET_GROUPS` (Basti: *"i want them
+listed for the cr30 in both preset dropdowns / speechbubble overlay before the
+scanner section"*). That one list orders the Presets dropdown, the ★ overlay,
+the #66 "Compare with profile" list and, through `builtin_recipe_choices`, the
+New-chart "Load setup from preset" list — five places, no extra wiring.
+
+`tests/test_cr30_builtin_presets.py` builds **every one of the twenty** in the
+everyday tier (four seconds) and checks each lands on the paper, patch count,
+page count and patch SHAPE its name promises.
+`scripts/drive_cr30_builtin_presets.py` drives the real window over the same
+twenty from the real dropdown and photographs both boundaries.
+
+> **Two names round differently, and they are Knut's.**
+> `Letter-150p-1page-Portrait-w17.0mm` prints 17.53 mm patches and
+> `Letter-170p-1page-Portrait-w16.0mm-Hexagonal` prints 16.64 mm. Both are wider
+> than the name says, both come from recipes that are byte-for-byte his export,
+> and both are pinned at what they measure rather than waved through. Whether
+> the name or the layout is the one to correct is his call.
+
+### The i1Pro photo-card family (Knut, 2026-09-09) — two charts, a third i1Pro base
+
+The 10 x 15 cm and 13 x 18 cm cards, re-cut for a strip reader. His words:
+*"I had to adjust the margins a bit to assure space for starting and ending a
+strip reading. Thus the measurements are very slightly different from the
+original pharmacist presets."* Kind 3 (`_I1_PHOTO_BASE` + `_i1_photo_preset()`,
+assets at `assets/charts/knut/rgb/i1prophoto/<slug>/chart.ti1` with the usual
+`recipe.json`), imported by the same script:
+
+```bash
+python scripts/import_knut_presets.py i1photo <folder-of-exports> --write
+```
+
+They sit **beside** the two "by Pharmacist" photo cards under the existing
+i1Pro heading and replace neither: those are prebuilt-file bundles copied into
+the run, these are engine-built with his wider margins. Ordering puts them at
+the head of the Knut block, because `_paper_sort_key` is area-based and a photo
+card is a quarter of an A4.
+
+**A THIRD i1Pro BASE, FOR THE SAME REASON THERE WAS A SECOND.** Measured against
+the shipped `_I1_BASE`, both cards move eleven fields — `area_min_patch_mm` 17.5,
+`border` 10.0, `clip_text` (his note), `edge_spacers` False,
+`helper_marker_edge_mm` 2.0, `indicator_size_mm` 0.0, `nolimit` False, `pscale`
+0.95, `sscale` 0.6, `text_edge_top_mm` 4.0, and `margin_top`. **Ten of the
+eleven are identical between the two cards**, and not one of them is in any
+i1Pro `varying` set, so folding this batch into `_I1_BASE` or `_I1_75_BASE`
+would have silently re-cut the nineteen 8 mm charts and the nineteen 7.5 mm
+ones. Ten shared fields is a design, so it gets a base — exactly the call the
+`i175` family was added for.
+
+**THE BASE CARRIES NO MARGIN, AND THAT IS THE MECHANISM IT ADDED.** A photo card
+is a quarter of an A4 and the two cards are not the same shape, so every
+sheet-scaled number is the card's own: all four margins plus the clip band's
+width (19 mm on the 10 x 15, 26 on the 13 x 18). `_I1_PHOTO_PER_SHEET` names
+those five, `_I1_PHOTO_BASE` strips them out of what it inherits, and
+`_i1_photo_preset` takes them as **required keyword arguments** — so a row
+cannot quietly inherit an A4 jig's 38 mm top margin onto a photo card.
+
+The importer learned the matching idea, `Family.always`: fields every row spells
+out even where it agrees with the batch base. Without it the first file of a
+two-chart batch defines the base by being first, emits nothing, and the reviewer
+is told the two differ in five fields when in truth neither inherits any of
+them.
+
+`_NAME_TAIL` also grew a `<W>x<H>mm` sheet token. Such a token says the sheet
+outright (unlike a named one — the i1Pro A3 charts store `420x297` and call
+themselves "A3"), so `check()` holds the name and the layout to each other.
+
+> **One name is short of a token, and it is his.**
+> `130x180mm-648p-3pages-w8.0mm` carries no orientation where every other chart
+> spells one out. The sheet and the layout are portrait all the same, so nothing
+> is wrong on paper; it is pinned as it is rather than re-spelled. Flagged for
+> Knut.
+
+`tests/test_i1pro_photocard_builtin_presets.py` pins the base against
+`_I1_BASE` **and** `_I1_75_BASE` in each of the ten fields, so this family
+cannot have been folded into either, and builds every chart against the sheet,
+patch count, page count and patch width their names promise.
+
+#### Thirteen more, and the family's second CUT (Knut, 2026-09-17, #182)
+
+He sent the whole photo-card line-up again, grown from two charts to **fifteen**:
+eleven new patch counts on the same two cards (720 … 1512), and with them a
+second shape. Seven are named **"Maximised - No Clip-border"** and are exactly
+that: the clip band off and both side margins pulled in to 5 mm, which buys two
+more columns on the 10 x 15 card (10 → 12) and four on the 13 x 18 (12 → 16) at
+the same patch width. The family base did not move: these are the same ten
+shared fields, the same per-card margins, bigger colour sets.
+
+`_I1_PHOTO_MAXIMISED` is what `maximised=True` stands for, and it stands for
+**two fields only** — `clip_border` False and `clip_content_mode` "off". The
+wider side margins those cards gain are NOT in it, deliberately: they are two of
+the five sheet-scaled numbers every row of this family already spells out, and
+folding them into a family flag is the thing `_I1_PHOTO_PER_SHEET` exists to
+prevent.
+
+**The importer learned to pick a cut out by a field being FALSE.** `Overlay`
+selects a cut by the truth of a `discriminator`, which is right for a cut named
+by a flag (`hflag`) and useless for one named by a band being switched OFF. So
+`Overlay` grew `when`: state the value the discriminator must have, and a cut
+can be `clip_border is False`. Leave `when` unset and the original truthy test
+is what runs, so every other family behaves exactly as before. The emitter also
+diffs against the **shipped** base now rather than the batch's first file — this
+batch's first file alphabetically is a maximised one, and without that change
+every ordinary chart would have spelled out fields it actually inherits.
+
+Staged the same way:
+
+```bash
+python scripts/import_knut_presets.py i1photo <folder-of-exports> --write
+```
+
+Two of the fifteen exports are re-sends of charts that already ship. One is
+byte-identical apart from its `CREATED` stamp; the other,
+`130x180mm-648p-3pages-w8.0mm`, carried a **different colour set** under the
+same name, and Knut ruled on 2026-09-18: *"replace with the following one, do
+not keep the old"*. It was replaced in place — the bundled `.ti1` is now his
+set, and **the slug did not move**, because the slug is the identity every
+stored selection resolves through. Only the display NAME gained the "Portrait"
+token his own files carry.
+
+#### Four more, and three settings on every card (Knut, 2026-09-18)
+
+Four single-sheet charts (150p / 180p on the 10 x 15, 216p / 288p on the
+13 x 18) take the family to **nineteen**, and with them came an instruction for
+all of them: a Chart Notes line per card size, the "Sheet text" Size at 6.0, and
+the "Clip" distance under "Text distance from edge" at 2.0 mm.
+
+**TWO OF THE THREE LIVE IN THE RECIPE AND ONE DOES NOT.** `chart_text_size_mm`
+and `text_edge_clip_mm` went into `_I1_PHOTO_BASE`, because he asked for them
+family-wide. The note did not: the Chart Notes box is a Create Chart field of
+its own, saved with the run and stamped down the right edge of the sheet, so
+`_Ti1Preset` grew `chart_notes` and `_seed_knut_preset` fills the box from it.
+`_I1_PHOTO_NOTE` holds one sentence per card size, looked up by paper, so
+nineteen charts share two sentences and neither can drift.
+
+**THE EMPTY CASE IS NOT A NO-OP.** A preset with no note CLEARS one another
+built-in left in the box, because a note that says "10x15cm / 4x6" photo card"
+would otherwise be printed on the next chart's paper. It is matched against
+`BUILTIN_CHART_NOTES` — text this app wrote — so a note a person typed is never
+touched.
+
+**"6,0mm" IS 6.0 POINTS.** The Size box under "Sheet text" is in points
+(`layout_options_panel` converts at the boundary) and the recipe stores
+millimetres, so his 6.0 lands as 2.12 — which is exactly what his four exports
+carry. Measure the file rather than the sentence; the same slip is on record for
+the CR30 strip labels.
+
+**AND A FOURTH FIELD, MEASURED RATHER THAN ASKED FOR.** Every one of his twenty
+exports carries "Stamp settings down the right edge" OFF; the app's default is
+ON and a built-in carried no answer. With his note in the box and the stamp on,
+the right edge of a 150 mm card is not tall enough for both and the note was
+truncated: driven on screen, **19 of 19 warned with the stamp on, 0 of 19 with
+it off**. `_Ti1Preset.stamp_settings` carries it; `None` on every other family
+means "leave the checkbox alone".
+
+**ONE HOLE THIS OPENED AND CLOSED.** `_seed_new_project_text` is what gives the
+Run description and the Chart Notes a home in a project that did not exist when
+they were written, and only `_on_generate` called it. A built-in preset builds
+through `_generate_from_ti1`, so text on screen when one was picked reached the
+printed sheet and never reached the run's `meta.json`. Both functions now carry
+the same branch, and `test_a_builtin_preset_gives_its_text_a_home_in_the_project_it_creates`
+holds them to each other.
+
+`scripts/drive_i1pro_photocard_presets.py` drives the real window over all
+nineteen, photographs the listing and the panel each one fills in, and reports
+the layout notices with the stamp both on and off.
+
+### The 7.5 mm i1Pro "Maximised - No Clip-border" cut (Knut, 2026-09-22) — eight charts
+
+*"I have created yet more presets for the i1Pro, to be added as built-in like
+the others."* (#182, beta-34 batch K1.) Four on A4 (837, 1674, 2511, 3348
+patches) and four on US Letter (783, 1566, 2349, 3132), one to four sheets,
+portrait. Kind 3 (`_I1_75_MAX_BASE` + `_i1_75_max_preset()`, assets at
+`assets/charts/knut/rgb/i1pro75max/<slug>/chart.ti1` with the usual
+`recipe.json`, slug prefix `i1_w75max_`), imported by the same script:
+
+```bash
+python scripts/import_knut_presets.py i175max <folder-of-exports> --write
+```
+
+**A FOURTH i1Pro BASE, NOT AN OVERLAY ON THE 7.5 mm ONE.** The photo cards'
+"Maximised" cut is an overlay (`_I1_PHOTO_MAXIMISED`) because it moves two
+fields and every other difference is already a per-card field. Here, measured
+against `_I1_75_BASE`, all eight charts move the same **eight** fields on both
+papers: `clip_border` False, `clip_content_mode` "off", `margin_left` 5,
+`margin_right` 5, `margin_bottom` 9, `text_edge_top_mm` 4,
+`helper_marker_len_mm` 4 and `helper_marker_per_patch` 2. None is in the
+`i175` `varying` set, and the importer's drift guard refuses a batch that
+moves a non-varying field, so an overlay would have meant loosening the 7.5 mm
+family's `varying` set for nineteen charts that never move them. Eight shared
+fields is a design, so it gets a base, and a row carries only its sheet and
+its grid (27 x 31 on A4, 27 x 29 on Letter). The slug prefix is distinct from
+`i1_w75_` because `tests/test_i1pro75_family.py` counts that family by prefix
+and pins its 24-column grid.
+
+**THE STAMP IS OFF, MEASURED ON SCREEN.** All eight exports carry "Stamp
+settings down the right edge" OFF; the app's default is ON. Driven in the real
+window with it on, the A4-837p chart came up with *"The settings stamp down the
+right edge runs over the patches"*: the right margin is 5 mm. So the rows carry
+`stamp_settings=False`, the field the photo cards added for the same reason,
+and `test_only_the_photo_cards_have_an_opinion_on_the_stamp` names this as the
+second family with an opinion.
+
+They sit under the existing i1Pro heading and sort by the i1Pro rule (paper,
+then patch width, then patch count), so on each paper they interleave with the
+standard 7.5 mm charts by count.
+
+> **What his files say that the names do not**, carried as exported and
+> flagged for Knut rather than corrected: the ruler marks are 2 per patch and
+> 4 mm long where #164 set 5 per patch for the i1Pro families; the A4 patch
+> block runs 248 mm from the first patch to the last (38 mm top, 9 mm bottom)
+> where the standard A4 cut keeps to 240 mm for the i1Pro ruler; and the
+> Letter charts print **7.62 mm** patches under a name that says 7.5 (the
+> Letter sheet is 5.9 mm wider than A4 and the grid is the same 27 columns).
+> The A4 charts print 7.49 mm. His exports also carried `pages: 3` and
+> `targen -f 1944` on all eight, and five Set B recipes pointed at a
+> ColorMunki, an A3 sheet or A4 beside a Letter chart; the importer re-points
+> Set B as for every family, and the rows carry the page count of the name.
+
+`tests/test_i1pro75_maximised_builtin_presets.py` pins the base against
+`_I1_75_BASE` in each of the eight fields, checks every name against its patch
+set, sheet, grid and page count, builds all eight on the engine (widths pinned
+at what they measure), and checks the eight are offered in "Which presets can
+be used for verification".
+
 ### Rename or re-file an existing preset
 
 - **Rename (label only):** change `*_PRESET_LABEL` and update
@@ -466,6 +785,33 @@ name.
 
 ---
 
+## Which built-ins the lists show directly (#182 5818659478, beta 42)
+
+Every built-in is still in the Presets dropdown and the overlay, but only the
+**ticked** ones are listed directly; the rest of each group wait under an arrow
+row ("▸  N more presets") after the group's last ticked preset. Spec:
+`docs/design/curated_presets.md`.
+
+- **Shipped ticks:** `data/preset_defaults.json`, written by
+  `python scripts/make_preset_defaults.py` from the beta rule
+  (`core.curated_presets.beta_selection`, fed by
+  `ui.tabs.tab_chart.builtin_preset_facts`). `--table out.csv` writes the list
+  for Knut's users; `--from-table filled.csv` writes their answers back.
+  `tests/test_curated_builtin_presets.py` holds the file to the rule while its
+  `source` says "beta rule".
+- **Adding a built-in:** it is not ticked until the file says so, so it lands
+  under its group's arrow. Re-run the script (and commit the file) if it should
+  be listed directly.
+- **A person's choice:** the setting `builtin_presets_shown`, only their own
+  differences (`core.curated_presets.store_choices`), so a new release's
+  defaults never overwrite what they chose.
+- **The arrow row** is a combo entry whose userData starts with
+  `core.curated_presets.MORE_ROW_PREFIX`. It is enabled only while the list is
+  open (`_CappedComboBox.POPUP_ONLY_ROLE`), and `_on_preset_selected` refuses
+  it; code walking the combo's items must skip it (`is_more_row`).
+
+---
+
 ## Verify snippet
 
 ```python
@@ -491,6 +837,8 @@ Run the full suite (`QT_QPA_PLATFORM=offscreen pytest`) after any change here.
 `tests/test_knut_spyderprint_presets.py` pins the registry's shape and every
 bundled asset; the per-family files
 (`tests/test_colormunki_builtin_presets.py`, `test_i1pro3_builtin_presets.py`,
-`test_i1pro_w8_builtin_presets.py`) check each family's shared recipe, its
+`test_i1pro_w8_builtin_presets.py`, `test_i1pro75_family.py`,
+`test_i1pro_photocard_builtin_presets.py`,
+`test_i1pro75_maximised_builtin_presets.py`) check each family's shared recipe, its
 names against its patch sets, its Set B sidecars, and actually build every
 chart; `tests/test_chart_tab.py` covers the copy-into-run flow.

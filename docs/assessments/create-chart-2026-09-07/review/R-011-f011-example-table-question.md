@@ -1,0 +1,5 @@
+# R-011 F-011 "Replace the current clip-border text with the example table?" offers only OK
+Verdict: PARTLY RIGHT, and the real defect is worse than filed
+Grade: OBSERVED (R08). Clip content "Custom text" with "my own clip text" typed; select "Custom text example": a QMessageBox with the question and one button, OK. After OK: the Content selector is back on "Custom text" and the text is unchanged. Agent 1 wrote "The text was replaced"; it was not, and cannot be: `LayoutOptionsPanel._load_example_clip_table` (ui/dialogs/layout_options_panel.py, around line 2640) only loads the example when `ask(...)` returns `QMessageBox.StandardButton.Yes`, and the box that appears has no Yes. Every answer is read as No, so the example table is unreachable whenever the Text box holds anything; with an empty box it loads without asking (that is what Agent 1's f03 screenshot shows).
+Severity: low -> medium (a shipped clip-border mode that cannot be entered from the common state).
+Message text: a two-button version of this question is new user-facing text and per CLAUDE.md goes to §M-PROPOSED first.

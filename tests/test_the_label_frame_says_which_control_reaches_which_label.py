@@ -36,10 +36,17 @@ above the controls, naming each control's reach. Basti, ruling on B8-21 §4:
 > as clear."*
 
 So the paragraph is retired and the frame is split in two, along exactly the
-line the ink drew: **"Strip letters and row numbers"** holds Font, Size and
-Bold; **"Strip letters only"** holds Underline, line thickness, line distance,
-rotation and Label offset. The answer is now structural, read once by looking,
-and it costs no reading at all.
+line the ink drew: **"Strip and row indicators"** holds Font, Size and
+Bold; **"Strip indicators only"** holds Underline, line thickness, line
+distance, rotation and Label offset. The answer is now structural, read once by
+looking, and it costs no reading at all.
+
+RENAMED 2026-09-16, and the reason is a fault in the old titles rather than a
+preference. They were "Strip letters and row numbers" and "Strip letters only",
+which name the GLYPHS -- and the strip and patch patterns in the same panel
+decide which set gets letters and which gets digits, so a chart set to numbers
+across the top was described by a frame titled "Strip letters". Knut asked for
+the two POSITIONS instead, which nothing can swap.
 
 These tests therefore assert MEMBERSHIP, live, off the built widgets — which
 control is inside which box — rather than the words of a sentence. A test that
@@ -157,8 +164,24 @@ def test_the_titles_say_the_reach_in_the_readers_words(qapp):
     try:
         both = panel._label_sub_both.title()
         only = panel._label_sub_strip_only.title()
-        assert "Strip letters" in both and "row numbers" in both, both
-        assert "Strip letters" in only and "only" in only, only
+        # **NOT "letters" AND NOT "numbers".** Knut, 2026-09-16: *"the 'Strip
+        # letters and row numbers' Frame is named inaccurately, because a user
+        # may change the strip and patch pattern to be letters for rows and
+        # numbers for strip. Thus, a better name for the frame would be 'Strip
+        # and row indicators' and, the frame 'Strip letters only' could be
+        # named 'Strip indicators only'."* The glyph words are what the
+        # patterns below can swap, so a title built from them is a claim the
+        # panel cannot keep; the two POSITIONS cannot be swapped by anything.
+        assert both == "Strip and row indicators", both
+        assert only == "Strip indicators only", only
+        assert "letter" not in both.lower() and "number" not in both.lower(), (
+            "the title names a glyph the strip pattern can change")
+        assert "letter" not in only.lower() and "number" not in only.lower(), (
+            "the title names a glyph the strip pattern can change")
+        # The reach is still carried: one names both positions, the other says
+        # "only". Without that word the split is decoration.
+        assert "row" in both.lower() and "row" not in only.lower()
+        assert "only" in only.lower()
         assert both != only
     finally:
         panel.deleteLater()

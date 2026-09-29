@@ -1,0 +1,67 @@
+LICENSING OF THE FILES IN THIS FOLDER
+=====================================
+
+There are two kinds of file here, and they are not under the same terms.
+
+1. ChromIQ's own files
+----------------------
+The structure of `iso12647.json`, its explanation and this folder are
+ChromIQ's own work and are covered by the project's licence, the GNU Affero
+General Public License version 3, the same as the rest of ChromIQ. A copy is in
+the LICENSE file at the root of the project.
+
+Each of the two sets in `iso12647.json` is either empty or complete. A complete
+set holds the tolerance values of that standard and nothing else from it; those
+values are the standard's, used on the basis stated under ISO below, and are
+not relicensed by the line above.
+
+2. Third-party reference data
+-----------------------------
+No third-party reference data is bundled today. When any arrives, it is governed
+by the terms its rights holder stated, not by the licence above, and ChromIQ may
+not relicense it.
+
+The terms granted to ChromIQ are recorded in README.md beside this file, in the
+words the rights holders used. In short:
+
+  Fogra          use and unchanged redistribution, including in commercial
+                 software, provided Fogra is clearly named as the source.
+                 Naming a Fogra set is not a certification or an endorsement.
+
+  CGATS          made generally available to the industry; free to use in
+                 software. No further condition stated.
+
+  ICC            redistribution is fine; altered data must never be presented
+                 as the original.
+
+  Idealliance    inclusion in and distribution with software, under any
+  (PRINTING      licence, provided the profile is unaltered. Requires the line
+  United          "GRACoL is a registered trademark of PRINTING United
+  Alliance)       Alliance."
+
+  ISO / DIN      VALUES ONLY. ISO's answer was that reproducing the content
+                 of a standard inside software needs explicit permission or a
+                 licence, through the national member body. DIN's legal
+                 department answered in writing on 2026-09-23: "wenn Sie
+                 definitiv nur Werte aus der Norm verwenden - keine Bilder,
+                 keine Seiten, keine Texte, dann faellt das nicht unter
+                 Vervielfaeltigung." (If you definitely use only values from
+                 the standard, no images, no pages, no texts, that does not
+                 count as reproduction.) So the tolerance values of
+                 ISO 12647-7:2016 and ISO 12647-8:2021 may be in
+                 iso12647.json, one number per row, and nothing else of either
+                 standard is in any file ChromIQ ships: no wording, table,
+                 figure or page. A set that is empty in the file ships no value.
+
+                 Said precisely, because a broader claim would not be true: the
+                 standards' NAMES and clause citations are used, deliberately
+                 and with the owner's decision behind them, and a superseded
+                 commit on a documentation branch that once carried more than
+                 that is still reachable by its hash until the hosting service
+                 purges it. That is recorded in
+                 docs/design/issue_182_answers.md rather than papered over.
+
+Anyone adding a file to this folder has to add its source and its terms to
+README.md in the same change. A data file without a credit beside it is a
+licence breach waiting to happen, and two of the four grants above are
+conditional on a credit or a trademark line existing.

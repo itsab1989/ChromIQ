@@ -94,12 +94,43 @@ def test_rejects_non_ti3(tmp_path: Path):
 
 
 def test_requires_rgb(tmp_path: Path):
+    """A measurement whose device columns are not RGB cannot be used.
+
+    IT USED TO SAY "cmyk.ti3" AND HOLD NO DEVICE COLUMNS AT ALL, which is a
+    different file and a different fault. `parse_ti3` refused both with one
+    sentence, so this test passed while guarding the wrong one of the two, and
+    the one it was not guarding reached a user on 2026-09-11: i1Profiler's
+    measure tool exports SAMPLE_ID, SAMPLE_NAME and the spectral curve and no
+    device values, because it has no colour space to express them in, and
+    ChromIQ answered "No device RGB columns, only RGB charts are supported"
+    about a complete measurement of its own verification chart. The file is now
+    what its name says it is. The other case is
+    `test_a_measurement_without_device_values_is_imported.py`.
+    """
     p = tmp_path / "cmyk.ti3"
+    p.write_text("CTI3\n\nNUMBER_OF_FIELDS 8\nBEGIN_DATA_FORMAT\n"
+                 "SAMPLE_ID CMYK_C CMYK_M CMYK_Y CMYK_K XYZ_X XYZ_Y XYZ_Z\n"
+                 "END_DATA_FORMAT\n\n"
+                 "NUMBER_OF_SETS 1\nBEGIN_DATA\n1 0 0 0 0 50 50 50 \n"
+                 "END_DATA\n", encoding="utf-8")
+    with pytest.raises(Ti3ParseError, match="only RGB charts"):
+        parse_ti3(p)
+
+
+def test_no_device_columns_at_all_is_not_the_same_fault(tmp_path: Path):
+    """The other half of the pair above, so neither can drift into the other.
+
+    A file with no device columns is READ, with an empty `rgb` and
+    `has_device` False. What its patches were printed with is the chart's to
+    say (`workflow.measurement_pairing`), not this parser's to refuse.
+    """
+    p = tmp_path / "spectral-only.ti3"
     p.write_text("CTI3\n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n"
                  "SAMPLE_ID XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n\n"
-                 "NUMBER_OF_SETS 1\nBEGIN_DATA\n1 50 50 50 \nEND_DATA\n", encoding="utf-8")
-    with pytest.raises(Ti3ParseError):
-        parse_ti3(p)
+                 "NUMBER_OF_SETS 1\nBEGIN_DATA\n1 50 50 50 \nEND_DATA\n",
+                 encoding="utf-8")
+    d = parse_ti3(p)
+    assert d.n_patches == 1 and d.has_device is False and len(d.rgb) == 0
 
 
 # --- spectral integration --------------------------------------------------

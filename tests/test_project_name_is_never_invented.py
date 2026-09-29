@@ -278,7 +278,7 @@ def test_a_name_given_in_the_dialog_is_checked_against_existing_projects(
         "person actually gave, or a collision goes unreported".format(seen[0]))
 
 
-def test_a_prebuilt_preset_asks_before_it_gates(fresh, monkeypatch):
+def test_a_prebuilt_preset_asks_before_it_gates(prebuilt_bundles, fresh, monkeypatch):
     """The prebuilt route settles the name BEFORE §S4.7, or not at all.
 
     `_apply_prebuilt_preset` gates and then hands `gate_already_asked=True` down
@@ -291,7 +291,7 @@ def test_a_prebuilt_preset_asks_before_it_gates(fresh, monkeypatch):
     it left 333 targeted tests green while the fault came straight back on
     screen.
     """
-    from ui.tabs.tab_chart import ABW1110_PRESET_KEY
+    from tests._prebuilt_fixture import PHOTOCARD600_KEY as PHOTOCARD600_PRESET_KEY
 
     w, _out = fresh
     tab = w._tab_chart
@@ -309,7 +309,7 @@ def test_a_prebuilt_preset_asks_before_it_gates(fresh, monkeypatch):
                         lambda self, *a, **k: None, raising=False)
 
     tab._manual_target_name_edit.setText("")
-    tab._apply_prebuilt_preset(ABW1110_PRESET_KEY)
+    tab._apply_prebuilt_preset(PHOTOCARD600_PRESET_KEY)
 
     assert seen, "§S4.7 was never asked on the prebuilt route"
     assert seen[0] == "ZZ-prebuilt-name", (

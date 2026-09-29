@@ -177,12 +177,25 @@ def test_the_help_is_mode_aware_and_each_mode_names_its_own_default():
     assert "288" in scanner and "864" in scanner
     assert "patch count is printed beside each target's name" in scanner
     # The lightness ceiling in plain words, never as "L* 100.4".
-    assert "lighter than your target's own white patch" in scanner
+    #
+    # This used to assert the phrase "lighter than your target's own white
+    # patch", and that sentence stopped being true on 2026-09-05: the scanner
+    # white-point default moved to "Scale white to a perfect white surface"
+    # (-u -R), which lifts a Lab cLUT's ceiling from about 94 % reflectance to
+    # about 114 % — above anything a reflective original can be. The ceiling is
+    # still the reason the XYZ table is the one to take, and the help must
+    # still say so in plain words, but it now has to say WHERE the ceiling sits
+    # and that the White point handling control decides it. Left as it was,
+    # this assertion would have held the help to a claim the app had stopped
+    # making true.
+    assert "a hard ceiling" in scanner
+    assert "Scale white to a perfect white surface" in scanner
+    assert "reflectance" in scanner
     assert "L*" not in scanner and "PCS" not in scanner
     assert "L*" not in printer and "PCS" not in printer
     # The printer body must not carry the scanner recommendation.
     assert "the Lab default stands" in printer
-    assert "the XYZ table is the one to take" in scanner
+    assert "the safer of the two" in scanner
 
 
 def test_the_help_follows_the_printer_tick_in_the_real_window(_app, tmp_path):
@@ -215,8 +228,14 @@ def test_the_help_follows_the_printer_tick_in_the_real_window(_app, tmp_path):
     (False, "x", 24, "on the small side for a look-up table"),
     (False, "x", 100, ""),                  # the crossover itself: say nothing
     # the Lab ceiling, whenever Lab is chosen and the size does not overrule it
-    (False, "l", 288, "cannot describe anything lighter"),
-    (False, "l", 150, "cannot describe anything lighter"),
+    # The Lab note no longer says "cannot describe anything lighter than your
+    # target's own white patch" full stop, because since B8-75 that depends on
+    # the white-point setting and on the shipped default it is FALSE: the
+    # ceiling sits at about 114 % reflectance, above anything that can be put
+    # on the glass. What it must still do is name the ceiling and say what
+    # decides how high it is (CL-6).
+    (False, "l", 288, "has a ceiling"),
+    (False, "l", 150, "White point handling"),
     # printer mode says nothing at all: nothing was measured about it
     (True, "s", 288, ""),
     (True, "l", 24, ""),
@@ -236,7 +255,18 @@ def test_the_live_note_fires_only_where_the_measurement_is_unambiguous(
 def test_the_note_reaches_the_tooltip_and_leaves_again(_app, tmp_path):
     """The note lives inside the ⓘ — `set_live_note` — so it costs no layout and
     cannot nag. Its first line reaches the hover tooltip; the whole of it goes
-    in front of the standing help."""
+    in front of the standing help.
+
+    WHEN THE NOTE FIRES MOVED ON 2026-09-06, and it is worth being exact about
+    why. Knut asked (beta 10) for the profile type, the quality and the white
+    point to be CHOSEN from the patch count, which B8-19 had considered and
+    deliberately not done. Where the window may now choose, it does, and the
+    note is then silent because there is nothing left to suggest: the setting
+    already is the one it would have pointed at. The note is what remains for
+    the cases where ChromIQ may NOT choose — a bucket whose settings the user
+    has saved, or one they have edited by hand this session — and that is the
+    case set up below, by hand-picking the type the note is about.
+    """
     dlg = _dialog(_app, tmp_path)
     try:
         assert dlg._known_patch_count() is None
@@ -244,6 +274,9 @@ def test_the_note_reaches_the_tooltip_and_leaves_again(_app, tmp_path):
         dlg._layout = {"patches": [{"page": 0} for _ in range(288)]}
         dlg._refresh()
         assert dlg._known_patch_count() == 288
+        # A hand edit: from here on ChromIQ chooses nothing for this bucket, so
+        # the suggestion is the only thing left that can speak.
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("s"))
         note = dlg._ptype_tip.live_note()
         assert "288 patches" in note
         assert note in dlg._ptype_tip.dialog_body()    # carried in FRONT of the help
@@ -263,11 +296,22 @@ def test_the_note_reaches_the_tooltip_and_leaves_again(_app, tmp_path):
 
 
 def test_the_note_never_changes_a_setting(_app, tmp_path):
-    """An automatic switch was considered and rejected (B8-19): the window
-    learns the count only after the type is set, and the crossover is shallow.
-    So the advice must be advice."""
+    """The NOTE changes nothing, and that is still true and still the point.
+
+    SUPERSEDED IN PART, 2026-09-06. B8-19 considered an automatic switch and
+    rejected it; Knut asked for one in beta 10 and Basti authorised it, so the
+    window now does choose — but through a different mechanism, with its own
+    consent gate (`_may_auto_setup`), which refuses a bucket the user has
+    saved or edited. This test is the half that did not change: once that gate
+    has said no, the note fires and moves nothing at all.
+    """
     dlg = _dialog(_app, tmp_path)
     try:
+        # The hand edit that closes the automatic path for this bucket. Away
+        # and back, because the type already IS "s" and a setCurrentIndex that
+        # moves nothing emits nothing and would not count as an edit at all.
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("l"))
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("s"))
         before = dlg._current_main_vals()
         dlg._layout = {"patches": [{"page": 0} for _ in range(864)]}
         dlg._refresh()

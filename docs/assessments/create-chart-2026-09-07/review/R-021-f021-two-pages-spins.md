@@ -1,0 +1,5 @@
+# R-021 F-021 the estimate reads the hidden printtarg Pages spin
+Verdict: CONFIRMED (drift), symptom state-dependent
+Grade: OBSERVED (R05 B). Build a 22-page chart (fixed -f 9500, patch-first i1 A4: 22 pages of 441). Re-open the project (a real re-open through session restore, via another project): both spins read 20 (22 clamped to the spins' maximum 20), both disabled (fixed count). Tick Auto: 20 / 20. Set the panel's Pages to 1: panel 1, hidden printtarg spin still 20. That is the drift. The estimate in my run nevertheless showed 1 page / 315 and the build made 1 page / 315: a fixed patch set was armed at that moment (see R-027 and N-5), so `npat` was not None and the pages assumption was not used. Agent 1's 20-versus-1 symptom needs Auto count with no armed set; the mechanism (two spins, one-way sync on restore) is confirmed.
+Severity: medium (agree).
+Note: the spins' maximum is 20 while the engine happily builds 22 or 36 pages; a chart larger than the control can show is itself worth a line.

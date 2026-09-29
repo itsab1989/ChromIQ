@@ -249,6 +249,12 @@ def main():
 
     import os as _os2
     set_language(_os2.environ.get("AUDIT_LANG", "de"))
+    # B8-1652: Qt's own button texts (OK, Cancel, Close) are translated by
+    # Qt's translator, which main() installs right after the language. The
+    # audit set only the language, so every run showed an English "Cancel"
+    # that the app never shows, and the 4.3.0 final checks reported it.
+    from core.i18n import install_qt_translator
+    install_qt_translator(app)
     settings = FakeSettings(show_welcome_dialog=False, restore_last_session=False,
                             restore_last_tab=False)
     apply_appearance(app, None, "dark")

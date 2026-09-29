@@ -1,0 +1,399 @@
+"""A Custom column started from an ISO set never prints an unqualified PASS.
+
+Found by an on-screen round on 2026-09-10, driving the route ChromIQ's own
+documentation tells a tester to use: you own the standard, so you put its
+numbers into a Custom column yourself and ChromIQ distributes nothing. One
+number makes `custom_iso_12647_7` selectable, and the report then printed a bold
+green **PASS** with "Every value this limit set requires was checked and is
+within its limit."
+
+No string claimed anything, which is why the sweep for claim words in
+`test_chromiq_never_claims_conformance.py` could not see it. **The claim was
+made by juxtaposition**: a column named after a standard, a green PASS, and no
+caveat. That is precisely what ChromIQ promised a rights holder in writing it
+would never do.
+
+The caveat on an ISO column was never about licensing. A standard's figures are
+written for that standard's own control strip on that standard's own chart, and
+ChromIQ measures the chart the user printed. Typing the numbers in by hand does
+not change what they are applied to.
+
+**AND THE CAP THAT USED TO CARRY IT IS GONE.** Until 2026-09-22 such a column
+was held at COND whatever its rows said, and that word was half the answer to
+the juxtaposition above. Knut retired it that day, so every assertion in this
+file that used to read COND now reads PASS, and the caveat is the whole of the
+promise. That makes this file more load-bearing than it was, not less.
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pytest
+
+# THE EXTRACTOR, ON THIS FILE'S OWN TERMS. Importing `i18n_extract` bare works
+# only if some other test file has already put `scripts/` on the path, which
+# under `--dist loadfile` is a different worker's business; run alone, this
+# file failed with ModuleNotFoundError. Same note as
+# `test_an_absence_never_makes_a_column_conditional.py`.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+
+from workflow.compliance_sets import (COND, PASS, Limit, SETS, SET_BY_ID,
+                                      applies_a_standard, set_summary)
+
+
+_ISO_DERIVED = tuple(s.id for s in SETS
+                     if s.kind == "iso"
+                     or (s.parent and SET_BY_ID[s.parent].kind == "iso"))
+_OWN = tuple(s.id for s in SETS if s.id not in _ISO_DERIVED)
+
+
+def test_the_two_custom_columns_are_recognised_as_iso_derived():
+    assert "custom_iso_12647_7" in _ISO_DERIVED
+    assert "custom_iso_12647_8" in _ISO_DERIVED
+    for sid in _ISO_DERIVED:
+        assert applies_a_standard(sid), sid
+
+
+def test_chromiqs_own_sets_are_not():
+    assert _OWN, "the fixture found no ChromIQ set at all"
+    for sid in _OWN:
+        assert not applies_a_standard(sid), sid
+
+
+def test_an_unknown_or_missing_set_is_not_a_standard():
+    assert not applies_a_standard(None)
+    assert not applies_a_standard("")
+    assert not applies_a_standard("no_such_set")
+
+
+@pytest.mark.parametrize("set_id", _ISO_DERIVED)
+def test_every_row_within_its_limit_reads_PASS_and_still_carries_the_caveat(set_id):
+    """**THE WORD MOVED; THE PROMISE DID NOT.**
+
+    This used to require COND, because a cap held every ISO column there
+    whatever its rows said, and that cap was what stopped the juxtaposition
+    this file exists to prevent: a column named after a standard, a green
+    PASS, and no caveat.
+
+    Knut retired the cap on 2026-09-22: *"The note is sufficient. Most users
+    are just interested in knowing if the measurements passed against the
+    criteria set ... ChromIQ's results are only indications that results that
+    PASS likely fulfil the standard ... It is not proof that results fulfil the
+    standard. The report text notes should explain this detail."*
+
+    So the column now reads PASS, and **the caveat is the only thing left
+    holding the promise**. It is asked for here with the same strictness the
+    word was, and `measurement_report_dialog` prints `STANDARD_CAVEAT` for
+    every column applying a standard, live or saved.
+
+    MUTATION: delete the caveat clause from the ISO reason and this goes red
+    for every ISO-derived set, which is the state the challenge round found in
+    the first place.
+    """
+    # **ALL THREE `iso*` SENTENCES, NOT THE ONE THE FIRST DRAFT REACHED**
+    # (adversary round 40c, M2b and M2c). Only `R["iso"]` was exercised here,
+    # so deleting the caveat clause from `iso_with_unchecked` or
+    # `iso_with_one_unchecked` left all 297 guards green. Those two are the
+    # ORDINARY case, not the exotic one: they are reached whenever an ISO
+    # column has any N-A row, which is every first verification.
+    from workflow.compliance_sets import N_A
+    cases = {
+        "nothing unchecked": [(Limit.value(2.0), PASS), (Limit.value(3.0), PASS)],
+        "one unchecked": [(Limit.value(2.0), PASS), (Limit.value(3.0), N_A)],
+        "two unchecked": [(Limit.value(2.0), PASS), (Limit.value(3.0), N_A),
+                          (Limit.value(4.0), N_A)],
+    }
+    seen = set()
+    for why, rows in cases.items():
+        sm = set_summary(rows, set_is_iso=applies_a_standard(set_id),
+                         graded=True)
+        seen.add(sm.reason)
+        assert sm.word == PASS, (set_id, why, sm)
+        assert "not a test against that standard" in sm.reason, (
+            f"{set_id}, {why}: an ISO column reads PASS with no caveat in its "
+            f"own sentence, which is the claim-by-juxtaposition this file "
+            f"exists to prevent"
+        )
+    assert len(seen) == 3, (
+        "the three cases no longer produce three different sentences, so two "
+        "of them are being guarded by accident rather than on purpose: "
+        f"{sorted(seen)}")
+
+
+def test_the_caveat_says_it_is_not_proof():
+    """Knut's own words are the substance of the replacement, not a paraphrase.
+
+    He gave the reasoning when he retired the cap, and asked for it to be in
+    the report: the charts are not the standard's charts, the metrics are
+    ChromIQ's own rather than the standard's methods, and a pass is an
+    indication rather than proof. With the word gone, this sentence is what a
+    reader has.
+    """
+    from workflow.compliance_sets import STANDARD_CAVEAT
+    # R2 of beta 39 (#2): the same three facts, stated as what was judged.
+    for phrase in ("not to that standard's own chart and control strip",
+                   "with ChromIQ's own metrics",
+                   "It is not proof that the print meets the standard"):
+        assert phrase in STANDARD_CAVEAT, (
+            f"the caveat no longer says {phrase!r}, and it is now the only "
+            f"place the qualification appears"
+        )
+
+
+@pytest.mark.parametrize("set_id", _OWN)
+def test_chromiqs_own_sets_can_still_pass(set_id):
+    """The other half, or the test above would pass on a cap applied to all."""
+    rows = [(Limit.value(2.0), PASS), (Limit.value(3.0), PASS)]
+    sm = set_summary(rows, set_is_iso=applies_a_standard(set_id), graded=True)
+    assert sm.word == PASS, (set_id, sm)
+
+
+# ---- the way in that was still open -------------------------------------
+_FORGOTTEN = [
+    # (set id a later ChromIQ no longer defines, the label the run stored)
+    ("custom_iso_12647_7_v1", "Custom ISO 12647-7"),
+    ("iso_12647_8_2021", "ISO 12647-8:2021 values"),
+    ("some_old_id", "ISO 12647-7:2016 values"),
+    ("fogra51_aim", "Fogra 51 aim values"),
+]
+
+
+@pytest.mark.parametrize("set_id, label", _FORGOTTEN)
+def test_a_set_this_version_has_forgotten_still_carries_the_caveat(set_id, label):
+    """A run keeps the id and the label of the set it was bound to. When a later
+    ChromIQ no longer defines that id, the report shows the stored label marked
+    "(historical)" — and this used to answer False, so the column read
+    "Custom ISO 12647-7 (historical)" beside a green PASS with no caveat.
+
+    No string claimed anything. The claim was the arrangement, which is exactly
+    how the previous one of these was found.
+    """
+    assert applies_a_standard(set_id, label), (set_id, label)
+    rows = [(Limit.value(2.0), PASS), (Limit.value(3.0), PASS)]
+    sm = set_summary(rows, set_is_iso=applies_a_standard(set_id, label), graded=True)
+    # The word is PASS since Knut retired the cap on 2026-09-22; what this
+    # file guards is the CAVEAT, which is now the only thing standing between
+    # a column named after a standard and an unqualified green pass.
+    assert sm.word == PASS, (set_id, label, sm)
+    assert "not a test against that standard" in sm.reason, (set_id, label, sm)
+
+
+def test_a_forgotten_chromiq_set_can_still_pass():
+    """The other half. Capping every unknown id would punish ChromIQ's own
+    retired sets, which never applied anybody's published figures."""
+    assert not applies_a_standard("chromiq_default_v1", "ChromIQ default (old)")
+    rows = [(Limit.value(2.0), PASS)]
+    sm = set_summary(rows,
+                     set_is_iso=applies_a_standard("chromiq_default_v1",
+                                                   "ChromIQ default (old)"),
+                     graded=True)
+    assert sm.word == PASS, sm
+
+
+# ===========================================================================
+# The glossary and the guide stopped teaching the cap, and must not start
+# ===========================================================================
+#: Everything a reader is told about what an ISO-named column's Overall can
+#: read. Swept over the English source strings, because the cap was taught in
+#: four separate places and a fix that corrected three of them would look
+#: exactly like a fix that corrected all four.
+_THE_CAP_IN_PROSE: "tuple[str, ...]" = (
+    "can never read better than COND",
+    "reads COND at best",
+    "is COND at best",
+    "Overall can never be better than COND",
+    # **THE CAP CAN BE TAUGHT WITHOUT THE WORD COND IN THE SENTENCE**, and
+    # that is how three documents kept teaching it through a sweep that
+    # thought it was complete (adversary round 40a, F5). The four clauses
+    # above all name the word; these do not, and they say the same thing.
+    "can never read PASS overall",
+    "never reads PASS here",
+    "can never read PASS",
+    "never read PASS",
+    "does not go green",
+    "reads COND anyway",
+    "COND for every ISO column",
+)
+
+#: **AND `extract_keys()` CANNOT SEE PROSE THAT IS NOT A `tr()` LITERAL.**
+#: Measured by round 40a: the extractor saw 6,025 strings and none of the four
+#: live cap sentences was among them, because they live in a Markdown file
+#: that ships inside the app bundle, in a script that writes a README a user
+#: reads, and in a binding design document. A sweep of `tr()` keys is the
+#: right sweep for the app's windows and the wrong one for these, so they are
+#: read off disk.
+#:
+#: `data/compliance_sets/README.md` is bundled by all three PyInstaller specs
+#: and is the document a licence holder is pointed at;
+#: `scripts/make_report_limit_demos.py` writes the demo pack's README, which
+#: MEMORY records as being driven in the real app before every beta; the two
+#: design documents are binding on the next reader under CLAUDE.md.
+_PROSE_FILES: "tuple[str, ...]" = (
+    "data/compliance_sets/README.md",
+    "scripts/make_report_limit_demos.py",
+    "docs/design/measurement_report_limits.md",
+    "docs/design/unified_measurement_management.md",
+)
+
+#: A paragraph may QUOTE a retired rule while saying it is retired, and this
+#: file's own history notes do exactly that. The rule is stateable: the
+#: paragraph has to say so in the same breath. A bare clause with no such
+#: marker anywhere near it is the thing being hunted.
+_SAYS_IT_IS_RETIRED: "tuple[str, ...]" = ("retired", "2026-09-22", "used to",
+                                          "until that day", "struck")
+
+
+def test_no_user_facing_string_still_teaches_the_retired_cap():
+    """MUTATION: put any of the four clauses back into the glossary, the
+    report window's guide or its "how to read this" card, and this goes red
+    naming the string it found."""
+    from i18n_extract import extract_keys
+    hits = [(c, k) for k in extract_keys() for c in _THE_CAP_IN_PROSE if c in k]
+    assert not hits, (
+        "user-facing text still says an ISO-named column is capped at COND, "
+        "which `set_summary` stopped doing on 2026-09-22:\n  "
+        + "\n  ".join(f"{c!r} in {k[:120]!r}" for c, k in hits))
+
+
+def test_the_glossary_says_what_replaced_it():
+    """The other direction, and the reason it is here rather than in the COND
+    register: the corrected sentence does not contain the word COND at all, so
+    a register of COND strings cannot watch it and the cap could be quietly
+    replaced by nothing."""
+    from i18n_extract import extract_keys
+    keys = list(extract_keys())
+    want = ("column judged against one of the ISO-named sets reads PASS or "
+            "FAIL like any other")
+    assert any(want in k for k in keys), (
+        "the glossary no longer tells a reader what an ISO-named column's "
+        "Overall reads. It used to say COND at best; if that clause is gone "
+        "and nothing replaced it, the entry is silent on the one column a "
+        "reader is most likely to look it up for.")
+
+
+def test_no_shipped_or_binding_prose_still_teaches_the_cap():
+    """The half of the sweep `extract_keys()` cannot do.
+
+    MUTATION: put "a column named after a standard never reads PASS here"
+    back into `scripts/make_report_limit_demos.py`, or restore the struck
+    sentence in `data/compliance_sets/README.md`, and this goes red naming the
+    file and the line. Proved both ways round 40a found them.
+    """
+    root = Path(__file__).resolve().parents[1]
+    hits = []
+    for rel in _PROSE_FILES:
+        text = (root / rel).read_text(encoding="utf-8")
+        for para in text.split("\n\n"):
+            if any(m in para for m in _SAYS_IT_IS_RETIRED):
+                continue
+            for clause in _THE_CAP_IN_PROSE:
+                if clause in para:
+                    line = text[:text.index(para)].count("\n") + 1
+                    hits.append(f"{rel}:{line}  {clause!r}")
+    assert not hits, (
+        "prose that ships with ChromIQ, or that binds the next reader, still "
+        "teaches the ISO cap Knut retired on 2026-09-22. A paragraph may "
+        "quote a retired rule only while saying it is retired:\n  "
+        + "\n  ".join(hits))
+
+
+def test_that_sweep_can_actually_see_those_files():
+    """**A PROBE THAT CANNOT EXPRESS THE FAULT IS NOT EVIDENCE**, and the
+    sweep above reads four paths that a rename would turn into a silent pass.
+    So the files are asserted to exist and to contain the subject at all."""
+    root = Path(__file__).resolve().parents[1]
+    for rel in _PROSE_FILES:
+        f = root / rel
+        assert f.exists(), f"{rel} has moved; the sweep above reads nothing"
+        text = f.read_text(encoding="utf-8")
+        assert "COND" in text or "standard" in text, (
+            f"{rel} no longer discusses the subject, so its place in this "
+            "sweep is stale")
+
+
+# ===========================================================================
+# A TRANSLATOR CAN DELETE THE PROMISE, AND NOTHING NOTICED
+# ===========================================================================
+# **FOUND BY ADVERSARY ROUND 40c.** Removing "; er ist keine Prüfung gegen
+# diese Norm." from the German value of the `iso` sentence left every guard in
+# this file, `test_i18n.py`, `test_chromiq_never_claims_conformance.py`, the
+# untranslated ledgers and the em-dash test all green. A German reader would
+# then see a column named "Custom ISO 12647-7", a green PASS, and a sentence
+# ending "…angewendet auf dein Chart." with the denial gone.
+#
+# The conformance sweep cannot catch it: it hunts claim words a translation
+# ADDS and has nothing to say about a denial a translation REMOVES. And this
+# project's record says the class has already been found twice in German.
+#
+# **HOW THIS IS CHECKED WITHOUT KNOWING THIRTEEN LANGUAGES.** A catalogue
+# entry is in one of two states. Either the value equals the key, which is the
+# beta rule (that language carries the English source, denial included), or
+# somebody translated it, and then that language must have a pinned denial
+# phrase here and the value must contain it. German is translated by hand and
+# is the only one pinned today; a language that gets translated adds its
+# phrase in the same commit, which is the point at which a human is looking at
+# the sentence anyway.
+_DENIAL_BY_LANGUAGE: "dict[str, str]" = {
+    # "it is not a test against that standard"
+    "de": "keine Prüfung gegen diese Norm",
+    "fr": "ce n'est pas un test par rapport à cette norme",
+    "es": "no es una prueba frente a esa norma",
+    "it": "un test rispetto a quella norma",
+    "pt": "não é um teste face a essa norma",
+    "nl": "geen toets tegen die norm",
+    "sv": "inte en kontroll mot den standarden",
+    "no": "ikke en test mot den standarden",
+    "pl": "nie jest to test względem tej normy",
+    "ru": "не испытание по этому стандарту",
+    "zh_CN": "并非针对该标准的测试",
+    "ja": "その規格に対する検査ではありません",
+    "uk": "не перевірка за цим стандартом",
+}
+
+#: Every sentence whose job includes the denial. Taken from the module rather
+#: than retyped, so a rename cannot leave this list pointing at nothing, and
+#: `test_the_denial_bearing_sentences_are_the_ones_we_think` proves each one
+#: really carries it in English.
+def _denial_bearing_english() -> "list[str]":
+    from workflow.compliance_sets import (STANDARD_CAVEAT_APPLIED,
+                                          SUMMARY_REASONS)
+    return [SUMMARY_REASONS["iso"],
+            SUMMARY_REASONS["iso_with_unchecked"],
+            SUMMARY_REASONS["iso_with_one_unchecked"],
+            STANDARD_CAVEAT_APPLIED]
+
+
+def test_the_denial_bearing_sentences_are_the_ones_we_think():
+    """The control for the sweep below: each English source really does carry
+    the denial, so a sweep finding it in a translation is finding something."""
+    for en in _denial_bearing_english():
+        assert "not a test against that standard" in en, en[:120]
+
+
+@pytest.mark.parametrize("code", ("de", "es", "fr", "it", "ja", "nl", "no",
+                                  "pl", "pt", "ru", "sv", "uk", "zh_CN"))
+def test_no_translation_drops_the_denial(code):
+    """MUTATION: delete "keine Prüfung gegen diese Norm" from any of the four
+    German values in `data/i18n/de.json` and this goes red for `de`."""
+    import json
+    root = Path(__file__).resolve().parents[1]
+    cat = json.loads((root / "data" / "i18n" / f"{code}.json")
+                     .read_text(encoding="utf-8"))
+    for en in _denial_bearing_english():
+        val = cat.get(en)
+        assert val is not None, (
+            f"{code} has no entry for a denial-bearing sentence, so the "
+            f"catalogue is out of sync: {en[:80]!r}")
+        if val == en:
+            continue                      # carries the English source, denial included
+        phrase = _DENIAL_BY_LANGUAGE.get(code)
+        assert phrase, (
+            f"{code} has translated a sentence that carries ChromIQ's denial "
+            f"to a rights holder, and no phrase is pinned for {code} in "
+            f"_DENIAL_BY_LANGUAGE, so nothing checks the denial survived. "
+            f"Add it in the same commit as the translation.")
+        assert phrase in val, (
+            f"{code}: the translation of a denial-bearing sentence no longer "
+            f"contains {phrase!r}. A reader of {code} would see a column "
+            f"named after a standard, a verdict, and no denial:\n  {val!r}")

@@ -1,0 +1,47 @@
+# wdi-simple's own usage text, captured verbatim from `wdi_simple.exe --help`.
+#
+# THIS IS THE ORACLE, NOT A RESTATEMENT OF THE SOURCE. The bug this guards
+# against was a command line that used an option libwdi does not have
+# (`--driver WinUSB`), which wdi-simple answered by printing this text and
+# exiting 0 — read by the app as a successful driver install. A test that
+# merely repeated the string literal in `core/usb_driver_installer.py` would
+# have pinned the typo just as firmly. So the options the code emits are
+# checked against THIS, which comes from libwdi.
+#
+# The binary is not in the source tree (Windows CI fetches it into assets/),
+# so this snapshot is what the check runs against everywhere. Where the
+# binary IS present, a second test re-runs `--help` and fails if the live
+# text no longer agrees with this file, so the snapshot cannot quietly rot.
+#
+# captured: 2026-09-06
+# source:   assets/wdi_simple.exe (libwdi), sha256
+#           441d0018f4d4ac37abd1913b5e753cc79cc79024a1919d16160f888a7e505e9c
+#
+# Lines beginning with '#' are this header and are not part of the usage.
+
+
+-n, --name <name>          set the device name
+-f, --inf <name>           set the inf name
+-m, --manufacturer <name>  set the manufacturer name
+-v, --vid <id>             set the vendor ID (VID, use 0x prefix for hex)
+-p, --pid <id>             set the product ID (PID, use 0x prefix for hex)
+-i, --iid <id>             set the interface ID (MI)
+-t, --type <driver_type>   set the driver to install
+                           (0=WinUSB, 1=libusb-win32, 2=libusbK, 3=usbser, 4=custom)
+-w, --wcid                 use a WCID driver instead of a device-specific
+                           one (WinUSB, libusb-win32 or libusbK only)
+    --filter               use the libusb-win32 filter driver (requires -t1)
+-d, --dest <dir>           set the extraction directory
+-e, --external <path>      use the external inf specified by <path> as source
+                           (overrides the internal embedded inf)
+-x, --extract              extract files only (don't install)
+-c, --cert <certname>      install certificate <certname> from the
+                           embedded user files as a trusted publisher
+    --stealth-cert         installs certificate above without prompting
+-s, --silent               silent mode
+-b, --progressbar=[HWND]   display a progress bar during install
+                           an optional HWND can be specified
+-o, --timeout              set a timeout (in ms) to wait for any pending installations
+-l, --log                  set log level (0=debug, 4=none)
+-h, --help                 display usage
+

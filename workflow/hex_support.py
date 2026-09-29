@@ -80,6 +80,184 @@ def hex_scanner_allowed(settings) -> bool:
         return False
 
 
+# A HEXAGON IS TALLER THAN ITS SLOT, AND THE SLOT IS THE ROW PITCH.
+#
+# Knut, 2026-09-06: *"the height part is wrong and too small. For a hexagonal
+# patch, the height top-tip to bottom-tip is always larger than the patch width,
+# but the 'Patch size (mm)' says 11.3 x 9.78."* He was right, and by exactly this
+# factor.
+#
+# `geometry.patch_rects_px` records SLOT rects, and `instruments` builds a
+# hexagonal geometry with `plen = pwid * sqrt(3)/2` — the interlocking ROW PITCH,
+# the distance from one row's centre to the next. The patch itself is bigger:
+# `raster._hexagon_points` puts the apexes at `y0 - plen/6` and `y0 + plen +
+# plen/6`, so the drawn shape spans `plen * 4/3`, which is `pwid * 2/sqrt(3)` —
+# the regular-hexagon relation, tip to tip.
+#
+# MEASURED, not derived: rendered at 1200 dpi with every patch a different colour
+# so an interlocking neighbour could not be mistaken for the patch under test, the
+# drawn hexagon came out 7.027 x 8.086 mm against a 7.006 x 6.075 mm slot
+# (SpectroScan) and 12.002 x 13.843 mm against 12.002 x 10.393 mm (CR30) — ratios
+# 1.33101 and 1.33198 against an ideal 4/3, the residual being pixel snapping.
+# `tests/test_a_hexagon_is_taller_than_its_row_pitch.py` re-measures it.
+#
+# The WIDTH needs no correction: the hexagon's sides are flat and vertical, so it
+# is exactly as wide as its slot. Only the height was ever wrong.
+HEX_HEIGHT_FACTOR = 4.0 / 3.0
+
+
+def hex_two_heights_note() -> str:
+    """The note that has to appear wherever a honeycomb's height is shown or set.
+
+    ONE string, shared by the Chart-layout-information tooltip and the Manual
+    "Patch size (mm)" boxes, because they are the two ends of the same number and
+    a note that drifts between them is worse than no note. It is appended to
+    those tooltips rather than written into them: both are long, shipped, and
+    translated into twelve languages, and retiring their keys mid-beta to add a
+    paragraph is not a trade worth making.
+
+    Knut, 2026-09-06 (B8-80), on a chart whose patches print 11.3 × 13.05 mm:
+    *"the 'Patch size (mm)' says 11.3 x 9.78."*
+
+    **IT USED TO DESCRIBE ONE ORIENTATION AND READ AS IF IT DESCRIBED BOTH**,
+    which is what Knut found on 2026-09-11: *"when hex patches are used, the
+    help text for the Chart layout information or the Measured from Preview
+    frames do not specify that the column pitch is equal to the patch width
+    measurement. I also assume these numbers are defined differently if the hex
+    patches are 30 degrees rotated or not, so the help text should probably
+    clearly distinguish this and explain."* He assumed right, and the old text
+    was not merely incomplete on a turned sheet, it was WRONG there: it opened
+    "Hexagonal patches have two heights", and a turned honeycomb has two
+    WIDTHS and only one height.
+
+    MEASURED before a word of this was written, on Knut's own CR30 honeycomb
+    from his `testHex` project, rendered at 600 dpi and read back off the
+    patch rectangles (`/tmp` proof folder, `probe_hex3.py` / `probe_hex_render.py`):
+
+    ======================  ==========================  =========================
+    with the boxes set to   UPRIGHT (flat sides l/r)    TURNED 30° (sides top/bot)
+    12.0 wide, 10.0 tall
+    ======================  ==========================  =========================
+    column pitch measured   12.023 mm  (= the width)    11.980 mm  (= ¾ of it)
+    row pitch measured       9.991 mm  (= ¾ of height)   9.991 mm  (= the height)
+    patch, tip to tip       12.00 × 13.33 mm            16.00 × 10.00 mm
+    strips                  zigzag down the page        run straight down
+    ======================  ==========================  =========================
+
+    So the rule is symmetric and the turn swaps the axis it applies to: the
+    pitch ALONG the flat sides equals the patch, and the pitch across the points
+    is three quarters of it. `HEX_HEIGHT_FACTOR` (4/3) is the same number in
+    both, which is why it is not renamed."""
+    return tr(
+        "Hexagons interlock, so a patch and the spacing between patches are "
+        "not the same measurement, and which way round depends on whether the "
+        "honeycomb is turned.\n"
+        "PITCH is centre to centre between neighbouring patches. The PATCH is "
+        "the hexagon itself, measured tip to tip across its two points.\n\n"
+        "Upright honeycomb (the usual one): the flat sides face left and "
+        "right, and the strips zigzag down the page. Across the page the "
+        "hexagons sit side by side, so the COLUMN PITCH is exactly the patch "
+        "width, and the width box under Patch size sets both. Down a strip "
+        "they overlap, so the ROW PITCH is the smaller number: the height box "
+        "sets the row pitch, and the hexagon stands a third taller than it. "
+        "Set 9.78 mm and the patch measures 13.05 mm from tip to tip.\n\n"
+        "Turned 30 degrees: the flat sides face up and down, and each strip "
+        "runs straight down the page. Down a strip the hexagons sit end to "
+        "end, so the ROW PITCH is exactly the patch height, and the height box "
+        "sets both. Across the page they overlap, so the COLUMN PITCH is the "
+        "smaller number: the width box sets the column pitch, and the hexagon "
+        "is a third wider than it. Set 9.28 mm and the patch measures 12.37 mm "
+        "across.\n\n"
+        "Chart layout information names whichever pitch this chart has, Row "
+        "pitch or Column pitch, and shows the patch size beside it.")
+
+
+def hex_patch_width_row_note() -> str:
+    """What the margin inspector's "Patch width" row really measures on a
+    honeycomb.
+
+    A SEPARATE, SHORT STRING rather than a paragraph added to that panel's ⓘ:
+    its standing help is one long shipped key translated into twelve languages,
+    and this is the same trade `hex_two_heights_note` already makes with the
+    other two tooltips.
+
+    MEASURED on two real renders of Knut's own hex chart at 600 dpi
+    (`probe_hex_render.py`): the row is `block width ÷ strips`
+    (`workflow/margin_inspector._estimate_patch_width_mm`), so it reports
+    **9.4448 mm** on an upright honeycomb whose column pitch is 9.2287 and
+    whose patches are 9.20 wide, and **9.3757 mm** on the turned one whose
+    column pitch is 9.2710 and whose patches are **12.37** wide. On the turned
+    sheet the row therefore understates the hexagon by very nearly a quarter,
+    which is exactly the number Knut asked the help text to explain.
+    """
+    # NO QUOTED CONTROL NAMES IN HERE. A quoted name has to be the name the
+    # reader's own window shows, and this string is carried in English by the
+    # eleven catalogues that have not been swept yet, where every one of these
+    # controls is renamed. `tests/test_a_quoted_control_names_the_control_the_
+    # reader_has.py` catches exactly that, and it caught this. The sentences
+    # name the rows in prose instead, which is true in any language.
+    return tr(
+        "On a hexagonal chart, the patch width above is the spacing from one "
+        "strip to the next: it is measured across the printed strips and "
+        "divided by their number, which is the column pitch. On an upright "
+        "honeycomb that pitch IS the hexagon's width, so the figure is the "
+        "patch width. On a honeycomb turned 30 degrees the hexagon is a third "
+        "wider than its column pitch, so the patch is wider than this figure "
+        "says. The chart layout information panel shows the patch size and the "
+        "pitch separately, and names which pitch it is showing.")
+
+
+def hex_patch_width_mm(column_pitch_mm: float) -> float:
+    """The drawn WIDTH of a rotated hexagon, from its column pitch.
+
+    The mirror of :func:`hex_patch_height_mm`, and a SEPARATE function rather
+    than a flag on that one, so nothing already calling it can silently change
+    meaning. `HEX_HEIGHT_FACTOR` is the right number (4/3) on both orientations;
+    only the axis it applies to changes, which is why it is not renamed either.
+
+    Report only, never geometry.
+    """
+    return float(column_pitch_mm) * HEX_HEIGHT_FACTOR
+
+
+def hex_patch_height_mm(row_pitch_mm: float) -> float:
+    """Tip-to-tip height (mm) of a hexagon whose slot / row pitch is
+    *row_pitch_mm*. See :data:`HEX_HEIGHT_FACTOR`.
+
+    Report only, never geometry: nothing that lays a chart out may call this,
+    because capacity and placement are correct on the pitch and the reserved
+    apex overhang (``hxeh``) already, and a chart built before this existed must
+    still come out byte-identical."""
+    return float(row_pitch_mm) * HEX_HEIGHT_FACTOR
+
+
+def recipe_is_flat_top(recipe) -> bool:
+    """True for a ROTATED honeycomb, resolved the way the BUILDER resolves it.
+
+    THE FLAG ALONE IS NOT THE ANSWER, and reading it raw was a shipped defect.
+    `hex_flat_top` rides in the recipe and hiding the control must never untick
+    it, so a tick made on a CR30 is still in the recipe after the user moves to
+    a SpectroScan or back to square patches. `_build_base` guards against that
+    by writing `Geom.hex_flat_top` only inside its `key == "CR30" and hflag`
+    branch -- but the SIDECAR records the recipe, not the Geom, so every reader
+    that asked the recipe directly answered True for a SpectroScan honeycomb and
+    even for a rectangular chart. Measured: the Measure overlay then drew
+    flat-top hexagons over pointy-top ink, and the margin inspector moved the
+    apex allowance to the wrong axis.
+
+    So the resolution lives here, once, and matches `_build_base` exactly.
+    """
+    if recipe is None:
+        return False
+    if isinstance(recipe, dict):
+        inst = recipe.get("instrument")
+        flat = recipe.get("hex_flat_top")
+    else:
+        inst = getattr(recipe, "instrument", None)
+        flat = getattr(recipe, "hex_flat_top", None)
+    return bool(flat) and str(inst) == "CR30" and recipe_is_hexagonal(recipe)
+
+
 def recipe_is_hexagonal(recipe) -> bool:
     """True for a hexagonal-patch recipe (a ``LayoutRecipe`` or the dict form).
 
@@ -134,6 +312,41 @@ def settings_are_hexagonal(create_chart_settings) -> bool:
         return False
 
 
+def chart_is_flat_top(chart_path: "str | Path | None") -> bool:
+    """True when the chart at *chart_path* is a ROTATED (flat-top) honeycomb.
+
+    A POSITIVE SIGNAL, read off the sidecar's own recipe, and that is the point
+    of it. `tab_measure._apply_hex_stagger` decides a sidecar is a pre-2026-08-13
+    vintage by noticing that every patch of a column shares one x. A rotated
+    honeycomb has one x per column BY DESIGN, so that fingerprint calls every
+    rotated chart legacy and shifts every box by a quarter patch. The fix is to
+    ask the chart what it is rather than to make the fingerprint cleverer.
+
+    Fails closed on a missing or unreadable sidecar, which is the safe direction
+    here: a chart built before this field existed reads False and keeps exactly
+    the behaviour it has always had.
+    """
+    if not chart_path:
+        return False
+    p = Path(chart_path)
+    candidates = []
+    if p.name.endswith(".channels.json"):
+        candidates.append(p)
+    else:
+        candidates.append(artefact(p, ".channels.json"))
+        for _ext in (".ti1", ".ti2", ".ti3"):
+            candidates.append(artefact(without_ext(p, _ext), ".channels.json"))
+    for cj in candidates:
+        try:
+            if cj.is_file():
+                data = json.loads(read_text(cj))
+                recipe = (data.get("layout") or {}).get("recipe") or {}
+                return recipe_is_flat_top(recipe)
+        except Exception:
+            continue
+    return False
+
+
 def chart_is_hexagonal(chart_path: "str | Path | None") -> bool:
     """True when the chart at *chart_path* was made with SpectroScan hexagonal
     patches, read from its ``channels.json`` sidecar. Accepts a .ti1/.ti2/
@@ -164,3 +377,25 @@ def chart_is_hexagonal(chart_path: "str | Path | None") -> bool:
         except Exception:
             continue
     return False
+
+
+def ring_mm_of(recipe) -> float:
+    """The spacer RING width a chart was built with, in mm, or 0.0.
+
+    Resolved through `instruments`, not read off the recipe: the ring is
+    `pspa` moved across by `build()` and then clamped, so the recipe's
+    "spacer width" is a request and this is the answer. A chart with spacers
+    switched off, or a rectangular one, gets 0.0.
+    """
+    if recipe is None or not recipe_is_hexagonal(recipe):
+        return 0.0
+    try:
+        from workflow.layout_engine import instruments
+        from workflow.layout_engine.presets import build_kwargs_as_built
+        # B8-1570: a stored recipe is read as the chart was built (and through
+        # `from_dict`, B8-1542); a live recipe by today's rule.
+        geom = instruments.geom_from_build_kwargs(
+            build_kwargs_as_built(recipe))
+        return float(getattr(geom, "hex_ring_mm", 0.0) or 0.0)
+    except Exception:      # noqa: BLE001 — a cap that cannot be computed is 0
+        return 0.0

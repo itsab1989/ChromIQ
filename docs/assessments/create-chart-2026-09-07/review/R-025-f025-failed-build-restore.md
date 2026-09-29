@@ -1,0 +1,7 @@
+# R-025 F-025 after a failed build the restored chart is not shown
+Verdict: PARTLY RIGHT, and it hides a worse fact
+Grade: OBSERVED (R05 A, project R2-Engine run1; file names recorded before and after).
+Right: after the failure the preview is NO PREVIEW and stays so until a run round trip (New run and back: 1 page, 525, "Margins: OK" again).
+Wrong: "the margin frame keeps a stale verdict Margins: OK". Both frames show their placeholders ("Generate a preview to measure its margins", "Generate a preview to see its layout"); the label's text is retained while hidden, which is what Agent 1's driver read. Agent 1's own screenshot A10-extremes/x10-after-failed-build.png shows the placeholders.
+NEW (N-1): files before: channels.json, .ti1, .ti2, .tif, meta.json, cache/new_run.json, exports/R2-Engine-colours.txt, exports/R2-Engine-i1profiler.pxf, exports/R2-Engine-i1profiler.txt (9). After the failed build: the three exports/ files are gone, nothing else changed. `Run.reset_chart_artefacts(stash=True)` (core/file_manager.py) rmtree's exports/ and cache/ before targen and stashes only the chart files; `settle_chart_stash` puts the chart back and exports/ stays deleted. The docstring's reasoning ("derived, go with the chart") holds for a build that succeeds, not for one that does not: the chart came back, its sidecars did not. Severity of N-1: medium (silent loss of hand-off files; re-derivable by a successful rebuild).
+Agent 1's checkpoint 08 says "Files identical before and after the failure (set-aside works)": not true for exports/.

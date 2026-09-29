@@ -108,6 +108,68 @@ def _no_modal_may_hang_the_suite(request):
 
 
 
+#: The application-wide appearance as the worker starts, kept so
+#: `_no_test_repaints_the_whole_application` can put it back.
+_CLEAN_APPEARANCE: "tuple | None" = None
+
+
+@pytest.fixture(autouse=True)
+def _no_test_repaints_the_whole_application():
+    """**AN APPEARANCE A TEST APPLIES BELONGS TO THAT TEST.**
+
+    `ui.theme.apply_appearance` ends in ``app.setPalette(...)`` and
+    ``app.setStyleSheet(...)``, and there is ONE QApplication per worker, so a
+    test that switches appearance and does not switch back hands its
+    appearance to every test that runs after it on that worker. `active_mode`
+    reads the LIVE palette, so the whole `by_mode` colour system follows it.
+
+    MEASURED, 2026-09-22, while a change set widened one such test from two
+    appearances to three. The everyday tier went from green on two runs out of
+    two to RED on four runs out of seven, and no failure was ever in the file
+    that caused it:
+
+    * `test_verify_profile_dialog::test_neutral_controls_qss_uses_given_colour`
+      -- neutral colours where light was expected;
+    * `test_button_text_fits`, `test_chart_layout_info_panel` -- accent hex
+      missing from a stylesheet built over a `#101010` dark ground;
+    * `test_layout_options_panel` -- the red conflict outline absent;
+    * `test_the_suite_paints_with_the_shipped_style` -- the style read as ''.
+
+    Every one of them passes alone. That is the shape CLAUDE.md already
+    records for this suite ("a different victim each run, every one passing
+    alone"), and the fix there was the same idea: take the shared state out of
+    any individual test's hands.
+
+    **IT ONLY PAYS WHEN A TEST ACTUALLY DIRTIED SOMETHING.** CLAUDE.md is
+    explicit that `qapp.setStyleSheet` re-polishes every live widget and that
+    two tests which cost 0.2 s alone cost 29 s inside a full run, so restoring
+    unconditionally would be worse than the leak. This compares first and
+    writes only on a mismatch: one string comparison per test, and a repaint
+    only for the handful that change the appearance.
+
+    A test that WANTS to leave an appearance behind cannot, and should not: if
+    two tests must share one, they share a fixture.
+    """
+    global _CLEAN_APPEARANCE
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if app is None:
+        yield
+        return
+    if _CLEAN_APPEARANCE is None:
+        from PyQt6.QtGui import QPalette
+        _CLEAN_APPEARANCE = (app.styleSheet(), QPalette(app.palette()))
+    yield
+    app = QApplication.instance()
+    if app is None:                       # a test dropped it; nothing to fix
+        return
+    sheet, palette = _CLEAN_APPEARANCE
+    if app.styleSheet() != sheet:
+        app.setStyleSheet(sheet)
+    if app.palette() != palette:
+        app.setPalette(palette)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _one_qapplication_per_worker():
     """Create the QApplication once, ON THE STYLE THE APP SHIPS, and keep it
@@ -157,11 +219,52 @@ def _one_qapplication_per_worker():
     from PyQt6.QtWidgets import QApplication
 
     _PINNED_QAPP = QApplication.instance() or QApplication([])
+    # REGISTER THE FONTS THE APP BUNDLES, in the same position `main()` does
+    # (main.py:143, immediately before `setStyle`). Under
+    # `QT_QPA_PLATFORM=offscreen` on Windows `QFontDatabase.families()` is
+    # EMPTY, so every family the stylesheet asks for (`ui/styles.py` asks for
+    # Inter everywhere) draws as a tofu box of `pixelSize`: w('i') == w('W').
+    # "Manuelle Einstellungen" then measures 286 px against 144 px of real
+    # Inter — a 1.99x overestimate under every widget on the screen.
+    # ORDER MATTERS ON macOS: once anything has populated the CoreText font
+    # database, `addApplicationFont` returns -1 for a family that is already
+    # there. Registering here, before the first `families()` call any test
+    # makes, is the only position where it takes.
+    try:
+        import os as _os
+        _repo = _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__)))
+        from PyQt6.QtGui import QFontDatabase as _QFD
+        for _f in sorted(pathlib.Path(_repo, "assets", "fonts").glob("*.ttf")):
+            _QFD.addApplicationFont(str(_f))
+    except Exception:                                    # pragma: no cover
+        pass          # fonts dir missing — the suite falls back as main() does
     try:
         _PINNED_QAPP.setStyle("Fusion")
     except Exception:                                    # pragma: no cover
         pass          # a Qt build without Fusion: better the platform default
                       # than no QApplication at all
+    # THE COLLECTOR RUNS WHERE THE APP'S DOES (B8-1392): on this thread, from
+    # the event loop, never inside Qt's delivery of an event and never on
+    # another thread. `main()` installs the same thing right after its
+    # QApplication. Without it the everyday tier lost a worker in 3 of 9 runs
+    # at abc852a2: a test let go of a Create Chart tab, pytest-qt's
+    # processEvents delivered a timer to one of its widgets, a Python event
+    # filter allocated, the allocation collected the tab, and Qt read the
+    # freed receiver (`core/gc_guard.py`).
+    from core.gc_guard import install_gui_thread_collector
+    install_gui_thread_collector(_PINNED_QAPP)
+    # THE HELP CARDS ARE TRANSLATED WHEN THEIR MODULE IS IMPORTED
+    # (`welcome_dialog.WORKFLOWS` is built with tr() at import). The first
+    # test on a worker that switched the language and then built a window
+    # imported it in that language for the rest of the worker's life, and
+    # the English help-card tests then read Ukrainian (2026-09-28, only in
+    # --runslow runs, whose file order differs). Import it here, in English,
+    # before any test can switch. A test that needs the cards in another
+    # language already runs them in a process of its own
+    # (`test_helpcard_sheets_in_every_language.py`).
+    import core.i18n as _i18n
+    if _i18n._language == _i18n.SOURCE_LANGUAGE:
+        import ui.dialogs.welcome_dialog  # noqa: F401
     yield _PINNED_QAPP
     # Deliberately NOT destroyed: tearing it down at session end would delete
     # every QObject still alive during other fixtures' teardown, which is the
@@ -185,6 +288,42 @@ _root_logger = _logging.getLogger()
 if not _root_logger.handlers:
     _root_logger.addHandler(_logging.NullHandler())
     _root_logger.setLevel(_logging.DEBUG)
+
+# …AND EVERY CHILD PROCESS A TEST STARTS, which the NullHandler cannot reach
+# (B8-1419). A test that runs `subprocess.run([sys.executable, "-c", PROBE])`
+# starts a fresh interpreter with no conftest in it: its first `core` import
+# configured logging from scratch and appended to the user's REAL chromiq.log.
+# Measured during beta 45: 20 to 60 "Settings SANDBOXED to
+# .../pytest-of-Basti/pytest-99/popen-gwN/..." lines per on-screen drive while
+# an everyday tier ran, from `test_every_pulldown_matches_create_chart_...`,
+# the K44 audit and their kind. A child inherits the environment, so the
+# sandbox goes there, the way `CHROMIQ_SETTINGS_FILE` and
+# `CHROMIQ_PRESETS_DIR` do: `core.platform_paths.log_dir()` answers this
+# folder, so `chromiq.log` and `chromiq-crash.log` both land in it.
+#
+# ONE PER PROCESS, assigned rather than `setdefault`: under xdist every worker
+# inherits the controller's environment, and twelve workers (and their
+# children) rotating one shared 5 MB file is the Windows WinError 32 above.
+# The prefix is `chromiq-`, so a folder a crashed run leaves behind is one
+# `_sweep_stale_temp_dirs` recognises by name; `pytest_unconfigure` removes it
+# when the process ends. `tests/test_b8_1419_the_suite_never_writes_the_real_
+# log.py` is the guard.
+#
+# ONCE PER PROCESS, not once per import of this module: a test that imports it
+# again under another name (`import tests.conftest`, a reload) would otherwise
+# make a second folder, point the environment at it and leave it behind, since
+# only the registered module's `pytest_unconfigure` runs. The owner's pid rides
+# with the path; a child process inherits the pair, sees a pid that is not its
+# own, and makes its own.
+import tempfile as _tempfile
+if (os.environ.get("CHROMIQ_SUITE_LOG_OWNER") == str(os.getpid())
+        and os.path.isdir(os.environ.get("CHROMIQ_LOG_DIR", ""))):
+    _SUITE_LOG_DIR = pathlib.Path(os.environ["CHROMIQ_LOG_DIR"])
+else:
+    _SUITE_LOG_DIR = pathlib.Path(
+        _tempfile.mkdtemp(prefix="chromiq-suite-log-"))
+    os.environ["CHROMIQ_LOG_DIR"] = str(_SUITE_LOG_DIR)
+    os.environ["CHROMIQ_SUITE_LOG_OWNER"] = str(os.getpid())
 
 
 #: The highest worker count this suite is currently RELIABLE at — see CLAUDE.md
@@ -253,12 +392,138 @@ def _repair_a_leaked_qmessagebox_exec():
     because the attribute stayed patched for everything after it; the other
     produced the 77 errors described above. Nothing here can fail a test — it
     only removes an attribute that should not exist, before the test starts.
+
+    **AND IT ONLY EVER REPAIRED ONE ATTRIBUTE, WHICH IS HOW THE NEXT ONE GOT
+    THROUGH (2026-09-09).** An on-screen driver's helper, lifted into a test
+    file, stubbed `QDialog.exec` and the four `QMessageBox` STATICS -- warning,
+    critical, information, question -- with bare `setattr`. None of those is
+    `QMessageBox.exec`, so nothing here undid them, and every file xdist
+    scheduled onto that worker afterwards ran against a UI with no modal
+    dialogs. Measured: `test_a_new_project_name_goes_through_one_door.py` is 40
+    passed alone and 25 FAILED with the offending file before it, and the
+    release gate returned `12620 passed` on one run and `25 failed` on the next
+    from an unchanged tree -- a green that meant only that xdist had happened to
+    schedule the files apart. The offender now uses monkeypatch; this repair
+    covers the whole family so the next one is contained rather than discovered.
+
+    **AND THE FIRST ATTEMPT AT COVERING THE FAMILY BROKE FOUR TESTS, BECAUSE
+    DELETING IS THE WRONG REPAIR FOR EVERY MEMBER BUT ONE.** `QMessageBox.exec`
+    can be deleted: it is INHERITED, so its presence in the subclass `__dict__`
+    is itself the leak. `warning`, `critical`, `information`, `question` and
+    `QDialog.exec` are DEFINED by PyQt -- deleting one destroys it for the rest
+    of the worker, and there is nothing left to inherit. The first attempt told
+    the two apart by comparing types against `QMessageBox.__dict__["__init__"]`,
+    which PyQt does not put there at all: the expression is `type(None)`, every
+    real descriptor fails the isinstance, and all four statics were deleted in
+    the setup of the first test each worker ran. Cost: four failures in
+    `test_verification_print_tab.py` on gate run 1, in tests that had done
+    nothing wrong.
+
+    So the family is RESTORED from a snapshot taken in `pytest_configure`,
+    before collection imports a single test module. A test that patched
+    correctly is a no-op here, because its own undo already put the pristine
+    object back and `is` says so.
     """
     try:
-        from PyQt6.QtWidgets import QMessageBox
-        if "exec" in QMessageBox.__dict__:
-            del QMessageBox.exec
+        _restore_the_modal_entry_points()
     except Exception:      # noqa: BLE001 — a repair must never fail a test
+        pass
+
+
+def _restore_the_modal_entry_points() -> None:
+    """The repair itself, callable so it can be TESTED rather than assumed.
+
+    `tests/test_a_leaked_modal_never_reaches_the_next_test.py` leaks each entry
+    point the way a real test file did, calls this, and checks the pristine
+    object is back -- which no assertion about this function's source could.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    # `exec` is inherited from QDialog, so a leaked patch is an attribute that
+    # should not be in the subclass __dict__ at all.
+    if "exec" in QMessageBox.__dict__:
+        del QMessageBox.exec
+    # The rest are DEFINED by PyQt, so they are restored, never deleted.
+    # See `_PRISTINE_MODALS` and the note above about the first attempt.
+    for _owner, _name, _orig in _PRISTINE_MODALS:
+        if _owner.__dict__.get(_name) is not _orig:
+            setattr(_owner, _name, _orig)
+
+
+@pytest.fixture(autouse=True, scope="module")
+def _every_file_starts_in_english():
+    """Each test FILE starts in English and hands English on.
+
+    The per-test restore below cannot catch a MODULE-scoped fixture that
+    switches the language and never switches it back: the next file on the
+    worker then starts in that language, and the per-test fixture takes it as
+    the starting point. That is how `test_the_help_knows_about_the_usage_
+    scenarios.py` read its English cards in another language again on
+    2026-09-28 after the per-test restore was in. An autouse fixture of module
+    scope sets up before a file's own module fixtures, so a file that wants a
+    language still gets it."""
+    import core.i18n as _i18n
+    if _i18n._language != _i18n.SOURCE_LANGUAGE:
+        _i18n.set_language(_i18n.SOURCE_LANGUAGE)
+    yield
+    if _i18n._language != _i18n.SOURCE_LANGUAGE:
+        _i18n.set_language(_i18n.SOURCE_LANGUAGE)
+
+
+@pytest.fixture(autouse=True)
+def _the_ui_language_is_put_back():
+    """Give every test back the UI language it started with.
+
+    `core.i18n.set_language` is process-wide, and dozens of test files switch
+    it to check a translation. One that did not switch it back left a worker
+    in Ukrainian: on 2026-09-28 eight tests in
+    `test_the_help_knows_about_the_usage_scenarios.py` read their English help
+    cards in Ukrainian and failed, and passed alone. Restoring what SETUP saw,
+    as the Argyll fixture below does, keeps a module fixture that sets a
+    language on purpose working for all of its tests."""
+    import core.i18n as _i18n
+    before = _i18n._language
+    yield
+    if _i18n._language != before:
+        _i18n.set_language(before)
+
+
+@pytest.fixture(autouse=True)
+def _the_argyll_path_is_put_back():
+    """Give every test back the Argyll folder it started with (B8-1520).
+
+    Five test files point the worker's store at a folder with no Argyll in it
+    ("a-folder-with-no-argyll", "/nonexistent/argyll/bin") to prove a failed
+    start is reported. Two of them were given their own restore in c73eb4d9
+    after gate 1 on 23db5202 lost a bystander to it
+    (`test_a_demo_preset_the_page_table_cannot_count_takes_its_layouts`, which
+    then cannot lay out a chart); the third, `test_a_failed_start_never_locks_
+    the_app.py`, still did it, and xdist puts files on a worker in a different
+    order every run. One restore here closes the class instead of the file.
+
+    IN TEARDOWN, and restoring what SETUP saw, not the default: a module-scoped
+    fixture that points the path somewhere on purpose has already run when this
+    one sets up, so its value is what comes back after each of its tests.
+    """
+    import core.settings as _cs
+    if isinstance(_cs.QSettings, type):
+        yield                   # not sandboxed: never touch the real store
+        return
+    try:
+        qs = _cs.QSettings("ChromIQ", "ChromIQ")
+        had = qs.contains("argyll_bin_path")
+        before = qs.value("argyll_bin_path")
+    except Exception:      # noqa: BLE001 — a repair must never fail a test
+        yield
+        return
+    yield
+    try:
+        qs = _cs.QSettings("ChromIQ", "ChromIQ")
+        if not had:
+            if qs.contains("argyll_bin_path"):
+                qs.remove("argyll_bin_path")
+        elif qs.value("argyll_bin_path") != before:
+            qs.setValue("argyll_bin_path", before)
+    except Exception:      # noqa: BLE001
         pass
 
 
@@ -336,6 +601,53 @@ def _no_leaked_session_restore():
         pass
 
 
+#: The Preferences > Reports values a NEW report in the report window starts
+#: from (K31: "the starting choice for 'New report...' should be the defaults
+#: in preferences -> reports first"). See `_report_preferences_start_default`.
+_REPORT_START_KEYS = ("report_default_type", "report_default_show_details",
+                      "compliance_default_set")
+
+
+@pytest.fixture(autouse=True)
+def _report_preferences_start_default():
+    """Start every test with the report window's Preferences at their
+    defaults, whatever the test before it left in the store (B8-930).
+
+    THE G7 FLAKE. `tests/test_g7_reports_across_places.py` failed twice in
+    one full tier (`test_the_saved_report_shows_the_verdicts_it_recorded`:
+    "N-A" where the document recorded "PASS";
+    `test_a_report_across_projects_lives_in_the_folder_across_them`: "Grey
+    and tone check: 2" where it wanted "Full colour check: 2"), passed alone
+    and in other tiers. Reproduced every time as
+
+        pytest -p no:xdist tests/test_k31_report_model.py \\
+               tests/test_g7_reports_across_places.py
+
+    `test_k31_report_model.py::test_new_report_starts_on_preferences_then_
+    the_runs_own_default` sets `report_default_type` to Grey and tone check
+    through `tests/test_calibration_reports.py::_settings`, which writes into
+    `AppSettings`, one store per WORKER PROCESS (`pytest_configure`), and
+    never puts it back. Since K31 a new report starts on that Preferences
+    type, so every later file on that worker whose `_settings()` asks for
+    nothing wrote Grey and tone reports. Which files follow it on a worker
+    changes from run to run under `--dist loadfile`: that is the whole of
+    the intermittency. The code is right (Preferences decide); the tests
+    leaked state.
+
+    IN SETUP, for the reason `_no_leaked_session_restore` gives: a test that
+    sets these keys does so in its own body, after this has run.
+    """
+    import core.settings as _cs
+    if isinstance(_cs.QSettings, type):
+        return                  # not sandboxed: never touch the real store
+    try:
+        qs = _cs.QSettings("ChromIQ", "ChromIQ")
+        for key in _REPORT_START_KEYS:
+            qs.remove(key)      # -> back to DEFAULTS
+    except Exception:      # noqa: BLE001 — a repair must never fail a test
+        pass
+
+
 @pytest.fixture(autouse=True)
 def _no_real_usb_device_list(monkeypatch):
     """NO TEST MAY DEPEND ON WHAT IS PLUGGED INTO THE MACHINE RUNNING IT.
@@ -357,6 +669,150 @@ def _no_real_usb_device_list(monkeypatch):
         return
     monkeypatch.setattr(argyll_instruments, "usb_devices", lambda: (),
                         raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _the_update_check_never_reaches_the_network(monkeypatch):
+    """NO TEST MAY ASK GITHUB ANYTHING, and one silently did.
+
+    Found in a red gate on 2026-09-10. Four `test_updater.py` tests failed with
+    the REAL current release in the recorder, `v4.2.3`, where their own fake
+    `_fetch` returns `v3.14.7`. They pass when the file is run alone, which is
+    the signature of leaked state, and the leak is this:
+
+    `_api_is_blocked()` reads `update_check_blocked_until` out of `AppSettings`,
+    which `pytest_configure` sandboxes **per worker process, not per test**. So
+    a test that exercises the spent-quota path leaves that key behind, and the
+    next test in the same worker takes the other branch: it skips the API
+    entirely, never calls the `_fetch` the test patched, and falls through to
+    the releases feed, which opens a real HTTPS connection to github.com.
+
+    Two guards, because they fail differently. The key is cleared around every
+    test, so no test inherits another's quota state. And `_open`, the one place
+    the module does network I/O, is made to raise, so a test that reaches it
+    fails with a sentence naming the cause instead of quietly answering from the
+    internet, or hanging on a machine with no route to it.
+
+    A test that wants the feed says so by patching `_open` itself, which is
+    exactly how the feed's own tests already work.
+    """
+    try:
+        from core import updater as U
+        from core.settings import AppSettings
+    except Exception:      # noqa: BLE001 — nothing to stub
+        return
+
+    def _forget() -> None:
+        # AppSettings has no remove(); zero is what `_api_blocked_until` reads
+        # as "no block", so it is the same thing said in the vocabulary the
+        # store actually has.
+        try:
+            AppSettings().set(U._BLOCKED_UNTIL, 0)
+        except Exception:  # noqa: BLE001 — a sandboxed store on the way out
+            pass
+
+    _forget()
+
+    def _refuse(url: str):
+        raise AssertionError(
+            "the update check tried to open " + str(url) + " for real. A test "
+            "that means to exercise the releases feed patches "
+            "UpdateChecker._open itself; reaching the network here means the "
+            "API branch was skipped, and the usual reason is a leaked "
+            "update_check_blocked_until.")
+
+    monkeypatch.setattr(U.UpdateChecker, "_open", staticmethod(_refuse),
+                        raising=False)
+    try:
+        yield
+    finally:
+        _forget()
+
+
+@pytest.fixture()
+def prebuilt_bundles(monkeypatch):
+    """The four withdrawn prebuilt page-image presets, registered for one test
+    from ``tests/fixtures`` (4.3.1 ships none; ``tests/_prebuilt_fixture.py``).
+    Answers the registered ``PREBUILT_PRESETS``."""
+    from tests._prebuilt_fixture import register
+    return register(monkeypatch)
+
+
+@pytest.fixture()
+def automatic_gc():
+    """For a test that measures what `workflow.preset_layout` does with
+    AUTOMATIC collection (B8-1161, B8-1191, B8-1262): the session runs with it
+    off and collected by the GUI thread's timer (B8-1392, `core/gc_guard.py`),
+    which is how the app runs too. This puts CPython's own collector back for
+    the one test and pauses the timer, which would otherwise switch it off
+    again underneath the test; both are restored afterwards."""
+    import gc as _gc
+    from core import gc_guard as _gg
+    timer = getattr(_gg._COLLECTOR, "timer", None) if _gg.installed() else None
+    if timer is not None:
+        timer.stop()
+    _gc.enable()
+    try:
+        yield
+    finally:
+        if timer is not None:
+            _gc.disable()
+            timer.start()
+
+
+@pytest.fixture(autouse=True)
+def _the_collector_is_given_back_between_tests():
+    """B8-1191: `workflow.preset_layout` holds automatic garbage collection
+    off for as long as its background thread lives, and only a thread that
+    is not that one may give it back. A test with no event loop running has
+    no timer to do it, so each test's teardown gives it back here once the
+    thread has ended. Never blocks: a thread still working keeps it held,
+    and the next teardown (or the presets window's timer) gives it back."""
+    yield
+    pl = sys.modules.get("workflow.preset_layout")
+    if pl is not None:
+        pl.release_gc_if_idle()
+    # B8-1392: automatic collection is off for the session (the GUI thread's
+    # collector, `core/gc_guard.py`), and a test that never turns the event
+    # loop never meets its timer. A teardown is outside any Qt delivery, so
+    # what is due is collected here. A test that switched collection back on
+    # (to measure `preset_layout`'s hold) has it switched off again.
+    import gc as _gc
+    from core import gc_guard as _gg
+    if _gg.installed():
+        if _gc.isenabled():
+            _gc.disable()
+        _gg.collect_if_due()
+
+
+@pytest.fixture(autouse=True)
+def _a_test_deletes_what_it_deleted_later():
+    """B8-1414: a `deleteLater()` a test posts is carried out in THAT test's
+    teardown, not in the next test that happens to start an event loop.
+
+    Qt runs a deferred delete posted outside any event loop only once a loop
+    starts: plain `processEvents()` leaves it queued. Dozens of tests show a
+    top-level widget and end with `w.deleteLater()` (measured with a probe:
+    `test_log_panes_resizable.py`, `test_a_spinbox_fits_its_own_special_value.py`
+    and others), so those visible windows waited, on that worker, for the
+    first `QApplication.exec()`: the one in
+    `test_a_driver_returns_to_a_modal_it_closed.py::test_the_next_step_pumps_again`.
+    Its loop then destroyed them at its first turn, the last visible window
+    closed, and Qt's quit-on-last-window-closed ended the loop 3 to 157 ms in,
+    before the step the test is about: the "stray quit", in 1 or 2 of every 4
+    everyday runs, with and without B8-1400's collection.
+
+    Sending the queued DeferredDelete events here, at loop level 0 and outside
+    any event delivery, deletes exactly what the test asked to delete. A
+    teardown is not inside an exec(), so closing a window here can never quit
+    anything."""
+    yield
+    try:
+        from PyQt6.QtCore import QCoreApplication, QEvent
+    except Exception:                                    # pragma: no cover
+        return
+    if QCoreApplication.instance() is not None:
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
 @pytest.fixture(autouse=True)
@@ -473,7 +929,10 @@ _STALE_AFTER_HOURS = 1
 
 #: Never swept, whatever its age: rebuilding it costs about four minutes per
 #: gate, which is the whole reason it exists.
-_KEEP_FOREVER = ("chromiq-demo-projects-cache",)
+_KEEP_FOREVER = ("chromiq-demo-projects-cache",
+                 # the release demo package (#182 K29), about four minutes to
+                 # build; `test_the_release_demo_package` keeps ONE key in it
+                 "chromiq-release-demo-cache")
 
 
 def _folder_size(folder: pathlib.Path) -> int:
@@ -510,6 +969,61 @@ def _force_writable(func, path, _exc) -> None:
         pass
 
 
+#: Suffixes only ChromIQ and ArgyllCMS write. A bare ``tmp*`` folder holding one
+#: of these, in the system temp folder, came from this suite: no other program on
+#: the machine writes a `.ti3` into `/var/folders`.
+_CHROMIQ_TEMP_MARKERS = (".ti1", ".ti2", ".ti3", ".cht", ".cie", ".icc", ".cal")
+
+#: The other shape the leak takes, and the one the suffixes above miss. The
+#: chart-geometry probes name a folder per combination of instrument, paper,
+#: resolution and a flag: `41A4150False`, `CMLetter300True`, `CR30A3600False`.
+#: Nothing but this suite writes a directory called that into the system temp
+#: folder, and those folders hold TIFFs, whose suffix is far too common to be a
+#: marker on its own.
+_CHROMIQ_PROBE_DIR = __import__("re").compile(
+    r"^[A-Za-z0-9]{2,6}(A3|A4|A5|Letter|Legal|Tabloid)\d{2,4}(True|False)$")
+
+
+def _is_chromiq_temp(entry: pathlib.Path, _depth: int = 2,
+                     _budget: int = 60) -> bool:
+    """Whether an unprefixed temp folder is one of this suite's.
+
+    Shallow and cheap on purpose: the sweep runs at the start of every session
+    and there can be tens of thousands of these. It looks no deeper than
+    *_depth* and at no more than *_budget* entries, and answers False the moment
+    it runs out of either. A false negative costs nothing; the folder is swept
+    on some later run or by the operating system. A false POSITIVE would delete
+    another application's data, so the test is the presence of a file only this
+    suite writes, never the name of the folder.
+    """
+    stack = [(entry, 0)]
+    seen = 0
+    while stack:
+        here, level = stack.pop()
+        try:
+            children = list(os.scandir(here))
+        except OSError:
+            continue
+        for child in children:
+            seen += 1
+            if seen > _budget:
+                return False
+            try:
+                if child.is_file(follow_symlinks=False):
+                    if child.name.lower().endswith(_CHROMIQ_TEMP_MARKERS):
+                        return True
+                    if child.name in ("project.json", "meta.json"):
+                        return True
+                elif child.is_dir(follow_symlinks=False):
+                    if _CHROMIQ_PROBE_DIR.match(child.name):
+                        return True
+                    if level < _depth:
+                        stack.append((pathlib.Path(child.path), level + 1))
+            except OSError:
+                continue
+    return False
+
+
 def _sweep_stale_temp_dirs() -> "tuple[int, int]":
     """Delete what earlier test runs left in the system temp folder.
 
@@ -520,8 +1034,26 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
 
     The leak was ``tempfile.mkdtemp()``, which nothing ever removes — unlike
     pytest's own ``tmp_path``, which is cleaned up whether a test passes or
-    fails and keeps only the last few runs. Those call sites now use
+    fails and keeps only the last few runs. Those call sites were moved to
     ``tmp_path``; this sweeps the history, and catches any that come back.
+
+    **THEY CAME BACK, AND THIS SWEEP COULD NOT SEE THEM: 62,548 FOLDERS AND
+    198 GB.** Measured 2026-09-12, after a day of gate runs took the disk from
+    700 GB free to 430. This function globbed ``chromiq[-_]*`` and pytest's own
+    trees, so it swept every temp folder created WITH A PREFIX and none created
+    without one. `tempfile.mkdtemp()` with no ``prefix=`` produces ``tmpXXXXXXXX``,
+    twenty-five test files still call it, and each of those folders holds a
+    chart build: the largest single one measured 16 GB of TIFFs. Every gate run
+    printed "[cleanup] removed this run's temp files" and left them.
+
+    A guard on one door and not the identical door beside it, which is the shape
+    this project keeps producing, and the docstring above asserted the door was
+    already shut.
+
+    Bare ``tmp*`` belongs to every application on the machine, so it is swept
+    only where the folder can be shown to be ChromIQ's own: see
+    :func:`_is_chromiq_temp`. That plus the one-hour staleness cutoff is what
+    makes this safe to run against the shared system temp folder.
     """
     import time
 
@@ -543,6 +1075,11 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
     for base in root.glob("pytest-of-*"):
         if base.is_dir():
             candidates += [d for d in base.glob("pytest-*") if d.is_dir()]
+    # …AND THE ONES WITH NO PREFIX AT ALL, which is where the 198 GB was.
+    # Filtered by content, never by name alone, because `tmp*` is what every
+    # application's `tempfile.mkdtemp()` produces.
+    candidates += [d for d in root.glob("tmp*")
+                   if d.is_dir() and not d.is_symlink() and _is_chromiq_temp(d)]
 
     for entry in candidates:
         if entry.name in keep or not entry.is_dir():
@@ -701,6 +1238,15 @@ def pytest_sessionfinish(session, exitstatus):
             pass
     if not base.exists() and freed:
         print(f"\n[cleanup] removed this run's temp files ({freed / 1e9:.2f} GB)")
+
+
+def pytest_unconfigure(config):
+    """Remove this process's log sandbox (B8-1419) as the process ends.
+
+    Every process removes only its own: the controller and each worker made
+    one each at import. Whatever a crash leaves is `chromiq-`-prefixed, so the
+    next run's sweep takes it by name."""
+    shutil.rmtree(_SUITE_LOG_DIR, ignore_errors=True)
 
 
 def pytest_sessionstart(session):
@@ -883,10 +1429,36 @@ def _no_gate_run_may_rewrite_the_real_chromiq_folder():
 # and flip chartread_engine back to "argyll". So the redirect happens where it
 # actually bites: the name `core.settings.QSettings`, which is what
 # `AppSettings()` calls.
+#: The modal entry points PyQt DEFINES, snapshotted before collection so a leak
+#: can be put back rather than deleted. See `_repair_a_leaked_qmessagebox_exec`.
+_PRISTINE_MODALS: list = []
+
+
+def _snapshot_the_modal_entry_points() -> None:
+    """Record the pristine `QMessageBox` statics and `QDialog.exec`.
+
+    Taken in `pytest_configure`, which runs BEFORE collection imports any test
+    module, so a module that patches one at import time cannot poison the
+    snapshot. Recording the object itself (not a type) is what lets the repair
+    say "this is not what PyQt installed" with `is`, which no type test can do:
+    a leaked stub and the real descriptor can share a type.
+    """
+    from PyQt6.QtWidgets import QDialog, QMessageBox
+    _PRISTINE_MODALS.clear()
+    for _owner, _names in ((QMessageBox,
+                            ("warning", "critical", "information", "question")),
+                           (QDialog, ("exec",))):
+        for _name in _names:
+            _orig = _owner.__dict__.get(_name)
+            if _orig is not None:
+                _PRISTINE_MODALS.append((_owner, _name, _orig))
+
+
 def pytest_configure(config):
     import tempfile
 
     _enforce_the_helper(config)
+    _snapshot_the_modal_entry_points()
 
     from PyQt6.QtCore import QSettings
 
@@ -900,8 +1472,16 @@ def pytest_configure(config):
     # ~/Library/Preferences/ChromIQ/presets, so any test reaching
     # `save_presets(...)` wrote into the developer's own preferences. Only one
     # test does today and it patches correctly, but nothing enforced that.
-    os.environ.setdefault(
-        "CHROMIQ_PRESETS_DIR", str(sandbox / "presets"))
+    #
+    # **ONE PER WORKER, NOT ONE PER RUN (round 3C, F0).** Under xdist the
+    # CONTROLLER runs this first and every worker inherits its environment,
+    # so `setdefault` kept the controller's folder and all twelve workers
+    # shared one preset store: a demo-preset fixture on one worker removed a
+    # preset another worker's test was about to assess (B8-788, three reds
+    # reproduced 2 of 2 on a subset). A worker always takes its own.
+    _set = (os.environ.__setitem__ if hasattr(config, "workerinput")
+            else os.environ.setdefault)
+    _set("CHROMIQ_PRESETS_DIR", str(sandbox / "presets"))
 
     # …AND THE FALLBACK ITSELF, which is the door the two fixes below could
     # never shut.
@@ -921,8 +1501,7 @@ def pytest_configure(config):
     # A test that genuinely needs the real default asks for the
     # `the_real_default_output_root` fixture, which unsets it for that test
     # only. Nothing else should.
-    os.environ.setdefault(
-        "CHROMIQ_OUTPUT_ROOT", str(sandbox / "projects"))
+    _set("CHROMIQ_OUTPUT_ROOT", str(sandbox / "projects"))
 
     # …AND THE WORKING FOLDER ITSELF, which the QSettings sandbox alone does NOT
     # cover and which is the mechanism that has actually cost data.
@@ -1066,6 +1645,15 @@ _SKIP_BUCKETS: tuple = (
     ("ArgyllCMS is not installed here", (
         "argyll", "targen", "printtarg", "colprof", "scanin", "colverify",
         "ref/",
+    )),
+    # BEFORE the platform bucket, which would swallow it: the reason has to
+    # name Windows to explain why an .exe cannot be run, and "windows" is a
+    # needle down there. This one is its own line because what it costs is
+    # specific — the checked-in usage snapshot in tests/golden/ is still the
+    # oracle every option check uses, so nothing about the command line goes
+    # unchecked; only the snapshot's agreement with the real binary does.
+    ("wdi-simple is not here - the checked-in usage snapshot was used", (
+        "wdi_simple.exe", "wdi-simple is not",
     )),
     ("the platform cannot show it", (
         "offscreen", "windows", "macos", "symlink", "case-insensitive",
@@ -1371,7 +1959,7 @@ def demo_projects_root(tmp_path_factory):
     # half-built tree can never be picked up — by another worker racing us, or
     # by a later run after this one was interrupted.
     cached.parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(prefix="demo-build-", dir=str(cached.parent)))
+    staging = Path(tempfile.mkdtemp(prefix="chromiq-demo-build-", dir=str(cached.parent)))
     try:
         _build_demo_projects(staging)
         (staging / ".complete").write_text(_demo_cache_key(), encoding="utf-8")

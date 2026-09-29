@@ -1,0 +1,788 @@
+"""The curated built-in presets: a gear button, a window of ticks, and an arrow
+over the rest of each group (Knut, #182 5818659478, beta 42).
+
+*"Users have complained that the current numbers of presets are too many [...]
+This would though limit an advanced user to have larger charts available."*
+So nothing is removed: the ticked built-ins are listed directly in "Select
+preset" and in the Built-in presets list, and the rest of each group waits
+under an arrow placed after the group's last ticked preset.
+
+What these tests hold:
+
+* the shipped list (``data/preset_defaults.json``) is exactly what the beta
+  rule gives while its ``source`` says it came from the rule, and the rule
+  keeps Knut's words (four per instrument group and paper, one to four sheets,
+  not the smallest nor the largest);
+* a person's choice is stored as their own differences only, so a later
+  release that changes the shipped list moves what they never touched and
+  nothing they did;
+* the pulldown: user presets on top, then per group the ticked ones, an arrow,
+  the rest hidden and disabled; the arrow opens by click and by keyboard with
+  the list staying open, and it is never selected as a preset;
+* the window: ticks in, ticks out, stored by OK and kept across a restart;
+  Close, Escape and the close box store nothing (Basti, 2026-09-25, B8-1097,
+  replacing Knut's "closing applies"); OK sits left of Close whatever the
+  style's own button order, and is the default button;
+* the Built-in presets list: the same split, and the same arrow by keyboard;
+* the gear button sits between the folder button and the help icon.
+"""
+from __future__ import annotations
+
+import json
+import os
+from pathlib import Path
+
+import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+from PyQt6.QtCore import QSettings, Qt                          # noqa: E402
+from PyQt6.QtTest import QTest                                  # noqa: E402
+from PyQt6.QtWidgets import QApplication                        # noqa: E402
+
+import core.curated_presets as cp                               # noqa: E402
+from core.argyll_runner import ArgyllRunner                     # noqa: E402
+from core.file_manager import FileManager                       # noqa: E402
+from core.settings import AppSettings                           # noqa: E402
+from ui.tabs.tab_chart import (                                 # noqa: E402
+    BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS, TabChart, builtin_preset_facts,
+)
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    return QApplication.instance() or QApplication([])
+
+
+def _settings(path: Path) -> AppSettings:
+    s = AppSettings()
+    s._qs = QSettings(str(path), QSettings.Format.IniFormat)
+    return s
+
+
+@pytest.fixture()
+def settings(tmp_path):
+    s = _settings(tmp_path / "s.ini")
+    s.set("custom_output_path", str(tmp_path / "out"))
+    # THESE TESTS ARE ABOUT THE TICKS, NOT THE PAPER FILTER (K41, ON by
+    # default since K42): with it on, a ticked preset for another paper is
+    # hidden, and which ticked preset comes first depends on the shipped list
+    # (Knut's 51 since 2026-09-25). The filter has its own tests.
+    from core.curated_presets import PAPER_FILTER_KEY
+    s.set(PAPER_FILTER_KEY, False)
+    return s
+
+
+@pytest.fixture()
+def make_tab(qapp, settings):
+    made = []
+
+    def build(s=None):
+        t = TabChart(ArgyllRunner(s or settings), FileManager(s or settings),
+                     s or settings)
+        made.append(t)
+        return t
+    yield build
+    for t in made:
+        t.hide()
+        t.deleteLater()
+    qapp.processEvents()
+
+
+# ---------------------------------------------------------------------------
+# The shipped list and the beta rule
+# ---------------------------------------------------------------------------
+
+def _shipped_doc() -> dict:
+    return json.loads((ROOT / "data" / "preset_defaults.json")
+                      .read_text(encoding="utf-8"))
+
+
+def test_the_shipped_file_is_what_the_beta_rule_gives():
+    doc = _shipped_doc()
+    if not doc["source"].startswith("beta rule"):
+        pytest.skip("the shipped list now comes from Knut's users' table")
+    facts = builtin_preset_facts()
+    assert list(doc["shown"]) == cp.beta_selection(facts), (
+        "data/preset_defaults.json is not what the beta rule gives; run "
+        "python scripts/make_preset_defaults.py")
+
+
+def test_every_shipped_key_is_a_built_in():
+    assert set(_shipped_doc()["shown"]) <= BUILTIN_PRESET_KEYS
+
+
+def test_the_beta_rule_keeps_knuts_words():
+    facts = builtin_preset_facts()
+    chosen = set(cp.beta_selection(facts))
+    cells: dict = {}
+    for f in facts:
+        cells.setdefault((f["group"], f["paper"]), []).append(f)
+    for cell, rows in cells.items():
+        picked = [f for f in rows if f["key"] in chosen]
+        assert len(picked) <= 4, cell
+        assert all(1 <= f["pages"] <= 4 for f in picked), cell
+        if len(rows) > 4:
+            counts = sorted(f["patches"] for f in rows)
+            smallest = [f for f in rows if f["patches"] == counts[0]]
+            largest = [f for f in rows if f["patches"] == counts[-1]]
+            assert len(picked) >= 3 or len([
+                f for f in rows if 1 <= f["pages"] <= 4]) < 5, cell
+            if len(smallest) == 1:
+                assert smallest[0]["key"] not in chosen, (cell, "smallest")
+            if len(largest) == 1:
+                assert largest[0]["key"] not in chosen, (cell, "largest")
+    # Every group keeps something to show.
+    for heading, entries in BUILTIN_PRESET_GROUPS:
+        assert any(k in chosen for _c, _o, k in entries), heading
+
+
+def test_the_beta_rule_spreads_widths_where_a_paper_has_several():
+    """i1Pro on A4 ships 7.5, 8.0 and 8.5 mm charts: the four picks may not
+    all be one width."""
+    facts = [f for f in builtin_preset_facts()
+             if f["group"].startswith("i1Pro /") and f["paper"] == "A4"]
+    chosen = set(cp.beta_selection(facts))
+    widths = {f["width"] for f in facts if f["key"] in chosen and f["width"]}
+    assert len(widths) >= 2, widths
+
+
+def test_the_facts_read_every_built_in():
+    facts = builtin_preset_facts()
+    assert len(facts) == len(BUILTIN_PRESET_KEYS)
+    assert all(f["paper"] != "?" and f["patches"] > 0 and f["pages"] > 0
+               for f in facts)
+
+
+# ---------------------------------------------------------------------------
+# Storing a person's choice
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def fake_defaults(monkeypatch):
+    box = {"keys": frozenset({"a", "b"})}
+    monkeypatch.setattr(cp, "shipped_defaults", lambda: box["keys"])
+    return box
+
+
+def test_closing_without_a_change_stores_nothing(fake_defaults, settings):
+    assert cp.store_choices(settings, {"a", "b"}, ["a", "b", "c"]) is False
+    assert not settings.is_stored(cp.SETTING_KEY)
+    assert cp.shown_keys(settings, ["a", "b", "c"]) == {"a", "b"}
+
+
+def test_only_the_differences_are_stored(fake_defaults, settings):
+    cp.store_choices(settings, {"a", "c"}, ["a", "b", "c"])
+    assert cp.user_choices(settings) == {"b": False, "c": True}
+    assert cp.shown_keys(settings, ["a", "b", "c"]) == {"a", "c"}
+
+
+def test_a_new_release_moves_only_what_the_person_never_touched(
+        fake_defaults, settings):
+    cp.store_choices(settings, {"a", "c"}, ["a", "b", "c", "d"])
+    # The next release ticks b and d, and un-ticks a.
+    fake_defaults["keys"] = frozenset({"b", "d"})
+    shown = cp.shown_keys(settings, ["a", "b", "c", "d"])
+    assert "b" not in shown, "the person un-ticked b; a release may not undo it"
+    assert "c" in shown, "the person ticked c"
+    assert "d" in shown, "d was never touched, so it follows the release"
+    assert "a" not in shown, "a was never touched, so it follows the release"
+
+
+def test_ticking_back_to_the_shipped_list_stores_nothing(
+        fake_defaults, settings):
+    """Challenge 3 of beta 42 (B8-1033): the boxes ticked back by hand to
+    exactly the shipped list left every touched preset stored as the
+    person's own answer (62 on screen), so a later release's list would never
+    have reached them. Only a true difference is stored.
+
+    MUTATION, proved to land: keep a key already recorded (`or key in
+    existing`, the old rule) (red here and in the next test)."""
+    cp.store_choices(settings, {"a", "c"}, ["a", "b", "c"])
+    assert cp.user_choices(settings) == {"b": False, "c": True}
+    assert cp.store_choices(settings, {"a", "b"}, ["a", "b", "c"]) is True
+    assert cp.user_choices(settings) == {}
+    assert not settings.is_stored(cp.SETTING_KEY), (
+        "an empty answer is no answer: nothing may stay stored")
+    # …so a later release reaches every preset again
+    fake_defaults["keys"] = frozenset({"b", "c"})
+    assert cp.shown_keys(settings, ["a", "b", "c"]) == {"b", "c"}
+
+
+def test_an_answer_that_a_release_comes_to_agree_with_is_dropped_next_save(
+        fake_defaults, settings):
+    """A stored answer the shipped list now agrees with is no difference any
+    more: the next save forgets it, and the one real difference stays.
+    A beta-42 setting that recorded agreeing keys is cleaned the same way."""
+    settings.set(cp.SETTING_KEY, json.dumps({"a": True, "b": True,
+                                             "c": True, "gone": False}))
+    cp.store_choices(settings, {"a", "b", "c"}, ["a", "b", "c"])
+    assert cp.user_choices(settings) == {"c": True, "gone": False}, (
+        "only c differs from the shipped a, b; an unknown key is kept")
+
+
+def test_a_corrupt_setting_reads_as_no_choice(settings):
+    settings.set(cp.SETTING_KEY, "{not json")
+    assert cp.user_choices(settings) == {}
+
+
+# ---------------------------------------------------------------------------
+# The "Select preset" pulldown
+# ---------------------------------------------------------------------------
+
+def _arrows(cb) -> list[int]:
+    return [r for r in range(cb.count()) if cb.itemData(r, cb.MORE_ROLE)]
+
+
+def test_the_pulldown_lists_ticked_then_an_arrow_then_the_rest(make_tab):
+    tab = make_tab()
+    cb = tab._preset_combo
+    view = cb.view()
+    shown = cp.shown_keys(tab._settings, BUILTIN_PRESET_KEYS)
+    assert _arrows(cb), "no arrow row at all"
+    for heading, entries in BUILTIN_PRESET_GROUPS:
+        top, rest = cp.split_group(entries, shown)
+        start = cb.findText(heading)
+        assert start > 0, heading
+        rows = list(range(start + 1, start + 1 + len(top)))
+        assert [cb.itemData(r) for r in rows] == [k for _c, _o, k in top]
+        if not rest:
+            continue
+        arrow = start + 1 + len(top)
+        assert cb.itemData(arrow, cb.MORE_ROLE) == heading
+        assert cb.itemText(arrow).startswith("▸")
+        members = range(arrow + 1, arrow + 1 + len(rest))
+        assert [cb.itemData(r) for r in members] == [k for _c, _o, k in rest]
+        for r in members:
+            assert view.isRowHidden(r), (heading, r)
+            assert not cb.model().item(r).isEnabled(), (heading, r)
+    # Every built-in is still an entry, so every key resolves.
+    for key in BUILTIN_PRESET_KEYS:
+        assert cb.findData(key) > 0, key
+
+
+def test_user_presets_stay_on_top(make_tab, monkeypatch):
+    tab = make_tab()
+    presets = {"My own chart": {"targen_-f": 400}}
+    tab._populate_preset_combo(presets)
+    cb = tab._preset_combo
+    assert cb.itemData(1) == "My own chart"
+    assert not cb.itemText(2)                     # the separator after it
+
+
+def test_the_arrow_is_disabled_while_the_list_is_closed(make_tab):
+    tab = make_tab()
+    cb = tab._preset_combo
+    arrow = _arrows(cb)[0]
+    assert not cb.model().item(arrow).isEnabled()
+    cb.showPopup()
+    try:
+        assert cb.model().item(arrow).isEnabled()
+    finally:
+        cb.hidePopup()
+    assert not cb.model().item(arrow).isEnabled()
+
+
+def _open_on(cb, row):
+    cb.showPopup()
+    QApplication.processEvents()
+    cb.view().setCurrentIndex(cb.model().index(row, 0))
+
+
+@pytest.mark.parametrize("key", [Qt.Key.Key_Right, Qt.Key.Key_Return,
+                                 Qt.Key.Key_Enter, Qt.Key.Key_Space])
+def test_the_keyboard_opens_the_arrow_and_the_list_stays_open(make_tab, key):
+    tab = make_tab()
+    cb = tab._preset_combo
+    view = cb.view()
+    arrow = _arrows(cb)[0]
+    fired = []
+    cb.activated.connect(fired.append)
+    before = cb.currentIndex()
+    _open_on(cb, arrow)
+    try:
+        QTest.keyClick(view, key)
+        QApplication.processEvents()
+        assert cb.itemText(arrow).startswith("▾")
+        assert not view.isRowHidden(arrow + 1)
+        assert cb.model().item(arrow + 1).isEnabled()
+        assert view.window().isVisible(), "the list closed"
+        assert view.currentIndex().row() == arrow
+        QTest.keyClick(view, Qt.Key.Key_Left)
+        QApplication.processEvents()
+        assert cb.itemText(arrow).startswith("▸")
+        assert view.isRowHidden(arrow + 1)
+    finally:
+        cb.hidePopup()
+    assert fired == [], "an arrow row was chosen like a preset"
+    assert cb.currentIndex() == before
+
+
+def test_left_on_a_revealed_preset_goes_back_up_to_its_arrow(make_tab):
+    tab = make_tab()
+    cb = tab._preset_combo
+    view = cb.view()
+    arrow = _arrows(cb)[0]
+    _open_on(cb, arrow)
+    try:
+        QTest.keyClick(view, Qt.Key.Key_Right)
+        view.setCurrentIndex(cb.model().index(arrow + 2, 0))
+        QTest.keyClick(view, Qt.Key.Key_Left)
+        assert view.currentIndex().row() == arrow
+    finally:
+        cb.hidePopup()
+
+
+def test_a_click_on_the_arrow_opens_it_and_chooses_nothing(make_tab):
+    tab = make_tab()
+    cb = tab._preset_combo
+    view = cb.view()
+    arrow = _arrows(cb)[0]
+    fired = []
+    cb.activated.connect(fired.append)
+    _open_on(cb, 0)
+    try:
+        rect = view.visualRect(cb.model().index(arrow, 0))
+        QTest.mouseClick(view.viewport(), Qt.MouseButton.LeftButton,
+                         pos=rect.center())
+        QApplication.processEvents()
+        assert cb.itemText(arrow).startswith("▾")
+        assert view.window().isVisible()
+    finally:
+        cb.hidePopup()
+    assert fired == []
+
+
+def test_the_closed_combo_steps_over_the_arrow_and_the_hidden_rows(make_tab):
+    tab = make_tab()
+    cb = tab._preset_combo
+    arrow = _arrows(cb)[0]
+    fired = []
+    cb.activated.disconnect()
+    cb.activated.connect(fired.append)
+    cb.setCurrentIndex(arrow - 1)
+    cb.setFocus()
+    QTest.keyClick(cb, Qt.Key.Key_Down)
+    got = cb.currentIndex()
+    assert got > arrow
+    assert not cb.itemData(got, cb.MORE_ROLE)
+    assert not cb.view().isRowHidden(got), "stepped into a hidden preset"
+
+
+def test_an_arrow_reaching_the_slot_is_put_back(make_tab):
+    tab = make_tab()
+    cb = tab._preset_combo
+    arrow = _arrows(cb)[0]
+    cb.setCurrentIndex(0)
+    tab._last_preset_index = 0
+    cb.blockSignals(True)
+    cb.setCurrentIndex(arrow)
+    cb.blockSignals(False)
+    tab._on_preset_selected(arrow)
+    assert cb.currentIndex() == 0
+    assert not cp.is_more_row(cb.currentData())
+
+
+def test_opening_the_list_shows_and_highlights_a_selection_deep_in_a_group(
+        make_tab, qapp):
+    """curated_presets.md C4: *"so the list shows where the selection is"*.
+    Challenge 3 of beta 42 (B8-1032): with the 33rd of 34 revealed rows
+    selected, the group opened but the list sat at its top and nothing was
+    highlighted. The LAST row under the longest arrow is used here.
+
+    MUTATION, proved to land: drop `show_current_row()` from `showPopup`
+    (red: the row is outside the viewport and not the view's current row)."""
+    tab = make_tab()
+    tab.show()
+    qapp.processEvents()
+    cb = tab._preset_combo
+    best, member = -1, -1
+    for arrow in _arrows(cb):
+        group = cb.itemData(arrow, cb.MORE_ROLE)
+        rows = [r for r in range(arrow + 1, cb.count())
+                if cb.itemData(r, cb.MEMBER_ROLE) == group]
+        if len(rows) > best:
+            best, member = len(rows), rows[-1]
+    assert best > cb._MAX_ROWS, "needs a group longer than the open list"
+    cb.setCurrentIndex(member)
+    cb.showPopup()
+    qapp.processEvents()
+    try:
+        view = cb.view()
+        assert not view.isRowHidden(member)
+        rect = view.visualRect(cb.model().index(member, 0))
+        assert rect.isValid() and view.viewport().rect().contains(rect), (
+            f"row {member} at {rect} is outside the open list "
+            f"{view.viewport().rect()}")
+        assert view.currentIndex().row() == member
+        assert view.selectionModel().isRowSelected(member, view.rootIndex())
+    finally:
+        cb.hidePopup()
+        tab.hide()
+
+
+def test_opening_the_list_on_a_hidden_selection_reveals_its_group(make_tab):
+    tab = make_tab()
+    cb = tab._preset_combo
+    arrow = _arrows(cb)[0]
+    member = arrow + 1
+    cb.setCurrentIndex(member)
+    cb.showPopup()
+    try:
+        assert not cb.view().isRowHidden(member)
+        assert cb.itemText(arrow).startswith("▾")
+    finally:
+        cb.hidePopup()
+
+
+# ---------------------------------------------------------------------------
+# The window, and a restart
+# ---------------------------------------------------------------------------
+
+def _drive_the_window(tab, qapp, *, tick: dict, end: str) -> None:
+    """Open the gear window through the tab, for real (its own ``exec``),
+    change the boxes in ``tick`` and end it the way ``end`` names: "ok" (the
+    OK button), "return" (the Return key on the list, which is OK as the
+    default button), "close" (the Close button), "escape", or "closebox"
+    (the window's own close box, which is a close event)."""
+    from PyQt6.QtCore import QTimer
+    done = {}
+
+    def act():
+        dlg = tab._builtin_presets_shown_dialog
+        if dlg is None or not dlg.isVisible():
+            QTimer.singleShot(10, act)
+            return
+        for key, on in tick.items():
+            assert dlg.set_ticked(key, on)
+        done["dlg"] = dlg
+        if end == "ok":
+            dlg._ok_btn.click()
+        elif end == "return":
+            dlg._tree.setFocus()
+            QTest.keyClick(dlg._tree, Qt.Key.Key_Return)
+        elif end == "close":
+            dlg._close_btn.click()
+        elif end == "escape":
+            QTest.keyClick(dlg._tree, Qt.Key.Key_Escape)
+        elif end == "closebox":
+            dlg.close()
+        # A watchdog: if the ending did not end it, the test must not hang.
+        # Parented to the window and stopped below, so it can never fire into
+        # a later test after the window is gone.
+        dog = done["dog"] = QTimer(dlg)
+        dog.setSingleShot(True)
+        dog.timeout.connect(lambda: (done.__setitem__("hung", True),
+                                     dlg.done(99)))
+        dog.start(2000)
+
+    QTimer.singleShot(0, act)
+    tab._open_builtin_presets_shown()
+    if "dog" in done:
+        done["dog"].stop()
+    assert "dlg" in done
+    assert not done.get("hung"), f"{end!r} did not end the window"
+
+
+def test_the_window_stores_the_choice_and_a_restart_keeps_it(
+        make_tab, settings, tmp_path, qapp):
+    """OK stores the boxes and rebuilds the lists (Basti, 2026-09-25,
+    B8-1097). This test used to end the window with Close and expect the
+    change stored, which was Knut's "closing applies" (K35); Close now
+    discards, so it is ended with OK.
+
+    MUTATIONS, proved to land: OK connected to ``reject`` (red); the caller
+    storing nothing on Accepted (red)."""
+    tab = make_tab()
+    cb = tab._preset_combo
+    shown = cp.shown_keys(settings, BUILTIN_PRESET_KEYS)
+    hidden_key = next(k for k in sorted(BUILTIN_PRESET_KEYS) if k not in shown)
+    shown_key = next(iter(sorted(shown)))
+
+    _drive_the_window(tab, qapp, tick={hidden_key: True, shown_key: False},
+                      end="ok")
+
+    assert cp.user_choices(settings) == {hidden_key: True, shown_key: False}
+    view = cb.view()
+    assert not view.isRowHidden(cb.findData(hidden_key))
+    assert view.isRowHidden(cb.findData(shown_key))
+
+    # A restart: a fresh store on the same file, a fresh tab.
+    settings.sync()
+    again = _settings(tmp_path / "s.ini")
+    tab2 = make_tab(again)
+    cb2 = tab2._preset_combo
+    assert not cb2.view().isRowHidden(cb2.findData(hidden_key))
+    assert cb2.view().isRowHidden(cb2.findData(shown_key))
+
+
+def test_the_window_lists_every_built_in_under_the_pulldowns_headings(
+        make_tab, qapp):
+    from ui.dialogs.builtin_presets_shown_dialog import BuiltinPresetsShownDialog
+    tab = make_tab()
+    dlg = BuiltinPresetsShownDialog(tab._curated_dialog_groups(), set(), tab)
+    try:
+        tree = dlg._tree
+        assert [tree.topLevelItem(i).text(0)
+                for i in range(tree.topLevelItemCount())] == \
+            [h for h, _e in BUILTIN_PRESET_GROUPS]
+        total = sum(tree.topLevelItem(i).childCount()
+                    for i in range(tree.topLevelItemCount()))
+        assert total == len(BUILTIN_PRESET_KEYS)
+        # A group's own box ticks the whole group.
+        g = tree.topLevelItem(0)
+        g.setCheckState(0, Qt.CheckState.Checked)
+        assert len(dlg.ticked()) == g.childCount()
+        assert g.text(1) == f"{g.childCount()} of {g.childCount()} shown"
+        # OK and Close (Basti, 2026-09-25, B8-1097; this said "only a Close
+        # button" under Knut's K35 rule, which it replaced), and since beta
+        # 43 Export list and Import list (Knut, #182 5831246553, B8-1101).
+        from PyQt6.QtWidgets import QPushButton
+        from core.i18n import tr
+        buttons = [b for b in dlg.findChildren(QPushButton) if b.isVisibleTo(dlg)]
+        assert sorted(b.text() for b in buttons) == sorted(
+            [tr("Apply && save"), tr("Close"), tr("Export list"),
+             tr("Import list")])      # K61, B8-1412: "Apply & save"
+    finally:
+        dlg.deleteLater()
+
+
+@pytest.mark.parametrize("end", ["close", "escape", "closebox"])
+def test_close_escape_and_the_close_box_store_nothing(
+        make_tab, settings, qapp, end):
+    """Basti, 2026-09-25 (B8-1097): Close discards the ticks, and Escape and
+    the window's close box behave like Close. The lists and the setting are
+    as they were.
+
+    MUTATION, proved to land: the caller storing ``ticked()`` whatever
+    ``exec`` returned (Knut's old "closing applies"): red for all three."""
+    tab = make_tab()
+    cb = tab._preset_combo
+    shown = cp.shown_keys(settings, BUILTIN_PRESET_KEYS)
+    hidden_key = next(k for k in sorted(BUILTIN_PRESET_KEYS) if k not in shown)
+    shown_key = next(iter(sorted(shown)))
+    before = settings.get("builtin_presets_shown")
+
+    _drive_the_window(tab, qapp, tick={hidden_key: True, shown_key: False},
+                      end=end)
+
+    assert cp.user_choices(settings) == {}
+    assert settings.get("builtin_presets_shown") == before
+    assert cp.shown_keys(settings, BUILTIN_PRESET_KEYS) == shown
+    view = cb.view()
+    assert view.isRowHidden(cb.findData(hidden_key))
+    assert not view.isRowHidden(cb.findData(shown_key))
+
+
+def test_return_is_ok(make_tab, settings, qapp):
+    """OK is the default button: Return on the list stores the ticks.
+
+    MUTATION, proved to land: ``setDefault(True)`` moved from OK to Close
+    (red: Return then discards)."""
+    tab = make_tab()
+    shown = cp.shown_keys(settings, BUILTIN_PRESET_KEYS)
+    hidden_key = next(k for k in sorted(BUILTIN_PRESET_KEYS) if k not in shown)
+    _drive_the_window(tab, qapp, tick={hidden_key: True}, end="return")
+    assert cp.user_choices(settings) == {hidden_key: True}
+
+
+class _LayoutStyle:
+    """A proxy style that answers ``SH_DialogButtonLayout`` as it is told,
+    the way macOS (MacLayout, 1), KDE (2) or GNOME (3) would. The shipped app
+    pins 0 (WinLayout) through ``WinButtonLayoutStyle``."""
+
+    @staticmethod
+    def make(layout: int):
+        from PyQt6.QtWidgets import QProxyStyle, QStyle
+
+        class S(QProxyStyle):
+            def styleHint(self, hint, option=None, widget=None,
+                          returnData=None):
+                if hint == QStyle.StyleHint.SH_DialogButtonLayout:
+                    return layout
+                return super().styleHint(hint, option, widget, returnData)
+        return S("Fusion")
+
+
+@pytest.mark.parametrize("layout", [0, 1, 2, 3],
+                         ids=["win", "mac", "kde", "gnome"])
+def test_ok_is_left_of_close_at_the_bottom_right_on_every_layout(
+        qapp, layout):
+    """Basti, 2026-09-25 (B8-1097): OK then Close, bottom right, on macOS,
+    Windows and Linux. A QDialogButtonBox orders by the style's
+    ``SH_DialogButtonLayout`` and puts the accept button LAST on macOS and
+    GNOME, so the row is placed by hand; this asks every layout Qt has.
+
+    MUTATIONS, proved to land: the two ``addWidget`` lines swapped (red on
+    every layout); the row put back into a QDialogButtonBox with OK as
+    AcceptRole and Close as RejectRole (red on mac and gnome); the stretch
+    removed (red: the buttons sit at the left)."""
+    from ui.dialogs.builtin_presets_shown_dialog import BuiltinPresetsShownDialog
+    style = _LayoutStyle.make(layout)
+    groups = [(h, [(k, "", k) for (_c, _o, k) in e])
+              for h, e in BUILTIN_PRESET_GROUPS[:2]]
+    dlg = BuiltinPresetsShownDialog(groups, set(), None)
+    from PyQt6.QtWidgets import QWidget
+    dlg.setStyle(style)
+    for w in dlg.findChildren(QWidget):
+        w.setStyle(style)
+    assert dlg._ok_btn.style() is style
+    try:
+        dlg.show()
+        qapp.processEvents()
+        ok, close = dlg._ok_btn, dlg._close_btn
+        from PyQt6.QtCore import QPoint, QRect
+        ok_r = QRect(ok.mapTo(dlg, QPoint(0, 0)), ok.size())
+        close_r = QRect(close.mapTo(dlg, QPoint(0, 0)), close.size())
+        assert ok_r.right() < close_r.left(), (layout, ok_r, close_r)
+        assert abs(ok_r.top() - close_r.top()) <= 2
+        # bottom right: Close ends at the layout's right margin, and both
+        # sit below the list.
+        right_margin = dlg.layout().contentsMargins().right()
+        assert dlg.width() - 1 - close_r.right() <= right_margin + 2, (
+            dlg.width(), close_r)
+        # ...and at the RIGHT: the pair is a pair of buttons, not a bar
+        # across the window (without the stretch they share its width).
+        assert ok_r.left() > dlg.width() // 2, (dlg.width(), ok_r)
+        tree_bottom = dlg._tree.geometry().bottom()
+        assert ok_r.top() > tree_bottom
+        assert ok.isDefault() and not close.isDefault()
+    finally:
+        dlg.close()
+        dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# The Built-in presets list (the overlay)
+# ---------------------------------------------------------------------------
+
+def test_the_overlay_has_the_same_split_and_the_arrow_works_by_keyboard(
+        make_tab, monkeypatch):
+    from ui.builtin_preset_popup import BuiltinPresetPopup
+    tab = make_tab()
+    # THE TICKS ALONE: the paper filter is ON by default since Knut's #182
+    # 5833232475, and what it hides is tests/test_k41_preset_paper_filter.py's
+    tab._settings.set(cp.PAPER_FILTER_KEY, False)
+    tab._apply_preset_collapse()
+    captured = {}
+    monkeypatch.setattr(BuiltinPresetPopup, "show_under",
+                        lambda self, anchor: captured.setdefault("p", self))
+    tab._open_builtin_preset_overlay()
+    popup = captured["p"]
+    try:
+        shown = cp.shown_keys(tab._settings, BUILTIN_PRESET_KEYS)
+        items = [r.key for r in popup._rows if r.kind == "item"]
+        assert set(items) == shown
+        more = [i for i, r in enumerate(popup._rows) if r.kind == "more"]
+        assert more
+        first = more[0]
+        group = popup._rows[first].key
+        assert popup._rows[first].text.startswith("▸")
+        popup._hover_index = first
+        QTest.keyClick(popup, Qt.Key.Key_Right)
+        assert popup.is_open(group)
+        assert popup._rows[popup._hover_index].kind == "more"
+        assert popup._rows[popup._hover_index].text.startswith("▾")
+        QTest.keyClick(popup, Qt.Key.Key_Down)
+        assert popup._rows[popup._hover_index].group == group
+        QTest.keyClick(popup, Qt.Key.Key_Left)
+        assert popup._rows[popup._hover_index].kind == "more"
+        QTest.keyClick(popup, Qt.Key.Key_Left)
+        assert not popup.is_open(group)
+        assert set(r.key for r in popup._rows if r.kind == "item") == shown
+    finally:
+        popup.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# The gear button
+# ---------------------------------------------------------------------------
+
+def test_the_gear_sits_between_the_folder_button_and_the_help_icon(make_tab):
+    tab = make_tab()
+    gear = tab._preset_shown_btn
+    grid = gear.parentWidget().layout()
+    # The Presets frame's grid: find it by the reveal button's parent layout.
+    from PyQt6.QtWidgets import QGridLayout
+    grids = [lay for lay in gear.parentWidget().findChildren(QGridLayout)
+             if lay.indexOf(gear) >= 0] or ([grid] if grid else [])
+    g = grids[0]
+    _r, col_gear, _rs, _cs = g.getItemPosition(g.indexOf(gear))
+    _r, col_reveal, _rs, _cs = g.getItemPosition(g.indexOf(tab._preset_reveal_btn))
+    assert col_gear == col_reveal + 1
+    help_btn = g.itemAtPosition(0, col_gear + 1).widget()
+    from ui.tooltip_button import TooltipButton
+    assert isinstance(help_btn, TooltipButton)
+    assert gear.size() == tab._preset_reveal_btn.size()
+    assert gear.property("themed_folder_twin_icon") == "gear|folder_create"
+
+
+def _ink(icon):
+    """The average colour of an icon's opaque pixels."""
+    img = icon.pixmap(20, 20).toImage()
+    r = g = b = n = 0
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            if c.alpha() >= 200:
+                r, g, b, n = r + c.red(), g + c.green(), b + c.blue(), n + 1
+    assert n, "an empty icon"
+    return (r / n, g / n, b / n)
+
+
+@pytest.mark.parametrize("mode", ["light", "dark", "neutral"])
+def test_the_gear_has_the_folder_buttons_colour(make_tab, qapp, mode,
+                                                monkeypatch):
+    """Challenge 3 of beta 42 (B8-1036): the gear was painted in the +/-
+    grey beside the pink folder button. Same colour in every appearance,
+    and repainted by the theme walker. The appearance is answered by
+    `ui.theme.active_mode`, the one place every icon loader asks, so no
+    style sheet is applied to the whole application here (CLAUDE.md).
+
+    MUTATION, proved to land: `set_preset_icon(…, "gear")` back (red in all
+    three appearances)."""
+    import ui.theme as theme
+    from ui.widgets import apply_themed_icons
+    monkeypatch.setattr(theme, "active_mode", lambda *a, **k: mode)
+    tab = make_tab()
+    apply_themed_icons(tab)
+    gear = _ink(tab._preset_shown_btn.icon())
+    folder = _ink(tab._preset_reveal_btn.icon())
+    assert max(abs(a - b) for a, b in zip(gear, folder)) <= 12, (
+        mode, gear, folder)
+
+
+@pytest.mark.parametrize("lang", ["en", "de"])
+def test_the_gear_window_has_a_useful_smallest_size(qapp, lang, monkeypatch):
+    """Challenge 3 of beta 42 (B8-1035): no minimum size; at 420 x 360 the
+    list showed five rows (German three). At its smallest it now shows ten,
+    with the paragraphs whole above it.
+
+    MUTATION, proved to land: drop `_minimum()` from `_fit` (red)."""
+    import core.i18n as i18n
+    from ui.dialogs.builtin_presets_shown_dialog import BuiltinPresetsShownDialog
+    if lang != "en":
+        set_lang = getattr(i18n, "set_language", None)
+        if set_lang is None:
+            pytest.skip("no set_language in core.i18n")
+        set_lang(lang)
+    try:
+        groups = [(h, [(k, "", k) for (_c, _o, k) in e])
+                  for h, e in BUILTIN_PRESET_GROUPS]
+        dlg = BuiltinPresetsShownDialog(groups, set(), None)
+        dlg.show()
+        dlg.resize(1, 1)
+        qapp.processEvents()
+        assert dlg.width() >= 560
+        tree = dlg._tree
+        rows_visible = tree.viewport().height() // tree.sizeHintForRow(0)
+        assert rows_visible >= 10, (lang, rows_visible, dlg.size())
+        intro = dlg._intro
+        assert intro.height() >= intro.heightForWidth(intro.width()) - 1, (
+            "the paragraphs are cut at the smallest size")
+        dlg.close()
+        dlg.deleteLater()
+    finally:
+        if lang != "en":
+            i18n.set_language("en")

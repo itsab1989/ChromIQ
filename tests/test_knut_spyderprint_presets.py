@@ -90,9 +90,19 @@ def test_registry_shape():
     # i1Pro 3 Plus charts (2026-08-18 — see test_i1pro3_builtin_presets.py), the
     # six engine-built Scanner charts (#100, #108, #118), and the six Red River
     # Paper vendor variants (one shared 2052-patch .ti1: i1Pro A4/Letter, and
-    # ColorMunki A4/Letter in both a compact 8-page and a ruler-size 10-page cut).
-    assert len(KNUT_PRESETS) == 121      # 104 - 2 withdrawn + 19 new 7.5 mm
-    assert len(KNUT_PRESET_KEYS) == 121  # all keys unique
+    # ColorMunki A4/Letter in both a compact 8-page and a ruler-size 10-page cut),
+    # his 26 CR30 charts (20 of 2026-09-06 plus the six straight-strip ones of
+    # 2026-09-12 — see test_cr30_builtin_presets.py), and
+    # his nineteen i1Pro photo cards (two of 2026-09-09, thirteen of
+    # 2026-09-17 and four of 2026-09-18, issue #182 — see
+    # test_i1pro_photocard_builtin_presets.py), and his eight 7.5 mm
+    # "Maximised - No Clip-border" i1Pro charts on A4 and Letter (2026-09-22,
+    # issue #182 — see test_i1pro75_maximised_builtin_presets.py), and the
+    # nine "by Pharmacist" charts with a page layout (#182 5860041950, beta 47)
+    # and five more in 4.3.1 (#182 5875467209).
+    assert len(KNUT_PRESETS) == 188      # 121 + 26 CR30 + 19 photo + 8 max + 14
+    assert len(KNUT_PRESET_KEYS) == 188  # all keys unique
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("pharm_")) == 14
     # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
     # Knut's request (#164, 2026-08-23).
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 2
@@ -101,6 +111,9 @@ def test_registry_shape():
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w8_")) == 19
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cm_")) == 45
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("p3_")) == 24
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cr30_")) == 26
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_photo_")) == 19
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w75max_")) == 8
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("scanner_")) == 6
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("redriver_")) == 6
     assert KNUT_PRESET_KEYS <= BUILTIN_PRESET_KEYS
@@ -226,7 +239,7 @@ _SYNTHETIC = _Ti1Preset(
     _KNUT_I1, "A4", 0.93, 10, 2,
     ti1_asset="assets/charts/knut/rgb/fulllayout/"
               "fls_i1pro_a4_484p_1page_portrait/chart.ti1",
-    patches=484, white=9, black=8, no_strip_limit=False,
+    patches=484, white=1, black=1, no_strip_limit=False,
     suppress_left_clip=False, tiff_16bit=False, suffix=" (test only)")
 KNUT_PRESETS_BY_KEY.setdefault(_SYNTHETIC.key, _SYNTHETIC)
 _FLS_KEY = _SYNTHETIC.key

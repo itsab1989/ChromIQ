@@ -143,7 +143,7 @@ def test_rebuild_archives_the_previous_profile_and_its_twin(tmp_path, qtbot):
     twin.write_bytes(b"old twin bytes " * 100)
     tab._settings.set("target_name", "Arch")
     tab.set_ti3_path(ti3, propagate=False)
-    tab._archive_previous_build(ProfileParams(ti3_path=ti3))
+    tab._archive_the_profile_being_replaced(ProfileParams(ti3_path=ti3))
     assert not icc.exists() and not twin.exists()
     old = run.dir / "old"
     moved = sorted(p.name for p in old.rglob("*.icc"))

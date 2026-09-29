@@ -19,6 +19,8 @@ Key: (instrument_code, double_density, paper_size)
 """
 from __future__ import annotations
 
+import re
+
 _PER_SHEET_CAPACITY: dict[tuple[str, bool, str], int] = {
     # ---- i1Pro / i1Pro 2 / i1Pro 3 --------------------------------
     ("i1", False, "A2"):       1050,
@@ -140,6 +142,30 @@ INSTRUMENT_DEFAULT_MARGIN: dict[str, int] = {
     "p3": 6,
     "CM": 6,
     "SS": 6,
+    # THE CR30 GETS 5 mm, AND IT IS WORTH 22 PATCHES ON A4 PORTRAIT.
+    #
+    # A margin is the room an instrument needs to start and finish a strip. The
+    # CR30 does not run strips: it is placed on one patch at a time, so it does
+    # not need the run-up the others do. On the shared 6 mm a Guided A4 sheet
+    # fits 374 patches; at 5 mm it fits 396, which is what the same chart built
+    # in Manual gives. Measured through the app's own path, turned and not:
+    #
+    #     margin   turned   not turned
+    #       4.0      414        390
+    #       5.0      396        390
+    #       6.0      374        390
+    #       7.0      374        390
+    #
+    # The count is a step function of the margin and the two grids step at
+    # different places, so 6 mm happens to be the one notch nearby where the
+    # turn costs patches rather than gaining them. Guided has no margin box, so
+    # a Guided user could not have found this for themselves (Basti, 2026-09-10:
+    # "in guided the user can't influence the margin but i think it is ok if you
+    # set it to 5 for this").
+    #
+    # A chart already built is unaffected: it rebuilds from its own stored
+    # recipe, which carries the margin it used.
+    "CR30": 5,
 }
 
 # Margins for which we have measured per-sheet capacity tables. Other margin
@@ -249,21 +275,85 @@ PAPER_LABELS: dict[str, str] = {
     "4x6":     "4×6\" (102 × 152 mm)",
 }
 
+#: A custom paper size as the Custom size boxes spell it: two numbers in
+#: MILLIMETRES. Only a size the paper table does not already name reaches this
+#: pattern — ``4x6`` and ``11x17`` are inch designations with their own labels.
+_CUSTOM_MM_SIZE = re.compile(r"^\d+(?:\.\d+)?x\d+(?:\.\d+)?$")
+
+
+def paper_display_label(code: str) -> str:
+    """The paper list's label as a READER sees it (B8-1640).
+
+    ``PAPER_LABELS`` stays English: chart and profile names, the printed
+    sheet's stamp and every parser read it. Only the orientation word at the
+    end of a dropdown row is translated here, so "A4 (210 × 297 mm) Portrait"
+    reads "… Hochformat" in German while the combo's data stays the code.
+    """
+    from core.i18n import tr
+    label = PAPER_LABELS.get(code, code)
+    # Two literals, not a variable: the catalogue extractor cannot see what a
+    # tr(variable) will be asked for.
+    if label.endswith(" Portrait"):
+        return label[:-len("Portrait")] + tr("Portrait")
+    if label.endswith(" Landscape"):
+        return label[:-len("Landscape")] + tr("Landscape")
+    return label
+
+
 def paper_name_token(code: str) -> str:
     """A filesystem-safe, readable paper token for generated chart/profile names
     (#68, Knut). Named sizes use their short name with special characters made
     safe — ``+`` → ``Plus`` (A3+ → A3Plus), ``"`` → ``in`` (8×10" → 8x10in),
     ``×`` → ``x`` — and any " / " alias is dropped (Tabloid / 11 × 17" → Tabloid).
-    A custom ``WxH`` size (not in PAPER_LABELS) is returned unchanged. The ``+``
-    and ``"`` are kept only in the dropdown labels, never in names/folders."""
+    The ``+`` and ``"`` are kept only in the dropdown labels, never in
+    names/folders.
+
+    A CUSTOM ``WxH`` SIZE CARRIES ITS UNIT. Knut, 2026-09-11: *"you forgot the
+    mm in the custom paper size in the name, as used in the presets given. The
+    generator should thus give the name … i1Pro-100x150mm-600p-4pages-Portrait"*.
+    The Custom size boxes are labelled "Custom size (mm):" and printtarg's
+    ``-p<W>x<H>`` is millimetres, so the number pair means nothing else — and
+    his own preset names ("100x150mm-600p-4pages-Portrait-w7.5mm") have said so
+    since they were written. A size the table already names is unaffected: ``4x6``
+    and ``11x17`` are INCH designations and resolve through their labels above,
+    never through the millimetre branch.
+    """
     label = PAPER_LABELS.get(code)
     if not label:
-        return code  # custom WxH or unknown — already safe (digits + 'x')
+        token = str(code).strip()
+        return f"{token}mm" if _CUSTOM_MM_SIZE.match(token) else token
     token = label.split(" (")[0].split(" / ")[0].strip()
     token = (token.replace("×", "x").replace(" ", "")
                   .replace("+", "Plus")
                   .replace("”", "in").replace("“", "in").replace('"', "in"))
     return token or code
+
+
+def orientation_word(width: float, height: float) -> str:
+    """The orientation token a generated chart/preset name carries for a sheet
+    of *width* × *height*, in the same unit for both.
+
+    Knut, 2026-09-10, on the custom paper size: *"we can automatically detect
+    'Portrait' or 'Landscape' and add that to the name. If first parameter,
+    which is the page width, is smaller than the second parameter, which is the
+    height, then we have Portrait. If opposite, width larger than height, then
+    we have Landscape."* And 2026-09-11, closing the one case he had not ruled
+    on: *"when both Custom size boxes are the same, say 'Square' instead of
+    Portrait or Landscape."*
+
+    The three words are fixed ASCII identifiers, NOT translated: they go into a
+    folder name, a file stem and the "Chart layout" line stamped on the sheet,
+    and a name that changed with the interface language would not find its own
+    project again.
+
+    One function rather than a rule written out at each name generator, because
+    there are two of them — Create Chart's ``_suggest_target_name`` and the
+    patch-set editor's ``_suggest_chart_name`` — and they disagreed: a square
+    page got no word from the first and "Portrait" from the second.
+    """
+    if width == height:
+        return "Square"
+    return "Landscape" if width > height else "Portrait"
 
 
 # printtarg -p argument for each paper key

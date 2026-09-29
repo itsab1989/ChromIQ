@@ -1,0 +1,476 @@
+#!/usr/bin/env python3
+"""A demo project for evenness across the sheet (#182, Knut, 2026-09-22).
+
+No project in the report-limit demo pack can show the two evenness rows
+JUDGED: every verification chart in it is a ColorMunki A4 or A3 chart with 6
+or 7 strips on a page, under Knut's 9 by 9 floor. This builds one project that
+can, beside the pack, so the rows can be driven on screen:
+
+* **run1**, Knut's 837-patch i1Pro A4 preset with no clip border, laid out
+  by the layout engine (its patches cover 80 % of the page, about 90 in each
+  ninth), measured four times:
+
+  1. evenly printed: both rows PASS;
+  2. a change across the strips, about 3 ΔE b* from one side to the other
+     (the far bands about 2.0 apart): the pairwise row FAILs first, the
+     from-the-mean row still passes;
+  3. one ninth of the page 1.6 L* lighter, a blotch: the from-the-mean row
+     FAILs first, the pairwise row still passes;
+  4. a noisy sheet, no place effect at all: both rows N-A, the noise named;
+
+* **run2**, Knut's 84-patch i1Pro3 A4 preset (7 strips): both rows N-A
+  because no page has 9 strips;
+* **run3**, the 837-patch chart again with no verification measured, so the
+  Measure tab's pre-flight is due on it;
+* **run4** (#182 E2, beta 38), Knut's 572-patch i1Pro A4 preset: 22 strips by
+  26 rows, with the i1Pro's 26 mm clip border and its 38 mm top its patches
+  cover 68.4 % of the page. Under the first 75 % floor both rows read N-A;
+  since Knut lowered the floor to 60 % (5792912682) the page is counted and
+  both rows are judged: evenly printed, with the change, and with the blotch
+  (#182 K29, so each row is tripped on more than one chart);
+* **run5** (#182 E4, beta 38), Knut's 308-patch i1Pro 3 Plus A4 preset on two
+  pages, 11 strips by 14 rows each, 65.3 % of each page covered: Knut's
+  multi-page case, judged at 60 %, evenly printed, with the change and with
+  the blotch;
+* **run6** (#182 E2 at 60 %), the 312-patch i1Pro A4 preset that fills the
+  left half of the page: 12 strips by 26 rows, its patches cover 37.3 % of
+  the page, so both rows N-A with the coverage note ("at least 60 % is
+  needed");
+* **run7** (#182 E4 at 60 %), the 154-patch i1Pro 3 Plus A4 preset, the
+  same 11 by 14 page as run5 on ONE page, measured as a TYPICAL print (the
+  residual the presets window's estimate assumes, 1.1 per component, where
+  every other demo sheet uses 0.25): coverage and grid pass, but about 17
+  patches in each ninth leave the sheet's own noise between two areas above
+  ChromIQ default's limit, so that row reads N-A for the noise, while the
+  from-the-mean row is judged. Knut: "a one page target will not fulfil the
+  requirement".
+* **run8** (#182 E8, beta 39), the 837-patch chart of run1 printed through
+  its profile with RELATIVE colorimetric, the intent that maps paper white,
+  on a real paper (`RUN8_PAPER_LAB`, L* 95.5, b* -3): the same four kinds of
+  sheet as run1. The colour accuracy rows read it relative to its paper
+  white; evenness, since Knut's E8 ruling ("Yes"), reads it as measured, with
+  each aim carried onto the paper. The change sits near the limit on both
+  runs, so which side of it it lands is not the point of run8;
+  that both rows are JUDGED, with a noise near run1's, is.
+* **run9** (K61, Knut #182 5851645723), Knut's own case: the 648-patch i1Pro
+  A4 preset he selected in "Which presets can be used for verification",
+  one page of 24 strips by 27 rows, 72 patches in each ninth, measured as a
+  TYPICAL print. Its noise, measured on the patches within the profile's
+  gamut, is below the limits of every limit set, so both rows are judged
+  under each of them: the case the presets window describes, a chart that
+  meets the page rules can be judged.
+* **run10** (K61), the noise line itself, in the report: the 837-patch chart
+  of run1 printed four times with no place effect at all, each sheet's
+  scatter scaled so that its MEASURED noise lands just over or just under a
+  limit of ChromIQ default: between two areas 1.83 and 1.77 against 1.8, one
+  area against the whole sheet 1.23 and 1.17 against 1.2. Just over reads
+  N-A, just under is judged.
+
+The readings are SYNTHETIC: each patch is the chart's own aim plus the
+residual named above, so what every area should read is known in advance. The
+profile beside each run is Argyll's own sRGB profile, standing in for a built
+one so the report's in-gamut split has a referee. This is a picture of the
+report's behaviour, not a measurement of any printer.
+
+    python scripts/make_evenness_demo.py <dest-folder>
+"""
+from __future__ import annotations
+
+import os
+import shutil
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(HERE))
+
+NAME = "Report-Limits-Evenness"
+#: K61: Knut's own case, the 648-patch i1Pro A4 preset on one page.
+I1_648 = "i1_w75_a4_648p_1page_portrait_w7_5mm"
+ARGYLL = Path(os.environ.get("CHROMIQ_ARGYLL_BIN", "/Applications/Argyll/bin"))
+SRGB = ARGYLL.parent / "ref" / "sRGB.icm"
+LARGE = "i1_w75max_a4_837p_1page_portrait_w7_5mm_maximised_no_clip_border"
+SMALL = "p3_a4_84p_1page_portrait_w25_0mm"
+#: #182 E2: 22 x 26 on one page, 68.4 % of it covered: over the 60 % floor.
+I1_572 = "i1_w8_a4_572p_1page_portrait_w8_0mm"
+#: #182 E4: i1Pro 3 Plus, two pages of 11 x 14, 65.3 % of each covered.
+P3_TWO_PAGES = "p3_a4_308p_2pages_portrait_w16_0mm"
+#: #182 E2 at 60 %: 12 x 26 on the left half of an A4 page, 37.3 % covered.
+UNCOVERED = "i1_w8_a4_312p_1page_portrait_w8_0mm"
+#: #182 E4 at 60 %: i1Pro 3 Plus, ONE page of 11 x 14, too few patches.
+P3_ONE_PAGE = "p3_a4_154p_1page_portrait_w16_0mm"
+
+#: (vid, when, title, residual(page, strip on page, row, strips, rows, rng))
+_SIGMA = 0.25
+
+
+def _even(page, s, r, S, R, rng):
+    return rng.normal(0, _SIGMA, 3)
+
+
+def _drift(page, s, r, S, R, rng):
+    d = rng.normal(0, _SIGMA, 3)
+    # Knut's limits of #182 5855780690 (ChromIQ default 1.8 / 1.2): the far
+    # bands differ by about 2.0, the pairwise row over its 1.8, and each band
+    # sits about 1.0 from the sheet, the from-the-mean row under its 1.2
+    d[2] += (s / (S - 1) - 0.5) * 3.0
+    return d
+
+
+def _blotch(page, s, r, S, R, rng):
+    import workflow.measurement_report as MR
+    a, m, _ = MR.evenness_bands(S)
+    ra, rm, _ = MR.evenness_bands(R)
+    d = rng.normal(0, _SIGMA, 3)
+    if s >= a + m and r >= ra + rm:
+        # 1.6 L*: about 1.4 from the sheet, over ChromIQ default's 1.2, and
+        # 1.6 from the other areas, under its 1.8 (#182 5855780690)
+        d[0] += 1.6
+    return d
+
+
+def _noisy(page, s, r, S, R, rng):
+    # 3.4, not 2.4: with the noise's average share taken out (#182
+    # 5855780690) the shuffle's noise of a 2.4 sheet fell under ChromIQ
+    # default's new 1.8 / 1.2, and a noisy sheet is meant to read N-A on both
+    return rng.normal(0, 3.4, 3)
+
+
+def _typical(page, s, r, S, R, rng):
+    """A typical print: the residual the presets window's noise estimate
+    assumes (`EVENNESS_TYPICAL_SIGMA`), no place effect."""
+    import workflow.measurement_report as MR
+    return rng.normal(0, MR.EVENNESS_TYPICAL_SIGMA, 3)
+
+
+DATES_LARGE = [
+    ("2026-10-01_100000", "2026-10-01T10:00:00", "even", _even),
+    ("2026-10-08_100000", "2026-10-08T10:00:00", "change across the strips",
+     _drift),
+    ("2026-10-15_100000", "2026-10-15T10:00:00", "one area lighter", _blotch),
+    ("2026-10-22_100000", "2026-10-22T10:00:00", "noisy", _noisy),
+]
+DATES_SMALL = [
+    ("2026-10-01_110000", "2026-10-01T11:00:00", "even", _even),
+]
+#: #182 K29: the change and the blotch AGAIN, on two charts other than run1's,
+#: so each evenness row is tripped from more than one chart (a 22 by 26 i1Pro
+#: page, and the i1Pro 3 Plus on two pages) and not only on the 837-patch one.
+DATES_572 = [
+    ("2026-10-01_120000", "2026-10-01T12:00:00", "even", _even),
+    ("2026-10-08_120000", "2026-10-08T12:00:00", "change across the strips",
+     _drift),
+    ("2026-10-15_120000", "2026-10-15T12:00:00", "one area lighter", _blotch),
+]
+DATES_P3 = [
+    ("2026-10-01_130000", "2026-10-01T13:00:00", "even", _even),
+    ("2026-10-08_130000", "2026-10-08T13:00:00", "change across the strips",
+     _drift),
+    ("2026-10-15_130000", "2026-10-15T13:00:00", "one area lighter", _blotch),
+]
+DATES_UNCOVERED = [
+    ("2026-10-01_140000", "2026-10-01T14:00:00", "even", _even),
+]
+DATES_P3_ONE = [
+    ("2026-10-01_150000", "2026-10-01T15:00:00", "typical print", _typical),
+]
+#: K61: Knut's 648-patch page as a typical print.
+DATES_648 = [
+    ("2026-10-01_160000", "2026-10-01T16:00:00", "typical print", _typical),
+]
+
+
+class NoiseTarget:
+    """A sheet with no place effect, whose scatter is scaled until the
+    report MEASURES exactly this noise on one of its two rows (K61). The
+    noise is linear in the scatter (the same draws, the same shuffles), so
+    two or three passes land it within 0.004."""
+
+    def __init__(self, key: str, target: float):
+        self.key, self.target = key, float(target)
+
+    def residual(self, sigma: float):
+        def f(page, s, r, S, R, rng):
+            return rng.normal(0, sigma, 3)
+        return f
+
+
+#: K61: the noise line in the report, one notch either side of each of
+#: ChromIQ default's two evenness limits (1.8 between two areas, 1.2 from the
+#: mean, #182 5855780690). The same seed on every date, so the four sheets differ ONLY in the
+#: size of their scatter.
+DATES_NOISE_LINE = [
+    ("2026-10-01_170000", "2026-10-01T17:00:00",
+     "noise just over the pairwise limit", NoiseTarget("pairwise", 1.83)),
+    ("2026-10-08_170000", "2026-10-08T17:00:00",
+     "noise just under the pairwise limit", NoiseTarget("pairwise", 1.77)),
+    ("2026-10-15_170000", "2026-10-15T17:00:00",
+     "noise just over the from-the-mean limit",
+     NoiseTarget("from_mean", 1.23)),
+    ("2026-10-22_170000", "2026-10-22T17:00:00",
+     "noise just under the from-the-mean limit",
+     NoiseTarget("from_mean", 1.17)),
+]
+
+
+def _preset(slug: str):
+    from ui.tabs.tab_chart import KNUT_PRESETS
+    return next(p for p in KNUT_PRESETS if p.slug == slug)
+
+
+def _lay_out(slug: str, folder: Path, stem: str) -> Path:
+    """The preset's chart, laid out by the engine as Create Chart lays it
+    out, as ``folder/stem.ti1/.ti2/.tif``."""
+    from core.resource_path import resource_path
+    from workflow.layout_engine.chart import build_from_recipe
+    from workflow.layout_engine.presets import LayoutRecipe
+    p = _preset(slug)
+    ti1 = Path(resource_path(p.ti1_asset))
+    folder.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ti1, folder / f"{stem}.ti1")
+    from dataclasses import replace
+    # A FIXED SEED, so the demo lays the same patches out the same way on
+    # every build and its numbers can be quoted.
+    rec = replace(LayoutRecipe.from_dict(dict(p.layout_recipe)), seed=182,
+                  randomize=True)
+    res, _ = build_from_recipe(str(folder / f"{stem}.ti1"), str(folder / stem),
+                               rec)
+    # THE GEOMETRY THE APP RECORDS (#182 E2). Create Chart folds the engine's
+    # strips.json and the recipe into channels.json
+    # (`ChartCreator._embed_layout_geometry`); "Measured from Preview" and the
+    # evenness rows' page coverage read it from there.
+    import json
+    from dataclasses import asdict
+    lay = json.loads((folder / f"{stem}.strips.json").read_text(
+        encoding="utf-8"))
+    lay.update({"engine": "chromiq", "engine_version": 1, "seed": res.seed,
+                "recipe": asdict(rec)})
+    (folder / f"{stem}.channels.json").write_text(
+        json.dumps({"layout": lay}), encoding="utf-8")
+    return Path(res.ti2_path)
+
+
+#: #182 E8: the paper run8 is printed on, a real one rather than the ideal
+#: white the chart's aims describe (L* 95.5, a slight blue from brighteners).
+RUN8_PAPER_LAB = (95.5, 0.5, -3.0)
+
+
+def _sheet(ti2: Path, out: Path, residual, seed: int, instrument: str,
+           when: str, paper_lab=None) -> Path:
+    """A measured `.ti3` of *ti2*: every patch its aim plus *residual*.
+
+    With *paper_lab*, the sheet is what a print through the profile with an
+    intent that MAPS PAPER WHITE reads on a paper of that colour: every XYZ
+    scaled by paper / D50, the ICC.1 media-relative scaling run backwards."""
+    import numpy as np
+    import workflow.measurement_report as MR
+    from workflow.ti3_analysis import _lab_to_xyz_array, parse_ti3
+    aims = MR._reference_labs(ti2)
+    grid = MR.chart_grid(ti2)
+    chart = parse_ti3(ti2)
+    rng = np.random.default_rng(seed)
+    rows = []
+    rgb = MR._rgb_to_0_100(np.asarray(chart.rgb, float))
+    labs = []
+    for i, sid in enumerate(chart.sample_ids):
+        page, s, r = grid["slot"][sid]
+        d = residual(page, s, r, grid["pages"][page], grid["rows"], rng)
+        lab = np.asarray(aims[sid]) + d
+        lab[0] = min(lab[0], 100.0)
+        labs.append(lab)
+    # **THE PAPER STAYS THE LIGHTEST PATCH (#182 K26, Knut 5792484060, Q6:
+    # "Fix it").** The report takes the lightest reading as the paper white
+    # (`lightest_and_darkest`), and on the noisy date the synthetic noise
+    # lifted a yellow patch above every paper patch, so the demo's "Paper
+    # white" read L* 100, a* -16.6, b* 90.1. A real sheet cannot print a colour
+    # lighter than its own paper, so no patch that is not paper is allowed
+    # above the lightest paper reading: it is held 0.3 L* under it. Only
+    # near-white patches of a noisy sheet are ever touched.
+    paper = [i for i in range(len(labs))
+             if all(float(v) >= 99.999 for v in rgb[i])]
+    if paper:
+        ceiling = max(float(labs[i][0]) for i in paper) - 0.3
+        for i, lab in enumerate(labs):
+            if i not in paper and lab[0] > ceiling:
+                lab[0] = ceiling
+    for i, sid in enumerate(chart.sample_ids):
+        x = _lab_to_xyz_array(labs[i][None])[0]
+        if paper_lab is not None:
+            x = x * _lab_to_xyz_array(np.asarray([paper_lab], float))[0] / \
+                np.array([96.42, 100.0, 82.49])
+        rows.append(f"{sid} {rgb[i][0]:.4f} {rgb[i][1]:.4f} {rgb[i][2]:.4f} "
+                    f"{x[0]:.5f} {x[1]:.5f} {x[2]:.5f}")
+    text = "\n".join([
+        "CTI3", "", 'DESCRIPTOR "Argyll Calibration Target chart information 3"',
+        'ORIGINATOR "ChromIQ evenness demo (synthetic readings)"',
+        f'TARGET_INSTRUMENT "{instrument}"', 'DEVICE_CLASS "OUTPUT"',
+        'COLOR_REP "RGB_XYZ"', 'KEYWORD "CHROMIQ_MEASURED"',
+        f'CHROMIQ_MEASURED "{when}"', "", "NUMBER_OF_FIELDS 7",
+        "BEGIN_DATA_FORMAT", "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z",
+        "END_DATA_FORMAT", "", f"NUMBER_OF_SETS {len(rows)}", "BEGIN_DATA",
+        *rows, "END_DATA", ""])
+    out.write_text(text, encoding="utf-8")
+    t = datetime.fromisoformat(when).timestamp()
+    os.utime(out, (t, t))
+    return out
+
+
+def _run(proj, run, slug: str, instrument: str, description: str,
+         dates: list, seed0: int, intent: str = "absolute",
+         paper_lab=None) -> list:
+    import make_report_limit_demos as DEMO
+    from workflow.measurement_report import (KIND_PROFILING, KIND_VERIFICATION,
+                                             build_report, stamp_verdict)
+    from workflow.run_compliance import run_limits
+    from workflow.ti3_analysis import mark_verification_ti3
+    run.ensure_dir()
+    stem, vstem = run.stem, run.verify_stem
+    print(f"  {run.id}: {slug}")
+    ti2 = _lay_out(slug, run.dir, stem)
+    shutil.copy2(SRGB, run.dir / f"{stem}.icc")
+    vti2 = _lay_out(slug, run.verifications_dir, vstem)
+    meta = run.load_meta()
+    meta.description = description
+    meta.instrument = instrument
+    meta.paper = "Demo matte 200 g"
+    meta.status = "complete"
+    run.save_meta(meta)
+    first = datetime.fromisoformat(dates[0][1] if dates
+                                   else "2026-10-01T09:00:00")
+    # K31: nothing is bound onto the run; its reports start on ChromIQ
+    # default, which is what a new report of it starts on.
+    limits = run_limits(run, {}, "chromiq_default")
+    prof_when = (first - timedelta(days=7)).isoformat(timespec="seconds")
+    prof = _sheet(ti2, run.dir / f"{stem}.ti3", _even, seed0, instrument,
+                  prof_when)
+    rep = build_report(prof, argyll_bin=ARGYLL)
+    stamp_verdict(rep, limits.limits, set_id=limits.set_id,
+                  set_label=limits.label_en, edited=limits.edited)
+    DEMO.file_report(rep, prof, run, KIND_PROFILING, prof_when)
+    out = []
+    for k, (vid, when, title, residual) in enumerate(dates, start=1):
+        v = run.verification(vid)
+        v.ensure_dir()
+        target = residual if isinstance(residual, NoiseTarget) else None
+        sigma = 1.0
+        # K61: a NoiseTarget sheet is written, measured and rescaled until
+        # the report reads its noise; any other sheet is written once
+        for _pass in range(6 if target else 1):
+            if target is not None:
+                residual = target.residual(sigma)
+            ti3 = _sheet(vti2, v.dir / f"{vstem}.ti3", residual,
+                         (seed0 + 1) if target else (seed0 + k),
+                         instrument, when, paper_lab=paper_lab)
+            mark_verification_ti3(ti3)
+            cdir = DEMO.snapshot(v.dir, vstem, run.verifications_dir)
+            DEMO.write_print_record(cdir, vstem, when, f"{stem}.icc",
+                                    "through-profile")
+            # ABSOLUTE colorimetric by default, so every row of the report
+            # judges in absolute Lab. run8 passes "relative", an intent that
+            # maps paper white: the colour accuracy rows then read the sheet
+            # relative to its lightest patch, and evenness, since #182 E8
+            # (beta 39), does not.
+            import json
+            pj = cdir / f"{vstem}.print.json"
+            rec = json.loads(pj.read_text(encoding="utf-8"))
+            rec["intent"] = intent
+            pj.write_text(json.dumps(rec, indent=2), encoding="utf-8")
+            rep = build_report(v.measurement_ti3, argyll_bin=ARGYLL)
+            if target is None:
+                break
+            got = (rep.get("evenness") or {}).get(
+                f"noise_{target.key}_p95")
+            if got is None or abs(float(got) - target.target) < 0.004:
+                break
+            sigma *= target.target / float(got)
+        stamp_verdict(rep, limits.limits, set_id=limits.set_id,
+                      set_label=limits.label_en, edited=limits.edited)
+        DEMO.file_report(rep, v.measurement_ti3, run, KIND_VERIFICATION, when)
+        ev = rep.get("evenness") or {}
+        from workflow.measurement_report import recorded_verdict
+        words = {r["row_id"]: r["word"] for r in recorded_verdict(rep)["rows"]
+                 if r["row_id"] in ("uniformity_sd",
+                                    "uniformity_de00_max_from_mean")}
+        line = (f"    {vid} {title:<24} pairwise={ev.get('pairwise')} "
+                f"(noise {ev.get('noise_pairwise_p95')}) from_mean="
+                f"{ev.get('from_mean')} (noise {ev.get('noise_from_mean_p95')}) "
+                f"reason={ev.get('reason')} words={words}")
+        print(line)
+        out.append(line)
+    return out
+
+
+def build(dest: Path) -> Path:
+    from core.file_manager import Project
+    root = dest / NAME
+    if root.exists():
+        shutil.rmtree(root)
+    dest.mkdir(parents=True, exist_ok=True)
+    print(f"== {NAME}")
+    proj = Project.create(root, NAME)
+    run1 = proj.current_run()
+    _run(proj, run1, LARGE, "X-Rite i1Pro 2",
+         "An 837-patch i1Pro sheet with no clip border, its patches covering "
+         "80 % of the page, measured four times: evenly printed, with a change "
+         "across the strips, with one area lighter, and noisy.",
+         DATES_LARGE, 100)
+    run2 = proj.new_run()
+    _run(proj, run2, SMALL, "X-Rite i1Pro 3",
+         "An 84-patch sheet with 7 strips on its page, fewer than the 9 "
+         "evenness across the sheet needs.", DATES_SMALL, 200)
+    run3 = proj.new_run()
+    _run(proj, run3, LARGE, "X-Rite i1Pro 2",
+         "The same 837-patch chart as run 1, with no verification measured "
+         "yet.", [], 300)
+    run4 = proj.new_run()
+    _run(proj, run4, I1_572, "X-Rite i1Pro 2",
+         "A 572-patch i1Pro sheet, 22 strips by 26 rows, whose patches cover "
+         "68 % of the page.", DATES_572, 400)
+    run5 = proj.new_run()
+    _run(proj, run5, P3_TWO_PAGES, "X-Rite i1Pro 3 Plus",
+         "A 308-patch i1Pro 3 Plus chart on two pages, 11 strips by 14 rows "
+         "each, whose patches cover 65 % of each page.", DATES_P3, 500)
+    run6 = proj.new_run()
+    _run(proj, run6, UNCOVERED, "X-Rite i1Pro 2",
+         "A 312-patch i1Pro sheet, 12 strips by 26 rows on half the page, "
+         "whose patches cover 37 % of it, less than the 60 % evenness across "
+         "the sheet needs.", DATES_UNCOVERED, 600)
+    run7 = proj.new_run()
+    _run(proj, run7, P3_ONE_PAGE, "X-Rite i1Pro 3 Plus",
+         "A 154-patch i1Pro 3 Plus chart on one page, 11 strips by 14 rows: "
+         "too few patches in each ninth of the page for the sheet's own "
+         "noise between two areas to stay under its limit.", DATES_P3_ONE,
+         700)
+    run8 = proj.new_run()
+    _run(proj, run8, LARGE, "X-Rite i1Pro 2",
+         "The 837-patch chart of run 1, printed through its profile with "
+         "relative colorimetric, an intent that maps paper white: evenly "
+         "printed, with a change across the strips, with one area lighter, and "
+         "noisy. Evenness is judged as measured whatever the intent.",
+         DATES_LARGE, 100, intent="relative", paper_lab=RUN8_PAPER_LAB)
+    run9 = proj.new_run()
+    _run(proj, run9, I1_648, "X-Rite i1Pro 2",
+         "The 648-patch i1Pro A4 preset on one page, 24 strips by 27 rows, 72 "
+         "patches in each ninth, measured as a typical print. Its own noise, "
+         "over the patches within the profile's gamut, is below the limits "
+         "of every limit set, so both rows are judged under each of them.",
+         DATES_648, 900)
+    run10 = proj.new_run()
+    _run(proj, run10, LARGE, "X-Rite i1Pro 2",
+         "The 837-patch chart of run 1 printed four times with no difference "
+         "between areas, each sheet's scatter set so that its own noise is "
+         "just over or just under a limit: 1.83 and 1.77 between two areas, "
+         "1.23 and 1.17 for one area against the whole sheet.",
+         DATES_NOISE_LINE, 1000)
+    return root
+
+
+if __name__ == "__main__":
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")   # no window: files only
+    if len(sys.argv) != 2:
+        print(__doc__)
+        sys.exit(2)
+    build(Path(sys.argv[1]).resolve())

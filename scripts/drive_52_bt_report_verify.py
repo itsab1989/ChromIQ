@@ -186,7 +186,18 @@ def main() -> int:
             app.processEvents()
             moved["after_tab"] = win._tabs.currentIndex()
             moved["repainted"] = True
-            win.grab().save(str(OUT / "mid_scan_window.png"))
+            # THE WINDOW'S OWN BUFFER, then the whole screen for context.
+            # A `win.grab()` is not a photograph (CLAUDE.md), and a full-screen
+            # `screencapture` cannot show a window that is not composited on
+            # the Space being captured; `capture_window` addresses the window
+            # by its CGWindowID and is not affected by either.
+            import sys as _sys
+            _sys.path.insert(0, str(Path(__file__).resolve().parent))
+            from onscreen_capture import capture_window as _cap
+            _ok, _why = _cap(win, OUT / "mid_scan_window.png")
+            if not _ok:
+                print(f"      photograph refused: {_why}")
+                win.grab().save(str(OUT / "NOT-A-PHOTOGRAPH-mid_scan_window.png"))
             os.system(f"/usr/sbin/screencapture -x '{OUT}/mid_scan_screen.png' "
                       ">/dev/null 2>&1")
 

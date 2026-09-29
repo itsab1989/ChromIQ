@@ -24,6 +24,14 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+#: Settings key for the default "Text distance from edge -> Clip" in mm. There
+#: is no control that writes it yet, and that is exactly why the name lives in
+#: one place: :meth:`ChartCreator.default_text_edge_clip_mm` is what the paths
+#: with no recipe of their own read, so a preference becomes theirs by being
+#: stored under this key rather than by anybody remembering three call sites.
+TEXT_EDGE_CLIP_SETTING_KEY = "text_edge_clip_mm"
+
+
 # ---------------------------------------------------------------------------
 # Structured error / warning patterns for targen and printtarg.
 # Line refs target Argyll 3.5.0 target/targen.c and target/printtarg.c.
@@ -94,11 +102,36 @@ _PRINTTARG_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
      "paper_too_narrow",
      "The paper isn't wide enough for even one patch row. Rotate to landscape "
      "or use wider paper."),
-    # L2247
+    # L2247. THIS ENTRY CANNOT MATCH A BAD `-i`, AND THE COMMENT BELOW THE
+    # ENGINE_ONLY_INSTRUMENTS SET USED TO SAY IT DOES.
+    #
+    # "Unsupported instrument type" is raised at `printtarg.c:2247` for an itype
+    # that PARSED and then has no layout branch. A `-i` string printtarg has
+    # never heard of dies far earlier, in the argument parser at
+    # `printtarg.c:3345`, with "Argument to -i wasn't recognised" — which is
+    # exactly what Knut saw, and which no pattern in this table matched. Both
+    # are kept: this one for the instrument that parses and cannot be laid out,
+    # the next one for the string that never parses at all.
     (re.compile(r"Unsupported instrument type"),
      "unsupported_instrument",
      "printtarg doesn't support the selected instrument for chart layout. "
      "Pick a different chart instrument in the Chart tab."),
+    # L3345 — the argument parser, reached before any layout logic.
+    (re.compile(r"Argument to -i wasn't recognised"),
+     "instrument_not_a_printtarg_code",
+     "printtarg does not have a code for this instrument, so it cannot lay "
+     "this chart out. ChromIQ's own layout engine lays this instrument's "
+     "charts out instead."),
+    # L3316 — the custom `-p WWWxHHH` sanity check (1 to 4000 mm on each axis).
+    (re.compile(r"Argument to -p was of unexpected size"),
+     "paper_outside_printtarg_range",
+     "printtarg cannot lay out a chart on paper this size. Its largest custom "
+     "page is 4000 x 4000 mm."),
+    # L3318 — a `-p` name printtarg does not know.
+    (re.compile(r"Failed to recognise argument to -p"),
+     "paper_not_a_printtarg_size",
+     "printtarg does not recognise this paper size, so it cannot lay this "
+     "chart out. Pick one of the standard sizes, or a custom width x height."),
     # Knut, #130 2026-08-01: "printtarg error: input file doesn't contain two or
     # three tables". The tool's own words are accurate and tell nobody what to
     # do — a ".ti1 with the wrong number of tables" is not a thing most people
@@ -134,10 +167,14 @@ ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30"}
 # Instruments the engine is the ONLY route for - printtarg cannot lay them out
 # at all, so the printtarg path is not a fallback, it is a fault (#159).
 #
-# printtarg's -i takes an ArgyllCMS instrument code. "CR30" is not one: printtarg
-# answers "Unsupported instrument type" (see the error table at the top of this
-# file) and, before that, ChromIQ's own patch-capacity binary search would shell
-# out to it once per probe. So the CR30 is forced onto the engine in
+# printtarg's -i takes an ArgyllCMS instrument code. "CR30" is not one, and this
+# comment used to name the wrong error for it: printtarg answers "Argument to -i
+# wasn't recognised", from its argument parser at `printtarg.c:3345`, and never
+# reaches the "Unsupported instrument type" branch at all. MEASURED against the
+# real 3.5.0 binary; the complete accepted set is
+# `workflow.ti2_relayout.PRINTTARG_INSTRUMENTS`, which mirrors the source.
+# Before even that, ChromIQ's own patch-capacity binary search would shell out
+# to printtarg once per probe. So the CR30 is forced onto the engine in
 # _should_use_engine, and _build_printtarg_args REFUSES to build an argv for it
 # rather than emitting a flag printtarg will reject.
 ENGINE_ONLY_INSTRUMENTS = {"CR30"}
@@ -147,6 +184,46 @@ ENGINE_ONLY_INSTRUMENTS = {"CR30"}
 # so a printtarg -a maps to engine pscale = -a / this. (Converted in
 # _engine_build_kwargs; the engine geometry is in instruments.py density>=3.)
 CM_TRIPLE_PRINTTARG_SCALE = 1.3
+
+
+def match_printtarg_error(text: str) -> "tuple[str, str] | None":
+    """``(key, ChromIQ's sentence)`` for the first known printtarg error in
+    *text*, or None when no pattern in ``_PRINTTARG_ERROR_PATTERNS`` knows it.
+
+    The table above is scanned line by line during a live build by
+    ``ChartCreator._scan_line``, which needs a running creator and its
+    ``_matched_errors`` list. This is the same table read as a pure function, so
+    a failure that arrives in ONE lump — a ``RuntimeError`` carrying a whole
+    ``stderr``, which is how ``workflow.ti2_relayout`` reports one — reaches the
+    same words. Written for the patch editor, which was the only window in the
+    app that put an Argyll tool's raw stderr in a modal.
+    """
+    for line in (text or "").splitlines():
+        for pattern, key, fmt in _PRINTTARG_ERROR_PATTERNS:
+            m = pattern.search(line)
+            if m:
+                return key, fmt.format(*m.groups())
+    return None
+
+
+def printtarg_said(text: str) -> str:
+    """The ONE useful line out of printtarg's output, or "" if there is none.
+
+    MEASURED on the real 3.5.0 binary: an argument-parse failure is 51 lines
+    (banner, one ``Diagnostic:`` line, then the whole usage text) and a runtime
+    failure is one line beginning ``printtarg: Error - ``. There is no failure
+    whose usage text helps, so the usage text is what this drops: the log keeps
+    the lot, and the window gets the sentence.
+    """
+    for line in (text or "").splitlines():
+        s = line.strip()
+        for marker in ("Diagnostic:", "Error -", "Error:"):
+            if marker in s:
+                return s.split(marker, 1)[1].strip() or s
+    for line in (text or "").splitlines():
+        if line.strip():
+            return line.strip()
+    return ""
 
 
 def _engine_padding_log_line(total: int, padding: int) -> str:
@@ -520,6 +597,19 @@ class ChartParams:
     # loaded with charts json file"). Empty for charts made by paths that
     # never ran the tab (the editor, built-ins), which restore their own way.
     settings_snapshot: dict = field(default_factory=dict)
+    # Whether Manual's "Auto patch count" box was ticked at Generate (B8-1363).
+    # The registry above records -f as 0 whenever it is, so without this a
+    # chart built with Auto on reopened with the box off and -f 0, and the
+    # next Generate built the fixed patches alone (528 became 22). None for a
+    # build that never ran Create Chart's collector (the editor, for one),
+    # which records nothing.
+    auto_patches: "bool | None" = None
+    # True when this chart lays out a patch set it was GIVEN (a built-in's
+    # bundled .ti1, a preset's attached one, a loaded patch set), so targen was
+    # not run and cannot make it again from the settings on screen (B8-1363).
+    # Recorded in the sidecar; reopening the chart binds its own .ti1 again,
+    # as a patch set not written by targen always was.
+    patch_set_given: "bool | None" = False
     # When the chart was laid out from an existing patch set (a preset, a loaded
     # .ti1, a prebuilt chart, or one applied from the editor), targen was NOT run
     # — so the command stamp shows the chart-LAYOUT name instead of a misleading
@@ -596,6 +686,38 @@ class ChartCreator:
         self._raw_errors: list[tuple[str, str]] = []
         self._matched_warnings: list[tuple[str, str, str]] = []
 
+    def default_text_edge_clip_mm(self) -> float:
+        """The default "Text distance from edge -> Clip", in millimetres.
+
+        THE ONE PLACE A PATH WITHOUT A CONTROL OF ITS OWN ASKS. Guided mode and
+        a printtarg chart carry no :class:`LayoutRecipe`, so they take the
+        DEFAULT of the setting rather than a number typed into the code. Knut,
+        2026-09-10: *"the text needs to stay within the default 'Text distance
+        from edge' settings in preferences chart layout ... Not a hardwired
+        margin."*
+
+        Both paths used to read ``LayoutRecipe().text_edge_clip_mm`` directly,
+        which is the dataclass default and nothing else. That is right only for
+        as long as nobody can change it: the moment a preference exists, a
+        direct read of the dataclass ignores it in silence and the sheets go
+        back to disagreeing with the box. Asking here instead means a stored
+        preference reaches every such path, and the fallback is still the
+        dataclass default, so nothing moves until one is stored.
+        """
+        from workflow.layout_engine.presets import LayoutRecipe
+        fallback = float(LayoutRecipe().text_edge_clip_mm or 0.0)
+        try:
+            stored = self._settings.get(TEXT_EDGE_CLIP_SETTING_KEY, None)
+        except Exception:            # a settings store that cannot be read is
+            return fallback          # not a reason to misplace the note
+        if stored is None or stored == "":
+            return fallback
+        try:
+            value = float(stored)
+        except (TypeError, ValueError):
+            return fallback
+        return value if value >= 0.0 else fallback
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
@@ -605,8 +727,16 @@ class ChartCreator:
         params: ChartParams,
         on_line: Callable[[str], None],
         on_finish: Callable[[list[Path]], None],
+        *,
+        keep_results: bool = False,
     ) -> None:
         """Run targen then printtarg; call on_finish(tiff_paths) on completion.
+
+        ``keep_results`` leaves the run's measurement and profile where they
+        are. The tab passes it for Run type = Verification, whose chart is laid
+        down at the run root and then filed into ``verifications/``: the run's
+        profiling work is not what is being replaced, so it has no business in
+        ``old/`` (M-CHART-VERIFY: "no measurement is touched"). B8-860.
 
         Folder routing:
           * ``cal_target=True``  → writes to ``project.calibration.dir/`` with
@@ -643,12 +773,13 @@ class ChartCreator:
             work_dir = cal.ensure_dir()
         else:
             run = proj.current_run()
-            self._announce_result_archive(run, on_line, False)
+            self._announce_result_archive(run, on_line, keep_results)
             # SET THE OLD CHART ASIDE RATHER THAN DELETING IT. Nothing here is
             # "regenerated" unless the build finishes, and every way it can fail
             # now puts the chart back — see `_finish`.
             self._chart_stash_owner = run
-            self._chart_stash = run.reset_chart_artefacts(stash=True)
+            self._chart_stash = run.reset_chart_artefacts(
+                keep_results=keep_results, stash=True)
             work_dir = run.ensure_dir()
             # External -c preconditioning: copy ICC (and sibling .ti3 if
             # refinement is on) into the current run so the chart and the
@@ -899,6 +1030,24 @@ class ChartCreator:
         # in a future session. Mirror the generate() path so this entry point
         # produces the same artifacts.
         self._pending_params = params
+        # THE CALLBACKS ARE THIS BUILD'S, AND THEY ARE SET BEFORE ANYTHING RUNS.
+        # Since 93ba45ee every ending goes through `_finish`, which calls
+        # `_pending_on_finish` and not the `on_finish` handed in here, but only
+        # the engine branch below and `generate()` ever stored it. So the
+        # printtarg branch finished into NOTHING on a first build of a session
+        # (the tab never heard the chart was done: Generate greyed, Stop up, no
+        # preview, and under Run type = Verification the chart was never filed
+        # into verifications/, so it stayed in the run root as the PROFILING
+        # chart), and on a later build it called whatever the PREVIOUS build
+        # had left there. Tester A, beta 39, FROM PROFILE GAMUT: B8-860.
+        self._pending_on_finish = on_finish
+        self._pending_on_line = on_line
+        # …and nothing a previous targen build armed may act on this one: a
+        # printtarg-only build has no targen to relaunch, and a Stop pressed
+        # after the last build ended must not turn this one into a cancel.
+        self._pending_work_dir = None
+        self._restart_fast = False
+        self._cancelling = False
         # Capture the input patch set BEFORE wiping the run: when ti1_path lives
         # inside this very run folder (e.g. a re-layout of the run's own chart),
         # reset_chart_artefacts() would delete it and the copy below would have
@@ -923,8 +1072,6 @@ class ChartCreator:
         # nothing) because this path always ran printtarg (#93). The .ti1 is
         # already in place, so the engine builds from it just like the targen path.
         if self._should_use_engine(params):
-            self._pending_on_finish = on_finish
-            self._pending_on_line = on_line
             self._matched_errors = []
             self._raw_errors = []
             self._matched_warnings = []
@@ -1189,6 +1336,13 @@ class ChartCreator:
             sscale=float(params.spacer_scale or 1.0),
             border=float(params.margin_mm),
             nolimit=bool(params.no_strip_limit),
+            # WILL ANYTHING BE STAMPED DOWN THE RIGHT EDGE? The layout has to
+            # know, because it leaves the strip clear (§R9,
+            # `raster._clear_the_side_stamp`). Exactly the test `stamp_lines`
+            # makes: notes, or the settings line, or both. Guided never clears
+            # `stamp_commands`, so this is True for every Guided chart.
+            side_stamp=bool(params.stamp_commands
+                            or (params.chart_notes or "").strip()),
             # Empty for a new chart (the engine stamps today); set only when a
             # stored chart is being rebuilt and must keep its original date.
             chart_date=str(params.chart_date or ""),
@@ -1253,6 +1407,22 @@ class ChartCreator:
             if not params.is_manual:
                 kw["spacer_on"] = False
                 kw["spacer_mode"] = "none"
+                # GUIDED TURNS THE HONEYCOMB, so every Guided user gets the
+                # straight strips without having to know the option exists.
+                # Measured on the rendered sheets: side-to-side wander within a
+                # strip goes from 6.01 mm to 0.00 mm at identical patch size and
+                # ink, and a strip shortens from 26 patches to 22.
+                #
+                # THIS LINE IS GUIDED'S SINGLE WRITER for the flag. Manual keeps
+                # its own tick in Expert Options and never reaches this branch
+                # with a recipe; a Manual chart WITHOUT one is left alone by the
+                # `not params.is_manual` guard above, so nothing a Manual user
+                # chose is overwritten here.
+                #
+                # An existing project rebuilds from its own stored recipe, where
+                # an absent key still reads False, so reprinting a lost sheet
+                # reproduces the sheet that was printed.
+                kw["hex_flat_top"] = bool(kw.get("hflag"))
         return kw
 
     def _engine_total_patches(self, params: "ChartParams") -> int | None:
@@ -1291,6 +1461,14 @@ class ChartCreator:
             kw = params.layout_recipe.build_kwargs()
             kw["instrument"] = params.instrument
             kw["paper"] = params.paper
+            # THE SAME QUESTION THE GUIDED BRANCH ANSWERS, AND IT IS NOT ON THE
+            # RECIPE. The right-edge stamp is the "Stamp settings down the
+            # right edge" tick plus the run's chart notes, neither of which is
+            # a layout option; the recipe's own `stamp_command` is the BOTTOM
+            # summary line and a different control. Without this the layout
+            # would reserve the strip for a Manual chart that stamps nothing.
+            kw["side_stamp"] = bool(params.stamp_commands
+                                    or (params.chart_notes or "").strip())
             kw["project"] = params.target_name   # {project} → profile name
             # {rundescription} → the run's own description, or the
             # calibration's when this is a calibration chart (Knut, R2: it must
@@ -1571,6 +1749,79 @@ class ChartCreator:
         except OSError as exc:
             log.error("Could not patch ti2 %s: %s", ti2, exc)
 
+    def stamp_lines(self, params: "ChartParams",
+                    patch_count: int = 0) -> list[str]:
+        """Every line that goes down the right edge of the sheet, in order.
+
+        **PUBLIC BECAUSE THE PANEL HAS TO ASK THE SAME QUESTION.** Create
+        Chart's "Measured from Preview" warns when the note is too long for the
+        sheet, and it measured the notes box alone while the stamper printed
+        this whole list joined together. Knut, 2026-09-13:
+
+            "If 'Stamp settings down the right edge' is ON and a chart notes
+             text is added, where the two together become too long for the page
+             height and set limits, then the ending is replaced by '...' but
+             there is no warning at all"
+
+        Measured on his own testHex chart: a 177-character note with the stamp
+        on makes a 285-character line, 37 characters of which are cut, and what
+        is lost is `"t engine    |    ChromIQ 4.3.0-beta.7"` -- the ChromIQ
+        version, which is one of the two things the stamp exists to record. The
+        panel said nothing, because 177 characters do fit on their own.
+
+        A second copy of this list in the panel would have drifted the way the
+        margin inspector's copy did, so there is one list and two callers.
+        """
+        from core.version import APP_VERSION
+        lines: list[str] = []
+        # STRIPPED, LIKE THE LAYOUT NAME BELOW. A notes box holding only spaces
+        # is not a note: it used to be appended and then dropped again by the
+        # stamper's own filter, which is a safety net doing the design's job.
+        # Knut, 2026-09-13: *"make sure that the empty space between two bars
+        # is not due to a missing parameter, or a setting that is empty."*
+        # Nothing should hand the joiner a field with nothing in it.
+        if (params.chart_notes or "").strip():
+            lines.append(params.chart_notes.strip())
+        if params.stamp_commands:
+            # Display-only shortening of long target names / -c profile paths /
+            # -K calibration paths. The argv actually handed to ArgyllRunner
+            # stays full-length; this only rewrites the string that gets
+            # rendered onto the TIFF. " ".join (not shlex.join) so the "(…)"
+            # marker doesn't trigger shell quoting in the rendered line.
+            # STRIPPED, so a name that is only whitespace is no name. Knut,
+            # 2026-09-13, on the doubled bar: *"Also make sure that the empty
+            # space between two bars is not due to a missing parameter, or a
+            # setting that is empty etc."* It was not, every `_JOIN` site drops
+            # empty pieces, but a blank-but-present name did stamp the bare
+            # label "Chart layout" with nothing after it. A field with no value
+            # is not a field: targen names the chart instead, as it does when
+            # there is no name at all.
+            if (params.chart_layout_name or "").strip():
+                # Built from an existing patch set — targen wasn't run, so name
+                # the chart layout instead of stamping a misleading targen line.
+                # NO TRAILING BAR OF ITS OWN. `tiff_metadata._JOIN` already
+                # puts "    |    " between every line, so the extra one here
+                # stamped "... w10.0mm |    |    ChromIQ layout engine" on
+                # every chart built from an armed patch set. Found while
+                # measuring Knut's beta 9 batch, raised with him rather than
+                # changed unasked, and approved: *"Yes, make sure only one
+                # 'bar' is used to separate the layout-name and other
+                # text-fields coming after."* (2026-09-13)
+                lines.append(f"Chart layout {params.chart_layout_name.strip()}")
+            else:
+                lines.append("targen " + " ".join(
+                    _shorten_argv_for_stamp(
+                        self._build_targen_args(params, patch_count))))
+            if self._should_use_engine(params):
+                # The ChromIQ layout engine replaces printtarg, so stamping a
+                # printtarg command would be a lie — name the engine instead.
+                lines.append("ChromIQ layout engine")
+            else:
+                lines.append("printtarg " + " ".join(
+                    _shorten_argv_for_stamp(self._build_printtarg_args(params))))
+            lines.append(f"ChromIQ {APP_VERSION}")
+        return lines
+
     def _stamp_tiff_metadata(self, tiffs: list[Path], params: "ChartParams") -> None:
         """Stamp the actual targen/printtarg commands (and optional notes) into each TIFF."""
         try:
@@ -1605,37 +1856,231 @@ class ChartCreator:
 
         # Build the command/notes lines once. They go to the right margin in
         # normal mode, or into a clip-border column under ChromIQ-style.
-        cmd_lines: list[str] = []
-        if params.chart_notes:
-            cmd_lines.append(params.chart_notes)
-        if params.stamp_commands:
-            # Display-only shortening of long target names / -c profile paths /
-            # -K calibration paths. The argv actually handed to ArgyllRunner
-            # stays full-length; this only rewrites the string that gets
-            # rendered onto the TIFF. " ".join (not shlex.join) so the "(…)"
-            # marker doesn't trigger shell quoting in the rendered line.
-            if params.chart_layout_name:
-                # Built from an existing patch set — targen wasn't run, so name
-                # the chart layout instead of stamping a misleading targen line.
-                cmd_lines.append(f"Chart layout {params.chart_layout_name} |")
-            else:
-                cmd_lines.append("targen " + " ".join(
-                    _shorten_argv_for_stamp(self._build_targen_args(params, patch_count))
-                ))
-            if self._should_use_engine(params):
-                # The ChromIQ layout engine replaces printtarg, so stamping a
-                # printtarg command would be a lie — name the engine instead.
-                cmd_lines.append("ChromIQ layout engine")
-            else:
-                cmd_lines.append("printtarg " + " ".join(
-                    _shorten_argv_for_stamp(self._build_printtarg_args(params))
-                ))
-            cmd_lines.append(f"ChromIQ {APP_VERSION}")
+        cmd_lines = self.stamp_lines(params, patch_count)
 
         if not chromiq_clip:
             # Normal mode: commands/notes go to the right margin.
             if cmd_lines:
-                stamp_chart_metadata(tiffs, cmd_lines)
+                # THE USER'S OWN "TEXT DISTANCE FROM EDGE" TRAVELS WITH IT. The
+                # stamper had no way of knowing the setting existed, so the note
+                # sat 0.5 mm from the paper edge whatever the box said.
+                #
+                # AND A PRINTTARG CHART GETS THE SETTING'S DEFAULT, NOT A
+                # CONSTANT. Knut, 2026-09-10: *"there shall not be any
+                # hard-coded values in the code"*. This branch used to leave
+                # 0.0 here so that the stamper fell back to its own 4 px floor,
+                # which is a number typed into the stamper and 0.5 mm at 200
+                # dpi. A path with no control of its own takes the DEFAULT OF
+                # THE SETTING, which is what Guided below already does. One
+                # number, in one place, and it is the one the box shows a user
+                # who has one. `default_text_edge_clip_mm` IS that one place:
+                # constructing a recipe here to read its default would be right
+                # only until a preference existed, and would then ignore it.
+                _edge = self.default_text_edge_clip_mm()
+                _rec = getattr(params, "layout_recipe", None)
+                if _rec is not None:
+                    try:
+                        # THE CLIP/NOTES SETTING, NOT THE BOTTOM SHEET TEXT'S.
+                        # `text_edge_mm` is the distance for the sheet text
+                        # along the BOTTOM; the run's notes live in the side
+                        # margin, which is what `text_edge_clip_mm` is for.
+                        #
+                        # …AND A TYPED 0 IS 4.0, WHICH THIS READ AS 0.0. The
+                        # engine takes the boxes through
+                        # `LayoutRecipe.build_kwargs()`, where an empty box
+                        # becomes `TEXT_EDGE_DEFAULT_MM`; the panel promises it
+                        # in black ("A distance of 0.0 mm is not used. ChromIQ
+                        # prints at 4.0 mm instead, so no text is set hard
+                        # against the paper edge"). Reading the field raw made
+                        # the note the one piece of text on the sheet that DID
+                        # go hard against the edge: measured on screen, with
+                        # all three boxes typed to 0, its ink ran from 1.40 mm
+                        # of the top and 1.14 mm of the bottom while nothing
+                        # else on the page moved. `effective_text_edge_clip_mm`
+                        # is that substitution asked for rather than repeated.
+                        _edge = float(_rec.effective_text_edge_clip_mm)
+                    except (AttributeError, TypeError, ValueError):
+                        # A recipe-shaped object that is not a `LayoutRecipe`
+                        # has no property to ask, so fall back to the setting's
+                        # default rather than to a raw field that may be 0.
+                        _edge = self.default_text_edge_clip_mm()
+                    # …AND THE RULER HELPER MARKERS PUSH IT FURTHER IN (#182).
+                    # The note is text against a side page edge like any other,
+                    # so it takes whichever of the two goes furthest in; without
+                    # this it is stamped straight through the side dashes.
+                    from workflow import text_edge_fit as _tef_edge
+                    _edge = _tef_edge.side_text_edge_mm(
+                        _edge,
+                        helper_markers=bool(getattr(_rec, "helper_markers", False)),
+                        marker_edge_mm=float(
+                            getattr(_rec, "helper_marker_edge_mm", 0.0) or 0.0),
+                        marker_len_mm=float(
+                            getattr(_rec, "helper_marker_len_mm", 0.0) or 0.0),
+                        marker_sides=bool(
+                            getattr(_rec, "helper_markers_sides", True)))
+                elif self._should_use_engine(params):
+                    # GUIDED CARRIES NO RECIPE, AND THAT IS WHY THE FIX MISSED
+                    # THE MODE IT WAS REPORTED IN. `_collect_manual` attaches
+                    # `layout_recipe` (ui/tabs/tab_chart.py:19991);
+                    # `_collect_guided` never has. So every Guided chart read
+                    # zero here and the note went back to sitting half a
+                    # millimetre from the paper edge, which is exactly the
+                    # hexagon sheet Knut reported: measured 3.89 mm against a
+                    # 4.00 mm setting while Manual passed 7.5 mm correctly.
+                    #
+                    # Guided has no control for this, so it gets the DEFAULT of
+                    # the setting, which is what Knut asked for: "the text needs
+                    # to stay within the default 'Text distance from edge'
+                    # settings ... for all sides, for Guided mode. Not a
+                    # hardwired margin." A printtarg chart now reads the same
+                    # default for the same reason, at the top of this block.
+                    #
+                    # IT IS READ THROUGH `default_text_edge_clip_mm`, NOT OFF
+                    # THE DATACLASS. A dataclass default is right by accident:
+                    # it happens to equal the preference because there is no
+                    # preference. The accessor is where one plugs in, so Guided
+                    # follows it the day it exists instead of quietly ignoring
+                    # it, which is the fault this line was reported for once
+                    # already.
+                    _edge = self.default_text_edge_clip_mm()
+                # THE USER'S OWN CLIP BAND IS NOT A PLACE FOR THE NOTE. Only
+                # when it is on the RIGHT, which is the side the note uses.
+                _band = 0.0
+                if (_rec is not None
+                        and str(getattr(_rec, "clip_side", "left")) == "right"
+                        and bool(getattr(_rec, "clip_border", False))):
+                    try:
+                        _band = float(getattr(_rec, "clip_border_width_mm", 0.0) or 0.0)
+                    except (TypeError, ValueError):
+                        _band = 0.0
+                # THE SHEET TEXT FRAME'S OWN FONT AND SIZE, because the note is
+                # the user's text and they must be able to control it. Knut,
+                # 2026-09-11: *"The Sheet text frame Font and Size should be
+                # used for the Run Chart Notes text and the 'Stamp settings
+                # used on the chart' checkbox, so that the text is
+                # controllable."* Guided carries no recipe, so it keeps the
+                # stamper's own face and "auto".
+                _font_family = ""
+                _size_pt = 0.0
+                if _rec is not None:
+                    _font_family = str(getattr(_rec, "chart_text_font", "") or "")
+                    try:
+                        _size_pt = float(getattr(_rec, "chart_text_size_mm", 0.0)
+                                         or 0.0) * 72.0 / 25.4
+                    except (TypeError, ValueError):
+                        _size_pt = 0.0
+                # WHERE THE CLIP CONTENT'S OWN TEXT REALLY ENDS, and the gap
+                # the note keeps from it (#182, Knut, 2026-09-12). The note
+                # belongs beside that text, not outside the whole band: on the
+                # ColorMunki A4-306p preset the band is 24.0 mm and its four
+                # lines reach 18.99 mm, so 5.01 mm of it was blank paper the
+                # note was never allowed to use.
+                #
+                # The gap is "the normal distance between two lines of text for
+                # the largest font size specified among the text fields that
+                # are part of the text-box content", so both sizes are asked
+                # and the larger wins. Only the clip content's own text counts
+                # as a reach: an image or the notes design is drawn to the
+                # band, and the band is then the right answer.
+                _reach = -1.0
+                _gap = 0.0
+                if _rec is not None and _band > 0.0:
+                    from workflow import text_edge_fit as _tef
+                    from workflow.layout_engine.raster import clip_text_lines
+                    _lines = (clip_text_lines(getattr(_rec, "clip_text", ""))
+                              if str(getattr(_rec, "clip_content_mode", "")) == "text"
+                              else [])
+                    _clip_pt = 0.0
+                    try:
+                        _clip_pt = float(getattr(_rec, "clip_text_size_mm", 0.0)
+                                         or 0.0) * 72.0 / 25.4
+                    except (TypeError, ValueError):
+                        _clip_pt = 0.0
+                    if _lines:
+                        _reach = _tef.clip_text_reach_mm(
+                            _band, _edge, len(_lines), _clip_pt)
+                        _gap = (_tef.CLIP_LINE_SPACING * _tef.pt_to_mm(
+                            max(_tef.text_floor_pt(_clip_pt),
+                                _tef.text_floor_pt(_size_pt))))
+                # THE NOTE'S TWO ENDS RUN INTO THE TOP AND THE BOTTOM, so they
+                # take those edges' reserves and not the side one (#182,
+                # Knut, 2026-09-12: the reserve on each edge is that edge's
+                # "Text distance from edge" box or the ruler helper markers'
+                # own room, whichever goes furthest in). Measured before this,
+                # on screen: "T" and "B" moved the note by nothing at all, and
+                # with the markers on for "Top/bottom" only its ink landed
+                # inside both dash bands. `_stamp_one` carries the numbers.
+                #
+                # A path with no layout recipe has no boxes of its own, so it
+                # takes the DEFAULT of the setting, exactly as `_edge` does
+                # above, and it has no markers either.
+                from workflow import text_edge_fit as _tef_ends
+                _edge_t = _edge_b = self.default_text_edge_clip_mm()
+                if _rec is not None:
+                    _m_on = bool(getattr(_rec, "helper_markers", False))
+                    _m_e = float(getattr(_rec, "helper_marker_edge_mm", 0.0) or 0.0)
+                    _m_l = float(getattr(_rec, "helper_marker_len_mm", 0.0) or 0.0)
+                    _m_tb = bool(getattr(_rec, "helper_markers_top_bottom", True))
+                    # A TYPED 0 IS 4.0 ON THESE TWO EDGES AS WELL, and reading
+                    # the fields raw put the note's two ends 1.40 mm and
+                    # 1.14 mm from the paper while the strip letters and the
+                    # bottom sheet text kept the 4.0 mm the same boxes gave
+                    # them. Asked through the recipe's own properties, which is
+                    # where `build_kwargs()` gets it.
+                    _edge_t = _tef_ends.edge_reserve_mm(
+                        float(getattr(_rec, "effective_text_edge_top_mm",
+                                      getattr(_rec, "text_edge_top_mm", 0.0))
+                              or 0.0),
+                        _m_on, _m_e, _m_l, _m_tb)
+                    # "B" IS `text_edge_mm` ON THE RECIPE. There is no
+                    # `text_edge_bottom_mm` field: the bottom sheet text's own
+                    # distance is the bottom edge's reserve, which is what
+                    # `instruments.geom_from_build_kwargs` copies into
+                    # `Geom.text_edge_bottom_mm` for the same reason.
+                    _edge_b = _tef_ends.edge_reserve_mm(
+                        float(getattr(_rec, "effective_text_edge_mm",
+                                      getattr(_rec, "text_edge_mm", 0.0))
+                              or 0.0),
+                        _m_on, _m_e, _m_l, _m_tb)
+                # THE PAPER §R9 FREED FOR THIS NOTE, SO THE NOTE SPENDS IT AS
+                # WHITE INSTEAD OF AS TYPE. `raster._clear_the_side_stamp`
+                # shrinks a chart's automatic row labels to move the patch
+                # block clear of this line; the line is then auto-sized from
+                # the paper beside it, so the freed millimetre went straight
+                # into the font and the clearance stayed at nothing --
+                # measured, 7.20 pt to 8.88 pt on the reported chart.
+                # Sebastian, 2026-09-21: *"I'd rather have the stamp size the
+                # same as before (so little smaller than now) but with a tiny
+                # gap to the patches."*
+                #
+                # It is 0.0 on every chart the walk did not touch, so this
+                # changes nothing anywhere else. Asked of the geometry rather
+                # than recomputed here, because the walk is the only thing that
+                # knows what it gave up and a second derivation of that number
+                # is how two of them come to disagree.
+                #
+                # ONLY FOR AN ENGINE CHART. A printtarg sheet is laid out by
+                # ArgyllCMS and the walk never ran on it, so asking OUR
+                # geometry what it freed would hand the stamper a number about
+                # a page that was never drawn.
+                _patch_gap = 0.0
+                if engine_chart:
+                    _saved_notes = list(getattr(self, "_threshold_notes", []))
+                    try:
+                        from workflow.layout_engine import instruments as _inst
+                        _patch_gap = float(getattr(
+                            _inst.geom_from_build_kwargs(
+                                self._engine_kwargs(params)),
+                            "side_stamp_freed_mm", 0.0) or 0.0)
+                    except Exception as exc:  # noqa: BLE001 — never block it
+                        log.debug("side-stamp gap unavailable: %s", exc)
+                    finally:
+                        # `_engine_kwargs` clears this as a side effect and the
+                        # log line that reads it has already run.
+                        self._threshold_notes = _saved_notes
+                stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
+                                     _font_family, _size_pt, _reach, _gap,
+                                     _edge_t, _edge_b, _patch_gap)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.
@@ -1702,8 +2147,21 @@ class ChartCreator:
         from ui.tiff_preview import resolve_ink_channels
         channels = resolve_ink_channels(params.device_type, params.extra_targen_args)
         sidecar = work_dir / f"{stem}.channels.json"
+        extra = {}
+        if params.auto_patches is not None:
+            # B8-1363: the tick that decided the count, so reopening the chart
+            # puts it back (see ChartParams.auto_patches).
+            extra["auto_patches"] = bool(params.auto_patches)
+        # ALWAYS WRITTEN, true or false (B8-1460): a sidecar without the key
+        # is an older chart's, whose patch set the reopen has to judge from
+        # its files. Written only when true, a false said nothing either.
+        # …EXCEPT None (B8-1470): a redraw of an older chart whose origin is
+        # not yet known keeps saying nothing, so the reopen still asks.
+        if params.patch_set_given is not None:
+            extra["patch_set_given"] = bool(params.patch_set_given)
         try:
             sidecar.write_text(json.dumps({
+                **extra,
                 "ink_channels": channels,
                 # Create Chart restores these two when the chart is loaded
                 # again — the TIFF stamp itself can't be read back (mavtop,
@@ -2027,7 +2485,36 @@ class ChartCreator:
         scale_sq = max(p.patch_scale ** 2, 0.01)
         est = max(20, int(est_raw / scale_sq))
 
-        lo = max(20, int(est * 0.5))
+        # THE SEARCH STARTS AT ONE PATCH, NOT AT HALF THE ESTIMATE, AND THAT IS
+        # THE WHOLE POINT OF THIS LINE.
+        #
+        # `est` comes from the same lookup that just failed. For a paper with no
+        # capacity row it is the bare 400 fallback above, so a sheet SMALLER
+        # than half of that had no probe below its real capacity: every probe
+        # returned more than one page, `hi` walked down past `lo`, `best` stayed
+        # 0, and the function returned the estimate that was never measured.
+        # Measured on this checkout with the app's own i1 default (-a0.95 -m10):
+        # a 100 x 150 mm card holds 90 patches and this answered 443; a
+        # 130 x 180 mm one holds 169 and it answered 443 as well. Both logged a
+        # warning nobody sees and put a five-fold over-estimate on screen.
+        # It was reachable before any preset needed it, through the `-p`
+        # "Custom (enter dimensions)" row.
+        #
+        # ONE, NOT TWENTY, AND THE DIFFERENCE IS A REAL PAPER SIZE. A first
+        # attempt at this moved the floor from `est*0.5` to 20 — enough for the
+        # two sheets that prompted it, and still wrong below that. Measured: a
+        # 60 x 90 mm sheet (2.4 x 3.5", the wallet print) holds 16 patches, and
+        # a floor of 20 answered 443 for it, exactly the fault this comment
+        # describes. `_probe` is happy all the way down (1, 2, 3 … all return
+        # one page on that sheet), so there is no reason to stop above it.
+        #
+        # It cannot miss: the search is over a monotonic function, so a wider
+        # window can only find the same answer or an answer the narrow one could
+        # not reach. Measured cost against the old window, real Argyll, ten
+        # instrument/paper/scale combinations: the probe count grows by at most
+        # ONE, and every paper with a measured capacity row returns the same
+        # number it always did.
+        lo = 1
         hi = max(lo + 50, int(est * 2.5))
         lo_init, hi_init = lo, hi
         best = 0
@@ -2056,8 +2543,24 @@ class ChartCreator:
                     hi = mid - 1
 
         if best == 0:
-            log.warning("_binary_search found no valid capacity in [%d, %d]; "
-                        "falling back to scaled estimate %d", lo_init, hi_init, est)
+            # WITH A FLOOR OF ONE PATCH, REACHING HERE MEANS SOMETHING ELSE NOW.
+            # It is no longer "the window started too high"; it is that not even
+            # a SINGLE patch fits on one page, i.e. the sheet is too small for
+            # this instrument's layout at all. Measured: `-ii1 -p50x50` spills
+            # one patch across three pages, because an i1Pro strip needs a 23 mm
+            # leader, a 10 mm run-off and the clip border before any colour.
+            #
+            # `est` is still returned, because every caller assigns this straight
+            # to `params.patches` and needs a number. That is the one thing this
+            # function still cannot say honestly, and it is a different problem
+            # from the one fixed here: telling somebody their paper is too small
+            # for their instrument is a message, not a number. The log at least
+            # no longer blames the search.
+            log.warning("_binary_search: not even one patch fits on a single "
+                        "page of %s for instrument %s (probed [%d, %d]) — the "
+                        "sheet is too small for this layout. Returning the "
+                        "UNVERIFIED estimate %d",
+                        p.paper, p.instrument, lo_init, hi_init, est)
             return est
         return best
 
@@ -2094,3 +2597,39 @@ class ChartCreator:
                 f.unlink()
             except OSError:
                 pass
+
+
+# ---------------------------------------------------------------------------
+# The two layout builders, asked without a run (#182 K40-1)
+# ---------------------------------------------------------------------------
+class _NoRun:
+    """What :meth:`ChartCreator._build_printtarg_args` and
+    :meth:`ChartCreator._engine_build_kwargs` need of a creator, and nothing
+    more: a chart stem, which the caller throws away. The binary search above
+    already asks the printtarg builder this way (``[:-1]``)."""
+
+    class _Stem:
+        @staticmethod
+        def chart_stem(cal_target: bool = False) -> str:   # noqa: ARG004
+            return "chart"
+
+    _file_mgr = _Stem()
+
+
+def printtarg_layout_argv(params: ChartParams) -> "list[str]":
+    """printtarg's argument list for *params*, without the chart stem.
+
+    **THE SAME BUILDER A GENERATE CLICK RUNS**, not a copy of it: the presets
+    window lays a printtarg preset out behind the scenes (Knut, #182
+    5832026677: *"the window must layout that preset behind the scenes, if
+    needed, so that the window can judge it"*), and a second argument builder
+    would be a second opinion about the page the chart is printed on.
+    """
+    return ChartCreator._build_printtarg_args(_NoRun(), params)[:-1]
+
+
+def engine_build_kwargs(params: ChartParams) -> dict:
+    """The layout engine's build arguments for *params*, asked without a run:
+    :meth:`ChartCreator._engine_build_kwargs`, which reads nothing of the
+    creator itself."""
+    return ChartCreator._engine_build_kwargs(_NoRun(), params)

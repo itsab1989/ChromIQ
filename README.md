@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.1.4-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.3.2-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -30,6 +30,15 @@ Under the hood it drives [**ArgyllCMS**](https://www.argyllcms.com/), the
 gold-standard open-source colour engine, through a friendly five-step wizard.
 ArgyllCMS does all the colour science; ChromIQ gives it a calm, guided interface
 so you never have to memorise a single flag.
+
+> [!TIP]
+> **What is new in 4.3**: the
+> [Measurement Report](#measurement-report-new-in-43) with six report types,
+> limit sets that include the published values of ISO 12647-7 and ISO 12647-8,
+> evenness across the sheet, trend graphs and PDF reports; 188 built-in chart
+> presets (154 in 4.2) with a gear button to choose which are listed; and
+> ChromIQ complete in 14 languages, Ukrainian among them. The full list is in
+> the [release notes](https://github.com/itsab1989/ChromIQ/releases/latest).
 
 > [!NOTE]
 > **New to printer profiling?** That's exactly who ChromIQ is for. Every screen
@@ -71,7 +80,7 @@ To build a profile you need three things:
 
 1. **A printer** — any inkjet (RGB, CMYK, or extended-gamut with extra inks).
 2. **A spectrophotometer** — the device that "reads" the printed colours.
-   ChromIQ supports the X-Rite family:
+   ChromIQ supports:
 
    | Code | Instrument |
    |------|-----------|
@@ -79,6 +88,7 @@ To build a profile you need three things:
    | `p3` | i1Pro 3 Plus |
    | `CM` | ColorMunki / i1Studio / ColorChecker Studio |
    | `SS` | SpectroScan (flatbed XY table) |
+   | `CR30` | ChnSpec CR30, a low-cost hand-held spectrophotometer with no ArgyllCMS support: ChromIQ drives it itself, over USB and Bluetooth |
 
 3. **ArgyllCMS** installed on your computer — ChromIQ looks for it automatically
    and walks you through installing it if it's missing. See
@@ -199,6 +209,19 @@ Choose Guided or Manual, name your target, and click **Generate Chart**. The
 patch grid appears in the preview on the right. Optionally tick **Refinement
 profile** to base a second, improved pass on an existing `.icc`/`.icm`.
 
+Or start from one of **188 ready-made chart presets** (154 in 4.2), grouped by
+instrument: ColorMunki / i1Studio / ColorChecker Studio, i1Pro / i1Pro 2 /
+i1Pro 3, i1Pro 3 Plus, CR30, scanner, and Red River Paper.
+
+**New in 4.3:** the **gear button** beside the presets folder opens
+**Settings for built-in presets**, which lists every built-in preset with a tick box. The ticked ones are listed directly; the rest
+wait under an arrow at the end of their group, so nothing is removed. ChromIQ
+starts you on a few per instrument and paper size, and only the changes you
+make are kept, so a later release can still improve that starting list. On a
+verification run, **Which presets can be used for verification?** lists every
+preset against the metrics the report you plan asks of a chart, and says which
+of them each chart can answer, and why not.
+
 ### Step 2 — Print Chart
 Pick your printer and print the chart. **On macOS the native print dialog is now
 the default** — ChromIQ opens the OS print sheet and *locks the driver's colour
@@ -219,6 +242,20 @@ The chart from Step 1 loads automatically. Follow the on-screen prompts:
 between strips (the on-screen strip highlight follows along). Misread a strip?
 The dialog offers **Retry**, **Skip Stripe**, or **Save Partial & Quit** (which
 lets you resume later with one click).
+
+With a **ChnSpec CR30** the chart is read patch by patch: ChromIQ finds the
+instrument over USB or Bluetooth, calibrates it with you step by step, draws
+the instrument's 33 mm body to scale on the patch it is asking for, and takes a
+reading on **Space** or **Enter** so the instrument is never nudged by its own
+button. A magnet near the measuring opening (a laptop lid under the paper is
+enough) makes a CR30 return its white-tile value instead of your patch;
+ChromIQ learns that value and refuses such a reading rather than writing it
+into your profile. Twenty-six ready-made CR30 charts are in the Presets
+dropdown (twenty in 4.2; six more in 4.3).
+On Windows, **Preferences ▸ Instrument drivers…** installs the drivers for
+ArgyllCMS's instruments and for the CR30 from one place, and **Tools ▸
+Instruments** writes a Bluetooth report for when the instrument will not
+connect.
 
 ### Step 4 — Build Profile
 Review the `colprof` settings and click **Build Profile**. Then **Install
@@ -452,15 +489,25 @@ inspector**. The chart tools themselves are fully supported; note that
 ### Tools menu — standalone utilities
 The masthead **Tools** button opens a menu of conversions and checks you can run
 on their own, outside the five-step flow:
-- **Edit / create chart layout** — the full layout editor and colour-set
-  generator described above: reorder strips, recolour patches and spacers,
-  combine charts, generate custom colour sets, and view them in 3D.
-- **Average measurements** — combine repeat reads of the same chart for lower noise.
-- **Merge measurements** — fold extra measurements into an existing set.
-- **Convert TI1 → i1Profiler** and **Convert i1Profiler → TI1 / TI3** — move charts
-  and measurements between ChromIQ/ArgyllCMS and X-Rite i1Profiler.
-- **Verify a profile** (independent check) and **Verify against reference** —
-  validate an existing profile's accuracy without rebuilding it.
+- **Measurements**: **Read single patches** (spot readings off any material),
+  **Average measurements** (combine repeat reads of the same chart for lower
+  noise), **Merge measurements** (fold extra measurements into an existing set),
+  **Inspect a measurement**, and **Measurement report (accuracy & trends)**.
+- **Charts & patch sets**: **Edit / create chart patch set**, the full layout
+  editor and colour-set generator described above (reorder strips, recolour
+  patches and spacers, combine charts, generate custom colour sets), and
+  **Show patch distribution (3D)**.
+- **Scanner & camera**: **Create scanner or camera target (.cht + .cie)** and
+  **Build profile with scanner or camera (from a scan or photo)**.
+- **i1Profiler interchange**: **Convert TI1 → i1Profiler**, **Convert
+  i1Profiler → TI3** and **Convert i1Profiler → TI1**, to move charts and
+  measurements between ChromIQ/ArgyllCMS and X-Rite i1Profiler.
+- **Profiles**: **Inspect a profile**, **Verify a profile (independent check)**,
+  **Verify against reference**, **Create device-link profile**, **Apply a
+  device-link to an image**, and **Soft-proof / check an image**.
+- **Instruments**: **CR30 Bluetooth report (for when it will not connect)**.
+  The Windows driver installer is under **Preferences ▸ Instrument drivers…**.
+- **Language**: **Translate / edit language**.
 
 ### Your work, kept in order
 - **Every run keeps its own chart, measurement, settings and description.**
@@ -473,17 +520,73 @@ on their own, outside the five-step flow:
   file live in the project's `cal/` folder, shared by every run, and each
   profile records which calibration it was built with.
 - **Verification runs, kept as history.** Measure a chart printed *through* a
-  finished profile and the result is filed by date with its own report — earlier
-  checks are never overwritten, so you can watch a profile drift over months.
+  finished profile and the result is filed by date with its own report. Earlier
+  checks are never overwritten, so you can watch how a profile changes over
+  months.
+
+### Measurement Report (new in 4.3)
+Any measurement becomes a **Measurement Report**, from the Measure tab or from
+**Tools ▸ Measurement report (accuracy & trends)**. Choose what kind of document
+you need and which set of limits it is judged against. ChromIQ measures every
+metric your chart can answer and marks each one PASS or FAIL against its
+limit (INFO where a set gives it no limit), and marks N-A, with the reason,
+the ones this chart cannot answer.
+
+- **Six report types**: Colour summary (one page), Full colour check, Grey and
+  tone check, Printing record (not graded), Validation print check
+  (ISO 12647-8) and Contract proof check (ISO 12647-7). The run type decides
+  what is offered: the sheet a profile was built from gets a printing record;
+  a verification gets the judged types, the two ISO types among them; a
+  calibration gets the judged types without the two ISO types, and can still
+  be judged against an ISO limit set.
+- **Limit sets**, in the **Report limits** window:
+  - ChromIQ's own: **ChromIQ default** (2.0 on the averages, 3.0 on the
+    maxima), **ChromIQ tight** (half of those accuracy limits) and **Quick
+    check** (twice them), each with grey-balance and evenness limits of its
+    own;
+  - **ISO 12647-7:2016 values** (contract proofs) and **ISO 12647-8:2021
+    values** (validation prints), the standards' published tolerance values,
+    read-only;
+  - **Custom ISO 12647-7** and **Custom ISO 12647-8**, alternatives to each
+    standard that start from limits researched from industry practice and
+    ChromIQ's own numbers, not the standard's, and are yours to change.
+
+  One report uses one limit set for every measurement in it.
+- **Grey balance, tone ramps and evenness**: the grey ramp is judged for
+  colour cast (the mid-tone ramps with it under ISO 12647-8 and the two Custom
+  ISO sets), and the sheet is split into nine areas and compared, so a band or
+  an uneven dry-down shows up as a number. The measurement's own noise is
+  taken out first, so the number is the unevenness itself, and the ISO sets
+  judge it with the standards' figures converted to ChromIQ's method.
+- **A saved report stays as it was saved.** Reopening it shows exactly the
+  figures, verdicts and limits it was made with; a new or updated report is
+  worked out by the version you are running.
+- **Trend graphs**: every judged metric over time, across your dated
+  verifications, each with its own limit line.
+- **Save report as PDF**: the whole report, or the one-page summary to hand
+  over with a job.
+
+> [!IMPORTANT]
+> **ChromIQ measures against published values; it does not certify.** The
+> ISO 12647 values are applied to the chart you printed, not to that
+> standard's own control strip and chart, so a report can never say that a
+> print conforms to a standard. What ChromIQ does is measure as many of the
+> standard's values as your chart allows, say which it checked and which it
+> did not, and let you follow them over time. Requirements ChromIQ cannot
+> measure at all stay in the limits table, marked ✕, so you can see what the
+> standard asks.
 
 ### A calm, modern app
-- **Light / Dark / System (Auto)** appearance that follows your OS theme live.
+- **Light, Dark and Neutral** appearance, or **System (Auto)**, which follows
+  your OS theme live. Neutral is a designed greyscale for anyone who would
+  rather the app did not use colour to say things.
 - **Sounds during measurement** — a strip accepted, a patch misread, a session
   finished. Choose a pack or your own files under **Preferences → Sounds**, so
   you can keep your eyes on the chart instead of the screen.
-- **Twelve languages, complete** — German, Spanish, French, Italian, Dutch,
-  Portuguese, Swedish, Norwegian, Polish, Russian, Japanese and Chinese. Every
-  button, message, tooltip and help text, not just the menus.
+- **Fourteen languages, complete**: English plus German, Spanish, French,
+  Italian, Dutch, Portuguese, Swedish, Norwegian, Polish, Russian, Ukrainian,
+  Japanese and Chinese. Every button, message, tooltip and help text, not just
+  the menus. Ukrainian is new in 4.3.
 - **Per-tab onboarding tooltips**, **live command preview**, and a **zoomable
   multi-channel TIFF preview** (RGB, CMYK, extended-gamut).
 - **Session restore**, **rotating log file**, and a built-in **update checker**.
@@ -676,6 +779,10 @@ and pycups), so the combined application is, and remains, free and open source.
 ArgyllCMS (AGPLv3) is used at arm's length as a separate command-line program and
 is not bundled or modified, so its copyleft does not extend to ChromIQ's own code.
 
+Everything ChromIQ *ships* that somebody else wrote — colour profiles, fonts, the
+plotly bundle, sounds, the test image — is listed with its terms in
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
 ---
 
 ## Acknowledgements
@@ -683,6 +790,11 @@ is not bundled or modified, so its copyleft does not extend to ChromIQ's own cod
 ChromIQ stands on the shoulders of [**ArgyllCMS**](https://www.argyllcms.com/) by
 Graeme Gill — an outstanding open-source colour management system that does all
 the real colour science here. ChromIQ is purely a friendly front-end to it.
+
+A heartfelt thanks to **LackiUA** for the complete Ukrainian translation,
+contributed on [issue #198](https://github.com/itsab1989/ChromIQ/issues/198):
+5,425 rows, every placeholder intact, and the keys their export did not cover
+left in English rather than guessed at.
 
 A heartfelt thanks to **soul-traveller** for
 [Argyll_Printer_Profiler](https://github.com/soul-traveller/Argyll_Printer_Profiler)

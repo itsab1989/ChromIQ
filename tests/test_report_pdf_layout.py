@@ -102,9 +102,27 @@ def test_two_straddlers_resolve_independently(qapp):
 
 
 def test_wrapped_legend_gets_its_own_rows(qapp):
-    """At the PDF grab width the five ΔE labels wrap to two legend rows; at a
-    wide window they fit one. The row count is what moves the plot down, so a
-    wrapped legend can never be painted across the graph."""
+    """A legend too narrow for its five ΔE labels takes more than one row; a
+    wide one takes exactly one. The row count is what moves the plot down, so a
+    wrapped legend can never be painted across the graph.
+
+    THE NARROW WIDTH IS MEASURED, NOT ASSUMED, AND THAT IS THE CHANGE HERE.
+    This asked for two rows at the 640 px PDF grab width, a figure taken on the
+    Windows offscreen gate with an EMPTY font database, where every glyph is a
+    box of `pixelSize` and five labels could not possibly fit. With ChromIQ's
+    own fonts registered the same five labels measure 82 + 84 + 84 + 90 + 92 =
+    **432 px** at `pixelSize(10)` and fit the 588 px the PDF grab leaves on ONE
+    row — so `narrow >= 2` failed on `assert 1 >= 2` at a width where the app
+    is behaving correctly. Measured on this tree, 2026-09-06, rows against the
+    available width: 200 → 5, 260 → 3, 340 → 2, 560 → 2, 600 → 1.
+
+    The wrapping threshold therefore moves with the font, and pinning a pixel
+    figure to it pins the font. Every width below is derived from the labels
+    themselves, so each assertion says what it means on any metrics. That
+    includes the last pair: the 640 px PDF grab width was pinned here too,
+    and it is a Windows figure that fails on macOS for exactly the reason
+    this paragraph gives. See the note beside it.
+    """
     from PyQt6.QtGui import QColor, QFont, QFontMetricsF
     from ui.dialogs.measurement_report_dialog import _TrendChart
     chart = _TrendChart()
@@ -115,10 +133,34 @@ def test_wrapped_legend_gets_its_own_rows(qapp):
     font = QFont()
     font.setPixelSize(10)
     fm = QFontMetricsF(font)
-    narrow = chart._legend_rows(fm, 40.0, 640 - 52.0)
+    # Half of what the five labels' own glyphs need: whatever the font, that
+    # cannot be one row.
+    too_narrow = sum(fm.horizontalAdvance(l) for l in labels) / 2.0
+    narrow = chart._legend_rows(fm, 40.0, too_narrow)
     wide = chart._legend_rows(fm, 40.0, 1600 - 52.0)
-    assert narrow >= 2, narrow
+    assert narrow >= 2, (narrow, too_narrow)
     assert wide == 1, wide
+    # …and the plot really is pushed down by the extra rows, which is the whole
+    # point of counting them.
+    assert chart._legend_rows(fm, 40.0, too_narrow / 2.0) > narrow
+    # AND THE WIDTH AT WHICH IT STOPS WRAPPING IS THE LABELS' OWN WIDTH.
+    # This line used to pin the 588 px the PDF grab leaves and assert ONE
+    # row there, which is the pixel figure the docstring above says must not
+    # be pinned, three lines after saying it. `QFont()` with no family asked
+    # for resolves to whatever the platform calls its default sans, and the
+    # five labels are 432 px of that on the Windows machine the figure was
+    # taken on and 621 px of Helvetica here, so 588 px holds one row there
+    # and two here. Measured on macOS 2026-09-06, with and without the
+    # bundled fonts registered: identical either way, 119.5 + 123.6 + 121.3
+    # + 126.2 + 130.3 = 621 px of advances, 755 px with the chips, 2 rows.
+    #
+    # So the threshold is asserted where it actually is: at exactly the
+    # width the labels and their chips need, and one pixel below it. That is
+    # the property the pinned figure was reaching for, it is stronger than
+    # the pin, and it holds in any font.
+    needed = 4.0 + sum(26 + fm.horizontalAdvance(l) for l in labels)
+    assert chart._legend_rows(fm, 40.0, needed + 0.5) == 1, needed
+    assert chart._legend_rows(fm, 40.0, needed - 1.0) == 2, needed
 
 
 def test_trend_chart_paints_at_pdf_width(qapp):
@@ -146,3 +188,143 @@ def test_trend_chart_paints_at_pdf_width(qapp):
     assert img.width() / (img.devicePixelRatio() or 1.0) == 640, (
         f"chart grabbed {img.width()} px at ratio {img.devicePixelRatio()} — "
         f"that is not a 640 px wide chart")
+
+
+# ---------------------------------------------------------------------------
+# The orphaned heading of 2026-09-10 (Basti: "on page two there is only the
+# headline how to read this report and nothing else")
+# ---------------------------------------------------------------------------
+#
+# The report builds each main section as `_h2(..., page_break=True)` + `_gap()`
+# + a one-cell table holding the whole body. Two guards inside
+# `paginate_tables` sent that shape down the "break the table" fallback and
+# left the heading behind; the tests below pin both, and the shape they use is
+# the report's own, taken from `_h2`/`_gap` rather than written out again.
+
+_PANEL_BODY = "".join(f"<p>Body line {i} of the section.</p>" for i in range(12))
+
+
+def _section(*, page_break: bool, gap: bool = True, filler: int = 6) -> str:
+    """The report's section shape: heading, spacer, one-cell body panel."""
+    from ui.dialogs.measurement_report_dialog import _gap, _h2
+    return ("<p>" + "Report scope filler<br>" * filler + "</p>"
+            + _h2("How to read this report", page_break=page_break)
+            + (_gap() if gap else "")
+            + "<table width='100%' cellpadding='12' cellspacing='0'>"
+            "<tr><td style='background:#f4f7f6'>" + _PANEL_BODY
+            + "</td></tr></table>")
+
+
+def _heading_and_table_pages(doc):
+    """(page of the heading, page the table starts on), 0-based."""
+    from ui.pdf_layout import settled_layout
+    lay = settled_layout(doc)
+    (table,) = _tables(doc)
+    head = doc.begin()
+    while head.isValid() and not head.text().strip().startswith("How to read"):
+        head = head.next()
+    assert head.isValid(), "the section heading vanished from the document"
+    return (int(lay.blockBoundingRect(head).top() // BODY_H),
+            int(lay.frameBoundingRect(table).top() // BODY_H))
+
+
+def test_a_forced_heading_never_loses_its_panel(qapp):
+    """The report's own shape, break and all: `paginate_tables` must not push
+    the body panel off the page and leave the heading alone on it.
+
+    The heading already carries `page-break-before:always`, so it is already at
+    the top of its page — moving the table cannot bring them together, it can
+    only strand the heading. This is the page 2 of Basti's proof PDF."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()                 # page breaks pivot on real line heights
+    doc = _doc(_section(page_break=True))
+    _paginate_tables(doc, BODY_H)
+    h_page, t_page = _heading_and_table_pages(doc)
+    assert h_page == t_page, (
+        f"heading left alone on page {h_page + 1} with its section on "
+        f"page {t_page + 1}")
+
+
+def test_the_spacer_under_a_heading_does_not_detach_it(qapp):
+    """Same shape without the forced break. The `_gap()` spacer is 26 px of the
+    24 px this rule allows between a heading and its table, so measuring the
+    distance from the HEADING rather than from the spacer judged the two
+    unattached and broke the table on its own."""
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()
+    doc = _doc(_section(page_break=False))
+    _paginate_tables(doc, BODY_H)
+    h_page, t_page = _heading_and_table_pages(doc)
+    assert h_page == t_page, (
+        f"heading left alone on page {h_page + 1} with its section on "
+        f"page {t_page + 1}")
+
+
+def test_a_heading_far_above_a_table_is_still_left_behind(qapp):
+    """The other side of that measurement, so the fix cannot become "always
+    bind whatever is above". A heading separated from the table by a real
+    paragraph of its own is not the table's heading, and the table moves alone.
+    """
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()
+    from ui.dialogs.measurement_report_dialog import _h2
+    html = ("<p>" + "filler<br>" * 8 + "</p>"
+            + _h2("Not this table's heading")
+            + "<p style='margin-top:60px'>An intervening paragraph.</p>"
+            + f"<table>{_rows(12)}</table>")
+    doc = _doc(html)
+    _paginate_tables(doc, BODY_H)
+    from ui.pdf_layout import settled_layout
+    lay = settled_layout(doc)
+    (table,) = _tables(doc)
+    r = lay.frameBoundingRect(table)
+    assert int(r.top() // BODY_H) == int((r.bottom() - 1) // BODY_H), \
+        "the table was left straddling although it had room to move"
+
+
+def test_giving_up_on_one_panel_does_not_abandon_the_next_table(qapp):
+    """A section whose panel cannot fit under its own forced heading is left
+    straddling — and the loop must RECORD that and move on.
+
+    `paginate_tables` re-finds the topmost straddler on every pass, so a table
+    it decides not to touch is the one it finds again next time. Without the
+    skip list it would spend all 400 passes on that panel and never reach the
+    "Worst patches" table below, which straddles and can be fixed.
+    """
+    from _fontcheck import skip_without_fonts
+    skip_without_fonts()
+    html = (_section(page_break=True)
+            + "<p>" + "tail filler<br>" * 12 + "</p>"
+            + "<h3>Worst patches</h3>" + f"<table>{_rows(14)}</table>")
+    doc = _doc(html)
+    from ui.pdf_layout import settled_layout
+    lay = settled_layout(doc)
+    late_before = sorted(_tables(doc), key=lambda t: t.firstPosition())[-1]
+    r0 = lay.frameBoundingRect(late_before)
+    assert int(r0.top() // BODY_H) != int((r0.bottom() - 1) // BODY_H), \
+        "the fixture is wrong: the second table does not straddle to begin with"
+
+    _paginate_tables(doc, BODY_H)            # must terminate
+
+    h_page, t_page = _heading_and_table_pages_of_first(doc)
+    assert h_page == t_page, (
+        f"heading left alone on page {h_page + 1} with its section on "
+        f"page {t_page + 1}")
+    lay = settled_layout(doc)
+    late = sorted(_tables(doc), key=lambda t: t.firstPosition())[-1]
+    r = lay.frameBoundingRect(late)
+    assert int(r.top() // BODY_H) == int((r.bottom() - 1) // BODY_H), \
+        "the second table was abandoned because the first could not be helped"
+
+
+def _heading_and_table_pages_of_first(doc):
+    """As `_heading_and_table_pages`, for a document with several tables."""
+    from ui.pdf_layout import settled_layout
+    lay = settled_layout(doc)
+    table = sorted(_tables(doc), key=lambda t: t.firstPosition())[0]
+    head = doc.begin()
+    while head.isValid() and not head.text().strip().startswith("How to read"):
+        head = head.next()
+    assert head.isValid()
+    return (int(lay.blockBoundingRect(head).top() // BODY_H),
+            int(lay.frameBoundingRect(table).top() // BODY_H))

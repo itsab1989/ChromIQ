@@ -467,6 +467,17 @@ def test_no_dictionary_term_is_printed_without_its_definition(qapp, tmp_path):
                      if ln.strip()]
             # lines[0] is our own header band, lines[-1] the centred page number
             body = lines[1:-1]
+            # …UNLESS THE EXTRACTOR JOINED THE PAGE NUMBER TO THE LAST LINE OF
+            # TEXT. Measured on A5 page 11 (2026-09-23, after the glossary's
+            # ISO entries grew for #182 S-2): the definition's first line sits
+            # on the page, 8 px above the body's foot, and the text layer hands
+            # it back as "Two populations ... Surface\ufffePage 11 of 21", one
+            # line with the page number. Dropping that line as "the page
+            # number" made the term above it look stranded when the sheet
+            # carries both. The text before the page number is body text.
+            joined = re.match(r"^(.*\S)[\s\ufffe]*Page \d+ of \d+$", lines[-1])
+            if joined and len(lines) > 1:
+                body = lines[1:-1] + [joined.group(1)]
             if body and body[-1] in terms:
                 stranded.append(f"{size} page {page + 1}: {body[-1]!r}")
     assert not stranded, (
@@ -683,9 +694,14 @@ def test_a_straddling_row_is_pushed_by_breaking_after_the_row_above(qapp):
         "border and padding are painted overleaf — the thin empty band of #164")
 
 
+# RE-MEASURED 2026-09-23, K25: "Where are my files" gained two rows (the saved
+# reports in verifications/reports/ and <project>/reports/, Knut Q6), 13 -> 14
+# on BOTH sizes, measured, not assumed.
+# RE-MEASURED 2026-09-23, #182 beta 39: the guide gained cal/reports/ (a tree
+# entry, a folder entry and a saved-report row), 14 -> 15 on BOTH sizes.
 @pytest.mark.parametrize("page,expect", [
-    ("A4", {"main_actions": 3, "file_guide": 9}),
-    ("Letter", {"main_actions": 3, "file_guide": 9}),
+    ("A4", {"main_actions": 3, "file_guide": 15}),
+    ("Letter", {"main_actions": 3, "file_guide": 15}),
 ])
 def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
     """Keeping a row whole costs very little once the page skip is gone.
@@ -696,7 +712,18 @@ def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
     The folder guide's tenth sheet on US Letter went with
     :func:`ui.pdf_layout.drop_orphan_tail`: it was never the price of a whole
     row either, but the card's colophon overflowing the shorter US Letter body
-    by 1.7 px. A4 and US Letter now agree at 9.
+    by 1.7 px.
+
+    **9 → 13, 2026-09-21, and it is CONTENT, not a rule.** Knut asked for the
+    folders and files the Measurement Report work introduced
+    (`compliance/`, `reference_sets/`, the control-strip declaration, the
+    colorimetric reference, the print record, the reports/old archive) in both
+    the structure overview and the per-tool section. That is a second tree
+    root, three folder rows, five feature rows and a new four-row group. The
+    number it must NEVER be adjusted to is one that differs between the two
+    page sizes: A4 and US Letter agreeing is the guarantee, and they still do.
+    Re-measure with `scripts/proof_help_cards_through_the_real_printer.py`
+    before touching it.
     """
     from PyQt6.QtCore import QMarginsF
     from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter
@@ -712,3 +739,137 @@ def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
                               QPageLayout.Unit.Millimeter)
         got = render_card(wf, writer)
         assert got == want, f"{page}/{key}: {got} pages, expected {want}"
+
+
+# --- and the SAME rules on the Measurement Report ---------------------------
+#
+# Every test above prints a Help card. The report is the other document these
+# rules were written for, and it printed a page 2 carrying the words "How to
+# read this report" and nothing else (Basti, 2026-09-10, the beta 3 proof PDF).
+# These two go through the report's own `_export_pdf`, so they judge the sheet
+# the user gets rather than a document a test laid out for itself.
+
+def _report_pdf(tmp_path, monkeypatch):
+    """Save a real Measurement Report to PDF, exactly as the Save button does."""
+    from tests.test_import_measurement_module import _measurement
+
+    from core.settings import AppSettings
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    import ui.widgets as widgets
+
+    ti3 = _measurement(tmp_path)
+    out = tmp_path / "report.pdf"
+    monkeypatch.setattr(widgets, "save_file_dialog",
+                        lambda *a, **kw: str(out), raising=False)
+    from PyQt6.QtGui import QDesktopServices
+    monkeypatch.setattr(QDesktopServices, "openUrl", lambda *a: True)
+    dlg = MeasurementReportDialog(AppSettings(), None, initial_ti3=str(ti3))
+    try:
+        dlg._export_pdf()
+    finally:
+        dlg.deleteLater()
+    assert out.exists(), "the report wrote no PDF"
+    return out
+
+
+def _report_page_bodies(pdf):
+    """Each page's text with the painted header band and footer removed.
+
+    Those two are drawn by hand on every sheet and are not the page's content:
+    the wordmark, the scope line (profile names + run count + date range) and
+    the centred page number.
+    """
+    from PyQt6.QtPdf import QPdfDocument
+
+    doc = QPdfDocument(None)
+    doc.load(str(pdf))
+    out = []
+    for i in range(doc.pageCount()):
+        sel = doc.getAllText(i)
+        text = sel.text() if hasattr(sel, "text") else str(sel)
+        lines = [x.strip() for x in text.splitlines() if x.strip()]
+        out.append([l for l in lines
+                    if l != "ChromIQ"
+                    and not re.match(r"^Page \d+ of \d+$", l)
+                    and "measurement run" not in l
+                    # the running header counts measurements since beta 39
+                    # (R2 #14/#15): "<profile>  3 measurements (d0 – d1)"
+                    and not re.search(r"\b\d+ measurements? \(", l)])
+    return out
+
+
+def test_the_report_never_prints_a_page_that_is_a_heading_and_nothing_else(
+        qapp, tmp_path, monkeypatch):
+    """Knut's rule, on the report, read off the finished sheet.
+
+    "How to read this report" is `_h2(page_break=True)` + `_gap()` + a one-cell
+    table holding the whole section. `paginate_tables` pushed that table to the
+    next page and left the heading behind: page 2 of the beta 3 proof PDF held
+    121 characters, and they were the header, the heading and the footer.
+
+    Judged by what is LEFT on a page once the hand-painted bands are taken off,
+    so it does not depend on ink, on a page number, or on which page the fault
+    lands on. A sparse page is not itself the fault and is not asserted against:
+    the tail of a section that flows over a boundary is a normal sheet, and the
+    report has one (0.7 % ink, the last lines of this same section). A heading
+    with nothing under it is not.
+    """
+    from ui.dialogs.measurement_report_dialog import _h2
+
+    pdf = _report_pdf(tmp_path, monkeypatch)
+    bodies = _report_page_bodies(pdf)
+    assert len(bodies) >= 2, f"a one-page report proves nothing here: {bodies}"
+    # Every main heading the report can write, taken from the report itself.
+    headings = {re.sub(r"<[^>]+>", "", _h2(t)).strip() for t in (
+        "How to read this report", "Report Results",
+        "Overview of Measurement Metrics", "Trend over time",
+        "Detailed data per measurement")}
+    stranded = [i + 1 for i, body in enumerate(bodies)
+                if len(body) == 1 and body[0] in headings]
+    assert not stranded, (
+        f"page(s) {stranded} carry a section heading and nothing else — "
+        + " | ".join(f"p{i + 1}: {b}" for i, b in enumerate(bodies)))
+
+
+def test_the_report_body_never_paints_over_its_own_header_band(
+        qapp, tmp_path, monkeypatch):
+    """`PaintContext.clip` picks the slice to draw; it does not stop an element
+    drawing outside it.
+
+    Letting the "How to read this report" panel flow across a page boundary,
+    rather than pushing it off page 2, put its grey background over the whole
+    header band of the page it continued on: the wordmark, the scope line and
+    four of the five colour segments were painted over, with a line of the
+    panel's text on top of them. `render_paged` has carried the painter clip
+    that prevents this since #164; the report's own loop never got it.
+
+    Judged on the colour line, because it is the one thing in the band whose
+    absence cannot be argued about: five saturated segments across the sheet.
+    """
+    import numpy as np
+    from PIL import Image
+    from PyQt6.QtCore import QSize
+    from PyQt6.QtPdf import QPdfDocument
+
+    pdf = _report_pdf(tmp_path, monkeypatch)
+    doc = QPdfDocument(None)
+    doc.load(str(pdf))
+    assert doc.pageCount() >= 2
+
+    missing = []
+    for i in range(1, doc.pageCount()):        # page 1 carries no colour line
+        f = tmp_path / f"band_{i}.png"
+        doc.render(i, QSize(600, 850)).save(str(f))
+        page = Image.open(f).convert("RGBA")
+        flat = Image.alpha_composite(
+            Image.new("RGBA", page.size, (255, 255, 255, 255)), page)
+        arr = np.asarray(flat.convert("RGB")).astype(int)
+        top = arr[:int(arr.shape[0] * 0.12)]   # the header band and its margin
+        # A colour-line row is saturated across most of the sheet's width.
+        sat = top.max(axis=2) - top.min(axis=2)
+        wide = (sat > 40).mean(axis=1)
+        if not (wide > 0.8).any():
+            missing.append(i + 1)
+    assert not missing, (
+        "the five-segment colour line is painted over on page(s) "
+        f"{missing} — the body is drawing into the header band")

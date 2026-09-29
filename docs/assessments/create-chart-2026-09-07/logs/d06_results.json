@@ -1,0 +1,873 @@
+{
+  "guided-controls": {
+    "lb_text": "Suppress left clip border (-L)",
+    "nsl_text": "Don't limit strip length (-P)",
+    "dd_text": "Double density",
+    "td_text": "Triple density",
+    "precond_visible": true,
+    "name_hint": ""
+  },
+  "g-i1-A4-1p": {
+    "tag": "g-i1-A4-1p",
+    "ok": true,
+    "headline": "484!",
+    "detail": "PATCHES \u00b7 1 PAGE \u00b7 A4",
+    "info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e4 -B4 -g28 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on",
+    "estimate_before": {
+      "total": 484,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 484,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        7.62,
+        9.48
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 484,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 16.8 | 0.661 | 9.0 | Top (to first patch) | 41.6 | 1.637 | 38.0 | Bottom (to first patch) | 24.6 | 0.970 | 19.0 | Patch width (in strip reading direction) | 7.6 | 0.300 | Strip length | 230.8 | 9.087 | Margins: ",
+    "status": "Margins: OK",
+    "notes": "",
+    "ti2": {
+      "ti2_sets": 484,
+      "ti2_steps_in_pass": 22,
+      "ti2_passes": "22",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "B1-Guided.ti2"
+    },
+    "channels": {
+      "file": "B1-Guided.channels.json",
+      "keys": [
+        "chart_notes",
+        "create_chart_settings",
+        "ink_channels",
+        "layout",
+        "printtarg_fields",
+        "run_description",
+        "stamp_commands"
+      ],
+      "layout_keys": [
+        "color_rep",
+        "date",
+        "dpi",
+        "engine",
+        "engine_version",
+        "label_band_bottom_px",
+        "margins_chosen_by_user",
+        "paper_mm",
+        "patch_pattern",
+        "patches",
+        "recipe",
+        "seed",
+        "steps_in_pass",
+        "strip_pattern",
+        "strips"
+      ],
+      "dpi": 300,
+      "n_patch_rects": 484,
+      "recipe_instrument": "i1",
+      "recipe_paper": "A4",
+      "recipe_layout_mode": "patch_first",
+      "recipe_margins": [
+        6.0,
+        6.0,
+        6.0,
+        6.0
+      ],
+      "recipe_use_instr": false,
+      "recipe_patch_wh": [
+        0.0,
+        0.0
+      ],
+      "engine": "chromiq",
+      "margins_chosen_by_user": false
+    },
+    "n_tiffs": 1,
+    "serious": [],
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 484 patches (22\u00d722), 1 page, random start 1420034004"
+    ],
+    "headline_number": 484,
+    "parity": {
+      "cmd": "/Applications/Argyll/bin/printtarg -ii1 -pA4 -t300 -a0.95 -m10 -M10 B1-Guided",
+      "rc": 0,
+      "ti2": {
+        "sets": "484",
+        "steps": "22",
+        "passes": "22",
+        "instr": "GretagMacbeth i1 Pro",
+        "paper": "210.0x297.0"
+      },
+      "pages": 1,
+      "tiff_px": [
+        2480,
+        3508
+      ],
+      "stdout_tail": ""
+    }
+  },
+  "g-CM-A4-1p": {
+    "tag": "g-CM-A4-1p",
+    "ok": true,
+    "headline": "105!",
+    "detail": "PATCHES \u00b7 1 PAGE \u00b7 A4",
+    "info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e2 -B2 -g8 chart\nChromIQ layout engine \u00b7 CM \u00b7 A4 \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 hand-held",
+    "estimate_before": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.02,
+        14.05
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 39.5 | 1.553 | 33.0 | Bottom (to first patch) | 31.5 | 1.240 | 10.0 | Patch width (in strip reading direction) | 28.0 | 1.103 | Strip length | 226.1 | 8.900 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "ti2": {
+      "ti2_sets": 105,
+      "ti2_steps_in_pass": 15,
+      "ti2_passes": "7",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "X-Rite ColorMunki",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "B1-Guided.ti2"
+    },
+    "channels": {
+      "file": "B1-Guided.channels.json",
+      "keys": [
+        "chart_notes",
+        "create_chart_settings",
+        "ink_channels",
+        "layout",
+        "printtarg_fields",
+        "run_description",
+        "stamp_commands"
+      ],
+      "layout_keys": [
+        "color_rep",
+        "date",
+        "dpi",
+        "engine",
+        "engine_version",
+        "label_band_bottom_px",
+        "margins_chosen_by_user",
+        "paper_mm",
+        "patch_pattern",
+        "patches",
+        "recipe",
+        "seed",
+        "steps_in_pass",
+        "strip_pattern",
+        "strips"
+      ],
+      "dpi": 300,
+      "n_patch_rects": 105,
+      "recipe_instrument": "CM",
+      "recipe_paper": "A4",
+      "recipe_layout_mode": "patch_first",
+      "recipe_margins": [
+        6.0,
+        6.0,
+        6.0,
+        6.0
+      ],
+      "recipe_use_instr": false,
+      "recipe_patch_wh": [
+        0.0,
+        0.0
+      ],
+      "engine": "chromiq",
+      "margins_chosen_by_user": false
+    },
+    "n_tiffs": 1,
+    "serious": [],
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 105 patches (15\u00d77), 1 page, random start 806010945",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip"
+    ],
+    "headline_number": 105,
+    "parity": {
+      "cmd": "/Applications/Argyll/bin/printtarg -iCM -pA4 -t300 -M6 B1-Guided",
+      "rc": 0,
+      "ti2": {
+        "sets": "105",
+        "steps": "15",
+        "passes": "6,1",
+        "instr": "X-Rite ColorMunki",
+        "paper": "210.0x297.0"
+      },
+      "pages": 2,
+      "tiff_px": [
+        2480,
+        3508
+      ],
+      "stdout_tail": ""
+    }
+  },
+  "g-p3-A4R-1p": {
+    "tag": "g-p3-A4R-1p",
+    "ok": true,
+    "headline": "112!",
+    "detail": "PATCHES \u00b7 1 PAGE \u00b7 A4R",
+    "info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e2 -B2 -g8 chart\nChromIQ layout engine \u00b7 p3 \u00b7 A4R \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 clip border on",
+    "estimate_before": {
+      "total": 112,
+      "fillup": 0,
+      "page_patches": 112,
+      "rows": 7,
+      "cols": 16,
+      "pages": 1,
+      "patch": [
+        16.0,
+        20.0
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 112,
+      "fillup": 0,
+      "page_patches": 112,
+      "rows": 7,
+      "cols": 16,
+      "pages": 1,
+      "patch": [
+        16.0,
+        20.07
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 112,
+      "fillup": 0,
+      "page_patches": 112,
+      "rows": 7,
+      "cols": 16,
+      "pages": 1,
+      "patch": [
+        16.0,
+        20.0
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 28.0 | Right (to first patch) | 15.0 | 0.590 | 9.0 | Top (to first patch) | 33.4 | 1.317 | 40.0 | Bottom (to first patch) | 20.4 | 0.804 | 9.0 | Patch width (in strip reading direction) | 16.0 | 0.630 | Strip length | 156.1 | 6.147 | \u26a0 Left ma",
+    "status": "\u26a0 Left margin 26.0 mm is below the 28 mm instrument minimum\n\u26a0 Top margin 33.4 mm is below the 40 mm instrument minimum",
+    "notes": "",
+    "ti2": {
+      "ti2_sets": 112,
+      "ti2_steps_in_pass": 7,
+      "ti2_passes": "16",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "297.0x210.0",
+      "ti2_file": "B1-Guided.ti2"
+    },
+    "channels": {
+      "file": "B1-Guided.channels.json",
+      "keys": [
+        "chart_notes",
+        "create_chart_settings",
+        "ink_channels",
+        "layout",
+        "printtarg_fields",
+        "run_description",
+        "stamp_commands"
+      ],
+      "layout_keys": [
+        "color_rep",
+        "date",
+        "dpi",
+        "engine",
+        "engine_version",
+        "label_band_bottom_px",
+        "margins_chosen_by_user",
+        "paper_mm",
+        "patch_pattern",
+        "patches",
+        "recipe",
+        "seed",
+        "steps_in_pass",
+        "strip_pattern",
+        "strips"
+      ],
+      "dpi": 300,
+      "n_patch_rects": 112,
+      "recipe_instrument": "p3",
+      "recipe_paper": "A4R",
+      "recipe_layout_mode": "patch_first",
+      "recipe_margins": [
+        6.0,
+        6.0,
+        6.0,
+        6.0
+      ],
+      "recipe_use_instr": false,
+      "recipe_patch_wh": [
+        0.0,
+        0.0
+      ],
+      "engine": "chromiq",
+      "margins_chosen_by_user": false
+    },
+    "n_tiffs": 1,
+    "serious": [],
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 112 patches (7\u00d716), 1 page, random start 1352801356",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip"
+    ],
+    "headline_number": 112,
+    "parity": {
+      "cmd": "/Applications/Argyll/bin/printtarg -i3p -pA4R -t300 -M6 B1-Guided",
+      "rc": 0,
+      "ti2": {
+        "sets": "112",
+        "steps": "7",
+        "passes": "16",
+        "instr": "GretagMacbeth i1 Pro",
+        "paper": "297.0x210.0"
+      },
+      "pages": 1,
+      "tiff_px": [
+        3508,
+        2480
+      ],
+      "stdout_tail": ""
+    }
+  },
+  "g-i1-A4-2p": {
+    "tag": "g-i1-A4-2p",
+    "ok": true,
+    "headline": "968!",
+    "detail": "PATCHES \u00b7 2 PAGES \u00b7 A4",
+    "info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e6 -B6 -g55 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on",
+    "estimate_before": {
+      "total": 968,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 2,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 968,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 2,
+      "patch": [
+        7.62,
+        9.48
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 968,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 2,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 16.8 | 0.661 | 9.0 | Top (to first patch) | 41.6 | 1.637 | 38.0 | Bottom (to first patch) | 24.6 | 0.970 | 19.0 | Patch width (in strip reading direction) | 7.6 | 0.300 | Strip length | 230.8 | 9.087 | Margins: ",
+    "status": "Margins: OK",
+    "notes": "",
+    "ti2": {
+      "ti2_sets": 968,
+      "ti2_steps_in_pass": 22,
+      "ti2_passes": "22,22",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "GretagMacbeth i1 Pro",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "B1-Guided.ti2"
+    },
+    "channels": {
+      "file": "B1-Guided.channels.json",
+      "keys": [
+        "chart_notes",
+        "create_chart_settings",
+        "ink_channels",
+        "layout",
+        "printtarg_fields",
+        "run_description",
+        "stamp_commands"
+      ],
+      "layout_keys": [
+        "color_rep",
+        "date",
+        "dpi",
+        "engine",
+        "engine_version",
+        "label_band_bottom_px",
+        "margins_chosen_by_user",
+        "paper_mm",
+        "patch_pattern",
+        "patches",
+        "recipe",
+        "seed",
+        "steps_in_pass",
+        "strip_pattern",
+        "strips"
+      ],
+      "dpi": 300,
+      "n_patch_rects": 968,
+      "recipe_instrument": "i1",
+      "recipe_paper": "A4",
+      "recipe_layout_mode": "patch_first",
+      "recipe_margins": [
+        6.0,
+        6.0,
+        6.0,
+        6.0
+      ],
+      "recipe_use_instr": false,
+      "recipe_patch_wh": [
+        0.0,
+        0.0
+      ],
+      "engine": "chromiq",
+      "margins_chosen_by_user": false
+    },
+    "n_tiffs": 2,
+    "serious": [],
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 968 patches (22\u00d722), 2 pages, random start 1290935380",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 4 strips"
+    ],
+    "headline_number": 968,
+    "parity": {
+      "cmd": "/Applications/Argyll/bin/printtarg -ii1 -pA4 -t300 -a0.95 -m10 -M10 B1-Guided",
+      "rc": 0,
+      "ti2": {
+        "sets": "968",
+        "steps": "22",
+        "passes": "22,22",
+        "instr": "GretagMacbeth i1 Pro",
+        "paper": "210.0x297.0"
+      },
+      "pages": 2,
+      "tiff_px": [
+        2480,
+        3508
+      ],
+      "stdout_tail": ""
+    }
+  },
+  "guided-toggles": {
+    "base": "484!",
+    "clip_toggled": "550!",
+    "clip_est": {
+      "total": 550,
+      "fillup": 0,
+      "page_patches": 550,
+      "rows": 22,
+      "cols": 25,
+      "pages": 1,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    },
+    "nsl": "528!",
+    "nsl_est": {
+      "total": 528,
+      "fillup": 0,
+      "page_patches": 528,
+      "rows": 24,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    },
+    "lb_label": "Suppress left clip border (-L)",
+    "nsl_label": "Don't limit strip length (-P)"
+  },
+  "g-CM-A4-1p-b": {
+    "tag": "g-CM-A4-1p-b",
+    "ok": true,
+    "headline": "105!",
+    "detail": "PATCHES \u00b7 1 PAGE \u00b7 A4",
+    "info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e2 -B2 -g8 chart\nChromIQ layout engine \u00b7 CM \u00b7 A4 \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 hand-held",
+    "estimate_before": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.02,
+        14.05
+      ],
+      "pitch": null
+    },
+    "estimate_after": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    },
+    "margin_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 8.0 | 0.314 | 6.0 | Top (to first patch) | 39.5 | 1.553 | 33.0 | Bottom (to first patch) | 31.5 | 1.240 | 10.0 | Patch width (in strip reading direction) | 28.0 | 1.103 | Strip length | 226.1 | 8.900 | Margins: OK",
+    "status": "Margins: OK",
+    "notes": "",
+    "ti2": {
+      "ti2_sets": 105,
+      "ti2_steps_in_pass": 15,
+      "ti2_passes": "7",
+      "ti2_patch_length": null,
+      "ti2_patch_width": null,
+      "ti2_instrument": "X-Rite ColorMunki",
+      "ti2_paper": "210.0x297.0",
+      "ti2_file": "B1-Guided.ti2"
+    },
+    "channels": {
+      "file": "B1-Guided.channels.json",
+      "keys": [
+        "chart_notes",
+        "create_chart_settings",
+        "ink_channels",
+        "layout",
+        "printtarg_fields",
+        "run_description",
+        "stamp_commands"
+      ],
+      "layout_keys": [
+        "color_rep",
+        "date",
+        "dpi",
+        "engine",
+        "engine_version",
+        "label_band_bottom_px",
+        "margins_chosen_by_user",
+        "paper_mm",
+        "patch_pattern",
+        "patches",
+        "recipe",
+        "seed",
+        "steps_in_pass",
+        "strip_pattern",
+        "strips"
+      ],
+      "dpi": 300,
+      "n_patch_rects": 105,
+      "recipe_instrument": "CM",
+      "recipe_paper": "A4",
+      "recipe_layout_mode": "patch_first",
+      "recipe_margins": [
+        6.0,
+        6.0,
+        6.0,
+        6.0
+      ],
+      "recipe_use_instr": false,
+      "recipe_patch_wh": [
+        0.0,
+        0.0
+      ],
+      "engine": "chromiq",
+      "margins_chosen_by_user": false
+    },
+    "n_tiffs": 1,
+    "serious": [],
+    "engine_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 105 patches (15\u00d77), 1 page, random start 1436523784",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip"
+    ],
+    "headline_number": 105,
+    "parity": {
+      "cmd": "/Applications/Argyll/bin/printtarg -iCM -pA4 -t300 -M6 B1-Guided",
+      "rc": 0,
+      "ti2": {
+        "sets": "105",
+        "steps": "15",
+        "passes": "6,1",
+        "instr": "X-Rite ColorMunki",
+        "paper": "210.0x297.0"
+      },
+      "pages": 2,
+      "tiff_px": [
+        2480,
+        3508
+      ],
+      "stdout_tail": ""
+    }
+  },
+  "transfer": {
+    "engine_check": true,
+    "instr": "CM",
+    "paper": "A4",
+    "mode": "freehand",
+    "recipe": {
+      "instrument": "CM",
+      "paper": "A4",
+      "cm_density": 1,
+      "layout_mode": "patch_first",
+      "margin_top": 6.0,
+      "margin_right": 6.0,
+      "margin_bottom": 6.0,
+      "margin_left": 6.0,
+      "use_instrument_margins": false,
+      "pscale": 1.0,
+      "patch_area_align": "center-left",
+      "spacer_mode": "colored"
+    },
+    "estimate": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.02,
+        14.05
+      ],
+      "pitch": null
+    },
+    "info": "1 page \u00b7 Auto patch count \u00b7 Auto grey/white/black):\ntargen -d2 -f0 -e2 -B2 -G -g8 chart\nChromIQ layout engine \u00b7 CM \u00b7 A4 portrait \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 hand-held \u00b7 align center-left\nLayout preset: CM \u00b7 A4 portrait \u00b7 freehand   \u25cf modified",
+    "auto_patches": true,
+    "pages": 1,
+    "f": 0
+  },
+  "transfer-generate": {
+    "actual": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.02,
+        14.05
+      ],
+      "pitch": null
+    },
+    "estimate": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    },
+    "guided_built": {
+      "total": 105,
+      "fillup": 0,
+      "page_patches": 105,
+      "rows": 15,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        28.02,
+        14.05
+      ],
+      "pitch": null
+    }
+  },
+  "presetB-restart": {
+    "found": true,
+    "diff": {},
+    "combo": "AssessPresetB",
+    "engine": true
+  },
+  "a7-debounce": {
+    "builds_for_two_nudges_150ms_apart": 0,
+    "first_build_after_s": 6.49,
+    "actual": {
+      "total": 280,
+      "fillup": 0,
+      "page_patches": 280,
+      "rows": 20,
+      "cols": 14,
+      "pages": 1,
+      "patch": [
+        12.02,
+        12.02
+      ],
+      "pitch": null
+    },
+    "estimate": {
+      "total": 280,
+      "fillup": 0,
+      "page_patches": 280,
+      "rows": 20,
+      "cols": 14,
+      "pages": 1,
+      "patch": [
+        12.0,
+        12.0
+      ],
+      "pitch": null
+    }
+  },
+  "a7-notes": 0,
+  "a7-helper-markers": 0,
+  "a7-spacer-bw": 0,
+  "a7-sheet-text": 0,
+  "a7-paper": 0,
+  "chart-layout-default": {
+    "drive": {
+      "seen": true,
+      "err": null,
+      "mode_items": [
+        [
+          "On",
+          "clip"
+        ],
+        [
+          "Off \u2014 more patches",
+          "noclip"
+        ]
+      ],
+      "clip_items": null,
+      "before": {
+        "align": "top-left",
+        "layout_mode": "area_first",
+        "margins": {
+          "t": 6.0,
+          "r": 6.0,
+          "b": 6.0,
+          "l": 6.0
+        },
+        "use_instr": true
+      },
+      "saved_hint": "Showing the layout you saved for this combination. Other paper sizes have layouts saved too.",
+      "calc": "<span style='color:#101010;font-weight:600'>\u2248 462 patches per sheet</span>"
+    },
+    "store_file": [
+      "i1_A4R_clip.json",
+      "i1_A4_clip.json"
+    ],
+    "manual_after": {
+      "align": "center-left",
+      "layout_mode": "area_first",
+      "info": "9/19/26 mm \u00b7 area-fit auto\u00d7auto \u00b7 clip border on \u00b7 align center-left\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified"
+    }
+  }
+}

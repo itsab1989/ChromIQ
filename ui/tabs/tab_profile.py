@@ -44,7 +44,7 @@ from core.resource_path import resource_path
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import TailFollowLog, add_log_row, fit_button_width, fit_log_height, fit_message_box_buttons, spread_message_box_buttons, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 from ui.spectrum_progress import SpectrumSegmentsBar
@@ -152,10 +152,10 @@ _TOOLTIP_BODY_NORMAL = (
     "This screen turns the measurements from step 3 into an .icc "
     "profile — the file that applications like Lightroom, Photoshop, "
     "or Preview use to print accurate colour on your printer.\n\n"
-    "Before you build:\n"
+    "**Before you build:**\n"
     "• You need a finished .ti3 measurement file from step 3. ChromIQ "
     "pre-fills it for you if you came straight from tab 3.\n\n"
-    "How to use this screen:\n"
+    "**How to use this screen:**\n"
     "• Quality controls how detailed the profile's colour tables are. "
     "Higher = more accurate but slower to build and slightly larger. "
     "\"Medium\" is a fine starting point.\n"
@@ -164,7 +164,7 @@ _TOOLTIP_BODY_NORMAL = (
     "you can tell profiles apart.\n"
     "• Click “Build Profile” and ChromIQ runs Argyll's colprof. When it's done "
     "you'll have a .icc file you can install on macOS.\n\n"
-    "What happens next: install the .icc into ~/Library/ColorSync/"
+    "**What happens next:** install the .icc into ~/Library/ColorSync/"
     "Profiles (ChromIQ can do this for you), then verify it on tab 5 "
     "before relying on it for important prints."
 )
@@ -173,23 +173,30 @@ _TOOLTIP_TITLE_CAL = "Calibration & Profiling — the order of operations"
 _TOOLTIP_BODY_CAL = (
     "Calibration is an optional extra that makes profiling more accurate. "
     "Before building the colour profile, you first \"linearise\" the "
-    "printer — smoothing out each ink channel so it responds evenly and "
+    "printer: each ink channel is smoothed out so it responds evenly and "
     "predictably. The profile is then built on top of that steadied "
-    "behaviour. This helps most on inkjet printers that drift or print a "
-    "little differently from one run to the next.\n\n"
-    "This tab has three buttons — “Create Calibration File”, “Build "
-    "Profile” and “Apply Calibration” — but they are NOT clicked one straight after "
+    "behaviour. This helps most on inkjet printers whose output changes "
+    "over time or from one run to the next.\n\n"
+    # Knut, #182 5853818821: advice for someone new, or who only wants the
+    # simple instructions, comes EARLY, so they can decide whether to read on.
+    "New to this, or you just want a good profile? Then you do not need "
+    "calibration: turn calibration mode off in Preferences and use the "
+    "simple 4-tab flow until you're comfortable. Calibration is for people "
+    "chasing extra accuracy on printers that aren't perfectly stable from "
+    "batch to batch. If that is you, read on.\n\n"
+    "This tab has three buttons (“Create Calibration File”, “Build "
+    "Profile” and “Apply Calibration”), but they are NOT clicked one straight after "
     "another. Two of the steps below happen back on tabs 1–3. Here is the "
     "whole journey, in order:\n\n"
     "1. CREATE THE CALIBRATION FILE   (here · \"Create Calibration File\")\n"
     "First print and measure a small calibration chart using tabs 1–3. "
     "On the “1. Create Chart” tab, in the “Calibration Chart” box, tick "
-    "“Create chart for calibration” — the box only appears once you have "
+    "“Create chart for calibration”. The box only appears once you have "
     "switched calibration on in Preferences. Bring that measurement "
     "here and click “Create Calibration File”. ChromIQ runs Argyll's "
     "printcal and saves a .cal file that describes how to even out each "
     "ink channel.\n\n"
-    "2. USE THE .cal FOR A NEW TARGET — OR LOAD IT INTO THE PRINTER   "
+    "2. USE THE .cal FOR A NEW TARGET, OR LOAD IT INTO THE PRINTER   "
     "(back on tab 1)\n"
     "Now return to tab 1 and create your full, larger profiling chart. "
     "There are two ways to put the calibration to work:\n"
@@ -204,8 +211,8 @@ _TOOLTIP_BODY_CAL = (
     "the project's “cal” folder, so usually you don't have to go looking "
     "for it by hand.\n\n"
     "3. PRINT THE PROFILING TARGET   (tab 2)\n"
-    "Print the larger chart exactly as you printed the calibration target "
-    "— same paper, same driver settings.\n\n"
+    "Print the larger chart exactly as you printed the calibration target: "
+    "same paper, same driver settings.\n\n"
     "4. MEASURE IT AGAIN   (tab 3)\n"
     "Read the printed chart with your instrument. This produces the "
     "measurement file (.ti3) for the calibrated chart.\n\n"
@@ -213,21 +220,17 @@ _TOOLTIP_BODY_CAL = (
     "Come back to this tab and click Build Profile. ChromIQ runs Argyll's "
     "colprof to turn the calibrated measurements into the finished .icc "
     "colour profile.\n\n"
-    "6. APPLY THE CALIBRATION TO THE PROFILE — IF NEEDED   "
+    "6. APPLY THE CALIBRATION TO THE PROFILE, IF NEEDED   "
     "(here · \"Apply Calibration\")\n"
     "Finally, only if the calibration isn't already applied somewhere "
     "else, click Apply Calibration. ChromIQ runs Argyll's applycal to "
     "fold the .cal curves directly into the finished .icc. You do NOT need "
     "this step if the printer or RIP already applies the calibration, or "
-    "if you baked it into the patch values back in step 2 — doing it twice "
+    "if you baked it into the patch values back in step 2. Doing it twice "
     "would double-correct the colour.\n\n"
     "In short: make the calibration → use it when you print the real "
     "chart → measure → build the profile → (optionally) fold the "
-    "calibration into the profile.\n\n"
-    "New to this? Turn calibration mode off in Preferences and use the "
-    "simple 4-tab flow until you're comfortable. Calibration is here for "
-    "people chasing extra accuracy on printers that aren't perfectly "
-    "stable batch-to-batch."
+    "calibration into the profile."
 )
 
 
@@ -553,7 +556,7 @@ class TabProfile(QWidget):
 
         cc.addLayout(btn_row)
 
-        self._log = QPlainTextEdit(colprof_container)
+        self._log = TailFollowLog(colprof_container)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
         # Nine lines of the font this really gets, measured after polish
@@ -751,9 +754,26 @@ class TabProfile(QWidget):
 
     def _ac_try_autofill(self) -> None:
         """Pre-fill applycal fields from the project's calibration + current run."""
-        # The .cal sits beside the calibration measurement (cal/calibration.cal).
+        # THE NAME COMES FROM THE CLASS THAT OWNS IT, NOT FROM A STRING HERE.
+        # This looked for `cal/calibration.cal`, a name #127 removed: the
+        # project's calibration is `cal/<project>-cal.cal`
+        # (`Calibration.stem`), and printcal writes `<ti3 stem>.cal`, which is
+        # the same name. The literal "calibration.cal" occurred exactly once in
+        # the whole tree, on this line, so nothing ever filled this field
+        # except printcal's own finish handler - and that only reaches the
+        # session that made the calibration. Come back to the project the next
+        # day and the module that applies a calibration to a profile could not
+        # find the calibration, in the ordinary case (adversary round 26,
+        # R26-F2, driven on screen). The Create Chart tab was already asking
+        # the accessor; this one now does too.
         if not self._ac_cal_edit.text().strip() and self._cal_ti3_path:
-            cal_candidate = self._cal_ti3_path.with_name("calibration.cal")
+            from core.file_manager import Calibration
+
+            cal_candidate = Calibration(self._cal_ti3_path.parent.parent).cal_path
+            if not cal_candidate.exists():
+                # printcal names its output after the measurement it read, so a
+                # calibration measured under another stem is still found.
+                cal_candidate = self._cal_ti3_path.with_suffix(".cal")
             if cal_candidate.exists():
                 self._ac_cal_edit.setText(str(cal_candidate))
 
@@ -961,14 +981,14 @@ class TabProfile(QWidget):
         mode_row.addWidget(self._pc_mode_combo, stretch=1)
         mode_row.addWidget(TooltipButton(
             tr("Calibration Mode"),
-            tr("Initial calibration (-i): creates a brand-new .cal file from your\n"
+            tr("**Initial calibration (-i):** creates a brand-new .cal file from your\n"
             "calibration target measurement. Use this the first time.\n\n"
-            "Re-calibrate (-r): refines an existing .cal by comparing new\n"
+            "**Re-calibrate (-r):** refines an existing .cal by comparing new\n"
             "measurements to the previous target. Useful for keeping a\n"
             "printer consistent over time.\n\n"
-            "Verify (-e): checks how well a printer still matches a prior .cal\n"
+            "**Verify (-e):** checks how well a printer still matches a prior .cal\n"
             "without writing any new files.\n\n"
-            "Imitation target (-I): creates a calibration target from an existing\n"
+            "**Imitation target (-I):** creates a calibration target from an existing\n"
             ".ti3 using a null (identity) calibration. Useful for deriving a\n"
             "calibration target when no previous .cal exists."),
             grp,
@@ -1096,7 +1116,7 @@ class TabProfile(QWidget):
         cc.addLayout(btn_row)
 
         # ---- Log (outside scroll area) ----
-        self._pc_log = QPlainTextEdit(container)
+        self._pc_log = TailFollowLog(container)
         self._pc_log.setObjectName("log")
         self._pc_log.setReadOnly(True)
         # Nine lines of the font this really gets, measured after polish
@@ -1448,11 +1468,11 @@ class TabProfile(QWidget):
         mode_row.addWidget(self._ac_mode_combo, stretch=1)
         mode_row.addWidget(TooltipButton(
             tr("applycal Mode"),
-            tr("Apply: bakes the calibration curves into the ICC profile so\n"
+            tr("**Apply:** bakes the calibration curves into the ICC profile so\n"
             "that any app using the profile automatically gets calibration.\n\n"
-            "Remove: strips previously applied calibration curves out of\n"
+            "**Remove:** strips previously applied calibration curves out of\n"
             "the profile, reverting it to its uncalibrated state.\n\n"
-            "Check: reports whether the profile has calibration curves\n"
+            "**Check:** reports whether the profile has calibration curves\n"
             "applied, without modifying anything."),
             grp,
             min_width=480,
@@ -1502,7 +1522,12 @@ class TabProfile(QWidget):
         out_row = QHBoxLayout()
         out_row.addWidget(QLabel(tr("Output ICC profile:"), grp))
         self._ac_out_edit = QLineEdit(grp)
-        self._ac_out_edit.setPlaceholderText(tr("Leave blank to save as cal_<name>.icc"))
+        # LEFT BLANK, THE APP WRITES `Run.calibrated_icc` = `calibrated.icc`.
+        # The `cal_` prefix went with #127 and the `<name>` was never part of
+        # it, so this field promised a filename nothing writes and the user
+        # went looking for it afterwards (R26-F3b).
+        self._ac_out_edit.setPlaceholderText(
+            tr("Leave blank to save as calibrated.icc beside the profile"))
         self._ac_out_edit.setObjectName("compact_input")
         self._ac_out_edit.style().unpolish(self._ac_out_edit)
         self._ac_out_edit.style().polish(self._ac_out_edit)
@@ -1548,7 +1573,7 @@ class TabProfile(QWidget):
         cc.addLayout(btn_row)
 
         # ---- Log (outside groupbox) ----
-        self._ac_log = QPlainTextEdit(container)
+        self._ac_log = TailFollowLog(container)
         self._ac_log.setObjectName("log")
         self._ac_log.setReadOnly(True)
         # Nine lines of the font this really gets, measured after polish
@@ -1588,12 +1613,21 @@ class TabProfile(QWidget):
             self._ac_out_edit.setText(path)
 
     def _ac_update_out_placeholder(self, in_text: str) -> None:
-        """Keep the output placeholder in sync with the input ICC field."""
-        if in_text.strip():
-            stem = Path(in_text.strip()).stem
-            self._ac_out_edit.setPlaceholderText(tr("Leave blank to save as cal_{stem}.icc").format(stem=stem))
-        else:
-            self._ac_out_edit.setPlaceholderText(tr("Leave blank to save as cal_<name>.icc"))
+        """Say what is written when the field is left blank.
+
+        It used to follow the input ICC: *"Leave blank to save as
+        cal_<name>.icc"*, and with a profile chosen, *"cal_<stem>.icc"*. Left
+        blank the app writes `Run.calibrated_icc`, which is
+        ``<run>/calibrated.icc`` - neither the `cal_` prefix, which #127
+        removed from the whole tree, nor the stem. The field promised a
+        filename nothing writes, and the name is how a person finds the file
+        again (adversary round 26, R26-F3b).
+
+        It no longer changes with the input, because the answer no longer
+        depends on it. The argument stays: this is a `textChanged` slot.
+        """
+        self._ac_out_edit.setPlaceholderText(
+            tr("Leave blank to save as calibrated.icc beside the profile"))
 
     def _on_ac_save_defaults(self) -> None:
         s = self._settings
@@ -1746,10 +1780,17 @@ class TabProfile(QWidget):
         layout.addWidget(path_lbl)
 
         next_lbl = QLabel(
-            tr("Next step: go to the <b>1. Create Chart</b> tab, untick "
-            "<i>Create chart for calibration</i> in the <b>Calibration Chart</b> box, "
+            # THE CHECKBOX IS GONE, AND THIS WINDOW WENT ON NAMING IT. #137
+            # retired "Create chart for calibration" - the bar's Run type says
+            # whether a chart is a calibration chart, and
+            # `TabChart.set_calibration_mode` hides that whole group in both
+            # modes. Every calibration ended with this window telling the user
+            # to go and untick a box that is not on the tab they were being
+            # sent to (adversary round 26, R26-F3a, photographed).
+            tr("Next step: go to the <b>1. Create Chart</b> tab, set <b>Run "
+            "type</b> to <b>Profiling</b> on the bar at the top, "
             "and generate your full profiling chart. ChromIQ has already filled the "
-            ".cal path into both calibration fields for you — <b>Apply Calibration "
+            ".cal path into both calibration fields for you: <b>Apply Calibration "
             "File</b> and <b>Include Calibration File (no apply)</b>, under "
             "<b>Expert</b> in Manual mode. Neither is switched on yet, because only "
             "you know which one your printer needs:"),
@@ -2152,6 +2193,8 @@ class TabProfile(QWidget):
             try:
                 if kind == "check":
                     wgt.setChecked(bool(val))
+                elif key == "g_algorithm":
+                    self._set_algorithm_combo(wgt, val)
                 elif kind == "combo":
                     i = wgt.findData(val)
                     if i >= 0:
@@ -2242,12 +2285,77 @@ class TabProfile(QWidget):
         finally:
             self._loading_profile_settings = False
 
+    # ------------------------------------------------------------------
+    # A stored algorithm letter this tab no longer offers
+    # ------------------------------------------------------------------
+    #: (stored letter, letter used) pairs already announced this session, so a
+    #: target the user switches back and forth between says it once.
+    _algo_moves_said: "set[tuple[str, str]]"
+
+    def _set_algorithm_combo(self, combo: QComboBox,
+                             stored: "str | None") -> None:
+        """Put a stored ``-a`` letter on an Algorithm combo, and SAY SO when
+        it is not the letter that was stored.
+
+        Five of this tab's eight algorithm entries could never build a printer
+        profile (``colprof.c:1244-1246``) and a sixth built the same file as
+        the entry above it, so the list is now the two that work. A project,
+        a preset or a saved default can still name one of the six.
+
+        Nothing is thrown away silently, which is the whole point: a combo
+        whose `findData` misses simply keeps whatever it was showing, and the
+        next build would then quietly use a different algorithm than the one
+        the project was saved with.
+        """
+        from workflow import profile_builder as _pb
+        # Per INSTANCE, never a shared class attribute: the annotation above
+        # declares the type and deliberately binds no value, which is the same
+        # trap `_profile_written` documents two hundred lines up. Created here
+        # rather than in `__init__` so every path into this method finds it,
+        # including the ones that run while the tab is still being built.
+        if "_algo_moves_said" not in self.__dict__:
+            self._algo_moves_said = set()
+        letter, changed = _pb.output_algorithm(stored)
+        i = combo.findData(letter)
+        if i >= 0:
+            combo.setCurrentIndex(i)
+        if not changed:
+            return
+        old = (stored or "").strip()
+        if (old, letter) in self._algo_moves_said:
+            return
+        self._algo_moves_said.add((old, letter))
+        name = combo.itemText(i) if i >= 0 else letter
+        if old in ("L", "X", "Y"):
+            # An alias, measured bit-identical for a printer profile: the
+            # build is unchanged, so this is a note and not a warning.
+            msg = tr(
+                "The stored profile algorithm \"-a {old}\" is another name for "
+                "\"{name}\" in a printer profile, so the Algorithm box now "
+                "shows that. The profile this builds is unchanged."
+            ).format(old=old, name=name)
+        else:
+            msg = tr(
+                "The stored profile algorithm \"-a {old}\" cannot build a "
+                "printer profile: ArgyllCMS accepts only a lookup table for "
+                "one, and refused this letter before reading any "
+                "measurement. The Algorithm box has been set to \"{name}\". "
+                "Choose a different one before you build if that is not what "
+                "you want."
+            ).format(old=old, name=name)
+        try:
+            self._log.appendPlainText(msg)
+            self._log.ensureCursorVisible()
+        except Exception:      # noqa: BLE001 — never lose the tab over a note
+            log.info("%s", msg)
+
     def _m_apply_preset_data(self, data: dict) -> None:
         def _set_combo(combo: QComboBox, key: str, default: str) -> None:
             idx = combo.findData(data.get(key, default))
             if idx >= 0:
                 combo.setCurrentIndex(idx)
-        _set_combo(self._m_algo_combo,          "algorithm", "l")
+        self._set_algorithm_combo(self._m_algo_combo,
+                                  data.get("algorithm", "l"))
         _set_combo(self._m_qual_combo,          "quality",   "m")
         self._m_b2a_check.setChecked(bool(data.get("b2a_enabled", False)))
         _set_combo(self._m_b2a_combo,           "b2a_quality", "m")
@@ -2307,7 +2415,9 @@ class TabProfile(QWidget):
                 idx = combo.findData(s.get(key, default))
                 if idx >= 0:
                     combo.setCurrentIndex(idx)
-            _set_combo(self._m_algo_combo,          "manual2_colprof_algorithm", "l")
+            self._set_algorithm_combo(
+                self._m_algo_combo,
+                s.get("manual2_colprof_algorithm", "l"))
             _set_combo(self._m_qual_combo,          "manual2_colprof_quality",   "m")
             self._m_b2a_check.setChecked(bool(s.get("manual2_colprof_b2a_enabled", False)))
             _set_combo(self._m_b2a_combo,           "manual2_colprof_b2a_quality", "m")
@@ -2403,9 +2513,19 @@ class TabProfile(QWidget):
         info.setWordWrap(True)
         dlg_layout.addWidget(info)
         bb = QDialogButtonBox(dlg)
-        bb.addButton(tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
+        cancel_btn = bb.addButton(tr("Cancel"),
+                                  QDialogButtonBox.ButtonRole.RejectRole)
         del_btn = bb.addButton(tr("Delete"), QDialogButtonBox.ButtonRole.AcceptRole)
+        # Coloured in the tab's colour before K44, and kept (B8-1156).
         del_btn.setObjectName("primary")
+        # Destructive: never where the keyboard focus starts (B8-1181).
+        # Not the default, so the mark changes nothing in its colour.
+        from ui.default_button import mark_destructive
+        mark_destructive(del_btn)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return presses Cancel, which stays plain; Delete keeps
+        # its colour and is reached by a click.
+        cancel_btn.setDefault(True)
         bb.rejected.connect(dlg.reject)
         bb.accepted.connect(dlg.accept)
         dlg_layout.addWidget(bb)
@@ -2470,13 +2590,27 @@ class TabProfile(QWidget):
         for code, label in [
             ("l", "Lab cLUT (recommended for inkjet)"),
             ("x", "XYZ cLUT"),
-            ("X", "XYZ cLUT + matrix"),
-            ("g", "Gamma + matrix"),
-            ("G", "Gamma + matrix (forced)"),
-            ("s", "Single gamma + matrix"),
-            ("S", "Single gamma + matrix (forced)"),
-            ("m", "Matrix only"),
-            ("M", "Matrix only (forced)"),
+            # THIS TAB BUILDS A PRINTER PROFILE, AND A PRINTER PROFILE IS A
+            # cLUT OR IT IS NOTHING. `colprof.c:1244-1246` refuses every other
+            # algorithm for a DEVICE_CLASS "OUTPUT" measurement with
+            # "Output profile can only be a cLUT algorithm", before it reads a
+            # patch. This list used to hold eight entries; MEASURED against the
+            # 3.5.0 binary on real printer .ti3 files, five of them (g G s S m)
+            # exited 1 and wrote nothing, and a sixth (X) built a file
+            # BIT-IDENTICAL to "x" because the OUTPUT call site passes mtxtoo=0
+            # (`colprof.c:1256`) and throws the matrix those letters exist to
+            # add away. Its label, "XYZ cLUT + matrix", promised a matrix the
+            # file did not contain.
+            #
+            # Beta 11 removed "M", which colprof never had, and left the five
+            # that it does have and cannot use here. The letters and the reason
+            # live in `profile_builder.COLPROF_ALGORITHMS_BY_DEVICE_CLASS` /
+            # `OUTPUT_ALGORITHM_CHOICES`; `_set_algorithm_combo` below moves a
+            # stored letter onto this list AND SAYS SO.
+            #
+            # The gamma / shaper / matrix algorithms are not gone from ChromIQ:
+            # they belong to a scanner or camera profile, and the scanner and
+            # camera window offers them where they work.
         ]:
             self._m_algo_combo.addItem(label, code)
         self._m_algo_combo.setObjectName("compact_input")
@@ -2487,13 +2621,18 @@ class TabProfile(QWidget):
             tr("Profile Algorithm (-a)"),
             tr("Selects the mathematical model used to map device values (ink percentages)\n"
             "to colours.\n\n"
-            "Lab cLUT — a full 3-dimensional lookup table. Captures the complex,\n"
-            "non-linear relationship between ink and colour that every real inkjet\n"
-            "printer has. This is almost always the right choice.\n\n"
-            "Matrix + gamma — a simple linear model that fits only devices with a\n"
-            "near-linear, predictable response (such as monitors). Far less accurate\n"
-            "for inkjet printers. Use only if the destination application explicitly\n"
-            "requires a matrix profile."),
+            "**Lab cLUT:** a full 3-dimensional lookup table, connecting through L*a*b*.\n"
+            "It captures the complex, non-linear relationship between ink and colour\n"
+            "that every real inkjet printer has, and it is the only kind of printer\n"
+            "profile that can carry all four rendering intents. This is almost always\n"
+            "the right choice.\n\n"
+            "**XYZ cLUT:** the same kind of table, connecting through XYZ instead. It can\n"
+            "suit an additive device better, and ArgyllCMS warns that it is a lot less\n"
+            "robust on a patch set that is sparse or unevenly spaced.\n\n"
+            "There is no third choice here, and that is ArgyllCMS\u2019s rule rather than\n"
+            "ChromIQ\u2019s: colprof refuses to build a printer profile from a gamma,\n"
+            "shaper or matrix model. Those suit a scanner, a camera or a display, and\n"
+            "ChromIQ offers them in the scanner and camera window."),
             grp,
             min_width=480,
         ))
@@ -2686,7 +2825,7 @@ class TabProfile(QWidget):
             "Requires spectral measurements — not supported by all instruments.\n\n"
             "The illuminant sets the lighting condition used to compute the FWA effect.\n"
             "Use for papers with optical brighteners (bright white coated stock).\n\n"
-            "Important: ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
+            "**Important:** ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
             "fail with an error if this option is enabled. UV-capable instruments such as\n"
             "the X-Rite i1Pro 2/3 are required for FWA compensation."),
             grp,
@@ -2718,48 +2857,48 @@ class TabProfile(QWidget):
             tr("Printers with a black ink (CMYK and multi-ink printers) can "
             "mix dark colours in two ways: from the colour inks alone, or by "
             "letting black ink carry part of the density. This setting "
-            "decides how much black ink the profile's colour tables will use "
-            "— often called black generation or GCR (Grey Component "
+            "decides how much black ink the profile's colour tables will use, "
+            "often called black generation or GCR (Grey Component "
             "Replacement).\n\n"
             "It only takes effect when your measurement comes from a printer "
-            "with a black channel. For an RGB printer driver — the usual "
-            "ChromIQ workflow — it is simply ignored, exactly as Argyll "
+            "with a black channel. For an RGB printer driver (the usual "
+            "ChromIQ workflow) it is simply ignored, exactly as Argyll "
             "colprof ignores it.\n\n"
             "Why would you care? More black usually means steadier neutrals "
-            "(greys built from black ink drift less when the light or the "
+            "(greys built from black ink change less when the light or the "
             "ink batch changes), less total ink on the paper and solid deep "
             "shadows. Less black can look smoother on some inkjets, where "
-            "black dots read as grain in dark areas. Neither is wrong — it "
+            "black dots read as grain in dark areas. Neither is wrong: it "
             "depends on printer, paper and taste.\n\n"
             "The choices:\n\n"
-            "  • Default (black ramp) — black starts at zero in the "
+            "  • Default (black ramp): black starts at zero in the "
             "highlights and rises steadily to maximum in the shadows. A good "
             "all-round choice, and what you get when you leave this "
             "untouched.\n\n"
-            "  • No black (z) — dark colours are built from the colour inks "
+            "  • No black (z): dark colours are built from the colour inks "
             "only. Mostly useful for diagnosing ink behaviour.\n\n"
-            "  • Half black (h) — a constant, moderate amount of black "
+            "  • Half black (h): a constant, moderate amount of black "
             "everywhere.\n\n"
-            "  • Maximum black (x) — as much black as possible. The most "
+            "  • Maximum black (x): as much black as possible. The most "
             "stable greys under changing light; can look grainy on some "
             "papers.\n\n"
-            "  • Black ramp (r) — the same behaviour as the default, stated "
+            "  • Black ramp (r): the same behaviour as the default, stated "
             "explicitly.\n\n"
-            "  • Custom curve (p) — shape the black behaviour yourself with "
+            "  • Custom curve (p): shape the black behaviour yourself with "
             "the five values that appear: Start level (black in the "
             "highlights), Start and End position (where along the "
-            "light-to-dark axis the transition begins and ends — 0 is white, "
+            "light-to-dark axis the transition begins and ends; 0 is white, "
             "1 is black), End level (black in the deepest shadows) and Shape "
             "(1.0 = straight line, below 1 eases in gradually, above 1 rises "
             "quickly and then levels off). A typical gentle curve is "
             "0 / 0.1 / 0.9 / 1 / 1.\n\n"
-            "Proportional (-K): normally the curve sets the black value "
+            "**Proportional (-K):** normally the curve sets the black value "
             "itself. With this ticked, the curve sets the proportion of the "
-            "black that is possible at each colour instead — strong colours "
+            "black that is possible at each colour instead. Strong colours "
             "leave less room for black ink, and the proportional form "
             "scales down gracefully there instead of clipping.\n\n"
-            "Every build path honours this setting the same way — Argyll "
-            "colprof and all three ChromIQ engine modes — so profiles stay "
+            "Every build path honours this setting the same way (Argyll "
+            "colprof and all three ChromIQ engine modes), so profiles stay "
             "comparable when you switch engines. The choice is baked into "
             "the profile when it is built; to try a different black "
             "behaviour, change it here and build again."),
@@ -2824,28 +2963,28 @@ class TabProfile(QWidget):
             tr("Lets the engine try a physical model of how your printer's "
                "inks mix on paper (halftone dot physics, including paper "
                "gloss), instead of relying on curve fitting alone.\n\n"
-               "How it works: the engine builds both models and holds back "
+               "**How it works:** the engine builds both models and holds back "
                "a share of your measured patches as an exam. Only if the "
                "physics model predicts those unseen patches clearly better "
                "is it used for the profile — otherwise the build silently "
                "keeps the standard model. Ticking this can therefore never "
                "make a profile worse; it can only win or change nothing.\n\n"
-               "When it helps most: printers with many inks (CMYK plus "
+               "**When it helps most:** printers with many inks (CMYK plus "
                "orange, green, violet …), where a chart can never cover "
                "every ink combination — physics fills those gaps far "
                "better than interpolation. On ChromIQ's synthetic test "
                "bench, multi-ink profiles came out 20–36% closer to the "
                "true colours with this enabled.\n\n"
-               "What it needs: a chart measured in spectral mode (the "
+               "**What it needs:** a chart measured in spectral mode (the "
                "high-resolution setting in the Measure tab) and a printer "
                "driven through its real ink channels. RGB printer drivers "
                "— the usual ChromIQ workflow — hide the inks, so there "
                "this option simply does nothing.\n\n"
-               "Why it is off by default: the resulting tables trade a "
+               "**Why it is off by default:** the resulting tables trade a "
                "small amount of internal round-trip consistency for the "
                "accuracy gain. For proofing-style work where soft-proof "
                "round-trips matter more than absolute accuracy, leave it "
-               "off.\n\nDefault: off."),
+               "off.\n\n**Default:** off."),
             grp,
             min_width=560,
         ))
@@ -2882,7 +3021,7 @@ class TabProfile(QWidget):
                "older RIP but also deliver profiles to clients on modern "
                "pipelines. Installing and the rest of the ChromIQ "
                "workflow keep using the v2 file.\n\n"
-               "Default: Version 2."),
+               "**Default:** Version 2."),
             grp,
             min_width=520,
         ))
@@ -2900,7 +3039,7 @@ class TabProfile(QWidget):
                "white and black patches on the chart) and fits the "
                "profile so it follows your printer instead of chasing "
                "that noise.\n\n"
-               "How it stays safe: the engine first diagnoses the chart "
+               "**How it stays safe:** the engine first diagnoses the chart "
                "itself — the repeated white and black patches reveal how "
                "much your readings actually scatter. Only when that "
                "scatter is clearly above what a healthy instrument "
@@ -2910,16 +3049,16 @@ class TabProfile(QWidget):
                "would have gotten anyway — bit for bit. Ticking this can "
                "therefore never make a profile worse, and the log always "
                "tells you which way it went.\n\n"
-               "When it helps: older or budget instruments, strip "
+               "**When it helps:** older or budget instruments, strip "
                "readings that occasionally jitter, charts measured in a "
                "hurry. On a deliberately noisy test measurement it cut "
                "the profile's errors by roughly 15–20% and reduced "
                "false \"please remeasure this patch\" warnings from "
                "dozens to a handful.\n\n"
-               "Bonus either way: the build log gains a confidence map — "
+               "**Bonus either way:** the build log gains a confidence map — "
                "plain sentences telling you how well each region "
                "(shadows, midtones, highlights, saturated colours) is "
-               "supported by your chart.\n\nDefault: off."),
+               "supported by your chart.\n\n**Default:** off."),
             grp,
             min_width=560,
         ))
@@ -2943,22 +3082,22 @@ class TabProfile(QWidget):
                "profile's perceptual rendering decides how such colours "
                "are squeezed into what the printer CAN do. Colours "
                "inside the printer's range are reproduced identically "
-               "with both choices — this only affects the squeeze.\n\n"
-               "  • Argyll-matched — reproduces ArgyllCMS's rendering, "
+               "with both choices; this only affects the squeeze.\n\n"
+               "  • Argyll-matched: reproduces ArgyllCMS's rendering, "
                "the behaviour thousands of printmakers have relied on "
                "for years. The safe default.\n\n"
-               "  • ChromIQ bijective — a new mapping with two technical "
+               "  • ChromIQ bijective: a new mapping with two technical "
                "advantages: converting a colour into the profile and "
-               "back out is mathematically exact (no drift in "
-               "soft-proofing round-trips), and building the rendering "
+               "back out is mathematically exact (a soft-proofing "
+               "round-trip gives back the colour it started from), and building the rendering "
                "tables takes seconds instead of minutes. The catch: how "
                "pleasing its squeeze LOOKS on real photos hasn't been "
-               "judged by human eyes at scale yet — numbers can't decide "
+               "judged by human eyes at scale yet, and numbers can't decide "
                "matters of taste. Try it on your own test prints; if "
                "you like what you see, use it.\n\n"
                "Only applies while the intent overrides (-t / -T) are "
-               "unset — an explicit intent always uses the Argyll "
-               "behaviour.\n\nDefault: Argyll-matched."),
+               "unset. An explicit intent always uses the Argyll "
+               "behaviour.\n\n**Default:** Argyll-matched."),
             grp,
             min_width=560,
         ))
@@ -2986,7 +3125,7 @@ class TabProfile(QWidget):
             "builds the perceptual (and saturation) gamut-mapping tables. "
             "Matching this to where your source image actually lives makes the "
             "print look more like what you saw on screen.\n\n"
-            "Important: this setting ONLY does anything when you've also set a "
+            "**Important:** this setting ONLY does anything when you've also set a "
             "Gamut Source profile (the -s or -S row above). Without a gamut "
             "source there is no gamut mapping, so there is nothing for these "
             "viewing conditions to influence.\n\n"
@@ -3028,7 +3167,7 @@ class TabProfile(QWidget):
             "when it builds the perceptual (and saturation) gamut-mapping "
             "tables — so that the print looks correct to a viewer in that "
             "specific lighting.\n\n"
-            "Important: this setting ONLY does anything when you've also set a "
+            "**Important:** this setting ONLY does anything when you've also set a "
             "Gamut Source profile (the -s or -S row above). Without a gamut "
             "source there is no gamut mapping, so there is nothing for these "
             "viewing conditions to influence.\n\n"
@@ -3519,13 +3658,12 @@ class TabProfile(QWidget):
         for code, label in [
             ("l", "Lab cLUT (recommended for inkjet)"),
             ("x", "XYZ cLUT"),
-            ("X", "XYZ cLUT + matrix"),
-            ("g", "Gamma + matrix"),
-            ("G", "Gamma + matrix (forced)"),
-            ("s", "Single gamma + matrix"),
-            ("S", "Single gamma + matrix (forced)"),
-            ("m", "Matrix only"),
-            ("M", "Matrix only (forced)"),
+            # The same two, for the same reason as the Manual combo above:
+            # `colprof.c:1244-1246` accepts no other algorithm for a printer
+            # measurement. This combo is hidden (`setVisible(False)` below) and
+            # has been since v2.1.0, but it is still collected into the build
+            # parameters and still stored per target as "g_algorithm", so it
+            # gets the same list and the same coercion, not a comment.
         ]:
             self._algo_combo.addItem(label, code)
         algo_row.addWidget(self._algo_combo, stretch=1)
@@ -3533,13 +3671,18 @@ class TabProfile(QWidget):
             tr("Profile Algorithm (-a)"),
             tr("Selects the mathematical model used to map device values (ink percentages)\n"
             "to colours.\n\n"
-            "Lab cLUT — a full 3-dimensional lookup table. Captures the complex,\n"
-            "non-linear relationship between ink and colour that every real inkjet\n"
-            "printer has. This is almost always the right choice.\n\n"
-            "Matrix + gamma — a simple linear model that fits only devices with a\n"
-            "near-linear, predictable response (such as monitors). Far less accurate\n"
-            "for inkjet printers. Use only if the destination application explicitly\n"
-            "requires a matrix profile."),
+            "**Lab cLUT:** a full 3-dimensional lookup table, connecting through L*a*b*.\n"
+            "It captures the complex, non-linear relationship between ink and colour\n"
+            "that every real inkjet printer has, and it is the only kind of printer\n"
+            "profile that can carry all four rendering intents. This is almost always\n"
+            "the right choice.\n\n"
+            "**XYZ cLUT:** the same kind of table, connecting through XYZ instead. It can\n"
+            "suit an additive device better, and ArgyllCMS warns that it is a lot less\n"
+            "robust on a patch set that is sparse or unevenly spaced.\n\n"
+            "There is no third choice here, and that is ArgyllCMS\u2019s rule rather than\n"
+            "ChromIQ\u2019s: colprof refuses to build a printer profile from a gamma,\n"
+            "shaper or matrix model. Those suit a scanner, a camera or a display, and\n"
+            "ChromIQ offers them in the scanner and camera window."),
             _algo_w,
             min_width=480,
         ))
@@ -3724,7 +3867,7 @@ class TabProfile(QWidget):
             "Requires spectral measurements — not supported by all instruments.\n\n"
             "The illuminant sets the lighting condition used to compute the FWA effect.\n"
             "Use for papers with optical brighteners (bright white coated stock).\n\n"
-            "Important: ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
+            "**Important:** ColorMunki, i1Studio, and CC Studio filter out UV light and will\n"
             "fail with an error if this option is enabled. UV-capable instruments such as\n"
             "the X-Rite i1Pro 2/3 are required for FWA compensation."),
             _adv,
@@ -4088,6 +4231,33 @@ class TabProfile(QWidget):
         elif not usable:
             self._file_lbl.setText(tr("{path}  —  no readings yet").format(
                 path=path))
+        # AND WHETHER ITS COLOUR NUMBERS ARE ON THE SCALE ARGYLLCMS MEANS.
+        #
+        # `repair_converted_cie` puts the hundredfold CIE scale right on every
+        # path that CONVERTS an i1Profiler export. It cannot reach a `.ti3` that
+        # was converted before it existed and has been sitting in the run folder
+        # since. Reproduced on screen 2026-09-11 with the reporting user's own
+        # export: this tab armed its button and said nothing, and the profile
+        # built from it records paper white at L* 8 instead of L* 95.
+        #
+        # Said, not mended and not forbidden. Rewriting a measurement the user
+        # did not ask us to touch is a write; refusing to build from a file
+        # ArgyllCMS will happily read is a decision that is not ours. What this
+        # owes the user is that it is not silent.
+        # ONE READING AND ONE SENTENCE, SHARED WITH THE OTHER DOORS THAT ASK.
+        # This was the only place in the app that asked, and combined round 10
+        # drove a `.ti3` with 0-to-1 XYZ through both of the Measurement tab's
+        # import doors: each one filed it and said nothing, and the profiling
+        # one saved a dated measurement report from it. See
+        # `measurement_filing.the_colour_scale_note`, which is where the words
+        # live now. Neither word changed; nothing new was written.
+        from ui.measurement_filing import (the_colour_scale_note,
+                                           the_colour_scale_tag)
+        scale = the_colour_scale_note(path)
+        if scale:
+            self._file_lbl.setText(self._file_lbl.text() + the_colour_scale_tag())
+            old = self._build_btn.toolTip()
+            self._build_btn.setToolTip(f"{old}\n\n{scale}" if old else scale)
         # #130 §4: **only while the field is still a ChromIQ default.** These
         # two lines used to overwrite unconditionally, so a Profile Description
         # the user had typed was lost the moment a measurement was loaded or
@@ -4263,7 +4433,7 @@ class TabProfile(QWidget):
         except (ReferenceConvertError, OSError, ValueError) as exc:
             InfoDialog(tr("The file could not be converted"),
                        tr("ChromIQ could not read “{name}” as a measurement.\n\n"
-                          "The reason: {reason}.").format(name=src.name,
+                          "**The reason:** {reason}.").format(name=src.name,
                                                           reason=exc),
                        self, min_width=560).exec()
             return None
@@ -4518,7 +4688,12 @@ class TabProfile(QWidget):
             from workflow.reference_convert import finalize_converted_ti3
             src_txt = self._txt_convert_dir / f"{self._txt_convert_base}.txt"
             if src_txt.is_file():
-                instr, date = finalize_converted_ti3(ti3, src_txt)
+                # The ArgyllCMS folder goes with it: the finalise step runs
+                # `spec2cie` when txt2ti3's output has no CIE columns of its own.
+                instr, date = finalize_converted_ti3(
+                    ti3, src_txt,
+                    self._settings.get("argyll_bin_path",
+                                       "/Applications/Argyll/bin"))
                 if instr or date:
                     self._log.appendPlainText(
                         f"Instrument: {instr}"
@@ -5009,11 +5184,18 @@ class TabProfile(QWidget):
                                 QMessageBox.ButtonRole.AcceptRole)
         go = box.addButton(tr("Build here anyway"),
                            QMessageBox.ButtonRole.DestructiveRole)
-        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
+        # filled.
+        from ui.default_button import mark_destructive
+        mark_destructive(go)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
         ask = QCheckBox(tr(M.M_SILENCE_LABEL), box)
         ask.setToolTip(tr(M.M_SILENCE_TOOLTIP))
         box.setCheckBox(ask)
-        box.setDefaultButton(dup or go)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Where a duplicate can be made, Return makes it (nothing
+        # is lost); otherwise Return presses Cancel, never "Build here anyway".
+        box.setDefaultButton(dup or cancel)
         fit_message_box_buttons(box)
         box.exec()
         clicked = box.clickedButton()
@@ -5033,45 +5215,6 @@ class TabProfile(QWidget):
             return False
         self._archive_superseded_profile(run)
         return True
-
-    def _archive_previous_build(self, params) -> None:
-        """Never overwrite a profile the user built: a plain rebuild into the
-        same run replaced ``<name>.icc`` (and the ``-v4.icc`` twin) in place
-        with no ``old/`` and no line in the log — the archive only ran behind
-        the verification question (B-09/B-20, 2026-09-05). Same destination
-        as that path (``runs/runN/old/<timestamp>/``); the twin goes with it.
-        A failure here never stops the build."""
-        self._archived_build = None
-        icc = params.ti3_path.with_suffix(".icc")
-        twin = icc.with_name(icc.stem + "-v4.icc")
-        calibrated = icc.with_name("calibrated.icc")
-        present = [p for p in (icc, twin, calibrated) if p.is_file()]
-        if not present:
-            return
-        run = self._run_being_built_into()
-        if run is None or not hasattr(run, "archive_to_old"):
-            return
-        # The verification question archives the profile itself; do not do
-        # it twice within one build.
-        try:
-            if run.built_profile_icc() not in present:
-                present.append(run.built_profile_icc())
-                present = [p for p in present if p.is_file()]
-        except Exception:                 # noqa: BLE001
-            pass
-        from datetime import datetime
-        try:
-            dest = run.archive_to_old(present, datetime.now())
-        except Exception as exc:          # noqa: BLE001
-            self._log.appendPlainText(tr(
-                "[WARNING] Could not move the previous profile out of the "
-                "way: {error}").format(error=exc))
-            return
-        if dest is not None:
-            self._archived_build = (Path(dest), [p.name for p in present],
-                                    icc.parent)
-            self._log.appendPlainText(tr(
-                "The previous profile was moved to: {folder}").format(folder=dest))
 
     def _restore_archived_build(self) -> None:
         """A build that failed (or never started) puts the previous profile
@@ -5141,6 +5284,68 @@ class TabProfile(QWidget):
                 "The verification measurements made against it were moved to: "
                 "{folder}").format(folder=vdest))
 
+    def _archive_the_profile_being_replaced(self, params) -> None:
+        """Move the profile this build is about to overwrite into ``old/``.
+
+        **THE ONE DOOR WHOSE JOB IS TO REPLACE A PROFILE WAS THE ONE THAT
+        DESTROYED IT** (adversary round 26, R26-F1, driven on screen).
+        `colprof` is handed the run's own basename, so it opens
+        ``runs/runN/<stem>.icc`` for writing and truncates it on the spot:
+        measured, the finished 203,676-byte profile was **0 bytes a quarter of
+        a second after the button was pressed**, and it stayed 0 bytes for
+        every sample of the next eight seconds. Quit the app, or let the build
+        fail, and what is left is a zero-byte file that `Run.built_profile_icc`
+        reports as present, that enables Check & Refine, and that only
+        `workflow.icc_info.read_icc` refuses.
+
+        `_archive_superseded_profile` already existed and already did the right
+        thing, but it hangs off ONE branch: the "Build here anyway" answer to
+        the §6 warning, which `profile_rebuild_guard.assess` only raises for a
+        run that has dated verifications. For the ordinary run it returns
+        ``needed=False, reason='no verification chart'``, so pressing Build
+        Profile twice went straight past it.
+
+        A profile is thirty to sixty minutes of printing and measuring plus up
+        to ten of `colprof`. The run folder's rule is the same one
+        `Run.reset_chart_artefacts` keeps for a chart re-generation, in
+        `core/file_manager.py`'s own words: a rebuild must NEVER delete the
+        run's finished measurement or profile, because they cannot be
+        regenerated. This is that rule, applied at the door that needed it.
+
+        **The path comes from the BUILDER, not from the run.** A refinement
+        merge repoints `params` at ``merged.ti3``, and the profile that build
+        overwrites is ``merged.icc``; asking the run for "its" profile would
+        archive a different file and leave the one being replaced to be
+        truncated. `expected_icc_path` is what the builder itself will write.
+
+        Nothing here can stop a build: the file is about to be overwritten
+        either way, so a failure is said in the log and the build goes on.
+        """
+        from datetime import datetime
+
+        self._archived_build = None
+        try:
+            icc = self._builder.expected_icc_path(params)
+            if not icc.is_file() or icc.stat().st_size == 0:
+                return
+            # The engine's "both" ICC-version output writes a "-v4.icc" twin
+            # beside the profile; it is replaced by the same build.
+            twin = icc.with_name(icc.stem + "-v4.icc")
+            present = [icc] + ([twin] if twin.is_file() else [])
+            dest = Run.for_dir(icc.parent).archive_to_old(present, datetime.now())
+        except Exception as exc:      # noqa: BLE001 - never block the build
+            log.warning("could not archive the profile being replaced",
+                        exc_info=True)
+            self._log.appendPlainText(tr(
+                "[WARNING] Could not move the previous profile out of the "
+                "way: {error}").format(error=exc))
+            return
+        if dest is not None:
+            self._archived_build = (Path(dest), [q.name for q in present],
+                                    icc.parent)
+            self._log.appendPlainText(tr(
+                "The previous profile was moved to: {folder}").format(folder=dest))
+
     def _on_build(self) -> None:
         if not self._ti3_path or not self._ti3_path.exists():
             self._log.appendPlainText("[ERROR] No valid .ti3 file selected.")
@@ -5149,8 +5354,82 @@ class TabProfile(QWidget):
         if self._runner.is_running or self._engine_builder.is_running:
             return
 
+        # CLEAR THE LOG BEFORE THE QUESTIONS, NOT AFTER THEM.
+        #
+        # This sat seven lines below, and `_confirm_rebuild_over_verifications`
+        # -> `_archive_superseded_profile` writes into this very log the only
+        # two sentences that ever name where a person's history went:
+        # "The previous profile was moved to: <folder>" and "The verification
+        # measurements made against it were moved to: <folder>". They were
+        # erased milliseconds after being written and nobody had ever read one.
+        #
+        # Driven on screen on a real project with a real profile and two real
+        # dated verifications (combined round 7, `E-result.json`,
+        # `E1-the-question-that-archives-them.png`): "Build here anyway" moved
+        # the `.icc` into `runs/run1/old/2026-09-16_000225/` and BOTH dated
+        # verifications into `verifications/old/2026-09-16_000225/`, wrote both
+        # lines, and the clear below took them; the log on screen afterwards
+        # held the profiler's own output and nothing else. The window names
+        # `old/`, so nobody is stranded - what is lost is the dated folder, the
+        # one thing that says WHICH archive is theirs.
+        #
+        # `ui/tabs/tab_measure.py::_on_start` records the identical fault and
+        # the identical fix in its own words: every calibration message was
+        # "erased milliseconds after being written… None of it had ever been
+        # seen by anybody."
+        self._log.clear()
+
         params = self._collect_params()
         if not self._validate_gamut_source(params):
+            return
+        # WHICH BUILDER WILL RUN, ASKED ONCE AND ASKED ABOVE THE ARCHIVE.
+        #
+        # This was asked forty lines below, AFTER
+        # `_confirm_rebuild_over_verifications` had already moved this run's
+        # profile and every dated verification measurement into `old/`, and the
+        # refusal above it guessed at the answer instead: it stood aside for the
+        # whole of `profile_engine_beta` on the reasoning that "the build may
+        # not need Argyll at all". `_resolve_engine` says otherwise - with the
+        # beta ticked a standard (<=4-ink) measurement still builds on colprof
+        # when "Bit-exact gamut mapping" is chosen, and whenever
+        # `engine_support` declines.
+        #
+        # Driven on screen, combined round 9 (`D-result.json`): beta ticked,
+        # Bit-exact chosen, ArgyllCMS folder pointing at nothing, Build here
+        # anyway - the profile went into `runs/run1/old/<date>/`, both dated
+        # verifications into `verifications/old/<date>/`, and the window said
+        # "Nothing was changed in your project." That is the sentence combined
+        # round 8 refused above the archive; the refusal simply was not reached.
+        #
+        # Asking here also puts `engine == "blocked"` above the archive, which
+        # had the same shape: a multi-ink measurement without the beta setting
+        # was refused outright AFTER its history had been moved.
+        try:
+            engine = self._resolve_engine(params)
+        except Exception:      # noqa: BLE001 - the cheap, certain answer
+            # THE SAME REASONING `_refuse_when_the_profiler_is_not_installed`
+            # records: `is_multi_ink` READS the measurement, so a half-written
+            # `.ti3` raises. colprof is what an unreadable measurement would
+            # have been built with before the engine existed, so treating it as
+            # the builder keeps the refusal below able to fire.
+            log.warning("could not decide which builder to use for %s; "
+                        "treating colprof as the builder",
+                        getattr(params, "ti3_path", None), exc_info=True)
+            engine = "colprof"
+        if engine == "blocked":
+            self._show_tool_failure_dialog(
+                tr("Multi-ink measurement"),
+                tr("This measurement comes from a multi-ink chart (extra inks "
+                   "beyond CMYK). Argyll colprof cannot build a profile from "
+                   "it.\n\nEnable \"ChromIQ profile engine (beta)\" in "
+                   "Settings and build again — the engine handles multi-ink "
+                   "measurements."))
+            return
+        # A BUILD THAT CANNOT START MUST NOT ARCHIVE ANYTHING FIRST.
+        # `_confirm_rebuild_over_verifications` below MOVES this run's profile
+        # and every dated verification measurement out of the way, and the
+        # builder is only launched afterwards. See the method.
+        if self._refuse_when_the_profiler_is_not_installed(engine):
             return
         # The profile is written beside the measurement it is built from, so a
         # measurement belonging to another run quietly builds into that run.
@@ -5165,22 +5444,17 @@ class TabProfile(QWidget):
         # fresh file so Check & Refine keeps working on the physical chart.
         params = self._apply_preconditioning_merge(params)
         self._active_params = params
-        self._log.clear()
-        engine = self._resolve_engine(params)
-        if engine == "blocked":
-            self._show_tool_failure_dialog(
-                tr("Multi-ink measurement"),
-                tr("This measurement comes from a multi-ink chart (extra inks "
-                   "beyond CMYK). Argyll colprof cannot build a profile from "
-                   "it.\n\nEnable \"ChromIQ profile engine (beta)\" in "
-                   "Settings and build again — the engine handles multi-ink "
-                   "measurements."))
-            return
-        # Only now — after every question and the multi-ink refusal — is the
-        # previous profile moved out of the way; a build that never starts
-        # or fails puts it back (reviewer R14: the archive ran before the
-        # "blocked" check and a failed rebuild left the run with no profile).
-        self._archive_previous_build(params)
+        # R26-F1: the profile about to be overwritten goes to `old/` first. Last
+        # thing before the builders, so every refusal above has had its say and
+        # the merge above has settled which file that actually is.
+        self._archive_the_profile_being_replaced(params)
+        # (the log was cleared before the questions - see above; `engine` was
+        # decided above them too, so that a build which cannot run refuses
+        # before anything is moved.)
+        # Which builder's output `_on_log_line` is reading. The colprof
+        # progress parsing must never be applied to the ChromIQ engine's
+        # output, which has its own vocabulary.
+        self._building_with = engine
         # THE BUSY HEADLINE, through the same door as the idle one. This was
         # a raw `setText` with the colour already substituted, which is
         # exactly what the comment in `_restore_build_box` warns against a few
@@ -5240,8 +5514,46 @@ class TabProfile(QWidget):
             raise
 
     def _on_log_line(self, line: str) -> None:
+        if self._show_colprof_progress(line):
+            return
         self._log.appendPlainText(line)
         self._log.ensureCursorVisible()
+
+    def _show_colprof_progress(self, line: str) -> bool:
+        """Turn one line of ``colprof -v`` into the bar's readout.
+
+        Returns True when the line WAS the readout and so must not also be
+        written into the log: colprof ticks a bare percentage field per phase
+        (231 of them in a measured `-qu` build), and pouring those into the box
+        would bury the phase names they belong to.
+
+        The percentage colprof reports is **per phase and restarts at zero for
+        each**, so that is exactly what the bar shows — this phase, this far,
+        with the tool's own name for the phase beside it. There is no
+        whole-build percentage in the output and none is invented here. Before
+        the first percentage of a phase arrives the bar goes back to its
+        indeterminate animation, which is the honest reading of colprof's one
+        long silent stretch (107 s of a 457 s `-qu` build, measured).
+        """
+        if getattr(self, "_building_with", "") != "colprof":
+            return False
+        bar = getattr(self, "_progress_bar", None)
+        if bar is None:
+            return False
+        from workflow.profile_builder import colprof_percent, colprof_phase
+        phase = colprof_phase(line)
+        if phase is not None:
+            self._colprof_phase = phase
+            bar.set_label(tr("Building"), phase)
+            bar.set_value(None)
+            return False           # the phase name belongs in the log as well
+        pct = colprof_percent(line)
+        if pct is None:
+            return False
+        bar.set_label(tr("Building"),
+                      getattr(self, "_colprof_phase", "") or "colprof")
+        bar.set_value(pct)
+        return True
 
     def _reset_build_ui(self) -> None:
         """Restore the Build box after any build (colprof or engine)."""
@@ -5261,6 +5573,8 @@ class TabProfile(QWidget):
         self._progress_bar.stop()
         self._progress_bar.set_label(tr("Build Profile"), "")
         self._progress_bar.set_value(0)
+        self._colprof_phase = ""
+        self._building_with = ""
 
     def _on_engine_done(self, code: int) -> None:
         """Finish path for ChromIQ-engine builds (#122)."""
@@ -5288,6 +5602,58 @@ class TabProfile(QWidget):
         if self._ti3_path:
             self.profile_built.emit(self._ti3_path, self._icc_path)
         self._show_build_result_dialog(self._icc_path, [])
+
+    def _refuse_when_the_profiler_is_not_installed(self, engine: str) -> bool:
+        """Say "ChromIQ could not start colprof" BEFORE anything is moved.
+
+        `_confirm_rebuild_over_verifications` -> `_archive_superseded_profile`
+        MOVES the run's built profile into ``runs/runN/old/<date>/`` and every
+        dated verification measurement into ``verifications/old/<date>/``, and
+        only then is colprof launched. With the ArgyllCMS folder pointing
+        somewhere wrong, colprof never starts, and
+        :meth:`_report_if_the_tool_could_not_start` ends with the words
+        **"Nothing was changed in your project."**
+
+        Driven on screen (combined round 8, `D-result.json`,
+        `D2-ChromIQ-could-not-start-colprof.png`) on a real run holding a real
+        profile and two real dated verification measurements: after *Build here
+        anyway* the run held **no profile at all** - the `.icc` was in
+        `old/2026-09-16_003327/` and both verifications in
+        `verifications/old/2026-09-16_003327/` - under a window saying nothing
+        had been changed. Round 7 wrote this down as a lead it could not force,
+        because `ArgyllRunner._resolve` falls back to a bare ``PATH`` lookup and
+        its probes found a working colprof there.
+
+        Asked HERE rather than mended afterwards, which is the same fix round 7
+        made for the archive's own log lines: move the step above the question
+        instead of undoing it below. Nothing is moved, so the sentence the
+        window already says is true, and no new message text is needed.
+
+        Only for a build that really would run colprof, and it is now ASKED
+        rather than guessed at. The first version answered the question itself,
+        from ``profile_engine_beta`` and ``is_multi_ink`` - and combined round 9
+        drove straight through it: the beta setting does NOT mean the engine
+        builds. ``_resolve_engine`` returns ``"colprof"`` on a standard
+        (<=4-ink) measurement whenever "Bit-exact gamut mapping" is chosen,
+        which it documents as deliberate, and whenever ``engine_support``
+        declines. With the beta ticked the guard stood aside, the archive ran,
+        and the same window said "Nothing was changed in your project" over a
+        run whose profile and both dated verifications had just been moved
+        (`D-result.json`, `D2-ChromIQ-could-not-start-colprof.png`).
+
+        So the caller decides which builder will run, once, and hands the
+        answer down. There is exactly one question left here, and it is the
+        cheap, certain one: can that builder be launched at all?
+        """
+        if engine != "colprof":
+            return False
+        if self._runner.tool_is_installed("colprof"):
+            return False
+        self._runner.last_failed_to_start = "colprof"
+        # No log line of its own: the window below says the whole thing, and
+        # "colprof exited with code -1" would be untrue - it never ran.
+        self._report_if_the_tool_could_not_start()
+        return True
 
     def _report_if_the_tool_could_not_start(self) -> bool:
         """Tell the user when ChromIQ could not launch the tool at all."""
@@ -5557,10 +5923,10 @@ class TabProfile(QWidget):
                "Description below instead, so the file is as easy to find in "
                "the folder as the description is in an app's "
                "colour-management menu.\n\n"
-               "Nothing else changes: only the installed copy gets the new "
+               "**Nothing else changes:** only the installed copy gets the new "
                "name, the profile inside your project keeps its own, and "
                "every part of ChromIQ keeps working exactly as before.\n\n"
-               "Good to know: characters a file name cannot contain are "
+               "**Good to know:** characters a file name cannot contain are "
                "replaced with “_”; installing over a profile that already "
                "has that name replaces it, which is the normal way to update "
                "one; and while the description is empty the copy simply "
@@ -5584,14 +5950,17 @@ class TabProfile(QWidget):
     def _install_name(self) -> "str | None":
         """The file name (no extension) for the installed copy, or None for
         the plain copy. Reads the ACTIVE mode's description field — the one
-        on screen next to the checkbox."""
-        if not self._settings.get("install_named_by_description", False):
-            return None
+        on screen next to the checkbox.
+
+        The decision and the sanitising both live in
+        :func:`workflow.profile_builder.installed_profile_name`, which Check
+        and Refine's Install button calls too, so the two buttons cannot
+        disagree about the name again.
+        """
+        from workflow.profile_builder import installed_profile_name
         edit = (self._desc_edit if self._current_mode() == "guided"
                 else self._m_desc_edit)
-        import re
-        safe = re.sub(r'[\\/:*?"<>|]+', "_", edit.text().strip()).strip(" .")
-        return safe or None
+        return installed_profile_name(edit.text(), self._settings)
 
     def _on_install(self) -> None:
         if not self._icc_path:
@@ -5634,6 +6003,14 @@ class TabProfile(QWidget):
             copyright        = self._copy_edit.text().strip() if self._copy_check.isChecked() else "",
             no_input_shaper  = self._no_input_cb.isChecked(),
             no_output_shaper = self._no_output_cb.isChecked(),
+            # WITHOUT `-v` COLPROF SAYS NOTHING AT ALL, and that is what a user
+            # reported as "the colprof output area doesn't seem to show
+            # anything while the profile is building". Measured on her own
+            # 4,000-patch measurement: 18.71 s at `-qm`, zero bytes of output,
+            # exit 0 — the box was not failing to show the output, there was
+            # none. `-v` is the only flag that changes it and it changes
+            # nothing else about the profile.
+            verbose          = True,
             extra_args       = "",
             illuminant       = self._illum_combo.currentData() or "",
             observer         = self._obs_combo.currentData() or "",
@@ -5669,6 +6046,7 @@ class TabProfile(QWidget):
             copyright        = self._m_copy_edit.text().strip() if self._m_copy_check.isChecked() else "",
             no_input_shaper  = self._m_no_input_cb.isChecked(),
             no_output_shaper = self._m_no_output_cb.isChecked(),
+            verbose          = True,      # see the Guided twin above
             extra_args       = "",
             illuminant       = self._m_illum_combo.currentData() or "",
             observer         = self._m_obs_combo.currentData() or "",
@@ -5807,7 +6185,8 @@ class TabProfile(QWidget):
                 combo.setCurrentIndex(idx)
 
         # Guided defaults
-        _set_combo(self._algo_combo,         "colprof_algorithm", "l")
+        self._set_algorithm_combo(self._algo_combo,
+                                  s.get("colprof_algorithm", "l"))
         _set_combo(self._qual_combo,         "colprof_quality",   "m")
         self._b2a_check.setChecked(bool(s.get("colprof_b2a_enabled", False)))
         _set_combo(self._b2a_combo,          "colprof_b2a_quality", "m")
@@ -5855,7 +6234,8 @@ class TabProfile(QWidget):
             if idx >= 0:
                 combo.setCurrentIndex(idx)
 
-        _set_m_combo(self._m_algo_combo,          "manual2_colprof_algorithm", "l")
+        self._set_algorithm_combo(self._m_algo_combo,
+                                  s.get("manual2_colprof_algorithm", "l"))
         _set_m_combo(self._m_qual_combo,          "manual2_colprof_quality",   "m")
         self._m_b2a_check.setChecked(bool(s.get("manual2_colprof_b2a_enabled", False)))
         _set_m_combo(self._m_b2a_combo,           "manual2_colprof_b2a_quality", "m")

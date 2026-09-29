@@ -1,7 +1,7 @@
 """Reusable step-header widget shown at the top of each workflow tab."""
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
@@ -9,6 +9,97 @@ from ui import index_rule
 from ui.styles import SPEC_MAGENTA, TAB_COLORS
 from ui.tooltip_button import TooltipButton
 from core.i18n import tr
+
+
+class _InkTitleLabel(QLabel):
+    """A one-line label whose size hints cover its INK, not only its advance.
+
+    B8-962 (Basti, 2026-09-24, beta.40): the "Update available" masthead cut
+    the last "e". The earlier fix (`TabHeader._fit_title_ink`, 2026-09-21)
+    measured the ink once and pinned it as a minimum width, and that number
+    was measured in the WRONG FONT whenever nothing re-fitted after the
+    stylesheet was applied. Measured on screen, 2x: the heading paints in
+    Georgia 30 px at 85 % spacing, advance 189, ink 191, and the label was
+    189 wide with a minimum of 88, which is the ink of the unpolished 13 px
+    default font the fit ran on in `__init__`. The tabs escaped only because
+    `apply_theme` calls `set_appearance`, which re-fits; a dialog built after
+    the theme was applied never hears it, and a `FontChange` on the LABEL
+    never reaches the header's `changeEvent` anyway.
+
+    So the ink is no longer a number stored at one moment: it is part of the
+    size hint, asked for by the layout each time it lays the label out, from
+    the font the label is polished into.
+
+    `SPARE` is 2 px past the integer ink box, and both are needed: at 2x the
+    antialiased edge of a round last glyph lands one DEVICE pixel past the
+    box the metrics round to ("Build ICC profile", "ICC-Profil erstellen",
+    "Створіть тестову діаграму" each photographed with ink in the column the
+    box said was empty), and the rest is the pixel of air the heading is
+    promised.
+    """
+
+    SPARE = 2
+
+    def __init__(self, text: str, parent=None, *, wrap: bool = False) -> None:
+        super().__init__(text, parent)
+        #: A DIALOG heading may wrap onto a second line (beta 42 challenge,
+        #: item 2). B8-962 gave the label its ink as a MINIMUM, and a minimum is
+        #: only a request: a dialog that sets its own minimum width
+        #: (`setMinimumWidth(620)` in the patch set editor) switches off the
+        #: layout's, so a row that cannot fit squeezes every item below its
+        #: minimum. Measured on screen: "Упорядкуй і перефарбуй свої плями"
+        #: 433 px wide for 482 px of ink, "Organize e recolora as suas
+        #: amostras" 349 for 415, both cut mid-word. So a wrapping heading
+        #: asks for its whole ink on one line (`sizeHint`), accepts its
+        #: longest WORD as its minimum, and breaks between words when the
+        #: window gives it less. The tabs keep one line (`wrap=False`): their
+        #: column is sized by the heading, and a tab heading on two lines
+        #: would move the module buttons under it.
+        self._wrap = bool(wrap)
+        if self._wrap:
+            self.setWordWrap(True)
+            # The spare pixels are a MARGIN here, so a line broken to the
+            # label's width still has them for its last glyph's overhang.
+            self.setContentsMargins(0, 0, self.SPARE, 0)
+
+    def _ink(self, text: str) -> int:
+        from PyQt6.QtGui import QFontMetrics
+        if not text:
+            return 0
+        fm = QFontMetrics(self.font())
+        return max(fm.tightBoundingRect(text).right() + 1,
+                   fm.boundingRect(text).right() + 1)
+
+    def _ink_width(self) -> int:
+        self.ensurePolished()
+        text = self.text()
+        if not text:
+            return 0
+        m = self.contentsMargins()
+        spare = 0 if self._wrap else self.SPARE     # the margin holds it
+        return self._ink(text) + spare + m.left() + m.right()
+
+    def _widest_word(self) -> int:
+        self.ensurePolished()
+        m = self.contentsMargins()
+        return max((self._ink(w) for w in self.text().split()), default=0) \
+            + m.left() + m.right()
+
+    def sizeHint(self):  # noqa: N802
+        if self._wrap:
+            w = self._ink_width()
+            return QSize(w, self.heightForWidth(w))
+        s = super().sizeHint()
+        s.setWidth(max(s.width(), self._ink_width()))
+        return s
+
+    def minimumSizeHint(self):  # noqa: N802
+        if self._wrap:
+            w = self._widest_word()
+            return QSize(w, self.heightForWidth(self._ink_width()))
+        s = super().minimumSizeHint()
+        s.setWidth(max(s.width(), self._ink_width()))
+        return s
 
 
 class TabHeader(QWidget):
@@ -29,9 +120,14 @@ class TabHeader(QWidget):
         tooltip_body: str | None = None,
         tooltip_color: str | None = None,
         trailing_widget: QWidget | None = None,
+        wrap_title: bool = False,
     ) -> None:
         super().__init__(parent)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        # A wrapping title needs the header to grow when it takes a second
+        # line; a one-line header is never taller than its hint.
+        self.setSizePolicy(QSizePolicy.Policy.Preferred,
+                           QSizePolicy.Policy.Preferred if wrap_title
+                           else QSizePolicy.Policy.Maximum)
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 8)
         root.setSpacing(4)
@@ -58,7 +154,7 @@ class TabHeader(QWidget):
         title_row.setContentsMargins(0, 0, 0, 0)
         title_row.setSpacing(10)
 
-        self._title_lbl = QLabel(title_text, self)
+        self._title_lbl = _InkTitleLabel(title_text, self, wrap=wrap_title)
         # No color rule — inherit from active theme (LM_TEXT_MAIN in light,
         # TEXT_MAIN in dark) so the title stays legible on either bg.
         self._title_lbl.setStyleSheet(
@@ -68,6 +164,7 @@ class TabHeader(QWidget):
         title_font = QFont()
         title_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 85)
         self._title_lbl.setFont(title_font)
+        self._fit_title_ink()
         title_row.addWidget(self._title_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._tooltip_btn: TooltipButton | None = None
@@ -137,11 +234,67 @@ class TabHeader(QWidget):
         else would refresh them: before this, a header built under Light kept
         its tab hue after a switch to Neutral.
         """
+        self._fit_title_ink()
         self._paint_accent()
+
+    def _fit_title_ink(self) -> None:
+        """Give the title the width of its INK, not of its advance.
+
+        Sebastian reported this three times and it was never marginal: *"the
+        last letter has a few px cut off"* on the Print Chart heading. The
+        string fits by every width calculation there is, and the final letter
+        is still sliced.
+
+        WHICH OF THE THREE CAUSES IT IS, measured on screen 2026-09-21 in a
+        real window, this heading being Georgia at 30 px with
+        `setLetterSpacing(85 %)`:
+
+            lang  advance   ink right   label width   ink outside
+            uk        354         356           354          2 px
+            de        205         207           205          2 px
+            en        169         170           170          0 px
+
+        Not elision (the label is not narrower than its text) and not a clip
+        rect. It is the **right side bearing**: Georgia's last glyph paints
+        past the advance the layout reserved for it, and `QLabel.sizeHint()` is
+        built from `horizontalAdvance`, so the widget is sized to the layout
+        box while the ink needs one or two pixels more. The 85 % letter
+        spacing pulls every advance in and makes the gap a little wider again.
+
+        So the minimum is raised to the ink box. Measured across five headings
+        in three languages, fourteen of the fifteen were losing 1-2 px and the
+        one that was not is English "Print test chart", which happens to end in
+        a `t`. This is why it looked like a Ukrainian problem: Ukrainian is
+        merely the language whose headings are longest and whose final letters
+        are round.
+
+        B8-962 (2026-09-24): the ink is now part of the label's own size
+        hints (`_InkTitleLabel`), computed from the polished font whenever the
+        layout asks. A minimum width stored here was a measurement of whatever
+        font the label had at the moment of the call, and a dialog masthead
+        was measured in the 13 px default font and kept 88 px as its minimum.
+        What is left is to drop any stored minimum and ask the layout again.
+        """
+        self._title_lbl.setMinimumWidth(0)
+        self._title_lbl.updateGeometry()
+
+    def changeEvent(self, event) -> None:  # noqa: N802
+        """Re-fit whenever the FONT this is painted in can have changed.
+
+        Measuring once in `__init__` is measuring the wrong font: the heading
+        is Georgia 30 px because of the application stylesheet, which is
+        applied after the widget is built. The first version of this fix did
+        exactly that and moved one heading out of five.
+        """
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange,
+                            QEvent.Type.ApplicationFontChange):
+            self._fit_title_ink()
 
     def set_texts(self, step_text: str, title_text: str) -> None:
         self._step_lbl.setText(step_text)
         self._title_lbl.setText(title_text)
+        self._fit_title_ink()
 
     def set_tooltip(self, title: str, body: str) -> None:
         """Update the headline tooltip's title and body."""
@@ -217,6 +370,7 @@ def dialog_masthead(
     side: int = 22,
     top: int = 18,
     bottom: int = 12,
+    wrap_title: bool = True,
 ):
     """Build the standard ChromIQ dialog masthead: an inset :class:`TabHeader`
     (uppercase eyebrow + large serif title, optional ⓘ) above a full-width
@@ -243,7 +397,7 @@ def dialog_masthead(
     header = TabHeader(
         eyebrow, title, accent, parent,
         tooltip_title=tooltip_title, tooltip_body=tooltip_body,
-        tooltip_color=accent,
+        tooltip_color=accent, wrap_title=wrap_title,
     )
     head.addWidget(header, 1, Qt.AlignmentFlag.AlignVCenter)
     # WHERE IN THE RUN THIS WINDOW BELONGS, taken from the accent it already

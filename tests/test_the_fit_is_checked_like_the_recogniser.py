@@ -208,6 +208,16 @@ def _press_fit(dlg, corners, monkeypatch):
     monkeypatch.setattr(AA, "auto_align",
                         lambda *a, **k: AA.AutoAlignResult(reason="no-better"))
     dlg._marquee.set_corners([tuple(c) for c in corners])
+    # AND THE ONE-PRESS UNDO IS FORGOTTEN, because this is a fresh gesture.
+    # `set_corners` is the PROGRAMMATIC restore path and emits nothing on
+    # purpose (Auto align uses it to apply its own answer and must not clear
+    # its own undo), so the `changed` signal that `_forget_align_undo` listens
+    # for never fires here. In the window a user gets there by dragging a
+    # corner, which does fire it. Without this the second press in a row UNDOES
+    # instead of aligning -- which is what the dialog is meant to do and which
+    # only became visible once a refused placement started arming the undo too
+    # (Knut, #182, 2026-09-11).
+    dlg._align_undo = None
     dlg._capture_current_corners()
     mark = len(dlg._log.toPlainText())
     dlg._on_auto_align()
@@ -223,9 +233,19 @@ def _press_fit(dlg, corners, monkeypatch):
             [tuple(c) for c in dlg._marquee.corners_image_px()])
 
 
-def test_the_window_leaves_the_corners_alone_when_the_check_refuses(dlg, monkeypatch):
-    """The whole point, at the button. The grid is one patch out, the fit is
-    happy to move it, and nothing moves."""
+def test_the_window_says_it_could_not_confirm_the_placement_it_made(
+        dlg, monkeypatch):
+    """The whole point, at the button. The grid is one patch out and the fit is
+    happy to move it there.
+
+    UNTIL 2026-09-11 THIS TEST ASSERTED THAT NOTHING MOVED. Knut ruled the
+    other way (#182): asked whether Auto align should leave the corners alone
+    or place its best attempt when it cannot trust the result, he answered
+    *"place its best attempt and tell user to check it."* So the placement is
+    applied and the window says, in words of its own, that nobody vouched for
+    it. The CHECK is unchanged and still refuses: what changed is what happens
+    after it does.
+    """
     truth, pitch = _truth_and_pitch(dlg)
     # 0.85 of a pitch, NOT a whole one: at exactly one pitch the fit answers
     # "already the best fit" and never reaches the gate at all (that state has
@@ -234,10 +254,21 @@ def test_the_window_leaves_the_corners_alone_when_the_check_refuses(dlg, monkeyp
     # start ends 0.97 of a pitch out, reading the neighbouring column.
     start = _shift(truth, 0.85 * pitch, 0.0)
     said, after = _press_fit(dlg, start, monkeypatch)
-    assert M.M_SCAN_ALIGN_NOT_SEATED.title in said
-    assert M.M_SCAN_ALIGN_NOT_SEATED.body.split("\n")[0][:60] in said
-    for (ax, ay), (bx, by) in zip(after, start):
-        assert abs(ax - bx) < 0.51 and abs(ay - by) < 0.51
+    m = M.M_SCAN_ALIGN_PLACED_NOT_SEATED
+    assert m.title in said
+    assert m.body.split("\n")[0][:60] in said
+    # …and NOT the old refusal, whose headline says the corners were left alone
+    assert M.M_SCAN_ALIGN_NOT_SEATED.title not in said, (
+        "the window claims it left the corners alone while it has moved them")
+    assert "check" in said.lower(), "the user is not told to check it"
+    # the grid really did move, or the message above is the lie instead
+    moved = max(abs(ax - bx) + abs(ay - by)
+                for (ax, ay), (bx, by) in zip(after, start))
+    assert moved > 1.0, (
+        "nothing was applied, so this proves nothing about Knut's ruling")
+    # …and the one press that gets the user's own corners back is armed
+    assert dlg._align_undo is not None
+    assert [tuple(c) for c in dlg._align_undo] == [tuple(c) for c in start]
 
 
 def test_the_window_still_applies_a_fit_that_survives_the_check(dlg, monkeypatch):

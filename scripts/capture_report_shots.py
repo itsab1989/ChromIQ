@@ -109,9 +109,13 @@ def main() -> int:
         print("nothing loaded")
         return 1
     dlg._report = dlg._sources[0]["runs"][-1]
-    # Reproducible shots: the published defaults, whatever this machine has set.
-    dlg._avg_thr_spin.setValue(2.0)
-    dlg._max_thr_spin.setValue(3.0)
+    # Reproducible shots: the published default limit set (#182), whatever
+    # this machine has set.
+    dlg._sync_limit_controls()
+    _i = dlg._set_combo.findData("chromiq_default")
+    if _i >= 0:
+        dlg._set_combo.setCurrentIndex(_i)
+        dlg._on_set_chosen(_i)
     dlg._all_runs_check.setChecked(True)
     dlg._rebuild_from_sources()
     pump(1500)

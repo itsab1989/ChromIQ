@@ -60,11 +60,19 @@ from workflow.layout_engine import geometry as G, instruments as I
 A4_W, A4_H = 210.0, 297.0
 
 
-def _lines(key="CM", w=A4_W, h=A4_H, n=400, edge=2.0, length=2.0, **build):
+def _lines(key="CM", w=A4_W, h=A4_H, n=400, edge=2.0, length=2.0,
+           top_bottom=True, sides=True, **build):
+    """`**build` goes to the INSTRUMENT; the two comb switches go to the comb.
+
+    They were one bag of keyword arguments until a honeycomb needed one comb
+    without the other, at which point `sides=False` would have been handed to
+    `instruments.build` and raised rather than testing anything.
+    """
     geom = I.build(key, **build)
     lay = G.compute(geom, w, h, n)
-    return geom, lay, G.helper_marker_lines_mm(geom, w, h, lay,
-                                               edge_mm=edge, length_mm=length)
+    return geom, lay, G.helper_marker_lines_mm(
+        geom, w, h, lay, edge_mm=edge, length_mm=length,
+        top_bottom=top_bottom, sides=sides)
 
 
 def _verticals(lines):
@@ -301,11 +309,114 @@ def test_every_rectangular_instrument(key):
     assert lines, key
 
 
-def test_hexagonal_spectroscan_gets_no_markers():
-    """A honeycomb has no straight rows for a ruler to follow, so rather than
-    drawing something misleading it draws nothing."""
-    _, _, lines = _lines(key="SS", n=200, hflag=True)
-    assert lines == []
+def test_a_honeycomb_gets_the_comb_for_the_axis_it_is_straight_along():
+    """THIS REPLACES "a honeycomb gets no markers at all", AND IT WAS GOT
+    BACKWARDS ONCE BEFORE IT WAS GOT RIGHT.
+
+    The old rule's premise was that "a honeycomb has no rows to line a ruler up
+    with". False: a honeycomb's patch centres lie on straight lines along three
+    directions, and on any page exactly one of the two page axes is one of them.
+
+    **It is the axis DOWN the page.** The stagger that makes a honeycomb a
+    honeycomb is applied to `x`, indexed by the patch's position down its strip
+    (`patch_rects_px`), so the centres are exactly uniform in `y` and zigzag by
+    half a patch width in `x`. Worst distance from a patch centre to its nearest
+    dash, A4 portrait:
+
+        =======  ============  ==========
+        instr     top/bottom      sides
+        =======  ============  ==========
+        CR30      2.9830 mm     0.0310 mm
+        SS        1.7450 mm     0.0250 mm
+        =======  ============  ==========
+
+    The first version of this test asserted the opposite, on a reading of
+    "dy = 0.0000 between strips" that is evidence for the comb it dropped: `dy`
+    between strips says the COLUMNS start level, which is a fact about `x`. The
+    function's own docstring warns that "the names are the EDGE, never the axis
+    … anyone naming these after the segment gets them backwards", and they were
+    still got backwards.
+
+    Basti ruled on 2026-09-09 that these should simply be available: *"can't
+    they be turned on by the user if he wants? they are optional anyway and
+    benefitial here but only as an option i think."* They default to off.
+    """
+    _, _, sides_only = _lines(key="SS", n=200, hflag=True, top_bottom=False)
+    assert sides_only, "the straight axis lost its comb"
+
+    _, _, top_only = _lines(key="SS", n=200, hflag=True, sides=False)
+    assert top_only == [], (
+        "the top/bottom comb was drawn on a honeycomb: those dashes would mark "
+        "the seam between two columns, not the patches"
+    )
+
+    _, _, both = _lines(key="SS", n=200, hflag=True)
+    assert both == sides_only, (
+        "asking for both gave something other than the straight comb alone"
+    )
+
+
+@pytest.mark.parametrize("key", ["SS", "CR30"])
+def test_the_comb_a_honeycomb_keeps_actually_lands_on_its_patches(key):
+    """THE ASSERTION THE FIRST VERSION OF THIS FILE DID NOT MAKE, and the reason
+    it shipped the wrong comb: it checked that a comb was PRESENT, never that it
+    pointed at anything. Measure both combs against the real patch centres and
+    require the surviving one to be the near-perfect one."""
+    from workflow.layout_engine import geometry as G
+    from workflow.layout_engine import instruments as INST
+
+    W, H, DPI = 210.0, 297.0, 300
+    mm = 25.4 / DPI
+    g = INST.build(key, hflag=True)
+    lay = G.compute(g, W, H, 300)
+    rects = [r for r in G.patch_rects_px(g, W, H, lay, DPI) if r["page"] == 0]
+    assert rects, "no patches to measure against"
+    cy = sorted({round((r["y"] + r["h"] / 2.0) * mm, 4) for r in rects})
+    cx = sorted({round((r["x"] + r["w"] / 2.0) * mm, 4) for r in rects})
+
+    sides = G.helper_marker_lines_mm(g, W, H, lay, top_bottom=False, sides=True)
+    assert sides, "the honeycomb kept no comb at all"
+    sy = sorted({round(l[1], 4) for l in sides})
+    err_y = max(min(abs(c - m) for m in sy) for c in cy)
+    assert err_y < 0.2, (
+        f"the surviving comb misses a patch centre by {err_y:.4f} mm; it is "
+        "marking something other than the patches"
+    )
+
+    # ...and the dropped one would have been far worse, which is WHY it is
+    # dropped. Bypass the refusal to measure it rather than assume it.
+    real = INST.is_hexagonal
+    INST.is_hexagonal = lambda _g: False
+    try:
+        tb = G.helper_marker_lines_mm(g, W, H, lay, top_bottom=True, sides=False)
+    finally:
+        INST.is_hexagonal = real
+    tx = sorted({round(l[0], 4) for l in tb})
+    err_x = max(min(abs(c - m) for m in tx) for c in cx)
+    assert err_x > 1.0, (
+        f"the dropped comb only misses by {err_x:.4f} mm, so the reason for "
+        "dropping it no longer holds and this rule needs re-deciding"
+    )
+    assert err_y < err_x / 10.0, (
+        f"sides {err_y:.4f} mm vs top/bottom {err_x:.4f} mm — the surviving "
+        "comb is not clearly the better one any more"
+    )
+
+
+def test_a_honeycomb_with_every_comb_off_still_gets_nothing():
+    """The user's own off switch still wins over the new availability."""
+    _, _, none = _lines(key="SS", n=200, hflag=True,
+                        top_bottom=False, sides=False)
+    assert none == []
+
+
+def test_square_patches_are_completely_unaffected(): 
+    """The change must be invisible to every non-hexagonal chart: both combs,
+    each alone, and neither."""
+    for tb, sd in ((True, True), (True, False), (False, True)):
+        _, _, lines = _lines(key="SS", n=200, hflag=False,
+                             top_bottom=tb, sides=sd)
+        assert lines, f"square patches lost their markers at {tb=} {sd=}"
 
 
 def test_a_flat_spectroscan_still_gets_them():
@@ -380,3 +491,255 @@ def test_markers_that_would_meet_in_the_middle_are_refused():
 def test_a_zero_length_marker_draws_nothing():
     _, _, lines = _lines(length=0.0)
     assert lines == []
+
+
+# ---------------------------------------------------------------------------
+# the panel: the side switch must STAY down once it is put down
+# ---------------------------------------------------------------------------
+def _panel(qtbot=None):
+    """A bare layout panel, no tab and no settings around it."""
+    from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+    return LayoutOptionsPanel()
+
+
+def test_ticking_the_markers_on_does_not_hand_back_the_dropped_comb(qapp):
+    """FOUND ON SCREEN, NOT OFFSCREEN, AND IT WOULD HAVE SHIPPED.
+
+    `helper_markers_top_bottom` is one of the widgets in `_hm_rows`, and
+    `_update_helper_marker_rows` re-enables every widget in those rows whenever
+    the master box is ticked. `set_helper_markers_supported` greys the dropped
+    comb ONCE, when the instrument changes; the user then ticks "Print helper
+    markers" and gets it straight back, on a honeycomb, where the engine
+    silently refuses to draw it. Greyed then live is worse than never greyed:
+    the control looks armed and does nothing.
+
+    The driver caught it because it did what a user does, in that order. Every
+    offscreen test until then called the two methods the other way round.
+    """
+    p = _panel()
+    p.helper_markers_cb.setChecked(False)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    assert not p.helper_markers_top_bottom.isEnabled()
+
+    p.helper_markers_cb.setChecked(True)          # what the user does next
+    assert p.helper_markers_sides.isEnabled(), \
+        "the comb that DOES print went down with the master tick"
+    assert not p.helper_markers_top_bottom.isEnabled(), (
+        "ticking the markers on handed back the top/bottom comb on a "
+        "honeycomb, where the engine draws nothing for it"
+    )
+
+
+def test_the_dropped_comb_comes_back_when_the_patches_do(qapp):
+    """The greying is a property of the chart, not a one-way door. Square
+    patches must restore it, or a user who turns hexagons off is stuck."""
+    p = _panel()
+    p.helper_markers_cb.setChecked(True)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    assert not p.helper_markers_top_bottom.isEnabled()
+
+    p.set_helper_markers_supported(True)          # back to square patches
+    assert p.helper_markers_top_bottom.isEnabled(), \
+        "the top/bottom comb stayed greyed after the honeycomb was turned off"
+    p.helper_markers_cb.setChecked(False)
+    p.helper_markers_cb.setChecked(True)
+    assert p.helper_markers_top_bottom.isEnabled(), \
+        "and it was taken away again by the next toggle"
+
+
+def test_the_saved_choice_is_never_unticked_by_the_greying(qapp):
+    """DISABLE, NEVER UNTICK. The value belongs to the target and must survive
+    for the day the same chart is laid out with square patches."""
+    p = _panel()
+    p.helper_markers_top_bottom.setChecked(True)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    p.helper_markers_cb.setChecked(True)
+    assert p.helper_markers_top_bottom.isChecked(), \
+        "the honeycomb threw away a choice that belongs to the target"
+
+
+def test_the_panel_warns_when_the_only_comb_that_prints_is_unticked(qapp):
+    """R2. The notice asks whether anything will be printed, and on a honeycomb
+    the greyed box used to answer for the live one: its tick is deliberately
+    left standing, so `top_bottom or sides` was always true, the user unticked
+    the one comb that prints, and the panel stayed silent while the engine drew
+    nothing."""
+    p = _panel()
+    p.helper_markers_cb.setChecked(True)
+    p.helper_markers_top_bottom.setChecked(True)   # greyed, but still ticked
+    p.helper_markers_sides.setChecked(True)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    assert p._helper_marker_edge_warning_text() == "", \
+        "warned while the live comb was still ticked"
+
+    p.helper_markers_sides.setChecked(False)       # the only one that prints
+    assert p._helper_marker_edge_warning_text(), (
+        "no dashes will be printed and the panel says nothing, because the "
+        "greyed top/bottom box answered for the live one"
+    )
+
+
+# ---------------------------------------------------------------------------
+# THE TURN MOVES THE STRAIGHT AXIS, AND THIS FILE COULD NOT SEE IT.
+#
+# Every test above was written for a pointy honeycomb and hard-codes its
+# answer: "on a honeycomb, where the engine silently refuses to draw it" is
+# said of the TOP AND BOTTOM comb, which is exactly the comb a TURNED honeycomb
+# does draw. The word `flat_top` did not appear in this file at all, and the
+# shipped fault was green through nine adversarial rounds: mutating the engine
+# so a turned comb reverted to sides left all 70 tests passing, and so did
+# mutating the panel towards the fix.
+# ---------------------------------------------------------------------------
+
+def _turned_panel(turned: bool):
+    """A layout panel showing a CR30 honeycomb, turned or not.
+
+    The three gates the turn is written behind all name the instrument, so a
+    panel that is not on CR30 has no turn to read. Set the selectors the way a
+    user would and let the panel resolve it, which is the thing under test.
+    """
+    p = _panel()
+    if getattr(p, "instr", None) is not None:
+        for i in range(p.instr.count()):
+            if str(p.instr.itemData(i) or "") == "CR30":
+                p.instr.setCurrentIndex(i)
+                break
+    else:
+        # A bare panel has no selectors of its own -- the same state
+        # Preferences > Chart Layout and the relayout dialog are in -- and
+        # `_area_is_hexagonal` then reads the last recipe loaded. Set what that
+        # path reads, so the resolver under test is the real one.
+        p._inst = "CR30"
+    if getattr(p, "mode", None) is not None:
+        for i in range(p.mode.count()):
+            if str(p.mode.itemData(i) or "") == "hex":
+                p.mode.setCurrentIndex(i)
+                break
+    else:
+        p._recipe_hflag = True
+    p.hex_flat_top_cb.setChecked(bool(turned))
+    assert p._area_is_hexagonal(), "the panel does not think this is a honeycomb"
+    return p
+
+
+def _engine_draws(turned: bool, *, top_bottom: bool, sides: bool):
+    """Which combs `helper_marker_lines_mm` actually returns, for real.
+
+    The panel's job is to leave live exactly the switch the engine honours, so
+    the engine is asked directly rather than restated. Returns True when any
+    line comes back.
+    """
+    from dataclasses import replace
+
+    from workflow.layout_engine import geometry, instruments
+    from workflow.layout_engine.presets import default_recipe
+
+    r = replace(default_recipe("CR30", "A4"), hflag=True, hex_flat_top=turned,
+                helper_markers=True, helper_markers_top_bottom=top_bottom,
+                helper_markers_sides=sides)
+    g = instruments.geom_from_build_kwargs(r.build_kwargs())
+    lay = geometry.compute(g, 210.0, 297.0, 150)
+    lines = geometry.helper_marker_lines_mm(
+        g, 210.0, 297.0, lay,
+        top_bottom=top_bottom, sides=sides,
+        edge_mm=2.0, length_mm=2.0, per_patch=3)
+    return bool(lines)
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_the_live_comb_is_the_one_the_engine_draws(qapp, turned):
+    """The switch left live must be the switch that puts ink on the sheet.
+
+    Measured before the fix, in the real window, and identical for BOTH
+    orientations: `top_bottom checked=True enabled=False | sides checked=True
+    enabled=True`. On a turned sheet that greys the comb that prints and offers
+    the one that does nothing.
+    """
+    p = _turned_panel(turned)
+    p.helper_markers_cb.setChecked(True)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+
+    live_tb = p.helper_markers_top_bottom.isEnabled()
+    live_sd = p.helper_markers_sides.isEnabled()
+    assert live_tb != live_sd, (
+        f"turned={turned}: exactly one comb can print on a honeycomb, but the "
+        f"panel leaves top/bottom={live_tb} and sides={live_sd}"
+    )
+    assert live_tb is turned, (
+        f"turned={turned}: the panel leaves the top and bottom comb "
+        f"{'greyed' if not live_tb else 'live'}, and the engine "
+        f"{'draws' if turned else 'refuses'} it"
+    )
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_the_engine_honours_exactly_the_axis_the_panel_leaves_live(qapp, turned):
+    """The other half of the same claim, asked of the engine.
+
+    Without this the panel could be self-consistent and still wrong: the two
+    sides of the rule are in different modules and both have to be measured.
+    """
+    assert _engine_draws(turned, top_bottom=True, sides=False) is turned, (
+        f"turned={turned}: asking for the top and bottom comb alone "
+        f"{'drew nothing' if turned else 'drew something'}"
+    )
+    assert _engine_draws(turned, top_bottom=False, sides=True) is (not turned), (
+        f"turned={turned}: asking for the side comb alone "
+        f"{'drew something' if turned else 'drew nothing'}"
+    )
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_ticking_the_markers_on_does_not_hand_back_the_dead_comb(qapp, turned):
+    """The `_hm_rows` re-enable path has to grey the same comb.
+
+    It hard-coded `helper_markers_top_bottom`, so on a turned sheet ticking the
+    master box handed the user back the comb that draws nothing AND left the
+    working one live: both boxes on, one of them a lie.
+    """
+    p = _turned_panel(turned)
+    p.helper_markers_cb.setChecked(False)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    p.helper_markers_cb.setChecked(True)          # what a user does next
+    assert p.helper_markers_top_bottom.isEnabled() is turned
+    assert p.helper_markers_sides.isEnabled() is (not turned)
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_the_greyed_comb_says_why_and_names_the_right_axis(qapp, turned):
+    """A tooltip that describes the other orientation is worse than none.
+
+    Before the fix a turned sheet read "The left and right dashes line up
+    exactly and stay available", on a chart where they are the ones that do not.
+    """
+    p = _turned_panel(turned)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    dead = p.helper_markers_sides if turned else p.helper_markers_top_bottom
+    live = p.helper_markers_top_bottom if turned else p.helper_markers_sides
+    tip = dead.toolTip().lower()
+    assert tip, "the greyed comb gives no reason at all"
+    if turned:
+        assert "left and right" in tip and "top and bottom dashes" in tip, tip
+    else:
+        assert "top and bottom" in tip and "left and right dashes" in tip, tip
+    assert live.isEnabled() or not p.helper_markers_cb.isChecked()
+
+
+@pytest.mark.parametrize("turned", [True, False])
+def test_no_dashes_is_said_when_and_only_when_none_will_print(qapp, turned):
+    """Unticking the ONE live box must produce the notice, and ticking it must
+    silence it. Before the fix a turned sheet did the opposite of both."""
+    p = _turned_panel(turned)
+    p.helper_markers_cb.setChecked(True)
+    p.set_helper_markers_supported(False, one_axis_only=True)
+    live = p.helper_markers_top_bottom if turned else p.helper_markers_sides
+
+    live.setChecked(True)
+    assert p._helper_marker_edge_warning_text() == "", (
+        "the panel warns that nothing will print while the comb that does "
+        "print is ticked"
+    )
+    live.setChecked(False)
+    assert p._helper_marker_edge_warning_text() != "", (
+        "the panel is silent while nothing will print at all"
+    )

@@ -1,0 +1,304 @@
+{
+  "cal-fresh": {
+    "generate_enabled": true,
+    "generate_tip": "Generate Chart (\u2318\u21b5)",
+    "stop_visible": false,
+    "in_flight": false,
+    "run": "Project calibration",
+    "location": "Location being edited: ChromIQ-assessment/Demo-Full-RGB/cal/",
+    "mode_btns_visible": [
+      false,
+      false
+    ],
+    "estimate": {
+      "total": 75,
+      "fillup": 11,
+      "page_patches": 75,
+      "rows": 15,
+      "cols": 5,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 64,
+      "fillup": 4,
+      "page_patches": 64,
+      "rows": 16,
+      "cols": 4,
+      "pages": 1,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "info": "tion (1 page):\ntargen -d2 -f64 -e4 -B4 -G chart\nChromIQ layout engine \u00b7 CM \u00b7 A4 portrait \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 hand-held \u00b7 align center-left\nLayout preset: CM \u00b7 A4 portrait \u00b7 freehand   \u25cf modified"
+  },
+  "cal-fresh-generate": {
+    "generate_was_enabled": true,
+    "ok": true,
+    "actual": {
+      "total": 64,
+      "fillup": 4,
+      "page_patches": 64,
+      "rows": 16,
+      "cols": 4,
+      "pages": 1,
+      "patch": [
+        28.02,
+        13.97
+      ],
+      "pitch": null
+    },
+    "estimate": {
+      "total": 75,
+      "fillup": 11,
+      "page_patches": 75,
+      "rows": 15,
+      "cols": 5,
+      "pages": 1,
+      "patch": [
+        28.0,
+        14.0
+      ],
+      "pitch": null
+    },
+    "status": "Margins: OK",
+    "dialogs": [
+      [
+        "This project already has a finished calibration, and generating a new chart starts that wo",
+        "clicked 'Cancel'",
+        [
+          "Replace the calibration",
+          "Cancel"
+        ]
+      ]
+    ],
+    "serious": [],
+    "log_tail": [
+      "Switched to this run's profiling chart.",
+      "Restored the chart's own layout settings \u2014 patch size, spacers, margins, seed and patch count now show the values this chart was made with.",
+      "Switched to this run's profiling chart.",
+      "Restored the chart's own layout settings \u2014 patch size, spacers, margins, seed and patch count now show the values this chart was made with."
+    ]
+  },
+  "verif-guided-before-gamut": {
+    "generate_enabled": true,
+    "generate_tip": "Generate Chart (\u2318\u21b5)",
+    "stop_visible": false,
+    "in_flight": false,
+    "noprofile_visible": true
+  },
+  "verif-gamut": {
+    "generate_enabled": false,
+    "generate_tip": "Generate Chart (\u2318\u21b5)",
+    "stop_visible": true,
+    "in_flight": true
+  },
+  "verif-guided-after-gamut": {
+    "generate_enabled": false,
+    "generate_tip": "Generate Chart (\u2318\u21b5)",
+    "stop_visible": true,
+    "in_flight": true
+  },
+  "verif-manual-after-gamut": {
+    "generate_enabled": false,
+    "generate_tip": "Generate Chart (\u2318\u21b5)",
+    "stop_visible": true,
+    "in_flight": true
+  },
+  "profiling-after": {
+    "generate_enabled": false,
+    "generate_tip": "Generate Chart (\u2318\u21b5)",
+    "stop_visible": true,
+    "in_flight": true
+  },
+  "b5-load-ti1": {
+    "actual": {
+      "total": 308,
+      "fillup": 4,
+      "page_patches": 308,
+      "rows": 22,
+      "cols": 14,
+      "pages": 1,
+      "patch": [
+        7.62,
+        9.48
+      ],
+      "pitch": null
+    },
+    "estimate": {
+      "total": 484,
+      "fillup": 0,
+      "page_patches": 484,
+      "rows": 22,
+      "cols": 22,
+      "pages": 1,
+      "patch": [
+        7.6,
+        9.5
+      ],
+      "pitch": null
+    },
+    "info": "de \u2014 your current configuration (4 pages \u00b7 Auto grey/white/black):\ntargen -d2 -f400 -e3 -B3 -G -g23 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 portrait \u00b7 300 dpi \u00b7 margins 38/9/19/26 mm \u00b7 area-fit \u00b7 clip border on\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+    "preset_ti1": "/Users/Basti/Desktop/Create Chart Assessment/Evidence/external_patchset.ti1",
+    "override_targen": [
+      false,
+      false
+    ],
+    "dialogs": [
+      [
+        "Where should this patch set's chart go? | You loaded the patch set <b>external_patchset.ti1</b>.<br><br>A profile projec",
+        "clicked 'Build it as a new run instead'",
+        [
+          "Cancel",
+          "Replace run 3",
+          "Build it as a new run instead",
+          "Replace only the chart",
+          "Start a new project"
+        ]
+      ]
+    ],
+    "mode": "other",
+    "run_bar": "Run 4 (overwrite)",
+    "location": "on being edited: ChromIQ-assessment/Demo-Full-RGB/runs/run4/",
+    "engine": true
+  },
+  "failed-build-restore": {
+    "good": {
+      "total": 304,
+      "fillup": 0,
+      "page_patches": 304,
+      "rows": 19,
+      "cols": 16,
+      "pages": 1,
+      "patch": [
+        10.92,
+        11.68
+      ],
+      "pitch": null
+    },
+    "bad_log": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (8.0 mm available)",
+      "[ERROR] Chart generation failed."
+    ],
+    "bad_dialogs": [],
+    "files_before": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "meta.json"
+    ],
+    "files_after": [
+      "A5-Furniture.channels.json",
+      "A5-Furniture.ti1",
+      "A5-Furniture.ti2",
+      "A5-Furniture.tif",
+      "meta.json"
+    ],
+    "preview_pages_after": 0,
+    "frames_after": [
+      null,
+      "Margins: OK"
+    ],
+    "generate_enabled": true,
+    "generate_tip": "Generate Chart (\u2318\u21b5)",
+    "stop_visible": false,
+    "in_flight": false,
+    "log_visible": false,
+    "status_bar": "",
+    "after_run_roundtrip": {
+      "preview_pages": 1,
+      "actual": {
+        "total": 304,
+        "fillup": 0,
+        "page_patches": 304,
+        "rows": 19,
+        "cols": 16,
+        "pages": 1,
+        "patch": [
+          10.92,
+          11.51
+        ],
+        "pitch": null
+      }
+    }
+  },
+  "b8-tooltips": {
+    "count": 144,
+    "flagged": [
+      {
+        "title": "Edit patch recipe",
+        "hits": [
+          "no longer"
+        ]
+      },
+      {
+        "title": "Strip indicators",
+        "hits": [
+          "no longer"
+        ]
+      },
+      {
+        "title": "Show markers for",
+        "hits": [
+          "no longer"
+        ]
+      },
+      {
+        "title": "Which rendering intent builds this chart",
+        "hits": [
+          "no longer"
+        ]
+      }
+    ],
+    "empty_bodies": 0
+  },
+  "b9-1280x800": {
+    "window": [
+      1280,
+      800
+    ],
+    "left_pane_width": 548,
+    "preview_width": 696,
+    "preview_height": 282,
+    "generate_visible": true,
+    "frames_visible": [
+      true,
+      true
+    ],
+    "frames_height": [
+      311,
+      311
+    ]
+  },
+  "b9-1700x1050": {
+    "window": [
+      1700,
+      1050
+    ],
+    "left_pane_width": 548,
+    "preview_width": 1116,
+    "preview_height": 568,
+    "generate_visible": true,
+    "frames_visible": [
+      true,
+      true
+    ],
+    "frames_height": [
+      275,
+      275
+    ]
+  },
+  "b9-max": [
+    1728,
+    1051
+  ]
+}

@@ -28,10 +28,31 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-#: Every language the app ships, longest-first by this label. Russian needs
-#: 331 px against English's 225 — a 47 % spread, which is why English alone
-#: never caught it.
-_LANGS = ["ru", "de", "nl", "fr", "it", "pt", "pl", "es", "sv", "no", "en"]
+#: Every language the app ships, read off `data/i18n/`. Russian needs 331 px
+#: against English's 225 — a 47 % spread, which is why English alone never
+#: caught it.
+#:
+#: THE LITERAL THIS REPLACES WAS STALE IN TWO DIRECTIONS AT ONCE. It listed
+#: eleven codes: it never gained `ja` or `zh_CN`, and it never gained `uk`.
+#: Nothing said so, because a language that is not in the list is not
+#: rendered, and a case that does not exist cannot go red. The order is no
+#: longer "longest-first" either — that was a measurement of a label text
+#: that has since been renamed (see the control's docstring), kept in the
+#: shape of a list long after it stopped being true.
+from tests.helpers.languages import shipped_languages   # noqa: E402
+
+_LANGS = shipped_languages()
+
+#: The language whose version of THIS label is widest, measured against the
+#: pinned indent row. It changes when the label's English text changes, so the
+#: control below refuses a shortfall too small to be a real margin rather than
+#: passing on a tie. See `test_this_file_can_see_the_bug_it_guards`.
+_WIDEST_LANG = "it"
+
+#: How many pixels of shortfall the control needs before it counts. A tie
+#: (0 px) is what the 2026-09-06 round found German sitting at, and a control
+#: that passes on `208 < 208` proves nothing about the layout it guards.
+_CLIP_MARGIN_PX = 8
 
 
 @pytest.fixture(scope="module")
@@ -116,11 +137,50 @@ def test_the_stamp_tick_box_shows_its_whole_label(qapp, lang, tmp_path):
 
 
 def test_this_file_can_see_the_bug_it_guards(qapp, tmp_path):
-    """Control. Pin the indent back to a fixed width and German must fail again
-    — otherwise the assertions above would hold against any layout at all."""
+    """Control. Pin the indent back to a fixed width and the longest language
+    must be clipped again — otherwise the assertions above would hold against
+    any layout at all.
+
+    RUSSIAN, NOT GERMAN, AND THE LANGUAGE IS THE WHOLE CALIBRATION. This
+    control was written against the Windows offscreen gate's tofu metrics,
+    where every glyph was a box of `pixelSize` and German measured 297 px
+    against the 294 the pinned row leaves. With the fonts the app actually
+    bundles registered (`tests/conftest.py`), the same German label measures
+    **208 px and the pinned row leaves exactly 208** — the control failed on
+    `assert 208 < 208`, an exact tie, and would have flipped on a one-pixel
+    rounding change in either direction.
+
+    Measured here, every language, pinned-row width against the label's own
+    minimum (Inter, this tree, 2026-09-06):
+
+        ru 289 / 317  -28      de 208 / 208   0      nl 205 / 205   0
+        sv 241 / 241    0      no 215 / 215   0      en 156 / 156   0
+
+    Only Russian is genuinely clipped — by 28 px, which is a margin and not a
+    tie. It is also the language this file's own header already names as the
+    widest ("Russian needs 331 px against English's 225"), so the control now
+    runs in the language it was always describing. German is left to the
+    parametrised assertions above, where it belongs: at 208/208 the shipped
+    layout gives that label exactly what it needs and not a pixel more.
+
+    **AND THEN THE LABEL WAS RENAMED AND RUSSIAN STOPPED BEING THE WIDEST.**
+    #182, 2026-09-12: the box became "Stamp settings down the right edge" so
+    its name says which page edge it prints on, and Russian's version of that
+    is shorter than the one it replaced. Re-measured, every language, pinned
+    row against the label's own minimum:
+
+        it 256 / 289  -33      es 245 / 272  -27      pt 250 / 274  -24
+        sv 275 / 279   -4      nl 285 / 287   -2      ru 280 / 280    0
+
+    Russian became an exact tie, which is the failure mode this docstring was
+    already written about, one language over. **Italian is the widest now, and
+    the number below is a MEASUREMENT that has to be taken again whenever this
+    label's text changes.** `_CLIP_MARGIN_PX` refuses a tie outright so the
+    next rename fails here loudly instead of quietly disarming the control.
+    """
     from PyQt6.QtWidgets import QLabel
 
-    tab, cb = _stamp_check(qapp, "de", tmp_path)
+    tab, cb = _stamp_check(qapp, _WIDEST_LANG, tmp_path)
     try:
         row = tab._manual_stamp_cmd_row
         spacer = row.layout().itemAt(0).widget()
@@ -130,9 +190,14 @@ def test_this_file_can_see_the_bug_it_guards(qapp, tmp_path):
         spacer.setFixedWidth(spacer.maximumWidth())     # the old, unyielding form
         row.layout().activate()
         qapp.processEvents()
-        assert cb.width() < cb.minimumSizeHint().width(), (
-            "pinning the indent back did NOT clip the German label, so the "
-            "assertions above are not measuring the indent")
+        short = cb.minimumSizeHint().width() - cb.width()
+        assert short >= _CLIP_MARGIN_PX, (
+            f"pinning the indent back clipped the {_WIDEST_LANG} label by only "
+            f"{short} px ({cb.width()} px given, {cb.minimumSizeHint().width()} "
+            f"px needed), which is under the {_CLIP_MARGIN_PX} px this control "
+            "needs to mean anything. Re-measure every language against the "
+            "pinned row and set _WIDEST_LANG to the one with the biggest "
+            "shortfall; the label's text has changed since it was chosen.")
     finally:
         # Deliberately NOT deleted — see _KEEP_ALIVE.
         qapp.processEvents()

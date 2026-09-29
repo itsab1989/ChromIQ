@@ -181,14 +181,21 @@ def test_import_into_nested_project_after_name_reapply(qapp, tmp_path, monkeypat
     ctl = MeasurementTargetController(fm)
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_VERIFICATION)
     ext = tmp_path / "elsewhere" / "loose"; ext.mkdir(parents=True)
-    src = ext / "loose.ti2"; src.write_text("NEW-VERIFY", encoding="utf-8")
+    # CGATS, because an imported chart is now read before it is copied
+    # (`workflow.chart_import.holds_a_chart`, #182). The marker line is what
+    # this test follows from one folder to the other.
+    new_verify = ("CTI2   \n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n"
+                  "SAMPLE_ID RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n"
+                  "NUMBER_OF_SETS 1\nBEGIN_DATA\n1 100 100 100\nEND_DATA\n"
+                  "KEYWORD \"NEW-VERIFY\"\n")
+    src = ext / "loose.ti2"; src.write_text(new_verify, encoding="utf-8")
 
     monkeypatch.setattr(L2, "_choice_dialog", lambda *a, **k: "replace")
     out = resolve_ti2(None, src, s, ctl)
 
     assert out is not None
     r = Project.load(nested).run("run1")
-    assert r.verify_chart_ti2.read_text(encoding="utf-8") == "NEW-VERIFY"   # landed in the real project
+    assert r.verify_chart_ti2.read_text(encoding="utf-8") == new_verify   # landed in the real project
     assert r.chart_ti2.read_text(encoding="utf-8") == "PROFILING-CHART"     # profiling side untouched
     assert r.verifications_old_dir.exists()                 # displaced files archived
     assert not (root / "P").exists()                        # no phantom project

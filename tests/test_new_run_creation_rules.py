@@ -61,11 +61,11 @@ def _runs(tmp_path):
     return [r.id for r in Project.load(tmp_path / "P").all_runs()]
 
 
-def test_prebuilt_preset_creates_the_new_run_and_selects_it(qapp, tmp_path):
+def test_prebuilt_preset_creates_the_new_run_and_selects_it(prebuilt_bundles, qapp, tmp_path):
     tab, fm, ctl = _tab_on_new_run(tmp_path)
     assert _runs(tmp_path) == ["run1"] and ctl.target.profile_run == ""
 
-    tab._apply_prebuilt_preset("__chromiq_tc300_builtin__", "P")
+    tab._apply_prebuilt_preset("__chromiq_abw702_builtin__", "P")
 
     assert _runs(tmp_path) == ["run1", "run2"]
     assert ctl.target.profile_run == "run2", "the bar moves to the new run"
@@ -107,14 +107,14 @@ def test_load_ti1_into_the_project_creates_the_new_run(qapp, tmp_path, monkeypat
     assert ctl.target.profile_run == "run2"
 
 
-def test_a_build_under_a_different_name_starts_its_own_project(qapp, tmp_path):
+def test_a_build_under_a_different_name_starts_its_own_project(prebuilt_bundles, qapp, tmp_path):
     """The flip side, and the reason the check compares folders: a build under a
     NEW name is a different project with its own run 1 — the loaded project must
     not gain a run from it."""
     tab, fm, ctl = _tab_on_new_run(tmp_path)
     tab._manual_target_name_edit.setText("Something Else")
 
-    tab._apply_prebuilt_preset("__chromiq_tc300_builtin__", "Something Else")
+    tab._apply_prebuilt_preset("__chromiq_abw702_builtin__", "Something Else")
 
     assert _runs(tmp_path) == ["run1"], "the loaded project is untouched"
     assert (tmp_path / "Something-Else" / "runs" / "run1").exists()

@@ -59,6 +59,26 @@ DROPPED_NAVIGATING = "navigating"
 DROPPED_NO_PROMPT = "no_prompt"
 DROPPED_STALE_LOC = "stale_loc"
 
+#: Read threads that have been started but may not have finished yet.
+#:
+#: NOT PARENTED TO THE BRIDGE, AND THAT IS THE WHOLE POINT — the same decision
+#: `workflow/cr30_spot_manager.py` records for its own read loop, in the same
+#: words, for the same reason. A QThread parented to the bridge is destroyed
+#: WITH it, and a QThread destroyed while it is still running calls `qFatal()`,
+#: which takes the process down: SIGABRT here, exit `0xC0000409` on Windows —
+#: a fail-fast that bypasses SEH, so faulthandler never runs and pytest-xdist
+#: reports only `[gw0] node down: Not properly terminated`, with no traceback
+#: anywhere.
+#:
+#: `self._threads` alone could not prevent it. The bridge, its `_threads` list,
+#: the thread and the `finished` lambda that closes back onto the bridge form a
+#: REFERENCE CYCLE, so the whole of it is freed by the CYCLIC collector — at
+#: some arbitrary later moment, and a still-running thread inside it is
+#: destroyed there. Holding the last reference HERE, outside the bridge, makes
+#: the thread reachable from a module global, so nothing in that cycle can be
+#: collected until the thread has reported itself finished.
+_LIVE: "list[tuple]" = []
+
 
 def _no_device_help(usb_err: object, ble_err: object) -> str:
     """Why neither transport worked, in words the user can act on.
@@ -467,7 +487,7 @@ class Cr30MeasureBridge(QObject):
     def _start_read(self, loc: str) -> None:
         self._reading_loc = loc
         gen = getattr(self._reader, "_generation", None)
-        thread = QThread(self)
+        thread = QThread()          # unparented on purpose — see `_LIVE`
         worker = _ReadWorker(loc, self._reader, gen)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
@@ -479,10 +499,14 @@ class Cr30MeasureBridge(QObject):
         # collected while running takes the process with it.
         thread.finished.connect(lambda t=thread, w=worker: self._reap(t, w))
         self._threads.append((thread, worker))
+        _LIVE.append((thread, worker))
+        _LIVE[:] = [(t, w) for (t, w) in _LIVE
+                    if t is thread or not t.isFinished()]
         thread.start()
 
     def _reap(self, thread, worker) -> None:
         self._threads = [(t, w) for (t, w) in self._threads if t is not thread]
+        _LIVE[:] = [(t, w) for (t, w) in _LIVE if t is not thread]
         worker.deleteLater()
         thread.deleteLater()
 

@@ -43,10 +43,112 @@ log = get_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# WHAT printtarg ACTUALLY ACCEPTS — read off its source, not its usage text
+# ---------------------------------------------------------------------------
+# Knut, v4.1.5-beta.10: opening Edit / create chart patch set on a CR30 chart
+# put "printtarg failed (1) … Argument to -i wasn't recognised" on screen, in a
+# box whose only button was 335 px below his 1920x1080 screen. The value came
+# from this module: `instrument_to_flag` returns the ChromIQ-only sentinel
+# "CR30", and line 991 below handed it straight to `-i`.
+#
+# THE RULE EXISTED AND LIVED IN ONE MODULE. `chart_creator._build_printtarg_args`
+# refuses to build an argv for an ENGINE_ONLY instrument, with a comment saying
+# exactly why; `ti2_relayout` builds its own argv and does not import it. So the
+# rule is restated HERE, at the second argv builder, as data rather than as a
+# comment — and `tests/test_printtarg_argument_vocabulary.py` pins both copies
+# against the same source excerpt.
+#
+# printtarg's own usage line is NOT the authority: it prints
+#
+#     -i 20 | 22 | 41 | 51 | SS | i1 | p3 | CM   Select target instrument
+#                      i1 = i1Pro, 3p = i1Pro3+, CM = ColorMunki
+#
+# and contradicts itself two lines later. MEASURED against the real 3.5.0
+# binary, "p3" is REJECTED and "3p" is accepted. The set below is
+# `target/printtarg.c:3323-3345`, which is a chain of `strcmp` and therefore
+# EXACT and CASE-SENSITIVE:
+#
+#     if (strcmp("20", na) == 0) … "22" … "41" … "51"
+#     else if (strcmp("SS", na) == 0 || strcmp("ss", na) == 0)
+#     else if (strcmp("i1", na) == 0)
+#     else if (strcmp("3p", na) == 0) { itype = instI1Pro; itype_mod = 1; }
+#     else if (strcmp("cm", na) == 0 || strcmp("CM", na) == 0)
+#     else usage("Argument to -i wasn't recognised");
+#
+# "SS"/"ss" and "cm"/"CM" are the only values with two spellings. "i1" and "3p"
+# have exactly one each, which is why a stray "I1" or "3P" would fail too.
+PRINTTARG_INSTRUMENTS = frozenset({
+    "20", "22", "41", "51", "SS", "ss", "i1", "3p", "cm", "CM",
+})
+
+# printtarg's CUSTOM `-p WWWxHHH` form, from `printtarg.c:3311-3316`:
+#
+#     if (cwidth < 1.0 || cwidth > 4000.0 || cheight < 1.0 || cheight > 4000.0)
+#         usage("Argument to -p was of unexpected size");    /* Sanity check */
+#
+# MEASURED: 4000x4000 parses, 4000.5x4000.5 does not. Named sizes go through
+# `cistrcmp` and are therefore case-INsensitive, unlike `-i`; they are not
+# enumerated here because `paper_to_flag` only ever emits names from
+# `_NAMED_PAPERS`, and a name this module did not choose is printtarg's to
+# reject with its own one-line "Failed to recognise argument to -p".
+PRINTTARG_PAPER_MIN_MM = 1.0
+PRINTTARG_PAPER_MAX_MM = 4000.0
+
+
+class PrinttargCannotLayOutChart(RuntimeError):
+    """printtarg was asked for a chart it cannot lay out, and we knew first.
+
+    Raised BEFORE the process is spawned, so the message the user sees is
+    ChromIQ's one sentence rather than fifty-one lines of the tool's usage
+    text. Kept a `RuntimeError` because every existing caller already catches
+    that; the subclass exists so a caller can tell "we refused" from "the tool
+    refused".
+    """
+
+
+def _custom_paper_mm(paper_flag: str) -> "tuple[float, float] | None":
+    """(w, h) for printtarg's custom ``WWWxHHH`` form, else None for a name."""
+    m = re.fullmatch(r"\s*([0-9.]+)x([0-9.]+)\s*", paper_flag or "")
+    if not m:
+        return None
+    try:
+        return float(m.group(1)), float(m.group(2))
+    except ValueError:
+        return None
+
+
+def check_printtarg_can_lay_out(instrument_flag: str, paper_flag: str) -> None:
+    """Raise :class:`PrinttargCannotLayOutChart` if printtarg would refuse.
+
+    The two values this module puts on printtarg's command line that can come
+    from a file it did not write: `-i` from the .ti2's TARGET_INSTRUMENT, and
+    `-p` from its PAPER_SIZE. Both are checked here, at the one place the argv
+    is built, so a chart loaded off disk cannot reach the tool with a value the
+    tool has never accepted.
+    """
+    if instrument_flag not in PRINTTARG_INSTRUMENTS:
+        raise PrinttargCannotLayOutChart(
+            f"printtarg cannot lay out a chart for this instrument "
+            f"({instrument_flag!r}). ChromIQ lays this instrument's charts out "
+            f"itself, so the chart is fine; printtarg is not the tool for it."
+        )
+    dims = _custom_paper_mm(paper_flag)
+    if dims is not None:
+        w, h = dims
+        if not (PRINTTARG_PAPER_MIN_MM <= w <= PRINTTARG_PAPER_MAX_MM
+                and PRINTTARG_PAPER_MIN_MM <= h <= PRINTTARG_PAPER_MAX_MM):
+            raise PrinttargCannotLayOutChart(
+                f"printtarg cannot lay out a chart on paper this size "
+                f"({w:g} x {h:g} mm). Its largest custom page is "
+                f"{PRINTTARG_PAPER_MAX_MM:g} x {PRINTTARG_PAPER_MAX_MM:g} mm."
+            )
+
+
+# ---------------------------------------------------------------------------
 # Instrument / paper reverse maps  (CGATS keyword -> printtarg flag value)
 # ---------------------------------------------------------------------------
 # Mirror of ui.ti2_loader.KNOWN_INSTRUMENTS, kept local so workflow/ doesn't
-# import the ui layer. printtarg -i accepts: 20|22|41|51|SS|i1|3p|CM.
+# import the ui layer. printtarg -i accepts PRINTTARG_INSTRUMENTS, above.
 def instrument_to_flag(target_instrument: str | None) -> str:
     name = (target_instrument or "").lower()
     # The CR30 is checked FIRST and is not a printtarg code at all (#159):
@@ -364,6 +466,26 @@ class LayoutOptions:
         # the stored knobs read cleanly and compare equal across save/load.
         self.patch_scale = round(float(self.patch_scale), 2)
         self.spacer_scale = round(float(self.spacer_scale), 2)
+        # …AND CLAMPED, because `_layout_from_dict` rebuilds these from a
+        # `meta.json` on disk and filters on key NAME only, never on value. The
+        # dialog's own spin boxes are already inside these limits, so this only
+        # ever bites a hand-edited, corrupted or newer-schema file — which is
+        # exactly the case `_layout_from_dict` was written to be forgiving
+        # about, and being forgiving about the key while trusting the value is
+        # half a guard. MEASURED against printtarg 3.5.0: -a is accepted from
+        # 0.1 to 4.0, -A from 0.1 to 8.0, and -m at 50 but not at 60 on A4.
+        self.patch_scale = min(max(self.patch_scale, 0.1), 4.0)
+        self.spacer_scale = min(max(self.spacer_scale, 0.1), 8.0)
+        # The int/float TYPE of these two is left exactly as it arrived — a
+        # `margin_mm` of 6.0 must stay 6.0, or a saved meta.json round-trips to
+        # a different value than it was written with — and a value that is not a
+        # number at all is left for the caller to trip over rather than silently
+        # turned into one.
+        if isinstance(self.margin_mm, (int, float)) and not isinstance(
+                self.margin_mm, bool):
+            self.margin_mm = min(max(self.margin_mm, 0), 50)
+        if isinstance(self.dpi, (int, float)) and not isinstance(self.dpi, bool):
+            self.dpi = min(max(self.dpi, 72), 2400)
 
     def to_printtarg_args(self) -> list[str]:
         """Build the printtarg flag list this options bundle implies."""
@@ -982,6 +1104,10 @@ def regenerate(
     # back to ColorMunki after the run (see _patch_ti2_for_triple_density).
     triple = bool(options and options.triple_density)
     instr_flag = "i1" if triple else spec.instrument_flag
+    # REFUSE BEFORE SPAWNING, in ChromIQ's own sentence. Checked on the values
+    # that actually go on the command line (so the triple-density "i1" override
+    # above is what is tested, not the chart's stored flag).
+    check_printtarg_can_lay_out(instr_flag, spec.paper_flag)
     # dpi_override lets the editor render a fast low-res *preview* while the
     # saved chart still uses options.dpi (the .ti2 patch data is DPI-independent,
     # so only the on-screen TIFF resolution changes).

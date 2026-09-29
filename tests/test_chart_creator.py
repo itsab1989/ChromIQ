@@ -634,8 +634,16 @@ def test_import_external_preconditioning_noop_for_local_pick(tmp_path: Path) -> 
 
 def test_stamp_uses_chart_layout_line_for_ti1_origin(tmp_path: Path, monkeypatch) -> None:
     """#70: a chart built from an existing patch set (chart_layout_name set) must
-    stamp "Chart layout <name> |" in place of the (never-run) targen command,
-    while still stamping the printtarg command."""
+    stamp "Chart layout <name>" in place of the (never-run) targen command,
+    while still stamping the printtarg command.
+
+    **AND WITHOUT A BAR OF ITS OWN.** `tiff_metadata._JOIN` already separates
+    every line with "    |    ", so the trailing one this used to pin stamped
+    "... TC9.18 |    |    printtarg ..." on every chart built from an armed
+    patch set. Knut approved removing it, 2026-09-13: *"Yes, make sure only one
+    'bar' is used to separate the layout-name and other text-fields coming
+    after."*
+    """
     import workflow.tiff_metadata as tm
     creator, work_dir = _make_creator(tmp_path)
     run = creator._file_mgr.project().current_run()
@@ -647,7 +655,7 @@ def test_stamp_uses_chart_layout_line_for_ti1_origin(tmp_path: Path, monkeypatch
 
     captured: list[list[str]] = []
     monkeypatch.setattr(tm, "stamp_chart_metadata",
-                        lambda tiffs, lines: captured.append(list(lines)))
+                        lambda tiffs, lines, *a: captured.append(list(lines)))
 
     creator._stamp_tiff_metadata(
         [tiff],
@@ -657,9 +665,16 @@ def test_stamp_uses_chart_layout_line_for_ti1_origin(tmp_path: Path, monkeypatch
     )
     assert captured, "stamp_chart_metadata should have been called"
     lines = captured[0]
-    assert any(l == "Chart layout TC9.18 |" for l in lines)
+    assert any(l == "Chart layout TC9.18" for l in lines), lines
+    assert not any(l.endswith("|") for l in lines), (
+        "a stamped line carries a separator of its own, so the joiner's own "
+        f"bar doubles it: {lines}")
     assert not any(l.startswith("targen ") for l in lines)
     assert any(l.startswith("printtarg ") for l in lines)
+    # …and what the sheet finally carries has exactly one bar between each
+    # pair, which is the thing Knut actually reads.
+    joined = tm._JOIN.join(lines)
+    assert "|    |" not in joined, joined
 
 
 def test_stamp_uses_targen_line_for_fresh_chart(tmp_path: Path, monkeypatch) -> None:
@@ -676,7 +691,7 @@ def test_stamp_uses_targen_line_for_fresh_chart(tmp_path: Path, monkeypatch) -> 
 
     captured: list[list[str]] = []
     monkeypatch.setattr(tm, "stamp_chart_metadata",
-                        lambda tiffs, lines: captured.append(list(lines)))
+                        lambda tiffs, lines, *a: captured.append(list(lines)))
 
     creator._stamp_tiff_metadata(
         [tiff],
@@ -728,3 +743,135 @@ def test_capture_scanner_cht_stores_verified_printtarg_geometry(tmp_path: Path) 
     # The stored geometry is directly consumable by the scanner-target builder.
     from workflow import scanin_target as ST
     assert ST.has_scanner_geometry(run_dir / f"{stem}.channels.json")
+
+
+# ---------------------------------------------------------------------------
+# THE RUN'S CHART NOTES MUST REACH THE PAPER. Four faults were measured on real
+# sheets, and the first fix for two of them did not work: reserving the strip a
+# ruler dash owns never rescued a note over a 6 to 26 mm sweep of the right
+# margin, and where the margin was narrow it removed the only space there was.
+# The mechanism that works is to tolerate a thin mark, because the stamp
+# composites now and sharing the margin with a dash costs the dash nothing.
+# ---------------------------------------------------------------------------
+
+def _sheet_with_note(tmp_path, note, **over):
+    """``(ink without the note, ink with it)`` for one built sheet."""
+    from dataclasses import replace
+
+    import numpy as np
+    import tifffile
+
+    from workflow.layout_engine import chart as le_chart
+    from workflow.layout_engine.presets import default_recipe
+    from workflow.tiff_metadata import stamp_chart_metadata
+
+    src = tmp_path / "note.ti1"
+    lines = ["CTI1", "", 'DESCRIPTOR "n"', 'ORIGINATOR "C"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+             "NUMBER_OF_SETS 120", "BEGIN_DATA"]
+    for i in range(120):
+        lines.append(f"{i+1} {(i*37)%101}.0 {(i*71)%101}.0 {(i*13)%101}.0 "
+                     "40.0 45.0 50.0")
+    lines += ["END_DATA", ""]
+    src.write_text("\n".join(lines), encoding="utf-8")
+
+    out = []
+    for stamp in (False, True):
+        d = tmp_path / f"s{int(stamp)}_{abs(hash(tuple(sorted(over.items()))))}"
+        d.mkdir()
+        r = replace(default_recipe("i1", "A4"), randomize=False, **over)
+        le_chart.build_from_recipe(src, d / "c", r)
+        tif = sorted(d.glob("*.tif"))[0]
+        if stamp:
+            stamp_chart_metadata([tif], [note], 4.0)
+        a = np.asarray(tifffile.imread(str(tif)))
+        g = a[..., :3].min(axis=2) if a.ndim == 3 else a
+        out.append(int((g < 200).sum()))
+    return out
+
+
+@pytest.mark.parametrize("label,over", [
+    ("nothing else in the margin", {}),
+    ("the side ruler dashes on", {"helper_markers": True,
+                                  "helper_markers_sides": True,
+                                  "helper_markers_top_bottom": False}),
+    ("dashes on all four edges", {"helper_markers": True,
+                                  "helper_markers_sides": True,
+                                  "helper_markers_top_bottom": True}),
+    ("clip side right, band off", {"clip_side": "right", "clip_border": False}),
+])
+def test_the_chart_note_reaches_the_paper(tmp_path, label, over):
+    """Measured against a control with the note off, which is the only honest
+    way to count ink: an absolute figure has been reported as a fault three
+    times in this project and been wrong each time.
+
+    Two of these cases printed NOTHING before, silently, with one line in the
+    log. The last one is a regression the first fix introduced and a reviewer
+    caught: reserving the clip band's width whenever the clip SIDE was "right",
+    without asking whether the band was switched on, threw away a note that had
+    been printing perfectly well.
+
+    "The clip band on the right" USED TO BE ON THIS LIST and is deliberately
+    not any more. Knut's 2026-09-10 ruling makes "Text distance from edge" a
+    limit rather than a preference, and with the band on that edge there is
+    1.1 mm of paper between the patch block and a 4 mm reserve. The note that
+    used to print there printed 0.76 mm from the paper edge, which is the fault
+    he reported. It is now not printed, with the reason in the log, and it is
+    pinned by
+    `tests/test_the_note_keeps_the_text_distance_from_the_edge.py`.
+    """
+    off, on = _sheet_with_note(tmp_path, "Canon PRO-1000, PhotoRag, CM off", **over)
+    assert on - off > 200, (
+        f"with {label} the note added {on - off} pixels of ink, so it did not "
+        "reach the paper"
+    )
+
+
+def test_a_note_longer_than_the_sheet_is_marked_as_cut_not_lost(tmp_path):
+    """Shrink-to-fit stops at a legibility floor, and the renderer CENTRES what
+    it is given, so past about 260 characters the tail went off the paper with
+    nothing to show for it: 12.45 mm gone at 300 characters and 63.75 mm at 400,
+    ending mid-word. A note is the user's own words, so what cannot be printed
+    is marked as cut.
+    """
+    import numpy as np
+    import tifffile
+
+    from dataclasses import replace
+
+    from workflow.layout_engine import chart as le_chart
+    from workflow.layout_engine.presets import default_recipe
+    from workflow.tiff_metadata import stamp_chart_metadata
+
+    src = tmp_path / "long.ti1"
+    lines = ["CTI1", "", 'DESCRIPTOR "n"', 'ORIGINATOR "C"',
+             'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+             "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
+             "NUMBER_OF_SETS 120", "BEGIN_DATA"]
+    for i in range(120):
+        lines.append(f"{i+1} {(i*37)%101}.0 {(i*71)%101}.0 {(i*13)%101}.0 "
+                     "40.0 45.0 50.0")
+    lines += ["END_DATA", ""]
+    src.write_text("\n".join(lines), encoding="utf-8")
+
+    for n in (300, 800):
+        d = tmp_path / f"len{n}"
+        d.mkdir()
+        note = ("The quick brown fox jumps over the lazy dog. " * 40)[:n]
+        r = replace(default_recipe("i1", "A4"), randomize=False)
+        le_chart.build_from_recipe(src, d / "c", r)
+        tif = sorted(d.glob("*.tif"))[0]
+        stamp_chart_metadata([tif], [note], 4.0)
+        a = np.asarray(tifffile.imread(str(tif)))
+        g = a[..., :3].min(axis=2) if a.ndim == 3 else a
+        dark = g < 200
+        H, W = g.shape
+        band = dark[:, int(W * 0.90):]
+        rows = np.flatnonzero(band.any(axis=1))
+        assert len(rows), f"a {n}-character note printed nothing at all"
+        mm = 25.4 / 300.0
+        assert rows.min() * mm >= 3.0 and (H - rows.max()) * mm >= 3.0, (
+            f"a {n}-character note runs to within "
+            f"{min(rows.min(), H - rows.max()) * mm:.2f} mm of the paper edge"
+        )

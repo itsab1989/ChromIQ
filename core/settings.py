@@ -25,6 +25,21 @@ DEFAULTS: dict[str, Any] = {
     "spot_read_instrument":      "auto",
     "chart_paper":               "A4",
     "chart_pages":               1,
+    # Which BUILT-IN presets the Create Chart lists show directly (Knut, #182
+    # 5818659478), as a JSON object {preset key: shown}. It holds only the
+    # person's OWN decisions from the window behind the gear button; "" means
+    # "the shipped list" (data/preset_defaults.json). See
+    # core/curated_presets.py for why a copy of the defaults is never stored.
+    "builtin_presets_shown":     "",
+    # The gear window's "Filter preset-dropdown list according to selected
+    # paper size" (Knut, #182 5832303551): True lists only the BUILT-IN
+    # presets on the paper Create Chart has selected (core/curated_presets.py).
+    # OFF by default since beta 47 (Knut, #182 5860041950: "The 'Filter
+    # preset-dropdown list...' in the 'Settings for built-in presets' window
+    # shall be OFF by default"; it was ON since 5833232475). No migration: the
+    # window stores the box only when it CHANGES it, so a stored value is
+    # always a person's own choice and is kept.
+    "builtin_presets_paper_filter": False,
     "chart_double_density":      False,
     "chart_disable_left_border": False,
     # Print info into the i1Pro left clip strip (auto-applies in guided when
@@ -224,10 +239,47 @@ DEFAULTS: dict[str, Any] = {
     # run's reports/ folder after every measurement, so reports of the same
     # chart accrue and can be compared over time (ink/printer/instrument drift).
     "save_measurement_report":   True,
-    # Measurement Report Pass thresholds (ΔE00) — the defaults the report opens
-    # with; the user can change them here and per-report in the window (Knut).
-    "report_pass_threshold_avg": 2.0,
-    "report_pass_threshold_max": 3.0,
+    # Measurement Report limit sets (#182). The two old keys
+    # `report_pass_threshold_avg` / `_max` (one number for the three averages,
+    # one for the two maxima) were replaced by per-row limits in named sets;
+    # schema 23 folds a changed pair into `compliance_set_overrides` on the
+    # ChromIQ default set so nobody's verdicts move. The overrides blob is
+    # `{set_id: {row_id: number | null}}` and holds only the cells the user
+    # changed, so a changed factory value still reaches everyone who did not.
+    "compliance_set_overrides":  "",
+    # The limit set a NEW report starts on, unless its profile run has a
+    # default of its own chosen in Edit limits (Knut D18/D20, K31).
+    "compliance_default_set":    "chromiq_default",
+    # (K31: "compliance_allow_edit_after_measurement", which let the report
+    # window's "Unlock this run's limits" be ticked after a run's first
+    # verification, is retired with the run lock. A value already stored is
+    # left where it is and read by nothing.)
+    # Which limit-set columns the Report limits window shows when opened from
+    # Preferences (JSON list of set ids; "" = all). Per RUN when opened from
+    # the report window (Knut K-b), stored in the run's meta.json instead.
+    "compliance_columns_shown":  "",
+    # Measurement Report DEFAULTS (Knut, 2026-09-18, B8-388). The three values
+    # a report is made with when nothing else decides: the window opening on a
+    # run that has generated no report, "New report…" chosen in "Report shown",
+    # and the report ChromIQ writes by itself after a measurement.
+    #
+    # The TYPE belongs to the run (D9) and this is the fallback for a run that
+    # never chose one: *"The type belongs to the run, yes, but the default
+    # should be the 'Full colour check'."*
+    #
+    # The two view tick boxes are default ON: *"These shall be default ON.
+    # however, during automatic saving of a report during measurement, these
+    # are always OFF (that is natural because it is one measurement only)"* —
+    # so the automatic record does NOT read these two, by his rule.
+    #
+    # There is deliberately no "judged against" default beside them: *"The
+    # Report Limits button contain the Judged Against default chosen, so no
+    # separate selection box is needed"* — it is `compliance_default_set`.
+    "report_default_type":       "t2_full_colour_check",
+    # "report_default_show_all_runs" was removed with the box it defaulted
+    # (B8-590, Knut 2026-09-20). A settings file written before that keeps the
+    # key; nothing reads it, and `AppSettings` does not mind an extra one.
+    "report_default_show_details":  True,
     # Measurement Report title/filename prefixes (#130, Knut). The report picks
     # the profiling or verification prefix from whether its measurements carry
     # the CHROMIQ_VERIFICATION marker; the full title/filename is
@@ -236,6 +288,9 @@ DEFAULTS: dict[str, Any] = {
     # Reports.
     "report_title_profiling":    "Measurement Report - Profiling of Printer",
     "report_title_verification": "Measurement Report - Verification of Profile",
+    # #182 K30 (challenge B, B2): a calibration's report was titled with the
+    # profiling line.
+    "report_title_calibration":  "Measurement Report - Calibration of Printer",
     "report_add_profile_name":   True,
     # Patch-reading error limit (#126, Knut): the ΔE at which a just-measured
     # patch gets the red warning outline in the engine's live split-patch
@@ -337,6 +392,14 @@ DEFAULTS: dict[str, Any] = {
     "margin_inspector_show":     True,    # show the "Measured from Preview" frame
     "layout_info_show":          True,    # show the "Chart layout information" panel
     "margin_violation_notify":   True,    # warn when a measured margin < threshold
+    # Whether the red warning paragraph in "Measured from Preview" is open.
+    # Basti, 2026-09-13: *"the red warning text in the measured from preview
+    # section can become quite a lot in some instances. can this be made
+    # collapsible and the app remembers the state it was in so it does not
+    # always take up this much space?"* Open by default, because a warning
+    # nobody has hidden yet is one nobody has read yet; once it is shut it
+    # stays shut, across charts and across restarts.
+    "margin_warnings_expanded":  True,
     "margin_guides_show":        False,   # dotted threshold guide lines on preview
     "margin_measured_guides_show": False,  # long dotted lines at the measured margins
     "margin_coords_show":         False,   # cross-hair + paper-mm/inch readout on pointer (#29)
@@ -533,7 +596,12 @@ def _seed_rows(instr, desc, side, top, combos, bottom=None):
 _I1_PRIMARY = {"L": 26, "R": 9, "T": 38, "B": 9, "desc": _I1_DESC}
 # i1Pro 3+ (#82): the larger body needs a touch more on the clip + label edges
 # (28 / 40 instead of 26 / 38); provisional until confirmed.
-_I1P3_DESC = "i1Pro 3+ ruler / jig"
+#: Knut, 2026-09-17: *"change the description for the paper and instrument
+#: combinations mentioned to 'i1Pro 3+ XL scanning ruler / jig'"*. The old
+#: string is kept below so a stored blob that still holds it can be upgraded
+#: without touching a description the user typed themselves.
+_I1P3_DESC = "i1Pro 3+ XL scanning ruler / jig"
+_I1P3_DESC_BEFORE_SCHEMA24 = "i1Pro 3+ ruler / jig"
 _I1P3_PRIMARY = {"L": 28, "R": 9, "T": 40, "B": 9, "desc": _I1P3_DESC}
 # A4 / Letter are also on the primary (jig) list in LANDSCAPE: the i1Pro jig
 # can read those sheets landscape too, and Knut wants the same clip/label
@@ -577,6 +645,38 @@ _MARGIN_SEED: dict[str, dict[str, Any]] = {
     # stays at 10 mm and the sides at 6 mm (#131).
     **_seed_rows("ColorMunki", _CM_DESC, 6, 33, _ALL_COMBOS, bottom=10),
 }
+
+
+def upgrade_i1pro3_ruler_description(
+    table: dict[str, dict[str, Any]]
+) -> tuple[dict[str, dict[str, Any]], bool]:
+    """Give every i1Pro 3+ row the XL scanning ruler's name (schema 24).
+
+    Knut, 2026-09-17, with the strip-length limit going from 220 mm to 515 mm:
+    *"At the same time, change the description for the paper and instrument
+    combinations mentioned to 'i1Pro 3+ XL scanning ruler / jig'."*
+
+    Only rows still holding the shipped default are touched, so a description
+    the user typed is left exactly as it is. `_same_margin` cannot be reused
+    here: it compares the four numbers and deliberately ignores `desc`, which
+    is the only field this changes.
+
+    Pure, so the rule is unit-tested directly.
+
+    **The strip-length limit itself needs no migration**, and that was
+    measured rather than assumed: `_commit_margin_combo` stores a `ruler` key
+    only when the value differs from the instrument's built-in, so an untouched
+    box stores nothing and keeps tracking `default_ruler_mm`. A row that DOES
+    carry `ruler` is a value the user chose and is left alone.
+    """
+    changed = False
+    for key, row in table.items():
+        if not key.startswith("i1Pro 3+|"):
+            continue
+        if str(row.get("desc", "")) == _I1P3_DESC_BEFORE_SCHEMA24:
+            row["desc"] = _I1P3_DESC
+            changed = True
+    return table, changed
 
 
 def _same_margin(a: dict[str, Any], b: dict[str, Any]) -> bool:
@@ -711,6 +811,68 @@ def serialize_margin_thresholds(table: dict[str, dict[str, Any]]) -> str:
     return json.dumps(table, ensure_ascii=False)
 
 
+def parse_compliance_overrides(raw: str) -> dict[str, dict[str, Any]]:
+    """Decode the stored limit-set overrides (``""`` → none). Only the shape
+    ``{set_id: {row_id: number | None}}`` survives; anything else is dropped
+    with a warning rather than crashing the report."""
+    import json
+
+    if not raw:
+        return {}
+    try:
+        doc = json.loads(raw)
+    except (ValueError, TypeError):
+        log.warning("Corrupt compliance_set_overrides blob, ignoring it")
+        return {}
+    if not isinstance(doc, dict):
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    for set_id, cells in doc.items():
+        if not isinstance(cells, dict):
+            continue
+        clean: dict[str, Any] = {}
+        for rid, v in cells.items():
+            if v is None:
+                clean[str(rid)] = None
+            else:
+                try:
+                    clean[str(rid)] = float(v)
+                except (TypeError, ValueError):
+                    continue
+        out[str(set_id)] = clean
+    return out
+
+
+def serialize_compliance_overrides(table: dict[str, dict[str, Any]]) -> str:
+    import json
+
+    return json.dumps(table, ensure_ascii=False, sort_keys=True) if table else ""
+
+
+def compliance_overrides_of(settings: Any) -> dict[str, dict[str, Any]]:
+    """The limit-set overrides held by ANY settings-like object (something
+    with ``get``). The dialogs take fakes in tests and duck-typed stores in
+    drivers, so they must not require :class:`AppSettings` itself."""
+    get = getattr(settings, "get_compliance_overrides", None)
+    if callable(get):
+        try:
+            return get() or {}
+        except Exception:  # noqa: BLE001
+            return {}
+    try:
+        return parse_compliance_overrides(str(settings.get("compliance_set_overrides", "") or ""))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def store_compliance_overrides(settings: Any, table: dict[str, dict[str, Any]]) -> None:
+    put = getattr(settings, "set_compliance_overrides", None)
+    if callable(put):
+        put(table)
+        return
+    settings.set("compliance_set_overrides", serialize_compliance_overrides(table))
+
+
 def margin_combo_key(instrument: str, paper: str, orientation: str) -> str:
     """Canonical "<instrument>|<paper> <Orientation>" threshold key."""
     paper = (paper or "").strip()
@@ -769,7 +931,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 22
+SETTINGS_SCHEMA = 24
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -783,6 +945,45 @@ def _seed_sound_defaults() -> None:
 
 
 _seed_sound_defaults()
+
+
+def report_title_default(key: str) -> str:
+    """The report title prefix Preferences starts from, in the UI language.
+
+    Round B before beta 37, H5: the defaults were stored and printed in
+    English, so every German report was headed "Measurement Report -
+    Verification of Profile". The STORED default stays the English source
+    string (that is what "the user has not changed it" is measured against);
+    this is what the window shows and the report prints for it.
+    """
+    from core.i18n import tr
+    if key == "report_title_profiling":
+        return tr("Measurement Report - Profiling of Printer")
+    if key == "report_title_verification":
+        return tr("Measurement Report - Verification of Profile")
+    if key == "report_title_calibration":
+        return tr("Measurement Report - Calibration of Printer")
+    return str(DEFAULTS.get(key, ""))
+
+
+def report_title_prefix(settings, key: str) -> str:
+    """The prefix a report is titled with: the user's own as typed, or, while
+    it is still the shipped default (or empty), that default translated."""
+    stored = str(settings.get(key, DEFAULTS.get(key, "")) or "").strip()
+    if not stored or stored == str(DEFAULTS.get(key, "")).strip():
+        return report_title_default(key)
+    return stored
+
+
+def report_title_to_store(key: str, typed: str) -> str:
+    """What Preferences writes for a typed prefix: the English default when
+    the box holds the default in either language, so a German user who never
+    touched it still has "the default" stored, and the text as typed
+    otherwise."""
+    typed = (typed or "").strip()
+    if not typed or typed == report_title_default(key).strip():
+        return str(DEFAULTS.get(key, ""))
+    return typed
 
 
 _SUPERSEDED_DEFAULTS: dict[str, tuple[float, ...]] = {
@@ -899,6 +1100,8 @@ class AppSettings:
             dropped.append("margin_thresholds[ColorMunki top→30mm, bottom→10mm]")
         if self._migrate_colormunki_top_margin_33():
             dropped.append("margin_thresholds[ColorMunki top→33mm]")
+        if self._migrate_i1pro3_ruler_description():
+            dropped.append("margin_thresholds[i1Pro 3+ → XL scanning ruler]")
         for _k in self._migrate_sound_defaults():
             dropped.append(_k)
         for _k in self._migrate_helper_marker_sizes():
@@ -919,11 +1122,56 @@ class AppSettings:
         if self._migrate_factory_project_name():
             dropped.append("chart_target_name (no invented project name on a "
                            "fresh start)")
+        if self._migrate_report_thresholds_to_sets():
+            dropped.append("report_pass_threshold_avg/max (now limit sets; a "
+                           "changed pair lives on in compliance_set_overrides)")
         self._qs.setValue("settings_schema", SETTINGS_SCHEMA)
         if dropped:
             log.info("Settings migrated to schema %d; dropped stale defaults: %s",
                      SETTINGS_SCHEMA, ", ".join(dropped))
         return dropped
+
+    def _migrate_report_thresholds_to_sets(self) -> bool:
+        """schema 23 (#182): the two Measurement Report thresholds become
+        per-row limits in named limit sets.
+
+        The old "average" number judged the three average rows and the old
+        "maximum" the two maximum rows. A stored value that merely echoes the
+        factory 2.0 / 3.0 is dropped and the user follows the ChromIQ default
+        set exactly as before. A value the user MOVED is written as an
+        override on the ChromIQ default set, per value (a user who moved only
+        the average must not get a pointless maximum override), so every
+        verdict they see tomorrow is the one they saw yesterday. The two old
+        keys are then removed, and this runs once: Settings → Save writes
+        every key, so leaving them would re-create them for ever.
+        """
+        raw_avg = self._qs.value("report_pass_threshold_avg", None)
+        raw_max = self._qs.value("report_pass_threshold_max", None)
+        if raw_avg is None and raw_max is None:
+            return False
+        from workflow.compliance_sets import OLD_AVG_ROWS, OLD_MAX_ROWS
+
+        def _num(raw):
+            try:
+                return float(str(raw).replace(",", "."))
+            except (TypeError, ValueError):
+                return None
+
+        changed: dict[str, Any] = {}
+        avg, mx = _num(raw_avg), _num(raw_max)
+        if avg is not None and avg > 0 and abs(avg - 2.0) > 1e-9:
+            changed.update({r: avg for r in OLD_AVG_ROWS})
+        if mx is not None and mx > 0 and abs(mx - 3.0) > 1e-9:
+            changed.update({r: mx for r in OLD_MAX_ROWS})
+        if changed:
+            table = parse_compliance_overrides(
+                str(self._qs.value("compliance_set_overrides", "") or ""))
+            table.setdefault("chromiq_default", {}).update(changed)
+            self._qs.setValue("compliance_set_overrides",
+                              serialize_compliance_overrides(table))
+        self._qs.remove("report_pass_threshold_avg")
+        self._qs.remove("report_pass_threshold_max")
+        return True
 
     def _migrate_factory_project_name(self) -> bool:
         """schema 22: "Printer profile project name" starts EMPTY.
@@ -1100,6 +1348,26 @@ class AppSettings:
                               serialize_margin_thresholds(table))
         return changed
 
+    def _migrate_i1pro3_ruler_description(self) -> bool:
+        """schema 24 (Knut 2026-09-17): the i1Pro 3+ rows name the XL ruler.
+
+        Upgrades a stored `margin_thresholds` blob in place, and only rows
+        still holding the shipped default. Fresh installs need nothing, the
+        seed carries the new name already.
+        """
+        raw = self._qs.value("margin_thresholds", None)
+        if not raw:
+            return False
+        try:
+            table = parse_margin_thresholds(str(raw))
+        except Exception:  # noqa: BLE001
+            return False
+        table, changed = upgrade_i1pro3_ruler_description(table)
+        if changed:
+            self._qs.setValue("margin_thresholds",
+                              serialize_margin_thresholds(table))
+        return changed
+
     def _migrate_sound_defaults(self) -> list:
         """schema 20 (#148, Knut 2026-08-14): three sounds get better defaults.
 
@@ -1220,11 +1488,57 @@ class AppSettings:
                 val = float(val)
             except ValueError:
                 val = fallback
+        if key == "compliance_default_set":
+            # K36-1 (B8-1072): a pair written before the rule, or by a path
+            # that did not ask it, is repaired to the standard's set here.
+            held = self._default_set_held(str(val or ""))
+            if held != str(val or ""):
+                log.warning("the default limit set %r cannot stand beside the "
+                            "default report type %r (K36-1); it is now %r",
+                            val, self.get("report_default_type", ""), held)
+                self._qs.setValue(key, held)
+                val = held
         return val
+
+    def _default_set_held(self, set_id: str,
+                          type_id: "str | None" = None) -> str:
+        """*set_id* held to the default report type (K36-1, Knut #182
+        5820871320): an ISO type is judged against an ISO set, so beside one
+        any other set becomes the type's own standard's set."""
+        try:
+            from workflow.measurement_report import set_held_to_type
+            if type_id is None:
+                type_id = str(self.get("report_default_type", "") or "")
+            return set_held_to_type(str(type_id or ""), set_id)
+        except Exception:      # noqa: BLE001 — never break a read over this
+            log.debug("could not hold the default set to the type",
+                      exc_info=True)
+            return set_id
 
     def set(self, key: str, value: Any) -> None:
         log.debug("settings.set %s = %r", key, value)
+        # **NO WRITE LEAVES AN ISO DEFAULT TYPE BESIDE A NON-ISO DEFAULT SET
+        # (K36-1, challenge 4 of beta 42, B8-1072).** Guarded here, at the
+        # one door every writer goes through, and not only in the windows
+        # that offer the choice: a window that forgot to ask wrote the pair.
+        if key == "compliance_default_set":
+            held = self._default_set_held(str(value or ""))
+            if held != str(value or ""):
+                log.warning("refused %r as the default limit set beside the "
+                            "default report type %r (K36-1); wrote %r",
+                            value, self.get("report_default_type", ""), held)
+                value = held
         self._qs.setValue(key, value)
+        if key == "report_default_type":
+            _raw = str(self._qs.value("compliance_default_set",
+                                      DEFAULTS["compliance_default_set"])
+                       or "")
+            held = self._default_set_held(_raw, str(value or ""))
+            if held != _raw:
+                log.warning("the default report type %r moved the default "
+                            "limit set from %r to %r (K36-1)",
+                            value, _raw, held)
+                self._qs.setValue("compliance_default_set", held)
 
     def is_stored(self, key: str) -> bool:
         """Has this key ever been WRITTEN, as opposed to answered by a default?
@@ -1300,6 +1614,17 @@ class AppSettings:
 
     def set_margin_thresholds(self, table: dict[str, dict[str, Any]]) -> None:
         self.set("margin_thresholds", serialize_margin_thresholds(table))
+
+    # ------------------------------------------------------------------
+    # Measurement Report limit-set overrides (#182; JSON blob)
+    # ------------------------------------------------------------------
+    def get_compliance_overrides(self) -> dict[str, dict[str, Any]]:
+        """``{set_id: {row_id: number | None}}``: only the cells the user
+        changed in the Report limits window, for the editable sets."""
+        return parse_compliance_overrides(str(self.get("compliance_set_overrides", "") or ""))
+
+    def set_compliance_overrides(self, table: dict[str, dict[str, Any]]) -> None:
+        self.set("compliance_set_overrides", serialize_compliance_overrides(table))
 
     # ------------------------------------------------------------------
     # Strip-indicator styling defaults (Knut #93)

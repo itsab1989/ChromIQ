@@ -1,0 +1,4 @@
+# R-014 F-014 the engine preflight checks are never run by the app
+Verdict: PARTLY RIGHT
+Grade: code read (INFERRED, as Agent 1's). What is right: Create Chart never runs workflow/layout_engine/preflight.py and no build shows a readability badge. What is wrong: "The module is imported only by tests" and "no caller in ui/, workflow/ or main.py". ui/dialogs/settings_dialog.py:5652 (`_update_layout_calc`) calls `preflight.check(geom, layout)` and `preflight.indicator_width_warning(...)` and prints their errors (red) and warnings (amber) under the "≈ N patches per sheet" line of Preferences > Chart Layout. So the checks exist on screen, but only in Preferences, against the saved default layout, not against the chart being built.
+Severity: medium stays; the recommendation changes: the same call that Preferences makes can be made from the Create Chart estimate path (same inputs), which is a smaller change than "wire a dead module".

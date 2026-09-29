@@ -18,6 +18,8 @@ _ARROW_UP   = str(resource_path("assets/arrow_up.svg")).replace("\\", "/")
 
 # Spectrum
 SPEC_MAGENTA = "#ff4573"
+#: The ground of the information note (``QLabel#info``) in Dark.
+INFO_BG = "#25060f"
 SPEC_AMBER   = "#ffb42d"
 SPEC_GREEN   = "#56d6a5"
 SPEC_CYAN    = "#37bcd6"
@@ -113,6 +115,29 @@ def make_dark_palette() -> QPalette:
     return pal
 
 
+# The window's default button, filled (K44). Built here, before the sheet,
+# from this appearance's own tokens: see ui/default_button.py.
+from ui.default_button import default_fill_qss as _default_fill_qss
+# A window with no accent of its own fills its main button in Restore
+# Factory Defaults' look, not in the cyan ACCENT (Basti, 2026-09-26: the
+# fallback colour appeared out of place; see ui/light_styles.py).
+FALLBACK_FILL = "#f4f4f4"
+FALLBACK_LABEL = "#121212"
+FALLBACK_HOVER = "#e0e0e0"
+_DEFAULT_QSS = _default_fill_qss(
+    accent=FALLBACK_FILL,
+    label=FALLBACK_LABEL,
+    hover=FALLBACK_HOVER,
+    dis_bg="#1e1e1e",
+    dis_border="#383838",
+    dis_fg="#484848",
+    plain_bg=NEUTRAL_BTN,
+    plain_border=BORDER_HI,
+    plain_fg=TEXT_MAIN,
+    plain_hover_bg=NEUTRAL_BTN_HOVER,
+    plain_hover_border="#606060",
+)
+
 APP_STYLESHEET = f"""
 /* ---- Base --------------------------------------------------------- */
 /* The profile bar is hosted ON the masthead's version rail, which the masthead
@@ -203,23 +228,47 @@ QPushButton:disabled {{
     border-color: {BORDER};
     background: #222222;
 }}
+/* THE BUTTON RETURN PRESSES IS FILLED IN THE ACCENT (Knut, #182 5833776276,
+ * 5833983335): one standard for every window and pop-up, the #primary look.
+ * `:default` is Qt's isDefault(), the button Return presses; ui/default_button.py
+ * keeps it from moving with focus and holds the rules. A window with its own
+ * accent re-fills it in that accent. */
+{_DEFAULT_QSS}
+/* The graph tab bar's scroll arrows (ui/peek_tab_bar.py) get the outline
+ * every other button has (Knut, #182 5832746557). Disabled keeps the faint
+ * edge of a disabled button, so a greyed arrow still reads as greyed. */
+QToolButton#peek_tab_arrow {{
+    background: {NEUTRAL_BTN};
+    border: 1px solid {BORDER_HI};
+    border-radius: 3px;
+    padding: 0;
+}}
+QToolButton#peek_tab_arrow:hover {{
+    background: {NEUTRAL_BTN_HOVER};
+    border-color: #606060;
+}}
+QToolButton#peek_tab_arrow:pressed {{ background: #2a2a2a; }}
+QToolButton#peek_tab_arrow:disabled {{
+    border-color: {BORDER};
+    background: #222222;
+}}
 /* #primary color is overridden per-tab via setStyleSheet in main_window */
 QPushButton#primary {{
-    background: {ACCENT};
-    color: #0a0a0a;
-    border: 1px solid {ACCENT};
+    background: {FALLBACK_FILL};
+    color: {FALLBACK_LABEL};
+    border: 1px solid {FALLBACK_FILL};
     font-weight: 700;
 }}
-QPushButton#primary:hover    {{ background: {ACCENT_HOVER}; border-color: {ACCENT_HOVER}; }}
+QPushButton#primary:hover    {{ background: {FALLBACK_HOVER}; border-color: {FALLBACK_HOVER}; }}
 QPushButton#primary:disabled {{ background: #1e1e1e; border-color: #383838; color: #484848; }}
 QPushButton#danger           {{ background: #4a1818; color: #ff9090; border-color: #7a2424; }}
 QPushButton#danger:hover     {{ background: #5a1e1e; }}
-QPushButton#reset_defaults {{
+QPushButton#reset_defaults, QPushButton#prefs_ok {{
     background: #f4f4f4;
     color: #121212;
     border: 1px solid #d0d0d0;
 }}
-QPushButton#reset_defaults:hover {{
+QPushButton#reset_defaults:hover, QPushButton#prefs_ok:hover {{
     background: #e0e0e0;
     border-color: #bbbbbb;
 }}
@@ -265,11 +314,17 @@ QPlainTextEdit:disabled, QTextEdit:disabled {{
     background: #1a1a1a;
     border-color: #2a2a2a;
 }}
-QSpinBox:disabled::up-button,   QSpinBox:disabled::down-button,
-QDoubleSpinBox:disabled::up-button, QDoubleSpinBox:disabled::down-button {{
+/* THE STATE GOES ON THE SUB-CONTROL: `QSpinBox::up-button:disabled`, never
+   `QSpinBox:disabled::up-button`. Written the second way (until beta 41) Qt
+   painted every ENABLED plain QComboBox / QSpinBox in the disabled colour:
+   the beige pulldowns in Patch distribution and Preferences > Reports.
+   Only NoScrollComboBox escaped, through its per-widget sheet.
+   tests/test_the_patch_distribution_pulldown_matches_create_chart.py */
+QSpinBox::up-button:disabled,   QSpinBox::down-button:disabled,
+QDoubleSpinBox::up-button:disabled, QDoubleSpinBox::down-button:disabled {{
     background: #1a1a1a;
 }}
-QComboBox:disabled::drop-down {{ background: #1a1a1a; }}
+QComboBox::drop-down:disabled {{ background: #1a1a1a; }}
 QComboBox {{ padding-right: 28px; }}
 QComboBox::drop-down {{
     subcontrol-origin: padding;
@@ -425,7 +480,7 @@ QLabel#warning {{
     border: 1px solid {ACCENT_WARN}; border-radius: 4px; padding: 6px 10px;
 }}
 QLabel#info {{
-    background: #25060f; color: {SPEC_MAGENTA};
+    background: {INFO_BG}; color: {SPEC_MAGENTA};
     border: 1px solid {SPEC_MAGENTA}; border-radius: 4px; padding: 6px 10px;
 }}
 /* The Measure tab's own information box — same shape as #info, in that tab's

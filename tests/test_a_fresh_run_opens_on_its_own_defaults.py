@@ -117,3 +117,34 @@ def test_an_absent_bucket_means_neutral_not_whatever_is_on_screen(tab):
         "the gamut intent kept the previous run's value"
     assert _selection(tab) == fresh["layout"], (
         f"the layout panel kept the previous run's values: {_selection(tab)}")
+
+
+def test_a_row_the_stored_block_lacks_opens_on_its_default(tab, monkeypatch):
+    """B8-732 (Knut, 2026-09-22: "You fix seems reasonable"). A target saved
+    before a parameter existed has no entry for it, and `apply` writes only
+    the keys the block holds, so the control kept the OUTGOING target's value
+    and the next save filed it here: driven on screen, run1's 777 became
+    run2's patch count.
+
+    MUTATION: drop the missing-row reset after `apply` in
+    `load_target_settings` and the control keeps 777: red.
+    """
+    import types
+    from workflow.per_target_settings import params_for, snapshot
+    p = next(x for x in params_for(tab) if x.tool == "targen" and x.flag == "-f")
+    for w in p.widgets:
+        w.reset_to_default()
+    default_value = snapshot(tab)[p.key]
+    blob = snapshot(tab)
+    blob.pop(p.key)                          # a block written before "-f" existed
+    # the OUTGOING target left 777 in the control
+    rec = dict(default_value, value=777, enabled=True)
+    p.write(rec)
+    assert snapshot(tab)[p.key]["value"] == 777, "the premise failed"
+    meta = types.SimpleNamespace(create_chart_settings=blob, create_chart_ui={})
+    store = types.SimpleNamespace(load_meta=lambda: meta)
+    monkeypatch.setattr(tab, "_target_settings_store", lambda: store)
+    tab.load_target_settings()
+    assert snapshot(tab)[p.key]["value"] == default_value["value"], (
+        "a row the stored block has no entry for kept the previous target's "
+        "value")

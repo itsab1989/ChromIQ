@@ -125,6 +125,30 @@ class Geom:
     # clamp used to be the page edge, which is what let a three-digit label
     # print 1.4 mm from the paper's edge against a 4 mm limit. 0 = not set.
     row_label_floor: float = 0.0
+    # §R8: the size "auto" SETTLED ON for the row labels, after being walked
+    # down to fit the left margin the user typed. 0 = nothing was settled, so
+    # the automatic size stands as `effective_row_label_size_mm` derives it.
+    # Written by `raster.apply_row_label_geometry` and read back by that same
+    # function, so the renderer, the band and the panel all draw and measure
+    # the one size the margin was reserved for; a size the user TYPED never
+    # reaches this field, because §R8 does not touch a typed size.
+    row_label_size_mm: float = 0.0
+    # §R9: the paper the row-label walk handed the RIGHT edge, in mm -- how far
+    # left the patch block moved so the side stamp would fit beside it. 0 on
+    # every chart the walk did not touch, which is all but twelve of the 120
+    # Guided combinations and every built-in preset.
+    #
+    # **IT IS NOT ROOM FOR THE STAMP TO GROW INTO.** Sebastian, 2026-09-21, on
+    # the before/after picture: *"although it is not overlapping anymore the
+    # stamps font size became a tad bigger. I'd rather have the stamp size the
+    # same as before (so little smaller than now) but with a tiny gap to the
+    # patches."* The stamp is auto-sized from the paper beside it
+    # (`tiff_metadata.fit_rotated_line`), so freeing 0.92 mm for it took the
+    # size from 7.20 pt to 8.88 pt and kept the clearance at nothing.
+    # `chart_creator._stamp_tiff_metadata` passes this on as the stamper's
+    # minimum patch-side gap, so the freed paper is spent as WHITE and the line
+    # keeps the size it had. Read by nothing else.
+    side_stamp_freed_mm: float = 0.0
     strip_indicator_gap: float = 0.0   # gap (mm) between strip label and strip
     offset_x: float = 0.0              # whole-chart offset (mm)
     offset_y: float = 0.0
@@ -136,6 +160,26 @@ class Geom:
     # the sentinel so it behaves exactly as before. (#93)
     label_band_mm: float = -1.0   # actual strip-label + underline band height
     bottom_reserve_mm: float = 0.0   # actual bottom sheet-text + stamp height
+    # WHERE THE LABELS' INK ACTUALLY ENDS, measured DOWN FROM `leader_top`, and
+    # not the same number as `label_band_mm` above. The reserve measures an
+    # auto-sized label by its ink bbox and knows nothing of the user's
+    # `strip_label_offset_mm`; the RENDERER draws the band at the font's full
+    # pixel size and moves it by that offset. On every layout but one the gap
+    # between the two is slack nobody notices. On a turned honeycomb there is no
+    # slack -- see `geometry._turned_hex` -- so the guard there needs the drawn
+    # figure, and only the renderer can supply it. 0 = not computed.
+    label_ink_bottom_mm: float = 0.0
+    # WHERE THE LETTERS' OWN INK BEGINS AND ENDS, from the band's anchor
+    # (`Placement.leader_top`), the user's `strip_label_offset_mm` included and
+    # the underline counted at the bottom. `label_ink_bottom_mm` above is the
+    # em BOX, which is what the turned-hex reserve is built on and must stay;
+    # these two are what the "Measured from Preview" panel predicts the ink
+    # with, and they are measured off a probe in
+    # `raster._furniture_reserves_mm` rather than derived. Measured: DejaVuSans
+    # at a 4.911 mm em inks 1.355 mm to 5.165 mm below the anchor, so a check
+    # built on the box was wrong at both ends. 0 = not computed.
+    label_ink_top_mm: float = 0.0
+    label_ink_reach_mm: float = 0.0
     # Bracket each strip with a leading + trailing spacer (printtarg parity).
     # When OFF the two end gaps are reclaimed for patches (denser than printtarg).
     edge_spacers: bool = False
@@ -160,6 +204,37 @@ class Geom:
     # for the text it overflows toward this line and a violation is flagged.
     text_edge_top_mm: float = 4.0
     text_edge_clip_mm: float = 4.0
+    # "B" — the bottom-edge text distance. Carried for the same reason as the
+    # helper markers below: #182 judges a SIDE text-box's height against the
+    # page less T and less B, so the geometry that lays the side band out has
+    # to know both. It changes no patch geometry.
+    text_edge_bottom_mm: float = 4.0
+    # THE RULER HELPER MARKERS ARE THE SECOND RESERVE ON EVERY EDGE (#182,
+    # Knut, 2026-09-12), and they were render-only kwargs, so no text placement
+    # could see them. Measured on A4 with the markers at 4 mm + 2 mm: the strip
+    # letters' ink began at 3.98 mm, inside the 4.0 to 6.0 mm marker band, and
+    # the bottom line printed straight through the dashes at 3.89 mm.
+    #
+    # He reports it as a consequence of our own change: *"this has another new
+    # consequence, that the text crashes with the position of the helper makers
+    # defined on the page. This must now be also considered when placing the
+    # text towards any of the 4 page edges."*
+    #
+    # ONE RULE, FOUR EDGES. Two halves of this round arrived at these same five
+    # fields independently, one for the sides and one for the top and bottom,
+    # which is the clearest argument there is that they belong on the geometry
+    # rather than in either caller. `geom_from_build_kwargs` fills them in; a
+    # bare `build()` Geom keeps the defaults below and behaves exactly as
+    # before, markers off.
+    #
+    # The sizes default to ZERO rather than to a plausible 2 mm, so a caller
+    # that turns the markers on without saying how big they are reserves
+    # nothing instead of inventing a reserve nobody asked for.
+    helper_markers: bool = False
+    helper_marker_edge_mm: float = 0.0
+    helper_marker_len_mm: float = 0.0
+    helper_markers_sides: bool = True
+    helper_markers_top_bottom: bool = True
     # "Margins are the law" mode (Knut): the patch area is exactly the margin box
     # (no hidden leader/trailer; strip labels live inside the top margin, anchored
     # at the text-edge from the page edge). ON for area-first ("Prioritise chart
@@ -192,6 +267,30 @@ class Geom:
     # NOT inferred from hxeh/hxew: the ColorMunki's row stagger sets hxeh
     # without being hexagonal, so those floats answer a different question.
     hexagonal: bool = False
+    # Which way up the honeycomb sits. False (the default, and every chart built
+    # before #159) is pointy-top: apexes at the top and bottom, strips zigzagging
+    # sideways. True is the same hexagon turned 30 degrees, so the apexes point
+    # left and right and each strip runs STRAIGHT down the page.
+    #
+    # THIS FIELD IS THE ONLY THING DOWNSTREAM MAY ASK, AND IT HAS ONE WRITER:
+    # the `key == "CR30" and hflag` branch of `_build_base`. Nothing reads the
+    # recipe's flag directly. That is what makes the option inert by
+    # construction on every other instrument: a tick made on a CR30, left
+    # standing in the recipe (hiding must never untick) and then carried to a
+    # SpectroScan honeycomb cannot reach the page, because no SpectroScan Geom
+    # can ever carry it. `ca0f639c` was that fault with "disabled" for "hidden".
+    hex_flat_top: bool = False
+    # A honeycomb's spacer, as a RING around each patch rather than a bar
+    # between rows (#159). Full width of the gap between two neighbouring
+    # patches, in mm; each patch gives up half of it, so the two half-bands abut
+    # into one shared spacer.
+    #
+    # IT IS SEPARATE FROM `pspa` BECAUSE IT COSTS NO PAGE. `pspa` is added to
+    # the pitch, so a bar pushes the lattice apart and costs patches; a ring
+    # comes out of the patch's own area and the lattice keeps tessellating.
+    # `build()` moves the value across once the user's spacer-width override has
+    # been applied, so the Spacer size box goes on meaning the same thing.
+    hex_ring_mm: float = 0.0
     # Physical strip-length limit of the instrument's ruler/jig (mm); 0 = none
     # (ColorMunki/SpectroScan have no ruler). In area-first the strip is NOT capped
     # to this (the margin box is law — fill it), but a strip longer than the ruler
@@ -230,6 +329,11 @@ def hex_capable_instruments() -> "list[str]":
     return [k for k in supported() if hex_capable(k)]
 
 
+#: The i1Pro 3+'s XL scanning ruler (Knut, 2026-09-17). The standard ruler the
+#: `260 - lcar - tspa` expression describes would give it 220 mm.
+P3_XL_RULER_MM = 515.0
+
+
 def supported() -> list[str]:
     return ["i1", "p3", "CM", "41", "51", "SS", "CR30"]
 
@@ -263,6 +367,7 @@ def build(
     pscale: float = 1.0,
     sscale: float = 1.0,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     spacer_on: bool = True,
     border: float = 6.0,
@@ -287,6 +392,11 @@ def build(
     cm_stagger: bool = False,
     text_edge_top: float = 4.0,
     text_edge_clip: float = 4.0,
+    helper_markers: bool = False,
+    helper_marker_edge: float = 2.0,
+    helper_marker_len: float = 2.0,
+    helper_markers_top_bottom: bool = True,
+    helper_markers_sides: bool = True,
     margins_are_law: bool = False,
     fill_beyond_ruler: bool = False,
 ) -> Geom:
@@ -300,7 +410,8 @@ def build(
     ``border`` still drives the instrument leader and clip-holder base.
     """
     geom = _build_base(
-        key, pscale=pscale, sscale=sscale, hflag=hflag, density=density,
+        key, pscale=pscale, sscale=sscale, hflag=hflag,
+        hex_flat_top=hex_flat_top, density=density,
         spacer_on=spacer_on, border=border, nolpcbord=nolpcbord, nolimit=nolimit,
         clip_border_width=clip_border_width, clip_band=clip_band)
     mt, mr, mb, ml = margins if margins else (geom.border,) * 4
@@ -357,8 +468,25 @@ def build(
     # that kept its unresized reservation is exactly the bug this block was
     # written for, and it does not care which device is reading the sheet.
     if geom.hexagonal and (patch_w or patch_h):
-        hxeh = plen / 6.0
-        hxew = 0.25 * pwid
+        # RESIZING A HEXAGON RESIZES BOTH ITS OVERHANGS, and the turn decides
+        # which one is which. `_build_base` already made that distinction --
+        # apex = a sixth, stagger = a quarter, on opposite axes for the two
+        # orientations -- and this block used to restate only the pointy half,
+        # so a rotated chart with any patch size set came out with the two
+        # reserves swapped: hxeh 2.0200 where 3.0300 was needed and hxew 2.6241
+        # where 1.7494 was.
+        #
+        # It under-reserved the STAGGER, so ink printed 1.0 mm outside the
+        # margin the user set, and over-reserved the APEX, so 0.9 mm of page
+        # was thrown away on the other axis. It fires on every area-first build
+        # (`geom_from_build_kwargs` derives patch_w/patch_h and feeds them back
+        # here) and on every Manual patch size, which is to say almost always.
+        if geom.hex_flat_top:
+            hxeh = 0.25 * plen       # stagger, up and down
+            hxew = pwid / 6.0        # apex, side to side
+        else:
+            hxeh = plen / 6.0        # apex, up and down
+            hxew = 0.25 * pwid       # stagger, side to side
     row_stagger = 0.0
     if key == "CM" and cm_stagger:
         row_stagger = 0.5 * (plen + 0.5 * pspa)
@@ -374,8 +502,62 @@ def build(
             mr = max(mr, clip_w)
         else:
             ml = max(ml, clip_w)
+    # A HONEYCOMB'S SPACER IS A RING, NOT A BAR, and this is where the two part
+    # company -- AFTER the Spacer size override above, so that box keeps its
+    # meaning.
+    #
+    # Measured on a CR30 A4 honeycomb with spacers switched on: the bar left 22
+    # full-width black rules across the sheet, each covering 75 % of the apex of
+    # every patch in the row above, and it opened 6.64 % of white slivers along
+    # the diagonals, because it grows the pitch on ONE axis while a honeycomb
+    # interlocks in three directions. Turning the honeycomb halved that (2.35 %)
+    # and could not remove it. A ring is the only spacer shape that gives a
+    # honeycomb a uniform gap.
+    _ring = 0.0
+    if geom.hexagonal and pspa > 0:
+        _ring, pspa = pspa, 0.0
+        # AND A RING CANNOT EAT THE PATCH. "Spacer size" accepts 0-300 mm, and
+        # on a rectangular chart a huge one merely wastes the page. A ring comes
+        # out of the patch's own area, so past the hexagon's inradius it turns
+        # the shape inside out: at 40 mm a CR30 A4 honeycomb printed 11.94 mm
+        # inside a 20 mm margin, and at 300 mm it covered the sheet.
+        #
+        # The cap is generous -- 4.16 mm on a standard 12 mm CR30 patch, three
+        # times the 1.3 mm default -- so it constrains nobody who is not already
+        # destroying the chart.
+        _ring = min(_ring, 0.8 * min(pwid, plen) / 2.0)
+        # AND THE OUTER BAND HAS TO BE RESERVED, or it prints off the edge of
+        # the user's margin. A side facing the paper carries the FULL spacer by
+        # itself and reaches `ring/2` OUTWARD past the hexagon, which is what
+        # Basti asked for ("the spacers on the outside should probably be
+        # double if turned on") -- but nothing told the layout, so the ink went
+        # 0.70 mm past a 20 mm margin at the default ring and 2.43 mm at the
+        # clamp maximum, on both orientations. Measured against the branch
+        # point, which stays at 20.066 mm, so it was a regression and not an
+        # inherited fault.
+        #
+        # The apexes stick out furthest, so the allowance goes on both
+        # overhangs; a honeycomb reserves `2*hxeh` along the strip and `2*hxew`
+        # across it, and the band needs half a ring on each side of each.
+        if edge_spacers:
+            # AND THE APEX GROWS FASTER THAN THE FLAT SIDES. Moving an edge
+            # outward by `d` along its normal moves the VERTEX by `d / cos 30`,
+            # so a ring/2 band reaches `0.5774 * ring` past the points and only
+            # `0.5 * ring` past the flats. Reserving ring/2 on both axes left
+            # the rotated sheet 0.10 mm outside a 20 mm margin at the default
+            # and 0.27 mm at the clamp maximum. The apex is on the y axis for a
+            # pointy honeycomb and on the x axis for a turned one, so the
+            # allowance swaps with the orientation exactly as the overhangs do.
+            _flat_side = _ring / 2.0
+            _apex = _ring / 2.0 * 2.0 / math.sqrt(3.0)
+            if geom.hex_flat_top:
+                hxeh += _flat_side
+                hxew += _apex
+            else:
+                hxeh += _apex
+                hxew += _flat_side
     return replace(geom, margin_t=mt, margin_r=mr, margin_b=mb, margin_l=ml,
-                   plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, mxrowl=mxrowl,
+                   plen=plen, pwid=pwid, rrsp=rrsp, pspa=pspa, hex_ring_mm=_ring, mxrowl=mxrowl,
                    hxeh=hxeh, hxew=hxew, row_stagger_mm=row_stagger,
                    strip_indicator_gap=sig, rlwi=rlwi,
                    offset_x=offset_x, offset_y=offset_y,
@@ -384,6 +566,11 @@ def build(
                    clip_side=clip_side or "left",
                    text_edge_top_mm=float(text_edge_top or 4.0),
                    text_edge_clip_mm=float(text_edge_clip or 4.0),
+                   helper_markers=bool(helper_markers),
+                   helper_marker_edge_mm=float(helper_marker_edge or 0.0),
+                   helper_marker_len_mm=float(helper_marker_len or 0.0),
+                   helper_markers_top_bottom=bool(helper_markers_top_bottom),
+                   helper_markers_sides=bool(helper_markers_sides),
                    margins_are_law=bool(margins_are_law),
                    fill_beyond_ruler=bool(fill_beyond_ruler))
 
@@ -395,12 +582,17 @@ def build(
 # (clip_border_width once did exactly that — #93). This is the single source of
 # truth shared by every capacity calculation.
 GEOM_BUILD_KEYS = (
-    "hflag", "density", "spacer_on", "pscale", "sscale", "border", "margins",
+    "hflag", "hex_flat_top", "density", "spacer_on", "pscale", "sscale", "border", "margins",
     "patch_w", "patch_h", "spacer_width", "inter_patch", "strip_gap", "max_strip",
     "strip_indicator_gap", "row_indicators", "offset_x", "offset_y",
     "nolpcbord", "nolimit",
     "clip_border_width", "clip_band", "edge_spacers", "patch_area_align",
     "clip_side", "cm_stagger", "text_edge_top", "text_edge_clip",
+    # #182: the markers are a text reserve, so they are geometry now and not
+    # only paint. Without them here the strip letters are placed before anyone
+    # knows a dash is going to be drawn where they land.
+    "helper_markers", "helper_marker_edge", "helper_marker_len",
+    "helper_markers_top_bottom", "helper_markers_sides",
 )
 
 
@@ -454,6 +646,21 @@ def geom_from_build_kwargs(kw: dict, thresholds: dict | None = None) -> Geom:
     law = area_first or bool(kw.get("use_instrument_margins"))
     geom = build(kw["instrument"], margins_are_law=law, fill_beyond_ruler=area_first,
                  **{k: v for k, v in kw.items() if k in GEOM_BUILD_KEYS})
+    # THE HELPER MARKERS RIDE ALONG, so that anything holding a geometry can
+    # ask how far in from a page edge its text must start (#182 — see the
+    # fields on `Geom`). Applied with `replace` rather than through
+    # `GEOM_BUILD_KEYS` because they change no patch geometry at all: they
+    # reserve paper for TEXT, and routing them through `build()` would put five
+    # more arguments on every instrument constructor for nothing.
+    geom = replace(
+        geom,
+        helper_markers=bool(kw.get("helper_markers", False)),
+        helper_marker_edge_mm=float(kw.get("helper_marker_edge") or 0.0),
+        helper_marker_len_mm=float(kw.get("helper_marker_len") or 0.0),
+        helper_markers_sides=bool(kw.get("helper_markers_sides", True)),
+        helper_markers_top_bottom=bool(kw.get("helper_markers_top_bottom", True)),
+        text_edge_bottom_mm=float(kw.get("text_edge") or 0.0),
+    )
     from . import raster   # lazy: raster imports this module
     return raster.apply_furniture_reserves(geom, kw)
 
@@ -464,6 +671,7 @@ def _build_base(
     pscale: float = 1.0,
     sscale: float = 1.0,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     spacer_on: bool = True,
     border: float = 6.0,
@@ -515,7 +723,24 @@ def _build_base(
             mxpprow=MAXPPROW, mxrowl=mxrowl, rpstrip=999, nextrap=0,
             dorspace=False, dopglabel=False,   # page-label column reclaimed (#93)
             padlrow=True, target_name=name,
-            has_clip_border=True, ruler_mm=(260.0 - lcar - tspa),
+            has_clip_border=True,
+            # THE i1Pro 3+ IS PAIRED WITH THE XL SCANNING RULER, 515 mm.
+            #
+            # `260 - lcar - tspa` is the standard ruler and gives the i1Pro its
+            # 240 mm; for the i1Pro 3+ the same expression gives 220, and Knut
+            # asked for 515 for every paper size (2026-09-17): *"The i1Pro 3
+            # Plus is paired with an XL scanning ruler, which supports a
+            # maximum scan length of 515 mm ... Change the 'Strip length limit'
+            # to 515 mm for all combinations of any paper size and the i1Pro3+
+            # instrument."*
+            #
+            # **THIS NUMBER DRIVES THE WARNING AND NOTHING ELSE**, measured
+            # before it was changed: charts already build strips of 280 mm on
+            # A4 and 403 mm on A2 against the old 220, so raising it lays no
+            # chart out differently. `mxrowl` above is the one that binds the
+            # layout, it is a TEXTUALLY IDENTICAL expression, and it is
+            # deliberately not touched.
+            ruler_mm=(P3_XL_RULER_MM if key == "p3" else 260.0 - lcar - tspa),
         )
 
     # Optional notes band for instruments without a native clip border (CM/SS):
@@ -723,7 +948,32 @@ def _build_base(
         # (the rows interleave), pokes plen/6 past its slot top and bottom and
         # a quarter of its width past each side. hxeh/hxew reserve exactly
         # those two overhangs so the honeycomb cannot print past the margin.
-        if hflag:
+        # TWO OVERHANGS, TWO DIFFERENT KINDS OF NUMBER, and the turn exchanges
+        # which kind sits on which axis. `hxeh`/`hxew` are not simply "extra
+        # height" and "extra width" here:
+        #
+        #   pointy-top   hxeh = plen/6  the APEX reserve    (up and down)
+        #                hxew = pwid/4  the STAGGER reserve (side to side)
+        #   flat-top     hxew = pwid/6  the APEX reserve    (side to side)
+        #                hxeh = plen/4  the STAGGER reserve (up and down)
+        #
+        # Reusing the ColorMunki's `row_stagger` block for this would overwrite
+        # `hxeh` with 0.25*plen and silently destroy the apex reserve. It would
+        # come out arithmetically right on this orientation only because two
+        # unrelated quantities happen to share a variable, so the flat-top
+        # branch sets both itself and says which is which.
+        pwid = pscale * 12.0
+        if hflag and hex_flat_top:
+            # The SAME hexagon, turned 30 degrees. The slot transposes with it:
+            # across the flats stays 12 mm and moves to the vertical, and the
+            # 13.856 mm point-to-point moves to the horizontal. Nothing is
+            # stretched, which is Basti's ruling of 2026-09-09 ("the rotation
+            # should not stretch them"), measured as six equal sides.
+            plen = pscale * 12.0
+            pwid = pscale * math.sqrt(0.75) * 12.0
+            hxew = pwid / 6.0             # apex, now sideways
+            hxeh = plen / 4.0             # stagger, now up and down
+        elif hflag:
             plen = pscale * math.sqrt(0.75) * 12.0
             hxeh = plen / 6.0
             hxew = pscale * 0.25 * 12.0
@@ -752,7 +1002,7 @@ def _build_base(
         # not for whether it is on.
         return Geom(
             key=key, plen=plen, pspa=spacer(1.3), tspa=0.0,
-            pwid=pscale * 12.0, rrsp=pscale * 12.0,
+            pwid=pwid, rrsp=pwid,
             lspa=border + txhisl, lcar=0.0, txhisl=txhisl, pglth=5.0,
             border=border, lbord=_band, hxeh=hxeh, hxew=hxew, clwi=0.0, rlwi=ROW_LABEL_BAND_MM,
             mxpprow=MAXPPROW, mxrowl=MAXROWLEN, rpstrip=999, nextrap=0,
@@ -760,6 +1010,10 @@ def _build_base(
             padlrow=False, target_name=name,
             has_clip_border=_band > 0, extra_keywords=extra,
             hexagonal=bool(hflag),
+            # THE ONE WRITE. `and hflag` is not belt and braces: it is what
+            # makes the flag inert when the honeycomb is off, so a recipe
+            # carrying it cannot change a rectangular chart either.
+            hex_flat_top=bool(hflag and hex_flat_top),
         )
 
     # ---- X-Rite DTP41 ---------------------------------------------------

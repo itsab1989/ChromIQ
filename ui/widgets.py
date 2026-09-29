@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QFileDialog,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -652,6 +653,202 @@ def set_log_visible_lines(n: int, *, save: bool = True) -> int:
     return n
 
 
+class TailFollowLog(QPlainTextEdit):
+    """A log panel that follows its tail only while the reader is at the bottom.
+
+    A user verifying a profile, 2026-09-11: *"if you scroll up the output pane
+    while its calculating, it forces it back down to the bottom every time the
+    % goes up. Often programs fix this by only auto-scrolling if the scroll bar
+    is already at the bottom."* She is describing the standard behaviour, and
+    this is it: the view follows the newest line while it is already showing
+    the newest line, and stops the moment the reader scrolls away from it. Scroll
+    back down to the bottom and the next line starts it following again.
+
+    **QPLAINTEXTEDIT ALREADY DOES THIS, AND WE WERE OVERRULING IT.** Measured
+    on a plain, unmodified ``QPlainTextEdit`` (200 lines, a 60 px viewport):
+
+        parked at the bottom, one-line append          value 198 == maximum 198
+        parked at the bottom, two-block append         value 200 == maximum 200
+        parked ONE line up, a 4000-char wrapped append value stays at 196,
+                                                       maximum grows to 288
+
+    So the base class holds the bottom when it is at the bottom and leaves the
+    reader alone when it is not. The whole of her complaint is the 89 explicit
+    ``ensureCursorVisible()`` calls this app makes after those appends, which
+    overrule that judgement unconditionally. Making that ONE call conditional is
+    the fix; everything else here keeps the condition honest.
+
+    **THE THIRD MEASUREMENT IS WHY THERE IS NO TOLERANCE.** A reader parked at
+    ``maximum - 1`` is a reader who has scrolled up, and Qt treats them as one.
+    A slack of even a single line would have read them as "at the bottom" and
+    dragged them down on the next line, which is the bug in a smaller font.
+    ``is_at_bottom`` is therefore exact, and it can afford to be: a followed
+    append lands on ``value == maximum`` precisely, and so does
+    ``ensureCursorVisible()`` (measured, same run).
+
+    **WHERE THE DECISION IS TAKEN.** "Am I at the bottom?" is asked of the
+    document as it stands BEFORE the new text. For ``appendPlainText`` the two
+    moments happen to agree, because Qt has already moved the value along with
+    the maximum. For ``insertPlainText`` they do NOT: inserting four lines at
+    the top of a document parked at the bottom leaves ``value 197`` against
+    ``maximum 201``, so the same question asked afterwards says the reader has
+    scrolled up when the reader has not moved. Asking first, and pinning the
+    bottom afterwards, is what makes the answer mean the same thing at every
+    door.
+
+    ``ensureCursorVisible()`` is then the same question again: obeyed while
+    following, ignored while not, so the 89 call sites need no changes at all.
+    ``setTextCursor()`` is overridden for the same reason and is not
+    hypothetical: the Create Chart tab rewrites its "Arranging colour patches:
+    N%" line in place through the cursor, and handing Qt a cursor at the end of
+    the document scrolls a reader parked at 0 all the way down (measured: 0 to
+    197 in one call).
+
+    No signal is connected to the scroll bar. That is deliberate and not just
+    economy: ``ui/fade_scroll.py`` cost this project a shipped SIGSEGV by
+    connecting ``rangeChanged`` to a lambda that captured ``self``, and
+    ``tests/test_a_scrollbar_signal_never_takes_a_lambda.py`` exists because of
+    it. Nothing here needs to hear from the scroll bar; it only ever asks.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self._following_tail = True
+
+    # -- the question -----------------------------------------------------
+    def is_at_bottom(self) -> bool:
+        """Whether the view is showing the end of the document right now.
+
+        Exact, with no tolerance: see the class docstring for the measurement
+        that rules one out.
+        """
+        sb = self.verticalScrollBar()
+        return sb.value() >= sb.maximum()
+
+    def is_following_tail(self) -> bool:
+        """Whether the next line will scroll the view, or be left below it."""
+        return self._following_tail
+
+    def _append_through(self, call, *args) -> None:
+        """Ask first, add the text, then pin the bottom when it was the bottom.
+
+        The pin is redundant for ``appendPlainText``, where Qt has already done
+        it, and is not for ``insertPlainText``, where Qt has not. Doing it once
+        here makes the invariant this class's own rather than an undocumented
+        behaviour of the base class, so the next append's question is answered
+        by a document in a state this class put it in.
+        """
+        follow = self.is_at_bottom()
+        call(*args)
+        self._following_tail = follow
+        if follow:
+            sb = self.verticalScrollBar()
+            sb.setValue(sb.maximum())
+
+    # -- the ways text arrives --------------------------------------------
+    def appendPlainText(self, text: str) -> None:          # noqa: N802
+        self._append_through(super().appendPlainText, text)
+
+    def appendHtml(self, html: str) -> None:               # noqa: N802
+        self._append_through(super().appendHtml, html)
+
+    def insertPlainText(self, text: str) -> None:          # noqa: N802
+        self._append_through(super().insertPlainText, text)
+
+    # -- a fresh document starts at the top, which is also its bottom ------
+    def clear(self) -> None:
+        self._following_tail = True
+        super().clear()
+
+    def setPlainText(self, text: str) -> None:             # noqa: N802
+        self._following_tail = True
+        super().setPlainText(text)
+
+    # -- an append after SOMETHING ELSE changed the document ----------------
+    def append_knowing(self, text: str, following: bool) -> None:
+        """Append *text* using an answer taken before the document changed.
+
+        **A DOCUMENT THAT SHRANK ANSWERS THE QUESTION WRONG.**
+        :func:`replace_log_line` removes a tracked line and then appends the new
+        one, and it removes it with a ``QTextCursor`` of its own, so the append
+        that follows asks "is the reader at the bottom?" of a document one line
+        SHORTER than the one the reader was looking at. A reader parked at
+        ``maximum - 1`` is at ``maximum`` by the time the question is asked, and
+        gets dragged down by one line.
+
+        Driven in a real window, 201 lines in a 420x90 pane, before this
+        existed::
+
+            parked at 195 of 196  ->  196 of 196   PULLED
+            parked at 194 of 196  ->  194 of 196   left alone
+            parked at   0 of 196  ->    0 of 196   left alone
+
+        One line, once, on a notice that recurs when a file is reloaded rather
+        than on a stream of percentage ticks. It is fixed anyway, because the
+        class docstring above states in terms that a slack of a single line is
+        "the bug in a smaller font", and a class that contradicts what it says
+        about itself is worse than the line it costs.
+        """
+        super().appendPlainText(text)
+        self._following_tail = following
+        sb = self.verticalScrollBar()
+        if following:
+            sb.setValue(sb.maximum())
+
+    # -- text that is rewritten rather than appended -----------------------
+    def replace_last_line(self, text: str) -> None:
+        """Rewrite the document's last line in place, under the same rule.
+
+        **THE FLAG IS ONLY EVER REFRESHED AT AN APPEND DOOR, AND ONE PANE DOES
+        NOT USE THOSE.** The Create Chart tab collapses targen's "Added N/M"
+        seeding spam into one live "Arranging colour patches: N%" line, which it
+        rewrites through a ``QTextCursor``: select the last line, remove it,
+        insert the new text, hand the cursor back. None of that passes through
+        ``appendPlainText``, so ``_following_tail`` kept whatever the LAST
+        append left in it, and the guards on ``setTextCursor`` and
+        ``ensureCursorVisible`` were then answering a question about a moment
+        that had passed.
+
+        Driven on screen in the real window, 2026-09-12: 200 lines of output
+        with the reader at the tail (following), the first percentage line
+        appended, the reader scrolls to the TOP, and the next tick threw them
+        from 0 to 192 of 193. That is word for word the complaint this class was
+        written for, at the one door it did not cover, and the test that covers
+        this door could not see it because it scrolled up BEFORE the append
+        rather than after it.
+
+        The question is therefore asked here, of the document as it stands
+        before the rewrite, and the answer is STORED before the cursor is handed
+        back, because :meth:`setTextCursor` is what actually holds the view and
+        it reads the flag. No pin is added afterwards: unlike
+        :meth:`_append_through`, this door ends on ``setTextCursor``, which
+        already scrolls to the end when following and puts the reader back where
+        they were when not. A mutation pair proved the extra line killed
+        nothing, and a line no test can reach is decoration.
+        """
+        self._following_tail = self.is_at_bottom()
+        cur = self.textCursor()
+        cur.movePosition(QTextCursor.MoveOperation.End)
+        cur.select(QTextCursor.SelectionType.LineUnderCursor)
+        cur.removeSelectedText()
+        cur.insertText(text)
+        self.setTextCursor(cur)
+
+    # -- the two ways the view gets moved for you -------------------------
+    def ensureCursorVisible(self) -> None:                 # noqa: N802
+        if self._following_tail:
+            super().ensureCursorVisible()
+
+    def setTextCursor(self, cursor) -> None:               # noqa: N802
+        if self._following_tail:
+            super().setTextCursor(cursor)
+            return
+        sb = self.verticalScrollBar()
+        where = sb.value()
+        super().setTextCursor(cursor)
+        sb.setValue(where)
+
+
 #: The gap above a log panel, in pixels, and how much of it survives the log
 #: being hidden. Both halves are needed: see ``add_log_row``.
 LOG_GAP_TOTAL = 5
@@ -900,6 +1097,10 @@ def accent_message_box_button(btn) -> None:
         f"QPushButton:hover {{ background: {hover}; border-color: {hover}; }}"
         f"QPushButton:pressed {{ background: {hover}; }}"
     )
+    # K44: a window with a coloured button keeps it as it is, and gains no
+    # second fill on its default (Basti, 2026-09-25).
+    from ui.default_button import mark_coloured
+    mark_coloured(btn)
 
 
 def widen_message_box(box, px: int = 660) -> None:
@@ -931,7 +1132,14 @@ def widen_message_box(box, px: int = 660) -> None:
                                  QSizePolicy.Policy.Minimum),
                      grid.rowCount(), 0, 1, grid.columnCount())
     except Exception:      # noqa: BLE001 — a window must still open
-        log.debug("could not widen the message box", exc_info=True)
+        # `_log`, which is what this module binds. `log` is bound nowhere at
+        # module level, so the handler that exists to KEEP the window opening
+        # raised `NameError` out of itself instead: the caller got a traceback
+        # where the comment above promises a window. Every caller today hands
+        # in a QMessageBox, whose layout is the QGridLayout `addItem` wants, so
+        # nothing reaches it yet; the next caller with a different layout would
+        # have, and this handler's whole purpose is the case nobody predicted.
+        _log.debug("could not widen the message box", exc_info=True)
 
 
 def order_message_box_buttons(box, buttons) -> None:
@@ -974,6 +1182,259 @@ def order_message_box_buttons(box, buttons) -> None:
         lay.addStretch(1)
     except Exception:      # noqa: BLE001 — never block a window over a layout
         _log.debug("could not reorder the message box buttons", exc_info=True)
+
+
+class WorkAreaClamped:
+    """A window that cannot open with any part of itself off the usable screen.
+
+    Both methods were written for `ui.dialogs.tools_dialogs._ToolDialogBase`
+    (B8-72) and lived only there, so every window in the app that is NOT a tool
+    dialog was outside the fix. `Ti2RelayoutDialog` is the one that was found:
+    it is a plain `QDialog` that opens with a hard-coded ``resize(1280, 820)``
+    and never mentions ``availableGeometry`` at all, which is 92 px taller than
+    a 1366x768 laptop's work area, with its Apply / Save and Close buttons at
+    the very bottom of the right column. So the arithmetic is a mixin, and the
+    rule is inherited rather than remembered.
+
+    It is a mixin and not a base class because the classes that need it already
+    have one, and because the whole point is that nothing about it depends on
+    the window's contents.
+    """
+
+    def _work_area_cap(self, fallback: int) -> int:
+        """The tallest CLIENT height that still fits the screen's WORK AREA.
+
+        **THIS WAS ``0.9 * availableGeometry().height()``, AND THE MISSING
+        TENTH IS NOT SPARE — IT IS THE BOTTOM OF THE RIGHT PANE.** Nine tenths
+        of a work area is a round number with nothing behind it, and it is not
+        free: measured on the Windows ARM64 VM (B8-39), on a 1032 px work area
+        it holds the scanner/camera window **41 px (German) / 25 px (English)
+        shorter than its own sizeHint while 75 px of screen sits unused** —
+        and those pixels carry *add another scan to average*, *save a
+        diagnostic image* and *use fiducial marks*. Re-measured here with the
+        Dock shown (work area 994 px): the cap took the window from the 952 px
+        it asked for to 894, i.e. 58 px, in exactly the same direction.
+
+        `scanin_dialog.py::MAX_FLOOR_H` already reasons the honest way — the
+        screen, minus the taskbar, minus the caption. This is that arithmetic,
+        with the caption READ off the window rather than assumed: a window may
+        be as tall as the work area can hold it, frame and all, and no taller.
+
+        The chrome reads 0 before the window is mapped, which would let the
+        first `resize` ask for a client as tall as the whole work area. That is
+        safe because it is not the last word: `_keep_inside_the_work_area`
+        runs immediately afterwards and SHRINKS a frame that turns out not to
+        fit. Nothing here has to be right first time; it has to be right once
+        the frame is real.
+        """
+        from PyQt6.QtGui import QGuiApplication
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            return fallback
+        chrome = max(0, self.frameGeometry().height() - self.height())
+        return max(1, screen.availableGeometry().height() - chrome)
+
+    def _keep_inside_the_work_area(self) -> None:
+        """Bring the window back inside the screen's WORK AREA after a resize.
+
+        **A DIALOG IS PLACED BEFORE IT IS SIZED, AND NOTHING PUTS IT BACK.**
+        ``QDialog::showEvent`` runs ``adjustPosition``, which centres the window
+        on its parent and then clamps it against ``availableGeometry`` — with
+        the size the window has AT THAT MOMENT. Every dialog in
+        ``tools_dialogs.py`` is resized a few lines later, once its rows are
+        real and its wrapped labels have claimed their height, so the clamp is
+        stale before it matters: the window keeps the top-left corner chosen for
+        a shorter window and grows downward, straight under the taskbar.
+
+        Traced on the live window (agent BM, 2026-09-05, German, macOS with the
+        Dock shown, work area 994 px):
+
+            base.showEvent on entry     y = -28, h = 744
+            base.showEvent on exit      y = 137, h = 860
+            just after show()           y = 110, h = 894
+            settled                     y = 110, h = 922
+
+        — the height grew by 178 px after the position was chosen. **macOS
+        hides this**: Cocoa's ``constrainFrameRect:toScreen:`` shoves the window
+        up on every one of those growth steps, which is why the frame lands
+        with its bottom exactly on the work area's edge and the defect is
+        invisible here. Windows has no such rescue, and the Windows ARM64 VM
+        reported this window opening **67 logical px below the usable area,
+        hiding three controls completely** — add-a-scan-for-averaging, save a
+        diagnostic image, and use the .cht's registration marks (W-07,
+        `HANDOVER-to-macos-3.md`). Same code, same arithmetic, one platform
+        that catches it and one that does not.
+
+        So the clamp is re-run here, against the work area and not the screen,
+        after every resize the window performs. It only ever moves a window
+        that is hanging off an edge; one that already fits is left where the
+        user put it.
+        """
+        from PyQt6.QtGui import QGuiApplication
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        work = screen.availableGeometry()
+        # `pos()` on a window IS the frame's top-left, and `frameGeometry()`
+        # carries the caption and border the work area has to hold as well —
+        # clamping the CLIENT rect would leave the title bar off the top.
+        frame = self.frameGeometry()
+        # A frame TALLER than the work area is brought down to it first, and
+        # this is what makes `_work_area_cap` safe before the window is mapped:
+        # the cap cannot know the caption's height yet, so it over-asks by
+        # exactly the caption, and this takes it back. Never below the window's
+        # own minimum — a floor that does not fit the screen is a separate
+        # fault and hiding it here would only make it harder to find.
+        over = frame.height() - work.height()
+        if over > 0 and self.height() - over >= self.minimumHeight():
+            self.resize(self.width(), self.height() - over)
+            frame = self.frameGeometry()
+        x, y = frame.x(), frame.y()
+        if x + frame.width() > work.x() + work.width():
+            x = work.x() + work.width() - frame.width()
+        if y + frame.height() > work.y() + work.height():
+            y = work.y() + work.height() - frame.height()
+        # …and never off the TOP or LEFT to make the bottom fit: a window taller
+        # than the work area cannot be shown whole, and the end with the title
+        # bar and the first row on it is the end to keep.
+        x, y = max(x, work.x()), max(y, work.y())
+        if (x, y) != (frame.x(), frame.y()):
+            self.move(x, y)
+
+
+#: The widest a message box may be held open for its own TEXT, as a share of
+#: the work area. Wide enough that printtarg's 80-column lines stop wrapping to
+#: three, narrow enough that a box is still a box and not a banner across the
+#: screen. Only ever a CEILING: a short message is left the width it asked for.
+_MESSAGE_BOX_MAX_TEXT_WIDTH = 0.55
+
+
+def keep_message_box_inside_the_work_area(box) -> None:
+    """A message box may not open taller than the screen it opens on.
+
+    **THE BOX THAT STARTED THIS WAS 1433 px TALL ON A 1079 px WORK AREA, AND
+    ITS ONLY BUTTON WAS 372 px BELOW THE BOTTOM OF THE SCREEN.** MEASURED on the
+    real screen, in the real app, driving Knut's own journey: Create Chart, CR30,
+    Generate, Tools, Edit / create chart patch set. The patch editor put
+    printtarg's entire stderr — 51 lines, 3055 characters — into ``setText``,
+    and nothing anywhere capped the result.
+
+    **macOS did not rescue it, and could not.** Cocoa's
+    ``constrainFrameRect:toScreen:`` normally shoves a grown window back up so
+    its bottom lands on the work area's edge; there is no position at which a
+    1433 px window fits a 1079 px work area, so it parked the top on the work
+    area's top and let 354 px hang off the bottom. Knut's 1920x1080 screen has a
+    work area of at most 1055 px, so his overflow was larger than the one
+    measured here. His only way out was Esc or Return, which the window said
+    nothing about.
+
+    Three things are done about it, in this order, because each changes the
+    numbers the next one reads:
+
+    1. **Widen for the TEXT.** ``fit_message_box_buttons`` widens a box to fit
+       its BUTTONS and nothing widens it to fit its MESSAGE, so the box took
+       420 px while its own ``sizeHint`` asked for 664 — the label got 310 px,
+       printtarg's 80-column lines wrapped to two and three each, and the
+       message roughly doubled in height. A wider box is a shorter box.
+    2. **Move the overflow behind "Show Details".** If it is still too tall, the
+       body moves to ``setDetailedText``, which Qt puts in a scroll area of its
+       own and which therefore has no height to overflow with. The split is
+       MECHANICAL — the first paragraph stays, the whole original goes below —
+       so no sentence is invented and nothing is lost.
+    3. **Clamp the frame**, on the next turn of the event loop, once the window
+       is real and its caption has a height. Same arithmetic as
+       :class:`WorkAreaClamped`, which a ``QMessageBox`` cannot inherit because
+       it is Qt's class and not ours.
+
+    Nothing here can raise: a message box is what the app reaches for when
+    something has already gone wrong, and it must not be the thing that fails.
+    """
+    try:
+        from PyQt6.QtCore import QTimer
+        from PyQt6.QtGui import QFontMetrics, QGuiApplication
+        from PyQt6.QtWidgets import QLabel, QSizePolicy, QSpacerItem
+
+        screen = box.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        work = screen.availableGeometry()
+        lay = box.layout()
+
+        # --- 1. widen for the text ---------------------------------------
+        text = box.text() or ""
+        label = None
+        for child in box.findChildren(QLabel):
+            if child.text() == text:
+                label = child
+                break
+        if lay is not None and text:
+            fm = QFontMetrics(label.font() if label is not None else box.font())
+            longest = max((fm.horizontalAdvance(ln) for ln in text.splitlines()),
+                          default=0)
+            # The icon, the margins and the gap between them. Measured off the
+            # box rather than guessed: the icon is a pixmap this app sets
+            # itself and is not the platform's size.
+            chrome = 120
+            wanted = min(longest + chrome,
+                         int(work.width() * _MESSAGE_BOX_MAX_TEXT_WIDTH))
+            if wanted > 0:
+                # setMinimumWidth does NOT work on a QMessageBox — it sizes from
+                # its own grid layout and squeezes straight back. A full-width
+                # spacer row is the way to hold it open. (Same trick, and same
+                # reason, as `fit_message_box_buttons`.)
+                lay.addItem(QSpacerItem(wanted, 0,
+                                        QSizePolicy.Policy.Minimum,
+                                        QSizePolicy.Policy.Expanding),
+                            lay.rowCount(), 0, 1, lay.columnCount())
+                lay.activate()
+
+        # --- 2. move the overflow behind "Show Details" -------------------
+        # The caption is not measurable before the window is mapped, so budget
+        # for one. It is taken back in step 3 if it turns out to be wrong.
+        room = work.height() - 60
+        if box.sizeHint().height() > room and text and not box.detailedText():
+            head = text.split("\n\n", 1)[0]
+            if head == text:
+                # No paragraph break to cut at (one long wrapped sentence, which
+                # is what a translation of a short English message usually is).
+                # Keep whole LINES, never a part of one.
+                lines = text.splitlines()
+                head = "\n".join(lines[:max(1, len(lines) // 4)])
+            box.setDetailedText(text)
+            box.setText(head)
+            if lay is not None:
+                lay.activate()
+
+        # --- 3. clamp the frame once it is real ---------------------------
+        def _clamp() -> None:
+            try:
+                sc = box.screen() or QGuiApplication.primaryScreen()
+                if sc is None:
+                    return
+                w = sc.availableGeometry()
+                frame = box.frameGeometry()
+                over = frame.height() - w.height()
+                if over > 0:
+                    box.resize(box.width(), max(1, box.height() - over))
+                    frame = box.frameGeometry()
+                x, y = frame.x(), frame.y()
+                if x + frame.width() > w.x() + w.width():
+                    x = w.x() + w.width() - frame.width()
+                if y + frame.height() > w.y() + w.height():
+                    y = w.y() + w.height() - frame.height()
+                # Never off the top or left to make the bottom fit: the end with
+                # the title bar and the first line of the message on it is the
+                # end to keep.
+                x, y = max(x, w.x()), max(y, w.y())
+                if (x, y) != (frame.x(), frame.y()):
+                    box.move(x, y)
+            except Exception:      # noqa: BLE001
+                pass
+
+        QTimer.singleShot(0, _clamp)
+    except Exception:      # noqa: BLE001 — a warning must never be what raises
+        _log.debug("could not fit the message box to the work area",
+                   exc_info=True)
 
 
 def fit_message_box_buttons(box) -> None:
@@ -1235,11 +1696,14 @@ def confirm(
     text: str,
     buttons: QMessageBox.StandardButton,
     default: "QMessageBox.StandardButton | None" = None,
+    destructive: "QMessageBox.StandardButton | None" = None,
 ) -> QMessageBox.StandardButton:
     """Yes/No-style confirmation prompt without the question-mark icon.
 
     A drop-in for ``QMessageBox.question`` (which bakes in the “?” icon the
     user dislikes): same signature shape, returns the StandardButton clicked.
+    ``destructive`` names the button that destroys or replaces something: it
+    is never drawn filled (K44), whether or not it is the default.
     """
     box = QMessageBox(parent)
     box.setWindowTitle(title)
@@ -1248,6 +1712,9 @@ def confirm(
     box.setStandardButtons(buttons)
     if default is not None:
         box.setDefaultButton(default)
+    if destructive is not None and box.button(destructive) is not None:
+        from ui.default_button import mark_destructive
+        mark_destructive(box.button(destructive))
     fit_message_box_buttons(box)
     box.exec()
     return box.standardButton(box.clickedButton())
@@ -1635,28 +2102,63 @@ class WrappingCheckBox(QCheckBox):
         un-escaping itself — but every measurement uses this."""
         return text.replace("&&", "&")
 
+    @staticmethod
+    def _units(text: str) -> list:
+        """The label as ``(piece, glue)`` pairs a line may break between.
+
+        A space is the only break a Latin, Cyrillic or Greek label has, so
+        there a piece is a word and its glue a space. JAPANESE AND CHINESE ARE
+        WRITTEN WITHOUT SPACES (B8-757): split on whitespace, the whole of
+        "余白のガイド線をプレビューに表示（長い点線）" was one word, so the box
+        could not wrap at all and clipped 38 px on Create Chart at 1280 x 800.
+        A word holding such a script is broken at its Unicode line-break
+        opportunities instead, glued with nothing, which is where the
+        language itself allows a line to end.
+        """
+        from PyQt6.QtCore import QTextBoundaryFinder
+        out = []
+        for word in text.split():
+            if not any("\u2e80" <= c <= "\u9fff" or "\uac00" <= c <= "\ud7af"
+                       or "\uff00" <= c <= "\uffef" for c in word):
+                out.append((word, " "))
+                continue
+            bf = QTextBoundaryFinder(QTextBoundaryFinder.BoundaryType.Line,
+                                     word)
+            start, first = 0, True
+            while True:
+                end = bf.toNextBoundary()
+                if end == -1 or end > len(word):
+                    break
+                if end > start:
+                    out.append((word[start:end], " " if first else ""))
+                    first = False
+                    start = end
+            if start < len(word):
+                out.append((word[start:], " " if first else ""))
+        return out
+
     def _lines(self, width: int) -> list:
         """Greedy word wrap of the label into *width* pixels. Lines are RAW
         (still escaped), because they are drawn through the style."""
         fm = self.fontMetrics()
-        words = self.text().split()
-        if not words:
+        units = self._units(self.text())
+        if not units:
             return [""]
-        lines, cur = [], words[0]
-        for word in words[1:]:
-            trial = f"{cur} {word}"
+        lines, cur = [], units[0][0]
+        for piece, glue in units[1:]:
+            trial = f"{cur}{glue}{piece}"
             if fm.horizontalAdvance(self._shown(trial)) <= width:
                 cur = trial
             else:
                 lines.append(cur)
-                cur = word
+                cur = piece
         lines.append(cur)
         return lines
 
     def minimumSizeHint(self) -> QSize:  # noqa: N802 (Qt override)
         base = super().minimumSizeHint()
         fm = self.fontMetrics()
-        words = self.text().split()
+        words = [piece for piece, _glue in self._units(self.text())]
         if not words:
             return base
         widest_word = max(fm.horizontalAdvance(self._shown(w)) for w in words)
@@ -2381,6 +2883,307 @@ class ElidingLabel(QLabel):
         self.setToolTip(full)
 
 
+def rewrap_button_label(btn, room_px: int) -> bool:
+    """Re-flow a button's label so its WIDEST LINE fits ``room_px``.
+
+    Why this exists, and why it is not elision. A ChromIQ button's label is
+    written with its own line break -- `"Print\nCurrent Page"` -- and a
+    translator keeps that break where their words want it. `fit_button_width`
+    then sizes the button from the widest LINE, so one long line decides the
+    button's width and, through it, whether four of them fit the 580 px pane.
+
+    Sebastian, 2026-09-21, on the Print Chart row in Ukrainian: all four
+    buttons cut at both ends, and then, when the row was allowed to wrap,
+    *"buttons on the bottom are now in two rows, but should be one like
+    everywhere else"*. Both are right: the ROW must stay one row, and the text
+    has to fit inside it. English already wraps its label onto two lines inside
+    a single button, so this is the existing pattern rather than a new one --
+    it simply stops treating the translator's break as the only one allowed.
+
+    Returns True when the label was changed. Words are never split and never
+    reordered; a single word longer than ``room_px`` is left alone and the
+    caller has to make room some other way.
+    """
+    from PyQt6.QtGui import QFontMetrics
+    text = btn.text() or ""
+    if not text:
+        return False
+    fm = QFontMetrics(btn.font())
+
+    def advance(line: str) -> int:
+        if btn.font().capitalization() == QFont.Capitalization.AllUppercase:
+            line = line.upper()
+        return fm.horizontalAdvance(line)
+
+    original_lines = [x for x in text.split("\n") if x.strip()]
+    if max(advance(x) for x in original_lines) <= room_px:
+        return False
+    words = [w for w in text.replace("\n", " ").split(" ") if w]
+    if len(words) < 2:
+        return False
+
+    def widest(groups):
+        return max(advance(" ".join(g)) for g in groups)
+
+    def best_split(n: int):
+        """The n-line break that makes the WIDEST line as narrow as possible.
+
+        Greedy filling is what produced "Зберегти як За / замовчуванням" --
+        correct width, nonsense break. There are only a handful of words on a
+        button, so every break point is tried and the most balanced one wins,
+        which is also the one that reads like a person put it there.
+        """
+        best = None
+        cuts = len(words) - 1
+        for mask in range(1 << cuts):
+            if bin(mask).count("1") != n - 1:
+                continue
+            groups, cur = [], [words[0]]
+            for i in range(cuts):
+                if mask >> i & 1:
+                    groups.append(cur)
+                    cur = []
+                cur.append(words[i + 1])
+            groups.append(cur)
+            w = widest(groups)
+            if best is None or w < best[0]:
+                best = (w, groups)
+        return best
+
+    # Keep the number of lines the label already had if that can be made to
+    # fit; only take another line when it genuinely cannot.
+    chosen = None
+    for n in range(max(len(original_lines), 2), len(words) + 1):
+        found = best_split(n)
+        if found is None:
+            continue
+        if found[0] <= room_px:
+            chosen = found[1]
+            break
+        chosen = chosen or found[1]
+    if chosen is None:
+        return False
+    new = "\n".join(" ".join(g) for g in chosen)
+    if new == text:
+        return False
+    btn.setText(new)
+    # The full label, unbroken, so a reader who wants it in one piece has it.
+    if not btn.toolTip():
+        btn.setToolTip(" ".join(words))
+    return True
+
+
+class ReflowRow(QWidget):
+    """Groups of widgets on ONE line while the line has room for them, and on
+    as many lines as they need when it does not (B8-927).
+
+    Measured on screen at the Measurement Report window's 760 px minimum
+    width: German "Messungen eines Profils hinzufügen…", "…entfernen…" and
+    "Liste leeren" asked 759 px of a 694 px row, the four action buttons
+    857 of 716 (English 719 of 716), and the window's hard minimum let the
+    layout squeeze them onto each other: "Ausgewählten Bericht…" under
+    "Bericht als PDF speich…". A button never shrinks below the width its
+    text asks for here; a group that does not fit starts the next line.
+
+    A GROUP never splits (a check box and its info icon stay together). The
+    lines are decided on every resize from the width the row is GIVEN, which
+    at a hard window minimum is less than a one-line layout asks for; the
+    sizes the layouts above see are then the real lines' own.
+    """
+
+    def __init__(self, parent: QWidget | None = None, *,
+                 spacing: int = 6, gap: "int | None" = None,
+                 line_spacing: int = 6, spread: bool = False,
+                 shrink_groups: bool = False) -> None:
+        super().__init__(parent)
+        self._groups: list[list[QWidget]] = []
+        self._spacing = spacing                   # inside a group
+        self._gap = spacing if gap is None else max(gap, spacing)
+        self._line_spacing = line_spacing
+        #: Several groups on one line: the slack goes BETWEEN them, so the
+        #: last group ends at the right edge (the Measure tab's two preview
+        #: options, B8-1051), instead of after them.
+        self._spread = spread
+        #: The row's minimum is each group's MINIMUM, not its hint: a group
+        #: whose label wraps (`WrappingCheckBox`) may be given less than one
+        #: line, so a long language cannot widen the panel the row sits in
+        #: (B8-1051). Off for buttons, which never shrink below their text.
+        self._shrink_groups = shrink_groups
+        self._split_now: "list[list[int]] | None" = None
+        v = QVBoxLayout(self)
+        v.setContentsMargins(0, 0, 0, 0)
+        v.setSpacing(line_spacing)
+
+    def add_group(self, *widgets: QWidget) -> None:
+        for w in widgets:
+            w.setParent(self)
+        self._groups.append(list(widgets))
+        self._split_now = None
+        self._arrange(self._split(self._room()))
+
+    def _room(self) -> int:
+        # before it is shown a widget's width means nothing: one line, and
+        # the first resize decides
+        return max(self.width(), 1) if self.isVisible() else 1 << 20
+
+    # -- measuring ---------------------------------------------------------
+    def _group_width(self, g: list) -> int:
+        # the width a layout gives the widget: its hint, or its own minimum
+        # where that is larger (an info icon is 22 px fixed and hints 21)
+        ws = [max(w.sizeHint().width(), w.minimumWidth())
+              for w in g if not w.isHidden()]
+        return sum(ws) + self._spacing * max(len(ws) - 1, 0)
+
+    def event(self, ev) -> bool:  # noqa: D401
+        # A child's hint changed (a style polished it, a text changed): the
+        # widest group and the line breaks may have moved with it.
+        if ev.type() == QEvent.Type.LayoutRequest:
+            self.updateGeometry()
+            self._arrange(self._split(self._room()))
+        return super().event(ev)
+
+    def _split(self, width: int) -> "list[list[int]]":
+        lines: "list[list[int]]" = []
+        used = 0
+        for i, g in enumerate(self._groups):
+            gw = self._group_width(g)
+            if lines and used + self._gap + gw <= width:
+                lines[-1].append(i)
+                used += self._gap + gw
+            else:
+                lines.append([i])
+                used = gw
+        return lines
+
+    def minimumSizeHint(self) -> QSize:  # type: ignore[override]
+        """As narrow as the widest GROUP, so a layout above may hand the row
+        less than one line needs (and it wraps); as tall as the lines it is
+        on now."""
+        h = super().minimumSizeHint()
+        if self._shrink_groups:
+            def width_of(g):
+                ws = [max(w.minimumSizeHint().width(), w.minimumWidth())
+                      for w in g if not w.isHidden()]
+                return sum(ws) + self._spacing * max(len(ws) - 1, 0)
+        else:
+            width_of = self._group_width
+        widest = max((width_of(g) for g in self._groups), default=0)
+        return QSize(widest, h.height())
+
+    def lines(self) -> int:
+        """How many lines the groups are on now."""
+        return len(self._split_now or [])
+
+    # -- placing -----------------------------------------------------------
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._arrange(self._split(self.width()))
+
+    def _arrange(self, split: "list[list[int]]") -> None:
+        if split == self._split_now:
+            return
+        self._split_now = split
+        v = self.layout()
+        while v.count():
+            item = v.takeAt(0)
+            sub = item.layout()
+            if sub is not None:
+                while sub.count():
+                    sub.takeAt(0)
+                sub.deleteLater()
+        for line in split:
+            h = QHBoxLayout()
+            h.setContentsMargins(0, 0, 0, 0)
+            h.setSpacing(self._spacing)
+            for n, gi in enumerate(line):
+                if n:
+                    h.addSpacing(self._gap - self._spacing)
+                    if self._spread:
+                        h.addStretch(1)
+                for w in self._groups[gi]:
+                    h.addWidget(w)
+            if not (self._spread and len(line) > 1):
+                h.addStretch(1)
+            v.addLayout(h)
+        self.updateGeometry()
+
+
+class ElidingCheckBox(QCheckBox):
+    """Check box whose LABEL elides instead of being cut off by a fixed width.
+
+    `ElidingLabel`'s contract, on a check box, and for the same reason: the
+    expert parameter rows put their name on a check box pinned to the 190 px
+    name column, and a name longer than the column was simply sliced at the
+    frame with nothing to tell the reader what it said. Measured 2026-09-21 in
+    Ukrainian: 22 parameter names over the column, the widest asking 332 px of
+    163 (`colprof -S`, "Джерело відображення гами (відчуття + насиченість)").
+    A language is allowed to be longer than English; a control that silently
+    swallows the difference is not.
+
+    `text()` still returns the FULL string, so callers, tests and the tooltip
+    all see the name rather than the ellipsis, exactly as `ElidingLabel` does.
+    """
+
+    _SEP = "…"
+
+    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+        self._full_text = ""
+        super().__init__(parent)
+        self.setText(text)
+
+    def setText(self, text: str) -> None:  # type: ignore[override]
+        self._full_text = text or ""
+        self._apply_elision()
+
+    def text(self) -> str:  # type: ignore[override]
+        return self._full_text
+
+    def sizeHint(self):  # type: ignore[override]
+        """The size the WHOLE name asks for, not the elided one (B8-929).
+
+        Qt measures the text it paints, which is the elided one once a
+        narrower width has elided it; a layout asked with that hint could
+        never hand the box back the room its name needs. A fixed width
+        ignores this, so every caller that pins the width is unchanged."""
+        h = super().sizeHint()
+        fm = self.fontMetrics()
+        extra = (fm.horizontalAdvance(self._full_text)
+                 - fm.horizontalAdvance(QCheckBox.text(self)))
+        if extra > 0:
+            h.setWidth(h.width() + extra)
+        return h
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._apply_elision()
+
+    def _room_for_text(self) -> int:
+        """The width left after the indicator and its spacing."""
+        from PyQt6.QtWidgets import QStyle, QStyleOptionButton
+        try:
+            opt = QStyleOptionButton()
+            opt.initFrom(self)
+            box = self.style().subElementRect(
+                QStyle.SubElement.SE_CheckBoxContents, opt, self)
+            if box.width() > 0:
+                return box.width()
+        except Exception:      # noqa: BLE001 — sizing must never raise
+            pass
+        return self.width() - 24
+
+    def _apply_elision(self) -> None:
+        full = self._full_text
+        avail = self._room_for_text()
+        fm = self.fontMetrics()
+        if avail <= 0 or fm.horizontalAdvance(full) <= avail:
+            super().setText(full)
+            if self.toolTip() == full:
+                self.setToolTip("")
+            return
+        super().setText(fm.elidedText(full, Qt.TextElideMode.ElideRight, avail))
+        self.setToolTip(full)
+
+
 def reapply_input_stylesheet(root: QWidget) -> None:
     """Re-apply the per-widget input-bg QSS on every combo/spin descendant.
     Called from MainWindow.apply_theme on every theme switch so the
@@ -2651,7 +3454,38 @@ class DialogFocusFilter(QObject):
         if (event.type() == QEvent.Type.Show
                 and isinstance(obj, QWidget) and obj.isWindow()):
             defer_clear_button_focus(obj)
+            # K44: the default button is FILLED, so it must stop following the
+            # focus (QDialog autoDefault). Queued AFTER the clears above, so no
+            # button holds a focus-borrowed default when it runs, and once more
+            # after the last one for buttons a window adds as it settles.
+            defer_freeze_default(obj)
         return False
+
+
+def defer_freeze_default(win: QWidget) -> None:
+    """Mark *win*'s safe buttons now (:func:`ui.default_button.mark_safe_buttons`)
+    and run :func:`ui.default_button.freeze_default` once the shown window has
+    settled its default (after Qt's own pick and the focus clears). Only a
+    QDialog has a default button, so nothing else is touched."""
+    from PyQt6.QtCore import QTimer
+    from PyQt6.QtWidgets import QDialog
+    if not isinstance(win, QDialog):
+        return
+    from PyQt6 import sip as _sip
+
+    from ui.default_button import (freeze_default, guard_destructive_focus,
+                                   mark_safe_buttons)
+    mark_safe_buttons(win)
+    # B8-1181: the focus never starts on a destructive button (Space).
+    guard_destructive_focus(win)
+
+    def _run() -> None:
+        if not _sip.isdeleted(win) and win.isVisible():
+            mark_safe_buttons(win)
+            freeze_default(win)
+            guard_destructive_focus(win)
+    for _delay in (0, 160):
+        QTimer.singleShot(_delay, _run)
 
 
 def reapply_groupbox_surface(root: QWidget) -> None:
@@ -3095,7 +3929,22 @@ def save_file_dialog(
         # different order from an Open dialog until this was added.
         dlg.setProxyModel(NameOrderProxy(dlg))
     if default_name:
-        dlg.selectFile(default_name)
+        # THE WHOLE PATH, NOT THE BARE NAME. `selectFile` with a name alone
+        # leaves the directory to the dialog, and the macOS native save panel
+        # keeps its own last-used folder: Knut, 2026-09-13, on Save report as
+        # PDF: *"opens a file window that does not open in the currently open
+        # project, for the selected run, and for the correct level in the
+        # folder structure according to the rules set for where reports are
+        # saved."* Measured here: the caller's `start_path` was correct and
+        # inside the project all along, so the location was being lost between
+        # this function and the panel.
+        #
+        # An absolute path sets both the folder and the name, on the native
+        # and the Qt dialog alike. `start_dir` is still set on the constructor
+        # above, so the fall-back for a folder that does not exist is
+        # unchanged: `p.parent` was checked there and this only re-states the
+        # same place when it was good.
+        dlg.selectFile(str(p) if _is_dir_safe(p.parent) else default_name)
     if not native:
         dlg.setSidebarUrls(_sidebar_urls(extra_path, extra_paths))
         _open_up_sidebar(dlg)
@@ -3133,6 +3982,23 @@ def open_dir_dialog(
         dirs = dlg.selectedFiles()
         return dirs[0] if dirs else ""
     return ""
+
+
+#: How strongly a tab-coloured folder glyph shows on a greyed button (B8-1405).
+DISABLED_ICON_OPACITY = 0.4
+
+
+def faded_pixmap(src: QPixmap, opacity: float) -> QPixmap:
+    """*src* drawn at *opacity*, same size and device pixel ratio."""
+    from PyQt6.QtGui import QPainter
+    out = QPixmap(src.size())
+    out.setDevicePixelRatio(src.devicePixelRatio())
+    out.fill(Qt.GlobalColor.transparent)
+    p = QPainter(out)
+    p.setOpacity(opacity)
+    p.drawPixmap(0, 0, src)
+    p.end()
+    return out
 
 
 def load_folder_icon(name: str) -> QIcon:
@@ -3187,7 +4053,19 @@ def load_folder_icon(name: str) -> QIcon:
             recoloured.setDevicePixelRatio(dpr)
             return QIcon(recoloured)
         scaled.setDevicePixelRatio(dpr)
-        return QIcon(scaled)
+        icon = QIcon(scaled)
+        if name != "folder":
+            # B8-1405: A GREYED BUTTON KEEPS ITS TAB'S HUE. Left to itself Qt
+            # draws a disabled icon as a grey copy of it, so a tab's folder
+            # button read as the plain folder whenever it was greyed (Guided's
+            # "Refinement profile" browse, greyed until its box is ticked,
+            # beside the magenta Presets row: the beta 44 release check).
+            # Light and Dark keep the hue and fade it, the way a greyed
+            # control fades its text; Neutral (above) keeps Qt's grey, which
+            # is that theme's one disabled look.
+            icon.addPixmap(faded_pixmap(scaled, DISABLED_ICON_OPACITY),
+                           QIcon.Mode.Disabled)
+        return icon
     return QApplication.style().standardIcon(QStyle.StandardPixmap.SP_DirOpenIcon)
 
 
@@ -3340,10 +4218,25 @@ def defer_clear_button_focus(_root=None) -> None:
     from PyQt6.QtCore import QTimer
     from PyQt6.QtWidgets import QAbstractButton, QApplication
 
+    # ASK THE WINDOW TOO, NOT ONLY THE APPLICATION. `QApplication.focusWidget()`
+    # is None while the window is not active, so a pass that ran in such a
+    # moment cleared nothing, and the button got the focus back the instant
+    # the window was activated: a dialog shown while ChromIQ is in the
+    # background, and the suite's intermittent red on a loaded machine
+    # (test_space_bar_focus, three times in beta 42). The window keeps its own
+    # focus widget while inactive, and that is the one activation restores.
+    from PyQt6 import sip as _sip
     def _clear() -> None:
-        fw = QApplication.focusWidget()
-        if isinstance(fw, QAbstractButton):
-            fw.clearFocus()
+        cands = [QApplication.focusWidget()]
+        if _root is not None:
+            try:
+                if not _sip.isdeleted(_root):
+                    cands.append(_root.window().focusWidget())
+            except (RuntimeError, AttributeError):
+                pass
+        for fw in cands:
+            if isinstance(fw, QAbstractButton):
+                fw.clearFocus()
     for _delay in (0, 40, 150):
         QTimer.singleShot(_delay, _clear)
 
@@ -3763,6 +4656,61 @@ def set_preset_icon(btn: QPushButton, name: str) -> None:
     btn.setProperty("themed_preset_icon", name)
 
 
+def folder_icon_ink(name: str) -> "QColor | None":
+    """The colour :func:`load_folder_icon` paints *name* in, read off the icon
+    it returns (the average of its opaque pixels), so a glyph beside a folder
+    button can take exactly that colour in every appearance: the PNG's own hue
+    in Light and Dark, ACTION in Neutral, the dark ink on a pale ground."""
+    icon = load_folder_icon(name)
+    img = icon.pixmap(20, 20).toImage()
+    if img.isNull():
+        return None
+    r = g = b = n = 0
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            if c.alpha() >= 200:
+                r += c.red()
+                g += c.green()
+                b += c.blue()
+                n += 1
+    if not n:
+        return None
+    return QColor(round(r / n), round(g / n), round(b / n))
+
+
+def load_folder_twin_icon(glyph: str, folder: str) -> QIcon:
+    """The ``assets/<glyph>.svg`` line art painted in the colour of the folder
+    icon *folder* (:func:`folder_icon_ink`). Falls back to the preset loader's
+    grey when the folder has no readable colour."""
+    from core.resource_path import resource_path
+    from PyQt6.QtGui import QGuiApplication, QImage, QPainter
+    from PyQt6.QtSvg import QSvgRenderer
+    ink = folder_icon_ink(folder)
+    if ink is None:
+        return load_preset_icon(glyph)
+    dpr = QGuiApplication.primaryScreen().devicePixelRatio()
+    phys = round(20 * dpr)
+    img = QImage(phys, phys, QImage.Format.Format_ARGB32_Premultiplied)
+    img.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(img)
+    QSvgRenderer(str(resource_path(f"assets/{glyph}.svg"))).render(painter)
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+    painter.fillRect(img.rect(), ink)
+    painter.end()
+    out = QPixmap.fromImage(img)
+    out.setDevicePixelRatio(dpr)
+    return QIcon(out)
+
+
+def set_folder_twin_icon(btn: QPushButton, glyph: str, folder: str) -> None:
+    """Set a glyph in the folder button *folder*'s colour on `btn`, and tag
+    it for live theme refresh (challenge 3 of beta 42, B8-1036: the presets
+    gear was painted in the +/- grey beside a pink folder button)."""
+    btn.setIcon(load_folder_twin_icon(glyph, folder))
+    btn.setProperty("themed_folder_twin_icon", f"{glyph}|{folder}")
+
+
 def apply_themed_icons(root: QWidget) -> None:
     """Reload every theme-aware icon under `root`.
 
@@ -3779,6 +4727,11 @@ def apply_themed_icons(root: QWidget) -> None:
         preset_name = btn.property("themed_preset_icon")
         if preset_name:
             btn.setIcon(load_preset_icon(str(preset_name)))
+            continue
+        twin = btn.property("themed_folder_twin_icon")
+        if twin and "|" in str(twin):
+            glyph, folder = str(twin).split("|", 1)
+            btn.setIcon(load_folder_twin_icon(glyph, folder))
             continue
         reveal_color = btn.property("themed_reveal_icon")
         if reveal_color:
@@ -4155,6 +5108,8 @@ def replace_log_line(
     Lets a tab show only the most recent of a recurring notice (e.g. the detected
     instrument) instead of stacking identical lines as files are reloaded.
     """
+    # ASK BEFORE THE DOCUMENT SHRINKS — see `TailFollowLog.append_knowing`.
+    following = log.is_at_bottom() if isinstance(log, TailFollowLog) else None
     if prev_text:
         found = log.document().find(prev_text)
         if not found.isNull():
@@ -4172,8 +5127,26 @@ def replace_log_line(
                 cursor.setPosition(len(block.text()), keep)
             cursor.removeSelectedText()
     if new_text:
-        log.appendPlainText(new_text)
-        log.ensureCursorVisible()
+        if following is not None:
+            # The reader's line, as it stands after the removal, so that
+            # putting them back does not have to guess how the removal moved
+            # the view. Read after the removal and before the append.
+            sb = log.verticalScrollBar()
+            keep = sb.value()
+            log.append_knowing(new_text, following)
+            if not following:
+                sb.setValue(min(keep, sb.maximum()))
+            # AND NO `ensureCursorVisible` HERE, WHICH USED TO THROW A READER
+            # AT THE BOTTOM TO THE TOP. That call scrolls to the widget's TEXT
+            # CURSOR, and nothing in this function or in `appendPlainText`
+            # moves it: on a pane filled by `setPlainText` and appends it sits
+            # at position 0. Measured on a real `TailFollowLog`, 201 lines in a
+            # 420x90 pane, parked at 196 of 196: after the replacement the
+            # value was 0. `append_knowing` has already put the view where it
+            # belongs, by the scroll bar rather than by the cursor.
+        else:
+            log.appendPlainText(new_text)
+            log.ensureCursorVisible()
         return new_text
     return None
 

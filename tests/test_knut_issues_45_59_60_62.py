@@ -286,16 +286,17 @@ def test_preset_seeds_name_only_when_field_empty(qapp, settings):
     assert f.text() == default                       # fallback seeded
 
 
-def test_sortable_builtin_name_normalisation():
-    # #68 #3: instrument leads; "-wXmm" and the colour-set name move to the tail.
-    from ui.tabs.tab_chart import _sortable_builtin_name, KNUT_SUFFIX
-    assert _sortable_builtin_name(
-        "i1Pro", "A4-1168p-2pages-w7.5mm-Portrait" + KNUT_SUFFIX, KNUT_SUFFIX
-    ) == "i1Pro-A4-1168p-2pages-Portrait-w7.5mm-TC9.18+Spyderprint Grays"
-    # No width token, different family suffix.
-    assert _sortable_builtin_name(
-        "ColorMunki", "A3-1575p-3pages-Portrait · Full layout setup", " · Full layout setup"
-    ) == "ColorMunki-A3-1575p-3pages-Portrait-Full layout setup"
+def test_builtin_layout_name_keeps_the_name_as_written():
+    # B8-1704 (Knut, #182 5879401111): the instrument leads and NOTHING in the
+    # preset's name moves. Until 4.3.2 (#68 #3) the "-wXmm" width and the
+    # family suffix were moved to the tail.
+    from ui.tabs.tab_chart import _builtin_layout_name, KNUT_SUFFIX
+    assert _builtin_layout_name(
+        "i1Pro", "A4-1168p-2pages-w7.5mm-Portrait" + KNUT_SUFFIX
+    ) == "i1Pro-A4-1168p-2pages-w7.5mm-Portrait TC9.18+Spyderprint Grays"
+    assert _builtin_layout_name(
+        "ColorMunki", "A3-1575p-3pages-Portrait · Full layout setup"
+    ) == "ColorMunki-A3-1575p-3pages-Portrait · Full layout setup"
 
 
 def test_create_chart_suggest_includes_patches_and_orientation(qapp, settings, tmp_path):
@@ -325,7 +326,7 @@ def test_create_chart_suggest_includes_patches_and_orientation(qapp, settings, t
     assert t._suggest_target_name() == "i1Pro-A4-484p-1page-Portrait"
 
 
-def test_loaded_ti1_patch_count_for_builtin_presets(qapp, settings):
+def test_loaded_ti1_patch_count_for_builtin_presets(prebuilt_bundles, qapp, settings):
     # #62 follow-up (Knut): a BUILT-IN preset's bundled .ti1 must also feed the
     # patch count — it doesn't use _preset_ti1_path (that's for user presets), so
     # _builtin_ti1_path must supply it. Reproduces "manual mode built-in shows no
@@ -359,8 +360,10 @@ def test_comparable_presets_lists_ti1_backed(qapp, settings):
     t = TabChart(ArgyllRunner(settings), FileManager(settings), settings)
     groups = t.comparable_presets()
     assert groups, "built-in ti1 presets should be listed"
-    for group_label, items in groups:               # grouped by instrument
-        assert group_label and items
+    for n, (group_label, items) in enumerate(groups):   # grouped by instrument
+        # the user's own presets come first with no heading, as in Create
+        # Chart (beta 41); every other group names its instrument
+        assert items and (group_label or n == 0)
         for label, path in items:
             assert label and Path(path).is_file() and str(path).endswith(".ti1")
 

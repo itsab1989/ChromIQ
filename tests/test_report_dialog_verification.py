@@ -116,13 +116,23 @@ def test_report_dir_places_by_least_common_ancestor(tmp_path):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     vti3 = _verification_project(tmp_path)
     dlg = MeasurementReportDialog(_Settings(), initial_ti3=vti3)
-    assert dlg._all_runs_check.isChecked()               # trend view on by default
+    # **THIS WINDOW HOLDS ONE MEASUREMENT.** B8-392 used to answer that by
+    # turning "Show all measurement runs" off and greying it (Knut,
+    # 2026-09-18), and this checked both. He removed that box and the feature
+    # behind it on 2026-09-20 (B8-590): *"only the selected/ticked
+    # measurements shall be part of the report when created/updated
+    # (always)"*, so there is nothing left to force off — one measurement is
+    # simply one ticked row. The folder this test is about was the same either
+    # way, which was already the point of the second half below.
+    assert getattr(dlg, "_all_runs_check", None) is None
+    assert len(dlg._runs_for_report()) == 1
     # One dated verification is all the report covers → its own reports/.
     rd = dlg._report_dir()
     assert rd == vti3.parent / "reports"
     assert "verifications" in rd.parts
-    # Untick 'all runs' → same single dataset → same tier.
-    dlg._all_runs_check.setChecked(False)
+    # …and with every row ticked, however it got there: same single dataset,
+    # same tier.
+    dlg._select_all_btn.click()
     assert dlg._report_dir() == vti3.parent / "reports"
     dlg.deleteLater()
 
@@ -133,9 +143,9 @@ def test_report_dir_places_by_least_common_ancestor(tmp_path):
     (run.dir / "Q.ti2").write_text(_TI2, encoding="utf-8")
     ti3 = run.measurement_ti3; ti3.write_text(_TI3, encoding="utf-8")
     dlg2 = MeasurementReportDialog(_Settings(), initial_ti3=ti3)
-    dlg2._all_runs_check.setChecked(False)
+    dlg2._deselect_all_btn.click()
     assert dlg2._report_dir() == run.dir / "reports"     # run root
-    dlg2._all_runs_check.setChecked(True)
+    dlg2._select_all_btn.click()
     assert dlg2._report_dir() == run.dir / "reports"
     dlg2.deleteLater()
 
@@ -147,3 +157,21 @@ def test_lca_dir_helper():
     assert D._lca_dir([base / "run1" / "verifications" / "d1",
                        base / "run1" / "verifications" / "d2"]) == base / "run1" / "verifications"
     assert D._lca_dir([base / "run1"]) == base / "run1"                  # single → itself
+
+
+def test_a_dated_verification_with_a_saved_report_is_listed_once(tmp_path):
+    """Found on screen 2026-09-08 (Demo-Verify-History: 10 rows for 5 dates).
+    A saved report records the measurement's bare file name, so the
+    "already covered" check that compared folder names against it matched
+    nothing, and every dated verification that HAD a saved report was rebuilt
+    a second time from its .ti3 and listed twice. One date, one row."""
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.measurement_report import build_report, save_report
+    vti3 = _verification_project(tmp_path)
+    save_report(build_report(vti3), vti3.parent)          # the autosaved report
+    assert len(list((vti3.parent / "reports").glob("report_*.json"))) == 1
+
+    dlg = MeasurementReportDialog(_Settings(), initial_ti3=vti3)
+    _name, runs = dlg._gather_runs(vti3)
+    assert len(runs) == 1, [r.get("created") for r in runs]
+    dlg.deleteLater()

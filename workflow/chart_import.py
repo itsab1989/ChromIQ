@@ -29,7 +29,11 @@ from core.logger import get_logger
 log = get_logger(__name__)
 
 # Chart-file extensions that travel WITH a chart (never the measurement/profile).
-_CHART_EXTS = (".cht", ".channels.json", ".strips.json", ".cie", ".pdf")
+# `.control-strip.json` travels too (#182, beta 22): it is the chart's own
+# declaration of which patches make up its control strip, and leaving it behind
+# would silently discard a declaration the user or another tool wrote.
+_CHART_EXTS = (".cht", ".channels.json", ".strips.json", ".cie", ".pdf",
+               ".control-strip.json")
 
 
 def resolve_import_run(project: Project, target) -> Run:
@@ -45,13 +49,19 @@ def resolve_import_run(project: Project, target) -> Run:
 
 
 def import_external_chart(ti2_path: Path, ti1: "Path | None", tiffs: "list[Path]",
-                          project: Project, target, *, replace: bool = False) -> Path:
+                          project: Project, target, *, replace: bool = False,
+                          bin_dir: "Path | str | None" = None) -> Path:
     """Copy an external chart into the target run per Run type. Returns the
     imported ``.ti2`` inside the project.
 
     *target* is a :class:`core.measurement_target.MeasurementTarget`; for the
     "Create a new run instead" choice the caller passes a target whose
     ``profile_run`` is empty. *replace* is only meaningful for an Overwrite target.
+
+    *bin_dir* is the ArgyllCMS binaries. Given, and with no page bitmaps beside
+    the imported file, the pages are drawn from what the chart itself records
+    (:func:`rebuild_missing_pages`, Knut 2026-09-11). Omitted, the import copies
+    and nothing else, exactly as it always did.
     """
     run = resolve_import_run(project, target)
     run.ensure_dir()
@@ -63,12 +73,27 @@ def import_external_chart(ti2_path: Path, ti1: "Path | None", tiffs: "list[Path]
         run._clear_verify_chart_files()          # drop any previous verify chart
         _copy_chart_set(ti2_path, ti1, tiffs, run.verifications_dir,
                         run.verify_stem, include_measurement=False)
+        if bin_dir:
+            # ONE CONDITION, IN ONE PLACE. `rebuild_missing_pages` asks the
+            # destination whether it has pages, which is the same question as
+            # "did any come with the file" once the copy has run, and it is the
+            # one a test can reach.
+            rebuild_missing_pages(run.verify_chart_ti2, bin_dir)
+        # #182, beta 22: a chart placed in verifications/ declares its control
+        # strip, whichever door it came through. This is the door the Create
+        # Chart funnel does not cover. A declaration that came WITH the file is
+        # left alone (`declare_for_chart` checks first), so importing a chart
+        # that already names its own strip keeps that strip.
+        from workflow.control_strip import declare_for_chart
+        declare_for_chart(run.verify_chart_ti2)
         return run.verify_chart_ti2
     # Profiling → run root. Clear any stale page TIFFs first (a Replace already
     # archived the rest; a fresh New run is empty).
     for t in run.chart_tiffs():
         t.unlink(missing_ok=True)
     _copy_chart_set(ti2_path, ti1, tiffs, run.dir, run.stem, include_measurement=True)
+    if bin_dir:
+        rebuild_missing_pages(run.chart_ti2, bin_dir)
     return run.chart_ti2
 
 
@@ -101,11 +126,20 @@ def archive_run_for_replace(run: Run, *, verification: bool) -> "Path | None":
                              if p.is_file()
                              and p.name not in CHART_SIDE_FILES]
         return run.archive_to_old(paths, into=run.verifications_old_dir)
-    s = run.stem
-    paths = [run.dir / f"{s}.ti1", run.dir / f"{s}.ti2"]
-    paths += [run.dir / f"{s}{ext}" for ext in _CHART_EXTS]
+    # `run.artefact`, NOT an f-string. A Replace archives what it displaces and
+    # then the new chart is written beside it — so a chain this list cannot see
+    # is a chain that stays. On a project restored from a Mac OS Extended
+    # backup the whole old chart survived the Replace: the new `.ti2` landed
+    # next to the old `.cht`, and `run.chart_cht` — which resolves — then handed
+    # the scanner the OLD chart's recognition file for the NEW chart. A silent
+    # wrong result, and "two charts under one name", which this change is
+    # supposed to make impossible. `chart_tiffs`, `measurement_ti3` and
+    # `profile_icc` already resolved; these did not, which is what made the two
+    # halves disagree (review round 2, defect 2).
+    paths = [run.artefact(".ti1"), run.artefact(".ti2")]
+    paths += [run.artefact(ext) for ext in _CHART_EXTS]
     paths += run.chart_tiffs()
-    paths += [run.measurement_ti3, run.profile_icc, run.dir / f"{s}.icm"]
+    paths += [run.measurement_ti3, run.profile_icc, run.artefact(".icm")]
     # Every sub-folder except old/ itself — the chart they belonged to is going.
     paths += [d for d in run.dir.iterdir() if d.is_dir() and d.name != "old"] \
         if run.dir.exists() else []
@@ -137,6 +171,34 @@ def _copy_chart_set(src_ti2: Path, src_ti1: "Path | None", tiffs: "list[Path]",
             if icc.exists():
                 shutil.copy2(icc, dst_dir / f"{dst_stem}.icc")
                 break
+
+
+def holds_a_chart(path: Path) -> bool:
+    """Whether *path* really is a chart file, judged by reading it.
+
+    THE CHOOSER IS NOT THE GUARD, AND NEVER WAS. "Open chart file" filters on
+    ``*.ti2`` and its file list hides everything else (measured: a folder of
+    one ``.ti2`` and two ``.tif`` lists only the ``.ti2``), but a file dialog
+    also has a NAME BOX, and a name typed, pasted or dragged into it is
+    accepted whatever its extension. The import then copied whatever it was
+    handed straight into a new project as that project's chart, so picking a
+    page bitmap produced ``<project>.ti2`` whose first two bytes are ``II`` —
+    a TIFF wearing a chart's name, in a project that cannot be printed,
+    measured or built from, with nothing said to anybody. Measured 2026-09-11
+    while reproducing Knut's #182 import route.
+
+    A chart is CGATS text with a data-format block in it; that is the one
+    property every ``.ti1``/``.ti2`` ChromIQ or ArgyllCMS writes has and no
+    bitmap does. Deliberately forgiving about everything else, because this
+    judges a file somebody else may have made: it refuses what is plainly not
+    a chart rather than deciding what a good one looks like.
+    """
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(65536)
+    except OSError:
+        return False
+    return "BEGIN_DATA_FORMAT" in head.decode("utf-8", "ignore")
 
 
 def is_full_project(ti2_path: Path) -> "Path | None":
@@ -243,3 +305,92 @@ def _archive_project_contents(project_root: Path) -> Path:
                           "as %s — this project needs a person", target, original)
         raise
     return dest
+
+
+# ---------------------------------------------------------------------------
+# Pages for a chart that arrived without them
+# ---------------------------------------------------------------------------
+#
+# Knut, issue #182, 2026-09-11, choosing between two readings of "loading a ti2
+# should generate":
+#
+#   *"A agree with implementing your point 1: 'Rebuild only the missing pages,
+#   from the recipe the file itself carries. That fixes the unprintable run and
+#   changes nothing else. A chart you have already printed still reprints
+#   exactly as it was.'"*
+#
+# So this is deliberately NOT a re-layout. Importing a `.ti2` with no page
+# bitmaps beside it used to leave a run that cannot be printed at all: the
+# preview showed nothing and the Print tab had no pages. The chart itself is
+# never touched — the `.ti2` that came in is the `.ti2` that stays, byte for
+# byte — and the pages are drawn from what that file records: its own patch
+# order, its instrument and its paper.
+#
+# He also ruled that this says nothing to the user: *"I don't think so. it is
+# the ti2 file that is imported, and any existing tif files may not show
+# according to the settings, margins and other features in the Create Chart tab
+# in ChromIQ (it may also come from a completely different external source)."*
+
+def chart_page_tiffs(ti2_path: "Path | str") -> "list[Path]":
+    """The printable pages beside *ti2_path*, in page order."""
+    from core.file_manager import stem_files
+    p = Path(ti2_path)
+    return sorted(stem_files(p.parent, p.stem, ".tif", ".tiff",
+                             "_*.tif", "_*.tiff"))
+
+
+def rebuild_missing_pages(ti2_path: "Path | str",
+                          bin_dir: "Path | str") -> "list[Path]":
+    """Draw the pages of the chart at *ti2_path* when it has none. Returns them.
+
+    Does nothing and returns what is there when the chart already has pages, or
+    when the file cannot be read as a chart. The chart's own `.ti1` is written
+    beside it if the import brought none, because a run holding a `.ti2` and no
+    patch set cannot be restored or re-laid-out later either.
+
+    **The `.ti2` is preserved.** printtarg writes one of its own as a
+    side effect of drawing, and it is discarded: the imported file is what the
+    measurement will be read against, and a chart that quietly changes under a
+    sheet somebody has already printed is the fault this is meant to prevent.
+    """
+    ti2 = Path(ti2_path)
+    have = chart_page_tiffs(ti2)
+    if have or not ti2.is_file():
+        return have
+    import tempfile
+
+    from workflow.ti2_relayout import ChartSpec, default_program, regenerate
+    try:
+        spec = ChartSpec.from_ti2(ti2)
+    except Exception as exc:              # noqa: BLE001 — a file we cannot read
+        log.warning("cannot read %s as a chart, so no pages were drawn: %s",
+                    ti2.name, exc)
+        return []
+    if not spec.patches:
+        return []
+    work = Path(tempfile.mkdtemp(prefix="chromiq_pages_"))
+    try:
+        res = regenerate(spec, default_program(spec), work, Path(bin_dir),
+                         basename=ti2.stem, with_twin=False)
+    except Exception as exc:              # noqa: BLE001 — printtarg said no
+        log.warning("could not draw the pages of %s: %s", ti2.name, exc)
+        shutil.rmtree(work, ignore_errors=True)
+        return []
+    out: list[Path] = []
+    try:
+        # One page is <stem>.tif and several are <stem>_01.tif…, which is
+        # printtarg's own convention and the one the run folder already uses.
+        many = len(res.tiffs) > 1
+        for i, tif in enumerate(sorted(res.tiffs), start=1):
+            dst = ti2.with_name(f"{ti2.stem}_{i:02d}{tif.suffix}" if many
+                                else f"{ti2.stem}{tif.suffix}")
+            shutil.copy2(tif, dst)
+            out.append(dst)
+        ti1 = ti2.with_suffix(".ti1")
+        made_ti1 = work / f"{ti2.stem}.ti1"
+        if not ti1.exists() and made_ti1.exists():
+            shutil.copy2(made_ti1, ti1)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    log.info("drew %d pages for the imported chart %s", len(out), ti2.name)
+    return out

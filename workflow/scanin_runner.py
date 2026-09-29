@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 from core.stem_paths import artefact
+from core.text_io import read_text
 
 if TYPE_CHECKING:
     from core.argyll_runner import ArgyllRunner
@@ -137,7 +138,9 @@ def sample_margin(w: float, h: float, frac: float) -> float:
     return (span - sqrt(disc)) / 4.0
 
 
-def hex_max_sample_fraction(w: float, h: float) -> float:
+def hex_max_sample_fraction(w: float, h: float,
+                            flat_top: bool = False,
+                            ring_mm: float = 0.0) -> float:
     """The largest Sample area a HEXAGONAL chart can be read at before the
     sample box escapes the hexagon — from the chart's own patch proportions.
 
@@ -163,8 +166,88 @@ def hex_max_sample_fraction(w: float, h: float) -> float:
     w, h = float(w), float(h)
     if w <= 0.0 or h <= 0.0:
         return 1.0
+    # THE RING IS NOT PATCH, AND THE READ MUST STAY INSIDE THE PATCH. #159
+    # draws a honeycomb's spacer as a ring taken out of the patch's own area,
+    # so the ink a scanner may average is the INSET hexagon, not the slot. The
+    # cap was still computed on the un-ringed shape and offered 64 % where the
+    # ink after a 1.3 mm ring supports 51 %: every read then averaged 2.3 % of
+    # spacer colour into the measurement, and more as the ring grows. Wrong in
+    # the unsafe direction, and silent.
+    #
+    # A ring of `ring_mm` takes ring_mm/2 off every side of this patch, which
+    # shrinks the across-flats dimension by ring_mm and the other axis in
+    # proportion, so the readable hexagon is simply a smaller one.
+    w0, h0 = w, h
+    if ring_mm > 0:
+        short = min(w, h)
+        if short <= ring_mm:
+            return 0.05
+        k = (short - ring_mm) / short
+        w, h = w * k, h * k
+    if flat_top:
+        # THE SAME HEXAGON, TURNED, so the same formula with the two axes
+        # exchanged. The read box is square-cornered and symmetric, and
+        # `sample_margin` is symmetric in w and h, so only this cap has to know.
+        #
+        # Measured on the real CR30 honeycomb (pwid 12.000, plen 10.392): the
+        # true limit is 0.644338 on BOTH orientations, because the hexagon is
+        # congruent and only turned. Feeding the transposed slot to the pointy
+        # formula instead gives 0.635134, which the UI floors to 63 % rather
+        # than 64 % — conservative, but conservative by accident rather than by
+        # design, and it costs the user a percentage point of sample area.
+        w, h = h, w
     m = w * h / (2.0 * (2.0 * h + 3.0 * w))
-    return max(0.05, (w - 2.0 * m) * (h - 2.0 * m) / (w * h))
+    # A FRACTION OF THE SLOT THE CALLER MEASURED, not of the shrunken one. The
+    # Sample area setting is a share of the recorded patch box, so a ring that
+    # makes the readable hexagon smaller has to make the SHARE smaller too;
+    # dividing by the shrunken slot gives the same number back and the cap does
+    # nothing.
+    return max(0.05, (w - 2.0 * m) * (h - 2.0 * m) / (w0 * h0))
+
+
+#: The most a HONEYCOMB may be read at, whatever its geometry allows.
+#:
+#: Knut, #182, 2026-09-11, asked whether 64 % should come down "so a small
+#: alignment error cannot put a corner on the patch next door": *"Yes, a
+#: maximum of 55% is good."*
+#:
+#: :func:`hex_max_sample_fraction` is the GEOMETRIC limit -- the fraction at
+#: which the read box's corner lands exactly on the hexagon's slanted side,
+#: with zero paper left. Measured on the real CR30 honeycomb (pwid 12.000,
+#: plen 10.392) the paper between the box corner and that side is
+#: **+0.021 mm at 64 %, +0.214 mm at 60 % and +0.464 mm at 55 %**; on a 6 mm
+#: honeycomb, **+0.010 / +0.107 / +0.232 mm**. So the geometric cap is a cliff
+#: edge and not a working setting: at 64 % a fifth of a tenth of a millimetre
+#: of placement error reads the neighbour, and because the neighbouring hexagon
+#: is FLUSH against this one that happens on every patch at once rather than on
+#: a few (0 of 150 patches at 60 %, 150 of 150 at 70 %).
+#:
+#: THIS IS NOT APPLIED TO SQUARE PATCHES, and the reason is measured rather
+#: than assumed. A rectangular patch has no slanted side to escape past, so the
+#: inset IS the clearance: at the rectangular ceiling of 80 % it is 0.32 mm on
+#: a 6 mm ColorMunki patch, 0.42 mm on an 8 mm i1Pro patch and 0.63 mm on a
+#: 12 mm one -- already more paper than a honeycomb is given at 60 %, and about
+#: what one is given at 55 %. And the rectangular chart's neighbour is not
+#: flush: the layout puts a spacer between columns and rows, so that clearance
+#: is the inset PLUS the gap. Lowering the rectangular ceiling to 55 % would
+#: throw away read area to buy a margin those charts already have.
+HEX_SAMPLE_AREA_MAX = 0.55
+
+
+def hex_sample_area_cap(w: float, h: float,
+                        flat_top: bool = False,
+                        ring_mm: float = 0.0) -> float:
+    """The Sample area ceiling a honeycomb is offered: the smaller of what its
+    geometry allows and :data:`HEX_SAMPLE_AREA_MAX`.
+
+    One function, so the spin box's maximum, the tooltip that explains it and
+    every test read the same number. A ring (#159) can push the geometric limit
+    well below the policy one -- 49 % on a 1.3 mm ring -- and then the geometry
+    still wins, because it must.
+    """
+    return min(hex_max_sample_fraction(w, h, flat_top=flat_top,
+                                       ring_mm=ring_mm),
+               HEX_SAMPLE_AREA_MAX)
 
 
 def sample_margin_inverse(a: float, b: float, frac: float) -> float:
@@ -382,6 +465,110 @@ def scanin_args(scan_tif: Path, cht: Path, cie: Path,
     if diag is not None:
         args.append(str(diag))
     return args
+
+
+#: Full scale of the device values in a ``scanin -o`` ``.val`` file.
+#:
+#: Measured 2026-09-13 rather than assumed, because it is the one number that
+#: could quietly halve or double every reading this feeds. scanin writes raster
+#: values on a fixed **0-255** scale whatever the image's bit depth: the same
+#: scan as an 8-bit TIFF and as a 16-bit TIFF (every sample multiplied by 257)
+#: produced byte-identical ``.val`` files, ratio 1.00000 over all 1,188 numbers.
+#: A ``.ti3`` states the same values as a percentage, so the conversion here is
+#: exact rather than approximate: over 396 patches of the CR30 demo scan,
+#: ``val * 100 / 255`` reproduced the scanner path's own ``.ti3`` ``RGB_*`` to a
+#: maximum of **0.000024**, which is the rounding in scanin's own text output.
+VAL_FULL_SCALE = 255.0
+
+
+def scanin_values_args(scan_tif: Path, cht: Path, out_name: str,
+                       corners: list[tuple[float, float]] | None = None,
+                       perspective: bool = True,
+                       verbose: bool = False) -> list[str]:
+    """Build the ``scanin -o`` argument list: **the scan's own device values**.
+
+    ``scanin -o [opts] input.tif recog.cht`` samples every patch box and writes
+    ``SAMPLE_ID RGB_R RGB_G RGB_B`` to a ``.val`` file. It reads no reference
+    and writes no ``.ti3``, so it cannot disturb a measurement that already
+    exists; the only artefact it leaves is the ``.val`` named by ``-O``.
+
+    **Why this exists.** On the printer-from-scan path (:func:`scanin_printer_args`)
+    the ``.ti3`` scanin writes carries the CHART's device values in ``RGB_*`` and
+    the scan only in ``XYZ_*``, so the two checks that ask about the scan's
+    exposure — the clipped share and the highlight level — had nothing of the
+    scan to read and answered about the chart instead. This second pass over the
+    same image, at the same corners and the same ``.cht``, gives them the scan.
+
+    ``-O`` is passed always. Without it scanin writes ``<input>.val`` **beside
+    the input image**, which on this path is the user's own scan folder;
+    measured 2026-09-13, that is exactly where the first attempt put it.
+
+    Note that ``-o`` and ``-c`` are mutually exclusive modes and the LAST one on
+    the command line wins (measured: ``-c -o`` wrote only the ``.val``, ``-o -c``
+    only the ``.ti3``), so the two cannot be combined into a single invocation
+    and this really is a second pass.
+    """
+    args: list[str] = []
+    if verbose:
+        args.append("-v")
+    args.append("-o")
+    if corners is not None:
+        args += ["-F", _fmt_corners(corners)]
+    # Same rule as the two paths below/above: -p is dead work under -F and can
+    # abort a honeycomb read outright. See the long note in `scanin_args`.
+    if perspective and corners is None:
+        args.append("-p")
+    args += ["-O", out_name, str(scan_tif), str(cht)]
+    return args
+
+
+def parse_val(path: Path) -> "dict[str, tuple[float, float, float]] | None":
+    """A ``scanin -o`` ``.val`` file -> ``{patch id: (R, G, B)}`` on **0-100**.
+
+    The ids are normalised the way :func:`workflow.scan_read_check._plain_id`
+    normalises them (``H01`` -> ``H1``), so they pair with a ``.ti2``'s
+    ``SAMPLE_LOC`` without either side having to know how the other pads.
+
+    ``None`` when the file cannot be read or holds no usable row. **None means
+    "do not judge"**, never "everything is zero": a pass that did not produce
+    numbers must leave the checks silent rather than hand them a fiction.
+    """
+    try:
+        text = read_text(path, lenient=True)
+    except OSError:
+        return None
+    lines = text.splitlines()
+    try:
+        fs = next(i for i, l in enumerate(lines)
+                  if l.strip().upper() == "BEGIN_DATA_FORMAT")
+        fields = [f.upper() for f in lines[fs + 1].split()]
+        ds = next(i for i, l in enumerate(lines)
+                  if l.strip().upper() == "BEGIN_DATA")
+        de = next(i for i, l in enumerate(lines[ds:], ds)
+                  if l.strip().upper() == "END_DATA")
+        cid = fields.index("SAMPLE_ID")
+        crgb = [fields.index(c) for c in ("RGB_R", "RGB_G", "RGB_B")]
+    except (StopIteration, IndexError, ValueError):
+        return None
+    out: dict[str, tuple[float, float, float]] = {}
+    for line in lines[ds + 1:de]:
+        row = line.split()
+        if len(row) <= max(cid, *crgb):
+            continue
+        try:
+            rgb = tuple(float(row[c]) * 100.0 / VAL_FULL_SCALE for c in crgb)
+        except ValueError:
+            continue
+        out[_plain_val_id(row[cid].strip('"'))] = rgb  # type: ignore[assignment]
+    return out or None
+
+
+def _plain_val_id(sid: str) -> str:
+    """``H01`` -> ``H1``. Kept in step with
+    :func:`workflow.scan_read_check._plain_id` deliberately — see the note
+    there; two different normalisations would mispair every padded id."""
+    m = re.match(r"([A-Za-z]+)0*(\d+)$", sid)
+    return (m.group(1) + m.group(2)) if m else sid
 
 
 def scanin_printer_args(scan_tif: Path, cht: Path, scan_profile: Path, pbase: Path,

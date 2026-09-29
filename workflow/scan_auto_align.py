@@ -70,7 +70,8 @@ from core.logger import get_logger
 
 log = get_logger(__name__)
 
-__all__ = ["AutoAlignResult", "auto_align", "border_agreement",
+__all__ = ["AutoAlignResult", "agreement_scorer", "auto_align",
+           "border_agreement", "drift_sampler",
            "chart_pitch", "orientation_scores", "plain_id",
            "corners_from_candidate", "expected_luminance", "parse_candidates",
            "chosen_index", "quad_is_sane", "reference_agreement_at",
@@ -376,6 +377,33 @@ def reference_agreement_at(image_path: Path, boxes: Sequence,
         return None
     want = {plain_id(k): v for k, v in expected_y.items()}
     return _agreement(prepared, boxes, corners, want, sample_frac)
+
+
+def agreement_scorer(image_path: Path, expected_y: dict[str, float],
+                     max_side: int = 1400):
+    """Read the picture ONCE, then score as many placements against it as you
+    like — ``score(boxes, corners, sample_frac) -> float | None``, the same
+    number :func:`reference_agreement_at` returns and measured the same way.
+
+    It exists because a SEARCH scores many quads on one picture.
+    :func:`reference_agreement_at` opens, converts, resizes and integrates the
+    scan on every call, which is the whole cost of asking; for
+    :mod:`workflow.hex_block_search`, which scores a dozen candidate quads four
+    ways up each, that is fifty decodes of a 15 MB TIFF to answer one question.
+
+    ``None`` when the picture cannot be read at all, so a caller can tell
+    "unreadable" from "unscoreable" without a second attempt at opening it.
+    """
+    prepared = _sampler(image_path, max_side)
+    if prepared is None:
+        return None
+    want = {plain_id(k): v for k, v in expected_y.items()}
+
+    def score(boxes: Sequence, corners: Sequence[tuple[float, float]],
+              sample_frac: float = 0.6) -> "float | None":
+        return _agreement(prepared, boxes, corners, want, sample_frac)
+
+    return score
 
 
 def orientation_scores(image_path: Path, boxes: Sequence,
@@ -930,11 +958,20 @@ def chart_pitch(boxes: Sequence) -> tuple[float, float]:
     return float(dx or 1.0), float(dy or 1.0)
 
 
+def drift_sampler(image_path: Path, max_side: int = 2000):
+    """What :func:`seating_drift` reads out of a picture before it looks at any
+    corners: the integral images, the working size and the scale. Hand it back
+    through ``sampler=`` to ask about several placements of one scan without
+    reading it several times. ``None`` when the picture cannot be read."""
+    return _sampler_sq(image_path, max_side)
+
+
 def seating_drift(image_path: Path, boxes: Sequence,
                   corners: Sequence[tuple[float, float]],
                   sample_frac: float = SEATING_SAMPLE_AREA,
                   max_side: int = 2000,
-                  reach: float = 0.5, step: float = 0.0625) -> "float | None":
+                  reach: float = 0.5, step: float = 0.0625,
+                  sampler=None) -> "float | None":
     """How far the sheet's own patches say this grid should move, in PITCHES.
 
     **Why anything new is needed.** Look at what :func:`corners_from_candidate`
@@ -977,9 +1014,15 @@ def seating_drift(image_path: Path, boxes: Sequence,
     growing past about 0.27 and is not an estimate of the corner error. And it
     is blind where the chart is: a region whose patches are all the same colour
     has nothing to say.
+
+    *sampler* is :func:`drift_sampler` for this picture, for a caller asking
+    about SEVERAL placements of one scan. Reading and integrating a 300 dpi A4
+    scan costs about 0.8 s and the answer does not depend on the corners, so a
+    caller scoring eight candidates pays it once instead of eight times
+    (measured: 7.0 s to 1.2 s). Omitted, the picture is read here as before.
     """
     import numpy as np
-    got = _sampler_sq(image_path, max_side)
+    got = sampler if sampler is not None else _sampler_sq(image_path, max_side)
     if got is None or not boxes or len(boxes) < 12:
         return None
     i1, i2, w, h, scale = got

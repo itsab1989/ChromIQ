@@ -30,8 +30,12 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-_LANGS = ["de", "es", "pt", "en", "nl", "fr", "it", "sv", "no", "pl", "ru",
-          "ja", "zh_CN"]
+#: Every shipped language, English included, read off `data/i18n/`. The old
+#: literal was ordered longest-word-first, which read like a measurement and
+#: was only a memory of one; the sweep tests all of them either way.
+from tests.helpers.languages import shipped_languages   # noqa: E402
+
+_LANGS = shipped_languages()
 
 
 @pytest.fixture(scope="module")

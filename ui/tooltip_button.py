@@ -376,9 +376,23 @@ class _InfoDialog(QDialog):
         # into the HTML, from the same value the rest of the dialog uses — which
         # keeps it correct in both themes.
         _rich = "<table" in body
+        # BOLD LEAD-INS (Knut, #182 5856723428): a body that marks its topic
+        # lead-ins with **...** is shown as rich text with those runs in bold.
+        # The plain text is escaped and keeps its own line breaks and spaces,
+        # so it lays out exactly as before; only the marked runs change weight.
+        # `_plain_body` is what the hand-wrapped width is measured on.
+        from core.help_markup import has_markup, strip_markup, to_html
+        _marked = has_markup(body)
+        _plain_body = strip_markup(body) if _marked else body
+        _bold_parts = body if _marked else ""
         if _rich:
             body = body.replace("<table ",
                                 f'<table bordercolor="{text_color}" ')
+            if _marked:
+                body = to_html(body, already_html=True)
+        elif _marked:
+            body = to_html(body)
+            _rich = True
         text = QLabel(body, self)
         text.setWordWrap(True)
         text.setStyleSheet(f"color: {text_color};")
@@ -414,7 +428,11 @@ class _InfoDialog(QDialog):
         # Asking the body for a minimum width is all it takes — `_BodyScrollArea`
         # passes it up and `adjustSize()` works out the frame and the scrollbar
         # itself, which is the part a hand-computed answer got wrong.
-        _wrapped_w = self._hand_wrapped_width(text, body) if not _rich else 0
+        if _marked and "<table" not in _bold_parts:
+            _wrapped_w = self._hand_wrapped_width(text, _plain_body,
+                                                  marked=_bold_parts)
+        else:
+            _wrapped_w = self._hand_wrapped_width(text, body) if not _rich else 0
         if _wrapped_w:
             text.setMinimumWidth(_wrapped_w)
 
@@ -476,18 +494,45 @@ class _InfoDialog(QDialog):
     _MAX_MEASURED_BODY_PX = 700
 
     @staticmethod
-    def _hand_wrapped_width(label: QLabel, body: str) -> int:
+    def _hand_wrapped_width(label: QLabel, body: str, marked: str = "") -> int:
         """Width the body's longest written line needs, or 0 to leave it alone.
 
         0 for anything that was never hand-wrapped and for anything wrapped
         wider than a help card should be — those keep the width their caller
         asked for.
+
+        *marked* is the same body with its ``**`` lead-ins still in it: a bold
+        run is wider than the same letters in the regular weight, so those
+        runs are measured in bold, or the line that carries one would wrap its
+        last word.
         """
         lines = [ln for ln in body.split("\n") if ln.strip()]
         if len(lines) < 2:
             return 0
         fm = label.fontMetrics()
-        widest = max(fm.horizontalAdvance(ln) for ln in lines)
+        if marked:
+            from PyQt6.QtGui import QFontMetrics
+            from core.help_markup import _BOLD_RE, _EMPH_RE
+            bold_font = label.font()
+            bold_font.setBold(True)
+            fmb = QFontMetrics(bold_font)
+
+            def _advance(ln: str) -> int:
+                w, pos = 0, 0
+                # an emphasised run (B8-1521) is drawn in italic without its
+                # two asterisks; italic is measured as the regular weight
+                def _reg(s: str) -> int:
+                    return fm.horizontalAdvance(_EMPH_RE.sub(r"\1", s))
+                for m in _BOLD_RE.finditer(ln):
+                    w += _reg(ln[pos:m.start()])
+                    w += fmb.horizontalAdvance(_EMPH_RE.sub(r"\1", m.group(1)))
+                    pos = m.end()
+                return w + _reg(ln[pos:])
+
+            marked_lines = [ln for ln in marked.split("\n") if ln.strip()]
+            widest = max(_advance(ln) for ln in marked_lines)
+        else:
+            widest = max(fm.horizontalAdvance(ln) for ln in lines)
         # +2: `horizontalAdvance` is the pen advance, and a glyph's rightmost
         # ink can sit a hair beyond it. Two pixels keeps the last word off the
         # wrap point without opening a visible gap.

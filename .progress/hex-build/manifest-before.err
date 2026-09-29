@@ -1,0 +1,25 @@
+Traceback (most recent call last):
+  File "/Users/Basti/develop/ChromIQ/scripts/hex_page_manifest.py", line 68, in main
+    res = le_chart.build_chart(
+        ti1, out / "c", instrument=instr, paper=paper,
+        paper_w_mm=w, paper_h_mm=h, hflag=True, dpi=dpi,
+        randomize=False, spacer_mode=spacers)
+TypeError: build_chart() got an unexpected keyword argument 'paper_w_mm'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/Basti/develop/ChromIQ/scripts/hex_page_manifest.py", line 96, in <module>
+    raise SystemExit(main())
+                     ~~~~^^
+  File "/Users/Basti/develop/ChromIQ/scripts/hex_page_manifest.py", line 73, in main
+    res = le_chart.build_chart(
+        ti1, out / "c", instrument=instr, paper=paper,
+        hflag=True, dpi=dpi, randomize=False,
+        spacer_mode=spacers)
+  File "/Users/Basti/develop/ChromIQ/workflow/layout_engine/chart.py", line 245, in build_chart
+    w_mm, h_mm = papers.dimensions_mm(paper)
+                 ~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/Users/Basti/develop/ChromIQ/workflow/layout_engine/papers.py", line 61, in dimensions_mm
+    raise ValueError(f"unknown paper code {code!r}")
+ValueError: unknown paper code 'A4L'

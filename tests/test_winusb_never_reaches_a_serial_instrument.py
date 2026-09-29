@@ -55,14 +55,18 @@ def test_install_winusb_refuses_it_even_when_asked_directly():
     """The belt-and-braces guard, and the one that still holds if someone edits
     the table by mistake.
 
-    ⚠ ON A NON-WINDOWS HOST THIS PASSES FOR THE WRONG REASON: wdi-simple is not
-    there, so the function returns False whether or not the guard exists.
-    Proved by removing the guard — this test stayed green and only the ordering
-    test below went red. Do not delete that one thinking this covers it.
+    ⚠ THIS USED TO PASS FOR THE WRONG REASON ON A NON-WINDOWS HOST, and the
+    warning is kept here because it is why the fix took the shape it did. While
+    `install_winusb` returned a bool, every refusal was the same `False`:
+    wdi-simple is not on a Mac, so this stayed green with the guard deleted, and
+    only the ordering test below went red. `InstallAttempt` gives the three
+    refusals three names — `REFUSED` is ChromIQ's serial guard, `NOT_WINDOWS`
+    and `NO_INSTALLER` are not — so the assertion now means what it says on
+    every platform. Do not delete the ordering test; it proves something else.
     """
     dev = inst.UsbDevice(vid="1a86", pid="7523", name="USB-SERIAL CH340",
                          has_winusb=False)
-    assert inst.install_winusb(dev) is False
+    assert inst.install_winusb(dev) is inst.InstallAttempt.REFUSED
 
 
 def test_the_refusal_comes_before_anything_is_launched(monkeypatch):
@@ -75,7 +79,7 @@ def test_the_refusal_comes_before_anything_is_launched(monkeypatch):
                             "refusing a serial device"))
     dev = inst.UsbDevice(vid="1a86", pid="7523", name="USB-SERIAL CH340",
                          has_winusb=False)
-    assert inst.install_winusb(dev) is False
+    assert inst.install_winusb(dev) is inst.InstallAttempt.REFUSED
     assert called == []
 
 
@@ -83,17 +87,151 @@ def test_every_zadig_instruction_warns_about_the_serial_device():
     """The hazard a user can reach today with no code change.
 
     Each place the app steers someone to Zadig says "find your colorimeter and
-    choose WinUSB". On a machine with a CR30 attached, that sentence applied to
-    the CH340 row is the damage. Every one of them must carry the warning.
+    choose <driver>". On a machine with a CR30 attached, that sentence applied
+    to the CH340 row is the damage. Every one of them must carry the warning.
+
+    THIS USED TO COUNT PHRASES IN THE SOURCE, and that is why it is being
+    rewritten rather than deleted. The three outcomes each carried their own
+    copy of the warning paragraph; factoring the copies into one `tr()` key —
+    so a translator writes it once and the three windows cannot drift apart —
+    dropped the source count from three to one and turned this test red, on a
+    change that made the guarantee *stronger*. A test that fails when the thing
+    it protects improves is measuring the wrong thing.
+
+    So it asks the question of the rendered text instead. That holds however
+    the string is assembled, and it is what the user actually reads.
+
+    …AND THEN IT ASKED THE RENDERED TEXT THE WRONG QUESTION, WHICH IS WORSE.
+    It selected the branches to check by looking for two PHRASES —
+    `List All Devices` and `Select your colorimeter, choose WinUSB`. Two
+    branches of `usb_install_outcome` steer a user into Zadig without either
+    phrase: the one that says the automatic install failed, and the one that
+    says the driver did not bind. Both return `offer_zadig=True`, so the button
+    beside them launches Zadig, and neither was ever inside `steers`. A CR30
+    owner routed through either got a live Zadig and no warning — and the test
+    was green throughout, because it had never looked.
+
+    It also would have gone quietly *blinder* on the change that brought this
+    to light: renaming WinUSB to libusb-win32 in the "Zadig is open" branch
+    deletes the second phrase, dropping that branch out of coverage with no
+    test turning red. A guard that stops guarding without failing is the one
+    kind of test worth less than none.
+
+    So the selector is now the same fact the app acts on: **a branch that
+    OFFERS Zadig, or names it, must carry the warning.** `usb_install_outcome`
+    returns that fact as its second element; nothing has to be spelled the
+    right way for this test to see it.
     """
-    from ui.dialogs import settings_dialog
-    src = inspect.getsource(settings_dialog)
-    steers = src.count("List All Devices") + src.count(
-        "Select your colorimeter, choose WinUSB")
-    warns = src.count("If you own a CR30")
-    assert warns >= steers, (
-        f"{steers} places steer the user to Zadig but only {warns} warn about "
-        "the CR30's serial bridge")
+    from ui.dialogs.settings_dialog import (usb_installer_text,
+                                            usb_install_outcome)
+    from types import SimpleNamespace
+
+    def dev(has_winusb):
+        return SimpleNamespace(name="GretagMacbeth i1 Pro / i1 Pro 2",
+                               has_winusb=has_winusb)
+
+    # Every branch that tells the user which row to pick in Zadig, named one at
+    # a time. A list of names cannot shrink by accident the way a phrase match
+    # can — a branch leaves it only by being deleted from the app.
+    steers = {
+        "the numbered Zadig steps":
+            usb_installer_text([dev(False)], wdi_available=False)[0],
+        "Zadig has just been launched":
+            usb_install_outcome(
+                wdi_available=False, ran_ok=False, still_unbound_names=[],
+                stopped_watching=False,
+                zadig_status="launched", driver_was_missing=True)[0],
+        "Zadig must be downloaded first":
+            usb_install_outcome(
+                wdi_available=False, ran_ok=False, still_unbound_names=[],
+                stopped_watching=False,
+                zadig_status="download_page", driver_was_missing=True)[0],
+        # THE TWO THAT USED TO HIDE. Neither carries `List All Devices` nor the
+        # old "choose WinUSB" phrase, so neither was ever inside the old
+        # selector — and both return `offer_zadig=True`, so the button beside
+        # them launches Zadig. A CR30 owner reached either one and got a live
+        # Zadig with no warning at all, with this test green.
+        "the automatic install failed or was cancelled":
+            usb_install_outcome(
+                wdi_available=True, ran_ok=False, still_unbound_names=[],
+                stopped_watching=False,
+                zadig_status=None, driver_was_missing=True)[0],
+        "the installer finished but the driver did not bind":
+            usb_install_outcome(
+                wdi_available=True, ran_ok=True, stopped_watching=False,
+                still_unbound_names=["GretagMacbeth i1 Pro / i1 Pro 2"],
+                zadig_status=None, driver_was_missing=True)[0],
+        "Zadig could not be opened at all":
+            usb_install_outcome(
+                wdi_available=False, ran_ok=False, still_unbound_names=[],
+                stopped_watching=False,
+                zadig_status="failed", driver_was_missing=True)[0],
+    }
+    unwarned = sorted(why for why, text in steers.items()
+                      if "If you own a CR30" not in text)
+    assert not unwarned, (
+        f"{len(unwarned)} of {len(steers)} Zadig instructions do not warn "
+        f"about the CR30's serial bridge: {unwarned}")
+
+    # AND THE LIST ABOVE MUST STILL BE THE WHOLE LIST. Everything that offers
+    # Zadig, or names it, has to be either in `steers` or in the short list of
+    # branches that hand over no instruction — so a NEW Zadig steer cannot be
+    # added to the app without one of these two lists being updated.
+    #
+    # "The driver is already installed… click Open Zadig" names Zadig but tells
+    # nobody which row to pick; the instruction arrives one window later, in
+    # "Zadig has just been launched", which is in `steers`. "Could not open
+    # Zadig or its download page" gives an address and sends nobody to a
+    # dropdown.
+    # ONE EXCLUSION LEFT, AND IT SHRANK BECAUSE A REVIEW ARGUED IT DOWN.
+    # "Could not open Zadig or its download page" used to be excluded on the
+    # grounds that it gives an address rather than an instruction. It gives
+    # Zadig's DOWNLOAD PAGE and tells the user to go there — the same journey
+    # as the `download_page` branch, which has always carried the warning, with
+    # the only difference being whether ChromIQ managed to open the browser.
+    # It carries the warning now, and is swept like the rest.
+    #
+    # What remains is the branch that opens Zadig and instructs nothing: the
+    # instruction arrives one window later, in "Zadig has just been launched",
+    # which is in `steers` above. This file runs in English only, so an English
+    # phrase is safe here in a way it is not in the twelve-language sibling.
+    instructs_nobody = ("to run the installer again",)
+    everything: "list[tuple[str, bool]]" = []
+    for wdi in (True, False):
+        for devices in ([], [dev(True)], [dev(False)], [dev(True), dev(False)]):
+            everything.append(
+                (usb_installer_text(devices, wdi_available=wdi)[0], False))
+    for status in ("launched", "download_page", "failed", None):
+        everything.append(usb_install_outcome(
+            wdi_available=False, ran_ok=False, still_unbound_names=[],
+            stopped_watching=False,
+            zadig_status=status, driver_was_missing=True))
+    for ran_ok in (True, False):
+        for unbound in ([], ["GretagMacbeth i1 Pro / i1 Pro 2"]):
+            everything.append(usb_install_outcome(
+                wdi_available=True, ran_ok=ran_ok, stopped_watching=False,
+                still_unbound_names=unbound, zadig_status=None,
+                driver_was_missing=True))
+    # AND THE ENDING THAT SAYS ChromIQ STOPPED WATCHING. It deliberately
+    # offers no Zadig button and names Zadig nowhere: pushing somebody
+    # towards a driver tool while an elevated installer is still putting a
+    # driver in is the one action here that can leave the machine worse.
+    # It is swept with the rest so that it cannot quietly acquire one.
+    everything.append(usb_install_outcome(
+        wdi_available=True, ran_ok=False, stopped_watching=True,
+        still_unbound_names=[], zadig_status=None,
+        driver_was_missing=True))
+
+    unaccounted = [
+        t for t, offers in everything
+        if (offers or "Zadig" in t)
+        and "If you own a CR30" not in t
+        and not any(p in t for p in instructs_nobody)
+    ]
+    assert not unaccounted, (
+        f"{len(unaccounted)} branch(es) put the user in front of Zadig, carry "
+        f"no CR30 warning, and are not one of the two that instruct nobody: "
+        f"{unaccounted}")
 
 
 def test_the_driver_dialog_does_not_ship_s_in_brackets():

@@ -11,7 +11,7 @@ from PIL import Image
 from PyQt6 import sip
 from PyQt6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (QColor, QFont, QFontMetricsF, QImage, QPainter,
-                         QPainterPath, QPixmap, qGray)
+                         QPainterPath, QPixmap, QRegion, qGray)
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from workflow.layout_engine import hexagon
 from core.i18n import tr
 from core.logger import get_logger
 from ui import neutral_styles
@@ -229,6 +230,23 @@ _N_CHANNELS_FALLBACK: dict[int, list[str]] = {
 _cmyk_icc_transform: object = None  # None = not tried; False = unavailable; transform = ready
 
 
+#: The CMYK profile ChromIQ ships, relative to the app's resource root.
+#:
+#: ``assets/profiles/cmyk.icm`` is ArgyllCMS 3.5.0's ``ref/cmyk.icm``, copied
+#: byte for byte. Its own ``cprt`` tag reads *"Created by Graeme W. Gill.
+#: Released into the public domain. No Warranty, Use at your own risk."*, which
+#: is why it may be here at all — see ``THIRD-PARTY-NOTICES.md``.
+#:
+#: It replaced a bundled copy of Adobe's ``USWebCoatedSWOP.icc``
+#: (*"Copyright 2000 Adobe Systems, Inc."*), which shipped in every release from
+#: v2.3.0 with no licence, no attribution, and no record that anyone had checked
+#: whether we were allowed to redistribute it. That was our mistake, not the
+#: owner's. The swap costs a mean 5.2 ΔE76 over a 6⁴ CMYK grid against the Adobe
+#: profile — in a path the preview already badges "Approximate colours" — and it
+#: removes the question instead of answering it.
+_BUNDLED_CMYK_PROFILE = "assets/profiles/cmyk.icm"
+
+
 def _get_cmyk_transform():
     """Return a cached PIL.ImageCms CMYK→sRGB transform, or None if unavailable."""
     global _cmyk_icc_transform
@@ -237,6 +255,9 @@ def _get_cmyk_transform():
     from PIL import ImageCms
     from core.resource_path import resource_path
     import sys as _sys
+    # Fallbacks only, for a build that somehow lost its own asset. Reading a
+    # profile the user already has installed is use, not redistribution, so
+    # these paths raise no licensing question of their own.
     if _sys.platform == "win32":
         import os as _os
         _windir = Path(_os.environ.get("WINDIR", r"C:\Windows"))
@@ -249,7 +270,7 @@ def _get_cmyk_transform():
             Path("/Library/Application Support/Adobe/Color/Profiles/Recommended/USWebCoatedSWOP.icc"),
             Path("/System/Library/ColorSync/Profiles/Generic CMYK Profile.icc"),
         ]
-    candidates = [resource_path("assets/USWebCoatedSWOP.icc")] + _extra
+    candidates = [resource_path(_BUNDLED_CMYK_PROFILE)] + _extra
     for p in candidates:
         if p.exists():
             try:
@@ -331,6 +352,13 @@ def load_tiff_as_rgb(
 ) -> Image.Image:
     """Load any TIFF frame as RGB PIL Image, handling multi-channel Separated TIFFs."""
     return TiffPreview._load_frame(path, frame, ink_channels)
+
+
+#: Set to an ``(r, g, b)`` tuple to make "Show only measured patches" paint its
+#: blank in that colour instead of paper white. A diagnostic, never a setting:
+#: no preference reaches it and no code path writes it. See the note beside its
+#: one use in the blanking.
+BLANK_DEBUG_COLOUR = None
 
 
 class _CursorOverlay(QWidget):
@@ -658,6 +686,79 @@ RING_HALO_W_SMALL = 5.0
 RING_ACCENT_W_SMALL = 1.0
 
 
+def _exposed_edges(boxes) -> dict:
+    """For every patch box, the parts of its four edges that face NO patch.
+
+    ``{(x, y, w, h): {"l": [(a, b), ...], "r": [...], "t": [...], "b": [...]}}``
+    in IMAGE pixels, where each list holds the segments of that edge with
+    nothing beyond them.
+
+    **WHY.** The page is drawn with `SmoothTransformation`, so a patch's colour
+    reaches about a device pixel past its own edge, and a split that stops at
+    the geometric edge leaves a coloured hairline: the fault a tester reported
+    along the bottom of a patch. Where an edge faces ANOTHER patch there is
+    nothing to cover, because that patch's own box covers its own half. Where
+    it faces a spacer or paper, there is.
+
+    **WHY SEGMENTS AND NOT A BIGGER BOX.** Growing the whole box was tried four
+    times and broken four times by adversary rounds: patches one image pixel
+    apart both grew into the same pixel; a page-global gap rule read zero on a
+    staggered chart and switched itself off; two patches meeting at a corner
+    both claimed it; and the threshold was defended with an argument that did
+    not hold. The reason is structural. On a ColorMunki "Offset every second
+    strip" chart a patch's side edge faces the neighbour's PATCH over half its
+    height and the neighbour's SPACER over the other half, and one rectangle
+    cannot do both. Basti, looking at one: *"for rectangular patches like for
+    example staggered colormunki patches there sometimes seem to be gaps on the
+    left and right side of some patches"*.
+
+    Distinct edges only, so the cost follows the chart's GRID and not its patch
+    count.
+    """
+    by_left: "dict[int, list]" = {}
+    by_right: "dict[int, list]" = {}
+    by_top: "dict[int, list]" = {}
+    by_bottom: "dict[int, list]" = {}
+    keys = []
+    for b in boxes:
+        x, y = int(b.x()), int(b.y())
+        w, h = int(b.width()), int(b.height())
+        keys.append((x, y, w, h))
+        by_left.setdefault(x, []).append((y, y + h))
+        by_right.setdefault(x + w, []).append((y, y + h))
+        by_top.setdefault(y, []).append((x, x + w))
+        by_bottom.setdefault(y + h, []).append((x, x + w))
+
+    def _free(span, covers):
+        """*span* minus the union of *covers*, as a list of segments."""
+        a, b = span
+        out = []
+        cur = a
+        for c0, c1 in sorted(covers):
+            if c1 <= cur:
+                continue
+            if c0 >= b:
+                break
+            if c0 > cur:
+                out.append((cur, min(c0, b)))
+            cur = max(cur, c1)
+            if cur >= b:
+                return out
+        if cur < b:
+            out.append((cur, b))
+        return out
+
+    out = {}
+    for (x, y, w, h) in keys:
+        out[(x, y, w, h)] = {
+            "l": _free((y, y + h), by_right.get(x, [])),
+            "r": _free((y, y + h), by_left.get(x + w, [])),
+            "t": _free((x, x + w), by_bottom.get(y, [])),
+            "b": _free((x, x + w), by_top.get(y + h, [])),
+        }
+    return out
+
+
 class TiffPreview(QWidget):
     """Displays multi-page TIFF files with optional stripe highlight overlay."""
 
@@ -700,6 +801,10 @@ class TiffPreview(QWidget):
         # first patch and one below the last, which the recorded patch geometry
         # omits — so the hover frame adds it back (#43). 0 ⇒ no edge spacers.
         self._edge_spacer_px: int = 0
+        #: The ring between a honeycomb's hexagons, in image px (B8-318).
+        self._hex_ring_px: float = 0.0
+        #: First inked row of the patch field, per page, in image px.
+        self._patch_ink_top_px: dict[int, float] = {}
         # Split-patch display: "both" (diagonal split), "expected" or
         # "measured" (whole patch one side). Switchable any time (#126, Knut).
         self._overlay_mode: str = "both"
@@ -733,6 +838,10 @@ class TiffPreview(QWidget):
         # zigzag (staggered hexagons) instead of a straight rect, and the swipe
         # arrow is hidden (an XY table reads patch-by-patch — nothing to swipe).
         self._hex_zigzag: bool = False
+        #: Which way up that honeycomb is. Read off the chart's own
+        #: sidecar recipe, the same route `set_hex_zigzag` takes, so the
+        #: overlay can never disagree with the ink about the orientation.
+        self._hex_flat_top: bool = False
         #: No swipe exists for this chart's instrument (a CR30 is placed on one
         #: patch at a time and triggered by its own button), so the scan arrow
         #: must not be drawn. Kept SEPARATE from _hex_zigzag, which suppresses
@@ -1111,7 +1220,7 @@ class TiffPreview(QWidget):
         if scale <= 0:
             return None
         ix = (label_pos.x() - ox) / scale      # image pixels (may be off-sheet)
-        iy = (label_pos.y() - oy) / scale
+        iy = (label_pos.y() - oy) / (self._paint_scale_y or scale)
         k = 25.4 / dpi
         return ix * k, iy * k
 
@@ -1413,7 +1522,19 @@ class TiffPreview(QWidget):
         self._schedule_refresh()
 
     def set_stripe_read_map(self, read_map: "dict[int, bool]") -> None:
+        """Which strips of the page on screen have been read.
+
+        **AND IT REPAINTS**, which it did not. "Show only measured patches"
+        paints from this map, and every caller happened to follow it with a
+        `set_patch_overlay` that scheduled a refresh of its own, so a change of
+        the map alone reached the screen at the next repaint for some other
+        reason, or not at all. Paging to another sheet is exactly such a call
+        (B8-385).
+        """
+        if self._stripe_read_map == read_map:
+            return
         self._stripe_read_map = dict(read_map)
+        self._schedule_refresh()
 
     # ---- spot (patch-by-patch) mode --------------------------------------
     def highlight_patch(self, page: int, box: "QRect | None") -> None:
@@ -1455,7 +1576,7 @@ class TiffPreview(QWidget):
         for loc, rect in boxes.items():
             if not rect.contains(ix, iy):
                 continue
-            if self._hex_zigzag and not self._in_hexagon(rect, ix, iy):
+            if self._hex_zigzag and not self._in_hexagon(rect, ix, iy, self._hex_flat_top):
                 continue        # a box corner belongs to the neighbour, not here
             return loc, rect
         if self._hex_zigzag:
@@ -1463,12 +1584,13 @@ class TiffPreview(QWidget):
             # outside every rect. Fall back to the nearest patch whose hexagon
             # really contains the point.
             for loc, rect in boxes.items():
-                if self._in_hexagon(rect, ix, iy):
+                if self._in_hexagon(rect, ix, iy, self._hex_flat_top):
                     return loc, rect
         return None
 
     @staticmethod
-    def _in_hexagon(b: "QRect", x: float, y: float) -> bool:
+    def _in_hexagon(b: "QRect", x: float, y: float,
+                    flat_top: bool = False) -> bool:
         """Is (x, y) inside the hexagon drawn for patch box *b*?
 
         The box and the hexagon are not the same shape: the box's four corners
@@ -1477,18 +1599,8 @@ class TiffPreview(QWidget):
         a corner selected a patch whose ink is not there (7.2–7.7 % of the click
         area, and 86–92 % of corner clicks).
         """
-        h = b.height()
-        t6 = h / 6.0
-        cx = b.x() + b.width() / 2.0
-        dx = abs(x - cx) / (b.width() / 2.0) if b.width() else 1.0
-        if dx > 1.0:
-            return False
-        # flat sides between the shoulders, sloping to the apexes beyond them
-        top = b.y() + t6 - dx * t6 * 2.0 if False else b.y() + t6 * (1.0 - dx) - t6 * dx
-        # the apex is t6 above the box top at dx = 0, the shoulder t6 below it at dx = 1
-        top = b.y() - t6 + dx * 2.0 * t6
-        bot = b.y() + h + t6 - dx * 2.0 * t6
-        return top <= y <= bot
+        return hexagon.contains(b.x(), b.y(), b.width(), b.height(), x, y,
+                                flat_top=flat_top)
 
     def set_patch_overlay(self, page: int,
                           items: "list[tuple[QRect, QColor, QColor, bool]]",
@@ -1613,7 +1725,43 @@ class TiffPreview(QWidget):
         ColorMunki charts whose every-second strip is offset. Pass ``{}`` to
         clear (the hover then falls back to the full strip rectangle)."""
         self._page_patch_boxes = dict(mapping or {})
+        self._exposed_cache.clear()     # a new grid, a new answer
         self._schedule_refresh()
+
+    def set_hex_ring_px(self, px: float) -> None:
+        """The paper ring between this chart's hexagons, in IMAGE pixels.
+
+        Read from the chart's own recipe by
+        `ui.tabs.tab_measure.hex_ring_px_from_sidecar`, because the recorded
+        patch boxes carry no trace of it: a honeycomb takes the ring out of the
+        patch's own area, so the boxes are identical with the spacer on and
+        off. 0 means a tessellating honeycomb, which is what every chart
+        without a spacer is.
+        """
+        try:
+            self._hex_ring_px = max(0.0, float(px or 0.0))
+        except (TypeError, ValueError):
+            self._hex_ring_px = 0.0
+        self._update_display()
+
+    def set_patch_ink_top_px(self, mapping: "dict[int, float] | None") -> None:
+        """The first inked row of the patch field, per page, in IMAGE pixels.
+
+        Recorded by the layout engine where it draws, because nothing
+        downstream can work it out: a honeycomb's hexagon overhangs its cell by
+        a sixth of the slot, the spacer ring is drawn outside the hexagon, and
+        an edge spacer adds another band, so the first inked row lands anywhere
+        from 18 pixels BELOW the first recorded box top to 40 above it
+        (measured on five CR30 charts: 0, -18, +40, +20, +24). "Show only
+        measured patches" cuts its blank between the strip letters and this
+        line, and on some charts the two cross (B8-346 F1).
+        """
+        # `is not None`, NOT truthiness: row 0 is a row. See
+        # `patch_ink_top_px_from_sidecar`, which keeps it for the same reason.
+        self._patch_ink_top_px = {int(k): float(v)
+                                  for k, v in (mapping or {}).items()
+                                  if v is not None}
+        self._update_display()
 
     def set_edge_spacer_px(self, px: int) -> None:
         """Height of a leader/trailer edge spacer in image px, or 0 when the
@@ -1621,13 +1769,21 @@ class TiffPreview(QWidget):
         bracket each strip (#43). Read from the chart geometry by the caller."""
         self._edge_spacer_px = max(0, int(px or 0))
 
-    def set_hex_zigzag(self, on: bool) -> None:
-        """Enable the hexagonal-column highlight mode (SpectroScan hex charts):
-        the strip outline follows the staggered hexagon zigzag and the swipe
-        arrow is suppressed. No-op change is ignored to avoid needless repaints."""
+    def set_hex_zigzag(self, on: bool, *, flat_top: bool = False) -> None:
+        """Enable the hexagonal-column highlight mode (hexagonal charts): the
+        strip outline follows the hexagon lattice and the swipe arrow is
+        suppressed. No-op change is ignored to avoid needless repaints.
+
+        *flat_top* turns the whole overlay 30 degrees with the chart: the patch
+        outline, the expected-vs-measured clip, the strip outline and the click
+        hit test. All four are pointy-top otherwise, and on a rotated sheet each
+        would draw or test the wrong shape.
+        """
         on = bool(on)
-        if on != self._hex_zigzag:
+        flat = bool(flat_top) and on
+        if on != self._hex_zigzag or flat != self._hex_flat_top:
             self._hex_zigzag = on
+            self._hex_flat_top = flat
             self._repaint_label()
 
     def set_aim_overlay(self, enabled: bool, aperture_px: float = 0.0,
@@ -1672,7 +1828,8 @@ class TiffPreview(QWidget):
         return col
 
     def _strip_zigzag_path(self, strip_rect: QRect, s: float,
-                           ox: float, oy: float) -> "QPainterPath | None":
+                           ox: float, oy: float,
+                           sy: "float | None" = None) -> "QPainterPath | None":
         """A single closed outline following the actual hexagonal patches of a
         strip and their ±¼-patch zigzag — one frame for the whole column, not a
         straight rect that spills into the neighbour (nor a frame per patch).
@@ -1680,6 +1837,15 @@ class TiffPreview(QWidget):
         col = self._strip_patches(strip_rect)
         if not col:
             return None
+        # The page is not scaled by the same factor on both axes: see
+        # `_draw_cq_overlay`. This outline sits ON the patches, so it has to use
+        # the page's own vertical scale or it drifts away from them down the
+        # sheet. Measured by an adversary round against a copy of this function
+        # reading `_paint_scale_y`: 99 device pixels of the hovered strip's
+        # outline differ at 900x1000, and the drift at the lowest patch row is
+        # 1.012 device pixels. `sy` defaults to `s` only so a caller with one
+        # square scale can say so.
+        sy = s if sy is None else sy
         # The hexagons tessellate edge-to-edge (zero overlap area), so a boolean
         # union can't merge them — it leaves each as its own closed loop, drawing
         # little frames around patch pairs (Basti). Trace the column's OUTER
@@ -1687,16 +1853,31 @@ class TiffPreview(QWidget):
         # last hexagon's bottom apex, up every right edge, and close over the
         # first hexagon's top apex. The intermediate apexes are internal seams,
         # correctly omitted, so it's a single clean hexagon-zigzag outline.
+        flat = self._hex_flat_top
+
         def verts(b: QRect):
-            left, right = b.left(), b.right() + 1
-            cx = b.x() + b.width() / 2.0
-            y0, h = b.y(), b.height()
-            t6 = h / 6.0
-            return {
-                "top": (cx, y0 - t6), "ur": (right, y0 + t6),
-                "lr": (right, y0 + 5 * t6), "bot": (cx, y0 + h + t6),
-                "ll": (left, y0 + 5 * t6), "ul": (left, y0 + t6),
-            }
+            # One shape, from hexagon.py, named for the corners this outline
+            # walks. UNROUNDED, deliberately: see the note under the transform.
+            #
+            # THE NAMES ARE THE OUTLINE'S ROLES, NOT COMPASS POINTS, and the
+            # rotation is why they have to be. `hexagon.vertices` returns the
+            # ring starting at the apex; on a pointy hexagon that apex is at the
+            # TOP and the two flat sides are left and right, so the walk below
+            # goes down one side and up the other. On a flat-top hexagon the
+            # apexes are at the left and right and the flat sides are the top
+            # and bottom — but a strip is still a COLUMN, so the walk is still
+            # down one side and up the other, and the roles map straight across:
+            # what was the top apex is now the upper-left shoulder, and so on.
+            # Rotating the ring by one position is exactly that relabelling.
+            v = hexagon.vertices(b.left(), b.y(), b.right() + 1 - b.left(),
+                                 b.height(), flat_top=flat)
+            if flat:
+                # ring is (l.apex, ul, ur, r.apex, lr, ll); the walk wants
+                # top→ul→ll→bot up the far side, so name them by role:
+                lapex, ul, ur, rapex, lr, ll = v
+                return {"top": ur, "ur": rapex, "lr": lr, "bot": ll,
+                        "ll": lapex, "ul": ul}
+            return dict(zip(("top", "ur", "lr", "bot", "ll", "ul"), v))
 
         # NOT rounded. Snapping the vertices looks like the fix for the uneven
         # halo and is not: it measured worse (spread 0.14 -> 0.21 device px),
@@ -1706,7 +1887,7 @@ class TiffPreview(QWidget):
             return v * s + ox
 
         def Y(v: float) -> float:
-            return v * s + oy
+            return v * sy + oy
 
         path = QPainterPath()
         first, last = verts(col[0]), verts(col[-1])
@@ -1724,29 +1905,60 @@ class TiffPreview(QWidget):
         return path
 
     @staticmethod
-    def _patch_hexagon(b: QRect, s: float, ox: float, oy: float) -> "QPainterPath":
-        """A closed hexagon outline for a single SpectroScan patch box, matching
-        the same pointy-top/flat-side geometry the strip zigzag uses. Used to
+    def _patch_hexagon(b: QRect, s: float, ox: float, oy: float,
+                       flat_top: bool = False,
+                       sy: "float | None" = None,
+                       inset_px: float = 0.0,
+                       slot: "float | None" = None) -> "QPainterPath":
+        """A closed hexagon outline for a single SpectroScan patch box, drawn from
+        `hexagon.vertices`, so it IS the strip zigzag's geometry rather than a
+        second copy promising to match it. Used to
         draw unread hex patches as their true shape in "Show only measured
         patches" (Knut) — a rectangle grid there is wrong for a hex chart."""
-        left, right = b.left(), b.right() + 1
-        cx = b.x() + b.width() / 2.0
-        y0, h = b.y(), b.height()
-        t6 = h / 6.0
-
-        def X(v: float) -> float:
-            return v * s + ox
-
-        def Y(v: float) -> float:
-            return v * s + oy
-
+        sy = s if sy is None else sy
+        _w = float(b.right() + 1 - b.left())
+        _h = float(b.height())
+        _x0, _y0 = float(b.left()), float(b.y())
+        if slot is not None and slot > 0:
+            # THE RECORDED BOX IS AN INTEGER RECT AND THE PITCH IS NOT, and
+            # the difference is multiplied by 4/3 along the point axis. A
+            # SpectroScan honeycomb records 83x72 boxes and prints 83x94 of
+            # ink, where 72 alone predicts 96: the slot is really 70.5 and the
+            # renderer lays the hexagon out from the unrounded number. Given
+            # the true slot length the shape is exact, and a blank that has to
+            # match printed ink to the pixel needs it.
+            if flat_top:
+                _x0 += (_w - slot) / 2.0
+                _w = float(slot)
+            else:
+                _y0 += (_h - slot) / 2.0
+                _h = float(slot)
+        pts = hexagon.vertices(_x0, _y0, _w, _h, flat_top=flat_top)
+        # THE BOX IS THE CELL; THE PRINTED HEXAGON IS SMALLER BY THE RING.
+        #
+        # A honeycomb built with a spacer takes the ring out of the patch's own
+        # area, so the RECORDED box does not change at all: measured, the boxes
+        # are byte-identical between `spacer_on=False` and `spacer_width=1.5`,
+        # 150 of them, in both orientations. What changes is the ink. CR30 A4
+        # at 300 dpi, one box at its centre row: the box is 142 px at every
+        # spacer width while the ink is 142 / 137 / 125 / 109 px at 0 / 0.5 /
+        # 1.5 / 3.0 mm, and the rotated chart gives 164 / 159 / 145 / 125. The
+        # difference is one ring across, so half a ring per side.
+        #
+        # Inscribing in the box therefore drew the split at CELL size and the
+        # ring vanished under it. Basti, with two photographs of a rotated CR30
+        # honeycomb: *"honeycombs with spacers. spacers get covered by split
+        # overlay"*. The ring cannot be recovered from the boxes, so it is
+        # carried in from the chart's own recipe (`set_hex_ring_px`).
+        # A NEGATIVE INSET GROWS IT, which is how the blank covers
+        # its half of the spacer ring; the renderer uses the same
+        # idiom for the ring's outer edge.
+        if inset_px:
+            pts = hexagon.inset(pts, inset_px / 2.0)
         path = QPainterPath()
-        path.moveTo(X(cx), Y(y0 - t6))               # top apex
-        path.lineTo(X(right), Y(y0 + t6))            # upper right
-        path.lineTo(X(right), Y(y0 + 5 * t6))        # lower right
-        path.lineTo(X(cx), Y(y0 + h + t6))           # bottom apex
-        path.lineTo(X(left), Y(y0 + 5 * t6))         # lower left
-        path.lineTo(X(left), Y(y0 + t6))             # upper left
+        for i, (vx, vy) in enumerate(pts):
+            xy = (vx * s + ox, vy * sy + oy)
+            (path.moveTo if i == 0 else path.lineTo)(*xy)
         path.closeSubpath()
         return path
 
@@ -1923,6 +2135,7 @@ class TiffPreview(QWidget):
         self._stripe_rects = []
         self._stripe_arrow_mode = "base"
         self._page_patch_boxes = {}
+        self._exposed_cache.clear()
         self._patch_info = {}
         # AND THE SPLIT PATCHES. `_patch_info` (the hover numbers) was cleared
         # and `_patch_overlay` (the colours actually painted) was not, so after
@@ -2044,6 +2257,21 @@ class TiffPreview(QWidget):
         self._ink_page_data = None      # (H, W, n) uint8 of the current page
         self._ink_page_key = None
         self._paint_geom = None         # (scale, x, y): image px → label px
+        #: The page's VERTICAL scale, which is not the horizontal one: a page
+        #: scaled with `KeepAspectRatio` lands on a whole number of device
+        #: pixels per axis and the two ratios differ. `_paint_geom` keeps its
+        #: three fields because a dozen callers unpack them; anything that maps
+        #: a y coordinate reads this instead, so the split overlay and the hit
+        #: test cannot end up on two different grids (found by an adversary
+        #: round: 66 of 924 probes aimed at the pixel the overlay paints landed
+        #: on a different patch, or none).
+        self._paint_scale_y = None
+        #: Cache for `_exposed_for_page`, keyed by page and patch count.
+        self._exposed_cache: dict = {}
+        #: The page as a QImage, built on demand so a split sliver can read the
+        #: colour of the spacer it is about to sit next to. Dropped whenever the
+        #: page changes.
+        self._page_qimage = None
         #: The legend chip, in the (ox, oy) frame it was last painted in, so a
         #: pointer test can be done without recomputing the placement. Kept
         #: even while the chip is HIDDEN -- that is the whole point: the chip
@@ -2239,7 +2467,7 @@ class TiffPreview(QWidget):
         if scale <= 0:
             return None
         ix = int((label_pos.x() - ox) / scale)
-        iy = int((label_pos.y() - oy) / scale)
+        iy = int((label_pos.y() - oy) / (self._paint_scale_y or scale))
         if 0 <= ix < self._pixmap.width() and 0 <= iy < self._pixmap.height():
             return ix, iy
         return None
@@ -2302,6 +2530,7 @@ class TiffPreview(QWidget):
             img = self._load_frame(path, frame, self._ink_channels,
                                    muted=frozenset(self._muted_inks))
             self._pixmap = self._pil_to_pixmap(img)
+            self._page_qimage = None       # a new page, a new sample source
             # Per page: a chart's pages can differ (a last page half full), and
             # the frame follows the page actually on screen.
             self._measure_own_margin(self._pixmap)
@@ -2482,6 +2711,8 @@ class TiffPreview(QWidget):
         _cw = scaled.width() / dpr + 2 * B
         _ch = scaled.height() / dpr + 2 * B
         _s = (scaled.width() / dpr) / max(1, self._pixmap.width())
+        self._paint_scale_y = (scaled.height() / dpr) / max(
+            1, self._pixmap.height())
         self._paint_geom = (_s,
                             (label_size.width() - _cw) / 2 + B,
                             (label_size.height() - _ch) / 2 + B)
@@ -2542,10 +2773,13 @@ class TiffPreview(QWidget):
                 painter, B, scaled.width() / dpr,
                 B + scaled.height() / dpr, cap_h)
 
-        # #126 engine overlays (split patches, hover outline, legend)
+        # #126 engine overlays (split patches, hover outline, legend). BOTH
+        # scales, because `scaled` is a whole number of device pixels on each
+        # axis and `KeepAspectRatio` cannot make the two ratios equal.
         self._draw_cq_overlay(painter,
                               (scaled.width() / dpr) / max(1, self._pixmap.width()),
-                              B, B)
+                              B, B,
+                              (scaled.height() / dpr) / max(1, self._pixmap.height()))
 
         painter.end()
         self._img_label.setPixmap(canvas)
@@ -2554,12 +2788,83 @@ class TiffPreview(QWidget):
         if self._cursor_overlay is not None and self._coord_readout:
             self._sync_cursor_overlay_geometry()
 
+    def _page_colour_at(self, ix: int, iy: int):
+        """The page's own colour at image pixel (*ix*, *iy*), or None.
+
+        Read from a QImage built once per page and kept, because a split sliver
+        needs the SPACER's colour to repaint a boundary pixel faithfully, and
+        one-pixel reads through `QPixmap.copy` would be a round trip each.
+        """
+        pm = self._pixmap
+        if pm is None:
+            return None
+        if self._page_qimage is None:
+            try:
+                self._page_qimage = pm.toImage()
+            except Exception:              # noqa: BLE001 — never fail a repaint
+                return None
+        img = self._page_qimage
+        if img is None or img.isNull():
+            return None
+        x = max(0, min(img.width() - 1, int(ix)))
+        y = max(0, min(img.height() - 1, int(iy)))
+        return img.pixelColor(x, y)
+
+    def _exposed_for_page(self, geom) -> dict:
+        """`_exposed_edges` for this page's grid, worked out once.
+
+        It walks the whole patch grid and runs inside a repaint that also runs
+        on hover, so it is cached against the geometry it was built from. The
+        answer depends on the CHART only, not on the window or the zoom: a
+        segment either faces a neighbouring patch or it does not.
+        """
+        key = (self._current, len(geom))
+        hit = self._exposed_cache.get(key)
+        if hit is None:
+            hit = _exposed_edges(geom)
+            if len(self._exposed_cache) > 8:
+                self._exposed_cache.clear()
+            self._exposed_cache[key] = hit
+        return hit
+
     def _draw_cq_overlay(self, painter: QPainter,
-                         s: float, ox: float, oy: float) -> None:
+                         s: float, ox: float, oy: float,
+                         sy: "float | None" = None) -> None:
         """#126 chart-reading engine overlays, drawn in canvas coordinates
-        (image px × `s` + offset). Three layers: the split-patch results for
+        (image px × scale + offset). Three layers: the split-patch results for
         the current page, a hover outline for click-to-jump, and a small
-        expected/measured legend once any patches are shown."""
+        expected/measured legend once any patches are shown.
+
+        **THE PAGE IS NOT SCALED BY THE SAME FACTOR ON BOTH AXES, AND THIS
+        OVERLAY USED ONE.** `QPixmap.scaled(..., KeepAspectRatio)` returns a
+        whole number of device pixels on each axis, so one axis is exact and
+        the other is rounded, and the two ratios differ. The caller computed
+        `s` from the WIDTH and this function applied it to y as well, which
+        slid the whole overlay grid along the page: measured on screen
+        (`scripts/drive_b21_split_overlay_gap.py`, six window sizes, 462
+        patches each) the slide reached 1.37 device pixels at the foot of an
+        A4 page. Where it crossed a rounding boundary the split stopped a
+        screen pixel short and the printed patch showed through at full
+        strength: at 700x980 a whole row across the sheet read (218, 0, 218)
+        on a page whose patches are pure magenta. That is the thin light line
+        a tester photographed along the bottom of a patch (2026-09-17). On the
+        same six sizes, chart-coloured pixels left under the split: 151,383
+        before, 0 after.
+
+        `sy` is the image's own vertical scale; it defaults to `s` only so a
+        caller that genuinely has one square scale can say so.
+
+        `_image_px_at` and `_coord_mm_at` map a CURSOR, and they read
+        `_paint_scale_y` for the same reason. Leaving them on the horizontal
+        scale, which the first version of this fix did, put the split and the
+        thing that decides which patch you clicked on two different grids: an
+        adversary round measured 0.7 device pixels of drift at the foot of the
+        page and 66 of 924 probes landing on a different patch, or none. Before
+        any of this both used the same number and the mismatch was exactly
+        zero, so that one was introduced by the fix and is not a pre-existing
+        rounding. Re-measured after: every one of 1,539,163 logical pixels
+        inside a patch and under its own overlay box named the right patch."""
+        sy = s if sy is None else sy
         from PyQt6.QtGui import QPen, QPainterPath as _QP
 
         # Device-pixel snapping: see the split-patch block below. Read once —
@@ -2570,11 +2875,91 @@ class TiffPreview(QWidget):
         except Exception:      # noqa: BLE001 — never fail a repaint over this
             _dpr = 1.0
 
-        def _dsnap(v: float) -> float:
-            """*v* (logical px) moved to the nearest real device pixel."""
-            return round(v * _dpr) / _dpr
+        # HOISTED, so that everything in this function rounds the SAME way.
+        # `_sliver` below decides which side of a boundary it is on, and the
+        # first version of it reached for the builtin `round` instead, two
+        # hundred lines under the docstring that says why that is wrong here.
+        import math as _m
 
-        items = self._patch_overlay.get(self._current, [])
+        def _dsnap(v: float) -> float:
+            """*v* (logical px) moved to the nearest real device pixel.
+
+            `math.floor(v + 0.5)`, not `round`: Python rounds a half to the
+            even side, so a patch grid whose edges land on exact halves (which
+            a 2x display produces constantly) would snap alternate patches in
+            opposite directions and give neighbouring boxes different sizes.
+            """
+            return _m.floor(v * _dpr + 0.5) / _dpr
+
+        # IN A FIXED ORDER, NOT THE ORDER THE STRIPS WERE READ IN. The items
+        # accumulate as a measurement runs, so the list arrives in whatever
+        # order the person swept, and wherever two patches share a pixel the
+        # last one drawn owns it. On a rectangular chart the boxes tile and
+        # nothing shares anything; on a HONEYCOMB they interlock by design, the
+        # fill is antialiased and the seam is stroked ON the shared edge, so
+        # the lozenge where three apexes meet belongs to whoever came last. An
+        # adversary round measured that on the real Measure tab with a real
+        # SpectroScan chart: 9,356 device pixels at 1200x980 and 4,859 at
+        # 900x1000 changed when the same strips were read in a different order,
+        # across 545 separate regions, the largest 145 pixels. It is not new
+        # (the same measurement against the build before this change set gives
+        # the same numbers) and it is not the gap rule: with the honeycomb
+        # switched off the same chart gives 0.
+        #
+        # Sorting by position costs nothing, changes no pixel of a rectangular
+        # chart, and makes the answer the same picture whatever order the
+        # patches arrive in, which is the property the rest of this function
+        # already promises.
+        items = sorted(self._patch_overlay.get(self._current, []),
+                       key=lambda it: (int(it[0].y()), int(it[0].x())))
+        # WHERE THE BLANK LANDED, KEPT, BECAUSE THE SPLIT'S SLIVER MIXES WITH
+        # WHAT IS UNDERNEATH AND HAD NO WAY TO KNOW (B8-371).
+        #
+        # `_sliver` below repaints a boundary pixel as `c * split +
+        # (1 - c) * spacer`, and it read `spacer` off the PRINTED PAGE. With
+        # "Show only measured patches" on, the page at that pixel may already
+        # have been covered by the blank, and mixing the printed ink back in
+        # put a slice of it on top of the blank: on a `bw` chart that slice is
+        # a BLACK hairline hugging the patch edge, which is exactly what Basti
+        # photographed (2026-09-18). These are the shapes the blank actually
+        # painted, in the painter's own logical coordinates, so the sliver can
+        # ask what is under the pixel it is about to paint instead of guessing.
+        #
+        # A HONEYCOMB CANNOT SHOW THIS FAULT TODAY, and its shapes are kept
+        # anyway. The hexagonal branch of the items loop below ends in
+        # `continue`, before the slivers, so no sliver is ever drawn on a
+        # honeycomb: measured on screen with the blank in magenta, a
+        # SpectroScan pointy honeycomb at 1160x1000 and a CR30 flat-top
+        # (rotated) at 1320x940 came out **0 device pixels different** before
+        # and after this change. The regions cost one append per blanked strip
+        # and mean that whoever gives the honeycomb a sliver does not have to
+        # find this bug again.
+        _blank_colour = None            # None ⇒ nothing was blanked
+        _blank_rects: list = []         # QRectF, rectangular charts
+        _blank_regions: list = []       # QRegion + label cut, honeycombs
+
+        def _under_blank(pt: QPointF) -> bool:
+            """Whether the blank has already covered this logical point.
+
+            A FLOAT rectangle test, not a QRegion one, for the rectangular
+            charts: the edge that matters sits a fifth of a logical pixel from
+            a read patch's own edge on an A4 sheet, and a region rounded to
+            whole logical pixels cannot tell the two apart. The honeycomb's
+            blank is a region by construction (see the hexagonal branch), and
+            there the same integer scanlines that painted it are the honest
+            answer to what it covered.
+            """
+            if _blank_colour is None:
+                return False
+            for _r in _blank_rects:
+                if _r.contains(pt):
+                    return True
+            for _reg, _cut in _blank_regions:
+                if _cut is not None and pt.y() < _cut:
+                    continue
+                if _reg.contains(QPoint(int(pt.x()), int(pt.y()))):
+                    return True
+            return False
         # "Show only measured patches" (Knut): blank every patch on the page to
         # white with a thin outline first, so unread patches read as empty; the
         # measured split-patch items then draw on top, leaving only the read
@@ -2588,7 +2973,21 @@ class TiffPreview(QWidget):
             # producing (Sebastian). Reading progress is still obvious: measured
             # columns are coloured, unread ones are blank.
             read_map = self._stripe_read_map or {}
-            white = QColor(255, 255, 255)
+            # **THE BLANK CAN BE ASKED TO PAINT ITSELF A COLOUR NOBODY ELSE
+            # USES.** Twenty rounds of this change set have gone into where the
+            # blank stops, and every one of them had to infer that from ink
+            # that survived it: a black spacer, a green dash, a letter's foot.
+            # Inferring is how three probes in one afternoon found their answer
+            # somewhere else (the window's own chrome, the strip labels, the
+            # read column next door). With `BLANK_DEBUG_COLOUR` set the blank
+            # paints magenta instead of paper and the question stops being a
+            # measurement at all: whatever is not magenta was not covered, and
+            # a photograph says so to anybody looking at it.
+            #
+            # `None` in every shipped path; nothing reads it but this line.
+            white = (QColor(*BLANK_DEBUG_COLOUR) if BLANK_DEBUG_COLOUR
+                     else QColor(255, 255, 255))
+            _blank_colour = white
             rects = self._stripe_rects
             n = len(rects)
 
@@ -2624,6 +3023,20 @@ class TiffPreview(QWidget):
             # padded its outer edge by a whole row-gap, which on a ragged/partial
             # LAST page wiped the right-margin caption sitting just past the short
             # columns (Knut). Per-column bounds never leave the actual patch grid.
+            # THE PATCHES THAT MUST NOT BE COVERED, gathered once. A
+            # honeycomb's hexagons INTERLOCK, so the apex a blanked patch has
+            # to cover reaches into the area a READ neighbour's own ink
+            # occupies. The blank is therefore subtracted against these, and
+            # only these: see the hexagonal branch below (B8-321).
+            _read_boxes: list = []
+            if self._hex_zigzag:
+                for _j in range(n):
+                    if not read_map.get(_j, False):
+                        continue
+                    _read_boxes.extend(
+                        b for b in allb
+                        if rects[_j].left() <= b.x() + b.width() / 2
+                        <= rects[_j].right())
             for i in range(n):
                 if read_map.get(i, False):
                     continue
@@ -2641,37 +3054,554 @@ class TiffPreview(QWidget):
                 # need the small row-spacer pad.
                 apex = (cp[0].height() / 6.0 + 2.0) if self._hex_zigzag else 0.0
                 vpad = max(pad, apex)
+                # AND THE EDGE SPACERS, which are part of the strip and which
+                # this mode is supposed to hide along with everything else in
+                # an unread column. They were left showing because the fix for
+                # a different fault took them out: `_hover_patch_bounds` grows
+                # a strip by `edge_spacer_px` and that growth once reached into
+                # the label band and wiped the column letters (Knut), so the
+                # fill was moved onto the raw patch boxes. The clamp below is
+                # unconditional now, so the labels are protected by the clamp
+                # rather than by refusing to cover the spacer, and the spacer
+                # can come back. Basti: *"are edge spacers also hidden by this?
+                # they should then be i think"*.
+                esp = float(max(0, int(getattr(self, "_edge_spacer_px", 0))))
                 min_py = min(b.y() for b in cp)
+                # NOT `- esp` HERE. The clamp two lines down is
+                # `max(top, min(rects[i].top(), min_py - esp))`, which already
+                # lands on `min_py - esp` whenever nothing higher binds, so
+                # subtracting the spacer a second time changed nothing: round
+                # 10 removed it and measured 0 differing pixels on every chart
+                # it had built.
                 top = min_py - vpad
-                # Never rise into the strip-label band. When this strip's rect
-                # extends ABOVE its patches its top sits at the rendered label-band
-                # bottom (grown there in engine_strip_rects_from_sidecar), so clamp
-                # the fill to it — otherwise the hex apex padding above reached up
-                # and wiped the column labels (A, B, C…) on a SpectroScan hex chart
-                # (Knut). With labels off the rect top == the patch top, so this is
-                # a no-op and the apex stays covered.
-                band_top = float(rects[i].top())
-                if band_top < min_py:
-                    top = max(top, band_top)
-                bot = max(b.y() + b.height() for b in cp) + vpad
-                # Horizontally cover the column's own patches (min-left / max-right
-                # already include the ±¼-patch hex stagger overhang) AND reach the
-                # gap midpoint to each neighbour so the inter-column gap is hidden —
-                # whichever is further. At the row's OUTER edge there is no
-                # neighbour, so we stop a hairline past the last patch: that keeps
-                # the fill from bleeding into the right-margin caption on a
-                # ragged/partial last page (Knut). Adjacent unread columns overlap
-                # in white ⇒ seamless, nothing to alias (Sebastian).
-                left = min(b.left() for b in cp) - 2.0
-                if i > 0:
-                    left = min(left, (rects[i - 1].right() + rects[i].left()) / 2.0)
-                right = max(b.right() + 1 for b in cp) + 2.0
-                if i < n - 1:
-                    right = max(right, (rects[i].right() + rects[i + 1].left()) / 2.0)
-                painter.fillRect(
-                    QRectF(left * s + ox, top * s + oy,
-                           (right - left) * s, (bot - top) * s),
-                    white)
+                # NEVER RISE ABOVE THE STRIP'S OWN TOP, and that clamp is not
+                # conditional. It used to fire only `if band_top < min_py`,
+                # which reads as "only when the rect was grown up to a label
+                # band".
+                #
+                # AN EARLIER ROUND SAID THAT GUARD WAS INERT ON EVERY CHART THE
+                # LAYOUT ENGINE BUILDS, AND THAT IS NOT TRUE. Measured here on
+                # six chart types, `label_band_bottom_px` is ABOVE the first
+                # patch top on all of them (i1 85 against a first patch at 315,
+                # SpectroScan 81 against 123, ColorMunki 102 against 319,
+                # rotated CR30 97 against 134), so the rect IS grown and the
+                # old guard did fire; it simply never bound, the band being
+                # hundreds of pixels clear of the pad. What really puts the
+                # strip rect ON the first patch is a chart with NO STRIP
+                # INDICATORS: it records no label band at all, and that is the
+                # one class where this clamp binds -- and where there are no
+                # letters above it to protect.
+                # THE EDGE SPACER IS ALWAYS SAFE TO COVER; THE ROW PAD IS
+                # NOT. The spacer is a printed bar of exactly `esp` pixels
+                # sitting directly on the first patch (`edge_spacer_px_from_
+                # sidecar`), so everything down from `min_py - esp` belongs to
+                # this strip by construction. The `vpad` above THAT is a guess
+                # at a hairline, and it is the part that walked into the
+                # letters. So the floor is the band bottom where the rect
+                # carries one, and the top of the edge spacer where it does
+                # not, which lets the spacer be covered without giving the pad
+                # any reach it did not have before.
+                #
+                # Clamping to `rects[i].top()` flat, which is what the first
+                # version of this did, takes the TOP edge spacer away again on
+                # every chart today's layout engine builds, because there the
+                # rect's top IS the first patch top. Measured in the suite: 2,688
+                # of 5,706 edge-spacer pixels still showing, the top one whole.
+                #
+                # **AND THE INK WINS WHERE THE TWO CROSS, WHICH THE PARAGRAPH
+                # ABOVE DOES NOT SAY.** `min(...)` is unconditional: on a
+                # rectangular CR30 A4 sheet with a 6 mm spacer and edge spacers
+                # the band ends at 157, the spacer begins at 153 and the letters
+                # ink to 155, so three rows carry both and the cut goes to 153.
+                # Photographed on screen with nothing read: 94.15 % of the
+                # letters left, and the bottom bar of the `E` open. That is the
+                # same trade the hexagonal branch makes, and it is deliberate
+                # here too, but it is a LAYOUT collision either way and it is
+                # recorded against the layout as B8-347.
+                top = max(top, min(float(rects[i].top()), min_py - esp))
+                bot = max(b.y() + b.height() for b in cp) + vpad + esp
+                # A HONEYCOMB IS BLANKED BY ITS HEXAGONS, NOT BY A RECTANGLE.
+                # Hexagonal columns INTERLOCK: a strip's patch bounds already
+                # include the ±¼-patch zigzag overhang, so a rectangle spanning
+                # them reaches into the neighbouring column and paints white
+                # over a READ neighbour's lobes. Measured on screen on a real
+                # SpectroScan honeycomb at 900x1000: with the blanking off a
+                # read strip is drawn 68 to 90 device pixels wide down the
+                # column, with it on the same strip is 20 to 43 -- less than
+                # half, and it reads as a straight band instead of a staggered
+                # honeycomb. Basti saw it at once: *"the colorful patches go
+                # down in a straight line although they are staggered"*.
+                # Inherited, not from the split-overlay work: these lines are
+                # untouched by it.
+                #
+                # Filling the hexagons themselves cannot reach a neighbour,
+                # needs no apex padding (the shape IS the apex) and needs no
+                # midpoint reach (there is no inter-column gap on a honeycomb
+                # to hide). The rectangle stays for rectangular charts, where
+                # the gap is real and hiding it is the point.
+                if self._hex_zigzag:
+                    # GROWN BY HALF THE SPACER RING, so a blanked column
+                    # really is blank. A honeycomb built with spacers has a
+                    # ring of paper between its hexagons, and filling the
+                    # hexagons alone leaves that ring showing the chart
+                    # underneath -- the opposite of Knut's reason for this mode
+                    # ("use the paper colour, so there are NO fine gaps and NO
+                    # contrast edges to alias"). Half the ring is the same
+                    # midpoint rule the rectangular branch uses against its
+                    # neighbours, so a READ hexagon keeps its own half. On a
+                    # chart whose hexagons tessellate the ring is 0 and this is
+                    # exactly the plain hexagon.
+                    #
+                    # THE RING COMES FROM THE CHART'S OWN RECIPE. The scan
+                    # underneath (the first positive vertical gap between a
+                    # column's boxes) answers 0 on every chart the engine
+                    # builds, because a honeycomb's recorded boxes TILE: round
+                    # 9 measured it on 80 real charts and got 0.0 on all 80.
+                    # `set_hex_ring_px` carries the real number in from the
+                    # sidecar, the same way the split does; the scan stays as
+                    # the fallback for a preview that was never told.
+                    _ring = float(self._hex_ring_px)
+                    if _ring <= 0.0:
+                        _bs = sorted(cp, key=lambda b: b.y())
+                        for _k in range(len(_bs) - 1):
+                            _g = _bs[_k + 1].y() - (_bs[_k].y()
+                                                    + _bs[_k].height())
+                            if _g > 0:
+                                _ring = float(_g)
+                                break
+
+                    # **THE BOX IS THE SLOT AND `_patch_hexagon` ALREADY DRAWS
+                    # THE OVERHANG.** `hexagon.vertices` puts the two apexes a
+                    # sixth of the slot BEYOND it on each side, so the path it
+                    # returns for a recorded box is already the printed
+                    # hexagon, 4/3 of the box on its long axis. B8-321 grew the
+                    # box to 4/3 first and then handed it to the same function,
+                    # which drew it 4/3 AGAIN: 16/9 of the slot, 17 to 44 px
+                    # past the ink on every chart round 9 measured. The blank
+                    # then cut that same oversized shape out for each READ
+                    # neighbour, and the interlocking UNREAD neighbour's ink
+                    # inside the too-big hole was never painted over. That is
+                    # the saw-tooth ribbon down every read column's edge:
+                    # 62,184 device pixels on one page, 126,577 on a turned
+                    # chart, and what Basti saw unaided (*"the green is
+                    # bleeding into the patches that should be transparent but
+                    # only on the right"*).
+                    #
+                    # So: the FILL is the hexagon grown outward by half the
+                    # ring (a negative inset, the same idiom the renderer uses
+                    # for the ring's outer edge), and the HOLE cut for a read
+                    # neighbour is that neighbour's PRINTED INK, the hexagon
+                    # inset by the ring -- which is exactly what the renderer
+                    # painted. Nothing else can be right: bigger and the unread
+                    # neighbour leaks through, smaller and the blank eats the
+                    # read patch (B8-306).
+                    # ONE IMAGE PIXEL SMALLER THAN THE INK, DELIBERATELY.
+                    # The recorded box is an INTEGER rect while the renderer
+                    # lays the hexagon out from the unrounded slot, so the two
+                    # can differ by a pixel or two: measured on a SpectroScan
+                    # honeycomb, cell 83x72 against a printed ink of 83x94
+                    # where the box alone predicts 96. A hole a hair too big
+                    # leaks the interlocking neighbour's ink and a user sees a
+                    # coloured hairline; a hole a hair too small costs nothing
+                    # at all, because the measured split for that patch is
+                    # painted OVER this blank a few lines further down.
+                    # ...and the FILL reaches a DEVICE pixel and a half past
+                    # the ink, which is not the same thing as an image pixel.
+                    # The page is drawn with `SmoothTransformation`, so a
+                    # patch's colour bleeds about a device pixel past its own
+                    # outline, and a fill that stops on the outline leaves that
+                    # row showing. `inset_px` is in IMAGE pixels, and an A4
+                    # sheet is drawn at about 0.41 of its size, so one device
+                    # pixel is nearly two and a half image pixels: a fixed
+                    # image-pixel margin covered less than half the fringe.
+                    #
+                    # INSIDE the field nothing showed, because neighbouring
+                    # fills overlap and hide it; only the OUTER boundary of the
+                    # honeycomb had a single fill to cover it, which is exactly
+                    # what Basti reported while this was being measured:
+                    # *"hexes with pointy top are bleeding through on the top
+                    # when only show measured patches is active. but only some
+                    # of them do ... only the outer ones it seems"*.
+                    # AND THE HOLE IS GIVEN THE SAME SLACK, which is what
+                    # makes the pair safe. The fill overshoots the midpoint by
+                    # half the slack, so the hole has to come half the slack
+                    # inside the read patch's ink to cancel it exactly; give
+                    # the fill more than the hole and the difference is painted
+                    # over the read neighbour (measured: 93.6 per cent of a
+                    # read column left instead of 100).
+                    _dev = max(1e-6, min(float(s), float(sy if sy else s)))
+                    _FILL_SLACK = 3.0 / _dev
+                    # THE HOLE IS GROWN BY ONE DEVICE PIXEL, and only since
+                    # the blank became an antialiased mask. A hole whose edge
+                    # is soft leaves the blank about half-opaque exactly on the
+                    # read patch's outline, which reads as a white bite out of
+                    # the hexagon: Basti, looking at the first version of this
+                    # fix, *"the outline of the hexes looked better but it
+                    # still cut away too much of them"*. Growing the hole moves
+                    # that soft row off the ink and into the ring, where a
+                    # half-covered pixel is paper against paper.
+                    #
+                    # **TWO LOGICAL PIXELS, AND CLAMPED TO THE ROOM THERE IS.**
+                    # `_dev` is logical pixels per image pixel, so `2.0 / _dev`
+                    # image pixels is two LOGICAL pixels, which is four device
+                    # pixels on the 2x screen the app is used on and two under
+                    # `offscreen`; beta 24 shipped this saying "one device
+                    # pixel", which it never was at any ratio. And the room it
+                    # spends is the RING, which a honeycomb whose hexagons
+                    # tessellate does not have: unclamped it came straight out
+                    # of the unread neighbour's ink and was left showing, 16,451
+                    # device pixels of it on a pointy honeycomb and 14,000 on a
+                    # flat-top one against beta 23's 4,077 and 4,098, and 7,293
+                    # on an A4 sheet at 0.26 (B8-440). Half the ring is where
+                    # the fill and the hole meet, so it is also the most the
+                    # hole may take.
+                    # `test_a_blank_never_leaks_an_unread_patch_beside_a_read_one`
+                    # is the guard, at ring=0, both orientations -- the test
+                    # this comment claimed for a day before it existed.
+                    # **BASTI RULED ON THE PICTURES, 2026-09-19: the blank
+                    # TAKES the ring.** Round 28's repair grew the hole to the
+                    # whole cell, so a measured hexagon kept its own half of
+                    # the printed spacer ring where it met the blank, which is
+                    # what the paragraph above said the rule was. Shown the two
+                    # photographs side by side he chose the other one: *"the
+                    # pictures in shipped beta 24 look better than the ones in
+                    # fixed r28"*. A ring beside a blanked column reads as the
+                    # black hairline he reported in the first place, so the
+                    # blank covers it and the hole is the read patch's PRINTED
+                    # INK and nothing more, which is what `_pts(_rb, _ring)`
+                    # already is.
+                    #
+                    # Nothing else about round 28 is undone by this. The hole
+                    # being the ink is a different question from WHICH read
+                    # patches get a hole at all, and that was the fault worth
+                    # having (B8-439, the two coordinate spaces, below).
+                    _HOLE_SLACK = 0.0
+
+                    # **A REGION, NOT A CHAIN OF PATH SUBTRACTIONS.**
+                    # `QPainterPath.subtracted` is floating-point boolean
+                    # algebra and it does not survive being applied eight times
+                    # to the same small hexagon: measured in the guard's own
+                    # fixture, a flat-top patch with eight read neighbours came
+                    # back EMPTY (`isEmpty()`, 0 elements) and another came back
+                    # with 7 elements instead of its 6 corners, so three whole
+                    # unread patches were never painted over at all. A QRegion
+                    # is integer scanlines, so the same operations cannot
+                    # collapse, and it is also the cheaper shape: the read
+                    # neighbours are subtracted ONCE for the whole strip
+                    # instead of once per patch.
+                    # THE TRUE SLOT LENGTH, AVERAGED OVER THE WHOLE PAGE.
+                    # Every recorded box is rounded to whole pixels, but the
+                    # distance from the first to the last is not: dividing it
+                    # by the number of steps recovers the unrounded pitch the
+                    # renderer drew from (SpectroScan: 70.5, not the 72 its
+                    # boxes report). On a turned honeycomb the point axis is
+                    # the COLUMN pitch instead, so that is what is measured.
+                    _slot = None
+                    if self._hex_flat_top:
+                        _xs = sorted({b.x() for b in allb})
+                        if len(_xs) > 1:
+                            _slot = (_xs[-1] - _xs[0]) / float(len(_xs) - 1)
+                    else:
+                        _ys = sorted({b.y() for b in allb})
+                        if len(_ys) > 1:
+                            _slot = (_ys[-1] - _ys[0]) / float(len(_ys) - 1)
+                    # THE PATH IS KEPT, NOT ASKED FOR TWICE. The region and
+                    # the mask below want the same hexagon, and
+                    # `_patch_hexagon` is the expensive part of this loop:
+                    # `test_the_blank_asks_for_each_hexagon_once_per_strip`
+                    # counts the calls precisely because the cost of this mode
+                    # is its shape, not a stopwatch.
+                    _hex_paths: "list" = []
+                    _hole_paths: "list" = []
+
+                    def _pts(_b, _in, _keep=None):
+                        _pth = self._patch_hexagon(
+                            _b, s, ox, oy, self._hex_flat_top, sy, _in, _slot)
+                        if _keep is not None:
+                            _keep.append(_pth)
+                        return _pth.toFillPolygon().toPolygon()
+
+                    _reg = QRegion()
+                    for b in cp:
+                        # HALF THE RING OUTWARD FROM THE CELL, so the outer
+                        # boundary of the whole field is covered too. The cells
+                        # themselves TILE, so inside the field their union
+                        # already covers every printed ring; what it does not
+                        # cover is the OUTER half-ring around the outermost
+                        # patches, and that is the one Basti could see:
+                        # measured on a real CR30 honeycomb, 2,607 device
+                        # pixels of printed ring around the edge of the field
+                        # against 316 with this growth in place.
+                        _reg = _reg.united(
+                            QRegion(_pts(b, -(_ring + _FILL_SLACK),
+                                         _hex_paths)))
+                    # MINUS ANY READ NEIGHBOUR, and that is not optional.
+                    # Reaching the apex without this ate the read column
+                    # (B8-306), the fault Basti rejected on sight (*"the
+                    # colorful patches go down in a straight line although they
+                    # are staggered"*). Only the read patches that actually
+                    # touch this strip are subtracted.
+                    # **IN THE SAME SPACE, WHICH IT WAS NOT.** `_reg` is
+                    # built from `_pts`, which maps through `s`/`sy` and is
+                    # therefore WIDGET coordinates; `_read_boxes` holds the
+                    # recorded patch boxes, which are IMAGE pixels. Comparing
+                    # the two was a coincidence that held at the guard
+                    # fixture's scale (a 700 px page in an 820 px window, 1.17,
+                    # where the two numbers are nearly the same) and failed at
+                    # the scale a real window uses: an A4 sheet at 300 dpi in a
+                    # 700 px window is 0.26, so every read box's image
+                    # coordinate is about four times its widget one and the
+                    # test threw away read patches that were touching the
+                    # strip. The blank then painted over them, which is B8-306
+                    # exactly (*"the colorful patches go down in a straight
+                    # line although they are staggered"*). Measured on the A4
+                    # sheet fixture below, the share of a read column's ink the
+                    # blank leaves alone: **86.9 %** against **100.0 %** with
+                    # the two rects in one space, at four window sizes and both
+                    # rings (B8-439).
+                    _rb_bounds = QRectF(_reg.boundingRect())
+                    for _rb in _read_boxes:
+                        _rbw = QRectF(_rb.x() * s + ox, _rb.y() * sy + oy,
+                                      _rb.width() * s, _rb.height() * sy)
+                        _grow = max(_rbw.width(), _rbw.height())
+                        if not _rb_bounds.intersects(
+                                _rbw.adjusted(-_grow, -_grow, _grow, _grow)):
+                            continue
+                        _reg = _reg.subtracted(
+                            QRegion(_pts(_rb, _ring + _HOLE_SLACK,
+                                         _hole_paths)))
+                    # ...AND THE LABEL CLAMP APPLIES HERE TOO. `top` is
+                    # B8-306's unconditional clamp, and until round 10 only the
+                    # RECTANGULAR branch below consulted it: a honeycomb's
+                    # hexagons were grown upward by half the ring plus the
+                    # fringe slack and walked straight into the strip letters.
+                    # Measured on screen, CR30 pointy, 3.0 mm ring, no edge
+                    # spacers, nothing read: **82.6 %** of the letters' ink left
+                    # at 940x880 against 96.8 % with the fringe slack removed,
+                    # so most of the loss is this change set's own. B8-306's
+                    # guard could not see it: it builds its page with
+                    # `hexagonal=False`, which is the branch that still had the
+                    # clamp.
+                    #
+                    # A region cannot be clamped by moving a number, so the
+                    # whole strip's fill is cut at the same line the rectangle
+                    # uses, converted to device space the same way.
+                    # THE FLOOR IS THE LABEL BAND, AND ONLY WHERE THERE IS
+                    # ONE. `top` itself cannot be used: it is clamped to
+                    # `min_py - esp`, the first patch's own top, and a hexagon
+                    # legitimately reaches a sixth of its slot ABOVE that. A
+                    # strip rect that was grown to a label band has its top
+                    # above the first patch (measured on six chart types: i1 85
+                    # against 315, SpectroScan 81 against 123, ColorMunki 102
+                    # against 319, rotated CR30 97 against 134), and that line
+                    # is what the letters stand on. A rect whose top IS the
+                    # first patch carries no band, so there are no letters to
+                    # protect and no clamp is wanted.
+                    painter.save()
+                    # THE CLIP IS NO LONGER THE SHAPE, only the label cut: the
+                    # blank itself is painted as an antialiased mask below, and
+                    # clipping to `_reg` would put the widget-pixel staircase
+                    # straight back on top of it.
+                    import math as _m3
+                    _cut = None
+                    if float(rects[i].top()) < min_py:
+                        # CEIL, AND ON A DEVICE ROW, WHICH A QRegion CANNOT DO.
+                        # A QRegion's rows are whole WIDGET pixels, and a whole
+                        # widget pixel is SIX image pixels on an A4 sheet in a
+                        # 700 px window: the cut has to land between the
+                        # letters' last inked row and the top of the printed
+                        # spacer ring, and on a CR30 honeycomb those are six
+                        # image rows apart (147 and 154), so one widget pixel
+                        # is the whole of the gap and rounding either way
+                        # misses. Rounding DOWN took the bottom bar off every
+                        # `E` (B8-339); rounding UP left five to 122 device
+                        # pixels of ring showing at four window sizes out of
+                        # six (B8-346 F1).
+                        #
+                        # So the SHAPE stays a region and the CUT becomes a
+                        # float clip rect, which Qt rasterises at device
+                        # resolution: half a widget pixel, which is three image
+                        # rows, which fits inside the gap with room either
+                        # side. The rectangular branch below already snaps its
+                        # own edges to device rows for the same reason.
+                        _rb2 = _reg.boundingRect()
+                        # TWO LINES, AND WHICH ONE BINDS DEPENDS ON THE CHART.
+                        # `_lo` is the label band's bottom: cutting above it
+                        # takes the feet off the letters. `_hi` is the top of
+                        # this strip's own printed ink: cutting below it leaves
+                        # ink showing. On a 6 mm ring the band is the higher of
+                        # the two and the ink is safe; on a ring-0 honeycomb the
+                        # POINTY APEX overhangs its cell by a sixth of the slot
+                        # and reaches ABOVE the band (measured on the page: the
+                        # first green row is 154, the band bottom 157), so there
+                        # the ink binds instead. Rounding is chosen to respect
+                        # whichever line binds: down onto the ink, up off the
+                        # letters.
+                        _lo = float(rects[i].top()) * sy + oy
+                        _yi = _m3.ceil(_lo * _dpr) / _dpr
+                        # ...and the ink line carries ONE DEVICE ROW of
+                        # fringe, not the fill's own `_FILL_SLACK`. The page is
+                        # smooth-scaled, so its colour reaches about a device
+                        # pixel past the geometry; `_FILL_SLACK` is three WIDGET
+                        # pixels, which is thirteen image rows on an A4 sheet in
+                        # a 1500 px window, and spending that here would cut a
+                        # quarter of the way up the letters on a chart whose
+                        # apex already overlaps them.
+                        #
+                        # AND WHERE THE TWO LINES CROSS, THE INK WINS. On a
+                        # pointy honeycomb the apex overhangs its cell by a
+                        # sixth of the slot and is printed INSIDE the label
+                        # band: measured on a ring-0 CR30 page, the letters run
+                        # to row 155 and the first green row is 154, so no cut
+                        # can both cover the ink and leave every letter whole.
+                        # Leaving the ink is the fault that was reported (a
+                        # green dash on the tip of every column, photographed);
+                        # the cost is the two rows the chart itself overlapped.
+                        # The collision belongs to the layout and is recorded
+                        # against it.
+                        _ink_i = self._patch_ink_top_px.get(self._current)
+                        _hi = (float(_ink_i) * sy + oy - 1.0 / _dpr
+                               if _ink_i is not None else None)
+                        if _hi is not None and _yi > _hi:
+                            _yi = _m3.floor(_hi * _dpr) / _dpr
+                        if float(_rb2.top()) < _yi:
+                            _cut = _yi
+                            painter.setClipRect(
+                                QRectF(float(_rb2.x()), _yi,
+                                       float(_rb2.width()),
+                                       float(_rb2.bottom()) + 1.0 - _yi),
+                                Qt.ClipOperation.IntersectClip)
+                    # **THE SHAPE IS A REGION; THE PAINT IS NOT.**
+                    # `_reg` is integer WIDGET scanlines, built from polygons
+                    # `toPolygon()` has already truncated to whole widget
+                    # coordinates, and painting through it as a clip put a
+                    # staircase down the boundary between the blank and the
+                    # last read column: on a 2x screen every step is two device
+                    # pixels, and the same rounding takes the step out of the
+                    # READ patch, so a measured hexagon came out visibly chewed
+                    # while its neighbours two columns in were smooth. Basti,
+                    # 2026-09-19, on the beta 23 gallery: *"the last strip of
+                    # visible patches has a very rough outline compared to the
+                    # others which are much smoother"* and *"more of the
+                    # already measured patch is painted over than it actually
+                    # needed to be"*. Both are that one rounding.
+                    #
+                    # The region stays, because it is what `_under_blank`
+                    # answers with and because a chain of
+                    # `QPainterPath.subtracted` collapses (see the note above
+                    # this loop, and the three unpainted patches it cost). What
+                    # changes is only HOW the same two shapes are painted: into
+                    # an alpha mask at DEVICE resolution, the fill HARD-EDGED
+                    # and stroked and the read neighbours cleared antialiased
+                    # (the paragraph below says why each, and this sentence said
+                    # "the fill antialiased" for a day while the code beneath it
+                    # said the opposite), then blitted once. Qt then resolves both edges at the device grid
+                    # instead of the widget grid, which is the whole of the
+                    # difference.
+                    _rbF = QRectF(_reg.boundingRect())
+                    _mw = max(1, int(_m3.ceil(_rbF.width() * _dpr)) + 2)
+                    _mh = max(1, int(_m3.ceil(_rbF.height() * _dpr)) + 2)
+                    _mask = QImage(_mw, _mh,
+                                   QImage.Format.Format_ARGB32_Premultiplied)
+                    _mask.setDevicePixelRatio(_dpr)
+                    _mask.fill(0)
+                    _mp = QPainter(_mask)
+                    _mp.translate(-_rbF.x(), -_rbF.y())
+                    # THE FILL IS HARD-EDGED AND THE HOLE IS NOT, and the
+                    # asymmetry is the whole point. An antialiased FILL leaves
+                    # a half-covered row around the outside of the field, and
+                    # that row is printed ink: measured on this file's own
+                    # fixture with every strip unread, 13 surviving pixels on a
+                    # pointy honeycomb and 43 on a flat-top one, which is
+                    # exactly the fault
+                    # `test_a_blanked_honeycomb_hides_every_printed_pixel`
+                    # exists to catch. Hard-edged here still beats the region
+                    # it replaces, because the mask is rasterised on the DEVICE
+                    # grid and a QRegion on the widget grid.
+                    #
+                    # The HOLE is the edge a person actually looks at - where
+                    # the blank meets the last read column - so it is cleared
+                    # with antialiasing, and a partly-cleared row there shows
+                    # the read patch's own ink through it, which is the right
+                    # answer rather than a leak.
+                    # AND THE FILL IS STROKED AS WELL AS FILLED. A QRegion
+                    # built from a polygon covers the boundary row; an aliased
+                    # `fillPath` uses the pixel-centre rule and drops it, which
+                    # left 23 and 29 pixels of printed ink on the two
+                    # honeycombs in this file's own fixture - the same guard,
+                    # the same shape, a different rasteriser. A pen two device
+                    # pixels wide puts that row back, on both sides of the
+                    # outline; the inner side is covered by the hexagon anyway
+                    # and the holes are cleared after this, so nothing of a
+                    # read patch is bought with it.
+                    _mp.setPen(QPen(white, 2.0 / _dpr))
+                    _mp.setBrush(white)
+                    for _pth in _hex_paths:
+                        _mp.drawPath(_pth)
+                    _mp.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                    _mp.setCompositionMode(
+                        QPainter.CompositionMode.CompositionMode_Clear)
+                    for _pth in _hole_paths:
+                        _mp.fillPath(_pth, white)
+                    _mp.end()
+                    painter.drawImage(_rbF.topLeft(), _mask)
+                    painter.restore()
+                    # what this strip's blank really covers = the region, cut
+                    # at the label line where there was one (B8-371)
+                    #
+                    # ...AND SINCE THE MASK, THIS IS NO LONGER WHAT WAS
+                    # PAINTED: the mask resolves both edges on the device grid
+                    # and grows each hole, so `_reg` is wrong by up to a device
+                    # pixel around every read patch. Nothing reads it today --
+                    # measured by recording an EMPTY region here instead, which
+                    # changed **0 pixels** at 820x980, 900x1000 and 1200x980
+                    # with splits on the read strips, because the hexagonal arm
+                    # of the overlay loop leaves before the sliver code that
+                    # asks (`test_the_honeycomb_branch_still_leaves_before_the_
+                    # sliver`). If a honeycomb is ever given a sliver, this has
+                    # to become what the mask painted rather than what the
+                    # region says (B8-442).
+                    _blank_regions.append((_reg, _cut))
+                else:
+                    # Horizontally cover the column's own patches AND reach the
+                    # gap midpoint to each neighbour so the inter-column gap is
+                    # hidden — whichever is further. At the row's OUTER edge
+                    # there is no neighbour, so we stop a hairline past the last
+                    # patch: that keeps the fill from bleeding into the
+                    # right-margin caption on a ragged/partial last page (Knut).
+                    # Adjacent unread columns overlap in white ⇒ seamless,
+                    # nothing to alias (Sebastian).
+                    left = min(b.left() for b in cp) - 2.0
+                    if i > 0:
+                        left = min(left,
+                                   (rects[i - 1].right() + rects[i].left()) / 2.0)
+                    right = max(b.right() + 1 for b in cp) + 2.0
+                    if i < n - 1:
+                        right = max(right,
+                                    (rects[i].right() + rects[i + 1].left()) / 2.0)
+                    # TAKE IN THE WHOLE DEVICE ROW EACH EDGE FALLS IN. The
+                    # page is drawn with `SmoothTransformation`, so the edge
+                    # spacer's colour reaches about a device pixel past its own
+                    # edge, and a blank that stops on a fraction leaves that row
+                    # showing: photographed on a label-free i1 chart, 367 pixels
+                    # of edge spacer left in one unbroken row at 760x900 and
+                    # none at 900x1000 or 1200x980, which is the rounding phase
+                    # and nothing else. Basti saw it: *"still something at the
+                    # top here. sometimes it seemed at the bottom as well"*.
+                    #
+                    # Only the vertical edges. Sideways the fill already reaches
+                    # the gap MIDPOINT to each neighbour, and a neighbour may be
+                    # READ, so growing there could eat a measurement; above and
+                    # below an unread column there is only paper, and the clamp
+                    # that protects the strip labels is hundreds of image pixels
+                    # away.
+                    import math as _m2
+                    _yt = _m2.floor((top * sy + oy) * _dpr) / _dpr
+                    _yb = _m2.ceil((bot * sy + oy) * _dpr) / _dpr
+                    _br = QRectF(left * s + ox, _yt,
+                                 (right - left) * s, _yb - _yt)
+                    painter.fillRect(_br, white)
+                    _blank_rects.append(_br)
 
             # On the clean white background, draw a thin cell grid so each unread
             # patch reads as its own empty cell (Knut). Each patch gets its
@@ -2707,7 +3637,9 @@ class TiffPreview(QWidget):
                     # honeycomb; no dedup needed the way rectangles need it.
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     for b in pats:
-                        painter.drawPath(self._patch_hexagon(b, s, ox, oy))
+                        painter.drawPath(self._patch_hexagon(
+                            b, s, ox, oy, self._hex_flat_top, sy,
+                            self._hex_ring_px))
                     continue
                 left_is_border = (i == 0) or read_map.get(i - 1, False)
                 # The left edge is normally deduped against the unread column to
@@ -2725,9 +3657,9 @@ class TiffPreview(QWidget):
                                  if lrect.left() <= b.x() + b.width() / 2 <= lrect.right()]
                 for idx, b in enumerate(pats):
                     x0 = b.x() * s + ox
-                    y0 = b.y() * s + oy
+                    y0 = b.y() * sy + oy
                     x1 = (b.x() + b.width()) * s + ox
-                    y1 = (b.y() + b.height()) * s + oy
+                    y1 = (b.y() + b.height()) * sy + oy
                     painter.drawLine(QPointF(x1, y0), QPointF(x1, y1))   # right
                     painter.drawLine(QPointF(x0, y1), QPointF(x1, y1))   # bottom
                     if idx == 0:
@@ -2741,6 +3673,27 @@ class TiffPreview(QWidget):
         #: note below the loop.
         _seams: list = []
         _warn_hexes: list = []
+        # WHICH PARTS OF A PATCH'S EDGES FACE NOTHING. The page underneath is
+        # drawn with `SmoothTransformation`, so a patch's colour reaches about
+        # a device pixel past its own edge; a split that stops at the geometric
+        # edge leaves a coloured hairline, which is the fault a tester reported
+        # along the bottom of a patch. Where an edge faces ANOTHER patch there
+        # is nothing to cover, because that patch's own box covers its own
+        # half. Where it faces a spacer or paper, a one-pixel sliver covers it.
+        #
+        # Growing the whole box instead was tried four times and broken four
+        # times: see `_exposed_edges`. Segments, not boxes, is the shape of the
+        # answer, and it needs no threshold, no page-global rule and no special
+        # case for the grid's outer edge.
+        #
+        # The geometry comes from `_page_patch_boxes`, which holds every patch
+        # of the page whether or not it has been read. The list of measured
+        # items GROWS as strips arrive, so an answer taken from it could change
+        # mid-measurement, which is draw-order dependence by another door. With
+        # no page geometry there are no slivers, which is exactly the behaviour
+        # this file had before them.
+        _geom = self._page_patch_boxes.get(self._current) or []
+        _exposed = self._exposed_for_page(_geom) if _geom else {}
         for rect, c_exp, c_meas, warn in items:
             if self._hex_zigzag:
                 # SpectroScan hexagonal chart: the measured/expected patch must
@@ -2750,11 +3703,11 @@ class TiffPreview(QWidget):
                 b = (rect if isinstance(rect, QRect)
                      else QRect(int(rect.x()), int(rect.y()),
                                 int(rect.width()), int(rect.height())))
-                hexp = self._patch_hexagon(b, s, ox, oy)
-                # Fill by PATH intersection, never a clip: a clip path is hard-
-                # edged and left a faint seam around every patch (Knut, zoomed in).
-                # A hairline stroke in the fill colour closes the sub-pixel gaps
-                # where antialiased neighbours meet, so the honeycomb reads solid.
+                hexp = self._patch_hexagon(b, s, ox, oy, self._hex_flat_top,
+                                           sy, self._hex_ring_px)
+                # The WHOLE hexagon is still filled by path, which is what the
+                # note below is about. Only the expected HALF is clipped, and
+                # that is a correction: see the block at the split branch.
                 if self._overlay_mode == "expected":
                     painter.fillPath(hexp, c_exp)
                     _edge = c_exp
@@ -2769,14 +3722,90 @@ class TiffPreview(QWidget):
                     tri.lineTo(br.right(), br.top())
                     tri.lineTo(br.left(), br.bottom())
                     tri.closeSubpath()
-                    painter.fillPath(hexp.intersected(tri), c_exp)   # expected ◤
+                    # THE EXPECTED HALF IS CLIPPED, NOT INTERSECTED, AND
+                    # THAT IS NOT A STYLE CHOICE.
+                    #
+                    # `QPainterPath.intersected` is boolean algebra on two
+                    # paths, and it is not conditioned to guarantee that the
+                    # result lies inside either operand. On a honeycomb whose
+                    # hexagon has been inset for its spacer ring, `s` and `sy`
+                    # differ (the page's two scales are not the same number,
+                    # which is the fault this whole file exists for), so the
+                    # inset hexagon is irregular, and on the patches whose box
+                    # rounded a pixel SHORT the top apex lands on the knife
+                    # edge of the bounding rect's own top. There the
+                    # intersection rasterises PAST the hexagon and a wedge of
+                    # the expected colour is painted on the printed spacer
+                    # ring.
+                    #
+                    # Basti saw it on screen before any of this was measured:
+                    # *"patch i 16 look strange i think ... there is a cut in
+                    # the spacer"*. Measured by an adversary round on that
+                    # chart: I16 lost **140 ring pixels, 5.81 %**, against a
+                    # 240-patch mean of 1.23 % and a next-worst of 2.7 %, and
+                    # deleting this one fill put it back to 1.95 % while every
+                    # neighbour stayed byte-identical.
+                    #
+                    # A clip contains by construction. Measured over all 240
+                    # patches of that chart at the window's real scales:
+                    # `hexp.intersected(tri)` paints outside the hexagon on
+                    # **3** of them, `tri.intersected(hexp)` on 2 (the order
+                    # only moves it), an inflated triangle on 4, and the clip
+                    # on **0**. Of the 1,891 pixels the clip changes across all
+                    # 240, **1,850 are I16 itself** being corrected; no other
+                    # patch moves by more than 2.
+                    #
+                    # The note above still stands for the hexagon's own fill,
+                    # which is why only this half is clipped: antialiasing is
+                    # OFF at this point in the function, so the clip's hard
+                    # edge falls on the same pixels the fill would have, and
+                    # the seam stroke below covers that boundary anyway.
+                    painter.save()
+                    painter.setClipPath(hexp)
+                    painter.fillPath(tri, c_exp)             # expected ◤
+                    painter.restore()
                     _edge = c_meas
+                # THE SEAM IS ALWAYS STROKED, AND AN ATTEMPT TO MAKE IT
+                # CONDITIONAL WAS REVERTED. It is a cosmetic 1 px pen centred
+                # ON the path, so half its width lies outside the hexagon,
+                # which is what closes the sub-pixel gaps where two antialiased
+                # neighbours meet; without it a tessellating honeycomb reads as
+                # a grid of separate blobs (Knut, zoomed in).
+                #
+                # Basti reported that the split covers the ring on a honeycomb
+                # with spacers, and it does, but the seam is not why and
+                # skipping it does not help. Round 6 added a `_hex_has_ring()`
+                # that looked for the first positive VERTICAL gap between two
+                # boxes sharing an exact x. Round 7 measured what that actually
+                # answers: **the honeycomb's ORIENTATION, never its ring.** On a
+                # pointy-top chart `hexagon.stagger_dx` moves every patch by
+                # +/- w/4 by its index, so a same-x group is every OTHER patch,
+                # one full pitch apart, and the gap is always positive; on a
+                # flat-top chart the stagger is on y and every vertical gap is
+                # 0. Measured on real engine charts: a CR30 pointy honeycomb
+                # with NO spacer answered True, and a CR30 rotated honeycomb
+                # with a 1.5 mm ring answered False. So the rule was inert
+                # exactly where it was meant to help (0 device pixels different
+                # on the rotated ringed chart) and it REMOVED the seam where it
+                # is needed (15,708 device pixels different on the tessellating
+                # chart, 139 more paper pixels inside a read honeycomb).
+                #
+                # The real cause is B8-318 and it is inherited: the recorded
+                # box is the hexagon's CELL and the printed hexagon inside it
+                # is smaller by the ring. Measured, CR30 A4 at 300 dpi, one box
+                # at its centre row: the box is 142 px at every spacer width
+                # while the ink is 142 / 137 / 125 / 109 px at 0 / 0.5 / 1.5 /
+                # 3.0 mm. `_patch_hexagon` inscribes in the box, so the split
+                # is drawn at cell size whatever this seam does. The ring has
+                # to come from the chart's recipe (`hex_support.ring_mm_of`),
+                # not from the boxes, which carry no trace of it: they are
+                # byte-identical with the spacer on and off.
                 _seam = QPen(_edge)
                 _seam.setCosmetic(True)
                 _seam.setWidthF(1.0)
-                # The seam is stroked on the shared edge too, so it is deferred
-                # for the same reason as the ring: a neighbour's fill drawn
-                # later would erase half of it.
+                # The seam is stroked on the shared edge too, so it is
+                # deferred for the same reason as the ring: a neighbour's
+                # fill drawn later would erase half of it.
                 _seams.append((hexp, QPen(_seam)))
                 if warn:
                     # DEFERRED TO A SECOND PASS. On a hexagonal chart the ring
@@ -2790,28 +3819,64 @@ class TiffPreview(QWidget):
                     # for flagged patches are partly covered by other patches".
                     _warn_hexes.append(hexp)
                 continue
-            # Round BOTH edges to whole pixels so the split covers exactly the
-            # same span as the printed patch — flooring each of x/y/w/h
-            # separately (the old int() calls) shifted every patch up-left by
-            # up to a pixel and let edges drift (Knut/Basti).
-            # …AND SNAP THEM TO THE DEVICE GRID, NOT THE LOGICAL ONE. A Retina
-            # screen paints two device pixels per logical pixel, so rounding to
-            # whole logical pixels can land half a logical pixel from the
-            # image's own edge — one device pixel of the printed patch left
-            # showing along an edge, which is the colour fringe Sebastian saw
-            # around the split (2026-08-13). Rounding at device resolution puts
-            # every edge on a real screen pixel. On a non-Retina display the
-            # ratio is 1 and this is exactly the old behaviour.
-            x0 = _dsnap(rect.x() * s + ox)
-            y0 = _dsnap(rect.y() * s + oy)
-            x1 = _dsnap((rect.x() + rect.width()) * s + ox)
-            y1 = _dsnap((rect.y() + rect.height()) * s + oy)
+            # EDGES ARE ROUNDED TO WHOLE DEVICE PIXELS, AND WHICH WAY
+            # DEPENDS ON WHAT IS BEYOND THE EDGE.
+            #
+            # Rounding at all: flooring each of x/y/w/h separately (the old
+            # int() calls) shifted every patch up-left by up to a pixel and let
+            # edges drift (Knut/Basti). Rounding at DEVICE resolution rather
+            # than logical: a Retina screen paints two device pixels per
+            # logical one, so a whole logical pixel can still land half a pixel
+            # from the image's own edge, which is the colour fringe Sebastian
+            # saw around the split (2026-08-13).
+            #
+            # WHERE THERE IS ROOM (`_grow_x` / `_grow_y`, see above) an edge is
+            # taken OUTWARD to the whole device pixel it falls in. The page
+            # underneath is drawn with `SmoothTransformation`, so a patch's
+            # colour reaches about a pixel past its own edge; a box that
+            # stopped at the geometric edge left that pixel showing, and a
+            # coloured hairline ran along the split. Basti, on the photograph
+            # of the first attempt: "you can still see color from the patches
+            # bleeding through".
+            #
+            # THE SPACER BAND PAYS FOR THAT, and it belongs here rather than in
+            # a footnote: measured on the real Measure tab, a band's mean
+            # height goes from 6.47 to 5.38 device pixels at 1200x980, and at
+            # the smallest window the preview allows, 242 bands come out a
+            # single device pixel. The pixel the box takes is the one carrying
+            # its own patch's colour, which is the trade this is.
+            #
+            # WHERE THERE IS NOT ROOM, both edges are SNAPPED. Snapping is
+            # monotone: a boundary maps to the same pixel from either side, so
+            # the boxes tile exactly and nothing depends on the order the
+            # strips were read in. See
+            # `test_the_same_patches_read_in_any_order_paint_the_same_pixels`
+            # and `test_warn_ring_draw_order.py`.
+            #
+            # Growing EVERY edge unconditionally -- snapping the position and
+            # rounding the SIZE up, which makes every patch of a size exactly
+            # one size on screen and so gives every diagonal the same stair
+            # pattern -- was tried and rejected the same day: it eats into the
+            # spacers on every side, and Basti saw it at once in the photograph
+            # ("now you just made the overlay bigger and in turn some spacers
+            # got smaller and not all of them have the same size"). The overlay
+            # follows the chart; it does not tidy it.
+            _lx = rect.x() * s + ox
+            _ty = rect.y() * sy + oy
+            _rxf = (rect.x() + rect.width()) * s + ox
+            _byf = (rect.y() + rect.height()) * sy + oy
+            x0 = _dsnap(_lx)
+            y0 = _dsnap(_ty)
+            x1 = _dsnap(_rxf)
+            y1 = _dsnap(_byf)
             w = max(2.0 / _dpr, x1 - x0)
             h = max(2.0 / _dpr, y1 - y0)
             if self._overlay_mode == "expected":
                 painter.fillRect(QRectF(x0, y0, w, h), c_exp)
+                _ec = {"l": c_exp, "r": c_exp, "t": c_exp, "b": c_exp}
             elif self._overlay_mode == "measured":
                 painter.fillRect(QRectF(x0, y0, w, h), c_meas)
+                _ec = {"l": c_meas, "r": c_meas, "t": c_meas, "b": c_meas}
             else:
                 # Expected: upper-left triangle; measured: lower-right — the
                 # i1Profiler split, corner to corner, hard edge, no gap.
@@ -2822,6 +3887,155 @@ class TiffPreview(QWidget):
                 tri.closeSubpath()
                 painter.fillRect(QRectF(x0, y0, w, h), c_meas)
                 painter.fillPath(tri, c_exp)
+                # The split's own colour along each edge, which is not a
+                # choice: the triangle runs (x0,y0) -> (x0+w,y0) -> (x0,y0+h),
+                # so the LEFT and TOP edges are expected and the RIGHT and
+                # BOTTOM edges are measured.
+                _ec = {"l": c_exp, "t": c_exp, "r": c_meas, "b": c_meas}
+            # THE SLIVERS, AND THEY DO NOT COST THE SPACER A PIXEL.
+            #
+            # An opaque sliver was tried first and Basti saw it immediately:
+            # *"it seems that your fixes cause the spacers to become smaller
+            # when the split overlay is active"*. Measured over six window
+            # sizes, the bands went from 4, 5, 6, 7 device pixels to 3, 4, 5 --
+            # one pixel lost to each neighbour. He had already rejected the
+            # same cost once, when the whole box grew.
+            #
+            # So the sliver is drawn at the coverage the PATCH itself has in
+            # that pixel. The boundary pixel of a snapped box is part patch and
+            # part spacer, exactly as the chart's own antialiased edge is;
+            # painting it at that same fraction replaces the patch's share with
+            # the split's colour and leaves the spacer's share alone. The band
+            # keeps the width it had, and the full-strength hairline the tester
+            # reported becomes at most a quarter-strength tint (the residue is
+            # `c * (1 - c)` of the patch colour, which peaks at c = 0.5 and is
+            # zero at either end).
+            #
+            # It is drawn only where the snap left the pixel UNCOVERED. Where
+            # the snap rounded outward the box already owns the pixel, which is
+            # the behaviour this file has always had.
+            _seg = _exposed.get((int(rect.x()), int(rect.y()),
+                                 int(rect.width()), int(rect.height())))
+            if _seg:
+                _one = 1.0 / _dpr
+
+                def _sliver(dev_edge, seg_a, seg_b, colour, vertical, outward,
+                            probe):
+                    """The boundary pixel, repainted as the chart would draw it
+                    if the patch's ink were the split's colour.
+
+                    The pixel a snapped box stops short of is part patch and
+                    part spacer, exactly as the chart's own antialiased edge is.
+                    Painting `c * split + (1 - c) * spacer` over it replaces the
+                    patch's share and leaves the spacer's, so the band keeps its
+                    width and no printed colour is left showing. `c` is the
+                    patch's own coverage of that pixel; the spacer's colour is
+                    read from the page at the FIRST pixel beyond the edge.
+
+                    **THE ROUNDING IS `_dsnap`'s, NOT `round()`'s.** The first
+                    version of this used `round()`, two hundred lines below the
+                    docstring that says why that is wrong here: Python rounds a
+                    half to the even side, so the two disagreed at every even
+                    integer plus a half. An adversary round swept 1,100 window
+                    widths and found the one that lands there (620, where the
+                    fit scale is exactly 0.25 with a zero border): 152 of 640
+                    patch edges on the phase, and **1,143 device pixels
+                    carrying printed ink at up to half strength** -- the very
+                    hairline this mechanism exists to remove.
+                    """
+                    _r = _m.floor(dev_edge + 0.5)
+                    short = dev_edge - _r
+                    if outward:              # a right or bottom edge
+                        if short <= 0:
+                            return           # the snap already covers it
+                        pos = _r / _dpr
+                    else:                    # a left or top edge
+                        if short >= 0:
+                            return
+                        short = -short
+                        pos = (_r - 1) / _dpr
+                    c = max(0.0, min(1.0, short))
+                    if vertical:
+                        a0 = _dsnap(seg_a * sy + oy)
+                        a1 = _dsnap(seg_b * sy + oy)
+                        band = QRectF(pos, a0, _one, a1 - a0)
+                    else:
+                        a0 = _dsnap(seg_a * s + ox)
+                        a1 = _dsnap(seg_b * s + ox)
+                        band = QRectF(a0, pos, a1 - a0, _one)
+                    # **MIX WITH WHAT IS ON SCREEN, NOT WITH WHAT IS PRINTED
+                    # (B8-371).** The whole point of the mix is to leave the
+                    # ground its share of the pixel, and the ground under this
+                    # band is the BLANK wherever "Show only measured patches"
+                    # has covered the page. Reading the printed page there put
+                    # `1 - c` of a black `bw` spacer back on top of the blank:
+                    # a one-device-pixel black hairline hugging the patch, on
+                    # the top and bottom edges of a patch whose own strip is
+                    # blanked (every whole-chart and patch-by-patch read, where
+                    # no strip is ever marked read) and on the side facing a
+                    # blanked neighbour. Basti photographed it and named it
+                    # exactly: *"bottom of the blue patch black hairline and
+                    # the patch below it has a black hairline on top and
+                    # bottom ... of course on others it is there as well but
+                    # white which you would not see"*. White is what it always
+                    # should have been: the spacer the user is looking at is
+                    # the blank, whatever the chart printed underneath.
+                    #
+                    # The ROUNDING is not the cause and was measured not to be:
+                    # `_r = floor(dev_edge + 0.5)` here is `_dsnap`'s own, the
+                    # same one the box uses, so the band and the box agree on
+                    # every edge. What the rounding decides is WHICH edges get
+                    # a band at all (only those the snap left uncovered), which
+                    # is why the hairline showed on some patches and not on
+                    # their neighbours.
+                    spacer = (_blank_colour if _under_blank(band.center())
+                              else self._page_colour_at(*probe))
+                    if spacer is None:
+                        return
+                    mix = QColor(
+                        int(round(c * colour.red() + (1 - c) * spacer.red())),
+                        int(round(c * colour.green() + (1 - c) * spacer.green())),
+                        int(round(c * colour.blue() + (1 - c) * spacer.blue())))
+                    painter.fillRect(band, mix)
+
+                _rx, _ry = int(rect.x()), int(rect.y())
+                _rr = _rx + int(rect.width())
+                _rb = _ry + int(rect.height())
+                # THE FIRST PIXEL BEYOND THE EDGE, NOT THE SECOND.
+                #
+                # The box spans image columns `_rx .. _rr - 1` and rows
+                # `_ry .. _rb - 1`, so the first pixel outside it is `_rx - 1`,
+                # `_rr`, `_ry - 1` and `_rb`. This probed one pixel too far on
+                # every side, and an edge is only given a sliver when
+                # `_exposed_edges` says it faces NO patch -- which a ONE image
+                # pixel gap satisfies. So on a chart built with `Spacer size =
+                # 0.1 mm`, a real control in Create Chart, every probe landed
+                # inside the NEIGHBOURING PATCH and the boundary pixel was
+                # repainted with that patch's ink instead of the spacer's.
+                #
+                # Measured by an adversary round on the layout engine's own A4
+                # at the default 300 dpi, patch_first 8x10 mm, spacer 0.1 mm:
+                # 119 of 154 column boundaries one image pixel apart, and **119
+                # of 154 top probes and 119 of 154 bottom probes inside a
+                # printed patch**, returning its centre colour exactly. On
+                # screen, 2,506 device pixels repainted as `c * split +
+                # (1 - c) * neighbour`; one went from (208, 137, 184) with the
+                # overlay off to (0, 71, 184) with it on, red driven to zero.
+                # Basti reported it from the other end, twice, without seeing
+                # the code: *"for hexes the split overlay covers the spacers
+                # when they are active"*.
+                for _a, _b2 in _seg["l"]:
+                    _sliver(_lx * _dpr, _a, _b2, _ec["l"], True, False,
+                            (_rx - 1, (_a + _b2) // 2))
+                for _a, _b2 in _seg["r"]:
+                    _sliver(_rxf * _dpr, _a, _b2, _ec["r"], True, True,
+                            (_rr, (_a + _b2) // 2))
+                for _a, _b2 in _seg["t"]:
+                    _sliver(_ty * _dpr, _a, _b2, _ec["t"], False, False,
+                            ((_a + _b2) // 2, _ry - 1))
+                for _a, _b2 in _seg["b"]:
+                    _sliver(_byf * _dpr, _a, _b2, _ec["b"], False, True,
+                            ((_a + _b2) // 2, _rb))
             if warn:
                 # A bright red outline over a white halo (the same trick the
                 # margin guides use) so a likely misread is unmistakable on ANY
@@ -2905,7 +4119,7 @@ class TiffPreview(QWidget):
                 and self._active_patch_page == self._current):
             ar = self._active_patch_box
             cx = (ar.x() + ar.width() / 2.0) * s + ox
-            cy = (ar.y() + ar.height() / 2.0) * s + oy
+            cy = (ar.y() + ar.height() / 2.0) * sy + oy
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
@@ -2953,9 +4167,9 @@ class TiffPreview(QWidget):
         if self._active_patch_box is not None and self._active_patch_page == self._current:
             r = self._active_patch_box
             x0 = round(r.x() * s + ox)
-            y0 = round(r.y() * s + oy)
+            y0 = round(r.y() * sy + oy)
             x1 = round((r.x() + r.width()) * s + ox)
-            y1 = round((r.y() + r.height()) * s + oy)
+            y1 = round((r.y() + r.height()) * sy + oy)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             # A HEXAGONAL chart gets a hexagonal ring. The slot box's corners
             # fall OUTSIDE the hexagon, so a rectangle here covers slivers of
@@ -2965,7 +4179,7 @@ class TiffPreview(QWidget):
             # already draws the true shape (Knut); this is the same rule for the
             # patch being read next. (Sebastian, on screen: "i saw a square
             # overlay over the hex patch".)
-            _hex = self._patch_hexagon(r, s, ox, oy) if self._hex_zigzag else None
+            _hex = self._patch_hexagon(r, s, ox, oy, self._hex_flat_top, sy) if self._hex_zigzag else None
             # A WHOLE NUMBER OF DEVICE PIXELS EACH SIDE.
             #
             # The white is (halo - ring)/2 wide on each side. At 5.0 over 2.5
@@ -2983,7 +4197,7 @@ class TiffPreview(QWidget):
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             # A 6 px halo is a third of a 7 mm patch on screen. Below ~24 logical
             # px of patch, thin both strokes rather than smother the colour.
-            _small = min(r.width(), r.height()) * s < RING_SMALL_PATCH_PX
+            _small = min(r.width() * s, r.height() * sy) < RING_SMALL_PATCH_PX
             halo = QPen(QColor(255, 255, 255, 235))
             halo.setWidthF(RING_HALO_W_SMALL if _small else RING_HALO_W)
             halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -3018,7 +4232,7 @@ class TiffPreview(QWidget):
             ar = self._active_patch_box
             if self._aim_aperture_px >= min(ar.width(), ar.height()):
                 cx = (ar.x() + ar.width() / 2.0) * s + ox
-                cy = (ar.y() + ar.height() / 2.0) * s + oy
+                cy = (ar.y() + ar.height() / 2.0) * sy + oy
                 rad = self._aim_aperture_px * s / 2.0
                 if rad >= 1.5:
                     painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -3039,9 +4253,9 @@ class TiffPreview(QWidget):
             hr = _boxes.get(self._hover_patch_loc)
             if hr is not None:
                 x0 = round(hr.x() * s + ox)
-                y0 = round(hr.y() * s + oy)
+                y0 = round(hr.y() * sy + oy)
                 x1 = round((hr.x() + hr.width()) * s + ox)
-                y1 = round((hr.y() + hr.height()) * s + oy)
+                y1 = round((hr.y() + hr.height()) * sy + oy)
                 pen = QPen(self._overlay_accent(self._OVERLAY_ARROW))
                 pen.setWidthF(2.5)
                 pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -3050,7 +4264,7 @@ class TiffPreview(QWidget):
                 # …and the same for the hover outline, which says "click here
                 # to read this one".
                 if self._hex_zigzag:
-                    painter.drawPath(self._patch_hexagon(hr, s, ox, oy))
+                    painter.drawPath(self._patch_hexagon(hr, s, ox, oy, self._hex_flat_top, sy))
                 else:
                     painter.drawRect(x0, y0, x1 - x0, y1 - y0)
 
@@ -3065,16 +4279,16 @@ class TiffPreview(QWidget):
             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            zig = (self._strip_zigzag_path(strip_rect, s, ox, oy)
+            zig = (self._strip_zigzag_path(strip_rect, s, ox, oy, sy)
                    if self._hex_zigzag else None)
             if zig is not None:
                 painter.drawPath(zig)             # follow the hex column's zigzag
             else:
                 r = self._hover_patch_bounds(strip_rect) or strip_rect
                 x0 = round(r.x() * s + ox)
-                y0 = round(r.y() * s + oy)
+                y0 = round(r.y() * sy + oy)
                 x1 = round((r.x() + r.width()) * s + ox)
-                y1 = round((r.y() + r.height()) * s + oy)
+                y1 = round((r.y() + r.height()) * sy + oy)
                 painter.drawRect(x0, y0, x1 - x0, y1 - y0)
 
         if not (items and self._pixmap is not None):
@@ -3096,14 +4310,14 @@ class TiffPreview(QWidget):
             th = fm.height() + 8
             img_l = ox
             img_r = ox + self._pixmap.width() * s
-            img_b = oy + self._pixmap.height() * s
+            img_b = oy + self._pixmap.height() * sy
             # Sit in the bottom paper margin, below the lowest patch, so it
             # never covers patches even on charts that reach near the edge
             # (Knut). Fall back to just above the paper edge if the margin is
             # tight.
             patch_bottom = oy
             for r in self._stripe_rects:
-                patch_bottom = max(patch_bottom, oy + (r.y() + r.height()) * s)
+                patch_bottom = max(patch_bottom, oy + (r.y() + r.height()) * sy)
             # THE OVERLAY ITEMS COUNT TOO. `_stripe_rects` is the strip
             # geometry, and it can be empty while patches are plainly on screen
             # -- an imported chart, a sidecar whose page count does not match
@@ -3115,7 +4329,7 @@ class TiffPreview(QWidget):
             # in its worst form, every time rather than sometimes.
             for rect, _e, _m, _w in items:
                 patch_bottom = max(
-                    patch_bottom, oy + (rect.y() + rect.height()) * s)
+                    patch_bottom, oy + (rect.y() + rect.height()) * sy)
             # THE STRIP DOES NOT END AT ITS LAST PATCH. A chart with edge
             # spacers draws one more band below it — the recorded geometry
             # stops at the patch (see edge_spacer_px_from_sidecar: they
@@ -3125,7 +4339,7 @@ class TiffPreview(QWidget):
             # legend looked as if it were touching (2026-08-13). The strip
             # HOVER frame already grows over these; this makes the legend
             # agree with it instead of holding a second opinion.
-            patch_bottom += self._edge_spacer_px * s
+            patch_bottom += self._edge_spacer_px * sy
             cx = int((img_l + img_r) / 2 - tw / 2)
             # Keep the whole chip within the paper width so it never clips.
             cx = max(int(img_l), min(cx, int(img_r - tw)))
@@ -3411,10 +4625,19 @@ class TiffPreview(QWidget):
         y = (H - disp_h) / 2 + self._pan.y()
         painter.fillRect(int(x - B), int(y - B), int(disp_w + 2 * B),
                          int(disp_h + 2 * B), self._frame_color)   # thin tinted frame
-        painter.drawPixmap(int(x), int(y), scaled)
+        # WHERE THE IMAGE IS ACTUALLY DRAWN, not where it was asked for. The
+        # pixmap goes down at whole logical pixels and is a whole number of
+        # device pixels in each direction, so the overlay has to be mapped
+        # through those numbers or it sits beside the picture it annotates.
+        ix, iy = int(x), int(y)
+        painter.drawPixmap(ix, iy, scaled)
         # #126 engine overlays (split patches, hover outline, legend)
-        self._draw_cq_overlay(painter, scale, x, y)
+        self._draw_cq_overlay(painter,
+                              (scaled.width() / dpr) / max(1, pw),
+                              ix, iy,
+                              (scaled.height() / dpr) / max(1, ph))
         self._paint_geom = (scale, x, y)   # for the cursor→image mapping (#72)
+        self._paint_scale_y = (scaled.height() / dpr) / max(1, ph)
         painter.end()
         self._img_label.setPixmap(canvas)
         if self._cursor_overlay is not None and self._coord_readout:
@@ -3789,7 +5012,16 @@ class TiffPreview(QWidget):
 
     @staticmethod
     def _cmyk_pil_to_rgb(img: Image.Image) -> Image.Image:
-        """Convert CMYK PIL image to RGB using ICC profile (embedded or system SWOP)."""
+        """Convert a CMYK PIL image to RGB.
+
+        Three tiers, in order: the TIFF's own embedded profile; the bundled
+        CMYK profile (``_get_cmyk_transform``); and, if neither is available,
+        a naive subtractive composite. The naive tier is a real degradation,
+        not a failure — measured over a 6⁴ CMYK grid it sits a mean 16.9 ΔE76
+        from a profiled conversion (p95 47.0) and paints 100 % cyan as
+        ``#00FFFF``, a colour no press or inkjet makes. That is why a profile
+        is bundled at all.
+        """
         from PIL import ImageCms
         icc_data = img.info.get("icc_profile")
         if icc_data:
@@ -3934,13 +5166,47 @@ class TiffPreview(QWidget):
 
     @staticmethod
     def _pil_to_pixmap(img: Image.Image) -> QPixmap:
-        import io
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        buf.seek(0)
-        px = QPixmap()
-        if not px.loadFromData(buf.read()):
+        """The rendered page as a pixmap, at its own resolution.
+
+        **IT USED TO GO ROUND THROUGH A PNG, AND AT 1200 dpi QT REFUSED TO
+        DECODE IT (B8-245's neighbour, B8-244).** `QPixmap.loadFromData` reads
+        through `QImageIOHandler`, which rejects anything that would allocate
+        more than `QImageReader`'s limit -- 256 MB by default -- and an A4 page
+        at 1200 dpi is 9921 x 14031, which is 417 MB. Driven on screen
+        (`~/Desktop/ChromIQ-beta18-proof/beta19-round-2/window/Q8-dpi1200.png`):
+        the chart built, every "Measured from Preview" number was right, and
+        the whole preview panel read
+
+            Preview error:
+            QPixmap.loadFromData failed for (9921, 14031) RGB image
+
+        which is an internal sentence with nothing in it a reader can act on.
+        The dpi box accepts 1200 and A4 is the default paper, so it takes two
+        ordinary controls to reach.
+
+        A `QImage` built over the buffer the renderer already has is not read
+        through a handler at all, so no limit applies; `QPixmap.fromImage`
+        copies it, which is why *raw* only has to outlive that call. It is also
+        strictly less work than the old route, which encoded and then decoded a
+        PNG of the same picture on every single preview render.
+
+        **THE RESOLUTION IS NOT REDUCED, AND MUST NOT BE.**
+        `_refresh_image` hands this pixmap straight to `_measure_own_margin`,
+        which is where the "Measured from Preview" numbers come from and what
+        the design authority's 2026-09-15 ruling makes every notice measure
+        against. Scaling here to dodge the limit would quietly coarsen all of
+        them.
+        """
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+        w, h = img.size
+        depth = 4 if img.mode == "RGBA" else 3
+        fmt = (QImage.Format.Format_RGBA8888 if img.mode == "RGBA"
+               else QImage.Format.Format_RGB888)
+        raw = img.tobytes()
+        px = QPixmap.fromImage(QImage(raw, w, h, w * depth, fmt))
+        if px.isNull():
             raise RuntimeError(
-                f"QPixmap.loadFromData failed for {img.size} {img.mode} image"
+                f"QPixmap.fromImage failed for {img.size} {img.mode} image"
             )
         return px

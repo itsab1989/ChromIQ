@@ -323,7 +323,7 @@ def test_an_upside_down_read_reaches_the_user_before_colprof(
         rows = [(f'"A{k}"', float(k), float(101 - k)) for k in range(1, 101)]
         found = _run_read_check(dlg, _write_read(tmp_path / "flip.ti3", rows))
         assert found, "an anti-correlated read reached colprof in silence"
-        assert "does not match this reference" in found[0][0]
+        assert "does not match this reference" in found[0][1]
     finally:
         dlg.deleteLater()
 
@@ -347,7 +347,7 @@ def test_a_clipped_read_reaches_the_user_before_colprof(
             "the fixture is not the case under test — agreement already sees it"
         found = _run_read_check(dlg, ti3)
         assert found, "a scan with 40 % of its patches at the rail said nothing"
-        assert "no colour left" in found[0][0]
+        assert "no colour left" in found[0][1]
     finally:
         dlg.deleteLater()
 

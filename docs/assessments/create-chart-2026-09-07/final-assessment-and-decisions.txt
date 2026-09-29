@@ -1,0 +1,891 @@
+CREATE CHART: FINAL ASSESSMENT AND DECISIONS
+ChromIQ 4.2.0 (master 80975e65), assessed 2026-09-07
+Focus, as you asked: the ChromIQ layout engine first, the rest of Create Chart second.
+
+No code was changed. The repository is exactly as it was this morning
+(git status: clean). Your real preferences, your preset folder and your
+~/ChromIQ projects are byte for byte what they were before the assessment.
+Everything ran against a sandbox copy.
+
+All supporting material is in the folder
+  ~/Desktop/Create Chart Assessment/
+    Reports/      the first agent's full report, inventory and 8 checkpoints
+    Findings/     one file per finding, F-001 to F-029
+    Review/       the second agent's independent review, R-files, verdicts
+    Screenshots/  about 320 screenshots in named folders (both agents)
+    Test Runs/    every driver script and every log (nothing was done by hand)
+    Evidence/     the before-snapshot, the sandbox proof, a code map
+    Final Report/ the implementation-readiness package (for later, if you agree)
+
+HOW TO READ THIS DOCUMENT
+  Part 1  How the assessment was done, and how much to trust it
+  Part 2  The problems, in plain language, most important first
+  Part 3  Questions that need YOUR decision (each with a blank line)
+  Part 4  Summary lists: bugs, missing things, improvements, ideas,
+          what to leave alone, regression risks, recommended order
+
+Evidence grades used throughout:
+  OBSERVED  seen on screen in the running app, by a script, unattended
+  PARTIAL   some of it seen, some not
+  INFERRED  read from code or files, not shown on screen
+  UNKNOWN   could not be determined
+
+======================================================================
+PART 1. WHAT WAS DONE, AND HOW MUCH TO TRUST IT
+======================================================================
+
+Two agents worked one after the other, both on the real app, on the real
+screen, with your own look (neutral appearance, English, log hidden).
+
+Agent 1 (assessment, 2 hours of driving): 15 driver scripts, 150 chart
+builds made by the app, 261 screenshots, 29 findings. It covered every
+module (Guided, Manual, From Profile Gamut, Calibration target), every
+engine instrument and mode on five paper sizes, every layout mode, margins
+and instrument limits through the real Preferences dialog, every furniture
+option, presets (named, built-in, Chart Layout defaults, restart), the
+patch set editor, extremes, exports, names, the run bar, a legacy project,
+German, and window sizes.
+
+Agent 2 (independent review, 70 minutes of driving): 10 driver scripts of
+its own plus a shared helper, about 45 builds, 60 screenshots. It re-tested every high finding and
+most medium ones, opened the cited screenshots, read the code paths, and
+added a stack trace to the widgets in question. Verdicts on the 29
+findings: 20 confirmed, 5 partly right (the observation was right, the
+stated cause or scope was wrong), 0 wrong as a whole, 4 not re-tested (code
+agrees). It found 10 new problems and closed most of the gaps Agent 1 had
+named (expert rows, Save as Defaults, refinement row, reveal button,
+hand-deleted files, keyboard order).
+
+Expected dialogs were answered by a script that first checked which dialog
+it was and then pressed a named button; unexpected ones were closed through
+their own Cancel or OK and logged (Agent 1: 8 such cases; two of Agent 2's
+drivers blocked and were killed). No human clicked anything. Both agents proved at the end that the
+sandbox held (Evidence/sandbox_proof.txt and section 11 of the review).
+
+What the assessment did NOT cover (so nobody counts it as covered):
+  - the scanner path end to end from an engine hexagonal chart (needs a
+    measured file)
+  - the Demo-Legacy-v2 project (never opened by either agent)
+  - a read-only run folder; a missing Argyll binary at Generate time
+  - light and dark appearance beyond screenshots (readability only)
+  - German at sizes other than 1280x800 and 1700x1050
+  - one sub-claim of Agent 1 (that the printtarg command actually executed
+    once carried -L against the preview) could not be reproduced and is
+    graded UNKNOWN
+
+The known and ruled items were checked and left alone: the chart-overwrite
+warning (deferred by you on 2026-09-02), the helper-marker geometry
+(settled), the i1Pro 19 mm bottom margin (deliberate), Guided always using
+the engine, and the engine keeping the page-label column. All are in force.
+One known OPEN item was found again with its cause now named: the "deeper
+ordering cause" behind the build-in-flight clobber (P1 below).
+
+Who decides what: most decisions below are yours. Where a decision rests on
+Knut's jig numbers or on Knut's own specification text, it is marked
+"Knut's numbers / Knut's spec: ask him" so you can route it.
+
+Small glossary (used below):
+  i1 / p3 / CM        i1Pro / i1Pro 3 Plus / ColorMunki
+  seeds, seed rows    the built-in starting values of the Instrument Limits
+                      table in Preferences (per instrument and paper)
+  targen              the Argyll tool that generates the patch colours
+  printtarg           the Argyll tool that lays out a chart (the engine's
+                      alternative)
+  sidecar             the small record file written next to a chart
+                      (channels.json) that stores how it was made
+  §M-PROPOSED         the list in the design document where every new
+                      user-facing sentence must be approved first
+  the gate            the full test suite run (--runslow) required before
+                      any release
+
+======================================================================
+PART 2. THE PROBLEMS, MOST IMPORTANT FIRST
+======================================================================
+
+Each entry: the problem, what was tested, what was observed, why it
+matters, the options, the recommendation, and whether you must decide.
+"F-nnn" is Agent 1's finding file, "R-nnn" the reviewer's.
+
+----------------------------------------------------------------------
+P1. Generating from "New run" stores the wrong settings into the new run
+    (F-003 confirmed, cause found in R-105). Grade: OBSERVED. HIGH.
+----------------------------------------------------------------------
+Problem: You are on a run, choose "New run" in the bar, change a setting
+(for example switch the engine off, untick "Suppress Left Clip Border",
+set patch scale 1.0), press Generate. The chart is built with YOUR values.
+But the new run's stored settings, and the screen a second later, show the
+values from BEFORE your change (clip border suppressed, scale 0.95).
+
+What was tested: both agents, three fresh runs, widget values read before
+and after the click, the command the app actually ran, the files on disk.
+The reviewer put a stack trace on the writes and named the exact path.
+
+What was observed: the app copies a "seed block" that was captured the
+moment you selected "New run" (before your edits) into the new run, then
+reloads that block over your screen, twice, and finally stores it. The
+run's own files disagree with each other: one record says what ran, the
+other says what the block held. Pressing Generate again would (inferred,
+not tried) build a different chart from the one on screen.
+This is the known open item recorded as "the deeper ordering cause" of the
+build-in-flight clobber; both agents now name the exact writer.
+
+Why it matters: this is the most ordinary route in the app (new run,
+change one thing, generate). It affects every per-target setting row, not
+only printtarg's. Switching runs and back restores the wrong values, and
+when the engine is later switched on it converts those wrong printtarg
+values into its own layout, so the error travels on.
+
+Options:
+  A. Fix at the cause: when Generate creates the run, copy what is ON
+     SCREEN into it, not the old block (and still clear the block).
+     Pros: fixes every row at once; matches Knut's words in the design
+     specification (section 4a): the block "can be modified by the user
+     ... then when Generate Chart is pressed, all these settings are
+     copied".
+     Cons: touches the per-target seeding code; needs the two existing
+     seeding drivers (11 + 74 checks) re-run. And the specification is
+     not clean on this: its own rule N-3 says "Generate Chart copies IT
+     (the block) into the new run", which is what the code does today, and
+     the whole of section 4a is still marked "awaiting confirmation". So
+     Option A also rewrites rule N-3.
+  B. Re-seed the printtarg widgets from the correct record after the build.
+     Pros: small. Cons: hides the symptom for printtarg rows only; every
+     other row stays wrong. Not recommended.
+Recommendation: A.
+Your decision needed: yes. Knut's prose says the screen wins, the rule
+table under it says the block wins, and the section is unconfirmed. The
+project rule is that a code/spec conflict is approved before it is
+changed, and the spec text is Knut's. See Decision 2.
+
+----------------------------------------------------------------------
+P2. Four default Guided charts are flagged red by the app's own instrument
+    limits (F-018 corrected by R-018, R-101, N-4). OBSERVED. HIGH, but a
+    design decision.
+----------------------------------------------------------------------
+Problem: In Guided, change nothing but instrument and paper, press
+Generate, and the "Measured from Preview" frame shows red text saying the
+margins are below the instrument minimum. This happens for: i1Pro 3 Plus
+A4 landscape (left 26 < 28, top 33.4 < 40), i1Pro 3 Plus A4 portrait,
+i1Pro A4 landscape (top 29.5 < 38), i1Pro Letter landscape. i1Pro A4
+portrait and ColorMunki A4 pass.
+
+What was tested: nine Guided default builds by the reviewer, four by
+Agent 1, the code, and the tests.
+
+What was observed: Guided does NOT apply the instrument-limits table at
+all, on purpose: a shipped test pins that ("Guided behaves like before the
+threshold feature"). The two combos that pass do so by arithmetic, not
+because anything raised the margins. A method in the code promises a
+Guided clamp but nothing calls it (dead code, R-101). Agent 1's first
+explanation ("the clamp is overridden for landscape") was wrong.
+One of these red sheets was already on record: the margin-inspector notes
+(docs/dev_margin_inspector.md, issue #171) show a Guided i1Pro sheet with
+top 27.2 < 38 and carry your ruling of 2026-08-26 that the Guided-versus-
+Manual verdict difference is "known, deliberately not fixed, do not fix
+without asking". That ruling was about the verdict flipping between the
+two modules; whether Guided should meet the table at all was not ruled.
+The seed rows use Knut's 11 mm run-up and the 19 mm bottom he asked for.
+
+Why it matters: a first chart for an i1Pro 3 Plus owner arrives with red
+warnings and Guided has no margin controls to fix it. The user's choices
+are to ignore the warning or to go to Manual. The app contradicts itself.
+
+Options:
+  A. Guided honours the table for the chosen instrument and paper.
+     Pros: no red default charts; the dead method is the natural hook.
+     Cons: changes the geometry of every red Guided sheet (i1Pro and
+     i1Pro 3 Plus landscape, and i1Pro 3 Plus A4 portrait: fewer strips),
+     a shipped test must be inverted, and Guided will no longer match
+     printtarg to the patch for those sheets (today it does).
+  B. Review the seed rows (the landscape top 38/40 and the 3 Plus
+     left 28 / right 9): if they are stricter than the jig needs, lower
+     them. Pros: no geometry change. Cons: they are Knut's jig numbers
+     (the 19 mm bottom row is a separate ruling and stays out of this).
+  C. Show Guided's verdict as advisory ("Manual can meet the instrument
+     limits") instead of red.
+     Pros: honest, cheap. Cons: the red stays a warning nobody can act on
+     in Guided.
+  D. (considered in the inspector notes) Judge every sheet against
+     whichever minimum is stricter and name which one failed.
+     Pros: no geometry change, consistent verdicts. Cons: still red.
+Recommendation: A for the instruments with a table, after the seed rows
+are confirmed right (they are marked "editable starting points" in the
+inspector notes). If in doubt about the seeds, B first, then A.
+Your decision needed: yes. See Decision 1 (B is Knut's numbers).
+
+----------------------------------------------------------------------
+P3. The layout estimate and the "last page not full" hint disagree with
+    the chart the engine just built when the patch count is fixed
+    (F-001, R-001). OBSERVED. HIGH.
+----------------------------------------------------------------------
+Problem: Manual, engine on, i1Pro A4, default "prioritise chart area"
+layout, patch count fixed at 400. The build makes 418 patches on one full
+page (the engine sizes the patches so that 400 fill the sheet). Right
+after the build, the "estimate" column says 425, and during the build a
+window said "there is space for about 107 more patches (the page holds
+about 525)", although the page is full by construction.
+
+What was tested: both agents, several fixed-count cases (400, 300, a
+loaded 304-patch set), by-grid and patch-first. With "Auto" patch count
+the estimate was exact in 66 of 66 builds. The mismatch appears only with
+a fixed count or a loaded set.
+
+Why it matters: these two frames are the engine's only feedback on
+capacity. Three different numbers for one unchanged layout make them
+untrustworthy, and the hint sends users to the patch-set editor to fill a
+page that is already full.
+
+Cause (INFERRED; reproduced offline by Agent 1, confirmed in the code by
+Agent 2): the build tells the geometry how many patches there really are;
+the estimate and the hint do not, so they assume a page filled with
+default-size patches. The same file already does it right for the
+helper-marker overlay, with a comment explaining this exact trap.
+
+Options:
+  A. Feed the designed count into the estimate and the hint the way the
+     overlay already does. Pros: one known pattern; Auto-count estimates
+     do not change (they pass no count); the 55-build matrix is the
+     safety net. Cons: numbers users have seen for fixed counts will move.
+  B. Also: suppress the hint for area-first charts, where the page is
+     full by definition.
+  C. Print the assumption behind the estimate when the columns differ.
+Recommendation: A plus B.
+Your decision needed: only on B (keep or drop the hint for area-first).
+See Decision 11.
+
+----------------------------------------------------------------------
+P4. A change in Preferences > Instrument Limits does not reach the layout
+    panel, the estimate or the next build (F-007, R-007). OBSERVED. HIGH.
+----------------------------------------------------------------------
+Problem: With "Use instrument margins" ticked, open Preferences, change
+the i1Pro A4 top minimum from 38 to 50, press OK. The panel still shows
+38, the estimate is unchanged, Generate builds a chart at 39 mm, and the
+inspector immediately flags that chart red against 50. Toggle the
+checkbox off and on and the panel picks up 50. Change it back to 38 in
+Preferences and the panel now stays at 50 (one step behind in both
+directions).
+
+Why it matters: Instrument Limits is the mechanism for a user's own
+ruler or jig. Editing it and generating produces a chart the app itself
+rejects, with the box that promises the fix still ticked.
+
+Options:
+  A. After the Preferences dialog closes, re-run the panel's instrument
+     margin sync (and the estimate) if the box is ticked. Pros: the same
+     code path the checkbox already runs. Cons: none of note; take care
+     with the remembered "own margins".
+  B. Read the table lazily at estimate and build time instead of copying
+     it into boxes. Pros: cannot go stale. Cons: bigger change.
+Recommendation: A now, B later if the panel is reworked.
+Your decision needed: no.
+
+----------------------------------------------------------------------
+P5. One visit to "From Profile Gamut" on a run without a profile disables
+    Generate everywhere and shows a Stop button (F-024, F-023, N-5).
+    OBSERVED. HIGH.
+----------------------------------------------------------------------
+Problem: Run type Verification on a run with no profile. Click FROM
+PROFILE GAMUT: Generate greys out and STOP appears (nothing is running).
+Click GUIDED or MANUAL: still grey. Run type back to Profiling: still
+grey. The reviewer showed it survives run switches, run-type switches and
+even opening another project. Only a gamut visit on a run WITH a profile
+gives Generate back.
+
+Why it matters: a user who looks at the gamut module once loses Generate
+in every module, under an info box that says "You can go ahead and create
+the chart", with a Stop button that suggests a stuck build.
+
+Cause (code, both agents): the gamut module disables the button and
+nothing re-enables it on a module or run change; and the app decides "a
+build is running" by looking at whether the Generate button is disabled,
+which is why Stop appears. Generate's enabled state is set from twelve
+places in the code.
+
+Options:
+  A. One central rule that recomputes Generate's state on every module,
+     run and run-type change. Pros: fixes the leak and future ones.
+  B. Keep the gamut rule inside the module only. Pros: smallest.
+  C. Remember "a build is running" explicitly instead of reading the
+     button (the auto-update preview asks the same question, so it
+     benefits too).
+Recommendation: A plus C.
+Your decision needed: no (engineering); it is in the approval block,
+Decision 15.
+
+----------------------------------------------------------------------
+P6. A failed build silently deletes the previous chart's export files and
+    leaves the preview blank (F-025 corrected, R-102). OBSERVED. MEDIUM,
+    data safety.
+----------------------------------------------------------------------
+Problem: A good chart is on screen. You try a layout that cannot fit (the
+app lets you, see P8). The build fails, the chart files are put back, but
+the three hand-off files in exports/ (-colours.txt, -i1profiler.txt,
+-i1profiler.pxf) are gone, and the preview stays at "NO PREVIEW" until
+you switch runs and back. Agent 1's claim that the frames kept a stale
+"Margins: OK" was wrong (they show placeholders); the file loss is new.
+
+Why it matters: the hand-off files are what a user copies to i1Profiler;
+they vanish after an attempt that "changed nothing". They can be
+re-created by a successful rebuild, so it is not permanent loss, but it
+breaks the promise that a failed build puts everything back.
+
+Options:
+  A. Stash exports/ with the chart and restore it on failure (NOT cache/:
+     cache/ holds the New-run seed block, which a build must consume).
+  B. Delete exports/ only after the new chart has been written.
+  Plus, in either case: reload the restored chart into the preview on
+  the failure branch, as the Stop path already does.
+Recommendation: A plus the preview reload.
+Your decision needed: engineering, in the approval block (Decision 15);
+say there if you would rather accept "derived, rebuilt next time".
+
+----------------------------------------------------------------------
+P7. The estimate reads a hidden printtarg "Pages" spin, not the panel's
+    (F-021, R-021). OBSERVED. MEDIUM.
+----------------------------------------------------------------------
+After a 20 or 36 page chart, set the panel's Pages back to 1: the estimate
+still assumes the old page count (estimate 1260 vs built 63). Two Pages
+controls exist; only one is synced. Fix: one source when the engine is
+on. No decision needed.
+
+----------------------------------------------------------------------
+P8. Impossible layouts are not refused before Generate, and the reason
+    lands only in the hidden log (F-019, N-12). OBSERVED. MEDIUM.
+----------------------------------------------------------------------
+Patch 60 mm on a 20 x 20 mm sheet, or margins that leave no room: the
+estimate shows dashes, Generate stays enabled, targen runs, then the
+engine refuses ("paper too short: 8.0 mm available") in the log, which
+is hidden in your preferences. Nothing else says why the chart vanished.
+The app even logs "engine patch estimate failed" BEFORE it starts targen.
+Fix: grey Generate and print the engine's own reason in the estimate
+frame when the estimate has nothing; show the reason on failure. New
+message text must go to the §M-PROPOSED list first. No decision needed.
+
+----------------------------------------------------------------------
+P9. There is no floor on patch size, and the engine's readiness checks
+    are not shown in Create Chart (F-020, F-014 corrected by R-014).
+    OBSERVED / INFERRED. MEDIUM.
+----------------------------------------------------------------------
+A 200 x 500 grid on A4 (the spin boxes' own maxima) built 49,590 patches
+of 1 mm after six minutes of a frozen window, without a word. The
+engine has a "preflight" module (patch-size floor, contrast, fit). Agent 1
+said it is never run; the reviewer corrected this: Preferences > Chart
+Layout runs it. Create Chart does not.
+Options: A. show the same preflight lines in the "Measured from Preview"
+frame for the chart being built; B. warn or refuse below a per-instrument
+patch-size floor; C. before a very large targen run, show the expected
+time and offer Cancel.
+Recommendation: A and C now; B once you name the floor values.
+Your decision needed: yes, see Decision 6.
+
+----------------------------------------------------------------------
+P10. Margins: what the 26 mm left minimum means (F-005, R-103, F-009,
+     F-008, F-010). OBSERVED. MEDIUM to LOW. Several decisions.
+----------------------------------------------------------------------
+Four related observations:
+  a. "Clip border: Off, more patches" gives no more patches when "Use
+     instrument margins" is on (525 both ways on i1 A4), because the left
+     minimum (26 mm i1Pro, 28 mm 3 Plus) IS the clip band's width. Off
+     just blanks the notes box and leaves 26 mm of white paper. With own
+     margins it does gain (609 to 667). "Show strip indicators" off also
+     frees nothing.
+  b. "Max strip length" and "Don't cap strip length" have no effect in
+     "prioritise chart area" mode, and nothing says so (43 per strip with
+     or without a 200 mm cap on A3). In patch-first they work.
+  c. "Use instrument margins" is ticked and locks the four boxes for
+     SpectroScan, CR30 and custom papers, where no table exists; the
+     inspector then says "No instrument margins set".
+  d. A ruler limit typed in Instrument Limits (200 mm) is used when the
+     box is ticked but falls back to the built-in 240 with own margins.
+Why it matters: the label, the help text, the Preferences table and the
+layout disagree about who owns that 26 mm, and a user typing a cap gets
+no change and no explanation.
+Recommendations: (a) needs your answer on what the 26 mm is (Decision 3);
+until then, make the label and help honest. (b) let a typed cap bound the
+area in area-first too, or grey the control with a reason (Decision 4).
+(c) untick and disable the box with a tooltip where no table exists
+(Decision 5). (d) look the ruler up regardless of the margin choice (no
+decision).
+
+----------------------------------------------------------------------
+P11. Built-in presets: wrong status line, silent engine toggle, red under
+     the app's own limits (F-015, F-016, F-017, N-13). OBSERVED. MEDIUM.
+----------------------------------------------------------------------
+  a. After a built-in loads, the Manual info line shows a printtarg
+     command the chart never used, including "printtarg -iCR30", which
+     printtarg cannot run. Fix: describe the preset's route. No decision.
+  b. A prebuilt built-in unticks "Use the ChromIQ layout engine" without
+     saying so; a full-layout built-in ticks it back; "none" keeps the
+     last preset's instrument and margins. Decision 9.
+  c. The shipped "TC9.18 extended greys by Pharmacist" (i1Pro A4) is
+     flagged red by the shipped i1Pro A4 minimums (top 36.3 < 38, bottom
+     11.7 < 19), and the ColorMunki A3+ TC9.18 built-in fails the CM seeds
+     by 0.7 mm although those seeds were derived from the CM presets.
+     Decision 8.
+
+----------------------------------------------------------------------
+P12. Smaller confirmed problems (all OBSERVED unless noted)
+----------------------------------------------------------------------
+  - F-006 The margin verdict ("Margins: OK" or the red line) is hidden
+    whenever a text note (strip length, label band) is present; on i1 A3
+    and p3 A4 there is no verdict at all. Fix: always show the verdict,
+    notes under it. No decision.
+  - F-002 / R-108 The two frames keep describing the previous chart while
+    the preview says NO PREVIEW (new run, run-type change, files removed
+    by hand). Fix: clear them with the preview. No decision.
+  - F-012 One unknown placeholder such as {patches} leaves EVERY
+    placeholder in the sheet text or clip text unexpanded, so the project
+    name and date vanish from the printed sheet with no warning. Fix:
+    expand token by token and flag unknown ones in the live preview line.
+    No decision.
+  - F-011 / N-10 "Replace the current clip-border text with the example
+    table?" has one OK button, and OK acts as "No": the example table
+    cannot be entered while the Text box holds text. Fix: a real two-button
+    question (text to §M-PROPOSED first). No decision.
+  - F-029 The "Replace the calibration" question can never list the runs
+    built on the calibration: the helper raises an error on every run
+    ('Run' has no attribute 'meta') and the error is logged at debug level
+    only. Fix: use the run's meta path; add a test. No decision.
+  - F-027 / R-104 A patch set loaded with the header icon stays armed
+    after a project change ONLY through the session-restore path, which
+    a driver can take but a user normally does not (there a foreign
+    304-patch set was laid out into another project); through the normal
+    Open Project route it is cleared, but the "Edit patch recipe
+    (override preset)" row stays visible. Latent, not a user-facing data
+    bug today. Fix: clear the armed set and the row on every target
+    change. No decision.
+  - R-103 (N-9) "Show strip indicators" off frees no space for patches.
+    Fix: free the band, or say in the help that it stays. Decision 14g.
+  - R-106 The "last page not full" window has no Escape or close route and
+    holds the build's "finished" signal until clicked. Decision 11 (minor).
+  - R-107 Guided "Refinement profile" ticked with no file builds a plain
+    chart silently. Decision 12.
+  - F-004 Clicking the engine toggle silently flips "Stamp settings used
+    on the chart" (engine on = stamp off, and the reverse). Decision 10.
+  - F-013 (PARTIAL) "Imported image" clip mode also prints whatever text
+    is left in the Custom text box. Decision 14.
+  - F-022 Six help texts do not match Argyll's documentation or the
+    engine they now describe (for example the strip limit explanation, the
+    spacer flags, and Guided boxes named after printtarg flags although
+    Guided never runs printtarg). Fix: rewrite; 12 translation catalogues
+    carry them. No decision.
+  - F-026 / F-028 At 1280 x 800 the "Measured from Preview" row labels are
+    cut off by the number columns; in German the column header "auf dem
+    Bildschirm" is cut at every size (German case seen by Agent 1 only,
+    not re-tested). Fix: elide with tooltip or a minimum width from the
+    translated text. No decision.
+  - Noted by the reviewer, not filed as findings (so nobody counts them
+    as unseen): the (i) help buttons cannot be reached by keyboard; the
+    Pages control stops at 20 while the engine happily builds 22 and 36
+    pages (Decision 14f); "-f 0" is accepted and builds a 22-patch chart
+    of neutrals without a word; "Save as Defaults" gives no visible
+    feedback while the log is hidden; the expert-row command preview can
+    show "-f0 ... -g28" while the command that ran was "-f550 ... -g31".
+  - Agent 2 probe: typing another EXISTING project's name in the name
+    field switches to that project and overwrites its chart-only run with
+    no window (consistent with the deferred chart-overwrite ruling, but
+    across projects). Decision 13.
+
+======================================================================
+PART 3. QUESTIONS THAT NEED YOUR DECISION
+======================================================================
+Write your answer on the blank line. "A", "B", "C", or your own words.
+
+----------------------------------------------------------------------
+DECISION 1. Should Guided charts honour the Instrument Limits table?
+(Option B rests on Knut's jig numbers: ask him for that part.)
+----------------------------------------------------------------------
+Question: Four default Guided sheets (i1Pro 3 Plus A4 landscape and
+portrait, i1Pro A4 landscape, i1Pro Letter landscape) come out red against
+the app's own minimums, because Guided ignores the table on purpose. One
+of them was already on record under your #171 ruling of 2026-08-26.
+Why this matters: a beginner's first chart shows red warnings with no
+control in Guided to fix them.
+Option A: Guided applies the table for the chosen instrument and paper.
+  Pros: no red default charts; the hook already exists in the code.
+  Cons: the red Guided sheets change geometry (fewer strips), including
+  i1Pro 3 Plus A4 portrait; Guided stops matching printtarg to the patch
+  for those sheets; a shipped test is inverted; the parity checks re-run.
+Option B: Review and lower the LANDSCAPE seed rows first (top 38/40, the
+  3 Plus left 28 / right 9) if they are stricter than the jig needs. The
+  i1Pro A4 portrait 19 mm bottom is a separate, deliberate ruling and is
+  not part of this. Pros: no geometry change. Cons: Knut's numbers.
+Option C: Present Guided's verdict as advisory, pointing to Manual.
+  Pros: honest and cheap. Cons: the warning remains unfixable in Guided.
+Option D: Judge against whichever minimum is stricter and name which one
+  failed (the option the inspector notes considered). Pros: consistent
+  verdicts, no geometry change. Cons: still red.
+AI recommendation: A, after the seed rows are confirmed (B first if in
+doubt). C or D only as an interim.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 2. New run + Generate: which values does the new run keep?
+(Knut's spec text, section 4a, still "awaiting confirmation": ask him.)
+----------------------------------------------------------------------
+Question: When Generate creates a new run, should the run store what is on
+screen at the click (your edits), or the block captured when "New run"
+was selected? Knut's prose in section 4a says the edited settings are
+copied; the rule table under it (N-3) says the block is copied, which is
+what the code does. The section is unconfirmed.
+Why this matters: today the stored settings and the screen after the
+build contradict the chart that was built (P1). The project rule says a
+code/spec conflict is approved before it is changed.
+Option A: The screen wins: the new run stores the values you edited, and
+  rule N-3 is reworded to say so. Pros: fixes every row; matches Knut's
+  intent as written in prose. Cons: touches the seeding code; two seeding
+  drivers (11 + 74 checks) must stay green.
+Option B: The block wins, as the code does today (not recommended: every
+  New-run edit made before Generate would be meaningless, which is what
+  the users see now).
+AI recommendation: A.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 3. What is the i1Pro 26 mm (3 Plus: 28 mm) left minimum?
+(Knut's jig numbers: ask him.)
+----------------------------------------------------------------------
+Question: Is it a jig requirement that stands even without a clip border,
+or is it the clip band itself (so that with the clip border off the left
+edge could drop to the ordinary 9 mm)?
+Why this matters: it decides whether "Clip border: Off, more patches" can
+ever be true with instrument margins on, and it feeds Decision 1.
+Option A: It is the jig; keep 26/28 always. Then rename the mode to "Off"
+  and change its help text so it does not promise more patches.
+  Pros: no geometry change. Cons: text only, the band stays empty paper.
+Option B: It is the clip band; with the clip off, use the cross-scan side
+  minimum (9 mm) on the left. Pros: the label becomes true, more patches.
+  Cons: changes the geometry of every future no-clip i1/3 Plus chart.
+Option C: Keep 26/28 but show a one-line note when Off gains nothing.
+AI recommendation: A or B is yours to know; if unsure, A plus C now.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 4. Should "prioritise chart area" respect a typed strip cap?
+----------------------------------------------------------------------
+Question: Today "Max strip length" and "Don't cap strip length" do nothing
+in area-first mode, and nothing says so.
+Option A: A typed cap (> 0) bounds the area in area-first too; the ruler
+  default stays ignored. Pros: the control means what it says. Cons: any
+  stored recipe with a non-zero cap changes (rare, default 0).
+Option B: Grey both controls in area-first with a reason in the tooltip,
+  like helper markers on a honeycomb. Pros: UI only. Cons: users who
+  want a cap must switch mode.
+AI recommendation: A.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 5. "Use instrument margins" where no table exists
+----------------------------------------------------------------------
+Question: For SpectroScan, CR30 and custom papers the box is ticked and
+locks the four margin boxes, while the inspector says no instrument
+margins are set.
+Option A: Untick and disable the box with a tooltip "no instrument limits
+  are defined for this instrument and paper". Pros: honest, small.
+Option B: Keep it ticked but leave the boxes editable and label the state.
+Option C: Add SpectroScan and CR30 rows to Instrument Limits so the box
+  is true. Pros: complete. Cons: touches the seed table and its migrations.
+AI recommendation: A now, C later if you have numbers for those devices.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 6. Readiness checks and a patch-size floor in Create Chart
+----------------------------------------------------------------------
+Question: Preferences > Chart Layout already shows the engine's preflight
+verdict. Should Create Chart show the same lines for the chart being
+built, and should a patch smaller than the instrument can read be warned
+about or refused? A 1 mm grid currently builds silently after minutes.
+Option A: Show the preflight lines in the "Measured from Preview" frame
+  (green/amber), warn only. Pros: no refusal, nothing blocked.
+Option B: A plus refuse below a per-instrument floor you name (for
+  example i1Pro aperture 4.5 mm, CR30 4 mm). Pros: no unreadable sheets.
+  Cons: needs agreed numbers; a wrong floor blocks a valid chart.
+Option C: Leave as is.
+Also in either A or B: before a targen run above about 5,000 patches,
+show the expected time and offer Cancel.
+AI recommendation: A now, B when you give the floor values.
+My decision: __________________________________________
+Floor values, if B (per instrument): ____________________________
+
+----------------------------------------------------------------------
+DECISION 7. Export files on a failed build
+----------------------------------------------------------------------
+Folded into the engineering approval block, Decision 15 (recommendation:
+stash exports/ with the chart, restore on failure; not cache/). Write
+there if you would rather accept "re-created by the next good build".
+
+----------------------------------------------------------------------
+DECISION 8. Shipped built-in charts that fail the shipped minimums
+(The i1Pro 19 mm bottom and the 240 mm jig are Knut's rulings: ask him
+for the i1Pro part.)
+----------------------------------------------------------------------
+Question: The i1Pro "TC9.18 extended greys by Pharmacist" built-in is red
+against the i1Pro A4 minimums: top 36.3 < 38, bottom 11.7 < 19, and its
+strips are 248.9 mm long. The 19 mm bottom is the deliberate ruling whose
+whole reason is the 240 mm jig pass (297 - 38 - 19 = 240), so by that
+arithmetic this chart exceeds the jig by 8.9 mm; the red verdict is not
+cosmetic. The ColorMunki A3+ TC9.18 built-in is 0.7 mm short of the CM
+seeds, which were derived from the CM presets themselves.
+Option A: Give prebuilt built-ins their own thresholds (or a note
+  "prebuilt chart, laid out before the current limits") instead of a red
+  verdict. Pros: UI only. Cons: hides a real jig problem for the i1Pro one.
+Option B: Re-lay those built-ins with the engine under the current
+  minimums. Pros: consistent. Cons: users may have printed and measured
+  the current sheets; the "by Pharmacist" identity changes.
+Option C: Adjust the seeds. For ColorMunki (0.7 mm) this is plausible.
+  For the i1Pro the 19 mm bottom row is a ruling and is excluded here.
+AI recommendation: C for the ColorMunki 0.7 mm case; for the i1Pro chart
+  ask Knut whether it stays recommended as it is (A) or is re-laid (B).
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 9. May a built-in preset move the engine toggle?
+----------------------------------------------------------------------
+Question: Picking a prebuilt built-in unticks "Use the ChromIQ layout
+engine" silently; a full-layout built-in ticks it back; "none" does not
+restore your state.
+Option A: Say it: one sentence in the Manual info line and grey the
+  toggle while a prebuilt preset is active; restore your state on "none".
+Option B: Never move the toggle; presets carry their own route internally.
+AI recommendation: A.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 10. Should "Stamp settings used on the chart" follow the toggle?
+----------------------------------------------------------------------
+Question: Today engine ON unticks the Stamp box and engine OFF ticks it,
+silently, on every real click.
+Option A: Remove the coupling. Option B: Apply it only the first time the
+target has never answered the box. Option C: Keep it and say so in the
+toggle's help.
+AI recommendation: B, because the code comment says the coupling was
+meant as a first-time default; B restores that intent without moving a
+box the user has already set.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 11. The "last page not full" window
+----------------------------------------------------------------------
+Question: Should it appear at all for area-first charts, where the page
+is full by definition? (The Escape/close route and showing it after the
+build has finished are engineering, in Decision 15.)
+Option A: No hint for area-first charts.
+Option B: Keep the hint everywhere once its numbers are fixed (P3).
+AI recommendation: A.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 12. Guided "Refinement profile" ticked with no file
+----------------------------------------------------------------------
+Option A: Refuse Generate with a one-line reason. Option B: Ask. Option
+C: Untick it with a log line and build a plain chart (today's behaviour,
+minus the silence).
+AI recommendation: none with evidence behind it; A or B are both in
+character for the app (it refuses an empty name, it asks before a
+replace). Your call.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 13. Typing another existing project's name
+----------------------------------------------------------------------
+Question: Typing the name of another EXISTING project in the name field
+switches to that project and, on Generate, overwrites its chart-only run
+with no window. Your 2026-09-02 ruling deferred the chart-overwrite
+warning within a run. Does that ruling extend across projects, or is a
+project switch worth one sentence?
+Option A: Extend the deferral (leave as is). Option B: One confirmation
+when the typed name switches projects. Option C: One confirmation only
+when the switch would overwrite a chart there.
+AI recommendation: A, leave as is, because the overwrite question is
+deferred by your ruling and this is the same question one level up. The
+question is listed only so the reach of the ruling is explicit.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 14. Small behaviour questions (one line each)
+----------------------------------------------------------------------
+14a. "Imported image" clip mode also prints the leftover custom text.
+     Intended as image plus caption (then label the box "Caption") or
+     image only?  Recommendation: image only.
+My decision: __________________________________________
+14b. Margins of 0 mm and page offsets past the instrument margin are
+     accepted and print to the paper edge with notes only. Keep (printtarg
+     allows it too) or add a floor?  Recommendation: keep, with a note.
+My decision: __________________________________________
+14c. Guided hides A2/A3 portrait for i1Pro/3 Plus although the engine
+     offers them in Manual. Intended?  Recommendation: keep hidden until
+     Decision 1 is settled (those sheets exceed the ruler).
+My decision: __________________________________________
+14d. A project folder deleted while the app is open is recreated
+     silently on the next Generate. Wanted, or say so?
+     Recommendation: say so in one line.
+My decision: __________________________________________
+14e. Unbuilt edits stored on leaving a run are never shown again while
+     the run has a chart (the chart's own record wins; Knut's 2026-08-11
+     ruling, ask him if you want it changed). Add a hint, or is the
+     silence fine?  Recommendation: silence is fine (it is the ruling).
+My decision: __________________________________________
+14f. The Pages control stops at 20, while the engine builds 22 and 36
+     pages from fixed counts. Raise the limit, or show "more than 20"?
+     Recommendation: raise it to what the sheet count really allows.
+My decision: __________________________________________
+14g. "Show strip indicators" off does not free the indicator band for
+     patches. Free it, or say in the help that it stays?
+     Recommendation: free it (same rule as the clip band, Decision 3).
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 15. Engineering approvals, as one block
+----------------------------------------------------------------------
+These change no design, only make the app do what its labels already
+promise. Listed so nothing is done behind your back:
+  - P4: after OK in Preferences, a ticked "Use instrument margins" box
+    follows the new table at once.
+  - P5: one central rule for when Generate is enabled, plus an explicit
+    "a build is running" marker instead of reading the button (Agent 2
+    prefers this over patching only the gamut module).
+  - P6: a failed build puts the exports/ files back (stashed with the
+    chart; cache/ is not stashed).
+  - The "last page not full" window gets an Escape/close route and is
+    shown after the build has finished.
+  - Every Step 1 item in Part 4 that needs no new sentence.
+Approve the block?  Recommendation: yes.
+My decision: __________________________________________
+
+----------------------------------------------------------------------
+DECISION 16. (Folded into Decision 15.)
+----------------------------------------------------------------------
+
+======================================================================
+PART 4. SUMMARY
+======================================================================
+
+CONFIRMED BUGS (seen by both agents, or by one and confirmed in code)
+  P1  New run + Generate stores the pre-edit block (F-003/R-105)  HIGH
+  P3  Fixed-count estimate and hint disagree with the build (F-001) HIGH
+  P4  Instrument Limits change not applied until re-tick (F-007)   HIGH
+  P5  Gamut visit disables Generate everywhere, Stop shown (F-024) HIGH
+  P6  Failed build deletes exports/, blank preview (R-102/F-025)   MED
+  P7  Estimate reads the hidden Pages spin (F-021)                 MED
+  P8  Impossible layout not refused, reason hidden (F-019)         MED
+  P10b Max strip ignored in area-first, silently (F-008)           MED
+  P10d Configured ruler ignored with own margins (F-010)           LOW
+  P11a Info line shows a printtarg command for built-ins (F-015)   MED
+  F-006 Margin verdict hidden when a note is present               MED
+  F-002/R-108 Frames describe a chart not on screen                MED
+  F-012 One bad token kills all token expansion                    MED
+  F-011/N-10 Example table unreachable, one-button question        MED
+  F-029 Calibration "runs built on it" list never appears          MED
+  F-027/R-104 Armed patch set survives a project change (latent)   LOW
+  R-103 "Show strip indicators" off frees no space                  LOW
+  F-004 Engine toggle flips Stamp silently                          LOW
+  F-022 Six help texts wrong against Argyll or the engine           LOW
+  F-026/F-028 Clipped labels at 1280x800 and in German              LOW
+  R-106 Hint window has no escape route                             LOW
+  R-107 Refinement ticked with no file builds silently             LOW
+
+MISSING FUNCTIONALITY
+  - Create Chart shows no readiness verdict (patch-size floor, contrast,
+    fit) although the engine has the module and Preferences uses it (P9)
+  - No feedback when the estimate cannot lay out a chart; no refusal
+    before targen (P8)
+  - No time warning before a very large targen run (P9)
+  - Instrument Limits rows for SpectroScan and CR30 do not exist (P10c)
+
+IMPROVEMENTS (existing behaviour made clearer or safer)
+  - Honest "Clip border: Off" label and help when the band stays (P10a)
+  - Grey or honour the strip cap in area-first (P10b)
+  - Describe a preset's route in the info line; announce toggle moves (P11)
+  - Always show the margin verdict; clear frames with the preview
+  - Token-by-token expansion with a warning in the live preview
+  - Elided labels with tooltips in the measured frame
+  - Rewritten help texts (F-022), then 12 translations
+
+FEATURE SUGGESTIONS (product decisions, not to be built automatically)
+  - Guided honouring the instrument table (Decision 1)
+  - Preflight lines and a patch-size floor in Create Chart (Decision 6)
+  - A confirmation when a typed name switches projects (Decision 13)
+  - Seed rows for hand-placed and flatbed instruments (Decision 5, C)
+
+NO-CHANGE RECOMMENDATIONS (working as designed, keep)
+  - Auto-count estimates: exact in 66 of 66 engine builds across every
+    instrument, mode and five papers. This is the regression net.
+  - Guided always builds with the engine; Guided geometry equals
+    printtarg's for i1Pro and i1Pro 3 Plus; ColorMunki gains one strip by
+    the accepted page-label reclaim.
+  - Chart overwrite within a run: deferred by you, left as is.
+  - Helper markers, i1Pro 19 mm bottom margin: settled, in force.
+  - Presets: save, reload, overwrite, delete, restart round trip: all hold.
+  - Extremes: 1 patch, 10,000 patches (36 pages), 72 and 1200 dpi build;
+    impossible sheets fail without a crash and the chart files return.
+  - Name validation, umlauts, the four-way Rename dialog, legacy schema-1
+    migration, session restore, run switching with per-run engine state,
+    the calibration target's fixed bar and cal/ location, the gamut
+    module's options with a profile: all as specified.
+  - Zero crashes in about 200 builds; zero CRITICAL log records in
+    Agent 1's 150 (Agent 2 did not count them).
+
+REGRESSION RISKS (what must be protected when changes are made later)
+  - The 55-build instrument matrix and the 11 layout-mode builds
+    (Agent 1 driver d02/d03) must stay exact after any estimate change.
+  - The two per-target seeding drivers (11 + 74 checks) and
+    tests/test_per_target_settings*.py must stay green after P1.
+  - Guided parity with printtarg (4 combos) after any Guided change;
+    note that Decision 1 A deliberately gives up that parity for the red
+    sheets, so the net must be re-baselined, not just re-run.
+  - The shipped test that pins "Guided does not clamp" must be changed
+    deliberately, never deleted in passing (Decision 1).
+  - Generate's enabled state is set from twelve places; a central rule
+    must be verified against gamut with/without profile, Stop during a
+    build, a Tools-menu Argyll job holding the shared runner, and the
+    live preview's in-flight guard. Two existing tests simulate "a build
+    is running" by disabling the button; once an explicit marker replaces
+    that, those tests go inert and must be rewritten, not kept green.
+  - The stash/restore of a failed build must be re-tested for a good
+    rebuild (exports must be the NEW chart's), a Stop, and the
+    calibration stash.
+  - Behaviour with NO test today (found by the reviewer): the post-
+    Preferences panel sync, the Generate rule across module switches,
+    exports/ survival, New-run adoption from the screen, the hint's
+    escape route, Open Project clearing the armed set, frames clearing on
+    an empty preview. Each fix should add its test first.
+  - Every new user-facing sentence goes to §M-PROPOSED first and then to
+    the 12 translation catalogues.
+
+REQUIRED DECISIONS (short list)
+  1 Guided vs the instrument table     9 Presets moving the toggle
+  2 New run adopts the screen (confirm) 10 Stamp coupling
+  3 What the 26 mm left minimum is     11 The "last page" window
+  4 Strip cap in area-first            12 Refinement with no file
+  5 Instrument margins without a table 13 Typed name switching projects
+  6 Preflight lines and a size floor   14 Five small behaviour questions
+  7 (in 15)                            15 Engineering approvals, one block
+  8 Built-ins vs the shipped minimums  16 (in 15)
+  Marked "ask Knut": 1 B, 2, 3, 8 (i1Pro part), 14e.
+
+RECOMMENDED ORDER (if you approve; nothing starts before your answers)
+  Step 0  A branch; run the regression net once and record the numbers
+          (the instrument matrix, the seeding drivers, the Guided parity
+          set, the full --runslow gate).
+  Step 1a Fixes that need no decision, no new sentence, and carry low
+          risk, each with its own test first: P4 (Preferences sync), P7
+          (one Pages source), F-006, F-002/R-108, F-012, F-010, F-015,
+          F-029, F-027/R-104, F-026/F-028 labels, the preview reload
+          after a failed build.
+  Step 1b Fixes that need new or changed user-facing text, so they pass
+          the §M-PROPOSED gate first: P8 (refuse before targen), F-011
+          (two-button question), F-022 (six help texts; the Guided box
+          names may be Knut's wording, check with him).
+  Step 2  P3 (estimate with the designed count) with the matrix as the
+          net; P5 (central Generate rule) if Decision 16 = A.
+  Step 3  P1 (New-run adoption) once Decision 2 is confirmed; this is
+          the most valuable single fix and the one with the widest reach.
+  Step 4  The design-decision items in the order you rank them:
+          Decisions 1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14.
+  Step 5  Translations for every changed string (12 catalogues), then a
+          green --runslow gate, then a beta for Knut.
+
+The detailed, file-and-line implementation plan for each item, with the
+tests to write and the drivers to re-run, is in
+  ~/Desktop/Create Chart Assessment/Final Report/IMPLEMENTATION-READINESS.md
+It exists so that a later change is easy and safe. It is not a change.

@@ -355,6 +355,11 @@ class Ti3InfoDialog(QDialog):
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
+        # K44 (Knut, #182 5833983335): the button Return presses is drawn
+        # filled. Qt made the first button created the default here, a
+        # file chooser; this window has no main action for Return (C9).
+        from ui.dialogs.no_default_button import no_default_button
+        no_default_button(self)
         # Give the details as much of the 720 px comfort floor as THIS screen
         # affords: everything-but-the-details keeps its overlap-free minimum,
         # and the details floor is what's left under 90 % of the screen — so
@@ -592,7 +597,7 @@ class Ti3InfoDialog(QDialog):
                "ramp). These are what we measure the cast from."))
         self._row_kv(
             tr("Average cast"), tr("{c:.1f} C*").format(c=a.mean_cast),
-            tr("On average, how far the greys drifted away from truly neutral "
+            tr("On average, how far the greys moved away from truly neutral "
                "(their chroma). 0 would be perfectly neutral; a few units is "
                "normal for an unprofiled printer."))
         self._row_kv(
@@ -711,7 +716,7 @@ class Ti3InfoDialog(QDialog):
                "recompute the colours under different lighting (see below)."))
         if kw.get("CREATED"):
             self._row_kv(tr("Measured on"), kw["CREATED"], tr(
-                "When the chart was read. Inks and paper can drift over time, so "
+                "When the chart was read. Inks and paper can change over time, so "
                 "an old measurement may no longer match today's prints."))
 
         # --- Tone & contrast ---------------------------------------------

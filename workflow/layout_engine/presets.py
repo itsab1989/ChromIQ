@@ -20,8 +20,81 @@ from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 
 from . import permutation
+from .. import text_edge_fit as _tef
 
 SUPPORTED_INSTRUMENTS = ("i1", "p3", "CM", "41", "51", "SS", "CR30")
+
+#: What an empty (0.0 mm) "Text distance from edge" box resolves to. Written
+#: once, and read through the three `effective_text_edge_*` properties below —
+#: it was `or 4.0` spelled out three times in `build_kwargs()`, and the paths
+#: that did not go through `build_kwargs()` never got it.
+TEXT_EDGE_DEFAULT_MM = 4.0
+
+
+def stored_layout_mode(d: dict) -> str:
+    """The layout mode of a stored recipe dict that does not name one (B8-1542).
+
+    ``layout_mode`` arrived on 2026-06-28 with area-first itself (d4902a7d), so
+    a recipe without it was laid out patch-first. 3b6d655c let such a recipe
+    open in area-first, Knut's default, because with the counts on auto
+    area-first filled the page exactly as patch-first did. That stopped being
+    true for one kind of recipe when B8-1540 made area-first ignore the three
+    things only patch-first honours: a typed patch size, a patch scale, a chart
+    offset. A recipe carrying any of them keeps its patch-first chart; every
+    other one keeps opening in area-first, as before.
+
+    Every place that rebuilds a stored recipe goes through
+    :meth:`LayoutRecipe.from_dict`, which asks this, so the chart's own load,
+    the ui-state restore, the hover spacer, the margin inspector and the
+    hexagon ring cap cannot read one recipe two ways."""
+    def _num(key: str, default: float) -> float:
+        try:
+            return float(d.get(key, default) or default)
+        except (TypeError, ValueError):
+            return default
+    patch_first_only = (
+        _num("patch_w_mm", 0.0) > 0.0 or _num("patch_h_mm", 0.0) > 0.0
+        or abs(_num("pscale", 1.0) - 1.0) > 1e-9
+        or _num("offset_x_mm", 0.0) != 0.0 or _num("offset_y_mm", 0.0) != 0.0)
+    return "patch_first" if patch_first_only else "area_first"
+
+
+#: B8-1570. A recipe serialised by a build that has B8-1540's rule says so, so a
+#: sheet already on paper can be described by the rule it was LAID OUT with.
+#: Only :meth:`LayoutRecipe.to_dict` writes it, and every chart's stored recipe
+#: is written that way at Generate (`chart_creator._embed_layout_geometry`, the
+#: relayout dialog), so a stored recipe without it was built before the fix.
+HIDES_PATCH_CONTROLS_KEY = "area_first_hides_patch_controls"
+
+
+def build_kwargs_as_built(recipe) -> dict:
+    """The engine kwargs a chart was BUILT with, for the helpers that describe a
+    sheet already made (B8-1570): the edge-spacer width behind "Show only
+    measured patches", the margin inspector's ink bounds, the hexagon ring cap,
+    the evenness page coverage.
+
+    A new Generate follows :meth:`LayoutRecipe.build_kwargs`, where "Prioritise
+    chart area" gives the hidden patch size, patch scale and chart offset no say
+    (B8-1540). A chart generated before that fix was laid out WITH them, and
+    its stored recipe says area-first all the same; described through
+    `build_kwargs()` it becomes a different sheet (Knut's own case: 14 x 10 mm
+    patches, 22 a strip, 1 page, read back as 20.5 mm, 12 a strip, 3 pages).
+    So a stored recipe dict without :data:`HIDES_PATCH_CONTROLS_KEY` gets the
+    three back, exactly as the engine was handed them then. A live
+    :class:`LayoutRecipe`, or a dict this version wrote, is described by
+    today's rule."""
+    if isinstance(recipe, LayoutRecipe):
+        return recipe.build_kwargs()
+    d = dict(recipe or {})
+    r = LayoutRecipe.from_dict(d)
+    kw = r.build_kwargs()
+    if r.layout_mode == "area_first" and not d.get(HIDES_PATCH_CONTROLS_KEY):
+        kw["pscale"] = r.pscale
+        kw["patch_w"] = r.patch_w_mm or None
+        kw["patch_h"] = r.patch_h_mm or None
+        kw["offset_x"] = r.offset_x_mm
+        kw["offset_y"] = r.offset_y_mm
+    return kw
 
 
 @dataclass
@@ -31,9 +104,39 @@ class LayoutRecipe:
     dpi: int = 300
     randomize: bool = True
     seed: int | None = None
+    # WAS "Use a fixed seed" TICKED? A SEPARATE QUESTION FROM "IS THERE A SEED".
+    #
+    # Knut, 2026-09-10: *"when a chart is generated, the seed used should be
+    # stored, but also a tag should be stored that records what the checkbox
+    # status was (ON or OFF)"*. The two are not the same fact and the app had
+    # only one field for both: every build draws a seed whether or not anybody
+    # asked for a fixed one, the restore path writes that drawn number into
+    # `seed`, and the panel decided the tick from `seed is not None` -- so
+    # selecting a run re-ticked a box the user had turned off, which is exactly
+    # what he reported.
+    #
+    # TRI-STATE, and None is not laziness: it means "this recipe predates the
+    # tag". Every sidecar, preset and per-target store written before this field
+    # existed lacks it, and for those the old reading (`seed is not None`) is
+    # still the only evidence there is, so the panel falls back to it and those
+    # charts behave exactly as they do today. Only a build or a preset written
+    # from now on carries an explicit True/False.
+    #
+    # Presets deliberately drop it, like `seed` itself: a preset names a layout,
+    # not one chart's shuffle, and a stored ON with no seed beside it would tick
+    # the box over whatever number the box happened to be holding.
+    seed_fixed: "bool | None" = None
     hflag: bool = False            # SpectroScan hex (n/a elsewhere)
     cm_density: int = 1            # ColorMunki rows: 1 normal, 2 rig, 3 extra-high
     cm_stagger: bool = False       # ColorMunki: offset every second strip (rig)
+    # CR30 honeycomb turned 30 degrees, so each strip runs straight down the
+    # page instead of zigzagging. THE VALUE RIDES IN THE RECIPE AND NOWHERE
+    # ELSE: a second home in AppSettings would be a second writer, which is
+    # what `d1adbe31` was, and §4c D-3/D-4 say the app's own starting point is
+    # not an answer. Riding here makes "saveable as a default" mean "saved
+    # inside the default recipe", and the per-target list stays generated
+    # from `fields(LayoutRecipe)` as §S1.1 requires.
+    hex_flat_top: bool = False
     spacer_on: bool = True
     spacer_mode: str = "colored"   # "colored" | "bw" | "none"
     spacer_palette: list = field(default_factory=list)  # custom colored-spacer hexes
@@ -104,6 +207,16 @@ class LayoutRecipe:
     # Absent from every dict written before this change, so `from_dict` leaves
     # it False and those recipes behave exactly as they do today.
     layout_explicit: bool = False
+    # The same question for two things a person can choose WITHOUT answering
+    # one of the four above: the page margins (typed into the boxes) and
+    # "Patch area alignment". Only the ColorMunki Extra-high seed reads them
+    # (B8-965, Basti 2026-09-24: a density change seeds only what is still at
+    # default). A typed 6/6/6/6 equals the default in number and is still
+    # somebody's, so the numbers cannot answer this either. Written only where
+    # `layout_explicit` does not already say it; absent from older dicts, so
+    # `from_dict` leaves them False and those recipes behave as they did.
+    margins_explicit: bool = False
+    align_explicit: bool = False
     spacer_width_mm: float = 0.0   # 0 = instrument default
     inter_patch_mm: float = 0.0    # extra gap between patches
     strip_gap_mm: float = 0.0      # extra gap BETWEEN strips (adds to row pitch)
@@ -171,6 +284,12 @@ class LayoutRecipe:
     chart_text_size_mm: float = 0.0      # 0 = default (~3.2 mm)
     chart_text_bold: bool = False
     chart_text_italic: bool = False
+    # Where the two bottom lines sit across the page (Knut, 2026-09-14):
+    # "left_margin" (his default), "available" (the beta 13 centring between
+    # the two side bounds) or "between_margins" (centred on the patch area).
+    # `text_edge_fit.BOTTOM_TEXT_ALIGNMENTS` is the list; the key is stored, so
+    # a recipe written on one language reads the same on another.
+    chart_text_align: str = "left_margin"
     # Ruler helper markers (#152, Knut): short printed dashes along all four
     # page edges, lined up with the strips across the page and the patches down
     # it, so a ruler can be laid on the sheet accurately while measuring.
@@ -199,6 +318,14 @@ class LayoutRecipe:
     # its own documentation strip out of the box (#93). Only drawn where a clip
     # border exists (i1/p3 clip mode); harmless elsewhere.
     clip_content_mode: str = "notes"
+    # THE CONTENT THE CLIP BORDER TAKES WHEN IT IS SWITCHED ON (K57, Knut
+    # #182 5848511977). On the ColorMunki, SpectroScan and CR30 the content IS
+    # the On / Off switch ("off" = no clip border), so a Content chosen in
+    # Preferences while the clip border is Off switched it On (B8-1362's
+    # limit). Knut: "changing the default shall not change the clip border
+    # setting". The kind is kept here instead, and a clip border switched On
+    # starts on it. "" = the notes box, as before.
+    clip_content_when_on: str = ""
     clip_text: str = ""                  # rotated text / notes caption (tokens ok)
     clip_text_font: str = "Inter"
     clip_text_size_mm: float = 0.0       # 0 = auto-fit to the strip width
@@ -238,7 +365,9 @@ class LayoutRecipe:
 
     # ---- serialisation (meta.json round-trip) --------------------------
     def to_dict(self) -> dict:
-        return asdict(self)
+        d = asdict(self)
+        d[HIDES_PATCH_CONTROLS_KEY] = True      # B8-1570; not a field
+        return d
 
     @classmethod
     def from_dict(cls, d: dict) -> "LayoutRecipe":
@@ -248,7 +377,10 @@ class LayoutRecipe:
         if isinstance(d, dict) and ("nolpcbord" in d or "draw_indicators" in d):
             return cls.from_build_kwargs(d)
         known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in d.items() if k in known})
+        kw = {k: v for k, v in d.items() if k in known}
+        if "layout_mode" not in kw:
+            kw["layout_mode"] = stored_layout_mode(d)
+        return cls(**kw)
 
     @classmethod
     def from_build_kwargs(cls, d: dict) -> "LayoutRecipe":
@@ -262,6 +394,8 @@ class LayoutRecipe:
             randomize=bool(d.get("randomize", True)), seed=d.get("seed"),
             hflag=bool(d.get("hflag", False)), cm_density=int(d.get("density", 1)),
             cm_stagger=bool(d.get("cm_stagger", False)),
+            # absent in every recipe written before #159 -> OFF
+            hex_flat_top=bool(d.get("hex_flat_top", False)),
             use_instrument_margins=bool(d.get("use_instrument_margins", False)),
             spacer_mode=d.get("spacer_mode", "colored"),
             spacer_palette=list(d.get("spacer_palette") or []),
@@ -298,6 +432,8 @@ class LayoutRecipe:
             # Likewise not in build_kwargs: a chart that stored raw kwargs
             # reconstructs as "nobody chose", i.e. today's behaviour.
             layout_explicit=bool(d.get("layout_explicit", False)),
+            margins_explicit=bool(d.get("margins_explicit", False)),
+            align_explicit=bool(d.get("align_explicit", False)),
             indicator_font=d.get("indicator_font", "JetBrains Mono"),
             indicator_size_mm=float(d.get("indicator_size_mm") or 0.0),
             indicator_bold=bool(d.get("indicator_bold", False)),
@@ -311,6 +447,12 @@ class LayoutRecipe:
             chart_text=d.get("chart_text", ""),
             chart_text_font=d.get("chart_text_font", "Inter"),
             chart_text_size_mm=float(d.get("chart_text_size_mm") or 0.0),
+            # A RECIPE WRITTEN BEFORE THIS OPTION EXISTED GETS HIS DEFAULT,
+            # which changes how its sheet looks. That is what he asked for
+            # ("Left margin (default)"), and it is written down here so it is
+            # not later mistaken for a migration that was forgotten.
+            chart_text_align=(d.get("chart_text_align")
+                              or _tef.BOTTOM_TEXT_ALIGN_DEFAULT),
             helper_markers=bool(d.get("helper_markers", False)),
             helper_marker_edge_mm=float(d.get("helper_marker_edge") or 2.0),
             helper_marker_len_mm=float(d.get("helper_marker_len") or 2.0),
@@ -329,6 +471,10 @@ class LayoutRecipe:
             clip_border_width_mm=float(d.get("clip_border_width") or 26.0),
             clip_side=d.get("clip_side") or "left",
             clip_content_mode=d.get("clip_content_mode", "off"),
+            # B8-1402: the kind a clip border switched On takes (K57, B8-1388)
+            # travels with the build settings too; absent in kwargs written
+            # before it, which read as "" (the notes box), as before.
+            clip_content_when_on=str(d.get("clip_content_when_on") or ""),
             clip_text=d.get("clip_text", ""),
             clip_text_font=d.get("clip_text_font", "Inter"),
             clip_text_size_mm=float(d.get("clip_text_size_mm") or 0.0),
@@ -368,9 +514,58 @@ class LayoutRecipe:
             r.seed = lay["seed"]
         return r
 
+    # ---- "Text distance from edge": what a typed 0 really means --------
+    #
+    # A TYPED ZERO IS NOT ZERO, AND THE SUBSTITUTION HAS TO BE ASKED FOR RATHER
+    # THAN COPIED. `build_kwargs()` writes `self.text_edge_clip_mm or 4.0`, so
+    # a 0 in any of the three boxes becomes 4.0 for everything the layout
+    # engine draws, and the panel promises exactly that in black under the
+    # boxes: *"A distance of 0.0 mm is not used. ChromIQ prints at 4.0 mm
+    # instead, so no text is set hard against the paper edge."*
+    #
+    # `chart_creator._stamp_tiff_metadata` read the three fields RAW off the
+    # recipe and got 0.0 where the sheet had 4.0, so the run's chart note was
+    # the one piece of text that DID go hard against the paper edge. Measured
+    # on screen, ColorMunki / A4 / 200 dpi, the note isolated against a control
+    # sheet with it switched off: with the boxes at 4.0 its ink ran from
+    # 4.83 mm of the top and 4.70 mm of the bottom; with all three typed to 0
+    # the same note ran from 1.40 mm and 1.14 mm, while the clip band's text
+    # (4.19 mm), the strip letters (5.97 mm) and the bottom sheet text
+    # (4.32 mm) did not move by a pixel. On a right-hand band, where the
+    # stamper packs the note against the reserve, its right-hand end moved
+    # from 20.70 mm to 17.14 mm as well.
+    #
+    # These three are that one rule, in one place, for every caller.
+    @property
+    def effective_text_edge_mm(self) -> float:
+        """"B", the bottom sheet text's distance, as the engine will read it."""
+        return float(self.text_edge_mm or TEXT_EDGE_DEFAULT_MM)
+
+    @property
+    def effective_text_edge_top_mm(self) -> float:
+        """"T", the strip letters' distance, as the engine will read it."""
+        return float(self.text_edge_top_mm or TEXT_EDGE_DEFAULT_MM)
+
+    @property
+    def effective_text_edge_clip_mm(self) -> float:
+        """"Clip", the side text distance, as the engine will read it."""
+        return float(self.text_edge_clip_mm or TEXT_EDGE_DEFAULT_MM)
+
     # ---- mapping to the engine build kwargs ----------------------------
     def build_kwargs(self) -> dict:
-        """Kwargs for :func:`workflow.layout_engine.chart.build_chart`."""
+        """Kwargs for :func:`workflow.layout_engine.chart.build_chart`.
+
+        THE MODE THAT IS NOT CHOSEN HAS NO SAY (B8-1540, Knut #182 5857405680).
+        "Prioritise chart area" hides the patch size, the patch scale and the
+        chart offset, because it derives the patch size from the margin box.
+        The recipe still HOLDS what was typed there, so switching back to
+        "Prioritise patch size" gives it back, but none of it may reach the
+        engine: a typed patch size made `geom_from_build_kwargs` skip the area
+        fit altogether (a 10 by 20 grid came out as 364 patches), the scale
+        grew the spacers, and the offset moved the block out of the margins.
+        The patch-area alignment is NOT neutralised: the built-in area-first
+        presets set it on purpose."""
+        area = self.layout_mode == "area_first"
         return {
             "instrument": self.instrument,
             "paper": self.paper,
@@ -380,6 +575,7 @@ class LayoutRecipe:
             "hflag": self.hflag,
             "density": self.cm_density,
             "cm_stagger": self.cm_stagger,
+            "hex_flat_top": self.hex_flat_top,
             "spacer_on": self.spacer_mode != "none",
             "spacer_mode": self.spacer_mode,
             "spacer_palette": list(self.spacer_palette) or None,
@@ -393,13 +589,13 @@ class LayoutRecipe:
             "edge_spacers": (self.edge_spacers
                              or self.instrument in ("i1", "p3", "CM")),
             "patch_area_align": self.patch_area_align,
-            "pscale": self.pscale,
+            "pscale": 1.0 if area else self.pscale,
             "sscale": self.sscale,
             "border": self.border,
             "margins": (self.margin_top, self.margin_right,
                         self.margin_bottom, self.margin_left),
-            "patch_w": self.patch_w_mm or None,
-            "patch_h": self.patch_h_mm or None,
+            "patch_w": None if area else (self.patch_w_mm or None),
+            "patch_h": None if area else (self.patch_h_mm or None),
             "layout_mode": self.layout_mode,
             "area_method": self.area_method,
             "area_cols": self.area_cols,
@@ -411,8 +607,8 @@ class LayoutRecipe:
             "strip_gap": self.strip_gap_mm or None,
             "max_strip": self.max_strip_mm or None,
             "strip_indicator_gap": self.strip_indicator_gap_mm or None,
-            "offset_x": self.offset_x_mm,
-            "offset_y": self.offset_y_mm,
+            "offset_x": 0.0 if area else self.offset_x_mm,
+            "offset_y": 0.0 if area else self.offset_y_mm,
             "bit16": self.bit16,
             "compression": self.compression,
             "export_pdf": self.export_pdf,
@@ -457,15 +653,17 @@ class LayoutRecipe:
             "chart_text": self.chart_text,
             "chart_text_font": self.chart_text_font,
             "chart_text_size_mm": self.chart_text_size_mm,
+            "chart_text_align": (self.chart_text_align
+                                 or _tef.BOTTOM_TEXT_ALIGN_DEFAULT),
             "helper_markers": bool(self.helper_markers),
             "helper_marker_edge": self.helper_marker_edge_mm or 2.0,
             "helper_marker_len": self.helper_marker_len_mm or 2.0,
             "helper_marker_per_patch": self.helper_marker_per_patch or 3,
             "helper_markers_top_bottom": bool(self.helper_markers_top_bottom),
             "helper_markers_sides": bool(self.helper_markers_sides),
-            "text_edge": self.text_edge_mm or 4.0,
-            "text_edge_top": self.text_edge_top_mm or 4.0,
-            "text_edge_clip": self.text_edge_clip_mm or 4.0,
+            "text_edge": self.effective_text_edge_mm,
+            "text_edge_top": self.effective_text_edge_top_mm,
+            "text_edge_clip": self.effective_text_edge_clip_mm,
             # Drives "margins are the law" mode in the engine (Knut): only when on
             # are the margins exact (no leader/trailer). Off = printtarg-style.
             "use_instrument_margins": self.use_instrument_margins,
@@ -476,6 +674,7 @@ class LayoutRecipe:
             "clip_border_width": self.clip_border_width_mm or 26.0,
             "clip_side": self.clip_side or "left",
             "clip_content_mode": self.clip_content_mode,
+            "clip_content_when_on": self.clip_content_when_on or "",
             "clip_text": self.clip_text,
             "clip_text_font": self.clip_text_font,
             "clip_text_size_mm": self.clip_text_size_mm,
@@ -567,8 +766,10 @@ class PresetStore:
         return default_recipe(instrument, paper, mode=mode)
 
     def set(self, recipe: LayoutRecipe) -> None:
-        # Presets store layout, not the per-chart seed.
-        self._presets[recipe.preset_key()] = replace(recipe, seed=None)
+        # Presets store layout, not the per-chart seed -- nor the tick that goes
+        # with it, which would otherwise arrive with no number to apply it to.
+        self._presets[recipe.preset_key()] = replace(recipe, seed=None,
+                                                     seed_fixed=None)
 
     def delete(self, instrument: str, paper: str, mode: str) -> bool:
         return self._presets.pop(f"{instrument}|{paper}|{mode}", None) is not None

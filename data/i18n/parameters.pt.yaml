@@ -7,11 +7,11 @@ parameters:
       tooltip_body: |-
         Define a combinação de corantes do dispositivo de saída.
 
-        Os espaços de impressão são subtrativos: valor do dispositivo 0 =
+        **Os espaços de impressão são subtrativos:** valor do dispositivo 0 =
         branco (sem tinta), máximo = preto (tinta plena).  Os espaços de
         vídeo/ecrã são aditivos: valor 0 = preto, máximo = branco.
 
-        Escolhas comuns:
+        **Escolhas comuns:**
           • Impressão cinzenta (-d 0) — impressora monocanal em tons de
                                         cinzento
           • Vídeo cinzento (-d 1)     — ecrã/monitor monocanal
@@ -53,7 +53,7 @@ parameters:
         corante escolhido já está no conjunto é removido; se falta, é
         adicionado.
 
-        Usos típicos:
+        **Usos típicos:**
           • Adicionar laranja (-D 5) ao CMYK padrão para gama estendida
           • Adicionar ciano claro (-D 11) / magenta claro (-D 12) ao CMYK
             para gradações mais suaves nas luzes
@@ -95,7 +95,7 @@ parameters:
           • Alta qualidade: 1500–2000
           • Altíssima:      2500–3000
 
-        Auto (ao lado do campo numérico): se marcado, o número de amostras
+        **Auto (ao lado do campo numérico):** se marcado, o número de amostras
         é calculado em tempo real a partir do papel, instrumento, double
         density, margem esquerda, escala de amostra, margem e do campo
         Páginas na secção printtarg — escolhendo o maior valor que
@@ -119,7 +119,7 @@ parameters:
         predefinição; papéis muito brilhantes podem beneficiar de mais
         algumas.
 
-        Auto (caixa):
+        **Auto (caixa):**
         Ligue o \"Automático\" e o ChromIQ escolhe o número por si, conforme as
         amostras de toda a carta — uma carta pequena de uma página recebe
         poucas amostras brancas e uma grande de várias páginas mais, sem
@@ -143,7 +143,7 @@ parameters:
         a impressora consegue produzir — ancorando a ponta escura do
         perfil. 4 é uma boa predefinição para impressoras RGB.
 
-        Auto (caixa):
+        **Auto (caixa):**
         Ligue o \"Automático\" e o ChromIQ escolhe o número por si, conforme as
         amostras de toda a carta — uma carta pequena recebe poucas
         amostras pretas, uma grande mais.
@@ -166,7 +166,7 @@ parameters:
         branco e tons neutros. Guia aproximado se definir à mão: 0 para um
         perfil rápido, 50–100 para um padrão, 128+ para alta qualidade.
 
-        Auto (caixa):
+        **Auto (caixa):**
         Ligue o \"Automático\" e o ChromIQ escolhe o número por si, em proporção
         às amostras de toda a carta — uma carta maior recebe uma rampa de
         cinzentos mais longa e fina.
@@ -264,7 +264,7 @@ parameters:
             para a zona neutra.  Não adiciona passos com nome.
           • -n adiciona amostras neutras explícitas, derivadas do perfil, além do que o resto da distribuição produz.
 
-        Quando usar:
+        **Quando usar:**
           • Já tem um perfil ICC de primeira passagem para este papel e
             está a criar uma carta de refinamento.  Carregue esse perfil
             em Perfil de pré-condicionamento (-c) e ponha -n em 32–64
@@ -274,7 +274,7 @@ parameters:
             para amostrar, e o -g já cobre a rampa no espaço do
             dispositivo.
 
-        Valores de refinamento típicos: 32 para trabalho comum, 64 para
+        **Valores de refinamento típicos:** 32 para trabalho comum, 64 para
         fine-art / provas onde a neutralidade é crítica.
 
         Exige -c definido; caso contrário não tem efeito.
@@ -308,7 +308,7 @@ parameters:
         essas amostras prevê cores que a impressora na verdade não
         consegue produzir.
 
-        Como escolher um valor:
+        **Como escolher um valor:**
           • Maioria dos jatos de tinta CMYK:  260 – 320%
           • Papéis couché / brilhantes:       320 – 360%
           • Papel de jornal, baixa qualidade: 220 – 260%
@@ -320,7 +320,7 @@ parameters:
         limite de tinta e escolha o valor mais alto que seca limpo sem
         borrar.
 
-        Para fluxos RGB: normalmente deixe desligado — os jatos de tinta
+        **Para fluxos RGB:** normalmente deixe desligado — os jatos de tinta
         RGB gerem o limite de tinta internamente, e o targen não precisa
         de dividir orçamento entre canais.
 
@@ -336,7 +336,7 @@ parameters:
         Escolha UM. Excluem-se mutuamente — selecionar um substitui por
         completo a colocação OFPS predefinida.
 
-        OFPS (predefinição, recomendado):
+        **OFPS (predefinição, recomendado):**
         Optimised Farthest Point Sampling. Coloca iterativamente cada
         nova amostra o mais longe possível de todas as existentes — a
         cobertura mais uniforme de todos os algoritmos listados aqui.
@@ -344,31 +344,31 @@ parameters:
         de perfil. Combine com a \"Otimização precisa (-G)\" para o melhor
         resultado.
 
-        Incremental Far Point (-t):
+        **Incremental Far Point (-t):**
         Um método de ponto mais distante mais simples. Mais rápido do que
         o OFPS, ligeiramente menos uniforme. Use quando o OFPS é lento
         demais com números de amostras muito altos e aceita uma pequena
         perda de qualidade.
 
-        Aleatória — espaço do dispositivo (-r):
+        **Aleatória — espaço do dispositivo (-r):**
         Amostras uniformemente aleatórias nos valores brutos do
         dispositivo (p. ex. RGB). O mais rápido possível, mas a cobertura
         em cor *percebida* é desigual — desperdiça amostras em zonas que
         o olho mal distingue.
 
-        Aleatória — espaço percetual (-R):
+        **Aleatória — espaço percetual (-R):**
         Uniformemente aleatória em cor percebida (Lab). Melhor do que -r
         se tiver mesmo de ser aleatória, porque as amostras se distribuem
         uniformemente segundo o que o olho vê. Ainda assim menos ótima do
         que o OFPS para o mesmo número.
 
-        Quase-aleatória de preenchimento (-q / -Q):
+        **Quase-aleatória de preenchimento (-q / -Q):**
         Sequências de baixa discrepância (tipo Sobol) que preenchem o
         espaço mais uniformemente do que o acaso puro, sem o custo
         iterativo do OFPS. -q no espaço do dispositivo, -Q no percetual.
         Um bom compromisso quando o OFPS é lento demais.
 
-        Retícula cúbica de corpo centrado (-i / -I):
+        **Retícula cúbica de corpo centrado (-i / -I):**
         Uma retícula regular fixa (cada amostra rodeada de 8 vizinhas num
         padrão cúbico). Determinista e muito uniforme, mas rígida — só
         certos números de amostras encaixam na retícula. -i no espaço do
@@ -423,14 +423,14 @@ parameters:
         certa. O OFPS já cobre o interior do cubo de forma mais
         eficiente.
 
-        Quando usar:
+        **Quando usar:**
           • Repetibilidade entre máquinas: uma grelha fixa é igual de
             cada vez, sejam quais forem as colocações OFPS escolhidas
             pelo targen — útil para comparar perfis entre execuções.
           • Cartas de diagnóstico com posições do cubo previsíveis e com
             nome.
 
-        Valores típicos quando usado: 3 – 6 (passos por eixo). Os números
+        **Valores típicos quando usado:** 3 – 6 (passos por eixo). Os números
         crescem depressa — 6 passos em RGB são 216 amostras, 8 são 512.
 
         Marque a caixa para ativar.
@@ -445,13 +445,13 @@ parameters:
 
         Ponha 0 (predefinição) para saltar.
 
-        Quando usar:
+        **Quando usar:**
           • Quer cravar especificamente a fronteira da gama e os cantos
             primários/secundários sem o custo interior do -m.
           • Comparar como tintas/papéis diferentes deslocam o envelope da
             gama — as amostras de superfície são as mais afetadas.
 
-        Valores típicos quando usado: 4 – 8 passos por face.
+        **Valores típicos quando usado:** 4 – 8 passos por face.
 
         Marque a caixa para ativar.
     "-b":
@@ -465,13 +465,13 @@ parameters:
 
         Ponha 0 (predefinição) para saltar — é um botão de nicho.
 
-        Quando usar:
+        **Quando usar:**
           • Quer posições de amostras regulares, alinhadas à retícula,
             mas com melhor empacotamento do que -m, sem chegar ao OFPS.
           • Cenários de investigação / repetibilidade em que a própria
             estrutura BCC é o objetivo.
 
-        Nota: esta é a forma de *contador de passos* (acresce à lista de
+        **Nota:** esta é a forma de *contador de passos* (acresce à lista de
         amostras); para uma carta cuja distribuição *inteira* é BCC, use
         o seletor \"Distribuição de amostras\" acima e escolha aí a opção
         cúbica de corpo centrado.
@@ -629,7 +629,7 @@ parameters:
 
         Selecionar um i1Pro / i1Pro 2 / i1Pro 3 / i1Pro 3 Plus sobe
         automaticamente o valor para 10 mm, para a ótica do leitor de
-        tiras não derivar para a borda nua do papel (erros \"not enough
+        tiras não deslizar para a borda nua do papel (erros \"not enough
         patches read\").  Voltar a ColorMunki / SpectroScan repõe 6 mm.
         Um valor personalizado (diferente de 6 ou 10) é preservado nas
         mudanças de instrumento.
@@ -642,7 +642,8 @@ parameters:
       tooltip_title: "Sem aleatorização (-r)"
       tooltip_body: |-
         Por omissão, o printtarg aleatoriza as posições das amostras para
-        reduzir os artefactos de deriva do instrumento.
+        reduzir os artefactos de leituras do instrumento que mudam
+        lentamente durante uma medição.
         Ative esta opção apenas se está a testar uma sequência de
         amostras específica ou se o instrumento exige amostras ordenadas.
     "-b":
@@ -695,7 +696,7 @@ parameters:
         é incorporado no ficheiro .ti2 para o colprof o consultar na
         criação do perfil ICC.
 
-        Uso típico: jatos de tinta de secretária sem linearização
+        **Uso típico:** jatos de tinta de secretária sem linearização
         integrada, comandados diretamente por um TIFF sem RIP intermédio.
 
         Mutuamente exclusivo com \"Incorporar a calibração\" (-I) — só
@@ -714,7 +715,7 @@ parameters:
         da calibração.  O -I incorpora o ficheiro .cal no .ti2 de saída
         apenas como metadados, deixando todos os valores intactos.
 
-        Uso típico: RIPs de jato de tinta profissionais (p. ex. EFI
+        **Uso típico:** RIPs de jato de tinta profissionais (p. ex. EFI
         Fiery, Wasatch, ColorBurst) ou impressoras com linearização
         integrada ativa durante a impressão de perfilamento.
 
@@ -804,96 +805,6 @@ parameters:
         instrumento pode ser a preto e branco).  Pode melhorar o
         reconhecimento das tiras nalguns jatos de tinta a cores onde os
         separadores pretos têm pouco contraste com amostras escuras.
-  chartread:
-    "-B":
-      name: "Leitura bidirecional desl."
-      tooltip_title: "Desativar leitura bidirecional (-B)"
-      tooltip_body: |-
-        Impede o chartread de detetar automaticamente se digitalizou uma
-        tira para a frente ou para trás. O ChromIQ deixa isto desligado
-        por omissão, para o instrumento poder ler as tiras em ambos os
-        sentidos.
-
-        Ative apenas se o instrumento dá falsos erros de sentido de tira
-        durante a medição.
-    "-b":
-      name: "Forçar leitura bidirecional"
-      tooltip_title: "Forçar leitura bidirecional (-b)"
-      tooltip_body: |-
-        Obriga o chartread a aceitar uma tira digitalizada em qualquer
-        sentido.
-
-        Normalmente o chartread só deteta o sentido automaticamente em
-        cartas aleatorizadas; numa carta de ordem fixa lê num só sentido
-        e rejeita tiras digitalizadas ao contrário. Ative para forçar a
-        deteção na mesma — útil para a família i1 Pro, que lê de bom
-        grado em ambos os sentidos. É o oposto de -B; só um pode valer.
-    "-S":
-      name: "Ocultar avisos"
-      tooltip_title: "Ocultar avisos (-S)"
-      tooltip_body: |-
-        Oculta as janelas de aviso não fatais do chartread.
-        Recomendado para sessões de medição sem supervisão ou em série.
-        Os erros que impediriam a criação do perfil continuam a ser
-        reportados.
-    "-N":
-      name: "Sem calibração inicial"
-      tooltip_title: "Desativar calibração inicial (-N)"
-      tooltip_body: |-
-        Salta a calibração automática na cerâmica branca ao arrancar.
-        Use apenas se já calibrou o instrumento nesta sessão e quer medir
-        mais cartas sem recalibrar.
-    "-p":
-      name: "Modo amostra a amostra"
-      tooltip_title: "Modo amostra a amostra (-p)"
-      tooltip_body: |-
-        Muda da leitura de tiras para a medição de amostras individuais.
-        Útil para medições pontuais à mão ou se a leitura de tiras falha
-        num papel específico.  Bastante mais lento em cartas grandes.
-    "-H":
-      name: "Modo espetral de alta resol."
-      tooltip_title: "Espetro de alta resolução (-H)"
-      tooltip_body: |-
-        Ativa a amostragem espetral de alta resolução nos instrumentos
-        que a suportam (p. ex. i1Pro 2/3).  Produz valores Lab mais
-        precisos mas aumenta ligeiramente o tempo de medição.
-    "-T":
-      name: "Tolerância de consistência"
-      tooltip_title: "Multiplicador de tolerância de amostras (-T)"
-      tooltip_body: |-
-        Um multiplicador do limiar de consistência de amostras integrado
-        no chartread — não um valor delta-E. O chartread relê cada
-        amostra e rejeita tiras cujas leituras divergem mais do que o
-        limiar × este número.
-
-        Mais baixo = mais rigoroso. Um ajuste rigoroso apanha cedo os
-        problemas reais: bicos entupidos, pouca tinta, rolos sujos, toner
-        instável. Numa combinação saudável de impressora +
-        espetrofotómetro, o 0.7 por omissão deixa folga confortável;
-        utilizadores experientes do printerknowledge.com usam 0.4 com
-        i1 Pro 2 / 3.
-
-        Suba para 0.8–1.5 se obtiver falsos erros \"inconsistent patch\"
-        em papéis texturados, mate ou fine-art — aí a própria superfície
-        traz variância real. Valores acima de 2 sobretudo mascaram
-        problemas reais; se precisar deles, repare primeiro a impressora.
-    "-l":
-      name: "Guardar valores D50 L*a*b*"
-      tooltip_title: "Guardar L*a*b* em vez de XYZ (-l)"
-      tooltip_body: |-
-        Guarda os dados de medição como valores L*a*b* D50 em vez de XYZ.
-        A maioria dos fluxos usa XYZ (predefinição).  Ative apenas se as
-        ferramentas a jusante exigirem especificamente entrada L*a*b*.
-    "-X":
-      name: "Correção de colorímetro"
-      tooltip_title: "Matriz de correção de colorímetro (-X)"
-      tooltip_body: |-
-        Aplica uma matriz de correção de colorímetro (.ccmx) ou um
-        conjunto espetral de calibração (.ccss) para melhorar a precisão
-        de um colorímetro.
-        Só é relevante para colorímetros (não espetrofotómetros).
-        Obtenha o ficheiro certo junto do fabricante do instrumento ou
-        crie-o com as ferramentas ccss/ccmx do ArgyllCMS.
   colprof:
     "-D":
       name: "Descrição do perfil"
@@ -930,13 +841,6 @@ parameters:
       labels:
         - "l — Lab cLUT (recomendado para impressoras RGB)"
         - "x — XYZ cLUT"
-        - "X — XYZ cLUT (absoluto)"
-        - "g — gamma + matriz (rápido, menos preciso)"
-        - "G — gamma + matriz (forçado)"
-        - "s — gamma única + matriz"
-        - "S — gamma única + matriz (forçado)"
-        - "m — só matriz"
-        - "M — só matriz (forçado)"
     "-q":
       name: "Qualidade do perfil"
       tooltip_title: "Qualidade do perfil (-q)"
@@ -1131,7 +1035,7 @@ parameters:
         calibração.  Valores mais altos produzem curvas mais suaves mas
         menos precisas.
 
-        Predefinição: 1.0 — adequado à maioria das impressoras.
+        **Predefinição:** 1.0 — adequado à maioria das impressoras.
         Aumente (p. ex. 2.0–5.0) se a resposta tonal da impressora
         parecer irregular ou as curvas parecerem dentadas.
     "-z":

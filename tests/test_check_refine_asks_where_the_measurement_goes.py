@@ -27,11 +27,20 @@ def _tab(qapp, tmp_path):
 
 def test_the_tab_can_take_the_shared_controller(qapp, tmp_path):
     """It was the only tab left out of the registration loop."""
-    tab, _s = _tab(qapp, tmp_path)
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.measurement_target_bar import MeasurementTargetController
+
+    tab, s = _tab(qapp, tmp_path)
     assert hasattr(tab, "set_target_controller"), (
         "Check & Refine cannot be given the bar's controller, so nothing can "
         "point the bar at the run an import chose")
-    tab.set_target_controller(object())
+    # THE REAL CONTROLLER, not `object()`. The tab now SUBSCRIBES to the
+    # controller's `changed` as well as storing it, and a bare `object()` has
+    # no signals — so this test would have gone red on a change that is the
+    # whole point of handing the tab a controller at all.
+    tab.set_target_controller(MeasurementTargetController(FileManager(s)))
     assert tab._target_ctl is not None
 
 

@@ -65,15 +65,87 @@ def test_the_bar_labels_are_not_invisible(name, pal):
 
 
 def test_the_labels_are_coloured_for_the_rail_not_the_app_palette(qapp):
-    """Both object names must be given a colour, and it must happen when the
-    widget is hosted — not only when the theme later changes."""
+    """The rule must reach the labels when the widget is HOSTED, not only when
+    the theme later changes."""
     import inspect
 
     from ui import masthead_header
 
-    src = inspect.getsource(masthead_header.MastheadHeader)
-    for name in ("target_bar_label", "target_bar_hint"):
-        assert name in src, f"{name} is never given a colour for the rail"
     hosted = inspect.getsource(masthead_header.MastheadHeader.set_center_widget)
     assert "_paint_center_widget_text" in hosted, (
         "the first widget hosted on the rail keeps the application palette")
+
+
+# ---------------------------------------------------------------------------
+# …AND NOT FROM A LIST, because a list is how the third label was missed
+# ---------------------------------------------------------------------------
+
+def _rail_labels(bar):
+    """Every QLabel on the hosted widget that carries text, by object name."""
+    from PyQt6.QtWidgets import QLabel
+    out = {}
+    for w in bar.findChildren(QLabel):
+        if w.text():
+            out.setdefault(w.objectName() or w.text()[:24], w)
+    return out
+
+
+@pytest.mark.parametrize("mode", ["dark", "light", "neutral"])
+def test_every_label_on_the_rail_is_readable_on_it(qapp, tmp_path, mode):
+    """WALKED, NOT LISTED. `_paint_center_widget_text` named two object names
+    and the Profile-run bar has three: "Location being edited: …" is a
+    `QLabel#target_bar_location`, was never in the rule, kept the application
+    palette and was drawn **#000000 on the #070707 rail, 1.04:1** — worse than
+    the 1.11:1 the method exists to fix, on the one line whose job is to be
+    read. Light and Neutral were fine by luck, because near-black on a pale
+    rail is legible. Photographed in all three appearances, 2026-09-15
+    (`~/Desktop/ChromIQ-beta18-proof/combined-round-3/J-result.json`).
+
+    So this asks the WIDGET what colour each of its labels actually ended up
+    with, and a fourth label added tomorrow is covered without anyone
+    remembering this file.
+
+    MUTATION: drop the `target_bar_location` rule from
+    `_paint_center_widget_text` and the dark case goes red at 1.04:1.
+    """
+    from ui.masthead_header import _PALETTES, MastheadHeader
+
+    bar = _a_bar_with_every_label_showing(qapp, tmp_path)
+    head = MastheadHeader()
+    head.set_center_widget(bar)
+    head.set_appearance(mode)
+    qapp.processEvents()
+    rail = _PALETTES[mode]["ver_bg"]
+    worst = []
+    for name, w in _rail_labels(bar).items():
+        c = w.palette().color(w.foregroundRole())
+        r = contrast("#%02x%02x%02x" % (c.red(), c.green(), c.blue()), rail)
+        if r < 3.0:
+            worst.append(f"{name}: {r:.2f}:1 ({c.name()} on {rail})")
+    assert not worst, (
+        f"{mode}: label(s) on the version rail cannot be read on it — "
+        + "; ".join(worst))
+
+
+def _a_bar_with_every_label_showing(qapp, tmp_path):
+    """A real Profile-run bar with its location line and its hint both filled
+    in, so neither is skipped for being empty."""
+    from core.settings import AppSettings
+    from core.file_manager import FileManager
+    from ui.measurement_target_bar import (MeasurementTargetBar,
+                                           MeasurementTargetController)
+    s = AppSettings()
+    s.set("custom_output_path", str(tmp_path))
+    fm = FileManager(s)
+    fm.set_target_name("P")
+    fm.project()
+    bar = MeasurementTargetBar(MeasurementTargetController(fm))
+    bar.refresh()
+    # The two that only appear in one state each, filled in by hand so the
+    # walk above sees them whatever the controller happens to be showing.
+    bar._location.setText("Location being edited: projects/P/runs/run1/")
+    bar._location.setVisible(True)
+    bar._hint.setText("Load a profile project.")
+    bar._hint.setVisible(True)
+    qapp.processEvents()
+    return bar

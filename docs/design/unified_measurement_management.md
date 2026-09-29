@@ -1,7 +1,7 @@
 # Unified Measurement Management — Design Specification
 
 > **Revision 2026-08-09 (e) — two approved messages carry a revised print step.**
-> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) and M-INSTRUMENT-BUSY (new, 2026-09-02, #159 — Tools ▸ Read single patches now reads a CR30 with ChromIQ's own driver, which is the first time two windows can reach for one instrument; every existing guard answers from process state and cannot see a reader that spawns no process, and the instrument hands its last reading to whoever asks, so the fault it prevents is a plausible wrong colour rather than an error), plus M-SPOT-CLEAR and M-SPOT-UNSAVED (new, 2026-09-03 — Tools ▸ Read single patches could throw a whole measuring session away in silence by two separate routes: Clear had no question and no undo, and Close, the red window button and Escape all discarded the readings without a word. Knut found the first of them by pressing the spacebar, which the Measure tab uses as the reading trigger), plus M-SCAN-REF-SHORT, M-SCAN-REF-DISAGREES, M-SCAN-CLIPPED and M-SCAN-PROFILE-ARCHIVED (new, 2026-09-03 — review 5 of Tools ▸ Build profile with scanner or camera found the app building a profile from data that is not the chart it thinks it is, with every indicator on screen green: a reference file holding a correct SUBSET of the target builds from a sixth of the sheet and scores BETTER on colprof's own self-check than the correct build, an upside-down scan passes every pre-build check, and a scan with two of every five patches clipped to white builds clean and silent. The mechanisms are in the code and can ship ahead of these words; the fourth message says where a rebuilt profile's predecessor went, now that it is archived instead of overwritten), plus M-SCAN-DARK, M-SCAN-FIT-UNSUPPORTED and M-SCAN-SELFCHECK-UNUSABLE (new, 2026-09-04 — beta 8 items B8-01 and B8-03, the two places where the same window tells the user a bad profile is a good one. Every guard in it is scale-invariant and an exposure slip is pure scale, so an under-exposed scan passes all of them in silence and builds a profile 21.7 ΔE out; and colprof's self-check is measured against the rows it was fitted to, so it is smallest exactly when there is least to fit — a one-colour reference scores a perfect 0.007 and a profile whose white point is nan is not checked at all, both ending "Install it as your scanner's input profile"), plus M-SCAN-LOADED and M-SCAN-DIAGNOSTIC (new, 2026-09-03, beta 8 items B8-16 and B8-15 — the same window said nothing at all when a scan was loaded, so a 24-patch photograph loaded under a 288-patch target left an empty log and a live Run button; and it accepted one of ArgyllCMS's own diagnostic images as a scan, which Knut did in his beta.7 log, and then reported a misplacement that was not real about a read that had been fine), plus M-SCAN-ALIGN-NO-BETTER (revised wording only, 2026-09-04, beta 8 item B8-42 — the headline is unchanged and approved; the body used to describe the recogniser alone, and the merged placement button reaches this ending only when the search AND the reshaping have both declined, so it now says both and names “Check alignment”, the one check in the window that can tell a grid one whole patch out from the right answer), plus M-SCAN-CONVERTED and M-SCAN-FIT-TOO-FAR (new, 2026-09-04, beta 8 — the photograph path, revised the same day for B8-42's merged placement button. The window offers “a scan or photo” and Argyll reads TIFF only, so a camera JPEG aligned perfectly on screen and then failed inside scanin; and a sheet that is bowed AND photographed at an angle is read wrongly at its own corners — measured over 48 bow × lens × tilt conditions, each distortion alone costs nothing and two together put 102 patches over 1 ΔE00, which is why the four corners can now be reshaped onto the patches under a bound of three quarters of a patch pitch. Four further messages written for that button on the same day are WITHDRAWN, never having been approved — they are named and accounted for in the awaiting-review section below, and they went with the button itself, which B8-42 merged into Auto align), plus M-SCAN-ALIGN-NOT-SEATED (revised wording, 2026-09-04, beta 8 items B8-02 and B8-42 — Auto align's seventh refusal, and the first one about geometry rather than colour. The quad it is able to return is always a rotated rectangle, so a sheet photographed off square gets a grid that is systematically wrong — and every check it had looks at the chart's COLOURS, which a shear does not disturb because the patches keep their brightness order while sliding onto their neighbours. Measured at 8 degrees of compound tilt: 20 of 23 targets accepted, ten of them more than half a patch out, while the window printed “agrees … to 0.98” beside its own sentence “anything below 0.80 is refused”. Its body is reworded for B8-42 because the placement it refuses may now have come from reshaping the user's own corners rather than from the recogniser, so “it found the chart, but …” would not always be true), plus M-SCAN-SHOT-EMPTY and M-SCAN-TARGET-CHANGED (new, 2026-09-04, beta 8 item B8-32 — two silences in the same window found by the regression sweep: an averaging slot left empty is dropped without a word, so the window shows “Scan 2 of 2” while the build reads one scan and averages nothing; and changing the Target type discards the loaded scan, its placement and every other shot on the page, into a log that is cleared in the same block) — all defined in the awaiting-review section below.
+> **Awaiting review:** M-VERIFY-NO-PROFILE and M-VERIFY-NO-CHART (revised wording only), M-CM-NO-CCTIFF, M-CM-CONVERT-FAILED and M-CM-PROFCHECK-CONVERTED (new, feature A), M-VERIFY-CREATE-NO-PROFILE and M-GAMUT-NO-PROFILE (feature B — wording agreed verbatim with Sebastian on #133, 2026-08-02, listed for the formal record), M-IMPORT-MISMATCH and M-IMPORT-DATE-TAKEN (the Measure tab's IMPORT module; its import-done window was approved by Sebastian 2026-08-10), plus the revised M-CHART-VERIFY (W5, reworked after the 2026-08-10 hardware session) and M-HOW-PRINTED (pairing 3 — the measure-time question for sheets ChromIQ did not print), plus M-ALL-STRIPS-PATCHES-LEFT (new, 2026-08-14 — every strip read while patches inside them are not, #156; both are wording only, their bug fixes are already in the code and speak through the log until these are approved), plus M-NO-INSTRUMENT-FAST (new, 2026-08-13 — Knut's ColorMunki was invisible on older hardware until "Faster instrument connection" was switched off, so that variant of the no-instrument window names the shortcut and carries its switch), plus M-ENGINE-FELL-BACK (new, 2026-08-14 — asked for by Knut on #148: ChromIQ's own measuring engine could not use the instrument, so stock chartread took over, which also silences ChromIQ's measurement sounds without saying so) — all defined in the awaiting-review section below, plus M-PATCHSET-MISSING (new, 2026-08-25 — a loaded patch set that had gone from disk wrote one line to the log and built a different chart, in silence), plus M-PATCHSET-KEPT-UNCHECKED (new, beta 45, B8-1460: a chart made before its record said whether its patch set was given, and whose patches targen could not be asked about, keeps them rather than Generate replacing them in silence), plus M-PROJECT-EXISTS (new, 2026-08-27 — a typed project name that already names a project on disk adopted it in silence; Knut reported it and Basti ruled on when it may appear and what it may offer, but the WORDING is new and waits here), plus M-PROJECT-REPLACE-CONFIRM and M-PROJECT-REPLACE-FAILED (new, 2026-08-27 — the second look before §S4.7's "Replace it" clears a whole project, and the window for the case where its promise cannot be kept), plus M-CR30-STOCK-READER (new, 2026-08-28, #159 — a CR30 chart carries the honest name the device reports for itself, which stock ArgyllCMS chartread refuses outright, so the window names the Preferences control that fixes it) and M-CR30-READ-ENDED (new, 2026-08-28, #159 — the same refusal seen from the other end: an engine run that fails on a CR30 chart has no second reader to fall back to, so the two existing fallback messages, one of which promises that every measured strip will be kept, must not be shown) and M-CR30-MAGNET (new, 2026-08-30, #159 — a magnet recalibrated the instrument mid-chart, which happened to Basti with a MacBook under his paper; the session now stops and offers to retake the white calibration instead of inviting another press) and M-CR30-CALIBRATE-BLACK (new, 2026-08-29, #159 — the dark reference, taken against open air with the instrument's own command, offered by an unticked per-use checkbox so it never becomes a second window on every Start) and M-CR30-CALIBRATE (new, 2026-08-28, #159 — Basti ruled that ChromIQ triggers the CR30's white calibration itself on both transports, which deliberately reverses a documented safety rule; the window's warning is about which face of the cap meets the aperture, not about magnets) and M-CR30-INSTRUMENT-GONE (new, 2026-08-28, #159 — the instrument unplugged mid-measurement and ChromIQ said nothing at all) and M-CR30-PATCH-GAVE-UP (new, 2026-08-28, #159 — one refused reading used to end a CR30 session for ever in silence; refusals are now re-armed and this is the window for when re-arming keeps failing) and M-CR30-HOW-TO-MEASURE (new, 2026-08-28, #159 — every other instrument reaches its "how to measure" window through `calibration_done`, which cannot fire when ChromIQ supplies the values itself, so a CR30 user was given a spot session with no on-screen instruction at all) and M-CR30-READ-FAILED (new, 2026-08-30, #159 — a refused reading was announced only in the log, where Basti did not see it; the behaviour was already right and only the place it was said was wrong, so this is a modeless window that closes itself when the reading arrives) and M-CR30-LEARN-TILE (new, 2026-08-30, #159 — the magnet guard recognised one unit's stored white-tile value because it was hard-coded from that unit; every other owner had no protection at all, so ChromIQ now learns it from a single capped press) and M-CR30-TRIGGER-NOT-ARMED (new, 2026-08-30, #159 — taking the reading from the keyboard is measurably steadier than pressing the instrument's button, but a reading ChromIQ asks for cannot report the magnet gate, so it is refused until that instrument's tile is known), plus M-IMPORT-REPLACE-CONFIRM, M-IMPORT-REPLACE-PROJECT-CONFIRM and M-IMPORT-REPLACED-KEPT (new, 2026-08-31 — importing a measurement or a chart under a name that is already a project asked the question in each loader's own words AND with its own consequence: one said “Overwrite existing folder” and destroyed the project outright, the other said “Replace” and archived it. Basti ruled that the consequence and the vocabulary are shared with §S4.7 while the window stays the loaders' own, because theirs carries a name box and a live “this name is taken” line that §S4.7's has no room for; the third message exists because nothing anywhere told the person where their replaced project had gone) and M-INSTRUMENT-BUSY (new, 2026-09-02, #159 — Tools ▸ Read single patches now reads a CR30 with ChromIQ's own driver, which is the first time two windows can reach for one instrument; every existing guard answers from process state and cannot see a reader that spawns no process, and the instrument hands its last reading to whoever asks, so the fault it prevents is a plausible wrong colour rather than an error), plus M-SPOT-CLEAR and M-SPOT-UNSAVED (new, 2026-09-03 — Tools ▸ Read single patches could throw a whole measuring session away in silence by two separate routes: Clear had no question and no undo, and Close, the red window button and Escape all discarded the readings without a word. Knut found the first of them by pressing the spacebar, which the Measure tab uses as the reading trigger), plus M-SCAN-REF-SHORT, M-SCAN-REF-DISAGREES, M-SCAN-CLIPPED and M-SCAN-PROFILE-ARCHIVED (new, 2026-09-03 — review 5 of Tools ▸ Build profile with scanner or camera found the app building a profile from data that is not the chart it thinks it is, with every indicator on screen green: a reference file holding a correct SUBSET of the target builds from a sixth of the sheet and scores BETTER on colprof's own self-check than the correct build, an upside-down scan passes every pre-build check, and a scan with two of every five patches clipped to white builds clean and silent. The mechanisms are in the code and can ship ahead of these words; the fourth message says where a rebuilt profile's predecessor went, now that it is archived instead of overwritten), plus M-SCAN-DARK, M-SCAN-FIT-UNSUPPORTED and M-SCAN-SELFCHECK-UNUSABLE (new, 2026-09-04 — beta 8 items B8-01 and B8-03, the two places where the same window tells the user a bad profile is a good one. Every guard in it is scale-invariant and an exposure slip is pure scale, so an under-exposed scan passes all of them in silence and builds a profile 21.7 ΔE out; and colprof's self-check is measured against the rows it was fitted to, so it is smallest exactly when there is least to fit — a one-colour reference scores a perfect 0.007 and a profile whose white point is nan is not checked at all, both ending "Install it as your scanner's input profile"), plus M-SCAN-LOADED and M-SCAN-DIAGNOSTIC (new, 2026-09-03, beta 8 items B8-16 and B8-15 — the same window said nothing at all when a scan was loaded, so a 24-patch photograph loaded under a 288-patch target left an empty log and a live Run button; and it accepted one of ArgyllCMS's own diagnostic images as a scan, which Knut did in his beta.7 log, and then reported a misplacement that was not real about a read that had been fine), plus M-SCAN-ALIGN-NO-BETTER (revised wording only, 2026-09-04, beta 8 item B8-42 — the headline is unchanged and approved; the body used to describe the recogniser alone, and the merged placement button reaches this ending only when the search AND the reshaping have both declined, so it now says both and names “Check alignment”, the one check in the window that can tell a grid one whole patch out from the right answer), plus M-SCAN-CONVERTED and M-SCAN-FIT-TOO-FAR (new, 2026-09-04, beta 8 — the photograph path, revised the same day for B8-42's merged placement button. The window offers “a scan or photo” and Argyll reads TIFF only, so a camera JPEG aligned perfectly on screen and then failed inside scanin; and a sheet that is bowed AND photographed at an angle is read wrongly at its own corners — measured over 48 bow × lens × tilt conditions, each distortion alone costs nothing and two together put 102 patches over 1 ΔE00, which is why the four corners can now be reshaped onto the patches under a bound of three quarters of a patch pitch. Four further messages written for that button on the same day are WITHDRAWN, never having been approved — they are named and accounted for in the awaiting-review section below, and they went with the button itself, which B8-42 merged into Auto align), plus M-SCAN-ALIGN-NOT-SEATED (revised wording, 2026-09-04, beta 8 items B8-02 and B8-42 — Auto align's seventh refusal, and the first one about geometry rather than colour. The quad it is able to return is always a rotated rectangle, so a sheet photographed off square gets a grid that is systematically wrong — and every check it had looks at the chart's COLOURS, which a shear does not disturb because the patches keep their brightness order while sliding onto their neighbours. Measured at 8 degrees of compound tilt: 20 of 23 targets accepted, ten of them more than half a patch out, while the window printed “agrees … to 0.98” beside its own sentence “anything below 0.80 is refused”. Its body is reworded for B8-42 because the placement it refuses may now have come from reshaping the user's own corners rather than from the recogniser, so “it found the chart, but …” would not always be true), plus M-SCAN-SHOT-EMPTY and M-SCAN-TARGET-CHANGED (new, 2026-09-04, beta 8 item B8-32 — two silences in the same window found by the regression sweep: an averaging slot left empty is dropped without a word, so the window shows “Scan 2 of 2” while the build reads one scan and averages nothing; and changing the Target type discards the loaded scan, its placement and every other shot on the page, into a log that is cleared in the same block), plus M-SCAN-WP-DEFAULT (new, 2026-09-05 — the white-point handling a scanner or camera profile is built with moved from “Map chart white to white” to “Scale white to a perfect white surface” (`colprof -u -R`), because the old default clipped every original brighter than the test chart's own white board — 84 % reflectance on the scan it was measured from — irreversibly onto white, at no gain in accuracy. Basti ruled that existing remembered settings adopt the new default rather than being pinned to the old one: “our user base is not very big at the moment so i want the better default”. The RULING is his; this message is the announcement that goes with it, and its wording is new and waits here), plus M-REPORT-CHART-MISMATCH-NO-GREY (new, 2026-09-24, beta 40 challenge B: the strip named “Neutral grey ramp” with 16 steps under a list with no grey row, and on a FROM PROFILE GAMUT chart, whose grey steps are its neutral aims; this closing names no grey lever), plus M-THRESHOLDS-NOT-CERTIFICATION (new, 2026-09-08, #182: the note at the foot of the Report limits window saying that ChromIQ measures against a standard's published values and never certifies anything, and naming the requirements it cannot measure; revised twice after Knut approved section C of 5802027116, and the revision of 2026-09-24 about “–” was accepted by him in 5816616607, but the sentence about where a Custom column starts from (B8-978) has not been put to him, so it still waits here), plus M-SCAN-ALIGN-NOT-FOUND-HEX (new, 2026-09-11 — Auto align cannot find a hexagonal chart and never could: measured on Knut's own CR30 honeycomb against a rectangular chart of the same 648 colours, the honeycomb moves 0.0 px from every starting placement while the rectangle lands 0.6 px from the true corners, and only the SEARCH stage declines, with zero candidates, because it borrows scanin's recogniser and that hunts the straight horizontal patch edges a grid of rectangles has. The refusal was already safe; what was wrong is that it told the user to drag the corners roughly round the chart and press again, which narrows a search that will find nothing however narrow it is. Behaviour unchanged, wording new, so it waits here), plus M-SCAN-ALIGN-PLACED-UNCHECKED and M-SCAN-ALIGN-PLACED-NOT-SEATED (new, 2026-09-11, #182 — Knut ruled that Auto align, when it cannot place the grid well enough to trust, must “place its best attempt and tell user to check it” rather than leave the corners alone. Two of the nine endings had a candidate and discarded it, so the user never saw what ChromIQ had found; both now apply it with the one-press undo armed, and these are what is said instead of the shared “Auto align left your corners exactly where they are”. The checks themselves are unchanged), plus M-IMPORT-DONE-PROFILING (new, 2026-09-15 — the Measure tab's IMPORT module now files into a profiling run as well as a verification, asked for by a tester and ruled on by Sebastian; the approved import-done window speaks only of verifications and of a dated folder a profiling run does not have, so its twin is new wording and waits here), plus M-IMPORT-DEVICE-FROM-CHART (new, 2026-09-12 — i1Profiler's measure tool reads a chart it did not generate, so it has no colour space to express device values in and exports none at all. ChromIQ refused such a file with "No device RGB columns", about a user's complete measurement of her own verification chart, taken on an i1iO. The pairing never needed those values: the chart printed a NAME beside every patch, the export carries those names, and the chart knows what was printed at each of them, so the chart supplies the device values exactly as it does for a measurement made here. What it cannot then do is check the file against the chart, because that check compares device values, so this window says so and leaves the judgement with the person who printed the sheet) , plus M-VERIFY-UNCHECKED-METRICS (new, 2026-09-22, #182: what the report does with a metric the chart cannot answer; its last paragraph was reworded for K31 after Knut approved section C of 5802027116, and not in the words that post proposed, so the revision waits here), plus M-REPORT-DELETE-FAILED and M-REPORT-NOT-WRITABLE (new, 2026-09-23, challenge C of beta 39, both revised by re-challenge R2 after Knut had been shown them in 5802027116, for a remedy that names the right folder and a plural that follows the folders; the revisions wait here) plus M-RUN-DELETE-REPORTS-LOCKED (new, 2026-09-23, re-challenge R2 of beta 39: a run delete refused because the reports naming the later runs cannot be renumbered said it had tried to remove the reports folder, and had no headline; the behaviour is unchanged, the wording is ours and waits here) plus M-REPORT-UPDATE-NOTHING-LEFT (new, 2026-09-23, re-challenge R1 of beta 39: “Update without them” on a report whose every measurement was gone wrote a report covering nothing under its old verdict and scope; the press is now refused, the wording is ours and waits here) (the two K49 notes on the paper row and the two solid rows, which say that they compare a measurement with its profile's own description while the cube-corner table keeps the ideal values, were APPROVED by Knut in 5845588201 and left this list) (the four K37 notes about the paper white and the strip corners were APPROVED by Knut in 5824834975 once "sheet" was reworded, and left this list), (the Report Scope line saying that an earlier version worked a report out was APPROVED by Knut in 5831246553 once its last sentence, which named the Update button, was reworded, K39-1, and left this list) (the variant of the unchanged question and the red line after "New report…", K39-2 and K39-3, were APPROVED by Knut in 5832385126 and left this list) (the note for a date whose measurement is no longer on disk, B8-1500, was APPROVED by Knut in 5858874320 and left this list) (the line for a calibration found while the ChromIQ layout engine lays the chart out, B8-1655, was APPROVED by Knut in 5865088296 and left this list) (the fourteen K59 texts of option C and of "change" for "drift", about a sheet printed raw and the opening of a report of sheets printed both ways, were APPROVED by Knut in 5850164956 and left this list) — all defined in the awaiting-review section below.
 > **Withdrawn, never approved:** the patch-set sibling of the message above was removed on 2026-08-26 without reaching the catalogue. Ticking “Edit patch recipe (override preset)” already opens a window saying the loaded patches will be replaced, and that box is shown for a patch set the user loaded themselves, not only for a built-in preset — so a second window at Generate time would have interrupted a decision the user had already made and acknowledged. Knut, 4.1.3-beta.17: *“there is already a message when clicking the ‘Edit patch recipe’ warning of consequences … that warning should be sufficient for a user.”* Checked against the existing text before removal.
 
 > Both were approved by Knut on 2026-08-04, but one step in each instructed *"(with colour management on)"* — a setting ChromIQ deliberately locks **off** on every print path, so the approved text told the user to do something the app prevents (established in `verification_printing_and_target.md` §1, and A0.1 of its plan). With feature A the instruction has a real control to name — the Print Chart tab's **Colour** row — so that one step is revised and the revision waits in §M-PROPOSED. Every other message in §M remains approved as before: the last, **M-BUILD-ELSEWHERE**, was accepted on 2026-08-04 — *"Message M-BUILD-ELSEWHERE accepted"* — and M-CHART-CORRUPT, M-REPLACE-UNCOUNTABLE and M-PREVIEW-PAUSED the day before. A new message goes to §M-PROPOSED first, and `tests/test_message_catalogue.py` fails if one is added to the code without it.
@@ -1257,6 +1257,1031 @@ was NOT lost, before it says what was.
 **Confirmed by:** Basti, 2026-09-04 — *"i approve it"*, on the wording as
 written, after reading it in full.
 
+### M-VERIFY-NO-CONTROL-STRIP · APPROVED · the verification chart cannot carry a control strip — Create Chart
+
+**Approved by:** Knut, 2026-09-19, asked directly and answered *"Yes, message
+text approved."*
+
+*New for 4.3.0-beta.22 (#182). ChromIQ now writes a control-strip declaration
+beside every verification chart it creates, which is what makes the three
+control-strip rows of the Measurement Report computable at all; a chart whose
+patches cannot fill eight rungs of the ladder gets none. Knut asked for that to
+be said out loud: "notify the user if a selected/loaded/created chart (from
+loading a preset or otherwise, in the verifications/ folder for a run) does not
+fulfil the requirements to be able to create the control-strip declaration
+(either when pressing Generate Chart, or when loading a preset, or the other
+usual paths to create a chart while 'run type' = Verification). The warning must
+specify what is required when selecting a chart for the control-strip
+declaration to be created, and also refer to the button function in Create Chart
+mentioned above for help in selecting a compatible chart." Modal, one button,
+shown after the chart has been built and filed; the chart is untouched and
+printable. `{n}` is how many of the 29 rungs the chart filled. `{button}` is the
+Create Chart control that lists which patch sets can carry a strip; it is a
+placeholder rather than a literal because that control is being built alongside
+this message, and its name is settled in one place
+(`workflow/control_strip.ELIGIBILITY_CONTROL`).*
+
+> **This chart cannot carry a control strip**
+>
+> ChromIQ has saved it as this run's verification chart and it is ready to print. What it cannot do is carry a control strip, so the three control-strip rows of the Measurement Report will read “this chart declares no control strip” for every measurement made on it.
+>
+> A control strip is the short run of patches a print is checked on, and ChromIQ builds one out of the chart's own patches: the bare paper, the composite black, the cyan, magenta and yellow solids, the red, green and blue overprints, a 25 %, 50 % and 75 % step of each of those six colours, and a 25 %, 50 % and 75 % neutral grey. That is 29 patches in all, and a patch of your chart counts for one of them when its red, green and blue values are each within 12 units of it.
+>
+> This chart supplied {n} of the 29. At least 8 are needed before the average and the largest patch can be reported, and 20 before the 95th percentile can.
+>
+> What to do: build the verification chart from a patch set with more patches, or one spread more evenly over the colour cube. “{button}” on this tab lists every chart preset against the rows a Measurement Report judges, so you can choose a patch set that answers more of them.
+>
+> Nothing is wrong with the chart itself and nothing has been changed. Every other row of the Measurement Report is unaffected.
+
+### M-REPORT-DELETE · APPROVED · one generated report is about to leave the list — Measurement Report
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C3 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New for #182, 2026-09-16. The design authority asked for it before a non-beta
+release: "the selection and deletion of reports with a selector input box is
+needed and should be made first". Nothing in this model governs removing a
+report, and §5 of `measurement_report_limits.md` governs only the
+archive-then-recalculate rule, which is about rewriting one. Shown by the
+Measurement Report window's "Delete Selected Report" button, before anything is
+moved; Cancel is the default.*
+
+*REVISED 2026-09-18, and the revision is what the button does. Knut's L.7
+(§13 of `measurement_report_limits.md`) says the files are MOVED: "which then
+creates a dated report folder in the old/ folder where the files for that
+report is moved to." The wording it replaces described deleting one file and
+ended "ChromIQ cannot undo this", which was true of the old button and is false
+of this one. An entry in the list is also one DOCUMENT now (B8-383), which may
+be one file per measurement it covers, so the count is of files rather than of
+what is left behind. Neither wording has been approved. `{what}` names the
+report the way the list names it; `{n}` is how many files it is made of;
+`{where}` is the folder they are moved to, which L.7 decides from what the
+report spans.*
+
+*The one refusal is not a window: the only saved report of a DATED
+VERIFICATION cannot be deleted, because that verdict is the record §5 keeps
+comparable across dates, so the button is disabled and a line beside it says
+so. That rule waits for approval with the wording.*
+
+*REVISED 2026-09-23 for Knut's K25 answer (#182 comment 5789263863, Q5). Since
+K23 a report of several measurements is ONE document file, so the one-file
+body said "the measurement it describes" about a report of several dates.
+`{n}` counts files, not measurements, and cannot choose the word, so both
+bodies now use his own: "You could say 'the measurement(s) it describes', to
+make it simple." The one-file body is the same text with "Its file is moved
+here" and "The file stays". Still unapproved as a whole.*
+
+> **Delete this report from the list?**
+>
+> This report is taken out of the list of generated reports:
+>
+> {what}
+>
+> Its {n} files are moved here:
+>
+> {where}
+>
+> Nothing is destroyed. The files stay on your disk in that folder, and the measurement(s) it describes are not touched.
+
+### M-REPORT-UPDATE-NOT-FOUND · APPROVED · Update of a report that covers a measurement nobody can find — Measurement Report
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C6 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New 2026-09-23, challenge C of beta 39 (#1). Update rewrites a report about
+every measurement it covers (`measurement_report_limits.md` §13.13). Opened
+from the side that could not find one of them (the other project renamed or
+moved away), it archived the whole report into `old/` and rewrote it about the
+one date it had found; the renamed side then listed nothing. No rule lets an
+Update drop a covered measurement it cannot find, so the press is refused
+before anything is written, and the window says which and why. Button:
+**OK**. `{missing}` is one line per measurement, in the form below.*
+
+> **This report cannot be updated from here**
+>
+> The selected report covers measurements that ChromIQ cannot find:
+>
+> {missing}
+>
+> Updating it now would rewrite the report without them, so nothing was changed. Put the project back in the folder beside this one, or open the report from a project that can reach them, and try again. “Create New” writes a new report of what is ticked and leaves this one as it is.
+
+Each line of `{missing}` (`measurement_messages.report_gone_line`) is one of
+
+> •  {project}, run {run}, {when}: {why}
+
+> •  {project}, calibration, {when}: {why}
+
+and `{why}` is one of
+
+> ChromIQ cannot find this project
+
+> its profile run was deleted
+
+> its folder is no longer in the project
+
+> its measurement file is no longer in its folder
+
+### M-REPORT-UPDATE-LEAVES-OUT · APPROVED · Update of a report some of whose measurements are no longer on disk — Measurement Report
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C7 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New 2026-09-23, challenge C of beta 39 (#11). §13.11 of
+`measurement_report_limits.md` leaves out a folder that no longer holds its
+measurement. The Update did that in silence, and a date whose `.ti3` had been
+deleted was enough to retire a report across projects into a one-date report.
+Shown instead of writing, when every measurement the Update would lose is in a
+project it can see (its run deleted, its dated folder gone, or its
+measurement file gone). Buttons: **Update without them** and **Cancel**
+(default). `{missing}` as for M-REPORT-UPDATE-NOT-FOUND.*
+
+> **Some measurements of this report are no longer on disk**
+>
+> The selected report covers measurements that are no longer on disk:
+>
+> {missing}
+>
+> Updating it now leaves them out, and the report then covers only what is still there. The report as it is now is kept in the old folder first.
+>
+> What do you want to do?
+
+### M-REPORT-ONE-PAGE-ONE-DATE · APPROVED · Generate report, with several measurements ticked on a one-page type — Measurement Report
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C8 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New for #182, 2026-09-20 (B8-591). Shown by "Generate report" when the report
+type is "Colour summary (one page)" and MORE THAN ONE measurement is ticked in
+"Included Measurements in report". The press is abandoned: nothing is written,
+and **no tick is moved**. `{count}` is how many are ticked.*
+
+*This message exists because of what it replaces. Knut reported the silent
+correction from both ends in his beta 29 review:*
+
+> *"Selecting report type 'Grey and tone check' with 'Show all...' OFF and many
+> measurements included (ticked), the generate report. This unselected all but
+> the last measurement without a warning."*
+
+*and, a paragraph later:*
+
+> *"If I try this again, but now only with one measurement ticked, the
+> measurement I had ticked was unticked and the last measurement in the list
+> was automatically ticked (I did not ask for that). This is also wrong."*
+
+*He gave the rule for what should happen instead, and it is the shape of this
+window:*
+
+> *"Upon generate report clicked, the user should be informed that several
+> measurements have been ticked as to be included … Then the user must be
+> instructed to select which measurement to include in the report (since
+> several are ticked) … Then the user can close that message and do the
+> changes, and then click generate report again."*
+
+*Most of that paragraph was about the conflict between the ticks and "Show all
+measurement runs", and that checkbox is gone with the feature behind it
+(B8-590), so those conflicts are gone with it. **One survives the removal**,
+because it is a property of the report type and not of the box, and he named
+it separately in the same comment: "color summary only allows one measurement
+date ticked, and if several is selected, user must be informed as mentioned
+above, and make a choice which to include."*
+
+*It informs; it does not choose. One button, and the user goes back to a list
+that still holds exactly the ticks they put there. The alternative shape, a
+question offering to keep the newest, was not built: correcting the ticks is
+the thing he objected to, and offering to do it for him is the same act with a
+button on it.*
+
+> **A colour summary is one page about one measurement**
+>
+> {count} measurements are ticked in “Included Measurements in report”, and this report type has room for one.
+>
+> Close this, untick the measurements you do not want on the page, and click “Generate report” again. “Deselect all” clears them all if that is quicker. To keep every measurement you have ticked, choose another report type instead.
+
+### M-REPORT-CHART-MISMATCH · APPROVED · the chart cannot supply a row the limit set limits — Measurement Report
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C9 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New for #182 (Knut, D25, 2026-09-06: "a strip inside the report window, below
+the selection of the Compliance set chosen, and in the report text"). Shown in
+the Measurement Report window under the "Judged against" row whenever the
+measured chart cannot supply one or more rows the run's limit set puts a limit
+on, and repeated as a note under Report Results. Hidden, not blank, when there
+is nothing to say. `{set}` is the limit set's label; `{rows}` is one line per
+row, "• <row>: <reason>", the reasons being the row's own N-A sentence (too few
+grey steps, no tone ramp, needs a reference file, fewer than 20 patches).*
+
+> **Some limits cannot be checked on this chart**
+>
+> The limit set {set} puts a limit on values this chart cannot supply, so these rows read N-A (not applicable):
+> {rows}
+>
+> A row that was not computed says nothing about the printer. Each reason above names what that row needs: most want patches added to the chart in Create Chart (for the grey balance: “Neutral grey ramp” with 16 steps), and the control strip wants the chart to declare one. Make the change, print the chart again and measure it.
+
+*REVISED 2026-09-18, B8-397. The closing sentence named ONE remedy for every
+reason, which was true while every reason meant "the chart is missing patches".
+The three control-strip rows are missing a DECLARATION, not patches: Knut
+approved S2w that day and a chart now says for itself which of its patches make
+up a strip. Photographed on screen, the window listed "Control-strip patches,
+average (… Declare a longer strip, or add its patches to the chart)" and then
+closed with "add the missing patches to the chart in Create Chart to have it
+checked", contradicting the line above it. Each reason carries its own lever
+now, so the closing sentence points at them.*
+
+*REVISED 2026-09-23 (challenge rounds A and B before beta 37, A-F3, B-H2 and
+B-M7). The strip no longer names a row withheld for the MEASUREMENT's noise
+(the two evenness rows' noise rule): the sheet's readings scattered, and nothing
+added to the chart answers that. The row still reads N-A with its own note. When
+every row the strip lists is an evenness row, the closing sentence above is
+replaced by M-REPORT-CHART-MISMATCH-LAYOUT's.*
+
+### M-REPORT-CHART-MISMATCH-LAYOUT · APPROVED · only the evenness rows cannot be checked on this chart — Measurement Report
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C10 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New 2026-09-23, round B before beta 37, M7. The strip above, when every row it
+lists is one of the two evenness rows. Under a list holding only those, the
+general closing sent the reader to add patches in Create Chart "(for the grey
+balance: “Neutral grey ramp” with 16 steps)". Evenness is judged over nine areas
+of one page, so what those rows lack is strips and rows on a page. Same headline,
+same `{set}` and `{rows}`.*
+
+*Revised 2026-09-23 for beta 38 (#182 E2): a page whose patches cover less than
+75 % of the paper is now left out as well (Knut, 5789263863, approved in
+5789539407), so the closing names that too. Still PROPOSED.*
+
+> **Some limits cannot be checked on this chart**
+>
+> The limit set {set} puts a limit on values this chart cannot supply, so these rows read N-A (not applicable):
+> {rows}
+>
+> A row that was not computed says nothing about the printer. Evenness is judged over nine areas of one page, so these rows want a chart laid out with more strips and more rows on a page, and with patches that cover most of the page. Make the change, print the chart again and measure it.
+
+### M-REPORT-PATCH-COUNTS-DIFFER · APPROVED · one report, sheets holding different numbers of readings — Measurement Report
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C11 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New for 4.3.0-beta.35 (#182). Knut, 2026-09-22: where the selected
+measurements come from charts with different patch counts, the report carries a
+plain warning that judged metrics may differ slightly for that reason, and that
+it shows in the trend graphs. **Not an error**, and it must not be painted as
+one: it is printed in the report's own note style and not in the red Report
+Scope warning block.*
+
+*It says **readings**, not "charts", because readings are what is counted.
+`report_scope` reads `r["patches"]`, which is `data.n_patches`: the number of
+readings in the `.ti3`. An adversary round drove the difference on one
+variable, twelve measurements of ONE chart: read in full, the note stayed
+silent; the same read ended early at 168 of 210 patches, and the report printed
+"taken from charts with different numbers of patches (210, 167)" directly under
+a Report Scope block naming one chart and twelve runs. Ending a measurement
+early is a supported ending, so that is not an exotic state. Saying "readings"
+makes the sentence true in both cases, and the second paragraph names both
+causes, so the note stays useful exactly where it was lying.*
+
+*`{counts}` is filled with the distinct reading counts of the sheets in the
+report, in the order the columns appear.*
+
+> **These measurements do not all hold the same number of readings**
+>
+> The sheets in this report do not all carry the same number of measured patches ({counts}). Every metric is worked out over the patches a sheet actually holds, so a figure taken over more of them is not measured over quite the same set of colours as the same figure taken over fewer, and the two can differ a little for that reason alone. It shows in the trend graphs as well as in the table.
+>
+> That can be because the charts differ, or because a measurement was ended before its last strip. Either way it is not a fault and nothing here is wrong, but a small change between such sheets is not necessarily a change in the printer.
+
+*REVISED 2026-09-23 (round B before beta 37, H4): the closing sentence spoke to the reader ("before you read"), and Knut's K18 rule is that report text may go to a customer and gives no user tips. It now states what the difference means.*
+
+### M-VERIFY-PREFLIGHT · APPROVED · what this chart can verify, before anything is measured — Measure tab
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C12 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New for 4.3.0-beta.30 (#182). Knut, 2026-09-21: "I see that there is one
+popup-message that is missing, that would help a user in the process of
+verification." Shown on entering the Measure tab when four conditions hold
+together, and on no other occasion: Run type is Verification; a chart with a
+patch set exists, by any route at all ("Either made manually, or imported as ti2
+file, or loaded a preset etc. Whatever method that was used is not relevant");
+no measurement has been taken (no `.ti3`, or one that is empty or invalid, by
+the same test Start Measurement applies); and no measurement has been started.
+Entering the tab means EITHER clicking it OR switching "Profile run" to such a
+run while already standing on it. One OK button, Escape closes it, and a tick
+that silences it for that profile run until ChromIQ is restarted, held in memory
+only and never written to the project.*
+
+*⏳ **A fifth condition, awaiting confirmation (2026-09-22, B8-776).** Knut, on
+beta 32: "It does not have value to show this when measurements have been
+performed, and especially when many dated verification runs already exist". So
+the window is also withheld once ANY dated verification of the selected profile
+run carries readings (by the same empty-or-invalid test), even when the date
+now selected is new and empty. Beta 34 shipped this rule and it never took
+effect (B8-776); it does from beta 36. Two edges are his to rule on: a dated
+folder holding only `reads/readN.ti3` (averaging stopped after one read) does
+not count as measured, and neither does a measurement Replace has moved to
+`verifications/old/`, so in both cases the window opens again.*
+**Confirmed by:** *nobody yet.*
+
+*The metric list is not in this text. It is built for the chart in front of the
+reader by the same code the "Which presets can be used for verification" window
+puts in its right-hand pane, in the short form Knut asked for: "A summary of
+that info shall be shown in the pop-up message, so that the text does not become
+too long." The FROM PROFILE GAMUT paragraph below is appended only when a metric
+is missing that nothing else can supply.*
+
+*He asked for this wording to be drafted and shipped so that he can review it as
+a working example, so it appears in the window while it waits for approval, under
+the log-rule amendment at the end of this section.*
+
+> **Before you measure this verification chart**
+>
+> This run is a verification, so what you read here will be judged by the Measurement Report: a table of metrics, each with a limit, saying whether the print is inside it.
+>
+> Not every chart can answer every metric. Which ones this chart can is listed below, worked out from its patch set before anything is printed, so you can still change the chart. A metric the chart cannot supply is not judged and nothing else is affected, so falling short does not make the chart wrong.
+>
+> To compare patch sets before you settle on one, open “Which presets can be used for verification” under the preset pulldown in Create Chart. It judges every preset ChromIQ ships and every one of your own against these same metrics, and its first line is the chart you have now.
+>
+> For the verification workflow end to end, see the help card “Check a finished profile (verification run)” behind the question mark at the top right of the window.
+
+And, when and only when a metric is missing that nothing but FROM PROFILE GAMUT
+can supply:
+
+> Some of the metrics listed above can be answered by a verification in only one way: its solid patches must be printed as they are, and a chart printed through its profile converts them. A chart built with FROM PROFILE GAMUT in the Create Chart tab prints them as they are.
+>
+> That button sits beside GUIDED and MANUAL whenever Run type is Verification. Before it can choose any colours the run must already hold a built profile, and it lays the sheet out again from scratch.
+
+**Revision accepted by:** Knut, 2026-09-26, #182 [5848287278](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5848287278), on the first paragraph above, proposed to him as B8-1374: *"The paragraph in the check before measuring that says the solid metrics are "judged against a colorimetric reference". Suggested: [the paragraph above] Answer: Accepted."* It read *"Some of the metrics listed above can be met in only one way: they are judged against a colorimetric reference, and ChromIQ writes one only beside a chart built with FROM PROFILE GAMUT in the Create Chart tab."*, which K49 and K51 made untrue: the two solid rows are compared with the profile's prediction, and a raw print answers them. The second paragraph is the one approved in 5816565326, as the code has carried it since beta 32 (770908d6 dropped the clause "so a preset that arrives as finished page images cannot be converted", which this document still quoted).
+
+*Knut wrote of that feature's own conditions: "not sure about all the required
+conditions for 'From Profile Gamut' feature to be visible?". They were measured
+for B8-613 and the paragraph above says what they are; the measurement is
+recorded in the register and awaits his confirmation, like everything else here.*
+
+### M-LIMIT-RECOMMENDED · APPROVED · the note a bracketed limit points at — Report limits window and report text
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C14 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New message (2026-09-21), and the second half of Knut's ruling that retired
+COND as a row word. He asked for the note in the same message as the retirement:
+"there should be a note associated with the metric its self, like a reference
+number at the end of the metric label-name, pointing to a note below the table
+in the Report Limits window (and in the report text also a number on the metric
+name, pointing to a note in the report text)."*
+
+*One text, rendered in both places. In the Report limits window the marker sits
+at the end of the metric label and the note is listed below the table; in a
+report the marker sits on the verdict cell and the note joins the existing
+numbered note list under the results table, which is the machinery Knut asked
+for on 2026-09-13 and is reused here rather than duplicated.*
+
+*The body is deliberately silent about the Overall word.* His first version of
+this note ended *"but does not affect the overall result of the ISO 12647
+verification"*, and he withdrew it nine minutes later: *"I recommend that all
+thresholds tested against are treated the same, so there is no need to have
+special handling of the results of a metric with 'should' … If the test is
+applied the report shall show the result as is, and the overall result follows
+as normal."* A sentence excusing a recommended row from the Overall would now
+be false of the code as well as against the ruling.
+
+*After the same ruling's point 5, no ChromIQ set marks any row a recommendation,
+so this note appears only where a licence holder has written `[number,
+"should"]` into their own ISO values file, or where a user has marked a row that
+way in one of the two editable Custom columns.*
+
+> **The standard recommends this metric rather than requiring it**
+>
+> The standard calls this metric recommended rather than required, so it may be applied optionally. Its limit is shown in brackets. It was applied here, and the result is reported the same way as every other row.
+
+### M-PROJECT-FOLDER-RENAMED · APPROVED · a project opened from a folder not named what its files carry — Create Chart
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C16 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New 2026-09-23, #182 K26. Knut, 5792484060 (Q5): "If a project is opened where
+the root project folder is different than the defined name in 'Printer profile
+project name' field, then the user should be given the option, with a popup
+window, to rename the project. This interface and function should already
+exist and just has to be modified a tiny bit to allow this case." The window is
+the rename chooser Create Chart already shows when the name field is changed
+(`TargetChangeDialog`), in a second mode; this is its heading and introduction.
+Shown by Open (the masthead's Load, and every door that opens a project the same
+way) when `project.json`'s name is not the folder's name, before anything of the
+project is displayed. `{folder}` is the folder as it is on disk, `{name}` the
+name the files carry, `{new}` what the project becomes: the name the "Printer
+profile project name" field shows.*
+
+*Revised 2026-09-23, Knut 5794078008: the window must NOT offer "Leave it as
+it is". It offers exactly three choices, each explained in a bullet in the
+window text, as is customary for popups: rename the project to the project
+folder's name; define a new name (the existing project-name window, then the
+same rename); Cancel, which closes the project. A project with a built profile
+is still offered the rename ("Yes", same comment). `{built}` is empty, or a
+space and the sentence given below it when a run of the project has a built
+profile.*
+
+> **This project's folder is called “{folder}”, but its files are named “{name}”**
+>
+> ChromIQ finds a project's charts, measurements, profiles and reports by the name of its folder, so until the two match it finds none of them. This happens when a project folder is copied, duplicated or renamed outside ChromIQ.
+>
+> •  Rename the project to “{new}”: every file that carries the name “{name}” is renamed to carry “{new}”, and the folder too when its name has a space or a character a file name cannot carry. Nothing is deleted.{built}
+>
+> •  Choose another name: you type the name the project is to have, and its folder and files are renamed to it in the same way.
+>
+> •  Cancel: nothing is changed, and the project is closed.
+
+`{built}`:
+
+> A profile already built keeps the name written inside it, “{name}”, which is what ColorSync Utility and other programs show.
+
+Buttons, in one row: **Cancel** · **Choose another name…** · **Rename the
+project to “{new}”** (default). Cancel, Escape and the window's close button
+close the project: the app goes back to the state Close Project leaves.
+Keep both and Delete are not offered: there is one folder, and it is the
+project.
+
+"Choose another name…" opens the existing project-name window (“Give this
+project a name”), prefilled with “{new}”, with this line in place of its usual
+one; cancelling it returns to the three choices:
+
+> Type the name this project is to have. Its folder, and every file that carries the name “{name}”, are renamed to it.
+
+### M-PROJECT-FOLDER-RENAME-FAILED · APPROVED · the rename of such a project could not be done — Create Chart
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C17 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*New 2026-09-23, #182 K26, with the message above. Shown when the rename the
+user chose fails (the new folder name is already taken, the folder cannot be
+written). Nothing further runs; the project stays open as it was.*
+
+*Revised 2026-09-23, the beta 38 challenge round (F1, F6). The first wording
+named the rename "{folder}" to "{new}", which for a folder renamed only in
+case printed one name twice, and `{error}` was the exception's text, which for
+the commonest cause (the name is taken) was a bare path. It now names the
+project by the name its files carry, and `{error}` is one of the sentences
+below. "Nothing was changed" is now also true in every case: a rename is
+refused before anything moves when it cannot finish, and a step that fails
+anyway is undone (`Project.rename`, `FileManager.rename_existing_project`).*
+
+> **The project could not be renamed**
+>
+> ChromIQ could not rename the project “{name}” to “{new}”.
+>
+> What went wrong: {error}
+>
+> Nothing was changed, and the project is open as it was. Its files still carry the name “{name}”, so ChromIQ does not find them in the folder “{folder}”.
+
+Button: **OK**.
+
+`{error}` is exactly one of (`measurement_messages.rename_failure_reason`,
+`core.file_manager.ProjectRenameRefused`):
+
+> A folder called “{name}” is already there, beside this one.
+
+> ChromIQ is not allowed to change this folder or the files in it.
+
+> A file of the project was no longer where ChromIQ expected it.
+
+> The system refused it ({reason}).
+
+> Two of its files would both be called “{name}” after the rename.
+
+> ChromIQ is not allowed to change the files in the folder “{folder}”.
+
+> A file called “{name}” is already there and could not be moved out of the way.
+
+### M-IMPORT-NOT-A-CHART · APPROVED · the file picked as a chart has no chart in it
+
+**Approved by:** Knut, 2026-09-24, #182 [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326): *"All messages under 'C. Message texts waiting for your approval' are approved."* This message was C18 of that list ([5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116)), and the words he approved are the words below, unchanged since that post.
+
+*Raised 2026-09-11 while reproducing Knut's #182 import route. "Open chart
+file" filters on `*.ti2` and its file list hides everything else, but a file
+dialog also has a NAME BOX, and a name typed, pasted or dragged into it is
+accepted whatever it ends in. `resolve_ti2` then handed the file to
+`_copy_files`, which copies it into a brand-new project as that project's
+chart: a page bitmap became `<project>.ti2` with `II` as its first two bytes,
+in a project that cannot be printed, measured or built from, and the app said
+the files had been copied. The guard is
+`workflow.chart_import.holds_a_chart`, and it refuses before the project is
+made, so nothing exists to clean up. `{name}` is the file the person picked.*
+
+> **That file holds no chart**
+>
+> “{name}” was opened as a chart file, and there is no patch list inside it. A chart file, “.ti2”, holds the colours ChromIQ prints and measures. A page image, “.tif”, is a picture of the printed sheet and holds none of them.
+>
+> Nothing has been created and nothing has been copied. Your file is where it was, unchanged.
+>
+> Open the “.ti2” file that sits beside the page images instead. It carries the same name as they do, without the page number.
+
+### M-REPORT-UPDATE-OR-NEW · APPROVED · Generate report, with a selected report whose settings were changed — Measurement Report
+
+**Approved by:** Knut, 2026-09-24, #182 [5818037438](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5818037438): *"Yes, I approve those two messages."*, on this text as it reads now, with its numbered list in the buttons' order (Create New first, his K32). It was C1 of [5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116); his approval of section C in [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326) did not cover the reordered list ([5817922257](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817922257)), this one does.
+
+
+*New for #182, 2026-09-19. **Knut wrote the text himself** and ended it "(or
+similar)", and it still goes through this section, because §M is where a
+message waits until he says the words are the words. It is shown by the
+Measurement Report window's "Generate report" button, and only when both halves
+of his sentence hold: a report from "Report shown" is selected AND one of the
+five settings has moved since the page was drawn, which is exactly the state
+the red line names.*
+
+> *"When a report from 'Report shown' is selected, as we know, all settings are
+> updated reflecting the selected reports settings when it was created/saved.
+> If any of the settings are changed, a red text message will show user that he
+> must click Generate Report to apply settings. When Generate Report is then
+> clicked, the user must be shown a popup message with following text (or
+> similar) … The window must then have three buttons: Update, Create New and
+> Cancel."*
+
+*The headline is his sentence without its full stop: a headline is not a
+sentence in this catalogue, and nothing else about the text moved. The numbered
+lines stay in the body even though the three buttons carry the same three
+words: the list is what says which button does what, and "Update"
+on its own does not say that the SELECTED report is what gets updated.*
+
+*This message is the visible half of a ruling that also supersedes K.1 of
+`measurement_report_limits.md` ("Generate report always writes a NEW report").
+§13.8 of that document carries the ruling, his words and his date.*
+
+*K32, 2026-09-24 (Knut on beta 41, #182 5813851807), his words and so his
+approval of the change: "Move Create New button to be the first button on the
+left and Update button to be the middle button. Make sure bullet list
+description also has same sequence, Create New button in first bullet etc. The
+Create New button should be default selected, so than an enter would Create New
+by default (Safest)." The buttons now read **Create New**, **Update**,
+**Cancel** from the left, Create New is the default button (Enter creates a new
+report, Escape cancels), and the numbered list follows the buttons. The same
+applies to M-REPORT-UNCHANGED-UPDATE-OR-NEW below.*
+
+> **Settings were modified for the selected report**
+>
+> What do you want to do?
+>
+> 1. Create new report with selected settings.
+> 2. Update selected report with selected settings.
+> 3. Cancel
+
+### M-REPORT-UNCHANGED-UPDATE-OR-NEW · APPROVED · Generate report, with a selected report and nothing changed — Measurement Report
+
+**Approved by:** Knut, 2026-09-24, #182 [5818037438](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5818037438): *"Yes, I approve those two messages."*, on this text as it reads now, with its numbered list in the buttons' order (Create New first, his K32). It was C2 of [5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116); his approval of section C in [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326) did not cover the reordered list ([5817922257](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817922257)), this one does.
+
+
+*New for #182, 2026-09-22 (B8-778 K4). Knut on beta 34: "I clicked Generate
+Report button (without any settings having been changed.). This resulted in a
+new report being created, without user being asked if I want to create a new or
+update the selected". M-REPORT-UPDATE-OR-NEW above was asked only when a
+setting had moved, and Generate otherwise created in silence; his log holds
+four such presses in nine seconds and 44 files. So a selected report is now
+always asked about. The three buttons and what they do are M-REPORT-UPDATE-OR-
+NEW's; only the headline and the first two lines differ, because "Settings were
+modified" is false here. Update then works the report out again with this
+version of ChromIQ, which is what he wanted ("The report had some old text,
+which I wanted to update"), and the previous content is kept under
+`reports/old/` first (B8-782, D23). Whether an unchanged Update may re-judge a
+dated record by today's rules is put to him.*
+
+> **Nothing was changed for the selected report**
+>
+> What do you want to do?
+>
+> 1. Create new report with the same settings.
+> 2. Update selected report, worked out again by this version of ChromIQ.
+> 3. Cancel
+
+*K32, 2026-09-24: the list and the buttons in M-REPORT-UPDATE-OR-NEW's new
+order, Create New first and the default (Knut, #182 5813851807).*
+
+### M-REPORT-SCOPE-RUN-DELETED · APPROVED · Report Scope of a saved report that covered a profile run since deleted — Measurement Report (window and PDF)
+
+**Approved by:** Knut, 2026-09-24, #182 [5820871320](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5820871320): *"when saying "profile run" do you mean the report was for measurements when run type is profiling? Maybe a the terms to differentiate between the different reports' scope could be (suggest something better if you want) "profile run", "verification run" and "calibration run"? Maybe the message should take this into account too, and that the wording used is recorded in the help card Dictionary, so it is clearly defined. [...] Given the above, the message is accepted."* The words below are the words he was shown in [5820168457](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5820168457), unchanged: "profile run" is the term the Dictionary help card now defines (K36-3, `measurement_report_limits.md` §32.3), the numbered run of a project (run 1, run 2, …) with everything in it, so a report that covered its profiling measurement or its verification runs names it the same way.
+
+*New 2026-09-24, #182 A6. Knut, 5817809396, accepted the recommendation "add
+the Scope line". The profile bar's Delete renumbers the later runs and turns a
+saved report's reference to the deleted run into `runs/runN.deleted`
+(`core/report_refs.py`), which no folder answers, so the report shows fewer
+measurements than it was written about and only an Update said why
+(M-REPORT-UPDATE-LEAVES-OUT). Report text, for the reader of the document: in
+the dim note style at the foot of Report Scope, in the window and the PDF,
+only while a saved report that names such a run is shown. `{runs}` names each
+deleted run by the number it had when the report was written ("run 2", "run 2
+and run 4"; with the project's name, "P, run 2", when the report covers
+several projects). `{count}` decides singular and plural.*
+
+> **Part of this report has since been deleted**
+>
+> This report also covered {count} profile runs that have since been deleted ({runs} when the report was written). Their measurements are no longer in the report.
+
+*With one run:*
+
+> This report also covered a profile run that has since been deleted ({runs} when the report was written). Its measurements are no longer in the report.
+
+### M-REPORT-NO-PAPER-PATCH · APPROVED · the numbered note of a sheet whose chart has no paper patch — Measurement Report (window and PDF)
+
+**Approved by:** Knut, 2026-09-24, #182 [5820871320](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5820871320): *"When you say "..., and nothing on this sheet is judged relative to the paper." do you mean the "chart sheet" or do you mean "nothing in this report"? Make sure the text cannot be misunderstood. Then this message is accepted."* So the approval is of the reworded body below (K36-4, `measurement_report_limits.md` §32.4), not of the words he was shown.
+
+*Reworded 2026-09-24 (K36-4). What the code does was read first: it is PER MEASURED SHEET. `build_report` finds the paper patch and chooses the yardstick for each measurement on its own, and the note is attached to that sheet's "Paper white" line; the numbered note is shared by every sheet that carries it (one numbering for the document). A report can hold sheets of several charts, so the body names the measured sheet and says the rest of the report is not affected. The first body read: "This chart has no patch printed with no ink, so the paper white could not be measured, and nothing on this sheet is judged relative to the paper."*
+
+*New 2026-09-24, #182 A10. Knut, 5817809396, accepted recommendation (a):
+"Paper white" is the chart's own white patch (device value 100, 100, 100 for
+RGB; every channel at 0 in a subtractive space), and when there is none,
+"Paper white" reads N-A with a numbered note, it is not drawn in the Paper
+white (L\*) graph, and nothing is judged relative to the paper. Until beta 42
+it was the lightest measured patch, which on such a chart is a light colour or
+grey (an L\* 82 grey on one demo chart). The note is the one numbering every
+other note uses: the "Paper white" line of the detailed section and the
+Overview table read N-A, and the list under Report Results names it "Paper
+white". Report text, for the reader of the document.*
+
+> **This chart has no paper patch**
+>
+> The chart of this measurement has no patch printed with no ink, so this measurement has no paper white of its own. Every colour of this measurement is therefore judged as measured, in absolute Lab, and none relative to the paper. Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual.
+
+*(Only the body is printed, as a numbered note; the headline names the message
+in this catalogue.)*
+
+*Reworded 2026-09-25 (Knut, #182 [5824834975](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5824834975), on the four K37 notes that share its words): "sheet" was unclear to him (the measured chart, a metric, or the report?), so this body names the measurement, as the report does ("Detailed data per measurement"), and ends as the four K37 notes now do. Its approval (5820871320) is kept; the rewording is here for Knut to see. The body before read: "The chart of this measured sheet has no patch printed with no ink, so the paper white of this sheet could not be measured. Every colour on this sheet is therefore judged as measured, in absolute Lab, and none relative to the paper. Only the sheets that carry this note are affected, not the rest of the report."*
+
+*Where it is shown since K37 (2026-09-24, Knut 5822758830; words unchanged):
+on a sheet with no paper patch that is judged in absolute Lab, which is every
+such sheet EXCEPT one printed with a white-mapping intent whose profile's
+paper white could be read. That sheet is judged relative to the profile's
+paper white, so the second sentence above would be false on it, and its
+"Paper white" line carries M-REPORT-PAPER-WHITE-FROM-PROFILE (§M-PROPOSED)
+instead. So the message stays true wherever it is printed.*
+
+### M-REPORT-PAPER-WHITE-FROM-PROFILE · APPROVED · the numbered note of a sheet judged relative to its profile's paper white, because its chart has no paper patch · Measurement Report (window and PDF)
+
+**Approved by:** Knut, 2026-09-25, #182 [5824834975](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5824834975), on the condition that the word "sheet" is made clear: he could not tell whether it meant the measured chart, a metric or the report (*"Only the sheets that carry this note are affected, not the rest of the report"* confused him). The words below are the reworded body, in the report's own vocabulary: one dated measurement of the chart, as "Detailed data per measurement" names it, which is what the code decides it for (per measurement). They end *"Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual."* The words he was shown said "sheet" throughout.
+
+*New 2026-09-24, #182 K37. Knut, [5822758830](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5822758830),
+answer 1: *"Recommendation: (e), with a numbered note on the sheet, and (b)
+only when no profile can be read."* (`measurement_report_limits.md` §32.6 and
+§33.) A sheet printed through its profile with an intent that maps white to
+the paper (relative colorimetric, perceptual, saturation, or the external
+colour-managed route), against the chart's design or device reference, whose
+chart has no patch printed with no ink, is judged media-relative with the
+paper white its profile records (`wtpt`): the profile the print record names,
+else the run's own built profile. The note is on that sheet's "Paper white"
+line (which still reads N-A: the paper was not measured), in the document's
+one numbering, listed under "Paper white". It REPLACES M-REPORT-NO-PAPER-PATCH
+on such a sheet, because that approved body says "Every colour on this sheet
+is therefore judged as measured, in absolute Lab", which is not true of it;
+M-REPORT-NO-PAPER-PATCH stays on every other sheet with no paper patch, where
+its words are true. `{profile}` is the profile's file name, `{L}`, `{a}`,
+`{b}` its paper white to one decimal. Report text, for the reader of the
+document.*
+
+> **Paper white taken from the profile**
+>
+> The chart of this measurement has no patch printed with no ink, so this measurement has no paper white of its own. The chart was printed with an intent that maps white to the paper, so the colours of this measurement are judged relative to the paper white recorded in the profile {profile} (L* {L}, a* {a}, b* {b}), which is the paper that profile was made for. If the measured paper differs from it (another batch, or paper that has aged), the results can be off by a little. Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual.
+
+*(Only the body is printed, as a numbered note; the headline names the message
+in this catalogue.)*
+
+### M-REPORT-STRIP-CORNERS-PREDICTED · APPROVED · the numbered note on the control-strip rows of a FROM PROFILE GAMUT sheet · Measurement Report (window and PDF)
+
+**Approved by:** Knut, 2026-09-25, #182 [5824834975](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5824834975), on the condition that the word "sheet" is made clear: he could not tell whether it meant the measured chart, a metric or the report (*"Only the sheets that carry this note are affected, not the rest of the report"* confused him). The words below are the reworded body, in the report's own vocabulary: one dated measurement of the chart, as "Detailed data per measurement" names it, which is what the code decides it for (per measurement). They end *"Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual."* The words he was shown said "sheet" throughout.
+
+*New 2026-09-24, #182 K37 (i). Knut, [5823088098](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5823088098),
+*"Yes do so"*, on our [5823015844](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5823015844)
+(i): on a FROM PROFILE GAMUT chart the seven ink and black corner rungs of the
+control strip are compared with the profile's predicted Lab for their device
+value; the cube-corner table and its graph keep the ideal values. Our post
+said *"A short note would say so."* The note is on the three control-strip
+rows wherever they carry a verdict on such a sheet, one number for all of them
+(`measurement_report_limits.md` §34). Report text, for the reader of the
+document.*
+
+> **A corner patch is compared two ways**
+>
+> In this measurement the chart's solid ink, overprint and black patches are compared two ways. In the cube-corner table each is compared with its ideal value, which shows how far this printer's colour is from the ideal one. In the control-strip rows each is compared with the colour the profile predicts for it, like every other patch of this chart, which shows how accurately it was printed. Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual.
+
+### M-REPORT-STRIP-CORNERS-IDEAL · APPROVED · the same rows when no profile could be read to predict the corners · Measurement Report (window and PDF)
+
+**Approved by:** Knut, 2026-09-25, #182 [5824834975](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5824834975), on the condition that the word "sheet" is made clear: he could not tell whether it meant the measured chart, a metric or the report (*"Only the sheets that carry this note are affected, not the rest of the report"* confused him). The words below are the reworded body, in the report's own vocabulary: one dated measurement of the chart, as "Detailed data per measurement" names it, which is what the code decides it for (per measurement). They end *"Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual."* The words he was shown said "sheet" throughout.
+
+*New 2026-09-24, #182 K37 (i), for charts where the run's profile cannot be
+read (or ArgyllCMS cannot be asked): today's comparison with the ideal values
+stays, and the strip rows say so.*
+
+> **Corner patches compared with their ideal values**
+>
+> No profile could be read to predict the colours of this measurement's solid ink, overprint and black patches, so in the control-strip rows they are compared with their ideal values, as in the cube-corner table. That difference is mostly how far this printer's colours are from the ideal ones, not a printing error, so these rows can read worse than the print is. Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual.
+
+*(Only the body is printed, as a numbered note; the headline names the message
+in this catalogue.)*
+
+### M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE · APPROVED · the numbered note on each row of a sheet that should have been judged relative to its paper white and could not be · Measurement Report (window and PDF)
+
+**Approved by:** Knut, 2026-09-25, #182 [5824834975](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5824834975), on the condition that the word "sheet" is made clear: he could not tell whether it meant the measured chart, a metric or the report (*"Only the sheets that carry this note are affected, not the rest of the report"* confused him). The words below are the reworded body, in the report's own vocabulary: one dated measurement of the chart, as "Detailed data per measurement" names it, which is what the code decides it for (per measurement). They end *"Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual."* The words he was shown said "sheet" throughout.
+
+*New 2026-09-24, #182 K37, the (b) of Knut's answer above: the same kind of
+sheet when NO profile can be read (the print record names none on disk and
+the run has no built profile). The sheet is judged in absolute Lab as before
+beta 42's K37; the note is attached to every row of that sheet whose number
+the paper's own tone moves and that carries a verdict (the five
+colour-difference rows, the three control-strip rows, the two gamut rows, both
+grey-balance rows, the 30 to 70 % tone ramps and the two evenness rows), one
+number for all of them. M-REPORT-NO-PAPER-PATCH stays on the sheet's "Paper
+white" line: on this sheet its words are true. The figure "about 1.5 to 3
+ΔE00 on the averages" is measured (§32.6 and §33: 12 demo sheets on six
+papers of L\* 94 to 96). Report text, for the reader of the document.*
+
+> **Judged without a paper white**
+>
+> The chart of this measurement was printed with an intent that maps white to the paper, so its colours should be judged relative to its paper white. The chart has no patch printed with no ink, and no profile could be read to take the paper white from, so these rows of this measurement are judged as measured, in absolute Lab. The paper's own lightness and tint then count against every colour, so these results can read worse than the print is (on typical papers by about 1.5 to 3 ΔE00 on the averages), and a limit can fail for that reason alone. Only the measurements that carry this note are judged this way; the report's other measurements are judged as usual.
+
+*(Only the body is printed, as a numbered note; the headline names the message
+in this catalogue.)*
+
+### M-REPORT-WORKED-OUT-EARLIER · APPROVED · a saved report shown as an earlier version worked it out · Measurement Report, Report Scope (window and PDF)
+
+**Approved by:** Knut, 2026-09-25, #182 [5831246553](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5831246553), except its last sentence: *"This part "Update works the report out again." is not according to rules for report text and notifications in the report. It refers to features, actions or buttons in the app interface, which shall never be part of the notes or the report text. [...] Besides this, the message is approved."* So the approval is of the body below, whose last sentence speaks of the topic in general terms (K39-1, `measurement_report_limits.md` §19.1a). The body he was shown ended *"This version works some of its rows out differently; Update works the report out again."*
+
+*New 2026-09-25, challenge 5 of beta 42, M1 (B8-1091). A saved report is a
+record (`measurement_report_limits.md` §6): its verdict words are kept when
+it is read again. A report saved before a rule that changed how its rows are
+worked out (K34's paper patch, K37's paper white taken from the profile, K37
+(i)'s strip corners against the profile's prediction) was shown with its
+kept words beside notes written by the new rule, which contradicted them. The
+page now shows the report as it was saved, notes included, and says so once,
+at the foot of Report Scope, only when this version would work it out
+differently. Our words; the behaviour follows §6. Report text, for the
+reader of the document.*
+
+> **Worked out by an earlier version**
+>
+> This report was worked out by an earlier version of ChromIQ and is shown as it was saved. This version works some of its rows out differently. A newer report of the same measurements would be worked out the current way.
+
+### M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW · APPROVED · Generate report, with a selected report, nothing changed, and this version working it out differently — Measurement Report
+
+**Approved by:** Knut, 2026-09-25, #182 [5832385126](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5832385126): *"the two messages are approved."*
+
+*New 2026-09-25, #182 K39-2. We asked (B8-1093): "After Update on such an
+older report, its verdicts can change right after the approved question
+"Nothing was changed for the selected report". Should that question have its
+own wording for this case, for example "This version works the selected report
+out differently"?" Knut, [5831246553](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5831246553):
+*"Yes."* So M-REPORT-UNCHANGED-UPDATE-OR-NEW (approved) is unchanged, and this
+variant is shown in its place when nothing in the settings changed but an
+Update would change the report: the window works each measurement the Update
+would write out again from disk, exactly as the Update does, judges it against
+the report's own limit set, and compares the rows, their words, their numbers
+and the Overall word with the page; a change in how the rows are explained
+(the test behind M-REPORT-WORKED-OUT-EARLIER) counts too. The three buttons and
+their order are M-REPORT-UPDATE-OR-NEW's: Create New, Update, Cancel from the
+left, Create New the default (Enter), Escape Cancel. Our words; the numbered
+list is M-REPORT-UNCHANGED-UPDATE-OR-NEW's, word for word.*
+
+> **This version works the selected report out differently**
+>
+> Nothing was changed in the settings of the selected report, but this version of ChromIQ works it out differently from the version that saved it: an update changes some of its results, or the notes that explain them.
+>
+> What do you want to do?
+>
+> 1. Create new report with the same settings.
+> 2. Update selected report, worked out again by this version of ChromIQ.
+> 3. Cancel
+
+### M-REPORT-NEW-REPORT-SETTINGS · APPROVED · the red line after "New report…" is chosen in "Report shown" — Measurement Report
+
+**Approved by:** Knut, 2026-09-25, #182 [5832385126](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5832385126): *"the two messages are approved."*
+
+*New 2026-09-25, #182 K39-3. Knut, [5831246553](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5831246553):
+*"Selecting "New report…" will not change whatever report is currently
+visible, but loads the default settings for "New report…", and should then
+also show a red text message telling user to modify settings as desired and
+then press Generate Report to apply and make a new report."* Window text, in
+the red line under the settings, where "Settings changed" is shown otherwise
+(`measurement_report_limits.md` §28.11). Only the body is shown, after a
+warning sign; the headline names the message in this catalogue. It stays up
+until a report is drawn: Generate report, a report chosen in "Report shown", a
+delete. Our words.*
+
+> **Settings loaded for a new report**
+>
+> New report: change the settings as wanted, then press “Generate report” to make it. The report shown stays as it is until then.
+
+### M-REPORT-SOLIDS-PREDICTED · APPROVED · the numbered note on the two solid-colour rows, wherever they are compared with the profile's prediction · Measurement Report (window and PDF)
+
+**Approved by:** Knut, 2026-09-26, #182 [5845588201](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5845588201): *"Messages "M-REPORT-SOLIDS-PREDICTED" and "M-REPORT-PAPER-AGAINST-PROFILE" accepted."*
+
+*New 2026-09-26, #182 K49. Knut, [5841092535](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5841092535),
+answer 1, *"Should (b2) be built? Answer: Yes."*: "Maximum ΔE00, solid
+colours" and "Maximum ΔH\*ab, cyan, magenta and yellow solids" are compared
+with the colours the profile predicts for the solids, wherever they were
+printed raw (a FROM PROFILE GAMUT chart always, else a raw print). The
+cube-corner table keeps the ideal values (`measurement_report_limits.md`
+§41.7), so on a real printer the row reads near 0 while the table reads 10 to
+40 for the same patch. Report text, for the reader of the document; only the
+body is printed, as a numbered note.*
+
+> **Solid colours compared with the profile's prediction**
+>
+> In this measurement the solid cyan, magenta, yellow and black patches are compared with the colours the profile predicts for them, which shows how accurately they were printed. The cube-corner table compares the same patches with their ideal values, which shows how far this printer's colours are from the ideal ones, so the two can differ a lot.
+
+### M-REPORT-PAPER-AGAINST-PROFILE · APPROVED · the numbered note on the paper row of a chart that is not FROM PROFILE GAMUT · Measurement Report (window and PDF)
+
+**Approved by:** Knut, 2026-09-26, #182 [5845588201](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5845588201): *"Messages "M-REPORT-SOLIDS-PREDICTED" and "M-REPORT-PAPER-AGAINST-PROFILE" accepted."*
+
+*New 2026-09-26, #182 K49, the same answer: "ΔE00, paper white against the
+reference paper" compares the chart's paper patch with the media white of the
+profile the chart was printed through, or else of its run's own profile, on
+every chart with a paper patch (the lookup of §33). On a FROM PROFILE GAMUT
+chart the cube-corner table's white already aims at that paper (§31.5), so no
+note is needed there; on any other chart the table's white is the chart's own
+aim, and this note says why the two differ.*
+
+> **Paper compared with the profile's paper**
+>
+> In this measurement the paper is compared with the paper white recorded in the profile (the one the chart was printed through, or else the profile of its run), which is the paper that profile was made for. The cube-corner table compares the same patch with the chart's own aim for white, an ideal white, so the two can differ.
+
+### M-VERIFY-SOLIDS-REASON · APPROVED · why a chart cannot answer the two solid colour metrics — the presets window, and the Measure tab pre-flight's metric list
+
+**Approved by:** Knut, 2026-09-26, #182 [5848287278](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5848287278): *"Regarding "For your approval (M-VERIFY-SOLIDS-REASON)" Answer: Approved."*, on the words below, unchanged since they were proposed (B8-1373).
+
+*New 2026-09-26, beta 44 challenge 8, C5 (B8-1373). The reason line under
+"Maximum ΔE00, solid colours" and "Maximum ΔH\*ab, cyan, magenta and yellow
+solids" in the "Which presets can be used for verification?" window, and in
+the metric list M-VERIFY-PREFLIGHT carries. Only the body is shown; the
+headline is its name in the catalogue. It replaced "This chart carries no
+colorimetric reference.", which K49 and K51 made untrue as a reason: those
+two rows are compared with the colours the profile predicts, not with a
+reference file, and on a sheet printed raw they are judged (Knut, #182
+5846167083, K50-1). What withholds them is how a verification is printed:
+through its profile, which converts the solid patches. Neither window can know
+yet how the sheet will be printed, so the line says both cases.*
+
+> **Why this chart cannot answer the solid colour metrics**
+>
+> Printed through its profile, as a verification normally is, the chart's solid patches become other ink amounts, not the printer's own solids, so the report cannot judge them. Printed without a profile, its solids are judged against the profile and its other metrics are shown for information only.
+
+### K59 · the texts of option C, and of "change" for "drift" (#182, Knut 5849392788, APPROVED in 5850164956, 2026-09-26)
+
+*Knut's answer to K56 question 1 (`~/Desktop/ChromIQ-beta44-proof/k56/ANALYSIS-drift.txt`):
+*"use recommended option C, but with some comments: 1. The word drift is not
+used at all ... Use the word "Change" instead of "Drift"."*; on the cell word,
+*"can we use the INFO but also have a numbered reference to a note that
+explains the issue, where that is relevant?"*; and to "I will propose the
+reworded sentence under the results, the guide entry and the "Judged against"
+text for your approval before they ship": *"Ok"*. Each text below replaced one
+that was false under his ruling and was shown while it waited; all fourteen
+were APPROVED by Knut in 5850164956 and left §M-PROPOSED. German is in
+`data/i18n/de.json`, by hand, no "du".*
+
+### M-REPORT-RAW-PRINT-INFO · APPROVED · the numbered note on a value of a sheet printed raw shown for information — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+*On every row of a raw sheet that compares the print with the chart's design colours and reads INFO (`ROWS_COMPARED_WITH_THE_DESIGN`); not on the paper and solid rows, and not on the two repeatability rows. Knut asked for it: *"can we use the INFO but also have a numbered reference to a note that explains the issue, where that is relevant?"**
+
+> **A value of a sheet printed raw, shown for information**
+>
+> This sheet was printed raw, without the profile, so this value is shown for information only and is not judged: it compares the print with the chart's design colours, which a sheet printed without the profile is not expected to match closely.
+
+### M-REPORT-RAW-JUDGED-AGAINST · APPROVED · "Judged against" of a raw sheet's column that judged a row (its paper or solid rows, or since D3 its repeatability rows) — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+*`{set}` is the limit set's name as every other column shows it. Replaces "—".*
+
+> **Judged against, a sheet printed raw**
+>
+> {set} (printed raw)
+
+### M-REPORT-RAW-NOT-JUDGED · APPROVED · "Judged against" of a raw sheet's column that judged nothing — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+*Replaces "—".*
+
+> **Judged against, a sheet printed raw that judged nothing**
+>
+> not judged (printed raw)
+
+### M-REPORT-RAW-OVERALL · APPROVED · the Overall word's sentence of a raw sheet that judged nothing (tooltip, one-page summary) — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+*Replaces the profiling sheet's "It was measured to build a profile rather than to check one", false of a verification. Also shown for a report saved before K59 that stored that sentence for a raw sheet (a saved sentence is a rendering, `recorded_reason`).*
+
+> **Overall, a sheet printed raw that judged nothing**
+>
+> This sheet was printed raw, without the profile, so its values are shown for information only and nothing on it was judged.
+
+### M-REPORT-RAW-RESULTS-JUDGED · APPROVED · the sentence under Report Results where every raw column judged its paper and all its solid rows — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+*Knut's K51 clause is kept verbatim; only the opening sentence, which named the "drift" cells, is new.*
+
+> **Under the results, sheets printed raw that judged their paper and solids**
+>
+> Columns marked “printed raw” under “Judged against” are sheets printed without the profile. On them the paper and the solid colours are judged against the profile; the other colours are compared with the chart's design colours for information, because a sheet printed raw is not expected to match the design closely, and PASS or FAIL there would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check.
+
+### M-REPORT-RAW-RESULTS-SOME · APPROVED · the sentence under Report Results where a raw column judged some of its paper and solid rows — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+*Challenge 9 of beta 44: the clause must be true of exactly the rows judged (ISO 12647-8 limits the paper only; a row can read N-A).*
+
+> **Under the results, sheets printed raw that judged some of their paper and solid rows**
+>
+> Columns marked “printed raw” under “Judged against” are sheets printed without the profile. On them the paper and the solid colours are judged against the profile where the limit set has a limit for them and the measurement can answer them; the other colours are compared with the chart's design colours for information, because a sheet printed raw is not expected to match the design closely, and PASS or FAIL there would be unfair to a perfectly healthy printer. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check.
+
+### M-REPORT-RAW-RESULTS · APPROVED · the sentence under Report Results where no raw column judged anything — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+> **Under the results, sheets printed raw that judged nothing**
+>
+> Columns marked “printed raw” under “Judged against” are sheets printed without the profile. They are not expected to match the design closely, and PASS or FAIL would be unfair to a perfectly healthy printer, so their values are shown for information. For those sheets the detailed chapter shows how far the printer has moved since the previous raw check.
+
+### M-REPORT-RAW-GUIDE-JUDGED · APPROVED · "How to read this report", the paragraph on a raw column — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+*The last sentence, on the Overall word, is the guide's own and unchanged.*
+
+> **How to read this report, a sheet printed raw**
+>
+> A column marked “printed raw” under “Judged against” is a sheet printed without the profile. Its paper and solid colour rows are judged against the profile where the limit set has a limit for them; its values that compare the print with the chart's design colours read INFO, with a numbered note that says so. A column's Overall word is PASS when every row that could be checked passed; a row the test chart used could not answer is not counted as a failure, and the sentence under the word says how many there were.
+
+### M-REPORT-RAW-GUIDE · APPROVED · "How to read this report", the paragraph on a raw column, where no raw column judged anything — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+> **How to read this report, a sheet printed raw that judged nothing**
+>
+> A column marked “printed raw” under “Judged against” is a sheet printed without the profile. Its values that compare the print with the chart's design colours read INFO, with a numbered note that says so. A column's Overall word is PASS when every row that could be checked passed; a row the test chart used could not answer is not counted as a failure, and the sentence under the word says how many there were.
+
+### M-REPORT-RAW-BASELINE · APPROVED · the detailed chapter under the first raw sheet of a chart — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+> **The first raw check of a chart**
+>
+> This sheet was printed raw, without the profile, and it is the first raw check of this chart: it is the baseline that later raw checks of this chart are compared with.
+
+### M-REPORT-RAW-INCOMPARABLE · APPROVED · the detailed chapter under a raw sheet whose previous raw check used another chart — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+> **A raw check after one of a different chart**
+>
+> This sheet was printed raw, without the profile. The previous raw check used a different chart, so the change from print to print cannot be measured for this pair; the next raw check of THIS chart will start a fresh comparison.
+
+### M-REPORT-RAW-CHANGE · APPROVED · the detailed chapter: the print-to-print change since the previous raw check — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+*Knut: *"Use the word "Change" instead of "Drift". ... It is better that a person looks at the trend to diagnose this."* The sentence pointing at the trend graphs is new.*
+
+> **Change since the previous raw check**
+>
+> Change since the previous raw check ({prev}): average {avg} ΔE00, maximum {max}: this print measured against that print, patch by patch, {n} patches. Small numbers mean the printer still behaves as it did then; larger numbers mean it has changed since. Whether it keeps changing in one direction can be read from the trend graphs, across all the dated checks. (PASS and FAIL against the report's limit set are not shown here: a raw sheet is not expected to match the design closely, so it would fail even a perfectly healthy printer.)
+
+### M-REPORT-RAW-SHEET · APPROVED · the detailed chapter under a raw sheet with no comparison record — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+> **A sheet printed raw**
+>
+> This sheet was printed raw, without the profile. Its figures compared with the chart's design colours describe the distance from the design, and what matters is how they change between dated checks, not their size.
+
+### M-REPORT-MIXED-OPENING · APPROVED · the opening of a report whose sheets were printed both ways (one project and run) — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956): *"All messages under "B. PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are approved."*
+
+*B8-1380. Knut: *"When that is resolved and the message reworded, the rest of the message is ok."* Only "marked “drift”" is reworded, to "marked “printed raw”".*
+
+> **The opening of a report of sheets printed both ways**
+>
+> This report judges the profile built in {where}. Some of its sheets were printed through that profile and compared with the chart's own aim values; the others, marked “printed raw”, were printed without it. The measurements it covers are listed under Report Scope.
+
+### M-REPORT-MIXED-OPENING-RUNS · APPROVED · the opening of a report across runs whose sheets were printed both ways — Measurement Report
+
+**Approved by:** Knut, 2026-09-26, #182 [5850164956](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5850164956), D2 (B8-1397): *"Accepted."*, to the words below, verbatim.
+
+*A document across several profile runs with sheets printed both ways kept the approved plural sentence "Each was verified by printing a chart through its profile", false of its raw sheets.*
+
+> **The opening of a report across runs of sheets printed both ways**
+>
+> This report judges the profiles built in {where}. Some of their sheets were printed through their profiles and compared with the charts' own aim values; the others, marked “printed raw”, were printed without them. The measurements it covers, and the profile run each comes from, are listed under Report Scope.
+
+### M-REPORT-NOT-WORKED-OUT · APPROVED · a new report with a date whose measurement is no longer on disk · Measurement Report, Report Scope (window and PDF)
+
+**Approved by:** Knut, 2026-09-27, #182 [5858874320](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5858874320): *"Regarding your 'Two new texts for your approval:' Answer: Approved."* The words he approved are the words below, unchanged since they were put to him in [5857991890](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5857991890).
+
+*New 2026-09-27, B8-1500. Knut, #182 [5857473253](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5857473253): a saved report is shown exactly as it was saved, and a new or updated report is made entirely by the current version, every date worked out again from its measurement. Where a date's measurement is no longer on disk as it was measured, nothing can be worked out again, and that date's figures are the ones an earlier report saved. The report says so at the foot of Report Scope instead of mixing them silently with this version's figures, and a report saved that way keeps saying so. Our words, for Knut's approval. Report text, for the reader of the document; it names no button. {dates} is the dates, comma-separated; the singular form is used for one date.*
+
+> **Figures an earlier report saved**
+>
+> The measurements of {dates} are no longer on disk as they were measured, so they could not be worked out again. Their figures are the ones an earlier report saved, worked out by the version of ChromIQ that saved it.
+
+*For one date:* "The measurement of {dates} is no longer on disk as it was measured, so it could not be worked out again. Its figures are the ones an earlier report saved, worked out by the version of ChromIQ that saved it."
+
+### M-CAL-FOUND-ENGINE · APPROVED · a calibration file found while the ChromIQ layout engine lays the chart out · Create Chart, Manual, the status line under the calibration fields
+
+**Approved by:** Knut, 2026-09-28, #182 [5865088296](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5865088296): *"Message 1 is ok"*. The words he approved are the words below, unchanged since they were put to him in [5863200239](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5863200239).
+
+*New 2026-09-28, B8-1655. Decision 7 of `calibration_run_type.md` (2026-08-05) fills the found `.cal` into the printtarg -K and -I fields, switches neither on, and says so. An engine build does not read those fields: it takes its calibration from the engine panel's own "Printer calibration" group. With the engine the default, the offer went where the build ignores it, and the line told the user to switch on a field that does nothing. The engine panel's path is now offered the same way (filled only when it is empty, Mode left on "None"), and this is the line for that case; with printtarg laying the chart out, the old line stays. Our words, for approval. `{name}` is the file name.*
+
+> **Calibration file found**
+>
+> Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.
+
 ## M-PROPOSED. Messages awaiting review
 
 *This section is where a new or revised message goes: add it to
@@ -1264,6 +2289,87 @@ written, after reading it in full.
 list it on the issue. `tests/test_message_catalogue.py` holds the two in step —
 it fails if a proposed message is missing from this section, and equally if an
 approved one is left sitting in it.*
+
+### M-VERIFY-UNCHECKED-METRICS · PROPOSED · what the report does with a metric the chart cannot answer — the presets window, with one line in the Measure tab pre-flight
+
+*New for 4.3.0-beta.35 (#182). Knut, 2026-09-22: a report that judges metrics
+which cannot be calculated carries a warning for each of them, and the reader
+should be told, before anything is printed, that those metrics can be switched
+off in Report limits by setting the threshold to "-", so that what is handed to
+a customer holds only the metrics that were actually checked.*
+
+**⚠ HIS PREMISE WAS MEASURED AND IT HOLDS IN A MINORITY OF STATES. Two
+questions are put back to him below; nothing here is settled.** An adversary
+round drove every combination in the real app:
+
+* **the limit SET decides whether such a row appears at all.** Only the two
+  ISO-derived sets put a real limit on the rows a ChromIQ verification chart
+  cannot answer; the five ChromIQ sets put none, so on them the row is simply
+  left out. "A report judging metrics that cannot be calculated carries a
+  warning for each" describes 2 of the 7 selectable sets. On the other five the
+  remedy is also a no-op, because the threshold is already "no limit".
+* **the report TYPE decides too.** One run, four buildable types: the numbered
+  note exists on T2 alone. T4 is ungraded, so `_note_the_absences` returns
+  early and no row carries one; T3 does not carry those rows at all; T1 carries
+  no metric rows. The pre-flight cannot know the type (it asks `assess_any`,
+  which unions every combination), so anything it says about notes is wrong on
+  three of the four.
+* **"-" cannot be typed.** One row, both states: typing "-" into the threshold
+  box leaves `hasAcceptableInput()` False and the cell silently reverts on
+  focus-out, with the old value still stored. The gesture is setting the spin
+  box to ZERO, which it displays as "–" through `setSpecialValueText`. The mark
+  is an en dash everywhere in the app and his message spelled it as a hyphen.
+* **the lever is often absent.** On a locked run every column is read-only,
+  photographed on his own demo project with zero spin boxes in the whole table,
+  and the two ISO columns are read-only in every state.
+
+*So the text below says what is invariant, names what decides the rest, and
+qualifies the instruction instead of promising it works everywhere.*
+
+**⚠ TWO QUESTIONS FOR KNUT, neither answered:** (1) he asked for this in the
+pre-flight popup AND in the presets window, and in the same specification he
+asked that the popup not *"become too long"*. Measured on screen, appending the
+full paragraph took the popup's `minimumHeight()` from 798 px to 958 in English
+and 974 in German, on a window with no scroll area, against about 918 px of
+usable height on a 13-inch MacBook Air: the OK button and his own "do not show
+this again" tick would be off the bottom of the screen. So the popup carries
+one line and the window carries the paragraph. (2) Since most sets already
+leave these rows out, is the behaviour he wants actually the ISO sets' one, and
+should the ISO-derived sets stop showing rows nothing can answer?
+
+**Question (1) ANSWERED, 2026-09-23** ([5795087247](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5795087247),
+*"Leave the window wider as previously specified"*, R2 of 5781645939). From
+beta 39 the pre-flight carries the FULL paragraph below, heading and body, in a
+box widened to 968 px; measured on screen it is 827 px tall in English and 875
+in German. The one line stays, used only where the shown box would not fit the
+screen's work area (a 13-inch Air with the Dock at the bottom, about 860 px).
+`docs/design/measurement_report_limits.md` §21.3. The WORDING of both is
+unchanged and still waits here. Question (2) was answered in the same comment
+(the general rule for unanswerable rows) and is not built by this change.
+
+*The pre-flight's one line, appended under its metric list only when the chart
+really falls short of something AND the wide box would not fit the screen:*
+
+> A metric this chart cannot answer is never judged and can never make the report fail. Whether it is shown at all is decided by the limit set, and the window named above says how to change that.
+
+*The paragraph, in the right-hand pane of "Which presets can be used for
+verification", under the list of what the chart cannot answer:*
+
+> **What the report does with a metric this chart cannot answer**
+>
+> It is never judged, and it can never make the report fail.
+>
+> Whether it appears at all is decided by the limit set the report is judged against. Where the set puts a real limit on the metric, the metric is shown reading N-A, and on a report type that carries notes it also carries one saying what it needed. Where the set puts no limit on it, the metric is left out; that is what ChromIQ's own sets do with the metrics above.
+>
+> To leave a metric out yourself, set its threshold to zero in the report's own limits, the first column of Edit limits… in the Measurement Report window. The box shows zero as “–”.
+
+*Revised 2026-09-23 for beta 38: the paragraph said "row" four times in the one window Knut's beta 25 item 4 cleared of the word; it says "metric" now. Still PROPOSED.*
+
+*Revised for beta 40 (K31, Knut [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743)): the last paragraph said "in the run's limits, where those limits can still be edited". A run holds no limits of its own any more and nothing is locked, so the lever is the report's own column. Still PROPOSED.*
+
+*Neither window is report text, which is why they may name a control: his other
+ruling of the same day is that no report text explains how to use ChromIQ, and
+both of these exist to help somebody decide what to print.*
 
 ### ⏳ Awaiting confirmation — the log rule no longer describes what CR30 does
 
@@ -1308,6 +2414,65 @@ log-only, which reverses four decisions Basti made deliberately. Recording it
 that way so the choice is visible rather than drifted into.
 
 *Raised by the round-3 review, 2026-08-30.*
+
+
+### RETIRED for beta 40 (K31), never approved: the unlock question, after the door changed (B8-391)
+
+*Retired 2026-09-23 with the control it belonged to. Knut, #182
+[5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743):
+"I agree that the 'Unlock this run's limits' is no longer needed, and it causes
+confusion in the functionality." The checkbox, this question window, its
+re-lock twin ("Lock this run's limits again?") and the Preferences option that
+allowed unlocking are gone from the code and the language files
+(`measurement_report_limits.md` §25). Neither the text in force nor the proposed
+replacement below is shown anywhere; both are kept only as the record of what
+was asked.*
+
+**Confirmed by:** *nobody.* It was a proposed replacement sentence, never a
+message in force.
+
+Knut, 2026-09-18, reading the window that appears when **"Unlock this run's
+limits"** is ticked:
+
+> *"This run (run3) has 2 dated verifications. Unlocking lets you change the
+> run's limit set and its numbers. Every dated report of this run will then be
+> recalculated with the numbers you set, and the previous reports are kept
+> first, in a reports/old folder beside each date. Nothing is deleted.
+> Continue?"*
+>
+> *"The description is wrong. All dated reports shall NOT be recalculated, only
+> the selected report will be recalculated and report text recreated according
+> to new values."*
+
+**The behaviour changed first, and the sentence follows it.** Unlocking now
+recalculates nothing at all: it lets the user change the run's limit set and
+its numbers, and what a change then does belongs to the ONE report named in
+"Report shown" (N.2/N.3 of §5 of `measurement_report_limits.md`). So the clause
+that promised a recalculation of *"every dated report of this run"* described
+something that cannot happen and **was removed the moment it became false** —
+the same course B8-384 took at the "Judged against" door an hour earlier. What
+is on screen today is the words that were already there:
+
+> **Unlock this run's limits?**
+>
+> This run (run3) has 2 dated verifications. Unlocking lets you change the
+> run's limit set and its numbers.
+>
+> Nothing is deleted. Continue?
+
+**Proposed replacement, for Knut to accept, reject or reword.** It says what
+the door now does rather than only dropping what it no longer does:
+
+> **Unlock this run's limits?**
+>
+> This run (run3) has 2 dated verifications. Unlocking lets you change the
+> run's limit set and its numbers.
+>
+> Nothing already saved is recalculated. The report you have open is rebuilt
+> when you press Generate report, and every other report of this run stays
+> exactly as it is. Continue?
+
+*Raised by the B8-391 round, 2026-09-18.*
 
 
 *The two below are **revisions**, not new messages. Both were approved by Knut
@@ -1365,8 +2530,9 @@ chart exists but the profile does not.*
 ArgyllCMS `chartread` matches that keyword against its own instrument table and
 refuses the chart before reading a patch, so a CR30 chart is readable only by
 ChromIQ's own chartread fork. Raised BEFORE anything is armed, when the loaded
-chart is a CR30 and Preferences → Measurement → "Chart-reading engine" is set
-to ArgyllCMS chartread. The window offers to change that setting; declining
+chart is a CR30 and Preferences → Measurement → "ChromIQ chart-reading engine"
+is switched off (B8-1643: the control became a checkbox; the wording followed on
+2026-09-28, still awaiting approval). The window offers to change that setting; declining
 cancels the measurement rather than starting one that cannot succeed. This is
 the guard that keeps `_blocked_by_unusable_target_instrument`'s claim true:
 "CR30" is in `KNOWN_INSTRUMENTS`, so that window no longer fires for a CR30
@@ -1374,9 +2540,9 @@ chart — and this one asks the question that is still open.*
 
 > **This chart can only be read by ChromIQ**
 >
-> This chart was made for the CR30, and ChromIQ reads that instrument itself. Standard ArgyllCMS chartread does not know the CR30 at all — it would refuse the chart before reading a single patch, whichever instrument you have connected.
+> This chart was made for the CR30, and ChromIQ reads that instrument itself. Standard ArgyllCMS chartread does not know the CR30 at all: it would refuse the chart before reading a single patch, whichever instrument you have connected.
 >
-> Right now, Preferences → Measurement has "Chart-reading engine" set to ArgyllCMS chartread. Switch it to ChromIQ's own reader and this chart measures normally. The setting applies to every chart, and every other chart reads the same either way.
+> Right now, "ChromIQ chart-reading engine" in Preferences → Measurement is switched off, so ArgyllCMS chartread reads your charts. Switch it on and this chart measures normally. The setting applies to every chart, and every other chart reads the same either way.
 >
 > Nothing is wrong with the chart, and nothing you have already measured is affected.
 
@@ -1706,6 +2872,17 @@ tile signature is one unit's constant. USB catches it on every unit.*
 
 ### M-CR30-CALIBRATE-BLACK · PROPOSED · the dark reference, taken against air — Measure
 
+*⚠ REVISED 2026-09-07, wording only, and it is still PROPOSED — nothing here
+has been approved. The act had two names. `black calibration` names it in seven
+places and all twelve catalogues have committed to it (`svartkalibrering`,
+`kalibracja czerni`, `калибровка по чёрному`, `黑校准`); `dark calibration`
+named the same act in three, one of which was this body, one a window title
+sitting directly over the sentence "That dark reference does not look dark."
+`dark reference` is kept, because it names the RESULT the instrument now holds
+and that distinction is worth having. So the body now says "A black calibration
+DEFINES what zero means". Three em dashes went with it, under the em-dash rule:
+the string was modified, so it stops matching the frozen baseline.*
+
 *New message (#159, 2026-08-29). The second calibration step, offered by an
 unticked checkbox in M-CR30-CALIBRATE — per use, deliberately not remembered, so
 a second window only ever appears for the user who has just asked for it. That
@@ -1750,17 +2927,17 @@ where being unmistakable matters most.*
 >
 > This second step is the opposite of the first one, so it is worth a glance at the picture above.
 >
-> TAKE THE CAP OFF and put it aside. Hold the instrument with the opening pointing DOWNWARD into open space — about a metre above the floor, with nothing in front of it, and not aimed at a lamp or a window.
+> TAKE THE CAP OFF and put it aside. Hold the instrument with the opening pointing DOWNWARD into open space, about a metre above the floor, with nothing in front of it, and not aimed at a lamp or a window.
 >
 > There is nothing to place it on. Your CR30 has no black tile: it takes its dark reading from empty air, which is why the picture shows it pointing at nothing.
 >
 > Then press "Calibrate now". Afterwards ChromIQ reads once more and shows you the number that came back, so there is a record of it.
 >
-> ⚠ It cannot check that you pointed it at the right thing. A dark calibration DEFINES what zero means, so whatever the instrument was looking at becomes the new zero and reads as nothing a moment later — measured on a real unit: calibrated against white paper, it read back 0.004 %. Getting this step right is your eyes, not ours.
+> ⚠ It cannot check that you pointed it at the right thing. A black calibration DEFINES what zero means, so whatever the instrument was looking at becomes the new zero and reads as nothing a moment later. Measured on a real unit: calibrated against white paper, it read back 0.004 %. Getting this step right is your eyes, not ours.
 >
 > If you would rather not, press "Skip this step". Your white calibration still stands and the measurement goes ahead with the dark reference the instrument already had.
 >
-> If you have changed your mind about measuring at all, press "Cancel the measurement". Nothing has been measured yet and nothing on disk changes, so the only thing you lose is the white calibration you have just taken — and you can take that again in a few seconds whenever you like.
+> If you have changed your mind about measuring at all, press "Cancel the measurement". Nothing has been measured yet and nothing on disk changes, so the only thing you lose is the white calibration you have just taken, and you can take that again in a few seconds whenever you like.
 
 *⚠ REVISED 2026-08-30, and this one is a retraction. The window claimed the
 read-back was "the one check it can honestly make". **It is not a check of what
@@ -1768,7 +2945,7 @@ the user did.** Basti tested it on hardware — black-calibrated deliberately
 against white paper — and the read-back came back at **0.004 %R**, comfortably
 inside the 0.05 threshold, reported as a healthy dark reference.*
 
-*The reason is structural, not a bug: a dark calibration DEFINES zero. Whatever
+*The reason is structural, not a bug: a black calibration DEFINES zero. Whatever
 the instrument is looking at becomes the new zero, so reading that same surface
 a moment later can only return ~0. The check is circular for the one mistake it
 appeared to guard — pointing it at the wrong thing — and could only fire if
@@ -1934,6 +3111,174 @@ manual").*
 >
 > You can also press the SPACE BAR, or Enter, to take the reading from here without touching the instrument. That keeps it perfectly still, and a reading taken that way is steadier than one taken by pressing the instrument's own button — pressing it moves the instrument slightly, by about ten times its own measurement noise. ChromIQ offers this once it has learned what your instrument's white tile looks like, which it asks about after calibrating.
 
+### M-REPORT-CHART-MISMATCH-NO-GREY · PROPOSED · the strip when no grey row a device grey ramp answers is listed — Measurement Report
+
+*New 2026-09-24, beta 40 challenge B (B8-942). M-REPORT-CHART-MISMATCH's
+closing names one lever for the grey balance, “Neutral grey ramp” with 16
+steps, and it was printed whatever the list held: on a FROM PROFILE GAMUT
+verification the strip listed three control-strip and evenness rows and still
+named the grey ramp, a row not in its list and a lever §26.5 of
+`measurement_report_limits.md` rules out on such a chart (its grey steps are
+its neutral aims; its lever is a larger chart). This variant is shown when no
+listed row is a grey row, or when the sheet the grey row is listed for is a
+FROM PROFILE GAMUT chart; each row's own reason still names what that row
+needs. Same headline, same `{set}` and `{rows}`.*
+
+> **Some limits cannot be checked on this chart**
+>
+> The limit set {set} puts a limit on values this chart cannot supply, so these rows read N-A (not applicable):
+> {rows}
+>
+> A row that was not computed says nothing about the printer. Each reason above names what that row needs: most want patches added to the chart in Create Chart, and the control strip wants the chart to declare one. Make the change, print the chart again and measure it.
+
+### WITHDRAWN 2026-09-23, never approved: M-REPORT-NOT-FOR-CALIBRATION
+
+*Proposed the same day for #182 K26 (Knut, 5792484060, Q1: "Run type=
+Calibration should not allow any reports"): a red line where "Already
+generated…" stands, headed "Measurement reports can only be made with Run type
+Profiling or Verification". Knut retracted the ruling it spoke for in
+5794078008: "The run type set to calibration should be able to make a report
+after all. I retract my statement that the measurement report window should not
+allow making reports in this run type." From beta 39 a Calibration window lists,
+counts and generates reports (`measurement_report_limits.md` §18.12), so there
+is no state left for the line to describe. It was never approved, and its text
+is gone from the code and the language files.*
+
+### M-REPORT-UPDATE-NOTHING-LEFT · PROPOSED · Update of a report none of whose measurements is left on disk — Measurement Report
+
+*New 2026-09-23, re-challenge R1 of beta 39 (#4). M-REPORT-UPDATE-LEAVES-OUT
+offered “Update without them” even when the report's EVERY measurement was
+gone, and the press then wrote the report with `measurements: []` under its
+old verdict and its old scope, and the list and the page went on showing it as
+the report it had been. A report that covers nothing is not a report, so the
+press is refused before anything is written, and the window names the two
+buttons that do something. Button: **OK**. `{missing}` as for
+M-REPORT-UPDATE-NOT-FOUND.*
+
+> **Nothing of this report is left to update**
+>
+> None of the measurements the selected report covers is on disk any more:
+>
+> {missing}
+>
+> Updating it would leave a report that covers nothing, so nothing was changed and the report stays as it was written. “Delete Selected Report” moves it to the old folder, and “Create New” writes a new report of what is ticked.
+
+### M-REPORT-DELETE-FAILED · PROPOSED · Delete Selected Report could not move the report — Measurement Report
+
+*New 2026-09-23, challenge C of beta 39 (#7). In a read-only folder the move
+copied the report into `old/` and left the original, so it was on disk twice
+and still in the list, and the window showed Python's own
+"[Errno 13] Permission denied: '/Users/…'". The move is now all or nothing
+(`core.file_manager.move_report_files`) and this says what could not be done
+and what to do. Button: **OK**. `{folder}` is the folder that stopped it.*
+
+> **The report could not be moved to the old folder**
+>
+> ChromIQ could not change this folder:
+>
+> {folder}
+>
+> Nothing was moved, and the report is still in the list. The usual reason is that the folder is read-only. {remedy}
+
+*Revised 2026-09-23, re-challenge R2 of beta 39 (#8): "copy the project" was
+the remedy for every report, and a report across projects is not in a project
+at all. `{remedy}` (`measurement_messages.report_delete_remedy`) is, for a
+report inside a project,*
+
+> Give yourself permission to change it, or copy the project somewhere you may write, and try again.
+
+*and, for a report kept beside the projects it covers (`<ChromIQ folder>/reports/`
+or a `reports/` folder beside the projects), with `{place}` the folder that
+holds them,*
+
+> This report is not kept in a project but beside the projects it covers. Give yourself permission to change it, or copy {place}, the folder that holds those projects, somewhere you may write, and try again.
+
+### M-REPORT-NOT-WRITABLE · PROPOSED · Generate report or Update could not write in a folder — Measurement Report
+
+*New 2026-09-23, challenge C of beta 39 (#8). The press was already all or
+nothing; the window said only "Nothing could be written. The log says why."
+It now names the folders that stopped it and the remedy. Button: **OK**.
+`{folders}` is one folder per line. The older sentence stays for a failure
+that is not a folder ChromIQ may not write in.*
+
+> **The report was not written**
+>
+> ChromIQ is not allowed to write in:
+>
+> {folders}
+>
+> A report is written whole or not at all, so nothing was changed. Give yourself permission to change those folders, or copy the project somewhere you may write, and try again.
+
+*Revised 2026-09-23, re-challenge R2 of beta 39 (#7): the body said "that
+folder" under a list of several. With ONE folder the last paragraph reads
+"Give yourself permission to change that folder, …"; with several, "those
+folders", as above.*
+
+### M-RUN-DELETE-REPORTS-LOCKED · PROPOSED · deleting a profile run is refused because the reports that name the later runs cannot be renumbered — Measurement target bar
+
+*New 2026-09-23, re-challenge R2 of beta 39 (#1). Since challenge C, deleting
+a profile run renumbers the saved reports that name the runs after it, and a
+report ChromIQ may not change stops the delete before anything moves. The
+refusal was a paragraph followed by "This is what ChromIQ tried to remove:"
+and the reports folder, which ChromIQ never tried to remove: it is where the
+reports it would have had to CHANGE live. The window had no headline either.
+Button: **OK**. `{n}` is the run's number, `{folders}` one folder per line.
+With one folder the last two sentences read "… in this folder:" and "Make it
+writable, …".*
+
+> **Profile run {n} was not deleted**
+>
+> Nothing was deleted. Deleting this run renumbers the runs after it, and the saved reports that name those runs by number must be renumbered with them. ChromIQ is not allowed to change the reports in these folders:
+>
+> {folders}
+>
+> Make them writable, or move the project somewhere you may write, and try again.
+
+### M-THRESHOLDS-NOT-CERTIFICATION · PROPOSED · what ChromIQ measures and what it does not claim — Report limits window
+
+*New for #182 (Knut, D11 and D24, 2026-09-04/05: criteria ChromIQ cannot reach
+are a note at the bottom of the thresholds window and in the report, and
+"ChromIQ is not offering certification"). The note at the foot of the Report
+limits window, under the legend and the footnotes. `{rows}` is the
+comma-separated list of the rows marked ✕.*
+
+**Where its review stands (2026-09-24).** Knut approved section C of
+[5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116) in [5816565326](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816565326), and this message
+was C15 there, but it has been revised twice since that post, so the approval
+does not reach the text below as a whole. Of the two revisions:
+
+* **Accepted by Knut, 2026-09-24, #182 [5816616607](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816616607)**
+  (*"both accepted"*): the "–" sentence as it now reads, *"Such a column reads
+  “–” for a row ChromIQ can measure that the standard puts no limit on, and ?
+  where it limits the row but no number has been supplied for it"* (B8-979),
+  and the last sentence, *"Rows marked ✕ are requirements ChromIQ cannot
+  measure at all; they stay in the table so you can see what the standard
+  asks"*, left as it is although ✕ now also appears in columns whose standard
+  does not ask for the row.
+* **Not yet put to him:** the Custom-column sentence of B8-978, *"A Custom
+  column starts from limits researched from industry practice and ChromIQ's
+  own numbers, neither of which is that standard's, and no values file changes
+  that."* (it replaced *"starts from a licence holder's figures where there
+  are any, and otherwise from …"*). That is why the message stays here.
+
+> **ChromIQ measures against published values; it does not certify**
+>
+> A read-only column named after a standard is judged against that standard's published tolerance values, where ChromIQ ships them or a licence holder has supplied them. Such a column reads “–” for a row ChromIQ can measure that the standard puts no limit on, and ? where it limits the row but no number has been supplied for it. A Custom column starts from limits researched from industry practice and ChromIQ's own numbers, neither of which is that standard's, and no values file changes that. Either way the values are applied to the chart you printed and not to that standard's own control strip and chart, so a report can never say that a print conforms to a standard. What ChromIQ does is measure as many of the standard's values as your chart allows, say which it checked and which it did not, and let you follow them over time.
+>
+> *(Corrected 2026-09-12. The first wording said the columns HOLD that standard's published values, which is false in both of ChromIQ's states: the two editable columns start from ChromIQ's own numbers where nobody has supplied a standard's, and the two read-only ones are empty as ChromIQ ships, because the data file is empty by design. The report's guide was corrected for each half in turn and this copy was reached by neither, while `_notes_text` printed it two lines below its own correct sentence.)*
+>
+> *(Revised 2026-09-24, awaiting review, B8-979 (Knut, #182 5815435713): a row ChromIQ cannot measure now reads ✕ in every set, so "–" is said only of a row ChromIQ can measure.)*
+>
+> *(Revised 2026-09-24, awaiting review. Knut, #182 5815346140: the Custom columns are "alternative limit sets to the standards", never copies, so a licence holder's own values file no longer fills them; it fills the read-only column. "starts from a licence holder's figures where there are any" was removed.)*
+>
+> *(Revised 2026-09-23, awaiting review, for #182 S-2 (`measurement_report_limits.md` §23). DIN's legal department answered that a standard's values alone are not reproduction, so the ISO 12647 values are prepared to ship in the read-only columns once the owner gives the go-ahead. From then on "where nobody has supplied them" no longer divides the columns correctly: a shipped set judges its read-only column while the Custom column beside it keeps the researched figures. Each column is now described by what it starts from, as a condition, so the one sentence is true whether a set ships, is supplied, or holds nothing.)*
+>
+> *(Revised 2026-09-23, awaiting review, re-challenge R2 of beta 39: "reads ? where neither is so" stopped being true with §23. A shipped set shows “–” for a row the standard does not limit, and ? only where the set limits the row but no number has been supplied, which is how the Report limits legend puts it.)*
+>
+> *(Corrected again 2026-09-21. Knut's researched industry figures became the two Custom columns' starting values on that day, so "ChromIQ's own numbers" described nineteen of their thirty-six limits and not the other seventeen. Both sources are named, and the sentence says of both that they are not the standard's.)*
+>
+> Rows marked ✕ are requirements ChromIQ cannot measure at all; they stay in the table so you can see what the standard asks: {rows}
+
 ### M-PATCHSET-MISSING · PROPOSED · the loaded patch set is no longer on disk — Create Chart
 
 *New for 4.1.3-beta.16. Shown when "Generate Chart" is about to lay out a patch
@@ -1954,6 +3299,27 @@ for.*
 > • Open the patch set again with the patch-grid icon at the top right of this tab, and pick the file from wherever it is now.
 > • Choose a ready-made patch set from the "Presets" list.
 > • Or let ChromIQ work out a fresh set of colour patches for you: tick "Edit patch recipe (override preset)" and click "Generate Chart".
+
+### M-PATCHSET-KEPT-UNCHECKED · PROPOSED · an older chart keeps its own patch set, unchecked — Create Chart
+
+*New for beta 45 (B8-1460). A chart made before its sidecar recorded whether
+its patch set was given (beta 44 and every release before it) is judged from
+its files when it is shown again: targen is asked whether the settings on
+screen, with the arguments Generate would give it, write exactly the chart's
+patches. If they do, Generate builds the chart again as before; if they do not
+(a patch set loaded with "Load patch set", say), the chart keeps its own
+patches, as a chart that records a given set always did, and nothing is said.
+This message is for the third case only: targen could not be asked (it is not
+installed, it failed, or a file it needs is gone), so nothing can tell, and
+rather than let Generate replace the patches in silence the chart keeps them.
+Written into Create Chart's log, not a window; the chart has just been shown
+and nothing is being built.*
+
+> **This chart keeps its own patch set**
+>
+> This chart was made by an earlier version of ChromIQ, which did not record where its patches came from, and ChromIQ could not check whether the settings on screen make the same patches. So that a sheet you have already printed still matches, “Generate Chart” lays out this chart’s own patches again.
+>
+> To make a new set of patches from your settings instead, tick “Edit patch recipe (override preset)” and change a setting of the patch recipe. The next “Generate Chart” then makes a new set.
 
 ### M-PROJECT-EXISTS · PROPOSED · the typed project name is already a project — Create Chart
 
@@ -2240,6 +3606,37 @@ patch-identity comparison).*
 >
 > The two usual causes: the file belongs to a different chart, or the patches came back in a different order than they were sent — that can happen when the shuffled i1Profiler export was used for measuring. Use the chart's normal export (the file without "shuffled" in its name), measure again, and import that.
 
+### M-IMPORT-DEVICE-FROM-CHART · PROPOSED · the measurement carries no device values — Measure ▸ IMPORT
+
+*i1Profiler's measure tool reads a chart it did not generate, so it has no
+colour space to express device values in and exports none: `SAMPLE_ID`,
+`SAMPLE_NAME` and the spectral curve. ChromIQ pairs such a file with the chart
+by the patch NAME each reading carries and takes the device values from the
+chart, exactly as chartread does. The patch-identity check compares device
+values, so on this file it has nothing to compare, and the person is told so
+before anything is filed. `{count}` is the number of readings and `{chart}` the
+chart's file name. Two buttons: **Import it** and **Cancel**.*
+
+> **Only you can confirm this is a measurement of this chart**
+>
+> This file holds the colour of every patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.
+>
+> ChromIQ can still file it. All {count} readings name a patch of {chart}, and the chart knows what was printed at each of those names, so the chart supplies the device values, exactly as it does for a measurement made here.
+>
+> What ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The names all belong to this chart, which is as far as names can go: another chart laid out the same way carries the same names.
+>
+> Import it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.
+
+*Singular ({count} = 1):*
+
+> This file holds the colour of its patch and no record of the ink that made it. i1Profiler writes it that way when it measures a chart it did not generate itself: there is no colour space for it to put device values in, so it puts none.
+>
+> ChromIQ can still file it. Its one reading names a patch of {chart}, and the chart knows what was printed at that name, so the chart supplies the device values, exactly as it does for a measurement made here.
+>
+> What ChromIQ cannot do is check the file against the chart. That check compares the device values in the measurement with the chart's, and this file has none. The name belongs to this chart, which is as far as a name can go: another chart laid out the same way carries the same names.
+>
+> Import it only if this is the measurement of the sheet printed from {chart}. Cancel changes nothing.
+
 ### M-IMPORT-DATE-TAKEN · PROPOSED · importing over an existing dated result — Measure ▸ IMPORT
 
 *The import never replaces an existing dated measurement; the way to a fresh
@@ -2252,6 +3649,29 @@ check is the same field a native measurement uses.*
 > Nothing has been imported and nothing has been changed.
 >
 > To file this measurement as a new check, set the "Verification" field in the bar above to "New verification" and press Import Measurement again — it gets its own dated folder, and the earlier result stays exactly as it is.
+
+### M-IMPORT-DONE-PROFILING · PROPOSED · the import succeeded, into a profiling run — Measure ▸ IMPORT
+
+*New 2026-09-15. The twin of the approved import-done window, for the run type
+that door could not reach until now. A tester looked for the import on the
+Measurement tab in a profiling run and found it only on Build ICC profile;
+Sebastian ruled that the module is offered on the Measure tab for a profiling
+run as well, and that the Build ICC profile tab's own import stays where it is.
+The approved wording cannot be reused: every sentence of it is about a
+verification, and its dated folder does not exist for a profiling run. The two
+buttons are §I.9's I.8 ("offers Open measurement report and Build the
+profile"); `{run}` is the run the file actually went into, which is not always
+the run that was on the bar when the button was pressed — a run that already
+held a measurement is duplicated rather than written over (§I.9).*
+
+> **The measurement was imported**
+>
+> It is filed as the measurement of {run}, in:
+> {folder}
+>
+> A copy of the chart it was measured against is stored with the run, so the result stays interpretable even if the chart is replaced later.
+>
+> You can build a profile from it now on the Build ICC profile tab, or open Tools ▸ “Measurement report” first to see the colour-accuracy figures.
 
 ### M-CHART-VERIFY · PROPOSED · replacing the verification chart — §4 (W5), revised wording
 
@@ -2494,6 +3914,28 @@ end of a session is still one click.*
 > Save writes it as a CSV and an ArgyllCMS .ti3 beside the run you are working on, and then the window closes. Discard closes the window and loses the reading. Cancel leaves the window open exactly as it is, with the reading still in the list.
 
 *Buttons: **Save** (default), **Discard** (destructive) and **Cancel**.*
+
+### M-SCAN-WP-DEFAULT · PROPOSED · the scanner white-point default moved, and existing settings moved with it — Tools ▸ Build profile with scanner or camera
+
+*New for 4.1.5-beta.9, 2026-09-05. The white-point handling a scanner or camera profile is built with moved from "Map chart white to white" (no colprof flag) to "Scale white to a perfect white surface" (`colprof -u -R`). **Basti ruled the migration**: existing remembered settings adopt the new default rather than being pinned to the old one — "our user base is not very big at the moment so i want the better default". This message is the other half of that ruling. CLAUDE.md's principle 10 is "migrate schemas in place, ANNOUNCE it, keep the old files", and this is exactly that case: somebody who re-profiles a scanner they have profiled before gets a visibly different profile, and nothing else in the app would tell them why.*
+
+*Shown once, in the window's LOG, the first time the window opens after the migration has actually changed something — never for a user who had no stored settings, and never twice. It is in the log rather than a window because §M's rule is that unapproved wording speaks through the log, and because nobody has asked for a window here; if Basti would rather it were a window, the mechanism is the same and only the presentation changes.*
+
+*The measured case behind the change (re-measured independently 2026-09-05 on the 864-patch IT8 scan in `beta 9/knut-whitepoint/`, `colprof -ax -qh`): the old default put the chart's own white board at PCS white, and that board is 84.286 % reflectance, so four physically different whites — the board at 84 %, a brighter paper at 89 %, a very bright paper at 95 % and a perfect diffuse reflector at 100 % — all reached L\* 101.1 / 103.5 / 106.1 / 108.1 and every one of them landed on sRGB 255/255/255. Under `-u -R` the same four land at L\* 93.50 / 95.69 / 98.12 / 99.98 and none of them clips. Accuracy is unchanged: profcheck avg ΔE00 0.336709 against 0.336727. Neutrality is unchanged too — the board reads a\* −0.83 / b\* −0.50 against the old default's −0.89 / −0.53 — which is what separates this from `-ua`, whose board carries the chart's real cast at a\* +1.49.*
+
+> **The white point setting for new scanner profiles has changed**
+>
+> ChromIQ used to build scanner and camera profiles so that the white patch of your test chart became pure white. It now scales white to a perfect white surface instead — the entry "Scale white to a perfect white surface (-u -R)" under Advanced… ▸ White Point ▸ White point handling. Your remembered settings for this window have been moved to it, which is why you are reading this.
+>
+> Why it moved. Under the old setting, anything you scanned that was lighter than your chart's own white board came out as flat white with no detail left in it, and no amount of editing afterwards could bring that detail back. A test chart's white board is not very white: on the scan this was measured from it is 84 % as bright as a perfect white surface, so that board, a brighter paper, a very bright paper and a perfect white surface all came out as exactly the same white. The new setting keeps them apart. It is just as accurate as the old one, and it keeps whites just as neutral.
+>
+> What this does not change. Every profile you have already built is a file on disk and is untouched. So is every measurement, every chart and every project. Nothing has been rebuilt, converted, moved or deleted, and no profile changes unless you build it again.
+>
+> What you will notice. A profile you build from now on makes scans open a little darker — a white board lands at about 93 out of 100 in lightness rather than at 100 — so a scan wants one levels or curves step to finish. Nothing has been lost by that: the highlight detail that used to be flattened is now there for you to work with.
+>
+> If you preferred the old behaviour, it has not gone anywhere. Open Advanced…, and under White Point set "White point handling" back to "Map chart white to white". That is exactly what ChromIQ did before. Press "Save as Defaults" and it will stay that way.
+
+*No buttons: it is a log entry, not a window.*
 
 ### M-SCAN-REF-SHORT · PROPOSED · the reference file covers only part of the target — Tools ▸ Build profile with scanner or camera
 
@@ -2841,6 +4283,61 @@ This is what a photograph taken at a slight angle does — the sheet further fro
 
 Scan the sheet, or photograph it square-on with the camera above the middle of it — or drag the four corners onto the chart yourself, which always works and is what the grid is for.
 
+### M-SCAN-ALIGN-PLACED-UNCHECKED · PROPOSED · Auto align placed the grid and its reading does not agree with the chart — Tools ▸ Build profile with scanner or camera
+
+*New for #182, 2026-09-11. Knut was asked what Auto align should do when it
+cannot place the grid well enough to trust: leave the corners alone and say so,
+or place its best attempt and tell the user to check it. He ruled:* **"place its
+best attempt and tell user to check it."**
+
+*That changes what two of the nine endings DO, and therefore what they say. Both
+`below-floor` (the placement does not agree with the chart's own reference) and
+`not-seated` (the picture says the patches are not where the placement puts
+them) are reached only AFTER a candidate exists, so both had a real answer to
+show and threw it away. The other seven endings are unchanged and keep their
+refusals, because in every one of them there is nothing to place: the search
+found nothing, or the chart file records no patch positions, or the only
+"candidate" is the user's own corners put back where they already are.*
+
+*Nothing about the CHECKS changed. `border_agreement`, `seating_drift` and the
+reference agreement all still run, on the same corners, and still say the same
+thing; `PlacementResult.trusted` is the flag that carries their verdict, and it
+is the only thing in the app that may be read as "this grid is right". What
+changed is that the user now gets to see the answer they are being asked to
+correct, and that the one-press undo puts their own corners back.*
+
+*This is the `below-floor` wording. The headline is shared with
+M-SCAN-ALIGN-PLACED-NOT-SEATED because from the user's side there is one state:
+the grid moved, and nobody is vouching for it. It deliberately avoids the word
+the approved M-SCAN-ALIGN-DONE opens with, so the two cannot be told apart at a
+glance by their first word alone.*
+
+> **Auto align placed the grid and could not confirm it**
+>
+> ChromIQ found the chart and has put the grid on its best reading of it, so you can see what it found. What the grid reads there does not agree with this chart's own reference closely enough to rely on, which usually means the reference file belongs to a different target, or the scan is of a different chart.
+>
+> Check it before you build anything. Look at the file in the “{ref_row}” row above, press “Check alignment” below to read the scan and see which patches it is really taking, and drag any corner by hand. “Undo auto align” puts your own corners back.
+
+### M-SCAN-ALIGN-PLACED-NOT-SEATED · PROPOSED · Auto align placed the grid and the picture says the patches are elsewhere — Tools ▸ Build profile with scanner or camera
+
+*New for #182, 2026-09-11, from the same ruling. The `not-seated` half: the
+seating check refused the candidate, and under the old behaviour that discarded
+it. The evidence behind the check itself is unchanged and is set out under
+M-SCAN-ALIGN-NOT-SEATED above, which stays in the catalogue for the case where
+the SEARCH ended on that reason with no candidate to place.*
+
+*The paragraph naming the camera angle is kept from that message, because it is
+the single most likely cause and it tells the user what to do differently next
+time rather than only what is wrong now.*
+
+> **Auto align placed the grid and could not confirm it**
+>
+> ChromIQ worked out where the grid would have to go and has put it there, then looked at the picture once more to check it, and the patches are not where that placement puts them. Towards one edge of the sheet the grid reads part of the neighbouring patch, and a profile built from that is wrong without looking wrong.
+>
+> This is what a photograph taken at a slight angle does: the end of the sheet further from the camera comes out smaller, so no single shape fits both ends of it. A flatbed scan does not have the problem at all.
+>
+> Check it before you build anything. Press “Check alignment” below, and drag the corners that are off onto the patches by hand. “Undo auto align” puts your own corners back.
+
 ### M-SCAN-DIAGNOSTIC · PROPOSED · a scanin diagnostic image offered as a scan — the scanner window's log
 
 *New for beta 8, item B8-15. Knut did this in his own beta.7 session
@@ -2939,6 +4436,42 @@ cannot make, and names the one check in this window that can tell the two apart
 > ChromIQ searched the picture for the chart, and then looked around the four corners you placed for a better place to put the grid. Neither found one worth moving them for — what you have is already the closest match it can see.
 > That is not the same as saying the grid is on the right patches: a grid a whole patch out reads every patch as its neighbour and looks just as even. Press “Check alignment” below — that reads the scan and can tell the difference.
 
+### M-SCAN-ALIGN-NOT-FOUND-HEX · PROPOSED · Auto align cannot find a honeycomb chart, and the advice it gave could not help — the scanner window's log
+
+*New for 4.2.4, 2026-09-11. Knut asked whether Auto align works on a hexagonal
+chart. It does not, it never did, and that is not what was wrong with it.*
+
+*Measured on screen on his own CR30 honeycomb, against a rectangular chart of
+the same 648 colours built by the same engine so that every number has a
+control beside it. The honeycomb: the corners move **0.0 px**, `is_placed()`
+stays False, and the window says so. The rectangle, same drive: the corners land
+**0.6 px** from the true block corners. Repeated from a deliberately rough hand
+placement 166 px out, the honeycomb gives the same answer and again moves
+nothing. So the worst case a placement button has — a silent move that leaves a
+careful placement somewhere wrong — does not happen here, and the user is told.*
+
+*Asked stage by stage, `place_grid` is search, then refine, then check. Only the
+SEARCH declines: it returns "not recognised" with **zero** candidates from every
+starting placement, because it borrows scanin's own recogniser and that hunts
+the straight horizontal patch edges a grid of rectangles has. A hexagon has
+none. The two stages after it are shape-agnostic in practice as well as in
+principle: on the same honeycomb the refine step moves a rough placement onto
+the patches and the check step separates a right placement from a wrong one by
+**0.969 against 0.514**, with the floor at 0.80.*
+
+*What was wrong is the sentence. The generic "not recognised" wording sends the
+user to drag the four corners roughly around the chart and press Auto align
+again, which narrows the search to inside them — and a narrower search of a
+honeycomb finds nothing either, so the instruction cannot work however carefully
+it is followed. Nothing about the behaviour changes with this message: the same
+ending, the same refusal, the same untouched corners, and an instruction the
+user can act on. Whether the search itself should be replaced for honeycombs is
+a separate question, sized and costed but not decided.*
+
+> **Auto align left your corners exactly where they are**
+>
+> Auto align cannot find a hexagonal chart. The search looks for the straight edges of a grid of rectangles, and a honeycomb has none, so pressing the button again will not help however the corners are placed. Drag the four corners onto the chart yourself: put each one on the outermost patch of its corner. Everything else in this window works normally on a honeycomb, including “Check alignment”, which will tell you whether what you placed is reading the right patches.
+
 ### M-SCAN-FIT-TOO-FAR · PROPOSED · nothing was found, and the corners cannot be improved from where they are — the scanner window's log
 
 *Beta 8. Written for agent L's separate “Fit to the patches” button and REWRITTEN
@@ -3010,6 +4543,28 @@ was the sentence saying it happened, and where to start again.*
 >
 > A scan is read through the target’s own recognition file, and a different target has a different grid, so a placement made on the old one would not mean anything on this one. The scan that was loaded, its four corners and any further scans on this page have been dropped.
 > Nothing on disk was touched. Pick the scan again — or press “Try with a demo scan” — for the target now selected.
+
+### WITHDRAWN 2026-09-18 — the update-or-create question (B8-375, B8-384)
+
+*Proposed on 2026-09-18 from Knut's own specification of that morning, which
+said that on changing a setting "it is checked if this report type and judged
+against combination already exists. If it exists the user will be asked if he
+wants to update the existing report (overwrite) or create a new report." Two
+readings of it were written out here rather than chosen, and the wording went to
+review before anything was built.*
+
+*He answered the same day and the question is not wanted:*
+
+> *"It is better that existing reports are not overwritten. A user could instead
+> select and delete old reports they do not want."*
+
+*So **Generate report always writes a new report and nothing is ever
+overwritten**, and the user prunes the list with "Delete Selected Report", which
+moves the files into an `old/` folder and destroys nothing (M-REPORT-DELETE
+above). The question is withdrawn rather than left waiting: it was never given an
+`M-` identifier and nothing in the code refers to it. What his defect objected to
+was that ONE press of Generate wrote TWO files and put two lines in the list; one
+press now writes one document and one line, which is the behaviour he asked for.*
 
 ### Frame titles awaiting a ruling — Create Chart ▸ Manual ▸ Expert (B8-21 §4)
 
@@ -3106,6 +4661,61 @@ app rather than only in a reply to Knut. Knut asked for it: *"Maybe the help tex
 recommendations for when to use the LUT types, such as when one has large
 targets with many patches… or whatever…."*
 
+#### ⏳ Awaiting confirmation — three paragraphs of the scanner-side ⓘ, 2026-09-06
+
+**Confirmed by:** *nobody yet.*
+
+Basti approved the words above on 2026-09-04. Three paragraphs of the
+scanner-side text have changed since, and neither change has been put to him,
+so they are flagged here rather than left inside a "Confirmed" heading as if
+they had been:
+
+1. **The Lab-table bullet was already out of date in this document before
+   today**, and that is a pre-existing divergence, not something this change
+   introduced. B8-75 moved the white-point default to "Scale white to a perfect
+   white surface (-u -R)" on 2026-09-05, which moves a Lab cLUT's ceiling from
+   about 94 % reflectance to about 114 %, and the bullet was rewritten in the
+   code to say so. This document kept the older wording, which still ends
+   *"set Advanced… ▸ White point handling to 'Auto-scale to avoid clipping
+   (-u)', which lifts the ceiling"* — advice the new default has already taken.
+   The paragraph above is now the code's, so the two agree again.
+2. **"the default here" is gone from the Shaper + matrix bullet, and "on the
+   default there" from the Lab one.** Knut asked in beta 10 for the profile
+   type, the quality and the white point to be chosen from the patch count, and
+   for the white-point dropdown to stop calling one entry the default (it is
+   wrong for the two matrix types, which this window's own help says). With
+   both built, "the default" names nothing on either control, so the two
+   sentences that leaned on it had to say something else.
+3. **The third paragraph now says the window acts on the patch count**, because
+   it does. That is the change B8-19 considered and deliberately did not make;
+   Knut asked for it and Basti authorised it, and the guard that keeps it safe
+   is that it never touches a bucket whose settings somebody saved. B8-78 has
+   the whole of it.
+
+4. **The printer side lost two of its four profile types, and this
+   document said they worked.** It read *"All four choices build a working
+   profile"* for the printer mode and listed Shaper + matrix and Matrix only in
+   the dropdown table, and ArgyllCMS makes that impossible: `colprof.c:1244`
+   answers any non-cLUT algorithm for a `DEVICE_CLASS "OUTPUT"` measurement
+   with *"Output profile can only be a cLUT algorithm"* and writes nothing.
+   MEASURED on Knut's own `Knut-Scanner-printer.ti3`, the printer-mode
+   measurement this very window produced: `-as` and `-am` exit 1 with no
+   profile. So this is a fault in the DOCUMENT as much as in the code, and by
+   CLAUDE.md's rule that is Knut's and Basti's call rather than ours: the
+   wording below is what the app now shows, and it is flagged here for a ruling
+   rather than presented as settled. B8-93 and B8-94 carry the whole
+   measurement. The same note applies to the Quality paragraph on BOTH sides:
+   it said `-q` "applies only to the two cLUT types and is greyed out for the
+   other two", and ArgyllCMS's own `colprof.html` says the opposite ("For
+   matrix profiles it sets the per channel curve detail level and fitting
+   'effort'"), which is measured: `-q l/m/h/u` gives four different profiles
+   for every algorithm tested. The greyed value was being sent regardless.
+   B8-95.
+
+The patch-count *hint* Basti approved is still there and still changes nothing.
+It now fires only where ChromIQ may not choose for the user: a bucket with
+saved settings, or one edited by hand this session.
+
 **The wording below is what the app now shows.** It is written into
 `ui/dialogs/scanner_colprof.py` (`ptype_help`, `ptype_advice`) and reproduced
 here verbatim so a ruling can be made on the exact words. If a word changes
@@ -3142,19 +4752,21 @@ of the two "(default)" markers.
 >
 > Profile type (-a) — the shape of the maths inside the profile, and how it describes what your device does with colour. All four choices build a working profile. What separates them is how many measured patches they need before they are any good, and how they behave on colours your target did not contain.
 >
-> That makes the size of your target the first thing to look at, and you do not have to count anything: the patch count is printed beside each target's name in the list above, and again in the green “✓ … patches” line once a target or a chart is loaded.
+> That makes the size of your target the first thing to look at, and you do not have to count anything or set anything up. The patch count is printed beside each target's name in the list above, and again in the green “✓ … patches” line once a target or a chart is loaded; and the moment ChromIQ knows that number it sets this control, the Quality below it and Advanced… ▸ White point handling to suit it. Below about a hundred patches that is “Shaper + matrix” at Medium; at a hundred or more it is the XYZ look-up table at High. Change any of the three and ChromIQ leaves all three alone from then on.
 >
-> • Shaper + matrix — the default here, and a small, sturdy profile: one gentle tone curve for each of red, green and blue, plus a 3×3 matrix, which is a fixed recipe for mixing those three into a finished colour. It is a formula rather than a stored table, so it needs very little data to work well, and it carries on sensibly beyond the lightest and darkest patch your target contains. Take it for targets up to about a hundred patches — a ColorChecker (24 patches), a SpyderChecker (48), a QPcard (49) — and whenever a scan is noisy or you would rather not think about it. On real scanned targets it was the most accurate of the four at 24 and at 48 patches.
+> • Shaper + matrix, and what ChromIQ chooses for a target under about a hundred patches: a small, sturdy profile made of one gentle tone curve for each of red, green and blue plus a 3×3 matrix, which is a fixed recipe for mixing those three into a finished colour. It is a formula rather than a stored table, so it needs very little data to work well, and it carries on sensibly beyond the lightest and darkest patch your target contains. Take it for a ColorChecker (24 patches), a SpyderChecker (48) or a QPcard (49), and whenever a scan is noisy or you would rather not think about it. On real scanned targets it was the most accurate of the four at 24 and at 48 patches.
 >
 > • cLUT — XYZ table — “cLUT” means a look-up table. Instead of a formula, the profile stores your measurements and interpolates between them, so it can follow a device that does not behave like tidy maths. That freedom has to be paid for in patches: with too few of them there is nothing much to interpolate between, and the table will happily fit the noise in a scan rather than the colour. Take it when your target has roughly two hundred patches or more — a full IT8 has 288, a three-page ISO 12641-2 set has 864 — and the scan is clean and correctly exposed. At that size it measured about a third more accurate than Shaper + matrix on a real IT8 scan. “XYZ” is simply the internal form the table keeps colour in, and it is the one to use here — the next entry says why.
 >
-> • cLUT — Lab table — the same kind of look-up table, keeping colour in a different internal form. On the colours your target actually contains, the two tables measured close together, with neither of them consistently ahead of the other. The difference is at the top end. A Lab table cannot describe anything lighter than your target's own white patch — and a target's white board is not very white: on a real IT8 scan it reached only about 80 out of the scanner's 100. So everything brighter than that, which includes most bright photo paper, arrives at exactly the lightness of the target's white patch, with the differences between those tones flattened away. Shaper + matrix and the XYZ table both keep going past it. That is the whole reason the XYZ table is the one to take if you want a table profile. If you would rather stay with Lab, set Advanced… ▸ White point handling to “Auto-scale to avoid clipping (-u)”, which lifts the ceiling.
+> • The Lab look-up table, the other of the two cLUT entries: the same kind of table, keeping colour in a different internal form. On the colours your target actually contains, the two tables measured close together, with neither of them consistently ahead of the other. The difference is at the top end: a Lab table has a hard ceiling and stops dead at it, flattening every tone above onto one value, where Shaper + matrix and the XYZ table both carry on. How high that ceiling sits is decided by Advanced… ▸ White point handling. On “Scale white to a perfect white surface” it sits at about 114 % reflectance, brighter than a perfect white surface, so nothing you can put on the glass will reach it. On “Map chart white to white” the ceiling drops to about 94 % reflectance, which ordinary bright paper does reach, and everything above it arrives flattened. (Both figures measured on a real IT8 scan, so your own will differ a little.) The XYZ table has no ceiling at all under any of those settings, which is why it is the safer of the two and why it costs nothing to take.
 >
 > • Matrix only — the 3×3 mix and nothing else, with no tone curves in front of it. It suits a device that is already perfectly linear, such as a camera shooting RAW. On an ordinary scanner it measured several times less accurate than any of the other three at every size tested, so it is not the one to reach for here.
 >
 > Right around a hundred patches the first three land within a whisker of one another and the choice barely matters; it is above and below that the difference shows. And whichever you pick, changing the paper or the target you scan moves the result a great deal further than the profile type does.
 >
-> Quality (-q) — the look-up table's grid resolution: higher is finer but slower, and needs better data to be worth it. It applies only to the two cLUT types and is greyed out for the other two. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
+> ArgyllCMS has two more variants that this list leaves out, and it is worth knowing they exist. They fit one tone curve shared by all three colour channels instead of a separate curve for each. That is not an accuracy choice: their stated purpose is compatibility with applications that refuse a profile carrying a different curve per channel. If an application will not accept a profile this window built, that is the first thing to mention when you report it.
+>
+> Quality (-q): how much detail and fitting effort goes into the profile. For the two look-up-table types it sets the table's grid resolution; for the shaper and matrix types it sets how finely the tone curves are fitted. Higher is finer but slower, and needs better data to be worth it. It applies to every profile type. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
 >
 > If you tick “Profile my printer from this scan”, this same control builds the printer profile instead — a different kind of device, with different advice. The type then defaults to “cLUT — Lab table”; open this ⓘ again with the box ticked and it will explain why. Either way you won't find a working space (like sRGB) or a rendering intent here; a rendering intent is something you choose when you print, not when you build a profile from measurements.
 >
@@ -3166,19 +4778,21 @@ of the two "(default)" markers.
 >
 > Profiltyp (-a) – die Form der Mathematik im Inneren des Profils, also wie es beschreibt, was dein Gerät mit Farbe macht. Alle vier Möglichkeiten erzeugen ein funktionierendes Profil. Sie unterscheiden sich darin, wie viele gemessene Felder sie brauchen, bevor sie wirklich gut sind, und wie sie sich bei Farben verhalten, die dein Target gar nicht enthielt.
 >
-> Damit ist die Größe deines Targets das Erste, worauf du schauen solltest – und zählen musst du nichts: Die Feldanzahl steht in der Liste oben neben dem Namen jedes Targets und noch einmal in der grünen Bereitschaftszeile mit dem Häkchen, sobald ein Target oder eine Testkarte geladen ist.
+> Damit ist die Größe deines Targets das Erste, worauf du schauen solltest, und zählen oder einstellen musst du nichts: Die Feldanzahl steht in der Liste oben neben dem Namen jedes Targets und noch einmal in der grünen Bereitschaftszeile mit dem Häkchen, sobald ein Target oder eine Testkarte geladen ist. Und sobald ChromIQ diese Zahl kennt, setzt es dieses Bedienelement, die Qualität darunter und Erweitert… ▸ Weißpunkt-Behandlung passend dazu. Unter etwa hundert Feldern ist das „Shaper + Matrix“ mit Mittel, ab hundert die XYZ-Nachschlagetabelle mit Hoch. Änderst du eine der drei, lässt ChromIQ von da an alle drei in Ruhe.
 >
-> • Shaper + Matrix – hier die Voreinstellung und ein kleines, robustes Profil: je eine sanfte Tonwertkurve für Rot, Grün und Blau, dazu eine 3×3-Matrix, also ein festes Rezept, das diese drei zu einer fertigen Farbe mischt. Es ist eine Formel und keine gespeicherte Tabelle, braucht deshalb sehr wenig Daten, um gut zu arbeiten, und verhält sich auch jenseits des hellsten und des dunkelsten Feldes deines Targets noch vernünftig. Nimm es für Targets bis etwa hundert Felder – ein ColorChecker (24 Felder), ein SpyderChecker (48), eine QPcard (49) – und immer dann, wenn ein Scan verrauscht ist oder du dir darüber lieber keine Gedanken machen möchtest. Bei echten gescannten Targets war es bei 24 und bei 48 Feldern das genaueste der vier.
+> • Shaper + Matrix, und das, was ChromIQ für ein Target unter etwa hundert Feldern wählt: ein kleines, robustes Profil aus je einer sanften Tonwertkurve für Rot, Grün und Blau und einer 3×3-Matrix, also einem festen Rezept, das diese drei zu einer fertigen Farbe mischt. Es ist eine Formel und keine gespeicherte Tabelle, braucht deshalb sehr wenig Daten, um gut zu arbeiten, und verhält sich auch jenseits des hellsten und des dunkelsten Feldes deines Targets noch vernünftig. Nimm es für einen ColorChecker (24 Felder), einen SpyderChecker (48) oder eine QPcard (49) und immer dann, wenn ein Scan verrauscht ist oder du dir darüber lieber keine Gedanken machen möchtest. Bei echten gescannten Targets war es bei 24 und bei 48 Feldern das genaueste der vier.
 >
 > • cLUT — XYZ-Tabelle – „cLUT“ heißt Nachschlagetabelle. Statt einer Formel speichert das Profil deine Messwerte und interpoliert dazwischen, kann also einem Gerät folgen, das sich nicht wie saubere Mathematik verhält. Diese Freiheit muss in Feldern bezahlt werden: Sind es zu wenige, gibt es kaum etwas, wozwischen sich interpolieren ließe, und die Tabelle bildet bereitwillig das Rauschen im Scan ab statt der Farbe. Nimm sie, wenn dein Target ungefähr zweihundert Felder oder mehr hat – ein volles IT8 hat 288, ein dreiseitiges ISO-12641-2-Set 864 – und der Scan sauber und richtig belichtet ist. In dieser Größe war sie bei einem echten IT8-Scan rund ein Drittel genauer als Shaper + Matrix. „XYZ“ ist einfach die interne Form, in der die Tabelle Farbe hält, und sie ist hier die richtige – warum, sagt der nächste Punkt.
 >
-> • cLUT — Lab-Tabelle – dieselbe Art Nachschlagetabelle, die Farbe nur in einer anderen internen Form hält. Auf den Farben, die dein Target tatsächlich enthält, lagen die beiden Tabellen dicht beieinander, keine von beiden durchgehend vorn. Der Unterschied liegt am oberen Ende. Eine Lab-Tabelle kann nichts beschreiben, was heller ist als das eigene Weißfeld deines Targets – und das Weiß eines Targets ist gar nicht so weiß: Bei einem echten IT8-Scan erreichte es nur etwa 80 von den 100 des Scanners. Alles Hellere, und dazu gehört das meiste helle Fotopapier, kommt deshalb genau mit der Helligkeit des Weißfeldes heraus; die Unterschiede zwischen diesen Tönen sind eingeebnet. Shaper + Matrix und die XYZ-Tabelle laufen beide darüber hinaus weiter. Genau das ist der Grund, die XYZ-Tabelle zu nehmen, wenn du ein Tabellenprofil willst. Wenn du lieber bei Lab bleibst, stelle Erweitert… ▸ Weißpunkt-Behandlung auf „Automatisch skalieren, um Beschnitt zu vermeiden (-u)“ – das hebt die Grenze auf.
+> • Die Lab-Nachschlagetabelle, der andere der beiden cLUT-Einträge: dieselbe Art Tabelle, die Farbe nur in einer anderen internen Form hält. Auf den Farben, die dein Target tatsächlich enthält, lagen die beiden Tabellen dicht beieinander, keine von beiden durchgehend vorn. Der Unterschied liegt am oberen Ende: Eine Lab-Tabelle hat eine harte Obergrenze und bleibt dort stehen; jeder Ton darüber wird auf einen einzigen Wert eingeebnet, während Shaper + Matrix und die XYZ-Tabelle beide weiterlaufen. Wie hoch diese Grenze liegt, entscheidet Erweitert… ▸ Weißpunkt-Behandlung. Mit „Weiß auf eine perfekt weiße Fläche skalieren“ liegt sie bei rund 114 % Reflexionsgrad, heller als eine perfekt weiße Fläche, nichts, was du auf das Glas legen kannst, erreicht sie also. Mit „Chart-Weiß auf Weiß abbilden“ fällt die Grenze auf etwa 94 % Reflexionsgrad, was gewöhnliches helles Papier durchaus erreicht, und alles darüber kommt eingeebnet an. (Beide Werte an einem echten IT8-Scan gemessen, deine eigenen werden also etwas abweichen.) Die XYZ-Tabelle hat unter keiner dieser Einstellungen eine Obergrenze, und deshalb ist sie die sicherere der beiden und deshalb kostet es nichts, sie zu nehmen.
 >
 > • Nur Matrix – die 3×3-Mischung und sonst nichts, ohne jede Tonwertkurve davor. Sie passt zu einem Gerät, das bereits perfekt linear ist, etwa einer Kamera im RAW-Modus. Bei einem gewöhnlichen Scanner war sie in jeder getesteten Größe um ein Vielfaches ungenauer als alle drei anderen und ist hier deshalb nicht die richtige Wahl.
 >
 > Genau um die hundert Felder herum liegen die ersten drei so dicht beieinander, dass die Wahl kaum eine Rolle spielt; erst darüber und darunter zeigt sich der Unterschied. Und was du auch nimmst: Ein anderes Papier oder ein anderes Target zu scannen verschiebt das Ergebnis weit stärker als der Profiltyp.
 >
-> Qualität (-q) – die Gitterauflösung der Nachschlagetabelle: höher ist feiner, aber langsamer und braucht bessere Daten, damit es sich lohnt. Sie gilt nur für die beiden cLUT-Typen und ist für die anderen beiden ausgegraut. Mittel ist ein guter Standard, Niedrig ein schneller Test, und Hoch und Ultra sind für große, saubere Testkarten.
+> ArgyllCMS hat zwei weitere Varianten, die diese Liste weglässt, und es lohnt sich zu wissen, dass es sie gibt. Sie legen eine einzige Tonwertkurve für alle drei Farbkanäle an statt einer eigenen Kurve je Kanal. Das ist keine Frage der Genauigkeit: Ihr erklärter Zweck ist die Kompatibilität mit Anwendungen, die ein Profil mit unterschiedlichen Kurven je Kanal ablehnen. Wenn eine Anwendung ein hier gebautes Profil nicht annimmt, erwähne das bitte als Erstes, wenn du es meldest.
+>
+> Qualität (-q): wie viel Detail und Anpassungsaufwand in das Profil geht. Bei den beiden Tabellentypen legt sie die Gitterauflösung der Tabelle fest, bei den Shaper- und Matrixtypen, wie fein die Tonwertkurven angepasst werden. Höher heißt feiner, aber langsamer, und lohnt sich nur mit besseren Daten. Sie gilt für jeden Profiltyp. Mittel ist ein guter Standard, Niedrig ein schneller Test, Hoch und Ultra sind für große, saubere Charts.
 >
 > Wenn du „Meinen Drucker aus diesem Scan profilieren“ ankreuzt, baut genau dieses Bedienelement stattdessen das Druckerprofil – ein anderes Gerät, eine andere Empfehlung. Der Typ ist dann auf „cLUT — Lab-Tabelle“ voreingestellt; öffne dieses ⓘ mit gesetztem Haken noch einmal, dann erklärt es dir warum. So oder so findest du hier keinen Arbeitsfarbraum (etwa sRGB) und kein Rendering-Intent; ein Rendering-Intent wählst du beim Drucken, nicht beim Erstellen eines Profils aus Messwerten.
 >
@@ -3190,15 +4804,15 @@ of the two "(default)" markers.
 >
 > “Profile my printer from this scan” is ticked, so this window is building a PRINTER profile: your scanner is the measuring instrument, and the chart it reads is the one you printed. That changes what to choose here, so this is not the same advice you get for a scanner or camera profile.
 >
-> Profile type (-a) — the shape of the maths inside the profile, and how it describes what your printer does with colour. All four choices build a working profile.
+> Profile type (-a): the shape of the maths inside the profile, and how it describes what your printer does with colour. There are two here, not the four you get with the tick off, and both build a working profile.
 >
 > • cLUT — Lab table — the default here, and what a printer profile should normally be. “cLUT” means a look-up table: instead of reducing your printer to a formula, the profile stores your measurements and interpolates between them. It also carries something the formula types cannot — the perceptual and saturation rendering intents, which are what decide how colours your printer cannot reach are eased inwards when you print a photograph. Everything under Advanced… ▸ Gamut Mapping describes those two intents, so it has nothing to act on unless the profile is a table. “Lab” is simply the internal form the table keeps colour in; it is ArgyllCMS's own default for this job, and it is what ChromIQ's Build Profile tab builds as well.
 >
 > • cLUT — XYZ table — the same kind of table, keeping colour in the other internal form. It is worth knowing why this window points at the XYZ table on the scanner side and not here. A Lab table cannot describe anything lighter than the white patch of the chart it was built from, and a scanner meets paper brighter than a scanning target's white board all the time. A printer never does — nothing it prints is lighter than the paper it prints on — so that reason does not apply here, and the Lab default stands.
 >
-> • Shaper + matrix, and Matrix only — a formula instead of a table: one gentle tone curve per colour channel plus a 3×3 matrix, which is a fixed recipe for mixing red, green and blue into a finished colour, or that mix on its own. They are small and undemanding, and they are offered here because this one control also serves the scanner side of the window. For a printer they have a real drawback: by the way the ICC format works, a matrix-based profile cannot carry a perceptual or a saturation intent at all, so it has nothing to fall back on when a colour is out of the printer's reach. Leave them be unless you know you want one.
+> “Shaper + matrix” and “Matrix only”, which this list offers with the tick off, are not here. That is ArgyllCMS's rule and not a ChromIQ choice: colprof refuses to build a printer profile from a formula, and refuses it before it has read a single patch. The rule is not arbitrary either. By the way the ICC format works, a matrix-based profile cannot carry a perceptual or a saturation intent at all, so it would have nothing to fall back on when a colour is out of the printer's reach.
 >
-> Quality (-q) — the look-up table's grid resolution: higher is finer but slower, and needs better data to be worth it. It applies only to the two cLUT types and is greyed out for the other two. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
+> Quality (-q): how much detail and fitting effort goes into the profile. For the two look-up-table types it sets the table's grid resolution; for the shaper and matrix types it sets how finely the tone curves are fitted. Higher is finer but slower, and needs better data to be worth it. It applies to every profile type. Medium is a good default, Low is a quick test, and High and Ultra are for large, clean charts.
 >
 > Untick “Profile my printer from this scan” and this control goes back to building a scanner or camera profile, where the default is “Shaper + matrix” and the advice is different — open this ⓘ again and it will tell you that story instead. Either way you won't find a working space (like sRGB) or a rendering intent in this row: the working space the gamut mapping uses is under Advanced… ▸ Gamut Mapping, and a rendering intent is something you choose when you print, not when you build a profile from measurements.
 
@@ -3208,15 +4822,15 @@ of the two "(default)" markers.
 >
 > „Meinen Drucker aus diesem Scan profilieren“ ist angehakt, dieses Fenster baut also ein DRUCKERPROFIL: Dein Scanner ist das Messgerät, und die Testkarte, die er liest, ist die, die du gedruckt hast. Das ändert, was du hier wählen solltest – es ist deshalb nicht dieselbe Empfehlung wie für ein Scanner- oder Kameraprofil.
 >
-> Profiltyp (-a) – die Form der Mathematik im Inneren des Profils, also wie es beschreibt, was dein Drucker mit Farbe macht. Alle vier Möglichkeiten erzeugen ein funktionierendes Profil.
+> Profiltyp (-a): die Form der Mathematik im Profil und damit, wie es beschreibt, was dein Drucker mit Farbe macht. Hier gibt es zwei davon, nicht die vier, die du ohne Haken bekommst, und beide bauen ein funktionierendes Profil.
 >
 > • cLUT — Lab-Tabelle – hier die Voreinstellung und normalerweise das, was ein Druckerprofil sein sollte. „cLUT“ heißt Nachschlagetabelle: Statt deinen Drucker auf eine Formel zu reduzieren, speichert das Profil deine Messwerte und interpoliert dazwischen. Es trägt außerdem etwas, das die Formel-Typen nicht können – die Rendering-Intents Perzeptiv und Sättigung, die darüber entscheiden, wie Farben, die dein Drucker nicht erreicht, beim Druck eines Fotos sanft nach innen geführt werden. Alles unter Erweitert… ▸ Gamut-Mapping beschreibt genau diese beiden Intents und hat deshalb nichts, worauf es wirken könnte, wenn das Profil keine Tabelle ist. „Lab“ ist einfach die interne Form, in der die Tabelle Farbe hält; es ist die eigene Voreinstellung von ArgyllCMS für diese Aufgabe und auch das, was der Reiter „Profil erstellen“ von ChromIQ baut.
 >
 > • cLUT — XYZ-Tabelle – dieselbe Art Tabelle, die Farbe nur in der anderen internen Form hält. Es lohnt sich zu wissen, warum dieses Fenster auf der Scanner-Seite zur XYZ-Tabelle rät und hier nicht. Eine Lab-Tabelle kann nichts beschreiben, was heller ist als das Weißfeld der Testkarte, aus der sie gebaut wurde, und ein Scanner bekommt ständig Papier zu sehen, das heller ist als das Weiß eines Scan-Targets. Ein Drucker nie – nichts, was er druckt, ist heller als das Papier, auf das er druckt –, deshalb greift dieser Grund hier nicht und die Lab-Voreinstellung bleibt richtig.
 >
-> • Shaper + Matrix und Nur Matrix – eine Formel statt einer Tabelle: je eine sanfte Tonwertkurve pro Farbkanal plus eine 3×3-Matrix, also ein festes Rezept, das Rot, Grün und Blau zu einer fertigen Farbe mischt – oder diese Mischung allein. Sie sind klein und anspruchslos und stehen hier, weil dasselbe Bedienelement auch die Scanner-Seite dieses Fensters bedient. Für einen Drucker haben sie einen echten Nachteil: So wie das ICC-Format funktioniert, kann ein matrixbasiertes Profil überhaupt kein perzeptives Intent und kein Sättigungs-Intent tragen und hat damit nichts, worauf es zurückgreifen kann, wenn eine Farbe außerhalb der Reichweite des Druckers liegt. Lass sie hier stehen, außer du weißt, dass du eine davon willst.
+> „Shaper + Matrix“ und „Nur Matrix“, die diese Liste ohne Haken anbietet, gibt es hier nicht. Das ist die Regel von ArgyllCMS und keine Entscheidung von ChromIQ: colprof weigert sich, ein Druckerprofil aus einer Formel zu bauen, und weigert sich schon, bevor es ein einziges Feld gelesen hat. Willkürlich ist die Regel auch nicht. So wie das ICC-Format funktioniert, kann ein matrixbasiertes Profil überhaupt keinen perzeptiven und keinen Sättigungs-Rendering-Intent tragen, es hätte also nichts, worauf es zurückfallen könnte, wenn eine Farbe außerhalb der Reichweite des Druckers liegt.
 >
-> Qualität (-q) – die Gitterauflösung der Nachschlagetabelle: höher ist feiner, aber langsamer und braucht bessere Daten, damit es sich lohnt. Sie gilt nur für die beiden cLUT-Typen und ist für die anderen beiden ausgegraut. Mittel ist ein guter Standard, Niedrig ein schneller Test, und Hoch und Ultra sind für große, saubere Testkarten.
+> Qualität (-q): wie viel Detail und Anpassungsaufwand in das Profil geht. Bei den beiden Tabellentypen legt sie die Gitterauflösung der Tabelle fest, bei den Shaper- und Matrixtypen, wie fein die Tonwertkurven angepasst werden. Höher heißt feiner, aber langsamer, und lohnt sich nur mit besseren Daten. Sie gilt für jeden Profiltyp. Mittel ist ein guter Standard, Niedrig ein schneller Test, Hoch und Ultra sind für große, saubere Charts.
 >
 > Nimm den Haken bei „Meinen Drucker aus diesem Scan profilieren“ heraus, dann baut dieses Bedienelement wieder ein Scanner- oder Kameraprofil, wo die Voreinstellung „Shaper + Matrix“ heißt und die Empfehlung eine andere ist – öffne dieses ⓘ dann noch einmal, es erzählt dir stattdessen jene Geschichte. So oder so findest du in dieser Zeile keinen Arbeitsfarbraum (etwa sRGB) und kein Rendering-Intent: Der Arbeitsfarbraum, den das Gamut-Mapping benutzt, steht unter Erweitert… ▸ Gamut-Mapping, und ein Rendering-Intent wählst du beim Drucken, nicht beim Erstellen eines Profils aus Messwerten.
 
@@ -3233,7 +4847,7 @@ recommendation identical to that mode's default is refused by a test.
 | mode | what the dropdown reads |
 |---|---|
 | scanner / camera | Shaper + matrix **(default)** · Matrix only · cLUT — XYZ table **(recommended cLUT)** · cLUT — Lab table |
-| printer | Shaper + matrix · Matrix only · cLUT — XYZ table · cLUT — Lab table **(default)** |
+| printer | cLUT — XYZ table · cLUT — Lab table **(default)** |
 
 | proposed marker | German |
 |---|---|
@@ -3252,6 +4866,18 @@ the patch count only after a chart or target is loaded, while the type is set
 before it, so an automatic default would move the user's control under them —
 and the crossover is shallow. A note is the proportionate form of the same
 information.
+
+> **⏳ Superseded, and awaiting confirmation, 2026-09-06.** *Knut asked for that
+> automatic switch in beta 10 and Basti authorised it, so the paragraph above
+> is no longer what the app does: the profile type, the quality and the white
+> point ARE chosen from the patch count, by the rule in B8-78. The objection it
+> records was answered rather than overruled. The window learning the count
+> late is why the rule fires on `_refresh` and not at construction; the control
+> being moved under the user is why it is refused for any bucket whose settings
+> were saved or hand-edited (`_may_auto_setup`); and the crossover being
+> shallow is why the note below still exists, for exactly the cases where
+> ChromIQ may not choose. Read this paragraph as the reasoning that shaped the
+> rule, not as the behaviour. **Confirmed by:** *nobody yet.*
 
 Each one requires a KNOWN patch count, and none of them fires in printer mode,
 where nothing was measured.
@@ -3290,15 +4916,25 @@ where nothing was measured.
 
 **(c)** — shown here with a 288-patch target:
 
-> A note on the profile type: “cLUT — Lab table” cannot describe anything lighter than your target's own white patch.
+> A note on the profile type: “cLUT — Lab table” has a ceiling, and how high it sits depends on Advanced… ▸ White point handling.
 >
-> A scanning target's white board is not very white — on a real IT8 scan it reached only about 80 out of the scanner's 100 — so everything brighter, which includes most bright photo paper, comes out at exactly the lightness of that white patch with the differences between those tones flattened away. “cLUT — XYZ table” is the same kind of table without that ceiling, and it measured just as accurate on the colours your target does contain. If you would rather stay with Lab, Advanced… ▸ White point handling ▸ “Auto-scale to avoid clipping (-u)” lifts the ceiling. Your choice stands either way.
+> A Lab table cannot describe anything above that ceiling: every tone over it comes out at one lightness, with the differences flattened away. On “Scale white to a perfect white surface” the ceiling is at about 114 % reflectance, brighter than a perfect white surface, so nothing you can put on the glass reaches it and there is nothing to worry about. On “Map chart white to white” it drops to about 94 %, which ordinary bright photo paper does reach. “cLUT — XYZ table” has no ceiling under any of those settings and measured just as accurate on the colours your target does contain, so it is the safer of the two. Your choice stands either way, and nothing here has been changed for you.
 
 *German:*
 
-> Ein Hinweis zum Profiltyp: „cLUT — Lab-Tabelle“ kann nichts beschreiben, was heller ist als das eigene Weißfeld deines Targets.
+> Ein Hinweis zum Profiltyp: „cLUT — Lab-Tabelle“ hat eine Obergrenze, und wie hoch sie liegt, entscheidet Erweitert… ▸ Weißpunkt-Behandlung.
 >
-> Das Weiß eines Scan-Targets ist gar nicht so weiß – bei einem echten IT8-Scan erreichte es nur etwa 80 von den 100 des Scanners –, deshalb kommt alles Hellere, und dazu gehört das meiste helle Fotopapier, genau mit der Helligkeit dieses Weißfeldes heraus; die Unterschiede zwischen diesen Tönen sind eingeebnet. „cLUT — XYZ-Tabelle“ ist dieselbe Art Tabelle ohne diese Grenze und war auf den Farben, die dein Target enthält, genauso genau. Wenn du lieber bei Lab bleibst, hebt Erweitert… ▸ Weißpunkt-Behandlung ▸ „Automatisch skalieren, um Beschnitt zu vermeiden (-u)“ die Grenze auf. Deine Wahl bleibt so oder so bestehen.
+> Eine Lab-Tabelle kann nichts oberhalb dieser Grenze beschreiben: Jeder Ton darüber kommt mit einer einzigen Helligkeit heraus, die Unterschiede sind eingeebnet. Mit „Weiß auf eine perfekt weiße Fläche skalieren“ liegt die Grenze bei rund 114 % Reflexionsgrad, heller als eine perfekt weiße Fläche, nichts, was du auf das Glas legen kannst, erreicht sie also, und es gibt nichts zu befürchten. Mit „Chart-Weiß auf Weiß abbilden“ fällt sie auf etwa 94 %, was gewöhnliches helles Fotopapier durchaus erreicht. „cLUT — XYZ-Tabelle“ hat unter keiner dieser Einstellungen eine Obergrenze und war auf den Farben, die dein Target tatsächlich enthält, genauso genau, sie ist also die sicherere der beiden. Deine Wahl bleibt so oder so bestehen, und hier wurde nichts für dich geändert.
+
+> **⏳ Awaiting confirmation, 2026-09-06 (CL-6).** *Note (c) above is not the
+> wording Basti approved on 2026-09-04, and the wording he approved had stopped
+> being true the day after: B8-75 moved the white-point default on 2026-09-05,
+> and from then on this note told a user on the shipped default that their
+> bright paper was being flattened and sent them to "Auto-scale to avoid
+> clipping" to lift a ceiling that already sat at about 114 % reflectance,
+> above anything that can physically be put on the glass. The same ⓘ gave two
+> answers, 130 lines apart. It now names the ceiling and says what decides how
+> high it is. **Confirmed by:** *nobody yet.*
 
 *The other eleven catalogues carry the English source until this is ruled on,
 because translating a draft translates it twice. German is translated, as the
@@ -3314,6 +4950,209 @@ ArgyllCMS's own default and ChromIQ's own in tab 4
 (`workflow/profile_builder.py`, `data/parameters.yaml`). If either default were
 ever moved, the marker, the help and the recommendation would have to move in
 the same commit or the window would contradict itself.*
+
+### Button label — the driver consent window's decline button (AGENT-BD) — ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* Proposed 2026-09-05 by AGENT-BD. Basti approved
+the CHANGE — *"fix the ok button and the grammar, then land it"* — but not a
+particular phrase, so the phrase is here for him to correct.
+
+*Deliberately NOT given an `M-` identifier, for the reason the two sections above
+give: §M is a catalogue of MESSAGES, each one rendered from
+`workflow/measurement_messages.py`, and `tests/test_message_catalogue.py`
+requires every `M-` heading in this document to exist there. A button label is
+not a message and must not be given a fake identifier to satisfy a parser. It is
+recorded here because it is user-facing wording and this is where user-facing
+wording is proposed and ruled on.*
+
+`ui/dialogs/settings_dialog.py::_driver_notice` shows two kinds of window. With
+no second button it is a NOTICE — it asks nothing, and **OK** is exactly the
+right word for acknowledging one. With a second button it is an OFFER, and then
+the plain button is the **DECLINE**: `ok.clicked.connect(dlg.reject)`,
+deliberately, because `box.accepted` fires for OK too and that is how OK once
+came to start an elevated driver install (`f7a565ad`).
+
+The behaviour has been right since that commit and a mutation kills seven tests
+if it is undone. **The WORD was still wrong.** On "Before ChromIQ starts" —
+the one window in ChromIQ whose entire purpose is informed consent — the row
+read `Herunterladen und installieren` and `OK`, and OK is the word most people
+read as "yes". Somebody skimming clicks it meaning to agree and gets the
+opposite of what they intended, which is the single mistake that window exists
+to prevent.
+
+| proposed label | replaces | German | where it appears |
+|---|---|---|---|
+| **Not now** | OK | Jetzt nicht | the dismissing button of any driver window that OFFERS something |
+
+*It is not new vocabulary. `ui/cr30_calibration.py` already builds a button
+labelled **Not now** for exactly this meaning — declining an offered action in a
+window that can be opened again — so this reuses that key rather than adding a
+thirteenth way to say no, and German is already translated. **Zero new
+translation keys.***
+
+*It is correct on all five offers this window makes — `Download and install`,
+`Check and install`, `I already have the folder…`, `Choose a different folder…`
+and `Try Zadig` — and nothing is lost by pressing it: every one of these windows
+is reachable again from Preferences ▸ Instrument drivers…. A label naming the
+action ("Don't install") would be correct on two of the five and wrong on three.*
+
+*The alternative considered and not chosen was Qt's **Cancel** / `Abbrechen`,
+which is equally unmistakable and also costs no new keys. It was rejected
+because there is nothing in flight to cancel on three of the five windows — the
+user is declining an offer, not aborting an operation — and because "Not now" is
+already the house word for that.*
+
+*Only the button's TEXT changes. It stays a `StandardButton.Ok`, so its role,
+its place in the row and its identity to everything that looks it up are
+unchanged, and it remains the dialog's default — the key most people press to
+get rid of a window still declines. Measured in all thirteen languages, in the
+dark appearance's wider button font, on a screen tall enough that the window is
+not at its cap: the row fits, nothing is clipped, nothing runs past the edge
+(`tests/test_usb_driver_dialog.py::test_the_consent_buttons_fit_the_row_in_every_language`).*
+
+### The driver window's fifth ending — an install that has not finished (A9) — ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* Proposed 2026-09-06 by A9. Nobody has ruled on
+this wording; it is recorded here because it is user-facing wording on the
+driver helper, and this is where user-facing wording on that window is proposed
+and ruled on.
+
+*Deliberately NOT given an `M-` identifier, for the reason the driver consent
+button's section above gives: §M is a catalogue of MESSAGES rendered from
+`workflow/measurement_messages.py`, and `tests/test_message_catalogue.py`
+requires every `M-` heading in this document to exist there. The driver helper
+is a Preferences window, not a measurement window, and must not be given a fake
+identifier to satisfy a parser.*
+
+**What was wrong.** `core/usb_driver_installer.py::install_winusb` waited 60 s
+for the elevated installer, threw away what `WaitForSingleObject` returned, then
+read `GetExitCodeProcess` — which answers `STILL_ACTIVE` (259) for a process
+that has not finished. `259 != 0`, so the window said the install had **failed**
+and offered **Try Zadig**. Measured on the bench 2026-09-06 against a real
+driverless X-Rite i1Studio on an idle 2-core ARM64 VM, a *successful* install
+took **48.6 s** (`00:41:24.501` → `00:42:13.129`) — 11.4 s inside that budget,
+most of it Windows making a system restore point. On a machine that is actually
+busy the window would have called a succeeding install a failure and sent the
+user to replace a driver that was being installed as they read it.
+
+**The window now has a fifth ending**, alongside *It worked* / *cannot tell you
+whether that changed anything* / *did not take* / *failed or was cancelled*. It
+is reached when ChromIQ stops WATCHING — because its five-minute budget ran out,
+or because the user pressed the button that says so. It never says "failed", it
+names no instrument, and it offers no Zadig button.
+
+> **ChromIQ stopped waiting, and cannot tell you whether that worked.**
+>
+> The installer had not finished when ChromIQ stopped watching it. Nothing was
+> cancelled and nothing was undone. Windows is very likely still installing the
+> driver, and it may well finish on its own.
+>
+> Give it a moment, then open **Instrument drivers** in Preferences again and
+> use **Check again**. That looks your instrument up afresh and says whether the
+> driver is attached now.
+
+*No instrument is named because there is nothing to point at:
+`unbound_targets()` is deliberately not asked while an install is in flight — it
+samples the same device stack wdi-simple is re-enumerating and can be wrong in
+either direction. No Zadig button, because nudging somebody to replace a driver
+while an elevated installer is still putting one in is the one action here that
+could leave the machine worse than it started. Both onward controls are named
+from the controls' own `tr()` keys via `_in_prose`, the same way the reboot
+window and the "cannot tell" ending are, so they cannot drift from the buttons
+in any of the twelve languages.*
+
+**And the window that is on screen while it waits.** The install used to hold
+the GUI thread: `Get-Process ChromIQ` reported `Responding = False` for ~50 s
+with no spinner, no message and no cursor change, and the owner read it as a
+hang (*"after confirming the uac nothing seems to happen"*, then *"it seems to
+be hanging"*).
+
+| what it says | when |
+|---|---|
+| **Installing the driver for {name}. Windows makes a restore point before it touches a driver, and that is most of the wait.** | from the first moment there is anything to wait for |
+| button: **Stop waiting** | on that window |
+
+*The window appears only once there is a wait — an install that ends at the
+permission prompt takes 2-5 s and gets nothing flashed at it. It is
+application-modal, which is what stops a second install, a closed Preferences
+window or a quit while an elevated installer is running.*
+
+*The button is **Stop waiting** and not Qt's **Cancel**. The section above
+rejects `Cancel` on this window's other five offers because "there is nothing in
+flight to cancel … the user is declining an offer, not aborting an operation".
+Here something IS in flight — and it still cannot be cancelled: an elevated
+driver install cannot be safely killed, and ChromIQ does not try. The button
+stops ChromIQ watching, which is what it says, and the ending above says the
+same thing again in a sentence. **Not now** was considered and is wrong for the
+same reason: nothing is being offered.*
+
+**And a sixth sentence, for an instrument ChromIQ never got to.** `Reinstall
+Driver` runs over every detected instrument, one permission prompt each, and the
+run stops after five of the endings — the user said No, Windows would not ask, or
+an elevated installer may still be running and starting a second one while it
+holds Windows' PnP install lock is a way to make a good install fail. Whatever
+the instruments that WERE tried have earned, this is appended:
+
+> ChromIQ stopped before it reached {names}. Nothing was tried there, and
+> nothing was changed.
+
+*It exists because the shipped code did the skipping SILENTLY and then blamed
+the skipped instrument: `all(install_winusb(d) for d in targets)` is a
+generator, so the first falsy answer ended the iteration, and the untried
+instrument came back from `unbound_targets()` to be named in "the driver still
+isn't bound to {names}" — a sentence about an install that never happened. It is
+one sentence with no count and no pronoun, so it reads for one instrument and for
+four without a singular/plural pair, the same way the "isn't bound to" sentence
+beside it already does.*
+
+*The permission prompt itself is still frozen time — `SEE_MASK_NOASYNC` makes
+`ShellExecuteExW` block until the shell operation completes, so ChromIQ does not
+pump events while Windows asks for consent. That is deliberate: consent must
+stay a modal, deliberate act. It is a second or two, not fifty.*
+
+### The measurement guard's "{where}" — a preposition glued to a translated noun (AGENT-BD) — ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* Recorded 2026-09-05 by AGENT-BD. **No wording is
+being proposed here** — every sentence below is the wording that already
+shipped, re-cut so that each language can inflect it. It is recorded because
+part of it is a §M concern and because the sibling defect named at the end is
+one somebody has to rule on.
+
+ChromIQ's driver helper refuses to open during a measurement and says why. That
+paragraph used to be built by formatting `core.instrument_lease.where_label()`'s
+noun phrase into `"…is being read right now, from {where}."` English survives
+that, and German survives it only because both labels were hand-inflected into
+the dative to fit. Rendered from the shipped catalogues, four languages did not:
+
+| | what it produced | what the language needs |
+|---|---|---|
+| it | da la scheda Misura | **dalla** scheda Misura |
+| pt | a partir de o separador Medir | a partir **do** separador Medir |
+| pl | z karcie Pomiar | z **karty** Pomiar (genitive) |
+| ru | из вкладке «Измерение» | из **вкладки** «Измерение» (genitive) |
+
+*Nothing in the project could see it. `tests/test_i18n.py` sees a key that is
+present, translated, and whose placeholder matches. `scripts/i18n_extract.py`
+sees nothing at all — the broken sentences exist nowhere as literals, they are
+assembled at run time, so no translator was ever shown one.*
+
+*Hand-inflecting the label was the German fix (`8d5b8430`) and it cannot
+generalise: two different sentences interpolate the same label with two
+different prepositions, and a language with cases needs a different form of the
+noun in each. So the WHOLE SENTENCE is the translatable unit now — one complete
+sentence per holder, with nothing formatted into it — and each language writes
+its own preposition, article and case. It is also its own paragraph rather than
+glued to the next with a space, because ja and zh join sentences with 。and no
+space: even joining two translated sentences is a decision the code must not
+make on a translator's behalf.*
+
+**The sibling, which is NOT fixed and needs a ruling.** `M-INSTRUMENT-BUSY`
+("ChromIQ is measuring in {where}") is fed by the same `where_label()` and has
+the identical fault — "in la scheda Misura", "in o separador Medir", "in karcie
+Pomiar", "in вкладке «Измерение»" — and it is worse, because that sentence is
+still the English source in eleven of the twelve catalogues. It is a §M message,
+so its wording is not an implementer's to change; it is raised here and left
+alone.
 
 ### M-x. Which table uses which message
 
@@ -3395,9 +5234,12 @@ native read); a partial measurement (fewer patches than the chart) is refused,
 not filed; profiling and calibration runs cannot import at all — a profile is
 built only from a measurement made here.
 
-> **Two of those three limits are WITHDRAWN by §I.9 / §I.10 below.** They are
-> left standing here because this section records what shipped; read them with
-> the amendment.
+> **Two of those three limits are WITHDRAWN by §I.9 / §I.10 below, and so is
+> "shown only while the shared Run type is Verification".** They are left
+> standing here because this section records what shipped; read them with the
+> amendment. Since 2026-09-15 the module is shown for a **profiling** run too
+> (a tester's report, Sebastian's ruling — §I.9, "Where the door is"); it is
+> still hidden for a calibration run, which is the one limit that survives.
 
 ### ⏳ Awaiting confirmation — §I.9 / §I.10, importing into a profiling run
 
@@ -3434,13 +5276,74 @@ Its sequence is §I.1–§I.8 unchanged, with three substitutions:
   `reference_source: device` without saying so.
 * **I.8** offers *Open measurement report* and *Build the profile*.
 
-**Where the door is.** The module lives on the Measure tab for verifications.
-For a profiling run the import is offered **in the Build Profile tab**, on the
-control that already loads measurement data — that tab is disabled for
-verification runs (`ui/main_window.py:1590`), so the tab a person is on already
-says which act they are performing, and they are never sent to another tab to
-perform it. Basti, 2026-08-31: *"clicking the button should allow me to do the
-import there instead of skipping around"*.
+**Where the door is. TWO DOORS, AND THIS CLAUSE WAS AMENDED ON 2026-09-15.**
+
+As first written, this clause said the profiling import lived **only** in the
+Build Profile tab: *"that tab is disabled for verification runs
+(`ui/main_window.py:1590`), so the tab a person is on already says which act
+they are performing, and they are never sent to another tab to perform it"* —
+Basti, 2026-08-31: *"clicking the button should allow me to do the import there
+instead of skipping around"*. That reasoning stands and the door it describes
+stays exactly as it is.
+
+What it did not anticipate is where a person LOOKS. A tester, 2026-09-15: *"an
+odd thing: when doing an icc profile, importing from another program is on the
+Build ICC Profile tab, and when doing a verification, importing is on the
+Measurement tab. Probably makes sense for it to be on the Measurement tab on
+both?"* Sebastian's ruling, the same day:
+
+> *"For profiling I thought that when you have a measurement from i1Profiler you
+> would want to build a profile out of it. That's why I made the import happen
+> in the build profile tab. For verification however you don't build a profile
+> so I needed another path for it. It is probably the easiest option to add the
+> import module in the measurement tab in a profiling run as well."*
+
+**ADD IT, DO NOT MOVE IT.** The IMPORT module is offered on the **Measure tab**
+for a profiling run as well as a verification, and the Build ICC profile tab's
+own import is untouched. Removing a working door to make a point about symmetry
+would be a regression for the people already using it.
+
+The two doors must not be able to say different things about the same file, so
+they share the code that decides and the code that speaks: `measurement_import.assess`
+judges it, `measurement_filing.refuse_it_does_not_belong` refuses it,
+`measurement_filing.ask_to_make_a_new_run` asks §I.9's duplicate question, and
+`measurement_filing.finish_the_import` ends it (the bar, the partial sentence of
+§I.10, the hand-back). Only the ENTRY differs: the Build Profile door has to ask
+which project and which run, because a file loaded there may come from anywhere;
+the Measure tab door asks neither, because the bar above it has already said.
+
+**What the Measure tab's door does NOT do, and why.**
+
+* It does not ask **M-HOW-PRINTED**. That question offers "with colour
+  management … with this run's profile applied", which cannot be true of a
+  profiling chart: the profile is what the measurement is FOR. A profiling sheet
+  is printed raw by construction, so there is nothing to ask.
+* It does not write into `reads/readN.ti3`. An import is a standalone read, and
+  the tab already treats one that way: `_promote_completed_read` files into the
+  reads slot only while an averaging set is active, and otherwise *"ignores any
+  reads/ left over from an earlier session"*. An imported file has no place in a
+  sequence of reads taken here — its instrument and its date are its own — so it
+  lands where a standalone read lands, at `Run.measurement_ti3`, and opting into
+  averaging afterwards starts a clean set exactly as it does after any read.
+* It does not show **M-IMPORT-DATE-TAKEN** or **M-IMPORT-MISMATCH**. Both speak
+  of the verification chart, and a profiling reader must not be told about
+  verifications. The mismatch is the shared
+  `refuse_it_does_not_belong`; the date-taken case does not arise, because a
+  profiling run's answer to "it already holds a measurement" is the duplicate
+  question above, not a refusal.
+* It DOES hand the measurement over with `measure_finished`, exactly as a read
+  made here does, so the Build ICC profile tab is holding the import before its
+  own window offers to take you there — and so an import accrues a dated
+  measurement report beside the others, when the person has that option on.
+
+**A chart is not a measurement of one.** Added 2026-09-15 after the refusal
+doors were driven: the run's chart and its measurement sit in the same folder
+under the same stem and are both CGATS tables, and printtarg writes the chart's
+AIM values into the `.ti2`, so a chart picked by mistake parsed as a complete
+set of readings, matched its own patch count exactly, and passed the identity
+check against itself. Both doors now refuse a file whose CGATS table says
+`CTI1` or `CTI2`, and the Measure tab asks it of the file the person picked,
+before conversion can destroy the evidence.
 
 **Choosing where it goes.** The load control asks: import into the open project,
 or start a new one. With nothing open it offers to import into an existing
@@ -3508,6 +5411,96 @@ wrong against 924 real readings. The self-check is anti-correlated with quality
 and must never be shown as reassurance. A missing **white** patch is a hard
 failure (`rc=1`); a missing black one is not, so ChromIQ must not invent a
 black-patch rule.
+
+### ⏳ Awaiting confirmation — §I.11 / §I.12, a measurement with no device values
+
+**Confirmed by:** *nobody yet.*
+
+**Proposed 2026-09-12**, from a report by a user verifying a profile on beta 4.
+The BEHAVIOUR is built and driven on screen; the RULES below contradict §I.5 and
+§I.10 as they stand, so they are Knut's and Sebastian's to approve or reject
+before any of this is treated as settled.
+
+She printed a verification chart through her profile, read all 420 squares of it
+on an i1iO in i1Profiler, exported CGATS, and met **M-IMPORT-MISMATCH** saying
+*"the file could not be read as a measurement (No device RGB columns, only RGB
+charts are supported.)"*. Her file is `SAMPLE_ID`, `SAMPLE_NAME` and 36 spectral
+columns, and she is right about the tool: i1Profiler's measure tool reads a chart
+it did not generate, so it has no colour space to express device values in and
+*"won't let you select RGB data to be included in the export"*. `txt2ti3`
+converts it without complaint, `spec2cie` gives it XYZ, and `colprof` would build
+from it.
+
+**I.11 · The pairing is keyed on the patch NAME when the file carries no device
+values.** §I.5's patch-identity comparison pairs a measurement with its chart by
+`SAMPLE_ID` and uses the DEVICE VALUES as the witness that the pairing is right.
+For a file like hers `SAMPLE_ID` is only i1Profiler's reading order, and the
+chart's is the design order, so pairing those two would hand every reading to the
+wrong patch. Her NAMES are `A1 … T21`, which are exactly the chart's own
+`SAMPLE_LOC` labels, because that is what the chart printed beside each square
+and what she aimed the instrument at.
+
+So where the measurement carries no device columns at all:
+
+* every measured name must be one of the chart's, no name may be used twice, and
+  a name the chart does not have is **refused** as a measurement of a different
+  chart. Fewer names than the chart has is a partial, per §I.10, not a refusal;
+* the chart then supplies the device values and its own row order, on the
+  CONVERTED COPY and never on the user's file, so the filed `.ti3` is an
+  ordinary ChromIQ measurement. It carries `CHROMIQ_DEVICE_FROM_CHART "<chart>"`
+  so nothing later mistakes a value the chart supplied for one the instrument
+  measured;
+* the name check runs **before** the device values are written. Afterwards
+  `verify_patch_identity` compares the chart's device values with a copy of
+  themselves and answers "verified" whatever happened, which is exactly the
+  self-validating trap §I rejected for the device-value repair;
+* **this is not that repair.** Nothing here looks at a colour, so nothing here
+  can be validated by the quantity it minimised. A name is exact: the chart
+  issued it and printed it.
+
+**What a name CANNOT settle, and who settles it instead.** Another chart laid out
+the same way carries the same names, so a device-less measurement of a different
+chart of identical shape would pass the name check. Measured on real files,
+2026-09-12: the median ΔE00 of the true pairing against a shuffled one is 3.18
+for a correct measurement of a chart and 1.04 for another chart's readings under
+the same labels, which separates them cleanly on two samples, but a survey of the
+16 measurement/chart pairs on this machine gives RIGHT ratios from 0.99 to 6.12
+and WRONG ratios from 0.76 to 3.45. **The two distributions overlap, so no
+colour-margin threshold is justified by the evidence, and none is set** (§I.10's
+own rule). ChromIQ states what it can and cannot check and leaves the judgement
+with the person who printed the sheet: **M-IMPORT-DEVICE-FROM-CHART**, Import it
+or Cancel, shown only for a device-less file.
+
+A measurement whose device columns are present but are NOT RGB (a CMYK or
+n-colour file) is still refused exactly as before. "No device columns" and "the
+wrong device columns" are different files and different faults.
+
+**I.12 · The count is judged against the SHEET, not the design.** §I.10 says a
+measurement holding more readings than the chart has patches is refused as a
+different chart. A chart's last strip is filled out with rows that are not part
+of the design, and the person reading the sheet reads them too, so her 408-patch
+design printed as 420 squares gives a complete measurement of 420. Judged against
+408 it was refused; the chart preview two inches away said 420.
+
+So a chart now answers two questions with two numbers:
+
+| number | what it is | what it decides |
+|---|---|---|
+| designed patches (`expected_patches`) | what the `.ti1` asked for | below it, the measurement is PARTIAL |
+| sheet squares (`sheet_patches`) | what the `.ti2` prints, fill-up included | above it, it is a DIFFERENT CHART |
+
+Between the two the measurement covers the whole design and is complete. The same
+rule is applied by `measurement_state.classify`, so the state machine and both
+import doors cannot disagree, and the import panel now names both numbers where
+they differ instead of only the design.
+
+**The verification door and the profiling door judge through one function.** The
+Measure tab had its own copy of §I.5's rule; the profiling door learned to read a
+spectral-only export on 2026-09-11 and this one still refused it the next
+morning. Both now call `workflow.measurement_import.assess`. The one thing the
+verification door still decides for itself is what to do with a SHORT
+measurement: §I.10 files it on the profiling door, and §I as shipped refuses it
+here, which is unchanged and still awaits its own §I.10 work.
 
 ## S. Sequences — what happens, in what order, for every entry condition
 

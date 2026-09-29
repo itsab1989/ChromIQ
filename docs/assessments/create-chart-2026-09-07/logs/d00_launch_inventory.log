@@ -1,0 +1,306 @@
+2026-09-07 07:46:10,905 [WARNING] core.settings: Settings SANDBOXED to /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini (CHROMIQ_SETTINGS_FILE is set) — the real preferences are untouched
+2026-09-07 07:46:10,905 [DEBUG] core.settings: Settings loaded from /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 07:46:10,906 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 07:46:10,906 [INFO] assess: app built: v4.2.0 appearance=neutral lang=en settings=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 07:46:11,705 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_refresh_manual_command_preview:5501  ←  _init_manual_layout_panel:5630  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:11,726 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:11,726 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:11,726 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:11,726 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:11,726 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:11,726 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:11,743 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:11,743 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:11,743 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:11,743 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:11,743 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:11,743 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:13,255 [INFO] ui.main_window: MainWindow initialised
+2026-09-07 07:46:13,766 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 07:46:13,779 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 07:46:13,922 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 07:46:16,227 [INFO] assess:   shot Screenshots/00-launch/01-startup-window.png  (3400x2100)
+2026-09-07 07:46:17,289 [INFO] assess:   shot Screenshots/00-launch/02-create-chart-no-project.png  (3400x2100)
+2026-09-07 07:46:17,289 [INFO] assess: mode buttons: guided=True manual=False gamut visible=False
+2026-09-07 07:46:17,289 [INFO] assess: run bar: run='New run' type='Profiling' type items=[('Profiling', 'profiling'), ('Verification', 'verification')]
+2026-09-07 07:46:17,289 [INFO] assess: generate enabled=True text='Generate Chart'
+2026-09-07 07:46:17,290 [INFO] assess: engine setting=True auto_update=False
+2026-09-07 07:46:17,290 [INFO] assess:   json Test Runs/logs/d00_panels_no_project.json
+2026-09-07 07:46:17,290 [DEBUG] core.settings: settings.set session_target_name = 'Demo-Full-RGB'
+2026-09-07 07:46:17,290 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 07:46:17,290 [DEBUG] core.file_manager: Target name set to: Demo-Full-RGB (root /Users/Basti/ChromIQ-assessment/Demo-Full-RGB)
+2026-09-07 07:46:17,296 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/Demo-Full-RGB (3 run(s) on disk)
+2026-09-07 07:46:17,299 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_apply_ui_state:15007  ←  _init_manual_layout_panel:5630  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:17,316 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,316 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,316 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,316 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,316 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,316 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,333 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,333 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,333 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,333 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,333 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,333 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,357 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_open_this_target_on_its_defaults:14533  ←  _init_manual_layout_panel:5630  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:17,375 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,375 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,375 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,375 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,375 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,375 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,392 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,392 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,392 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,392 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,392 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,392 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,418 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run3 (40 parameters + ui state)
+2026-09-07 07:46:17,419 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 07:46:17,419 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:17,436 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,436 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,436 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,436 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,436 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,436 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,453 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,453 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,453 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,453 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,453 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,453 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,479 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 07:46:17,479 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:17,496 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,496 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,496 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,496 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,496 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,496 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,512 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,512 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,512 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,512 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,512 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,512 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,537 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 07:46:17,537 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:17,555 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,555 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,555 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,555 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,555 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,555 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,572 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,572 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,572 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,572 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,572 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,572 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,602 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 07:46:17,607 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:17,626 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,626 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,626 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,626 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,626 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,626 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,649 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,649 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,649 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,649 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,649 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,649 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,651 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:17,651 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:17,651 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:17,651 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:17,651 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:17,651 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:17,653 [INFO] ui.tabs.tab_chart: chart loaded: 4 page(s) counted from the page images (field was 4, now 4)
+2026-09-07 07:46:17,655 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 07:46:17,659 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 07:46:17,663 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 2 parameters and 2 ui values away from the target's own
+2026-09-07 07:46:17,665 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 07:46:17,669 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 07:46:17,669 [INFO] ui.main_window: Session restored: target=Demo-Full-RGB run=run3
+2026-09-07 07:46:18,876 [INFO] assess: open_project('Demo-Full-RGB') -> run bar reads 'Run 3 (overwrite)' ok=True
+2026-09-07 07:46:19,031 [INFO] assess:   shot Screenshots/00-launch/03-demo-full-rgb-opened.png  (3400x2100)
+2026-09-07 07:46:19,031 [INFO] assess: opened=True run items=[('Run 1 (overwrite)', 'run1'), ('Run 2 (overwrite)', 'run2'), ('Run 3 (overwrite)', 'run3'), ('New run', '\x00new')]
+2026-09-07 07:46:19,032 [INFO] assess:   json Test Runs/logs/d00_panels_demo_full_rgb.json
+2026-09-07 07:46:20,010 [INFO] assess:   shot Screenshots/00-launch/04-guided.png  (3400x2100)
+2026-09-07 07:46:20,010 [INFO] assess:   json Test Runs/logs/d00_guided_inventory.json
+2026-09-07 07:46:20,473 [INFO] assess:   shot Screenshots/00-launch/05-guided-instr-i1.png  (3400x2100)
+2026-09-07 07:46:20,939 [INFO] assess:   shot Screenshots/00-launch/05-guided-instr-p3.png  (3400x2100)
+2026-09-07 07:46:21,407 [INFO] assess:   shot Screenshots/00-launch/05-guided-instr-CM.png  (3400x2100)
+2026-09-07 07:46:21,876 [INFO] assess:   shot Screenshots/00-launch/05-guided-instr-SS.png  (3400x2100)
+2026-09-07 07:46:22,346 [INFO] assess:   shot Screenshots/00-launch/05-guided-instr-CR30.png  (3400x2100)
+2026-09-07 07:46:22,347 [INFO] assess:   json Test Runs/logs/d00_guided_per_instrument.json
+2026-09-07 07:46:22,608 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:22,608 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:22,608 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:22,608 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:22,608 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:22,608 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:22,614 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:22,614 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:22,614 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:22,614 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:22,614 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:22,614 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:23,794 [INFO] assess:   shot Screenshots/00-launch/06-manual.png  (3400x2100)
+2026-09-07 07:46:23,794 [INFO] assess: manual engine check: visible=True checked=True text='Use the ChromIQ layout engine instead of printtarg'
+2026-09-07 07:46:23,795 [INFO] assess: auto preview row visible=True checked=False
+2026-09-07 07:46:23,795 [INFO] assess: preset combo items=[('none', None), ('Alpha', 'Alpha'), ('▶  CR30-A4-77p-1page-Portrait-w24.0mm', 'CR30-A4-77p-1page-Portrait-w24.0mm'), ('▶  CR30-A4-153p-1page-Portrait-w18.0mm-Hexagonal', 'CR30-A4-153p-1page-Portrait-w18.0mm-Hexagonal'), ('▶  CR30-A4-160p-1page-Portrait-w17.0mm', 'CR30-A4-160p-1page-Portrait-w17.0mm'), ('▶  CR30-A4-192p-1page-Portrait-w11.0mm', 'CR30-A4-192p-1page-Portrait-w11.0mm'), ('▶  CR30-A4-360p-1page-Portrait-w11.0mm', 'CR30-A4-360p-1page-Portrait-w11.0mm'), ('▶  CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal', 'CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal'), ('▶  CR30-A4-720p-2pages-Portrait-w11.0mm', 'CR30-A4-720p-2pages-Portrait-w11.0mm'), ('▶  CR30-A4-840p-2pages-Portrait-w11.0mm-Hexagonal', 'CR30-A4-840p-2pages-Portrait-w11.0mm-Hexagonal'), ('▶  CR30-A4-1080p-3pages-Portrait-w11.0mm', 'CR30-A4-1080p-3pages-Portrait-w11.0mm'), ('▶  CR30-A4-1260p-3pages-Portrait-w11.0mm-Hexagonal', 'CR30-A4-1260p-3pages-Portrait-w11.0mm-Hexagonal'), ('▶  CR30-Letter-88p-1page-Portrait-w22.0mm', 'CR30-Letter-88p-1page-Portrait-w22.0mm'), ('▶  CR30-Letter-150p-1page-Portrait-w17.0mm', 'CR30-Letter-150p-1page-Portrait-w17.0mm'), ('▶  CR30-Letter-170p-1page-Portrait-w16.0mm-Hexagonal', 'CR30-Letter-170p-1page-Portrait-w16.0mm-Hexagonal'), ('▶  CR30-Letter-184p-1page-Portrait-w11.0mm', 'CR30-Letter-184p-1page-Portrait-w11.0mm'), ('▶  CR30-Letter-368p-1page-Portrait-w11.0mm', 'CR30-Letter-368p-1page-Portrait-w11.0mm'), ('▶  CR30-Letter-390p-1page-Portrait-w11.0mm-Hexagonal', 'CR30-Letter-390p-1page-Portrait-w11.0mm-Hexagonal'), ('▶  CR30-Letter-736p-2pages-Portrait-w11.0mm', 'CR30-Letter-736p-2pages-Portrait-w11.0mm'), ('▶  CR30-Letter-780p-2pages-Portrait-w11.0mm-Hexagonal', 'CR30-Letter-780p-2pages-Portrait-w11.0mm-Hexagonal'), ('▶  CR30-Letter-1104p-3pages-Portrait-w11.0mm', 'CR30-Letter-1104p-3pages-Portrait-w11.0mm'), ('▶  CR30-Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal', 'CR30-Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal'), ('▶  i1Pro-A4-1page-Portrait-BrandNew', 'i1Pro-A4-1page-Portrait-BrandNew'), ('', None), ('ColorMunki / i1Studio / ColorChecker Studio', None), ('★  ColorMunki · A4-300p-1page TC3.00 by Pharmacist  ·  built-in', '__chromiq_tc300_builtin__'), ('★  ColorMunki · A4-702p-2pages ABW-optimized by Pharmacist  ·  built-in', '__chromiq_abw702_builtin__'), ('★  ColorMunki · A3-924p-1page TC9.24 by Pharmacist  ·  built-in', '__chromiq_tc924_cm_a3_builtin__'), ('★  ColorMunki · A3+-1160p-1page TC9.18 extended greys by Pharmacist  ·  built-in', '__chromiq_tc918eg_cm_a3_builtin__'), ('★  ColorMunki · A4-84p-1page-Portrait-w26.0mm-Fast Reading Speed-Hand Held · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_84p_1page_portrait_w26_0mm_fast_reading_speed_hand_held__'), ('★  ColorMunki · A4-144p-1page-Portrait-w14.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_144p_1page_portrait_w14_0mm_fast_reading_speed__'), ('★  ColorMunki · A4-204p-1page-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_204p_1page_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A4-306p-1page-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_306p_1page_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · A4-374p-1page-Portrait-w10.0mm-Very Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_374p_1page_portrait_w10_0mm_very_slow_reading_speed__'), ('★  ColorMunki · A4-408p-2pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_408p_2pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A4-612p-2pages-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_612p_2pages_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · A4-612p-3pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_612p_3pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A4-1224p-4pages-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_1224p_4pages_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · A4-1224p-6pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_1224p_6pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A4-1615p-5pages-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_1615p_5pages_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · A4-1623p-8pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_1623p_8pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A4-2040p-10pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_2040p_10pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A4-2142p-7pages-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a4_2142p_7pages_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · Letter-84p-1page-Portrait-w26.0mm-Fast Reading Speed-Hand Held · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_84p_1page_portrait_w26_0mm_fast_reading_speed_hand_held__'), ('★  ColorMunki · Letter-144p-1page-Portrait-w15.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_144p_1page_portrait_w15_0mm_fast_reading_speed__'), ('★  ColorMunki · Letter-204p-1page-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_204p_1page_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · Letter-306p-1page-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_306p_1page_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · Letter-374p-1page-Portrait-w10.0mm-Very Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_374p_1page_portrait_w10_0mm_very_slow_reading_speed__'), ('★  ColorMunki · Letter-408p-2pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_408p_2pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · Letter-612p-2pages-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_612p_2pages_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · Letter-612p-3pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_612p_3pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · Letter-1224p-4pages-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_1224p_4pages_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · Letter-1224p-6pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_1224p_6pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · Letter-1615p-5pages-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_1615p_5pages_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · Letter-1623p-8pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_1623p_8pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · Letter-2040p-10pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_2040p_10pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · Letter-2142p-7pages-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_letter_2142p_7pages_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · A3-180p-1page-Landscape-w26.0mm-Fast Reading Speed-Hand Held · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_180p_1page_landscape_w26_0mm_fast_reading_speed_hand_held__'), ('★  ColorMunki · A3-450p-1page-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_450p_1page_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A3-456p-1page-Landscape-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_456p_1page_landscape_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A3-800p-1page-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_800p_1page_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · A3-900p-2pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_900p_2pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A3-912p-2pages-Landscape-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_912p_2pages_landscape_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A3-1224p-2pages-Landscape-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_1224p_2pages_landscape_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · A3-1350p-3pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_1350p_3pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A3-1368p-2pages-Landscape-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_1368p_2pages_landscape_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · A3-1368p-3pages-Landscape-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_1368p_3pages_landscape_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A3-1600p-2pages-Portrait-w10.0mm-Slow Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_1600p_2pages_portrait_w10_0mm_slow_reading_speed__'), ('★  ColorMunki · A3-2052p-3pages-Landscape-w10.0mm-Slow Reading Speed-Nature · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_2052p_3pages_landscape_w10_0mm_slow_reading_speed_nature__'), ('★  ColorMunki · A3-2280p-5pages-Landscape-w10.0mm-Fast Reading Speed-Nature · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3_2280p_5pages_landscape_w10_0mm_fast_reading_speed_nature__'), ('★  ColorMunki · A3Plus-588p-1page-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3plus_588p_1page_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A3Plus-616p-1page-Landscape-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3plus_616p_1page_landscape_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A3Plus-1176p-2pages-Portrait-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3plus_1176p_2pages_portrait_w10_0mm_fast_reading_speed__'), ('★  ColorMunki · A3Plus-1232p-2pages-Landscape-w10.0mm-Fast Reading Speed · Full layout setup  ·  built-in', '__chromiq_knut_cm_a3plus_1232p_2pages_landscape_w10_0mm_fast_reading_speed__'), ('', None), ('i1Pro / i1Pro 2 / i1Pro 3', None), ('★  i1Pro · A4-1110p-2pages ABW-optimized by Pharmacist  ·  built-in', '__chromiq_abw1110_builtin__'), ('★  i1Pro · A4-1160p-2pages TC9.18 extended greys by Pharmacist  ·  built-in', '__chromiq_tc918eg_a4_builtin__'), ('★  i1Pro · A4-1944p-3pages extended target by Pharmacist  ·  built-in', '__chromiq_ext1944_a4_builtin__'), ('★  i1Pro · Letter-1160p-2pages TC9.18 extended greys by Pharmacist  ·  built-in', '__chromiq_tc918eg_letter_builtin__'), ('★  i1Pro · Letter-1944p-3pages extended target by Pharmacist  ·  built-in', '__chromiq_ext1944_letter_builtin__'), ('★  i1Pro · A4-162p-1page-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a4_162p_1page_portrait_w7_5mm__'), ('★  i1Pro · A4-324p-1page-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a4_324p_1page_portrait_w7_5mm__'), ('★  i1Pro · A4-484p-1page-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_fls_i1pro_a4_484p_1page_portrait__'), ('★  i1Pro · A4-648p-1page-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a4_648p_1page_portrait_w7_5mm__'), ('★  i1Pro · A4-1296p-2pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a4_1296p_2pages_portrait_w7_5mm__'), ('★  i1Pro · A4-1944p-3pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a4_1944p_3pages_portrait_w7_5mm__'), ('★  i1Pro · A4-2592p-4pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a4_2592p_4pages_portrait_w7_5mm__'), ('★  i1Pro · A4-3240p-5pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a4_3240p_5pages_portrait_w7_5mm__'), ('★  i1Pro · A4-3888p-6pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a4_3888p_6pages_portrait_w7_5mm__'), ('★  i1Pro · A4-156p-1page-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a4_156p_1page_portrait_w8_0mm__'), ('★  i1Pro · A4-312p-1page-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a4_312p_1page_portrait_w8_0mm__'), ('★  i1Pro · A4-572p-1page-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a4_572p_1page_portrait_w8_0mm__'), ('★  i1Pro · A4-1144p-2pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a4_1144p_2pages_portrait_w8_0mm__'), ('★  i1Pro · A4-1716p-3pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a4_1716p_3pages_portrait_w8_0mm__'), ('★  i1Pro · A4-2288p-4pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a4_2288p_4pages_portrait_w8_0mm__'), ('★  i1Pro · A4-2860p-5pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a4_2860p_5pages_portrait_w8_0mm__'), ('★  i1Pro · A4-3432p-6pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a4_3432p_6pages_portrait_w8_0mm__'), ('★  i1Pro · A4-1200p-3pages-Portrait-w8.5mm · Full layout setup  ·  built-in', '__chromiq_knut_fls_i1pro_a4_1200p_3pages_portrait__'), ('★  i1Pro · Letter-162p-1page-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_letter_162p_1page_portrait_w7_5mm__'), ('★  i1Pro · Letter-324p-1page-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_letter_324p_1page_portrait_w7_5mm__'), ('★  i1Pro · Letter-648p-1page-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_letter_648p_1page_portrait_w7_5mm__'), ('★  i1Pro · Letter-1296p-2pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_letter_1296p_2pages_portrait_w7_5mm__'), ('★  i1Pro · Letter-1944p-3pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_letter_1944p_3pages_portrait_w7_5mm__'), ('★  i1Pro · Letter-2592p-4pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_letter_2592p_4pages_portrait_w7_5mm__'), ('★  i1Pro · Letter-3240p-5pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_letter_3240p_5pages_portrait_w7_5mm__'), ('★  i1Pro · Letter-3888p-6pages-Portrait-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_letter_3888p_6pages_portrait_w7_5mm__'), ('★  i1Pro · Letter-156p-1page-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_letter_156p_1page_portrait_w8_0mm__'), ('★  i1Pro · Letter-312p-1page-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_letter_312p_1page_portrait_w8_0mm__'), ('★  i1Pro · Letter-572p-1page-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_letter_572p_1page_portrait_w8_0mm__'), ('★  i1Pro · Letter-1144p-2pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_letter_1144p_2pages_portrait_w8_0mm__'), ('★  i1Pro · Letter-1716p-3pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_letter_1716p_3pages_portrait_w8_0mm__'), ('★  i1Pro · Letter-2288p-4pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_letter_2288p_4pages_portrait_w8_0mm__'), ('★  i1Pro · Letter-2860p-5pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_letter_2860p_5pages_portrait_w8_0mm__'), ('★  i1Pro · Letter-3432p-6pages-Portrait-w8.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_letter_3432p_6pages_portrait_w8_0mm__'), ('★  i1Pro · A3-1404p-1page-Landscape-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a3_1404p_1page_landscape_w7_5mm__'), ('★  i1Pro · A3-2808p-2pages-Landscape-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a3_2808p_2pages_landscape_w7_5mm__'), ('★  i1Pro · A3-4212p-3pages-Landscape-w7.5mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w75_a3_4212p_3pages_landscape_w7_5mm__'), ('★  i1Pro · A3-1144p-1page-Landscape-w9.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a3_1144p_1page_landscape_w9_0mm__'), ('★  i1Pro · A3-2288p-2pages-Landscape-w9.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a3_2288p_2pages_landscape_w9_0mm__'), ('★  i1Pro · A3-3432p-3pages-Landscape-w9.0mm · Full layout setup  ·  built-in', '__chromiq_knut_i1_w8_a3_3432p_3pages_landscape_w9_0mm__'), ('', None), ('i1Pro 3 Plus', None), ('★  i1Pro 3 Plus · A4-84p-1page-Portrait-w25.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a4_84p_1page_portrait_w25_0mm__'), ('★  i1Pro 3 Plus · A4-154p-1page-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a4_154p_1page_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A4-308p-2pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a4_308p_2pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A4-462p-3pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a4_462p_3pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A4-616p-4pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a4_616p_4pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A4-924p-6pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a4_924p_6pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A4-1232p-8pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a4_1232p_8pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A4-1540p-10pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a4_1540p_10pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A4-2002p-13pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a4_2002p_13pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · Letter-84p-1page-Portrait-w25.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_letter_84p_1page_portrait_w25_0mm__'), ('★  i1Pro 3 Plus · Letter-143p-1page-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_letter_143p_1page_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · Letter-286p-2pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_letter_286p_2pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · Letter-429p-3pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_letter_429p_3pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · Letter-572p-4pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_letter_572p_4pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · Letter-858p-6pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_letter_858p_6pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · Letter-1144p-8pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_letter_1144p_8pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · Letter-1430p-10pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_letter_1430p_10pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · Letter-2002p-14pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_letter_2002p_14pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A3-336p-1page-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a3_336p_1page_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A3-672p-2pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a3_672p_2pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A3-1008p-3pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a3_1008p_3pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A3-1344p-4pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a3_1344p_4pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A3-1680p-5pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a3_1680p_5pages_portrait_w16_0mm__'), ('★  i1Pro 3 Plus · A3-2016p-6pages-Portrait-w16.0mm · Full layout setup  ·  built-in', '__chromiq_knut_p3_a3_2016p_6pages_portrait_w16_0mm__'), ('', None), ('CR30 (ChnSpec)', None), ('★  CR30 · A4-77p-1page-Portrait-w24.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_77p_1page_portrait_w24_0mm__'), ('★  CR30 · A4-153p-1page-Portrait-w18.0mm-Hexagonal · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_153p_1page_portrait_w18_0mm_hexagonal__'), ('★  CR30 · A4-160p-1page-Portrait-w17.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_160p_1page_portrait_w17_0mm__'), ('★  CR30 · A4-192p-1page-Portrait-w11.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_192p_1page_portrait_w11_0mm__'), ('★  CR30 · A4-360p-1page-Portrait-w11.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_360p_1page_portrait_w11_0mm__'), ('★  CR30 · A4-420p-1page-Portrait-w11.0mm-Hexagonal · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_420p_1page_portrait_w11_0mm_hexagonal__'), ('★  CR30 · A4-720p-2pages-Portrait-w11.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_720p_2pages_portrait_w11_0mm__'), ('★  CR30 · A4-840p-2pages-Portrait-w11.0mm-Hexagonal · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_840p_2pages_portrait_w11_0mm_hexagonal__'), ('★  CR30 · A4-1080p-3pages-Portrait-w11.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_1080p_3pages_portrait_w11_0mm__'), ('★  CR30 · A4-1260p-3pages-Portrait-w11.0mm-Hexagonal · Full layout setup  ·  built-in', '__chromiq_knut_cr30_a4_1260p_3pages_portrait_w11_0mm_hexagonal__'), ('★  CR30 · Letter-88p-1page-Portrait-w22.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_88p_1page_portrait_w22_0mm__'), ('★  CR30 · Letter-150p-1page-Portrait-w17.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_150p_1page_portrait_w17_0mm__'), ('★  CR30 · Letter-170p-1page-Portrait-w16.0mm-Hexagonal · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_170p_1page_portrait_w16_0mm_hexagonal__'), ('★  CR30 · Letter-184p-1page-Portrait-w11.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_184p_1page_portrait_w11_0mm__'), ('★  CR30 · Letter-368p-1page-Portrait-w11.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_368p_1page_portrait_w11_0mm__'), ('★  CR30 · Letter-390p-1page-Portrait-w11.0mm-Hexagonal · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_390p_1page_portrait_w11_0mm_hexagonal__'), ('★  CR30 · Letter-736p-2pages-Portrait-w11.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_736p_2pages_portrait_w11_0mm__'), ('★  CR30 · Letter-780p-2pages-Portrait-w11.0mm-Hexagonal · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_780p_2pages_portrait_w11_0mm_hexagonal__'), ('★  CR30 · Letter-1104p-3pages-Portrait-w11.0mm · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_1104p_3pages_portrait_w11_0mm__'), ('★  CR30 · Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal · Full layout setup  ·  built-in', '__chromiq_knut_cr30_letter_1170p_3pages_portrait_w11_0mm_hexagonal__'), ('', None), ('Scanner', None), ('★  Scanner · A4-3430p-1page-Landscape-w4.0mm · Profile printer with scanner · Full layout setup  ·  built-in', '__chromiq_knut_scanner_a4_3430p_1page_landscape__'), ('★  Scanner · A4-6860p-2pages-Landscape-w4.0mm · Profile printer with scanner · Full layout setup  ·  built-in', '__chromiq_knut_scanner_a4_6860p_2pages_landscape__'), ('★  Scanner · A4-10290p-3pages-Landscape-w4.0mm · Profile printer with scanner · Full layout setup  ·  built-in', '__chromiq_knut_scanner_a4_10290p_3pages_landscape__'), ('★  Scanner · Letter-3250p-1page-Landscape-w4.0mm · Profile printer with scanner · Full layout setup  ·  built-in', '__chromiq_knut_scanner_letter_3250p_1page_landscape__'), ('★  Scanner · Letter-6500p-2pages-Landscape-w4.0mm · Profile printer with scanner · Full layout setup  ·  built-in', '__chromiq_knut_scanner_letter_6500p_2pages_landscape__'), ('★  Scanner · Letter-9750p-3pages-Landscape-w4.0mm · Profile printer with scanner · Full layout setup  ·  built-in', '__chromiq_knut_scanner_letter_9750p_3pages_landscape__'), ('', None), ('Red River Paper', None), ('★  Red River Paper · i1Pro · A4-2052p-4pages · Standard Patch Set v25  ·  built-in', '__chromiq_knut_redriver_i1pro_a4_2052p_4pages__'), ('★  Red River Paper · ColorMunki · A4-2052p-8pages · Standard Patch Set v25  ·  built-in', '__chromiq_knut_redriver_colormunki_a4_2052p_8pages__'), ('★  Red River Paper · ColorMunki · A4-2052p-9pages · Standard Patch Set v25  ·  built-in', '__chromiq_knut_redriver_colormunki_a4_2052p_9pages__'), ('★  Red River Paper · i1Pro · Letter-2052p-4pages · Standard Patch Set v25  ·  built-in', '__chromiq_knut_redriver_i1pro_letter_2052p_4pages__'), ('★  Red River Paper · ColorMunki · Letter-2052p-8pages · Standard Patch Set v25  ·  built-in', '__chromiq_knut_redriver_colormunki_letter_2052p_8pages__'), ('★  Red River Paper · ColorMunki · Letter-2052p-9pages · Standard Patch Set v25  ·  built-in', '__chromiq_knut_redriver_colormunki_letter_2052p_9pages__')]
+2026-09-07 07:46:23,916 [INFO] assess:   shot Screenshots/00-launch/07-manual-engine-on.png  (3400x2100)
+2026-09-07 07:46:23,916 [INFO] assess: layout group collapsed=False visible=True
+2026-09-07 07:46:23,917 [INFO] assess:   json Test Runs/logs/d00_layout_panel_inventory.json
+2026-09-07 07:46:24,367 [INFO] assess:   shot Screenshots/00-launch/08-manual-engine-instr-i1.png  (3400x2100)
+2026-09-07 07:46:24,390 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:24,390 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:24,390 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:24,391 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:24,391 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:24,391 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:24,848 [INFO] assess:   shot Screenshots/00-launch/08-manual-engine-instr-p3.png  (3400x2100)
+2026-09-07 07:46:24,872 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:24,872 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:24,872 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:24,872 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:24,872 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:24,872 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:25,327 [INFO] assess:   shot Screenshots/00-launch/08-manual-engine-instr-CM.png  (3400x2100)
+2026-09-07 07:46:25,353 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:25,354 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:25,354 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:25,354 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:25,354 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:25,354 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:25,815 [INFO] assess:   shot Screenshots/00-launch/08-manual-engine-instr-SS.png  (3400x2100)
+2026-09-07 07:46:25,843 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:25,843 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:25,843 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:25,843 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:25,843 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:25,843 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:26,299 [INFO] assess:   shot Screenshots/00-launch/08-manual-engine-instr-CR30.png  (3400x2100)
+2026-09-07 07:46:26,299 [INFO] assess:   json Test Runs/logs/d00_engine_instr_matrix.json
+2026-09-07 07:46:26,320 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:26,320 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:26,320 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:26,320 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:26,320 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:26,320 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:26,636 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run3 (40 parameters + ui state)
+2026-09-07 07:46:26,643 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_apply_ui_state:15007  ←  _init_manual_layout_panel:5630  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:26,675 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:26,675 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:26,675 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:26,675 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:26,675 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:26,675 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:26,725 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:26,725 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:26,725 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:26,725 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:26,725 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:26,725 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:26,751 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_open_this_target_on_its_defaults:14533  ←  _init_manual_layout_panel:5630  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:26,790 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:26,790 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:26,790 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:26,790 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:26,790 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:26,790 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:26,825 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:26,825 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:26,825 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:26,825 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:26,825 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:26,825 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:26,854 [DEBUG] ui.tabs.tab_chart: create-chart settings written for verifications (40 parameters + ui state)
+2026-09-07 07:46:26,854 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 07:46:26,854 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:26,890 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:26,890 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:26,890 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:26,890 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:26,890 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:26,890 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:26,926 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:26,926 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:26,926 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:26,926 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:26,926 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:26,926 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:26,961 [DEBUG] ui.tiff_preview: TiffPreview: loaded 0 page(s)
+2026-09-07 07:46:26,961 [DEBUG] core.settings: settings.set session_ti1_path = ''
+2026-09-07 07:46:27,946 [INFO] assess: after run type verification: gamut btn visible=True type='Verification'
+2026-09-07 07:46:28,104 [INFO] assess:   shot Screenshots/00-launch/09-run-type-verification.png  (3400x2100)
+2026-09-07 07:46:29,288 [INFO] assess:   shot Screenshots/00-launch/10-gamut-module.png  (3400x2100)
+2026-09-07 07:46:29,289 [INFO] assess: gamut: noprofile lbl visible=False text="<b>There's no finished profile in this run yet</b><br><br>You can go ahead and create the chart — the files will be ready and waiting for you. Printing and measuring it will have to wait for the profile, though: a verification chart is printed through your finished profile, and that's the whole poin"
+2026-09-07 07:46:29,290 [DEBUG] ui.tabs.tab_chart: create-chart settings written for verifications (40 parameters + ui state)
+2026-09-07 07:46:29,294 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 07:46:29,294 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:29,313 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:29,313 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:29,313 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:29,313 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:29,313 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:29,313 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:29,329 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:29,329 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:29,330 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:29,330 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:29,330 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:29,330 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:29,334 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 07:46:29,334 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:29,354 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:29,354 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:29,354 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:29,354 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:29,354 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:29,354 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:29,357 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:29,357 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:29,357 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:29,357 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:29,357 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:29,357 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:29,359 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 07:46:29,363 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 07:46:29,387 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:29,387 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:29,387 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:29,387 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:29,387 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:29,387 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:29,407 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:29,407 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:29,407 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:29,407 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:29,407 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:29,407 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:29,410 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 07:46:29,410 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 07:46:29,410 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 07:46:29,410 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 07:46:29,410 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 07:46:29,410 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 07:46:29,410 [INFO] ui.tabs.tab_chart: chart loaded: 4 page(s) counted from the page images (field was 4, now 4)
+2026-09-07 07:46:29,412 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 07:46:29,414 [DEBUG] ui.tiff_preview: TiffPreview: loaded 4 page(s)
+2026-09-07 07:46:29,418 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 3 parameters and 2 ui values away from the target's own
+2026-09-07 07:46:31,106 [INFO] assess: serious log records: []
+2026-09-07 07:46:31,106 [INFO] assess: dialogs seen: []
+2026-09-07 07:46:31,106 [INFO] assess: unexpected dialogs: []
+2026-09-07 07:46:31,109 [DEBUG] core.settings: settings.set window_geometry = PyQt6.QtCore.QByteArray(b'\x01\xd9\xd0\xcb\x00\x03\x00\x00\x00\x00\x00\n\x00\x00\x00&\x00\x00\x06\xad\x00\x00\x04[\x00\x00\x00\n\x00\x00\x00B\x00\x00\x06\xad\x00\x00\x04[\x00\x00\x00\x00\x00\x00\x00\x00\x06\xc0\x00\x00\x00\n\x00\x00\x00B\x00\x00\x06\xad\x00\x00\x04[')
+2026-09-07 07:46:31,110 [DEBUG] core.settings: settings.set window_maximized = False
+2026-09-07 07:46:31,110 [DEBUG] core.settings: settings.set window_fullscreen = False
+2026-09-07 07:46:31,333 [DEBUG] core.settings: settings.set active_tab = 0
+2026-09-07 07:46:31,333 [DEBUG] core.settings: settings.set session_target_name = 'Demo-Full-RGB'
+2026-09-07 07:46:31,333 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 07:46:31,333 [INFO] core.argyll_runner: ArgyllRunner: cleanup complete

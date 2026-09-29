@@ -9,9 +9,11 @@ STYLE (hard requirement from the app's author): ChromIQ's texts are extensive, f
 HARD RULES:
 - {placeholders} must be preserved EXACTLY, including format specs like {limit:.1f} — they are part of the key and verified by tests.
 - "&&" stays "&&" (Qt escape). HTML markup (<b>, <br>, &nbsp;, <span style=…>) preserved exactly.
+- "**...**" marks a bold lead-in or heading in a help window (for example "**How it works:**"). Keep the same number of marks, and put them round the words of YOUR translation that name the same topic, never round other words. If a translation has no such phrase, leave the marks out entirely rather than unbalanced. Never translate a lead-in outside its marks.
 - CLI flags (-d, -G, printtarg -i…), file extensions, file-filter patterns like "(*.ti3);;…" stay untouched; translate only the descriptive words in filters.
 - Singular/plural keys are separate full sentences ("1 patch selected." vs "{n} patches selected.") — translate each naturally.
-- Log prefixes [INFO]/[OK]/[WARN]/[ERROR] stay as-is.
+- EVERY bracketed log tag stays in English, not just the common four: [INFO]/[OK]/[WARNING]/[ERROR]/[NOTE]/[STOPPED]/[BUSY]/[Report]/[Engine]. One log that prints [ERROR] beside [WARNUNG] looks broken.
+- The dash is your language's dash. German, Norwegian and Polish take the en dash (–) with spaces; Japanese, Chinese and Russian take the em dash (—). Do not convert a language onto another language's dash, even if told to: measure your own catalogue first.
 - SHORT strings (≤24 chars, no newline, no {) are buttons/labels: your translation must satisfy len ≤ len(english)*1.6 + 6 (CI-enforced). Choose compact native wordings, never ugly abbreviations.
 - Parameter NAMES in the yaml must fit a 190px label column (tighter for expert rows). After writing the yaml, run the checker and shorten any offender (keep tooltip_title at full length — only the name needs to be compact).
 

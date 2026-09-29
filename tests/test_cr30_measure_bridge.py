@@ -16,12 +16,15 @@ against the real binary.
 """
 from __future__ import annotations
 
+import gc
 import threading
+import time
 
 import pytest
 from PyQt6.QtCore import QCoreApplication, QThread
 from PyQt6.QtWidgets import QApplication
 
+from workflow.cr30 import measure_bridge
 from workflow.cr30.measure_bridge import (DROPPED_NAVIGATING, DROPPED_NO_PROMPT,
                                           DROPPED_STALE_LOC, Cr30MeasureBridge)
 
@@ -246,6 +249,72 @@ def test_the_worker_is_kept_referenced_until_it_finishes():
     h.gate.set()
     h.settle()
     assert h.bridge._threads == [], "…and released when it is done"
+
+
+def test_the_read_thread_is_not_the_bridge_s_to_destroy():
+    """A QThread PARENTED TO THE BRIDGE dies with the bridge, and a QThread
+    destroyed while it is still running takes the process with it.
+
+    Measured here, on this machine, with the same seven-line script run twice
+    against the two versions of this module — bridge dropped while a read is
+    held open, then the interpreter allowed to end:
+
+        QThread(self)   ->  "QThread: Destroyed while thread '' is still
+                            running", Abort trap: 6, exit 134
+        QThread()       ->  exit 0
+
+    On Windows that same `qFatal` is a FAIL-FAST (`0xC0000409`) which bypasses
+    SEH, so faulthandler never runs, buffered output dies with the process, and
+    pytest-xdist reports only `[gw0] node down: Not properly terminated` with no
+    traceback anywhere. That is the gate crash `23dc8ea7` diagnosed; this file
+    was one of the sites it did not reach.
+
+    `self._threads` alone cannot prevent it, and that is the subtle part: the
+    bridge, its `_threads` list, the thread, the `finished` connection and the
+    lambda that closes back onto the bridge form a REFERENCE CYCLE, so the whole
+    of it is freed at some arbitrary later moment — inside an unrelated test, or
+    at interpreter shutdown — and whatever was running inside it is destroyed
+    there. `workflow/cr30_spot_manager.py` refuses to parent its own read loop
+    for exactly this reason and says so in the code; the bridge was never given
+    the same treatment.
+
+    So this asserts the invariant rather than the abort: no parent, and a
+    reference held OUTSIDE the bridge until the thread reports itself finished.
+    An abort cannot be asserted on — it takes the assertion with it.
+    """
+    h = Harness()
+    gate = h.gate
+    gate.clear()                            # hold the read open
+    h.bridge.on_patch_ready({"loc": "A1", "read": False, "all_done": False})
+    (thread, _worker), = h.bridge._threads
+    assert thread.isRunning(), (
+        "the read was over before the moment under test — this proved nothing")
+    assert thread.parent() is None, (
+        "the read thread is parented to the bridge again: dropping the bridge "
+        "will destroy a running QThread and take the process down")
+    assert any(t is thread for t, _w in measure_bridge._LIVE), (
+        "nothing outside the bridge holds the thread, so the whole cycle is "
+        "collectable while it is still running")
+
+    del h
+    gc.collect()
+    assert thread.isRunning(), "the module global did not keep the thread alive"
+
+    # …and it is released again, so this is a keep-alive and not a leak.
+    gate.set()
+    # `thread.wait()` would DEADLOCK here, and it is worth saying why: the
+    # `quit()` that ends the read is connected as a plain Python callable, so
+    # PyQt delivers it through a proxy whose affinity is the MAIN thread.
+    # Blocking the main thread blocks the only thread that can stop this one.
+    # `Harness.settle()` is the shape that works.
+    app = QApplication.instance() or QCoreApplication.instance()
+    deadline = time.monotonic() + 30.0
+    while (thread.isRunning() or measure_bridge._LIVE) \
+            and time.monotonic() < deadline:
+        app.processEvents()
+        QThread.msleep(2)
+    assert not thread.isRunning(), "the read thread never finished"
+    assert measure_bridge._LIVE == [], "a finished thread was never released"
 
 
 # --- errors ---------------------------------------------------------------

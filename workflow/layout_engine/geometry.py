@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from . import hexagon
 from .instruments import Geom
 
 
@@ -34,6 +35,170 @@ class Layout:
     @property
     def fits_one_page(self) -> bool:
         return self.pages <= 1
+
+
+
+#: White the strip letters must keep between themselves and the first patch.
+#: Six pixels at 300 dpi -- enough that the gap reads as a gap on paper. Without
+#: it a turned honeycomb at patch scale 1.5 came out with the letters and the
+#: hexagons sharing an edge, measured at exactly 0.00 mm.
+LABEL_INK_CLEARANCE_MM = 0.5
+
+
+def _turned_hex(g) -> bool:
+    """A honeycomb turned so its strips run straight down the page.
+
+    Read through `hexagonal` as well as the flag, because `hex_flat_top` is
+    written once, in `instruments._build_base`, and is False for every layout
+    that is not a CR30 honeycomb with the turn on -- but a reader that trusted a
+    raw recipe flag instead has been the bug twice.
+    """
+    return bool(getattr(g, "hexagonal", False)
+                and getattr(g, "hex_flat_top", False))
+
+
+
+def strip_label_reserve_mm(g) -> float:
+    """How far in from the page's TOP edge the strip letters' band may start.
+
+    The larger of "T" under "Text distance from edge" and the ruler helper
+    markers' own reserve on that edge (Knut, #182, 2026-09-12: *"whichever is
+    largest of the two"*). One function so the geometry that PLACES the band
+    and the panel that WARNS about it cannot answer differently; the arithmetic
+    itself is `workflow.text_edge_fit.edge_reserve_mm`, which the other three
+    edges use as well.
+
+    The user's "Label offset" is deliberately NOT included: it rides on top of
+    this in the renderer (`raster._lbl_top`), which is where it has always been
+    added, and it may be negative.
+    """
+    from workflow import text_edge_fit as _tef
+    return _tef.edge_reserve_mm(
+        float(getattr(g, "text_edge_top_mm", 0.0) or 0.0),
+        bool(getattr(g, "helper_markers", False)),
+        float(getattr(g, "helper_marker_edge_mm", 0.0) or 0.0),
+        float(getattr(g, "helper_marker_len_mm", 0.0) or 0.0),
+        bool(getattr(g, "helper_markers_top_bottom", True)))
+
+
+def strip_label_leader_top_mm(g) -> float:
+    """Where the strip-label band's ANCHOR really sits, from the paper's top.
+
+    A MIRROR OF THE TWO LINES IN :func:`placement` THAT SET
+    ``Placement.leader_top``, and there is a test that keeps the mirror honest
+    (`tests/test_the_strip_letters_are_judged_where_they_are_drawn.py`). It
+    exists because the "Measured from Preview" panel has to say where the
+    letters are and only has the :class:`Geom`; building a second rule there is
+    how the two came apart in the first place.
+
+    **THE TWO LAYOUT MODES PUT THE BAND IN DIFFERENT PLACES, AND ONE OF THEM
+    DOES NOT CONSULT "T" AT ALL.** With "Prioritise chart area"
+    (``margins_are_law``) the anchor is the larger of "T" and the ruler helper
+    markers' own reach, plus the layout's indicator gap. With "Prioritise patch
+    size" it is the TOP MARGIN, and "T" moves nothing.
+
+    Driven on beta 18 (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-geometry/`,
+    section 2.1), i1Pro / A4 / patch-first / margins 12 / Label offset 0, with
+    "T" swept 0, 2, 4, 8, 16 and 25 mm: the strip letters landed at **13.377 to
+    17.780 mm every time, identical to the thousandth**. In the same window,
+    area-first moved them one millimetre per millimetre. Whether that is the
+    intended design is not this function's question; what it fixes is that the
+    panel used to predict the letters from "T" in both modes, so in patch-first
+    the top-edge notice could not fire however far the letters were driven onto
+    the patches — 24 states, four geometries, not one notice, photographed with
+    A B C D E printed in the middle of the second row of hexagons under a panel
+    reading "Margins: OK".
+    """
+    if getattr(g, "margins_are_law", False):
+        return (max(0.0, strip_label_reserve_mm(g)
+                    + float(getattr(g, "strip_indicator_gap", 0.0) or 0.0))
+                + float(getattr(g, "offset_y", 0.0) or 0.0))
+    return (float(getattr(g, "margin_t", 0.0) or 0.0)
+            + float(getattr(g, "offset_y", 0.0) or 0.0))
+
+
+def strip_label_band_is_margin_anchored(g) -> bool:
+    """Whether the renderer hangs the strip-label band from the TOP MARGIN.
+
+    The other half of :func:`strip_label_leader_top_mm`, and it exists because
+    the panel's message has to name a control and **a message must not work out
+    which control binds by comparing two numbers**.
+
+    `text_edge_fit.strip_label_overlap` used to decide it that way: it took the
+    renderer's anchor, compared it with the reserve it works out of "T" and the
+    ruler markers, and read any difference at all as "Prioritise patch size".
+    In "Prioritise chart area" the anchor is *reserve + the layout's
+    strip-indicator gap + the chart offset Y*, so a non-zero value in either of
+    those two boxes is a difference, and the panel then told the reader:
+
+        *"With “Prioritise patch size” they are held 11.0 mm from the paper
+        edge by the top margin itself … “T” under “Text distance from edge
+        (mm)” does not move them in this layout."*
+
+    Driven on beta 19, i1Pro / A4 / "Prioritise chart area" / top margin 10 /
+    Strip-indicator gap 3 mm, with "T" walked down
+    (`~/Desktop/ChromIQ-beta18-proof/beta19-round-1/p2.json`):
+
+    | "T" | what the panel said |
+    |---|---|
+    | 8 | held 11.0 mm, 5.2 mm on the patches, *"“T” … does not move them"* |
+    | 6 | held **9.0** mm, 3.2 mm on the patches, the same sentence |
+    | 4 | held **7.0** mm, 1.2 mm on the patches, the same sentence |
+    | 2 | **no notice at all** |
+
+    Its own numbers moved with "T" three times running while it denied that
+    "T" does anything, and lowering "T" is what cleared it. So the question is
+    asked of the LAYOUT, once, here, where `placement` asks it.
+    """
+    return not bool(getattr(g, "margins_are_law", False))
+
+
+def _top_reserve_for_a_turned_hex(g, mints: float, txhi: float,
+                                  *, margins_are_law: bool) -> float:
+    """`mints`, raised if the strip letters would otherwise be drawn on the ink.
+
+    Only a turned honeycomb needs this, and only a turned honeycomb gets it: on
+    every other layout the patch block already starts below the labels and this
+    returns *mints* unchanged. See the note in `compute`.
+
+    The figure that matters is where the labels' ink ENDS, which is
+    `leader_top + label_ink_bottom_mm` -- the renderer's own drawn height, its
+    underline and the user's `strip_label_offset_mm`. Reserving the band's
+    nominal height instead left four ordinary settings still printing letters on
+    patches: an explicit 6 mm label (the drawn band is 1.44 mm taller than the
+    reserve), a label offset of +3 mm (the reserve does not know about it at
+    all), an underline (0.25 mm), and patch scale 1.5 or 2.0 (which lands the
+    two exactly level).
+    """
+    if not _turned_hex(g):
+        return mints
+    ink = float(getattr(g, "label_ink_bottom_mm", 0.0) or 0.0)
+    if ink <= 0.0:                       # indicators off, or nothing rendered yet
+        return mints
+    if margins_are_law:
+        # **THIS IS NO LONGER A MIRROR OF `placement`, AND THE DIFFERENCE IS
+        # DELIBERATE.** `placement` stopped clamping when Knut ruled that the
+        # letters hold their distance from the page edge and overlap the patch
+        # area where the top margin cannot hold them (comment 5649810914).
+        # This function does the opposite thing: it moves the PATCH AREA, and
+        # carrying the unclamped reserve into it would push the patch block
+        # down by the very amount his ruling says should show as an overlap,
+        # silently costing the sheet patches at a margin the user set.
+        #
+        # So what is reserved here is the room the sheet actually has: the band
+        # as it can hang inside the top margin. Above that margin the letters
+        # go where his rule puts them, the first row of hexagons is under them,
+        # and the panel says so in red. Below it, this keeps doing its original
+        # job, which is a different fault entirely and not one he has reversed:
+        # a flat-top honeycomb puts ink at the very top of the patch area even
+        # on a roomy sheet, so a chart with plenty of margin still needs the
+        # block to start below the band.
+        leader_top = max(0.0, min(strip_label_reserve_mm(g)
+                                  + g.strip_indicator_gap,
+                                  g.margin_t - txhi))
+    else:
+        leader_top = g.margin_t
+    return max(mints, leader_top + ink + LABEL_INK_CLEARANCE_MM)
 
 
 def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
@@ -80,6 +245,27 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
         # the usable length.
         mints = g.margin_t
         minbs = g.margin_b
+        # A TURNED HONEYCOMB PUTS INK AT THE VERY TOP OF THE PATCH AREA, WHERE EVERY
+        # OTHER LAYOUT LEAVES A GAP, AND THE STRIP LETTERS WERE PRINTED ON IT.
+        #
+        # The block is shifted down by `hxeh` so a hexagon's apex clears the top
+        # reserve. On a pointy sheet `hxeh` is the apex overshoot (plen/6) and the
+        # slot's own top is that far below the patch-area top, which is the slack the
+        # label band has always sat in. On a FLAT-TOP sheet `hxeh` is the STAGGER
+        # reserve (plen/4) and the raised strips -- every even one -- come straight
+        # back up through it, so the topmost ink lands exactly ON the patch-area top.
+        # Measured on the app's own sidecar at 300 dpi, A4, CR30, at 150, 345 and 690
+        # patches alike: label band bottom 74 px, topmost patch box 71 px, so the
+        # letters were printed three pixels INTO the first row of hexagons. The
+        # pointy control on the same recipe clears by 8 px.
+        #
+        # `placement` already refuses to put the band behind the patches, but its
+        # fallback is to slide the band UP toward the page edge, and a band taller
+        # than the top margin runs out of page before it runs out of overlap. The
+        # patch area is what has to move, so on a turned honeycomb it starts below
+        # the band. Margins are still law: this only ever pushes the ink DOWN.
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=True)
         arowl = ph - mints - minbs - 2.0 * g.hxeh
     else:
         # Default (printtarg-style): the margins are floored by the instrument's
@@ -87,6 +273,8 @@ def compute(geom: Geom, paper_w_mm: float, paper_h_mm: float, npat: int,
         # band is reserved on top — so furniture reduces the patch count.
         mints = max(g.margin_t + txhi + g.lcar, eff_lspa)
         minbs = max(g.margin_b, g.tspa, g.bottom_reserve_mm)
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=False)
         arowl = ph - mints - minbs - 2.0 * g.hxeh - g.strip_indicator_gap
     # The physical ruler cap (i1Pro 240 mm jig etc.) applies in patch-first mode —
     # ALSO when "Use instrument margins" makes the margins the law (its "max strip
@@ -247,9 +435,17 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     if g.margins_are_law:
         mints = g.margin_t
         minbs = g.margin_b
+        # Mirrors `compute()` exactly -- see the note there. The two MUST agree:
+        # capacity is worked out in one and the ink is placed by the other, and
+        # giving the band its room in only one of them walked the last row
+        # 0.978 mm off the bottom margin on A4 Rotated.
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=True)
     else:
         mints = max(g.margin_t + txhi + g.lcar, eff_lspa) + g.strip_indicator_gap
         minbs = max(g.margin_b, g.tspa, g.bottom_reserve_mm)
+        mints = _top_reserve_for_a_turned_hex(g, mints, txhi,
+                                              margins_are_law=False)
     # The strip block carries a leading + trailing spacer only when edge spacers
     # are on; off, those gaps are reclaimed (matching compute()), so the first
     # patch sits at the block top. _lead is the leading gap.
@@ -303,15 +499,46 @@ def placement(geom: Geom, paper_w_mm: float, paper_h_mm: float, layout: Layout) 
     _y0 = amints + _lead + _hex_shift + g.offset_y
     if g.margins_are_law:
         # Strip labels live in the top margin at the text-edge distance from the
-        # PAGE EDGE (Knut: 4 mm), but they must NEVER sit behind the patches. So
-        # anchor the label's BOTTOM at the patch-area top (margin_t): when the top
-        # margin is too small for the label, the label slides UP toward the page
-        # edge (encroaching the 4 mm text-edge if it must) instead of overlapping
-        # the patch block — clamped at the page edge. A too-small margin still
-        # raises a warning in the inspector (#93, Knut).
-        _lab_h = g.label_band_mm if g.label_band_mm >= 0 else g.txhisl
-        _ideal_top = g.text_edge_top_mm + g.strip_indicator_gap
-        _leader_top = max(0.0, min(_ideal_top, g.margin_t - _lab_h)) + g.offset_y
+        # PAGE EDGE (Knut: 4 mm). They used to be held off the patches by
+        # anchoring the band's BOTTOM at the patch-area top, so a top margin
+        # too small for the band slid it UP toward the page edge; the paragraph
+        # below is Knut ending that.
+        #
+        # THE RESERVE IS THE LARGER OF "T" AND THE HELPER MARKERS' OWN (#182),
+        # AND IT IS NO LONGER CLAMPED. Knut, comment 5649810914, answering the
+        # question this line was parked on:
+        #
+        #   "I want the function that I specified, where the strip labels do
+        #    not cross the "Text distance from edge" value (or the defined
+        #    "Distance from page edge" + "Marker length" + 1.0mm, whichever is
+        #    largest (if helper markers are enabled)), and then the text
+        #    overlaps on top of the patch area top edge (according to top
+        #    margin). This principle, which I specified to be the same for all
+        #    sides (in their own direction overlapping towards the patch area
+        #    edge for each side)"
+        #
+        # So the distance from the page edge is a LIMIT on this edge too, the
+        # same as it already is on the other three, and a top margin that
+        # cannot hold the band is a thing to SHOW and warn about rather than to
+        # design away by sliding the letters up.
+        #
+        # `min(_ideal_top, g.margin_t - _lab_h)` is what used to stand here. It
+        # cost exactly what was measured and reported to him before he ruled:
+        # on the SHIPPED CR30 A4 default (top margin 6.0 mm, a 7.0 mm label
+        # band) the band's bottom moves from 83 px to 130 px at 300 dpi while
+        # the first patch box starts at 91 px, so every strip letter is now
+        # printed over the first row of hexagons. That is his explicit choice,
+        # taken with the cost in front of him, and the warning it raises is
+        # `text_edge_fit.strip_label_overlap` in the "Measured from Preview"
+        # frame.
+        #
+        # The reserve used to be `g.text_edge_top_mm` alone, which is the fault
+        # Knut reported earlier: with the ruler markers at 4 mm + 2 mm and "T"
+        # at 4 mm, the letters' ink began 3.98 mm down and the dashes occupy
+        # 4.0 to 6.0 mm, so the two were printed through each other. Measured
+        # on A4; they now begin at 8.38 mm.
+        _ideal_top = strip_label_reserve_mm(g) + g.strip_indicator_gap
+        _leader_top = max(0.0, _ideal_top) + g.offset_y
     else:
         _leader_top = g.margin_t + g.offset_y   # default: flush under the margin
     # A right-side clip: the patches must butt against the clip zone (the
@@ -377,6 +604,32 @@ def realized_margins_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     return (max(0.0, left), max(0.0, right), max(0.0, top), max(0.0, bottom))
 
 
+def patch_block_right_ink_gap_mm(geom: Geom, paper_w_mm: float,
+                                 paper_h_mm: float, layout: Layout) -> float:
+    """White paper between the block's RIGHT-MOST INK and the right page edge.
+
+    **NOT `realized_margins_mm()[1]`, AND THE DIFFERENCE IS THE APEX.** That
+    function measures to the patch RECTANGLE, which is what a margin threshold
+    is about; a flat-top honeycomb's points stick out past that rectangle by
+    ``hxew`` on each side, so on a CR30 A4 hexagon it reports 7.69 mm of white
+    where the raster has 5.84. Measured on the rendered sheet, 300 dpi: the
+    right-most inked column is x = 2410, which is 204.131 mm, and this
+    expression gives 204.045 — one pixel, the raster's own rounding. The
+    rectangle ends at 202.31.
+
+    The stamp down the right edge is placed against INK (the stamper detects a
+    writable band on the finished raster), so this is the number it has to be
+    judged against.
+    """
+    place = placement(geom, paper_w_mm, paper_h_mm, layout)
+    steps = layout.steps_in_pass
+    n_first = min(layout.total_patches, layout.patches_per_page)
+    n_passes = (n_first + steps - 1) // steps if steps else 0
+    right_ink = (place.x_of(max(0, n_passes - 1)) + geom.pwid
+                 + float(getattr(geom, "hxew", 0.0) or 0.0))
+    return max(0.0, paper_w_mm - right_ink)
+
+
 # Printer-safe inset for clip-strip content (mm). The clip strip is white space
 # the scanner clip grips, so its content can sit closer to the page edge than the
 # patch margin — we keep a small safety inset. This makes the clip content (e.g.
@@ -386,7 +639,92 @@ def realized_margins_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
 CLIP_CONTENT_INSET_MM = 4.0
 
 
-def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None
+def row_label_area_mm(geom: Geom, kw: dict | None = None
+                      ) -> tuple[float, float] | None:
+    """``(where the leftmost row-label ink starts, where the band ends)`` in mm
+    from the LEFT page edge, or ``None`` when this chart has no row labels.
+
+    `docs/design/row_label_geometry.md` §R2's last two lines, and the renderer
+    draws from the same two:
+
+        band right = min(floor + band, patch x0 - 1 mm)
+        label x    = max(floor, band right - label width)
+
+    **`rlwi` IS THE RESERVATION, NOT THE LABEL, and the two are far apart.**
+    `raster.row_label_band_mm` sizes the band from the widest label 1 to 99 at
+    the PROVISIONAL geometry's indicator size, deliberately: in area-first the
+    patch size is derived from the usable width, which the band has just
+    changed, so it allows for the worst case. Measured on a ColorMunki A4 chart
+    with a 16 mm left band: the reservation is 9.43 mm and the widest number
+    actually printed is 3.17 mm, so `band_right - (rlwi - 1)` puts the labels
+    at 17.0 mm and the ink is at 21.7. Predicting from the reservation would
+    make a collision warning fire about 4.7 mm of blank paper.
+
+    So pass *kw*, the build kwargs, and the label is MEASURED exactly as the
+    renderer measures it: the last row a full page holds, at
+    `effective_row_label_size_mm`, in the chosen face. Without *kw* the band's
+    own left edge is returned, which is the conservative end and is all a
+    caller that just wants the reservation needs.
+
+    **This exists because something else now has to know where the labels
+    are.** The clip band's text may reach inward past its band (Knut,
+    2026-09-12), and the row labels are the first thing it meets. Repeating
+    §R2's arithmetic in the panel would be a second copy of a rule the
+    renderer owns, which is the drift this module's neighbours keep being
+    caught by. `tests/test_the_clip_text_meets_the_row_labels.py` renders a
+    page and compares this function against the ink on it.
+    """
+    band = float(getattr(geom, "rlwi", 0.0) or 0.0)
+    if band <= 0:
+        return None
+    floor = float(getattr(geom, "row_label_floor", 0.0) or 0.0)
+    margin_l = float(getattr(geom, "margin_l", 0.0) or 0.0)
+    # A geometry that never went through `raster.apply_row_label_geometry`
+    # carries no floor, and the renderer then keeps its own older placement
+    # (`_band_right = _rx`). Mirror that rather than inventing a floor of 0,
+    # which would report the labels against the paper edge.
+    band_right = (min(floor + band, margin_l - 1.0) if floor > 0
+                  else margin_l - 1.0)
+    widest = max(0.0, band - 1.0)
+    if kw is not None:
+        measured = _widest_row_label_mm(geom, kw)
+        if measured is not None:
+            widest = measured
+    return (max(floor, band_right - widest), band_right)
+
+
+def _widest_row_label_mm(geom: Geom, kw: dict) -> float | None:
+    """The widest row number the renderer will actually draw, in mm.
+
+    The same three things `raster` uses at draw time: the last row a full page
+    holds (`_rows_that_fit`), the size that row's label resolves to
+    (`effective_row_label_size_mm`, which is capped at the row pitch), and the
+    face. Lives beside `clip_area_mm` rather than in `raster` only because this
+    module is the one asked; it reaches into `raster` for the fonts exactly as
+    `apply_row_label_geometry` does in the other direction.
+    """
+    try:
+        from PIL import Image, ImageDraw
+        from . import permutation, raster
+        rows = raster._rows_that_fit(geom, kw)
+        if rows <= 0:
+            return None
+        dpi = int(kw.get("dpi") or 300)
+        fam = kw.get("indicator_font") or raster.DEFAULT_INDICATOR_FONT
+        size_mm = raster.effective_row_label_size_mm(
+            geom, dpi, fam, float(kw.get("indicator_size_mm") or 0.0))
+        size_px = max(1, int(round(size_mm * dpi / 25.4)))
+        font = raster._font(size_px, fam, bool(kw.get("indicator_bold")),
+                            bool(kw.get("indicator_italic")))
+        label = permutation.make_labeller(kw.get("patch_pattern") or "")
+        draw = ImageDraw.Draw(Image.new("L", (8, 8)))
+        return float(draw.textlength(label(rows), font=font)) * 25.4 / dpi
+    except Exception:              # noqa: BLE001 — a prediction is never fatal
+        return None
+
+
+def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None,
+                 content_lines: int = 0, content_size_pt: float = 0.0,
                  ) -> tuple[float, float, float, float] | None:
     """The content-safe rectangle of the clip strip, in mm.
 
@@ -402,32 +740,110 @@ def clip_area_mm(geom: Geom, paper_h_mm: float, paper_w_mm: float | None = None
     to ``CLIP_CONTENT_INSET_MM``. It also runs the full page height rather than
     being boxed in by the top/bottom patch margins (Knut), so the notes box / logo
     can use the whole strip; only the printer-safe inset keeps it off the edges.
+
+    **TEXT THAT WILL NOT FIT GROWS INWARD, OVER THE PATCH AREA** (Knut,
+    2026-09-12). Pass *content_lines* and *content_size_pt* and the rectangle is
+    extended past the band, toward the patches, by exactly the shortfall. The
+    page-edge reserve is NOT touched: it is a limit on all four sides, and for
+    one evening this function spent it instead, which he corrected. The rule
+    itself is one function in `workflow/text_edge_fit.py`, because the panel has
+    to warn about the same overlap it predicts. With no content described the
+    rectangle is the band's own, which is what every caller that only wants the
+    band's placement gets.
     """
     if geom.lbord <= 0:
         return None
     clip_w = geom.lbord + geom.border          # full reserved zone from the edge
     # Clip content sits this far in from the page edge (the clip-side text-edge
     # distance, default 4 mm; Knut #93), capped so it never eats the whole band.
-    inset = min(getattr(geom, "text_edge_clip_mm", CLIP_CONTENT_INSET_MM),
-                clip_w * 0.2)
-    width = max(0.0, clip_w - inset)
-    # Full page height less the printer-safe inset top and bottom (Knut): the
-    # clip content is no longer bounded by the patch top/bottom margins.
-    v_inset = min(inset, paper_h_mm * 0.1)
-    height = max(0.0, paper_h_mm - 2.0 * v_inset)
+    from workflow import text_edge_fit as _tef
+    # WHICHEVER GOES FURTHEST IN FROM THE PAGE EDGE, "Clip" or the ruler helper
+    # markers' own reserve (#182, Knut, 2026-09-12). The markers used to be
+    # invisible to this: measured on his "ColorMunki-A4-306p-1page-Portrait"
+    # preset, whose side dashes' ink runs 4.01 mm to 6.0 mm in from the right
+    # page edge, the clip text was placed at 4.13 mm and printed straight
+    # through them. `geom_side_text_edge_mm` puts it at 4.0 + 2.0 + 1.0 = 7.0.
+    _edge = _tef.side_text_edge_mm(
+        getattr(geom, "text_edge_clip_mm", CLIP_CONTENT_INSET_MM),
+        helper_markers=bool(getattr(geom, "helper_markers", False)),
+        marker_edge_mm=float(getattr(geom, "helper_marker_edge_mm", 0.0) or 0.0),
+        marker_len_mm=float(getattr(geom, "helper_marker_len_mm", 0.0) or 0.0),
+        marker_sides=bool(getattr(geom, "helper_markers_sides", True)))
+    inset = _tef.clip_content_inset_mm(clip_w, _edge)
+    over = _tef.clip_text_overhang_mm(clip_w, _edge, content_lines,
+                                      content_size_pt)
+    # THE BAND'S OWN ROOM CANNOT BE NEGATIVE, AND WRITING IT AS A SUBTRACTION
+    # MADE IT SO. This read `clip_w - inset + over`, which is the same number
+    # while the reserve fits inside the band and is SHORT BY `inset - clip_w`
+    # once it does not. The overhang is measured from a room of
+    # `max(0, clip_w - inset)`, so the rectangle has to be built from the same
+    # floored figure or it is narrower than the text it was sized for and
+    # `_vtext` drops the lines that fall off its canvas.
+    #
+    # Reachable two ways, both measured on screen: "Clip" is a 0 to 30 mm box,
+    # so 30 mm on Knut's own 24 mm band leaves a 5.85 mm rectangle for text
+    # needing 11.85 and prints 2 of its 4 lines; and with the side helper
+    # markers on, any band under their 7 mm reserve loses that difference.
+    # Cutting clip text with nothing said is the fault
+    # `text_edge_fit.clip_text_overhang_mm` records being fixed.
+    width = max(0.0, clip_w - inset) + over
+    # THE BAND IS VERTICALLY CENTRED BETWEEN THE TOP AND BOTTOM RESERVES, AND
+    # THEY ARE READ ONE EDGE AT A TIME. Knut, #182, comment 5649955254:
+    #
+    #   "the clip band should be vertically centred between the T and B. So
+    #    with T at 12 and B at 4 and A4 page hight, the band is centred between
+    #    (0+T) and (297 - B) […] If helper makers are ON (with top/bottom ON),
+    #    and if either helper markers are further in on the page than T or B,
+    #    then "Distance from page edge" + "Marker length" + 1.0mm will be used
+    #    for the text distance from edge parameter that is smaller."
+    #
+    # `text_edge_fit.side_text_band_mm` is that table, and it CORRECTS the rule
+    # this line used to carry. That one took the smaller of "page minus T minus
+    # B" and "page minus twice the markers' reach" and then inset it
+    # SYMMETRICALLY, so the band sat centred on the middle of the sheet
+    # whatever T and B said. On his own example (A4, T = 12, B = 4, markers at
+    # 4.0 + 2.0) it put a 281.0 mm band 8.0 mm down; his rows ask for a
+    # 278.0 mm band 12.0 mm down. Both ends were wrong, and the anchor was the
+    # half a reader could see.
+    #
+    # Before either rule, this spent the SIDE reserve vertically, which is a
+    # distance belonging to the other pair of edges: on his A4 preset at
+    # T = 8.0, B = 4.0 with the markers at 4.0 + 2.0 it gave 289.0 mm where the
+    # band ran six millimetres into the marker combs at both ends.
+    v_inset, height = _tef.side_text_band_mm(
+        paper_h_mm,
+        getattr(geom, "text_edge_top_mm", CLIP_CONTENT_INSET_MM),
+        getattr(geom, "text_edge_bottom_mm", CLIP_CONTENT_INSET_MM),
+        helper_markers=bool(getattr(geom, "helper_markers", False)),
+        marker_edge_mm=float(getattr(geom, "helper_marker_edge_mm", 0.0) or 0.0),
+        marker_len_mm=float(getattr(geom, "helper_marker_len_mm", 0.0) or 0.0),
+        marker_top_bottom=bool(getattr(geom, "helper_markers_top_bottom", True)))
     # Right-side band: mirror to the far edge (needs the paper width) (#93).
+    #
+    # THE OVERHANG IS ON THE PATCH SIDE, which is the rectangle's INNER end:
+    # its left on a right-hand band, its right on a left-hand one. Growing the
+    # other way is the thing his ruling forbids.
     if getattr(geom, "clip_side", "left") == "right" and paper_w_mm:
-        x = paper_w_mm - clip_w
+        # ANCHORED BY THE RESERVE, WHICH IS WHAT THE RULE IS ABOUT. Written as
+        # `paper_w - clip_w - over` this happens to be right whenever the
+        # reserve fits inside the band and slides the box 'inset - clip_w'
+        # toward the paper edge when it does not, which is the mirror of the
+        # width fault above. The left band already reads `x = inset`; this is
+        # the same sentence measured from the other edge, and it agrees with
+        # the old expression everywhere the old one was right.
+        x = paper_w_mm - inset - width
     else:
         x = inset
     return (x, v_inset, width, height)
 
 
 def clip_area_px(geom: Geom, paper_h_mm: float, dpi: int,
-                 paper_w_mm: float | None = None
+                 paper_w_mm: float | None = None,
+                 content_lines: int = 0, content_size_pt: float = 0.0,
                  ) -> tuple[int, int, int, int] | None:
     """:func:`clip_area_mm` rounded to whole pixels at *dpi*."""
-    area = clip_area_mm(geom, paper_h_mm, paper_w_mm)
+    area = clip_area_mm(geom, paper_h_mm, paper_w_mm,
+                        content_lines, content_size_pt)
     if area is None:
         return None
     mm2px = dpi / 25.4
@@ -507,6 +923,7 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     # highlight, the margin inspector, scanin_target) rather than a visible bug.
     from .instruments import is_hexagonal as _is_hex
     _ss_hex = _is_hex(geom)
+    _S = dpi / 25.4
     out: list[dict] = []
     for page in range(layout.pages):
         first = page * pppage
@@ -530,9 +947,21 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             # both edges and taking the difference makes the record match the
             # paint exactly — the same rule the overlay already follows on its
             # own side.
-            _x0, _y0 = px(place.x_of(p)), px(place.y_of(j)) + _stag
-            _x1 = px(place.x_of(p) + place.pwid)
-            _y1 = px(place.y_of(j) + place.plen) + _stag
+            # ONE ROUNDING, FROM THE EXACT POSITION, EXACTLY AS THE RENDERER
+            # DOES IT. `raster` derives every hexagon vertex from the exact
+            # millimetre position and rounds once; rounding the slot first and
+            # then adding a separately-rounded stagger gives
+            # `round(a) + round(b)` where the ink is at `round(a + b)`, and the
+            # two differ by up to a pixel. That is the drift the overlay, the
+            # scanner target and the margin inspector all inherit, because they
+            # read these rects. Basti, 2026-09-09: the lattice fix "must be
+            # respected for the overlays in the measure tab as well and for the
+            # scanner profiling".
+            _fx = place.x_of(p) * _S
+            _fy = place.y_of(j) * _S + _stag
+            _fw = place.pwid * _S
+            _fh = place.plen * _S
+            _dxf = _dyf = 0.0
             # SPECTROSCAN HEXAGONS SIT ±¼ WIDTH OFF THEIR SLOT. `raster
             # ._hexagon_points` staggers every hexagon horizontally by the
             # patch's index in the strip, which is what makes the rows
@@ -543,10 +972,36 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             # inherited it, the expected-vs-measured overlay and the scanner
             # target's patch boxes alike (workflow/scanin_target.py reads these
             # very rects), so recording the stagger corrects both at once.
+            if _ss_hex and geom.hex_flat_top:
+                # ROTATED: THE STAGGER MOVES AXIS AND INDEX AT THE SAME TIME.
+                # It is applied to y, and indexed by the STRIP rather than by
+                # the patch's place in it, so consecutive columns interlock and
+                # each column runs straight down the page. That straight column
+                # is the whole point of the option.
+                _dyf = hexagon.stagger_dy(_fh, (first // steps) + p,
+                                          round_to_int=False)
+            elif _ss_hex:
+                # THE SAME STAGGER THE RENDERER APPLIES, from the same place
+                # and to the same precision.
+                _dxf = hexagon.stagger_dx(_fw, j, round_to_int=False)
             if _ss_hex:
-                _dx = round(-(_x1 - _x0) / 4) if j % 2 == 0 else round((_x1 - _x0) / 4)
-                _x0 += _dx
-                _x1 += _dx
+                _x0 = int(round(_fx + _dxf))
+                _x1 = int(round(_fx + _fw + _dxf))
+                _y0 = int(round(_fy + _dyf))
+                _y1 = int(round(_fy + _fh + _dyf))
+            else:
+                # A RECTANGULAR CHART KEEPS ITS OWN ARITHMETIC, TO THE LETTER.
+                # `round((y + plen) * S)` and `round(y*S + plen*S)` are not the
+                # same number in floating point: on a DTP41 Letter sheet at
+                # 300 dpi they disagree on 4 of 23 row bottoms, which put 64 of
+                # 368 recorded boxes a pixel below the ink. Only a honeycomb
+                # needs the single rounding, because only a honeycomb has a
+                # stagger to fold in; every other chart is left exactly as it
+                # was, and the commit that claimed "rectangular charts are
+                # untouched" is now true of the RECTS as well as the pages.
+                _x0, _y0 = px(place.x_of(p)), px(place.y_of(j)) + _stag
+                _x1 = px(place.x_of(p) + place.pwid)
+                _y1 = px(place.y_of(j) + place.plen) + _stag
             out.append({
                 "page": page, "slot": gslot, "loc": loc,
                 "x": _x0, "y": _y0,
@@ -690,9 +1145,26 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     height offset, thus the markers land the correct place if you just use the
     first strip as the reference."*
 
-    Hexagonal charts return no markers at all — SpectroScan or CR30 (#159): a
-    honeycomb has no rows to line a ruler up with. This is #152's rule, and it
-    follows the SHAPE, not the instrument.
+    **A honeycomb gets the comb for the axis it is straight along, and not the
+    other.** This replaces a blanket refusal, and the premise of that refusal was
+    measurably false. It used to say "a honeycomb has no rows to line a ruler up
+    with" (#152) and return nothing at all for a SpectroScan or a CR30. Measured
+    on a real CR30 sheet: a honeycomb has straight lines of patch centres along
+    three directions, 0° and ±60°, and on any page exactly ONE of the two page
+    axes is one of them. On today's pointy-top sheet the straight one is ACROSS
+    the page: `dy = 0.0000` between strips, at a 12.0000 mm pitch. What zigzags
+    is the other axis, by ±¼ of the patch width.
+
+    So the top/bottom comb, which steps across the page with the strips, lines up
+    exactly; the side comb, which steps down the page with the patches, would
+    mark a line the patches are not on. The first is offered, the second is not,
+    and a caller that asks for the second on a honeycomb gets nothing rather than
+    a comb of dashes that points at the gaps between patches.
+
+    Basti, 2026-09-09: *"can't they be turned on by the user if he wants? they
+    are optional anyway and benefitial here but only as an option i think."*
+    They now can, and they still default to off. Nothing here is switched on for
+    anybody who does not ask for it.
 
     Markers may cross a margin label or the clip-border text; that is accepted —
     *"overlapping is acceptable. User must adapt settings for the markers,
@@ -703,7 +1175,43 @@ def helper_marker_lines_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     """
     from .instruments import is_hexagonal as _is_hex
     if _is_hex(geom):
-        return []
+        # ONE AXIS, NOT NONE — AND IT IS THE SIDES, WHICH IS THE OPPOSITE OF
+        # WHAT THIS BLOCK FIRST SAID.
+        #
+        # The stagger that makes a honeycomb a honeycomb is applied to **x**,
+        # indexed by the patch's position DOWN its strip (`patch_rects_px`
+        # :551). So the centres are exactly uniform in y and zigzag by half a
+        # patch width in x. The comb that steps down the page therefore lands on
+        # every row, and the comb that steps across it marks the seam between
+        # two columns.
+        #
+        # Measured on A4 portrait, worst distance from a patch centre to the
+        # nearest dash:
+        #
+        #             top/bottom      sides
+        #     CR30      2.9830 mm    0.0310 mm
+        #     SS        1.7450 mm    0.0250 mm
+        #
+        # The first version of this block kept the top/bottom comb, on a reading
+        # of "dy = 0.0000 between strips" that was evidence for the OTHER one:
+        # `dy` between strips says the columns start level, which is a fact
+        # about x. The docstring warns about exactly this — "the names are the
+        # EDGE, never the axis … anyone naming these after the segment gets them
+        # backwards" — and it was still got backwards.
+        if geom.hex_flat_top:
+            # ROTATED, AND THE AXES INVERT AGAIN. The turn moves the stagger to
+            # y and indexes it by the STRIP, so the centres become uniform in x
+            # and zigzag in y: the mirror of the case below, one orientation
+            # along. Basti, 2026-09-09, asked whether the top and bottom markers
+            # would then be allowed: *"those are the ones that make sense once
+            # the honeycomb is rotated."* They are, and only they are.
+            sides = False
+            if not top_bottom:
+                return []
+        else:
+            top_bottom = False
+            if not sides:
+                return []
     if paper_w_mm <= 0 or paper_h_mm <= 0 or length_mm <= 0:
         return []
     if not top_bottom and not sides:

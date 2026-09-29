@@ -1,0 +1,21 @@
+09:39:27 app built: v4.2.0 appearance=neutral lang=de settings=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+09:39:33 open_project('A1-EngineVsPrinttarg') -> run bar reads 'Lauf 2 (überschreiben)' ok=True
+09:39:36   shot Screenshots/B10-lang-de/de-1280-guided.png  (2560x1600)
+09:39:37   shot Screenshots/B10-lang-de/de-1280-manual-top.png  (2560x1600)
+09:39:37 1280: clipped guided=0 manual=0 frames=12
+09:39:39   shot Screenshots/B10-lang-de/de-1700-guided.png  (3400x2100)
+09:39:40   shot Screenshots/B10-lang-de/de-1700-manual-top.png  (3400x2100)
+09:39:40 1700: clipped guided=0 manual=0 frames=1
+09:39:42   shot Screenshots/B10-lang-de/de-prefs-00-Allgemein.png  (2408x1772)
+09:39:42   shot Screenshots/B10-lang-de/de-prefs-01-Messgeräte-Grenzwerte.png  (2408x1772)
+09:39:43   shot Screenshots/B10-lang-de/de-prefs-02-Chart-Layout.png  (2408x1772)
+09:39:43   shot Screenshots/B10-lang-de/de-prefs-03-Scanner-Grenzwerte.png  (2408x1772)
+09:39:44   shot Screenshots/B10-lang-de/de-prefs-04-Pfade.png  (2408x1772)
+09:39:45   shot Screenshots/B10-lang-de/de-prefs-05-Berichte.png  (2408x1772)
+09:39:45   shot Screenshots/B10-lang-de/de-prefs-06-Messung.png  (2408x1772)
+09:39:46   shot Screenshots/B10-lang-de/de-prefs-07-Töne.png  (2408x1772)
+09:39:47   shot Screenshots/B10-lang-de/de-prefs-08-Beta.png  (2408x1772)
+09:39:48   json Test Runs/logs/d09_results.json
+09:39:48 prefs tabs: ['Allgemein', 'Messgeräte-Grenzwerte', 'Chart-Layout', 'Scanner-Grenzwerte', 'Pfade', 'Berichte', 'Messung', 'Töne', 'Beta'] clipped per tab: {'clipped-prefs-Allgemein': 0, 'clipped-prefs-Messgeräte-Grenzwerte': 0, 'clipped-prefs-Chart-Layout': 0, 'clipped-prefs-Scanner-Grenzwerte': 0, 'clipped-prefs-Pfade': 0, 'clipped-prefs-Berichte': 0, 'clipped-prefs-Messung': 0, 'clipped-prefs-Töne': 0, 'clipped-prefs-Beta': 0}
+09:39:48 unexpected: [] serious: []
+exit=0

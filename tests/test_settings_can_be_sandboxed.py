@@ -22,7 +22,7 @@ from core.settings import AppSettings, SETTINGS_FILE_ENV
 
 @pytest.fixture()
 def sandbox(monkeypatch):
-    path = pathlib.Path(tempfile.mkdtemp()) / "sandbox.ini"
+    path = pathlib.Path(tempfile.mkdtemp(prefix="chromiq-test-")) / "sandbox.ini"
     monkeypatch.setenv(SETTINGS_FILE_ENV, str(path))
     return path
 

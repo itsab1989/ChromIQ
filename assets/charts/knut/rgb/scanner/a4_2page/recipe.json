@@ -51,9 +51,9 @@
   "fill_pages": 1
  },
  "instr": "i1",
- "paper": "A4",
- "paper_w": 210,
- "paper_h": 297,
+ "paper": "A4R",
+ "paper_w": 297,
+ "paper_h": 210,
  "count": 200,
  "layout": {
   "spacer_mode": "colored",

@@ -86,15 +86,24 @@ def split_sections(body: "list[str]") -> "dict[str, list[str]]":
     """
     known = {md.lower(): key for key, md, _ in SECTIONS}
     out: "dict[str, list[str]]" = {key: [] for key, _, _ in SECTIONS}
+    out["intro"] = []
     cur = "fixed"
+    pre: "list[str]" = []
+    headed = False
     for line in body:
         m = re.match(r"^###\s+(?:[^\w\s]*\s*)?(.+?)\s*$", line)
         if m:
             name = re.sub(r"^[^A-Za-z]+", "", m.group(1)).strip().lower()
             if name in known:
                 cur = known[name]
+                headed = True
                 continue
-        out[cur].append(line)
+        (out[cur] if headed else pre).append(line)
+    # A LEAD PARAGRAPH IS NOT A FIX. An entry with headings may open with a
+    # paragraph that says what the release is (4.3.0 does); counted and shown
+    # under "Fixed" it read as a fix. Without headings the text is the old
+    # bare list of fixes, as before.
+    out["intro" if headed else "fixed"][:0] = pre
     return out
 
 
@@ -119,6 +128,7 @@ def _count_entries(lines: "list[str]") -> int:
 def build(tags: "list[str]", title: str) -> str:
     """Render one note from one or more CHANGELOG versions."""
     merged: "dict[str, list[str]]" = {key: [] for key, _, _ in SECTIONS}
+    merged["intro"] = []
     seen: "list[str]" = []
     by_version = {_normalise(v): b for v, b in _versions()}
     for tag in tags:
@@ -163,6 +173,9 @@ def build(tags: "list[str]", title: str) -> str:
     elif bits:
         parts.append(" and ".join(bits) + " in this release.")
     parts.append("")
+    intro = _tidy(merged["intro"])
+    if intro:
+        parts += intro + [""]
 
     for key, _, pretty in SECTIONS:
         lines = _tidy(merged[key])

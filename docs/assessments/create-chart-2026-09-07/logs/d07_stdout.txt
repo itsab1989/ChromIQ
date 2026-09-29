@@ -1,0 +1,29 @@
+09:06:13 app built: v4.2.0 appearance=neutral lang=en settings=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+09:06:20 fresh-session i1/A4/clip: {'align': 'center', 'layout_mode': 'patch_first', 'info': 't\nChromIQ layout engine · i1 · A4 portrait · 300 dpi · margins 38/9/19/26 mm · clip border on · align center\nLayout preset: i1 · A4 portrait · clip   ● modified', 'store': ['i1_A4R_clip.json', 'i1_A4_clip.json']}
+09:06:20   shot Screenshots/A8-presets/q32-fresh-session-i1-A4-clip.png  (3400x2100)
+09:06:20   json Test Runs/logs/d07_results.json
+09:06:20   removed sandbox Chart Layout/i1_A4_clip.json (created by D06)
+09:06:21 open_project('B1-Guided') -> run bar reads 'Run 1 (overwrite)' ok=True
+09:06:23   armed: dialog ~'quite fill' -> click 'OK' 
+09:06:23   armed: dialog ~'already' -> click 'Continue this project' 
+09:06:26   armed: dialog ~'Auto-update preview is on' -> click 'Close' 
+09:06:26   DIALOG expected [_InfoDialog] 'Auto-update preview is on' -> clicked 'Close'
+09:06:33   TIMEOUT waiting 6000 ms for auto build after nudge (clean)
+09:06:35 A7 clean nudge: {'fired': False, 'after_s': 6.27, 'flags': {'in_flight': False, 'owned': False, 'last_sig_set': True}}
+09:06:35   armed: dialog ~'quite fill' -> click 'OK' 
+09:06:35   armed: dialog ~'already' -> click 'Continue this project' 
+09:06:44   TIMEOUT waiting 6000 ms for auto build after preset load
+09:06:46 A7 after preset: {'fired': False, 'after_s': 6.21, 'flags': {'in_flight': False, 'owned': False, 'preset_ti1': '/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/presets/Create Chart/AssessPresetB.ti1', 'pending_editor': 'None'}, 'info': 'Auto patch count · Auto grey/white/black):\nLays out the existing patch set (targen skipped).\nprinttarg -ii1 -pA4R -t300 -L -a0.95 -m10 -M10 chart\nLayout preset: i1 · A4 landscape · noclip   ● modified'}
+09:06:53   TIMEOUT waiting 6000 ms for auto build after none
+09:06:55 A7 after none: {'fired': False, 'flags': {'in_flight': False, 'preset_ti1': 'None'}}
+09:06:55   shot Screenshots/A7-auto-preview/a30-clean-order.png  (3400x2100)
+09:06:56   json Test Runs/logs/d07_results.json
+09:06:57   armed: dialog ~'Rename Printer Profile' -> click 'Create "A10-Extremes" and keep' 
+09:06:57   armed: dialog ~'quite fill' -> click 'OK' 
+09:06:57   armed: dialog ~'already' -> click 'Continue this project' 
+09:06:58   DIALOG expected [TargetChangeDialog] 'Rename Printer Profile' -> clicked 'Create "A10-Extremes" and keep "B1-Guided"'
+09:07:00 1 patch: {'estimate': {'total': 20, 'fillup': 0, 'page_patches': 20, 'rows': 20, 'cols': 1, 'pages': 1, 'patch': (12.0, 12.0), 'pitch': None}, 'ok': True, 'stopped': False, 'secs': 2.8, 'actual': {'total': 20, 'fillup': 10, 'page_patches': 20, 'rows': 20, 'cols': 1, 'pages': 1, 'patch': (12.02, 12.02), 'pitch': None}, 'status': '', 'notes': '⚠ The left margin was widened from 26.0 mm to 29.7 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 2.7 mm. “Clip” is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing — the note under “Text distance from edge” names what is. To get that paper back, switch “Show row indicators” off or use a smaller label size.', 'margin_text': 'mm | inch | min | Left (to first patch) | 29.7 | 1.170 | 26.0 | Right (to first patch) | 168.3 | 6.624 | 9.0 | Top (to first patch) | 38.0 | 1.497 | 38.0 | Bottom (to first patch) | 19.0 | 0.750 | 19.0 | Patch width (in strip reading direction) | 12.0 | 0.473 ', 'dialogs': [('Rename Printer Profile', 'clicked \'Create "A10-Extremes" and keep "B1-Guided"\'')], 'serious': [], 'errors': [], 'engine': ['[ChromIQ layout engine] patch count: 10 designed + 10 paper-white fill-up patches completing the last strip = 20 total. Instruments read whole strips; the fill-up patches are measured like any others.', '[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip']}
+09:07:00   shot Screenshots/A10-extremes/x01-1-patch.png  (3400x2100)
+09:07:00   json Test Runs/logs/d07_results.json
+09:07:01   armed: dialog ~'quite fill' -> click 'OK' 
+09:07:01   armed: dialog ~'already' -> click 'Continue this project' 

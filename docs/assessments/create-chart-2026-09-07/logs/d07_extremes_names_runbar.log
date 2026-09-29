@@ -1,0 +1,1392 @@
+2026-09-07 09:06:13,049 [WARNING] core.settings: Settings SANDBOXED to /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini (CHROMIQ_SETTINGS_FILE is set) — the real preferences are untouched
+2026-09-07 09:06:13,049 [DEBUG] core.settings: Settings loaded from /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 09:06:13,049 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 09:06:13,049 [INFO] assess: app built: v4.2.0 appearance=neutral lang=en settings=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 09:06:13,487 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_refresh_manual_command_preview:5501  ←  _init_manual_layout_panel:5630  ←  _set_engine_recipe:17986]
+2026-09-07 09:06:13,509 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:13,509 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:13,509 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:13,509 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:13,509 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:13,509 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:13,511 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:13,511 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:13,511 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:13,511 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:13,511 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:13,511 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:14,835 [INFO] ui.main_window: MainWindow initialised
+2026-09-07 09:06:15,349 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 09:06:15,365 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 09:06:15,511 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 09:06:20,249 [INFO] assess: fresh-session i1/A4/clip: {'align': 'center', 'layout_mode': 'patch_first', 'info': 't\nChromIQ layout engine · i1 · A4 portrait · 300 dpi · margins 38/9/19/26 mm · clip border on · align center\nLayout preset: i1 · A4 portrait · clip   ● modified', 'store': ['i1_A4R_clip.json', 'i1_A4_clip.json']}
+2026-09-07 09:06:20,444 [INFO] assess:   shot Screenshots/A8-presets/q32-fresh-session-i1-A4-clip.png  (3400x2100)
+2026-09-07 09:06:20,444 [INFO] assess:   json Test Runs/logs/d07_results.json
+2026-09-07 09:06:20,444 [INFO] assess:   removed sandbox Chart Layout/i1_A4_clip.json (created by D06)
+2026-09-07 09:06:20,444 [DEBUG] core.settings: settings.set session_target_name = 'B1-Guided'
+2026-09-07 09:06:20,444 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 09:06:20,444 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:06:20,445 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:06:20,447 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 09:06:20,447 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 09:06:20,467 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:20,467 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,467 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,468 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,468 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,468 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,480 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:20,480 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,480 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,480 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,480 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,480 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,489 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 09:06:20,489 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 09:06:20,495 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:20,495 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,495 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,495 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,495 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,495 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,497 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:20,497 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,497 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,497 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,497 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,497 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,508 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 09:06:20,508 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 09:06:20,513 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:20,513 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,513 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,513 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,513 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,513 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,514 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:20,514 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,514 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,514 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,514 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,514 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,524 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 09:06:20,524 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 09:06:20,529 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:20,529 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,529 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,529 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,529 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,529 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,530 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 09:06:20,530 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,530 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,530 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,530 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,530 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,546 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:06:20,555 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=bw/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 09:06:20,556 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:20,556 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,556 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,556 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,556 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,556 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,563 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:20,563 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,563 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,563 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,563 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,563 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,566 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:20,566 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:20,566 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:20,566 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:20,566 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:20,566 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:20,578 [INFO] ui.tabs.tab_chart: chart loaded: 2 page(s) counted from the page images (field was 2, now 2)
+2026-09-07 09:06:20,580 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:06:20,583 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:06:20,585 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 4 parameters and 2 ui values away from the target's own
+2026-09-07 09:06:20,587 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:06:20,590 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 09:06:20,590 [INFO] ui.main_window: Session restored: target=B1-Guided run=run1
+2026-09-07 09:06:21,798 [INFO] assess: open_project('B1-Guided') -> run bar reads 'Run 1 (overwrite)' ok=True
+2026-09-07 09:06:22,906 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:22,907 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:22,907 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:22,907 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:22,907 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:22,907 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:23,413 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:23,413 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:23,413 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:23,413 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:23,413 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:23,413 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:23,673 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:06:23,674 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:06:23,675 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in manual: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:06:23,681 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:06:23,681 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:06:23,681 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:06:23,681 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:06:23,682 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:06:23,703 [INFO] workflow.chart_creator: Chart generation: 252 patches, instrument=i1 paper=A4 disable_lb=True
+2026-09-07 09:06:23,703 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f252', '-e3', '-B3', '-G', '-g14', 'B1-Guided']
+2026-09-07 09:06:23,703 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f252 -e3 -B3 -G -g14 B1-Guided  [cwd=/Users/Basti/ChromIQ-assessment/B1-Guided/runs/run1]
+2026-09-07 09:06:23,769 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:06:23,769 [DEBUG] core.argyll_runner: [argyll] White patches = 3
+2026-09-07 09:06:23,769 [DEBUG] core.argyll_runner: [argyll] Black patches = 3
+2026-09-07 09:06:23,769 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 14
+2026-09-07 09:06:23,769 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 252
+2026-09-07 09:06:23,770 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 09:06:23,770 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 09:06:23,770 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 7
+2026-09-07 09:06:23,770 [DEBUG] core.argyll_runner: [argyll] Seeding cache...done
+2026-09-07 09:06:23,770 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 7
+2026-09-07 09:06:23,771 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:06:23,771 [DEBUG] core.argyll_runner: [argyll] There are 14 unique fixed points to add (18 total fixed points)
+2026-09-07 09:06:23,771 [DEBUG] core.argyll_runner: [argyll] There are 234 far spread points to add
+2026-09-07 09:06:23,771 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:06:23,771 [DEBUG] core.argyll_runner: [argyll] Added 12/248
+2026-09-07 09:06:23,771 [DEBUG] core.argyll_runner: [argyll] Added 23/248
+2026-09-07 09:06:23,772 [DEBUG] core.argyll_runner: [argyll] Added 34/248
+2026-09-07 09:06:23,772 [DEBUG] core.argyll_runner: [argyll] Added 45/248
+2026-09-07 09:06:23,772 [DEBUG] core.argyll_runner: [argyll] Added 56/248
+2026-09-07 09:06:23,773 [DEBUG] core.argyll_runner: [argyll] Added 67/248
+2026-09-07 09:06:23,773 [DEBUG] core.argyll_runner: [argyll] Added 78/248
+2026-09-07 09:06:23,774 [DEBUG] core.argyll_runner: [argyll] Added 89/248
+2026-09-07 09:06:23,775 [DEBUG] core.argyll_runner: [argyll] Added 100/248
+2026-09-07 09:06:23,796 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:06:23,796 [DEBUG] core.argyll_runner: [argyll] Added 111/248
+2026-09-07 09:06:23,796 [DEBUG] core.argyll_runner: [argyll] Added 122/248
+2026-09-07 09:06:23,797 [DEBUG] core.argyll_runner: [argyll] Added 133/248
+2026-09-07 09:06:23,797 [DEBUG] core.argyll_runner: [argyll] Added 144/248
+2026-09-07 09:06:23,797 [DEBUG] core.argyll_runner: [argyll] Added 155/248
+2026-09-07 09:06:23,798 [DEBUG] core.argyll_runner: [argyll] Added 166/248
+2026-09-07 09:06:23,798 [DEBUG] core.argyll_runner: [argyll] Added 177/248
+2026-09-07 09:06:23,799 [DEBUG] core.argyll_runner: [argyll] Added 188/248
+2026-09-07 09:06:23,800 [DEBUG] core.argyll_runner: [argyll] Added 199/248
+2026-09-07 09:06:23,800 [DEBUG] core.argyll_runner: [argyll] Added 210/248
+2026-09-07 09:06:23,801 [DEBUG] core.argyll_runner: [argyll] Added 221/248
+2026-09-07 09:06:23,802 [DEBUG] core.argyll_runner: [argyll] Added 232/248
+2026-09-07 09:06:23,803 [DEBUG] core.argyll_runner: [argyll] Added 243/248
+2026-09-07 09:06:23,804 [DEBUG] core.argyll_runner: [argyll] Added 248/248
+2026-09-07 09:06:24,182 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:06:24,182 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 7.119, Min = 5.547, Avg. = 14.071, Max = 18.066, 0.0 secs
+2026-09-07 09:06:24,183 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,183 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.120846, MinPoint = 4.940, Min = 5.359, Avg. = 14.146, Max = 19.771, 0.0 secs.
+2026-09-07 09:06:24,183 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,183 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.123330, MinPoint = 3.492, Min = 7.943, Avg. = 14.026, Max = 18.566, 0.0 secs.
+2026-09-07 09:06:24,184 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,184 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.108714, MinPoint = 6.853, Min = 7.585, Avg. = 13.904, Max = 18.794, 0.0 secs.
+2026-09-07 09:06:24,184 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,184 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.100584, MinPoint = 8.333, Min = 7.912, Avg. = 13.861, Max = 18.755, 0.0 secs.
+2026-09-07 09:06:24,185 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,185 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.101211, MinPoint = 8.826, Min = 8.435, Avg. = 13.822, Max = 17.697, 0.0 secs.
+2026-09-07 09:06:24,185 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,185 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.079675, MinPoint = 9.935, Min = 8.691, Avg. = 13.727, Max = 18.222, 0.0 secs.
+2026-09-07 09:06:24,186 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,186 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.068378, MinPoint = 10.423, Min = 9.051, Avg. = 13.726, Max = 17.536, 0.0 secs.
+2026-09-07 09:06:24,186 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,186 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.070401, MinPoint = 10.263, Min = 7.535, Avg. = 13.673, Max = 17.112, 0.0 secs.
+2026-09-07 09:06:24,187 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,187 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.064001, MinPoint = 11.422, Min = 8.648, Avg. = 13.643, Max = 16.781, 0.0 secs.
+2026-09-07 09:06:24,187 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,187 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.049895, MinPoint = 12.092, Min = 8.271, Avg. = 13.595, Max = 17.444, 0.0 secs.
+2026-09-07 09:06:24,188 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,188 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.049651, MinPoint = 11.799, Min = 9.058, Avg. = 13.579, Max = 17.080, 0.0 secs.
+2026-09-07 09:06:24,188 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,188 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.042302, MinPoint = 12.836, Min = 9.608, Avg. = 13.553, Max = 16.887, 0.0 secs.
+2026-09-07 09:06:24,189 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,189 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.029886, MinPoint = 12.836, Min = 8.968, Avg. = 13.549, Max = 17.043, 0.0 secs.
+2026-09-07 09:06:24,189 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,189 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.026035, MinPoint = 12.786, Min = 9.706, Avg. = 13.560, Max = 16.637, 0.0 secs.
+2026-09-07 09:06:24,190 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,190 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.017906, MinPoint = 12.836, Min = 9.630, Avg. = 13.540, Max = 16.331, 0.0 secs.
+2026-09-07 09:06:24,190 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,190 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.015535, MinPoint = 12.653, Min = 9.715, Avg. = 13.546, Max = 16.287, 0.0 secs.
+2026-09-07 09:06:24,191 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,191 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.010367, MinPoint = 12.836, Min = 9.702, Avg. = 13.534, Max = 16.209, 0.0 secs.
+2026-09-07 09:06:24,191 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,191 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.005776, MinPoint = 12.836, Min = 9.700, Avg. = 13.530, Max = 16.115, 0.0 secs.
+2026-09-07 09:06:24,192 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,192 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.002113, MinPoint = 12.836, Min = 9.695, Avg. = 13.529, Max = 16.177, 0.0 secs.
+2026-09-07 09:06:24,192 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:06:24,192 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.002071, MinPoint = 12.836, Min = 9.691, Avg. = 13.527, Max = 16.215, 0.0 secs.
+2026-09-07 09:06:24,193 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 12.836, Min = 9.691, Avg. = 13.527, Max = 16.215
+2026-09-07 09:06:24,193 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 252
+2026-09-07 09:06:24,193 [DEBUG] core.argyll_runner: [argyll] Execution time = 0.413671 seconds
+2026-09-07 09:06:24,193 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:06:24,252 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:06:24,331 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:24,331 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:06:24,342 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:24,343 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:24,347 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:06:26,554 [INFO] assess:   armed: dialog ~'Auto-update preview is on' -> click 'Close' 
+2026-09-07 09:06:26,554 [DEBUG] core.settings: settings.set auto_update_preview = True
+2026-09-07 09:06:26,653 [INFO] assess:   DIALOG expected [_InfoDialog] 'Auto-update preview is on' -> clicked 'Close'
+2026-09-07 09:06:27,655 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:27,655 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:27,655 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:27,655 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:27,655 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:27,655 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:28,111 [INFO] ui.tabs.tab_chart: chart build (live preview) in manual: patch set B1-Guided.ti1 | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:06:28,112 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:06:28,112 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:06:28,112 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:06:28,113 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:06:28,114 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:06:28,191 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:06:28,267 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:28,267 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:06:28,277 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:28,278 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:28,281 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:06:33,897 [INFO] assess:   TIMEOUT waiting 6000 ms for auto build after nudge (clean)
+2026-09-07 09:06:35,920 [INFO] assess: A7 clean nudge: {'fired': False, 'after_s': 6.27, 'flags': {'in_flight': False, 'owned': False, 'last_sig_set': True}}
+2026-09-07 09:06:35,920 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:06:35,920 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:06:35,949 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [_on_preset_selected:8907  ←  _restore_user_preset:9029  ←  _set_engine_recipe:17986]
+2026-09-07 09:06:35,959 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:35,959 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:35,959 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:35,959 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:35,959 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:35,959 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:35,985 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:35,985 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:35,985 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:35,985 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:35,985 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:35,985 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:38,724 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:38,725 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:38,725 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:38,725 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:38,725 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:38,725 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:39,172 [INFO] ui.tabs.tab_chart: chart build (live preview) in manual: patch set B1-Guided.ti1 | manual panel: A4R, 0x0 grid, margins T20.0 R15.0 B15.0 L15.0
+2026-09-07 09:06:39,173 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:06:39,173 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:06:39,173 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:06:39,174 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:06:39,175 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:06:39,243 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:06:39,319 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:39,319 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:06:39,328 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:39,329 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:39,333 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:06:44,921 [INFO] assess:   TIMEOUT waiting 6000 ms for auto build after preset load
+2026-09-07 09:06:46,937 [INFO] assess: A7 after preset: {'fired': False, 'after_s': 6.21, 'flags': {'in_flight': False, 'owned': False, 'preset_ti1': '/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/presets/Create Chart/AssessPresetB.ti1', 'pending_editor': 'None'}, 'info': 'Auto patch count · Auto grey/white/black):\nLays out the existing patch set (targen skipped).\nprinttarg -ii1 -pA4R -t300 -L -a0.95 -m10 -M10 chart\nLayout preset: i1 · A4 landscape · noclip   ● modified'}
+2026-09-07 09:06:47,576 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:47,576 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:47,577 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:47,577 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:47,577 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:47,577 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:48,012 [INFO] ui.tabs.tab_chart: chart build (live preview) in manual: patch set B1-Guided.ti1 | manual panel: A4R, 0x0 grid, margins T22.0 R15.0 B15.0 L15.0
+2026-09-07 09:06:48,014 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:06:48,015 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:06:48,015 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:06:48,016 [DEBUG] core.file_manager: Target name set to: B1-Guided (root /Users/Basti/ChromIQ-assessment/B1-Guided)
+2026-09-07 09:06:48,017 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/B1-Guided (1 run(s) on disk)
+2026-09-07 09:06:48,084 [DEBUG] workflow.chart_creator: Wrote channel sidecar B1-Guided.channels.json: ['r', 'g', 'b']
+2026-09-07 09:06:48,159 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:48,159 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:06:48,169 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:48,170 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:48,173 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:06:53,721 [INFO] assess:   TIMEOUT waiting 6000 ms for auto build after none
+2026-09-07 09:06:55,436 [INFO] assess: A7 after none: {'fired': False, 'flags': {'in_flight': False, 'preset_ti1': 'None'}}
+2026-09-07 09:06:55,605 [INFO] assess:   shot Screenshots/A7-auto-preview/a30-clean-order.png  (3400x2100)
+2026-09-07 09:06:55,605 [DEBUG] core.settings: settings.set auto_update_preview = False
+2026-09-07 09:06:56,067 [INFO] assess:   json Test Runs/logs/d07_results.json
+2026-09-07 09:06:56,075 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 09:06:56,075 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 09:06:56,087 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:56,087 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:56,088 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:56,088 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:56,088 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:56,088 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:56,101 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:56,101 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:56,101 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:56,101 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:56,101 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:56,101 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:56,108 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 09:06:56,108 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 09:06:56,115 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:56,115 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:56,115 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:56,115 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:56,115 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:56,115 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:56,122 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:56,122 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:56,122 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:56,122 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:56,122 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:56,122 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:56,290 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:56,290 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:56,290 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:56,290 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:56,290 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:56,290 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:56,502 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:56,502 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:56,502 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:56,502 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:56,502 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:56,502 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:56,522 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:56,522 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:56,522 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:56,522 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:56,522 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:56,522 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:56,707 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:56,707 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:56,707 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:56,707 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:56,707 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:56,707 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:56,900 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 09:06:56,900 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 09:06:56,900 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 09:06:56,900 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 09:06:56,900 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 09:06:56,900 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 09:06:57,951 [INFO] assess:   armed: dialog ~'Rename Printer Profile' -> click 'Create "A10-Extremes" and keep' 
+2026-09-07 09:06:57,951 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:06:57,951 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:06:57,952 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in manual: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:06:58,012 [INFO] assess:   DIALOG expected [TargetChangeDialog] 'Rename Printer Profile' -> clicked 'Create "A10-Extremes" and keep "B1-Guided"'
+2026-09-07 09:06:58,013 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:06:58,013 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:06:58,013 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:06:58,013 [DEBUG] core.file_manager: Target name set to: A10-Extremes (root /Users/Basti/ChromIQ-assessment/A10-Extremes)
+2026-09-07 09:06:58,015 [INFO] core.file_manager: created a NEW project 'A10-Extremes' at /Users/Basti/ChromIQ-assessment/A10-Extremes
+2026-09-07 09:06:58,018 [INFO] core.file_manager: Created project at /Users/Basti/ChromIQ-assessment/A10-Extremes
+2026-09-07 09:06:58,018 [INFO] ui.tabs.tab_chart: run description + chart notes written to run1
+2026-09-07 09:06:58,019 [INFO] ui.tabs.tab_chart: create-chart settings seeded into the new project's run1
+2026-09-07 09:06:58,020 [INFO] workflow.chart_creator: Chart generation: 1 patches, instrument=i1 paper=A4 disable_lb=True
+2026-09-07 09:06:58,020 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f1', '-e2', '-B2', '-G', '-g8', 'A10-Extremes']
+2026-09-07 09:06:58,021 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f1 -e2 -B2 -G -g8 A10-Extremes  [cwd=/Users/Basti/ChromIQ-assessment/A10-Extremes/runs/run1]
+2026-09-07 09:06:58,120 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:06:58,120 [DEBUG] core.argyll_runner: [argyll] White patches = 2
+2026-09-07 09:06:58,120 [DEBUG] core.argyll_runner: [argyll] Black patches = 2
+2026-09-07 09:06:58,120 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 8
+2026-09-07 09:06:58,120 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 1
+2026-09-07 09:06:58,121 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 10
+2026-09-07 09:06:58,121 [DEBUG] core.argyll_runner: [argyll] Execution time = 0.000341 seconds
+2026-09-07 09:06:58,121 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:06:58,172 [DEBUG] workflow.chart_creator: Wrote channel sidecar A10-Extremes.channels.json: ['r', 'g', 'b']
+2026-09-07 09:06:58,250 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:58,250 [INFO] ui.tabs.tab_chart: Preview loaded: 1 TIFF(s)
+2026-09-07 09:06:58,257 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:58,258 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 09:06:58,262 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 09:07:00,703 [INFO] assess: 1 patch: {'estimate': {'total': 20, 'fillup': 0, 'page_patches': 20, 'rows': 20, 'cols': 1, 'pages': 1, 'patch': (12.0, 12.0), 'pitch': None}, 'ok': True, 'stopped': False, 'secs': 2.8, 'actual': {'total': 20, 'fillup': 10, 'page_patches': 20, 'rows': 20, 'cols': 1, 'pages': 1, 'patch': (12.02, 12.02), 'pitch': None}, 'status': '', 'notes': '⚠ The left margin was widened from 26.0 mm to 29.7 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 2.7 mm. “Clip” is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing — the note under “Text distance from edge” names what is. To get that paper back, switch “Show row indicators” off or use a smaller label size.', 'margin_text': 'mm | inch | min | Left (to first patch) | 29.7 | 1.170 | 26.0 | Right (to first patch) | 168.3 | 6.624 | 9.0 | Top (to first patch) | 38.0 | 1.497 | 38.0 | Bottom (to first patch) | 19.0 | 0.750 | 19.0 | Patch width (in strip reading direction) | 12.0 | 0.473 ', 'dialogs': [('Rename Printer Profile', 'clicked \'Create "A10-Extremes" and keep "B1-Guided"\'')], 'serious': [], 'errors': [], 'engine': ['[ChromIQ layout engine] patch count: 10 designed + 10 paper-white fill-up patches completing the last strip = 20 total. Instruments read whole strips; the fill-up patches are measured like any others.', '[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip']}
+2026-09-07 09:07:00,865 [INFO] assess:   shot Screenshots/A10-extremes/x01-1-patch.png  (3400x2100)
+2026-09-07 09:07:00,866 [INFO] assess:   json Test Runs/logs/d07_results.json
+2026-09-07 09:07:01,267 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 09:07:01,267 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 09:07:01,268 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in manual: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 09:07:01,271 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 09:07:01,271 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 09:07:01,271 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 09:07:01,272 [DEBUG] core.file_manager: Target name set to: A10-Extremes (root /Users/Basti/ChromIQ-assessment/A10-Extremes)
+2026-09-07 09:07:01,274 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/A10-Extremes (1 run(s) on disk)
+2026-09-07 09:07:01,278 [INFO] workflow.chart_creator: Chart generation: 10000 patches, instrument=i1 paper=A4 disable_lb=True
+2026-09-07 09:07:01,278 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f10000', '-e8', '-B8', '-G', '-g128', 'A10-Extremes']
+2026-09-07 09:07:01,278 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f10000 -e8 -B8 -G -g128 A10-Extremes  [cwd=/Users/Basti/ChromIQ-assessment/A10-Extremes/runs/run1]
+2026-09-07 09:07:01,369 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 09:07:01,369 [DEBUG] core.argyll_runner: [argyll] White patches = 8
+2026-09-07 09:07:01,370 [DEBUG] core.argyll_runner: [argyll] Black patches = 8
+2026-09-07 09:07:01,370 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 128
+2026-09-07 09:07:01,370 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 10000
+2026-09-07 09:07:01,370 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 09:07:01,370 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 09:07:01,370 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 23
+2026-09-07 09:07:01,371 [DEBUG] core.argyll_runner: [argyll] Seeding cache...
+2026-09-07 09:07:01,494 [DEBUG] core.argyll_runner: [argyll] done
+2026-09-07 09:07:01,494 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 23
+2026-09-07 09:07:01,494 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,494 [DEBUG] core.argyll_runner: [argyll] There are 128 unique fixed points to add (142 total fixed points)
+2026-09-07 09:07:01,495 [DEBUG] core.argyll_runner: [argyll] There are 9858 far spread points to add
+2026-09-07 09:07:01,495 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,495 [DEBUG] core.argyll_runner: [argyll] Added 12/9986
+2026-09-07 09:07:01,507 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,507 [DEBUG] core.argyll_runner: [argyll] Added 23/9986
+2026-09-07 09:07:01,507 [DEBUG] core.argyll_runner: [argyll] Added 34/9986
+2026-09-07 09:07:01,508 [DEBUG] core.argyll_runner: [argyll] Added 45/9986
+2026-09-07 09:07:01,508 [DEBUG] core.argyll_runner: [argyll] Added 56/9986
+2026-09-07 09:07:01,508 [DEBUG] core.argyll_runner: [argyll] Added 67/9986
+2026-09-07 09:07:01,509 [DEBUG] core.argyll_runner: [argyll] Added 78/9986
+2026-09-07 09:07:01,509 [DEBUG] core.argyll_runner: [argyll] Added 89/9986
+2026-09-07 09:07:01,510 [DEBUG] core.argyll_runner: [argyll] Added 100/9986
+2026-09-07 09:07:01,523 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,523 [DEBUG] core.argyll_runner: [argyll] Added 111/9986
+2026-09-07 09:07:01,523 [DEBUG] core.argyll_runner: [argyll] Added 122/9986
+2026-09-07 09:07:01,523 [DEBUG] core.argyll_runner: [argyll] Added 133/9986
+2026-09-07 09:07:01,524 [DEBUG] core.argyll_runner: [argyll] Added 144/9986
+2026-09-07 09:07:01,524 [DEBUG] core.argyll_runner: [argyll] Added 155/9986
+2026-09-07 09:07:01,524 [DEBUG] core.argyll_runner: [argyll] Added 166/9986
+2026-09-07 09:07:01,525 [DEBUG] core.argyll_runner: [argyll] Added 177/9986
+2026-09-07 09:07:01,525 [DEBUG] core.argyll_runner: [argyll] Added 188/9986
+2026-09-07 09:07:01,526 [DEBUG] core.argyll_runner: [argyll] Added 199/9986
+2026-09-07 09:07:01,538 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,538 [DEBUG] core.argyll_runner: [argyll] Added 210/9986
+2026-09-07 09:07:01,538 [DEBUG] core.argyll_runner: [argyll] Added 221/9986
+2026-09-07 09:07:01,538 [DEBUG] core.argyll_runner: [argyll] Added 232/9986
+2026-09-07 09:07:01,538 [DEBUG] core.argyll_runner: [argyll] Added 243/9986
+2026-09-07 09:07:01,539 [DEBUG] core.argyll_runner: [argyll] Added 254/9986
+2026-09-07 09:07:01,539 [DEBUG] core.argyll_runner: [argyll] Added 265/9986
+2026-09-07 09:07:01,540 [DEBUG] core.argyll_runner: [argyll] Added 276/9986
+2026-09-07 09:07:01,540 [DEBUG] core.argyll_runner: [argyll] Added 287/9986
+2026-09-07 09:07:01,551 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,552 [DEBUG] core.argyll_runner: [argyll] Added 298/9986
+2026-09-07 09:07:01,552 [DEBUG] core.argyll_runner: [argyll] Added 309/9986
+2026-09-07 09:07:01,552 [DEBUG] core.argyll_runner: [argyll] Added 320/9986
+2026-09-07 09:07:01,552 [DEBUG] core.argyll_runner: [argyll] Added 331/9986
+2026-09-07 09:07:01,553 [DEBUG] core.argyll_runner: [argyll] Added 342/9986
+2026-09-07 09:07:01,553 [DEBUG] core.argyll_runner: [argyll] Added 353/9986
+2026-09-07 09:07:01,553 [DEBUG] core.argyll_runner: [argyll] Added 364/9986
+2026-09-07 09:07:01,554 [DEBUG] core.argyll_runner: [argyll] Added 375/9986
+2026-09-07 09:07:01,567 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,567 [DEBUG] core.argyll_runner: [argyll] Added 386/9986
+2026-09-07 09:07:01,567 [DEBUG] core.argyll_runner: [argyll] Added 397/9986
+2026-09-07 09:07:01,568 [DEBUG] core.argyll_runner: [argyll] Added 408/9986
+2026-09-07 09:07:01,568 [DEBUG] core.argyll_runner: [argyll] Added 419/9986
+2026-09-07 09:07:01,568 [DEBUG] core.argyll_runner: [argyll] Added 430/9986
+2026-09-07 09:07:01,569 [DEBUG] core.argyll_runner: [argyll] Added 441/9986
+2026-09-07 09:07:01,569 [DEBUG] core.argyll_runner: [argyll] Added 452/9986
+2026-09-07 09:07:01,570 [DEBUG] core.argyll_runner: [argyll] Added 463/9986
+2026-09-07 09:07:01,570 [DEBUG] core.argyll_runner: [argyll] Added 474/9986
+2026-09-07 09:07:01,571 [DEBUG] core.argyll_runner: [argyll] Added 485/9986
+2026-09-07 09:07:01,572 [DEBUG] core.argyll_runner: [argyll] Added 496/9986
+2026-09-07 09:07:01,585 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,586 [DEBUG] core.argyll_runner: [argyll] Added 507/9986
+2026-09-07 09:07:01,586 [DEBUG] core.argyll_runner: [argyll] Added 518/9986
+2026-09-07 09:07:01,586 [DEBUG] core.argyll_runner: [argyll] Added 529/9986
+2026-09-07 09:07:01,586 [DEBUG] core.argyll_runner: [argyll] Added 540/9986
+2026-09-07 09:07:01,586 [DEBUG] core.argyll_runner: [argyll] Added 551/9986
+2026-09-07 09:07:01,587 [DEBUG] core.argyll_runner: [argyll] Added 562/9986
+2026-09-07 09:07:01,587 [DEBUG] core.argyll_runner: [argyll] Added 573/9986
+2026-09-07 09:07:01,588 [DEBUG] core.argyll_runner: [argyll] Added 584/9986
+2026-09-07 09:07:01,589 [DEBUG] core.argyll_runner: [argyll] Added 595/9986
+2026-09-07 09:07:01,589 [DEBUG] core.argyll_runner: [argyll] Added 606/9986
+2026-09-07 09:07:01,590 [DEBUG] core.argyll_runner: [argyll] Added 617/9986
+2026-09-07 09:07:01,591 [DEBUG] core.argyll_runner: [argyll] Added 628/9986
+2026-09-07 09:07:01,592 [DEBUG] core.argyll_runner: [argyll] Added 639/9986
+2026-09-07 09:07:01,593 [DEBUG] core.argyll_runner: [argyll] Added 650/9986
+2026-09-07 09:07:01,595 [DEBUG] core.argyll_runner: [argyll] Added 661/9986
+2026-09-07 09:07:01,596 [DEBUG] core.argyll_runner: [argyll] Added 672/9986
+2026-09-07 09:07:01,610 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,610 [DEBUG] core.argyll_runner: [argyll] Added 683/9986
+2026-09-07 09:07:01,610 [DEBUG] core.argyll_runner: [argyll] Added 694/9986
+2026-09-07 09:07:01,610 [DEBUG] core.argyll_runner: [argyll] Added 705/9986
+2026-09-07 09:07:01,611 [DEBUG] core.argyll_runner: [argyll] Added 716/9986
+2026-09-07 09:07:01,611 [DEBUG] core.argyll_runner: [argyll] Added 727/9986
+2026-09-07 09:07:01,611 [DEBUG] core.argyll_runner: [argyll] Added 738/9986
+2026-09-07 09:07:01,612 [DEBUG] core.argyll_runner: [argyll] Added 749/9986
+2026-09-07 09:07:01,613 [DEBUG] core.argyll_runner: [argyll] Added 760/9986
+2026-09-07 09:07:01,613 [DEBUG] core.argyll_runner: [argyll] Added 771/9986
+2026-09-07 09:07:01,614 [DEBUG] core.argyll_runner: [argyll] Added 782/9986
+2026-09-07 09:07:01,615 [DEBUG] core.argyll_runner: [argyll] Added 793/9986
+2026-09-07 09:07:01,616 [DEBUG] core.argyll_runner: [argyll] Added 804/9986
+2026-09-07 09:07:01,617 [DEBUG] core.argyll_runner: [argyll] Added 815/9986
+2026-09-07 09:07:01,618 [DEBUG] core.argyll_runner: [argyll] Added 826/9986
+2026-09-07 09:07:01,619 [DEBUG] core.argyll_runner: [argyll] Added 837/9986
+2026-09-07 09:07:01,620 [DEBUG] core.argyll_runner: [argyll] Added 848/9986
+2026-09-07 09:07:01,622 [DEBUG] core.argyll_runner: [argyll] Added 859/9986
+2026-09-07 09:07:01,623 [DEBUG] core.argyll_runner: [argyll] Added 870/9986
+2026-09-07 09:07:01,625 [DEBUG] core.argyll_runner: [argyll] Added 881/9986
+2026-09-07 09:07:01,626 [DEBUG] core.argyll_runner: [argyll] Added 892/9986
+2026-09-07 09:07:01,628 [DEBUG] core.argyll_runner: [argyll] Added 903/9986
+2026-09-07 09:07:01,630 [DEBUG] core.argyll_runner: [argyll] Added 914/9986
+2026-09-07 09:07:01,631 [DEBUG] core.argyll_runner: [argyll] Added 925/9986
+2026-09-07 09:07:01,633 [DEBUG] core.argyll_runner: [argyll] Added 936/9986
+2026-09-07 09:07:01,635 [DEBUG] core.argyll_runner: [argyll] Added 947/9986
+2026-09-07 09:07:01,650 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,651 [DEBUG] core.argyll_runner: [argyll] Added 958/9986
+2026-09-07 09:07:01,651 [DEBUG] core.argyll_runner: [argyll] Added 969/9986
+2026-09-07 09:07:01,651 [DEBUG] core.argyll_runner: [argyll] Added 980/9986
+2026-09-07 09:07:01,651 [DEBUG] core.argyll_runner: [argyll] Added 991/9986
+2026-09-07 09:07:01,652 [DEBUG] core.argyll_runner: [argyll] Added 1002/9986
+2026-09-07 09:07:01,652 [DEBUG] core.argyll_runner: [argyll] Added 1013/9986
+2026-09-07 09:07:01,653 [DEBUG] core.argyll_runner: [argyll] Added 1024/9986
+2026-09-07 09:07:01,654 [DEBUG] core.argyll_runner: [argyll] Added 1035/9986
+2026-09-07 09:07:01,654 [DEBUG] core.argyll_runner: [argyll] Added 1046/9986
+2026-09-07 09:07:01,655 [DEBUG] core.argyll_runner: [argyll] Added 1057/9986
+2026-09-07 09:07:01,656 [DEBUG] core.argyll_runner: [argyll] Added 1068/9986
+2026-09-07 09:07:01,658 [DEBUG] core.argyll_runner: [argyll] Added 1079/9986
+2026-09-07 09:07:01,659 [DEBUG] core.argyll_runner: [argyll] Added 1090/9986
+2026-09-07 09:07:01,661 [DEBUG] core.argyll_runner: [argyll] Added 1101/9986
+2026-09-07 09:07:01,662 [DEBUG] core.argyll_runner: [argyll] Added 1112/9986
+2026-09-07 09:07:01,664 [DEBUG] core.argyll_runner: [argyll] Added 1123/9986
+2026-09-07 09:07:01,666 [DEBUG] core.argyll_runner: [argyll] Added 1134/9986
+2026-09-07 09:07:01,668 [DEBUG] core.argyll_runner: [argyll] Added 1145/9986
+2026-09-07 09:07:01,670 [DEBUG] core.argyll_runner: [argyll] Added 1156/9986
+2026-09-07 09:07:01,672 [DEBUG] core.argyll_runner: [argyll] Added 1167/9986
+2026-09-07 09:07:01,675 [DEBUG] core.argyll_runner: [argyll] Added 1178/9986
+2026-09-07 09:07:01,677 [DEBUG] core.argyll_runner: [argyll] Added 1189/9986
+2026-09-07 09:07:01,680 [DEBUG] core.argyll_runner: [argyll] Added 1200/9986
+2026-09-07 09:07:01,683 [DEBUG] core.argyll_runner: [argyll] Added 1211/9986
+2026-09-07 09:07:01,686 [DEBUG] core.argyll_runner: [argyll] Added 1222/9986
+2026-09-07 09:07:01,689 [DEBUG] core.argyll_runner: [argyll] Added 1233/9986
+2026-09-07 09:07:01,692 [DEBUG] core.argyll_runner: [argyll] Added 1244/9986
+2026-09-07 09:07:01,695 [DEBUG] core.argyll_runner: [argyll] Added 1255/9986
+2026-09-07 09:07:01,699 [DEBUG] core.argyll_runner: [argyll] Added 1266/9986
+2026-09-07 09:07:01,702 [DEBUG] core.argyll_runner: [argyll] Added 1277/9986
+2026-09-07 09:07:01,706 [DEBUG] core.argyll_runner: [argyll] Added 1288/9986
+2026-09-07 09:07:01,710 [DEBUG] core.argyll_runner: [argyll] Added 1299/9986
+2026-09-07 09:07:01,714 [DEBUG] core.argyll_runner: [argyll] Added 1310/9986
+2026-09-07 09:07:01,718 [DEBUG] core.argyll_runner: [argyll] Added 1321/9986
+2026-09-07 09:07:01,722 [DEBUG] core.argyll_runner: [argyll] Added 1332/9986
+2026-09-07 09:07:01,727 [DEBUG] core.argyll_runner: [argyll] Added 1343/9986
+2026-09-07 09:07:01,732 [DEBUG] core.argyll_runner: [argyll] Added 1354/9986
+2026-09-07 09:07:01,736 [DEBUG] core.argyll_runner: [argyll] Added 1365/9986
+2026-09-07 09:07:01,741 [DEBUG] core.argyll_runner: [argyll] Added 1376/9986
+2026-09-07 09:07:01,746 [DEBUG] core.argyll_runner: [argyll] Added 1387/9986
+2026-09-07 09:07:01,765 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:01,766 [DEBUG] core.argyll_runner: [argyll] Added 1398/9986
+2026-09-07 09:07:01,766 [DEBUG] core.argyll_runner: [argyll] Added 1409/9986
+2026-09-07 09:07:01,767 [DEBUG] core.argyll_runner: [argyll] Added 1420/9986
+2026-09-07 09:07:01,767 [DEBUG] core.argyll_runner: [argyll] Added 1431/9986
+2026-09-07 09:07:01,768 [DEBUG] core.argyll_runner: [argyll] Added 1442/9986
+2026-09-07 09:07:01,768 [DEBUG] core.argyll_runner: [argyll] Added 1453/9986
+2026-09-07 09:07:01,769 [DEBUG] core.argyll_runner: [argyll] Added 1464/9986
+2026-09-07 09:07:01,770 [DEBUG] core.argyll_runner: [argyll] Added 1475/9986
+2026-09-07 09:07:01,771 [DEBUG] core.argyll_runner: [argyll] Added 1486/9986
+2026-09-07 09:07:01,772 [DEBUG] core.argyll_runner: [argyll] Added 1497/9986
+2026-09-07 09:07:01,773 [DEBUG] core.argyll_runner: [argyll] Added 1508/9986
+2026-09-07 09:07:01,775 [DEBUG] core.argyll_runner: [argyll] Added 1519/9986
+2026-09-07 09:07:01,776 [DEBUG] core.argyll_runner: [argyll] Added 1530/9986
+2026-09-07 09:07:01,778 [DEBUG] core.argyll_runner: [argyll] Added 1541/9986
+2026-09-07 09:07:01,780 [DEBUG] core.argyll_runner: [argyll] Added 1552/9986
+2026-09-07 09:07:01,782 [DEBUG] core.argyll_runner: [argyll] Added 1563/9986
+2026-09-07 09:07:01,784 [DEBUG] core.argyll_runner: [argyll] Added 1574/9986
+2026-09-07 09:07:01,786 [DEBUG] core.argyll_runner: [argyll] Added 1585/9986
+2026-09-07 09:07:01,788 [DEBUG] core.argyll_runner: [argyll] Added 1596/9986
+2026-09-07 09:07:01,791 [DEBUG] core.argyll_runner: [argyll] Added 1607/9986
+2026-09-07 09:07:01,794 [DEBUG] core.argyll_runner: [argyll] Added 1618/9986
+2026-09-07 09:07:01,796 [DEBUG] core.argyll_runner: [argyll] Added 1629/9986
+2026-09-07 09:07:01,799 [DEBUG] core.argyll_runner: [argyll] Added 1640/9986
+2026-09-07 09:07:01,802 [DEBUG] core.argyll_runner: [argyll] Added 1651/9986
+2026-09-07 09:07:01,805 [DEBUG] core.argyll_runner: [argyll] Added 1662/9986
+2026-09-07 09:07:01,809 [DEBUG] core.argyll_runner: [argyll] Added 1673/9986
+2026-09-07 09:07:01,813 [DEBUG] core.argyll_runner: [argyll] Added 1684/9986
+2026-09-07 09:07:01,817 [DEBUG] core.argyll_runner: [argyll] Added 1695/9986
+2026-09-07 09:07:01,821 [DEBUG] core.argyll_runner: [argyll] Added 1706/9986
+2026-09-07 09:07:01,825 [DEBUG] core.argyll_runner: [argyll] Added 1717/9986
+2026-09-07 09:07:01,829 [DEBUG] core.argyll_runner: [argyll] Added 1728/9986
+2026-09-07 09:07:01,833 [DEBUG] core.argyll_runner: [argyll] Added 1739/9986
+2026-09-07 09:07:01,837 [DEBUG] core.argyll_runner: [argyll] Added 1750/9986
+2026-09-07 09:07:01,841 [DEBUG] core.argyll_runner: [argyll] Added 1761/9986
+2026-09-07 09:07:01,846 [DEBUG] core.argyll_runner: [argyll] Added 1772/9986
+2026-09-07 09:07:01,850 [DEBUG] core.argyll_runner: [argyll] Added 1783/9986
+2026-09-07 09:07:01,855 [DEBUG] core.argyll_runner: [argyll] Added 1794/9986
+2026-09-07 09:07:01,860 [DEBUG] core.argyll_runner: [argyll] Added 1805/9986
+2026-09-07 09:07:01,865 [DEBUG] core.argyll_runner: [argyll] Added 1816/9986
+2026-09-07 09:07:01,870 [DEBUG] core.argyll_runner: [argyll] Added 1827/9986
+2026-09-07 09:07:01,876 [DEBUG] core.argyll_runner: [argyll] Added 1838/9986
+2026-09-07 09:07:01,881 [DEBUG] core.argyll_runner: [argyll] Added 1849/9986
+2026-09-07 09:07:01,887 [DEBUG] core.argyll_runner: [argyll] Added 1860/9986
+2026-09-07 09:07:01,893 [DEBUG] core.argyll_runner: [argyll] Added 1871/9986
+2026-09-07 09:07:01,898 [DEBUG] core.argyll_runner: [argyll] Added 1882/9986
+2026-09-07 09:07:01,904 [DEBUG] core.argyll_runner: [argyll] Added 1893/9986
+2026-09-07 09:07:01,911 [DEBUG] core.argyll_runner: [argyll] Added 1904/9986
+2026-09-07 09:07:01,917 [DEBUG] core.argyll_runner: [argyll] Added 1915/9986
+2026-09-07 09:07:01,924 [DEBUG] core.argyll_runner: [argyll] Added 1926/9986
+2026-09-07 09:07:01,931 [DEBUG] core.argyll_runner: [argyll] Added 1937/9986
+2026-09-07 09:07:01,938 [DEBUG] core.argyll_runner: [argyll] Added 1948/9986
+2026-09-07 09:07:01,945 [DEBUG] core.argyll_runner: [argyll] Added 1959/9986
+2026-09-07 09:07:01,953 [DEBUG] core.argyll_runner: [argyll] Added 1970/9986
+2026-09-07 09:07:01,960 [DEBUG] core.argyll_runner: [argyll] Added 1981/9986
+2026-09-07 09:07:01,968 [DEBUG] core.argyll_runner: [argyll] Added 1992/9986
+2026-09-07 09:07:01,975 [DEBUG] core.argyll_runner: [argyll] Added 2003/9986
+2026-09-07 09:07:01,983 [DEBUG] core.argyll_runner: [argyll] Added 2014/9986
+2026-09-07 09:07:01,991 [DEBUG] core.argyll_runner: [argyll] Added 2025/9986
+2026-09-07 09:07:02,000 [DEBUG] core.argyll_runner: [argyll] Added 2036/9986
+2026-09-07 09:07:02,008 [DEBUG] core.argyll_runner: [argyll] Added 2047/9986
+2026-09-07 09:07:02,017 [DEBUG] core.argyll_runner: [argyll] Added 2058/9986
+2026-09-07 09:07:02,025 [DEBUG] core.argyll_runner: [argyll] Added 2069/9986
+2026-09-07 09:07:02,034 [DEBUG] core.argyll_runner: [argyll] Added 2080/9986
+2026-09-07 09:07:02,043 [DEBUG] core.argyll_runner: [argyll] Added 2091/9986
+2026-09-07 09:07:02,052 [DEBUG] core.argyll_runner: [argyll] Added 2102/9986
+2026-09-07 09:07:02,061 [DEBUG] core.argyll_runner: [argyll] Added 2113/9986
+2026-09-07 09:07:02,070 [DEBUG] core.argyll_runner: [argyll] Added 2124/9986
+2026-09-07 09:07:02,080 [DEBUG] core.argyll_runner: [argyll] Added 2135/9986
+2026-09-07 09:07:02,089 [DEBUG] core.argyll_runner: [argyll] Added 2146/9986
+2026-09-07 09:07:02,099 [DEBUG] core.argyll_runner: [argyll] Added 2157/9986
+2026-09-07 09:07:02,109 [DEBUG] core.argyll_runner: [argyll] Added 2168/9986
+2026-09-07 09:07:02,119 [DEBUG] core.argyll_runner: [argyll] Added 2179/9986
+2026-09-07 09:07:02,129 [DEBUG] core.argyll_runner: [argyll] Added 2190/9986
+2026-09-07 09:07:02,139 [DEBUG] core.argyll_runner: [argyll] Added 2201/9986
+2026-09-07 09:07:02,150 [DEBUG] core.argyll_runner: [argyll] Added 2212/9986
+2026-09-07 09:07:02,161 [DEBUG] core.argyll_runner: [argyll] Added 2223/9986
+2026-09-07 09:07:02,171 [DEBUG] core.argyll_runner: [argyll] Added 2234/9986
+2026-09-07 09:07:02,182 [DEBUG] core.argyll_runner: [argyll] Added 2245/9986
+2026-09-07 09:07:02,193 [DEBUG] core.argyll_runner: [argyll] Added 2256/9986
+2026-09-07 09:07:02,204 [DEBUG] core.argyll_runner: [argyll] Added 2267/9986
+2026-09-07 09:07:02,215 [DEBUG] core.argyll_runner: [argyll] Added 2278/9986
+2026-09-07 09:07:02,226 [DEBUG] core.argyll_runner: [argyll] Added 2289/9986
+2026-09-07 09:07:02,238 [DEBUG] core.argyll_runner: [argyll] Added 2300/9986
+2026-09-07 09:07:02,249 [DEBUG] core.argyll_runner: [argyll] Added 2311/9986
+2026-09-07 09:07:02,261 [DEBUG] core.argyll_runner: [argyll] Added 2322/9986
+2026-09-07 09:07:02,273 [DEBUG] core.argyll_runner: [argyll] Added 2333/9986
+2026-09-07 09:07:02,285 [DEBUG] core.argyll_runner: [argyll] Added 2344/9986
+2026-09-07 09:07:02,297 [DEBUG] core.argyll_runner: [argyll] Added 2355/9986
+2026-09-07 09:07:02,309 [DEBUG] core.argyll_runner: [argyll] Added 2366/9986
+2026-09-07 09:07:02,321 [DEBUG] core.argyll_runner: [argyll] Added 2377/9986
+2026-09-07 09:07:02,334 [DEBUG] core.argyll_runner: [argyll] Added 2388/9986
+2026-09-07 09:07:02,347 [DEBUG] core.argyll_runner: [argyll] Added 2399/9986
+2026-09-07 09:07:02,360 [DEBUG] core.argyll_runner: [argyll] Added 2410/9986
+2026-09-07 09:07:02,373 [DEBUG] core.argyll_runner: [argyll] Added 2421/9986
+2026-09-07 09:07:02,386 [DEBUG] core.argyll_runner: [argyll] Added 2432/9986
+2026-09-07 09:07:02,399 [DEBUG] core.argyll_runner: [argyll] Added 2443/9986
+2026-09-07 09:07:02,413 [DEBUG] core.argyll_runner: [argyll] Added 2454/9986
+2026-09-07 09:07:02,426 [DEBUG] core.argyll_runner: [argyll] Added 2465/9986
+2026-09-07 09:07:02,440 [DEBUG] core.argyll_runner: [argyll] Added 2476/9986
+2026-09-07 09:07:02,454 [DEBUG] core.argyll_runner: [argyll] Added 2487/9986
+2026-09-07 09:07:02,467 [DEBUG] core.argyll_runner: [argyll] Added 2498/9986
+2026-09-07 09:07:02,482 [DEBUG] core.argyll_runner: [argyll] Added 2509/9986
+2026-09-07 09:07:02,496 [DEBUG] core.argyll_runner: [argyll] Added 2520/9986
+2026-09-07 09:07:02,510 [DEBUG] core.argyll_runner: [argyll] Added 2531/9986
+2026-09-07 09:07:02,525 [DEBUG] core.argyll_runner: [argyll] Added 2542/9986
+2026-09-07 09:07:02,540 [DEBUG] core.argyll_runner: [argyll] Added 2553/9986
+2026-09-07 09:07:02,555 [DEBUG] core.argyll_runner: [argyll] Added 2564/9986
+2026-09-07 09:07:02,569 [DEBUG] core.argyll_runner: [argyll] Added 2575/9986
+2026-09-07 09:07:02,585 [DEBUG] core.argyll_runner: [argyll] Added 2586/9986
+2026-09-07 09:07:02,600 [DEBUG] core.argyll_runner: [argyll] Added 2597/9986
+2026-09-07 09:07:02,615 [DEBUG] core.argyll_runner: [argyll] Added 2608/9986
+2026-09-07 09:07:02,631 [DEBUG] core.argyll_runner: [argyll] Added 2619/9986
+2026-09-07 09:07:02,646 [DEBUG] core.argyll_runner: [argyll] Added 2630/9986
+2026-09-07 09:07:02,661 [DEBUG] core.argyll_runner: [argyll] Added 2641/9986
+2026-09-07 09:07:02,677 [DEBUG] core.argyll_runner: [argyll] Added 2652/9986
+2026-09-07 09:07:02,709 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:02,714 [DEBUG] core.argyll_runner: [argyll] Added 2663/9986
+2026-09-07 09:07:02,714 [DEBUG] core.argyll_runner: [argyll] Added 2674/9986
+2026-09-07 09:07:02,714 [DEBUG] core.argyll_runner: [argyll] Added 2685/9986
+2026-09-07 09:07:02,714 [DEBUG] core.argyll_runner: [argyll] Added 2696/9986
+2026-09-07 09:07:02,715 [DEBUG] core.argyll_runner: [argyll] Added 2707/9986
+2026-09-07 09:07:02,716 [DEBUG] core.argyll_runner: [argyll] Added 2718/9986
+2026-09-07 09:07:02,716 [DEBUG] core.argyll_runner: [argyll] Added 2729/9986
+2026-09-07 09:07:02,717 [DEBUG] core.argyll_runner: [argyll] Added 2740/9986
+2026-09-07 09:07:02,718 [DEBUG] core.argyll_runner: [argyll] Added 2751/9986
+2026-09-07 09:07:02,720 [DEBUG] core.argyll_runner: [argyll] Added 2762/9986
+2026-09-07 09:07:02,721 [DEBUG] core.argyll_runner: [argyll] Added 2773/9986
+2026-09-07 09:07:02,722 [DEBUG] core.argyll_runner: [argyll] Added 2784/9986
+2026-09-07 09:07:02,724 [DEBUG] core.argyll_runner: [argyll] Added 2795/9986
+2026-09-07 09:07:02,726 [DEBUG] core.argyll_runner: [argyll] Added 2806/9986
+2026-09-07 09:07:02,728 [DEBUG] core.argyll_runner: [argyll] Added 2817/9986
+2026-09-07 09:07:02,730 [DEBUG] core.argyll_runner: [argyll] Added 2828/9986
+2026-09-07 09:07:02,732 [DEBUG] core.argyll_runner: [argyll] Added 2839/9986
+2026-09-07 09:07:02,734 [DEBUG] core.argyll_runner: [argyll] Added 2850/9986
+2026-09-07 09:07:02,737 [DEBUG] core.argyll_runner: [argyll] Added 2861/9986
+2026-09-07 09:07:02,739 [DEBUG] core.argyll_runner: [argyll] Added 2872/9986
+2026-09-07 09:07:02,742 [DEBUG] core.argyll_runner: [argyll] Added 2883/9986
+2026-09-07 09:07:02,745 [DEBUG] core.argyll_runner: [argyll] Added 2894/9986
+2026-09-07 09:07:02,747 [DEBUG] core.argyll_runner: [argyll] Added 2905/9986
+2026-09-07 09:07:02,750 [DEBUG] core.argyll_runner: [argyll] Added 2916/9986
+2026-09-07 09:07:02,754 [DEBUG] core.argyll_runner: [argyll] Added 2927/9986
+2026-09-07 09:07:02,757 [DEBUG] core.argyll_runner: [argyll] Added 2938/9986
+2026-09-07 09:07:02,760 [DEBUG] core.argyll_runner: [argyll] Added 2949/9986
+2026-09-07 09:07:02,764 [DEBUG] core.argyll_runner: [argyll] Added 2960/9986
+2026-09-07 09:07:02,767 [DEBUG] core.argyll_runner: [argyll] Added 2971/9986
+2026-09-07 09:07:02,771 [DEBUG] core.argyll_runner: [argyll] Added 2982/9986
+2026-09-07 09:07:02,775 [DEBUG] core.argyll_runner: [argyll] Added 2993/9986
+2026-09-07 09:07:02,779 [DEBUG] core.argyll_runner: [argyll] Added 3004/9986
+2026-09-07 09:07:02,783 [DEBUG] core.argyll_runner: [argyll] Added 3015/9986
+2026-09-07 09:07:02,787 [DEBUG] core.argyll_runner: [argyll] Added 3026/9986
+2026-09-07 09:07:02,791 [DEBUG] core.argyll_runner: [argyll] Added 3037/9986
+2026-09-07 09:07:02,796 [DEBUG] core.argyll_runner: [argyll] Added 3048/9986
+2026-09-07 09:07:02,801 [DEBUG] core.argyll_runner: [argyll] Added 3059/9986
+2026-09-07 09:07:02,805 [DEBUG] core.argyll_runner: [argyll] Added 3070/9986
+2026-09-07 09:07:02,811 [DEBUG] core.argyll_runner: [argyll] Added 3081/9986
+2026-09-07 09:07:02,816 [DEBUG] core.argyll_runner: [argyll] Added 3092/9986
+2026-09-07 09:07:02,821 [DEBUG] core.argyll_runner: [argyll] Added 3103/9986
+2026-09-07 09:07:02,827 [DEBUG] core.argyll_runner: [argyll] Added 3114/9986
+2026-09-07 09:07:02,832 [DEBUG] core.argyll_runner: [argyll] Added 3125/9986
+2026-09-07 09:07:02,838 [DEBUG] core.argyll_runner: [argyll] Added 3136/9986
+2026-09-07 09:07:02,844 [DEBUG] core.argyll_runner: [argyll] Added 3147/9986
+2026-09-07 09:07:02,850 [DEBUG] core.argyll_runner: [argyll] Added 3158/9986
+2026-09-07 09:07:02,856 [DEBUG] core.argyll_runner: [argyll] Added 3169/9986
+2026-09-07 09:07:02,862 [DEBUG] core.argyll_runner: [argyll] Added 3180/9986
+2026-09-07 09:07:02,869 [DEBUG] core.argyll_runner: [argyll] Added 3191/9986
+2026-09-07 09:07:02,875 [DEBUG] core.argyll_runner: [argyll] Added 3202/9986
+2026-09-07 09:07:02,882 [DEBUG] core.argyll_runner: [argyll] Added 3213/9986
+2026-09-07 09:07:02,889 [DEBUG] core.argyll_runner: [argyll] Added 3224/9986
+2026-09-07 09:07:02,895 [DEBUG] core.argyll_runner: [argyll] Added 3235/9986
+2026-09-07 09:07:02,902 [DEBUG] core.argyll_runner: [argyll] Added 3246/9986
+2026-09-07 09:07:02,910 [DEBUG] core.argyll_runner: [argyll] Added 3257/9986
+2026-09-07 09:07:02,917 [DEBUG] core.argyll_runner: [argyll] Added 3268/9986
+2026-09-07 09:07:02,924 [DEBUG] core.argyll_runner: [argyll] Added 3279/9986
+2026-09-07 09:07:02,932 [DEBUG] core.argyll_runner: [argyll] Added 3290/9986
+2026-09-07 09:07:02,940 [DEBUG] core.argyll_runner: [argyll] Added 3301/9986
+2026-09-07 09:07:02,948 [DEBUG] core.argyll_runner: [argyll] Added 3312/9986
+2026-09-07 09:07:02,956 [DEBUG] core.argyll_runner: [argyll] Added 3323/9986
+2026-09-07 09:07:02,964 [DEBUG] core.argyll_runner: [argyll] Added 3334/9986
+2026-09-07 09:07:02,972 [DEBUG] core.argyll_runner: [argyll] Added 3345/9986
+2026-09-07 09:07:02,981 [DEBUG] core.argyll_runner: [argyll] Added 3356/9986
+2026-09-07 09:07:02,990 [DEBUG] core.argyll_runner: [argyll] Added 3367/9986
+2026-09-07 09:07:02,999 [DEBUG] core.argyll_runner: [argyll] Added 3378/9986
+2026-09-07 09:07:03,008 [DEBUG] core.argyll_runner: [argyll] Added 3389/9986
+2026-09-07 09:07:03,018 [DEBUG] core.argyll_runner: [argyll] Added 3400/9986
+2026-09-07 09:07:03,027 [DEBUG] core.argyll_runner: [argyll] Added 3411/9986
+2026-09-07 09:07:03,037 [DEBUG] core.argyll_runner: [argyll] Added 3422/9986
+2026-09-07 09:07:03,046 [DEBUG] core.argyll_runner: [argyll] Added 3433/9986
+2026-09-07 09:07:03,056 [DEBUG] core.argyll_runner: [argyll] Added 3444/9986
+2026-09-07 09:07:03,066 [DEBUG] core.argyll_runner: [argyll] Added 3455/9986
+2026-09-07 09:07:03,076 [DEBUG] core.argyll_runner: [argyll] Added 3466/9986
+2026-09-07 09:07:03,087 [DEBUG] core.argyll_runner: [argyll] Added 3477/9986
+2026-09-07 09:07:03,097 [DEBUG] core.argyll_runner: [argyll] Added 3488/9986
+2026-09-07 09:07:03,108 [DEBUG] core.argyll_runner: [argyll] Added 3499/9986
+2026-09-07 09:07:03,119 [DEBUG] core.argyll_runner: [argyll] Added 3510/9986
+2026-09-07 09:07:03,129 [DEBUG] core.argyll_runner: [argyll] Added 3521/9986
+2026-09-07 09:07:03,140 [DEBUG] core.argyll_runner: [argyll] Added 3532/9986
+2026-09-07 09:07:03,151 [DEBUG] core.argyll_runner: [argyll] Added 3543/9986
+2026-09-07 09:07:03,163 [DEBUG] core.argyll_runner: [argyll] Added 3554/9986
+2026-09-07 09:07:03,174 [DEBUG] core.argyll_runner: [argyll] Added 3565/9986
+2026-09-07 09:07:03,186 [DEBUG] core.argyll_runner: [argyll] Added 3576/9986
+2026-09-07 09:07:03,198 [DEBUG] core.argyll_runner: [argyll] Added 3587/9986
+2026-09-07 09:07:03,210 [DEBUG] core.argyll_runner: [argyll] Added 3598/9986
+2026-09-07 09:07:03,222 [DEBUG] core.argyll_runner: [argyll] Added 3609/9986
+2026-09-07 09:07:03,235 [DEBUG] core.argyll_runner: [argyll] Added 3620/9986
+2026-09-07 09:07:03,247 [DEBUG] core.argyll_runner: [argyll] Added 3631/9986
+2026-09-07 09:07:03,260 [DEBUG] core.argyll_runner: [argyll] Added 3642/9986
+2026-09-07 09:07:03,273 [DEBUG] core.argyll_runner: [argyll] Added 3653/9986
+2026-09-07 09:07:03,286 [DEBUG] core.argyll_runner: [argyll] Added 3664/9986
+2026-09-07 09:07:03,299 [DEBUG] core.argyll_runner: [argyll] Added 3675/9986
+2026-09-07 09:07:03,312 [DEBUG] core.argyll_runner: [argyll] Added 3686/9986
+2026-09-07 09:07:03,326 [DEBUG] core.argyll_runner: [argyll] Added 3697/9986
+2026-09-07 09:07:03,339 [DEBUG] core.argyll_runner: [argyll] Added 3708/9986
+2026-09-07 09:07:03,353 [DEBUG] core.argyll_runner: [argyll] Added 3719/9986
+2026-09-07 09:07:03,367 [DEBUG] core.argyll_runner: [argyll] Added 3730/9986
+2026-09-07 09:07:03,380 [DEBUG] core.argyll_runner: [argyll] Added 3741/9986
+2026-09-07 09:07:03,395 [DEBUG] core.argyll_runner: [argyll] Added 3752/9986
+2026-09-07 09:07:03,409 [DEBUG] core.argyll_runner: [argyll] Added 3763/9986
+2026-09-07 09:07:03,423 [DEBUG] core.argyll_runner: [argyll] Added 3774/9986
+2026-09-07 09:07:03,438 [DEBUG] core.argyll_runner: [argyll] Added 3785/9986
+2026-09-07 09:07:03,453 [DEBUG] core.argyll_runner: [argyll] Added 3796/9986
+2026-09-07 09:07:03,467 [DEBUG] core.argyll_runner: [argyll] Added 3807/9986
+2026-09-07 09:07:03,482 [DEBUG] core.argyll_runner: [argyll] Added 3818/9986
+2026-09-07 09:07:03,497 [DEBUG] core.argyll_runner: [argyll] Added 3829/9986
+2026-09-07 09:07:03,513 [DEBUG] core.argyll_runner: [argyll] Added 3840/9986
+2026-09-07 09:07:03,528 [DEBUG] core.argyll_runner: [argyll] Added 3851/9986
+2026-09-07 09:07:03,544 [DEBUG] core.argyll_runner: [argyll] Added 3862/9986
+2026-09-07 09:07:03,559 [DEBUG] core.argyll_runner: [argyll] Added 3873/9986
+2026-09-07 09:07:03,575 [DEBUG] core.argyll_runner: [argyll] Added 3884/9986
+2026-09-07 09:07:03,591 [DEBUG] core.argyll_runner: [argyll] Added 3895/9986
+2026-09-07 09:07:03,607 [DEBUG] core.argyll_runner: [argyll] Added 3906/9986
+2026-09-07 09:07:03,623 [DEBUG] core.argyll_runner: [argyll] Added 3917/9986
+2026-09-07 09:07:03,640 [DEBUG] core.argyll_runner: [argyll] Added 3928/9986
+2026-09-07 09:07:03,656 [DEBUG] core.argyll_runner: [argyll] Added 3939/9986
+2026-09-07 09:07:03,673 [DEBUG] core.argyll_runner: [argyll] Added 3950/9986
+2026-09-07 09:07:03,690 [DEBUG] core.argyll_runner: [argyll] Added 3961/9986
+2026-09-07 09:07:03,706 [DEBUG] core.argyll_runner: [argyll] Added 3972/9986
+2026-09-07 09:07:03,724 [DEBUG] core.argyll_runner: [argyll] Added 3983/9986
+2026-09-07 09:07:03,741 [DEBUG] core.argyll_runner: [argyll] Added 3994/9986
+2026-09-07 09:07:03,759 [DEBUG] core.argyll_runner: [argyll] Added 4005/9986
+2026-09-07 09:07:03,776 [DEBUG] core.argyll_runner: [argyll] Added 4016/9986
+2026-09-07 09:07:03,794 [DEBUG] core.argyll_runner: [argyll] Added 4027/9986
+2026-09-07 09:07:03,812 [DEBUG] core.argyll_runner: [argyll] Added 4038/9986
+2026-09-07 09:07:03,828 [DEBUG] core.argyll_runner: [argyll] Added 4049/9986
+2026-09-07 09:07:03,846 [DEBUG] core.argyll_runner: [argyll] Added 4060/9986
+2026-09-07 09:07:03,864 [DEBUG] core.argyll_runner: [argyll] Added 4071/9986
+2026-09-07 09:07:03,882 [DEBUG] core.argyll_runner: [argyll] Added 4082/9986
+2026-09-07 09:07:03,901 [DEBUG] core.argyll_runner: [argyll] Added 4093/9986
+2026-09-07 09:07:03,920 [DEBUG] core.argyll_runner: [argyll] Added 4104/9986
+2026-09-07 09:07:03,938 [DEBUG] core.argyll_runner: [argyll] Added 4115/9986
+2026-09-07 09:07:03,956 [DEBUG] core.argyll_runner: [argyll] Added 4126/9986
+2026-09-07 09:07:03,975 [DEBUG] core.argyll_runner: [argyll] Added 4137/9986
+2026-09-07 09:07:03,994 [DEBUG] core.argyll_runner: [argyll] Added 4148/9986
+2026-09-07 09:07:04,013 [DEBUG] core.argyll_runner: [argyll] Added 4159/9986
+2026-09-07 09:07:04,033 [DEBUG] core.argyll_runner: [argyll] Added 4170/9986
+2026-09-07 09:07:04,052 [DEBUG] core.argyll_runner: [argyll] Added 4181/9986
+2026-09-07 09:07:04,071 [DEBUG] core.argyll_runner: [argyll] Added 4192/9986
+2026-09-07 09:07:04,090 [DEBUG] core.argyll_runner: [argyll] Added 4203/9986
+2026-09-07 09:07:04,110 [DEBUG] core.argyll_runner: [argyll] Added 4214/9986
+2026-09-07 09:07:04,129 [DEBUG] core.argyll_runner: [argyll] Added 4225/9986
+2026-09-07 09:07:04,149 [DEBUG] core.argyll_runner: [argyll] Added 4236/9986
+2026-09-07 09:07:04,169 [DEBUG] core.argyll_runner: [argyll] Added 4247/9986
+2026-09-07 09:07:04,189 [DEBUG] core.argyll_runner: [argyll] Added 4258/9986
+2026-09-07 09:07:04,210 [DEBUG] core.argyll_runner: [argyll] Added 4269/9986
+2026-09-07 09:07:04,230 [DEBUG] core.argyll_runner: [argyll] Added 4280/9986
+2026-09-07 09:07:04,251 [DEBUG] core.argyll_runner: [argyll] Added 4291/9986
+2026-09-07 09:07:04,272 [DEBUG] core.argyll_runner: [argyll] Added 4302/9986
+2026-09-07 09:07:04,293 [DEBUG] core.argyll_runner: [argyll] Added 4313/9986
+2026-09-07 09:07:04,314 [DEBUG] core.argyll_runner: [argyll] Added 4324/9986
+2026-09-07 09:07:04,335 [DEBUG] core.argyll_runner: [argyll] Added 4335/9986
+2026-09-07 09:07:04,356 [DEBUG] core.argyll_runner: [argyll] Added 4346/9986
+2026-09-07 09:07:04,378 [DEBUG] core.argyll_runner: [argyll] Added 4357/9986
+2026-09-07 09:07:04,400 [DEBUG] core.argyll_runner: [argyll] Added 4368/9986
+2026-09-07 09:07:04,422 [DEBUG] core.argyll_runner: [argyll] Added 4379/9986
+2026-09-07 09:07:04,444 [DEBUG] core.argyll_runner: [argyll] Added 4390/9986
+2026-09-07 09:07:04,462 [DEBUG] core.argyll_runner: [argyll] Added 4401/9986
+2026-09-07 09:07:04,474 [DEBUG] core.argyll_runner: [argyll] Added 4412/9986
+2026-09-07 09:07:04,487 [DEBUG] core.argyll_runner: [argyll] Added 4423/9986
+2026-09-07 09:07:04,500 [DEBUG] core.argyll_runner: [argyll] Added 4434/9986
+2026-09-07 09:07:04,513 [DEBUG] core.argyll_runner: [argyll] Added 4445/9986
+2026-09-07 09:07:04,526 [DEBUG] core.argyll_runner: [argyll] Added 4456/9986
+2026-09-07 09:07:04,539 [DEBUG] core.argyll_runner: [argyll] Added 4467/9986
+2026-09-07 09:07:04,553 [DEBUG] core.argyll_runner: [argyll] Added 4478/9986
+2026-09-07 09:07:04,566 [DEBUG] core.argyll_runner: [argyll] Added 4489/9986
+2026-09-07 09:07:04,581 [DEBUG] core.argyll_runner: [argyll] Added 4500/9986
+2026-09-07 09:07:04,596 [DEBUG] core.argyll_runner: [argyll] Added 4511/9986
+2026-09-07 09:07:04,611 [DEBUG] core.argyll_runner: [argyll] Added 4522/9986
+2026-09-07 09:07:04,626 [DEBUG] core.argyll_runner: [argyll] Added 4533/9986
+2026-09-07 09:07:04,642 [DEBUG] core.argyll_runner: [argyll] Added 4544/9986
+2026-09-07 09:07:04,658 [DEBUG] core.argyll_runner: [argyll] Added 4555/9986
+2026-09-07 09:07:04,674 [DEBUG] core.argyll_runner: [argyll] Added 4566/9986
+2026-09-07 09:07:04,690 [DEBUG] core.argyll_runner: [argyll] Added 4577/9986
+2026-09-07 09:07:04,706 [DEBUG] core.argyll_runner: [argyll] Added 4588/9986
+2026-09-07 09:07:04,722 [DEBUG] core.argyll_runner: [argyll] Added 4599/9986
+2026-09-07 09:07:04,738 [DEBUG] core.argyll_runner: [argyll] Added 4610/9986
+2026-09-07 09:07:04,754 [DEBUG] core.argyll_runner: [argyll] Added 4621/9986
+2026-09-07 09:07:04,769 [DEBUG] core.argyll_runner: [argyll] Added 4632/9986
+2026-09-07 09:07:04,785 [DEBUG] core.argyll_runner: [argyll] Added 4643/9986
+2026-09-07 09:07:04,801 [DEBUG] core.argyll_runner: [argyll] Added 4654/9986
+2026-09-07 09:07:04,817 [DEBUG] core.argyll_runner: [argyll] Added 4665/9986
+2026-09-07 09:07:04,832 [DEBUG] core.argyll_runner: [argyll] Added 4676/9986
+2026-09-07 09:07:04,848 [DEBUG] core.argyll_runner: [argyll] Added 4687/9986
+2026-09-07 09:07:04,865 [DEBUG] core.argyll_runner: [argyll] Added 4698/9986
+2026-09-07 09:07:04,882 [DEBUG] core.argyll_runner: [argyll] Added 4709/9986
+2026-09-07 09:07:04,898 [DEBUG] core.argyll_runner: [argyll] Added 4720/9986
+2026-09-07 09:07:04,915 [DEBUG] core.argyll_runner: [argyll] Added 4731/9986
+2026-09-07 09:07:04,933 [DEBUG] core.argyll_runner: [argyll] Added 4742/9986
+2026-09-07 09:07:04,950 [DEBUG] core.argyll_runner: [argyll] Added 4753/9986
+2026-09-07 09:07:04,967 [DEBUG] core.argyll_runner: [argyll] Added 4764/9986
+2026-09-07 09:07:04,985 [DEBUG] core.argyll_runner: [argyll] Added 4775/9986
+2026-09-07 09:07:05,002 [DEBUG] core.argyll_runner: [argyll] Added 4786/9986
+2026-09-07 09:07:05,020 [DEBUG] core.argyll_runner: [argyll] Added 4797/9986
+2026-09-07 09:07:05,038 [DEBUG] core.argyll_runner: [argyll] Added 4808/9986
+2026-09-07 09:07:05,056 [DEBUG] core.argyll_runner: [argyll] Added 4819/9986
+2026-09-07 09:07:05,074 [DEBUG] core.argyll_runner: [argyll] Added 4830/9986
+2026-09-07 09:07:05,093 [DEBUG] core.argyll_runner: [argyll] Added 4841/9986
+2026-09-07 09:07:05,111 [DEBUG] core.argyll_runner: [argyll] Added 4852/9986
+2026-09-07 09:07:05,130 [DEBUG] core.argyll_runner: [argyll] Added 4863/9986
+2026-09-07 09:07:05,148 [DEBUG] core.argyll_runner: [argyll] Added 4874/9986
+2026-09-07 09:07:05,167 [DEBUG] core.argyll_runner: [argyll] Added 4885/9986
+2026-09-07 09:07:05,186 [DEBUG] core.argyll_runner: [argyll] Added 4896/9986
+2026-09-07 09:07:05,205 [DEBUG] core.argyll_runner: [argyll] Added 4907/9986
+2026-09-07 09:07:05,225 [DEBUG] core.argyll_runner: [argyll] Added 4918/9986
+2026-09-07 09:07:05,244 [DEBUG] core.argyll_runner: [argyll] Added 4929/9986
+2026-09-07 09:07:05,264 [DEBUG] core.argyll_runner: [argyll] Added 4940/9986
+2026-09-07 09:07:05,283 [DEBUG] core.argyll_runner: [argyll] Added 4951/9986
+2026-09-07 09:07:05,302 [DEBUG] core.argyll_runner: [argyll] Added 4962/9986
+2026-09-07 09:07:05,322 [DEBUG] core.argyll_runner: [argyll] Added 4973/9986
+2026-09-07 09:07:05,342 [DEBUG] core.argyll_runner: [argyll] Added 4984/9986
+2026-09-07 09:07:05,363 [DEBUG] core.argyll_runner: [argyll] Added 4995/9986
+2026-09-07 09:07:05,383 [DEBUG] core.argyll_runner: [argyll] Added 5006/9986
+2026-09-07 09:07:05,402 [DEBUG] core.argyll_runner: [argyll] Added 5017/9986
+2026-09-07 09:07:05,421 [DEBUG] core.argyll_runner: [argyll] Added 5028/9986
+2026-09-07 09:07:05,441 [DEBUG] core.argyll_runner: [argyll] Added 5039/9986
+2026-09-07 09:07:05,461 [DEBUG] core.argyll_runner: [argyll] Added 5050/9986
+2026-09-07 09:07:05,481 [DEBUG] core.argyll_runner: [argyll] Added 5061/9986
+2026-09-07 09:07:05,501 [DEBUG] core.argyll_runner: [argyll] Added 5072/9986
+2026-09-07 09:07:05,522 [DEBUG] core.argyll_runner: [argyll] Added 5083/9986
+2026-09-07 09:07:05,542 [DEBUG] core.argyll_runner: [argyll] Added 5094/9986
+2026-09-07 09:07:05,563 [DEBUG] core.argyll_runner: [argyll] Added 5105/9986
+2026-09-07 09:07:05,584 [DEBUG] core.argyll_runner: [argyll] Added 5116/9986
+2026-09-07 09:07:05,605 [DEBUG] core.argyll_runner: [argyll] Added 5127/9986
+2026-09-07 09:07:05,627 [DEBUG] core.argyll_runner: [argyll] Added 5138/9986
+2026-09-07 09:07:05,649 [DEBUG] core.argyll_runner: [argyll] Added 5149/9986
+2026-09-07 09:07:05,671 [DEBUG] core.argyll_runner: [argyll] Added 5160/9986
+2026-09-07 09:07:05,693 [DEBUG] core.argyll_runner: [argyll] Added 5171/9986
+2026-09-07 09:07:05,715 [DEBUG] core.argyll_runner: [argyll] Added 5182/9986
+2026-09-07 09:07:05,738 [DEBUG] core.argyll_runner: [argyll] Added 5193/9986
+2026-09-07 09:07:05,761 [DEBUG] core.argyll_runner: [argyll] Added 5204/9986
+2026-09-07 09:07:05,784 [DEBUG] core.argyll_runner: [argyll] Added 5215/9986
+2026-09-07 09:07:05,807 [DEBUG] core.argyll_runner: [argyll] Added 5226/9986
+2026-09-07 09:07:05,830 [DEBUG] core.argyll_runner: [argyll] Added 5237/9986
+2026-09-07 09:07:05,854 [DEBUG] core.argyll_runner: [argyll] Added 5248/9986
+2026-09-07 09:07:05,877 [DEBUG] core.argyll_runner: [argyll] Added 5259/9986
+2026-09-07 09:07:05,900 [DEBUG] core.argyll_runner: [argyll] Added 5270/9986
+2026-09-07 09:07:05,924 [DEBUG] core.argyll_runner: [argyll] Added 5281/9986
+2026-09-07 09:07:05,947 [DEBUG] core.argyll_runner: [argyll] Added 5292/9986
+2026-09-07 09:07:05,971 [DEBUG] core.argyll_runner: [argyll] Added 5303/9986
+2026-09-07 09:07:05,995 [DEBUG] core.argyll_runner: [argyll] Added 5314/9986
+2026-09-07 09:07:06,020 [DEBUG] core.argyll_runner: [argyll] Added 5325/9986
+2026-09-07 09:07:06,044 [DEBUG] core.argyll_runner: [argyll] Added 5336/9986
+2026-09-07 09:07:06,069 [DEBUG] core.argyll_runner: [argyll] Added 5347/9986
+2026-09-07 09:07:06,094 [DEBUG] core.argyll_runner: [argyll] Added 5358/9986
+2026-09-07 09:07:06,119 [DEBUG] core.argyll_runner: [argyll] Added 5369/9986
+2026-09-07 09:07:06,144 [DEBUG] core.argyll_runner: [argyll] Added 5380/9986
+2026-09-07 09:07:06,169 [DEBUG] core.argyll_runner: [argyll] Added 5391/9986
+2026-09-07 09:07:06,195 [DEBUG] core.argyll_runner: [argyll] Added 5402/9986
+2026-09-07 09:07:06,220 [DEBUG] core.argyll_runner: [argyll] Added 5413/9986
+2026-09-07 09:07:06,246 [DEBUG] core.argyll_runner: [argyll] Added 5424/9986
+2026-09-07 09:07:06,272 [DEBUG] core.argyll_runner: [argyll] Added 5435/9986
+2026-09-07 09:07:06,298 [DEBUG] core.argyll_runner: [argyll] Added 5446/9986
+2026-09-07 09:07:06,324 [DEBUG] core.argyll_runner: [argyll] Added 5457/9986
+2026-09-07 09:07:06,351 [DEBUG] core.argyll_runner: [argyll] Added 5468/9986
+2026-09-07 09:07:06,378 [DEBUG] core.argyll_runner: [argyll] Added 5479/9986
+2026-09-07 09:07:06,404 [DEBUG] core.argyll_runner: [argyll] Added 5490/9986
+2026-09-07 09:07:06,431 [DEBUG] core.argyll_runner: [argyll] Added 5501/9986
+2026-09-07 09:07:06,458 [DEBUG] core.argyll_runner: [argyll] Added 5512/9986
+2026-09-07 09:07:06,485 [DEBUG] core.argyll_runner: [argyll] Added 5523/9986
+2026-09-07 09:07:06,512 [DEBUG] core.argyll_runner: [argyll] Added 5534/9986
+2026-09-07 09:07:06,540 [DEBUG] core.argyll_runner: [argyll] Added 5545/9986
+2026-09-07 09:07:06,567 [DEBUG] core.argyll_runner: [argyll] Added 5556/9986
+2026-09-07 09:07:06,595 [DEBUG] core.argyll_runner: [argyll] Added 5567/9986
+2026-09-07 09:07:06,622 [DEBUG] core.argyll_runner: [argyll] Added 5578/9986
+2026-09-07 09:07:06,650 [DEBUG] core.argyll_runner: [argyll] Added 5589/9986
+2026-09-07 09:07:06,678 [DEBUG] core.argyll_runner: [argyll] Added 5600/9986
+2026-09-07 09:07:06,706 [DEBUG] core.argyll_runner: [argyll] Added 5611/9986
+2026-09-07 09:07:06,734 [DEBUG] core.argyll_runner: [argyll] Added 5622/9986
+2026-09-07 09:07:06,761 [DEBUG] core.argyll_runner: [argyll] Added 5633/9986
+2026-09-07 09:07:06,789 [DEBUG] core.argyll_runner: [argyll] Added 5644/9986
+2026-09-07 09:07:06,816 [DEBUG] core.argyll_runner: [argyll] Added 5655/9986
+2026-09-07 09:07:06,843 [DEBUG] core.argyll_runner: [argyll] Added 5666/9986
+2026-09-07 09:07:06,870 [DEBUG] core.argyll_runner: [argyll] Added 5677/9986
+2026-09-07 09:07:06,897 [DEBUG] core.argyll_runner: [argyll] Added 5688/9986
+2026-09-07 09:07:06,925 [DEBUG] core.argyll_runner: [argyll] Added 5699/9986
+2026-09-07 09:07:06,954 [DEBUG] core.argyll_runner: [argyll] Added 5710/9986
+2026-09-07 09:07:06,983 [DEBUG] core.argyll_runner: [argyll] Added 5721/9986
+2026-09-07 09:07:07,012 [DEBUG] core.argyll_runner: [argyll] Added 5732/9986
+2026-09-07 09:07:07,041 [DEBUG] core.argyll_runner: [argyll] Added 5743/9986
+2026-09-07 09:07:07,071 [DEBUG] core.argyll_runner: [argyll] Added 5754/9986
+2026-09-07 09:07:07,100 [DEBUG] core.argyll_runner: [argyll] Added 5765/9986
+2026-09-07 09:07:07,130 [DEBUG] core.argyll_runner: [argyll] Added 5776/9986
+2026-09-07 09:07:07,160 [DEBUG] core.argyll_runner: [argyll] Added 5787/9986
+2026-09-07 09:07:07,190 [DEBUG] core.argyll_runner: [argyll] Added 5798/9986
+2026-09-07 09:07:07,220 [DEBUG] core.argyll_runner: [argyll] Added 5809/9986
+2026-09-07 09:07:07,251 [DEBUG] core.argyll_runner: [argyll] Added 5820/9986
+2026-09-07 09:07:07,281 [DEBUG] core.argyll_runner: [argyll] Added 5831/9986
+2026-09-07 09:07:07,312 [DEBUG] core.argyll_runner: [argyll] Added 5842/9986
+2026-09-07 09:07:07,343 [DEBUG] core.argyll_runner: [argyll] Added 5853/9986
+2026-09-07 09:07:07,374 [DEBUG] core.argyll_runner: [argyll] Added 5864/9986
+2026-09-07 09:07:07,405 [DEBUG] core.argyll_runner: [argyll] Added 5875/9986
+2026-09-07 09:07:07,436 [DEBUG] core.argyll_runner: [argyll] Added 5886/9986
+2026-09-07 09:07:07,467 [DEBUG] core.argyll_runner: [argyll] Added 5897/9986
+2026-09-07 09:07:07,499 [DEBUG] core.argyll_runner: [argyll] Added 5908/9986
+2026-09-07 09:07:07,531 [DEBUG] core.argyll_runner: [argyll] Added 5919/9986
+2026-09-07 09:07:07,563 [DEBUG] core.argyll_runner: [argyll] Added 5930/9986
+2026-09-07 09:07:07,595 [DEBUG] core.argyll_runner: [argyll] Added 5941/9986
+2026-09-07 09:07:07,627 [DEBUG] core.argyll_runner: [argyll] Added 5952/9986
+2026-09-07 09:07:07,659 [DEBUG] core.argyll_runner: [argyll] Added 5963/9986
+2026-09-07 09:07:07,691 [DEBUG] core.argyll_runner: [argyll] Added 5974/9986
+2026-09-07 09:07:07,723 [DEBUG] core.argyll_runner: [argyll] Added 5985/9986
+2026-09-07 09:07:07,756 [DEBUG] core.argyll_runner: [argyll] Added 5996/9986
+2026-09-07 09:07:07,789 [DEBUG] core.argyll_runner: [argyll] Added 6007/9986
+2026-09-07 09:07:07,822 [DEBUG] core.argyll_runner: [argyll] Added 6018/9986
+2026-09-07 09:07:07,855 [DEBUG] core.argyll_runner: [argyll] Added 6029/9986
+2026-09-07 09:07:07,889 [DEBUG] core.argyll_runner: [argyll] Added 6040/9986
+2026-09-07 09:07:07,922 [DEBUG] core.argyll_runner: [argyll] Added 6051/9986
+2026-09-07 09:07:07,956 [DEBUG] core.argyll_runner: [argyll] Added 6062/9986
+2026-09-07 09:07:07,989 [DEBUG] core.argyll_runner: [argyll] Added 6073/9986
+2026-09-07 09:07:08,023 [DEBUG] core.argyll_runner: [argyll] Added 6084/9986
+2026-09-07 09:07:08,055 [DEBUG] core.argyll_runner: [argyll] Added 6095/9986
+2026-09-07 09:07:08,087 [DEBUG] core.argyll_runner: [argyll] Added 6106/9986
+2026-09-07 09:07:08,120 [DEBUG] core.argyll_runner: [argyll] Added 6117/9986
+2026-09-07 09:07:08,153 [DEBUG] core.argyll_runner: [argyll] Added 6128/9986
+2026-09-07 09:07:08,181 [DEBUG] core.argyll_runner: [argyll] Added 6139/9986
+2026-09-07 09:07:08,206 [DEBUG] core.argyll_runner: [argyll] Added 6150/9986
+2026-09-07 09:07:08,230 [DEBUG] core.argyll_runner: [argyll] Added 6161/9986
+2026-09-07 09:07:08,255 [DEBUG] core.argyll_runner: [argyll] Added 6172/9986
+2026-09-07 09:07:08,280 [DEBUG] core.argyll_runner: [argyll] Added 6183/9986
+2026-09-07 09:07:08,306 [DEBUG] core.argyll_runner: [argyll] Added 6194/9986
+2026-09-07 09:07:08,331 [DEBUG] core.argyll_runner: [argyll] Added 6205/9986
+2026-09-07 09:07:08,357 [DEBUG] core.argyll_runner: [argyll] Added 6216/9986
+2026-09-07 09:07:08,383 [DEBUG] core.argyll_runner: [argyll] Added 6227/9986
+2026-09-07 09:07:08,409 [DEBUG] core.argyll_runner: [argyll] Added 6238/9986
+2026-09-07 09:07:08,435 [DEBUG] core.argyll_runner: [argyll] Added 6249/9986
+2026-09-07 09:07:08,461 [DEBUG] core.argyll_runner: [argyll] Added 6260/9986
+2026-09-07 09:07:08,488 [DEBUG] core.argyll_runner: [argyll] Added 6271/9986
+2026-09-07 09:07:08,515 [DEBUG] core.argyll_runner: [argyll] Added 6282/9986
+2026-09-07 09:07:08,541 [DEBUG] core.argyll_runner: [argyll] Added 6293/9986
+2026-09-07 09:07:08,568 [DEBUG] core.argyll_runner: [argyll] Added 6304/9986
+2026-09-07 09:07:08,596 [DEBUG] core.argyll_runner: [argyll] Added 6315/9986
+2026-09-07 09:07:08,623 [DEBUG] core.argyll_runner: [argyll] Added 6326/9986
+2026-09-07 09:07:08,650 [DEBUG] core.argyll_runner: [argyll] Added 6337/9986
+2026-09-07 09:07:08,678 [DEBUG] core.argyll_runner: [argyll] Added 6348/9986
+2026-09-07 09:07:08,706 [DEBUG] core.argyll_runner: [argyll] Added 6359/9986
+2026-09-07 09:07:08,734 [DEBUG] core.argyll_runner: [argyll] Added 6370/9986
+2026-09-07 09:07:08,762 [DEBUG] core.argyll_runner: [argyll] Added 6381/9986
+2026-09-07 09:07:08,790 [DEBUG] core.argyll_runner: [argyll] Added 6392/9986
+2026-09-07 09:07:08,818 [DEBUG] core.argyll_runner: [argyll] Added 6403/9986
+2026-09-07 09:07:08,847 [DEBUG] core.argyll_runner: [argyll] Added 6414/9986
+2026-09-07 09:07:08,875 [DEBUG] core.argyll_runner: [argyll] Added 6425/9986
+2026-09-07 09:07:08,904 [DEBUG] core.argyll_runner: [argyll] Added 6436/9986
+2026-09-07 09:07:08,933 [DEBUG] core.argyll_runner: [argyll] Added 6447/9986
+2026-09-07 09:07:08,963 [DEBUG] core.argyll_runner: [argyll] Added 6458/9986
+2026-09-07 09:07:08,992 [DEBUG] core.argyll_runner: [argyll] Added 6469/9986
+2026-09-07 09:07:09,021 [DEBUG] core.argyll_runner: [argyll] Added 6480/9986
+2026-09-07 09:07:09,051 [DEBUG] core.argyll_runner: [argyll] Added 6491/9986
+2026-09-07 09:07:09,081 [DEBUG] core.argyll_runner: [argyll] Added 6502/9986
+2026-09-07 09:07:09,111 [DEBUG] core.argyll_runner: [argyll] Added 6513/9986
+2026-09-07 09:07:09,141 [DEBUG] core.argyll_runner: [argyll] Added 6524/9986
+2026-09-07 09:07:09,171 [DEBUG] core.argyll_runner: [argyll] Added 6535/9986
+2026-09-07 09:07:09,201 [DEBUG] core.argyll_runner: [argyll] Added 6546/9986
+2026-09-07 09:07:09,232 [DEBUG] core.argyll_runner: [argyll] Added 6557/9986
+2026-09-07 09:07:09,263 [DEBUG] core.argyll_runner: [argyll] Added 6568/9986
+2026-09-07 09:07:09,294 [DEBUG] core.argyll_runner: [argyll] Added 6579/9986
+2026-09-07 09:07:09,324 [DEBUG] core.argyll_runner: [argyll] Added 6590/9986
+2026-09-07 09:07:09,355 [DEBUG] core.argyll_runner: [argyll] Added 6601/9986
+2026-09-07 09:07:09,385 [DEBUG] core.argyll_runner: [argyll] Added 6612/9986
+2026-09-07 09:07:09,415 [DEBUG] core.argyll_runner: [argyll] Added 6623/9986
+2026-09-07 09:07:09,445 [DEBUG] core.argyll_runner: [argyll] Added 6634/9986
+2026-09-07 09:07:09,476 [DEBUG] core.argyll_runner: [argyll] Added 6645/9986
+2026-09-07 09:07:09,507 [DEBUG] core.argyll_runner: [argyll] Added 6656/9986
+2026-09-07 09:07:09,538 [DEBUG] core.argyll_runner: [argyll] Added 6667/9986
+2026-09-07 09:07:09,569 [DEBUG] core.argyll_runner: [argyll] Added 6678/9986
+2026-09-07 09:07:09,601 [DEBUG] core.argyll_runner: [argyll] Added 6689/9986
+2026-09-07 09:07:09,633 [DEBUG] core.argyll_runner: [argyll] Added 6700/9986
+2026-09-07 09:07:09,665 [DEBUG] core.argyll_runner: [argyll] Added 6711/9986
+2026-09-07 09:07:09,697 [DEBUG] core.argyll_runner: [argyll] Added 6722/9986
+2026-09-07 09:07:09,730 [DEBUG] core.argyll_runner: [argyll] Added 6733/9986
+2026-09-07 09:07:09,762 [DEBUG] core.argyll_runner: [argyll] Added 6744/9986
+2026-09-07 09:07:09,795 [DEBUG] core.argyll_runner: [argyll] Added 6755/9986
+2026-09-07 09:07:09,828 [DEBUG] core.argyll_runner: [argyll] Added 6766/9986
+2026-09-07 09:07:09,861 [DEBUG] core.argyll_runner: [argyll] Added 6777/9986
+2026-09-07 09:07:09,895 [DEBUG] core.argyll_runner: [argyll] Added 6788/9986
+2026-09-07 09:07:09,928 [DEBUG] core.argyll_runner: [argyll] Added 6799/9986
+2026-09-07 09:07:09,961 [DEBUG] core.argyll_runner: [argyll] Added 6810/9986
+2026-09-07 09:07:09,995 [DEBUG] core.argyll_runner: [argyll] Added 6821/9986
+2026-09-07 09:07:10,029 [DEBUG] core.argyll_runner: [argyll] Added 6832/9986
+2026-09-07 09:07:10,063 [DEBUG] core.argyll_runner: [argyll] Added 6843/9986
+2026-09-07 09:07:10,097 [DEBUG] core.argyll_runner: [argyll] Added 6854/9986
+2026-09-07 09:07:10,132 [DEBUG] core.argyll_runner: [argyll] Added 6865/9986
+2026-09-07 09:07:10,167 [DEBUG] core.argyll_runner: [argyll] Added 6876/9986
+2026-09-07 09:07:10,201 [DEBUG] core.argyll_runner: [argyll] Added 6887/9986
+2026-09-07 09:07:10,236 [DEBUG] core.argyll_runner: [argyll] Added 6898/9986
+2026-09-07 09:07:10,271 [DEBUG] core.argyll_runner: [argyll] Added 6909/9986
+2026-09-07 09:07:10,307 [DEBUG] core.argyll_runner: [argyll] Added 6920/9986
+2026-09-07 09:07:10,342 [DEBUG] core.argyll_runner: [argyll] Added 6931/9986
+2026-09-07 09:07:10,377 [DEBUG] core.argyll_runner: [argyll] Added 6942/9986
+2026-09-07 09:07:10,413 [DEBUG] core.argyll_runner: [argyll] Added 6953/9986
+2026-09-07 09:07:10,449 [DEBUG] core.argyll_runner: [argyll] Added 6964/9986
+2026-09-07 09:07:10,485 [DEBUG] core.argyll_runner: [argyll] Added 6975/9986
+2026-09-07 09:07:10,521 [DEBUG] core.argyll_runner: [argyll] Added 6986/9986
+2026-09-07 09:07:10,557 [DEBUG] core.argyll_runner: [argyll] Added 6997/9986
+2026-09-07 09:07:10,594 [DEBUG] core.argyll_runner: [argyll] Added 7008/9986
+2026-09-07 09:07:10,630 [DEBUG] core.argyll_runner: [argyll] Added 7019/9986
+2026-09-07 09:07:10,667 [DEBUG] core.argyll_runner: [argyll] Added 7030/9986
+2026-09-07 09:07:10,703 [DEBUG] core.argyll_runner: [argyll] Added 7041/9986
+2026-09-07 09:07:10,739 [DEBUG] core.argyll_runner: [argyll] Added 7052/9986
+2026-09-07 09:07:10,774 [DEBUG] core.argyll_runner: [argyll] Added 7063/9986
+2026-09-07 09:07:10,809 [DEBUG] core.argyll_runner: [argyll] Added 7074/9986
+2026-09-07 09:07:10,845 [DEBUG] core.argyll_runner: [argyll] Added 7085/9986
+2026-09-07 09:07:10,883 [DEBUG] core.argyll_runner: [argyll] Added 7096/9986
+2026-09-07 09:07:10,920 [DEBUG] core.argyll_runner: [argyll] Added 7107/9986
+2026-09-07 09:07:10,958 [DEBUG] core.argyll_runner: [argyll] Added 7118/9986
+2026-09-07 09:07:10,996 [DEBUG] core.argyll_runner: [argyll] Added 7129/9986
+2026-09-07 09:07:11,034 [DEBUG] core.argyll_runner: [argyll] Added 7140/9986
+2026-09-07 09:07:11,072 [DEBUG] core.argyll_runner: [argyll] Added 7151/9986
+2026-09-07 09:07:11,111 [DEBUG] core.argyll_runner: [argyll] Added 7162/9986
+2026-09-07 09:07:11,149 [DEBUG] core.argyll_runner: [argyll] Added 7173/9986
+2026-09-07 09:07:11,188 [DEBUG] core.argyll_runner: [argyll] Added 7184/9986
+2026-09-07 09:07:11,227 [DEBUG] core.argyll_runner: [argyll] Added 7195/9986
+2026-09-07 09:07:11,266 [DEBUG] core.argyll_runner: [argyll] Added 7206/9986
+2026-09-07 09:07:11,305 [DEBUG] core.argyll_runner: [argyll] Added 7217/9986
+2026-09-07 09:07:11,344 [DEBUG] core.argyll_runner: [argyll] Added 7228/9986
+2026-09-07 09:07:11,383 [DEBUG] core.argyll_runner: [argyll] Added 7239/9986
+2026-09-07 09:07:11,423 [DEBUG] core.argyll_runner: [argyll] Added 7250/9986
+2026-09-07 09:07:11,463 [DEBUG] core.argyll_runner: [argyll] Added 7261/9986
+2026-09-07 09:07:11,503 [DEBUG] core.argyll_runner: [argyll] Added 7272/9986
+2026-09-07 09:07:11,543 [DEBUG] core.argyll_runner: [argyll] Added 7283/9986
+2026-09-07 09:07:11,584 [DEBUG] core.argyll_runner: [argyll] Added 7294/9986
+2026-09-07 09:07:11,624 [DEBUG] core.argyll_runner: [argyll] Added 7305/9986
+2026-09-07 09:07:11,664 [DEBUG] core.argyll_runner: [argyll] Added 7316/9986
+2026-09-07 09:07:11,705 [DEBUG] core.argyll_runner: [argyll] Added 7327/9986
+2026-09-07 09:07:11,745 [DEBUG] core.argyll_runner: [argyll] Added 7338/9986
+2026-09-07 09:07:11,786 [DEBUG] core.argyll_runner: [argyll] Added 7349/9986
+2026-09-07 09:07:11,828 [DEBUG] core.argyll_runner: [argyll] Added 7360/9986
+2026-09-07 09:07:11,869 [DEBUG] core.argyll_runner: [argyll] Added 7371/9986
+2026-09-07 09:07:11,910 [DEBUG] core.argyll_runner: [argyll] Added 7382/9986
+2026-09-07 09:07:11,949 [DEBUG] core.argyll_runner: [argyll] Added 7393/9986
+2026-09-07 09:07:11,991 [DEBUG] core.argyll_runner: [argyll] Added 7404/9986
+2026-09-07 09:07:12,032 [DEBUG] core.argyll_runner: [argyll] Added 7415/9986
+2026-09-07 09:07:12,072 [DEBUG] core.argyll_runner: [argyll] Added 7426/9986
+2026-09-07 09:07:12,113 [DEBUG] core.argyll_runner: [argyll] Added 7437/9986
+2026-09-07 09:07:12,153 [DEBUG] core.argyll_runner: [argyll] Added 7448/9986
+2026-09-07 09:07:12,194 [DEBUG] core.argyll_runner: [argyll] Added 7459/9986
+2026-09-07 09:07:12,235 [DEBUG] core.argyll_runner: [argyll] Added 7470/9986
+2026-09-07 09:07:12,277 [DEBUG] core.argyll_runner: [argyll] Added 7481/9986
+2026-09-07 09:07:12,318 [DEBUG] core.argyll_runner: [argyll] Added 7492/9986
+2026-09-07 09:07:12,361 [DEBUG] core.argyll_runner: [argyll] Added 7503/9986
+2026-09-07 09:07:12,403 [DEBUG] core.argyll_runner: [argyll] Added 7514/9986
+2026-09-07 09:07:12,445 [DEBUG] core.argyll_runner: [argyll] Added 7525/9986
+2026-09-07 09:07:12,488 [DEBUG] core.argyll_runner: [argyll] Added 7536/9986
+2026-09-07 09:07:12,531 [DEBUG] core.argyll_runner: [argyll] Added 7547/9986
+2026-09-07 09:07:12,574 [DEBUG] core.argyll_runner: [argyll] Added 7558/9986
+2026-09-07 09:07:12,618 [DEBUG] core.argyll_runner: [argyll] Added 7569/9986
+2026-09-07 09:07:12,661 [DEBUG] core.argyll_runner: [argyll] Added 7580/9986
+2026-09-07 09:07:12,705 [DEBUG] core.argyll_runner: [argyll] Added 7591/9986
+2026-09-07 09:07:12,749 [DEBUG] core.argyll_runner: [argyll] Added 7602/9986
+2026-09-07 09:07:12,793 [DEBUG] core.argyll_runner: [argyll] Added 7613/9986
+2026-09-07 09:07:12,837 [DEBUG] core.argyll_runner: [argyll] Added 7624/9986
+2026-09-07 09:07:12,881 [DEBUG] core.argyll_runner: [argyll] Added 7635/9986
+2026-09-07 09:07:12,926 [DEBUG] core.argyll_runner: [argyll] Added 7646/9986
+2026-09-07 09:07:12,970 [DEBUG] core.argyll_runner: [argyll] Added 7657/9986
+2026-09-07 09:07:13,015 [DEBUG] core.argyll_runner: [argyll] Added 7668/9986
+2026-09-07 09:07:13,059 [DEBUG] core.argyll_runner: [argyll] Added 7679/9986
+2026-09-07 09:07:13,104 [DEBUG] core.argyll_runner: [argyll] Added 7690/9986
+2026-09-07 09:07:13,149 [DEBUG] core.argyll_runner: [argyll] Added 7701/9986
+2026-09-07 09:07:13,194 [DEBUG] core.argyll_runner: [argyll] Added 7712/9986
+2026-09-07 09:07:13,238 [DEBUG] core.argyll_runner: [argyll] Added 7723/9986
+2026-09-07 09:07:13,283 [DEBUG] core.argyll_runner: [argyll] Added 7734/9986
+2026-09-07 09:07:13,328 [DEBUG] core.argyll_runner: [argyll] Added 7745/9986
+2026-09-07 09:07:13,371 [DEBUG] core.argyll_runner: [argyll] Added 7756/9986
+2026-09-07 09:07:13,414 [DEBUG] core.argyll_runner: [argyll] Added 7767/9986
+2026-09-07 09:07:13,457 [DEBUG] core.argyll_runner: [argyll] Added 7778/9986
+2026-09-07 09:07:13,500 [DEBUG] core.argyll_runner: [argyll] Added 7789/9986
+2026-09-07 09:07:13,545 [DEBUG] core.argyll_runner: [argyll] Added 7800/9986
+2026-09-07 09:07:13,591 [DEBUG] core.argyll_runner: [argyll] Added 7811/9986
+2026-09-07 09:07:13,638 [DEBUG] core.argyll_runner: [argyll] Added 7822/9986
+2026-09-07 09:07:13,684 [DEBUG] core.argyll_runner: [argyll] Added 7833/9986
+2026-09-07 09:07:13,730 [DEBUG] core.argyll_runner: [argyll] Added 7844/9986
+2026-09-07 09:07:13,777 [DEBUG] core.argyll_runner: [argyll] Added 7855/9986
+2026-09-07 09:07:13,819 [DEBUG] core.argyll_runner: [argyll] Added 7866/9986
+2026-09-07 09:07:13,857 [DEBUG] core.argyll_runner: [argyll] Added 7877/9986
+2026-09-07 09:07:13,894 [DEBUG] core.argyll_runner: [argyll] Added 7888/9986
+2026-09-07 09:07:13,932 [DEBUG] core.argyll_runner: [argyll] Added 7899/9986
+2026-09-07 09:07:13,970 [DEBUG] core.argyll_runner: [argyll] Added 7910/9986
+2026-09-07 09:07:14,007 [DEBUG] core.argyll_runner: [argyll] Added 7921/9986
+2026-09-07 09:07:14,046 [DEBUG] core.argyll_runner: [argyll] Added 7932/9986
+2026-09-07 09:07:14,084 [DEBUG] core.argyll_runner: [argyll] Added 7943/9986
+2026-09-07 09:07:14,122 [DEBUG] core.argyll_runner: [argyll] Added 7954/9986
+2026-09-07 09:07:14,161 [DEBUG] core.argyll_runner: [argyll] Added 7965/9986
+2026-09-07 09:07:14,200 [DEBUG] core.argyll_runner: [argyll] Added 7976/9986
+2026-09-07 09:07:14,239 [DEBUG] core.argyll_runner: [argyll] Added 7987/9986
+2026-09-07 09:07:14,278 [DEBUG] core.argyll_runner: [argyll] Added 7998/9986
+2026-09-07 09:07:14,318 [DEBUG] core.argyll_runner: [argyll] Added 8009/9986
+2026-09-07 09:07:14,357 [DEBUG] core.argyll_runner: [argyll] Added 8020/9986
+2026-09-07 09:07:14,396 [DEBUG] core.argyll_runner: [argyll] Added 8031/9986
+2026-09-07 09:07:14,436 [DEBUG] core.argyll_runner: [argyll] Added 8042/9986
+2026-09-07 09:07:14,476 [DEBUG] core.argyll_runner: [argyll] Added 8053/9986
+2026-09-07 09:07:14,515 [DEBUG] core.argyll_runner: [argyll] Added 8064/9986
+2026-09-07 09:07:14,555 [DEBUG] core.argyll_runner: [argyll] Added 8075/9986
+2026-09-07 09:07:14,595 [DEBUG] core.argyll_runner: [argyll] Added 8086/9986
+2026-09-07 09:07:14,635 [DEBUG] core.argyll_runner: [argyll] Added 8097/9986
+2026-09-07 09:07:14,674 [DEBUG] core.argyll_runner: [argyll] Added 8108/9986
+2026-09-07 09:07:14,713 [DEBUG] core.argyll_runner: [argyll] Added 8119/9986
+2026-09-07 09:07:14,752 [DEBUG] core.argyll_runner: [argyll] Added 8130/9986
+2026-09-07 09:07:14,792 [DEBUG] core.argyll_runner: [argyll] Added 8141/9986
+2026-09-07 09:07:14,832 [DEBUG] core.argyll_runner: [argyll] Added 8152/9986
+2026-09-07 09:07:14,870 [DEBUG] core.argyll_runner: [argyll] Added 8163/9986
+2026-09-07 09:07:14,910 [DEBUG] core.argyll_runner: [argyll] Added 8174/9986
+2026-09-07 09:07:14,950 [DEBUG] core.argyll_runner: [argyll] Added 8185/9986
+2026-09-07 09:07:14,991 [DEBUG] core.argyll_runner: [argyll] Added 8196/9986
+2026-09-07 09:07:15,032 [DEBUG] core.argyll_runner: [argyll] Added 8207/9986
+2026-09-07 09:07:15,074 [DEBUG] core.argyll_runner: [argyll] Added 8218/9986
+2026-09-07 09:07:15,115 [DEBUG] core.argyll_runner: [argyll] Added 8229/9986
+2026-09-07 09:07:15,157 [DEBUG] core.argyll_runner: [argyll] Added 8240/9986
+2026-09-07 09:07:15,199 [DEBUG] core.argyll_runner: [argyll] Added 8251/9986
+2026-09-07 09:07:15,241 [DEBUG] core.argyll_runner: [argyll] Added 8262/9986
+2026-09-07 09:07:15,283 [DEBUG] core.argyll_runner: [argyll] Added 8273/9986
+2026-09-07 09:07:15,325 [DEBUG] core.argyll_runner: [argyll] Added 8284/9986
+2026-09-07 09:07:15,368 [DEBUG] core.argyll_runner: [argyll] Added 8295/9986
+2026-09-07 09:07:15,411 [DEBUG] core.argyll_runner: [argyll] Added 8306/9986
+2026-09-07 09:07:15,454 [DEBUG] core.argyll_runner: [argyll] Added 8317/9986
+2026-09-07 09:07:15,497 [DEBUG] core.argyll_runner: [argyll] Added 8328/9986
+2026-09-07 09:07:15,540 [DEBUG] core.argyll_runner: [argyll] Added 8339/9986
+2026-09-07 09:07:15,584 [DEBUG] core.argyll_runner: [argyll] Added 8350/9986
+2026-09-07 09:07:15,627 [DEBUG] core.argyll_runner: [argyll] Added 8361/9986
+2026-09-07 09:07:15,671 [DEBUG] core.argyll_runner: [argyll] Added 8372/9986
+2026-09-07 09:07:15,715 [DEBUG] core.argyll_runner: [argyll] Added 8383/9986
+2026-09-07 09:07:15,759 [DEBUG] core.argyll_runner: [argyll] Added 8394/9986
+2026-09-07 09:07:15,803 [DEBUG] core.argyll_runner: [argyll] Added 8405/9986
+2026-09-07 09:07:15,848 [DEBUG] core.argyll_runner: [argyll] Added 8416/9986
+2026-09-07 09:07:15,891 [DEBUG] core.argyll_runner: [argyll] Added 8427/9986
+2026-09-07 09:07:15,936 [DEBUG] core.argyll_runner: [argyll] Added 8438/9986
+2026-09-07 09:07:15,980 [DEBUG] core.argyll_runner: [argyll] Added 8449/9986
+2026-09-07 09:07:16,021 [DEBUG] core.argyll_runner: [argyll] Added 8460/9986
+2026-09-07 09:07:16,064 [DEBUG] core.argyll_runner: [argyll] Added 8471/9986
+2026-09-07 09:07:16,106 [DEBUG] core.argyll_runner: [argyll] Added 8482/9986
+2026-09-07 09:07:16,150 [DEBUG] core.argyll_runner: [argyll] Added 8493/9986
+2026-09-07 09:07:16,194 [DEBUG] core.argyll_runner: [argyll] Added 8504/9986
+2026-09-07 09:07:16,239 [DEBUG] core.argyll_runner: [argyll] Added 8515/9986
+2026-09-07 09:07:16,284 [DEBUG] core.argyll_runner: [argyll] Added 8526/9986
+2026-09-07 09:07:16,329 [DEBUG] core.argyll_runner: [argyll] Added 8537/9986
+2026-09-07 09:07:16,374 [DEBUG] core.argyll_runner: [argyll] Added 8548/9986
+2026-09-07 09:07:16,420 [DEBUG] core.argyll_runner: [argyll] Added 8559/9986
+2026-09-07 09:07:16,466 [DEBUG] core.argyll_runner: [argyll] Added 8570/9986
+2026-09-07 09:07:16,511 [DEBUG] core.argyll_runner: [argyll] Added 8581/9986
+2026-09-07 09:07:16,558 [DEBUG] core.argyll_runner: [argyll] Added 8592/9986
+2026-09-07 09:07:16,604 [DEBUG] core.argyll_runner: [argyll] Added 8603/9986
+2026-09-07 09:07:16,650 [DEBUG] core.argyll_runner: [argyll] Added 8614/9986
+2026-09-07 09:07:16,697 [DEBUG] core.argyll_runner: [argyll] Added 8625/9986
+2026-09-07 09:07:16,744 [DEBUG] core.argyll_runner: [argyll] Added 8636/9986
+2026-09-07 09:07:16,791 [DEBUG] core.argyll_runner: [argyll] Added 8647/9986
+2026-09-07 09:07:16,838 [DEBUG] core.argyll_runner: [argyll] Added 8658/9986
+2026-09-07 09:07:16,885 [DEBUG] core.argyll_runner: [argyll] Added 8669/9986
+2026-09-07 09:07:16,933 [DEBUG] core.argyll_runner: [argyll] Added 8680/9986
+2026-09-07 09:07:16,980 [DEBUG] core.argyll_runner: [argyll] Added 8691/9986
+2026-09-07 09:07:17,028 [DEBUG] core.argyll_runner: [argyll] Added 8702/9986
+2026-09-07 09:07:17,077 [DEBUG] core.argyll_runner: [argyll] Added 8713/9986
+2026-09-07 09:07:17,125 [DEBUG] core.argyll_runner: [argyll] Added 8724/9986
+2026-09-07 09:07:17,174 [DEBUG] core.argyll_runner: [argyll] Added 8735/9986
+2026-09-07 09:07:17,222 [DEBUG] core.argyll_runner: [argyll] Added 8746/9986
+2026-09-07 09:07:17,271 [DEBUG] core.argyll_runner: [argyll] Added 8757/9986
+2026-09-07 09:07:17,318 [DEBUG] core.argyll_runner: [argyll] Added 8768/9986
+2026-09-07 09:07:17,365 [DEBUG] core.argyll_runner: [argyll] Added 8779/9986
+2026-09-07 09:07:17,412 [DEBUG] core.argyll_runner: [argyll] Added 8790/9986
+2026-09-07 09:07:17,461 [DEBUG] core.argyll_runner: [argyll] Added 8801/9986
+2026-09-07 09:07:17,509 [DEBUG] core.argyll_runner: [argyll] Added 8812/9986
+2026-09-07 09:07:17,559 [DEBUG] core.argyll_runner: [argyll] Added 8823/9986
+2026-09-07 09:07:17,608 [DEBUG] core.argyll_runner: [argyll] Added 8834/9986
+2026-09-07 09:07:17,658 [DEBUG] core.argyll_runner: [argyll] Added 8845/9986
+2026-09-07 09:07:17,708 [DEBUG] core.argyll_runner: [argyll] Added 8856/9986
+2026-09-07 09:07:17,758 [DEBUG] core.argyll_runner: [argyll] Added 8867/9986
+2026-09-07 09:07:17,809 [DEBUG] core.argyll_runner: [argyll] Added 8878/9986
+2026-09-07 09:07:17,859 [DEBUG] core.argyll_runner: [argyll] Added 8889/9986
+2026-09-07 09:07:17,910 [DEBUG] core.argyll_runner: [argyll] Added 8900/9986
+2026-09-07 09:07:17,961 [DEBUG] core.argyll_runner: [argyll] Added 8911/9986
+2026-09-07 09:07:18,012 [DEBUG] core.argyll_runner: [argyll] Added 8922/9986
+2026-09-07 09:07:18,063 [DEBUG] core.argyll_runner: [argyll] Added 8933/9986
+2026-09-07 09:07:18,114 [DEBUG] core.argyll_runner: [argyll] Added 8944/9986
+2026-09-07 09:07:18,165 [DEBUG] core.argyll_runner: [argyll] Added 8955/9986
+2026-09-07 09:07:18,217 [DEBUG] core.argyll_runner: [argyll] Added 8966/9986
+2026-09-07 09:07:18,268 [DEBUG] core.argyll_runner: [argyll] Added 8977/9986
+2026-09-07 09:07:18,320 [DEBUG] core.argyll_runner: [argyll] Added 8988/9986
+2026-09-07 09:07:18,372 [DEBUG] core.argyll_runner: [argyll] Added 8999/9986
+2026-09-07 09:07:18,424 [DEBUG] core.argyll_runner: [argyll] Added 9010/9986
+2026-09-07 09:07:18,477 [DEBUG] core.argyll_runner: [argyll] Added 9021/9986
+2026-09-07 09:07:18,528 [DEBUG] core.argyll_runner: [argyll] Added 9032/9986
+2026-09-07 09:07:18,581 [DEBUG] core.argyll_runner: [argyll] Added 9043/9986
+2026-09-07 09:07:18,631 [DEBUG] core.argyll_runner: [argyll] Added 9054/9986
+2026-09-07 09:07:18,680 [DEBUG] core.argyll_runner: [argyll] Added 9065/9986
+2026-09-07 09:07:18,730 [DEBUG] core.argyll_runner: [argyll] Added 9076/9986
+2026-09-07 09:07:18,781 [DEBUG] core.argyll_runner: [argyll] Added 9087/9986
+2026-09-07 09:07:18,834 [DEBUG] core.argyll_runner: [argyll] Added 9098/9986
+2026-09-07 09:07:18,886 [DEBUG] core.argyll_runner: [argyll] Added 9109/9986
+2026-09-07 09:07:18,939 [DEBUG] core.argyll_runner: [argyll] Added 9120/9986
+2026-09-07 09:07:18,993 [DEBUG] core.argyll_runner: [argyll] Added 9131/9986
+2026-09-07 09:07:19,046 [DEBUG] core.argyll_runner: [argyll] Added 9142/9986
+2026-09-07 09:07:19,099 [DEBUG] core.argyll_runner: [argyll] Added 9153/9986
+2026-09-07 09:07:19,153 [DEBUG] core.argyll_runner: [argyll] Added 9164/9986
+2026-09-07 09:07:19,207 [DEBUG] core.argyll_runner: [argyll] Added 9175/9986
+2026-09-07 09:07:19,261 [DEBUG] core.argyll_runner: [argyll] Added 9186/9986
+2026-09-07 09:07:19,315 [DEBUG] core.argyll_runner: [argyll] Added 9197/9986
+2026-09-07 09:07:19,370 [DEBUG] core.argyll_runner: [argyll] Added 9208/9986
+2026-09-07 09:07:19,424 [DEBUG] core.argyll_runner: [argyll] Added 9219/9986
+2026-09-07 09:07:19,479 [DEBUG] core.argyll_runner: [argyll] Added 9230/9986
+2026-09-07 09:07:19,534 [DEBUG] core.argyll_runner: [argyll] Added 9241/9986
+2026-09-07 09:07:19,589 [DEBUG] core.argyll_runner: [argyll] Added 9252/9986
+2026-09-07 09:07:19,645 [DEBUG] core.argyll_runner: [argyll] Added 9263/9986
+2026-09-07 09:07:19,700 [DEBUG] core.argyll_runner: [argyll] Added 9274/9986
+2026-09-07 09:07:19,755 [DEBUG] core.argyll_runner: [argyll] Added 9285/9986
+2026-09-07 09:07:19,811 [DEBUG] core.argyll_runner: [argyll] Added 9296/9986
+2026-09-07 09:07:19,868 [DEBUG] core.argyll_runner: [argyll] Added 9307/9986
+2026-09-07 09:07:19,923 [DEBUG] core.argyll_runner: [argyll] Added 9318/9986
+2026-09-07 09:07:19,978 [DEBUG] core.argyll_runner: [argyll] Added 9329/9986
+2026-09-07 09:07:20,033 [DEBUG] core.argyll_runner: [argyll] Added 9340/9986
+2026-09-07 09:07:20,088 [DEBUG] core.argyll_runner: [argyll] Added 9351/9986
+2026-09-07 09:07:20,144 [DEBUG] core.argyll_runner: [argyll] Added 9362/9986
+2026-09-07 09:07:20,200 [DEBUG] core.argyll_runner: [argyll] Added 9373/9986
+2026-09-07 09:07:20,256 [DEBUG] core.argyll_runner: [argyll] Added 9384/9986
+2026-09-07 09:07:20,313 [DEBUG] core.argyll_runner: [argyll] Added 9395/9986
+2026-09-07 09:07:20,369 [DEBUG] core.argyll_runner: [argyll] Added 9406/9986
+2026-09-07 09:07:20,426 [DEBUG] core.argyll_runner: [argyll] Added 9417/9986
+2026-09-07 09:07:20,483 [DEBUG] core.argyll_runner: [argyll] Added 9428/9986
+2026-09-07 09:07:20,542 [DEBUG] core.argyll_runner: [argyll] Added 9439/9986
+2026-09-07 09:07:20,601 [DEBUG] core.argyll_runner: [argyll] Added 9450/9986
+2026-09-07 09:07:20,661 [DEBUG] core.argyll_runner: [argyll] Added 9461/9986
+2026-09-07 09:07:20,721 [DEBUG] core.argyll_runner: [argyll] Added 9472/9986
+2026-09-07 09:07:20,782 [DEBUG] core.argyll_runner: [argyll] Added 9483/9986
+2026-09-07 09:07:20,842 [DEBUG] core.argyll_runner: [argyll] Added 9494/9986
+2026-09-07 09:07:20,903 [DEBUG] core.argyll_runner: [argyll] Added 9505/9986
+2026-09-07 09:07:20,964 [DEBUG] core.argyll_runner: [argyll] Added 9516/9986
+2026-09-07 09:07:21,025 [DEBUG] core.argyll_runner: [argyll] Added 9527/9986
+2026-09-07 09:07:21,086 [DEBUG] core.argyll_runner: [argyll] Added 9538/9986
+2026-09-07 09:07:21,147 [DEBUG] core.argyll_runner: [argyll] Added 9549/9986
+2026-09-07 09:07:21,209 [DEBUG] core.argyll_runner: [argyll] Added 9560/9986
+2026-09-07 09:07:21,269 [DEBUG] core.argyll_runner: [argyll] Added 9571/9986
+2026-09-07 09:07:21,329 [DEBUG] core.argyll_runner: [argyll] Added 9582/9986
+2026-09-07 09:07:21,389 [DEBUG] core.argyll_runner: [argyll] Added 9593/9986
+2026-09-07 09:07:21,445 [DEBUG] core.argyll_runner: [argyll] Added 9604/9986
+2026-09-07 09:07:21,497 [DEBUG] core.argyll_runner: [argyll] Added 9615/9986
+2026-09-07 09:07:21,549 [DEBUG] core.argyll_runner: [argyll] Added 9626/9986
+2026-09-07 09:07:21,601 [DEBUG] core.argyll_runner: [argyll] Added 9637/9986
+2026-09-07 09:07:21,653 [DEBUG] core.argyll_runner: [argyll] Added 9648/9986
+2026-09-07 09:07:21,706 [DEBUG] core.argyll_runner: [argyll] Added 9659/9986
+2026-09-07 09:07:21,758 [DEBUG] core.argyll_runner: [argyll] Added 9670/9986
+2026-09-07 09:07:21,811 [DEBUG] core.argyll_runner: [argyll] Added 9681/9986
+2026-09-07 09:07:21,864 [DEBUG] core.argyll_runner: [argyll] Added 9692/9986
+2026-09-07 09:07:21,917 [DEBUG] core.argyll_runner: [argyll] Added 9703/9986
+2026-09-07 09:07:21,971 [DEBUG] core.argyll_runner: [argyll] Added 9714/9986
+2026-09-07 09:07:22,024 [DEBUG] core.argyll_runner: [argyll] Added 9725/9986
+2026-09-07 09:07:22,078 [DEBUG] core.argyll_runner: [argyll] Added 9736/9986
+2026-09-07 09:07:22,131 [DEBUG] core.argyll_runner: [argyll] Added 9747/9986
+2026-09-07 09:07:22,185 [DEBUG] core.argyll_runner: [argyll] Added 9758/9986
+2026-09-07 09:07:22,239 [DEBUG] core.argyll_runner: [argyll] Added 9769/9986
+2026-09-07 09:07:22,293 [DEBUG] core.argyll_runner: [argyll] Added 9780/9986
+2026-09-07 09:07:22,347 [DEBUG] core.argyll_runner: [argyll] Added 9791/9986
+2026-09-07 09:07:22,402 [DEBUG] core.argyll_runner: [argyll] Added 9802/9986
+2026-09-07 09:07:22,456 [DEBUG] core.argyll_runner: [argyll] Added 9813/9986
+2026-09-07 09:07:22,511 [DEBUG] core.argyll_runner: [argyll] Added 9824/9986
+2026-09-07 09:07:22,566 [DEBUG] core.argyll_runner: [argyll] Added 9835/9986
+2026-09-07 09:07:22,620 [DEBUG] core.argyll_runner: [argyll] Added 9846/9986
+2026-09-07 09:07:22,675 [DEBUG] core.argyll_runner: [argyll] Added 9857/9986
+2026-09-07 09:07:22,729 [DEBUG] core.argyll_runner: [argyll] Added 9868/9986
+2026-09-07 09:07:22,784 [DEBUG] core.argyll_runner: [argyll] Added 9879/9986
+2026-09-07 09:07:22,839 [DEBUG] core.argyll_runner: [argyll] Added 9890/9986
+2026-09-07 09:07:22,894 [DEBUG] core.argyll_runner: [argyll] Added 9901/9986
+2026-09-07 09:07:22,950 [DEBUG] core.argyll_runner: [argyll] Added 9912/9986
+2026-09-07 09:07:23,006 [DEBUG] core.argyll_runner: [argyll] Added 9923/9986
+2026-09-07 09:07:23,062 [DEBUG] core.argyll_runner: [argyll] Added 9934/9986
+2026-09-07 09:07:23,118 [DEBUG] core.argyll_runner: [argyll] Added 9945/9986
+2026-09-07 09:07:23,174 [DEBUG] core.argyll_runner: [argyll] Added 9956/9986
+2026-09-07 09:07:23,231 [DEBUG] core.argyll_runner: [argyll] Added 9967/9986
+2026-09-07 09:07:23,288 [DEBUG] core.argyll_runner: [argyll] Added 9978/9986
+2026-09-07 09:07:23,345 [DEBUG] core.argyll_runner: [argyll] Added 9986/9986
+2026-09-07 09:07:29,059 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 09:07:29,084 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 1.219, Min = 1.170, Avg. = 3.862, Max = 4.934, 1.3 secs
+2026-09-07 09:07:29,084 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,084 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.035664, MinPoint = 0.506, Min = 0.713, Avg. = 3.841, Max = 5.116, 1.3 secs.
+2026-09-07 09:07:29,085 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,085 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.037458, MinPoint = 0.676, Min = 1.199, Avg. = 3.814, Max = 5.329, 1.3 secs.
+2026-09-07 09:07:29,085 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,085 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.032832, MinPoint = 0.858, Min = 1.199, Avg. = 3.788, Max = 5.109, 1.3 secs.
+2026-09-07 09:07:29,086 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,086 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.033231, MinPoint = 1.307, Min = 1.199, Avg. = 3.762, Max = 4.837, 1.3 secs.
+2026-09-07 09:07:29,086 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,086 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.024567, MinPoint = 1.307, Min = 1.199, Avg. = 3.740, Max = 4.891, 1.3 secs.
+2026-09-07 09:07:29,087 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,087 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.023615, MinPoint = 1.307, Min = 1.199, Avg. = 3.719, Max = 4.833, 1.3 secs.
+2026-09-07 09:07:29,087 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,087 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.019319, MinPoint = 1.307, Min = 1.199, Avg. = 3.698, Max = 4.634, 1.3 secs.
+2026-09-07 09:07:29,088 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,088 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.017724, MinPoint = 1.307, Min = 1.199, Avg. = 3.682, Max = 4.672, 1.3 secs.
+2026-09-07 09:07:29,088 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,088 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.015120, MinPoint = 1.307, Min = 1.199, Avg. = 3.670, Max = 4.535, 1.3 secs.
+2026-09-07 09:07:29,088 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,089 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.014288, MinPoint = 1.307, Min = 1.199, Avg. = 3.660, Max = 4.468, 1.3 secs.
+2026-09-07 09:07:29,089 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,089 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.013654, MinPoint = 1.307, Min = 1.199, Avg. = 3.652, Max = 4.458, 1.3 secs.
+2026-09-07 09:07:29,089 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,090 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.009423, MinPoint = 1.307, Min = 1.199, Avg. = 3.647, Max = 4.467, 1.3 secs.
+2026-09-07 09:07:29,090 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,090 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.007368, MinPoint = 1.307, Min = 1.199, Avg. = 3.642, Max = 4.328, 1.3 secs.
+2026-09-07 09:07:29,090 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,091 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.006124, MinPoint = 1.307, Min = 1.199, Avg. = 3.639, Max = 4.404, 1.3 secs.
+2026-09-07 09:07:29,091 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,091 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.004889, MinPoint = 1.307, Min = 1.199, Avg. = 3.636, Max = 4.319, 1.4 secs.
+2026-09-07 09:07:29,091 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,091 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.003539, MinPoint = 1.307, Min = 1.199, Avg. = 3.634, Max = 4.633, 1.3 secs.
+2026-09-07 09:07:29,092 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,092 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.002566, MinPoint = 1.307, Min = 1.199, Avg. = 3.633, Max = 4.431, 1.3 secs.
+2026-09-07 09:07:29,092 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,092 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.001533, MinPoint = 1.307, Min = 1.199, Avg. = 3.633, Max = 4.215, 1.3 secs.
+2026-09-07 09:07:29,093 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,093 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.000603, MinPoint = 1.307, Min = 1.199, Avg. = 3.633, Max = 4.359, 1.3 secs.
+2026-09-07 09:07:29,093 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 09:07:29,093 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.000530, MinPoint = 1.307, Min = 1.199, Avg. = 3.633, Max = 4.216, 1.3 secs.
+2026-09-07 09:07:29,093 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 1.307, Min = 1.199, Avg. = 3.633, Max = 4.216
+2026-09-07 09:07:29,094 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 10000
+2026-09-07 09:07:29,094 [DEBUG] core.argyll_runner: [argyll] Execution time = 27.687034 seconds
+2026-09-07 09:07:29,094 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 09:07:30,889 [DEBUG] workflow.chart_creator: Wrote channel sidecar A10-Extremes.channels.json: ['r', 'g', 'b']
+2026-09-07 09:07:33,859 [DEBUG] ui.tiff_preview: TiffPreview: loaded 36 page(s)
+2026-09-07 09:07:33,859 [INFO] ui.tabs.tab_chart: Preview loaded: 36 TIFF(s)
+2026-09-07 09:07:34,175 [INFO] ui.main_window: Chart-build lock released by watchdog — no chart_finished arrived after the last tool ended

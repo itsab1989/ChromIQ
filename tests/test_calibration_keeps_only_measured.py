@@ -868,13 +868,26 @@ def test_the_two_help_texts_no_longer_read_as_the_chart():
     vocabulary and read as false to a beginner, because a calibration is by
     definition measured and a chart is not."""
     import inspect
+    import re
 
     import ui.dialogs.welcome_dialog as wd
     import ui.measurement_target_bar as bar
 
-    tip = inspect.getsource(bar)
-    assert "moves the calibration you have measured" in tip.replace(
-        '"\n                "', ""), "the Delete tooltip still says \u201cthe one you have\u201d"
-    hello = inspect.getsource(wd)
-    assert "never deletes a calibration you have measured" in hello.replace(
-        '"\n                "', ""), "the welcome card still says \u201cthe old one\u201d"
+    def _joined(mod) -> str:
+        """The module's source with implicit string concatenation closed up.
+
+        NOT a single hard-coded indent. This used to strip the exact literal
+        `'"\\n                "'`, sixteen spaces and no other width, and it
+        went red on 2026-09-21 the moment the sentence moved into a step NOTE,
+        which is indented eighteen. The sentence was still there and still
+        correct; only the wrapping had changed. Any run of quote, newline,
+        whitespace, quote is the same break.
+        """
+        return re.sub(r'"\s*\n\s*"', "", inspect.getsource(mod))
+
+    tip = _joined(bar)
+    assert "moves the calibration you have measured" in tip, (
+        "the Delete tooltip still says \u201cthe one you have\u201d")
+    hello = _joined(wd)
+    assert "never deletes a calibration you have measured" in hello, (
+        "the welcome card still says \u201cthe old one\u201d")

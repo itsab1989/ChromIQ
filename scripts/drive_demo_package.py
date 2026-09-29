@@ -422,7 +422,7 @@ def main() -> int:
         steps = " ".join(case.get("steps") or [])
         if "Restore Used Chart" not in steps:
             continue
-        fresh = Path(_tf.mkdtemp()) / nm
+        fresh = Path(_tf.mkdtemp(prefix="chromiq-test-")) / nm
         shutil.copytree(src / nm, fresh)
         try:
             pr = _Project.load(fresh)

@@ -75,9 +75,12 @@ def test_both_fields_are_filled_and_neither_is_switched_on(cal_home, qapp):
 
 
 def test_the_status_line_says_neither_is_on(cal_home, qapp):
+    """With printtarg laying the chart out, the -K / -I fields are what the
+    build reads, so the line names them (decision 7)."""
     from tests.conftest_calibration import CalSettings
 
-    tab = _build(CalSettings(cal_home, calibration_mode=True), with_cal=True)
+    tab = _build(CalSettings(cal_home, calibration_mode=True,
+                             use_chromiq_layout_engine=False), with_cal=True)
     text = tab._cal_status_lbl.text()
     assert "Neither is switched on yet" in text
     assert "cannot both be used at once" in text
@@ -102,3 +105,71 @@ def test_a_users_own_setting_is_not_switched_off(cal_home, qapp):
     tab._manual_cal_k_pw._enable_check.setChecked(True)
     tab._check_for_cal_file("Test-Printer")
     assert tab._manual_cal_k_pw._enable_check.isChecked() is True
+
+
+# ---- B8-1655: the engine reads its own calibration group -----------------
+def test_with_the_engine_the_offer_goes_to_the_engine_panel(cal_home, qapp):
+    """An engine build takes its calibration from the engine panel's
+    "Printer calibration" group, never from -K / -I, so the offer goes there
+    too: the path filled, the Mode left on "None", and the line says where."""
+    from tests.conftest_calibration import CalSettings
+    from workflow.measurement_messages import M_CAL_FOUND_ENGINE
+
+    tab = _build(CalSettings(cal_home, calibration_mode=True,
+                             use_chromiq_layout_engine=True), with_cal=True)
+    assert tab._manual_panel_lays_out()
+    panel = tab._manual_layout_panel
+    assert panel.cal_path_edit.text().endswith("-cal.cal")
+    assert panel.cal_mode.currentData() == "off", (
+        "the prefill chose a mode for the user")
+    path, apply_cal = panel.cal_settings()
+    assert path is None or not apply_cal, (
+        "with Mode on None the build must not apply the calibration")
+    assert tab._cal_status_lbl.text() == M_CAL_FOUND_ENGINE.render(
+        name=tab._manual_layout_panel.cal_path_edit.text().rsplit("/", 1)[-1])[1]
+
+
+def test_with_the_engine_a_path_already_there_is_kept(cal_home, qapp):
+    from tests.conftest_calibration import CalSettings
+
+    settings = CalSettings(cal_home, calibration_mode=True,
+                           use_chromiq_layout_engine=True)
+    fm = FileManager(settings)
+    fm.set_target_name("Test-Printer")
+    cal = fm.project().calibration
+    cal.ensure_dir()
+    cal.cal_path.write_text("a calibration", encoding="utf-8")
+    tab = TabChart(ArgyllRunner(settings), fm, settings)
+    tab._manual_layout_panel.cal_path_edit.setText("/somewhere/else.cal")
+    tab._check_for_cal_file("Test-Printer")
+    assert tab._manual_layout_panel.cal_path_edit.text() == "/somewhere/else.cal"
+    # B8-1661: nothing was filled, so the line must not say it was.
+    # isHidden, not isVisible: the tab is never shown in this test, so
+    # isVisible is False whatever the code set.
+    assert tab._cal_status_lbl.isHidden(), (
+        "the line says the project's file was filled in, and it was not")
+
+
+def test_with_the_engine_a_chosen_mode_is_never_given_a_file(cal_home, qapp):
+    """B8-1660 (beta 48 challenge): with the Mode already on "Apply & embed
+    (-K)" and the path empty, filling the path made the next Generate print
+    every patch through a calibration nobody picked. The offer stays out."""
+    from tests.conftest_calibration import CalSettings
+
+    settings = CalSettings(cal_home, calibration_mode=True,
+                           use_chromiq_layout_engine=True)
+    fm = FileManager(settings)
+    fm.set_target_name("Test-Printer")
+    cal = fm.project().calibration
+    cal.ensure_dir()
+    cal.cal_path.write_text("a calibration", encoding="utf-8")
+    tab = TabChart(ArgyllRunner(settings), fm, settings)
+    panel = tab._manual_layout_panel
+    panel.cal_path_edit.setText("")
+    panel.cal_mode.setCurrentIndex(panel.cal_mode.findData("apply"))
+    tab._check_for_cal_file("Test-Printer")
+    assert panel.cal_path_edit.text() == "", (
+        "a calibration was filled in under a mode the user chose for "
+        "another file, and the next Generate would apply it")
+    path, apply_cal = panel.cal_settings()
+    assert not path, "the build would now use the project's calibration"

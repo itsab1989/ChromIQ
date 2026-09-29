@@ -69,6 +69,44 @@ class UpdateAvailableDialog(QDialog):
         later_btn.clicked.connect(self.reject)
         inner.addWidget(bb)
 
+        # THE WINDOW MAY NOT OPEN SHORTER THAN ITS OWN TEXT. Knut, 2026-09-22:
+        # *"Sometime the window opens too short in height, making the text
+        # being cut ... The window should always show all text, and not keep
+        # the window fixed and push the text into a frame that is partly not
+        # shown on screen."*
+        #
+        # A WORD-WRAPPED `QLabel` DOES NOT REPORT THE HEIGHT IT NEEDS. Its
+        # `minimumSizeHint` is computed from its own minimum content rather
+        # than from the height the text takes at the width the dialog gives
+        # it, so the dialog's minimum stays put while its sizeHint grows with
+        # the body. Measured on screen, English, the only thing changed being
+        # the length of the version string in the body:
+        #
+        #     latest                                  sizeHint   minimumSizeHint
+        #     v9.9.9                                    346x294       329x262
+        #     v4.3.0-beta.32                            346x294       329x262
+        #     v4.3.0-beta.32-rc1+build.20260922.arm64   346x310       329x262
+        #
+        # So with a long version the content needs 310 px and nothing stopped
+        # the window being 262. That is exactly the fault: the text is cut and
+        # the user has to drag the window taller to read it.
+        #
+        # Widening the window only frees space; narrowing it is what the
+        # width floor below prevents.
+        self.layout().activate()
+        # **AND THE WIDTH THE HEIGHT WAS MEASURED AT, OR THE FAULT COMES
+        # BACK.** `setMinimumWidth(540)` above is a MINIMUM and not a pin: the
+        # button row makes the window open wider than 540 in nine of the
+        # fourteen languages, and a user can still drag it back down to 540.
+        # The body then wraps into more lines than the height was measured
+        # for. Measured by challenge round 38, dragging each window to the
+        # width it still allowed: German needs 80 px of body and has 64, so 16
+        # px of text is cut, and the same in Norwegian, Ukrainian and Japanese.
+        #
+        # So the floor is the size it was actually laid out at, both ways.
+        self.setMinimumSize(max(self.minimumWidth(), self.sizeHint().width()),
+                            self.sizeHint().height())
+
     def _open_download_page(self) -> None:
         QDesktopServices.openUrl(QUrl(_RELEASES_PAGE))
         self.accept()

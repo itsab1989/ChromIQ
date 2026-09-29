@@ -26,6 +26,7 @@ from ui import neutral_styles
 from ui.theme import by_mode
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (NoScrollDoubleSpinBox, WrappingCheckBox, set_ink)
+from workflow.hex_support import hex_patch_width_row_note
 from workflow.margin_inspector import MarginReport, Violation
 
 # Frame, text margin, the up/down buttons and the theme's padding around a spin
@@ -66,9 +67,22 @@ class MarginInspectorPanel(QGroupBox):
     coords_toggled = pyqtSignal(bool)
     #: (on, distance from edge mm, marker length mm) — #152
 
+    #: Emitted when the user folds or unfolds the warning paragraph, so the
+    #: owning tab can persist it. The panel does not reach for `AppSettings`
+    #: itself: `ui/widgets.py` holding the settings in a module global across a
+    #: QApplication teardown is the leak `tests/conftest.py` had to be rewritten
+    #: for (CLAUDE.md), and a display panel has no business owning that.
+    warnings_expanded_changed = pyqtSignal(bool)
+
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(tr("Measured from Preview"), parent)
         self._mode = "dark"
+        #: Whether the red warning paragraph is unfolded. The owner restores
+        #: the remembered answer with :meth:`set_warnings_expanded`.
+        self._warnings_expanded = True
+        #: How many NOTICES the paragraph is currently carrying. 0 means there
+        #: is nothing to fold, and the header does not appear at all.
+        self._warning_count = 0
         #: The last verdict `_update_status` was given, so `set_appearance`
         #: can repaint it in a new appearance. None until one arrives.
         self._last_status: "tuple[list, dict] | None" = None
@@ -164,7 +178,7 @@ class MarginInspectorPanel(QGroupBox):
                "patch sits too close to the edge of the page, the instrument "
                "can run off the paper or bump the ruler, and the reading fails. "
                "This panel helps you catch that before you print.\n\n"
-               "What the numbers mean:\n"
+               "**What the numbers mean:**\n"
                "• Left, Right, Top, Bottom — how much white space there is "
                "between each edge of the paper and the first PATCH, shown in "
                "both millimetres and inches.\n\n"
@@ -186,16 +200,49 @@ class MarginInspectorPanel(QGroupBox):
                "ruler or jig. If a margin is below its minimum, that row turns "
                "red and a short warning appears; when everything is fine you'll "
                "see a friendly green 'Margins: OK'.\n\n"
-               "You decide those minimums yourself: open Preferences → "
+               "**You decide those minimums yourself:** open Preferences → "
                "Instrument Margins and set them for each instrument and paper "
                "size (the starting values are sensible defaults you can adjust "
                "to your own ruler). They're only a helpful warning — you can "
                "always go ahead and print anyway.\n\n"
                "The three tick boxes below draw these numbers onto the preview "
-               "in different ways; each has its own ⓘ."), self)
+               "in different ways; each has its own ⓘ.")
+            # THE HONEYCOMB FOOTNOTE ON "Patch width", which is the row it is
+            # about. Knut, 2026-09-11: the help here "does not specify that the
+            # column pitch is equal to the patch width measurement", and the two
+            # rotations have to be told apart. Appended rather than written into
+            # the paragraph above for the reason `hex_two_heights_note` gives:
+            # that string is long, shipped and translated twelve times.
+            + "\n\n" + hex_patch_width_row_note(), self)
         grid.addWidget(self._panel_tip, 0, 4,
                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         v.addWidget(self._table)
+
+        # THE WARNINGS FOLD AWAY, AND THE APP REMEMBERS. Basti, 2026-09-13:
+        # *"the red warning text in the measured from preview section can
+        # become quite a lot in some instances. can this be made collapsible
+        # and the app remembers the state it was in so it does not always take
+        # up this much space?"* Measured on his own CR30 A4 preset: three
+        # notices at once run to fourteen wrapped lines and take more vertical
+        # room than the whole table above them.
+        #
+        # THIS IS NOT THE BOX HE RULED OUT IN 2026-09-04, and the difference is
+        # the reason it is allowed to exist. That one was a FRAMED collapsible
+        # section holding standing INFO text inside a section, and his words
+        # were *"i want that gone. You can fit it inside of a tooltip where it
+        # fits but not directly inside a section"*. This is one clickable line
+        # in front of a WARNING about the chart in the preview, which Knut
+        # required to be visible without a hover, so it cannot go in a tooltip:
+        # the notices are what he asked to be able to shut, not to move.
+        #
+        # Only a warning gets the header. "Margins: OK" is one short line, and
+        # a fold on a line that short is furniture, not a saving.
+        self._warn_toggle = QLabel("", self)
+        self._warn_toggle.setWordWrap(True)
+        self._warn_toggle.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._warn_toggle.setVisible(False)
+        self._warn_toggle.mousePressEvent = self._on_warn_toggle_clicked
+        v.addWidget(self._warn_toggle)
 
         # Large pass/fail status, one or more lines.
         self._status = QLabel("", self)
@@ -287,9 +334,9 @@ class MarginInspectorPanel(QGroupBox):
                "the sheet, because the page is drawn slightly inside the "
                "preview's white border — a 0 mm margin would sit right on that "
                "line.\n\n"
-               "The minimums are yours to set: Preferences → Instrument "
+               "**The minimums are yours to set:** Preferences → Instrument "
                "Margins, per instrument and paper size.\n\n"
-               "Default: off."), self), 0, 1, _align)
+               "**Default:** off."), self), 0, 1, _align)
         bottom.addWidget(TooltipButton(
             tr("Margin guide lines"),
             tr("Draws a long dotted line at each of the four margins ChromIQ "
@@ -300,7 +347,7 @@ class MarginInspectorPanel(QGroupBox):
                "It is a different thing from the instrument-margin lines above, "
                "which show what your ruler NEEDS rather than what the chart "
                "HAS — and you can have both sets on at once to compare them.\n\n"
-               "Default: off."), self), 1, 1, _align)
+               "**Default:** off."), self), 1, 1, _align)
         bottom.addWidget(TooltipButton(
             tr("Measurement coordinates on pointer"),
             tr("Turns your mouse into a ruler.\n\n"
@@ -313,7 +360,7 @@ class MarginInspectorPanel(QGroupBox):
                "It is the easiest way to check a real distance on screen: "
                "hover over the edge of a patch, or over a margin, and read off "
                "exactly where it sits.\n\n"
-               "Default: off."), self), 2, 1, _align)
+               "**Default:** off."), self), 2, 1, _align)
 
         # (The ruler helper markers moved to Create Chart -> Manual -> Expert
         # Options -> "Ruler helper markers" in #158. They are printed on the
@@ -400,6 +447,19 @@ class MarginInspectorPanel(QGroupBox):
         """
         return self._panel_tip.live_note()
 
+    def status_message(self) -> str:
+        """What the message field is saying, or "" when it is hidden.
+
+        The panel's own surface, as opposed to :meth:`text_notes`, which is what
+        it has parked on its ⓘ. Knut's overlap warnings are meant to be SEEN,
+        so a check that they are live has to look here.
+        """
+        # `isHidden`, NOT `isVisible`. A widget whose window has never been
+        # shown is not "visible", so `isVisible` answers "is this panel on
+        # screen" and the question here is "has this label been switched off",
+        # which is what `setVisible(False)` sets and `isHidden` reports.
+        return "" if self._status.isHidden() else self._status.text()
+
     def show_placeholder(self) -> None:
         """No preview yet (or measurement failed) — hide the numbers."""
         self._placeholder.setVisible(True)
@@ -416,6 +476,8 @@ class MarginInspectorPanel(QGroupBox):
         notify: bool,
         thresholds: dict | None = None,
         text_warnings: "list[str] | None" = None,
+        overlap_warnings: "list[str] | None" = None,
+        notice_preamble: "str | None" = None,
     ) -> None:
         """Show ``report``'s margins and the pass/fail status.
 
@@ -424,11 +486,29 @@ class MarginInspectorPanel(QGroupBox):
         the Settings flag — when False the status line is suppressed entirely
         (margins still shown). ``text_warnings`` are extra messages (e.g. a margin
         too small for its label/text band) shown with the margin status (#93).
+
+        ``overlap_warnings`` are the four-sided text/patch collisions, and they
+        are the one kind of notice that goes on the panel's own SURFACE rather
+        than only onto its ⓘ. Knut's ruling, 2026-09-10: the text is never
+        dropped, the overlap is allowed and shown, *"and it is warned about, in
+        red, in the message field of the 'Measured from Preview' frame"*, so the
+        user can widen the margin or change the text distance and make it line
+        up. They reach the ⓘ as well, because the caller passes them in both.
+
+        ``notice_preamble`` is one plain sentence printed ABOVE those notices
+        and OUTSIDE the warning count. It exists for the one thing that is not
+        a fault and still has to be read without a hover: the notices are
+        judged on the page of the chart where an edge is tightest, and the
+        margins in this frame are the page on screen's, so on a part-full last
+        page the two disagree (B8-210). It is not a warning and must not be
+        counted as one, or a chart with a single fault would announce two.
         """
         self._last_report = ((report, list(violations)),
                              {"thresholds_defined": thresholds_defined,
                               "notify": notify, "thresholds": thresholds,
-                              "text_warnings": text_warnings})
+                              "text_warnings": text_warnings,
+                              "overlap_warnings": overlap_warnings,
+                              "notice_preamble": notice_preamble})
         if report is None:
             self.show_placeholder()
             return
@@ -494,7 +574,9 @@ class MarginInspectorPanel(QGroupBox):
             self._striplen_in.setText("—")
 
         self._update_status(violations, thresholds_defined=thresholds_defined,
-                            notify=notify, text_warnings=text_warnings)
+                            notify=notify, text_warnings=text_warnings,
+                            overlap_warnings=overlap_warnings,
+                            notice_preamble=notice_preamble)
 
     # ------------------------------------------------------------------
     def _repaint_status(self) -> None:
@@ -513,17 +595,28 @@ class MarginInspectorPanel(QGroupBox):
         self, violations: list[Violation], *,
         thresholds_defined: bool, notify: bool,
         text_warnings: "list[str] | None" = None,
+        overlap_warnings: "list[str] | None" = None,
+        notice_preamble: "str | None" = None,
     ) -> None:
         self._last_status = (list(violations),
                              {"thresholds_defined": thresholds_defined,
                               "notify": notify,
-                              "text_warnings": list(text_warnings or [])})
+                              "text_warnings": list(text_warnings or []),
+                              "overlap_warnings": list(overlap_warnings or []),
+                              "notice_preamble": notice_preamble})
         if not notify:
             self._status.setVisible(False)
+            self._warning_count = 0
+            self._apply_warning_fold()
             self._show_text_notes([])
             return
         self._status.setVisible(True)
+        # NO HEADER UNTIL A WARNING IS ACTUALLY SET, and every branch below
+        # either sets one or leaves this at zero. Starting from zero here is
+        # what stops a stale header surviving a chart that fixed its own fault.
+        self._warning_count = 0
         text_warnings = list(text_warnings or [])
+        overlap_warnings = list(overlap_warnings or [])
         # The text notices go to the panel's ⓘ, in front of its standing help.
         self._show_text_notes(text_warnings)
         # Name WHICH minimum was missed (Knut, #130 2026-07-27): the
@@ -560,11 +653,48 @@ class MarginInspectorPanel(QGroupBox):
         # than leaving the last one baked in. The owner found the green one by
         # generating a chart: this panel is empty until one exists, which is
         # why every pixel census before this walked straight past it.
-        if margin_lines:                                # something to warn about
-            self._status.setText("\n".join(margin_lines))
-            set_ink(self._status, "#e0564b",
-                    " font-size: 14px; font-weight: 700;", level="main")
+        # THE OVERLAPS STAND BESIDE THE MARGIN VIOLATIONS, IN THE SAME RED.
+        #
+        # Knut asked for exactly this place and exactly this colour, and the
+        # reason is that the alternative was tried and it failed him: these
+        # notices moved off the panel's surface onto its ⓘ on 2026-09-04, and
+        # an ⓘ is only read if it is asked for. A chart whose text runs over
+        # its own patches has to be visible without a hover.
+        #
+        # They are not a decoration on the margin verdict either: a chart can
+        # meet every instrument minimum and still print its notes across the
+        # patches, which is the 10 x 15 cm photo card exactly. So both lists are
+        # shown, violations first, rather than the first one winning.
+        if margin_lines or overlap_warnings:
+            # THE PREAMBLE IS PRINTED AND NOT COUNTED. It says which sheet the
+            # notices below were measured on; the count is how many things are
+            # wrong, and this is not one of them.
+            _lines = margin_lines + overlap_warnings
+            if notice_preamble:
+                _lines = [notice_preamble, ""] + _lines
+            self._status.setText("\n".join(_lines))
+            self._warning_count = len(margin_lines) + len(overlap_warnings)
+            # A VERDICT IS CENTRED; A PARAGRAPH IS NOT. A margin violation is
+            # one short line and reads well centred, which is why it is. An
+            # overlap notice has to say what is wrong AND which two boxes fix
+            # it, so it wraps to four or five lines, and centred ragged text
+            # that long is markedly harder to read. Left-aligned and a little
+            # smaller, it is still the loudest thing in the frame.
+            self._overlap_paragraph(bool(overlap_warnings))
+            if overlap_warnings:
+                set_ink(self._status, "#e0564b",
+                        " font-size: 12px; font-weight: 600;", level="main")
+            else:
+                set_ink(self._status, "#e0564b",
+                        " font-size: 14px; font-weight: 700;", level="main")
+            # LAST, so it hides a paragraph that has already been filled in and
+            # styled. Called after `setVisible(True)` above, which is why the
+            # fold survives a fresh chart rather than springing open on every
+            # rebuild: `_apply_warning_fold` is the only thing that decides the
+            # paragraph's visibility once there is a warning in it.
+            self._apply_warning_fold()
             return
+        self._apply_warning_fold()          # nothing to fold: header off
         if text_warnings:
             # NO GREEN "Margins: OK" WHILE A TEXT NOTICE IS LIVE. The margins
             # really are within their thresholds, so the verdict would not be
@@ -575,6 +705,7 @@ class MarginInspectorPanel(QGroupBox):
             self._status.setVisible(False)
             return
         if not thresholds_defined:
+            self._overlap_paragraph(False)
             self._status.setText(tr(
                 "No instrument margins set for this instrument and paper size."))
             # MEASURED, by the reviewer who found this independently:
@@ -590,6 +721,82 @@ class MarginInspectorPanel(QGroupBox):
             # re-resolves it instead of leaving the last one baked in.
             set_ink(self._status, "#909090", " font-size: 11px;", level="faint")
             return
+        self._overlap_paragraph(False)
         self._status.setText(tr("Margins: OK"))
         set_ink(self._status, "#4fc27a",
                 " font-size: 15px; font-weight: 700;", level="main")
+
+    def _overlap_paragraph(self, on: bool) -> None:
+        """Left-align the message field for a paragraph, centre it for a verdict."""
+        self._status.setAlignment(
+            Qt.AlignmentFlag.AlignLeft if on else Qt.AlignmentFlag.AlignHCenter)
+
+    # ------------------------------------------------------------------
+    # The warning fold (Basti, 2026-09-13)
+    # ------------------------------------------------------------------
+
+    def warnings_expanded(self) -> bool:
+        """Whether the red warning paragraph is currently unfolded."""
+        return bool(self._warnings_expanded)
+
+    def set_warnings_expanded(self, expanded: bool, *, emit: bool = False) -> None:
+        """Fold or unfold the warning paragraph.
+
+        The owner calls this once with the remembered answer, WITHOUT emitting,
+        so restoring a stored state cannot be mistaken for the user changing
+        it and written straight back.
+        """
+        expanded = bool(expanded)
+        changed = expanded != self._warnings_expanded
+        self._warnings_expanded = expanded
+        self._apply_warning_fold()
+        if emit and changed:
+            self.warnings_expanded_changed.emit(expanded)
+
+    def _on_warn_toggle_clicked(self, event) -> None:      # noqa: ANN001 (Qt)
+        """Fold on a LEFT click, and on nothing else.
+
+        The handler is installed by assigning over the label's own
+        `mousePressEvent`, and Qt calls that for EVERY button. Measured on
+        screen, 2026-09-13: a right click on "▼ 2 warnings" shut the paragraph
+        and wrote `margin_warnings_expanded` False, and so did a middle click.
+        Nothing else in this app hides a section on a right click, and the
+        right button is where a context menu is expected, so the paragraph
+        vanished for a reason the user did not ask for and could not see.
+        """
+        if event is not None and event.button() != Qt.MouseButton.LeftButton:
+            # Not ours. Hand it back to QLabel, which is where a future
+            # context menu on this line would come from.
+            QLabel.mousePressEvent(self._warn_toggle, event)
+            return
+        self.set_warnings_expanded(not self._warnings_expanded, emit=True)
+
+    def _warning_header_text(self) -> str:
+        """``▼  3 warnings`` / ``▶  3 warnings``, counting the NOTICES.
+
+        Counted on the notices, not on the wrapped lines: a notice is what the
+        user acts on, and the line count changes with the window's width.
+        """
+        n = self._warning_count
+        arrow = "▼" if self._warnings_expanded else "▶"
+        if n == 1:
+            # An explicit singular and plural, never "(s)" (CLAUDE.md, i18n).
+            body = tr("1 warning")
+        else:
+            body = tr("{n} warnings").format(n=n)
+        if self._warnings_expanded:
+            return f"{arrow}  {body}"
+        # Folded, the header is the only thing left, so it says how to get the
+        # text back rather than leaving a bare count to be guessed at.
+        return f"{arrow}  {body} " + tr("(click to show)")
+
+    def _apply_warning_fold(self) -> None:
+        """Show the header and the paragraph according to the fold."""
+        has = self._warning_count > 0
+        self._warn_toggle.setVisible(has)
+        if not has:
+            return
+        self._warn_toggle.setText(self._warning_header_text())
+        set_ink(self._warn_toggle, "#e0564b",
+                " font-size: 12px; font-weight: 700;", level="main")
+        self._status.setVisible(self._warnings_expanded)

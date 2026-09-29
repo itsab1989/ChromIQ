@@ -274,7 +274,13 @@ def test_measure_from_engine_exact_geometry(tmp_path):
     report, ruler = out
     assert abs(report.left_mm - 26.0) < 0.2          # clip border, exact
     assert abs(report.strip_width_mm - 8.0) < 0.2    # patch WIDTH, not the pitch
-    assert abs(report.top_mm - 20.0) < 0.2
+    # **AN i1Pro SHEET HAS EDGE SPACERS WHATEVER THE RECIPE SAYS (R22-F4).**
+    # `LayoutRecipe.build_kwargs` forces them on for i1 / p3 / CM, so one spacer
+    # is printed above the first patch and one below the last, and the top ink
+    # is `pspa` (1.0 mm) above the first patch rect: 18.98, not 20.0. This
+    # assertion read 20.0 while the recipe here says nothing about edge spacers,
+    # which is the arrangement in which believing the record looks right.
+    assert abs(report.top_mm - 18.98) < 0.2
     assert ruler == 240.0                             # i1Pro ruler for the warning
 
 
@@ -365,3 +371,66 @@ def test_measure_from_engine_skips_printtarg_charts(tmp_path):
     sc = tmp_path / "p.channels.json"
     sc.write_text(json.dumps({"ink_channels": ["r", "g", "b"]}), encoding="utf-8")
     assert measure_from_engine(sc, 0) is None
+
+
+def test_the_inspector_asks_the_build_not_the_record_about_edge_spacers(tmp_path):
+    """R22-F4: the two doors record OPPOSITE things for the same sheet.
+
+    `LayoutRecipe.build_kwargs` forces edge spacers on for the strip readers
+    (i1 / i1Pro 3+ / ColorMunki), so the box cannot change those sheets and the
+    sheet has one spacer above the first patch and one below the last whatever
+    the recipe field says. Manual stores the recipe's own field (`false`);
+    Guided stores the resolved build kwargs (`true`). This tool read that field.
+
+    Driven end to end through real Generate on both doors, a Manual i1Pro A4
+    chart's panel read *Top 39.0 / min 38.0, Bottom 20.1 / min 19.0, "Margins:
+    OK"* while every pixel row of the millimetre above the first patch and below
+    the last carried ink (the control millimetre above: 0 %) and the bottom-most
+    ink sat at 19.05 mm. Guided's identical-door chart read Top 41.6. That is
+    the unsafe direction on the one tool whose job is to say whether the ink
+    clears the paper edge.
+
+    MUTATION, proven to land: read `rec.get("edge_spacers")` again instead of
+    resolving it through `build_kwargs`.
+    """
+    import json
+    from workflow.margin_inspector import measure_from_engine
+    mm = 300 / 25.4
+
+    def px(v):
+        return round(v * mm)
+
+    def _chart(name, recipe):
+        rects = [{"page": 0, "x": px(26.0 + col * 14.0), "y": px(20.0 + row * 9.0),
+                  "w": px(8.0), "h": px(8.0)}
+                 for col in range(2) for row in range(5)]
+        doc = {"layout": {"engine": "chromiq", "dpi": 300,
+                          "paper_mm": [210.0, 297.0], "patches": rects,
+                          "recipe": recipe}}
+        sc = tmp_path / f"{name}.channels.json"
+        sc.write_text(json.dumps(doc), encoding="utf-8")
+        return measure_from_engine(sc, 0)
+
+    # the SAME sheet, recorded the two ways the two doors record it
+    manual = _chart("manual", {"instrument": "i1", "edge_spacers": False})
+    guided = _chart("guided", {"instrument": "i1", "edge_spacers": True})
+    assert manual is not None and guided is not None
+    m_top = manual[0].top_mm
+    g_top = guided[0].top_mm
+    assert abs(m_top - g_top) < 0.05, (
+        f"one sheet, two doors: Manual's record gives top {m_top:.2f} mm and "
+        f"Guided's gives {g_top:.2f} mm, so the tool believes the record "
+        f"instead of the sheet")
+    assert m_top < 19.5, (
+        f"an i1Pro sheet carries a spacer above the first patch, so the top "
+        f"ink is about 18.98 mm, not {m_top:.2f}")
+
+    # ...AND THE CONTROL: an instrument that really does honour the field
+    ss_off = _chart("ss_off", {"instrument": "SS", "edge_spacers": False})
+    ss_on = _chart("ss_on", {"instrument": "SS", "edge_spacers": True})
+    assert ss_off is not None and ss_on is not None
+    assert abs(ss_off[0].top_mm - 20.0) < 0.2, (
+        "a SpectroScan honours the field, so with edge spacers off the top ink "
+        "is the first patch rect")
+    assert ss_on[0].top_mm <= ss_off[0].top_mm, (
+        "turning edge spacers on cannot move the top ink further from the edge")

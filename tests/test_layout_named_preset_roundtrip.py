@@ -18,6 +18,11 @@ from core.settings import AppSettings  # noqa: E402
 from ui.tabs.tab_chart import TabChart  # noqa: E402
 from workflow.layout_engine.presets import LayoutRecipe  # noqa: E402
 
+#: Files made here go into ONE folder the suite's sweep takes by name
+#: (`chromiq-test-*`), not loose into $TMPDIR: 42,523 settings .ini files
+#: and 4,024 .ti2 files had piled up there by 2026-09-24.
+_TMP_DIR = tempfile.mkdtemp(prefix="chromiq-test-files-")
+
 
 @pytest.fixture(scope="module")
 def qapp():
@@ -26,7 +31,7 @@ def qapp():
 
 def _tab(qapp):
     s = AppSettings()
-    s._qs = QSettings(tempfile.mktemp(suffix=".ini"), QSettings.Format.IniFormat)
+    s._qs = QSettings(tempfile.mktemp(suffix=".ini", dir=_TMP_DIR), QSettings.Format.IniFormat)
     # These tests exercise the printtarg path explicitly — since 4.0.0
     # the ChromIQ layout engine is the Manual default (schema 18), so
     # the mode under test is pinned rather than inherited.

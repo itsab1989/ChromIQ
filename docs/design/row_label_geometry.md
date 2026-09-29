@@ -258,6 +258,13 @@ was generated, expanded, in warning red. It is now one hover or one click away.
 That is a real reduction in how likely a user is to learn that their typed
 margin was overruled, and it is a reduction Basti chose knowingly.
 
+> **SUPERSEDED IN PART on 2026-09-11 by Knut. R6.2 is no longer the whole
+> answer: the notice is now ALSO printed in red on the panel's own surface.
+> R6.1, R6.3 and R6.4 are untouched. See §R7 below for his words and for what
+> changed in the code. The paragraph above is kept exactly as written, because
+> it is the cost Basti was told about and accepted, and it is the cost Knut
+> then hit.**
+
 **How a check can still verify it**, which is the other half of R6.1:
 `MarginInspectorPanel.text_notes()` returns what the panel is currently
 disclosing. `tests/test_the_margin_advice_is_true_of_this_chart.py::
@@ -265,6 +272,79 @@ test_a_live_notice_reaches_the_panels_own_icon` asks for the words, in the
 dialog body and in the hover tooltip; `tests/test_the_notes_left_the_sections_
 for_the_tooltips.py` proves nothing prints them inside a section any more, and
 that the sentence is still readable where it now lives.
+
+---
+
+## §R7 · The raise is ALSO printed in red under the margin numbers — KNUT'S RULING, 2026-09-11
+
+**This reverses Basti's approved answer of 2026-09-04 recorded in §R6.** The
+specification is what changed; the code follows it. Basti should see that his
+earlier answer has been overruled, which is why it is written here in these
+words rather than quietly amended.
+
+Knut was asked, in the words §R6 uses about itself:
+
+> *The row indicators widening the left margin is explained, but only on the
+> information icon, which is where Basti's ruling of 4 September put it. You
+> have now hit the cost that ruling names out loud. Should that sentence also
+> be printed in red under the margin numbers?*
+
+He ruled:
+
+> *"Yes, add also a warning in red text, telling if the left margin is below
+> what is used when the row indicator is ON (with its font size), so that a
+> user is made aware and may modify margins or font size, or 'Text distance
+> from edge' Clip-parameter to get the right balance without showing
+> warnings."*
+
+**So the rule is now:**
+
+* **R7.1** The disclosure §R6.1 requires is unchanged and is not optional. It
+  still carries the margin asked for, the margin used, where the labels start
+  and how much their text needs.
+* **R7.2** It is **also printed on the "Measured from Preview" panel's own
+  message field, in red**, in the same place and the same ink as the four-sided
+  text/patch overlap notices that Knut's ruling of 2026-09-10 put there. It is
+  not a second sentence: it is the same notice, in both places.
+* **R7.3** The condition Knut names is the one the code already computes: the
+  left margin asked for is **below what the row indicators need at the label
+  size now in force**. That is exactly `_raised_l` in
+  `TabChart._engine_text_notes` — the geometry resolved a wider margin than the
+  recipe asked for, because `raster.apply_row_label_geometry` raised it.
+* **R7.4** The notice **names the label size in points**, because Knut's ruling
+  names it ("with its font size") and because the band is as wide as the widest
+  number AT that size. The size is the renderer's own answer
+  (`raster.effective_row_label_size_mm`), so it includes the row-pitch cap that
+  applies when Size is left on auto.
+* **R7.5** It **names all three levers he lists**: the margin, the label size,
+  and "Clip" under "Text distance from edge (mm)". Switching the indicators off
+  is offered as a fourth, last, because it removes the feature rather than
+  balancing it.
+* **R7.6** …with the one exception §R2 already derives: **on a chart whose clip
+  border is wider than Clip, lowering Clip moves nothing**, so the second
+  wording says so and does not offer it. A remedy the user can measure and find
+  wrong is worse than no remedy (beta 8, B8-14).
+* **R7.7** §R6.4 stands. Nothing about the raise is printed inside a Create
+  Chart section. The "Measured from Preview" panel is not one of those sections
+  and is where Knut asked for it.
+
+**How it is done, in one line**, because the mechanism is what keeps R6.1 and
+R7.2 from drifting apart: `_engine_text_notes` returns
+`(every notice, the overlap notices)`, and `_update_margin_inspector` hands the
+first list to the panel's ⓘ and the second to its red message field. Moving the
+raise notice from the first list into the second puts it in **both** places at
+once, because the first is built as `warns + over`. There is no second copy of
+the sentence to keep in step.
+
+**A side effect worth recording, because it answers a separate question of
+Knut's.** He also asked why some charts show no green "Margins: OK" at all.
+`MarginInspectorPanel._update_status` hides its message field entirely while a
+notice is live on the ⓘ, so a chart carrying only the raise notice printed
+nothing: no green, no red, nothing. Measured by loading all 154 built-in presets
+in the real window on 2026-09-11: **23 of them printed nothing**, 8 because of
+this notice and 15 because of the strip-length-over-ruler one. Moving this
+notice onto the surface turns those 8 from silent into red. The other 15 are
+unchanged and are still silent; that is an open point below.
 
 ---
 
@@ -298,3 +378,277 @@ Open points that a reviewer should rule on:
    delivers the outcome Knut asked the default for (the labels land clear of
    the border). If he wants the number in the box to change as well, that is a
    settings migration and his call.
+5. **§R7 itself.** It is built to Knut's words of 2026-09-11 and has been seen
+   working in the real window, and he has not confirmed that what it does is
+   what he meant. It reverses an answer Basti gave and Basti has not been asked
+   about the reversal.
+6. **The panel is still silent on a chart whose only notice is the
+   strip-length one.** §R7 moves the raise notice onto the surface, which is
+   what Knut ruled; it says nothing about the other notice that can suppress
+   the verdict. Measured over the 154 built-in presets: 15 of them print
+   nothing at all because their strip is longer than the instrument's ruler.
+   The same argument plainly applies, but extending a ruling is not applying
+   it, so this waits for Knut.
+
+---
+
+## ⏳ Awaiting confirmation · §R8 · "Size = auto" lowers the size rather than raising the margin
+
+**Confirmed by:** *nobody yet.*
+
+**RULED AND BUILT.** This section was a proposal until 2026-09-16, with the
+code deliberately unchanged; B8-265 carries the measurement that held it.
+Knut ruled on "Size = auto" that day:
+
+> *"It is more important that the feature is correct, so make the fix for the
+> 'Size = auto' choosing a label size that fits with the margins used."*
+
+So the automatic size is chosen against the margin now, in
+`raster.apply_row_label_geometry`, and B8-265 is FIXED. What is still awaiting
+confirmation is not the rule, which is his, but that the built behaviour is
+what he meant: he has not yet seen a beta carrying it.
+
+§R2 derives the band from the chosen text size and then raises the left margin
+to hold it (R1.5, *raised, never lowered*). For an **automatic** size that is
+now reversed where the margin is short. Beta 19, loading
+`CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`:
+
+> *"If the auto-sizing of the strip and row indicators had worked (Size = auto)
+> then the font size should have found a text size where the space left of the
+> left margin would not have needed to be widened from 13.0mm to 14.0mm, as the
+> warning says. ... Since size is set to auto, I would expect the label text
+> size to be found where there is no warning (as long as size does not go below
+> 7pt, as usual)."*
+
+So the derivation in §R2 gains one step, and only for an automatic size:
+
+```
+  IF the size is AUTO and floor + band + 1 mm > margin_l asked for:
+      walk the size down in 0.5 pt steps to AUTO_SHRINK_FLOOR_PT (7 pt)
+      take the FIRST size for which floor + band + 1 mm <= margin_l asked for
+      if none of them fits, change nothing          <- R1.5 then raises, as before
+  band     = width of the widest row label at the size that came out of that
+  ... the rest of §R2 unchanged
+```
+
+The size it settles on is recorded on `Geom.row_label_size_mm` and read back by
+`raster.effective_row_label_size_mm`, which is the one function every reader of
+the size comes through. That is what keeps the renderer, the band reservation
+and the panel's ⓘ from describing different sheets.
+
+Four things about it are deliberate.
+
+1. **A typed size is never touched.** The margin rises for it exactly as §R2
+   says. Capping a number somebody chose would be the app arguing with them,
+   which is already this document's rule for the pitch cap.
+2. **Nothing is committed unless it clears.** On a sheet where no size down to
+   7 pt fits, a 12 mm clip border puts the floor at 12 mm on its own, so the
+   margin must rise whatever the type does, and the size stays where it was.
+   The first implementation did not do this: measured on a 12 mm band at a
+   12 mm left margin, it walked 19.8 pt down to 7.0 pt while `margin_l` went to
+   16.95 mm either way, so the reader lost legibility and kept the warning.
+3. **The starting size is re-derived, never read back.** Any size settled on
+   earlier is dropped from the geometry before anything is measured. Leaving it
+   on made a second application measure the band at the SETTLED size, find that
+   it already fitted, walk nothing, and return a geometry with the band still
+   reserved for 16 pt and the size back at "auto", so the renderer would have
+   drawn 19 pt into a 16 pt band. Caught by
+   `tests/test_size_auto_fits_the_margin_it_was_given.py`, not by a driver.
+4. **It narrows a stated consequence of §R2, in one range.** That section says
+   *"A wider left margin than the labels need is spent between the labels and
+   the patches, not on the labels. They stay where Clip put them."* That is
+   still true of a margin WIDER than the labels need, and it is no longer true
+   in the band where the margin is short and a smaller size clears it: there the
+   label size, and so the label ink's position, depends on the left margin.
+   `tests/test_the_clip_text_meets_the_row_labels.py` pins both halves.
+
+**WHAT IT DOES ON HIS OWN CHART.** On
+`CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal` at the 13.0 mm left margin the
+preset asked for, "auto" settles at **16.0 pt**, the very size he said would
+clear the warning, and `margin_l` stays at 13.0. Driven on screen and measured
+off the rendered sheet: the patch block's left edge moves from 13.97 mm to
+13.08 mm and the left-margin notice goes.
+
+**AND THE COST IT USED TO CARRY IS GONE, BY HIS OWN INSTRUCTION.** Releasing
+the left margin gives area-first a wider box to fill, so the patches grow in
+both axes, and three Letter hexagonal presets then needed one sheet more than
+their name promises (390 patches on two pages, 780 on three, 1170 on four;
+measured, and reproduced again before this was written). That is why the fix
+was held for eleven days. In the same comment that ruled on it he specified the
+preset changes that remove the cost rather than accepting it, and with those in
+place every one of the eight upright hexagonal CR30 charts prints the patch
+count and page count its own name states. See `docs/beta8_open_items.md`
+B8-265 for the ruling and B8-280 for the presets.
+
+---
+
+## §R9 · The stamp down the right edge is furniture too — ⏳ AWAITING CONFIRMATION
+
+**Confirmed by:** *nobody yet.*
+
+**The left margin is widened for its text and the right one never was.** §R1.5
+raises `margin_l` to hold the row indicators. The settings stamp down the right
+edge is the same kind of thing, text the app puts in a margin, but it is not
+laid out by the engine at all: `workflow/tiff_metadata.py::_stamp_one` paints
+it onto the finished raster, so it can move nothing, and when the paper is too
+thin it is printed ACROSS the patches rather than dropped. That last part is
+Knut's ruling of 2026-09-10 and it is right: *"the text must still be visible,
+even if the patch area overlaps … the user must be given the chance to see that
+something is wrong, and then adjust the margins"*.
+
+Manual mode does give the user that chance, in red, with four levers. **Guided
+has no margin boxes, no levers and no warning**, and shipped the overlapping
+sheet in silence. Sebastian, 2026-09-20, on a Guided CR30 / A4 / hexagon chart:
+
+> *"if i create the same thing in manual mode the warning gives hints how to
+> solve this. but guided module should just work for the user without causing
+> issues for the user"*
+
+and, proposing the remedy himself:
+
+> *"another thought would be to reduce the size of the font for the row label
+> very slightly"* … *"the text size reductions, if you choose them as solution,
+> should only be as much as really needed to avoid overlap, not more"*
+
+with one condition on it:
+
+> *"if the guided modes chart would fit fewer patches because of this
+> (especially on A4 paper) i would consider it a regression"*
+
+### §R9.1 · The rule
+
+**When something will be stamped down the right edge, and the patch block would
+be laid under it, and the row labels are drawn at an AUTOMATIC size, that size
+walks down the same half-point grid §R8 uses until the block clears the stamp,
+and no further.**
+
+The reserve is one derivation, `text_edge_fit.side_stamp_reserve_mm`: the
+page-edge distance ("Clip", pushed further in by the ruler helper markers, or a
+clip band on that edge when it reaches further), plus the line's own width at
+its floor, plus the guard the stamper keeps off the patches.
+`chart_note_overlap` — the function that draws Manual's red warning — is
+written in terms of it, so the layout's question and the panel's question
+cannot be answered differently.
+
+Four properties, three of them §R8's and for §R8's reasons:
+
+1. **A typed size is never touched.** A Manual user who typed one keeps their
+   size and keeps the red warning naming their own levers.
+2. **Nothing is committed unless it clears.** Where no rung down to the 7 pt
+   floor clears the stamp, the size stays where it was: losing legibility AND
+   keeping the overlap is worse than keeping the overlap.
+3. **Nothing is committed that moves the patch count**, in either direction.
+   Fewer is Sebastian's regression; more would put the Guided capacity estimate
+   (`ui/tabs/tab_chart.py::_engine_capacity`, which assembles its own kwargs and
+   does not know whether a chart is stamped) out of step with the build.
+4. **Area-first is excluded, because there the lever does nothing.** Under
+   "Prioritise chart area, then fit patches to it" the margins are the law and
+   the block fills the box exactly, so width freed on the left makes the
+   PATCHES wider and hands the right edge nothing. Measured over the whole
+   half-point grid on the reported chart: the right gap stayed between 5.01 and
+   5.18 mm at every size from 20.0 pt to 7.0 pt, against a 7.06 mm reserve.
+
+### §R9.2 · What it costs, measured
+
+Over all **120 Guided instrument × paper × hexagon combinations**:
+
+| | before | after |
+|---|---|---|
+| combinations whose stamp runs over the patches | **12** | **0** |
+| combinations whose patch count changes | — | **0** |
+| combinations whose row-label size changes | — | **12** |
+
+The reported chart, CR30 / A4 / hexagon: **396 patches before and 396 after**,
+row labels 17.79 pt to 15.50 pt. The reductions across the twelve run from
+**0.84 pt (4.2 %)** to **3.29 pt (18.5 %)**, each one the first rung on the
+half-point grid at which the app's own overlap check goes quiet. Of 164
+built-in preset recipes, 188 geometry builds reached the walk and **none was
+changed**: every eligible built-in already had room.
+
+On the rendered sheet at 300 dpi, the stamp applied to a copy of the very same
+raster and the two differenced — CR30 / A4 / hexagon:
+
+| | before | after |
+|---|---|---|
+| stamp pixels laid on patch ink | **206** | **22** |
+| paper the stamper finds for its line | **28 px** | **39 px** |
+| what a line at the 7 pt floor needs | 32 px | 32 px |
+
+The walk costs **+0.17 ms** on the geometry build it walks furthest on, and
+nothing at all on a chart it does not touch.
+
+### §R9.3 · What it does NOT fix
+
+A flat-top honeycomb's points reach past the block's own rectangle, and
+`tiff_metadata._detect_writable_band` finds its band by column DENSITY, so the
+sparse apex columns are not counted as patch area. The stamp is therefore
+placed a few pixels inside the outermost points on every honeycomb sheet,
+whether or not it had room. Measured on the reported chart at every half-point
+size from 17.5 pt down to 12.5 pt, the residue never falls below about 16
+pixels and never rises above about 113 — it is a graze on the apexes, it does
+not follow the label size, and no amount of walking removes it. It is a
+separate, much smaller thing than the fault this section is about and it is
+recorded rather than fixed.
+
+### §R9.4 · The freed paper is spent as WHITE, not as type — ⏳ AWAITING CONFIRMATION
+
+**Confirmed by:** *nobody yet.*
+
+Sebastian judged the first before/after picture on 2026-09-21 and asked for one
+change:
+
+> *"it looks better now but i think could be even better. the comparison looks
+> like the row labels size is a little smaller which is good but although it is
+> not overlapping anymore the stamps font size became a tad bigger. I'd rather
+> have the stamp size the same as before (so little smaller than now) but with
+> a tiny gap to the patches."*
+
+**He had read it correctly, and the mechanism is the one he guessed.** The note
+is auto-sized from the paper beside it: `tiff_metadata.fit_rotated_line` starts
+at `strip_w - the patch-side gap` and shrinks from there. So every pixel §R9
+frees is taken by the TYPE, and the clearance stays where it was. Measured on
+the reported chart, the stamper's own answer captured as it was called:
+
+| | as shipped | §R9.1 alone | §R9.1 + §R9.4 |
+|---|---|---|---|
+| stamp size | **7.20 pt** | **8.88 pt** | **7.20 pt** |
+| white between the patch ink and the stamp's ink | **-0.68 mm** | **-0.34 mm** | **+0.25 mm** |
+| stamp pixels laid on patch ink | 206 | 22 | **0** |
+| patches | 396 | 396 | 396 |
+
+A negative figure means the stamp is printed over the patches. Note the middle
+column: §R9.1 alone did not reach clear paper at all, because what it bought
+went into the line's thickness.
+
+**The rule.** `Geom.side_stamp_freed_mm` records what the walk gave up on the
+left; `chart_creator._stamp_tiff_metadata` hands it to the stamper as a minimum
+patch-side gap, which comes out of the line's own thickness rather than out of
+the page-edge reserve. Two bounds, both load-bearing:
+
+* **it can never take the line below `note_min_strip_px`**, the narrowest strip
+  that still renders a legible line. A gap bought with an unreadable note is
+  not the trade he asked for, and an uncapped gap does not merely shrink the
+  line, it draws it outside its own canvas and the note vanishes.
+* **it is 0.0 on every chart the walk did not touch**, so a chart whose right
+  margin the USER chose is stamped exactly as it was. That bound is what keeps
+  this to twelve charts instead of all of them: measured on a roomy sheet the
+  note prints at **9.12 pt**, and holding every chart to the floor to give this
+  one its gap would have cost 1.9 pt of type across the whole app.
+
+**The gap is not a number anybody chose: it is the whole of what the paper
+had.** 3 px, 0.254 mm, on the reported chart; 4 px, 0.339 mm, on the others.
+The obvious precedent is the clearance the row-label band keeps on the other
+side of the same sheet, and it was measured rather than quoted: 8 px, 0.677 mm
+on this honeycomb (12 px, 1.016 mm on a rectangular CR30 chart, where the
+apexes do not eat into it). **It is not matched, and it cannot be by this
+lever**: walking the labels further down does not help, because
+`tiff_metadata._stamp_one` caps the note's strip at 40 px whatever the margin,
+so the patch-side anchor saturates 8 px above the legibility floor. Measured
+rung by rung from 17.5 pt to 12.0 pt, the gap stops growing at 4 px and the
+patch count is 396 throughout.
+
+This also removes the residue §R9.3 recorded as unfixable on the reported
+chart: at 0.25 mm of clearance the line no longer touches the apex points at
+all, and the stamp's ink on patch ink goes from 206 pixels to **none**. §R9.3
+still stands as a description of the mechanism, and a honeycomb the walk never
+touches still carries it.

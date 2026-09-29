@@ -178,10 +178,27 @@ def test_an_enabled_tick_is_darker_than_a_disabled_one():
 
 def test_the_two_shipped_disabled_indicator_rules_did_not_move():
     from ui.dialogs.tools_dialogs import _disabled_indicator_qss
-    for mode in (APPEARANCE_LIGHT, APPEARANCE_DARK):
-        rule = _disabled_indicator_qss(mode)
-        assert "#4a4a4a" in rule
-        assert "dashed" not in rule
+    rule = _disabled_indicator_qss(APPEARANCE_DARK)
+    assert "#4a4a4a" in rule
+    assert "dashed" not in rule
+    # Light moved on purpose (B8-1078): #4a4a4a was the darkest thing on a
+    # light window, a solid dark square in the report window's "Show detailed
+    # data" whenever it was ticked and greyed.
+    rule = _disabled_indicator_qss(APPEARANCE_LIGHT)
+    assert "#4a4a4a" not in rule and "dashed" not in rule
+
+
+def test_a_ticked_greyed_box_in_light_is_not_a_dark_square():
+    """B8-1078: in Light the disabled-and-ticked fill is a mid grey, lighter
+    than the Light window's own text and darker than its ground, so it still
+    reads as filled and no longer as a solid dark square."""
+    import re
+    from ui import light_styles as lm
+    from ui.dialogs.tools_dialogs import _disabled_indicator_qss
+    rule = _disabled_indicator_qss(APPEARANCE_LIGHT)
+    fill = re.search(r"background:\s*(#[0-9a-fA-F]{6})", rule).group(1)
+    assert lightness(fill) > lightness(lm.LM_TEXT_FAINT) - 0.15
+    assert lightness(fill) < lightness(lm.LM_BG_WINDOW)
 
 
 def test_settings_dialog_disabled_checkbox_has_no_fill_in_neutral(wearing, qapp):

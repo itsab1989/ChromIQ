@@ -6,19 +6,22 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtCore import QSize, Qt, QUrl
 from PyQt6.QtGui import QDesktopServices, QFontMetrics
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
+    QScrollArea,
     QSizePolicy,
     QTabWidget,
     QVBoxLayout,
@@ -59,6 +62,1811 @@ import sys as _sys
 from core.i18n import tr
 
 
+# ---------------------------------------------------------------------------
+# Which of those devices is actually plugged in
+# ---------------------------------------------------------------------------
+#
+# THE PRESENCE FILTER USED TO LIVE HERE, AND THAT WAS THE BUG.
+# `HKLM\SYSTEM\CurrentControlSet\Enum\USB` remembers every USB device this
+# machine has ever seen, so this window once said "Connected colorimeter:
+# X-Rite i1 Studio" with nothing plugged in. The fix filtered the answer here,
+# beside this one caller — which left `unbound_targets()`, the OTHER caller of
+# `enumerate_connected()` and the one whose whole job is to not be fooled,
+# still reading ghosts.
+#
+# It now lives in `core.usb_driver_installer`, inside `enumerate_connected()`
+# itself, at instance granularity. `enumerate_connected()` means connected.
+# There is nothing left for this window to filter, and deliberately no second
+# copy here that could drift away from the first.
+
+
+# ---------------------------------------------------------------------------
+# The buttons this half of the window can show
+# ---------------------------------------------------------------------------
+#
+# ONE FUNCTION PER BUTTON, AND THE PROSE CALLS THE SAME FUNCTION. A paragraph
+# that tells the user to click something must never carry that something as an
+# English literal. The button is built with `tr()`, so on a German machine it
+# reads ERNEUT PRÜFEN while an English literal in the prose still says "Check
+# again" — and the user hunts for a control that is not on the screen. That is
+# exactly the fault this window shipped with (round 1 translated the titles,
+# the second section and the buttons and left the WinUSB body in English, which
+# turned a consistent gap into a broken-looking one).
+#
+# Interpolating the button's own label makes the two impossible to separate:
+# rename the button and every sentence pointing at it follows, in all twelve
+# languages, for free. `tests/test_usb_driver_dialog.py` pins the invariant in
+# every language rather than in the source, so it holds however it is spelled.
+#
+# NOT EVERY NAME IN HERE IS OURS, and the difference decides the treatment:
+#
+#   ours          -> interpolate the tr() label      (these functions)
+#   Windows's     -> translate inside the sentence   ("click Yes" at the UAC
+#                    prompt; German Windows says "Ja", so the German string
+#                    should too)
+#   Zadig's       -> leave in English, always        (Zadig ships one English
+#                    UI and nothing else; "Optionen -> Alle Geräte auflisten"
+#                    would be the same fault, inverted)
+#
+# The three-way split is not academic: our button and Zadig's button are BOTH
+# called "Install Driver", so a blanket substitution would translate Zadig's.
+
+def _label_check_again() -> str:
+    return tr("Check again")
+
+
+def _label_install_driver() -> str:
+    return tr("Install Driver")
+
+
+def _label_reinstall_driver() -> str:
+    return tr("Reinstall Driver")
+
+
+def _label_open_zadig() -> str:
+    return tr("Open Zadig")
+
+
+def _label_try_zadig() -> str:
+    return tr("Try Zadig")
+
+
+def _label_stop_waiting() -> str:
+    # NOT "Cancel", and the difference is the whole point. The design document
+    # rules on this window's dismissing words at
+    # `docs/design/unified_measurement_management.md`, and rejects Qt's `Cancel`
+    # there because "there is nothing in flight to cancel … the user is
+    # declining an offer, not aborting an operation". Here something IS in
+    # flight — and it still cannot be cancelled: an elevated driver install
+    # cannot be safely killed, and ChromIQ does not try. This stops ChromIQ
+    # WATCHING, which is exactly what it says, and the window that follows says
+    # the same thing again in a sentence.
+    return tr("Stop waiting")
+
+
+def usb_installing_text(name: str) -> str:
+    """What the window says while the elevated installer is running."""
+    return tr("Installing the driver for {name}. Windows makes a restore "
+              "point before it touches a driver, and that is most of the "
+              "wait.").format(name=name)
+
+
+# THE BUTTON THAT DECLINES MUST NOT SAY "OK".
+#
+# `_driver_notice` shows two kinds of window. Without an extra button it is a
+# notice, nothing is being asked, and OK is exactly the right word for it. WITH
+# one it is an OFFER — "Download and install", "Check and install", "Try Zadig",
+# "I already have the folder…", "Choose a different folder…" — and then the
+# second button is the DECLINE: `ok.clicked.connect(dlg.reject)`, deliberately,
+# because `box.accepted` fires for OK too and that is how OK once came to start
+# an elevated driver install.
+#
+# The behaviour was fixed (f7a565ad) and is guarded. The WORD was not. On the
+# consent window "Before ChromIQ starts", whose entire purpose is informed
+# consent, the two buttons read `Herunterladen und installieren` and `OK` — and
+# OK is the word most people read as "yes". Somebody skimming clicks it meaning
+# to agree and gets the opposite of what they intended, which is the one
+# mistake this window exists to prevent.
+#
+# So the dismissing button says what dismissing does. "Not now" is correct on
+# all five offers, and nothing is lost by it: every one of these windows can be
+# reached again from Preferences ▸ Instrument drivers….
+def _label_not_now() -> str:
+    return tr("Not now")
+
+
+# The COM-port half's buttons, under the same rule. These four were spelled out
+# inside four paragraphs until the German screenshot showed what that costs;
+# `My instrument is not listed` was even a SECOND catalogue key, differing from
+# the button's own by the trailing ellipsis, so the two could be translated
+# differently by construction.
+def _in_prose(label: str) -> str:
+    """A button's label as it reads inside a sentence.
+
+    A trailing "…" is the convention for "this button opens something", and it
+    belongs on the control, not in the middle of a paragraph — there it meets
+    the sentence's full stop and renders "…." (caught in the German screenshot,
+    where the button reads MEIN INSTRUMENT STEHT NICHT IN DER LISTE… and the
+    sentence ended "…in der Liste….").
+
+    Stripping it HERE, rather than keeping a second ellipsis-less catalogue key,
+    is the whole point of the exercise: one key per button. The ellipsis is
+    punctuation, not part of the button's name, so removing it takes nothing
+    away from "the prose gets the name from the button".
+    """
+    return label.rstrip("…").rstrip()
+
+
+def _label_get_driver() -> str:
+    return tr("Get the driver…")
+
+
+def _label_have_folder() -> str:
+    return tr("I already have the folder…")
+
+
+def _label_not_listed() -> str:
+    return tr("My instrument is not listed…")
+
+
+def _label_what_this_changes() -> str:
+    """The USB half's second button — the one that answers the sentence above it.
+
+    Deliberately SHORT. It sits beside `Install Driver` in a row that
+    `test_the_consent_buttons_fit_the_row_in_every_language` measures in twelve
+    languages, and a label like "What this changes on your computer…" is 40
+    characters in English and half as much again in German.
+    """
+    return tr("What this changes…")
+
+
+ZADIG_SITE = "https://zadig.akeo.ie"
+
+
+def _cr30_zadig_warning() -> str:
+    """The warning that must accompany every steer towards Zadig.
+
+    Three outcomes used to carry their own copy of this paragraph, word for
+    word. One key, used three times: a translator writes it once, and the three
+    windows cannot drift apart. `CH340` is a chip name and stays as it is in
+    every language.
+
+    IT USED TO NAME WinUSB, AND THAT IS NOW THE WRONG HALF OF THE DANGER.
+    Every Zadig instruction in this file now tells the user to choose
+    libusb-win32, because WinUSB is the one driver ArgyllCMS cannot read an
+    instrument through. A warning that says "do not give it WinUSB" therefore
+    reads, to somebody following those instructions, as permission to give it
+    libusb-win32 — which destroys the CR30's COM port exactly as thoroughly.
+    So the warning names no driver at all: it is the ROW that must not be
+    picked, whatever is in the driver box beside it.
+    """
+    return tr(
+        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
+        "device (CH340) in Zadig. That instrument is reached "
+        "through its COM port, and replacing its driver (with any of the "
+        "drivers Zadig offers) would stop ChromIQ finding it at all.")
+
+
+# ---------------------------------------------------------------------------
+# The certificate — said before the click, in full beside it
+# ---------------------------------------------------------------------------
+#
+# PRESSING Install Driver PUTS A SELF-SIGNED CERTIFICATE INTO THE MACHINE'S
+# TRUSTED ROOT STORE, AND THIS WINDOW USED TO SAY NOTHING ABOUT IT. Measured
+# read-only on the ARM64 bench, 2026-09-06: the click at 06:43:28 produced
+# `CN=USB\VID_0765&PID_6008 (libwdi autogenerated)` in BOTH
+# `Cert:\LocalMachine\Root` and `…\TrustedPublisher`, NotBefore 06:43:31. The
+# evidence, the attribution and why it cannot be switched off are recorded in
+# `core/usb_driver_installer.py` beside `WDI_DRIVER_TYPE`.
+#
+# WHERE IT IS SAID IS AS MUCH OF THE DECISION AS WHAT IS SAID. Two places, and
+# neither on its own would do:
+#
+#   1. `usb_certificate_notice_line()` is appended to the install paragraph, so
+#      it is on screen BEFORE the button is pressed. A user who never opens
+#      anything else has still been told that a certificate is added and that it
+#      stays. That is the part that cannot be behind a button.
+#   2. `usb_certificate_details_text()` is the extensive half, behind
+#      `What this changes…` beside `Install Driver`. It is not hidden: it is the
+#      only place a friendly, complete explanation FITS. The install paragraph is
+#      already eight sentences; a further six hundred words inline would push the
+#      button below the fold on a 200 % display, and a wall of text nobody reads
+#      is not disclosure either. The COM-port half of this same window already
+#      pairs a secondary button with a primary one, so this is the window's own
+#      idiom rather than a new one.
+#
+# THE RULE FOR EVERY SENTENCE IN HERE: no reassurance that is not measured.
+# "Nothing is sent anywhere" is measurable and was measured — `wdi_simple.exe`'s
+# import table is ADVAPI32, KERNEL32, SETUPAPI, SHELL32, USER32, ntdll, ole32,
+# and no networking library of any kind. "Only ever accepted for signing
+# software" is the certificate's own critical Extended Key Usage (2.5.29.37 =
+# 1.3.6.1.5.5.7.3.3), read off the store by OID. What is NOT measured — that
+# deleting the certificate afterwards leaves the driver working — is written as
+# what we expect, and the last paragraph says so in as many words.
+
+def usb_certificate_notice_line() -> str:
+    """The paragraph the user reads BEFORE the driver is installed.
+
+    EVERY LOAD-BEARING FACT IS IN HERE, not behind the button. A first draft
+    said only that "a small security certificate" is added to "your computer's
+    list of trusted certificates", and a reviewer was right that this is a
+    footnote rather than a disclosure: it never said the whole computer trusts
+    it and never said it stays behind. Somebody who reads this paragraph and
+    presses the button without opening anything else has to have been told the
+    three things that matter. They are: it goes into Windows' own trusted-signer
+    lists, for the whole machine, and it does not go away with the driver.
+
+    "small" and "that is normal" are both gone with it. The first minimises by
+    talking about a file size nobody asked about; the second is a value
+    judgement wearing a measurement's clothes. What replaces "that is normal"
+    is the measurement itself — ArgyllCMS's own installer does this, which is on
+    this bench and is a fact rather than a reassurance.
+
+    It opens by breaking the frame of the paragraph above it, which ends "no
+    other device is changed". That claim is true and was deliberately narrowed
+    to devices (see the comment in `usb_installer_text`), but in ordinary
+    English it reads as "nothing else is touched" — so the next sentence has to
+    say plainly that something else is.
+    """
+    return "<br><br>" + tr(
+        "<b>Besides the driver itself, one other thing on this computer "
+        "changes.</b> The driver is built for your instrument at the moment it "
+        "is installed, so it has to be signed at that moment too, and the "
+        "installer puts the certificate it signs with into two of Windows' own "
+        "lists of trusted signers (one of them the trusted-root list) for "
+        "the whole computer. It stays there "
+        "after the driver is gone. ArgyllCMS's own driver installer does the "
+        "same. Click <b>{details}</b> for exactly what it is, what it can and "
+        "cannot vouch for, and how to take it out again."
+    ).format(details=_in_prose(_label_what_this_changes()))
+
+
+def usb_certificate_details_text() -> str:
+    """The extensive half, shown by `What this changes…`.
+
+    Five keys rather than one. A single six-hundred-word key is a key no
+    translator renders well and no reviewer can diff; each of these is a whole
+    thought that survives being translated on its own.
+
+    THE CERTIFICATE'S FULL NAME IS DELIBERATELY NOT QUOTED HERE, and it is not
+    squeamishness. `_driver_notice` runs its text through `_let_paths_wrap`,
+    which inserts a zero-width space after every backslash so long paths wrap —
+    so `USB\\VID_0765&PID_6008 …` would render correctly and copy to the
+    clipboard with an invisible character in it, and pasting that into certlm's
+    find box finds nothing. The tail `(libwdi autogenerated)` is what the "how
+    to look at it" steps tell the user to search for, it has no backslash and no
+    ampersand, and it is the part that is the same on every machine.
+    """
+    return (
+        tr("<b>The short version.</b> Installing the driver also puts one "
+           "certificate into two of Windows' own lists of trusted signers, and "
+           "it stays there after the driver is gone. It is not a program and "
+           "it cannot be run. Windows' copy holds only the public half: the "
+           "key that would be needed to sign anything new with it is not "
+           "stored alongside it, and the installer deletes that key as soon "
+           "as it has finished signing.<br><br>"
+           "<b>Why there is a certificate at all.</b> Windows will not install "
+           "a driver package unless it can check who signed it. The driver "
+           "your instrument needs is not one ready-made file: it is assembled "
+           "for <i>your</i> instrument, with your instrument's own ID written "
+           "inside it, at the moment it is installed. Nobody can sign a file "
+           "in advance that does not exist until then. So the installer "
+           "creates a certificate of its own, signs the driver package it has "
+           "just built, and hands Windows the certificate so that Windows can "
+           "check that signature. That is the whole of what it is for.")
+        + "<br><br>"
+        + tr("<b>Where it goes.</b> Two lists that belong to the whole "
+             "computer (every user account and every program on it, not just "
+             "ChromIQ):<br>"
+             "&nbsp;&nbsp;• Trusted Root Certification Authorities "
+             "(Local Computer)<br>"
+             "&nbsp;&nbsp;• Trusted Publishers (Local Computer)<br>"
+             "It is named after your instrument and ends with <i>(libwdi "
+             "autogenerated)</i>. Installing the driver again for the same "
+             "instrument replaces that certificate rather than adding a "
+             "second; a different instrument gets its own.<br><br>"
+             "<b>It stays behind.</b> Removing the driver later does not "
+             "remove the certificate, and it stops being valid at the start of "
+             "2029. If you want it gone sooner, the steps are at the end of "
+             "this window. We have not tested removing it from a working "
+             "instrument, so we can tell you what we expect (that the "
+             "instrument keeps working), but not that we have proved it.")
+        + "<br><br>"
+        + tr("<b>What it can and cannot do.</b> It is not a virus, and it is "
+             "not a program at all. A certificate is a small file that says "
+             "who signed something. This one can vouch for exactly one kind of "
+             "thing: signed programs and drivers. That limit is written into "
+             "the certificate itself and Windows enforces it, so it cannot "
+             "vouch for a website, an email, or anything you sign in to. "
+             "Within that limit it is genuinely trusted, by the whole "
+             "computer, and that is worth knowing rather than glossing "
+             "over.<br><br>"
+             "Nothing about it leaves your computer: the certificate is made "
+             "on your machine and used once, to sign that one driver package. "
+             "ChromIQ's own driver installer carries no networking code at "
+             "all: its program file asks Windows for no network library of "
+             "any kind. Zadig is a separate program with its own update "
+             "check, and that is the one thing here that can reach the "
+             "internet.<br><br>"
+             "This is also the ordinary way colour-measuring instruments are "
+             "installed on Windows: the same tooling sits behind Zadig, and "
+             "<b>ArgyllCMS's own USB driver installer does exactly this "
+             "too</b>, adding a certificate called <i>ArgyllCMS (libwdi "
+             "autogenerated)</i> to the same two lists. If you have ever run "
+             "that installer, one is already there.")
+        + "<br><br>"
+        + tr("<b>How to look at it.</b><br>"
+             "&nbsp;&nbsp;1. Press <b>Windows + R</b>, type <b>certlm.msc</b> "
+             "and press Enter<br>"
+             "&nbsp;&nbsp;2. Open <b>Trusted Root Certification Authorities → "
+             "Certificates</b><br>"
+             "&nbsp;&nbsp;3. Look for a name that ends in <b>(libwdi "
+             "autogenerated)</b><br>"
+             "The same entry is under <b>Trusted Publishers → "
+             "Certificates</b>.<br><br>"
+             "<b>How to remove it.</b> In that same window, right-click the "
+             "certificate, choose <b>Delete</b>, and do it in both places. Do "
+             "that only once your instrument is working. If Windows ever needs "
+             "to attach the driver again and objects, running the driver "
+             "install again installs the driver, and its certificate, from the "
+             "start.")
+        + "<br><br>"
+        + tr("<b>What was measured, and what was not.</b> This was measured on "
+             "Windows 11 on ARM64, installing the libusb-win32 driver (the "
+             "only driver ChromIQ installs) for one instrument. It is how the "
+             "installer works rather than something peculiar to that machine, "
+             "but one machine is what was checked. Deleting the certificate "
+             "and restarting was not tested, which is why the paragraph above "
+             "says what we expect rather than what we have proved.")
+    )
+
+
+def usb_shows_certificate_details(devices, wdi_available: bool) -> bool:
+    """Does this window's USB half carry the certificate disclosure?
+
+    The button and the paragraph have to appear together or neither means
+    anything: a paragraph pointing at a button that is not there is worse than
+    silence. `tests/test_the_install_says_what_it_changes.py` ties the two
+    together over every list shape rather than trusting them to stay equal.
+
+    ⚠ NEITHER `wdi_available` NOR "does anything NEED a driver" IS PART OF THE
+    ANSWER, AND BOTH WERE TRIED FIRST. Two holes, both found by review, both
+    with the same shape — a branch that installs a certificate and says nothing:
+
+    1. **`wdi_available`.** Without the bundled wdi-simple this window does not
+       offer an install — it sends the user to **Zadig**, and Zadig is libwdi's
+       own front end; libwdi's Certification Practice Statement names Zadig
+       first in the list of applications that install these certificates. So a
+       user routed to Zadig gets the same certificate by the same code.
+
+    2. **`needs_install`.** Every instrument already driven means the button
+       says `Reinstall Driver` — and `_show_usb_installer` runs
+       `targets = needs_install or devices`, so pressing it runs
+       `install_winusb` over EVERY detected device. libwdi mints a **fresh**
+       certificate on every run (measured: three DriverStore packages on the
+       bench, three different catalogue-signer thumbprints under one subject).
+       So the repair path writes a new certificate into the root store, and it
+       was the one path with no disclosure at all — for a user who has no
+       driver problem to justify the risk. A guard here even asserted that it
+       *should* be silent, on the reasoning that "nothing is about to be
+       written". That reasoning was simply false.
+
+    The predicate is therefore the only honest one: **does this window offer to
+    run an installer at all.** With no device there is no button, so there is
+    nothing to disclose.
+
+    (`usb_install_outcome`'s Zadig steers are a second window and carry no
+    button of their own. Every user reaches them THROUGH this one, so they are
+    not silent — but a disclosure of their own is a fair follow-up.)
+    """
+    del wdi_available    # deliberately not consulted — see above
+    return bool(devices)
+
+
+# ---------------------------------------------------------------------------
+# The driver helper's words, as pure functions
+# ---------------------------------------------------------------------------
+#
+# `_show_usb_installer` below is a `while True:` around `dlg.exec()`, and
+# CLAUDE.md warns that a test which opens a modal `.exec()` makes the whole
+# suite look like it has hung. So for years the only thing standing behind
+# "the WinUSB path still says what it always said" was reading the source with
+# `inspect.getsource` (tests/test_winusb_never_reaches_a_serial_instrument.py)
+# — which counts phrases, and cannot tell you what a user would actually read.
+#
+# These two functions are the message-building lifted out verbatim. They take
+# plain data, return plain strings, touch no widget and no registry, and
+# tests/test_usb_driver_dialog.py pins every branch of them. Extract first,
+# change second: that ordering is the only reason "unchanged for Argyll users"
+# means anything — and it is what made the `tr()` pass below safe, because the
+# English rendering is asserted character for character and did not move.
+
+def usb_installer_text(devices, wdi_available: bool) -> "tuple[str, str | None]":
+    """The first window's message and its primary button.
+
+    *devices* is any sequence of objects carrying ``.name`` and ``.has_winusb``
+    (in the app, `core.usb_driver_installer.UsbDevice`). Returns
+    ``(message_html, button_label)``; the label is None when there is no device
+    to act on and therefore no primary button.
+    """
+    needs_install = [d for d in devices if not d.has_winusb]
+
+    if not devices:
+        return (
+            # "Refresh" was this button's name until the window grew a second
+            # section; it is called "Check again" now. Naming it through
+            # `_label_check_again()` rather than in the sentence is what keeps
+            # that true in German as well as in English.
+            tr("<b>No colorimeter detected.</b><br><br>"
+               "Make sure your device is plugged in via USB, "
+               "then click <b>{check_again}</b>.").format(
+                   check_again=_label_check_again()),
+            None,
+        )
+
+    # THE TICK SAID "WinUSB ✓" ABOUT A DEVICE WHOSE DRIVER IS libusb0.
+    #
+    # `UsbDevice.has_winusb` USED TO accept either — `("winusb", "libusb0")`,
+    # in `core/usb_driver_installer.py` — so the flag never meant "WinUSB is
+    # bound". Measured on the ARM64 box, 2026-09-06, with an X-Rite i1Studio /
+    # ColorMunki (0765:6008) attached: the device's service is `libusb0` and
+    # Argyll lists it as `libusb0-0001 (X-Rite ColorMunki)` — and this line
+    # said WinUSB about it.
+    #
+    # It accepts only `libusb0` now (see `ARGYLL_USB_SERVICE`), which makes the
+    # flag mean exactly one thing: ArgyllCMS can open this instrument. So the
+    # chip is a `tr()` key rather than a product name — a sentence about state,
+    # not a brand — and it pairs with `driver not installed` below it so the
+    # two halves of the same question are one translatable pair.
+    lines = [
+        "&nbsp;&nbsp;• {name} — <i>{state}</i>".format(
+            name=d.name,
+            state=(tr("driver installed") + " ✓" if d.has_winusb
+                   else tr("driver not installed")))
+        for d in devices
+    ]
+    if not needs_install:
+        # Every detected device already has a WinUSB/libusb0 driver.
+        # Don't promise an installer the old code wouldn't show a
+        # button for; explain that and still offer a manual repair
+        # path (forum #148275: dialog mentioned Zadig but had no
+        # button when the device reported the driver as installed).
+        #
+        # THE BUTTON IS NOT ALWAYS "Reinstall Driver" HERE — without
+        # wdi-simple it is "Open Zadig", and this sentence used to say
+        # "Reinstall Driver" in both cases, naming a control that was not on
+        # the screen. It now names whichever button is actually built, which
+        # is the same bug as the German one and was hiding in plain English.
+        btn_label = (_label_reinstall_driver() if wdi_available
+                     else _label_open_zadig())
+        # Two complete sentences rather than a spliced fragment: CLAUDE.md
+        # requires explicit singular and plural variants, and a translator
+        # cannot reorder around a splice.
+        action_text = (
+            tr("The driver is already installed for the device above. "
+               "If ChromIQ or Argyll still can't open your instrument, click "
+               "<b>{button}</b> to run the installer again.")
+            if len(lines) == 1 else
+            tr("The driver is already installed for the devices above. "
+               "If ChromIQ or Argyll still can't open your instrument, click "
+               "<b>{button}</b> to run the installer again.")
+        ).format(button=btn_label) + usb_certificate_notice_line()
+    elif wdi_available:
+        # "click Yes" is the Windows permission prompt's button, and Windows
+        # IS translated — German Windows says "Ja". It belongs inside the key,
+        # for the translator to render, not interpolated from anything of ours.
+        #
+        # THIS SENTENCE PROMISED "the Microsoft WinUSB driver", AND THE WINDOW
+        # IS IN NO POSITION TO NAME A DRIVER AT ALL.
+        #
+        # `install_winusb` passes `--driver WinUSB` to the bundled
+        # `wdi_simple.exe`, and wdi-simple has no `--driver` option — its flag
+        # is `-t/--type <n>`. Measured on the bench, 2026-09-06, against a real
+        # driverless i1Studio: wdi-simple answered `unrecognized option
+        # '--driver'`, printed its usage, and EXITED 0, which `install_winusb`
+        # reads as success. Nothing was written to `setupapi.dev.log`. So the
+        # only honest thing that can be said about which driver this button
+        # installs is that nobody knows yet: the flag is being fixed on
+        # `fix/wdi-simple-never-installed-anything`, and `-t 0` and `-t 1` are
+        # different drivers with different names.
+        #
+        # THE FIX IS THEREFORE TO NAME NO DRIVER, not to name a different one.
+        # This paragraph says what the click is FOR — "the USB driver your
+        # instrument needs, so ArgyllCMS can talk to it" — and warns that the
+        # name Windows shows will be unfamiliar. A beginner needs to know their
+        # instrument will work and that a strange name is not a mistake; they
+        # do not need the fork's name. (`--type` has since settled at 1,
+        # libusb-win32, but the sentence is still right and the Zadig steers
+        # below are where the driver has to be named, because there the user
+        # picks it from a dropdown themselves.)
+        #
+        # AND IT NOW SAYS THAT IT MAY REPLACE SOMETHING, WHICH IT DID NOT.
+        # Tightening `has_winusb` to `libusb0` alone means a user who followed
+        # ChromIQ's OWN old Zadig instructions — "choose WinUSB" — is now told
+        # the driver is not installed, on a machine where Device Manager shows
+        # a healthy Microsoft driver. Without this sentence the window
+        # contradicts what Windows tells them, blames nobody, explains nothing,
+        # and asks them to press a button whose effect it has not described.
+        # The COM-port half of this same window promises "ChromIQ never deletes
+        # or replaces a driver" (`core/ch34x_driver.py`); this half now does,
+        # so it has to say so. It also has to say whose mistake it was, because
+        # it was ours.
+        #
+        # WHAT IT MUST NOT SAY IS "nothing else on your computer is changed",
+        # AND THE FIRST DRAFT OF THIS PARAGRAPH DID. A reviewer measured
+        # `Cert:\LocalMachine\Root` and `...\TrustedPublisher` on the bench and
+        # found `CN=USB\VID_0765&PID_6008 (libwdi autogenerated)` in both, with
+        # the libusb-win32 packages in the driver store signed by it rather than
+        # by Microsoft. Nobody has yet shown that ChromIQ's own invocation is
+        # what put it there — but nobody has shown that it does not, either, and
+        # an absolute claim about scope is not one an honesty fix may make on an
+        # unmeasured guess. So the claim is narrowed to what the command line
+        # actually pins: `--vid`/`--pid` scope the install to one device, so NO
+        # OTHER DEVICE is touched. That is provable from `wdi_simple_args()`.
+        #
+        # It also now says WHICH instruments are touched, which matters when two
+        # are listed and only one lacks a driver: `targets = needs_install` at
+        # the call site, so a working instrument in the same list is not a
+        # target — and the first draft warned the user it would replace a driver
+        # it will not go near. The state is interpolated from the chip's own
+        # `tr()` key, so the sentence and the list cannot drift apart.
+        action_text = tr(
+            "Click <b>{button}</b> and ChromIQ will install the USB driver "
+            "your instrument needs, so ArgyllCMS can talk to it. A Windows "
+            "security prompt will appear. Click Yes to continue.<br><br>"
+            "<i>Only the instruments marked <b>{state}</b> above are touched. "
+            "If Windows already shows one of them a driver, this replaces that "
+            "driver; no other device is changed. Earlier versions of ChromIQ "
+            "told people to choose WinUSB, and ArgyllCMS cannot read an "
+            "instrument through WinUSB, so if that is what you have, this is "
+            "the repair, and you did nothing wrong. "
+            "Afterwards Windows may list your instrument under a driver "
+            "name you do not recognise. That is normal: it is the driver "
+            "ArgyllCMS reads instruments through. It is signed, so Windows "
+            "needs no special mode, and it works on x64 and ARM64.</i>"
+        ).format(button=_label_install_driver(),
+                 state=tr("driver not installed")) + usb_certificate_notice_line()
+        btn_label = _label_install_driver()
+    else:
+        # STEP 3 SAID WinUSB, AND WinUSB IS THE ONE DRIVER THAT CANNOT WORK.
+        # ArgyllCMS opens `\\.\libusb0-NNNN`, which only libusb-win32's
+        # libusb0.sys creates; `spotread.exe` carries no `WinUsb_*` symbol at
+        # all. A user who followed this sentence ended with an instrument
+        # Windows called healthy and Argyll could not see — and, until the
+        # predicate was tightened, with ChromIQ agreeing that the driver was
+        # installed. This app walked its own users into the fault it then
+        # failed to detect.
+        #
+        # THE WARNING IS NOT OPTIONAL ON A MACHINE THAT MAY HAVE
+        # A CR30. "Find your colorimeter and give it a driver" is
+        # right for every device this dialog knows about and
+        # catastrophic for one it does not: the CR30 is reached
+        # through a COM port, and any of Zadig's drivers removes it. Nothing in
+        # the app can steer the user there — but this text can, and a
+        # user with driver trouble is exactly who follows it.
+        #
+        # `Options → List All Devices`, `libusb-win32` and the `Install Driver`
+        # in step 3 are ZADIG'S controls, not ours. Zadig has one English UI, so
+        # they stay English in every language — translating them would send the
+        # user hunting for a control Zadig does not have. Only `{button}` is
+        # ours. That our button and Zadig's step-3 button share a name is
+        # precisely why this is interpolated one at a time and not swept.
+        action_text = tr(
+            "Click <b>{button}</b> and ChromIQ will launch <b>Zadig</b>, a free "
+            "USB driver tool. In Zadig:<br>"
+            "&nbsp;&nbsp;1. Click <b>Options → List All Devices</b><br>"
+            "&nbsp;&nbsp;2. Find your colorimeter in the dropdown<br>"
+            "&nbsp;&nbsp;3. Select <b>libusb-win32</b> as the driver and click "
+            "<b>Install Driver</b>"
+        ).format(button=_label_open_zadig()) + _cr30_zadig_warning() \
+            + usb_certificate_notice_line()
+        btn_label = _label_open_zadig()
+
+    msg_text = (
+        (tr("<b>Connected colorimeter:</b><br>") if len(lines) == 1
+         else tr("<b>Connected colorimeters:</b><br>"))
+        + "<br>".join(lines)
+        + "<br><br>"
+        + action_text
+    )
+    return msg_text, btn_label
+
+
+def usb_install_outcome(*, wdi_available: bool, ran_ok: bool,
+                        still_unbound_names: "list[str]",
+                        zadig_status: "str | None",
+                        driver_was_missing: bool,
+                        stopped_watching: bool,
+                        target_names: "list[str] | None" = None,
+                        not_attempted_names: "list[str] | None" = None,
+                        ) -> "tuple[str, bool]":
+    """What the second window says, and whether it offers a Zadig button.
+
+    With wdi-simple present, the verdict comes from *ran_ok*,
+    *still_unbound_names* (the instruments that re-enumerated without a driver)
+    and *driver_was_missing* (whether any of them lacked one BEFORE the button
+    was pressed). Without it, ChromIQ has already launched Zadig and
+    *zadig_status* is what that returned. *target_names* are the instruments
+    the install was aimed at, for the sentences that name them.
+
+    **THIS HALF USED TO CLAIM A SUCCESS IT HAD NOT DEMONSTRATED, AND THE
+    MEASUREMENT IS WORSE THAN THAT.** Every run that ended
+    `ran_ok and not still_unbound` said "WinUSB driver installed successfully."
+    — and `ran_ok` is `install_winusb()`'s return, which is `wdi_simple.exe`'s
+    exit code. Measured on the bench, 2026-09-06, against a real driverless
+    i1Studio: `install_winusb` passes `--driver WinUSB`, wdi-simple has no
+    `--driver` option (its flag is `-t/--type <n>`), so it answered
+    `unrecognized option '--driver'`, printed its usage, and exited 0. Nothing
+    reached `setupapi.dev.log`. **The window congratulated the user on a
+    command that did nothing at all.**
+
+    That the sentence was only ever REACHED on a device already carrying a
+    driver — anything genuinely unbound stayed unbound and fell to the "did not
+    take" branch below — is the only reason it was not more obviously wrong.
+    Which is exactly the case this fork is about: nothing was missing, nothing
+    was measured to have changed, and the only honest answer is that ChromIQ
+    cannot tell. The COM-port half next door had already been made to say
+    precisely that about precisely this situation ("ChromIQ cannot tell you
+    whether that worked, because there was nothing to change"), which is the
+    whole reason `unbound_targets()` exists: `wdi-simple can exit 0 without
+    binding`. It exits 0 without even trying. Two halves of one window held two
+    standards of honesty; they now hold one.
+
+    The FLAG is not fixed here — that is
+    `fix/wdi-simple-never-installed-anything`, deliberately a separate branch.
+    This one changes only what the user is told, and what it now tells them is
+    true under the broken flag and under the fixed one alike: a verdict is
+    given only when the instrument was re-enumerated and found bound.
+
+    `driver_was_missing` is REQUIRED, deliberately and with no default. A
+    default would have to be one of the two answers, and the one that reads
+    "assume it worked" is the bug being fixed here; the one that reads "assume
+    we cannot tell" quietly downgrades a real success. A caller that does not
+    know cannot be given a sentence — it has to go and find out.
+
+    `stopped_watching` is REQUIRED for exactly the same reason, and it was
+    nearly not: the first design widened `ran_ok` to `bool | None`, which needs
+    no change at any existing call site. It is the same trap wearing a friendly
+    face. The parameter's NAME promises a boolean, `False` is legal, and a
+    caller who one day writes `ran_ok=bool(...)` collapses "we do not know" into
+    "it failed" and gets *"Automatic installation failed or was cancelled"* plus
+    a Zadig button — the single worst sentence to show about an install that is
+    succeeding, which is the fault this argument exists to fix.
+
+    `not_attempted_names` are the instruments ChromIQ never got as far as, and
+    they are the SECOND fault in the same expression as the timeout one. The
+    call site read `all(install_winusb(d) for d in targets)` — a GENERATOR, so
+    the first falsy answer ended the iteration and the remaining instruments
+    were never elevated for at all, while this function was then handed them
+    among `still_unbound_names` and said the install "did not take" on them. A
+    device that was never tried is not a device that failed, and it has no
+    verdict coming. It gets a sentence of its own, appended to whichever ending
+    the instruments that WERE tried have earned.
+
+    It takes a default, and `stopped_watching` deliberately does not, because
+    they are different kinds of argument: `stopped_watching` is an ANSWER, and
+    either default is one of the two answers. An empty list is not an answer —
+    it is "there is nothing further to report", which is exactly true of every
+    single-instrument run and of every caller that has not got a list.
+    """
+    unreached = ", ".join(not_attempted_names or [])
+    # One sentence, no count, no pronoun — it reads for one instrument and for
+    # four without a singular/plural pair, the way the "isn't bound to {names}"
+    # sentence below already does.
+    unreached_line = tr(
+        "ChromIQ stopped before it reached {names}. Nothing was tried there, "
+        "and nothing was changed.").format(names=unreached) if unreached else ""
+
+    def _with_the_unreached(text: str) -> str:
+        return f"{text}<br><br>{unreached_line}" if unreached_line else text
+
+    if wdi_available:
+        if stopped_watching:
+            # ChromIQ STOPPED WATCHING. IT DID NOT STOP THE INSTALL.
+            #
+            # This is the ending the window had no word for. `install_winusb`
+            # waited 60 s, threw away what the wait returned, read
+            # `STILL_ACTIVE` (259) as an exit code, found `259 != 0` and
+            # reported a FAILED INSTALL — about an install measured at 48.6 s on
+            # an IDLE machine, i.e. one that was succeeding a second later. The
+            # user was then sent to Zadig to repair something that was not
+            # broken.
+            #
+            # No instrument is named and no verdict is given, because there is
+            # nothing to point at: `unbound_targets()` is deliberately NOT asked
+            # while an install is in flight — it samples the same device stack
+            # wdi-simple is re-enumerating, and can come back with either answer
+            # for the wrong reason. And no Zadig button: nudging somebody to
+            # replace a driver while an elevated installer is still putting one
+            # in is the one action here that could leave the machine worse than
+            # it started.
+            return (_with_the_unreached("<br><br>".join([
+                tr("<b>ChromIQ stopped waiting, and cannot tell you whether "
+                   "that worked.</b>"),
+                tr("The installer had not finished when ChromIQ stopped "
+                   "watching it. Nothing was cancelled and nothing was undone. "
+                   "Windows is very likely still installing the driver, and "
+                   "it may well finish on its own."),
+                tr("Give it a moment, then open <b>{opener}</b> in Preferences "
+                   "again and use <b>{button}</b>. That looks your instrument "
+                   "up afresh and says whether the driver is attached now."
+                   ).format(opener=_in_prose(tr("Instrument drivers…")),
+                            button=_in_prose(_label_check_again())),
+            ])), False)
+        if ran_ok and not still_unbound_names:
+            names = ", ".join(target_names or [])
+            if driver_was_missing:
+                # The driver was missing, the install ran, and the device
+                # re-enumerated WITH one. That is a demonstrated success, and
+                # the second paragraph says what the demonstration was — the
+                # `bound` window next door earns its "It worked." the same way.
+                #
+                # TWO WHOLE SENTENCES RATHER THAN A FALLBACK WORD IN A SLOT.
+                # `target_names` is always populated by the app, but a slot
+                # filled with "your instrument" would render "…attached it to
+                # your instrument — your instrument", and a translator cannot
+                # see that from the key. Written-out variants are the same rule
+                # CLAUDE.md gives for singular and plural.
+                heading = (
+                    tr("<b>It worked.</b> The driver is installed, and Windows "
+                       "has attached it to your instrument: {names}."
+                       ).format(names=names)
+                    if names else
+                    tr("<b>It worked.</b> The driver is installed, and Windows "
+                       "has attached it to your instrument.")
+                )
+                return (_with_the_unreached("<br><br>".join([
+                    heading,
+                    tr("That last part is the check that matters. An installer "
+                       "can finish without complaining and still fail to "
+                       "attach the driver to the hardware, so ChromIQ does not "
+                       "take its word for it: it looks the instrument up "
+                       "again afterwards. The driver is there."),
+                    tr("You can close this window and start measuring."),
+                ])), False)
+            # Nothing was missing before, so nothing can be shown to have
+            # changed. Saying "installed successfully" here is the claim this
+            # branch exists to stop making. No instrument is named: there is
+            # nothing to point AT, which is the whole message.
+            return (_with_the_unreached("<br><br>".join([
+                tr("<b>ChromIQ cannot tell you whether that changed "
+                   "anything.</b>"),
+                tr("The driver was already there before you clicked, and it is "
+                   "still there now. The installer finished without "
+                   "complaining, but there was nothing missing for it to put "
+                   "right, so there is no difference for ChromIQ to point at "
+                   "and call a success."),
+                tr("Nothing was removed or replaced. If ArgyllCMS still cannot "
+                   "open your instrument, unplug it, wait a few seconds and "
+                   "plug it back in. Then open <b>{opener}</b> in Preferences "
+                   "again and use <b>{button}</b>.").format(
+                       opener=_in_prose(tr("Instrument drivers…")),
+                       button=_in_prose(_label_check_again())),
+            ])), False)
+        if not ran_ok:
+            # THIS BRANCH OPENS ZADIG AND USED TO SAY NOTHING ABOUT IT.
+            # `offer_zadig` is True here, so pressing the button in the window
+            # this text is shown in launches Zadig — and the old sentence
+            # neither named the driver to pick nor carried the CR30 warning.
+            # Zadig's driver box defaults to WinUSB, so a user who followed the
+            # window's only instruction landed on the one driver ArgyllCMS
+            # cannot read, and a CR30 owner could reach the CH340 row with no
+            # warning at all. Both are fixed here rather than left to the
+            # user's luck.
+            return (
+                _with_the_unreached(
+                    tr("Automatic installation failed or was cancelled.<br>"
+                       "Click <b>{button}</b> to install it manually using the "
+                       "guided tool: pick your instrument in Zadig, choose "
+                       "<b>libusb-win32</b>, then click <b>Install Driver</b>."
+                       ).format(button=_label_try_zadig())
+                    + _cr30_zadig_warning()),
+                True,
+            )
+        names = ", ".join(still_unbound_names) or tr("the instrument")
+        # `Replace Driver` and the `libusb-win32` choice are Zadig's;
+        # `{button}` is ours. See the note above usb_installer_text.
+        #
+        # TWO THINGS WERE WRONG HERE AND BOTH GOT WORSE WITH THE TIGHTENED
+        # PREDICATE. The old text offered "choose WinUSB (or libusb-win32)" —
+        # so the window a user reaches BECAUSE the driver did not bind sent
+        # them to bind the one driver that cannot work, and ChromIQ would then
+        # tell them again that the driver was not installed. A loop, out of the
+        # app's own mouth. And the diagnosis named only a stale USB-port
+        # instance, which was the one known cause when nobody could arrive here
+        # with a driver already bound; now the commonest way to reach this
+        # branch is exactly that — an existing binding Windows declined to
+        # replace — so the sentence names it first.
+        return (
+            _with_the_unreached(
+                tr("Windows reported the install finished, but the driver still "
+                   "isn't bound to {names}. That happens when a driver is already "
+                   "bound and Windows declines to replace it, and it also happens "
+                   "when the device was previously plugged into a different USB "
+                   "port.<br><br>"
+                   "Click <b>{button}</b> to install it reliably: pick your "
+                   "instrument in Zadig, choose <b>libusb-win32</b>, "
+                   "then click <b>Replace Driver</b>. Unplugging and replugging the "
+                   "instrument first can also help.").format(
+                       names=names, button=_label_try_zadig())
+                + _cr30_zadig_warning()),
+            True,
+        )
+
+    if zadig_status == "launched":
+        return (
+            tr("Zadig is open. Select your colorimeter, choose libusb-win32, "
+               "then click Install Driver.") + _cr30_zadig_warning(),
+            False,
+        )
+    if zadig_status == "download_page":
+        return (
+            tr("Zadig isn't bundled with this build, so its download page "
+               "has been opened in your browser.<br>"
+               "Download and run <b>Zadig</b>, then: Options → List All Devices → "
+               "select your colorimeter → choose libusb-win32 → Install Driver."
+               ) + _cr30_zadig_warning(),
+            False,
+        )
+    # The address is interpolated rather than left in the key: a URL that a
+    # translator retypes is a URL that can acquire a typo in one language only.
+    #
+    # AND IT CARRIES THE CR30 WARNING, WHICH IT DID NOT. This branch was read as
+    # "an address, not an instruction" and excluded from the sweep that checks
+    # every Zadig steer warns about the CH340 row. That was wrong: it hands the
+    # user Zadig's download page and tells them to go there, which is exactly
+    # what the `download_page` branch does — and that one has always carried the
+    # warning. The only difference between them is whether ChromIQ managed to
+    # open the browser itself; the user's next actions are identical, and they
+    # end at the same dropdown. Rare (both the launch AND `webbrowser.open` have
+    # to fail) is not the same as harmless.
+    return (
+        tr("Could not open Zadig or its download page. Visit "
+           "<b>{url}</b> manually, or try running ChromIQ "
+           "as Administrator.<br>Then, in Zadig: Options → List All Devices → "
+           "select your colorimeter → choose libusb-win32 → Install Driver."
+           ).format(url=ZADIG_SITE)
+        + _cr30_zadig_warning(),
+        False,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Instruments that are reached through a COM port (the CR30)
+# ---------------------------------------------------------------------------
+#
+# A DIFFERENT KIND OF DRIVER, BEHIND THE SAME BUTTON. Everything above this
+# point is about WinUSB: the driver ArgyllCMS's instruments need in order to be
+# spoken to over raw USB. The CR30 needs the opposite — a serial driver that
+# CREATES a COM port. Giving a CR30's bridge the WinUSB driver does not install
+# anything; it destroys the port, and the instrument disappears from ChromIQ and
+# from every other program on the machine. The two paths share a window and
+# nothing else.
+#
+# WHY NOTHING HERE EVER SAYS "CR30 DETECTED". The chip is a CH340, and its USB
+# identity (1a86:7523) is stamped into millions of unrelated products —
+# Arduino boards, cheap adapters, laboratory equipment. Windows can tell us a
+# bridge is attached and whether it has a working driver. It cannot tell us what
+# is on the other end of it. So the wording is always "a USB-to-serial bridge",
+# with "the CR30 uses this kind of bridge" as the reason it is being mentioned
+# at all.
+#
+# WHY THE SECTION IS ALWAYS THERE. The state this feature exists for — a
+# driverless CH340 — reports "Status: OK, no problem" to Windows, so there is no
+# error anywhere to trigger on. And an instrument broken badly enough not to
+# enumerate at all shows up as nothing whatsoever. A section that appeared only
+# when it had something to say would be silent for exactly the person who needs
+# it, which is why there is always a way in through "My instrument is not
+# listed".
+
+#: The accent this window's primary buttons are tinted with. It was written
+#: inline before the window grew a second section and a second flow.
+_DRIVER_ACCENT = "#56d6a5"
+
+def _let_paths_wrap(text: str) -> str:
+    """Give a Windows path somewhere to break, so it cannot clip the window.
+
+    A word-wrapped QLabel cannot break inside an unbroken run of
+    characters, and `setWidgetResizable(True)` then widens it past the
+    viewport — which CHOPPED EVERY LINE IN THE WINDOW at the right edge,
+    silently: measured `hbar_max = 99` with the horizontal scrollbar forced
+    off. The exposed route is the folder the USER picks, where the path is
+    not ChromIQ’s to keep short.
+
+    A zero-width space after each separator is a break OPPORTUNITY, not a
+    break: Qt’s line-breaking honours U+200B, so a path that fits stays on
+    one line and one that does not wraps at a backslash instead of running
+    off the edge. It adds nothing visible and nothing selectable-looking,
+    and it is done here rather than in the text functions so that what those
+    functions return — pinned character for character — is unchanged.
+
+    The horizontal scrollbar stays enabled behind this as the safety net
+    for whatever else turns out to be unbreakable.
+    """
+    return text.replace("\\", "\\\u200b")   # backslash + ZERO WIDTH SPACE
+
+
+def _make_the_safe_button_the_default(dlg, safe) -> None:
+    """Make *safe* the button `Enter` presses, and nothing else.
+
+    A `QPushButton` on a `QDialog` is `autoDefault` by default, and Qt promotes
+    the FIRST such button to the dialog's default. In these windows the first
+    button is the one that acts — `Download and install`, `Open Zadig`,
+    `Install Driver` — so `Return` performed an elevated, machine-changing
+    install on a window built for informed consent. `OK`, `Esc` and the
+    title-bar `X` were all made to decline; `Enter` was not, and it is the key
+    people press to make a window go away.
+
+    Every button loses `autoDefault` first, because Qt's promotion is by order,
+    not by role — and then only the dismissing one gets it back.
+    """
+    for btn in dlg.findChildren(QPushButton):
+        btn.setAutoDefault(False)
+        btn.setDefault(False)
+    if safe is not None:
+        safe.setAutoDefault(True)
+        safe.setDefault(True)
+
+
+#: WCH's own page for the ZIP package. Deliberately the ZIP page and NOT the
+#: .EXE one: the .EXE installs 3.5.2019.1, which has no ARM64 support at all,
+#: and it is the installer that left this project's own machine driverless.
+WCH_PACKAGE_PAGE = "https://www.wch-ic.com/downloads/CH341SER_ZIP.html"
+
+
+def driver_staging_root() -> Path:
+    """Where downloaded driver packages are kept.
+
+    Named after the app so a user who goes looking can recognise it, and under
+    LOCALAPPDATA rather than %TEMP% so it is not swept away between the download
+    and the manual retry the failure text offers.
+    """
+    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    return Path(base) / "ChromIQ" / "drivers"
+
+
+def serial_section_text(states, *, offer_anyway: bool = False
+                        ) -> "tuple[str, str | None, str | None]":
+    """The COM-port section: its message and its two buttons.
+
+    *states* is any sequence of objects with a ``.port`` attribute — in the app,
+    ``core.ch34x_driver.DeviceState``. A bridge with a port works; one without
+    does not. Returns ``(message_html, primary_label, secondary_label)``, either
+    label being None when that button is not offered.
+
+    *offer_anyway* is the "my instrument is not listed" route: the user has told
+    us the thing they are trying to fix is not in the list, so the offer is made
+    without ChromIQ claiming to have found anything.
+    """
+    working = [s for s in states if getattr(s, "port", None)]
+    broken = [s for s in states if not getattr(s, "port", None)]
+
+    explain_bridge = tr(
+        "The CR30 does not speak to Windows directly. Inside it sits a small "
+        "chip — a USB-to-serial bridge — whose whole job is to turn the USB "
+        "cable into a COM port, and ChromIQ reads the instrument through that "
+        "port. When Windows has no driver for the bridge, no port appears, and "
+        "the instrument is invisible to ChromIQ and to every other program on "
+        "the computer.")
+
+    explain_generic = tr(
+        "ChromIQ cannot tell you that this is your CR30, and will never claim "
+        "to. The chip is a generic one, used in millions of unrelated "
+        "products, so all Windows can report is that a bridge is attached and "
+        "what state it is in. Which instrument is on the other end of it is "
+        "something only opening the port can answer.")
+
+    offer = tr(
+        "<b>What ChromIQ can do about it.</b> WCH, the company that makes the "
+        "chip, publishes the driver for it. ChromIQ can fetch that package, "
+        "check what arrived — that it is signed, that it genuinely contains "
+        "support for this computer's kind of processor, and that none of the "
+        "files it needs are missing — and then ask Windows to install it. "
+        "Windows shows its own permission prompt before anything is "
+        "installed, and saying No there stops everything with nothing changed. "
+        "ChromIQ only ever adds a driver: nothing is removed, and nothing you "
+        "already have is overwritten.")
+
+    get_it = _label_get_driver()
+    have_folder = _label_have_folder()
+    not_listed = _label_not_listed()
+
+    if offer_anyway:
+        head = tr(
+            "<b>You told ChromIQ your instrument is not in the list above.</b> "
+            "That is worth taking seriously: a bridge whose driver has never "
+            "been installed can still report itself to Windows as perfectly "
+            "healthy, and one that is failing to start up at all may not "
+            "appear anywhere.")
+        return ("<br><br>".join([head, explain_bridge, offer]),
+                get_it, have_folder)
+
+    if broken:
+        head = tr(
+            "<b>A USB-to-serial bridge is connected, and Windows has no "
+            "working driver for it.</b> No COM port has appeared for it, which "
+            "means nothing on this computer can talk to it — ChromIQ included. "
+            "The CR30 is reached through a bridge of exactly this kind, so if "
+            "your CR30 is plugged in and you cannot measure with it, this is "
+            "very likely the reason.")
+        return ("<br><br>".join([head, explain_bridge, explain_generic, offer]),
+                get_it, have_folder)
+
+    if working:
+        ports = ", ".join(sorted(str(s.port) for s in working))
+        if len(working) == 1:
+            head = tr(
+                "<b>A USB-to-serial bridge is connected, and Windows already "
+                "has a working driver for it.</b> It has been given {ports}, "
+                "and there is nothing for ChromIQ to install."
+            ).format(ports=ports)
+        else:
+            head = tr(
+                "<b>Several USB-to-serial bridges are connected, and Windows "
+                "already has a working driver for every one of them.</b> They "
+                "have been given {ports}, and there is nothing for ChromIQ to "
+                "install."
+            ).format(ports=ports)
+        tail = tr(
+            "If your CR30 is one of these, everything it needs from Windows is "
+            "in place; choose it in the Measure tab and it will find its port "
+            "on its own. If you are here because a CR30 still will not "
+            "measure, the trouble is somewhere other than the driver — and if "
+            "the instrument you are trying to fix is not among the ports "
+            "above at all, use <b>{button}</b>.").format(
+            button=_in_prose(not_listed))
+        return ("<br><br>".join([head, explain_generic, tail]),
+                None, not_listed)
+
+    head = tr(
+        "<b>ChromIQ cannot see a USB-to-serial bridge on this computer at the "
+        "moment.</b> If nothing of that kind is plugged in, that is exactly "
+        "what you would expect and there is nothing to do here.")
+    tail = tr(
+        "If your CR30 <i>is</i> plugged in and switched on and you are still "
+        "reading this, its bridge may not be starting up at all — a cable that "
+        "only carries power rather than data will do it, and so will a socket "
+        "that has stopped working. Try a different cable and a different "
+        "socket first. If that changes nothing, use <b>{button}</b> and "
+        "ChromIQ will offer you the driver anyway.").format(
+            button=_in_prose(not_listed))
+    return ("<br><br>".join([head, explain_bridge, tail]),
+            None, not_listed)
+
+
+def serial_unknown_arch_text() -> str:
+    """ChromIQ cannot tell what processor this is, so it will not install.
+
+    `core.ch34x_driver.machine_arch()` returns "" for 32-bit x86, for an
+    architecture it does not recognise, and off Windows — and "" means refuse,
+    never guess. It is a real state with a real cause, not an error, so it gets
+    a real explanation and the route that still works.
+    """
+    return "<br><br>".join([
+        tr("<b>ChromIQ cannot tell what kind of processor this computer has, "
+           "so it is not going to install a driver here.</b>"),
+        tr("That sounds like a small thing to stop for, and it is not. A driver "
+           "package has to match the processor, and the only way to be sure it "
+           "does is to read what the package says about itself and compare it "
+           "with what this computer actually is. Without the second half of "
+           "that comparison there is nothing to check against, and installing "
+           "a driver nobody has checked is precisely the failure this window "
+           "exists to prevent."),
+        tr("You can still do it yourself, and it is not difficult. Open "
+           "<b>{url}</b> and download the CH341SER <b>ZIP</b> package — the "
+           "ZIP, not the .EXE installer. Unpack it somewhere you will find "
+           "again. Then right-click the Start button and choose <b>Device "
+           "Manager</b>, find the adapter — it may be under <i>Ports (COM "
+           "&amp; LPT)</i>, or under <i>Other devices</i> with a warning mark "
+           "beside it — right-click it, choose <b>Update driver</b>, then "
+           "<b>Browse my computer for drivers</b>, and point the browse box at "
+           "the folder you unpacked. Windows will choose the right part of the "
+           "package for itself."
+           ).format(url=WCH_PACKAGE_PAGE),
+    ])
+
+
+def serial_install_intro_text(folder: str, arch: str) -> str:
+    """What is about to happen, said BEFORE the Windows permission prompt.
+
+    An unexpected security prompt is the one users cancel, and cancelling it is
+    indistinguishable from the install failing. So it is announced, in order,
+    with the two things ChromIQ cannot promise said out loud.
+    """
+    return "<br><br>".join([
+        tr("<b>Here is exactly what is about to happen, step by step.</b>"),
+        tr("<b>1.</b> ChromIQ downloads the driver package published by WCH, "
+           "the company that makes the chip, over an encrypted connection.<br>"
+           "<b>2.</b> It unpacks the package into a folder of its own, which "
+           "stays on your computer afterwards:<br>&nbsp;&nbsp;{folder}<br>"
+           "<b>3.</b> It checks what arrived: that the files carry a valid "
+           "signature, that the package really does contain support for this "
+           "computer's kind of processor ({arch}), and that every file the "
+           "installer refers to is actually there.<br>"
+           "<b>4.</b> Only if all of that passes does it ask Windows to "
+           "install the package.<br>"
+           "<b>5.</b> Afterwards it checks whether a COM port has really "
+           "appeared, because a driver can install perfectly and still not "
+           "attach itself to your instrument."
+           ).format(folder=folder, arch=arch),
+        tr("<b>Windows will ask your permission at step 4.</b> A prompt with a "
+           "blue border will appear, the screen will dim behind it, and it "
+           "will ask whether you want to allow changes to your device. That "
+           "prompt comes from Windows itself, not from ChromIQ, and it is "
+           "expected. Choosing No stops the installation there with nothing "
+           "changed."),
+        tr("<b>Two things ChromIQ cannot promise, and would rather say so.</b> "
+           "WCH publishes no checksum and no fixed link to a particular "
+           "version, so there is no way to know in advance which version of "
+           "the package will arrive. Every check above is a check on what did "
+           "arrive, never a guarantee of what was asked for. And nothing here "
+           "removes or replaces a driver — the package is added alongside "
+           "whatever Windows already has, so there is nothing to undo "
+           "afterwards."),
+    ])
+
+
+def serial_folder_install_intro_text(folder: str, arch: str) -> str:
+    """The same announcement, for the package the user fetched themselves.
+
+    **THE FOLDER ROUTE REACHED AN ELEVATED INSTALL IN TWO CLICKS AND SAID
+    NOTHING.** `My instrument is not listed…` -> `I already have the folder…`
+    -> a folder picker -> `pnputil`, with Windows' own UAC prompt as the first
+    and only warning. The download route four screens up says why that is
+    wrong, in its own comment: an unexpected security prompt is the one people
+    cancel, and a cancelled prompt is indistinguishable from a failure. Picking
+    a folder is not consent to elevate; it is consent to be asked.
+
+    It is not `serial_install_intro_text` with a word changed, because that
+    text promises things this route cannot: steps 1 and 2 there describe
+    ChromIQ downloading and unpacking the package over an encrypted connection.
+    Here the files are the user's, ChromIQ did not fetch them, and saying so is
+    the whole point.
+    """
+    return "<br><br>".join([
+        tr("<b>Here is exactly what is about to happen, step by step.</b>"),
+        tr("<b>1.</b> ChromIQ looks at the folder you chose:<br>"
+           "&nbsp;&nbsp;{folder}<br>"
+           "<b>2.</b> It checks what is in it: that the files carry a valid "
+           "signature, that the package really does contain support for this "
+           "computer's kind of processor ({arch}), and that every file the "
+           "installer refers to is actually there.<br>"
+           "<b>3.</b> Only if all of that passes does it ask Windows to "
+           "install the package.<br>"
+           "<b>4.</b> Afterwards it checks whether a COM port has really "
+           "appeared, because a driver can install perfectly and still not "
+           "attach itself to your instrument."
+           ).format(folder=folder, arch=arch),
+        tr("<b>Windows will ask your permission at step 3.</b> A prompt with a "
+           "blue border will appear, the screen will dim behind it, and it "
+           "will ask whether you want to allow changes to your device. That "
+           "prompt comes from Windows itself, not from ChromIQ, and it is "
+           "expected. Choosing No stops the installation there with nothing "
+           "changed."),
+        tr("<b>Two things ChromIQ cannot promise, and would rather say so.</b> "
+           "These files are yours, not ChromIQ's — it did not fetch them and "
+           "cannot tell you where they came from, so every check above is a "
+           "check on what is in that folder and never a statement about where "
+           "it was obtained. And nothing here removes or replaces a driver — "
+           "the package is added alongside whatever Windows already has, so "
+           "there is nothing to undo afterwards."),
+    ])
+
+
+def serial_manual_route_text(folder: str) -> str:
+    """The way to install the very same package by hand.
+
+    Deliberately NOT "use Roll Back Driver". Roll Back is greyed out unless the
+    device already had a working driver once, and the person reading this is by
+    definition the person whose instrument never had one. Sending them to a
+    greyed-out button is worse than saying nothing.
+    """
+    return tr(
+        "The package ChromIQ downloaded and checked is still on your computer, "
+        "so you can hand it to Windows yourself:<br>&nbsp;&nbsp;{folder}<br><br>"
+        "Right-click the Start button and choose <b>Device Manager</b>. Find "
+        "the adapter — it may be under <i>Ports (COM &amp; LPT)</i>, or under "
+        "<i>Other devices</i> with a warning mark beside it. Right-click it, "
+        "choose <b>Update driver</b>, then <b>Browse my computer for "
+        "drivers</b>, and point the browse box at the folder above."
+    ).format(folder=folder)
+
+
+# ---------------------------------------------------------------------------
+# Core says WHAT happened; this file says it in words
+# ---------------------------------------------------------------------------
+#
+# **THE PROSE USED TO COME OUT OF `core/ch34x_driver.py` AND BE PRINTED HERE
+# VERBATIM.** That one decision produced three faults, all of them visible:
+#
+# 1. **A window that contradicted itself.** `pnputil` exit 3010 means "accepted,
+#    restart to finish". Core said so — in a `(True, "…restart…")` pair — so the
+#    flow read the `True`, went on to `verify_bound`, found no COM port (there
+#    cannot be one for a driver that is staged and not yet live) and printed
+#    core's restart sentence UNDERNEATH the heading *"Everything ChromIQ could
+#    check passed, and there is still no COM port."* Two incompatible statements
+#    in one window. 3010 now has its own window and its own heading.
+# 2. **English inside the German window.** Five German paragraphs and then
+#    *"Windows refused the change. This normally means the account does not have
+#    permission…"*. A sentence composed in core cannot be translated: it is in no
+#    catalogue and there is no key to translate it under.
+# 3. **A string match on another module's prose.** `_CANCELLED_PREFIX` compared
+#    the first words of core's English to tell "the user pressed No at the UAC
+#    prompt" from "the install failed". Rewording core changed which window a
+#    user got; translating core would have broken it outright. It is gone, and
+#    nothing in this file branches on English text any more.
+#
+# `core.ch34x_driver` now returns a `DriverResult` — an `Outcome`, a `Reason`,
+# and the few values a sentence needs. The outcome picks the heading; the reason
+# picks the body; every word of both is `tr()`-ed here.
+
+
+#: Reasons that have a WINDOW of their own rather than a sentence inside one.
+#: `Reason.PORT_APPEARED` is the whole `bound` window, `STILL_NO_PORT` is the
+#: `not_bound` window's heading, `CANCELLED_AT_PROMPT` is the `cancelled`
+#: window, `REBOOT_TO_FINISH` is the `reboot` window — printing their sentence
+#: as well would say the same thing twice, which is how the 3010 window came to
+#: contradict itself in the first place. The rest never reach a user at all:
+#: they are the intermediate successes of a flow that carries on.
+#:
+#: `tests/test_usb_driver_dialog.py` asserts that this set plus the sentences
+#: below cover `Reason` EXACTLY, so a member added to core with nothing to say
+#: fails a test instead of showing the user an empty paragraph.
+_REASONS_WITH_THEIR_OWN_WINDOW = frozenset({
+    "DOWNLOADED", "UNPACKED", "PACKAGE_READY", "DRIVER_ACCEPTED",
+    "REBOOT_TO_FINISH", "PORT_APPEARED", "STILL_NO_PORT",
+    "CANCELLED_AT_PROMPT",
+})
+
+
+def serial_reason_text(result) -> str:
+    """The one sentence that says WHICH thing happened, in the reader's language.
+
+    *result* is a `core.ch34x_driver.DriverResult`, or anything carrying the
+    same `reason` / `code` / `path` / `name` / `count` / `detail` fields. The
+    return is "" for a reason that has its own window (see above) and for
+    anything unrecognised — never a fallback sentence, because a fallback is how
+    a wrong explanation reaches a user quietly.
+
+    `detail` is quoted rather than paraphrased: it holds words ChromIQ did not
+    compose — an `OSError`, a Windows error text, or (for `PACKAGE_REJECTED`)
+    `PackageVerdict.reason`, which is the one prose surface this refactor did
+    not reach. See the note in `_serial_check_and_install`.
+    """
+    name = getattr(result, "reason", None)
+    key = getattr(name, "name", "")
+    code = getattr(result, "code", None)
+    path = str(getattr(result, "path", "") or "")
+    label = str(getattr(result, "name", "") or "")
+    count = getattr(result, "count", 0) or 0
+    detail = str(getattr(result, "detail", "") or "")
+    check_again = _in_prose(_label_check_again())
+
+    if key in _REASONS_WITH_THEIR_OWN_WINDOW:
+        return ""
+
+    # --- getting the package ---------------------------------------------
+    if key == "STAGING_UNWRITABLE":
+        return tr("ChromIQ could not create the folder it wanted to download "
+                  "into ({folder}): {error}").format(folder=path, error=detail)
+    if key == "TLS_UNTRUSTED":
+        return tr("ChromIQ could not confirm it was really talking to WCH's "
+                  "website. That normally happens on a company or school "
+                  "network that inspects secure connections.")
+    if key == "UNREACHABLE":
+        return tr("ChromIQ could not reach WCH's website ({error}).").format(
+            error=detail)
+    if key == "DOWNLOAD_TOO_SLOW":
+        return tr("The download was taking too long, so ChromIQ stopped it. "
+                  "Please check your internet connection and try again.")
+    if key == "DOWNLOAD_TOO_BIG":
+        return tr("What the website sent back is far bigger than WCH's driver "
+                  "package, so ChromIQ stopped the download instead of saving "
+                  "it.")
+    if key == "NOT_A_ZIP":
+        return tr("The website did not send a .zip file. That usually means a "
+                  "sign-in page or a proxy answered instead of WCH.")
+    if key == "EMPTY_RESPONSE":
+        return tr("The website sent nothing that looks like a .zip file.")
+    if key == "SAVE_FAILED":
+        return tr("The download could not be saved: {error}").format(
+            error=detail)
+
+    # --- what was in the archive -----------------------------------------
+    if key == "ARCHIVE_DAMAGED":
+        return tr("The downloaded file is damaged — “{name}” inside it is "
+                  "corrupt. Please try again.").format(name=label)
+    if key == "ARCHIVE_UNREADABLE":
+        return tr("The downloaded file is not a readable .zip.")
+    if key == "ARCHIVE_TOO_MANY_ENTRIES":
+        return tr("That .zip contains {count} items, far more than a driver "
+                  "package. ChromIQ did not unpack it.").format(count=count)
+    if key == "ARCHIVE_UNSAFE_PATH":
+        return tr("That .zip contains an item with an unsafe path (“{name}”). "
+                  "ChromIQ did not unpack it.").format(name=label)
+    if key == "ARCHIVE_SYMLINK":
+        return tr("That .zip contains a symbolic link (“{name}”), which a "
+                  "driver package never needs. ChromIQ did not unpack "
+                  "it.").format(name=label)
+    if key == "ARCHIVE_ESCAPES":
+        return tr("That .zip tries to write outside the folder ChromIQ chose "
+                  "(“{name}”). It was not unpacked.").format(name=label)
+    if key == "ARCHIVE_TOO_BIG":
+        return tr("That .zip unpacks to far more than a driver package. "
+                  "ChromIQ did not unpack it.")
+    if key == "ARCHIVE_EMPTY":
+        return tr("That .zip is empty.")
+    if key == "UNPACK_FAILED":
+        return tr("The download could not be unpacked: {error}").format(
+            error=detail)
+
+    # --- refused before anything was elevated -----------------------------
+    if key == "NOT_WINDOWS":
+        return tr("Drivers can only be installed on Windows.")
+    if key == "PATH_HAS_QUOTE":
+        return tr("That folder's name contains a quotation mark, which "
+                  "Windows' driver installer cannot be given safely. Please "
+                  "move the driver folder somewhere with a simpler name and "
+                  "try again.")
+    if key == "INF_MISSING":
+        return tr("ChromIQ cannot find “{path}” any more.").format(path=path)
+    if key == "PACKAGE_REJECTED":
+        return tr("ChromIQ re-checked the driver package immediately before "
+                  "installing it and no longer trusts it: {detail}").format(
+                      detail=detail)
+    if key == "INF_MISMATCH":
+        return tr("ChromIQ re-checked the driver package immediately before "
+                  "installing it, and the file it approved is not the one it "
+                  "was asked to install.")
+    if key == "NO_PNPUTIL":
+        return tr("Windows' driver installer (pnputil.exe) is not on this "
+                  "computer, so ChromIQ cannot install the driver.")
+
+    # --- the elevation itself ---------------------------------------------
+    if key == "ELEVATION_FAILED":
+        return tr("Windows could not start its driver installer (error "
+                  "{code}).").format(code=code)
+    if key == "ELEVATION_REFUSED":
+        return tr("Windows refused to ask for your permission at all. On a "
+                  "managed computer that usually means an administrator has "
+                  "switched that prompt off, so please ask whoever looks after "
+                  "this computer to install the driver.")
+    if key == "STILL_RUNNING":
+        return tr("Windows' driver installer is still working after {seconds} "
+                  "seconds. ChromIQ has stopped waiting, but it has "
+                  "<b>not</b> stopped the installation — nothing was undone. "
+                  "Give it a moment, then use <b>{button}</b>.").format(
+                      seconds=count, button=check_again)
+    if key == "LOST_TRACK":
+        return tr("ChromIQ lost track of Windows' driver installer, so it "
+                  "cannot say what happened. Use <b>{button}</b> to find "
+                  "out.").format(button=check_again)
+
+    # --- what pnputil answered --------------------------------------------
+    if key == "NOTHING_TO_APPLY":
+        return tr("Windows took the driver package but found no device to use "
+                  "it on. If the instrument is plugged in, unplug it, wait a "
+                  "few seconds and plug it back in.")
+    if key == "NO_PERMISSION":
+        return tr("Windows refused the change. That normally means this "
+                  "account may not install drivers, or a company policy "
+                  "forbids it.")
+    if key == "PACKAGE_UNREADABLE":
+        return tr("Windows could not read the driver package.")
+    if key == "PACKAGE_INVALID":
+        return tr("Windows rejected the driver package as invalid.")
+    if key == "UNKNOWN_EXIT":
+        return tr("Windows' driver installer stopped with an error (code "
+                  "{code}).").format(code=code)
+
+    # --- looking for the COM port afterwards ------------------------------
+    if key == "UNPLUGGED_MID_FLOW":
+        return tr("The adapter was unplugged while ChromIQ was working, so "
+                  "there is nothing to look at. Plug it back in and use "
+                  "<b>{button}</b>.").format(button=check_again)
+    if key == "NOTHING_TO_CHECK":
+        return tr("Every USB-to-serial adapter ChromIQ can see already had a "
+                  "COM port before this started ({ports}), so there is no "
+                  "change for ChromIQ to point at.").format(ports=label)
+    if key == "NOTHING_ATTACHED":
+        return tr("ChromIQ cannot see any USB-to-serial adapter at all, so "
+                  "there is nothing to look at. Plug the instrument in and use "
+                  "<b>{button}</b>.").format(button=check_again)
+
+    return ""
+
+
+def serial_outcome_text(*, stage: str, detail: str = "", folder: str = "",
+                        ports: str = "") -> "tuple[str, bool]":
+    """What the attempt came to, and whether to offer the folder route again.
+
+    *stage* is one of ``bound``, ``reboot``, ``not_bound``, ``cannot_tell``,
+    ``nothing_applied``, ``install_failed``, ``cancelled``,
+    ``package_rejected``, ``download_failed`` — and it is chosen from
+    ``DriverResult.outcome``, never from what a sentence happens to say.
+    *detail* is `serial_reason_text(result)`: one already-translated sentence,
+    or "" when the stage's own heading is that sentence.
+    """
+    if stage == "bound":
+        return ("<br><br>".join([
+            tr("<b>It worked.</b> Windows installed the driver, and a COM port "
+               "has appeared for the adapter: {ports}."
+               ).format(ports=ports),
+            tr("That last part is the check that matters, and it is the one "
+               "that was missing before. A driver can install perfectly and "
+               "still fail to attach itself to the hardware, so ChromIQ does "
+               "not take the installer's word for it — it looks for the port "
+               "afterwards. The port is there."),
+            tr("If the instrument on that port is your CR30, you can close "
+               "this window and measure. Choose the CR30 in the Measure tab "
+               "and it will find the port on its own."),
+        ]), False)
+
+    if stage == "reboot":
+        # **3010 GETS ITS OWN WINDOW, AND THAT IS THE WHOLE POINT.** It used to
+        # land in `not_bound` below — because core answered "restart required"
+        # as a TRUTHY (bool, str) pair, the flow read the bool, went on to look
+        # for a COM port that cannot exist yet, and printed core's sentence
+        # about restarting underneath the heading "Everything ChromIQ could
+        # check passed, and there is still no COM port." The user was told two
+        # incompatible things in one window and given three pieces of advice,
+        # none of which was the one that works.
+        return ("<br><br>".join([
+            tr("<b>Windows has accepted the driver and needs a restart to "
+               "finish switching it on.</b>"),
+            tr("That is an ordinary answer from Windows, not a fault. The "
+               "driver is on the computer and the package was checked and "
+               "accepted — but until the computer restarts, Windows will not "
+               "finish attaching it, so no COM port appears and ChromIQ still "
+               "cannot reach the instrument."),
+            # NOT "come back to THIS window and use Check again": this window
+            # has one button and it says OK. `Check again` lives on the driver
+            # helper behind it, which is reached by opening `Instrument
+            # drivers…` in Preferences — so the sentence names BOTH controls,
+            # from their own keys. Naming a button that is not on the screen is
+            # the fault `3c3ba01b` fixed, and it nearly shipped again here.
+            tr("<b>Restart the computer, then plug the instrument back in.</b> "
+               "Then open <b>{opener}</b> in Preferences again and use "
+               "<b>{button}</b>: ChromIQ will look for the COM port and tell "
+               "you whether it is there.").format(
+                   opener=_in_prose(tr("Instrument drivers…")),
+                   button=_in_prose(_label_check_again())),
+            tr("Nothing was removed or replaced, so there is nothing to undo — "
+               "whether you restart now or later."),
+        ]), False)
+
+    if stage == "cannot_tell":
+        # Windows accepted the driver and there was nothing for ChromIQ to
+        # judge: the adapter was unplugged mid-flow, or nothing was unbound to
+        # begin with. Saying "everything passed and there is still no COM port"
+        # about that would be a second self-contradicting window.
+        return ("<br><br>".join([x for x in [
+            tr("<b>ChromIQ cannot tell you whether that worked.</b>"),
+            detail,
+            tr("Windows accepted the driver, and nothing on your computer was "
+               "removed or replaced. Plug the instrument in, then use "
+               "<b>{button}</b> — ChromIQ will look for its COM port and say "
+               "what it finds.").format(button=_in_prose(_label_check_again())),
+        ] if x]), False)
+
+    if stage == "nothing_applied":
+        # pnputil 259: the package went into the driver store and Windows found
+        # no device to apply it to. "Windows did not install the package" would
+        # be wrong — it did — and "there is still no COM port" would be the
+        # 3010 mistake again.
+        return ("<br><br>".join([x for x in [
+            tr("<b>Windows added the driver package but did not attach it to "
+               "anything.</b>"),
+            detail,
+            tr("Nothing on your computer was changed."),
+            serial_manual_route_text(folder),
+        ] if x]), False)
+
+    if stage == "not_bound":
+        # `detail` is whatever ELSE ChromIQ learned. It is usually "" now: the
+        # cases that had something specific to say — a restart is needed, the
+        # adapter was unplugged, there was nothing to judge — are their own
+        # windows above, and repeating this window's heading in its own body is
+        # what the 3010 window did.
+        return ("<br><br>".join([x for x in [
+            tr("<b>Everything ChromIQ could check passed, and there is still "
+               "no COM port.</b>"),
+            detail,
+            tr("This is what was done, and every step of it succeeded: the "
+               "package was downloaded and unpacked; its signature was "
+               "verified; it was confirmed to contain support for this "
+               "computer's kind of processor; and Windows accepted it and "
+               "reported the installation as finished. Then ChromIQ looked for "
+               "a COM port for the adapter, and there is none. So the driver "
+               "is on the machine, and Windows has simply not attached it to "
+               "your instrument."),
+            tr("<b>Three things are worth trying, in this order.</b>"),
+            tr("<b>1. Unplug the instrument, wait a few seconds, and plug it "
+               "back in.</b> Windows decides which driver to attach at the "
+               "moment a device arrives, and a device that was already sitting "
+               "there while the driver was being installed will often keep its "
+               "old answer until it is asked again. Then use "
+               "<b>{button}</b>.").format(
+                   button=_in_prose(_label_check_again())),
+            tr("<b>2. Point Windows at the folder by hand.</b>") + "<br>"
+            + serial_manual_route_text(folder),
+            tr("<b>3. If Device Manager shows no such adapter at all</b>, the "
+               "trouble is before the driver: a cable that carries power but "
+               "not data, a socket that has stopped working, or the instrument "
+               "being switched off. Try a different cable and a different "
+               "socket."),
+            tr("Nothing has been removed or replaced, so there is nothing to "
+               "undo. Whatever your computer had before, it still has."),
+            # THE DEAD END, NAMED SO NOBODY CHASES IT. Device Manager's Roll
+            # Back Driver is greyed out unless the device already had a working
+            # driver once — and the person reading this is by definition the
+            # person whose instrument never had one. This sentence used to live
+            # in `core.ch34x_driver.verify_bound`'s prose, which is why it is
+            # here now: it is a thing to SAY, and saying things is this file's
+            # job. `tests/test_ch34x_driver.py` asks this window for it.
+            tr("Device Manager's <b>Roll Back Driver</b> will not help here — "
+               "it is greyed out for a device that never had a driver to roll "
+               "back to."),
+        ] if x]), False)
+
+    if stage == "install_failed":
+        return ("<br><br>".join([
+            tr("<b>Windows did not install the package.</b>"),
+            detail,
+            tr("Nothing on your computer was changed."),
+            serial_manual_route_text(folder),
+        ]), False)
+
+    if stage == "cancelled":
+        return ("<br><br>".join([
+            tr("<b>The installation was stopped at the Windows permission "
+               "prompt.</b> Nothing was installed and nothing on your computer "
+               "was changed — which is exactly what choosing No there is "
+               "supposed to do."),
+            tr("The package ChromIQ downloaded is still here, so starting "
+               "again costs nothing but the click:<br>&nbsp;&nbsp;{folder}"
+               ).format(folder=folder),
+        ]), False)
+
+    if stage == "package_rejected":
+        return ("<br><br>".join([
+            tr("<b>ChromIQ will not install that package.</b>"),
+            detail,
+            tr("Nothing has been installed and nothing on your computer has "
+               "changed. This check is the entire point of the exercise: a "
+               "package that does not contain support for this computer's kind "
+               "of processor installs without a single complaint and then "
+               "simply never works, and that silent failure is what this "
+               "window exists to prevent."),
+            tr("If you chose the folder yourself, two things are worth "
+               "checking. Make sure you picked the folder that actually holds "
+               "the driver files rather than the folder above it. And make "
+               "sure it is a recent version — support for ARM-based computers "
+               "only appears in the newer releases, so an old copy downloaded "
+               "years ago cannot work here however healthy it looks."),
+        ]), True)
+
+    return ("<br><br>".join([
+        tr("<b>ChromIQ could not get a usable driver package.</b>"),
+        detail,
+        tr("This happens for ordinary reasons: no internet connection at the "
+           "moment, a company network that inspects encrypted traffic, or the "
+           "manufacturer's website being down or rearranged. Nothing was "
+           "installed and nothing on your computer was changed."),
+        tr("You can also fetch it yourself and hand it over. Open "
+           "<b>{url}</b>, download the CH341SER <b>ZIP</b> package — the ZIP, "
+           "not the .EXE installer, which contains an older version that "
+           "cannot work on ARM-based computers — unpack it anywhere you like, "
+           "and then use <b>{button}</b>. ChromIQ runs "
+           "exactly the same checks on your copy as it would on its own."
+           ).format(url=WCH_PACKAGE_PAGE,
+                    button=_in_prose(_label_have_folder())),
+    ]), True)
+
+
+# ---------------------------------------------------------------------------
+# Not while a measurement is running
+# ---------------------------------------------------------------------------
+#
+# Preferences itself stays open during a measurement, and that is deliberate
+# policy (`ui/main_window.py:1150-1155`) which this does not overturn. Only the
+# driver helper is blocked, because only the driver helper can end the
+# measurement: installing a driver restarts the device stack, and the open COM
+# handle goes with it.
+#
+# The signal is `core.instrument_lease.holder()`, NOT `ArgyllRunner.is_running`.
+# That module exists precisely because process state is blind to a CR30 session
+# that spawns no process (see its docstring). The other two are ORed in because
+# they are cheap and they cover the ArgyllCMS instruments, which the lease
+# deliberately does not claim.
+
+def measurement_in_progress(parent=None) -> "str | None":
+    """WHICH HOLDER has the instrument, or None when nothing is running.
+
+    Returns the lease's own IDENTIFIER — `MEASURE_TAB` / `SPOT_TOOL`, the
+    constants `core/instrument_lease.py` documents as identifiers — and not the
+    translated label. The label is a noun phrase, and a noun phrase cannot be
+    dropped into a sentence in a language that inflects; see
+    `measurement_block_text` below, which is why this changed.
+    """
+    try:
+        from core import instrument_lease
+        held = instrument_lease.holder()
+        if held is not None:
+            return held
+    except Exception:   # noqa: BLE001 — a guard must never be the thing that fails
+        log.warning("could not read the instrument lease", exc_info=True)
+
+    win = parent
+    seen = 0
+    while win is not None and seen < 20:
+        if getattr(win, "_measuring", False):
+            from core.instrument_lease import MEASURE_TAB
+            return MEASURE_TAB
+        win = win.parent() if hasattr(win, "parent") else None
+        seen += 1
+    return None
+
+
+# A PREPOSITION GLUED TO A TRANSLATED NOUN IS NOT A SENTENCE IN HALF OF THESE
+# LANGUAGES, AND NO TEST WE HAVE COULD SEE IT.
+#
+# This paragraph used to read "…from {where}." with `where_label()`'s noun
+# phrase formatted into it. English and German survive that — German only
+# because both labels were hand-inflected into the dative to fit — and four
+# languages do not. Rendered from the shipped catalogues, before this change:
+#
+#     it   "da la scheda Misura"           -> must contract to "dalla scheda"
+#     pt   "a partir de o separador Medir" -> must contract to "a partir do"
+#     pl   "z karcie Pomiar"               -> needs the genitive "z karty"
+#     ru   "из вкладке «Измерение»"        -> needs the genitive "из вкладки"
+#
+# `tests/test_i18n.py` cannot see any of it: the key is present, translated, and
+# its placeholder matches. `scripts/i18n_extract.py` cannot either — the broken
+# sentences exist NOWHERE as literals, they are assembled at runtime, so no
+# translator was ever shown one. It took somebody rendering the SPOT_TOOL branch
+# in Italian to find it.
+#
+# Hand-inflecting the label was the fix German got (8d5b8430) and it does not
+# generalise: it cannot survive two sentences wanting two cases (this one and
+# `M_INSTRUMENT_BUSY`'s "in {where}"), and Polish and Russian would need a
+# different form of the same label in each. So the WHOLE SENTENCE is the
+# translatable unit now — one per holder, complete, with nothing formatted into
+# it. Every language writes its own preposition, its own article and its own
+# case, and a translator reads a finished sentence instead of a fragment.
+#
+# It is also its own paragraph rather than glued to the next one with a space:
+# ja and zh join sentences with 。and no space, so even joining two translated
+# sentences is a decision the code must not make for them.
+
+def _read_right_now_sentence(holder: "str | None") -> str:
+    """One WHOLE sentence naming where the instrument is being read.
+
+    *holder* is a `core.instrument_lease` IDENTIFIER, not a label — and the
+    sentence is picked, never assembled, which is the entire point of it.
+    """
+    from core.instrument_lease import MEASURE_TAB, SPOT_TOOL
+    if holder == MEASURE_TAB:
+        return tr("Your instrument is being read right now, from the Measure "
+                  "tab.")
+    if holder == SPOT_TOOL:
+        return tr("Your instrument is being read right now, from the "
+                  "Tools ▸ Read single patches window.")
+    # Nothing reaches this today — the lease is only ever taken with one of the
+    # two constants above — but a guard must have an answer for every input it
+    # can be handed, and "somewhere else in ChromIQ" is true of all of them.
+    log.warning("the instrument lease is held by an unknown holder: %r", holder)
+    return tr("Your instrument is being read right now, in another part of "
+              "ChromIQ.")
+
+
+def measurement_block_text(holder: "str | None") -> str:
+    """Why the driver helper will not open right now.
+
+    *holder* is the identifier `measurement_in_progress()` returns.
+    """
+    return "<br><br>".join([
+        tr("<b>Not while a measurement is running.</b>"),
+        _read_right_now_sentence(holder),
+        tr("Installing a driver restarts the connection Windows holds to the "
+           "instrument, and doing that in the middle of a reading would cut "
+           "it off: the patches measured so far would be lost, and the "
+           "instrument would very likely need unplugging and plugging back in "
+           "before it could be used again."),
+        tr("Let the measurement finish, or stop it, and this window will open "
+           "normally. Everything else in Preferences stays available in the "
+           "meantime — it is only the driver helper that is held back."),
+    ])
+
+
+class ContentHeightScrollArea(QScrollArea):
+    """A QScrollArea that asks for the height its content actually wants.
+
+    **THIS EXISTS BECAUSE THE SCROLL AREA ADDED TO STOP TRUNCATION BECAME THE
+    TRUNCATION.** `QScrollArea::sizeHint()` returns the inner widget's hint
+    `boundedTo(QSize(36 * h, 24 * h))` with `h = fontMetrics().height()`. On
+    this project's Windows machine `h = 16`, so a scroll area reports **384 px
+    tall whatever it holds** — and `SettingsDialog._fit_to_screen` then pinned
+    that with `resize()`. Measured 2026-08-30, German, the worst natural case:
+    the driver helper opened **620 x 480 on a 1032 px screen** with 774 px of
+    content, 390 px of it hidden, `Treiber holen…` — the button the window
+    exists to offer — **303 px below the bottom edge**, and nothing on screen to
+    say it was there. The committed evidence gallery contains a photograph of
+    it.
+
+    So `sizeHint()` reports the real content height instead. The height of
+    wrapped prose depends on the width it is wrapped at, and a scroll area is
+    asked for its hint long before anybody has decided how wide the window will
+    be — so `_fit_to_screen` settles the width first and tells the area what it
+    will get, through `assume_width()`.
+
+    **`heightForWidth()` IS DELIBERATELY NOT OVERRIDDEN, and that is not an
+    oversight.** It is the more Qt-ish mechanism and it was tried first: a
+    QScrollArea whose `hasHeightForWidth()` is true makes the window IGNORE ITS
+    OWN `maximumHeight()`. Measured on the real screen, `maximumHeight() = 928`,
+    `minimumHeight() = 140`, and the shown window **2000 px tall on a 1032 px
+    display** — the defect this class exists to kill, wearing the opposite
+    sign. `sizeHint()` alone does not do that: same content, same window,
+    928 px, scrollbar carrying the rest.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._assumed_width = 0
+
+    def _bar_reserve(self) -> int:
+        """The vertical scrollbar's width, unless it can never be shown."""
+        bar = self.verticalScrollBar()
+        if (bar is None or self.verticalScrollBarPolicy()
+                == Qt.ScrollBarPolicy.ScrollBarAlwaysOff):
+            return 0
+        return bar.sizeHint().width()
+
+    def assume_width(self, width: int) -> None:
+        """Say how wide this area is about to be, before anything is shown."""
+        self._assumed_width = max(0, int(width))
+        self.updateGeometry()
+
+    # ---- geometry --------------------------------------------------------
+    def _content_height(self, width: int) -> int:
+        """How tall the inner widget is when wrapped into *width*, or -1."""
+        inner = self.widget()
+        if inner is None:
+            return -1
+        # THE SCROLLBAR'S OWN WIDTH IS RESERVED EVEN WHEN IT WILL NOT APPEAR,
+        # because the answer changes the question: content that comes out one
+        # line taller than the viewport raises a vertical scrollbar, the bar
+        # takes 14 px of width, the text re-wraps TALLER STILL, and a window
+        # worked out to fit exactly ends up 14 px short with a scrollbar nobody
+        # needed. Measured, on a marginal fit. Answering at the narrower width
+        # costs at most one line of height — invisible, because
+        # `setWidgetResizable(True)` stretches the inner widget to the viewport
+        # — and it cannot ever be short.
+        inner_w = max(1, width - 2 * self.frameWidth() - self._bar_reserve())
+        height = inner.heightForWidth(inner_w) if inner.hasHeightForWidth() else -1
+        if height <= 0:
+            height = inner.sizeHint().height()
+        if height <= 0:
+            return -1
+        extra = 2 * self.frameWidth()
+        # A horizontal scrollbar eats height, and it appears exactly when the
+        # content cannot be narrowed to fit — a folder path the user picked.
+        bar = self.horizontalScrollBar()
+        if (bar is not None
+                and self.horizontalScrollBarPolicy()
+                != Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+                and inner.minimumSizeHint().width() > inner_w):
+            extra += bar.sizeHint().height()
+        return height + extra
+
+    def sizeHint(self) -> QSize:   # noqa: N802 — Qt's spelling
+        base = super().sizeHint()
+        width = self._assumed_width or base.width()
+        height = self._content_height(width)
+        return QSize(base.width(), max(base.height(), height))
+
+
+
 class SettingsDialog(QDialog):
     def __init__(self, settings: "AppSettings", parent: QWidget | None = None,
                  *, margin_combo: "tuple[str, str, str] | None" = None,
@@ -84,7 +1892,7 @@ class SettingsDialog(QDialog):
         # bottom-row buttons render wider on macOS than the headless fallback
         # font suggests, so a fixed width clipped the row once #56 added the
         # "Request a Feature…" button — fit the real sizeHint instead.
-        _w = max(1040, self.sizeHint().width())
+        _w = max(1040, self.sizeHint().width(), self._width_for_every_tab())
         self.setMinimumWidth(_w)
         # Open (and floor) ~50% taller than the bare sizeHint: now that each tab
         # scrolls, the natural hint is short, which left a lot of the content
@@ -92,6 +1900,28 @@ class SettingsDialog(QDialog):
         _h = int(self.sizeHint().height() * 1.5)
         self.setMinimumHeight(_h)
         self.resize(_w, _h)
+
+    def _width_for_every_tab(self) -> int:
+        """The window width at which the whole tab bar shows (B8-756).
+
+        The floor used to be `max(1040, sizeHint)`, and the tab bar's own
+        hint is wider than that in every shipped language (English 1089 against
+        1040), so Preferences opened with scroll arrows and the Beta tab, where
+        a user opts into betas, off the edge. The tab bar's hint plus the
+        window's side margins, capped at 90 % of the screen like the rest of
+        this window; past the cap the arrows still reach every tab."""
+        try:
+            bar = self._tabs.tabBar()
+            bar.ensurePolished()
+            margins = self.layout().contentsMargins() if self.layout() else None
+            side = (margins.left() + margins.right()) if margins else 40
+            need = bar.sizeHint().width() + side + 24
+            screen = self.screen()
+            if screen is not None:
+                need = min(need, int(screen.availableGeometry().width() * 0.9))
+            return need
+        except Exception:      # noqa: BLE001 - sizing must never raise
+            return 0
 
     # ------------------------------------------------------------------
 
@@ -144,10 +1974,27 @@ class SettingsDialog(QDialog):
         btn_row.addWidget(dl_btn)
 
         if _sys.platform == "win32":
-            driver_btn = QPushButton(tr("Install USB Driver…"), self)
+            # NOT "Install USB Driver…" any more. The window behind it now
+            # covers two unrelated kinds of driver — one for the instruments
+            # ArgyllCMS reads over raw USB, and a serial driver for the ones
+            # reached through a COM port — and it can now report that nothing
+            # needs installing at all. A button that says "Install" is wrong
+            # twice over: about what it does, and about whether it will do it.
+            #
+            # THE FIRST HALF USED TO BE CALLED "the WinUSB driver" HERE TOO,
+            # and what that button actually installs is an open question (see
+            # `usb_installer_text` and `usb_install_outcome`: the bundled
+            # wdi-simple is being passed an option it does not have). A tooltip
+            # is the wrong place to name a driver in any case — the reader is
+            # deciding whether to open a window, not what to install. It names
+            # the two KINDS, which is what the window behind it is divided by.
+            driver_btn = QPushButton(tr("Instrument drivers…"), self)
             driver_btn.setToolTip(
-                tr("Install the WinUSB driver for your colorimeter — "
-                "no test-signing mode required, works on x64 and ARM64")
+                tr("Check whether Windows has the driver each of your "
+                   "instruments needs, and install it if it does not: the "
+                   "USB driver for the instruments ArgyllCMS reads over "
+                   "USB, and the serial driver for the ones reached through a "
+                   "COM port, such as the CR30.")
             )
             driver_btn.clicked.connect(self._show_usb_installer)
             btn_row.addWidget(driver_btn)
@@ -164,7 +2011,9 @@ class SettingsDialog(QDialog):
         # ---- Output folder ----
         # ---- i1Pro chart defaults ----
         from data.patch_db import I1PRO_DEFAULT_PRESETS, I1PRO_PRESET_LABELS
-        i1pro_grp = QGroupBox(tr("i1Pro Chart Defaults"), self)
+        # K51-E (Knut, #182 5846297769, K50-5: "approved"; B8-1336): the
+        # title says which modes the group governs.
+        i1pro_grp = QGroupBox(tr("i1Pro margin and patch scale (Guided, and Manual with printtarg)"), self)
         i1g = QVBoxLayout(i1pro_grp)
 
         # Row 1: default layout preset
@@ -177,21 +2026,28 @@ class SettingsDialog(QDialog):
         i1_preset_row.addWidget(self._i1pro_preset_combo)
         i1_preset_row.addStretch()
         i1_preset_row.addWidget(TooltipButton(
-            tr("i1Pro Chart Defaults"),
+            tr("i1Pro margin and patch scale (Guided, and Manual with printtarg)"),
             tr("Sets the default printtarg layout flags (−m / −M margin and −a patch "
             "scale) used by the Create Chart tab whenever the active instrument is "
             "an i1Pro (i1Pro / i1Pro 2 / i1Pro 3).\n\n"
-            "  • −m 10  −a 0.95  — recommended. Wider margin protects strip optics "
-            "from drifting onto paper at the trailing edge; smaller patches let "
+            "  • −m 10  −a 0.95: recommended. Wider margin protects strip optics "
+            "from sliding onto the paper at the trailing edge; smaller patches let "
             "~9% more colours fit per sheet.\n"
-            "  • −m 10  −a 1.0   — full-size patches with the wider margin.\n"
-            "  • −m 6   −a 1.0   — tightest layout. Higher risk of 'not enough "
+            "  • −m 10  −a 1.0: full-size patches with the wider margin.\n"
+            "  • −m 6   −a 1.0: tightest layout. Higher risk of 'not enough "
             "patches read' errors on some printers when the strip's last patch "
             "lands too close to the bare paper edge.\n\n"
             "Other instruments (i1Pro 3 Plus, ColorMunki, SpectroScan) are not "
-            "affected by this setting — they keep their own defaults.\n\n"
-            "Changes apply to both Guided and Manual mode. A custom margin or "
-            "patch-scale you set manually is preserved — switching instruments "
+            "affected by this setting: they keep their own defaults.\n\n"
+            # K51-E (Knut, #182 5846297769, K50-5: "approved"): replaces
+            # "Changes apply to both Guided and Manual mode.", which was not
+            # true of Manual with the layout engine on.
+            "Used by Guided mode, and by Manual mode when the ChromIQ layout "
+            "engine is off. With the layout engine on, Manual takes the "
+            "margins from Instrument Limits and the patch scale from the Chart "
+            "Layout presets above, which you can set for each paper.\n\n"
+            "A custom margin or "
+            "patch-scale you set manually is preserved: switching instruments "
             "only updates the value if it currently matches one of the three "
             "preset values above."),
             self,
@@ -213,7 +2069,7 @@ class SettingsDialog(QDialog):
             "three columns of useful info (chart summary + print reminders, "
             "a fill-in-the-blank form for archival notes, and scanning-table "
             "orientation instructions).\n\n"
-            "How it works behind the scenes:\n"
+            "**How it works behind the scenes:**\n"
             "  1. printtarg is always told to suppress the native clip strip "
             "(-L), so it can use the whole page width for patches.\n"
             "  2. ChromIQ then shifts the patch block to the right inside the "
@@ -221,7 +2077,7 @@ class SettingsDialog(QDialog):
             "printtarg would have reserved natively (~28 mm).\n"
             "  3. The ChromIQ left-strip content is stamped into that new "
             "white area.\n\n"
-            "Trade-off: Argyll's small vertical ID line on the RIGHT edge of "
+            "**Trade-off:** Argyll's small vertical ID line on the RIGHT edge of "
             "the chart gets pushed off the page by the shift, so the right-"
             "margin command/notes stamp is disabled while this is on (those "
             "options are hidden in the Create Chart tab).\n\n"
@@ -234,10 +2090,12 @@ class SettingsDialog(QDialog):
         ))
         i1g.addLayout(i1_clip_row)
 
-        # These are printtarg (old-engine) i1Pro options; they live on the Chart
-        # Layout tab now and are greyed when the ChromIQ engine is active, since
-        # they have no effect then (Knut #93). Built here (widgets referenced by
-        # load/save), re-homed in _build_chart_layout_tab.
+        # The i1Pro options of Guided (which always uses the ChromIQ engine and
+        # reads them) and of Manual with printtarg. They live on the Chart
+        # Layout tab; K51-E (Knut, #182 5846297769, K50-5: "Yes") keeps them
+        # enabled with the engine on, since Guided uses them then too. Built
+        # here (widgets referenced by load/save), re-homed in
+        # _build_chart_layout_tab.
         self._i1pro_grp = i1pro_grp
 
         # ---- Neutral patches ----
@@ -248,7 +2106,7 @@ class SettingsDialog(QDialog):
         self._grey_ref_spin = NoScrollSpinBox(self)
         self._grey_ref_spin.setRange(200, 2000)
         self._grey_ref_spin.setSingleStep(10)
-        self._grey_ref_spin.setSuffix(" patches")
+        self._grey_ref_spin.setSuffix(tr(" patches"))
         self._grey_ref_spin.setMinimumWidth(140)
         gr_row.addWidget(self._grey_ref_spin)
         gr_row.addStretch()
@@ -392,7 +2250,7 @@ class SettingsDialog(QDialog):
             "operating system's one — that window has its own Quick Access list "
             "and its own preview pane instead (in Explorer, turn on the Preview "
             "pane from the View menu).\n\n"
-            "Nothing else changes: the same files are offered either way, and you "
+            "**Nothing else changes:** the same files are offered either way, and you "
             "can switch back at any time. This only affects how the browser "
             "windows look — not your charts, measurements, or profiles."),
             self,
@@ -443,7 +2301,7 @@ class SettingsDialog(QDialog):
                "One tab has no log panel to hide: Print Chart does its work "
                "through the system print dialog and has nothing of its own to "
                "report.\n\n"
-               "Default: off (the log is shown)."),
+               "**Default:** off (the log is shown)."),
             self,
             min_width=560,
         )
@@ -572,7 +2430,7 @@ class SettingsDialog(QDialog):
             "always has: a finished measurement takes you straight on to Build "
             "Profile with no extra window and no extra files. Turn it on only if "
             "you want the option to read charts repeatedly for extra precision.\n\n"
-            "Tip: two reads already remove most of the random noise; three or four "
+            "**Tip:** two reads already remove most of the random noise; three or four "
             "give diminishing returns. There is no benefit to averaging reads of "
             "DIFFERENT charts — this is only for re-reading one and the same chart.\n\n"
             "With thanks to Alan Goldhammer, who suggested this feature."),
@@ -603,10 +2461,8 @@ class SettingsDialog(QDialog):
             "tab — quality levels, gamut sources, rendering intents, "
             "spectral illuminants and observers, paper-whitener "
             "compensation, ICC attributes and all the expert switches.\n\n"
-            "  • In its Fast setting the colour rendering is computed by "
-            "ChromIQ's own port of Argyll's gamut-mapping algorithm; the "
-            "Bit-exact and Maximum accuracy settings use ArgyllCMS itself "
-            "for that step. In our own limited "
+            "  • Its colour rendering is computed by ChromIQ's own port "
+            "of Argyll's gamut-mapping algorithm. In our own limited "
             "testing the results measure within colprof's normal "
             "build-to-build variation — but it has not been tested "
             "extensively yet, so treat that as promising rather than "
@@ -640,26 +2496,24 @@ class SettingsDialog(QDialog):
             "choices read the same measurement, understand the same "
             "options and give you a correct, ready-to-use profile for any "
             "printer ChromIQ supports, including 6-ink and beyond.\n\n"
-            "  • Fast (built-in) — ChromIQ's own, careful re-creation of "
-            "Argyll's gamut-mapping maths, running right inside the app. On "
-            "a typical 900-patch chart it takes about two minutes at Medium "
-            "quality (its saturation table still asks Argyll colprof for a "
-            "reference render) and, in our testing, is visually "
+            "  • Fast (built-in): ChromIQ's own, careful re-creation of "
+            "Argyll's gamut-mapping maths, running right inside the app. It "
+            "finishes in a few seconds and, in our testing, is visually "
             "indistinguishable from the exact result. This is the best "
             "choice for everyday use.\n\n"
-            "  • Bit-exact (Argyll's engine) — gives you ArgyllCMS's real "
+            "  • Bit-exact (Argyll's engine): gives you ArgyllCMS's real "
             "colour rendering, not a re-creation of it:\n"
             "       – For a normal RGB or CMYK printer, ChromIQ builds the "
             "profile with ArgyllCMS colprof itself, so it is identical to "
             "what Argyll would produce on its own.\n"
-            "       – For a 6-ink or larger printer — which Argyll's own "
-            "profiler cannot build at all — ChromIQ builds it with its "
+            "       – For a 6-ink or larger printer (which Argyll's own "
+            "profiler cannot build at all), ChromIQ builds it with its "
             "engine plus Argyll's actual gamut-mapping code (bundled with "
             "the app), so the colour mapping is Argyll's real algorithm "
             "there too.\n"
-            "     Expect about a minute at Medium quality and two at High, "
+            "     It takes a little longer: expect up to a minute or two, "
             "and somewhat more for multi-ink printers.\n\n"
-            "  • Maximum accuracy — the bit-exact rendering plus everything "
+            "  • Maximum accuracy: the bit-exact rendering plus everything "
             "ChromIQ can do to squeeze the most out of your measurement:\n"
             "       – the paper's white and black are averaged over "
             "duplicate patches instead of trusting a single reading,\n"
@@ -670,19 +2524,19 @@ class SettingsDialog(QDialog):
             "       – extra inks (orange, green, violet …) are anchored on "
             "their measured colour instead of an assumed one,\n"
             "       – colours the printer cannot reach lose saturation "
-            "instead of drifting to a different colour family, and dark "
+            "instead of changing to a different colour family, and dark "
             "shadows keep their depth when the total ink limit steps in.\n"
-            "     It is not slower than Bit-exact: about a minute at Medium "
-            "quality and two and a half at High on a 900-patch chart; "
-            "multi-ink printers take longer.\n\n"
+            "     Expect the build to take several minutes longer, "
+            "especially at the higher quality settings.\n\n"
             "Which should you pick? Fast for everyday work. Bit-exact when "
             "you want Argyll's exact rendering. Maximum accuracy when the "
-            "last bit of measured accuracy matters more than build time — "
+            "last bit of measured accuracy matters more than build time, "
             "for example fine-art printing on an expensive paper. Whatever "
             "you choose, verify the profile with a test print before you "
             "rely on it.\n\n"
             "Building a profile is a one-time step per paper and printer, "
-            "so a couple of minutes either way is a small price."),
+            "so even the slowest choice only costs you those extra minutes "
+            "once."),
             self,
             min_width=680,
         )
@@ -722,36 +2576,39 @@ class SettingsDialog(QDialog):
         scanner_hex_tip = TooltipButton(
             tr("Hexagonal charts for scanner and camera (beta)"),
             tr("A chart can be printed with six-sided patches instead of "
-            "squares — pick the SpectroScan in Create Chart and set the layout "
-            "to Hexagonal. They pack together like a honeycomb, so more patches "
+            "squares: pick the SpectroScan in Create Chart and set the "
+            "layout to Hexagonal. They pack together like a honeycomb, so more patches "
             "fit on a sheet, and each patch is ringed by six neighbours, which "
             "helps when you are placing a hand-held instrument on it.\n\n"
             "Until now the scanner and camera tools refused such a chart "
             "outright, on the grounds that the recognition file could not "
             "describe a hexagon. That reasoning was wrong: the recognition file "
             "describes the little square that gets SAMPLED inside each patch, "
-            "not the shape you printed — and a hexagonal chart has been read "
+            "not the shape you printed, and a hexagonal chart has been read "
             "and turned into a working profile.\n\n"
             "Two things are still rough, which is why this is a beta "
             "switch.\n\n"
             "ScanIn, the Argyll program that finds your chart in the scan, "
             "works out how the sheet is rotated by looking for long straight "
-            "edges. A honeycomb has none running across it — only the slanted "
-            "sides of the hexagons — so it sometimes measures the rotation "
+            "edges. A honeycomb has none running across it, only the slanted "
+            "sides of the hexagons, so it sometimes measures the rotation "
             "badly, and occasionally gives up on the scan altogether, even "
             "when you have placed the four corners yourself.\n\n"
             "And the square that gets sampled is a comfortable fit inside a "
-            "rectangle but a tight one inside a hexagon. Above a Sample area of "
-            "roughly 64 % it reaches past the slanted sides into the patches "
-            "next door and the colours come back mixed. Keep Sample area at or "
-            "below 60 %.\n\n"
-            "With this off — the default — nothing changes: hexagonal charts "
+            "rectangle but a tight one inside a hexagon: past about 64 % it "
+            "reaches beyond the slanted sides into the patches next door and "
+            "the colours come back mixed. You do not have to watch for that. "
+            "The scanner window works the limit out from the chart you loaded "
+            "and will not let Sample area go above 55 %, which leaves paper "
+            "between the sampled square and the slanted sides so a small error "
+            "in where the grid sits cannot reach the next patch.\n\n"
+            "With this off (the default) nothing changes: hexagonal charts "
             "are turned away with an explanation, exactly as before. With it "
             "on, they are accepted, and the alignment mesh draws each cell as "
             "the six-sided patch it really is so you can see it sitting on the "
             "chart. Check the profile before you trust it; if a scan is "
             "refused, switch this back off and print the chart with square "
-            "patches instead.\n\nDefault: off"),
+            "patches instead.\n\n**Default:** off"),
             self,
             min_width=680,
         )
@@ -853,7 +2710,7 @@ class SettingsDialog(QDialog):
             "─────────────────────────────────\n"
             "What each one gives you\n"
             "─────────────────────────────────\n\n"
-            "Only with the ChromIQ engine:\n"
+            "**Only with the ChromIQ engine:**\n"
             "  • your readings are saved after every strip\n"
             "  • click a strip in the preview to jump to it\n"
             "  • the preview fills in each patch as you read\n"
@@ -863,23 +2720,23 @@ class SettingsDialog(QDialog):
             "  • the offer to read a hurried strip again\n"
             "  • per-strip figures in the end-of-measurement summary\n"
             "  • only the sounds you chose are heard\n\n"
-            "The same either way:\n"
+            "**The same either way:**\n"
             "  • the measured values themselves, down to the numbers\n"
             "  • ArgyllCMS's own “Slow Down!” cue\n"
             "  • the right sound for the right kind of failure\n"
             "  • the strip-failure window and its advice\n"
             "  • the total measuring time in the summary\n\n"
-            "Why reading pace needs the engine: ArgyllCMS tells our own code "
+            "**Why reading pace needs the engine:** ArgyllCMS tells our own code "
             "the exact moment the instrument fires, so a swipe can be timed. "
             "The separate chartread program only prints that it is ready and "
             "then that the strip was read, and the time between those two "
             "includes you picking the instrument up and lining it up — so it "
             "cannot be used to judge how fast you swiped.\n\n"
-            "The last row has the same cause: the beeps built into ArgyllCMS "
+            "**The last row has the same cause:** the beeps built into ArgyllCMS "
             "are silenced in the engine, because it runs inside ChromIQ. The "
             "separate chartread program beeps on its own and offers no way to "
             "turn that off, so with it you may hear both its beeps and your "
-            "chosen sounds.\n\nDefault: on"),
+            "chosen sounds.\n\n**Default:** on"),
             self,
             min_width=680,
         )
@@ -912,7 +2769,7 @@ class SettingsDialog(QDialog):
             "you own one of these and want to help, turn it on and check the "
             "result; if anything looks wrong, switch it back off and the "
             "measurement runs the classic way. Needs the chart-reading engine "
-            "above to be on.\n\nDefault: off"),
+            "above to be on.\n\n**Default:** off"),
             self,
             min_width=680,
         )
@@ -960,7 +2817,7 @@ class SettingsDialog(QDialog):
             "designed to have. ChromIQ draws a bright red outline around a patch "
             "that looks like a likely misread — a smudge, a skipped row, the "
             "strip swiped the wrong way — so it jumps out at you straight away.\n\n"
-            "Important: the design colour is an sRGB value, and a printer does "
+            "**Important:** the design colour is an sRGB value, and a printer does "
             "NOT reproduce sRGB — so vivid colours (a deep red, a saturated "
             "green) can legitimately measure 30–40 ΔE away on a perfectly good "
             "print. That is expected, not a mistake. If ChromIQ flagged every "
@@ -987,7 +2844,7 @@ class SettingsDialog(QDialog):
             "patches; raise it if you only want the most extreme ones. It "
             "changes only the red outline in the preview — never your "
             "measurements.\n\n"
-            "Default: 50 ΔE"),
+            "**Default:** 50 ΔE"),
             self))
         _meas.addLayout(_pw_row)
         _fence_row = QHBoxLayout()
@@ -996,25 +2853,25 @@ class SettingsDialog(QDialog):
         _fence_row.addWidget(TooltipButton(
             tr("Only flag a patch that stands out from its own strip"),
             tr("While you read strips, every patch is compared with the "
-            "colour the chart was designed to have — and vivid design "
+            "colour the chart was designed to have, and vivid design "
             "colours legitimately measure far away on a perfectly good "
             "print, because a printer does not reproduce sRGB. Flagging "
             "every patch past the limit above would light up half of a "
             "healthy chart in red.\n\n"
-            "On (the default): a patch gets the red outline only when it is "
+            "**On (the default):** a patch gets the red outline only when it is "
             "past the limit above AND clearly stands out from the other "
-            "patches of its own strip. A real misread — a smudge, a doubled "
-            "patch, a swipe that drifted a row — spikes far above its "
+            "patches of its own strip. A real misread (a smudge, a doubled "
+            "patch, a swipe that slipped onto the next row) spikes far above its "
             "neighbours, so it is caught; the normal, even difference "
             "between print and design stays quiet.\n\n"
-            "Off: the limit above means exactly what it says, and every "
+            "**Off:** the limit above means exactly what it says, and every "
             "patch past it is flagged. Choose this when you already suspect "
             "the chart is wrong and want to see everything the limit "
             "catches.\n\n"
-            "This applies to strip reading only — reading patch by patch "
+            "This applies to strip reading only. Reading patch by patch, "
             "there is no strip to compare against, so there the limit above "
             "is always the whole rule.\n\n"
-            "Default: on"),
+            "**Default:** on"),
             self))
         _meas.addLayout(_fence_row)
 
@@ -1055,7 +2912,7 @@ class SettingsDialog(QDialog):
             "ArgyllCMS's own reader so you can still measure.\n\n"
             "Set it to 0 to turn automatic retries off entirely. This only "
             "affects the ChromIQ chart-reading engine.\n\n"
-            "Default: 3 (four attempts in total)"),
+            "**Default:** 3 (four attempts in total)"),
             self,
             min_width=620))
         _meas.addLayout(_car_row)
@@ -1089,7 +2946,7 @@ class SettingsDialog(QDialog):
             "adapter is always kept, and USB instruments are never affected. "
             "Nothing about your measurements changes, only how quickly the "
             "connection is made.\n\n"
-            "When to turn it OFF: if your instrument is not found at all. On "
+            "**When to turn it OFF:** if your instrument is not found at all. On "
             "some computers, older Macs in particular, this shortcut is what "
             "stops it being seen, and the same instrument that works on a "
             "newer machine reports “No instrument found” on the older one, "
@@ -1098,7 +2955,7 @@ class SettingsDialog(QDialog):
             "pause of a few seconds before the calibration prompt appears, "
             "and nothing else. The no-instrument window offers the same "
             "switch, so you do not have to come here mid-measurement.\n\n"
-            "Default: on"),
+            "**Default:** on"),
             self))
         _meas.addLayout(_fc_row)
 
@@ -1123,14 +2980,14 @@ class SettingsDialog(QDialog):
             "by a patch or two. If it clearly would, it stops and tells you — "
             "and offers to jump straight back and re-measure just that one "
             "strip. Your other strips and everything read so far are untouched.\n\n"
-            "It is deliberately cautious: it only speaks up when a shift makes a "
+            "**It is deliberately cautious:** it only speaks up when a shift makes a "
             "big, unmistakable improvement, so a normal good read — where vivid "
             "colours naturally differ from the design — never triggers it. And "
             "it only ever warns; it never changes your measurements on its own.\n\n"
             "Leave it off (the default) and nothing changes. Most misreads are "
             "already caught by the ‘wrong strip’ warning; this catches the "
             "subtler one-patch slips that slip past it.\n\n"
-            "Default: off"),
+            "**Default:** off"),
             self))
         _meas.addLayout(_sn_row)
 
@@ -1164,7 +3021,7 @@ class SettingsDialog(QDialog):
             "heading beside it.\n\n"
             "Turn it off and neither the percentage nor the bar appears, and "
             "ChromIQ does not count patches at all.\n\n"
-            "Default: on"),
+            "**Default:** on"),
             self))
         _meas.addLayout(_pb_row)
         _meas.addSpacing(10)
@@ -1261,7 +3118,7 @@ class SettingsDialog(QDialog):
                "quietly sorts those loose ChromIQ files into the right sub-folders "
                "first, creating them if needed, so the folder ends up as neat as a "
                "brand-new project. Then the file you asked for opens as usual.\n\n"
-               "It is completely safe: only files ChromIQ itself made are moved, "
+               "**It is completely safe:** only files ChromIQ itself made are moved, "
                "and only into sub-folders — nothing is renamed, nothing is "
                "deleted, your own files and the chart's core files are never "
                "touched, and a folder with nothing to tidy is left exactly as it "
@@ -1436,6 +3293,8 @@ class SettingsDialog(QDialog):
                           tr("Measurement"))
         self._tabs.addTab(self._scroll_wrap(self._build_sounds_tab()),
                           tr("Sounds"))
+        self._tabs.addTab(self._scroll_wrap(self._build_licences_tab()),
+                          tr("Licences"))
         self._tabs.addTab(self._scroll_wrap(self._beta_page), tr("Beta"))
         # Run the (deferred) Chart Layout estimate the first time that tab is
         # actually opened — it's suspended during build to keep the window quick.
@@ -1471,10 +3330,27 @@ class SettingsDialog(QDialog):
         _ink(credit2, "#606060", " font-size: 11px;", level="faint")
         outer.addWidget(credit2)
 
+        # NO TRANSLATION CREDIT IN THE APP. Basti, 2026-09-24: *"in settings i
+        # don't want to have the translations contributed credits. the
+        # translation was ai generated and caused more trouble than good"*.
+        # The line "Translations contributed by: …" was removed here; the
+        # README and CHANGELOG entries were left as they are.
+
         self._update_status = QLabel("", self)
         self._update_status.setStyleSheet("font-size: 11px;")
         self._update_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._update_status.setFixedHeight(QFontMetrics(self._update_status.font()).height())
+        # WRAPS, AND IS NOT PINNED TO ONE LINE. It held four short sentences
+        # ("You're up to date.") until the rate-limit message arrived, which
+        # needs 1188 px in English and 1407 px in German inside a 1000 px
+        # dialog. Measured on screen: the English was cut mid-link at "…you can
+        # open Gi", and the GERMAN LOST THE LINK ENTIRELY, so the one thing the
+        # message asks the reader to do was unreachable. Word wrap alone would
+        # not have fixed it: setFixedHeight kept the label one line tall, and it
+        # was computed from the font BEFORE the stylesheet applied, so it was
+        # not even one line of the right size.
+        self._update_status.setWordWrap(True)
+        self._update_status.setMinimumHeight(
+            QFontMetrics(self._update_status.font()).height())
         outer.addWidget(self._update_status)
 
         # ---- Bottom row: Restore Defaults | Report a Bug | Check for Updates  ...  Cancel / OK ----
@@ -1511,6 +3387,12 @@ class SettingsDialog(QDialog):
         )
         bb.accepted.connect(self._save_and_close)
         bb.rejected.connect(self.reject)
+        # OK, the button Return presses, wears Restore Factory Defaults'
+        # colour rather than the application's fallback accent, which in the
+        # Light appearance is a blue nothing else here uses (Basti,
+        # 2026-09-26: "if it gets any color than restore factory settings
+        # had before").
+        bb.button(QDialogButtonBox.StandardButton.Ok).setObjectName("prefs_ok")
         bottom_row.addWidget(bb)
 
         # Match the gap between left-side buttons to QDialogButtonBox's own
@@ -1570,8 +3452,8 @@ class SettingsDialog(QDialog):
             "•  The colours match colprof. The engine's perceptual "
             "rendering is ChromIQ's own careful port of Argyll's "
             "gamut-mapping maths, and on our test charts the two build "
-            "profiles that measure so close together that you shouldn't be "
-            "able to tell them apart in a print.\n\n"
+            "profiles that measure so close you shouldn't be able to tell "
+            "them apart in a print.\n\n"
             "•  Your measurements are never touched. If a particular build "
             "needs something only colprof has, ChromIQ quietly lets "
             "colprof handle that one and writes the reason in the log — "
@@ -1594,6 +3476,10 @@ class SettingsDialog(QDialog):
         ok_btn = box.button(QMessageBox.StandardButton.Ok)
         cancel_btn = box.button(QMessageBox.StandardButton.Cancel)
         ok_btn.setText(tr("Enable the engine"))
+        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
+        # filled.
+        from ui.default_button import mark_destructive
+        mark_destructive(ok_btn)
         cancel_btn.setText(tr("Keep using colprof"))
         # Size each button to its own label so the text never clips
         # (QMessageBox default min-width is too narrow for wide labels).
@@ -1612,7 +3498,9 @@ class SettingsDialog(QDialog):
                                  QSizePolicy.Policy.Minimum)
             grid.addItem(spacer, grid.rowCount(), 0, 1,
                          grid.columnCount())
-        box.setDefaultButton(QMessageBox.StandardButton.Ok)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return keeps colprof; enabling the engine is a click.
+        box.setDefaultButton(QMessageBox.StandardButton.Cancel)
         if box.exec() != QMessageBox.StandardButton.Ok:
             self._profile_engine_check.setChecked(False)
 
@@ -1648,14 +3536,16 @@ class SettingsDialog(QDialog):
         v.addWidget(intro)
 
         note = QLabel(tr(
-            "Every instrument takes a fixed number of readings per second, so "
+            "Most instruments take a fixed number of readings per second, so "
             "how long a patch takes decides how many readings it gets. Set that "
             "rate, how many patches one of your strips holds, and the minimum "
-            "readings you want per patch — the reading speed at the end of each "
-            "row follows from those three, and each instrument's ⓘ works it "
-            "through. The defaults suit each instrument; raise the minimum for "
-            "more careful measurements, or set it to “Off” to silence the hint "
-            "for that instrument."), self)
+            "readings you want per patch, and the reading speed at the end of "
+            "each row follows from those three. Each instrument's ⓘ works it "
+            "through. An instrument that is placed on one patch at a time takes "
+            "a single reading per press instead, so it shows N/A and nothing on "
+            "its row is used. The defaults suit each instrument; raise the "
+            "minimum for more careful measurements, or set it to “Off” to "
+            "silence the hint for that instrument."), self)
         note.setWordWrap(True)
         _ink(note, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(note)
@@ -1690,7 +3580,7 @@ class SettingsDialog(QDialog):
                "mentioning the speed, so a hurried strip passes without comment. "
                "Worth leaving on unless the window is interrupting you more "
                "often than it is helping.\n\n"
-               "Default: on."),
+               "**Default:** on."),
             self)
         pace_row = QHBoxLayout()
         pace_row.setContentsMargins(0, 0, 0, 0)
@@ -1733,19 +3623,50 @@ class SettingsDialog(QDialog):
                 MODEL_DEFAULTS.items(), start=1):
             form.addWidget(QLabel(labels.get(key, key), self), row, 0)
 
-            hz = NoScrollDoubleSpinBox(self)
-            hz.setRange(*SAMPLE_HZ_RANGE)
-            hz.setDecimals(0)
-            hz.setSuffix(tr(" Hz"))
-            hz.setMaximumWidth(140)
-            hz.setValue(float(self._settings.get(f"pace_sample_hz_{key}", hz_default)
-                              or hz_default))
-            hz.setToolTip(tr(
-                "How many readings this instrument takes each second, from its "
-                "specification. ChromIQ uses it to work out how many readings a "
-                "patch received from how long it took."))
-            form.addWidget(hz, row, 1)
-            self._pace_hz[key] = hz
+            # THE CR30 GETS NO BOX HERE, AND THAT IS THE POINT (Basti,
+            # 2026-09-08). A CR30 takes one reading per button press; it does
+            # not sample continuously, so "readings per second" has nothing to
+            # say about it and nothing in ChromIQ reads the value for a CR30
+            # (the pace model runs off `strip_measured`, and a CR30 never emits
+            # a strip). It shipped showing 100 Hz "from its specification",
+            # which was the i1Pro's number copied a day before the CR30's was
+            # measured.
+            #
+            # A LABEL, NOT A GREYED SPIN BOX, for two measured reasons. A
+            # disabled QDoubleSpinBox still answers .value(), so the save loop
+            # below would go on persisting `pace_sample_hz_cr30` exactly as
+            # before. And expressing a sub-10 figure at all would mean widening
+            # the shared SAMPLE_HZ_RANGE (letting somebody set the i1Pro to
+            # 1 Hz, i.e. 20 s per patch) and raising `setDecimals` for all seven
+            # rows, which on a de_DE machine prints "100,0 Hz" on the other six.
+            #
+            # `tr("N/A")` is the string the Patches cell beside it already uses,
+            # so this costs no new catalogue key. Leaving the key out of
+            # `_pace_hz` is what stops it being written on Save — see the
+            # comment there — and needs no settings-schema bump, which would
+            # re-run twelve unrelated migrations against every user's store.
+            if key == "cr30":
+                na = QLabel(tr("N/A"), self)
+                _ink(na, "#909090", level="faint")
+                na.setToolTip(tr(
+                    "A CR30 takes one reading each time you press its button, "
+                    "so there is no per-second rate to apply. Nothing on this "
+                    "row changes how a CR30 is read."))
+                form.addWidget(na, row, 1)
+            else:
+                hz = NoScrollDoubleSpinBox(self)
+                hz.setRange(*SAMPLE_HZ_RANGE)
+                hz.setDecimals(0)
+                hz.setSuffix(tr(" Hz"))
+                hz.setMaximumWidth(140)
+                hz.setValue(float(self._settings.get(f"pace_sample_hz_{key}", hz_default)
+                                  or hz_default))
+                hz.setToolTip(tr(
+                    "How many readings this instrument takes each second, from its "
+                    "specification. ChromIQ uses it to work out how many readings a "
+                    "patch received from how long it took."))
+                form.addWidget(hz, row, 1)
+                self._pace_hz[key] = hz
 
             # How long a strip is, for this instrument's figure. Changing it
             # shows straight away what the row's setting means for YOUR charts.
@@ -1800,7 +3721,17 @@ class SettingsDialog(QDialog):
             _ink(est, "#909090", level="faint")
             form.addWidget(est, row, 5)
             self._pace_estimate[key] = est
-            hz.valueChanged.connect(self._refresh_pace_estimates)
+            # `self._pace_hz.get(key)`, NOT the loop's `hz`. A row without a
+            # rate box (the CR30) never binds `hz`, so this line would reach
+            # back to the PREVIOUS row's widget and connect it a second time --
+            # measured: the SpectroScan's box ended up with three receivers
+            # where every other row had two. Harmless while the CR30 is last in
+            # MODEL_DEFAULTS, and an UnboundLocalError that takes the whole
+            # Preferences dialog down the moment it is not. The comment eleven
+            # lines above records that exact failure happening once already.
+            _hz_box = self._pace_hz.get(key)
+            if _hz_box is not None:
+                _hz_box.valueChanged.connect(self._refresh_pace_estimates)
             pp.valueChanged.connect(self._refresh_pace_estimates)
             mn.valueChanged.connect(self._refresh_pace_estimates)
 
@@ -1904,7 +3835,7 @@ class SettingsDialog(QDialog):
             "more margin — and this is how close to the limit a strip has to be "
             "before ChromIQ mentions it in amber.\n\n"
             "Set it to 0% to be told only when a strip is genuinely too fast."
-        ) + example + tr("\n\nDefault: 10%"))
+        ) + example + tr("\n\n**Default:** 10%"))
 
     def _refresh_pace_estimates(self) -> None:
         """Update every instrument's "fastest a strip may be read" figure.
@@ -1916,7 +3847,11 @@ class SettingsDialog(QDialog):
         number after the @ is always the one in that row's box.
         """
         for key, lbl in getattr(self, "_pace_estimate", {}).items():
-            hz = float(self._pace_hz[key].value())
+            # `.get()`, because a row may have no rate box at all: the CR30's
+            # cell is a plain "N/A" label. 0.0 lands on the "no limit" branch
+            # below, which is what that row showed before and still shows.
+            _hz_box = self._pace_hz.get(key)
+            hz = float(_hz_box.value()) if _hz_box is not None else 0.0
             mn = int(self._pace_min[key].value())
             patches = int(self._pace_patches[key].value())
             if mn <= 0 or hz <= 0:
@@ -2084,7 +4019,7 @@ class SettingsDialog(QDialog):
                "why it isn't switched on for everybody. If you turn it on and "
                "your sounds stop, turn it straight back off and they will "
                "return.\n\n"
-               "Default: off"), page))
+               "**Default:** off"), page))
         _wu.addStretch(1)
         v.addLayout(_wu)
 
@@ -2153,9 +4088,9 @@ class SettingsDialog(QDialog):
         v.setContentsMargins(12, 12, 12, 12)
 
         intro = QLabel(tr(
-            "Settings for the Measurement Report — the tool that checks a "
+            "Settings for the Measurement Report, the tool that checks a "
             "measured chart against its design colours and tracks how a printer "
-            "drifts over time."), self)
+            "changes over time."), self)
         intro.setWordWrap(True)
         _ink(intro, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(intro)
@@ -2173,57 +4108,174 @@ class SettingsDialog(QDialog):
         _rep_row.addWidget(TooltipButton(
             tr("Save a measurement report after each measurement"),
             tr("When this is on, ChromIQ automatically writes a small dated "
-            "report next to each chart every time you finish measuring it "
-            "(in a “reports” folder beside the chart). Each report records how "
-            "close the measurement came to the chart's design colours — a "
-            "Pass/Fail check of the colour accuracy, the worst patches, the "
-            "cube corners, and the paper white and black.\n\n"
+            "report every time you finish measuring a chart, in a “reports” "
+            "folder beside the measurement: the run's own for a profiling "
+            "measurement, that date's own for a verification, and the "
+            "project's cal/reports for a calibration. Each report records how "
+            "close the measurement came to the chart's design colours: the "
+            "colour accuracy, the worst patches, the cube corners, and the "
+            "paper white and black. A verification is judged Pass or Fail "
+            "against its limit set; a profiling measurement is recorded "
+            "without a verdict.\n\n"
             "Why keep it on? Because the reports then build up over time, and "
             "the Measurement Report tool can plot how a chart's measurements "
-            "change from one to the next — a gradual rise, or a shift in white "
-            "or black, is a sign of ageing inks, a drifting printer, or a "
-            "drifting instrument. It's especially handy for regular "
+            "change from one to the next: a gradual rise, or a shift in white "
+            "or black, is a sign of ageing inks, or of a printer or an "
+            "instrument that has changed. It's especially handy for regular "
             "verification measurements: the report shows you when the results "
             "have slipped far enough that re-profiling is worth it.\n\n"
             "It costs nothing noticeable and never changes your measurement "
-            "files. Turn it off if you don't want this history.\n\n"
-            "Default: on"),
+            "files. Turn it off if you don't want this history. The Measure "
+            "tab's “Save measurement report” box starts from this setting and "
+            "can be changed there for a run.\n\n"
+            "**Default:** on"),
             self))
         sg.addLayout(_rep_row)
         v.addWidget(save_grp)
 
-        # Default Pass thresholds the Measurement Report opens with (Knut).
+        # #182 (Knut K1/K-c): the limits live in their own window; this frame
+        # keeps the button that opens it. The checkbox that allowed editing a
+        # run's limits after its first verification ("Allow editing of
+        # thresholds after the first verification measurement") went with
+        # "Unlock this run's limits" and the run lock (K31, Knut 5801677743).
         defaults_grp = QGroupBox(tr("Measurement Report Defaults"), self)
         gl = QVBoxLayout(defaults_grp)
         gl.setSpacing(8)
-        thr_row = QHBoxLayout()
-        thr_row.addWidget(QLabel(tr("Pass threshold — Average:"), self))
-        self._report_avg_thr_spin = NoScrollDoubleSpinBox(self)
-        self._report_avg_thr_spin.setDecimals(1)
-        self._report_avg_thr_spin.setRange(0.1, 100.0)
-        self._report_avg_thr_spin.setSingleStep(0.5)
-        self._report_avg_thr_spin.setSuffix(" ΔE")
-        thr_row.addWidget(self._report_avg_thr_spin)
-        thr_row.addSpacing(14)
-        thr_row.addWidget(QLabel(tr("Maximum:"), self))
-        self._report_max_thr_spin = NoScrollDoubleSpinBox(self)
-        self._report_max_thr_spin.setDecimals(1)
-        self._report_max_thr_spin.setRange(0.1, 100.0)
-        self._report_max_thr_spin.setSingleStep(0.5)
-        self._report_max_thr_spin.setSuffix(" ΔE")
-        thr_row.addWidget(self._report_max_thr_spin)
-        thr_row.addStretch()
-        thr_row.addWidget(TooltipButton(
-            tr("Pass thresholds"),
-            tr("The colour-accuracy verdict. A metric passes when its measured "
-               "ΔE00 is at or below its threshold. The Average threshold is "
-               "compared against the three average metrics (all patches, the best "
-               "95%, and the worst 5%); the Maximum threshold against the two "
-               "maximum metrics (all patches, and the best 95%). Typical starting "
-               "points are 2.0 for the average and 3.0 for the maximum — tighten "
-               "them for critical work, loosen them for a quick health check."),
+        _lim_row = QHBoxLayout()
+        self._report_limits_btn = QPushButton(tr("Report limits…"), self)
+        self._report_limits_btn.clicked.connect(self._open_report_limits)
+        _lim_row.addWidget(self._report_limits_btn)
+        _lim_row.addStretch()
+        _lim_row.addWidget(TooltipButton(
+            tr("Report limits"),
+            tr("Opens the table of limit sets: every column a Measurement "
+               "Report can be judged against, side by side. ChromIQ's own three "
+               "sets and the two Custom sets can be edited there; the two ISO "
+               "columns are read-only. The table also marks which set a new "
+               "report starts on, unless its profile run has a default of its "
+               "own, chosen from the report window's Edit limits….\n\n"
+               "Changes made in that window are kept when you press Save here "
+               "and dropped with Cancel, like every other setting on this "
+               "tab.\n\n"
+               "Restore Factory Defaults at the bottom of this window resets "
+               "the edited sets as well. A saved report keeps the limits it "
+               "was generated with, whatever is changed here."),
             self))
-        gl.addLayout(thr_row)
+        gl.addLayout(_lim_row)
+        # #182 (Knut, 2026-09-18, B8-388): the three DEFAULTS a report is made
+        # with when nothing else decides. *"Below the Report Limits button ...
+        # add a pulldown selector to select 'Report type, default', where the
+        # selected option is used as default when opening measurement report
+        # (when no report is showing) or when an automatic measurement report
+        # is written after a completed measurement. It can also be the default
+        # used when 'Report shown' is set to 'New report....'"*
+        #
+        # NOTHING HERE IS A "JUDGED AGAINST" SELECTOR, on his own rule: *"The
+        # Report Limits button contain the Judged Against default chosen, so no
+        # separate selection box is needed in the Preferences -> Reports tab."*
+        from workflow.measurement_report import (REPORT_TYPE_MENU,
+                                                 REPORT_TYPE_MENU_HEADING,
+                                                 REPORT_TYPE_MENU_SPLIT)
+        _type_row = QHBoxLayout()
+        _type_row.addWidget(QLabel(tr("Report type, default:"), self))
+        self._report_type_default_combo = QComboBox(self)
+        for tid, name, _blurb, built in REPORT_TYPE_MENU:
+            # K33: the ISO types also need their values loaded
+            from workflow.measurement_report import report_type_is_built as _is_built
+            built = _is_built(tid)
+            if tid == REPORT_TYPE_MENU_SPLIT:
+                self._report_type_default_combo.addItem(
+                    tr(REPORT_TYPE_MENU_HEADING), "")
+                _row = self._report_type_default_combo.count() - 1
+                _m = self._report_type_default_combo.model()
+                _it = _m.item(_row) if hasattr(_m, "item") else None
+                if _it is not None:
+                    _it.setEnabled(False)
+            self._report_type_default_combo.addItem(tr(name), tid)
+            if tid == "t4_printing_record":
+                # K13 (Knut, beta 34): this default is for VERIFICATION
+                # measurements, and a verification is never a Printing record;
+                # a profiling measurement's report is always one, whatever
+                # this says. Shown and refused, like the unbuilt types.
+                _row = self._report_type_default_combo.count() - 1
+                _m = self._report_type_default_combo.model()
+                _it = _m.item(_row) if hasattr(_m, "item") else None
+                if _it is not None:
+                    _it.setEnabled(False)
+            if not built:
+                # SHOWN AND REFUSED, exactly as the report window shows them:
+                # the two ISO types cannot be produced, and hiding them would
+                # say nothing at all about why.
+                _row = self._report_type_default_combo.count() - 1
+                _m = self._report_type_default_combo.model()
+                _it = _m.item(_row) if hasattr(_m, "item") else None
+                if _it is not None:
+                    _it.setEnabled(False)
+        # K36-1 (Knut, #182 5820871320): choosing an ISO type as the default
+        # also makes its standard's set the default limit set. `activated`
+        # and not `currentIndexChanged`: only a user's choice moves the set,
+        # never the pulldown being filled from the stored settings.
+        self._report_type_default_combo.activated.connect(
+            self._on_default_type_chosen)
+        _type_row.addWidget(self._report_type_default_combo, 1)
+        _type_row.addWidget(TooltipButton(
+            tr("Report type, default"),
+            tr("Which kind of measurement report ChromIQ makes when nothing "
+               "else has decided: the Measurement Report window opening on a "
+               "run that has never generated one, “New report…” chosen in "
+               "“Report shown”, and the report ChromIQ writes by itself after "
+               "a measurement.\n\n"
+               "**The type belongs to the report:** a report keeps the type it "
+               "was made with, and choosing another in the report window "
+               "changes only the report shown. So this is where every new "
+               "report starts, of every profile run.\n\n"
+               "It applies to every measurement that is not a profiling "
+               "measurement: verifications, calibrations and files outside a "
+               "project. A verification is never a Printing record, so that "
+               "type cannot be chosen here. A profiling measurement's report "
+               "is always the Printing record, whatever this is set to.\n\n"
+               "Choosing one of the two ISO types keeps the default limit "
+               "set when it is one of the four ISO sets, and otherwise makes "
+               "the type's own ISO set the default limit set in Report "
+               "limits…; choosing another type again puts back the set it "
+               "replaced. "
+               "While an ISO type is the default, the default limit set is "
+               "one of the four ISO sets (ISO 12647-7, ISO 12647-8, Custom "
+               "ISO 12647-7, Custom ISO 12647-8), and the others cannot be "
+               "chosen there. A calibration run's report is never of an ISO "
+               "type: it starts as a Full colour check, and any limit set "
+               "may be chosen for it.\n\n"
+               "**Default:** Full colour check"),
+            self))
+        gl.addLayout(_type_row)
+        # **"SHOW ALL MEASUREMENT RUNS, BY DEFAULT" IS GONE (B8-590).** The
+        # box it set a default for was removed from the Measurement Report
+        # with the feature behind it (Knut, 2026-09-20: *"Remove the feature
+        # 'Show all measurement runs' totally from the design, and any feature
+        # that belongs to that button"*), so a preference for its starting
+        # state has nothing left to start. A report covers the measurements
+        # that are ticked, and the two buttons beside the list are how they
+        # get ticked.
+        _det_row = QHBoxLayout()
+        self._report_details_default_check = QCheckBox(
+            tr("Show detailed data for each run, by default"), self)
+        _det_row.addWidget(self._report_details_default_check)
+        _det_row.addStretch()
+        _det_row.addWidget(TooltipButton(
+            tr("Show detailed data for each run, by default"),
+            tr("Whether a new report starts with the full breakdown for every "
+               "run in it: the colour-accuracy table (with verdict words "
+               "wherever the report judges; a Printing record has none), "
+               "paper white and darkest black, the eight cube corners and the "
+               "worst patches.\n\n"
+               "It makes the report, and its PDF, considerably longer. A "
+               "report you load from “Report shown” comes back with the "
+               "setting it was made with.\n\n"
+               "The report ChromIQ writes by itself after a measurement never "
+               "carries it.\n\n"
+               "**Default:** on"),
+            self))
+        gl.addLayout(_det_row)
         v.addWidget(defaults_grp)
 
         # Report title/filename prefixes (#130, Knut). The report picks the
@@ -2235,16 +4287,35 @@ class SettingsDialog(QDialog):
             tr("Default measurement report title and file name"), self)
         tgl = QVBoxLayout(title_grp)
         tgl.setSpacing(8)
-        _pr = QHBoxLayout()
-        _pr.addWidget(QLabel(tr("Profiling measurement runs:"), self))
+        # ONE GRID, SO THE THREE BOXES START AT ONE LEFT EDGE. Knut, #182
+        # 5815501486 (2026-09-24): *"The three input boxes' left edges should
+        # be aligned to the left edge of the 'Verification measurement runs'
+        # input box."* Each line was its own QHBoxLayout, so each box started
+        # wherever its own label ended. The labels share column 0, which is
+        # as wide as the longest of them in whatever language is shown (in
+        # English that is "Verification measurement runs:", so the boxes line
+        # up with the one he named); the boxes share column 1 and take the
+        # rest of the width.
+        _tg = QGridLayout()
+        _tg.setHorizontalSpacing(8)
+        _tg.setVerticalSpacing(8)
+        _tg.setColumnStretch(1, 1)
         self._report_title_prof_edit = QLineEdit(self)
-        _pr.addWidget(self._report_title_prof_edit, 1)
-        tgl.addLayout(_pr)
-        _vr = QHBoxLayout()
-        _vr.addWidget(QLabel(tr("Verification measurement runs:"), self))
         self._report_title_verify_edit = QLineEdit(self)
-        _vr.addWidget(self._report_title_verify_edit, 1)
-        tgl.addLayout(_vr)
+        # #182 K30 (B2): a calibration's report has its own title.
+        self._report_title_cal_edit = QLineEdit(self)
+        for _i, (_txt, _edit) in enumerate((
+                (tr("Profiling measurement runs:"),
+                 self._report_title_prof_edit),
+                (tr("Verification measurement runs:"),
+                 self._report_title_verify_edit),
+                (tr("Calibration measurements:"),
+                 self._report_title_cal_edit))):
+            _lab = QLabel(_txt, self)
+            _lab.setBuddy(_edit)
+            _tg.addWidget(_lab, _i, 0)
+            _tg.addWidget(_edit, _i, 1)
+        tgl.addLayout(_tg)
         _apn_row = QHBoxLayout()
         self._report_add_profile_check = QCheckBox(
             tr("Add profile name in title and file name"), self)
@@ -2252,18 +4323,20 @@ class SettingsDialog(QDialog):
         _apn_row.addStretch()
         _apn_row.addWidget(TooltipButton(
             tr("Report title and file name"),
-            tr("The measurement report's first-page title and its saved PDF file "
-            "name are built from these lines. ChromIQ uses the first line for a "
-            "normal profiling report and the second for a verification report "
-            "(it can tell which from the measurements).\n\n"
-            "The first-page title is just your text — “<your text>” — because "
-            "the report already shows its date inside. The saved PDF file name "
-            "adds the date and time: “<your text> - <date_time>.pdf”.\n\n"
-            "Tick “Add profile name in title and file name” to also insert the "
-            "profile (chart) name, giving the title “<your text> - <profile "
-            "name>” and the file name “<your text> - <profile name> - "
-            "<date_time>.pdf”.\n\n"
-            "Default: the two suggested lines, profile name on."),
+            tr("The measurement report's first-page title and its saved PDF "
+               "file name are built from these lines. ChromIQ uses the first "
+               "line for a profiling report, the second for a verification "
+               "report and the third for a report of a calibration (it can "
+               "tell which from the measurements).\n\n"
+               "The first-page title is just your text, “<your text>”, "
+               "because the report already shows its date inside. The saved "
+               "PDF file name adds the date and time: “<your text> - "
+               "<date_time>.pdf”.\n\n"
+               "Tick “Add profile name in title and file name” to also insert "
+               "the profile (chart) name, giving the title “<your text> - "
+               "<profile name>” and the file name “<your text> - <profile "
+               "name> - <date_time>.pdf”.\n\n"
+               "**Default:** the three suggested lines, profile name on."),
             self))
         tgl.addLayout(_apn_row)
         v.addWidget(title_grp)
@@ -2478,38 +4551,38 @@ class SettingsDialog(QDialog):
         _row(3, tr("Check alignment: flag placements below (0.5–0.99):"),
              self._scan_check_spin,
              tr("Placement agreement (Check alignment and building)"),
-             tr("In short: this asks \"is my reading grid really on the "
+             tr("**In short:** this asks \"is my reading grid really on the "
                 "patches, or would it fit better a little to one side?\" If a "
                 "nearby position would fit better, ChromIQ tells you, and "
                 "names the patches that look most wrong.\n\n"
                 "You'll see two percentages, like \"worst 56.88 %, average "
                 "96.70 %\". Every patch gets its own agreement number; "
                 "\"worst\" is the single worst patch on the page and is the "
-                "number that decides — when it falls below this setting, you "
+                "number that decides: when it falls below this setting, you "
                 "get a warning. \"Average\" is simply the average of all the "
                 "patches' numbers, so it tells you what kind of problem you "
                 "have: a low worst with a high average means a few patches "
                 "are off (a pulled corner, a local wrinkle), while both low "
                 "means the whole grid has slipped.\n\n"
-                "What to change: if you get warnings on scans you've checked "
+                "**What to change:** if you get warnings on scans you've checked "
                 "by eye and know are fine, lower this. Raise it to be warned "
                 "earlier. The default is calibrated on real scanned targets: "
                 "a correctly placed grid reads about 90 % or better at any "
                 "sample area, a single corner dragged inwards by a fiftieth "
-                "of the grid already collapses the worst patch, and anything "
-                "under about 5 % of a patch of drift passes.\n\n"
-                "How it works, if you're curious: ChromIQ samples the scan at "
+                "of the grid already collapses the worst patch, and any offset "
+                "under about 5 % of a patch passes.\n\n"
+                "**How it works, if you're curious:** ChromIQ samples the scan at "
                 "your grid position and again at every rung of a ladder "
-                "around it — 24 steps of 5 % of a patch, in all 8 directions. "
+                "around it: 24 steps of 5 % of a patch, in all 8 directions. "
                 "Each patch is then ranked on its own ladder: its best "
                 "reading anywhere is that patch's 100 %; each direction "
                 "contributes its worst reading, directions where the reading "
                 "never worsens are ignored, and the mildest of the remaining "
                 "direction-worsts is that patch's 0 %. Your grid position "
-                "lands somewhere between — separately for every patch, so "
+                "lands somewhere between, separately for every patch, so "
                 "one misplaced patch shows even when the rest of the page "
                 "is perfect.\n\n"
-                "The same check runs for every page when you build — a "
+                "The same check runs for every page when you build: a "
                 "flagged page is listed in the warning popup before "
                 "anything is built."))
         _gap(4)
@@ -2524,7 +4597,7 @@ class SettingsDialog(QDialog):
         _row(5, tr("Warn when this many patches sit on an edge (Off, 1–9):"),
              self._scan_flank_min_combo,
              tr("How many patches on an edge before you're warned"),
-             tr("In short: ChromIQ checks each reading box separately to see "
+             tr("**In short:** ChromIQ checks each reading box separately to see "
                 "whether it is sitting on the border between two patches "
                 "instead of squarely inside one. This setting says how many "
                 "patches have to be caught doing that, at the same time, "
@@ -2533,11 +4606,11 @@ class SettingsDialog(QDialog):
                 "sensing cells inside a single patch. Choose Off to switch "
                 "edge detection off completely; the placement-agreement check "
                 "above keeps running either way.\n\n"
-                "What to change: lower it (1 or 2) to be warned as soon as a "
+                "**What to change:** lower it (1 or 2) to be warned as soon as a "
                 "single patch lands on a border. Raise it if a target's own "
                 "printed design keeps triggering warnings on grids you know "
                 "are correct.\n\n"
-                "Why the default is 2: an edge has to look like a straight "
+                "**Why the default is 2:** an edge has to look like a straight "
                 "border line before a patch is counted at all (see the "
                 "settings below), so grain, specks and a target's own "
                 "printed features can't inflate the count — on real "
@@ -2557,13 +4630,13 @@ class SettingsDialog(QDialog):
         _row(6, tr("…counting a patch as on an edge above (0.02–0.5):"),
              self._scan_flank_spin,
              tr("How strong an edge has to be to count"),
-             tr("In short: this is how obvious a patch border has to look "
+             tr("**In short:** this is how obvious a patch border has to look "
                 "before ChromIQ decides a reading box is sitting on it. "
                 "Lower = stricter, so fainter borders count. It works "
                 "together with the setting above: this one decides which "
                 "patches are \"on an edge\", that one decides how many of "
                 "them it takes to warn you.\n\n"
-                "What the number means: it is NOT a percentage difference "
+                "**What the number means:** it is NOT a percentage difference "
                 "between two patches. It measures how STEEPLY the colour "
                 "changes inside the box, compared with the gentle speckle of "
                 "print grain and scanner noise on the same page. 0.20 means "
@@ -2571,11 +4644,11 @@ class SettingsDialog(QDialog):
                 "brightness range steeper than that grain. A patch border is "
                 "a sharp step, so it towers over grain even when the two "
                 "patches themselves are similar in colour.\n\n"
-                "What to change: below about 0.06 you start counting the "
+                "**What to change:** below about 0.06 you start counting the "
                 "grain itself and will get false warnings. Above about 0.30, "
                 "genuinely misplaced boxes go unnoticed. If you scan a very "
                 "noisy or textured paper, raise it a little.\n\n"
-                "How it works, if you're curious: every patch carries a fine "
+                "**How it works, if you're curious:** every patch carries a fine "
                 "grid of 30×30 small sensing cells (15×15 on low-resolution "
                 "scans), spread over 85 % of the patch's width and height — "
                 "shaped with the same equal-margin rule as the reading box, "
@@ -2595,7 +4668,7 @@ class SettingsDialog(QDialog):
                 "target's own printed bars and wedges from counting. The "
                 "box's edge strength is then its third-strongest cell — the "
                 "scale this limit is calibrated on.\n\n"
-                "Where the default comes from: on real 600 dpi IT8 scans the "
+                "**Where the default comes from:** on real 600 dpi IT8 scans the "
                 "page grain sits around 0.04 and reaches 0.05 on the noisiest "
                 "patches. Half of all real patch borders are above 0.08, and "
                 "the borders a misplaced box actually lands on read 0.20 and "
@@ -2611,7 +4684,7 @@ class SettingsDialog(QDialog):
         _row(7, tr("…needing this many sensing cells in a row (2–20):"),
              self._scan_flank_cells_combo,
              tr("How many sensing cells make an edge"),
-             tr("In short: this protects you against grain and dust specks "
+             tr("**In short:** this protects you against grain and dust specks "
                 "in the scan being mistaken for patch edges. Each patch is "
                 "checked with a fine grid of small sensing cells; a patch "
                 "border is only believed when at least this many cells "
@@ -2630,13 +4703,13 @@ class SettingsDialog(QDialog):
                 "The maximum of 20 is 20 of the 30 cells along one side of "
                 "that grid: two thirds of a patch have to lie on a straight "
                 "colour change in a row before it can count as an edge.\n\n"
-                "What to change: if a grainy or textured scan keeps "
+                "**What to change:** if a grainy or textured scan keeps "
                 "flagging patches you know are clean, raise this — a real "
                 "border crosses the whole box, so it easily lights more "
                 "cells than any speck, and there is room up to 20. Lower it "
                 "if you want the earliest possible warning and your scans "
                 "are very clean.\n\n"
-                "Why the default is 8: on real 600 dpi scans, grain and "
+                "**Why the default is 8:** on real 600 dpi scans, grain and "
                 "even a long narrow speck of grey inside a patch light "
                 "straight runs of only a few cells, while a genuine border "
                 "crosses the whole reading box — dozens of cells in a row. "
@@ -2646,7 +4719,7 @@ class SettingsDialog(QDialog):
                 "lights a few cells in one corner while a real border "
                 "crosses elsewhere in the same box, the border still "
                 "counts — the speck can't mask it.\n\n"
-                "How it works, if you're curious: every patch carries a "
+                "**How it works, if you're curious:** every patch carries a "
                 "30×30 grid of sensing cells (15×15 on low-resolution "
                 "scans), spread over 85 % of the patch's width and height "
                 "and shaped with the same equal-margin rule as the reading "
@@ -2710,12 +4783,12 @@ class SettingsDialog(QDialog):
             tr("These are your INSTRUMENT margins (not printer margins): how much "
                "blank white paper a chart should have around its patches so it's "
                "comfortable to measure.\n\n"
-               "Why it matters: many spectrophotometers (i1Pro, ColorMunki…) are "
+               "**Why it matters:** many spectrophotometers (i1Pro, ColorMunki…) are "
                "slid by hand along the chart, usually in a ruler or holder (a "
                "'jig' or 'rig'). If the patches sit too close to the edge of the "
                "page, the instrument can slip off the paper or bump the rail and "
                "the reading fails — so each edge needs a minimum margin.\n\n"
-               "How to use this tab:\n"
+               "**How to use this tab:**\n"
                "• Pick an Instrument and a Paper size (with orientation) at the "
                "top — each combination has its own set of minimums.\n"
                "• Optionally type a Description, e.g. which ruler the values are "
@@ -2727,7 +4800,7 @@ class SettingsDialog(QDialog):
                "actual margins and compares them to the values here: anything "
                "below the minimum is flagged. It's only a friendly heads-up — you "
                "can always print anyway.\n\n"
-               "Tip about orientation: a sheet you place sideways in the jig is "
+               "**Tip about orientation:** a sheet you place sideways in the jig is "
                "laid out the other way round on paper, so the margins are always "
                "in the orientation shown in the preview (which is what these "
                "values refer to). The two checkboxes above let you hide the whole "
@@ -2819,13 +4892,15 @@ class SettingsDialog(QDialog):
                "instrument's ruler or jig.\n\n"
                "The box starts out showing your instrument's own built-in "
                "limit, which is different for each device:\n"
-               "  • i1Pro — 240 mm\n"
-               "  • i1Pro 3+ — 220 mm\n"
-               "  • ColorMunki — None (it reads strips without a ruler, so "
+               "  • i1Pro: 240 mm\n"
+               "  • i1Pro 3+: 515 mm (the XL scanning ruler)\n"
+               "  • ColorMunki: None (it reads strips without a ruler, so "
                "there is no fixed limit)\n"
-               "  • SpectroScan — None (a flatbed table; it positions each "
-               "patch itself, so strip length doesn't apply)\n\n"
-               "You normally don't need to change this — it is here only if "
+               "  • SpectroScan: None (a flatbed table; it positions each "
+               "patch itself, so strip length doesn't apply)\n"
+               "  • CR30: None (ChromIQ drives it patch by patch, so no "
+               "ruler bounds a strip)\n\n"
+               "You normally don't need to change this. It is here only if "
                "you use a non-standard ruler or jig and want ChromIQ to warn "
                "you against a different length. Type a value to set your own "
                "limit for the selected instrument, paper and orientation; set "
@@ -3001,16 +5076,43 @@ class SettingsDialog(QDialog):
             bool(s.get("engine_all_modes", False)))
         self._save_report_check.setChecked(
             bool(s.get("save_measurement_report", True)))
-        self._report_avg_thr_spin.setValue(
-            float(s.get("report_pass_threshold_avg", 2.0)))
-        self._report_max_thr_spin.setValue(
-            float(s.get("report_pass_threshold_max", 3.0)))
+        # #182: the limit-set edits are buffered here and written on Save
+        # (CH-19), exactly like the other controls on the Reports tab.
+        from core.settings import compliance_overrides_of
+        self._compliance_buffer = {
+            "overrides": compliance_overrides_of(s),
+            "default_set": str(s.get("compliance_default_set", "chromiq_default")
+                               or "chromiq_default"),
+        }
+        # #182 (Knut, B8-388): the three Measurement Report defaults.
+        _rt = str(s.get("report_default_type", "t2_full_colour_check")
+                  or "t2_full_colour_check")
+        _i = self._report_type_default_combo.findData(_rt)
+        if _rt == "t4_printing_record":
+            _i = -1          # legal until beta 35; refused for verification now
+        if _i < 0:
+            # A stored id this build cannot produce (a later ChromIQ's, or an
+            # ISO type) falls back to the one type that is always there rather
+            # than leaving the pulldown on a heading.
+            _i = max(0, self._report_type_default_combo.findData(
+                "t2_full_colour_check"))
+        self._report_type_default_combo.setCurrentIndex(_i)
+        # B8-1073: what `_on_default_type_chosen` compares a step against,
+        # and the set an ISO type moved, to put back when it leaves them.
+        self._default_type_last = str(
+            self._report_type_default_combo.currentData() or "")
+        self._set_before_iso_type = None
+        self._report_details_default_check.setChecked(
+            bool(s.get("report_default_show_details", True)))
+        # The shipped default is shown in the UI language; a prefix the user
+        # typed is shown as typed (round B before beta 37, H5).
+        from core.settings import report_title_prefix
         self._report_title_prof_edit.setText(
-            str(s.get("report_title_profiling",
-                      "Measurement Report - Profiling of Printer")))
+            report_title_prefix(s, "report_title_profiling"))
         self._report_title_verify_edit.setText(
-            str(s.get("report_title_verification",
-                      "Measurement Report - Verification of Profile")))
+            report_title_prefix(s, "report_title_verification"))
+        self._report_title_cal_edit.setText(
+            report_title_prefix(s, "report_title_calibration"))
         self._report_add_profile_check.setChecked(
             bool(s.get("report_add_profile_name", True)))
         self._patch_warn_spin.setValue(
@@ -3115,11 +5217,48 @@ class SettingsDialog(QDialog):
                 f"QCheckBox::indicator:checked:disabled {{"
                 f" background: {dis_bg}; border-color: {dis_border}; }}"
             )
+        # OK and Restore Factory Defaults, in THIS window's own sheet (Basti,
+        # 2026-09-26: "why is preferences ok button now magenta?"). Opened
+        # from the Create Chart tab (Edit layout defaults), this dialog is the
+        # tab's child, and a stylesheet on an ancestor beats the application
+        # sheet whatever its selector: the tab's K44 rule filled OK in magenta
+        # instead of Restore Factory Defaults' look. The dialog's own sheet is
+        # nearer than any ancestor's, so it holds wherever the window opens.
+        if mode == APPEARANCE_NEUTRAL:
+            fill, label, hover, edge = (neutral_styles.NM_ACTION,
+                                        neutral_styles.NM_ON_ACTION,
+                                        neutral_styles.NM_BORDER_HI,
+                                        neutral_styles.NM_ACTION)
+        elif mode == "light":
+            fill, label, hover, edge = "#121212", "#f4f4f4", "#1f1f1f", "#2a2a2a"
+        else:
+            fill, label, hover, edge = "#f4f4f4", "#121212", "#e0e0e0", "#d0d0d0"
+        buttons_qss = (
+            f"QPushButton#reset_defaults, QPushButton#prefs_ok,"
+            f" QPushButton#prefs_ok:default {{ background: {fill};"
+            f" color: {label}; border: 1px solid {edge}; }}"
+            f"QPushButton#reset_defaults:hover, QPushButton#prefs_ok:hover,"
+            f" QPushButton#prefs_ok:default:hover {{ background: {hover};"
+            f" border-color: {hover}; }}"
+        )
         self.setStyleSheet(
-            neutral_controls_qss(indicator, mode=mode) + disabled_qss)
+            neutral_controls_qss(indicator, mode=mode) + disabled_qss
+            + buttons_qss)
         for btn in self.findChildren(TooltipButton):
             btn._color_override = indicator
             btn._set_icon()
+        # The layout panel's folder button (the clip-border image; the .cal
+        # browse exists only with calibration, not here) wears the SAME colour as this window's ⓘ icons (Basti,
+        # 2026-09-26: "in preferences it should have the accent color that
+        # the tooltip icons use there"). Untagged, so the app's theme reload
+        # leaves them to this method, which re-runs on a live preview.
+        from ui.widgets import load_tinted_folder_icon
+        panel = getattr(self, "_layout_panel", None)
+        for name in ("clip_image_browse",):
+            fb = getattr(panel, name, None) if panel is not None else None
+            if fb is not None:
+                fb.setProperty("themed_folder_icon", None)
+                fb.setIcon(load_tinted_folder_icon(indicator, size=20))
         # …AND EVERY LITERAL TEXT COLOUR IN THE WINDOW. The theme can be
         # previewed from inside this dialog, so a label coloured at build time
         # would keep the previous appearance's value until the window is
@@ -3234,7 +5373,7 @@ class SettingsDialog(QDialog):
                "Instrument + Paper + Mode has its own saved set of values — so "
                "your i1Pro on A4 can differ from your ColorMunki on A3, and each "
                "remembers what you set.\n\n"
-               "How to use it:\n"
+               "**How to use it:**\n"
                "• Pick an Instrument, a Paper size and a Mode at the top.\n"
                "• Adjust the patch and page settings below. The green line shows "
                "roughly how many patches fit on one sheet with those settings.\n"
@@ -3325,7 +5464,11 @@ class SettingsDialog(QDialog):
         self._layout_saved_hint.setWordWrap(True)
         v.addWidget(self._layout_saved_hint)
 
-        self._layout_panel = LayoutOptionsPanel(self, defer_clip_preview=True)
+        # "Clip-border content" is always on screen here, where the defaults
+        # are stored, with the clip border Off too (B8-1362, Knut #182
+        # 5847578917).
+        self._layout_panel = LayoutOptionsPanel(
+            self, defer_clip_preview=True, clip_content_always_shown=True)
         self._layout_panel.changed.connect(self._on_layout_field_changed)
         v.addWidget(self._layout_panel)
 
@@ -3399,12 +5542,13 @@ class SettingsDialog(QDialog):
         # so every later edit recomputes the estimate live as before.
         self._layout_estimate_pending = True
 
-        # Re-home the printtarg (old-engine) i1Pro options here, greyed when the
-        # ChromIQ engine is active (they have no effect then) (Knut #93).
+        # Re-home the i1Pro options here. K51-E (Knut, #182 5846297769,
+        # K50-5, B8-1336): ENABLED whatever the engine setting, because Guided
+        # always uses the engine and reads them; the greying of #93 ("they
+        # have no effect then") was true of Manual only.
         if getattr(self, "_i1pro_grp", None) is not None:
-            engine_on = bool(self._settings.get("use_chromiq_layout_engine", False))
-            self._i1pro_grp.setEnabled(not engine_on)
-            self._i1pro_grp.setTitle(tr("i1Pro Chart Defaults (printtarg engine)"))
+            self._i1pro_grp.setEnabled(True)
+            self._i1pro_grp.setTitle(tr("i1Pro margin and patch scale (Guided, and Manual with printtarg)"))
             page.layout().addWidget(self._i1pro_grp)
         return self._scroll_wrap(page)
 
@@ -3481,8 +5625,11 @@ class SettingsDialog(QDialog):
         # layout_options_panel.PT_PER_MM (Knut).
         self._isty_size = NoScrollDoubleSpinBox(self)
         self._isty_size.setRange(0.0, 72.0)
-        self._isty_size.setDecimals(0)
-        self._isty_size.setSingleStep(1)
+        # HALF A POINT AT A TIME, like every other size box (Knut,
+        # 2026-09-13). This is Preferences → Chart Layout; the three in the
+        # Create Chart panel come from `layout_options_panel.small_pt`.
+        self._isty_size.setDecimals(1)
+        self._isty_size.setSingleStep(0.5)
         self._isty_size.setSuffix(" pt")
         self._isty_size.setSpecialValueText(tr("auto"))
         # Clean 4-column grid (label | control | label | control) with both
@@ -3608,6 +5755,146 @@ class SettingsDialog(QDialog):
         k = self._layout_mode.findData(mode)
         if k >= 0:
             self._layout_mode.setCurrentIndex(k)    # fires _load_layout_combo
+
+    def _build_licences_tab(self) -> QWidget:
+        """Everything ChromIQ ships that somebody else wrote (#182 F3).
+
+        IT EXISTS BECAUSE A CREDIT NOBODY CAN READ IS NOT A CREDIT. Eleven
+        Fogra characterisation files ship inside the application, and Fogra's
+        grant is conditional on the data travelling unmodified AND on Fogra
+        being identified as the source. Both statements of that lived in files
+        inside the bundle that no user could reach from the app: `grep -rn
+        "Fogra" ui/` returned nothing at all.
+
+        Nothing on this page is retyped. The reference-data credits come from
+        `workflow.reference_sets`, whose own `SOURCE.json` gate refuses a data
+        file with no source and no terms; everything else is
+        `THIRD-PARTY-NOTICES.md` as it ships. So the page cannot drift from the
+        bundle, which is the only way a licence page stays true.
+
+        The licence TEXTS are not translated. A translated quotation of a grant
+        is not that grant.
+        """
+        from PyQt6.QtWidgets import QTextBrowser
+
+        from ui import licences
+
+        page = QWidget()
+        v = QVBoxLayout(page)
+        v.setSpacing(10)
+        v.setContentsMargins(12, 12, 12, 12)
+
+        intro = QLabel(tr(
+            "ChromIQ is free software. This page names everything it ships "
+            "that somebody else wrote, and the terms it is here on. The "
+            "licence texts are shown in the language their owners wrote them "
+            "in."), self)
+        intro.setWordWrap(True)
+        _ink(intro, "#909090", " font-size: 11px;", level="faint")
+        v.addWidget(intro)
+
+        # -- the one credit with a live condition attached to it
+        credits = licences.reference_data_credits()
+        if credits:
+            grp = QGroupBox(tr("Reference data bundled with ChromIQ"), self)
+            g = QVBoxLayout(grp)
+            g.setSpacing(6)
+            for holder, terms in licences.reference_data_terms():
+                who = QLabel(tr(
+                    "Source: {holder}").format(holder=holder), self)
+                who.setWordWrap(True)
+                who.setStyleSheet("font-weight: bold;")
+                g.addWidget(who)
+                # VERBATIM, AND NOT TRANSLATED. These are the rights holder's
+                # own words, and the grant is the thing they wrote, not a
+                # rendering of it.
+                quote = QLabel(terms, self)
+                quote.setWordWrap(True)
+                quote.setTextFormat(Qt.TextFormat.PlainText)
+                _ink(quote, "#606060", " font-size: 11px;", level="faint")
+                g.addWidget(quote)
+            note = QLabel(tr(
+                "Naming one of these sets in a report says what your "
+                "measurement was compared against. It is not a certification, "
+                "approval or endorsement by anybody."), self)
+            note.setWordWrap(True)
+            _ink(note, "#606060", " font-size: 11px;", level="faint")
+            g.addWidget(note)
+            sets = QLabel("\n".join(credits), self)
+            sets.setWordWrap(True)
+            sets.setTextFormat(Qt.TextFormat.PlainText)
+            sets.setVisible(False)              # the detail, on request
+            g.addWidget(sets)
+            show = QPushButton(tr("Show each set's credit"), self)
+            show.setCheckable(True)
+            show.toggled.connect(sets.setVisible)
+            # THE WORD HAS TO FOLLOW THE STATE. A checkable button that always
+            # says "Show" leaves the only way to close the list a button that
+            # says it will open it.
+            #
+            # A BOUND METHOD, not a lambda. A self-capturing lambda on a signal
+            # a widget's own child emits is the shape that segfaulted this app
+            # (CLAUDE.md), and "this one captures nothing" is a judgement the
+            # next editor should not have to make.
+            self._credits_btn = show
+            show.toggled.connect(self._on_credits_toggled)
+            row = QHBoxLayout()
+            row.addWidget(show)
+            row.addStretch(1)
+            g.addLayout(row)
+            v.addWidget(grp)
+
+        # -- and everything else, as the bundle states it
+        body = QTextBrowser(self)
+        body.setOpenExternalLinks(True)
+        body.setMinimumHeight(320)
+        notices = licences.notices_markdown()
+        if notices:
+            body.setMarkdown(notices)
+        else:
+            # A page that cannot find the file says so rather than showing an
+            # empty box: an empty licence page reads as "nothing to declare".
+            body.setPlainText(tr(
+                "The third-party notices file did not travel with this build. "
+                "It is in the ChromIQ source tree as THIRD-PARTY-NOTICES.md."))
+        v.addWidget(body, 1)
+
+        own = QPushButton(tr("Show ChromIQ's own licence"), self)
+        own.clicked.connect(self._on_show_own_licence)
+        files_row = QHBoxLayout()
+        files_row.addWidget(own)
+        files_row.addStretch(1)
+        v.addLayout(files_row)
+        return page
+
+    def _on_credits_toggled(self, shown: bool) -> None:
+        btn = getattr(self, "_credits_btn", None)
+        if btn is not None:
+            btn.setText(tr("Hide each set's credit") if shown
+                        else tr("Show each set's credit"))
+
+    def _on_show_own_licence(self) -> None:
+        """ChromIQ's own licence, in a window of its own. Not a link out: a
+        user offline, or one who installed the .dmg and has no source tree, has
+        to be able to read it here."""
+        from PyQt6.QtWidgets import QTextBrowser
+
+        from ui import licences
+        text = licences.own_licence_text()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("ChromIQ's licence"))
+        lay = QVBoxLayout(dlg)
+        view = QTextBrowser(dlg)
+        view.setPlainText(text or tr(
+            "The licence file did not travel with this build. It is in the "
+            "ChromIQ source tree as LICENSE."))
+        lay.addWidget(view)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dlg)
+        buttons.rejected.connect(dlg.reject)
+        buttons.accepted.connect(dlg.accept)
+        lay.addWidget(buttons)
+        dlg.resize(760, 560)
+        dlg.exec()
 
     def _scroll_wrap(self, page: QWidget) -> QWidget:
         """Wrap a settings tab in a fading scroll area so every tab scrolls and
@@ -3822,6 +6109,17 @@ class SettingsDialog(QDialog):
         if self._loading_layout:
             return
         self._layout_store.set(self._recipe_from_fields())
+        # K57: the "Clip border" selector says what the panel holds; a
+        # Content chosen while it is Off no longer switches it, and "Off"
+        # chosen as the Content does.
+        _i = self._layout_clip_enable.findData(
+            "on" if self._layout_panel.clip_enabled() else "off")
+        if _i >= 0 and _i != self._layout_clip_enable.currentIndex():
+            _b = self._layout_clip_enable.blockSignals(True)
+            try:
+                self._layout_clip_enable.setCurrentIndex(_i)
+            finally:
+                self._layout_clip_enable.blockSignals(_b)
         # The combination has a saved layout from this moment on — say so.
         self._update_layout_saved_hint(*self._layout_selection())
         self._update_layout_calc()
@@ -3959,14 +6257,35 @@ class SettingsDialog(QDialog):
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("splash_classic", self._splash_classic_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())
-        s.set("report_pass_threshold_avg", float(self._report_avg_thr_spin.value()))
-        s.set("report_pass_threshold_max", float(self._report_max_thr_spin.value()))
-        s.set("report_title_profiling",
-              self._report_title_prof_edit.text().strip()
-              or "Measurement Report - Profiling of Printer")
-        s.set("report_title_verification",
-              self._report_title_verify_edit.text().strip()
-              or "Measurement Report - Verification of Profile")
+        from core.settings import store_compliance_overrides
+        buf = getattr(self, "_compliance_buffer", None) or {}
+        store_compliance_overrides(s, buf.get("overrides") or {})
+        # #182 (Knut, B8-388). An empty currentData is the pulldown's heading
+        # row, which is disabled and cannot be the current one; guarded anyway,
+        # because a stored empty id would read back as "no type at all".
+        # THE TYPE FIRST, THEN THE SET (B8-1072): `AppSettings.set` holds the
+        # set to the type already stored, so a set written before its type
+        # would be held to the OLD type.
+        _tid = str(self._report_type_default_combo.currentData() or "")
+        if _tid:
+            s.set("report_default_type", _tid)
+        # K36-1: an ISO default type keeps an ISO default set
+        from workflow.measurement_report import set_held_to_type
+        s.set("compliance_default_set", set_held_to_type(
+            str(self._report_type_default_combo.currentData() or ""),
+            str(buf.get("default_set") or "chromiq_default")))
+        if "columns" in buf:
+            s.set("compliance_columns_shown", str(buf.get("columns") or ""))
+        s.set("report_default_show_details",
+              bool(self._report_details_default_check.isChecked()))
+        from core.settings import report_title_to_store
+        s.set("report_title_profiling", report_title_to_store(
+            "report_title_profiling", self._report_title_prof_edit.text()))
+        s.set("report_title_verification", report_title_to_store(
+            "report_title_verification",
+            self._report_title_verify_edit.text()))
+        s.set("report_title_calibration", report_title_to_store(
+            "report_title_calibration", self._report_title_cal_edit.text()))
         s.set("report_add_profile_name", self._report_add_profile_check.isChecked())
         s.set("patch_read_warn_de", float(self._patch_warn_spin.value()))
         s.set("patch_warn_outlier_fence",
@@ -4001,6 +6320,15 @@ class SettingsDialog(QDialog):
         # Measurement pace (#131 Phase 2)
         if hasattr(self, "_pace_enable"):
             s.set("pace_hint_enabled", self._pace_enable.isChecked())
+            # Only the rows that HAVE a rate box. The CR30 is deliberately
+            # absent from `_pace_hz`, so its key stops being written here — the
+            # one place a stale `pace_sample_hz_cr30` could otherwise be
+            # refreshed on every Save. A value already stored by an older build
+            # is left where it is rather than migrated away: it is inert (a
+            # CR30's min_samples is Off, and `_pace_config` throws the rate away
+            # on that branch), and dropping it would mean bumping the settings
+            # schema, which re-runs every other migration against stores that
+            # have already been through them.
             for _key, _hz in self._pace_hz.items():
                 s.set(f"pace_sample_hz_{_key}", float(_hz.value()))
             for _key, _mn in self._pace_min.items():
@@ -4105,205 +6433,776 @@ class SettingsDialog(QDialog):
         )
         QDesktopServices.openUrl(QUrl(argyll_download_page()))
 
+    def _scrollable(self, inner, parent):
+        """Wrap *inner* so long prose scrolls instead of being cut off.
+
+        These windows carry several paragraphs and the longest of them wants
+        934 px, while a QDialog is clamped to the available screen. Below that
+        height a word-wrapped QLabel is simply TRUNCATED — no scrollbar, no
+        ellipsis, no sign that anything is missing. It was measured cutting the
+        second paragraph mid-sentence, taking the paragraph that justifies the
+        install button with it, on a 1080p laptop at 150%.
+
+        The scroll area is frameless and transparent, so when the content fits
+        (the common case) nothing about the window looks different.
+
+        TWO THINGS HERE ARE SCARS. `ContentHeightScrollArea` exists because a
+        plain `QScrollArea` reports a height of `24 * fontMetrics().height()`
+        whatever it holds, which shrank this window to 480 px on a 1032 px
+        screen and put its own primary button below the fold. And the
+        horizontal scrollbar is `ScrollBarAsNeeded`, not `AlwaysOff`, because
+        `setWidgetResizable(True)` widens the inner label to its minimum size
+        hint: one unbroken 80-character run — a folder path the user picked, and
+        every real one looks like
+        `C:\\Users\\…\\AppData\\Local\\ChromIQ\\drivers\\2026-09-05_00-14-02\\CH341SER`
+        —
+        widened it past the viewport and CHOPPED EVERY LINE IN THE WINDOW at the
+        right edge, with no scrollbar and no ellipsis. Measured `hbar_max = 99`,
+        `hbar_visible = False`. That is the very defect this wrapper was added to
+        prevent, reintroduced at right angles to it. Wrapped prose never reaches
+        the threshold, so the bar stays away in every ordinary case.
+        """
+        area = ContentHeightScrollArea(parent)
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.Shape.NoFrame)
+        area.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        area.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        area.viewport().setAutoFillBackground(False)
+        inner.setParent(area)
+        area.setWidget(inner)
+        return area
+
+    def _fit_to_screen(self, dlg) -> None:
+        """Open the dialog at the size its content wants, capped by the screen.
+
+        The height has to be asked for at the width the window will actually
+        have, or the answer is wrong in both directions: a word-wrapped
+        paragraph is taller when narrower, and `dlg.sizeHint()` is computed at
+        the layout's own preferred width, not at `minimumWidth()`. So the width
+        is settled first, and `heightForWidth()` — which
+        `ContentHeightScrollArea` forwards to the real content — answers for
+        that width.
+
+        The 90 %-of-screen cap is the ONLY thing that shortens the window. When
+        it bites, the scroll area takes over and everything stays reachable;
+        when it does not, nothing is hidden at all.
+        """
+        screen = dlg.screen() or self.screen()
+        if screen is None:
+            return
+        avail = screen.availableGeometry()
+        dlg.setMaximumHeight(max(320, int(avail.height() * 0.9)))
+        dlg.setMaximumWidth(max(480, int(avail.width() * 0.9)))
+
+        width = max(dlg.sizeHint().width(), dlg.minimumWidth())
+        width = min(width, dlg.maximumWidth())
+
+        # Now that the width is known, tell every scroll area what it will get,
+        # so its sizeHint can answer for THAT width rather than for the
+        # placeholder Qt would otherwise use.
+        margins = dlg.layout().contentsMargins() if dlg.layout() else None
+        side = (margins.left() + margins.right()) if margins is not None else 0
+        for area in dlg.findChildren(ContentHeightScrollArea):
+            area.assume_width(width - side)
+
+        wanted = max(dlg.sizeHint().height(), dlg.minimumSizeHint().height())
+        dlg.resize(width, min(wanted, dlg.maximumHeight()))
+
+    def _driver_notice(self, title: str, text: str,
+                       extra_label: "str | None" = None) -> bool:
+        """Show a read-only window, and report whether the extra action was taken.
+
+        ALWAYS shows the window. Returns True only when *extra_label*'s button
+        was the one pressed; OK, Esc and the title-bar X all return False.
+
+        BOTH HALVES OF THAT SENTENCE ARE FIXES, and both were shipped broken:
+
+        1. This used to end `return bool(extra_label) and dlg.exec() == ...`.
+           Python short-circuits `and`, so with no extra button `dlg.exec()` was
+           NEVER CALLED: the dialog was built, laid out, tinted and dropped on
+           the floor. Every notice without an extra button was invisible — the
+           measurement guard, "it worked", "the install failed", "you cancelled
+           at the permission prompt", "the package was rejected", the unknown
+           processor, and the WinUSB outcome. A driver install could elevate,
+           change the machine and say nothing at all. Whether a window has a
+           second button must never decide whether the user sees anything.
+
+        2. `box.accepted` fires for ANY AcceptRole button, and
+           `StandardButton.Ok` is AcceptRole — so OK and the extra button did
+           the same thing. On the before-UAC consent window that meant the only
+           visible dismissing button STARTED AN ELEVATED DRIVER INSTALL, and the
+           only way to decline was Esc. On the WinUSB outcome it launched Zadig,
+           which OK never did on master. The affirmative button now carries its
+           own handler and OK is wired to `reject`, so consent has to be given
+           deliberately or not at all.
+        """
+        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+        from ui.widgets import tint_dialog_primary
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(560)
+        lay = QVBoxLayout(dlg)
+        lay.setContentsMargins(24, 20, 24, 20)
+        lay.setSpacing(14)
+        lbl = QLabel(_let_paths_wrap(text))
+        lbl.setWordWrap(True)
+        lbl.setTextFormat(Qt.TextFormat.RichText)
+        lay.addWidget(self._scrollable(lbl, dlg))
+
+        took_the_action: list = []
+
+        box = QDialogButtonBox()
+        if extra_label:
+            extra = box.addButton(extra_label,
+                                  QDialogButtonBox.ButtonRole.AcceptRole)
+            extra.setObjectName("primary")
+
+            def _accept_the_action() -> None:
+                took_the_action.append(True)
+                dlg.accept()
+
+            extra.clicked.connect(_accept_the_action)
+        ok = box.addButton(QDialogButtonBox.StandardButton.Ok)
+        if extra_label:
+            # AND WHEN THERE IS SOMETHING TO DECLINE, IT SAYS SO. Only the
+            # text changes: the button stays `StandardButton.Ok` so it keeps
+            # its role, its place in the row and its identity to everything
+            # that looks it up. On a window with no offer it keeps saying OK,
+            # which is what a notice's button should say. See
+            # `_label_not_now()` for why this matters on the consent window.
+            ok.setText(_label_not_now())
+        # OK DISMISSES. `box.accepted` is deliberately not connected: it fires
+        # for Ok too, which is how OK came to mean "yes, install".
+        ok.clicked.connect(dlg.reject)
+        box.rejected.connect(dlg.reject)
+        # AND SO DOES ENTER. The affirmative button is added first, so Qt made
+        # it the dialog's default and `Return` — the key most people press to
+        # get rid of a window — DOWNLOADED AND INSTALLED AN ELEVATED DRIVER.
+        # Measured true in all six theme/language runs of the window whose only
+        # purpose is informed consent. The safe button is the default here; the
+        # one that changes the machine has to be aimed at. AFTER the box is in
+        # the layout: `QPushButton::setDefault` only registers with the dialog
+        # once the button's `window()` IS that dialog, and a `QDialogButtonBox`
+        # promotes its first AcceptRole button on show unless another already
+        # holds default. Called a line earlier this silently did nothing.
+        lay.addWidget(box)
+        _make_the_safe_button_the_default(dlg, ok)
+        tint_dialog_primary(dlg, _DRIVER_ACCENT)
+        self._fit_to_screen(dlg)
+        dlg.exec()
+        return bool(took_the_action)
+
+    # ---- the COM-port half ------------------------------------------------
+
+    def _serial_states(self) -> list:
+        """Every CH34x bridge attached right now, or an empty list.
+
+        Imported lazily and defensively: `core.ch34x_driver` is Windows-only in
+        what it does, and a machine where the enumeration cannot be performed
+        must still get the window, the explanation, and the way in through
+        "My instrument is not listed".
+        """
+        try:
+            from core import ch34x_driver
+            return list(ch34x_driver.devices())
+        except Exception:   # noqa: BLE001 — never let the window fail to open
+            log.warning("could not enumerate USB-to-serial bridges", exc_info=True)
+            return []
+
+    def _serial_machine_arch(self) -> str:
+        """This machine's processor family, or "" when it cannot be told.
+
+        `core.ch34x_driver.machine_arch()` returns "" on 32-bit x86, on an
+        architecture it does not know, and off Windows — and "" means REFUSE,
+        never guess. On 32-bit the correct INF section really is the bare `NT`
+        one that the package gate rejects everywhere else, so there is no honest
+        answer to give and no safe install to offer.
+        """
+        try:
+            from core import ch34x_driver
+            return ch34x_driver.machine_arch() or ""
+        except Exception:   # noqa: BLE001
+            return ""
+
+    def _serial_get_driver(self) -> None:
+        """Download WCH's package, check it, install it, and prove it bound."""
+        from datetime import datetime, timezone
+        from PyQt6.QtWidgets import QProgressDialog
+
+        arch = self._serial_machine_arch()
+        if not arch:
+            self._driver_notice(tr("Instrument drivers"),
+                                serial_unknown_arch_text())
+            return
+
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%S")
+        dest = driver_staging_root() / stamp
+
+        # THE PROMPT IS ANNOUNCED BEFORE IT APPEARS. An unexpected security
+        # prompt is the one people cancel, and a cancelled prompt is
+        # indistinguishable from a failure — so say what is coming, and say
+        # what ChromIQ cannot promise, while there is still nothing to undo.
+        if not self._driver_notice(
+                tr("Before ChromIQ starts"),
+                serial_install_intro_text(str(dest), arch),
+                tr("Download and install")):
+            return
+
+        try:
+            from core import ch34x_driver
+        except Exception as exc:   # noqa: BLE001
+            log.error("core.ch34x_driver unavailable: %s", exc)
+            text, _ = serial_outcome_text(
+                stage="download_failed",
+                detail=tr("This build of ChromIQ cannot install serial drivers."))
+            self._driver_notice(tr("Instrument drivers"), text)
+            return
+
+        before = self._serial_states()
+
+        progress = QProgressDialog(
+            tr("Downloading the driver package…"), tr("Cancel"), 0, 0, self)
+        progress.setWindowTitle(tr("Instrument drivers"))
+        progress.setMinimumDuration(0)
+        progress.setAutoClose(False)
+        progress.setValue(0)
+        QApplication.processEvents()
+
+        def _tick(received: int) -> None:
+            progress.setLabelText(
+                tr("Downloading the driver package… {kb} kB so far."
+                   ).format(kb=received // 1024))
+            QApplication.processEvents()
+
+        try:
+            got = ch34x_driver.download_package(dest, progress=_tick)
+        finally:
+            progress.close()
+
+        if not got.ok or got.path is None:
+            text, offer_folder = serial_outcome_text(
+                stage="download_failed", detail=serial_reason_text(got))
+            if self._driver_notice(tr("Instrument drivers"), text,
+                                   tr("I already have the folder…")
+                                   if offer_folder else None):
+                self._serial_from_folder()
+            return
+
+        self._serial_check_and_install(Path(got.path), before)
+
+    def _serial_from_folder(self) -> None:
+        """The route for a package the user fetched themselves.
+
+        THIS ROUTE ALSO ANNOUNCES THE PROMPT BEFORE IT APPEARS, and did not
+        used to: picking a folder ran straight into `pnputil` and Windows'
+        permission prompt was the first the user heard of it. Two clicks from
+        the helper window, against the rule the download route states in its
+        own comment.
+        """
+        from ui.widgets import open_dir_dialog
+
+        arch = self._serial_machine_arch()
+        if not arch:
+            self._driver_notice(tr("Instrument drivers"),
+                                serial_unknown_arch_text())
+            return
+
+        chosen = open_dir_dialog(
+            self, tr("Choose the folder that holds the driver files"))
+        if not chosen:
+            return
+        if not self._driver_notice(
+                tr("Before ChromIQ starts"),
+                serial_folder_install_intro_text(str(chosen), arch),
+                tr("Check and install")):
+            return
+        self._serial_check_and_install(Path(chosen), self._serial_states())
+
+    def _serial_check_and_install(self, folder: Path, before: list) -> None:
+        """Inspect a package, install it if it passes, then prove it bound.
+
+        The order matters and is the whole safety story: a package that does not
+        declare this machine's processor installs without a complaint and then
+        never works, so it is refused BEFORE anything is elevated. And the only
+        success test is a COM port that was not there before.
+
+        **THE WINDOW IS CHOSEN FROM `DriverResult.outcome`, NEVER FROM WHAT A
+        SENTENCE SAYS.** This used to read
+        `"cancelled" if _install_was_cancelled(reason) else "install_failed"`,
+        where `_install_was_cancelled` compared the first words of core's
+        English prose — so "you pressed No at the Windows prompt" and "the
+        install failed" were told apart by a string match that any rewording,
+        and any translation, would have broken silently. And 3010 ("accepted,
+        restart to finish") arrived as a TRUTHY pair, so it fell through to
+        `verify_bound` — which cannot find a port for a driver that is staged
+        rather than live — and landed on "everything passed and there is still
+        no COM port", with core's restart sentence printed underneath it.
+        """
+        from core.ch34x_driver import Outcome, Reason
+        from core import ch34x_driver
+
+        verdict = ch34x_driver.inspect_package(folder)
+        if not verdict.ok or verdict.inf_path is None:
+            # ⚠ `PackageVerdict.reason` is the one prose surface still composed
+            # in core, and it is therefore still English in a German window.
+            # It is a separate ~25-sentence catalogue of its own (every INF
+            # gate, plus WinVerifyTrust's seven trust errors) and was left out
+            # of this change deliberately rather than half-done. Nothing
+            # BRANCHES on it — it is carried as `detail` and quoted — so the
+            # fragility this commit removed is gone either way.
+            text, offer_folder = serial_outcome_text(
+                stage="package_rejected", detail=verdict.reason,
+                folder=str(folder))
+            if self._driver_notice(tr("Instrument drivers"), text,
+                                   tr("Choose a different folder…")
+                                   if offer_folder else None):
+                self._serial_from_folder()
+            return
+
+        done = ch34x_driver.install(verdict.inf_path)
+
+        if done.outcome is Outcome.USER_CANCELLED:
+            stage, detail = "cancelled", ""
+        elif done.outcome is Outcome.NO_OP:
+            stage, detail = "nothing_applied", serial_reason_text(done)
+        elif done.outcome in (Outcome.FAILED, Outcome.ACCESS_DENIED):
+            stage, detail = "install_failed", serial_reason_text(done)
+        else:
+            # OK or REBOOT_REQUIRED: something was installed, so the question
+            # is now the only one that matters — is there a COM port?
+            check = ch34x_driver.verify_bound(before)
+            if check.ok:
+                text, _ = serial_outcome_text(
+                    stage="bound", ports=check.name, folder=str(folder))
+                self._driver_notice(tr("Instrument drivers"), text)
+                return
+            if done.outcome is Outcome.REBOOT_REQUIRED:
+                # A restart is the thing that will fix it; no other advice
+                # comes first.
+                stage, detail = "reboot", ""
+            elif check.reason is Reason.STILL_NO_PORT:
+                # The hard case this whole feature exists for: installed,
+                # checked, accepted — and Windows still has not attached it.
+                stage, detail = "not_bound", ""
+            else:
+                stage, detail = "cannot_tell", serial_reason_text(check)
+
+        text, _ = serial_outcome_text(stage=stage, detail=detail,
+                                      folder=str(folder))
+        self._driver_notice(tr("Instrument drivers"), text)
+
+    def _install_the_drivers(self, targets: list, install) -> list:
+        """Install a driver for each of *targets*, with something on the screen.
+
+        Returns the `InstallAttempt` for each device it got to, in order — which
+        is shorter than *targets* when one of them did not land.
+
+        **THE WAIT USED TO HAPPEN ON THIS THREAD WITH NOTHING ON SCREEN.**
+        Measured on the bench 2026-09-06 with a real i1Studio,
+        `Get-Process ChromIQ` reported `Responding = False` for ~50 s — no
+        spinner, no message, no cursor change. The owner's words while it was
+        working correctly were *"after confirming the uac nothing seems to
+        happen"*, then *"it seems to be hanging"*. Nobody had seen it before
+        because every earlier attempt failed in 2-5 s: a WORKING install is the
+        slow case, so this only became reachable when the installer started
+        working.
+
+        **The window is built on the FIRST TICK, not up front,** and that is
+        two decisions in one. An install that ends at the permission prompt
+        never waits, so it never gets a progress window flashed at it. And an
+        install that does not wait puts no modal on screen at all — which
+        matters to the seventeen driving tests next door, because
+        `tests/test_usb_driver_dialog.py::ModalDriver` acts on
+        `QApplication.activeModalWidget()` and would have run their next step,
+        `_ok_button(w).click()`, against a window that has no OK button:
+        `AttributeError` inside a QTimer slot, which PyQt6 answers with
+        `qFatal()`. That is a dead worker, not a red test.
+
+        **It is application-modal, and that is the answer to "can they start a
+        second install?".** Pumping events keeps this window painting, and it
+        equally keeps every other window reachable in principle; modality is
+        what stops a second `Install Driver`, a closed Preferences, a quit, or a
+        measurement being started while an elevated installer runs.
+
+        **The button says `Stop waiting`, not `Cancel`.** Nothing here can abort
+        an elevated driver install and nothing here tries. It stops ChromIQ
+        watching, and the window that follows says exactly that.
+        """
+        from PyQt6.QtWidgets import QProgressDialog
+        from core.usb_driver_installer import HALTS_A_MULTI_DEVICE_RUN
+
+        progress: "QProgressDialog | None" = None
+        attempts: list = []
+
+        try:
+            for device in targets:
+                def _still_watching(_secs: float,
+                                    _name: str = device.name) -> bool:
+                    nonlocal progress
+                    try:
+                        if progress is None:
+                            progress = QProgressDialog(
+                                usb_installing_text(_name),
+                                _label_stop_waiting(), 0, 0, self)
+                            progress.setWindowTitle(tr("Instrument drivers"))
+                            progress.setWindowModality(
+                                Qt.WindowModality.ApplicationModal)
+                            progress.setAutoClose(False)
+                            progress.setAutoReset(False)
+                            progress.show()
+                        else:
+                            progress.setLabelText(usb_installing_text(_name))
+                        QApplication.processEvents()
+                        return not progress.wasCanceled()
+                    except RuntimeError:
+                        # The window this was parented to has been deleted under
+                        # us. Stop watching — and, because the ending that
+                        # follows is "ChromIQ cannot tell you", stop claiming to
+                        # know anything, rather than dying with a traceback
+                        # after an elevated install.
+                        return False
+
+                attempts.append(install(device, progress=_still_watching))
+                if attempts[-1] in HALTS_A_MULTI_DEVICE_RUN:
+                    # AND CARRYING ON IS THE DEFAULT. `all(install_winusb(d) for
+                    # d in targets)` was a GENERATOR, so the first falsy answer
+                    # ended the iteration and the rest were never attempted —
+                    # while the outcome window named them among the instruments
+                    # the install "did not take" on. The seven endings that do
+                    # stop the run, and why each of them does, are next to the
+                    # enum in `core/usb_driver_installer.py`.
+                    break
+        finally:
+            if progress is not None:
+                try:
+                    progress.close()
+                except RuntimeError:
+                    # THE SAME DELETED OBJECT THE GUARD ABOVE EXISTS FOR. When
+                    # the parent window goes, this QProgressDialog goes with it,
+                    # and `close()` on the dead C++ object raises — out of a Qt
+                    # slot, which PyQt6 answers with `qFatal()`. So the guard
+                    # that stops us dying with a traceback after an elevated
+                    # install was undone by its own cleanup: the process died in
+                    # the `finally` instead of the `try`. Nothing needs closing
+                    # if the window is already gone.
+                    pass
+        return attempts
+
     def _show_usb_installer(self) -> None:
         if _sys.platform != "win32":
             return
-        from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QVBoxLayout
+        # THE ONLY THING BLOCKED IS THE DRIVER HELPER. Preferences itself stays
+        # open during a measurement, and that is deliberate policy
+        # (ui/main_window.py:1150-1155) which this does not overturn. But
+        # installing a driver restarts the connection Windows holds to the
+        # instrument, and the open COM handle goes with it — so this one window
+        # can end a measurement, and it is the only one here that can.
+        holder = measurement_in_progress(self)
+        if holder is not None:
+            # The lease's IDENTIFIER, which is what belongs in a log: it is
+            # English, it is stable, and it is not whatever the user's language
+            # happens to render it as.
+            log.info("driver helper refused: the instrument is in use by %s",
+                     holder)
+            self._driver_notice(tr("Instrument drivers"),
+                                measurement_block_text(holder))
+            return
+        from PyQt6.QtWidgets import (
+            QDialog, QDialogButtonBox, QGroupBox, QHBoxLayout, QLabel, QVBoxLayout,
+            QWidget,
+        )
         from core.usb_driver_installer import (
-            enumerate_connected, install_winusb, launch_zadig, unbound_targets,
+            InstallAttempt, enumerate_connected, install_winusb, launch_zadig,
+            unbound_targets,
         )
         from core.resource_path import resource_path as _rp
         from ui.widgets import tint_dialog_primary
 
         _wdi_available = _rp("assets/wdi_simple.exe").exists()
 
-        _COLOR = "#56d6a5"
-        _REFRESH = 2   # custom dlg.done() code, distinct from Accepted(1)/Rejected(0)
+        _REFRESH = 2       # custom dlg.done() codes, distinct from
+        _WINUSB = 3        # Accepted(1) / Rejected(0)
+        _SERIAL_GET = 4
+        _SERIAL_FOLDER = 5
+        _SERIAL_NOT_LISTED = 6
+        _WINUSB_CERT = 7
+
+        offer_anyway = False
 
         while True:
+            # enumerate_connected() returns what is ATTACHED, not what the
+            # registry remembers — it filters against cfgmgr32's PRESENT list
+            # itself, so this window names no hardware the user does not own.
             devices = enumerate_connected()
             needs_install = [d for d in devices if not d.has_winusb]
+            states = self._serial_states()
 
             dlg = QDialog(self)
-            dlg.setWindowTitle(tr("Install USB Driver"))
-            dlg.setMinimumWidth(500)
+            dlg.setWindowTitle(tr("Instrument drivers"))
+            dlg.setMinimumWidth(620)
             layout = QVBoxLayout(dlg)
             layout.setSpacing(14)
             layout.setContentsMargins(24, 20, 24, 20)
 
-            if not devices:
-                msg_text = (
-                    "<b>No colorimeter detected.</b><br><br>"
-                    "Make sure your device is plugged in via USB, "
-                    "then click <b>Refresh</b>."
-                )
-            else:
-                lines = [
-                    f"&nbsp;&nbsp;• {d.name} — "
-                    f"<i>{'WinUSB ✓' if d.has_winusb else 'driver not installed'}</i>"
-                    for d in devices
-                ]
-                if not needs_install:
-                    # Every detected device already has a WinUSB/libusb0 driver.
-                    # Don't promise an installer the old code wouldn't show a
-                    # button for; explain that and still offer a manual repair
-                    # path (forum #148275: dialog mentioned Zadig but had no
-                    # button when the device reported the driver as installed).
-                    action_text = (
-                        "The driver is already installed for the "
-                        + ("device above. " if len(lines) == 1
-                           else "devices above. ") +
-                        "If ChromIQ or Argyll still can't open your instrument, click "
-                        "<b>Reinstall Driver</b> to run the installer again."
-                    )
-                elif _wdi_available:
-                    action_text = (
-                        "Click <b>Install Driver</b> to install the Microsoft WinUSB driver "
-                        "automatically. A Windows security prompt will appear — click Yes to "
-                        "continue.<br><br>"
-                        "<i>No test-signing mode required. Works on x64 and ARM64.</i>"
-                    )
-                else:
-                    # THE WARNING IS NOT OPTIONAL ON A MACHINE THAT MAY HAVE
-                    # A CR30. "Find your colorimeter and give it WinUSB" is
-                    # right for every device this dialog knows about and
-                    # catastrophic for one it does not: the CR30 is reached
-                    # through a COM port, and WinUSB removes it. Nothing in the
-                    # app can steer the user there — but this text can, and a
-                    # user with driver trouble is exactly who follows it.
-                    action_text = (
-                        "Click <b>Open Zadig</b> and ChromIQ will launch <b>Zadig</b>, a free "
-                        "USB driver tool. In Zadig:<br>"
-                        "&nbsp;&nbsp;1. Click <b>Options → List All Devices</b><br>"
-                        "&nbsp;&nbsp;2. Find your colorimeter in the dropdown<br>"
-                        "&nbsp;&nbsp;3. Select <b>WinUSB</b> as the driver and click "
-                        "<b>Install Driver</b>"
-                        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
-                        "device (CH340) in Zadig. That instrument is reached "
-                        "through its COM port, and giving it WinUSB would stop "
-                        "ChromIQ finding it at all."
-                    )
-                msg_text = (
-                    ("<b>Connected colorimeter:</b><br>" if len(lines) == 1
-                     else "<b>Connected colorimeters:</b><br>")
-                    + "<br>".join(lines)
-                    + "<br><br>"
-                    + action_text
-                )
+            # The two sections go inside a scroll area and the buttons stay
+            # outside it, so a window taller than the screen scrolls rather
+            # than hiding its own text — and `Check again` / `Close` are always
+            # reachable. Both sections populated wants 934 px; a 1080p laptop
+            # at 150% has about 672 px to give.
+            body = QWidget()
+            body_lay = QVBoxLayout(body)
+            body_lay.setSpacing(14)
+            body_lay.setContentsMargins(0, 0, 0, 0)
 
-            msg = QLabel(msg_text, dlg)
+            # --- the WinUSB half, word for word as it always was ------------
+            usb_grp = QGroupBox(
+                tr("Instruments that ArgyllCMS reads over USB"), dlg)
+            usb_lay = QVBoxLayout(usb_grp)
+            usb_lay.setSpacing(12)
+            msg_text, btn_label = usb_installer_text(devices, _wdi_available)
+            msg = QLabel(msg_text, usb_grp)
             msg.setWordWrap(True)
-            layout.addWidget(msg)
+            msg.setTextFormat(Qt.TextFormat.RichText)
+            usb_lay.addWidget(msg)
+            if btn_label is not None:
+                row = QHBoxLayout()
+                row.addStretch()
+                # The certificate disclosure's second half, beside the button
+                # whose paragraph promises it. Secondary first, primary last —
+                # the same order the COM-port half below uses, so the two rows
+                # do not read as two conventions.
+                if usb_shows_certificate_details(devices, _wdi_available):
+                    cert_btn = QPushButton(_label_what_this_changes(), usb_grp)
+                    cert_btn.clicked.connect(
+                        lambda _c=False, d=dlg: d.done(_WINUSB_CERT))
+                    row.addWidget(cert_btn)
+                install_btn = QPushButton(btn_label, usb_grp)
+                install_btn.setObjectName("primary")
+                install_btn.clicked.connect(
+                    lambda _c=False, d=dlg: d.done(_WINUSB))
+                row.addWidget(install_btn)
+                usb_lay.addLayout(row)
+            body_lay.addWidget(usb_grp)
+
+            # --- the COM-port half ------------------------------------------
+            serial_grp = QGroupBox(
+                tr("Instruments that are read through a COM port"), dlg)
+            serial_lay = QVBoxLayout(serial_grp)
+            serial_lay.setSpacing(12)
+            serial_text, primary_label, secondary_label = serial_section_text(
+                states, offer_anyway=offer_anyway)
+            serial_msg = QLabel(serial_text, serial_grp)
+            serial_msg.setWordWrap(True)
+            serial_msg.setTextFormat(Qt.TextFormat.RichText)
+            serial_lay.addWidget(serial_msg)
+            if primary_label or secondary_label:
+                row = QHBoxLayout()
+                row.addStretch()
+                if secondary_label:
+                    sec = QPushButton(secondary_label, serial_grp)
+                    code = (_SERIAL_FOLDER if primary_label
+                            else _SERIAL_NOT_LISTED)
+                    sec.clicked.connect(
+                        lambda _c=False, d=dlg, k=code: d.done(k))
+                    row.addWidget(sec)
+                if primary_label:
+                    pri = QPushButton(primary_label, serial_grp)
+                    pri.setObjectName("primary")
+                    pri.clicked.connect(
+                        lambda _c=False, d=dlg: d.done(_SERIAL_GET))
+                    row.addWidget(pri)
+                serial_lay.addLayout(row)
+            body_lay.addWidget(serial_grp)
+            body_lay.addStretch()
+            layout.addWidget(self._scrollable(body, dlg))
 
             btn_box = QDialogButtonBox()
-            if devices:
-                if not needs_install:
-                    btn_label = "Reinstall Driver" if _wdi_available else "Open Zadig"
-                else:
-                    btn_label = "Install Driver" if _wdi_available else "Open Zadig"
-                install_btn = btn_box.addButton(btn_label, QDialogButtonBox.ButtonRole.AcceptRole)
-                install_btn.setObjectName("primary")
-            refresh_btn = btn_box.addButton(tr("Refresh"), QDialogButtonBox.ButtonRole.ResetRole)
+            refresh_btn = btn_box.addButton(tr("Check again"),
+                                            QDialogButtonBox.ButtonRole.ResetRole)
             refresh_btn.clicked.connect(lambda checked=False, d=dlg: d.done(_REFRESH))
-            btn_box.addButton(QDialogButtonBox.StandardButton.Close)
-            # The install/reinstall/Open-Zadig button uses AcceptRole, which
-            # fires QDialogButtonBox.accepted — wire it to the dialog's accept()
-            # or clicking it does nothing (the dialog never returns Accepted).
-            btn_box.accepted.connect(dlg.accept)
+            close_btn = btn_box.addButton(QDialogButtonBox.StandardButton.Close)
             btn_box.rejected.connect(dlg.reject)
             layout.addWidget(btn_box)
-            tint_dialog_primary(dlg, _COLOR)
+            # Enter closes. It used to press `Open Zadig` / `Install Driver` /
+            # `Get the driver…`, whichever happened to be built first.
+            _make_the_safe_button_the_default(dlg, close_btn)
+            tint_dialog_primary(dlg, _DRIVER_ACCENT)
+            self._fit_to_screen(dlg)
 
             result = dlg.exec()
 
             if result == _REFRESH:
-                continue   # rebuild with fresh device list
+                continue   # rebuild with fresh device state
 
-            if result != QDialog.DialogCode.Accepted or not devices:
-                break   # Close button or nothing connected
+            if result == _WINUSB_CERT:
+                # Read-only, and it comes straight back to the window it was
+                # opened from — reading what the install changes must not cost
+                # the user their place in the repair.
+                self._driver_notice(
+                    tr("What installing the driver changes"),
+                    usb_certificate_details_text())
+                continue
+
+            if result == _SERIAL_NOT_LISTED:
+                offer_anyway = True
+                continue
+
+            if result == _SERIAL_GET:
+                self._serial_get_driver()
+                continue
+
+            if result == _SERIAL_FOLDER:
+                self._serial_from_folder()
+                continue
+
+            if result != _WINUSB or not devices:
+                break   # Close button, or nothing to act on
 
             # ---- run installation ----
             # "Reinstall Driver" (no device needs install) repairs every detected
             # device; otherwise only the ones missing a driver are targeted.
             targets = needs_install or devices
             if _wdi_available:
-                ran_ok = all(install_winusb(d) for d in targets)
+                attempts = self._install_the_drivers(targets, install_winusb)
+                # WHAT WAS NEVER TRIED IS NOT WHAT FAILED. The loop stops after
+                # seven of the ten endings (see `HALTS_A_MULTI_DEVICE_RUN`), so
+                # on a two-instrument machine the tail of `targets` can be
+                # untouched — and the old `all(...)` GENERATOR did this silently
+                # for every falsy answer, then let the window name those
+                # instruments among the ones the install "did not take" on.
+                attempted = targets[:len(attempts)]
+                not_attempted = targets[len(attempts):]
+                stopped_watching = any(a is InstallAttempt.STILL_RUNNING
+                                       for a in attempts)
+                # `len(attempts) == len(targets)` is not redundant with the
+                # `all(...)`: an empty list makes `all` True and would claim a
+                # success nobody attempted.
+                ran_ok = (not stopped_watching
+                          and len(attempts) == len(targets)
+                          and all(a is InstallAttempt.INSTALLED
+                                  for a in attempts))
                 # wdi-simple can report success (exit 0) without actually binding
                 # the driver to the live device — a stale ghost instance from a
                 # previous USB port can misdirect it. Verify by re-enumerating
                 # before claiming success, and fall back to Zadig if it didn't bind.
-                still_unbound = unbound_targets(targets)
-                if ran_ok and not still_unbound:
-                    outcome_text = "WinUSB driver installed successfully."
-                    offer_zadig = False
-                elif not ran_ok:
-                    outcome_text = (
-                        "Automatic installation failed or was cancelled.<br>"
-                        "Click <b>Try Zadig</b> to install it manually using the guided tool."
-                    )
-                    offer_zadig = True
-                else:
-                    names = ", ".join(d.name for d in still_unbound) or "the instrument"
-                    outcome_text = (
-                        "Windows reported the install finished, but the driver still "
-                        f"isn't bound to {names}. This often happens when the device "
-                        "was previously plugged into a different USB port.<br><br>"
-                        "Click <b>Try Zadig</b> to install it reliably: pick your "
-                        "instrument in Zadig, choose <b>WinUSB</b> (or libusb-win32), "
-                        "then click <b>Replace Driver</b>. Unplugging and replugging the "
-                        "instrument first can also help."
-                    )
-                    offer_zadig = True
+                #
+                # unbound_targets() re-enumerates through enumerate_connected(),
+                # which is now presence-filtered at instance level, so a ghost
+                # can neither be reported as "the install did not bind" nor lend
+                # its stale driver to a device that did not bind at all.
+                #
+                # BUT IT IS NOT ASKED WHILE AN INSTALL IS STILL RUNNING. It
+                # samples the registry AND cfgmgr32's PRESENT list — exactly the
+                # device stack wdi-simple is re-enumerating — and mid-install it
+                # can be wrong in either direction: an instance that is
+                # transiently absent is dropped by the presence guard and the
+                # device reads as bound, while an instance whose id has just
+                # changed sends that same guard to its "fall back to every
+                # remembered instance" branch, which re-admits the ghosts this
+                # function exists to see past.
+                #
+                # AND IT IS ASKED ONLY ABOUT THE INSTRUMENTS THAT WERE
+                # ATTEMPTED. It answers "is this device driven?", which for one
+                # ChromIQ never elevated for is a fact about the machine and not
+                # a verdict on an install — and the sentence it feeds reads
+                # "Windows reported the install finished, but the driver still
+                # isn't bound to {names}", which would then be false twice over.
+                still_unbound = [] if stopped_watching \
+                    else unbound_targets(attempted)
+                outcome_text, offer_zadig = usb_install_outcome(
+                    wdi_available=True,
+                    ran_ok=ran_ok,
+                    stopped_watching=stopped_watching,
+                    still_unbound_names=[d.name for d in still_unbound],
+                    not_attempted_names=[d.name for d in not_attempted],
+                    zadig_status=None,
+                    # `needs_install` is the list read BEFORE the button was
+                    # pressed, so it is the only thing that can tell a repair
+                    # apart from an install. Empty means the user pressed
+                    # `Reinstall Driver` on hardware that already worked, and
+                    # the outcome window must not call that a success.
+                    driver_was_missing=bool(needs_install),
+                    target_names=[d.name for d in targets],
+                )
             else:
-                status = launch_zadig()
-                if status == "launched":
-                    outcome_text = (
-                        "Zadig is open. Select your colorimeter, choose WinUSB, "
-                        "then click Install Driver."
-                        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
-                        "device (CH340) in Zadig. That instrument is reached "
-                        "through its COM port, and giving it WinUSB would stop "
-                        "ChromIQ finding it at all."
-                    )
-                elif status == "download_page":
-                    outcome_text = (
-                        "Zadig isn't bundled with this build, so its download page "
-                        "has been opened in your browser.<br>"
-                        "Download and run <b>Zadig</b>, then: Options → List All Devices → "
-                        "select your colorimeter → choose WinUSB → Install Driver."
-                        "<br><br><b>If you own a CR30:</b> do not pick the USB-serial "
-                        "device (CH340) in Zadig. That instrument is reached "
-                        "through its COM port, and giving it WinUSB would stop "
-                        "ChromIQ finding it at all."
-                    )
-                else:
-                    outcome_text = (
-                        "Could not open Zadig or its download page. Visit "
-                        "<b>https://zadig.akeo.ie</b> manually, or try running ChromIQ "
-                        "as Administrator."
-                    )
-                offer_zadig = False
+                outcome_text, offer_zadig = usb_install_outcome(
+                    wdi_available=False, ran_ok=False, still_unbound_names=[],
+                    stopped_watching=False,
+                    zadig_status=launch_zadig(),
+                    driver_was_missing=bool(needs_install),
+                    target_names=[d.name for d in targets],
+                )
 
-            outcome_dlg = QDialog(self)
-            outcome_dlg.setWindowTitle(tr("Driver Installation"))
-            outcome_dlg.setMinimumWidth(420)
-            ol = QVBoxLayout(outcome_dlg)
-            ol.setContentsMargins(24, 20, 24, 20)
-            ol.setSpacing(14)
-            lbl = QLabel(outcome_text, outcome_dlg)
-            lbl.setWordWrap(True)
-            ol.addWidget(lbl)
-            obox = QDialogButtonBox()
-            if offer_zadig:
-                zadig_btn = obox.addButton(tr("Try Zadig"), QDialogButtonBox.ButtonRole.AcceptRole)
-                zadig_btn.setObjectName("primary")
-                zadig_btn.clicked.connect(lambda: launch_zadig())
-            obox.addButton(QDialogButtonBox.StandardButton.Ok)
-            obox.accepted.connect(outcome_dlg.accept)
-            obox.rejected.connect(outcome_dlg.reject)
-            ol.addWidget(obox)
-            outcome_dlg.exec()
+            if self._driver_notice(tr("Driver Installation"), outcome_text,
+                                   tr("Try Zadig") if offer_zadig else None):
+                launch_zadig()
             break
+
+    def _open_report_limits(self) -> None:
+        """#182: the limits table, editing this dialog's buffer (written on
+        Save, dropped on Cancel)."""
+        from ui.dialogs.thresholds_dialog import ThresholdsDialog
+        buf = getattr(self, "_compliance_buffer", None)
+        if buf is None:
+            from core.settings import compliance_overrides_of
+            buf = self._compliance_buffer = {
+                "overrides": compliance_overrides_of(self._settings),
+                "default_set": str(self._settings.get("compliance_default_set",
+                                                      "chromiq_default")),
+            }
+        dlg = ThresholdsDialog(
+            self._settings, self, buffer=buf,
+            # K36-1: "Default for new reports" pairs with the default type
+            default_type=str(self._report_type_default_combo.currentData()
+                             or ""))
+        dlg.exec()
+        dlg.deleteLater()
+
+    def _on_default_type_chosen(self, index: int) -> None:
+        """K36-1: an ISO report type chosen as the default makes its
+        standard's set the default limit set (buffered, written on Save),
+        unless the default set is already one of the four ISO sets."""
+        from workflow.measurement_report import REPORT_TYPE_ISO_SET
+        tid = str(self._report_type_default_combo.itemData(index) or "")
+        was = str(getattr(self, "_default_type_last", "") or "")
+        self._default_type_last = tid
+        buf = getattr(self, "_compliance_buffer", None)
+        if buf is None:
+            from core.settings import compliance_overrides_of
+            buf = self._compliance_buffer = {
+                "overrides": compliance_overrides_of(self._settings),
+                "default_set": str(self._settings.get(
+                    "compliance_default_set", "chromiq_default")),
+            }
+        sid = REPORT_TYPE_ISO_SET.get(tid)
+        # **A STEP IS NOT A CHOICE (challenge 4 of beta 42, B8-1073).**
+        # `activated` fires for every wheel notch and arrow key, so walking
+        # the pulldown past an ISO type replaced the default set and left it
+        # replaced on a non-ISO type. The set an ISO type moves is remembered
+        # (Basti's option a) and put back when the type leaves the ISO types.
+        # While an ISO type is chosen only ISO sets can be chosen, so the
+        # remembered set is the last one chosen beside a non-ISO type.
+        # AN ALLOWED SET IS KEPT (Knut, #182 5822758830, answer 4): one of
+        # the four ISO sets stays, the other standard's included; any other
+        # set moves to the type's own ISO 12647 set, and only that is
+        # remembered.
+        if sid:
+            from workflow.measurement_report import set_allowed_for_type
+            _now = str(buf.get("default_set") or "")
+            if not set_allowed_for_type(tid, _now):
+                if was not in REPORT_TYPE_ISO_SET \
+                        and getattr(self, "_set_before_iso_type",
+                                    None) is None:
+                    self._set_before_iso_type = _now
+                buf["default_set"] = sid
+            return
+        back = getattr(self, "_set_before_iso_type", None)
+        if was in REPORT_TYPE_ISO_SET and back:
+            buf["default_set"] = back
+        self._set_before_iso_type = None
 
     def _restore_defaults(self) -> None:
         self._settings.reset_to_defaults()
@@ -4325,6 +7224,7 @@ class SettingsDialog(QDialog):
         self._update_checker.update_available.connect(self._on_update_available)
         self._update_checker.up_to_date.connect(self._on_up_to_date)
         self._update_checker.check_failed.connect(self._on_update_failed)
+        self._update_checker.rate_limited.connect(self._on_update_rate_limited)
         self._update_checker.check_async()
 
     def _on_update_available(self, latest: str) -> None:
@@ -4341,6 +7241,40 @@ class SettingsDialog(QDialog):
         self._update_btn.setText(tr("Check for Updates"))
         _ink(self._update_status, "#4caf50", " font-size: 11px;")
         self._update_status.setText(tr("You're up to date."))
+
+    def _on_update_rate_limited(self, reset: int) -> None:
+        """Nothing is broken: this address has used its hour of free checks.
+
+        GitHub answers 60 checks an hour to a caller with no account, counted
+        against the INTERNET CONNECTION rather than the person, so an office or
+        a shared mobile network can spend it between them. The old text was
+        "Check failed: GitHub answered 403.", which names a number a user
+        cannot act on and calls a wait a failure.
+        """
+        self._update_btn.setEnabled(True)
+        self._update_btn.setText(tr("Check for Updates"))
+        _ink(self._update_status, "#e67e00", " font-size: 11px;")
+        when = ""
+        if reset:
+            from PyQt6.QtCore import QDateTime, QLocale
+            moment = QDateTime.fromSecsSinceEpoch(int(reset)).toLocalTime()
+            when = QLocale().toString(moment.time(), QLocale.FormatType.ShortFormat)
+        if when:
+            text = tr(
+                "GitHub answers only so many update checks an hour from one "
+                "internet connection, and this connection has used them up. "
+                "It can be asked again from about {time}. Until then you can "
+                "<a href=\"{url}\">open GitHub Releases</a> to see what is there."
+            ).format(time=when, url=_RELEASES_PAGE)
+        else:
+            text = tr(
+                "GitHub answers only so many update checks an hour from one "
+                "internet connection, and this connection has used them up. "
+                "Please try again later, or "
+                "<a href=\"{url}\">open GitHub Releases</a> to see what is there."
+            ).format(url=_RELEASES_PAGE)
+        self._update_status.setText(text)
+        self._update_status.setOpenExternalLinks(True)
 
     def _on_update_failed(self, reason: str) -> None:
         self._update_btn.setEnabled(True)

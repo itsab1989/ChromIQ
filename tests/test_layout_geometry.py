@@ -651,14 +651,30 @@ def test_margins_are_law_patch_top_at_margin_and_labels_at_edge():
     assert abs(pl.leader_top - 4.0) < 1e-9                    # label 4 mm from edge
 
 
-def test_margins_are_law_label_slides_to_edge_not_behind_patches():
-    """In law mode a too-small top margin must push the strip label TOWARD the page
-    edge (out of the patch block), never behind the patches (Knut #93). The label
-    bottom stays at/above the patch-area top; a big margin still anchors at the
-    text-edge distance."""
+def test_margins_are_law_label_holds_its_distance_and_may_cross_the_patches():
+    """In law mode the strip label keeps the distance from the PAGE EDGE that
+    was asked for, and a top margin too small to hold the band is shown as an
+    overlap rather than designed away.
+
+    Knut, #182, comment 5649810914, 2026-09-13, settling the collision this
+    test used to record as open:
+
+        "I want the function that I specified, where the strip labels do not
+         cross the "Text distance from edge" value (or the defined "Distance
+         from page edge" + "Marker length" + 1.0mm, whichever is largest (if
+         helper markers are enabled)), and then the text overlaps on top of the
+         patch area top edge (according to top margin)."
+
+    What it replaces: `placement` used to clamp the band at ``margin_t - band``
+    so it slid TOWARD the page edge (Knut #93), giving the distance up to
+    protect the patch area. The warning is now
+    `workflow/text_edge_fit.py::strip_label_overlap`, and the letters are
+    composited over the patches by `raster` so the overlap is visible instead
+    of painting them out.
+    """
     from workflow.layout_engine.presets import LayoutRecipe
     w, h = geometry_papers("A4R")
-    # Tight 7 mm top margin, label band ~7 mm → label must slide up to the edge.
+    # Tight 7 mm top margin, label band ~7 mm → the band crosses the margin.
     tight = instruments.geom_from_build_kwargs(
         LayoutRecipe(instrument="i1", paper="A4R", layout_mode="area_first",
                      area_method="by_width", area_min_patch_mm=8.0,
@@ -667,7 +683,12 @@ def test_margins_are_law_label_slides_to_edge_not_behind_patches():
     pl = geometry.placement(tight, w, h, lay)
     lab_h = tight.label_band_mm if tight.label_band_mm >= 0 else tight.txhisl
     assert pl.leader_top >= 0.0                          # never off the page top
-    assert pl.leader_top + lab_h <= tight.margin_t + 0.05  # bottom not behind patches
+    assert abs(pl.leader_top - 4.0) < 1e-9, (
+        f'the band hangs at {pl.leader_top} mm, not the 4 mm "T" asked for; '
+        "the clamp is back")
+    assert pl.leader_top + lab_h > tight.margin_t, (
+        "a 7 mm band under a 7 mm top margin at a 4 mm reserve has to cross "
+        "the patch-area top; something is still holding it off")
     # Roomy margin → label sits at the text-edge distance as before.
     roomy = instruments.geom_from_build_kwargs(
         LayoutRecipe(instrument="i1", paper="A4", layout_mode="area_first",
@@ -676,6 +697,16 @@ def test_margins_are_law_label_slides_to_edge_not_behind_patches():
     w2, h2 = A4
     lay2 = geometry.compute(roomy, w2, h2, 200)
     assert abs(geometry.placement(roomy, w2, h2, lay2).leader_top - 4.0) < 1e-9
+    # …and the ruler helper markers raise that anchor when they reach further
+    # in: 4.0 + 2.0 + 1.0 = 7.0 mm beats the 4 mm "T" (#182).
+    marked = instruments.geom_from_build_kwargs(
+        LayoutRecipe(instrument="i1", paper="A4", layout_mode="area_first",
+                     area_method="by_width", area_min_patch_mm=8.0,
+                     margin_top=38.0, text_edge_top_mm=4.0,
+                     helper_markers=True, helper_marker_edge_mm=4.0,
+                     helper_marker_len_mm=2.0).build_kwargs())
+    lay3 = geometry.compute(marked, w2, h2, 200)
+    assert abs(geometry.placement(marked, w2, h2, lay3).leader_top - 7.0) < 1e-9
 
 
 def test_margins_are_law_furniture_does_not_reduce_capacity():

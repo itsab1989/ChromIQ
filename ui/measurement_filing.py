@@ -206,14 +206,33 @@ def _undo_the_run(proj, made_here, was_current) -> None:
     only right when that is where the person was. Import into a two-run project
     and be refused, and it moved them from run 1 to run 2 under a window saying
     nothing had been changed.
+
+    AND `made_here` IS NOT THE ONLY WAY THE MANIFEST MOVES. This began
+    `if made_here is None: return`, which switched the whole function off at the
+    one refusal the docstring above describes: `duplicate_run` calls
+    `new_run()`, runs its OWN `_discard_run` rollback when the copy fails, and
+    RE-RAISES — so the manifest has already moved to `runs[-1]` by the time the
+    handler runs, while `made_here` is still None because it is assigned on the
+    line after the one that raised. Both import doors then said "nothing has
+    been changed" over a project standing somewhere else.
+
+    Driven on screen (combined round 6, `B-result.json`,
+    `B2-the-refusal-that-moved-the-project.png`): a three-run project standing
+    on Run 1, an import into Run 1 answered with "Make a new run", the copy
+    refused as a full disk refuses it, and afterwards `project.json` read
+    `current_run: run3` and a fresh open stood on Run 3 - under
+    "Nothing has been imported and nothing has been changed."
+
+    So discarding a run is CONDITIONAL and putting the manifest back is not:
+    every caller is on a refusal path, and on a refusal path the project
+    belongs where the person left it.
     """
-    if made_here is None:
-        return
-    try:
-        proj._discard_run(made_here, just_created=True)
-    except Exception:      # noqa: BLE001 — never lose the message
-        log.warning("import: could not undo the run it made", exc_info=True)
-        return
+    if made_here is not None:
+        try:
+            proj._discard_run(made_here, just_created=True)
+        except Exception:      # noqa: BLE001 — never lose the message
+            log.warning("import: could not undo the run it made", exc_info=True)
+            return
     if not was_current:
         return
     try:
@@ -239,7 +258,7 @@ def _cannot_file(parent, reason: str, *, project: str = "") -> bool:
     InfoDialog(
         tr("ChromIQ could not file the measurement"),
         tr("Nothing has been changed, and your own file is untouched where it "
-           "is.\n\nThe reason: {reason}.\n\nThis usually means the folder is "
+           "is.\n\n**The reason:** {reason}.\n\nThis usually means the folder is "
            "read-only, the disk is full, it lives on a drive or share that is "
            "no longer connected, or the project's own {manifest} file has been "
            "damaged. Check the project and try again, or choose another one."
@@ -429,6 +448,118 @@ def _say_the_open_failed(parent, root, already_filed, reason: str) -> None:
     _cannot_file(parent, reason, project=str(root))
 
 
+def only_you_can_confirm_the_chart(parent, verdict, chart: "Path | None") -> bool:
+    """Ask M-IMPORT-DEVICE-FROM-CHART. True = go ahead, False = do not file.
+
+    **THE MEASURE TAB ASKED THIS AND THE FILING DOORS DID NOT.** A measurement
+    with no device values of its own takes them from the chart, and the check
+    that would say whether it really is a measurement of THAT chart compares
+    device values, which this file has none of. The name check is as far as
+    names can go: another chart laid out the same way carries the same names.
+    So `ui/tabs/tab_measure.py` puts the question to the person before it lets
+    the chart supply anything, and says why in a comment: *"this is the one
+    thing ChromIQ genuinely cannot check … Only the person who printed the
+    sheet knows."*
+
+    The filing doors reach the identical act through `say_what_was_filed` and
+    asked nothing. Driven on screen (adversarial round four, 2026-09-12): an
+    i1Profiler-shaped export with SAMPLE_LOC, XYZ and not one device column was
+    handed to `file_into_project` on a project whose run held a chart with the
+    same 30 patch names. The only window that appeared was "Where should the
+    measurement go?"; the copy landed in run2 carrying
+    ``CHROMIQ_DEVICE_FROM_CHART "PairProbe.ti2"`` and the chart's RGB columns,
+    and nobody was ever asked whether the sheet had been printed from it.
+
+    Asked HERE, before the first byte moves, so "Cancel changes nothing" is
+    true. The message and both button words are the ones the Measure tab
+    already uses, so this adds no string to any catalogue.
+    """
+    if not (getattr(verdict, "ok", False)
+            and getattr(verdict, "device_from_chart", False)):
+        return True
+    from PyQt6.QtWidgets import QMessageBox
+
+    from workflow import measurement_messages as M
+    title, body = M.M_IMPORT_DEVICE_FROM_CHART.render(
+        count=int(getattr(verdict, "n_measured", 0) or 0),
+        chart=Path(chart).name if chart else "")
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.NoIcon)
+    box.setWindowTitle(title)
+    box.setText(title)
+    box.setInformativeText(body)
+    go = box.addButton(tr("Import it"), QMessageBox.ButtonRole.AcceptRole)
+    cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+    box.setDefaultButton(cancel)
+    fit_message_box_buttons(box)
+    box.exec()
+    return box.clickedButton() is go
+
+
+def the_colour_scale_tag() -> str:
+    """The short mark a door puts after a measurement's own name.
+
+    The separator is part of the key on purpose: both labels print
+    ``<the file>  ·  <the tag>``, and one key keeps the two doors looking the
+    same in all twelve languages.
+    """
+    return tr("  \u00b7  colour values on the wrong scale")
+
+
+def the_colour_scale_note(ti3) -> str:
+    """The ONE sentence every door says about a ``.ti3`` whose XYZ is 0..1.
+
+    ``""`` when there is nothing to say, so a caller can use the answer as
+    both the question and the words.
+
+    THE READING AND THE SENTENCE, IN ONE PLACE, BECAUSE THREE DOORS ASK.
+    ``repair_converted_cie`` puts the hundredfold CIE scale right on every path
+    that CONVERTS an i1Profiler export; a ``.ti3`` that was converted before
+    that repair existed is never converted again, so only a READING can catch
+    it. That reading, :func:`reference_convert.cie_columns_are_unscaled`, was
+    referenced in exactly one place in the app - ``tab_profile.set_ti3_path`` -
+    and the two import doors on the Measurement tab asked nothing.
+
+    Measured on screen, combined round 10 (`H-result.json`), with a real
+    240-patch measurement whose XYZ columns were divided by 100 - the exact
+    shape the fault produces, so names, counts and device values all still
+    match the run's own chart:
+
+    * **Build ICC profile** marked the file *"colour values on the wrong
+      scale"* and explained it on the button.
+    * **the profiling import door** filed it, said "The measurement was
+      imported", and SAVED A DATED MEASUREMENT REPORT from it, with nothing
+      anywhere about the scale.
+    * **the verification import door** filed it into a new dated verification
+      folder, said "The measurement was imported", and said nothing either.
+
+    Graded INHERITED, NOT INTRODUCED: the verification door has been shipping
+    this way since the reading was written on 2026-09-11, and the profiling
+    door was built the same way and inherited the gap.
+
+    SAID, NOT MENDED AND NOT FORBIDDEN - the rule ``tab_profile`` already
+    records. Rewriting a measurement the user did not ask us to touch is a
+    write, and refusing a file ArgyllCMS will happily read is not our decision.
+    What this owes them is that no door is silent.
+
+    NO NEW WORDS. The sentence and the tag are the two strings the Build ICC
+    profile tab has shown since 2026-09-11, already translated into all twelve
+    catalogues - they are moved here and referenced, never copied. New message
+    text in this area goes to §M-PROPOSED first, and none is needed.
+    """
+    from workflow.reference_convert import cie_columns_are_unscaled
+    if ti3 is None or not cie_columns_are_unscaled(ti3):
+        return ""
+    return tr(
+        "The XYZ columns in this measurement are on the 0 to 1 scale, "
+        "not the 0 to 100 one ArgyllCMS uses, so every colour in it "
+        "reads far too dark: its paper white is almost black. That "
+        "happens when an i1Profiler export is converted by a version of "
+        "ChromIQ that did not put the scale right. Import the "
+        "measurement again to get a usable one. A profile built from "
+        "this file will record its paper white as almost black.")
+
+
 def chart_the_copy_will_be_judged_against(filed: Path) -> "Path | None":
     """The chart in the run *filed* has just landed in, or None.
 
@@ -463,11 +594,18 @@ def say_what_was_filed(parent, filed: Path) -> None:
     written, where a rollback is still possible, and it does — see
     `refuse_it_does_not_belong`, which both doors call before they copy.
     """
-    from workflow.measurement_import import assess
+    from workflow.measurement_import import assess, complete_from_chart
     chart = chart_the_copy_will_be_judged_against(filed)
     if chart is None:
         return                       # a bare measurement: nothing to judge it by
     verdict = assess(Path(filed), chart)
+    if verdict.ok and verdict.device_from_chart:
+        # The COPY takes the chart's device values and the chart's row order.
+        # Filed without them it is paired by whatever order the measuring tool
+        # happened to write, and the report then compares every patch against a
+        # real patch that is not the right one, saying nothing is wrong. Done
+        # here because this is the one place every filing door ends on.
+        complete_from_chart(Path(filed), chart)
     if verdict.ok and verdict.partial:
         InfoDialog(
             tr("Filed — and it is a partial measurement"),
@@ -479,6 +617,64 @@ def say_what_was_filed(parent, filed: Path) -> None:
                "measurement report states both counts."
                ).format(chart=verdict.n_chart, got=verdict.n_measured),
             parent, min_width=580).exec()
+
+
+def ask_to_make_a_new_run(parent, proj, run) -> bool:
+    """§I.9's question, asked wherever an import meets a run that already holds
+    a measurement: may ChromIQ make a new run beside it, with a copy of the
+    same chart, and file the import there?
+
+    True to go ahead, False when the person said no. `duplicate_run_plan` is
+    left to raise: every caller has its own rollback to run first, and
+    swallowing the reason here is how one of them would end up reporting a
+    different cause from the other.
+
+    ONE COPY OF THESE WORDS, and that is the whole reason this is a function.
+    The Measure tab's IMPORT module became the second door to ask this question
+    (Katrina, 2026-09-15), and the fault the shared helpers in this file exist
+    to prevent is precisely two doors describing the same act differently — see
+    `say_what_was_filed`, which was written after exactly that happened
+    (round 2, T1-G). The text below is the text `file_into_project` has shown
+    since 2026-09-01; it has not been re-worded in the move.
+
+    A RUN IS NEVER DISPLACED, which is the rule underneath the question. The
+    road to a second result is a new place to put it, not an overwrite: a run's
+    `.icc`, its `reports/` and its verifications all describe the measurement
+    that is in it, and writing over that `.ti3` orphans every one of them while
+    leaving them on screen looking current.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    plan = proj.duplicate_run_plan(run, ("chart",))
+    n_files = sum(len(files) for _g, files, _s in plan)
+    # "Run 2", not "Run run2" — the same translated label §S4.7 uses.
+    _run_label = tr("Run {n}").format(
+        n=getattr(run, "number", None) or run.id.replace("run", ""))
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.NoIcon)
+    _t = tr("That run already has a measurement")
+    box.setWindowTitle(_t)
+    box.setText(_t)
+    box.setInformativeText(tr(
+        "{label} already holds a measurement, and ChromIQ does not "
+        "write over one.\n\nInstead it can make a new run beside it "
+        "with a copy of the same chart ({n} chart files), and file the "
+        "measurement you are importing there. Nothing in {label} is "
+        "touched.").format(label=_run_label, n=n_files))
+    _go = box.addButton(tr("Make a new run"),
+                        QMessageBox.ButtonRole.AcceptRole)
+    _stop = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+    box.setDefaultButton(_stop)
+    # THE TWO HOUSE RULES FOR EVERY WINDOW, and this one had neither.
+    # `fit_message_box_buttons` sizes each button to the words it will
+    # actually paint — without it "Make a new run" came out as "lake a
+    # new ru", clipped at both ends, which is the very fault Knut
+    # reported on the Delete windows (#130) and had these helpers
+    # written for. `spread_message_box_buttons` puts CANCEL ON THE FAR
+    # RIGHT, never between the safe answer and the one that acts.
+    fit_message_box_buttons(box)
+    spread_message_box_buttons(box, order=[_go, _stop])
+    box.exec()
+    return box.clickedButton() is _go
 
 
 def refuse_it_does_not_belong(parent, reason: str) -> None:
@@ -495,7 +691,7 @@ def refuse_it_does_not_belong(parent, reason: str) -> None:
     InfoDialog(
         tr("This measurement does not belong to that chart"),
         tr("ChromIQ did not file it, and nothing has been changed.\n\n"
-           "The reason: {reason}.").format(reason=reason),
+           "**The reason:** {reason}.").format(reason=reason),
         parent, min_width=560).exec()
 
 
@@ -617,9 +813,16 @@ def make_new_project_and_file(parent, name: str, measurement: Path, fm, ctl,
     # different answers. No sibling means no chart, `assess` says so itself,
     # and a bare measurement is imported as it always was.
     from workflow.measurement_import import assess
-    _verdict = assess(measurement, chart_beside(measurement))
+    _chart_beside = chart_beside(measurement)
+    _verdict = assess(measurement, _chart_beside)
     if not _verdict.ok:
         refuse_it_does_not_belong(parent, _verdict.reason)
+        return True
+    # THE SAME QUESTION THE OTHER DOOR NOW ASKS, at the same moment: before
+    # anything is created. A sibling `.ti2` is where the file was found, not
+    # a statement that the sheet was printed from it, and the check that
+    # would settle it compares device values this file does not have.
+    if not only_you_can_confirm_the_chart(parent, _verdict, _chart_beside):
         return True
     try:
         filed = resolve_ti3(parent, measurement, settings, name=name)
@@ -935,41 +1138,12 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     # a second result is a NEW PLACE to put it.
     if run.measurement_ti3.is_file():
         try:
-            plan = proj.duplicate_run_plan(run, ("chart",))
+            go = ask_to_make_a_new_run(parent, proj, run)
         except (OSError, ValueError) as exc:
             _undo_the_run(proj, made_here, was_current)
             return _cannot_file(parent, str(exc) or type(exc).__name__,
                                 project=name)
-        n_files = sum(len(files) for _g, files, _s in plan)
-        # "Run 2", not "Run run2" — the same translated label §S4.7 uses.
-        _run_label = tr("Run {n}").format(
-            n=getattr(run, "number", None) or run.id.replace("run", ""))
-        box = QMessageBox(parent)
-        box.setIcon(QMessageBox.Icon.NoIcon)
-        _t = tr("That run already has a measurement")
-        box.setWindowTitle(_t)
-        box.setText(_t)
-        box.setInformativeText(tr(
-            "{label} already holds a measurement, and ChromIQ does not "
-            "write over one.\n\nInstead it can make a new run beside it "
-            "with a copy of the same chart ({n} chart files), and file the "
-            "measurement you are importing there. Nothing in {label} is "
-            "touched.").format(label=_run_label, n=n_files))
-        _go = box.addButton(tr("Make a new run"),
-                            QMessageBox.ButtonRole.AcceptRole)
-        _stop = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(_stop)
-        # THE TWO HOUSE RULES FOR EVERY WINDOW, and this one had neither.
-        # `fit_message_box_buttons` sizes each button to the words it will
-        # actually paint — without it "Make a new run" came out as "lake a
-        # new ru", clipped at both ends, which is the very fault Knut
-        # reported on the Delete windows (#130) and had these helpers
-        # written for. `spread_message_box_buttons` puts CANCEL ON THE FAR
-        # RIGHT, never between the safe answer and the one that acts.
-        fit_message_box_buttons(box)
-        spread_message_box_buttons(box, order=[_go, _stop])
-        box.exec()
-        if box.clickedButton() is not _go:
+        if not go:
             return True                      # cancelled; nothing touched
         try:
             run = proj.duplicate_run(run, ("chart",))
@@ -996,6 +1170,12 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
         # again (round 2, T1-G).
         refuse_it_does_not_belong(parent, verdict.reason)
         return True
+    # …AND THE ONE QUESTION THE NAME CHECK CANNOT ANSWER, before the copy.
+    # See `only_you_can_confirm_the_chart`: this door reached
+    # `complete_from_chart` through `say_what_was_filed` and never asked it.
+    if not only_you_can_confirm_the_chart(parent, verdict, run.chart_ti2):
+        _undo_the_run(proj, made_here, was_current)
+        return True
     import shutil
     try:
         shutil.copy2(measurement, run.measurement_ti3)
@@ -1011,7 +1191,7 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
             tr("ChromIQ could not write into that project"),
             tr("The measurement has not been filed, and nothing has been "
                "changed. Your own file is untouched where it is.\n\n"
-               "The reason: {reason}.\n\nThis usually means the folder is "
+               "**The reason:** {reason}.\n\nThis usually means the folder is "
                "read-only, the disk is full, or it lives on a drive or share "
                "that is no longer connected. Check the folder and try again, "
                "or choose another project."

@@ -41,7 +41,7 @@ def _ti2(path, rows):
 
 @pytest.fixture()
 def work():
-    return pathlib.Path(tempfile.mkdtemp())
+    return pathlib.Path(tempfile.mkdtemp(prefix="chromiq-test-"))
 
 
 _CHART = [(100, 100, 100), (100, 0, 0), (0, 100, 0), (0, 0, 100),

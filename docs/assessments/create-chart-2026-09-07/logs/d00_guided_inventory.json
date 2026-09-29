@@ -1,0 +1,103 @@
+{
+  "instr_items": [
+    [
+      "i1Pro / i1Pro 2 / i1Pro 3",
+      "i1"
+    ],
+    [
+      "i1Pro 3 Plus",
+      "p3"
+    ],
+    [
+      "ColorMunki / i1Studio / ColorChecker Studio",
+      "CM"
+    ],
+    [
+      "SpectroScan",
+      "SS"
+    ],
+    [
+      "CR30 (ChnSpec)",
+      "CR30"
+    ]
+  ],
+  "paper_items": [
+    [
+      "A2 (420 \u00d7 594 mm) Portrait",
+      "A2"
+    ],
+    [
+      "A2 (594 \u00d7 420 mm) Landscape",
+      "594x420"
+    ],
+    [
+      "A3+ (329 \u00d7 483 mm) Portrait",
+      "329x483"
+    ],
+    [
+      "A3+ (483 \u00d7 329 mm) Landscape",
+      "483x329"
+    ],
+    [
+      "A3 (297 \u00d7 420 mm) Portrait",
+      "A3"
+    ],
+    [
+      "A3 (420 \u00d7 297 mm) Landscape",
+      "420x297"
+    ],
+    [
+      "Tabloid / 11 \u00d7 17\"",
+      "11x17"
+    ],
+    [
+      "Legal (8.5 \u00d7 14\")",
+      "Legal"
+    ],
+    [
+      "A4 (210 \u00d7 297 mm) Portrait",
+      "A4"
+    ],
+    [
+      "A4 (297 \u00d7 210 mm) Landscape",
+      "A4R"
+    ],
+    [
+      "Letter (8.5 \u00d7 11\") Portrait",
+      "Letter"
+    ],
+    [
+      "Letter (11 \u00d7 8.5\") Landscape",
+      "LetterR"
+    ],
+    [
+      "8\u00d710\" (203 \u00d7 254 mm)",
+      "203x254"
+    ],
+    [
+      "5\u00d77\" (127 \u00d7 178 mm)",
+      "127x178"
+    ],
+    [
+      "4\u00d76\" (102 \u00d7 152 mm)",
+      "4x6"
+    ]
+  ],
+  "pages": {
+    "min": 1,
+    "max": 20,
+    "value": 4,
+    "enabled": true,
+    "visible": true
+  },
+  "dd_visible": true,
+  "td_visible": true,
+  "lb_visible": false,
+  "lb_checked": false,
+  "nsl_visible": false,
+  "patch_count_lbl": "420<span style=\"color: #101010; font-style: italic;\">!</span>",
+  "patch_detail_lbl": "PATCHES \u00b7 4 PAGES \u00b7 A4",
+  "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e2 -B2 -g21 chart\nChromIQ layout engine \u00b7 CM \u00b7 A4 \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 hand-held",
+  "name": "Demo-Full-RGB",
+  "name_hint": ""
+}

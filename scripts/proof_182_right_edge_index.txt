@@ -1,0 +1,51 @@
+Proof index — #182 K1 and K5, the right edge (2026-09-13)
+=========================================================
+
+Everything below was produced by driving the REAL app in a REAL window on this
+machine (macOS 15, 1728x1080 window, Screen Recording granted; no
+QT_QPA_PLATFORM=offscreen anywhere). Settings sandboxed to
+/tmp/chromiq-rightedge.ini, presets to /tmp/chromiq-rightedge-presets, and
+custom_output_path pinned into a per-run temp folder. Checked afterwards:
+`defaults read com.chromiq.ChromIQ custom_output_path` -> the key does not
+exist, and the real plist's mtime is still 11 Sep.
+
+Drivers and probes (this branch)
+--------------------------------
+scripts/drive_182_right_edge_k1_k5.py
+    --phase k1   Knut's ColorMunki A3-900p-2pages-Portrait at clip 24 and 18
+    --phase k1s  the same sheet twice, one project and a fixed seed, for a
+                 strict pixel comparison
+    --phase k1m  five (band, right margin, clip size) combinations, each built
+                 with the clip content on and off
+    --phase k5   the chart note beside the clip text at 7 / 10 / 14 pt and with
+                 a typed 12 pt note, each with a control build without the note
+scripts/probe_182_right_edge_report.py          reads the JSON back
+scripts/probe_182_note_gap_internals.py         `_stamp_one`'s own locals, via
+                                                sys.settrace, on the app's page
+scripts/probe_182_note_gap_whatif.py            the same call with the band the
+                                                sheet actually has
+scripts/probe_182_which_column_is_the_patch_edge.py
+scripts/probe_182_pair_diff.py                  column-by-column page diff
+scripts/probe_182_right_edge_crop.py            a strip of a page, as a PNG
+scripts/probe_182_leading_from_the_font.py      1.2 em / font / ink, per size
+
+Artefacts (~/Desktop/chromiq-182-right-edge/)
+---------------------------------------------
+k1-k5.json                     every number, with the app's own call arguments
+note-gap-internals.json        `_stamp_one`'s locals per case
+note-gap-whatif.json           the note with a corrected band
+k1-clip24-window.png           the real window, clip 24: "Margins: OK", green
+k1-clip18-window.png           the real window, clip 18: Knut's red warning
+k1m-*-window.png               the window for each matrix case
+k5-*-window.png                the window for each note case
+k1-clip{24,18}-page{1,2}.tif   the sheets the app wrote for K1
+k1strict-s{24,18}-page{1,2}.tif the strict pair (one project, seed 4812)
+k1m-<case>-{text,off}-page1.tif the matrix pair per case
+k5-<case>-{note,control}-page1.tif the note pair per case
+proof-k1-clip24-strip.png      the right 30 mm of the sheet, clip 24
+proof-k1-clip18-strip.png      the same at clip 18: the same ink, one pixel over
+proof-k5-clip10-note-strip.png the note crowded against the clip text's rule
+proof-k5-clip14-note-strip.png the same at 14 pt, where it is worse
+proof-k1m-b12-m12-strip.png    the clip text printed over the patches
+proof-k1m-b12-m32-strip.png    the same text on clear paper, warned about anyway
+repro-*.tif / whatif-*.tif     the offline `_stamp_one` reproductions

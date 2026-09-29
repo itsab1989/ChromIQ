@@ -31,6 +31,7 @@ from pathlib import Path
 
 from core.file_manager import (CHART_SNAPSHOT_DIRNAME, Calibration, Run,
                                Verification)
+from workflow.measurement_report import CONTROL_STRIP_SIDECAR
 
 _IMAGE_SUFFIXES = (".tif", ".tiff")
 _RECIPE_SUFFIX = ".channels.json"
@@ -39,8 +40,24 @@ _RECIPE_SUFFIX = ".channels.json"
 #: "everything except images": see the module docstring. ``.cht`` belongs to the
 #: chart (it describes where the patches are); ``.cie`` does not — it is derived
 #: from a measurement (Knut, D8).
+#:
+#: ``.control-strip.json`` is on the list because a declaration is tied to the
+#: CHART, not to the run (Knut, 2026-09-19): *"The control strip declaration is
+#: tied to the chart it is made for, not the run. If the declaration exists,
+#: and measurement is started, that file shall also be backed up to chart/
+#: folder (like other chart files), and if the Restore Used Chart button is
+#: pressed, the controls strip declaration shall also be restored with the
+#: other chart files."* A verification chart's declaration already travelled,
+#: because that slot copies everything at its root; a profiling chart's did
+#: not, and a profiling chart can carry one — the Measurement Report reads a
+#: sidecar beside whatever chart a measurement is paired with, and its own help
+#: text tells the user to write one. Without this entry a restore put chart X
+#: back under the declaration of chart Y, which is the one thing "tied to the
+#: chart" forbids. The suffix is read from the report rather than spelled again
+#: here, for the reason :func:`workflow.control_strip.declaration_path` gives.
 PROFILING_CHART_SUFFIXES = (
     ".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
+    CONTROL_STRIP_SIDECAR,
 )
 
 #: Files that belong to the chart but do not carry the chart's stem. ``meta.json``

@@ -223,9 +223,21 @@ class MeasurementTargetController(QObject):
             self._target.run_type = value
             self.changed.emit()
 
-    def set_profile_run(self, run_id: str) -> None:
+    def set_profile_run(self, run_id: str, *, save_outgoing: bool = True) -> None:
+        """Select *run_id*.
+
+        *save_outgoing* is False on ONE path: the selection moving off a run
+        that has just been deleted. `about_to_change_target` is the Q-1 trigger
+        that files the visible tab's settings for the run being left, and after
+        a delete that run is gone -- so the write resolved to the SURVIVOR's
+        store and filed the deleted run's screen into it. Measured: run 1 held
+        `targen -f = 111`, run 2 held 648, and deleting run 2 left run 1 holding
+        648. The specification is explicit that settings follow their run and
+        that a target is never written by the act of looking at another.
+        """
         if run_id != self._target.profile_run:
-            self.about_to_change_target.emit()
+            if save_outgoing:
+                self.about_to_change_target.emit()
             self._target.profile_run = run_id
             # A different run has its own verification dates — drop a stale pick.
             self._target.verification_id = ""
@@ -812,7 +824,7 @@ class MeasurementTargetBar(QWidget):
             "The list follows the order of the work: you calibrate, then "
             "you profile, then you verify. Most of the time you want "
             "Profiling, which is why it stays the one already selected.\n\n"
-            "• Calibration — measure a special chart that brings the "
+            "• Calibration: measure a special chart that brings the "
             "printer itself to a known, repeatable state before any profile "
             "is built. It produces a calibration file (.cal) which every "
             "profile run of this project can then use. One calibration is "
@@ -821,14 +833,14 @@ class MeasurementTargetBar(QWidget):
             "optional; use it when you want your printer to behave the same "
             "way today and in six months. It is offered only while "
             "calibration options are switched on in Preferences.\n\n"
-            "• Profiling — measure a chart printed with colour management "
+            "• Profiling: measure a chart printed with colour management "
             "OFF, so ChromIQ can learn your printer and build a profile "
             "from it. This is the normal choice.\n\n"
-            "• Verification — measure a (usually smaller) chart printed "
+            "• Verification: measure a (usually smaller) chart printed "
             "THROUGH a finished profile, with colour management ON, to "
             "check how accurate that profile still is. A verification never "
             "builds a profile; it is kept as a dated record so you can "
-            "watch a profile hold up — or drift — over time."))
+            "watch a profile hold up, or change, over time."))
         self._type_combo.currentIndexChanged.connect(self._on_type_changed)
         # …and the WRITE trigger, before the list even appears.
         self._type_combo.about_to_open.connect(
@@ -976,14 +988,18 @@ class MeasurementTargetBar(QWidget):
             tr("Removes work you no longer want. It goes to your {trash}, so "
                "you can put it back until you empty that. What it removes "
                "depends on “Run type”, and you are always shown exactly what "
-               "will go — and asked — before anything is deleted.\n\n"
+               "will go, and asked, before anything is deleted.\n\n"
                "RUN TYPE = PROFILING\n"
                "Deletes the whole selected profile run: its chart, its "
                "measurement, its profile, its reports and its verifications. "
                "The remaining runs are then renumbered so the numbering stays "
-               "unbroken — delete run 6 of 10 and run 7 becomes run 6, and so "
-               "on — and ChromIQ moves to the last run in the project. The "
-               "files inside the remaining runs are not renamed.\n\n"
+               "unbroken: delete run 6 of 10 and run 7 becomes run 6, and so "
+               "on, and ChromIQ moves to the last run in the project. The "
+               "files inside the remaining runs are not renamed, but the saved "
+               "measurement reports that name runs follow the new numbers: a "
+               "report of run 7 now names run 6. If one of those reports "
+               "cannot be rewritten, nothing is deleted and nothing "
+               "changes.\n\n"
                "If the run you pick is the only one in the project, it cannot "
                "be deleted on its own, because a project always has at least "
                "one run. You are offered two ways forward instead: empty that "
@@ -991,17 +1007,19 @@ class MeasurementTargetBar(QWidget):
                "RUN TYPE = VERIFICATION\n"
                "With several verification dates and one of them selected, only "
                "that date is deleted. Otherwise the run's whole verification "
-               "folder goes — the verification chart, any result in it, and the "
-               "exports, archives and reports that belong to it — because with "
+               "folder goes (the verification chart, any result in it, and the "
+               "exports, archives and reports that belong to it), because with "
                "the last verification gone there is nothing left for those to "
                "belong to. The profiling side of the run is never touched.\n\n"
                "IN BOTH CASES\n"
                "What you confirm is moved to your {trash}, so you can put it "
                "back from there until you empty it. Nothing is kept in an "
                "“old” folder inside the project. The button is "
-               "greyed whenever there is nothing specific to delete — during a "
-               "measurement, or when the selection says “New run” or “New "
-               "verification”, which name nothing on disk yet.").format(trash=trash_name()),
+               "greyed whenever there is nothing specific to delete: during a "
+               "measurement, or when the selection says “{new_run}” or "
+               "“{new_verification}”, which name nothing on disk yet."
+               ).format(trash=trash_name(), new_run=tr("New run"),
+                        new_verification=tr("New verification")),
             self)
         row.addWidget(self._delete_tip)
 
@@ -1147,11 +1165,14 @@ class MeasurementTargetBar(QWidget):
         """Grey the whole selection out, keeping it readable (Knut, #130
         2026-07-26).
 
-        Build Profile and Check & Refine work on the measurement file you load
-        into them, not on this selection — so leaving these boxes live there
-        invites a change that appears to do nothing. Locked, they still say
-        which run and run type you are on, and their tooltips say where to
-        change it.
+        Check & Refine works on the measurement file you load into it, not on
+        this selection, so leaving these boxes live there invites a change that
+        appears to do nothing. Locked, they still say which run and run type
+        you are on, and their tooltips say where to change it.
+
+        ONLY Check & Refine. Build Profile was locked alongside it until
+        beta.157 and is not any more; the one caller is
+        `MainWindow._on_tab_changed`, which passes `index == 4`.
         """
         if locked == getattr(self, "_locked", False):
             return
@@ -1214,11 +1235,37 @@ class MeasurementTargetBar(QWidget):
 
     def _lock_note(self) -> str:
         if self._LOCK_NOTE is None:
+            # EVERY CLAIM IN HERE WAS READ OFF THE RUNNING WINDOW, because
+            # the sentence this replaces was written from another sentence and
+            # was wrong about a sibling tab for it. It said "the Build Profile
+            # and Check & Refine tabs" while a tester was looking at a live,
+            # editable bar on Build Profile: the bar was unlocked there at
+            # Knut's request (beta.157, see `MainWindow._on_tab_changed`) and
+            # the text never followed.
+            #
+            # Measured across all five tabs with
+            # `scripts/drive_the_bar_on_every_tab.py`:
+            #
+            #   tab               Profile run   Run type   Verification
+            #   1. Create Chart   enabled       enabled    selectable
+            #   2. Print Chart    enabled       enabled    selectable
+            #   3. Measure        enabled       enabled    selectable
+            #   4. Build Profile  enabled       enabled    NOT selectable
+            #   5. Check & Refine GREYED        GREYED     selectable
+            #
+            # So Build Profile belongs in the list of tabs the run CAN be
+            # changed on, and it is also the one tab that narrows the run type
+            # to Profiling (`set_verification_selectable(index != 3)`). Both
+            # are the design authority's specification of 2026-09-17 and both
+            # were confirmed against the app before being written down.
             type(self)._LOCK_NOTE = tr(
-                "This selection is not used on the Build Profile and Check & "
-                "Refine tabs — both work on the measurement file you load into "
-                "them. It is shown here so you can see where you are, and can "
-                "be changed on the Create Chart, Print Chart and Measure tabs.")
+                "This selection is not used on the Check & Refine tab, which "
+                "works on the measurement file you load into it. It is shown "
+                "here so you can see where you are, and can be changed on the "
+                "Create Chart, Print Chart, Measure and Build Profile tabs. "
+                "On Build Profile the profile run can still be changed, but "
+                "the run type is Profiling only: a verification run cannot be "
+                "selected there.")
         return self._LOCK_NOTE
 
     @staticmethod
@@ -1734,7 +1781,16 @@ class MeasurementTargetBar(QWidget):
             box.setText(body)
             restore = box.addButton(tr("Restore Chart"),
                                     QMessageBox.ButtonRole.AcceptRole)
-            box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+            # K44 (beta 43): destructive (the current chart is not kept), so
+            # never drawn filled.
+            from ui.default_button import mark_destructive
+            mark_destructive(restore)
+            cancel = box.addButton(tr("Cancel"),
+                                   QMessageBox.ButtonRole.RejectRole)
+            # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+            # the safest." Return presses Cancel; the destructive action stays
+            # plain (B8-1156) and is reached by a click.
+            box.setDefaultButton(cancel)
             from ui.widgets import widen_message_box
             widen_message_box(box)
             box.exec()
@@ -1971,7 +2027,10 @@ class MeasurementTargetBar(QWidget):
                 # run that has just gone, so the dropdown kept showing a stale
                 # choice and never jumped (Knut, #130 2026-07-28: "the Profile
                 # run selection did not jump to last run in the list").
-                self._ctl.set_profile_run(landed)
+                # NOTHING IS FILED FOR A RUN THAT NO LONGER EXISTS. See
+                # `set_profile_run`: the ordinary save-on-leave would write the
+                # deleted run's screen into the surviving run's store.
+                self._ctl.set_profile_run(landed, save_outgoing=False)
                 self._ctl.set_verification_id("")
             else:
                 rd.delete_verification(plan)
@@ -1984,7 +2043,13 @@ class MeasurementTargetBar(QWidget):
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Icon.NoIcon)
             box.setWindowTitle(tr("Could not delete everything"))
-            if getattr(exc, "reason", ""):
+            if getattr(exc, "message", None):
+                # A §M MESSAGE OF ITS OWN (re-challenge R2, #1): headline
+                # first, as the confirmation above it has, and no list
+                # heading, because its folders were never to be removed.
+                box.setWindowTitle(exc.message[0])
+                box.setText(exc.message[0] + "\n\n" + exc.message[1])
+            elif getattr(exc, "reason", ""):
                 box.setText(exc.reason + "\n\n"
                             + tr("This is what ChromIQ tried to remove:")
                             + "\n\n" + "\n".join(exc.paths))

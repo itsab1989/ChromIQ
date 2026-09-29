@@ -11,8 +11,20 @@ chart: the target built, real `scanin` returned 0 with a standard deviation of
 0.106, and real `colprof` produced a profile (peak error 0.59, average 0.20).
 
 What genuinely fails is scanin's AUTO-recognition — a hexagon has no horizontal
-edges for its YLIST — and ChromIQ never uses it: the four corners are placed by
-hand on the alignment mesh.
+edges for its YLIST.
+
+**The sentence that used to follow was wrong, and it is worth saying how.** It
+read "…and ChromIQ never uses it: the four corners are placed by hand on the
+alignment mesh". ChromIQ does use it: the Auto align button's first step IS
+scanin's recogniser (`workflow.scan_placement.place_grid`), and measured on a
+honeycomb it returns nothing with zero candidates, so the button declined and
+moved the corners 0.0 px while the same drive on a rectangular chart of the
+same 648 colours landed 0.6 px from truth. The claim conflated "scanin's
+recogniser is not the thing that reads the patches" — true — with "nothing in
+ChromIQ asks it where the chart is" — false. Auto align now has a second step 1
+for exactly this case (`workflow.hex_block_search`,
+`tests/test_auto_align_finds_a_honeycomb.py`); hand placement is no longer the
+only way to align a honeycomb.
 """
 from __future__ import annotations
 
@@ -82,18 +94,70 @@ def test_the_mesh_cells_take_the_patch_shape(qapp, tmp_path):
     assert flat.rects == hexy.rects, "the sampled geometry must not move"
 
 
-def test_the_drawn_cell_is_a_hexagon(qapp):
+def test_the_drawn_cell_is_a_hexagon(qapp, tmp_path):
     """A hexagonal cell must not cover its box's corners — they belong to the
-    neighbours, which is the whole reason to draw the true shape."""
-    import inspect
+    neighbours, which is the whole reason to draw the true shape.
+
+    TWO WRONG VERSIONS BEFORE THIS ONE, and they failed in opposite directions.
+
+    The first read `inspect.getsource(_cell_uv)` and counted the substring
+    `"(cxu,"`. It passed for the right reason on the day it was written and went
+    red the moment the six vertices MOVED into `layout_engine/hexagon.py` — the
+    shape unchanged, the assertion broken, which is what every source-text
+    assertion eventually does.
+
+    The second asked `hexagon.vertices` directly and asserted nothing about the
+    mesh at all. A review proved it vacuous: with `_cell_uv` made to emit
+    rectangles for a hexagonal grid, the entire everyday tier passed, 12,322
+    tests green. Testing the library the code calls is not testing the code.
+
+    This one asks the real `ScanGridMarquee` for its real mesh and counts what
+    comes back.
+    """
+    import numpy as np
     from ui.scan_grid_marquee import ScanGridMarquee
-    # The cell corners are built in `_cell_uv` (cached per chart, then
-    # transformed as one array every paint) — `_draw_grid` only strokes them.
-    src = inspect.getsource(ScanGridMarquee._cell_uv)
-    assert "self._grid.hexagonal" in src, "the mesh ignores the patch shape"
-    # six points for a hexagon, four for a rectangle
-    hex_block = src[src.index("if hexed"):]
-    assert hex_block.count("(cxu,") == 2, "expected the two apex points"
+    from ui.scan_grid_marquee import GridSpec
+
+    _stem, patches = _hex_chart(tmp_path)
+    grid = GridSpec.from_patches(patches, hexagonal=True)
+    flat = GridSpec.from_patches(patches, hexagonal=False)
+
+    def mesh(g):
+        m = ScanGridMarquee.__new__(ScanGridMarquee)
+        m._grid = g
+        m._cell_uv_cache = None
+        m._sample_frac = 0.5
+        return m._cell_uv()
+
+    hu, hv, hstride = mesh(grid)
+    fu, fv, fstride = mesh(flat)
+
+    # A HEX CELL CARRIES TWO MORE POINTS THAN A SQUARE ONE. This is the
+    # assertion the vacuous version did not make: it is about the mesh.
+    assert fstride == 4 + 4, f"a rectangular cell should contribute 8, not {fstride}"
+    assert hstride == 6 + 4, f"a hexagonal cell should contribute 10, not {hstride}"
+    ncells = len(grid.rects)
+    assert len(hu) == ncells * hstride, "the mesh is not one stride per cell"
+    assert len(hu) > len(fu), (
+        "the hexagonal mesh has no more points than the rectangular one, so "
+        "_cell_uv is drawing boxes for a honeycomb"
+    )
+
+    # ...and the six are a hexagon, not four corners with two repeats: the two
+    # apexes must lie OUTSIDE the cell, on its centre line.
+    for c in range(min(6, ncells)):
+        u, v, w, hh = grid.rects[c]
+        cell = list(zip(hu[c * hstride:c * hstride + 6],
+                        hv[c * hstride:c * hstride + 6]))
+        ys = [pt[1] for pt in cell]
+        assert min(ys) < v - 1e-12, f"cell {c}: no apex above the box"
+        assert max(ys) > v + hh + 1e-12, f"cell {c}: no apex below the box"
+        corners = [(u, v), (u + w, v), (u + w, v + hh), (u, v + hh)]
+        for px, py in cell:
+            assert not any(abs(px - cxx) < 1e-9 and abs(py - cyy) < 1e-9
+                           for cxx, cyy in corners), (
+                f"cell {c}: {(px, py)} is a box corner, which belongs to a "
+                "neighbouring patch")
 
 
 class _Store:

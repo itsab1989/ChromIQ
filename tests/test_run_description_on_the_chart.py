@@ -78,8 +78,33 @@ def test_the_engine_accepts_and_renders_the_token():
 
     sig = inspect.signature(build_chart)
     assert "rundescription" in sig.parameters
-    src = inspect.getsource(build_chart)
-    assert '"rundescription": rundescription' in src, (
+
+    # THE TOKEN REALLY RESOLVES, which is what the source check below is for.
+    # This used to be `assert '"rundescription": rundescription' in src`, a
+    # match on the literal dict inside `build_chart`; the dict moved into
+    # `chart.text_placeholder_context` so the panel could predict a line's
+    # width from the same table the sheet prints from, and the check went red
+    # on a wiring that was still correct. A test that names a line of code
+    # rather than a behaviour breaks on every refactor and guards none of them.
+    from workflow.layout_engine.chart import text_placeholder_context
+    from workflow.layout_engine.raster import resolve_placeholders
+    ctx = text_placeholder_context(rundescription="Baryta, gloss")
+    assert resolve_placeholders("{rundescription}", ctx) == "Baryta, gloss"
+
+    # …AND `build_chart` HANDS ITS OWN PARAMETER TO THAT TABLE. Read off the
+    # syntax tree, because the name appearing in a comment is not a wiring.
+    import ast
+    import textwrap
+    tree = ast.parse(textwrap.dedent(inspect.getsource(build_chart)))
+    wired = [
+        kw for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        and node.func.id == "text_placeholder_context"
+        for kw in node.keywords
+        if kw.arg == "rundescription" and isinstance(kw.value, ast.Name)
+        and kw.value.id == "rundescription"
+    ]
+    assert wired, (
         "the parameter is accepted but never reaches the placeholder table, "
         "so {rundescription} would render as nothing"
     )

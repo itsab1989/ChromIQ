@@ -335,12 +335,31 @@ MODEL_DEFAULTS = {
     # both directions: nothing subscribes to patch events for pace
     # (tab_measure.py:1016-1022 — the pace model is wired to strip_measured
     # only, and a CR30 never emits a strip), and the CR30 does not stream
-    # samples at all. It is 100.0 rather than 0 or 1 purely so the Preferences
-    # spinbox shows the shipped default instead of silently clamping it to the
-    # bottom of SAMPLE_HZ_RANGE (10-500). The row exists so that
-    # _pace_config's unknown-instrument fallback — the i1Pro's (100.0, 20) —
-    # can never be applied to a CR30 chart.
-    "cr30":           (100.0, None),
+    # samples at all. The row exists so that _pace_config's unknown-instrument
+    # fallback — the i1Pro's (100.0, 20) — can never be applied to a CR30 chart.
+    #
+    # THIS NUMBER USED TO BE 100.0, AND THAT WAS THE i1Pro's, COPIED. It was
+    # committed the day BEFORE the CR30's rate was measured, "purely so the
+    # Preferences spinbox shows the shipped default instead of silently
+    # clamping it" — and Preferences then told every CR30 owner their
+    # instrument takes 100 readings a second, "from its specification". Basti
+    # caught it, 2026-09-08.
+    #
+    # 3.18 is measured, not specified: 78 cycles at 313.6-317.4 ms, 0 errors,
+    # over USB (chromiq-cr30-research, EXP-018, 2026-08-29). READ WHAT IT IS
+    # BEFORE QUOTING IT. It is the rate a HOST can cycle the device at, driving
+    # trigger-then-read in a loop over the cable — a path `device.py` marks
+    # "NOT for a ChromIQ backend", because ChromIQ waits for the operator's
+    # button press instead. What a ChromIQ user experiences is one reading per
+    # hand placement, roughly two seconds. It is also USB-only; no Bluetooth
+    # rate has ever been measured.
+    #
+    # So Preferences does NOT show this figure in the "Readings per second"
+    # column: that column would be asserting something the evidence does not
+    # cover, for the second time. The cell reads N/A and the row's ⓘ says why
+    # (settings_dialog.py, the `key == "cr30"` branch of the pace table).
+    # The value lives on here only to hold the fallback shut.
+    "cr30":           (3.18, None),
 }
 
 #: How many patches one strip of a typical chart holds, per instrument (Knut,
@@ -523,6 +542,31 @@ def _calculation_note(key) -> str:
     from core.i18n import tr
     hz, min_samples = defaults_for(key)
     patches = estimate_patches_for(key)
+    if key == "cr30":
+        # THE SHARED HEAD IS FALSE TWICE OVER FOR THIS ONE INSTRUMENT, so the
+        # CR30 leaves before it rather than having it corrected underneath.
+        # It calls the figure "the instrument's own sampling rate, from its
+        # specification" (the CR30's is a measured per-reading time, and the
+        # research repo records that no sensor-parameter command exists in ten
+        # vendor sessions), and its Off-branch tail then invites the reader to
+        # "set a minimum above Off … and this instrument is judged like any
+        # other" — an instruction that does nothing, because the pace model
+        # subscribes to `strip_measured` and a CR30 never emits a strip.
+        #
+        # Returning early also keeps the other six rows' text byte-identical,
+        # which is the difference between one new catalogue key and seven.
+        return tr(
+            "\n\nWHY THIS ROW HAS NO READINGS PER SECOND\n"
+            "Every other instrument here keeps sampling while you swipe, so a "
+            "rate tells ChromIQ how many readings a patch received. A CR30 "
+            "takes exactly one reading each time you press its button, so "
+            "there is no rate to apply and the cell shows N/A.\n\n"
+            "For the record, since the number is easy to find and easy to "
+            "misread: driven from a computer over the cable, a CR30 can "
+            "complete about 3.2 readings a second, measured on real hardware. "
+            "ChromIQ never drives it that way, because you press the button "
+            "yourself, so that figure describes nothing you will see. Nothing "
+            "on this row is used when you measure with a CR30.")
     head = tr(
         "\n\nHOW THE THREE NUMBERS ON THIS ROW ARE USED\n"
         "The figure at the end of the row answers one question: with the "

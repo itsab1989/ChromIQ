@@ -8,6 +8,8 @@ printtarg, so the existing `page_geometry` / print pipeline read the DPI right.
 """
 from __future__ import annotations
 
+import functools
+
 from functools import lru_cache
 
 from dataclasses import dataclass, replace
@@ -17,12 +19,12 @@ from core.stem_paths import artefact
 
 import numpy as np
 import tifffile
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
 
 from core.logger import get_logger
 from core.resource_path import resource_path
 
-from . import contrast, geometry, permutation
+from . import contrast, geometry, hexagon, permutation
 from .colorants import to_device_approx, to_device_approx_array, to_display_rgb
 from .geometry import Layout
 
@@ -234,6 +236,75 @@ def _draw_indicator(draw, cx: int, top: int, text: str, font, spacing_px: int) -
         x += w + spacing_px
 
 
+#: Fallback probe text when the chart's own labels cannot be worked out.
+_ALL_CAPS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def _label_ink_bottom(text: str, font, spacing_px: int, degrees: int,
+                      band_h: int) -> int:
+    """How far below the band's top line a drawn strip label's INK really goes.
+
+    `label_band_h` is the height the band RESERVES, and for an unrotated label
+    that is the nominal font size. The glyph does not fit in it: PIL is asked
+    for the ascender anchor (``anchor="la"`` in `_draw_indicator`), so a capital
+    is drawn from the ascender line down to the baseline, and the baseline sits
+    at the font's ASCENT, which JetBrains Mono puts one to three pixels below
+    the nominal size at every size this chart engine uses (measured 40 → 41,
+    60 → 62, 80 → 82, 100 → 102, 120 → 123).
+
+    Those pixels are the bottom stroke of the letter, and `label_band_bottom_px`
+    is what "Show only measured patches" cuts its blank at, so under-reporting
+    them by three pixels took the bottom bar off every `E` on a honeycomb and
+    made it read as `F` (B8-346 F1, photographed on a turned CR30 at six window
+    sizes). It is the INK that has to be bounded, so it is the ink that is
+    measured here.
+
+    **`Q` IS PROBED, AND THE ROUND LETTERS MATTER.** `C`, `G`, `J` and `O` are
+    drawn a pixel below the baseline for optical weight, and they are exactly
+    the letters that were photographed with their feet missing while `E` and
+    `H` kept theirs. `Q` is the one capital with a TAIL, and leaving it out of
+    the probe -- which the first version of this did, to keep the band clear of
+    a spacer ring the tail can be printed on -- took the tail off every `Q`
+    column and made it read as `O` on a 17-strip chart, with twelve clear rows
+    below it (R13-1, photographed). Where the tail really does collide with the
+    ink, the PREVIEW pulls its cut up to `patch_ink_top_px` and the tail is
+    covered along with the ring it sits on; capping this number instead was
+    tried and is wrong, because the same number anchors the scan arrow and
+    Knut's ruling lets the letters overlap the patch area when the top margin
+    cannot hold them. The probe's job is only to say where the letters stop.
+
+    **AND THIS IS A THIRD NUMBER, ON PURPOSE.** `_furniture_reserves_mm`
+    already measures `label_ink_reach_mm` with a probe, `Q` included, for the
+    "Measured from Preview" panel to predict with, and `label_ink_bottom_mm`
+    stays the em box because `geometry._top_reserve_for_a_turned_hex` lays
+    every turned honeycomb out from it. Neither can be reused here: the panel's
+    reach counts the descender this one must not, and the reserve counts the
+    box this one must not. Same family, three questions.
+    """
+    if degrees % 360 == 0:
+        # DRAWN AND MEASURED, NOT COMPUTED. The baseline (the font's ascent) is
+        # where the glyph's shape stops, and the ANTIALIASED edge is a row
+        # below it: on a turned CR30 the letters' last inked row was 147 where
+        # the ascent put the baseline at 146, and one row is the whole of this
+        # fault. So a capital is rendered exactly as `_draw_indicator` renders
+        # it and every non-white pixel is counted.
+        try:
+            asc, desc = font.getmetrics()
+            probe = Image.new("L", (max(8, int(font.getlength(text)) + 8),
+                                    asc + desc + 8), 255)
+            ImageDraw.Draw(probe).text((2, 0), text, font=font, fill=0,
+                                       anchor="la")
+            bb = ImageChops.invert(probe).getbbox()
+            return int(bb[3]) if bb else int(asc)
+        except Exception:                          # pragma: no cover - bitmap font
+            return int(band_h)
+    # A rotated label is pasted as a tile, and it may be justified DOWN the band
+    # (`_extra` in the draw loop), so the worst case is the whole leftover.
+    tile = _indicator_tile(text, font, spacing_px, degrees)
+    bb = tile.getbbox()
+    return (bb[3] if bb else tile.height) + max(0, int(band_h) - tile.height)
+
+
 def _indicator_tile(text: str, font, spacing_px: int, degrees: int) -> Image.Image:
     """A transparent tile of the strip label (letters spaced) rotated *degrees*."""
     probe = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
@@ -303,8 +374,149 @@ def effective_indicator_size_mm(geom, dpi: int, font: str, size_mm: float) -> fl
     return max(min(target, INDICATOR_MIN_LEGIBLE_MM), target * avail / widest2)
 
 
-def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
-    """``(label_band_mm, bottom_reserve_mm)`` — the vertical space the rendered
+#: How many labels the ink probe below walks. The alphabetic labeller reaches
+#: "Z" at 26, which is the whole single-letter repertoire, and "Q" -- the only
+#: descender in it -- at 17. A numeric one reaches "26", whose glyphs are all
+#: within "0-9". Past 26 the labels only repeat glyphs already measured.
+INDICATOR_PROBE_LABELS = 26
+
+#: How far the probe walks when the chart's patch count is not knowable. "Q" is
+#: the 17th alphabetic label, so stopping at 16 is exactly "no descender", which
+#: is what every caller measured before the Q was noticed at all.
+INDICATOR_PROBE_LABELS_NO_DESCENDER = 16
+
+
+def _provisional_strip_count(geom, kw: dict) -> int:
+    """About how many strips this chart will have, or 0 when it cannot be said.
+
+    **PROVISIONAL IS ENOUGH, BECAUSE IT DECIDES GLYPHS AND NOT DIMENSIONS.**
+    The band this feeds is measured from the geometry that is still being
+    built, and `row_label_band_mm` records why a provisional geometry must not
+    be used to size anything: the patch size is derived from the width the band
+    has just changed. This asks a much coarser question -- *is there a 17th
+    strip, so that a "Q" gets printed?* -- and a strip or two either way does
+    not change the answer except at that one boundary.
+    """
+    try:
+        from . import papers
+        total = int(kw.get("area_target_count") or 0)
+        if total <= 0:
+            return 0
+        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+        layout = geometry.compute(geom, float(w_mm), float(h_mm), total)
+        steps = int(getattr(layout, "steps_in_pass", 0) or 0)
+        if steps <= 0:
+            return 0
+        return max(1, -(-total // steps))          # ceil
+    except Exception:            # noqa: BLE001 - a probe never blocks a build
+        return 0
+
+
+def _indicator_probe_text(kw: dict, geom=None) -> str:
+    """The glyphs to measure a strip label's ink extent with.
+
+    **NOT a hand-picked pair.** This is the labeller's own output, so the probe
+    measures the letters the sheet will really print: `A...Z` for an alphabetic
+    strip pattern, `1...26` for a numeric one. The pair it replaced was "W8",
+    which has no descender, and **"Q" does** -- see the block in
+    :func:`_furniture_reserves_mm` for the sheets that fault was measured on.
+
+    Falls back to the alphabetic repertoire when *kw* carries no pattern, which
+    is the geometry path: `strip_pattern` reaches the renderer but not the
+    reserve, and the alphabetic pattern is both the default and the deeper of
+    the two, so the fallback is the safe one.
+    """
+    pattern = str(kw.get("strip_pattern") or permutation.DEFAULT_STRIP_PATTERN)
+    # **ONLY THE LABELS THIS CHART WILL REALLY PRINT.** Walking the whole
+    # repertoire is safe in one direction and wrong in the other: a chart with
+    # fewer than seventeen strips never prints a "Q", and predicting its
+    # descender there put a red *"0.8 mm of every letter is on the first row"*
+    # on a rendered sheet whose letters end 8.83 mm down with the patches at
+    # 9.0 -- 0.17 mm of clear paper. A warning that fires while the user is
+    # looking at the thing working is how people learn to ignore warnings.
+    # **AND WHEN THE COUNT IS NOT KNOWN, ASSUME NO "Q".**
+    # Whether a Q is printed depends entirely on the patch count -- 29 steps to
+    # a strip on an i1Pro A4 sheet, so 500 patches reach the 17th strip and 300
+    # do not -- and `LayoutRecipe.build_kwargs()` does not carry a count at all.
+    # Predicting the descender without one put a red *"0.8 mm of every letter
+    # is on the first row"* on a rendered sheet whose letters end 8.83 mm down
+    # with the patches at 9.0 mm: 0.17 mm of clear paper.
+    #
+    # So the two directions are not symmetric and the default is the safe one.
+    # Over-predicting invents a warning on a chart that is working, which this
+    # project has shipped twice and which teaches people to ignore the panel;
+    # under-predicting is the state before this change. The count is known on
+    # every real build (`chart.py` puts `area_target_count` in) and the panel
+    # supplies it too, so the fallback is for callers that build a geometry out
+    # of a recipe alone.
+    upto = INDICATOR_PROBE_LABELS_NO_DESCENDER
+    if geom is not None:
+        strips = _provisional_strip_count(geom, kw)
+        if strips > 0:
+            upto = max(1, min(INDICATOR_PROBE_LABELS, strips))
+    try:
+        label = permutation.make_labeller(pattern)
+        text = "".join(label(n) for n in range(1, upto + 1))
+    except Exception:            # noqa: BLE001 - a probe never blocks a build
+        text = ""
+    return text or "W8"
+
+
+
+# THESE TWO ARE MEASURED ONCE PER DISTINCT QUESTION, NOT PER CANDIDATE LAYOUT.
+#
+# `_furniture_reserves_mm` renders glyphs twice: the band probe and the ink
+# probe. The area fit calls it once per candidate patch size, per column count,
+# per pass, so one preset load called it 3,845 times and rendered 7,706 glyph
+# images. Measured in the real window, loading a Create Chart preset straight
+# after a Scanner preset: 17.2 s, of which 8.0 s was PIL measuring text and
+# 1.9 s rendering it. Knut, beta 20: *"Loading any of the 6 Scanner presets
+# takes 5 to 10 seconds to load. Why?"*
+#
+# Nothing about either answer depends on anything but these arguments. The font
+# is built INSIDE each call rather than cached on its own, so no
+# `FreeTypeFont` is ever shared between the engine's worker threads; only the
+# numbers cross.
+
+
+@functools.lru_cache(maxsize=512)
+def _indicator_band_px(ind_px: int, fam: str, bold: bool, italic: bool,
+                       rot: int, spc: int) -> int:
+    """The strip-label band's height in pixels."""
+    f = _font(ind_px, fam, bold, italic)
+    if rot in (90, 270):
+        # Side-rotated: the band runs along the strip, so its height is the
+        # label's drawn length. Reserve for up to two letters (<=702 strips).
+        return int(_indicator_tile("WW", f, spc, rot).height)
+    # Upright: the visible ink height of representative cap/digit glyphs.
+    probe = Image.new("RGBA", (ind_px * 4, ind_px * 4), (0, 0, 0, 0))
+    ImageDraw.Draw(probe).text((ind_px, ind_px), "W8", font=f,
+                               fill=(0, 0, 0, 255))
+    bb = probe.getbbox()
+    return int(bb[3] - bb[1]) if bb else int(ind_px)
+
+
+@functools.lru_cache(maxsize=512)
+def _indicator_ink_px(probe_text: str, ind_px: int, fam: str, bold: bool,
+                      italic: bool, rot: int, spc: int) -> "tuple[int, int]":
+    """``(top, bottom)`` of the labels' ink, in pixels from the anchor."""
+    f = _font(ind_px, fam, bold, italic)
+    if rot in (90, 270):
+        tile = _indicator_tile(probe_text, f, spc, rot)
+        bb = tile.getbbox()
+        return (int(bb[1]), int(bb[3])) if bb else (0, int(tile.height))
+    probe = Image.new("RGBA", (ind_px * 40, ind_px * 6), (0, 0, 0, 0))
+    ImageDraw.Draw(probe).text((ind_px * 2, ind_px * 2), probe_text, font=f,
+                               fill=(0, 0, 0, 255), anchor="la")
+    bb = probe.getbbox()
+    if not bb:
+        return (0, int(ind_px))
+    return (int(bb[1] - ind_px * 2), int(bb[3] - ind_px * 2))
+
+
+def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, float]:
+    """``(label_band_mm, bottom_reserve_mm, label_ink_bottom_mm, label_ink_top_mm,
+    label_ink_reach_mm)`` — the vertical space the rendered
     strip-label band (indicator + underline) and the bottom sheet-text/stamp
     block actually consume, so :func:`geometry.compute` can reserve them.
 
@@ -316,51 +528,177 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float]:
     dpi = int(kw.get("dpi") or 150)
     mm2px = dpi / 25.4
     label_band = 0.0   # indicators off ⇒ reclaim the whole label band
+    ink_bottom = 0.0   # …and no ink under the labels either
+    ink_top = 0.0      # …and nothing above it
+    ink_reach = 0.0
     if kw.get("draw_indicators", True):
         fam = kw.get("indicator_font", DEFAULT_INDICATOR_FONT)
         raw_size = float(kw.get("indicator_size_mm") or 0.0)   # 0 = auto
         size_mm = effective_indicator_size_mm(geom, dpi, fam, raw_size)
         ind_px = max(6, round(size_mm * mm2px))
-        f = _font(ind_px, fam, bool(kw.get("indicator_bold")),
-                  bool(kw.get("indicator_italic")))
+        _bold = bool(kw.get("indicator_bold"))
+        _ital = bool(kw.get("indicator_italic"))
         rot = int(kw.get("indicator_rotation") or 0) % 360
         spc = max(1, round(ind_px * INDICATOR_LETTER_SPACING))
-        if rot in (90, 270):
-            # Side-rotated: the band runs along the strip, so its height is the
-            # label's drawn length. Reserve for up to two letters (≤702 strips).
-            band_px = _indicator_tile("WW", f, spc, rot).height
-        else:
-            # Upright: the visible ink height of representative cap/digit glyphs.
-            probe = Image.new("RGBA", (ind_px * 4, ind_px * 4), (0, 0, 0, 0))
-            ImageDraw.Draw(probe).text((ind_px, ind_px), "W8", font=f,
-                                       fill=(0, 0, 0, 255))
-            bb = probe.getbbox()
-            band_px = (bb[3] - bb[1]) if bb else ind_px
+        band_px = _indicator_band_px(ind_px, fam, _bold, _ital, rot, spc)
         band = band_px / mm2px
+        _rule = 0.0
         if kw.get("underline_mode", "off") in ("segments", "cycle", "black", "colored"):
-            band += (float(kw.get("underline_gap_mm") or 0.0)
+            _rule = (float(kw.get("underline_gap_mm") or 0.0)
                      + max(0.0, float(kw.get("underline_thickness_mm") or 0.0)))
+        band += _rule
         # Auto size keeps the instrument label floor (txhisl) so default charts
         # stay printtarg-identical; an EXPLICIT size reserves exactly what it
         # draws, so a smaller font frees space for more patches (#93).
         label_band = band if raw_size > 0 else max(geom.txhisl, band)
+        # WHAT THE RENDERER WILL ACTUALLY DRAW, which is not `label_band`.
+        # `render_pages` puts the band at `leader_top + strip_label_offset_mm`
+        # and gives it `ind_px` -- the font's FULL pixel size, ascent and descent
+        # included -- where the reserve above measures the ink bbox of "W8".
+        # At an explicit 6 mm the two differ by 1.44 mm, which is exactly what
+        # was printed over the first row of a turned honeycomb. Rotated labels
+        # use the same tile height as the reserve, so they agree there.
+        # `band_px` IS that tile height when the label is turned, which is
+        # what this line used to build a second time from the font itself. The
+        # comment above already says they agree; now they cannot disagree.
+        _drawn = (band_px if rot in (90, 270) else ind_px) / mm2px
+        _off = float(kw.get("strip_label_offset_mm") or 0.0)
+        ink_bottom = _off + _drawn + _rule
+        # …AND WHERE THE INK ITSELF BEGINS AND ENDS, WHICH IS NEITHER OF THOSE.
+        #
+        # `_drawn` is the font's FULL pixel size, and `render_pages` draws the
+        # letters with PIL's "ma"/"la" anchor, so the ASCENDER line lands on
+        # `leader_top + offset` and the ink is inset from the top of that box
+        # by the difference between the ascender and the cap height. Measured
+        # here with the probe rather than derived: DejaVuSans at a 4.911 mm em
+        # inks from **1.355 mm to 5.165 mm** below the anchor, so a check that
+        # assumed the ink starts at the anchor and stops at the em box was
+        # wrong at both ends.
+        #
+        # That is the fault a tester measured on beta 18
+        # (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-geometry/`, section 2.2):
+        # the panel predicted the letters "reach" T + 4.9 mm while they really
+        # reached T + 5.99, so the top warning arrived one whole millimetre
+        # late — at "T" 8 there was 0.93 mm of letter ink on the first row of
+        # patches and the panel said nothing — and the remedy it offered left
+        # 1.1 mm of every letter still on the patches while going silent.
+        #
+        # **THE LAYOUT RESERVE IS DELIBERATELY NOT CHANGED.**
+        # `label_ink_bottom_mm` is what `geometry._top_reserve_for_a_turned_hex`
+        # moves the patch block by, and moving it would move every turned
+        # honeycomb sheet. These two are new numbers for the panel to predict
+        # with, and nothing lays a chart out from them.
+        #
+        # **AND THE PROBE MUST SEE THE DEEPEST GLYPH THE LABELS CAN PRINT,
+        # WHICH "W8" IS NOT.** Strip labels come from
+        # `permutation.make_labeller`, so an alphabetic pattern prints A-Z (then
+        # AA, AB, ...) and a numeric one prints digits. **"Q" is the only glyph
+        # in either repertoire with a DESCENDER**, and a probe of "W8" cannot
+        # see it: measured here, DejaVuSans inks to 5.165 mm below the anchor at
+        # a 4.911 mm em for "W8" and to 6.011 mm for "Q" -- 0.846 mm deeper, and
+        # 0.678 mm at the 11 pt a tester was working at.
+        #
+        # That is the fault he measured on beta 19 rather than guessed
+        # (`~/Desktop/ChromIQ-beta20-proof/knut-beta19/`): on
+        # `CR30-A4-450p-1page-Portrait-w11.0mm-Hexagonal-Straight`, top margin
+        # 13.0 mm, the letters touch the patch edge at "T" 9.0 mm while the
+        # notice only arrives at 9.5. Measured off his own rendered sheets with
+        # `fault2-tiff-measurement.txt`: at "T" 9.0 the plain letters ink to
+        # 13.08 mm -- which is what the panel predicted, to the hundredth -- and
+        # **the Q inks to 13.72 mm**, 0.72 mm onto the patches, in silence. At
+        # "T" 9.5 it is 13.59 and 14.22. The delta is 0.64 mm on both sheets.
+        # His conclusion was the right one: *"it is not the threshold that is at
+        # fault, but the measurement of the text height that is slightly off"*.
+        #
+        # The probe is therefore the labeller's own first 26 labels, not a
+        # hand-picked pair of glyphs, so a pattern change cannot leave it
+        # measuring letters the sheet does not print.
+        #
+        # **WHAT THIS COSTS, MEASURED AND BOUNDED.** The strip COUNT is not
+        # knowable here -- this reserve feeds the capacity that decides it -- so
+        # a chart with fewer than 17 strips never prints a Q and is predicted up
+        # to 0.64 mm (at 11 pt) pessimistically. That is the safe direction for
+        # an overlap notice, and it is the only direction available without a
+        # second layout pass.
+        _t_px, _b_px = _indicator_ink_px(
+            _indicator_probe_text(kw, geom), ind_px, fam, _bold, _ital, rot, spc)
+        ink_top = _off + _t_px / mm2px
+        ink_reach = _off + _b_px / mm2px + _rule
     # Bottom-of-sheet block: one line each for custom sheet text and the stamp,
     # drawn at line_h = px(4.2) above the printer-safe bottom inset (see
     # render_pages); the inset keeps the text clear of a printer's unprintable
     # edge (#93, Knut's "distance from page edge to text").
     nlines = (1 if kw.get("chart_text") else 0) + (1 if kw.get("stamp_command") else 0)
-    _edge = float(kw.get("text_edge") or TEXT_EDGE_MARGIN_MM)
-    bottom = (_edge + 4.2 * nlines) if nlines else 0.0
-    return label_band, bottom
+    # THE SAME RESERVE THE RENDERER USES, or the capacity estimate reserves a
+    # band the text is no longer drawn in. `render_pages` anchors the block at
+    # `text_edge_fit.sheet_text_bottom_mm`, the larger of "B" and the helper
+    # markers' own distance (#182).
+    from workflow import text_edge_fit as _tef
+    _edge = _tef.sheet_text_bottom_mm(
+        float(kw.get("text_edge") or TEXT_EDGE_MARGIN_MM),
+        bool(kw.get("helper_markers")),
+        float(kw.get("helper_marker_edge") or 0.0),
+        float(kw.get("helper_marker_len") or 0.0),
+        bool(kw.get("helper_markers_top_bottom", True)))
+    # ONE NUMBER FOR THE RESERVE, THE SHRINK AND THE CHECK. This was the
+    # literal 4.2 while `text_edge_fit.SHEET_TEXT_LINE_MM` was the same value
+    # in three other places; a line box that grows past it is exactly the case
+    # the bottom-text warning is about, so the two must not drift.
+    # ONE LINE'S BAND, AND "auto" IS ALLOWED TO ASK FOR MORE THAN 4.2 mm.
+    # A typed Size still reserves the 4.2 mm pitch and the warning takes the
+    # place of the shrink, which is the rule for a typed size everywhere else;
+    # "auto" is a size the app chooses, so the band it needs is the band it
+    # gets, up to `AUTO_SIZE_CEILING_PT`. Without this the ceiling could not
+    # exist: the engine held back 4.2 mm a line whatever "auto" resolved to, so
+    # anything above about 10 pt would have been drawn into the patches.
+    #
+    # Resolved from the text this function can SEE, which is the custom line;
+    # the layout stamp's wording is composed later and is not knowable here.
+    # `render_pages` therefore takes the SMALLER of its own resolution and the
+    # band held back here, so the block can never exceed the reserve.
+    _hold = _tef.SHEET_TEXT_LINE_MM
+    if nlines and not float(kw.get("chart_text_size_mm") or 0.0):
+        try:
+            from . import papers as _papers
+            _pw_mm = float(_papers.dimensions_mm(str(kw.get("paper") or ""))[0])
+            _cb = (float(kw.get("clip_border_width") or 0.0)
+                   if float(kw.get("clip_border_width") or 0.0) > 0 else 0.0)
+            _room = _tef.bottom_text_room_mm(
+                _pw_mm, float(kw.get("text_edge_clip") or 0.0),
+                bool(kw.get("helper_markers")),
+                float(kw.get("helper_marker_edge") or 0.0),
+                float(kw.get("helper_marker_len") or 0.0),
+                bool(kw.get("helper_markers_sides", True)),
+                clip_border_mm=_cb,
+                clip_side=str(kw.get("clip_side") or "left"),
+                margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
+                margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0),
+                align=str(kw.get("chart_text_align")
+                          or _tef.BOTTOM_TEXT_ALIGN_DEFAULT))
+            _auto_mm = auto_sheet_text_size_mm(
+                [str(kw.get("chart_text") or "")], _room,
+                str(kw.get("chart_text_font") or ""),
+                bool(kw.get("chart_text_bold")),
+                bool(kw.get("chart_text_italic")), dpi)
+            _hold = max(_hold, sheet_text_line_mm(
+                _auto_mm, str(kw.get("chart_text_font") or ""),
+                bool(kw.get("chart_text_bold")),
+                bool(kw.get("chart_text_italic")), dpi))
+        except Exception:            # noqa: BLE001 — fall back to the pitch
+            _hold = _tef.SHEET_TEXT_LINE_MM
+    bottom = (_edge + _hold * nlines) if nlines else 0.0
+    return label_band, bottom, ink_bottom, ink_top, ink_reach
 
 
 def apply_furniture_reserves(geom, kw: dict):
     """Return *geom* with label_band_mm / bottom_reserve_mm filled from the
     rendered furniture (single source of truth shared by the renderer and every
     capacity estimate, so they can't disagree — #93)."""
-    lb, br = _furniture_reserves_mm(geom, kw)
+    lb, br, ib, it, ir = _furniture_reserves_mm(geom, kw)
     return apply_row_label_geometry(
-        replace(geom, label_band_mm=lb, bottom_reserve_mm=br), kw)
+        replace(geom, label_band_mm=lb, bottom_reserve_mm=br,
+                label_ink_bottom_mm=ib, label_ink_top_mm=it,
+                label_ink_reach_mm=ir), kw)
 
 
 #: What `LayoutRecipe.text_edge_clip_mm` defaults to. Kept here as well because
@@ -370,6 +708,263 @@ _DEFAULT_TEXT_EDGE_CLIP_MM = 4.0
 
 
 ROW_LABEL_PITCH_FRAC = 0.85
+
+
+def resolve_placeholders(t: str, ctx: dict) -> str:
+    """`{project}` and friends filled in, unknown placeholders left literal.
+
+    MODULE LEVEL SO THE PANEL CAN ASK IT. This was a closure inside
+    `render_pages`, and the Create Chart panel therefore measured the raw
+    string while the sheet printed the resolved one, which is a difference of
+    up to 23 mm on a single token. `chart.text_placeholder_context` builds the
+    dict; this fills the text.
+    """
+    try:
+        return t.format(**ctx) if t else ""
+    except (KeyError, IndexError, ValueError):
+        return t                           # leave unknown placeholders literal
+
+
+def sheet_text_reserve_mm(dpi: float = 300.0) -> float:
+    """The bottom-text band the engine holds back per line, AS THIS DPI DRAWS IT.
+
+    :data:`text_edge_fit.SHEET_TEXT_LINE_MM` is 4.2 mm, but a raster reserves a
+    whole number of pixels, and :func:`sheet_text_line_mm` measures in the same
+    quantised space: its own floor is ``round(4.2 * dpi / 25.4)`` px read back
+    as millimetres. At 150, 240, 300 and 360 dpi that is **4.2333 mm**, larger
+    than the 4.2 it used to be compared against.
+
+    **THE AUTO SHRINK COMPARED THE TWO AND COULD NEVER BE SATISFIED.** With the
+    height term added on 2026-09-14 the loop asked
+    ``sheet_text_line_mm(...) <= SHEET_TEXT_LINE_MM``; at those four
+    resolutions no size can satisfy that, not even the 7 pt floor, so every
+    "Size auto" bottom line was shrunk to the floor whatever room it had, and
+    300 dpi is `LayoutRecipe`'s default. Measured on one real sheet, A4, Size
+    auto, the text "ChromIQ", 7.5 mm of clear paper under the patches: the ink
+    came out 1.947 x 9.991 mm at 300 dpi where the same recipe at 200 dpi, and
+    the same sheet before the change, draws 2.540 x 13.1 mm.
+
+    One function, so the loop and the check compare like with like.
+    """
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    from workflow import text_edge_fit as _tef
+    return max(1, int(round(_tef.SHEET_TEXT_LINE_MM * d / 25.4))) * 25.4 / d
+
+
+def sheet_text_line_mm(size_mm: float, font_family: str = "",
+                       bold: bool = False, italic: bool = False,
+                       dpi: float = 300.0) -> float:
+    """How much paper ONE line of bottom-of-sheet text takes, across the margin.
+
+    The larger of the renderer's line PITCH
+    (:data:`text_edge_fit.SHEET_TEXT_LINE_MM`, 4.2 mm) and the face's own
+    ascent plus descent at this Size, which is how far the ink really reaches
+    below the point the line is anchored at.
+
+    **THE PITCH WAS THE ONLY NUMBER, AND A PITCH IS NOT A TYPE HEIGHT.** The
+    block was stacked at a fixed 4.2 mm however big the type was, so at a
+    typed Size above about 12 pt the last line's descenders crossed the "B"
+    reserve toward the paper edge, at 28 pt on A4 the line was cut off by the
+    paper edge altogether, and two lines (sheet text plus the settings stamp)
+    were printed on top of each other. `workflow/text_edge_fit.py` says what
+    was measured.
+
+    It lives here, beside :func:`effective_row_label_size_mm` and for the same
+    reason: the fonts are here, and the "Measured from Preview" panel has to
+    predict what this function returns rather than keep a second copy of the
+    rule. Rounded through whole pixels at *dpi*, so the panel's millimetres
+    and the renderer's pixels are the same number.
+    """
+    from workflow import text_edge_fit as _tef
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    floor_px = max(1, int(round(_tef.SHEET_TEXT_LINE_MM * d / 25.4)))
+    size = float(size_mm or 0.0) or _tef.SHEET_TEXT_DEFAULT_MM
+    try:
+        f = _font(max(1, int(round(size * d / 25.4))), font_family,
+                  bold, italic)
+        asc, desc = f.getmetrics()
+        ink_px = int(asc) + int(desc)
+    except Exception:                # noqa: BLE001 — a prediction is never fatal
+        ink_px = max(1, int(round(size * d / 25.4)))
+    return max(floor_px, ink_px) * 25.4 / d
+
+
+def _block_bounds_mm(place, steps: int, patches_per_page: int,
+                     paper_w_mm: float, hex_overhang_mm: float = 0.0
+                     ) -> "tuple[float, float]":
+    """``(left_mm, right_mm)`` of the PATCH BLOCK on a full page, as margins.
+
+    The same two numbers "Measured from Preview" reports, derived from the same
+    `Placement` the patches are drawn from: the first pass's left edge, and the
+    paper left over to the right of the last pass. `geom.margin_l` and
+    `geom.margin_r` are what the LAYOUT WAS ASKED FOR, and the block does not
+    begin there: it is centred in the slack, moved by "Patch area alignment",
+    and pushed in by a honeycomb's apex reserve and by the row-label band.
+
+    A FULL page, deliberately. A part-full last page has fewer passes and so a
+    much wider right margin, and a bottom line that moved from sheet to sheet
+    of one chart would be worse than one anchored a millimetre out.
+    """
+    try:
+        n = max(1, (int(patches_per_page) + int(steps) - 1) // int(steps))
+        # A HONEYCOMB'S APEX REACHES `hxew` PAST ITS SLOT, and the frame
+        # reports the apex. `Placement.x0` already carries `+ g.hxew`, so the
+        # slot origin is that much INSIDE the leftmost ink: measured on a CR30
+        # honeycomb, `place.x_of(0)` is 27.000 mm while the chart's own
+        # recorded rectangles, and therefore "Measured from Preview", say
+        # 23.961 -- exactly `g.hxew` of 3.0 mm apart. Anchoring the bottom line
+        # on the slot would put it 3 mm inside the patch column above it, which
+        # is the very disagreement this change set is closing. Zero for square
+        # patches, so nothing else moves.
+        over = max(0.0, float(hex_overhang_mm or 0.0))
+        left = float(place.x_of(0)) - over
+        right = (float(paper_w_mm)
+                 - float(place.x_of(n - 1) + place.pwid) - over)
+        return max(0.0, left), max(0.0, right)
+    except Exception:                # noqa: BLE001 — never block a render
+        return 0.0, 0.0
+
+
+def sheet_text_ink_top_mm(text: str, size_mm: float, font_family: str = "",
+                          bold: bool = False, italic: bool = False,
+                          dpi: float = 300.0) -> float:
+    """How far below a bottom-text line's own BOX its ink actually starts, in mm.
+
+    `render_pages` draws each line with PIL's default "la" anchor, so the
+    ASCENDER lands on the line box's top and the ink begins wherever the
+    tallest glyph in the string does. The block's box therefore reaches
+    ``reserve + lines x line_h`` above the paper edge, and its INK reaches this
+    much less than that.
+
+    **THE PANEL BUDGETED THE BOX AND WARNED ABOUT THE INK.** Measured on beta
+    18 (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-geometry/`, section 2.3), on
+    the same string on a CR30 honeycomb chart:
+
+    | state | the notice | the text's real ink | the block's real edge | verdict |
+    |---|---|---|---|---|
+    | bottom-left, "B" 18, 10 pt | *"0.2 mm short"* | 18.288 ... 21.505 | 22.098 | **0.593 mm of clear paper. FALSE** |
+    | top-left, "B" 4, 28 pt | *"1.3 mm short"* | 4.318 ... 13.885 | 14.647 | **0.762 mm of clear paper. FALSE** |
+    | centre, "B" 18, 28 pt | *"6.5 mm short"* | reaches 27.94 | 23.654 | true, over-stated by 2.2 mm |
+
+    The over-read grows with the type, about 0.9 mm at 10 pt and about 2.2 mm
+    at 28, so it is not something a flat threshold can answer: it is the second
+    of the two independent causes of false warnings that beta 18 shipped, and
+    the 0.2 mm one (`text_edge_fit.edge_tolerance_mm`) does not touch it.
+
+    Measured off a probe rather than derived, because a face's ascender and its
+    cap height are its own business. Returns 0.0 for an empty string and
+    whenever the face cannot be asked.
+    """
+    if not text:
+        return 0.0
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    from workflow import text_edge_fit as _tef
+    size = float(size_mm or 0.0) or _tef.SHEET_TEXT_DEFAULT_MM
+    try:
+        f = _font(max(1, int(round(size * d / 25.4))), font_family, bold, italic)
+        bb = ImageDraw.Draw(Image.new("L", (4, 4))).textbbox(
+            (0, 0), str(text), font=f)
+        return max(0.0, float(bb[1]) * 25.4 / d)
+    except Exception:                # noqa: BLE001 — a prediction is never fatal
+        return 0.0
+
+
+def auto_sheet_text_size_mm(lines, room_mm: float, font_family: str = "",
+                            bold: bool = False, italic: bool = False,
+                            dpi: float = 300.0) -> float:
+    """What the Sheet text frame's "auto" resolves to, in millimetres.
+
+    The largest size that fits *room_mm* across the sheet, starting at
+    :data:`text_edge_fit.AUTO_SIZE_CEILING_PT` and stepping down a pixel at a
+    time to :data:`text_edge_fit.AUTO_SHRINK_FLOOR_PT`.
+
+    **"auto" USED TO MEAN 9 pt AND NOTHING ELSE.** `render_page` started the
+    shrink loop at :data:`text_edge_fit.SHEET_TEXT_DEFAULT_MM`, 3.2 mm, and the
+    loop only ever decremented, so the box could not grow however much paper
+    was free. A tester on beta 18: *"the bottom text is still not automatically
+    sized. The size of text is kept quite small even when there is a lot of
+    space in both available width and height. Set a reasonable upper limit ...
+    (such as 15 or 16pt?)"*.
+
+    The height is NOT a term here. It is applied by the caller against the band
+    the engine actually reserved, because that band is computed from this
+    function and the two must not be able to disagree: `_furniture_reserves_mm`
+    holds back one line box at this size, and `render_pages` then refuses to
+    draw larger than the band it was given.
+    """
+    from workflow import text_edge_fit as _tef
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    # **STEPPED IN POINTS, NOT IN PIXELS.** A pixel is 0.169 mm at 150 dpi and
+    # 0.042 mm at 600, so a search that walked the raster landed on a different
+    # size at every resolution and the same recipe printed a different sheet.
+    # `tests/test_the_auto_sheet_text_does_not_shrink_with_the_dpi.py` is the
+    # guard for exactly that, and it caught this within one run.
+    # `AUTO_SHRINK_STEP_PT` is the half point the other two auto boxes step by.
+    ceiling = max(float(_tef.AUTO_SIZE_CEILING_PT),
+                  float(_tef.AUTO_SHRINK_FLOOR_PT))
+    floor = float(_tef.AUTO_SHRINK_FLOOR_PT)
+    texts = [t for t in (lines or ()) if t]
+    if not texts:
+        return _tef.pt_to_mm(ceiling)
+    room = float(room_mm or 0.0)
+    pt = ceiling
+    while pt > floor:
+        if sheet_text_width_mm(texts, _tef.pt_to_mm(pt), font_family, bold,
+                               italic, d) <= room:
+            return _tef.pt_to_mm(pt)
+        pt = max(floor, round((pt - _tef.AUTO_SHRINK_STEP_PT) * 2) / 2.0)
+    return _tef.pt_to_mm(floor)
+
+
+def sheet_text_width_mm(lines, size_mm: float, font_family: str = "",
+                        bold: bool = False, italic: bool = False,
+                        dpi: float = 300.0) -> float:
+    """How wide the widest of *lines* prints, across the sheet, in millimetres.
+
+    The companion to :func:`sheet_text_line_mm` on the other axis, and it lives
+    here for the same reason: the "Measured from Preview" panel has to predict
+    the width the renderer will draw, and a second copy of the rule in the
+    panel drifts from this one. It did, immediately: the panel's own version
+    asked for the font by a family string the recipe had left empty, got a
+    fallback face, and predicted **378 mm** for a line that printed **206**.
+
+    *size_mm* is the size to measure AT, not the Size box: "auto" has to be
+    resolved by the caller, because the panel wants the floor (the smallest the
+    renderer may shrink to, so it warns only about a line that will not fit
+    even then) while the renderer wants whatever it is currently trying.
+    """
+    texts = [t for t in (lines or ()) if t]
+    if not texts:
+        return 0.0
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    px = max(1, int(round(float(size_mm or 0.0) * d / 25.4)))
+    f = _font(px, font_family, bold, italic)
+    return max(float(f.getlength(t)) for t in texts) * 25.4 / d
 
 
 def effective_row_label_size_mm(geom, dpi: int, font: str,
@@ -387,10 +982,21 @@ def effective_row_label_size_mm(geom, dpi: int, font: str,
 
     A size the user TYPED is returned untouched: capping a number somebody
     chose would be the app arguing with them.
+
+    **AND AN AUTOMATIC SIZE THAT WAS ALREADY SETTLED IS RETURNED UNTOUCHED
+    TOO** — §R8. When the band would have forced the left margin above the
+    typed one, `apply_row_label_geometry` walks the automatic size down until
+    it fits and records the answer on `Geom.row_label_size_mm`. Every reader of
+    the size comes through here, so recording it in one place is what keeps the
+    renderer, the band reservation and the panel's ⓘ from disagreeing: the
+    alternative is three call sites that each have to remember to ask.
     """
     size = effective_indicator_size_mm(geom, dpi, font, size_mm)
     if size_mm:
         return size                      # explicit: their choice stands
+    settled = float(getattr(geom, "row_label_size_mm", 0.0) or 0.0)
+    if settled > 0:
+        return settled                   # §R8: auto, already walked down to fit
     pitch = (float(getattr(geom, "plen", 0.0) or 0.0)
              + float(getattr(geom, "pspa", 0.0) or 0.0))
     if pitch <= 0:
@@ -421,6 +1027,18 @@ def apply_row_label_geometry(geom, kw: dict):
     band = float(getattr(geom, "rlwi", 0.0) or 0.0)
     if band <= 0:
         return geom
+    # **ANY SIZE §R8 SETTLED ON EARLIER IS DROPPED BEFORE ANYTHING IS
+    # MEASURED**, so this function always derives from the chart's own
+    # automatic size rather than from its own previous answer.
+    #
+    # It is not hypothetical tidiness. Leaving it on made a second application
+    # measure the band at the SETTLED size, find that it already fitted, take
+    # the branch that walks nothing, and return a geometry with the band still
+    # reserved for 16 pt and `row_label_size_mm` back at 0 -- so
+    # `effective_row_label_size_mm` would have told the renderer to draw the
+    # 19 pt automatic size into a 16 pt band. Caught by
+    # `tests/test_size_auto_fits_the_margin_it_was_given.py`.
+    geom = replace(geom, row_label_size_mm=0.0)
     measured = row_label_band_mm(
         geom, dpi=int(kw.get("dpi") or 300),
         indicator_font=kw.get("indicator_font") or DEFAULT_INDICATOR_FONT,
@@ -464,13 +1082,259 @@ def apply_row_label_geometry(geom, kw: dict):
     # sheet, for something the labels never had to clear.
     _left_furniture = (float(getattr(geom, "lbord", 0.0) or 0.0)
                        if on_left else 0.0)
+    # …AND THE RULER HELPER MARKERS, which are the fourth thing the labels must
+    # clear (#182, Knut, 2026-09-12). His left-edge table crosses the row
+    # indicators with the markers and gives the floor for each of the four
+    # cases: *"the left edge of the row indicators will be aligned against the
+    # clip-border width, or "Clip" in "Text distance from edge", or the defined
+    # "Distance from page edge" + "Marker length" + 1.0mm, whichever is
+    # largest."* Only the SIDE dashes are down this edge, so the "Sides"
+    # checkbox gates it; with the markers off this adds nothing and the floor
+    # is exactly what it was.
+    from workflow import text_edge_fit as _tef
+    _marker_floor = (
+        _tef.helper_marker_ink_reach_mm(kw.get("helper_marker_edge") or 0.0,
+                                      kw.get("helper_marker_len") or 0.0)
+        if (bool(kw.get("helper_markers"))
+            and bool(kw.get("helper_markers_sides", True))) else 0.0)
     floor = max(_left_furniture,
                 float(_DEFAULT_TEXT_EDGE_CLIP_MM if _edge is None else (_edge or 0.0)),
-                float(kw.get("clip_border_width") or 0.0) if has_border else 0.0)
+                float(kw.get("clip_border_width") or 0.0) if has_border else 0.0,
+                _marker_floor)
+    # **"Size = auto" LOWERS THE SIZE RATHER THAN RAISING THE MARGIN** -- B8-265,
+    # and §R8 of `docs/design/row_label_geometry.md`. It is the design
+    # authority's ruling of 2026-09-16: *"It is more important that the feature
+    # is correct, so make the fix for the 'Size = auto' choosing a label size
+    # that fits with the margins used."*
+    #
+    # B8-265 carries the measurement, the eleven-day hold and what ended it.
+    #
+    # He reported it on beta 19, loading
+    # `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`: *"Since size is set to
+    # auto, I would expect the label text size to be found where there is no
+    # warning (as long as size does not go below 7pt, as usual)."* On that
+    # preset "auto" now settles at 16.0 pt, the very size he said would clear
+    # it, and `margin_l` stays at the value the recipe asks for.
+    #
+    # Three properties of the walk are deliberate:
+    #
+    #   * **A TYPED SIZE IS NEVER TOUCHED.** §R1.5 raises the margin for it
+    #     exactly as before; capping a number somebody chose would be the app
+    #     arguing with them, which is already this document's rule for the
+    #     pitch cap. That is the `indicator_size_mm` guard below.
+    #   * **NOTHING IS COMMITTED UNLESS IT CLEARS.** On a sheet where no size
+    #     down to the floor fits -- a 12 mm clip border puts `floor` at 12 mm
+    #     on its own, so the margin must rise whatever the type does -- the
+    #     size stays where it was and R1.5 raises the margin as it always did.
+    #     The first implementation of this did not do that: measured on a 12 mm
+    #     band at a 12 mm left margin it walked 19.8 pt down to 7.0 pt while
+    #     `margin_l` went to 16.95 mm either way, so the reader lost legibility
+    #     AND kept the warning.
+    #   * **THE STARTING SIZE IS RE-DERIVED, NOT READ BACK.** The settled size
+    #     is stripped off the geometry first, so applying this function twice
+    #     to the same geometry cannot ratchet the labels down step by step.
+    #     `apply_furniture_reserves` is the only caller, but a geometry that
+    #     has been through it once is an ordinary `Geom` and nothing stops a
+    #     second pass.
+    #
+    # The ladder is `text_edge_fit.next_size_down_pt`, which is the same
+    # half-point grid the Size boxes step by and the same one every other
+    # automatic shrink in the app walks -- so what this settles on is a value
+    # the user could have typed.
+    typed_size = float(kw.get("indicator_size_mm") or 0.0)
+    settled = 0.0
+    asked_l = float(getattr(geom, "margin_l", 0.0) or 0.0)
+    if not typed_size and floor + measured + 1.0 > asked_l:
+        # The automatic size this chart would otherwise use, in points, taken
+        # RAW. `next_size_down_pt` snaps to the half-point grid on its first
+        # call and is strictly decreasing thereafter, so rounding it here would
+        # only throw away the one thing that decides whether the first rung is
+        # 19.5 or 19.0.
+        size_pt = effective_row_label_size_mm(
+            geom, int(kw.get("dpi") or 300),
+            kw.get("indicator_font") or DEFAULT_INDICATOR_FONT,
+            0.0) * 72.0 / 25.4
+        while True:
+            size_pt = _tef.next_size_down_pt(size_pt)
+            if size_pt < _tef.AUTO_SHRINK_FLOOR_PT:
+                break
+            cand_mm = _tef.pt_to_mm(size_pt)
+            band = row_label_band_mm(
+                geom, dpi=int(kw.get("dpi") or 300),
+                indicator_font=kw.get("indicator_font") or DEFAULT_INDICATOR_FONT,
+                indicator_size_mm=cand_mm,
+                indicator_bold=bool(kw.get("indicator_bold")),
+                indicator_italic=bool(kw.get("indicator_italic")),
+                patch_pattern=kw.get("patch_pattern") or "")
+            if band > 0 and floor + band + 1.0 <= asked_l:
+                settled, measured = cand_mm, band
+                break
     needed = floor + measured + 1.0
-    margin_l = max(float(getattr(geom, "margin_l", 0.0) or 0.0), needed)
-    return replace(geom, rlwi=measured, margin_l=margin_l,
-                   row_label_floor=floor)
+    margin_l = max(asked_l, needed)
+    out = replace(geom, rlwi=measured, margin_l=margin_l,
+                  row_label_floor=floor, row_label_size_mm=settled)
+    return _clear_the_side_stamp(out, kw, asked_l=asked_l, floor=floor,
+                                 typed_size=typed_size)
+
+
+def _clear_the_side_stamp(geom, kw: dict, *, asked_l: float, floor: float,
+                          typed_size: float):
+    """§R9 — the stamp down the right edge is furniture too, and the automatic
+    row-label size pays for it before the patches do.
+
+    **THE LEFT MARGIN IS WIDENED FOR ITS TEXT AND THE RIGHT ONE NEVER WAS.**
+    `apply_row_label_geometry` above raises `margin_l` to hold the row
+    indicators (§R1.5). The settings stamp down the right edge is the same kind
+    of thing -- text the app puts in a margin -- but it is painted onto the
+    finished raster by `workflow/tiff_metadata.py::_stamp_one`, which can move
+    nothing, so when the paper is too thin it prints ACROSS the patches instead
+    (Knut's ruling: the user must be able to see that something is wrong).
+    Manual mode then says so in red and names four levers. Guided has no
+    levers, no boxes and no warning, and shipped the overlapping sheet in
+    silence -- Sebastian, 2026-09-20: *"guided module should just work for the
+    user without causing issues for the user"*.
+
+    Measured on the sheet he sent (`test.tif`, CR30 / A4 / hexagon / 396
+    patches), 300 dpi, the stamp applied to a copy of the very same raster and
+    the two differenced: the stamp's ink runs **8 px, 0.677 mm** into the block
+    and 190 of its pixels land on patch ink. `_stamp_one` has 28 px of paper
+    where a line at the 7 pt floor needs 32, so its own `_overlaps` fires.
+
+    **HIS FIX, AND IT IS HIS.** *"another thought would be to reduce the size
+    of the font for the row label very slightly"* -- and *"the text size
+    reductions ... should only be as much as really needed to avoid overlap,
+    not more"*. Measured in patch-first, on the rendered sheet, the left band
+    and the right gap move one for one: taking 1.108 mm off the band moves the
+    block 1.108 mm left and hands the right edge exactly that. The row labels
+    are already the app's to size when the box says "auto" (§R8), so this is
+    one more reason to walk the same half-point grid, not a new mechanism.
+
+    Three properties, all of them §R8's and for §R8's reasons:
+
+      * **A TYPED SIZE IS NEVER TOUCHED.** A number somebody chose is not the
+        app's to spend, so a Manual user who typed one keeps their size and
+        keeps the red warning that names their levers.
+      * **NOTHING IS COMMITTED UNLESS IT CLEARS.** No rung down to the 7 pt
+        floor clears some charts; those keep the size they had rather than
+        losing legibility AND the overlap.
+      * **AND NOTHING IS COMMITTED THAT MOVES THE PATCH COUNT**, in either
+        direction. Sebastian: *"if the guided modes chart would fit fewer
+        patches because of this (especially on A4 paper) i would consider it a
+        regression"*. A rung that changes `patches_per_page` at all is refused
+        -- fewer is his regression, and more would put the Guided capacity
+        estimate (`ui/tabs/tab_chart.py::_engine_capacity`, which builds its
+        own kwargs) out of step with the build.
+
+    **AREA-FIRST IS EXCLUDED, BECAUSE THERE THE LEVER DOES NOTHING.** Under
+    "Prioritise chart area, then fit patches to it" the margins are the law and
+    the block fills the box exactly, so freeing width on the left makes the
+    PATCHES wider and hands the right edge nothing. Measured over the whole
+    half-point grid on the same chart: the right gap stayed between 5.01 and
+    5.18 mm at every size from 20.0 pt down to 7.0 pt, against a 7.06 mm
+    reserve. Running the walk there could only cost a `geometry.compute` per
+    rung and commit nothing -- and `area_fit` builds a geometry thousands of
+    times inside one column search.
+    """
+    if typed_size:
+        return geom
+    band = float(getattr(geom, "rlwi", 0.0) or 0.0)
+    if band <= 0:
+        return geom                       # no labels: no lever
+    if not kw.get("side_stamp", True):
+        return geom                       # nothing is stamped on that edge
+    if str(kw.get("layout_mode") or "patch_first") == "area_first":
+        return geom                       # see the docstring
+    from workflow import text_edge_fit as _tef
+    from . import papers
+    try:
+        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+    except Exception:                     # noqa: BLE001 — unknown paper, no fix
+        return geom
+    if str(kw.get("orientation") or "").lower().startswith("land"):
+        w_mm, h_mm = h_mm, w_mm
+    dpi = int(kw.get("dpi") or 300)
+    # WHAT THE STAMP ASKS FOR, FROM THE ONE FUNCTION THAT ANSWERS IT. The
+    # page-edge reserve is the side text-edge (the "Clip" box, pushed further
+    # in by the ruler helper markers when they are on for the sides), and a
+    # clip band on the RIGHT is counted instead when it reaches further.
+    edge = _tef.side_text_edge_mm(
+        float(_DEFAULT_TEXT_EDGE_CLIP_MM if kw.get("text_edge_clip") is None
+              else (kw.get("text_edge_clip") or 0.0)),
+        helper_markers=bool(kw.get("helper_markers")),
+        marker_edge_mm=float(kw.get("helper_marker_edge") or 0.0),
+        marker_len_mm=float(kw.get("helper_marker_len") or 0.0),
+        marker_sides=bool(kw.get("helper_markers_sides", True)))
+    right_band = (float(kw.get("clip_border_width") or 0.0)
+                  if (str(kw.get("clip_side") or "left") == "right"
+                      and bool(getattr(geom, "has_clip_border", False))) else 0.0)
+    size_pt = float(kw.get("chart_text_size_mm") or 0.0) * 72.0 / 25.4
+    tol = _tef.edge_tolerance_mm(dpi)
+
+    from . import geometry as _geom
+
+    def _judge(g):
+        """(does the stamp still run over the patches, patches per page)."""
+        lay = _geom.compute(g, w_mm, h_mm, 100_000)
+        gap = _geom.patch_block_right_ink_gap_mm(g, w_mm, h_mm, lay)
+        over = _tef.chart_note_overlap("right", gap, edge, dpi, right_band,
+                                       size_pt, tol_mm=tol)
+        return over is not None, lay.patches_per_page
+
+    try:
+        was_over, cap0 = _judge(geom)
+    except _geom.LayoutError:
+        return geom
+    if not was_over:
+        return geom                       # the stamp already fits
+
+    size_pt_now = effective_row_label_size_mm(
+        geom, dpi, kw.get("indicator_font") or DEFAULT_INDICATOR_FONT,
+        0.0) * 72.0 / 25.4
+    font = kw.get("indicator_font") or DEFAULT_INDICATOR_FONT
+    while True:
+        size_pt_now = _tef.next_size_down_pt(size_pt_now)
+        if size_pt_now < _tef.AUTO_SHRINK_FLOOR_PT:
+            return geom                   # nothing clears: leave it alone
+        cand_mm = _tef.pt_to_mm(size_pt_now)
+        cand = replace(geom, row_label_size_mm=cand_mm)
+        # The band at the candidate size, asked through the settled channel so
+        # `effective_row_label_size_mm` returns the candidate and nothing here
+        # has to pretend the size was typed.
+        cand_band = row_label_band_mm(
+            cand, dpi=dpi, indicator_font=font, indicator_size_mm=0.0,
+            indicator_bold=bool(kw.get("indicator_bold")),
+            indicator_italic=bool(kw.get("indicator_italic")),
+            patch_pattern=kw.get("patch_pattern") or "")
+        if cand_band <= 0:
+            return geom
+        cand = replace(cand, rlwi=cand_band,
+                       margin_l=max(asked_l, floor + cand_band + 1.0))
+        try:
+            still_over, cap = _judge(cand)
+        except _geom.LayoutError:
+            return geom
+        if still_over:
+            continue
+        if cap != cap0:
+            return geom                   # not at the cost of one patch
+        # WHAT WAS FREED, RECORDED, BECAUSE IT IS NOT ROOM FOR THE STAMP TO
+        # GROW INTO. The note is auto-sized from the paper beside it
+        # (`tiff_metadata.fit_rotated_line` starts at `strip_w - the gap`), so
+        # without this the first thing the freed millimetre bought was a bigger
+        # line and the clearance stayed at nothing: measured on the reported
+        # chart, 7.20 pt before and 8.88 pt after, with the ink still 4 px
+        # inside the outermost hexagon points. Sebastian, 2026-09-21: *"I'd
+        # rather have the stamp size the same as before (so little smaller than
+        # now) but with a tiny gap to the patches."*
+        #
+        # `chart_creator._stamp_tiff_metadata` hands this to the stamper as a
+        # minimum patch-side gap. It is the DIFFERENCE and not the whole
+        # margin, so a chart this walk never touched carries 0 and its stamp is
+        # laid out exactly as before -- which is what keeps the blast radius of
+        # his change at twelve charts instead of every chart ChromIQ builds.
+        return replace(cand, side_stamp_freed_mm=max(
+            0.0, float(getattr(geom, "margin_l", 0.0) or 0.0)
+            - float(getattr(cand, "margin_l", 0.0) or 0.0)))
 
 
 def _rows_that_fit(geom, kw: dict) -> int:
@@ -545,7 +1409,8 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
                       image_offset_x_mm: float = 0.0,
                       image_offset_y_mm: float = 0.0,
                       image_obj: "Image.Image | None" = None,
-                      text_size_mm: float = 0.0) -> Image.Image:
+                      text_size_mm: float = 0.0,
+                      anchor_far: bool = False) -> Image.Image:
     """Render the left clip-strip content as a ``width_px × height_px`` image.
 
     The strip is tall and narrow, so text/branding are drawn on a landscape
@@ -585,7 +1450,8 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
         lines = clip_text_lines(text)
         if lines:
             overlay = _vtext("\n".join(lines), font_family, width_px, height_px,
-                             size_px=(text_size_mm * mm2px) if text_size_mm else 0.0)
+                             size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
+                             dpi=dpi)
             strip.paste(overlay, (0, 0), overlay)
         return strip
 
@@ -602,7 +1468,8 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
                                  extra_size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
                                  scale=image_scale,
                                  offset_x_px=image_offset_x_mm * mm2px,
-                                 offset_y_px=image_offset_y_mm * mm2px)
+                                 offset_y_px=image_offset_y_mm * mm2px,
+                                 dpi=dpi, anchor_far=anchor_far)
         except Exception:  # noqa: BLE001 — a blank band, never a crashed slot
             # The imported-image branch above has always swallowed its failures;
             # the branding one could not fail until it gained a scale, and then
@@ -620,7 +1487,8 @@ def render_clip_strip(mode: str, *, width_px: int, height_px: int, dpi: int,
     if not lines:
         return strip
     overlay = _vtext("\n".join(lines), font_family, width_px, height_px,
-                     size_px=(text_size_mm * mm2px) if text_size_mm else 0.0)
+                     size_px=(text_size_mm * mm2px) if text_size_mm else 0.0,
+                     dpi=dpi, anchor_far=anchor_far)
     strip.paste(overlay, (0, 0), overlay)
     return strip
 
@@ -653,13 +1521,10 @@ def _italic_tile(text: str, font, fill: tuple, stroke_w: int = 0,
     return sheared, base_y, (bbox[0] if bbox else 0)
 
 
-#: The clip band's usable share across (0.92) and along it (0.99). The clip AREA
-#: already keeps the text-edge distance from the page edge, so don't inset twice.
-_CLIP_ACROSS, _CLIP_ALONG = 0.92, 0.99
-#: The wordmark is protected down to an equal share of the band — but never asks
-#: for more than this fraction of its unconstrained size, so a user who sets a
-#: big clip-text size with one or two lines keeps the size they asked for (#163).
-_WORDMARK_FLOOR_FRAC = 0.40
+#: The smallest wordmark the branding draws, in px. (The #163 fitter that
+#: shared the band ACROSS between the wordmark and the user's lines, and its
+#: floor, went with K58: the wordmark sits at the end of the band now, sized
+#: by the band alone, and the lines have the box beyond it.)
 _BRANDING_MIN_PX = 8
 #: How far past the band's own width the branding may be scaled (#164). The
 #: wordmark is laid ACROSS the band, so a few times its width is already one
@@ -674,174 +1539,191 @@ _MAX_BRANDING_SIZE_FACTOR = 4.0
 #: and the glyph tile it implies (~46 Mpx) stays under Pillow's WARNING threshold
 #: as well as its hard limit — an alarming message on stderr is not a fix either.
 _MAX_BRANDING_SIZE_PX = 4000.0
+#: K58: where the user's text box starts, past the wordmark's last ink, in mm
+#: (Knut, #182 5730034611: "3 to 4 mm space after the image before the text
+#: in Text field is placed"). A line shorter than the box is centred in it, so
+#: the space a reader sees is this or more.
+_BRANDING_TEXT_GAP_MM = 3.5
+#: K58: the longest share of the strip the wordmark may take, so a wide band on
+#: a short page keeps room for the lines.
+_BRANDING_MAX_LEN_FRAC = 0.35
 
 
-def _fit_branding_sizes(extra_lines: list[str], width_px: int, height_px: int,
-                        font_family: str = "Inter",
-                        extra_size_px: float = 0.0) -> tuple[int, int]:
-    """Font sizes for the branding clip band: ``(wordmark, extra lines)``.
-
-    Split out of the drawing so the RULE can be tested exactly instead of being
-    inferred from ink (#163).
-
-    With no clip-text size set, one size serves the whole stack and shrinks to
-    fit — the long-standing automatic behaviour, left untouched.
-
-    With a size set, the wordmark gives way first: it shrinks until it reaches
-    its floor, and only then do the user's lines shrink with it. Both sizes are
-    SOLVED rather than stepped down: the old loop stepped 40 × 0.95, which
-    bottoms out at ×0.129, so a size far above what the band can hold still
-    overflowed and printed off the edge of the sheet.
-
-    The two axes are kept apart. Across the band the wordmark and the lines
-    share one budget. ALONG the strip each is limited only by its own longest
-    line — otherwise a long line of the user's shrinks the wordmark it does not
-    crowd, and a long wordmark crushes the user's text to nothing.
+def _wordmark_geometry(width_px: int, height_px: int, dpi: float,
+                       scale: float = 100.0) -> dict:
+    """What `_vwordmark` draws, measured: its size, the end pad and the length
+    of its ink along the band. ONE PLACE, because Create Chart's "too long for
+    the page" check (B8-1391) asks how much of the band the wordmark leaves
+    for the lines, and a second copy of this rule would drift from the sheet.
     """
+    mm2px = float(dpi) / 25.4
+    L, T = max(1, height_px), max(1, width_px)       # length x thickness (px)
+    pad = max(2, round(2.0 * mm2px))                 # the Notes box's own end pad
     d = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
-    k = len(extra_lines)
-    n = 1 + k
-    across, along = width_px * _CLIP_ACROSS, height_px * _CLIP_ALONG
-    natural = width_px * 0.55
-
-    if not extra_size_px:
-        # AUTO: one size for wordmark and lines alike, shrunk to fit. Unchanged
-        # — this is the default, and it was never what #163 was about.
-        size = max(10, int(natural))
-        for _ in range(40):
-            f = _font(size, WORDMARK_FONT)
-            f_extra = _font(size, font_family)
-            wm_w = d.textlength("Chrom", font=f) + d.textlength("IQ", font=f) * 1.25
-            widest = max([wm_w] + [d.textlength(l, font=f_extra) for l in extra_lines])
-            if size * 1.25 * n <= across and widest <= along:
-                break
-            size = int(size * 0.9)
-            # The floor used to be 10 px, and the loop left the stack OVER the
-            # band when even 10 px could not fit it — a narrow band with several
-            # lines then printed them off the edge. Every case that already
-            # fitted breaks out above and is untouched (#163).
-            if size <= _BRANDING_MIN_PX:
-                size = _BRANDING_MIN_PX
-                break
-        return size, size
-
-    # Advance widths scale linearly with the point size, so one measurement at a
-    # reference size gives the largest size each block may take along the strip.
+    # The wordmark's size comes from the band's width by the Notes box's own
+    # rule (`_draw_wordmark_h`: 0.74 of the height it is given, here the band
+    # less the end pad on both sides), and is held to a share of the strip's
+    # length so a wide band on a short page keeps room for the lines.
     ref = 100
     f_ref = _font(ref, WORDMARK_FONT)
     wm_ref = (d.textlength("Chrom", font=f_ref)
-              + d.textlength("IQ", font=f_ref) * 1.25)
-    txt_ref = max((d.textlength(l, font=_font(ref, font_family))
-                   for l in extra_lines), default=0.0)
-    size_along = (along * ref / wm_ref) if wm_ref > 0 else float(width_px)
-    esize_along = (along * ref / txt_ref) if txt_ref > 0 else float(width_px)
+              + d.textlength("IQ", font=f_ref) * 1.25) or 1.0
+    size = min(max(1.0, T - 2 * pad) * 0.74,
+               (L * _BRANDING_MAX_LEN_FRAC) * ref / wm_ref)
+    sc = max(0.05, float(scale or 100.0) / 100.0)
+    if sc != 1.0:
+        # CEILING, NOT JUST A FLOOR (#164): the Scale box runs to 50 000 %, and
+        # a solved size multiplied by that asks Pillow for a glyph tile it
+        # refuses as a decompression bomb.
+        ceiling = max(_BRANDING_MIN_PX * 2.0,
+                      min(_MAX_BRANDING_SIZE_FACTOR * width_px,
+                          _MAX_BRANDING_SIZE_PX))
+        size = min(ceiling, size * sc)
+    size = max(_BRANDING_MIN_PX, int(size))
+    f = _font(size, WORDMARK_FONT)
+    asc, desc = f.getmetrics()
+    f_iq = _font(size, WORDMARK_FONT, italic=True)
+    iq_tile, iq_base, iq_left = _italic_tile("IQ", f_iq, WORDMARK_IQ_RGB + (255,),
+                                             shear=0.0)
+    chrom_w = d.textlength("Chrom", font=f)
+    kern = size * 0.02
+    # to the wordmark's last INK, not the italic tile's padded edge
+    _bb = iq_tile.getbbox()
+    ink_w = chrom_w + kern + ((_bb[2] if _bb else iq_tile.width) - iq_left)
+    return {"pad": pad, "size": size, "font": f, "asc": asc, "desc": desc,
+            "iq_tile": iq_tile, "iq_base": iq_base, "iq_left": iq_left,
+            "chrom_w": chrom_w, "kern": kern, "ink_w": ink_w}
 
-    size = min(natural, size_along)
-    esize = min(float(extra_size_px), esize_along)
-    if size * 1.25 + k * esize * 1.25 > across:
-        floor = min(across / n / 1.25, natural * _WORDMARK_FLOOR_FRAC, size_along)
-        size = max(min(size, (across - k * esize * 1.25) / 1.25), floor)
-        if k and size * 1.25 + k * esize * 1.25 > across:
-            esize = (across - size * 1.25) / (k * 1.25)
-    return (max(_BRANDING_MIN_PX, int(size)),
-            max(_BRANDING_MIN_PX, int(esize)))
+
+def branding_text_box_px(width_px: int, height_px: int, dpi: float,
+                         scale: float = 100.0,
+                         offset_y_px: float = 0.0) -> "tuple[int, int]":
+    """``(box length, wordmark size)`` in px: the length of the box the
+    branding's lines are drawn in (the band past the wordmark, its end pad and
+    the K58 gap, following the wordmark wherever Offset Y moves it, B8-1402)
+    and the wordmark's size, which caps the lines in auto."""
+    g = _wordmark_geometry(width_px, height_px, dpi, scale)
+    return _branding_box_len(g, max(1, height_px), dpi, offset_y_px), int(g["size"])
+
+
+def _branding_box_len(g: dict, L: int, dpi: float, offset_y_px: float) -> int:
+    """The lines' box: the band past the wordmark's last ink and the K58 gap,
+    measured from where Offset Y has moved the wordmark (B8-1402), and never
+    longer than the band."""
+    mm2px = float(dpi) / 25.4
+    return int(min(L, L - (g["pad"] + g["ink_w"] + _BRANDING_TEXT_GAP_MM * mm2px)
+                   + round(offset_y_px)))
 
 
 def _vwordmark(extra_lines: list[str], width_px: int, height_px: int,
                font_family: str = "Inter", extra_size_px: float = 0.0,
                scale: float = 100.0, offset_x_px: float = 0.0,
-               offset_y_px: float = 0.0) -> Image.Image:
+               offset_y_px: float = 0.0, dpi: float = 200.0,
+               anchor_far: bool = False) -> Image.Image:
     """The masthead "ChromIQ" wordmark — Instrument Serif, "Chrom" near-black,
-    "IQ" bold-italic in magenta — plus optional lines, read up the strip. The
-    optional lines use *font_family* (the user's chosen clip font), not the
-    wordmark face (#93, Knut).
+    "IQ" italic in magenta — AT THE END OF THE BAND, and the user's lines in
+    the box that is left, read up the strip (K58).
 
-    *extra_size_px* > 0 sets the point size of the optional lines (the user's
-    clip-text Size, which now applies to branding too — Knut); 0 keeps the
-    legacy behaviour of matching the wordmark's auto-fit size.
+    **KNUT'S DESIGN (#182 5730034611, 2026-09-18), BUILT FOR BETA 44 AFTER HE
+    FOUND IT MISSING (5848747795).** It was centred along the strip with the
+    lines stacked across the band beside it, so every line of text made the
+    wordmark smaller. He asked for it to be placed as the Notes box places its
+    wordmark: *"at the bottom of the clip-border text field (given that Flip
+    180 is off), or when Flip 180 is ON it is placed on the top side ... centred
+    against the width of the clip-border text area ... there needs to be 3 to 4
+    mm space after the image before the text in Text field is placed, which
+    means the space available for the text is a "box" confined by clip-boder
+    width, the short-end side of the ChromIQ image plus 3 to 4mm, and the
+    opposite side of the page"*. Measured on every tag from v4.1.5-beta.3 to
+    v4.3.0-beta.43: none placed it at the end, so this is the design being
+    built, not a regression being undone.
 
-    *scale* (percent) and the two offsets place the block, the same way the
-    imported image is placed (#164, Knut: *"For Imported image option, then
-    there are fields to position the image. Why are those options not available
-    for ChromIQ branding? Currently the image is always centred on page
-    vertically and text on next line."*). The scale multiplies the size the
-    fitter SOLVED, so :func:`_fit_branding_sizes` — and the #163 rules it
-    encodes — are untouched at 100 %, and a bigger number is the user asking
-    for a bigger mark rather than a bug in the fit.
+    So, exactly as `_render_notes_strip` does it: the wordmark is drawn at the
+    start of a landscape canvas (the end that becomes the bottom of a left band
+    once turned; the caller's 180 degree turn for a right band, or for Flip
+    180, carries it to the top), centred across the band, sized by the band and
+    never by the text. The lines go through `_vtext` in the box beyond it,
+    :data:`_BRANDING_TEXT_GAP_MM` further on, as Custom text does in the whole
+    band, and never larger than the wordmark in auto.
+
+    *scale* (percent) sizes the wordmark and the two offsets move it, the way
+    the imported image is placed (#164); the text box starts after the
+    wordmark wherever the scale leaves its end.
     """
-    canvas = Image.new("RGBA", (max(1, height_px), max(1, width_px)), (0, 0, 0, 0))
-    d = ImageDraw.Draw(canvas)
-    chrom_fill = WORDMARK_RGB + (255,)
-    iq_fill = WORDMARK_IQ_RGB + (255,)
-    size, _esize = _fit_branding_sizes(extra_lines, width_px, height_px,
-                                       font_family, extra_size_px)
-    sc = max(0.05, float(scale or 100.0) / 100.0)
-    if sc != 1.0:
-        # CEILING, NOT JUST A FLOOR. The Scale box runs to 50 000 % because it
-        # was built for blowing a small logo up, and multiplying a SOLVED font
-        # size by that allocates a glyph tile of ~194 million pixels — Pillow
-        # refuses it as a decompression bomb, and the exception came out of a Qt
-        # slot while the user was typing in a spin box. Past a few times the
-        # band's width the mark is one letter anyway, so the extra is refused
-        # here rather than paid for.
-        ceiling = max(_BRANDING_MIN_PX * 2.0,
-                      min(_MAX_BRANDING_SIZE_FACTOR * width_px,
-                          _MAX_BRANDING_SIZE_PX))
-        size = min(ceiling, max(_BRANDING_MIN_PX, size * sc))
-        _esize = min(ceiling, max(_BRANDING_MIN_PX, _esize * sc))
-    esize = _esize if extra_size_px else None
-    f = _font(size, WORDMARK_FONT)
-    asc, desc = f.getmetrics()
-    line_h = size * 1.25
-    extra_line_h = (esize if esize else size) * 1.25
-    # Centre the whole stack (wordmark line + extra lines at their own height).
-    stack_h = line_h + len(extra_lines) * extra_line_h
-    cy = (width_px - stack_h) / 2
-    # "IQ" is the masthead's real Instrument Serif *Italic* face (the masthead
-    # asks for bold too, but Instrument Serif has no bold face and Qt doesn't
-    # synthesise one — so the header renders plain italic). Use the genuine
-    # italic glyphs (no faux shear, no faux bold) so the "IQ" — notably the Q's
-    # tail — matches the header exactly instead of a sheared regular face.
-    f_iq = _font(size, WORDMARK_FONT, italic=True)
-    iq_tile, iq_base, iq_left = _italic_tile("IQ", f_iq, iq_fill, shear=0.0)
-    chrom_w = d.textlength("Chrom", font=f)
-    kern = size * 0.02
-    wm_w = chrom_w + kern + (iq_tile.width - iq_left)
-    x = (height_px - wm_w) / 2
-    # Share one baseline so "IQ" sits level with "Chrom" (not raised).
-    baseline = cy + line_h * 0.5 + (asc - desc) / 2
+    L, T = max(1, height_px), max(1, width_px)       # length x thickness (px)
+    g = _wordmark_geometry(width_px, height_px, dpi, scale)
+    pad, size, f = g["pad"], g["size"], g["font"]
+    asc, desc = g["asc"], g["desc"]
+    iq_tile, iq_base, iq_left = g["iq_tile"], g["iq_base"], g["iq_left"]
+    chrom_w, kern = g["chrom_w"], g["kern"]
+    # -- the wordmark on its own landscape layer, at the start of the length
+    mark = Image.new("RGBA", (L, T), (0, 0, 0, 0))
+    md = ImageDraw.Draw(mark)
+    x = pad
+    baseline = T / 2 + (asc - desc) / 2
     try:
-        d.text((x, baseline), "Chrom", font=f, fill=chrom_fill, anchor="ls")
-        canvas.paste(iq_tile,
-                     (int(x + chrom_w + kern - iq_left), int(baseline - iq_base)),
-                     iq_tile)
-        f_extra = _font(esize if esize else size, font_family)  # user's clip font + size
-        for i, ln in enumerate(extra_lines):
-            ly = cy + line_h + extra_line_h * (i + 0.5)
-            d.text((height_px / 2, ly), ln, font=f_extra,
-                   fill=chrom_fill, anchor="mm")
+        md.text((x, baseline), "Chrom", font=f, fill=WORDMARK_RGB + (255,),
+                anchor="ls")
+        mark.paste(iq_tile, (int(x + chrom_w + kern - iq_left),
+                             int(baseline - iq_base)), iq_tile)
     except Exception:  # pragma: no cover - default font without anchor
-        d.text((x, baseline), "ChromIQ", font=f, fill=chrom_fill)
-    out = canvas.rotate(90, expand=True)
-    if not (offset_x_px or offset_y_px):
-        return out
-    # Move it exactly the way the imported image is moved: X across the band,
-    # Y along the strip, applied to the finished overlay so nothing about the
-    # fit changes. Content pushed past the band is cropped, as it is for an
-    # image — the preview shows that happening before it reaches paper.
-    moved = Image.new("RGBA", out.size, (0, 0, 0, 0))
-    moved.paste(out, (round(offset_x_px), round(offset_y_px)), out)
-    return moved
+        md.text((x, 0), "ChromIQ", font=f, fill=WORDMARK_RGB + (255,))
+    mark = mark.rotate(90, expand=True)              # T x L, the start at the bottom
+    out = Image.new("RGBA", (T, L), (0, 0, 0, 0))
+    out.paste(mark, (round(offset_x_px), round(offset_y_px)), mark)
+    # -- the lines, in the box beyond the wordmark and the gap
+    if extra_lines:
+        # THE BOX ENDS WHERE THE MOVED WORDMARK BEGINS (B8-1402). The offsets
+        # move the wordmark along the band (Offset Y) and across it (Offset X);
+        # the box was measured from the wordmark's unmoved place, so an Offset
+        # Y toward the text laid the wordmark over the lines. The box's near
+        # edge now follows the wordmark's last ink plus the gap, wherever the
+        # offset puts it, and never reaches past the strip.
+        box_len = _branding_box_len(g, L, dpi, offset_y_px)
+        if box_len > 0:
+            fixed = float(extra_size_px or 0.0)
+            if not fixed:
+                # AUTO NEVER LOSES A LINE. `_vtext`'s automatic size stops at
+                # the Custom-text floor, and the panel warns about a Custom
+                # text that does not fit at it; nothing warns for the
+                # branding, whose lines the #163 fit always kept inside the
+                # band. So where the stack cannot fit across the band at the
+                # floor, it is drawn at the size that does fit.
+                from workflow import text_edge_fit
+                floor = text_edge_fit.pt_to_px(
+                    text_edge_fit.AUTO_SHRINK_FLOOR_PT, dpi)
+                across = T * 0.98 / (1.2 * len(extra_lines))
+                if across < floor:
+                    fixed = max(1.0, across)
+            txt = _vtext("\n".join(extra_lines), font_family, T, box_len,
+                         size_px=fixed, dpi=dpi,
+                         anchor_far=anchor_far, max_size_px=float(size))
+            out.paste(txt, (0, 0), txt)
+    return out
 
 
 def _vtext(text: str, font_family: str, width_px: int, height_px: int,
            *, valign: str = "center", bold: bool = False,
-           size_px: float = 0.0) -> Image.Image:
+           size_px: float = 0.0, dpi: float = 200.0,
+           anchor_far: bool = False,
+           max_size_px: float = 0.0) -> Image.Image:
     """A transparent ``width_px × height_px`` overlay with *text* read up the strip.
 
+    *max_size_px* (> 0) caps the AUTOMATIC size only: the branding's lines are
+    never drawn larger than its wordmark unless a size is typed (K58).
+
     ``size_px`` (>0) fixes the font size the user chose instead of auto-fitting
-    to the strip width; the shrink-to-fit loop below still caps it so the text
-    can never overrun the strip (#125, Knut — manual clip-text size)."""
+    to the strip width (#125, Knut — manual clip-text size).
+
+    **AND A FIXED SIZE IS NOW FIXED, INCLUDING BELOW THE FLOOR.** Knut,
+    2026-09-11: *"Setting a specific font size will prevent shrinking here too
+    … Manually setting size below 8pt should be working fine also. It makes
+    sense that only the Auto size setting allows automatic shrinking of the
+    text."* The shrink-to-fit loop below therefore runs only in "auto", and
+    stops at :data:`text_edge_fit.AUTO_SHRINK_FLOOR_PT` rather than at the
+    8 PIXELS it used to stop at, which is 2.9 pt at 200 dpi and 0.96 pt at 600.
+    A text that does not fit at the floor is drawn at the floor and warned
+    about in red by the panel, which reads that floor from the same module."""
     # Draw on a landscape canvas (long = height_px, short = width_px), rotate 90°.
     canvas = Image.new("RGBA", (max(1, height_px), max(1, width_px)), (0, 0, 0, 0))
     d = ImageDraw.Draw(canvas)
@@ -853,8 +1735,14 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
     # glyph overshoot. (Knut: the text must reach the text-edge on the sides too,
     # not just top/bottom.)
     THICK, LEN = 0.98, 0.995
-    if size_px and size_px > 0:
-        size = max(8, int(size_px))                      # manual size (#125)
+    from workflow import text_edge_fit
+    floor_px = text_edge_fit.pt_to_px(text_edge_fit.AUTO_SHRINK_FLOOR_PT, dpi)
+    fixed = bool(size_px and size_px > 0)
+    if fixed:
+        # A TYPED SIZE IS NOT SHRUNK AND NOT FLOORED. It used to be clamped up
+        # to 8 px and then stepped down by the loop below until it fitted, so
+        # the number in the box was a suggestion. It is now the answer.
+        size = max(1, int(round(size_px)))               # manual size (#125)
     else:
         # AUTO: GROW the font to the largest size that fills both axes — measured
         # once at a reference size and scaled (advance widths scale linearly), so
@@ -866,11 +1754,14 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
                          default=1.0) or 1.0
         size_thick = (width_px * THICK) / (1.2 * n)
         size_len = ref * (height_px * LEN) / widest_ref
-        size = max(8, int(min(size_thick, size_len)))
+        size = max(floor_px, int(min(size_thick, size_len)))
+        if max_size_px and max_size_px > 0:
+            size = max(floor_px, min(size, int(max_size_px)))
     f = _font(size, font_family, bold=bold)
     # Safety: shrink if rounding pushed a hair over (never grows past the fill
-    # size); also caps a too-large manual size so text can't overrun the strip.
-    for _ in range(40):
+    # size). ONLY IN AUTO: a typed size is the user's answer, and a loop that
+    # stepped it down until it fitted made the box a suggestion.
+    for _ in range(0 if fixed else 40):
         f = _font(size, font_family, bold=bold)
         line_h = size * 1.2
         block_h = line_h * n
@@ -878,7 +1769,9 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
         if block_h <= width_px * THICK and widest <= height_px * LEN:
             break
         size = int(size * 0.95)
-        if size <= 8:
+        if size <= floor_px:
+            size = floor_px
+            f = _font(size, font_family, bold=bold)
             break
     # Stack the lines ACROSS the strip thickness at their NATURAL spacing, from
     # the OUTER edge inwards. The strip is turned 180° when it sits on the right
@@ -895,7 +1788,18 @@ def _vtext(text: str, font_family: str, width_px: int, height_px: int,
     line_h = size * 1.2
     block_h = line_h * n
     # The template caption keeps its centred block; clip text hugs the outer edge.
+    #
+    # *anchor_far* PUTS LINE 1 AT THE OTHER END, and it exists because the
+    # 180 degree turn the caller may apply moves the anchor with the glyphs.
+    # Measured with the dash rule that begins Knut's own clip text: with
+    # "Flip 180" on, line 1 ended up against the PATCH side and the block grew
+    # toward the paper edge, across the "Text distance from edge" limit his
+    # ruling of 2026-09-12 says nothing may cross. The caller passes the flip
+    # here, so the block is anchored at the page-edge end either way and can
+    # only ever grow inward.
     start = (width_px - block_h) / 2 if valign == "top" else 0.0
+    if anchor_far and valign != "top":
+        start = max(0.0, width_px - block_h)
     ys = [start + line_h * (i + 0.5) for i in range(n)]
     cx = (height_px * 0.04 if valign == "top" else height_px / 2)
     anchor = "lm" if valign == "top" else "mm"
@@ -1058,6 +1962,8 @@ class RenderResult:
     # or None when indicators are off. The measure-tab scan arrow hangs from
     # this line, printtarg-style; without it the arrow floats above the patches.
     label_band_bottom_px: int | None = None
+    #: The first inked row of the PATCH FIELD, per page, in image pixels.
+    patch_ink_top_px: list[int | None] | None = None
     # Per-page patch geometry with exact device values, populated only when
     # ``collect_device_geom`` is set (non-RGB targets → Tier D device-native
     # raster). Each entry is ``("rect", (x0, y0, xR, yB), device_tuple)`` or
@@ -1066,24 +1972,25 @@ class RenderResult:
     patch_geom: list[list[tuple]] | None = None
 
 
-def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int):
-    """Six vertices of a printtarg-style SpectroScan hexagon for the patch slot
-    at ``(x0, y0)`` sized ``w × ph`` (px), staggered ±¼·w by the patch's index
-    in the strip (#93, Knut). Pointed top and bottom, flat vertical sides; the
-    apexes reach ⅙·ph beyond the slot top and bottom (the geometry reserves that
-    as ``hxeh``), so neighbouring rows interlock as in ``printtarg -h``."""
-    dx = round(-w / 4) if step % 2 == 0 else round(w / 4)
-    t6 = ph / 6.0
-    left, right = x0 + dx, x0 + w + dx
-    cx = round(x0 + w / 2 + dx)
-    return [
-        (cx, round(y0 - t6)),               # top apex
-        (right, round(y0 + t6)),            # upper-right
-        (right, round(y0 + 5 * t6)),        # lower-right
-        (cx, round(y0 + ph + t6)),          # bottom apex
-        (left, round(y0 + 5 * t6)),         # lower-left
-        (left, round(y0 + t6)),             # upper-left
-    ]
+def _hexagon_points(x0: int, y0: int, w: int, ph: int, step: int,
+                    *, flat_top: bool = False):
+    """Six vertices of a printtarg-style hexagon for the patch slot at
+    ``(x0, y0)`` sized ``w × ph`` (px), staggered ±¼·w by the patch's index in
+    the strip (#93, Knut).
+
+    The shape itself now lives in ``hexagon.py`` and is shared with the Measure
+    overlay, the strip zigzag, the hit test and the scanner mesh. THE RENDERER
+    IS THE ONLY CALLER THAT ROUNDS: Pillow's ``polygon`` needs integers, and the
+    overlay measured worse when its own vertices were snapped. This stays as a
+    named function because two tests call it by name to check the stagger.
+    """
+    if flat_top:
+        # Rotated: the stagger moves to y and is indexed by the STRIP, so it is
+        # applied by the caller (which knows the strip) rather than here. This
+        # function only turns the shape.
+        return hexagon.vertices(x0, y0, w, ph, flat_top=True, round_to_int=True)
+    dx = hexagon.stagger_dx(w, step, round_to_int=not isinstance(w, float))
+    return hexagon.vertices(x0 + dx, y0, w, ph, round_to_int=True)
 
 
 def _fill_rect(draw: "ImageDraw.ImageDraw", box, fill) -> bool:
@@ -1103,6 +2010,29 @@ def _fill_rect(draw: "ImageDraw.ImageDraw", box, fill) -> bool:
         return False
     draw.rectangle([x0, y0, x1, y1], fill=fill)
     return True
+
+
+def _ul_geom_rect(x0: int, y0: int, x1: int, y1: int
+                  ) -> tuple[int, int, int, int]:
+    """A ``vrect`` display-list row for the box Pillow was just given.
+
+    THE DISPLAY LIST IS HALF-OPEN AND PILLOW IS NOT, and until 2026-09-13 the
+    three strip-label underlines wrote Pillow's inclusive box straight into it.
+    The PDF writer takes ``x1 - x0`` and ``y1 - y0`` as the size, so every rule
+    came out one pixel short in BOTH dimensions -- and at any thickness that
+    rounds to a single pixel (0.10 mm at 300 dpi, up to 0.21 at 150) that is a
+    height of zero: the rule is in the TIFF and simply absent from the PDF of
+    the same chart. Measured on a real "Also export a PDF" run at 200 dpi with
+    a 0.10 mm rule: 1 zero-height rectangle in `black` mode, 5 in `segments`,
+    18 in `cycle`, and none of the three at 0.50 mm, where the rules were
+    instead a quarter thin (1.08 pt against the TIFF's 1.44).
+
+    The helper markers already emit half-open rows (they add the +1 inline), so
+    the consumer was right and the emitters disagreed with each other. This is
+    the one place that converts, so a fourth caller cannot pick the other
+    convention by accident.
+    """
+    return (x0, y0, x1 + 1, y1 + 1)
 
 
 def render_pages(
@@ -1134,6 +2064,10 @@ def render_pages(
     chart_text: str = "",
     chart_text_font: str = "Inter",
     chart_text_size_mm: float = 0.0,
+    #: Where the bottom lines sit across the page (Knut, 2026-09-14):
+    #: "left_margin" (his default), "available" (the beta 13 centring) or
+    #: "between_margins". `text_edge_fit.BOTTOM_TEXT_ALIGNMENTS`.
+    chart_text_align: str = "left_margin",
     chart_text_bold: bool = False,
     chart_text_italic: bool = False,
     stamp_text: str = "",
@@ -1205,6 +2139,9 @@ def render_pages(
     # Capacity is unchanged — only the shape.
     from .instruments import is_hexagonal as _is_hex
     ss_hex = _is_hex(geom)
+    _flat_top = bool(getattr(geom, "hex_flat_top", False))
+    _S = dpi / 25.4
+    _ring_px = px(float(getattr(geom, "hex_ring_mm", 0.0) or 0.0)) if ss_hex else 0
     # Row-number band width (SpectroScan labels the grid 2-D): 0 for instruments
     # without it. Drawn to the left of the patches, the band placement reserves.
     _row_band_px = px(getattr(geom, "rlwi", 0.0))
@@ -1219,6 +2156,60 @@ def render_pages(
         _ind_ascent, _ind_descent = font.getmetrics()
     except Exception:
         _ind_ascent, _ind_descent = ind_px, ind_px // 4
+
+    # THE STRIP LETTERS ARE PAINTED LAST, OVER THE PATCHES, AND THEY USED TO BE
+    # PAINTED FIRST, UNDER THEM. Knut's ruling of 2026-09-13 (comment
+    # 5649810914) lets the band run past a top margin that cannot hold it and
+    # onto the patch area, and the moment it does, the order decides whether
+    # the user sees a letter or nothing at all: the strip's own patches are
+    # drawn after its label, so an overlapping letter was simply erased.
+    # Measured on the shipped CR30 A4 default at 300 dpi: the band ends at
+    # 130 px and the first patch box starts at 91, so 39 px of every letter, a
+    # little under half of it, was painted out. On pale patches that reads as a
+    # beheaded letter; on dark ones the letter is gone, which is the silent
+    # drop his 2026-09-10 ruling forbids by name.
+    #
+    # So the letters and their underline go onto a white overlay and the ink
+    # alone is composited at the end of the page. Same technique, and same
+    # reason, as the clip strip below and `tiff_metadata`'s right-edge note:
+    # pasting the surface whole would erase the patches instead, and a patch
+    # wiped to paper white reads as paper and goes into the profile.
+    #
+    # `_lbl_surface` is a one-slot cache so a chart with the letters switched
+    # off never allocates a second full-page image (26 MB on A4 at 300 dpi, and
+    # four times that on A3 at 600).
+    _lbl_layer: list = [None, None]
+
+    def _lbl_surface():
+        """``(image, draw)`` of the page's strip-label overlay, made on demand.
+
+        RGBA, and the alpha is the whole point: a white RGB overlay composited
+        through its own darkness is fine for black letters and WRONG for the
+        five-segment accent rule, whose colours came out blended with the paper
+        instead of exact. Measured by `tests/test_layout_raster.py::
+        test_underline_modes`, which asks for the accent RGB values by value
+        and found none of them.
+
+        **NOTHING PARTLY TRANSPARENT MAY BE `paste`d ONTO THIS SURFACE, AND A
+        ROTATED STRIP LABEL IS EXACTLY THAT.** `Image.paste(src, box, mask)`
+        lerps ALL FOUR channels, which is the wrong operator for a
+        non-premultiplied ground: it mixes an antialiased glyph's black toward
+        the ground's white in the RGB channels, and the end-of-page composite
+        below then blends that lightened grey over the page a SECOND time. The
+        upright labels are safe because `ImageDraw.text` composites correctly;
+        the turned ones are pasted tiles and were not. Measured on the shipped
+        CR30 A4 preset with the label turned 90 degrees: 1,122 pixels of the
+        label band differed by up to 98 levels of 255, always lighter, and a
+        turned letter printed 85 % of the ink of the same letter upright. So a
+        tile goes on with `Image.alpha_composite`, which is the "over" operator
+        this surface actually wants and which also cannot erase a neighbour the
+        way a verbatim copy would. `tests/test_a_turned_strip_letter_keeps_all_
+        its_ink.py` holds it there.
+        """
+        if _lbl_layer[0] is None:
+            _lbl_layer[0] = Image.new("RGBA", (W, H), (255, 255, 255, 0))
+            _lbl_layer[1] = ImageDraw.Draw(_lbl_layer[0])
+        return _lbl_layer[0], _lbl_layer[1]
 
     def _collect_rotated_label(cx: int, y_top: int, off: int, text: str,
                                tile: "Image.Image", degrees: int) -> None:
@@ -1241,9 +2232,13 @@ def render_pages(
             adx, ady = wc - 1 - ax, hc - 1 - ay
         px_paste = cx - tile.width // 2
         py_paste = y_top + off
-        _geom_rows.append(("text", px_paste + adx, py_paste + ady, text,
-                           _ind_font_file, ind_px, _spc if len(text) > 1 else 0,
-                           d, (0, 0, 0), _ind_var))
+        # ...AND THE VECTOR PDF GETS THE SAME ORDER. `vector_pdf._page_content`
+        # paints the display list front to back, so a label row appended here
+        # would be under the hexagons on paper even though the TIFF has it on
+        # top. Deferred with the ink.
+        _lbl_geom.append(("text", px_paste + adx, py_paste + ady, text,
+                          _ind_font_file, ind_px, _spc if len(text) > 1 else 0,
+                          d, (0, 0, 0), _ind_var))
 
     def _collect_label(cx: int, top: int, text: str) -> None:
         """Collect a centred strip label as a vector text run at the exact left/
@@ -1256,9 +2251,9 @@ def render_pages(
         else:
             total = widths[0] if widths else 0.0
         left = cx - total / 2.0
-        _geom_rows.append(("text", left, top + _ind_ascent, text, _ind_font_file,
-                           ind_px, _spc if len(text) > 1 else 0, 0, (0, 0, 0),
-                           _ind_var))
+        _lbl_geom.append(("text", left, top + _ind_ascent, text, _ind_font_file,
+                          ind_px, _spc if len(text) > 1 else 0, 0, (0, 0, 0),
+                          _ind_var))
     if underline_mode == "colored":          # legacy alias → 5-segment bar
         underline_mode = "segments"
     underline_on = draw_indicators and underline_mode in ("segments", "cycle", "black")
@@ -1273,9 +2268,23 @@ def render_pages(
     _spc = max(1, round(ind_px * INDICATOR_LETTER_SPACING))
     _rot = indicator_rotation % 360
     _is_side = _rot in (90, 270)
+    _n_total_strips = max(1, (total + steps - 1) // steps)
+    _longest = label_strip(_n_total_strips)
+    # THE LETTERS THIS CHART ACTUALLY PRINTS, AND NOT ONE MORE. Among the
+    # capitals only `Q` has a tail, and it is 12 px deeper than the rest at a
+    # 100 px em. Probing the whole alphabet on a chart whose strips run A to K
+    # put the band 12 px below where its letters really stop -- past the top of
+    # the printed field on two of five measured charts. Probing the alphabet
+    # MINUS `Q` was the other way round: the `Q` column of a 17-strip chart
+    # lost its tail and read as `O`, photographed, with twelve clear rows below
+    # it (B8-346 F1, then R13-1, which is the same fault from the other side).
+    # So the probe is this chart's own label set. Where a `Q` tail really does
+    # reach into the printed ink, the preview pulls its cut up to
+    # `patch_ink_top_px` and the tail is covered with the ring it sits on.
+    _drawn_letters = "".join(sorted({
+        _c for _i in range(_n_total_strips) for _c in label_strip(_i + 1)
+    })) or _ALL_CAPS
     if draw_indicators and _is_side:
-        _n_total_strips = max(1, (total + steps - 1) // steps)
-        _longest = label_strip(_n_total_strips)
         label_band_h = _indicator_tile(_longest, font, _spc, _rot).height
     else:
         label_band_h = ind_px
@@ -1286,21 +2295,56 @@ def render_pages(
     _lbl_top = px(place.leader_top + strip_label_offset_mm)
     _band_bottom = None
     if draw_indicators:
-        _band_bottom = _lbl_top + label_band_h + \
+        # THE BAND MUST BOUND THE INK, NOT ONLY THE RESERVE. See
+        # `_label_ink_bottom`: the reserve is the nominal font size and the
+        # glyph reaches the ascent, one to three pixels lower.
+        _band_bottom = _lbl_top + max(
+            label_band_h,
+            _label_ink_bottom(_longest if _is_side else _drawn_letters,
+                              font, _spc, _rot, label_band_h)) + \
             ((ul_gap + ul_th) if underline_on else 0)
 
-    def _resolve_with(t: str, ctx: dict) -> str:
-        try:
-            return t.format(**ctx) if t else ""
-        except (KeyError, IndexError, ValueError):
-            return t                       # leave unknown placeholders literal
+    _resolve_with = resolve_placeholders
 
     images: list[Image.Image] = []
     page_geoms: list[list[tuple]] = []
+    _ink_tops: list[int | None] = []
     for page in range(layout.pages):
         img = Image.new("RGB", (W, H), (255, 255, 255))
         draw = ImageDraw.Draw(img)
         _geom_rows: list[tuple] = []
+        # THE TOP OF THE INK THIS PAGE ACTUALLY PRINTS, in image pixels.
+        # Not derivable from the recorded patch boxes: a honeycomb's hexagon
+        # overhangs its cell by a sixth of the slot, a spacer ring is drawn
+        # outside it, and an edge spacer adds a further band, so the first
+        # inked row sits anywhere from 18 pixels BELOW the first box top to 40
+        # above it (measured on five CR30 charts: 0, -18, +40, +20, +24). The
+        # blank behind "Show only measured patches" has to know that line, so
+        # it is recorded where it is drawn rather than guessed downstream.
+        _ink_top: int | None = None
+
+        def _note_ink(pts, fill=None) -> None:
+            # PAPER WHITE IS NOT INK. A chart whose first row is pure white
+            # prints nothing there, and recording it as the page's first inked
+            # row pulls the blank's top cut up for no reason -- into the strip
+            # letters on a chart where the two are close (R13-6). Anything the
+            # printer actually lays down counts, including a near-white.
+            nonlocal _ink_top
+            if fill is not None:
+                try:
+                    if all(int(_c) >= 255 for _c in fill[:3]):
+                        return
+                except (TypeError, ValueError, IndexError):
+                    pass
+            try:
+                _y = min(int(_p[1]) for _p in pts)
+            except (TypeError, ValueError, IndexError):
+                return
+            if _ink_top is None or _y < _ink_top:
+                _ink_top = _y
+
+        _lbl_layer = [None, None]          # this page's strip-label overlay
+        _lbl_geom: list[tuple] = []        # ...and its display-list rows
         # Per-page placeholder context: {page} = "page X/Y", plus the chart-wide
         # {project}/{paper}/… from text_ctx. Used for chart text + clip text.
         _pctx = dict(text_ctx or {})
@@ -1309,6 +2353,25 @@ def render_pages(
         _clip_text = _resolve_with(clip_text, _pctx)
         first = page * pppage
         last = min(total, first + pppage)
+
+        def _neighbour_rgb(nb, _first=first, _last=last):
+            """Colour of the patch at ``(strip, step)``, or None for the paper.
+
+            None is what `spacer_for_mode` already means by "no neighbour on
+            that side", so a patch at the edge of the field colours its outer
+            sides against itself alone and the rule needs no special case.
+            A neighbour on ANOTHER PAGE is paper too, which is correct: the
+            sheet really does end there.
+            """
+            if nb is None:
+                return None
+            _gs, _jj = nb
+            if _gs < 0 or _jj < 0 or _jj >= steps:
+                return None
+            _slot = _gs * steps + _jj
+            if not (_first <= _slot < _last):
+                return None
+            return rgb_by_slot[_slot]
         n_on_page = last - first
         n_passes = (n_on_page + steps - 1) // steps
 
@@ -1325,6 +2388,25 @@ def render_pages(
             # ColorMunki "offset every second strip": odd strips shift down by
             # the rig stagger (#93, Knut). 0 for everything else.
             _stag = px(getattr(geom, "row_stagger_mm", 0.0)) if (global_strip & 1) else 0
+            # ...AND THE FLAT-TOP HONEYCOMB'S OWN HALF-PITCH OFFSET, which is a
+            # different mechanism that happens to act on the same axis. It is
+            # kept separate from `row_stagger_mm` on purpose: that one is the
+            # ColorMunki rig's downward-only shift, it also rewrites `hxeh`
+            # (instruments.py), and `geometry.py` switches the apex clearance
+            # off the moment it is non-zero. Folding the turn into it would
+            # destroy the apex reserve for a reason belonging to another
+            # instrument. Derived from `px(place.plen)` because
+            # `patch_rects_px` derives it from exactly the same expression, and
+            # the two must agree to the pixel or the recorded box describes a
+            # place no ink is.
+            # The ROUNDED offset is what the row labels and the recorded rects
+            # use; the vertices take the exact one, so neighbouring strips share
+            # their edge coordinates.
+            _stag_f = float(_stag)
+            if ss_hex and _flat_top:
+                _stag += hexagon.stagger_dy(px(place.plen), global_strip)
+                _stag_f += hexagon.stagger_dy(place.plen * _S, global_strip,
+                                              round_to_int=False)
             col_slots = list(range(first + p * steps,
                                    min(last, first + (p + 1) * steps)))
             if draw_indicators:
@@ -1332,7 +2414,7 @@ def render_pages(
                 _cx = x0 + strip_w // 2          # centre over the strip
                 _y = _lbl_top
                 if _rot == 0:
-                    _draw_indicator(draw, _cx, _y, _lbl, font, _spc)
+                    _draw_indicator(_lbl_surface()[1], _cx, _y, _lbl, font, _spc)
                     _collect_label(_cx, _y, _lbl)
                 else:                            # rotated label → tile + paste
                     _tile = _indicator_tile(_lbl, font, _spc, indicator_rotation)
@@ -1349,16 +2431,35 @@ def render_pages(
                         _off = _extra if _rot == 90 else 0
                     else:                             # right: reading-end anchored
                         _off = 0 if _rot == 90 else _extra
-                    img.paste(_tile, (_cx - _tile.width // 2, _y + _off), _tile)
+                    # COMPOSITED, NOT PASTED. `paste` with the tile as its own
+                    # mask lerps the colour channels too, so on this surface it
+                    # washes the glyph's antialiased edge out toward the
+                    # ground, and the end-of-page composite blends the result
+                    # again. `alpha_composite` is the "over" operator, and it
+                    # reproduces the pre-overlay `img.paste(tile, ..., tile)`
+                    # exactly. Done on the tile's own rectangle, so it costs a
+                    # tile and not a page. See `_lbl_surface`.
+                    _ov = _lbl_surface()[0]
+                    _bx = (_cx - _tile.width // 2, _y + _off)
+                    _reg = (_bx[0], _bx[1],
+                            _bx[0] + _tile.width, _bx[1] + _tile.height)
+                    _ov.paste(Image.alpha_composite(_ov.crop(_reg), _tile), _bx)
                     _collect_rotated_label(_cx, _y, _off, _lbl, _tile,
                                            indicator_rotation)
                 if underline_on and underline_mode == "cycle":   # one accent / strip
                     _ly = _y + label_band_h + ul_gap
                     _acc = ACCENT_RGB[global_strip % len(ACCENT_RGB)]
-                    if _fill_rect(draw, [x0, _ly, xR - 1, _ly + ul_th - 1], _acc) \
+                    # The rule belongs to the label band, so it rides with the
+                    # letters: it sits BELOW them and is the first thing a
+                    # too-small top margin pushes onto the patches.
+                    if _fill_rect(_lbl_surface()[1],
+                                  [x0, _ly, xR - 1, _ly + ul_th - 1], _acc) \
                             and collect_device_geom:
-                        _geom_rows.append(
-                            ("vrect", (x0, _ly, xR - 1, _ly + ul_th - 1), _acc))
+                        # HALF-OPEN FOR THE DISPLAY LIST, INCLUSIVE FOR PILLOW.
+                        # See `_ul_geom_rect`.
+                        _lbl_geom.append(
+                            ("vrect", _ul_geom_rect(x0, _ly, xR - 1,
+                                                    _ly + ul_th - 1), _acc))
                 # SpectroScan labels the grid 2-D: column letters on top (above)
                 # plus row NUMBERS down the side, in the reserved rlwi band to the
                 # left of the patches. Drawn once, against the leftmost strip (#93,
@@ -1386,7 +2487,17 @@ def render_pages(
                 # left column's even rows stagger ¼·width LEFT past x0, so clear
                 # that protrusion too, else the hexagons cover the numbers.
                 _gap = max(1, px(1.0))
-                _protrude = (strip_w // 4) if ss_hex else 0
+                # ROTATED: what sticks out to the left is no longer the stagger
+                # but the APEX, and it is a sixth of the width rather than a
+                # quarter. Using the stagger's quarter here would reserve 3.0 mm
+                # where 1.73 mm is needed, and using the pointy expression at
+                # all on a rotated sheet reserves the wrong quantity outright:
+                # a flat-top strip does not zigzag sideways, so there is no
+                # quarter-width protrusion to clear.
+                if ss_hex and _flat_top:
+                    _protrude = strip_w // 6
+                else:
+                    _protrude = (strip_w // 4) if ss_hex else 0
                 _rx = x0 - _protrude - _gap
                 # WHERE THE BAND ITSELF SITS — §R1.2, and the half of Knut's
                 # rule that beta 6 did not build.
@@ -1432,7 +2543,17 @@ def render_pages(
                 _band_right = (min(_floor_px + _row_band_px, _rx)
                                if _floor_px > 0 else _rx)
                 for _j in range(len(col_slots)):
-                    _ry = (px(place.y_of(_j)) + px(place.y_of(_j) + place.plen)) // 2
+                    # ...AND FOLLOW THE STRIP THIS LABEL BELONGS TO. `_ry` was
+                    # the UNSTAGGERED slot centre, which is right for every
+                    # chart whose leftmost strip does not move -- true of the
+                    # ColorMunki rig stagger, because that shifts only ODD
+                    # strips and the labels sit beside strip 0. A rotated
+                    # honeycomb staggers EVERY strip, strip 0 upward by a
+                    # quarter patch, so each number was drawn 3.0 mm below the
+                    # patch it names, on every row of every page. Found by eye
+                    # in a rendered sheet.
+                    _ry = ((px(place.y_of(_j)) + px(place.y_of(_j) + place.plen))
+                           // 2) + _stag
                     _txt = label_patch(_j + 1)
                     _tw = int(draw.textlength(_txt, font=_row_font))
                     # CLAMP AT THE PAPER EDGE. In area-first the row band is
@@ -1475,11 +2596,67 @@ def render_pages(
                 yB = px(place.y_of(j) + place.plen) + _stag    # patch bottom edge
                 rgb = rgb_by_slot[gslot]
                 if ss_hex:
-                    _pts = _hexagon_points(x0, y0, xR - x0, yB - y0, j)
-                    draw.polygon(_pts, fill=rgb)
-                    if collect_device_geom:
-                        _geom_rows.append(("hex", _pts, dev_by_slot[gslot]))
+                    # EXACT POSITIONS, ROUNDED ONCE AT THE VERTEX.
+                    _fx = place.x_of(p) * _S
+                    _fy = place.y_of(j) * _S + _stag_f
+                    _pts = _hexagon_points(_fx, _fy, place.pwid * _S,
+                                           place.plen * _S, j,
+                                           flat_top=_flat_top)
+                    if _ring_px > 0 and spacer_mode != "none":
+                        # A RING, ONE SIDE AT A TIME. Each of the six sides
+                        # faces exactly one neighbour, so it takes the ordinary
+                        # pair colour against that patch -- which keeps "Black &
+                        # white" meaning what it means, and, because that rule
+                        # is symmetric, makes this patch's half-band and the
+                        # neighbour's half-band the same colour. The two halves
+                        # then abut into ONE shared spacer, which is what Basti
+                        # asked for. A side with no neighbour faces the paper.
+                        # EVERY PATCH IS INSET BY THE SAME AMOUNT, edge or
+                        # not, so every patch on the sheet is the same size and
+                        # the instrument reads the same area everywhere. What
+                        # changes at the edge of the field is only what is
+                        # PAINTED in the band, never how big the patch is.
+                        _in = hexagon.inset(_pts, _ring_px / 2.0)
+                        _in = [(round(_x), round(_y)) for _x, _y in _in]
+                        # ...and the OUTSIDE of the sheet is where the bracket
+                        # goes. A side with a neighbour carries half the spacer
+                        # and the neighbour carries the other half, so the gap
+                        # between two patches is one full width. A side facing
+                        # the paper has no neighbour to share with, so with
+                        # "Edge spacers" on it is drawn a full width by itself,
+                        # reaching OUTWARD past the hexagon: Basti, 2026-09-09,
+                        # *"the spacers on the outside should probably be double
+                        # if turned on"*. With it off, the outer band is left as
+                        # paper, which is the same bracket-free look a strip
+                        # reader's chart has.
+                        _out = hexagon.inset(_pts, -_ring_px / 2.0)
+                        _out = [(round(_x), round(_y)) for _x, _y in _out]
+                        for _side, _nb in enumerate(hexagon.side_neighbours(
+                                global_strip, j, flat_top=_flat_top)):
+                            _nrgb = _neighbour_rgb(_nb)
+                            _edge = _nrgb is None
+                            if _edge and not edge_spacers:
+                                continue
+                            _fill = contrast.spacer_for_mode(
+                                spacer_mode, rgb, _nrgb, spacer_palette)
+                            _far = _out if _edge else _pts
+                            _q = [_far[_side], _far[(_side + 1) % 6],
+                                  _in[(_side + 1) % 6], _in[_side]]
+                            draw.polygon(_q, fill=_fill)
+                            _note_ink(_q, _fill)
+                            if collect_device_geom:
+                                _geom_rows.append(("spacer_poly", _q, _fill))
+                        draw.polygon(_in, fill=rgb)
+                        _note_ink(_in, rgb)
+                        if collect_device_geom:
+                            _geom_rows.append(("hex", _in, dev_by_slot[gslot]))
+                    else:
+                        draw.polygon(_pts, fill=rgb)
+                        _note_ink(_pts, rgb)
+                        if collect_device_geom:
+                            _geom_rows.append(("hex", _pts, dev_by_slot[gslot]))
                 else:
+                    _note_ink([(x0, y0)], rgb)
                     if _fill_rect(draw, [x0, y0, xR - 1, yB - 1], rgb) \
                             and collect_device_geom:
                         _geom_rows.append(
@@ -1537,26 +2714,90 @@ def render_pages(
             x_left = px(place.x_of(0))
             x_right = px(place.x_of(n_passes - 1) + place.pwid) - 1
             if underline_mode == "black":
-                if _fill_rect(draw, [x_left, _ly, x_right, _yb], (0, 0, 0)) \
+                if _fill_rect(_lbl_surface()[1],
+                              [x_left, _ly, x_right, _yb], (0, 0, 0)) \
                         and collect_device_geom:
-                    _geom_rows.append(("vrect", (x_left, _ly, x_right, _yb), (0, 0, 0)))
+                    _lbl_geom.append(
+                        ("vrect", _ul_geom_rect(x_left, _ly, x_right, _yb),
+                         (0, 0, 0)))
             else:                                     # 5 equal segments full-width
                 _span = x_right - x_left + 1
                 _n = len(ACCENT_RGB)
                 for _k in range(_n):
                     _sx0 = x_left + round(_span * _k / _n)
                     _sx1 = x_left + round(_span * (_k + 1) / _n) - 1
-                    if _fill_rect(draw, [_sx0, _ly, _sx1, _yb], ACCENT_RGB[_k]) \
+                    if _fill_rect(_lbl_surface()[1],
+                                  [_sx0, _ly, _sx1, _yb], ACCENT_RGB[_k]) \
                             and collect_device_geom:
-                        _geom_rows.append(
-                            ("vrect", (_sx0, _ly, _sx1, _yb), ACCENT_RGB[_k]))
+                        _lbl_geom.append(
+                            ("vrect", _ul_geom_rect(_sx0, _ly, _sx1, _yb),
+                             ACCENT_RGB[_k]))
+
+        # THE LABEL BAND GOES ON NOW, INK ONLY, OVER EVERY PATCH THAT IS DRAWN.
+        # See `_lbl_surface` above for why it waits: the strip's own patches
+        # are painted after its label, and since Knut's ruling let the band
+        # cross the top margin, painting first meant painting under. The mask
+        # is the overlay's own alpha, so the paper between the letters is not
+        # pasted and nothing already on the page is erased.
+        #
+        # AN RGBA IMAGE IS ITS OWN MASK, which is not a tidy-up: `.convert
+        # ("RGB")` and `.split()[3]` each allocate ANOTHER full page, on top of
+        # the overlay, on top of the page. Handing PIL the overlay itself takes
+        # its RGB bands and its alpha and allocates neither, and the pixels are
+        # the same. Measured through `chart.build_chart` on the CR30 A4 preset,
+        # peak RSS added by the render (`ru_maxrss`, one fresh process each):
+        #
+        #     A4 at 300 dpi     letters off  96.9 MB   <- the render alone
+        #                       before     194.7 MB    <- the overlay DOUBLED it
+        #                       after      128.8 MB
+        #     A2 at 1200 dpi    letters off  10,252 MB
+        #     (2 pages, the     before       11,165 MB
+        #      largest sheet    after        11,058 MB
+        #      ChromIQ offers)
+        #
+        # so two thirds of the overlay's cost on A4 was the two temporaries,
+        # and `build_chart` runs on the GUI THREAD (chart_creator says so in
+        # its own log line), which is why it is worth the one-line change.
+        if _lbl_layer[0] is not None:
+            img.paste(_lbl_layer[0], (0, 0), _lbl_layer[0])
+            if collect_device_geom:
+                _geom_rows.extend(_lbl_geom)
 
         # Left clip-strip content (i1/p3): rendered natively into the reserved
         # lbord band, since the engine knows its exact geometry.
         if clip_content_mode != "off":
-            _area = geometry.clip_area_px(geom, paper_h_mm, dpi, paper_w_mm)
+            # TEXT THAT WILL NOT FIT THE BAND GROWS INWARD, OVER THE PATCHES
+            # (Knut, 2026-09-12). Only plain text is measured: the other content
+            # modes scale to whatever band they are given, so they have no floor
+            # to overflow from and nothing to warn about.
+            _clip_lines = (len(clip_text_lines(_clip_text))
+                           if clip_content_mode == "text" else 0)
+            _clip_size_pt = float(clip_text_size_mm or 0.0) * 72.0 / 25.4
+            _area = geometry.clip_area_px(
+                geom, paper_h_mm, dpi, paper_w_mm, _clip_lines, _clip_size_pt)
             if _area is not None and _area[2] > 0 and _area[3] > 0:
                 _ax, _ay, _aw, _ah = _area
+                _right_band = getattr(geom, "clip_side", "left") == "right"
+                from workflow import text_edge_fit as _tef
+                # THE SAME PAGE-EDGE RESERVE `clip_area_px` JUST USED, and for
+                # one round it was not. That call takes whichever of "Clip" and
+                # the ruler helper markers' reserve goes furthest in (#182);
+                # this one re-read the raw "Clip" and so computed a SMALLER
+                # overhang. The difference is not cosmetic: `_over_px` is the
+                # width of the ink-only compositing mask below, and everything
+                # outside it is pasted as the strip's OPAQUE WHITE background.
+                # Measured on screen, a 12 mm left band with "Clip" at 0.5 mm
+                # and the side markers at 4 + 2: the geometry drew 24.63 mm of
+                # overhang, the mask protected 18.13, and the 6.5 mm between
+                # them wiped 94,011 pixels of the patch block to bare paper --
+                # patches that read as paper and go into the profile, which is
+                # the exact harm the mask below exists to prevent.
+                # `geom_side_text_edge_mm` is the one place that answers this,
+                # and until now nothing called it.
+                _over_px = int(round(_tef.clip_text_overhang_mm(
+                    geom.lbord + geom.border,
+                    _tef.geom_side_text_edge_mm(geom),
+                    _clip_lines, _clip_size_pt) * dpi / 25.4))
                 _notes_ctx = dict(_pctx)
                 _notes_ctx["count"] = str(layout.total_patches)
                 _notes_ctx["strips"] = str(n_passes)
@@ -1568,25 +2809,246 @@ def render_pages(
                     image_rotation=clip_image_rotation,
                     image_scale=clip_image_scale,
                     image_offset_x_mm=clip_image_offset_x_mm,
-                    image_offset_y_mm=clip_image_offset_y_mm)
+                    image_offset_y_mm=clip_image_offset_y_mm,
+                    # THE BLOCK IS ANCHORED AT THE PAGE-EDGE END WHATEVER THE
+                    # FLIP DOES, so it can only ever grow toward the patches.
+                    # Measured with the dash rule that begins Knut's own clip
+                    # text: turning the strip over also moved the anchor, so on
+                    # his run 1 (a right-hand band with "Flip 180" on) line 1
+                    # sat against the PATCHES and the block grew toward the
+                    # paper edge, which is the direction his ruling forbids.
+                    anchor_far=bool(clip_flip_180))
                 # On the right edge the band sits on the far side of the sheet, so
                 # turn the content 180° to keep it the right way up for the reader
                 # (Knut, #93). The user can override with clip_flip_180 (XOR), e.g.
                 # to make a right-side clip read the same direction as the bottom
                 # stamp. Left clips are upright by default; flip turns them over.
-                _flip = (getattr(geom, "clip_side", "left") == "right") ^ bool(clip_flip_180)
+                _flip = _right_band ^ bool(clip_flip_180)
                 if _flip:
                     _clip = _clip.rotate(180, expand=True)
-                img.paste(_clip, (_ax, _ay))
+                # THE OVERHANG IS COMPOSITED, NOT PASTED. The strip has an
+                # OPAQUE WHITE background, so pasting it whole over the patch
+                # area would not print the text on the patches, it would ERASE
+                # them, and a patch wiped to paper white reads as paper and is
+                # then built into the profile. Only the ink goes over the
+                # patches; the band's own footprint is pasted exactly as before.
+                _mask = None
+                if _over_px > 0:
+                    _ink = ImageOps.invert(_clip.convert("L"))
+                    _mask = Image.new("L", _clip.size, 255)
+                    _bx = 0 if _right_band else max(0, _clip.width - _over_px)
+                    _bw = min(_over_px, _clip.width)
+                    _box = (_bx, 0, min(_clip.width, _bx + _bw), _clip.height)
+                    _mask.paste(_ink.crop(_box), (_box[0], _box[1]))
+                img.paste(_clip, (_ax, _ay), _mask)
                 if collect_device_geom:      # colour the notes strip in device ink
+                    # READ BACK WHAT WAS ACTUALLY PAINTED, so the vector PDF
+                    # carries the composite and not the white strip: handing it
+                    # `_clip` would put the erased version on paper by the other
+                    # route, which is the fault `helper_marker_lines_mm` below
+                    # records for the dashes.
+                    _pasted = img.crop((_ax, _ay, _ax + _clip.width,
+                                        _ay + _clip.height))
                     _geom_rows.append(
-                        ("clip", (_ax, _ay), np.asarray(_clip.convert("RGB"))))
+                        ("clip", (_ax, _ay), np.asarray(_pasted.convert("RGB"))))
 
         # Bottom-of-sheet text: custom chart text + optional command stamp,
         # drawn in the bottom margin (clear of the patches).
         _btxt = [t for t in (_chart_text, stamp_text) if t]
         if _btxt:
-            _sfont_px = px(chart_text_size_mm or 3.2)
+            from workflow import text_edge_fit as _tef
+            # WHERE THE LINE SITS ACROSS THE PAGE IS THE USER'S CHOICE, out of
+            # three (Knut, 2026-09-14): "Left margin", which is his default and
+            # anchors both lines on the patch area's left margin; "Centre of
+            # available space", which is the rule quoted below and was the only
+            # one in beta 13; and "Centre between left and right margin", which
+            # centres them on the patch area instead of on his two bounds.
+            # `text_edge_fit.bottom_text_start_mm` is all three, and his two
+            # bounds still hold the line in every one of them: *"Leave
+            # side-limit detection as it is designed."*
+            #
+            # WHAT IT REPLACED, kept because the bounds it describes are still
+            # the ones in force. Knut, #182, comment 5651269930, which is an
+            # EDIT of his first answer and supersedes it:
+            #
+            #   "the bottom text ("Stamp layout summary on the sheet") is
+            #    horizontally centred between following (example uses A4 paper
+            #    size, Portrait): Helper markers are off and Clip-border off:
+            #    (0+Clip) and (210 - Clip) […] Helper markers are off and
+            #    Clip-border ON (side=left) […]: (0+Clip-border width) and
+            #    (210 - Clip) […]"
+            #
+            # His reason is in the post it replaced: *"so that text can equally
+            # expand to both sides if the text string length is increased."*
+            # `text_edge_fit.bottom_text_bounds_mm` is his whole case table,
+            # and the clip border is the part the older left-anchored line knew
+            # nothing about: the band now runs from the "T" bound to the "B"
+            # bound, so it reaches down across the bottom line's own row and
+            # the line has to be bounded by the border's width on that side.
+            #
+            # The reserve half of it is unchanged and still a limit: *"The
+            # width of the defined text … should also be checked against the
+            # available space, taking into account selected paper width,
+            # "Clip" in "Text distance from edge" (for both sides) and if
+            # helper marker is ON."* Measured before that was read at all: a
+            # 108-character custom line at Size 4.5 mm on A4 ran to 210.06 mm
+            # on a 210 mm sheet and was cut by the paper edge, with nothing
+            # said anywhere.
+            _clip_w_mm = float(geom.lbord + geom.border) if geom.lbord > 0 else 0.0
+            # **THE MARGINS THE SHEET HAS, NOT THE MARGINS THAT WERE ASKED
+            # FOR.** A tester, beta 18: *"Under Sheet text frame, when Alignment
+            # is left, any of the two bottom texts placed are aligned against
+            # the left margin setting, and not the left margin under Measured
+            # from Preview. This also applies for option "Centre between left
+            # and right margin" and "Centre of available space". Use the
+            # measured margins in the calculations and alignment."*
+            #
+            # It is the same correction his 2026-09-15 ruling made to the text
+            # FIT checks, one door along: the patch block does not begin at
+            # `margin_l`. It is centred in the slack, moved by "Patch area
+            # alignment", pushed in by a hexagon's own apex reserve and by the
+            # row-label band, so a line anchored on the typed margin does not
+            # line up with the column of patches above it. `_blk_*_mm` is the
+            # block's own edge, taken from the same `Placement` the patches are
+            # drawn from, and it is taken for a FULL page so that every sheet of
+            # a chart carries the line in the same place.
+            _blk_l_mm, _blk_r_mm = _block_bounds_mm(
+                place, steps, pppage, paper_w_mm,
+                float(getattr(geom, "hxew", 0.0) or 0.0) if ss_hex else 0.0)
+            _l_mm, _r_mm = _tef.bottom_text_bounds_mm(
+                paper_w_mm,
+                float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
+                helper_markers, helper_marker_edge_mm, helper_marker_len_mm,
+                helper_markers_sides,
+                clip_border_mm=_clip_w_mm,
+                clip_side=str(getattr(geom, "clip_side", "left") or "left"),
+                # AND THE MARGINS, which are the fourth thing that keeps text
+                # off a side edge. Knut, 2026-09-13, with a 24 mm border and a
+                # 31.5 mm right margin: the line ran 4.45 mm into the column
+                # the right-edge notes print in. `geom` carries the margins the
+                # sheet was actually laid out with, raised ones included, so
+                # the line is bounded by what is really there.
+                margin_left_mm=_blk_l_mm,
+                margin_right_mm=_blk_r_mm)
+            _align = str(chart_text_align or _tef.BOTTOM_TEXT_ALIGN_DEFAULT)
+            _centre_mm = _tef.bottom_text_centre_mm(
+                paper_w_mm, _blk_l_mm, _blk_r_mm)
+            _anchor_mm = _tef.bottom_text_anchor_mm(
+                paper_w_mm,
+                float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
+                helper_markers, helper_marker_edge_mm, helper_marker_len_mm,
+                helper_markers_sides,
+                clip_border_mm=_clip_w_mm,
+                clip_side=str(getattr(geom, "clip_side", "left") or "left"),
+                margin_left_mm=_blk_l_mm,
+                margin_right_mm=_blk_r_mm)
+            _sfont_px = px(chart_text_size_mm or _tef.SHEET_TEXT_DEFAULT_MM)
+            # THE BAND THE ENGINE REALLY HELD BACK FOR ONE LINE, which is what
+            # "auto" may grow into and no further. `_furniture_reserves_mm`
+            # built `bottom_reserve_mm` as `anchor + hold x lines`, so the hold
+            # comes straight back out of it; a geometry that predates the
+            # ceiling reports the 4.2 mm pitch and nothing changes for it.
+            _hold_mm = _tef.SHEET_TEXT_LINE_MM
+            try:
+                _res_mm = float(getattr(geom, "bottom_reserve_mm", 0.0) or 0.0)
+                if _res_mm > 0 and _btxt:
+                    _anchor = _tef.sheet_text_bottom_mm(
+                        text_edge_mm, helper_markers, helper_marker_edge_mm,
+                        helper_marker_len_mm, helper_markers_top_bottom)
+                    _hold_mm = max(_tef.SHEET_TEXT_LINE_MM,
+                                   (_res_mm - _anchor) / max(1, len(_btxt)))
+            except Exception:        # noqa: BLE001 — a size, never a blocker
+                _hold_mm = _tef.SHEET_TEXT_LINE_MM
+            # SIZE "auto" SHRINKS, AND STOPS AT 7 pt. Knut, same section:
+            # *"Size=auto allows the text to be shrunk down to 7pt, and then
+            # stops shrinking. Manually defined size value does not shrink."*
+            # A typed size is drawn at exactly that size and the warning takes
+            # the place of the shrink, which is the rule the other two shrinking
+            # boxes already follow (`text_edge_fit.text_floor_pt`).
+            if not (chart_text_size_mm or 0.0):
+                # **"auto" STARTS AT THE CEILING AND COMES DOWN.** It used to
+                # start at `SHEET_TEXT_DEFAULT_MM` (9.07 pt) and only ever
+                # shrink, so it printed 9 pt on a sheet with room for 16. The
+                # loop below is unchanged and does the fitting; all that moves
+                # is where it starts.
+                _floor_px = max(1, px(_tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)))
+                # THE ROOM IS FROM WHERE THE LINE STARTS TO THE RIGHT BOUND,
+                # which is the same figure the panel's width warning uses
+                # (`text_edge_fit.bottom_text_room_mm`, one function for both).
+                # It was the distance between the two bounds while the line was
+                # centred between them; a left-aligned line cannot use the
+                # paper behind its own anchor, and shrinking against the old
+                # figure would have let "auto" stop while the line still ran
+                # off the right-hand side. Written as `paper_w - 2 x reserve`
+                # it ignored the clip border too, so on a chart with a band the
+                # shrink stopped while the line still ran under it.
+                _room_mm = _tef.bottom_text_room_mm(
+                    paper_w_mm,
+                    float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
+                    helper_markers, helper_marker_edge_mm,
+                    helper_marker_len_mm, helper_markers_sides,
+                    clip_border_mm=_clip_w_mm,
+                    clip_side=str(getattr(geom, "clip_side", "left") or "left"),
+                    margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
+                    margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0),
+                    align=_align)
+                # **"auto" IS THE LARGEST SIZE THAT FITS THE WIDTH, CEILING
+                # FIRST.** It used to start at `SHEET_TEXT_DEFAULT_MM` (9.07 pt)
+                # and only ever shrink, so it printed 9 pt on a sheet with room
+                # for 16. `auto_sheet_text_size_mm` steps in POINTS, which is
+                # the same answer at every resolution, and the pixel loop below
+                # then only ever takes it DOWN — against the width again (a
+                # rounding may cost a pixel) and against the band the engine
+                # really reserved.
+                _sfont_px = max(_floor_px, px(auto_sheet_text_size_mm(
+                    _btxt, _room_mm, chart_text_font, chart_text_bold,
+                    chart_text_italic, dpi)))
+                # …AND THE HEIGHT, WHICH NOTHING ASKED ABOUT. Knut,
+                # 2026-09-14: *"the size = auto setting should shrink size when
+                # the height or width comes close to its limits."* The loop
+                # only ever measured the width, so a face whose line box grew
+                # past the room the engine set aside for it stayed at its full
+                # size and the patches were the ones that had to give way.
+                #
+                # THE ROOM IS THE ONE THE ENGINE RESERVED, which is
+                # `SHEET_TEXT_LINE_MM` per line (`_furniture_reserves_mm`), so
+                # a line that fits it cannot reach the patch area at all. That
+                # is a rule the renderer can apply without asking where the
+                # patches ended up.
+                while _sfont_px > _floor_px:
+                    _fits_w = sheet_text_width_mm(
+                        _btxt, _sfont_px * 25.4 / dpi, chart_text_font,
+                        chart_text_bold, chart_text_italic, dpi) <= _room_mm
+                    # …AGAINST THE RESERVE AS THIS DPI CAN EXPRESS IT, NOT
+                    # AGAINST 4.2 mm. `sheet_text_line_mm` rounds through whole
+                    # pixels and its own floor is `round(4.2 * dpi / 25.4)` px
+                    # read back as millimetres: **4.2333 mm at 150, 240, 300
+                    # and 360 dpi**, which is larger than the 4.2 it was
+                    # compared against. `_fits_h` was therefore False for EVERY
+                    # size at those resolutions -- 300 dpi is `LayoutRecipe`'s
+                    # default -- and the loop ran to the 7 pt floor on every
+                    # chart, however much paper was free.
+                    #
+                    # MEASURED, same recipe and seed, A4, Size auto, the short
+                    # text "ChromIQ", 7.5 mm of clear paper under the patches:
+                    # at 300 dpi the ink came out **1.947 mm tall and 9.991 mm
+                    # wide** where the same sheet at HEAD, and the same sheet
+                    # at 200 dpi in both trees, is **2.540 x 13.1 mm**. The
+                    # rule is "the face's ink fits the band the engine
+                    # reserves", and the band is a whole number of pixels.
+                    # …AGAINST THE BAND THE ENGINE HELD BACK FOR THIS CHART,
+                    # not against a flat 4.2 mm. With "auto" allowed a ceiling
+                    # the band is whatever `_furniture_reserves_mm` reserved
+                    # for the resolved size, and holding the loop to 4.2 mm
+                    # would undo the ceiling in the same breath as granting it.
+                    _reserve_mm = max(sheet_text_reserve_mm(dpi), _hold_mm)
+                    _fits_h = sheet_text_line_mm(
+                        _sfont_px * 25.4 / dpi, chart_text_font,
+                        chart_text_bold, chart_text_italic,
+                        dpi) <= _reserve_mm + 1e-9
+                    if _fits_w and _fits_h:
+                        break
+                    _sfont_px -= 1
             sfont = _font(_sfont_px, chart_text_font,
                           chart_text_bold, chart_text_italic)
             _sfile, _svar = _font_file_and_variation(
@@ -1595,12 +3057,58 @@ def render_pages(
                 _sasc = sfont.getmetrics()[0]
             except Exception:
                 _sasc = _sfont_px
-            line_h = px(4.2)
-            yy = H - px(text_edge_mm) - line_h * len(_btxt)
+            # ONE LINE'S BOX IS THE LARGER OF THE PITCH AND THE TYPE, and this
+            # was the pitch alone: at a typed Size above about 12 pt the ink
+            # crossed the "B" reserve on its way to the paper edge, at 28 pt on
+            # A4 it was cut off by that edge, and the settings stamp was printed
+            # on top of the sheet text. The panel reads the same function, so
+            # what it warns about is what is drawn.
+            # **AT THE SIZE THAT IS BEING DRAWN, NOT AT THE SIZE IN THE BOX.**
+            # `chart_text_size_mm` is 0 for "auto", which `sheet_text_line_mm`
+            # reads as `SHEET_TEXT_DEFAULT_MM` (3.2 mm): while "auto" could
+            # never be larger than that the two agreed by accident, and the
+            # moment the ceiling let it grow the block was POSITIONED for a
+            # 4.2 mm line and DRAWN at 16 pt, so the ink crossed the "B"
+            # reserve and ran toward the paper edge. Caught by
+            # `tests/test_the_bottom_sheet_text_keeps_its_reserve.py` and
+            # `tests/test_the_top_and_bottom_edges_keep_off_the_helper_markers.py`
+            # on the first full run after the ceiling went in.
+            _drawn_size_mm = chart_text_size_mm or (_sfont_px * 25.4 / dpi)
+            line_h = px(sheet_text_line_mm(_drawn_size_mm, chart_text_font,
+                                           chart_text_bold, chart_text_italic,
+                                           dpi))
+            # THE BOTTOM RESERVE IS THE LARGER OF "B" AND THE MARKERS' OWN, the
+            # same two-way rule the other three edges keep (#182). Measured
+            # before this: with the markers at 4 mm + 2 mm and "B" at 4 mm the
+            # line's ink ran from 289.56 to 293.12 mm on A4, straight through
+            # the 291 to 293 mm dash band; Knut reported exactly that.
+            _bot = _tef.sheet_text_bottom_mm(text_edge_mm, helper_markers,
+                                             helper_marker_edge_mm,
+                                             helper_marker_len_mm,
+                                             helper_markers_top_bottom)
+            yy = H - px(_bot) - line_h * len(_btxt)
+            # EACH LINE IS PLACED ON ITS OWN, not the pair as a block. On the
+            # left-margin alignment that makes no difference (they share a left
+            # edge, which is the whole point of it); on either centred one it
+            # is what "text can equally expand to both sides" asks for, since
+            # the custom text and the layout summary are different lengths and
+            # centring the pair would leave the shorter one off centre.
             for ln in _btxt:
-                draw.text((px(geom.margin_l), yy), ln, font=sfont, fill=(0, 0, 0))
+                try:
+                    _bb = draw.textbbox((0, 0), ln, font=sfont)
+                    _lw_mm = (_bb[2] - _bb[0]) * 25.4 / dpi
+                    _bx = _bb[0]
+                except Exception:      # noqa: BLE001 - a width, never a blocker
+                    _lw_mm = draw.textlength(ln, font=sfont) * 25.4 / dpi
+                    _bx = 0
+                # `_bx` is the glyph's own left bearing, so the INK starts
+                # where the rule says rather than the pen.
+                _x0 = max(0, px(_tef.bottom_text_start_mm(
+                    _lw_mm, _l_mm, _r_mm, align=_align,
+                    anchor_mm=_anchor_mm, centre_mm=_centre_mm)) - _bx)
+                draw.text((_x0, yy), ln, font=sfont, fill=(0, 0, 0))
                 if collect_device_geom and _sfile:
-                    _geom_rows.append(("text", px(geom.margin_l), yy + _sasc, ln,
+                    _geom_rows.append(("text", _x0, yy + _sasc, ln,
                                        _sfile, _sfont_px, 0, 0, (0, 0, 0), _svar))
                 yy += line_h
         # Ruler helper markers (#152, Knut). Drawn LAST so nothing already on
@@ -1647,10 +3155,12 @@ def render_pages(
                 log.warning("could not draw the helper markers", exc_info=True)
         images.append(img)
         page_geoms.append(_geom_rows)
+        _ink_tops.append(_ink_top)
 
     flagged = contrast.low_contrast_passes(rgb_by_slot, steps)
     return RenderResult(images=images, low_contrast_passes=flagged,
                         label_band_bottom_px=_band_bottom,
+                        patch_ink_top_px=_ink_tops,
                         patch_geom=page_geoms if collect_device_geom else None)
 
 
@@ -1700,7 +3210,7 @@ def export_clip_template(out_base: str | Path, *, width_px: int, height_px: int,
         d.line([(cx, cy), (cx + (tick if cx == 0 else -tick), cy)], fill=guide, width=2)
         d.line([(cx, cy), (cx, cy + (tick if cy == 0 else -tick))], fill=guide, width=2)
     cap = f"{width_mm:.0f} × {height_mm:.0f} mm @ {dpi} dpi"
-    overlay = _vtext(cap, "Inter", width_px, height_px, valign="top")
+    overlay = _vtext(cap, "Inter", width_px, height_px, valign="top", dpi=dpi)
     img.paste(overlay, (0, 0), overlay)
     out: list[Path] = []
     png = base.with_suffix(".png")
@@ -1946,14 +3456,38 @@ def row_label_band_mm(geom, *, dpi: int, rows: int = 0,
     mm2px = dpi / 25.4
     ind_px = max(6, round(effective_row_label_size_mm(
         geom, dpi, indicator_font, indicator_size_mm) * mm2px))
-    font = _font(ind_px, indicator_font, indicator_bold, indicator_italic)
+    widest = _widest_row_label_px(ind_px, indicator_font, indicator_bold,
+                                  indicator_italic, patch_pattern, rows)
+    return widest / mm2px + max(0.0, gap_mm)
+
+
+@functools.lru_cache(maxsize=1024)
+def _widest_row_label_px(ind_px: int, family: str, bold: bool, italic: bool,
+                         patch_pattern: str, rows: int) -> float:
+    """The widest row label in pixels, measured once per distinct question.
+
+    MEASURED, in the real window: loading a Create Chart preset straight after
+    a Scanner preset took **17.2 s**, and **8.0 s of it was PIL measuring
+    text** -- 135,685 `Font.getlength` calls and 49,079 font loads, from 45,227
+    calls to `row_label_band_mm`. The area fit asks for the band once per
+    candidate patch size, per column count, per pass, and every one of those
+    asked the font the same handful of questions again. Knut, beta 20:
+    *"Loading any of the 6 Scanner presets takes 5 to 10 seconds to load.
+    Why?"*
+
+    Nothing about the answer depends on anything but these six values: the
+    resolved label size in pixels, the face, and which labels get printed. The
+    font is built INSIDE this call rather than cached on its own, so no
+    `FreeTypeFont` is ever shared between the engine's worker threads; only the
+    float crosses.
+    """
+    font = _font(ind_px, family, bold, italic)
     label = permutation.make_labeller(
         patch_pattern or permutation.DEFAULT_PATCH_PATTERN)
-    img = Image.new("L", (1, 1))
-    draw = ImageDraw.Draw(img)
+    draw = ImageDraw.Draw(Image.new("L", (1, 1)))
     # The widest of the labels that will really be printed, not an assumption
     # about digits: a letter pattern makes "AA" wider than "10".
     widest = 0.0
     for r in (1, 9, 99) if rows <= 0 else range(1, rows + 1):
         widest = max(widest, float(draw.textlength(label(r), font=font)))
-    return widest / mm2px + max(0.0, gap_mm)
+    return widest

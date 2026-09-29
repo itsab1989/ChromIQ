@@ -101,6 +101,20 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 #: "(with colour management on)", which the app prevents on every print path,
 #: so the print step now names the Print Chart tab's "Colour" row instead —
 #: and the two new failure windows of the print-time conversion (§6 S9/S10).
+# M-VERIFY-NO-CONTROL-STRIP left this set on 2026-09-19: Knut was asked for
+# the wording and answered "Yes, message text approved." A message leaves
+# here only that way, which is the whole point of pinning the set.
+# K33 (Knut, #182 5816565326, 2026-09-24): "All messages under 'C. Message
+# texts waiting for your approval' are approved." Twelve of the C list left
+# this set with that answer. Six stay: M-REPORT-UPDATE-OR-NEW and
+# M-REPORT-UNCHANGED-UPDATE-OR-NEW (reordered for K32), M-REPORT-DELETE-FAILED
+# and M-REPORT-NOT-WRITABLE (re-challenge R2), M-VERIFY-UNCHECKED-METRICS
+# (K31) and M-THRESHOLDS-NOT-CERTIFICATION (B8-978) were each revised after
+# the post he answered, so the words he approved are not the words shipped.
+# The first two were then approved as reordered, #182 5818037438.
+# M-VERIFY-SOLIDS-REASON (beta 44 challenge 8, C5, B8-1373) left this set on
+# 2026-09-26: Knut, #182 5848287278, "Regarding 'For your approval
+# (M-VERIFY-SOLIDS-REASON)' Answer: Approved."
 AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # #159, 2026-08-30. The magnet guard used to
                                  # recognise ONE unit's stored white-tile value
@@ -124,6 +138,134 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # too — so a second window at Generate time
                                  # interrupted a decision already made.
                                  "M-PATCHSET-MISSING",
+                                 # B8-1460, beta 45: an older chart whose patch
+                                 # set targen could not be asked about keeps
+                                 # it; the log line saying so is new wording.
+                                 "M-PATCHSET-KEPT-UNCHECKED",
+                                 # #182, beta 22: ChromIQ now writes a
+                                 # control-strip declaration beside every
+                                 # verification chart it creates, and Knut
+                                 # asked to be told when a chart cannot carry
+                                 # one. The WINDOW is his request; the wording
+                                 # waits here.
+                                 # #182, 2026-09-08: the Measurement Report is
+                                 # judged against a limit set bound to the run.
+                                 # The strip for rows the chart cannot supply
+                                 # (Knut D25) and the not-certification note at
+                                 # the foot of the Report limits window (D11,
+                                 # D24); the wording waits for Knut (K-g).
+                                 # #182, 2026-09-21: the verification
+                                 # pre-flight. Knut specified the WINDOW and
+                                 # asked for the text to be drafted and
+                                 # shipped so he can review it as a working
+                                 # example, so it is a proposal for him and
+                                 # not settled wording.
+                                 # #182, 2026-09-22, the same conversation.
+                                 # Knut asked for two more pieces of text: one
+                                 # telling a reader BEFORE printing that a
+                                 # metric the chart cannot answer still appears
+                                 # in the report and how to take it out, and
+                                 # one telling a reader of a report that its
+                                 # sheets do not all carry the same number of
+                                 # patches. Both are his request and neither is
+                                 # his wording, so both wait here.
+                                 "M-VERIFY-UNCHECKED-METRICS",
+                                 # beta 37, round B M7: the same strip when
+                                 # only the evenness rows are short.
+                                 # beta 40 challenge B (B8-942): the strip's
+                                 # closing without the grey-ramp lever.
+                                 "M-REPORT-CHART-MISMATCH-NO-GREY",
+                                 "M-THRESHOLDS-NOT-CERTIFICATION",
+                                 # #182, 2026-09-16: the design authority asked
+                                 # for a way to select and delete saved reports
+                                 # before a non-beta. Nothing in the model
+                                 # governs removing a report, so the window and
+                                 # its one refusal wait here.
+                                 # #182 K26, 2026-09-23: Knut ruled that a
+                                 # project opened from a folder not named what
+                                 # its files carry is offered the rename
+                                 # chooser. His behaviour, our words.
+                                 # (M-REPORT-NOT-FOR-CALIBRATION, proposed
+                                 # with them, was WITHDRAWN for beta 39: Knut
+                                 # retracted "no reports under Calibration",
+                                 # 5794078008.)
+                                 # Challenge C of beta 39, 2026-09-23: an
+                                 # Update never drops a covered measurement
+                                 # in silence (refused when nobody can find
+                                 # it, asked when it is gone from disk), a
+                                 # Delete that cannot move says so in words,
+                                 # and a refused press names the folder.
+                                 # The behaviour is the safe one; the words
+                                 # are ours.
+                                 # Re-challenge R1 of beta 39: an Update that
+                                 # would leave a report of nothing is refused.
+                                 "M-REPORT-UPDATE-NOTHING-LEFT",
+                                 # (B8-1655's M-CAL-FOUND-ENGINE was
+                                 # APPROVED by Knut, #182 5865088296, and
+                                 # left this list.)
+                                 # (B8-1500's M-REPORT-NOT-WORKED-OUT was
+                                 # APPROVED by Knut, #182 5858874320, and
+                                 # left this list.)
+                                 "M-REPORT-DELETE-FAILED",
+                                 "M-REPORT-NOT-WRITABLE",
+                                 # (#182 K49, (b2): the two notes on the
+                                 # paper and solid rows,
+                                 # M-REPORT-SOLIDS-PREDICTED and
+                                 # M-REPORT-PAPER-AGAINST-PROFILE, were
+                                 # APPROVED by Knut in 5845588201 and left
+                                 # this set.)
+                                 # Re-challenge R2 of beta 39: the run-delete
+                                 # refusal about reports it cannot renumber
+                                 # had no headline and a list heading that
+                                 # was false. Our words.
+                                 "M-RUN-DELETE-REPORTS-LOCKED",
+                                 # (K59, #182 5849392788, option C and
+                                 # "change" for "drift": the fourteen
+                                 # M-REPORT-RAW-* texts and
+                                 # M-REPORT-MIXED-OPENING were APPROVED by
+                                 # Knut in 5850164956, "All messages under
+                                 # "B. PROPOSED, FOR YOUR APPROVAL (14 texts,
+                                 # all shown before approval)" are
+                                 # approved.", and left this set; with them
+                                 # M-REPORT-MIXED-OPENING-RUNS, his D2
+                                 # "Accepted.", arrived approved.)
+                                 # (#182 A6 and A10: M-REPORT-SCOPE-RUN-
+                                 # DELETED and M-REPORT-NO-PAPER-PATCH were
+                                 # APPROVED by Knut in 5820871320, K36-3 and
+                                 # K36-4, and left this set.)
+                                 # #182 K37 (Knut, 5822758830, answer 1): a
+                                 # white-mapped sheet whose chart has no
+                                 # paper patch is judged against its
+                                 # profile's paper white, (e), with a note;
+                                 # (b) absolute Lab with a note only when no
+                                 # profile can be read. His behaviour, our
+                                 # words.
+                                 # (The four K37 notes were APPROVED by Knut
+                                 # in 5824834975 once "sheet" was reworded,
+                                 # and left this set.)
+                                 # K37 (i) (Knut, 5823088098 "Yes do so"): a
+                                 # FROM PROFILE GAMUT sheet's strip corners
+                                 # against the profile's prediction; the note
+                                 # our post promised, in our words.
+                                 # (K39-2 and K39-3,
+                                 # M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW
+                                 # and M-REPORT-NEW-REPORT-SETTINGS, were
+                                 # APPROVED by Knut in 5832385126 and left
+                                 # this set.)
+                                 # (Challenge 5 of beta 42, M1, B8-1091:
+                                 # M-REPORT-WORKED-OUT-EARLIER was APPROVED
+                                 # by Knut in 5831246553 once its UI
+                                 # reference was removed, K39-1, and left
+                                 # this set.)
+                                 # #182, 2026-09-19: Knut overruled his own
+                                 # K.1 ("Generate report always creates a new
+                                 # report"). Pressed with a report selected and
+                                 # one of its five settings changed, the button
+                                 # now asks. He wrote the question himself and
+                                 # ended it "(or similar)", so the WORDING is
+                                 # his and waits here for him to confirm it.
+                                 # K4 (Knut, beta 34): the same question when
+                                 # NOTHING was changed; new wording, ours.
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
                                  "M-CM-PROFCHECK-CONVERTED",
                                  # Feature B — wording agreed verbatim with
@@ -135,6 +277,24 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # DONE was approved by Sebastian on 2026-08-10
                                  # (seen live: "messages were good").
                                  "M-IMPORT-MISMATCH", "M-IMPORT-DATE-TAKEN",
+                                 # 2026-09-15: the same module now files into a
+                                 # PROFILING run as well (Katrina at Red River
+                                 # Paper looked for it on the Measurement tab
+                                 # and found it only on Build ICC profile;
+                                 # Sebastian ruled "add it, do not move it").
+                                 # M-IMPORT-DONE is approved and speaks only of
+                                 # verifications and of a dated folder a
+                                 # profiling run does not have, so its twin is
+                                 # new wording and waits here.
+                                 "M-IMPORT-DONE-PROFILING",
+                                 # 2026-09-12: an i1Profiler export of a chart
+                                 # i1Profiler did not generate carries no
+                                 # device values at all, so the patch-identity
+                                 # check has nothing to compare. ChromIQ pairs
+                                 # it by patch name and says plainly what it
+                                 # cannot check, rather than refusing a
+                                 # complete measurement of its own chart.
+                                 "M-IMPORT-DEVICE-FROM-CHART",
                                  # W5 rework after the same session: the old
                                  # text ignored the per-date chart snapshots.
                                  "M-CHART-VERIFY",
@@ -267,6 +427,16 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # where a rebuilt profile's predecessor
                                  # went, now that it is archived rather
                                  # than overwritten in place.
+                                 # 2026-09-05, AGENT BQ. The scanner
+                                 # white-point default moved to "Scale white
+                                 # to a perfect white surface" (-u -R) and
+                                 # Basti ruled that existing remembered
+                                 # settings adopt it. The migration announces
+                                 # itself once, in the log, because a change
+                                 # of meaning nobody is told about is the
+                                 # thing CLAUDE.md's principle 10 exists to
+                                 # prevent. The WORDING waits here.
+                                 "M-SCAN-WP-DEFAULT",
                                  "M-SCAN-REF-SHORT",
                                  "M-SCAN-REF-DISAGREES",
                                  "M-SCAN-CLIPPED",
@@ -344,7 +514,62 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # the page, into a log cleared in the same
                                  # block.
                                  "M-SCAN-SHOT-EMPTY",
-                                 "M-SCAN-TARGET-CHANGED"}
+                                 "M-SCAN-TARGET-CHANGED",
+                                 # 2026-09-11, 4.2.4. Auto align cannot find a
+                                 # honeycomb chart and never could -- measured
+                                 # on Knut's own CR30 chart against a
+                                 # rectangular one of the same 648 colours, it
+                                 # moves 0.0 px from every start while the
+                                 # rectangle lands 0.6 px from truth, and only
+                                 # the SEARCH stage declines. The refusal was
+                                 # already safe; the sentence sent the user to
+                                 # narrow a search that will find nothing
+                                 # however narrow it is. Behaviour unchanged,
+                                 # WORDING new, so it waits here.
+                                 "M-SCAN-ALIGN-NOT-FOUND-HEX",
+                                 # #182, 2026-09-11. Knut ruled that Auto
+                                 # align must "place its best attempt and tell
+                                 # user to check it" instead of leaving the
+                                 # corners alone, so the two endings that HAVE
+                                 # a best attempt stop being refusals and need
+                                 # their own words.
+                                 "M-SCAN-ALIGN-PLACED-UNCHECKED",
+                                 "M-SCAN-ALIGN-PLACED-NOT-SEATED",
+                                 # 2026-09-11, #182. The chooser that
+                                 # says .ti2 hides everything else in
+                                 # its list, but its NAME BOX takes a
+                                 # typed name whatever it ends in, and
+                                 # the import copied whatever it was
+                                 # handed into a new project AS that
+                                 # project's chart -- a page bitmap
+                                 # became <project>.ti2, in a project
+                                 # that cannot be printed, measured or
+                                 # built from, in silence. The guard is
+                                 # new and so is the WORDING.
+
+                                 # #182, 2026-09-21. The note a bracketed
+                                 # limit points at, asked for by Knut in the
+                                 # message that retired COND as a row word.
+                                 # The WORDING is new and unreviewed; what he
+                                 # ruled on is that such a note must exist.
+                                 # 2026-09-20, #182 (B8-591). Knut removed
+                                 # "Show all measurement runs" from the design
+                                 # with the feature behind it, and most of the
+                                 # conflicts between that box and the ticked
+                                 # measurements went with it. ONE survives,
+                                 # because it belongs to the report TYPE: a
+                                 # one-page colour summary is a page about one
+                                 # measurement. He reported the silent
+                                 # correction from both ends -- "This
+                                 # unselected all but the last measurement
+                                 # without a warning" and "the measurement I
+                                 # had ticked was unticked and the last
+                                 # measurement in the list was automatically
+                                 # ticked (I did not ask for that)" -- so
+                                 # Generate now stops and says so and moves no
+                                 # tick. The BEHAVIOUR is his ruling; the
+                                 # WORDING is new and waits here.
+                                 }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM
@@ -444,11 +669,17 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_converted_measurement"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_refusal"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done_profiling"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_verification_saved"),
     ("ui.tabs.tab_measure", "TabMeasure", "_ask_how_printed"),
     ("ui.tabs.tab_chart", "TabChart", "_patchset_missing_message"),
+    ("ui.tabs.tab_chart", "TabChart", "_say_patch_set_kept_unchecked"),
     ("ui.tabs.tab_chart", "TabChart", "_project_exists_message"),
     ("ui.tabs.tab_measure", "TabMeasure", "_cr30_stock_reader_window"),
+    # The verification pre-flight (#182, Knut, 2026-09-21). Its frame is
+    # M-VERIFY-PREFLIGHT; the metric list under it is the presets window's own
+    # `summary_lines`, which is not prose this method writes.
+    ("ui.tabs.tab_measure", "TabMeasure", "_verification_preflight_message"),
     ("ui.tabs.tab_chart", "TabChart", "_calibration_replace_message"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_confirm_clear"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_close"),
@@ -588,10 +819,27 @@ def test_no_message_carries_markdown_that_would_reach_the_screen():
         assert not found, f"{mid} would show Markdown on screen: {found}"
 
 
+#: Messages whose "(s)" is the DESIGN AUTHORITY'S OWN WORDING, each with where
+#: he gave it. Not a licence: the house rule stands for every other message,
+#: and an entry here needs his words, not ours.
+#:
+#: M-REPORT-DELETE: Knut, #182 comment 5789263863 (K25, Q5), *"You could say
+#: 'the measurement(s) it describes', to make it simple."* The message counts
+#: FILES ({n}); a report of several measurements is one document file since
+#: K23, so {n} cannot choose between "measurement" and "measurements".
+_BRACKETED_PLURAL_BY_RULING = {"M-REPORT-DELETE": "the measurement(s) it describes"}
+
+
 def test_no_message_uses_a_bracketed_plural():
-    """House rule, and the model follows it too."""
+    """House rule, and the model follows it too. An entry in
+    `_BRACKETED_PLURAL_BY_RULING` may carry exactly the phrase he gave and no
+    other "(s)"."""
     for mid, msg in sorted(M.CATALOGUE.items()):
-        assert "(s)" not in msg.title + msg.body, mid
+        text = msg.title + msg.body + (getattr(msg, "body_one", "") or "")
+        ruled = _BRACKETED_PLURAL_BY_RULING.get(mid)
+        if ruled:
+            text = text.replace(ruled, "")
+        assert "(s)" not in text, mid
 
 
 def test_the_uncatalogued_window_list_does_not_grow():

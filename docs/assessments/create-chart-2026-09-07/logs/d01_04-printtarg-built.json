@@ -1,0 +1,218 @@
+{
+  "layout_info_visible": true,
+  "layout_info_text": "on screen | estimate | Total patches | 420 | \u2014 | \u2026 of those, fill-up | 20 | \u2014 | Patches (this page) | 420 | \u2014 | Patches per strip | 21 | \u2014 | Strips (this page) | 20 | \u2014 | Pages | 1 | \u2014 | Patch size (mm) | \u2014 | \u2014",
+  "layout_info_actual": {
+    "total": 420,
+    "fillup": 20,
+    "page_patches": 420,
+    "rows": 21,
+    "cols": 20,
+    "pages": 1,
+    "patch": null,
+    "pitch": null
+  },
+  "layout_info_estimate": null,
+  "margin_panel_visible": true,
+  "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 23.9 | 0.940 | 9.0 | Top (to first patch) | 41.0 | 1.613 | 38.0 | Bottom (to first patch) | 24.0 | 0.947 | 19.0 | Patch width (in strip reading direction) | 8.0 | 0.315 | Strip length | 232.0 | 9.133 | Margins: OK",
+  "margin_status": "Margins: OK",
+  "recipe": {
+    "instrument": "i1",
+    "paper": "A4",
+    "dpi": 300,
+    "randomize": true,
+    "seed": null,
+    "hflag": false,
+    "cm_density": 1,
+    "cm_stagger": false,
+    "spacer_on": true,
+    "spacer_mode": "colored",
+    "spacer_palette": [],
+    "spacer_overrides": {},
+    "edge_spacers": false,
+    "patch_area_align": "top-left",
+    "pscale": 1.0,
+    "sscale": 1.0,
+    "border": 6.0,
+    "margin_top": 38.0,
+    "margin_right": 9.0,
+    "margin_bottom": 19.0,
+    "margin_left": 26.0,
+    "use_instrument_margins": true,
+    "patch_w_mm": 0.0,
+    "patch_h_mm": 0.0,
+    "layout_mode": "area_first",
+    "area_method": "by_width",
+    "area_cols": 0,
+    "area_rows": 0,
+    "area_ratio": 1.0,
+    "area_min_patch_mm": 0.0,
+    "layout_explicit": false,
+    "spacer_width_mm": 0.0,
+    "inter_patch_mm": 0.0,
+    "strip_gap_mm": 0.0,
+    "max_strip_mm": 0.0,
+    "strip_indicator_gap_mm": 0.0,
+    "offset_x_mm": 0.0,
+    "offset_y_mm": 0.0,
+    "bit16": false,
+    "compression": "lzw",
+    "export_pdf": false,
+    "show_strip_indicators": true,
+    "show_row_indicators": null,
+    "label_style_explicit": false,
+    "indicator_font": "JetBrains Mono",
+    "indicator_size_mm": 0.0,
+    "indicator_bold": false,
+    "indicator_italic": false,
+    "indicator_rotation": 0,
+    "indicator_align": "left",
+    "strip_label_offset_mm": 0.0,
+    "underline_mode": "off",
+    "underline_thickness_mm": 0.5,
+    "underline_gap_mm": 0.5,
+    "chart_text": "",
+    "chart_text_font": "Inter",
+    "chart_text_size_mm": 0.0,
+    "chart_text_bold": false,
+    "chart_text_italic": false,
+    "helper_markers": false,
+    "helper_marker_edge_mm": 2.0,
+    "helper_marker_len_mm": 2.0,
+    "helper_marker_per_patch": 3,
+    "helper_markers_top_bottom": true,
+    "helper_markers_sides": true,
+    "text_edge_mm": 4.0,
+    "text_edge_top_mm": 4.0,
+    "text_edge_clip_mm": 4.0,
+    "stamp_command": false,
+    "clip_border": true,
+    "clip_border_width_mm": 26.0,
+    "clip_side": "left",
+    "clip_content_mode": "notes",
+    "clip_text": "",
+    "clip_text_font": "Inter",
+    "clip_text_size_mm": 0.0,
+    "clip_image_path": "",
+    "clip_image_rotation": 0,
+    "clip_image_scale": 100.0,
+    "clip_image_offset_x_mm": 0.0,
+    "clip_image_offset_y_mm": 0.0,
+    "clip_flip_180": false,
+    "nolimit": false,
+    "strip_pattern": "A-Z, A-Z",
+    "patch_pattern": "0-9,@-9,@-9;1-999"
+  },
+  "manual_info_lbl": "Manual mode \u2014 your current configuration (1 page \u00b7 Auto grey/white/black):\ntargen -d2 -f400 -e3 -B3 -G -g23 chart\nprinttarg -ii1 -pA4 -t300 -m10 -M10 -c chart",
+  "log_tail": ": Arranging colour patches: Arranging colour patches: 50%\n\nArranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: Arranging colour patches: 100%\n\nAfter seeding points: MinPoint = 5.993, Min = 4.800, Avg. = 11.935, Max = 15.686, 0.0 secs\nRe-seeding\nIt 1: Maxmv = 0.100761, MinPoint = 3.268, Min = 3.715, Avg. = 11.873, Max = 15.971, 0.0 secs.\nRe-seeding\nIt 2: Maxmv = 0.102174, MinPoint = 4.726, Min = 5.929, Avg. = 11.823, Max = 15.050, 0.0 secs.\nRe-seeding\nIt 3: Maxmv = 0.084379, MinPoint = 5.717, Min = 5.494, Avg. = 11.784, Max = 15.467, 0.0 secs.\nRe-seeding\nIt 4: Maxmv = 0.076331, MinPoint = 6.700, Min = 6.852, Avg. = 11.689, Max = 14.503, 0.0 secs.\nRe-seeding\nIt 5: Maxmv = 0.065671, MinPoint = 7.570, Min = 6.319, Avg. = 11.672, Max = 15.483, 0.0 secs.\nRe-seeding\nIt 6: Maxmv = 0.055767, MinPoint = 7.570, Min = 5.746, Avg. = 11.629, Max = 15.267, 0.0 secs.\nRe-seeding\nIt 7: Maxmv = 0.061237, MinPoint = 7.570, Min = 6.960, Avg. = 11.577, Max = 14.788, 0.0 secs.\nRe-seeding\nIt 8: Maxmv = 0.060963, MinPoint = 7.570, Min = 6.960, Avg. = 11.541, Max = 14.174, 0.0 secs.\nRe-seeding\nIt 9: Maxmv = 0.046047, MinPoint = 7.570, Min = 6.960, Avg. = 11.492, Max = 14.168, 0.0 secs.\nRe-seeding\nIt 10: Maxmv = 0.038290, MinPoint = 7.570, Min = 6.960, Avg. = 11.467, Max = 14.240, 0.0 secs.\nRe-seeding\nIt 11: Maxmv = 0.036328, MinPoint = 7.570, Min = 6.960, Avg. = 11.445, Max = 14.048, 0.0 secs.\nRe-seeding\nIt 12: Maxmv = 0.026130, MinPoint = 7.570, Min = 6.960, Avg. = 11.446, Max = 13.807, 0.0 secs.\nRe-seeding\nIt 13: Maxmv = 0.021336, MinPoint = 7.570, Min = 6.960, Avg. = 11.423, Max = 13.621, 0.0 secs.\nRe-seeding\nIt 14: Maxmv = 0.021763, MinPoint = 7.570, Min = 6.960, Avg. = 11.414, Max = 13.710, 0.0 secs.\nRe-seeding\nIt 15: Maxmv = 0.017561, MinPoint = 7.570, Min = 6.960, Avg. = 11.413, Max = 13.642, 0.0 secs.\nRe-seeding\nIt 16: Maxmv = 0.011767, MinPoint = 7.570, Min = 6.960, Avg. = 11.407, Max = 13.551, 0.0 secs.\nRe-seeding\nIt 17: Maxmv = 0.009420, MinPoint = 7.570, Min = 6.960, Avg. = 11.414, Max = 13.519, 0.0 secs.\nRe-seeding\nIt 18: Maxmv = 0.005286, MinPoint = 7.570, Min = 6.960, Avg. = 11.412, Max = 13.537, 0.0 secs.\nRe-seeding\nIt 19: Maxmv = 0.001856, MinPoint = 7.570, Min = 6.960, Avg. = 11.414, Max = 13.538, 0.0 secs.\nRe-seeding\nIt 20: Maxmv = 0.001769, MinPoint = 7.570, Min = 6.960, Avg. = 11.414, Max = 13.530, 0.0 secs.\nAfter optimization: MinPoint = 7.570, Min = 6.960, Avg. = 11.414, Max = 13.530\nTotal number of patches = 400\nExecution time = 0.707327 seconds\nwrote A1-EngineVsPrinttarg-colours.txt\nwrote A1-EngineVsPrinttarg-i1profiler.txt\nwrote A1-EngineVsPrinttarg-i1profiler.pxf",
+  "run_bar": "Run 2 (overwrite)",
+  "run_dir": "/Users/Basti/ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run2",
+  "inventory": {
+    "dir": "/Users/Basti/ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run2",
+    "files": [
+      [
+        "A1-EngineVsPrinttarg.channels.json",
+        78943
+      ],
+      [
+        "A1-EngineVsPrinttarg.ti1",
+        25327
+      ],
+      [
+        "A1-EngineVsPrinttarg.ti2",
+        27465
+      ],
+      [
+        "A1-EngineVsPrinttarg.tif",
+        1109402
+      ],
+      [
+        "cache/new_run.json",
+        2803
+      ],
+      [
+        "exports/A1-EngineVsPrinttarg-colours.txt",
+        3200
+      ],
+      [
+        "exports/A1-EngineVsPrinttarg-i1profiler.pxf",
+        134067
+      ],
+      [
+        "exports/A1-EngineVsPrinttarg-i1profiler.txt",
+        12427
+      ],
+      [
+        "meta.json",
+        7668
+      ]
+    ],
+    "tiffs": [
+      {
+        "file": "A1-EngineVsPrinttarg.tif",
+        "size_px": [
+          2480,
+          3508
+        ],
+        "mode": "RGB",
+        "dpi": [
+          300.000003555709,
+          300.000003555709
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1109402
+      }
+    ],
+    "channels": {
+      "file": "A1-EngineVsPrinttarg.channels.json",
+      "keys": [
+        "chart_notes",
+        "create_chart_settings",
+        "ink_channels",
+        "layout",
+        "printtarg_fields",
+        "run_description",
+        "stamp_commands"
+      ],
+      "layout_keys": [
+        "cht_pages",
+        "engine",
+        "locs"
+      ],
+      "dpi": null,
+      "n_patch_rects": 0,
+      "recipe_instrument": null,
+      "recipe_paper": null,
+      "recipe_layout_mode": null,
+      "recipe_margins": [
+        null,
+        null,
+        null,
+        null
+      ],
+      "recipe_use_instr": null,
+      "recipe_patch_wh": [
+        null,
+        null
+      ],
+      "engine": "printtarg",
+      "margins_chosen_by_user": null
+    },
+    "ti2_sets": 420,
+    "ti2_steps_in_pass": 21,
+    "ti2_passes": "20",
+    "ti2_patch_length": null,
+    "ti2_patch_width": null,
+    "ti2_instrument": "GretagMacbeth i1 Pro",
+    "ti2_paper": "210.0x297.0",
+    "ti2_file": "A1-EngineVsPrinttarg.ti2"
+  },
+  "pages_spin": [
+    1,
+    false
+  ]
+}

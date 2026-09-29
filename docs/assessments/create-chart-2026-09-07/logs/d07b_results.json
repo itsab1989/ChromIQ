@@ -1,0 +1,551 @@
+{
+  "x-10000-from-disk": {
+    "note": "built in D07 at 09:07:01-09:07:33: targen 27 s, engine 4 s, 36 pages of 20x14 = 280, 10000 sets, 34 MB of TIFF; the driver then stalled on a modal its own watcher missed (id reuse), see checkpoint-07"
+  },
+  "x-patch-bigger-than-page": {
+    "estimate": null,
+    "info": "rgen -d2 -f0 -e4 -B4 -G -g8 chart\nChromIQ layout engine \u00b7 i1 \u00b7 20x20 \u00b7 300 dpi \u00b7 margins 6/6/6/26 mm \u00b7 patch 60\u00d760 mm \u00b7 clip border on \u00b7 align center-left\nLayout preset: i1 \u00b7 20x20 \u00b7 clip   \u25cf modified",
+    "generate_enabled": true,
+    "ok": true,
+    "stopped": false,
+    "secs": 4.3,
+    "actual": null,
+    "status": "",
+    "notes": "",
+    "margin_text": "Generate a preview to measure its margins.",
+    "dialogs": [],
+    "serious": [
+      "[ERROR] workflow.chart_creator: ChromIQ layout engine failed"
+    ],
+    "errors": [
+      "[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (8.0 mm available)",
+      "[ERROR] Chart generation failed."
+    ],
+    "engine": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished."
+    ]
+  },
+  "x-margins-no-room": {
+    "estimate": null,
+    "info": "rey/white/black):\ntargen -d2 -f0 -e4 -B4 -G -g8 chart\nChromIQ layout engine \u00b7 i1 \u00b7 100x100 \u00b7 300 dpi \u00b7 margin 50 mm \u00b7 clip border on \u00b7 align center-left\nLayout preset: i1 \u00b7 100x100 \u00b7 clip   \u25cf modified",
+    "ok": true,
+    "stopped": false,
+    "secs": 6.6,
+    "actual": null,
+    "status": "",
+    "notes": "",
+    "margin_text": "Generate a preview to measure its margins.",
+    "dialogs": [],
+    "serious": [
+      "[ERROR] workflow.chart_creator: ChromIQ layout engine failed"
+    ],
+    "errors": [
+      "[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (-11.1 mm available)",
+      "[ERROR] Chart generation failed."
+    ],
+    "engine": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished."
+    ]
+  },
+  "x-grid-200x500": {
+    "estimate": {
+      "total": 991800,
+      "fillup": 0,
+      "page_patches": 49590,
+      "rows": 285,
+      "cols": 174,
+      "pages": 20,
+      "patch": [
+        1.0,
+        1.0
+      ],
+      "pitch": null
+    },
+    "info": "2 -f0 -e4 -B4 -G -g29 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 portrait \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 area-fit 200\u00d7500 \u00b7 clip border on \u00b7 align center-left\nLayout preset: i1 \u00b7 A4 portrait \u00b7 clip   \u25cf modified",
+    "ok": false,
+    "stopped": false,
+    "secs": 410.5,
+    "actual": {
+      "total": 49590,
+      "fillup": 0,
+      "page_patches": 49590,
+      "rows": 285,
+      "cols": 174,
+      "pages": 1,
+      "patch": [
+        1.02,
+        1.02
+      ],
+      "pitch": null
+    },
+    "status": "",
+    "notes": "\u26a0 The left margin was widened from 6.0 mm to 29.7 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 2.7 mm. \u201cClip\u201d is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing \u2014 the note under \u201cText distance from edge\u201d names what is. To get that paper back, switch \u201cShow row indicators\u201d off or use a smaller label size.\n\n\u26a0 Bottom margin is too small for the sheet text \u2014 it overflows toward the page edge.\n\n\u26a0 Strip length 285 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+    "margin_text": "mm | inch | min | Left (to first patch) | 29.7 | 1.170 | 6.0 | Right (to first patch) | 6.3 | 0.248 | 6.0 | Top (to first patch) | 6.0 | 0.237 | 6.0 | Bottom (to first patch) | 6.0 | 0.236 | 6.0 | Patch width (in strip reading direction) | 1.0 | 0.040 | Strip ",
+    "dialogs": [],
+    "serious": [],
+    "errors": [],
+    "engine": [
+      "[ChromIQ layout engine] 49590 patches (285\u00d7174), 1 page, random start 1205384006",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 74 strips"
+    ]
+  },
+  "x-dpi-72": {
+    "ok": true,
+    "stopped": false,
+    "secs": 2.5,
+    "actual": {
+      "total": 63,
+      "fillup": 0,
+      "page_patches": 63,
+      "rows": 9,
+      "cols": 7,
+      "pages": 1,
+      "patch": [
+        8.82,
+        9.88
+      ],
+      "pitch": null
+    },
+    "estimate": {
+      "total": 1260,
+      "fillup": 0,
+      "page_patches": 63,
+      "rows": 9,
+      "cols": 7,
+      "pages": 20,
+      "patch": [
+        9.06,
+        9.77
+      ],
+      "pitch": null
+    },
+    "status": "",
+    "notes": "\u26a0 The left margin was widened from 6.0 mm to 30.5 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 3.5 mm. \u201cClip\u201d is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing \u2014 the note under \u201cText distance from edge\u201d names what is. To get that paper back, switch \u201cShow row indicators\u201d off or use a smaller label size.\n\n\u26a0 Bottom margin is too small for the sheet text \u2014 it overflows toward the page edge.",
+    "margin_text": "mm | inch | min | Left (to first patch) | 30.7 | 1.208 | 6.0 | Right (to first patch) | 6.2 | 0.243 | 6.0 | Top (to first patch) | 6.0 | 0.236 | 6.0 | Bottom (to first patch) | 6.2 | 0.243 | 6.0 | Patch width (in strip reading direction) | 8.8 | 0.347 | Strip ",
+    "dialogs": [],
+    "serious": [],
+    "errors": [],
+    "engine": [
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.",
+      "[ChromIQ layout engine] 63 patches (9\u00d77), 1 page, random start 1205384006"
+    ],
+    "tiffs": [
+      {
+        "file": "A10-Extremes.tif",
+        "size_px": [
+          283,
+          283
+        ],
+        "mode": "RGB",
+        "dpi": [
+          72.0,
+          72.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 20997
+      }
+    ]
+  },
+  "x-dpi-1200": {
+    "ok": true,
+    "stopped": false,
+    "secs": 4.9,
+    "actual": {
+      "total": 80,
+      "fillup": 0,
+      "page_patches": 80,
+      "rows": 10,
+      "cols": 8,
+      "pages": 1,
+      "patch": [
+        8.04,
+        8.81
+      ],
+      "pitch": null
+    },
+    "estimate": {
+      "total": 1600,
+      "fillup": 0,
+      "page_patches": 80,
+      "rows": 10,
+      "cols": 8,
+      "pages": 20,
+      "patch": [
+        8.03,
+        8.8
+      ],
+      "pitch": null
+    },
+    "status": "",
+    "notes": "\u26a0 The left margin was widened from 6.0 mm to 29.7 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 2.7 mm. \u201cClip\u201d is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing \u2014 the note under \u201cText distance from edge\u201d names what is. To get that paper back, switch \u201cShow row indicators\u201d off or use a smaller label size.\n\n\u26a0 Bottom margin is too small for the sheet text \u2014 it overflows toward the page edge.",
+    "margin_text": "mm | inch | min | Left (to first patch) | 29.7 | 1.169 | 6.0 | Right (to first patch) | 6.1 | 0.239 | 6.0 | Top (to first patch) | 6.0 | 0.236 | 6.0 | Bottom (to first patch) | 6.0 | 0.236 | 6.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip ",
+    "dialogs": [],
+    "serious": [],
+    "errors": [],
+    "engine": [
+      "[ChromIQ layout engine] 80 patches (10\u00d78), 1 page, random start 1205384006",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 1 strip"
+    ],
+    "tiffs": [
+      {
+        "file": "A10-Extremes.tif",
+        "size_px": [
+          4724,
+          4724
+        ],
+        "mode": "RGB",
+        "dpi": [
+          1200.0,
+          1200.0
+        ],
+        "bits": [
+          8,
+          8,
+          8
+        ],
+        "compression": "tiff_lzw",
+        "bytes": 1378108
+      }
+    ]
+  },
+  "x-pages-20-CM": {
+    "estimate": {
+      "total": 960,
+      "fillup": 0,
+      "page_patches": 48,
+      "rows": 8,
+      "cols": 6,
+      "pages": 20,
+      "patch": [
+        29.04,
+        31.75
+      ],
+      "pitch": null
+    },
+    "ok": true,
+    "stopped": false,
+    "secs": 6.7,
+    "actual": {
+      "total": 960,
+      "fillup": 0,
+      "page_patches": 48,
+      "rows": 8,
+      "cols": 6,
+      "pages": 20,
+      "patch": [
+        29.04,
+        31.75
+      ],
+      "pitch": null
+    },
+    "status": "",
+    "notes": "\u26a0 The left margin was widened from 6.0 mm to 29.7 mm to fit the row indicators. The labels start 26.0 mm in from the page edge and their text needs 2.7 mm. \u201cClip\u201d is set to 4.0 mm and is not what is holding them out there, so lowering it moves nothing \u2014 the note under \u201cText distance from edge\u201d names what is. To get that paper back, switch \u201cShow row indicators\u201d off or use a smaller label size.",
+    "margin_text": "mm | inch | min | Left (to first patch) | 29.7 | 1.170 | 6.0 | Right (to first patch) | 6.0 | 0.238 | 6.0 | Top (to first patch) | 33.0 | 1.300 | 33.0 | Bottom (to first patch) | 10.0 | 0.393 | 10.0 | Patch width (in strip reading direction) | 29.0 | 1.143 | S",
+    "dialogs": [],
+    "serious": [],
+    "errors": [],
+    "engine": [
+      "[ChromIQ layout engine] 960 patches (8\u00d76), 20 pages, random start 1205384006",
+      "[ChromIQ layout engine] note: low patch/spacer contrast in 6 strips"
+    ]
+  },
+  "x-custom-20": {
+    "estimate": null,
+    "info": "ChromIQ layout engine \u00b7 i1 \u00b7 20x20 \u00b7 300 dpi \u00b7 margins 6/6/6/26 mm \u00b7 area-fit \u00b7 clip border on \u00b7 align center-left\nLayout preset: i1 \u00b7 20x20 \u00b7 clip   \u25cf modified",
+    "ok": true,
+    "stopped": false,
+    "secs": 4.7,
+    "actual": null,
+    "status": "",
+    "notes": "",
+    "margin_text": "Generate a preview to measure its margins.",
+    "dialogs": [],
+    "serious": [
+      "[ERROR] workflow.chart_creator: ChromIQ layout engine failed"
+    ],
+    "errors": [
+      "[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (8.0 mm available)",
+      "[ERROR] Chart generation failed."
+    ],
+    "engine": [
+      "[ChromIQ layout engine] building chart from the targen .ti1\u2026",
+      "[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished."
+    ]
+  },
+  "x-custom-2000": {
+    "estimate": {
+      "total": 1210300,
+      "fillup": 0,
+      "page_patches": 60515,
+      "rows": 247,
+      "cols": 245,
+      "pages": 20,
+      "patch": [
+        8.01,
+        8.04
+      ],
+      "pitch": null
+    },
+    "info": "layout engine \u00b7 i1 \u00b7 2000x2000 \u00b7 300 dpi \u00b7 margins 6/6/6/26 mm \u00b7 area-fit \u00b7 clip border on \u00b7 align center-left\nLayout preset: i1 \u00b7 2000x2000 \u00b7 clip   \u25cf modified"
+  },
+  "name-empty": {
+    "typed": "",
+    "hint_line": "",
+    "dialogs": [],
+    "field_after": "",
+    "location": "Location being edited: ChromIQ-assessment/A10-Extremes/runs/run1/",
+    "built": null
+  },
+  "name-duplicate-open": {
+    "typed": "A10-Extremes",
+    "hint_line": "",
+    "dialogs": [],
+    "field_after": "A10-Extremes",
+    "location": "Location being edited: ChromIQ-assessment/A10-Extremes/runs/run1/",
+    "built": null
+  },
+  "name-duplicate-other": {
+    "typed": "A1-EngineVsPrinttarg",
+    "hint_line": "You already have a project with this name.",
+    "dialogs": [],
+    "field_after": "A1-EngineVsPrinttarg",
+    "location": "Location being edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/",
+    "built": null
+  },
+  "name-umlauts": {
+    "typed": "\u00dcml\u00e4ut \u00c4pfel \u00d8re",
+    "hint_line": "You already have a project with this name.",
+    "dialogs": [
+      [
+        "TargetChangeDialog",
+        "Rename Printer Profile",
+        "You already created the profile \"A1-EngineVsPrinttarg\", and now asked to generate one called \"\u00dcml\u00e4ut-\u00c4pfel-\u00d8re\". | Each profile is a separate folder on disk. Changing the name points ChromIQ at a different folder, so the work you already created would be left ",
+        "clicked 'Cancel'"
+      ]
+    ],
+    "field_after": "\u00dcml\u00e4ut \u00c4pfel \u00d8re",
+    "location": "Location being edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/",
+    "built": {
+      "total": 418,
+      "fillup": 18,
+      "page_patches": 418,
+      "rows": 22,
+      "cols": 19,
+      "pages": 1,
+      "patch": [
+        9.23,
+        9.82
+      ],
+      "pitch": null
+    }
+  },
+  "name-long250": {
+    "typed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "hint_line": "You already have a project with this name.",
+    "dialogs": [
+      [
+        "QDialog",
+        "Give this project a name",
+        "Give this project a name | Before ChromIQ can make your chart it needs a name for the project. The name is used for everything this project produces: the folder that holds all the files, the name printed on the chart itself, and the finished ICC profile.\n\nType",
+        "reject()"
+      ]
+    ],
+    "field_after": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "location": "Location being edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/",
+    "built": {
+      "total": 418,
+      "fillup": 18,
+      "page_patches": 418,
+      "rows": 22,
+      "cols": 19,
+      "pages": 1,
+      "patch": [
+        9.23,
+        9.82
+      ],
+      "pitch": null
+    }
+  },
+  "name-slash-colon": {
+    "typed": "a/b:c",
+    "hint_line": "You already have a project with this name.",
+    "dialogs": [
+      [
+        "QDialog",
+        "Give this project a name",
+        "Give this project a name | Before ChromIQ can make your chart it needs a name for the project. The name is used for everything this project produces: the folder that holds all the files, the name printed on the chart itself, and the finished ICC profile.\n\nType",
+        "reject()"
+      ]
+    ],
+    "field_after": "a/b:c",
+    "location": "Location being edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/",
+    "built": {
+      "total": 418,
+      "fillup": 18,
+      "page_patches": 418,
+      "rows": 22,
+      "cols": 19,
+      "pages": 1,
+      "patch": [
+        9.23,
+        9.82
+      ],
+      "pitch": null
+    }
+  },
+  "name-trailing-spaces": {
+    "typed": "  trailing  ",
+    "hint_line": "You already have a project with this name.",
+    "dialogs": [
+      [
+        "TargetChangeDialog",
+        "Rename Printer Profile",
+        "You already created the profile \"A1-EngineVsPrinttarg\", and now asked to generate one called \"trailing\". | Each profile is a separate folder on disk. Changing the name points ChromIQ at a different folder, so the work you already created would be left behind. ",
+        "clicked 'Cancel'"
+      ]
+    ],
+    "field_after": "  trailing  ",
+    "location": "Location being edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/",
+    "built": {
+      "total": 418,
+      "fillup": 18,
+      "page_patches": 418,
+      "rows": 22,
+      "cols": 19,
+      "pages": 1,
+      "patch": [
+        9.23,
+        9.82
+      ],
+      "pitch": null
+    }
+  },
+  "name-windows-reserved": {
+    "typed": "CON",
+    "hint_line": "You already have a project with this name.",
+    "dialogs": [
+      [
+        "QDialog",
+        "Give this project a name",
+        "Give this project a name | Before ChromIQ can make your chart it needs a name for the project. The name is used for everything this project produces: the folder that holds all the files, the name printed on the chart itself, and the finished ICC profile.\n\nType",
+        "reject()"
+      ]
+    ],
+    "field_after": "CON",
+    "location": "Location being edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/",
+    "built": {
+      "total": 418,
+      "fillup": 18,
+      "page_patches": 418,
+      "rows": 22,
+      "cols": 19,
+      "pages": 1,
+      "patch": [
+        9.23,
+        9.82
+      ],
+      "pitch": null
+    }
+  },
+  "name-leading-dot": {
+    "typed": ".dot",
+    "hint_line": "You already have a project with this name.",
+    "dialogs": [
+      [
+        "QDialog",
+        "Give this project a name",
+        "Give this project a name | Before ChromIQ can make your chart it needs a name for the project. The name is used for everything this project produces: the folder that holds all the files, the name printed on the chart itself, and the finished ICC profile.\n\nType",
+        "reject()"
+      ]
+    ],
+    "field_after": ".dot",
+    "location": "Location being edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run1/",
+    "built": {
+      "total": 418,
+      "fillup": 18,
+      "page_patches": 418,
+      "rows": 22,
+      "cols": 19,
+      "pages": 1,
+      "patch": [
+        9.23,
+        9.82
+      ],
+      "pitch": null
+    }
+  },
+  "projects-on-disk": [
+    "A1-EngineVsPrinttarg",
+    "A10-Extremes",
+    "A2-Instruments",
+    "A3-LayoutModes",
+    "A5-Furniture",
+    "B1-Guided",
+    "Demo-Full-RGB",
+    "Demo-Legacy-v1",
+    "Demo-Legacy-v2",
+    "Demo-Verify-History"
+  ],
+  "runbar-mid-edit": {
+    "before": {
+      "margin_t": 38.0,
+      "use_instr": true,
+      "text": ""
+    },
+    "on_run2": {
+      "margin_t": 6.0,
+      "text": "",
+      "engine": false
+    },
+    "back_on_run1": {
+      "margin_t": 38.0,
+      "use_instr": true,
+      "text": "",
+      "engine": true
+    },
+    "stored_run1": {
+      "margin_top": 44.0,
+      "chart_text": "mid-edit",
+      "use_instr": false
+    }
+  },
+  "deleted-folder": {
+    "built": null,
+    "existed": true,
+    "run_bar_after_rm": "Run 1 (overwrite)",
+    "location_after_rm": "Location being edited: ChromIQ-assessment/B7-Delete/runs/run1/",
+    "generate_after_rm": {
+      "dialogs": [],
+      "folder_recreated": true,
+      "files": [
+        "Where are my files.txt",
+        "project.json",
+        "runs/run1/B7-Delete.ti1",
+        "runs/run1/cache/new_run.json",
+        "runs/run1/meta.json"
+      ],
+      "log_tail": "iRGB test chart\nWhite patches = 4\nBlack patches = 4\nComposite Grey steps = 8\nTotal number of patches = 14\nExecution time = 0.000320 seconds\n[ChromIQ layout engine] building chart from the targen .ti1\u2026\n[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.\n[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (-30.0 mm available)\n[ERROR] Chart generation failed.",
+      "serious": [
+        "[ERROR] workflow.chart_creator: ChromIQ layout engine failed",
+        "[ERROR] workflow.chart_creator: ChromIQ layout engine failed",
+        "[ERROR] workflow.chart_creator: ChromIQ layout engine failed"
+      ]
+    },
+    "new_run_after_rm": {
+      "run_bar": "New run",
+      "location": "Location being edited: ChromIQ-assessment/B7-Delete/runs/run2/",
+      "serious": [
+        "[ERROR] workflow.chart_creator: ChromIQ layout engine failed",
+        "[ERROR] workflow.chart_creator: ChromIQ layout engine failed",
+        "[ERROR] workflow.chart_creator: ChromIQ layout engine failed"
+      ]
+    }
+  }
+}

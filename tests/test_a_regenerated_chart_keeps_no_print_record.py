@@ -173,6 +173,16 @@ def test_every_per_chart_sidecar_is_on_both_lists(tmp_path):
     `.channels.json` (how many inks and in what order), `.strips.json` (where
     the strips are on the sheet) and `.print.json` (how the sheet was
     printed). All three describe THAT chart, so all three go when it goes.
+
+    THE WIPE LIST IS SPELLED IN EXTENSIONS NOW, NOT IN WHOLE NAMES. It used
+    to read `f"{s}.channels.json"`; it reads `".channels.json"` and goes
+    through `Run.artefact`, because a name built by interpolation is a name
+    the filesystem may not hold — on NTFS a chart restored from a Mac OS
+    Extended backup is spelled decomposed, the interpolated name found none
+    of it, and a regenerate left the old chart in the folder while writing a
+    second one beside it (B8-61). What this test is ABOUT is unchanged and
+    still checked: the sidecar must be on BOTH lists. Only the spelling it
+    looks for moved.
     """
     import inspect
 
@@ -183,7 +193,11 @@ def test_every_per_chart_sidecar_is_on_both_lists(tmp_path):
     wipe = inspect.getsource(Run.reset_chart_artefacts)
     for sidecar in (".channels.json", ".strips.json", ".print.json"):
         assert f"{run.stem}{sidecar}" in names, f"{sidecar} is not an artefact"
-        assert f'{{s}}{sidecar}"' in wipe, f"{sidecar} is not wiped"
+        assert f'"{sidecar}"' in wipe, f"{sidecar} is not wiped"
+    # …and the wipe really goes through the resolver, or the list above is
+    # a list of names nothing looks for.
+    assert "self.artefact(ext)" in wipe, (
+        "the wipe builds its own paths again; a decomposed chart survives it")
 
 
 def test_a_chart_adopted_as_a_verify_chart_takes_its_record_along(tmp_path):

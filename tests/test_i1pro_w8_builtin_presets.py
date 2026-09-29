@@ -45,7 +45,11 @@ OWN_FIELDS = {"paper", "area_cols", "area_rows", "margin_right", "margin_bottom"
 
 _NAME_RE = re.compile(
     r"^(?P<sheet>A4|Letter|A3)-(?P<patches>\d+)p-(?P<pages>\d+)pages?-"
-    r"(?P<orientation>Portrait|Landscape)-w(?P<width>[\d.]+)mm$")
+    r"(?P<orientation>Portrait|Landscape)-w(?P<width>[\d.]+)mm"
+    # Knut, #182 5872273862: the patch set's own name follows the width
+    # ("-Uniform 6x6x6", "-Uniform 7x7x7-Edge Emphasis"). The two 156p charts
+    # were not in that batch and keep the name without it.
+    r"(?:-(?P<patch_set>.+))?$")
 
 #: The recipe's `paper` for each sheet the names use. A3 landscape is a custom
 #: size in the engine's terms, not the "A3" enum.
@@ -77,10 +81,14 @@ def test_they_are_i1pro_charts_not_a_family_of_their_own():
 
 def test_the_target_name_is_the_name_he_gave_it():
     """`suffix=""` — these are not the "Full layout setup" family, and the
-    default target name must come out as his own file name, unchanged."""
-    p = next(q for q in W8 if q.patches == 572)
+    default target name must come out as his own file name, unchanged.
+
+    The 156p chart, because it is one whose name carries no patch-set tail
+    (#182 5872273862 renamed the rest). Since 4.3.2 no name is reordered
+    (B8-1704, `_builtin_layout_name`), a tail or not."""
+    p = next(q for q in W8 if q.patches == 156 and q.paper == "A4")
     assert p.suffix == ""
-    assert p.default_target_name == "i1Pro-A4-572p-1page-Portrait-w8.0mm"
+    assert p.default_target_name == "i1Pro-A4-156p-1page-Portrait-w8.0mm"
 
 
 def test_each_paper_reads_in_order():

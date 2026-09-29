@@ -84,10 +84,23 @@ def test_profile_run_combo_is_readable_width(qapp, tmp_path):
     # offscreen Qt on Windows the font database is EMPTY: every family resolves
     # to a null font, the combo sizes itself from nothing, and this measured 117
     # against a threshold of 120 — failing on an un-measurable number rather
-    # than on anything wrong. It passes with real fonts. Same guard as the
-    # eleven other advance-measuring files (2026-08-22, Windows gate).
+    # than on anything wrong. Same guard as the eleven other advance-measuring
+    # files (2026-08-22, Windows gate).
+    #
+    # …AND THE THRESHOLD WAS A GLYPH MEASUREMENT TOO, WHICH IS WHY IT IS GONE.
+    # `ui/measurement_target_bar.py:795` sets the floor to
+    # `fontMetrics().horizontalAdvance("Run 8 (overwrite)") + 44`, so a flat
+    # 120 px pins the FONT, not the combo: with ChromIQ's own fonts registered
+    # the same string measures 73 px of real Inter, the app correctly asks for
+    # 117, and 120 failed a combo that is exactly as comfortable as it was on
+    # the metrics the constant came from. The bound below is the label plus the
+    # dropdown chrome, measured in the combo's own font — which is what "fits
+    # 'Run N (overwrite)' comfortably" actually means, on any metrics.
     skip_without_fonts()
     tab, ctl = _tab_with_project(tmp_path)
     bar = MeasurementTargetBar(ctl)
+    label_px = bar._run_combo.fontMetrics().horizontalAdvance("Run 8 (overwrite)")
     # Comfortably fits "Run N (overwrite)" plus the dropdown chrome.
-    assert bar._run_combo.minimumWidth() >= 120
+    assert bar._run_combo.minimumWidth() >= label_px + 40, (
+        f"the run combo's floor is {bar._run_combo.minimumWidth()} px for a "
+        f"{label_px} px label — no room left for the dropdown arrow")

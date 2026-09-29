@@ -169,3 +169,67 @@ def test_save_dialog_falls_back_when_the_folder_does_not_exist(
     dlg = _captured_save_dialog(monkeypatch, parent, str(missing))
     assert dlg.parent() is parent
     assert dlg.directory().absolutePath() == str(tmp_path)
+
+
+# ---------------------------------------------------------------------------
+# THE SAVE PANEL IS TOLD THE FOLDER AS WELL AS THE NAME
+#
+# Knut, 2026-09-13, on "Save report as PDF": *"opens a file window that does
+# not open in the currently open project, for the selected run, and for the
+# correct level in the folder structure according to the rules set for where
+# reports are saved."*
+#
+# Measured before changing anything: the caller's suggestion was right all
+# along. `MeasurementReportDialog._report_dir()` returned
+# `<project>/runs/run5/verifications/reports`, which is the documented home for
+# a report covering several checks of one run, and that is what reached
+# `save_file_dialog`. What did not reach the panel was the FOLDER: `selectFile`
+# was given a bare file name, and a native macOS save panel keeps its own
+# last-used directory when it is only given a name.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("native", [True, False])
+def test_the_save_panel_is_given_the_folder_not_just_the_name(
+        qapp, monkeypatch, tmp_path, native):
+    """MUTATION: pass `default_name` again and this goes red."""
+    monkeypatch.setattr(widgets, "_prefer_native_dialogs", lambda: native)
+    home = tmp_path / "project" / "runs" / "run5" / "verifications" / "reports"
+    home.mkdir(parents=True)
+    want = home / "Measurement Report.pdf"
+    seen = {}
+    orig = QFileDialog.selectFile
+
+    def _spy(self, name):
+        seen["selected"] = name
+        return orig(self, name)
+
+    monkeypatch.setattr(QFileDialog, "selectFile", _spy)
+    # THE PARENT MUST BE HELD IN A LOCAL. Passed inline, the QLabel is
+    # collected the moment the call returns and takes its child dialog with
+    # it: "wrapped C/C++ object of type QFileDialog has been deleted", which
+    # reads like a Qt fault and is a test holding nothing.
+    owner = QLabel("owner")
+    dlg = _captured_save_dialog(monkeypatch, owner, str(want))
+    assert dlg.directory().absolutePath() == str(home)
+    assert seen.get("selected") == str(want), (
+        f"the panel was told {seen.get('selected')!r}, so a native dialog is "
+        f"free to open wherever it was last")
+
+
+def test_a_missing_folder_still_falls_back_to_a_bare_name(
+        qapp, monkeypatch, tmp_path):
+    """THE OTHER HALF. beta.16's rule stands: a start folder nothing ever
+    creates is not a start folder, and naming the full path there would send
+    the panel to a directory that does not exist."""
+    monkeypatch.setattr(widgets, "_prefer_native_dialogs", lambda: False)
+    monkeypatch.setattr(widgets, "_documents_dir", lambda: str(tmp_path))
+    seen = {}
+    orig = QFileDialog.selectFile
+    monkeypatch.setattr(QFileDialog, "selectFile",
+                        lambda self, name: (seen.update(selected=name),
+                                            orig(self, name))[1])
+    owner = QLabel("owner")
+    missing = tmp_path / "nothing-here" / "readings.csv"
+    dlg = _captured_save_dialog(monkeypatch, owner, str(missing))
+    assert dlg.directory().absolutePath() == str(tmp_path)
+    assert seen.get("selected") == "readings.csv"

@@ -74,13 +74,13 @@ M_CR30_STOCK_READER = _m(
     "M-CR30-STOCK-READER",
     "This chart can only be read by ChromIQ",
     "This chart was made for the CR30, and ChromIQ reads that instrument "
-    "itself. Standard ArgyllCMS chartread does not know the CR30 at all — it "
+    "itself. Standard ArgyllCMS chartread does not know the CR30 at all: it "
     "would refuse the chart before reading a single patch, whichever "
     "instrument you have connected.\n\n"
-    "Right now, Preferences → Measurement has “Chart-reading engine” set to "
-    "ArgyllCMS chartread. Switch it to ChromIQ's own reader and this chart "
-    "measures normally. The setting applies to every chart, and every other "
-    "chart reads the same either way.\n\n"
+    "Right now, “ChromIQ chart-reading engine” in Preferences → Measurement "
+    "is switched off, so ArgyllCMS chartread reads your charts. Switch it on "
+    "and this chart measures normally. The setting applies to every chart, "
+    "and every other chart reads the same either way.\n\n"
     "Nothing is wrong with the chart, and nothing you have already measured "
     "is affected.",
     approved=False)
@@ -240,7 +240,7 @@ M_CR30_CALIBRATE_BLACK = _m(
     "This second step is the opposite of the first one, so it is worth a "
     "glance at the picture above.\n\n"
     "TAKE THE CAP OFF and put it aside. Hold the instrument with the opening "
-    "pointing DOWNWARD into open space — about a metre above the "
+    "pointing DOWNWARD into open space, about a metre above the "
     "floor, with nothing in front of it, and not aimed at a lamp or a "
     "window.\n\n"
     "There is nothing to place it on. Your CR30 has no black tile: it takes "
@@ -248,18 +248,18 @@ M_CR30_CALIBRATE_BLACK = _m(
     "pointing at nothing.\n\n"
     "Then press “Calibrate now”. Afterwards ChromIQ reads once more and shows "
     "you the number that came back, so there is a record of it.\n\n"
-    "⚠ It cannot check that you pointed it at the right thing. A dark "
+    "⚠ It cannot check that you pointed it at the right thing. A black "
     "calibration DEFINES what zero means, so whatever the instrument was "
-    "looking at becomes the new zero and reads as nothing a moment later — "
-    "measured on a real unit: calibrated against white paper, it read back "
+    "looking at becomes the new zero and reads as nothing a moment later. "
+    "Measured on a real unit: calibrated against white paper, it read back "
     "0.004 %. Getting this step right is your eyes, not ours.\n\n"
     "If you would rather not, press “Skip this step”. Your white calibration "
     "still stands and the measurement goes ahead with the dark reference the "
     "instrument already had.\n\n"
     "If you have changed your mind about measuring at all, press “Cancel the "
     "measurement”. Nothing has been measured yet and nothing on disk changes, "
-    "so the only thing you lose is the white calibration you have just taken "
-    "— and you can take that again in a few seconds whenever you like.",
+    "so the only thing you lose is the white calibration you have just taken, "
+    "and you can take that again in a few seconds whenever you like.",
     approved=False)
 
 
@@ -933,6 +933,298 @@ M_PATCHSET_MISSING = _m(
     "\u201cGenerate Chart\u201d.",
     approved=False)
 
+# --- PROPOSED: an older chart keeps its patch set, unchecked (B8-1460) -----
+# A chart made before its sidecar recorded whether its patch set was given
+# (beta 44 and earlier) is judged from its files when it is shown again: targen
+# is asked whether the settings on screen make exactly its patches. When targen
+# cannot be asked (not installed, a failure, a file it needs is gone), nothing
+# can tell, so the chart keeps its own patches rather than Generate replacing
+# them in silence, and this says so in Create Chart's log.
+M_PATCHSET_KEPT_UNCHECKED = _m(
+    "M-PATCHSET-KEPT-UNCHECKED",
+    "This chart keeps its own patch set",
+    "This chart was made by an earlier version of ChromIQ, which did not "
+    "record where its patches came from, and ChromIQ could not check whether "
+    "the settings on screen make the same patches. So that a sheet you have "
+    "already printed still matches, \u201cGenerate Chart\u201d lays out this "
+    "chart\u2019s own patches again.\n\n"
+    "To make a new set of patches from your settings instead, tick "
+    "\u201cEdit patch recipe (override preset)\u201d and change a setting of "
+    "the patch recipe. The next \u201cGenerate Chart\u201d then makes a new "
+    "set.",
+    approved=False)
+
+# --- PROPOSED: a verification chart that cannot carry a control strip ------
+# #182, beta 22. ChromIQ now writes a control-strip declaration beside every
+# verification chart it creates (`workflow/control_strip.py`), which is what
+# makes the three control-strip rows of the Measurement Report computable at
+# all. A chart whose patches cannot fill eight rungs of the ladder gets no
+# declaration, and Knut asked for that to be said out loud rather than
+# discovered later in a report: *"notify the user if a selected/loaded/created
+# chart ... does not fulfil the requirements to be able to create the
+# control-strip declaration ... The warning must specify what is required when
+# selecting a chart for the control-strip declaration to be created, and also
+# refer to the button function in Create Chart mentioned above for help in
+# selecting a compatible chart."*
+#
+# {n} is how many of the 29 rungs the chart filled. {button} is the Create
+# Chart control that lists the patch sets which can carry a strip: it is a
+# placeholder and not a literal precisely because that control is being built
+# alongside this message, so the name is settled in ONE place
+# (`control_strip.ELIGIBILITY_CONTROL`) rather than transcribed here.
+M_VERIFY_NO_CONTROL_STRIP = _m(
+    "M-VERIFY-NO-CONTROL-STRIP",
+    "This chart cannot carry a control strip",
+    "ChromIQ has saved it as this run's verification chart and it is ready to "
+    "print. What it cannot do is carry a control strip, so the three "
+    "control-strip rows of the Measurement Report will read \u201cthis chart "
+    "declares no control strip\u201d for every measurement made on it.\n\n"
+    "A control strip is the short run of patches a print is checked on, and "
+    "ChromIQ builds one out of the chart's own patches: the bare paper, the "
+    "composite black, the cyan, magenta and yellow solids, the red, green and "
+    "blue overprints, a 25 %, 50 % and 75 % step of each of those six colours, "
+    "and a 25 %, 50 % and 75 % neutral grey. That is 29 patches in all, and a "
+    "patch of your chart counts for one of them when its red, green and blue "
+    "values are each within 12 units of it.\n\n"
+    "This chart supplied {n} of the 29. At least 8 are needed before the "
+    "average and the largest patch can be reported, and 20 before the 95th "
+    "percentile can.\n\n"
+    "What to do: build the verification chart from a patch set with more "
+    "patches, or one spread more evenly over the colour cube. "
+    "\u201c{button}\u201d on this tab lists every chart preset against the "
+    "rows a Measurement Report judges, so you can choose a patch set that "
+    "answers more of them.\n\n"
+    "Nothing is wrong with the chart itself and nothing has been changed. "
+    "Every other row of the Measurement Report is unaffected.",
+    approved=True)   # Knut, 2026-09-19: "Yes, message text approved."
+
+
+# --- PROPOSED: the verification pre-flight, before a single patch is read --
+#: #182, Knut, 2026-09-21. Arriving on the Measure tab with a verification run
+#: whose chart is built and whose measurement has not started, the reader is
+#: told what the Measurement Report will be able to judge on THIS chart, while
+#: changing the chart still costs nothing. His words: *"The user is thus
+#: informed of both the existence of the measurement report and important info
+#: for a verification chart, as well as the need for the 'From Profile Gamut'
+#: feature and how to see which profiles are usable for verification with the
+#: 'Which presets can be used for verification?' feature, before any
+#: verification is started, so that the user can make an informed decision and
+#: make changes to the chart before measurement is started."*
+#:
+#: **WHAT IS AND IS NOT IN THIS BODY.** The list of metrics is NOT: it is
+#: built for the chart in front of the reader by
+#: `ui.dialogs.preset_verification_dialog.summary_lines`, which is the same
+#: function the presets window's own pane uses, because Knut asked for *"the
+#: same detailed information"* and two copies of that answer is exactly the
+#: fault this project keeps finding. This body is the frame around it.
+#:
+#: He asked for the wording to be shipped so he can review it as a working
+#: example, so it goes in a window while it waits: see the log-rule amendment
+#: in §M-PROPOSED.
+M_VERIFY_PREFLIGHT = _m(
+    "M-VERIFY-PREFLIGHT",
+    "Before you measure this verification chart",
+    "This run is a verification, so what you read here will be judged by the "
+    "Measurement Report. That report checks the print against a set of "
+    "metrics, and each metric has a limit the measurement has to stay "
+    "inside.\n\n"
+    # **"LEFT OUT OF THE REPORT" WAS AN ABSOLUTE AND IT IS NOT TRUE OF EVERY
+    # SET** (adversary round 40b, F1 and F2, driven end to end). Whether such a
+    # row is left out or shown reading N-A is decided by the limit set: on the
+    # five ChromIQ sets those rows carry no limit and really are left out, on
+    # the two ISO-derived ones they are shown. The sentence said one of the two
+    # everywhere, and the paragraph added below it on 2026-09-22 said the other,
+    # six lines apart in one popup that always shows both.
+    "Not every chart can answer every metric. Which ones this chart can is "
+    "listed below, worked out from its patch set before anything is printed, "
+    "so you can still change the chart. A metric the chart cannot supply is "
+    "not judged and nothing else is affected, so falling short does not make "
+    "the chart wrong.\n\n"
+    "To compare patch sets before you settle on one, open “Which presets "
+    "can be used for verification” under the preset pulldown in Create "
+    "Chart. It judges every preset ChromIQ ships and every one of your own "
+    "against these same metrics, and its first line is the chart you have "
+    "now.\n\n"
+    "For the verification workflow end to end, see the help card “Check a "
+    "finished profile (verification run)” behind the question mark at the "
+    "top right of the window.",
+    approved=True)
+
+#: The paragraph M-VERIFY-PREFLIGHT carries only when a metric is missing that
+#: nothing but FROM PROFILE GAMUT can supply. Knut asked the reader to be
+#: *"instructed that some of the metrics' requirements can only be met using
+#: the 'From Profile Gamut' feature on a chart in Create Chart tab"* and, in
+#: the same breath, said he was *"not sure about all the required conditions
+#: for 'From Profile Gamut' feature to be visible"*. They were measured for
+#: B8-613 and this says what they are.
+#:
+#: **ITS FIRST PARAGRAPH IS A REVISION KNUT ACCEPTED (B8-1374, #182
+#: 5848287278: "Accepted.").** It said the metrics "are judged against a
+#: colorimetric reference, and ChromIQ writes one only beside a chart built
+#: with FROM PROFILE GAMUT", which K49 and K51 made untrue: the two solid rows
+#: are compared with the profile's prediction, and a raw print answers them.
+#: What really withholds them from a verification is that it is printed
+#: through its profile, which converts the solid patches. His words, verbatim;
+#: the second paragraph is the one he approved in 5816565326, unchanged.
+M_VERIFY_PREFLIGHT_GAMUT = (
+    "Some of the metrics listed above can be answered by a verification in "
+    "only one way: its solid patches must be printed as they are, and a chart "
+    "printed through its profile converts them. A chart built with FROM "
+    "PROFILE GAMUT in the Create Chart tab prints them as they are.\n\n"
+    "That button sits beside GUIDED and MANUAL whenever Run type is "
+    "Verification. Before it can choose any colours the run must already hold "
+    "a built profile, and it lays the sheet out again from scratch.")
+
+
+# --- APPROVED: why a chart cannot answer the two solid rows (challenge 8,
+# C5; B8-1373; Knut, #182 5848287278: "Approved.") -------------------------
+#: The reason line under "Maximum ΔE00, solid colours" and "Maximum ΔH*ab,
+#: cyan, magenta and yellow solids", in the presets window and in the Measure
+#: tab's pre-flight (M-VERIFY-PREFLIGHT's metric list). Only the BODY is
+#: shown; the title is its name in the review queue.
+#:
+#: It said "This chart carries no colorimetric reference.", which K49 and K51
+#: made untrue as a reason: those two rows are compared with the profile's
+#: prediction, not with a reference file, and a sheet printed raw is judged
+#: on them (Knut, #182 5846167083, K50-1). What really withholds them is how
+#: a verification is printed: through its profile, which converts the solid
+#: patches. Neither window can know yet how the sheet will be printed, so
+#: the line says both cases.
+M_VERIFY_SOLIDS_REASON = _m(
+    "M-VERIFY-SOLIDS-REASON",
+    "Why this chart cannot answer the solid colour metrics",
+    "Printed through its profile, as a verification normally is, the chart's "
+    "solid patches become other ink amounts, not the printer's own solids, so "
+    "the report cannot judge them. Printed without a profile, its solids are "
+    "judged against the profile and its other metrics are shown for "
+    "information only.",
+    # Knut, #182 5848287278, 2026-09-26: "Regarding 'For your approval
+    # (M-VERIFY-SOLIDS-REASON)' Answer: Approved."
+    approved=True)
+
+
+#: The one line the PRE-FLIGHT carries, where the full paragraph below is what
+#: the presets window shows. Knut asked for both windows to say this; he also
+#: asked, in the same specification, that this popup not *"become too long"*,
+#: and the two requirements collided.
+#:
+#: **MEASURED ON SCREEN** by adversary round 40b, the real popup, before and
+#: after the paragraph was appended: English frame 826 to 986 px, German 826 to
+#: 1002, with `minimumHeight()` 798 to 974. A `QMessageBox` has no scroll area
+#: and that height is a hard minimum, so on a 13-inch MacBook Air (usable about
+#: 918 px) the OK button and Knut's "do not show this again" tick fall off the
+#: bottom of the screen. This line is about a fifth of the paragraph's length
+#: and leaves the popup inside that budget, and it points at the window that
+#: carries the rest, which this popup already sends the reader to by name.
+M_VERIFY_PREFLIGHT_UNCHECKED = (
+    "A metric this chart cannot answer is never judged and can never make the "
+    "report fail. Whether it is shown at all is decided by the limit set, and "
+    "the window named above says how to change that.")
+
+
+# --- PROPOSED: a metric the chart cannot answer, and the lever for it ------
+# Knut, 2026-09-22, on #182: a report that judges metrics the chart cannot
+# calculate carries a warning for each of them, and he asked that the reader
+# be told, before printing, that those metrics can be turned off in Report
+# limits by setting the threshold to "-", so that what is handed to a customer
+# holds only the metrics that were actually checked.
+#
+# **THIS IS NOT REPORT TEXT, WHICH IS WHY IT MAY NAME A CONTROL.** His other
+# ruling of the same day is that no report text explains how to use ChromIQ.
+# This paragraph is shown in the pre-flight popup and in the "Which presets can
+# be used for verification" window, both of which exist to help somebody decide
+# what to print, so naming the lever is the whole point of them.
+#
+# **AND THE TWO OUTCOMES ARE NOT THE SAME, WHICH THE FIRST DRAFT PROMISED THEY
+# WERE.** Measured, on the real `row_verdict`, both states of one row:
+#
+#   chart cannot answer it,  threshold 1.5  ->  N-A  (row drawn, with a note)
+#   chart cannot answer it,  threshold "-"  ->  no word at all, row not drawn
+#   chart CAN answer it,     threshold "-"  ->  INFO (row drawn, not graded)
+#
+# So "-" removes the row only in the case Knut is asking about, and shows it
+# ungraded in the other. A sentence promising it disappears either way would be
+# false on half the rows the reader might try it on, so the text says both.
+# **THE FIRST VERSION OF THIS WAS FALSE IN MOST STATES**, and adversary round
+# 40b measured every one of them by driving the app. It said a metric the chart
+# cannot supply "is listed in the report all the same, reading N-A with a
+# numbered note", and that the threshold is set to "-". Four separate things
+# were wrong:
+#
+#  * **the set decides, not ChromIQ.** Only the two ISO-derived sets put a real
+#    limit on those rows; the five ChromIQ sets put none, so the rows are left
+#    out and the sentence described 2 of 7 selectable sets. On the other five
+#    the remedy was also a no-op, because the threshold is already "no limit".
+#  * **the report TYPE decides too.** Measured on one run, four buildable
+#    types: the numbered note exists on T2 only (T4 is ungraded, so
+#    `_note_the_absences` returns early), T3 does not carry those rows at all,
+#    and T1 carries no metric rows. The pre-flight cannot know the type, so an
+#    unconditional sentence about notes was wrong on three of the four.
+#  * **you cannot type "-" into the box.** One row, both states: typing it
+#    leaves `hasAcceptableInput()` False and the cell silently reverts on
+#    focus-out. The gesture is setting the spin box to ZERO, which it displays
+#    as "–" via `setSpecialValueText`. The message also spelled that mark as a
+#    hyphen while the app writes an en dash everywhere.
+#  * **the lever is often not there.** The two ISO columns are read-only in
+#    every state. (Until K31 a locked run's column was read-only too; the
+#    lock is gone and the lever is now the REPORT's own column.)
+#
+# So this says what is invariant, names what decides the rest, and qualifies
+# the instruction rather than promising it works everywhere.
+M_VERIFY_UNCHECKED_METRICS = _m(
+    "M-VERIFY-UNCHECKED-METRICS",
+    "What the report does with a metric this chart cannot answer",
+    "It is never judged, and it can never make the report fail.\n\n"
+    "Whether it appears at all is decided by the limit set the report is "
+    "judged against. Where the set puts a real limit on the metric, the "
+    "metric is shown reading N-A, and on a report type that carries notes it "
+    "also carries one saying what it needed. Where the set puts no limit on "
+    "it, the metric is left out; that is what ChromIQ's own sets do with the "
+    "metrics above.\n\n"
+    "To leave a metric out yourself, set its threshold to zero in the "
+    "report's own limits, the first column of Edit limits… in the "
+    "Measurement Report window. The box shows zero as “–”.",
+    approved=False)
+
+
+# --- PROPOSED: one report, sheets with different numbers of patches --------
+# Knut, 2026-09-22, on #182. Not an error and it must not read as one: a
+# report is allowed to hold measurements of charts with different patch
+# counts, and the only honest thing to say is that a metric worked out over
+# more patches is not worked out over quite the same population as the same
+# metric over fewer, so small differences between the columns, and steps in
+# the trend graphs, can come from the charts rather than from the printer.
+# **IT SAYS "READINGS", BECAUSE READINGS ARE WHAT IS COUNTED.** The first
+# version was headed "taken from charts with different numbers of patches", and
+# `report_scope` counts `r["patches"]`, which is `data.n_patches`: the number of
+# readings in the `.ti3`, not the chart's patch count. Adversary round 40b drove
+# the difference on one variable, twelve measurements of ONE chart: with the
+# twelfth read in full the note stayed silent, and with the same read ended
+# early at 168 of 210 patches the report printed "taken from charts with
+# different numbers of patches (210, 167)" directly under a Report Scope block
+# naming one chart and twelve runs. Ending a measurement early is a supported
+# ending (`save_partial_and_quit`), so that is not an exotic state.
+#
+# Saying "readings" makes the sentence true in both cases, and the second
+# paragraph names both causes, so the note stays useful exactly where it was
+# lying: a metric over 167 readings really is not over the same colours as the
+# same metric over 210.
+M_REPORT_PATCH_COUNTS_DIFFER = _m(
+    "M-REPORT-PATCH-COUNTS-DIFFER",
+    "These measurements do not all hold the same number of readings",
+    "The sheets in this report do not all carry the same number of measured "
+    "patches ({counts}). Every metric is worked out over the patches a sheet "
+    "actually holds, so a figure taken over more of them is not measured over "
+    "quite the same set of colours as the same figure taken over fewer, and "
+    "the two can differ a little for that reason alone. It shows in the trend "
+    "graphs as well as in the table.\n\n"
+    "That can be because the charts differ, or because a measurement was ended "
+    "before its last strip. Either way it is not a fault and nothing here is "
+    "wrong, but a small change between such sheets is not necessarily a "
+    "change in the printer.",
+    approved=True)
+
+
 # --- PROPOSED: the how-was-this-sheet-printed question ---------------------
 # Asked once, at measure time, ONLY for a verification sheet that has no
 # print record — i.e. a sheet ChromIQ did not print itself. The answer decides
@@ -1017,6 +1309,63 @@ M_IMPORT_DONE = _m(
     "To see the colour-accuracy figures, open Tools ▸ “Measurement report” — "
     "the imported measurement is already in place there.",
     approved=True)   # Sebastian, 2026-08-10: seen live, "messages were good"
+
+# --- PROPOSED: the import has to take the device values from the chart -----
+# A measurement made in i1Profiler's measure tool, on a chart i1Profiler did
+# not generate, carries the colour of every patch and no device values at all:
+# the tool has no colour space to express them in and will not let you ask for
+# them. ChromIQ pairs such a file with the chart by the patch NAME each reading
+# carries and takes the device values from the chart, which is what chartread
+# does. What it cannot then do is check that this is a measurement of THIS
+# chart, because that check compares device values, and the file has none. So
+# the person is told exactly that, and decides.
+M_IMPORT_DEVICE_FROM_CHART = _m(
+    "M-IMPORT-DEVICE-FROM-CHART",
+    "Only you can confirm this is a measurement of this chart",
+    "This file holds the colour of every patch and no record of the ink that "
+    "made it. i1Profiler writes it that way when it measures a chart it did "
+    "not generate itself: there is no colour space for it to put device "
+    "values in, so it puts none.\n\n"
+    "ChromIQ can still file it. All {count} readings name a patch of "
+    "{chart}, and the chart knows what was printed at each of those names, so "
+    "the chart supplies the device values, exactly as it does for a "
+    "measurement made here.\n\n"
+    "What ChromIQ cannot do is check the file against the chart. That check "
+    "compares the device values in the measurement with the chart's, and this "
+    "file has none. The names all belong to this chart, which is as far as "
+    "names can go: another chart laid out the same way carries the same "
+    "names.\n\n"
+    "Import it only if this is the measurement of the sheet printed from "
+    "{chart}. Cancel changes nothing.",
+    body_one=(
+        "This file holds the colour of its patch and no record of the ink "
+        "that made it. i1Profiler writes it that way when it measures a chart "
+        "it did not generate itself: there is no colour space for it to put "
+        "device values in, so it puts none.\n\n"
+        "ChromIQ can still file it. Its one reading names a patch of "
+        "{chart}, and the chart knows what was printed at that name, so the "
+        "chart supplies the device values, exactly as it does for a "
+        "measurement made here.\n\n"
+        "What ChromIQ cannot do is check the file against the chart. That "
+        "check compares the device values in the measurement with the "
+        "chart's, and this file has none. The name belongs to this chart, "
+        "which is as far as a name can go: another chart laid out the same "
+        "way carries the same names.\n\n"
+        "Import it only if this is the measurement of the sheet "
+        "printed from {chart}. Cancel changes nothing."),
+    count_key="count",
+    approved=False)
+
+M_IMPORT_DONE_PROFILING = _m(
+    "M-IMPORT-DONE-PROFILING",
+    "The measurement was imported",
+    "It is filed as the measurement of {run}, in:\n{folder}\n\n"
+    "A copy of the chart it was measured against is stored with the run, so "
+    "the result stays interpretable even if the chart is replaced later.\n\n"
+    "You can build a profile from it now on the Build ICC profile tab, or "
+    "open Tools \u25b8 \u201cMeasurement report\u201d first to see the "
+    "colour-accuracy figures.",
+    approved=False)
 
 # --- PROPOSED: feature A, printing a verification chart through its profile -
 # The two failure windows of the print-time conversion (#130,
@@ -1228,6 +1577,113 @@ M_PROJECT_EXISTS = _m(
     "There is already a project called \u201c{name}\u201d",
     "ChromIQ found it here:\n{folder}\n\nThat name is already taken, so building now would carry on inside that project rather than start a new one. A project keeps its work in runs, and each run holds one finished profile. This one has {runs}.{cal}\n\nYou can choose below which run the new chart goes into. {chosen} holds:\n\n{holds}\n\nNothing has been changed yet. Choose what you would like to do:\n\n•  Continue this project: the new chart is made in the run named in the box below. Anything that chart replaces is moved to that run’s “old” folder first, with today’s date on it, so you can always get it back. Choosing a new run adds a fresh, empty one and leaves everything already in the project exactly as it is.\n\n•  Replace it: everything the project holds now is moved into its own “old” folder, with today’s date, and a new, empty project of the same name is started. Nothing is deleted, and ChromIQ asks you to confirm before it does it.\n\n•  Use a different name: nothing is touched, and ChromIQ takes you back to the name box so you can type another one.\n\n•  Cancel: stops here and changes nothing.",
     approved=False)
+
+# --- PROPOSED (#182 K26, Knut 2026-09-23): a project whose folder is not
+# called what its files are called ---------------------------------------------
+#
+# Knut, 5792484060 (Q5): *"If a project is opened where the root project folder
+# is different than the defined name in 'Printer profile project name' field,
+# then the user should be given the option, with a popup window, to rename the
+# project. This interface and function should already exist and just has to
+# be modified a tiny bit to allow this case."* The window is the existing
+# rename chooser (`TargetChangeDialog`); its heading and introduction for this
+# case are new wording and wait here. {folder} is the folder as it is on disk,
+# {name} the name its files and project.json carry, {new} what the project
+# becomes (the name the "Printer profile project name" field shows).
+M_PROJECT_FOLDER_RENAMED = _m(
+    "M-PROJECT-FOLDER-RENAMED",
+    "This project's folder is called \u201c{folder}\u201d, but its files are "
+    "named \u201c{name}\u201d",
+    "ChromIQ finds a project's charts, measurements, profiles and reports by "
+    "the name of its folder, so until the two match it finds none of them. "
+    "This happens when a project folder is copied, duplicated or renamed "
+    "outside ChromIQ.\n\n"
+    "\u2022  Rename the project to \u201c{new}\u201d: every file that carries "
+    "the name \u201c{name}\u201d is renamed to carry \u201c{new}\u201d, and "
+    "the folder too when its name has a space or a character a file name "
+    "cannot carry. Nothing is deleted.{built}\n\n"
+    "\u2022  Choose another name: you type the name the project is to have, "
+    "and its folder and files are renamed to it in the same way.\n\n"
+    "\u2022  Cancel: nothing is changed, and the project is closed.",
+    approved=True)
+
+#: #182, Knut 5794078008: the window offers exactly three choices, each
+#: explained by a bullet in its text, and no "Leave it as it is". ``{built}``
+#: in the body is empty, or this sentence (with a space before it) when a
+#: run of the project has a built profile, which is still offered the rename
+#: ("Yes", same comment).
+_FOLDER_RENAMED_BUILT = ("A profile already built keeps the name written "
+                         "inside it, \u201c{name}\u201d, which is what "
+                         "ColorSync Utility and other programs show.")
+#: The three buttons, in the order the bullets name them.
+_FOLDER_RENAMED_RENAME = "Rename the project to \u201c{new}\u201d"
+_FOLDER_RENAMED_OTHER = "Choose another name\u2026"
+_FOLDER_RENAMED_CANCEL = "Cancel"
+#: The name window's line when "Choose another name" opens it (the existing
+#: project-name window, `name_prompt.ask_for_project_name`).
+_FOLDER_RENAMED_NAME_BODY = (
+    "Type the name this project is to have. Its folder, and every file that "
+    "carries the name \u201c{name}\u201d, are renamed to it.")
+
+
+def folder_renamed_texts(*, folder: str, name: str, new: str,
+                         built: bool) -> dict:
+    """Every piece of text of the folder-renamed window, rendered (#182,
+    Knut 5794078008): ``title``, ``body``, the three buttons ``rename``,
+    ``other``, ``cancel``, and ``name_body`` for the name window."""
+    extra = (" " + tr(_FOLDER_RENAMED_BUILT).format(name=name)) if built \
+        else ""
+    title, body = M_PROJECT_FOLDER_RENAMED.render(
+        folder=folder, name=name, new=new, built=extra)
+    return {"title": title, "body": body,
+            "rename": tr(_FOLDER_RENAMED_RENAME).format(new=new),
+            "other": tr(_FOLDER_RENAMED_OTHER),
+            "cancel": tr(_FOLDER_RENAMED_CANCEL),
+            "name_body": tr(_FOLDER_RENAMED_NAME_BODY).format(name=name)}
+
+#: …and the window for when that rename cannot be done.
+M_PROJECT_FOLDER_RENAME_FAILED = _m(
+    "M-PROJECT-FOLDER-RENAME-FAILED",
+    "The project could not be renamed",
+    "ChromIQ could not rename the project \u201c{name}\u201d to "
+    "\u201c{new}\u201d.\n\n"
+    "What went wrong: {error}\n\n"
+    "Nothing was changed, and the project is open as it was. Its files still "
+    "carry the name \u201c{name}\u201d, so ChromIQ does not find them in the "
+    "folder \u201c{folder}\u201d.",
+    approved=True)
+
+#: What M-PROJECT-FOLDER-RENAME-FAILED says went wrong, in words (#182 beta
+#: 38, F6). The window printed the exception, which for the commonest cause
+#: (the new name is taken) was a bare path. Each is its own module constant,
+#: because the extractor resolves ``tr(NAME)`` only for those.
+_RENAME_WHY_TAKEN = ("A folder called \u201c{name}\u201d is already there, "
+                     "beside this one.")
+_RENAME_WHY_NOT_ALLOWED = ("ChromIQ is not allowed to change this folder or "
+                           "the files in it.")
+_RENAME_WHY_GONE = ("A file of the project was no longer where ChromIQ "
+                    "expected it.")
+_RENAME_WHY_OTHER = "The system refused it ({reason})."
+
+
+def rename_failure_reason(exc: BaseException) -> str:
+    """The ``{error}`` of M-PROJECT-FOLDER-RENAME-FAILED for *exc*: a plain
+    sentence, never a bare path (#182 beta 38, F6)."""
+    from pathlib import Path as _P
+    reason = getattr(exc, "reason", None)
+    if isinstance(reason, str) and reason:
+        return reason                        # already a sentence (tr'd)
+    if isinstance(exc, FileExistsError):
+        where = (getattr(exc, "filename", None)
+                 or (exc.args[0] if exc.args else ""))
+        name = _P(str(where)).name
+        return tr(_RENAME_WHY_TAKEN).format(name=name)
+    if isinstance(exc, PermissionError):
+        return tr(_RENAME_WHY_NOT_ALLOWED)
+    if isinstance(exc, FileNotFoundError):
+        return tr(_RENAME_WHY_GONE)
+    why = (getattr(exc, "strerror", None) or type(exc).__name__)
+    return tr(_RENAME_WHY_OTHER).format(reason=why)
 
 #: The one sentence M-PROJECT-EXISTS uses to say what is already in there. It
 #: is a FRAGMENT of that message rather than a message of its own, and every
@@ -1611,6 +2067,28 @@ M_IMPORT_REPLACE_FOLDER_FAILED = _m(
     "and leave that folder alone.",
     approved=True)
 
+# --- PROPOSED: the file picked as a chart has no chart in it ---------------
+#
+# #182, 2026-09-11. "Open chart file" filters on *.ti2 and its list hides
+# everything else, but a file dialog also has a name box, and a name typed,
+# pasted or dragged into it is accepted whatever it ends in. The import copied
+# whatever it was handed into a new project as that project's chart, so a page
+# bitmap became `<project>.ti2` with `II` as its first two bytes: a project
+# that cannot be printed, measured or built from, made in silence. The guard is
+# `workflow.chart_import.holds_a_chart`; the WORDING waits here.
+M_IMPORT_NOT_A_CHART = _m(
+    "M-IMPORT-NOT-A-CHART",
+    "That file holds no chart",
+    "“{name}” was opened as a chart file, and there is no patch "
+    "list inside it. A chart file, “.ti2”, holds the colours "
+    "ChromIQ prints and measures. A page image, “.tif”, is a "
+    "picture of the printed sheet and holds none of them.\n\nNothing has "
+    "been created and nothing has been copied. Your file is where it was, "
+    "unchanged.\n\nOpen the “.ti2” file that sits beside the page "
+    "images instead. It carries the same name as they do, without the page "
+    "number.",
+    approved=True)
+
 # --- PROPOSED: the two ways a spot-read session can be thrown away --------
 #
 # Knut, 2026-09-03, reporting the spacebar: the window had no guard on either
@@ -1850,6 +2328,54 @@ M_SCAN_PROFILE_ARCHIVED = _m(
     approved=False)
 
 
+# --- PROPOSED: the scanner white-point default moved, and said so ----------
+#: 2026-09-05, Basti. The white-point handling a scanner/camera profile is
+#: built with moved from "Map chart white to white" to "Scale white to a
+#: perfect white surface" (colprof `-u -R`), and he ruled that EXISTING
+#: remembered settings adopt it too: *"our user base is not very big at the
+#: moment so i want the better default"*. That is the right call and it is also
+#: a change of meaning nothing else in the app would explain — somebody who
+#: re-profiles a scanner they have profiled before gets a visibly different
+#: profile. So the migration says so, once, the first time the window opens
+#: after it has happened.
+#:
+#: It is announced in the LOG, not a window: §M's rule is that wording which
+#: has not been reviewed speaks through the log until it is approved, and
+#: nobody asked for a window here.
+M_SCAN_WP_DEFAULT = _m(
+    "M-SCAN-WP-DEFAULT",
+    "The white point setting for new scanner profiles has changed",
+    "ChromIQ used to build scanner and camera profiles so that the white "
+    "patch of your test chart became pure white. It now scales white to a "
+    "perfect white surface instead — the entry “Scale white to a perfect "
+    "white surface (-u -R)” under Advanced… ▸ White Point ▸ White point "
+    "handling. Your remembered settings for this window have been moved to "
+    "it, which is why you are reading this.\n\n"
+    "Why it moved. Under the old setting, anything you scanned that was "
+    "lighter than your chart's own white board came out as flat white with "
+    "no detail left in it, and no amount of editing afterwards could bring "
+    "that detail back. A test chart's white board is not very white: on the "
+    "scan this was measured from it is 84 % as bright as a perfect white "
+    "surface, so that board, a brighter paper, a very bright paper and a "
+    "perfect white surface all came out as exactly the same white. The new "
+    "setting keeps them apart. It is just as accurate as the old one, and it "
+    "keeps whites just as neutral.\n\n"
+    "What this does not change. Every profile you have already built is a "
+    "file on disk and is untouched. So is every measurement, every chart and "
+    "every project. Nothing has been rebuilt, converted, moved or deleted, "
+    "and no profile changes unless you build it again.\n\n"
+    "What you will notice. A profile you build from now on makes scans open a "
+    "little darker — a white board lands at about 93 out of 100 in lightness "
+    "rather than at 100 — so a scan wants one levels or curves step to "
+    "finish. Nothing has been lost by that: the highlight detail that used to "
+    "be flattened is now there for you to work with.\n\n"
+    "If you preferred the old behaviour, it has not gone anywhere. Open "
+    "Advanced…, and under White Point set “White point handling” back to "
+    "“Map chart white to white”. That is exactly what ChromIQ did before. "
+    "Press “Save as Defaults” and it will stay that way.",
+    approved=False)
+
+
 # --- PROPOSED: the window said nothing at all when a scan was loaded -------
 #: beta 8, B8-16 (Agent B, reproduced by Agent I). Loading a scan under the
 #: wrong Target type produced an EMPTY log, a live Run button and a 288-cell
@@ -1994,6 +2520,31 @@ M_SCAN_ALIGN_NOT_FOUND = _m(
     "edge of the chart is missing. Drag the four corners roughly around the "
     "chart and press Auto align again: it will then search only inside them.")
 
+#: THE SAME REFUSAL, WHEN THE CHART IS A HONEYCOMB AND THE ADVICE CANNOT WORK.
+#:
+#: Measured on screen 2026-09-11 on Knut's own CR30 hexagonal chart, from three
+#: different starting placements: the search returns "not recognised" with ZERO
+#: candidates every time, while the two stages after it work on a honeycomb and
+#: separate a right placement from a wrong one by 0.969 against 0.514. So the
+#: refusal itself is right and nothing is moved. What was wrong is that the
+#: user was sent to drag the corners roughly around the chart and press the
+#: button again, which narrows the search -- and on a honeycomb a narrower
+#: search finds nothing either, because the step that fails is scanin's own
+#: recogniser and it looks for the straight horizontal patch edges a grid of
+#: rectangles has. A hexagon has none. Same ending, same safety, an instruction
+#: the user can actually follow.
+M_SCAN_ALIGN_NOT_FOUND_HEX = _m(
+    "M-SCAN-ALIGN-NOT-FOUND-HEX",
+    _ALIGN_KEPT,
+    "Auto align cannot find a hexagonal chart. The search looks for the "
+    "straight edges of a grid of rectangles, and a honeycomb has none, so "
+    "pressing the button again will not help however the corners are placed. "
+    "Drag the four corners onto the chart yourself: put each one on the "
+    "outermost patch of its corner. Everything else in this window works "
+    "normally on a honeycomb, including “Check alignment”, which will tell "
+    "you whether what you placed is reading the right patches.",
+    approved=False)
+
 M_SCAN_ALIGN_NO_FIT = _m(
     "M-SCAN-ALIGN-NO-FIT",
     _ALIGN_KEPT,
@@ -2110,6 +2661,81 @@ M_SCAN_ALIGN_NOT_SEATED = _m(
     approved=False)
 
 
+# --- PROPOSED (#182, Knut 2026-09-11): the grid IS placed, and was not
+# trusted --------------------------------------------------------------------
+#
+# He was asked whether Auto align, when it cannot place the grid well enough to
+# trust, should leave the corners alone and say so, or place its best attempt
+# and tell the user to check it. *"place its best attempt and tell user to
+# check it."*
+#
+# So the two endings that HAVE a best attempt -- the seating check refused it,
+# or it does not agree with the chart's reference -- stop being refusals. The
+# grid moves, the one-press undo is armed exactly as it is after a success, and
+# these two messages are what is said instead of `_ALIGN_KEPT`. The other
+# endings keep their refusals: there is nothing to place in any of them, and a
+# window that claimed to have placed something would be lying.
+#
+# The headline is shared, because from the user's side there is one state: the
+# grid moved and nobody is vouching for it. It deliberately does NOT open with
+# the word "done" -- the approved M-SCAN-ALIGN-DONE owns that, and these two
+# must not read like it at a glance.
+_ALIGN_UNCHECKED = "Auto align placed the grid and could not confirm it"
+
+M_SCAN_ALIGN_PLACED_UNCHECKED = _m(
+    "M-SCAN-ALIGN-PLACED-UNCHECKED",
+    _ALIGN_UNCHECKED,
+    "ChromIQ found the chart and has put the grid on its best reading of it, "
+    "so you can see what it found. What the grid reads there does not agree "
+    "with this chart's own reference closely enough to rely on, which usually "
+    "means the reference file belongs to a different target, or the scan is of "
+    "a different chart.\n\n"
+    "Check it before you build anything. Look at the file in the "
+    "\u201c{ref_row}\u201d row above, press \u201cCheck alignment\u201d "
+    "below to read the scan and see which patches it is really taking, and "
+    "drag any corner by hand. \u201cUndo auto align\u201d puts your own "
+    "corners back.",
+    approved=False)
+
+M_SCAN_ALIGN_PLACED_NOT_SEATED = _m(
+    "M-SCAN-ALIGN-PLACED-NOT-SEATED",
+    _ALIGN_UNCHECKED,
+    "ChromIQ worked out where the grid would have to go and has put it there, "
+    "then looked at the picture once more to check it, and the patches are not "
+    "where that placement puts them. Towards one edge of the sheet the grid "
+    "reads part of the neighbouring patch, and a profile built from that is "
+    "wrong without looking wrong.\n\n"
+    "This is what a photograph taken at a slight angle does: the end of the "
+    "sheet further from the camera comes out smaller, so no single shape fits "
+    "both ends of it. A flatbed scan does not have the problem at all.\n\n"
+    "Check it before you build anything. Press \u201cCheck alignment\u201d "
+    "below, and drag the corners that are off onto the patches by hand. "
+    "\u201cUndo auto align\u201d puts your own corners back.",
+    approved=False)
+
+
+#: The two endings that now PLACE rather than refuse, and what each is told in.
+#: `scan_align_refusal` still answers for every ending with nothing to place --
+#: including these two, which can still be reached with no candidate when the
+#: search itself ended on them and the user had placed no grid to refine from.
+SCAN_ALIGN_UNCHECKED = {
+    "below-floor": M_SCAN_ALIGN_PLACED_UNCHECKED,
+    "not-seated": M_SCAN_ALIGN_PLACED_NOT_SEATED,
+}
+
+
+def scan_align_unchecked(reason: str) -> Message:
+    """The message for a placement that was applied without being vouched for.
+
+    An ending with no message of its own falls back to the reference wording
+    rather than putting its name on screen, exactly as
+    :func:`scan_align_refusal` does -- adding an ending and forgetting the
+    message must cost a slightly wrong sentence, never a code in front of a
+    user.
+    """
+    return SCAN_ALIGN_UNCHECKED.get(reason, M_SCAN_ALIGN_PLACED_UNCHECKED)
+
+
 #: Auto align's internal refusal reasons, and the message each one is told in.
 #: The reasons stay machine-readable -- they go to the log file and the tests
 #: read them -- and this map is the ONLY place they turn into words.
@@ -2129,7 +2755,7 @@ SCAN_ALIGN_REFUSALS = {
 }
 
 
-def scan_align_refusal(reason: str) -> Message:
+def scan_align_refusal(reason: str, *, hexagonal: bool = False) -> Message:
     """The message for an Auto align refusal, by its internal reason.
 
     A reason with no message of its own gets the "could not find this chart"
@@ -2137,17 +2763,969 @@ def scan_align_refusal(reason: str) -> Message:
     to :mod:`workflow.scan_auto_align` and forgetting the message costs a
     slightly wrong sentence, never a code in front of a user. The test that
     pins the set of reasons is what stops it staying wrong.
+
+    *hexagonal* says the chart on screen is a honeycomb, which changes ONE
+    ending: "not recognised" then has a cause the generic advice cannot
+    address, so it gets its own wording. It is a property of the CHART and not
+    of the search, which is why the caller supplies it and the ladder's set of
+    endings is untouched; and it stays here, because this function is the only
+    place an ending turns into words.
     """
+    if hexagonal and reason == "not-recognised":
+        return M_SCAN_ALIGN_NOT_FOUND_HEX
     return SCAN_ALIGN_REFUSALS.get(reason, M_SCAN_ALIGN_NOT_FOUND)
 
 
+# --- PROPOSED (#182, Knut D25): the chart cannot supply a row the limit set
+# limits — Measurement Report window, the strip under "Judged against", and
+# repeated in the report text -------------------------------------------------
+M_REPORT_CHART_MISMATCH = _m(
+    "M-REPORT-CHART-MISMATCH",
+    "Some limits cannot be checked on this chart",
+    "The limit set {set} puts a limit on values this chart cannot supply, so "
+    "these rows read N-A (not applicable):\n{rows}\n\n"
+    "A row that was not computed says nothing about the printer. Each reason "
+    "above names what that row needs: most want patches added to the chart in "
+    "Create Chart (for the grey balance: “Neutral grey ramp” with 16 steps), "
+    "and the control strip wants the chart to declare one. Make the change, "
+    "print the chart again and measure it.",
+    approved=True)
+
+# --- PROPOSED (#182, 2026-09-24, beta 40 challenge B): the same strip when no
+# row it lists is a grey row a device grey ramp answers -----------------------
+#
+# The closing above names a lever for the grey balance, "Neutral grey ramp"
+# with 16 steps, and it was printed whatever the list held: under a list with
+# no grey row in it, and on a FROM PROFILE GAMUT chart, whose grey steps are
+# its neutral aims and whose lever is a larger chart, never grey steps
+# (§26.5 of `measurement_report_limits.md`). Same headline, same {set} and
+# {rows}; the closing names no grey lever.
+M_REPORT_CHART_MISMATCH_NO_GREY = _m(
+    "M-REPORT-CHART-MISMATCH-NO-GREY",
+    "Some limits cannot be checked on this chart",
+    "The limit set {set} puts a limit on values this chart cannot supply, so "
+    "these rows read N-A (not applicable):\n{rows}\n\n"
+    "A row that was not computed says nothing about the printer. Each reason "
+    "above names what that row needs: most want patches added to the chart in "
+    "Create Chart, and the control strip wants the chart to declare one. Make "
+    "the change, print the chart again and measure it.",
+    approved=False)
+
+# --- PROPOSED (#182, 2026-09-23): the same strip when only evenness is short --
+#
+# Round B before beta 37, M7: under a list holding only the two evenness rows
+# the closing above sent the reader to add patches in Create Chart "(for the
+# grey balance: “Neutral grey ramp” with 16 steps)". Evenness is judged over
+# nine areas of ONE page, so what those rows lack is strips and rows on a
+# page, which is the chart's layout. Same headline, same {set} and {rows}.
+M_REPORT_CHART_MISMATCH_LAYOUT = _m(
+    "M-REPORT-CHART-MISMATCH-LAYOUT",
+    "Some limits cannot be checked on this chart",
+    "The limit set {set} puts a limit on values this chart cannot supply, so "
+    "these rows read N-A (not applicable):\n{rows}\n\n"
+    "A row that was not computed says nothing about the printer. Evenness is "
+    "judged over nine areas of one page, so these rows want a chart laid out "
+    "with more strips and more rows on a page, and with patches that cover "
+    "most of the page. Make the change, print the chart again and measure it.",
+    approved=True)
+
+# M-REPORT-NOT-FOR-CALIBRATION (#182 K26, beta 38) is WITHDRAWN, never having
+# been approved: Knut retracted the ruling it spoke for (5794078008, "The run
+# type set to calibration should be able to make a report after all"), so the
+# window has no red line to show under Run type Calibration (beta 39).
+
+# --- PROPOSED (#182, 2026-09-16): deleting one saved report ------------------
+#
+# The design authority asked for this before a non-beta: *"the selection and
+# deletion of reports with a selector input box is needed and should be made
+# first"*. Nothing in this model governs deleting a report, and §5 of
+# `measurement_report_limits.md` governs only the archive-then-recalculate
+# rule, which is about rewriting a report rather than removing one. So the
+# window says exactly what goes and what stays, and the WORDING waits here.
+# REVISED 2026-09-18 for Knut's L.7, which says what the button DOES: *"which
+# then creates a dated report folder in the old/ folder where the files for
+# that report is moved to."* The wording it replaces described an unlink and
+# ended "ChromIQ cannot undo this", which was true of the old button and is
+# false of this one. It also spoke of one FILE, and an entry in the list is now
+# one DOCUMENT, which may be one file per measurement it covers (B8-383). Still
+# PROPOSED: neither wording has been approved.
+# REVISED 2026-09-23 for Knut's K25 answer (5789263863, Q5): the one-file body
+# said "the measurement it describes" about a report of several dates, because
+# since K23 a report of several measurements is ONE document file. {n} counts
+# FILES, not measurements, so it cannot choose the word; his own words do:
+# *"You could say 'the measurement(s) it describes', to make it simple."*
+M_REPORT_DELETE = _m(
+    "M-REPORT-DELETE",
+    "Delete this report from the list?",
+    "This report is taken out of the list of generated reports:\n\n{what}\n\n"
+    "Its {n} files are moved here:\n\n{where}\n\n"
+    "Nothing is destroyed. The files stay on your disk in that folder, and "
+    "the measurement(s) it describes are not touched.",
+    body_one=(
+        "This report is taken out of the list of generated reports:\n\n"
+        "{what}\n\n"
+        "Its file is moved here:\n\n{where}\n\n"
+        "Nothing is destroyed. The file stays on your disk in that folder, "
+        "and the measurement(s) it describes are not touched."),
+    count_key="n",
+    approved=True)
+
+# --- PROPOSED (#182, Knut 2026-09-19): Generate report with a selected report
+# whose settings have been changed --------------------------------------------
+#
+# Knut wrote the text himself and ended it *"(or similar)"*, so it is his
+# wording and it still goes through §M-PROPOSED: *"When Generate Report is then
+# clicked, the user must be shown a popup message with following text (or
+# similar): Settings were modified for the selected report. / What do you want
+# to do? / 1. Update selected report with selected settings. / 2. Create new
+# report with selected settings. / 3. Cancel. The window must then have three
+# buttons: Update, Create New and Cancel."*
+#
+# THE NUMBERED LINES STAY IN THE BODY even though the buttons carry the same
+# three words, because that is what he specified and because the numbered list
+# is what says which button does what: "Update" alone does not say that the
+# SELECTED report is what gets updated.
+M_REPORT_UPDATE_OR_NEW = _m(
+    "M-REPORT-UPDATE-OR-NEW",
+    # HIS SENTENCE WITHOUT ITS FULL STOP: the house rule is that a
+    # headline is not a sentence (`tests/test_message_catalogue.py`),
+    # and he ended the whole block "(or similar)". Nothing else moved.
+    "Settings were modified for the selected report",
+    # K32 (Knut, #182 5813851807, beta 41): Create New comes FIRST, in the
+    # list as on the buttons, because it is the safe answer and the default.
+    "What do you want to do?\n\n"
+    "1. Create new report with selected settings.\n"
+    "2. Update selected report with selected settings.\n"
+    "3. Cancel",
+    approved=True)
+
+# --- PROPOSED (#182, K4 of Knut's beta-34 batch, 2026-09-22) -----------------
+# Generate report pressed with a saved report selected and NOTHING changed. It
+# wrote a new report and asked nothing (four presses in nine seconds, 44 files,
+# in his log), because the question above is asked only when a setting moved.
+# His sentence for that one is a statement of fact ("Settings were modified"),
+# so the unchanged case cannot borrow it; the three buttons are the same.
+M_REPORT_UNCHANGED_UPDATE_OR_NEW = _m(
+    "M-REPORT-UNCHANGED-UPDATE-OR-NEW",
+    "Nothing was changed for the selected report",
+    # K32: the same order as M-REPORT-UPDATE-OR-NEW's, Create New first.
+    "What do you want to do?\n\n"
+    "1. Create new report with the same settings.\n"
+    "2. Update selected report, worked out again by this version of ChromIQ.\n"
+    "3. Cancel",
+    approved=True)
+
+# --- PROPOSED (#182 K39-2, Knut 5831246553): Generate report pressed with a
+# saved report selected and NOTHING changed, where this version works that
+# report out differently from the version that saved it, so an Update changes
+# its results (B8-1093: "Nothing was changed" was followed by FAIL turning
+# into PASS). Asked of "Should that question have its own wording for this
+# case, for example 'This version works the selected report out
+# differently'?", Knut answered "Yes." The window decides by comparing the
+# rows an Update would write with the page (`_update_would_change_the_report`).
+# The same three buttons, in the same order, Create New first and the default.
+M_REPORT_WORKED_OUT_DIFFERENTLY_UPDATE_OR_NEW = _m(
+    "M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW",
+    "This version works the selected report out differently",
+    "Nothing was changed in the settings of the selected report, but this "
+    "version of ChromIQ works it out differently from the version that "
+    "saved it: an update changes some of its results, or the notes that "
+    "explain them.\n\n"
+    "What do you want to do?\n\n"
+    "1. Create new report with the same settings.\n"
+    "2. Update selected report, worked out again by this version of ChromIQ.\n"
+    "3. Cancel",
+    approved=True)
+
+# --- PROPOSED (#182 K39-3, Knut 5831246553): the red line under the settings
+# after "New report…" is chosen. His rule: choosing it does NOT change the
+# report on the page; the defaults of a new report are loaded into the
+# controls, and a red line tells the user to change the settings as wanted and
+# then press Generate report to make the new report. Window text, so it may
+# name the button. Only the body is shown, after a warning sign.
+M_REPORT_NEW_REPORT_SETTINGS = _m(
+    "M-REPORT-NEW-REPORT-SETTINGS",
+    "Settings loaded for a new report",
+    "New report: change the settings as wanted, then press “Generate "
+    "report” to make it. The report shown stays as it is until then.",
+    approved=True)
+
+# --- PROPOSED (#182, Knut D11/D24): the note at the foot of the Report limits
+# window ----------------------------------------------------------------------
+M_THRESHOLDS_NOT_CERTIFICATION = _m(
+    "M-THRESHOLDS-NOT-CERTIFICATION",
+    "ChromIQ measures against published values; it does not certify",
+    # THE THIRD COPY OF A SENTENCE CORRECTED TWICE ELSEWHERE, and the one in
+    # the window that actually draws the columns. It read "The columns named
+    # after a standard hold that standard's published tolerance values", which
+    # is false of the two Custom columns (they start from ChromIQ's own numbers
+    # where nobody has supplied a standard's) and false of the two read-only
+    # ones as ChromIQ ships (the data file is empty by design). The report's
+    # guide was corrected for each half in turn; this copy was corrected
+    # neither time, and `_notes_text` prints it two lines below its own correct
+    # sentence, so one panel said both things at once.
+    # …AND THE CORRECTION ITSELF WENT HALF-STALE ON 2026-09-21, when Knut's
+    # researched industry figures became the two Custom columns' starting
+    # values (#182). "ChromIQ's own numbers" then described nineteen of the
+    # thirty-six cells and not the other seventeen. Both sources are named.
+    # …AND AGAIN FOR #182 S-2 (§23 of the limits record): a set whose values
+    # SHIP judges its read-only column with them while the Custom column
+    # beside it keeps Knut's figures, so "where nobody has supplied them" no
+    # longer divides the columns correctly. Each column is described by what
+    # it starts from, as a condition, so the one sentence is true whether a
+    # set ships, is supplied, or holds nothing.
+    "A read-only column named after a standard is judged against that "
+    "standard's published tolerance values, where ChromIQ ships them or a "
+    "licence holder has supplied them. Such a column reads “–” for a row "
+    "ChromIQ can measure that the standard puts no limit on, and ? where it "
+    "limits the row but no "
+    "number has been supplied for it. A "
+    "Custom column starts from limits researched from industry practice and "
+    "ChromIQ's own numbers, neither of which is that standard's, and no "
+    "values file changes that. "
+    "Either way the values are "
+    "applied to the chart you printed and not to that standard's own control "
+    "strip and chart, so a report can never say that a print conforms to a "
+    "standard. What ChromIQ does is measure as many of the standard's values "
+    "as your chart allows, say which it checked and which it did not, and let "
+    "you follow them over time.\n\n"
+    "Rows marked ✕ are requirements ChromIQ cannot measure at all; they stay in "
+    "the table so you can see what the standard asks: {rows}",
+    approved=False)
+
+# --- PROPOSED (#182, Knut 2026-09-21): the note a bracketed limit points at -
+#
+# THE HALF OF THE RULING THAT IS NOT THE VERDICT WORD. Knut retired COND as a
+# row word and asked, in the same message, for what replaces it: *"there should
+# be a note associated with the metric its self, like a reference number at the
+# end of the metric label-name, pointing to a note below the table in the
+# Report Limits window (and in the report text also a number on the metric
+# name, pointing to a note in the report text)."* One text, rendered in both
+# places, because two copies are two documents that can drift apart.
+#
+# WHAT IT MAY NOT SAY. His first version of this note ended *"but does not
+# affect the overall result of the ISO 12647 verification"*, and he WITHDREW
+# that nine minutes later: *"all thresholds tested against are treated the
+# same … If the test is applied the report shall show the result as is, and the
+# overall result follows as normal."* So the note says what the standard calls
+# the metric and stops. A sentence excusing the row from the Overall would be
+# false of the code and against the ruling that replaced it.
+M_LIMIT_RECOMMENDED = _m(
+    "M-LIMIT-RECOMMENDED",
+    "The standard recommends this metric rather than requiring it",
+    "The standard calls this metric recommended rather than required, so it "
+    "may be applied optionally. Its limit is shown in brackets. It was applied "
+    "here, and the result is reported the same way as every other row.",
+    approved=True)
+
+# --- PROPOSED (#182, Knut B8-591): the one-page summary covers ONE
+# measurement, and a user who has ticked several must be TOLD rather than
+# corrected behind his back.
+#
+# Knut, 2026-09-20, in the same comment that removed "Show all measurement
+# runs": *"color summary only allows one measurement date ticked, and if
+# several is selected, user must be informed as mentioned above, and make a
+# choice which to include"* — and, of the general shape: *"Upon generate
+# report clicked, the user should be informed … Then the user can close that
+# message and do the changes, and then click generate report again."*
+#
+# So it INFORMS and stops. It does not choose a measurement, and it does not
+# untick anything: correcting the ticks silently is the fault he reported
+# twice ("This unselected all but the last measurement without a warning" and
+# "the measurement I had ticked was unticked and the last measurement in the
+# list was automatically ticked (I did not ask for that)").
+M_REPORT_ONE_PAGE_ONE_DATE = _m(
+    "M-REPORT-ONE-PAGE-ONE-DATE",
+    "A colour summary is one page about one measurement",
+    "{count} measurements are ticked in “Included Measurements in report”, "
+    "and this report type has room for one.\n\n"
+    "Close this, untick the measurements you do not want on the page, and "
+    "click “Generate report” again. “Deselect all” clears them all if that is "
+    "quicker. To keep every measurement you have ticked, choose another "
+    "report type instead.",
+    approved=True)
+
+# --- PROPOSED (challenge C, beta 39, #1): an Update that would narrow a
+# report to what this side can find ------------------------------------------
+#
+# Update rewrites a report about every measurement it covers (§13.13). From a
+# side that could not find one of them (a project renamed or moved, measured
+# with the demo pack's Report-Limits-Renamed), it archived the whole report
+# and rewrote it about the one date it found. No rule lets an Update drop a
+# covered measurement it cannot find, so it refuses and says which and why.
+# {missing} is one `report_gone_line` per measurement.
+M_REPORT_UPDATE_NOT_FOUND = _m(
+    "M-REPORT-UPDATE-NOT-FOUND",
+    "This report cannot be updated from here",
+    "The selected report covers measurements that ChromIQ cannot find:\n\n"
+    "{missing}\n\n"
+    "Updating it now would rewrite the report without them, so nothing was "
+    "changed. Put the project back in the folder beside this one, or open "
+    "the report from a project that can reach them, and try again. "
+    "“Create New” writes a new report of what is ticked and leaves "
+    "this one as it is.",
+    approved=True)
+
+# --- PROPOSED (challenge C, beta 39, #11): the Update leaves out
+# measurements that are no longer on disk, and asks first --------------------
+#
+# §13.11 leaves out a folder that no longer holds its measurement. An Update
+# did that in silence, and one such date was enough to retire a report across
+# projects into a one-date report. The question names them; the user chooses.
+M_REPORT_UPDATE_LEAVES_OUT = _m(
+    "M-REPORT-UPDATE-LEAVES-OUT",
+    "Some measurements of this report are no longer on disk",
+    "The selected report covers measurements that are no longer on disk:\n\n"
+    "{missing}\n\n"
+    "Updating it now leaves them out, and the report then covers only what "
+    "is still there. The report as it is now is kept in the old folder "
+    "first.\n\n"
+    "What do you want to do?",
+    approved=True)
+
+# --- PROPOSED (re-challenge R1, beta 39, #4): an Update that would leave a
+# report of nothing ----------------------------------------------------------
+#
+# "Update without them" on a report whose EVERY measurement was gone wrote
+# `measurements: []` under the report's old verdict and old scope, and the
+# list and the page went on showing it as the report it had been. Nothing
+# would be left to update, so the press is refused before anything is
+# written and the window names the two buttons that do something.
+M_REPORT_UPDATE_NOTHING_LEFT = _m(
+    "M-REPORT-UPDATE-NOTHING-LEFT",
+    "Nothing of this report is left to update",
+    "None of the measurements the selected report covers is on disk any "
+    "more:\n\n{missing}\n\n"
+    "Updating it would leave a report that covers nothing, so nothing was "
+    "changed and the report stays as it was written. "
+    "“Delete Selected Report” moves it to the old folder, and "
+    "“Create New” writes a new report of what is ticked.",
+    approved=False)
+
+# --- PROPOSED (B8-1655, 2026-09-28): a calibration file found while the
+# ChromIQ layout engine lays the chart out -------------------------------
+#
+# The prefill of decision 7 (calibration_run_type.md, 2026-08-05) fills the
+# printtarg -K and -I fields and says so. An engine build does not read those
+# fields: it takes its calibration from the engine panel's own "Printer
+# calibration" group (``LayoutOptionsPanel.cal_settings``). With the engine the
+# default, the found .cal went where the build ignores it, and the status line
+# told the user to switch on a field that does nothing. The engine panel's path
+# is now offered the same way (filled only when empty, Mode left on "None"),
+# and this is the status line for that case. The words are ours.
+M_CAL_FOUND_ENGINE = _m(
+    "M-CAL-FOUND-ENGINE",
+    "Calibration file found",
+    "Calibration file found: {name}. It is filled into “Printer calibration” "
+    "in the ChromIQ layout section below, with Mode still on “None”: choose "
+    "the mode you want there. “Apply & embed (-K)” reprints every patch "
+    "through the calibration; “Embed only (-I)” only records it in the chart "
+    "file.",
+    approved=True)   # Knut, #182 5865088296, 2026-09-28: "Message 1 is ok"
+
+# --- PROPOSED (challenge C, beta 39, #7): Delete Selected Report could not
+# move the report ----------------------------------------------------------
+#
+# In a read-only folder the move copied the report into old/ and left the
+# original, so the report existed twice, and the window showed Python's own
+# "[Errno 13] Permission denied: '/Users/…'". The move is now all or nothing.
+M_REPORT_DELETE_FAILED = _m(
+    "M-REPORT-DELETE-FAILED",
+    "The report could not be moved to the old folder",
+    "ChromIQ could not change this folder:\n\n{folder}\n\n"
+    "Nothing was moved, and the report is still in the list. The usual "
+    "reason is that the folder is read-only. {remedy}",
+    approved=False)
+
+# --- PROPOSED (challenge C, beta 39, #8): an Update or a new report in a
+# folder ChromIQ may not write in --------------------------------------------
+#
+# The press was already all or nothing; the window said only "Nothing could
+# be written. The log says why." It now names the folders and the remedy.
+M_REPORT_NOT_WRITABLE = _m(
+    "M-REPORT-NOT-WRITABLE",
+    "The report was not written",
+    "ChromIQ is not allowed to write in:\n\n{folders}\n\n"
+    "A report is written whole or not at all, so nothing was changed. Give "
+    "yourself permission to change those folders, or copy the project "
+    "somewhere you may write, and try again.",
+    body_one="ChromIQ is not allowed to write in:\n\n{folders}\n\n"
+    "A report is written whole or not at all, so nothing was changed. Give "
+    "yourself permission to change that folder, or copy the project "
+    "somewhere you may write, and try again.",
+    count_key="count",
+    approved=False)
+
+# --- PROPOSED (re-challenge R2 of beta 39, #1): a run delete refused
+# because the saved reports that name the later runs cannot be renumbered ----
+#
+# The refusal was a bare paragraph under the heading "This is what ChromIQ
+# tried to remove:", followed by <project>/reports. ChromIQ never tried to
+# remove that folder: it is where the reports it would have to CHANGE live.
+# The window now has a headline and says what the folders are.
+# {folders} is one folder per line; {count} is how many.
+M_RUN_DELETE_REPORTS_LOCKED = _m(
+    "M-RUN-DELETE-REPORTS-LOCKED",
+    "Profile run {n} was not deleted",
+    "Nothing was deleted. Deleting this run renumbers the runs after it, and "
+    "the saved reports that name those runs by number must be renumbered "
+    "with them. ChromIQ is not allowed to change the reports in these "
+    "folders:\n\n{folders}\n\n"
+    "Make them writable, or move the project somewhere you may write, and "
+    "try again.",
+    body_one="Nothing was deleted. Deleting this run renumbers the runs "
+    "after it, and the saved reports that name those runs by number must be "
+    "renumbered with them. ChromIQ is not allowed to change the reports in "
+    "this folder:\n\n{folders}\n\n"
+    "Make it writable, or move the project somewhere you may write, and try "
+    "again.",
+    count_key="count",
+    approved=False)
+
+# --- APPROVED (#182 A6, Knut 5817809396; words approved in 5820871320):
+# Report Scope names a profile run the report covered that has since been
+# deleted ------------------------------------------------------------------
+#
+# Knut, 5820871320: *"Given the above, the message is accepted"*, the above
+# being that "profile run", "verification run" and "calibration run" are
+# defined in the Dictionary help card and used the same way everywhere
+# (K36-3). "Profile run" here is that defined term: the numbered run (run 2),
+# whichever of its measurements the report covered.
+#
+# The bar's Delete renumbers the later runs and turns a saved report's
+# reference to the deleted run into ``runs/runN.deleted``, which no folder
+# ever answers. The report then shows fewer measurements than it was written
+# about, and only an Update said why. Report text (window and PDF), so it is
+# written for a reader of the document: nothing about ChromIQ's buttons.
+# ``{runs}`` is `deleted_runs_label`'s: "run 2", "run 2 and run 4", or with
+# the project's name when the report covers more than one project.
+M_REPORT_SCOPE_RUN_DELETED = _m(
+    "M-REPORT-SCOPE-RUN-DELETED",
+    "Part of this report has since been deleted",
+    "This report also covered {count} profile runs that have since been "
+    "deleted ({runs} when the report was written). Their measurements are no "
+    "longer in the report.",
+    body_one="This report also covered a profile run that has since been "
+    "deleted ({runs} when the report was written). Its measurements are no "
+    "longer in the report.",
+    count_key="count",
+    approved=True)   # Knut, #182 5820871320
+
+#: How `M_REPORT_SCOPE_RUN_DELETED` names one deleted run (A6). Module
+#: constants, because the extractor resolves ``tr(NAME)`` only for those.
+_DELETED_RUN = "run {n}"
+_DELETED_RUN_OF = "{project}, run {n}"
+_DELETED_RUNS_JOIN = "{first} and {last}"
+
+
+def deleted_runs_label(entries: "list[tuple[str, str]]",
+                       several_projects: bool) -> str:
+    """``{runs}`` of M-REPORT-SCOPE-RUN-DELETED for ``[(project, n)]``."""
+    names = [tr(_DELETED_RUN_OF).format(project=p, n=n) if several_projects
+             else tr(_DELETED_RUN).format(n=n) for p, n in entries]
+    if len(names) <= 1:
+        return "".join(names)
+    return tr(_DELETED_RUNS_JOIN).format(first=", ".join(names[:-1]),
+                                         last=names[-1])
+
+
+# --- APPROVED (#182 A10, Knut 5817809396; words approved in 5820871320): a
+# chart with no paper patch -------------------------------------------------
+#
+# "Paper white" was the lightest measured patch; on a chart with no patch
+# printed with no ink that is a light colour or grey, which was printed as
+# the paper, drawn in its graph and divided into the readings. It now reads
+# N-A with this numbered note. Report text: for a reader of the document.
+#
+# **PER MEASURED SHEET, NOT PER REPORT (K36-4).** Knut, 5820871320: *"do you
+# mean the "chart sheet" or do you mean "nothing in this report"? Make sure
+# the text cannot be misunderstood. Then this message is accepted."* The code
+# decides it per measurement: `build_report` finds the paper patch and
+# chooses the yardstick for each measured sheet on its own, and the note is
+# attached to that sheet's "Paper white" line. A report can hold sheets of
+# several charts, so the words name the sheet and say that the rest of the
+# report is not affected.
+#
+# **"SHEET" WAS STILL UNCLEAR (Knut, 5824834975, on the four K37 notes that
+# share these words).** Reworded 2026-09-25 in the report's own vocabulary:
+# the measurement ("Detailed data per measurement"), which is what the note is
+# decided for. The approval above is kept; §M records the rewording.
+M_REPORT_NO_PAPER_PATCH = _m(
+    "M-REPORT-NO-PAPER-PATCH",
+    "This chart has no paper patch",
+    "The chart of this measurement has no patch printed with no ink, so "
+    "this measurement has no paper white of its own. Every colour of this "
+    "measurement is therefore judged as measured, in absolute Lab, and none "
+    "relative to the paper. Only the measurements that carry this note are "
+    "judged this way; the report's other measurements are judged as usual.",
+    approved=True)   # Knut, #182 5820871320
+
+
+# --- PROPOSED (#182 K37, Knut 5822758830, answer 1): a sheet printed with an
+# intent that maps white to the paper, whose chart has no paper patch -------
+#
+# Knut: *"Recommendation: (e), with a numbered note on the sheet, and (b)
+# only when no profile can be read."* (§32.6 and §33 of
+# `docs/design/measurement_report_limits.md`.)
+#
+# (e) The sheet is judged relative to the paper white of the profile it was
+# printed through (else the run's own profile). M-REPORT-NO-PAPER-PATCH says
+# "every colour on this sheet is therefore judged as measured, in absolute
+# Lab", which is FALSE on such a sheet, so this note takes its place on that
+# sheet's "Paper white" line and says both things: why the paper white reads
+# N-A, and where the paper white the colours were judged against came from.
+# The approved message stays on every sheet where its words are true.
+M_REPORT_PAPER_WHITE_FROM_PROFILE = _m(
+    "M-REPORT-PAPER-WHITE-FROM-PROFILE",
+    "Paper white taken from the profile",
+    "The chart of this measurement has no patch printed with no ink, so "
+    "this measurement has no paper white of its own. The chart was printed "
+    "with an intent that maps white to the paper, so the colours of this "
+    "measurement are judged relative to the paper white recorded in the "
+    "profile {profile} (L* {L}, a* {a}, b* {b}), which is the paper that "
+    "profile was made for. If the measured paper differs from it (another "
+    "batch, or paper that has aged), the results can be off by a little. "
+    "Only the measurements that carry this note are judged this way; the "
+    "report's other measurements are judged as usual.",
+    approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
+
+# (b) No profile could be read, so the sheet stays in absolute Lab. The note
+# travels with every row whose verdict that moves (the colour-difference,
+# control-strip, gamut, grey-balance, tone-ramp and evenness rows of that
+# sheet), so a reader of a FAIL sees why it may not be the print's fault.
+# M-REPORT-NO-PAPER-PATCH stays on the sheet's "Paper white" line: on this
+# sheet its words are true.
+M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE = _m(
+    "M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE",
+    "Judged without a paper white",
+    "The chart of this measurement was printed with an intent that maps "
+    "white to the paper, so its colours should be judged relative to its "
+    "paper white. The chart has no patch printed with no ink, and no "
+    "profile could be read to take the paper white from, so these rows of "
+    "this measurement are judged as measured, in absolute Lab. The paper's "
+    "own lightness and tint then count against every colour, so these "
+    "results can read worse than the print is (on typical papers by about "
+    "1.5 to 3 ΔE00 on the averages), and a limit can fail for that reason "
+    "alone. Only the measurements that carry this note are judged this way; "
+    "the report's other measurements are judged as usual.",
+    approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
+
+# --- PROPOSED (#182 K37 (i), Knut 5823088098 "Yes do so", on our
+# 5823015844): on a FROM PROFILE GAMUT chart the control strip's seven ink
+# and black corner rungs are compared with the profile's prediction; the
+# cube-corner table keeps the ideal values. The note on the three
+# control-strip rows says a corner patch has two comparisons. ---------------
+M_REPORT_STRIP_CORNERS_PREDICTED = _m(
+    "M-REPORT-STRIP-CORNERS-PREDICTED",
+    "A corner patch is compared two ways",
+    "In this measurement the chart's solid ink, overprint and black patches "
+    "are compared two ways. In the cube-corner table each is compared with "
+    "its ideal value, which shows how far this printer's colour is from the "
+    "ideal one. In the control-strip rows each is compared with the colour "
+    "the profile predicts for it, like every other patch of this chart, "
+    "which shows how accurately it was printed. Only the measurements that "
+    "carry this note are judged this way; the report's other measurements "
+    "are judged as usual.",
+    approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
+
+# ...and when no profile can be read to ask: today's comparison stays.
+M_REPORT_STRIP_CORNERS_IDEAL = _m(
+    "M-REPORT-STRIP-CORNERS-IDEAL",
+    "Corner patches compared with their ideal values",
+    "No profile could be read to predict the colours of this measurement's "
+    "solid ink, overprint and black patches, so in the control-strip rows "
+    "they are compared with their ideal values, as in the cube-corner "
+    "table. That difference is mostly how far this printer's colours are "
+    "from the ideal ones, not a printing error, so these rows can read "
+    "worse than the print is. Only the measurements that carry this note "
+    "are judged this way; the report's other measurements are judged as "
+    "usual.",
+    approved=True)   # Knut, #182 5824834975 ("sheet" reworded)
+
+# --- APPROVED (#182 K49, (b2), Knut 5841092535: "Should (b2) be built?
+# Answer: Yes."): the paper row and the two solid rows compare the
+# measurement with its profile's own description of the printing condition.
+# The cube-corner table keeps the ideal values (§32.5 reversed for the two
+# solid rows only), so a row and the table can read very differently about
+# the same patch; the note on the row says why. Both notes APPROVED by Knut
+# in 5845588201: *"Messages "M-REPORT-SOLIDS-PREDICTED" and
+# "M-REPORT-PAPER-AGAINST-PROFILE" accepted."* ------------------------------
+M_REPORT_SOLIDS_PREDICTED = _m(
+    "M-REPORT-SOLIDS-PREDICTED",
+    "Solid colours compared with the profile's prediction",
+    "In this measurement the solid cyan, magenta, yellow and black patches "
+    "are compared with the colours the profile predicts for them, which "
+    "shows how accurately they were printed. The cube-corner table compares "
+    "the same patches with their ideal values, which shows how far this "
+    "printer's colours are from the ideal ones, so the two can differ a lot.",
+    approved=True)   # Knut, #182 5845588201: "accepted"
+
+M_REPORT_PAPER_AGAINST_PROFILE = _m(
+    "M-REPORT-PAPER-AGAINST-PROFILE",
+    "Paper compared with the profile's paper",
+    "In this measurement the paper is compared with the paper white recorded "
+    "in the profile (the one the chart was printed through, or else the "
+    "profile of its run), which is the paper that profile was made for. The "
+    "cube-corner table compares the same patch with the chart's own aim for "
+    "white, an ideal white, so the two can differ.",
+    approved=True)   # Knut, #182 5845588201: "accepted"
+
+# --- APPROVED: a saved report worked out by an earlier version (challenge 5
+# of beta 42, M1, B8-1091). Its verdicts are kept (§6); a rule introduced since
+# (K34's paper patch, K37's paper white from the profile and the strip corners
+# against the profile's prediction) would work some of its rows out
+# differently, and the rebuilt notes would contradict the kept words. The page
+# shows the report as it was saved and says so, once.
+# K39-1 (Knut, #182 5831246553): approved except "Update works the report out
+# again.", because report text never names a feature, an action or a button of
+# the app. The last sentence now speaks of the topic in general terms.
+M_REPORT_WORKED_OUT_EARLIER = _m(
+    "M-REPORT-WORKED-OUT-EARLIER",
+    "Worked out by an earlier version",
+    "This report was worked out by an earlier version of ChromIQ and is "
+    "shown as it was saved. This version works some of its rows out "
+    "differently. A newer report of the same measurements would be worked "
+    "out the current way.",
+    approved=True)   # Knut, #182 5831246553 (the UI reference removed)
+
+# --- PROPOSED: a new report with a date whose measurement is gone (B8-1500) --
+# Knut, #182 5857473253: a new or updated report is made entirely by the
+# current version, every date worked out again from its measurement. Where a
+# date's measurement is no longer on disk as it was measured, nothing can be
+# worked out again, and its figures are the ones an earlier report saved. The
+# report says so, rather than mixing them silently with this version's.
+M_REPORT_NOT_WORKED_OUT = _m(
+    "M-REPORT-NOT-WORKED-OUT",
+    "Figures an earlier report saved",
+    "The measurements of {dates} are no longer on disk as they were "
+    "measured, so they could not be worked out again. Their figures are the "
+    "ones an earlier report saved, worked out by the version of ChromIQ that "
+    "saved it.",
+    count_key="n",
+    body_one=
+    "The measurement of {dates} is no longer on disk as it was measured, so "
+    "it could not be worked out again. Its figures are the ones an earlier "
+    "report saved, worked out by the version of ChromIQ that saved it.",
+    approved=True)   # Knut, #182 5858874320, 2026-09-27: "Approved."
+
+# --- APPROVED (K59, Knut #182 5849392788; approved in 5850164956): A SHEET PRINTED RAW, OPTION C ---
+# *"use recommended option C"*, with *"The word drift is not used at all ...
+# Use the word "Change" instead of "Drift""* and, on the cell word, *"can we
+# use the INFO but also have a numbered reference to a note that explains the
+# issue, where that is relevant?"*. His answer to "I will propose the
+# reworded sentence under the results, the guide entry and the "Judged
+# against" text for your approval before they ship": *"Ok"*.
+#
+# Every text below replaced one that is false under his ruling (a cell or a
+# sentence that says "drift" of a single sheet, a "Judged against" of "—"
+# beside a column that says nothing about how it was printed). All fourteen
+# were APPROVED by Knut in #182 5850164956: *"All messages under "B.
+# PROPOSED, FOR YOUR APPROVAL (14 texts, all shown before approval)" are
+# approved."*
+# `tests/test_k59_no_drift_in_the_report.py` pins which one is used where.
+
+#: The numbered note on a value of a raw sheet shown for information. Only on
+#: the rows that compare the print with the chart's design colours
+#: (`measurement_report.ROWS_COMPARED_WITH_THE_DESIGN`), which is where it is
+#: "relevant": a repeatability row compares readings with readings, and the
+#: paper and solid rows are compared with the profile.
+M_REPORT_RAW_PRINT_INFO = _m(
+    "M-REPORT-RAW-PRINT-INFO",
+    "A value of a sheet printed raw, shown for information",
+    "This sheet was printed raw, without the profile, so this value is shown "
+    "for information only and is not judged: it compares the print with the "
+    "chart's design colours, which a sheet printed without the profile is not "
+    "expected to match closely.",
+    approved=True)   # Knut, #182 5850164956
+
+#: "Judged against" of a raw sheet's column, where it judged its paper or
+#: solid rows ({set} is the limit set's name, as every other column shows it).
+M_REPORT_RAW_JUDGED_AGAINST = _m(
+    "M-REPORT-RAW-JUDGED-AGAINST",
+    "Judged against, a sheet printed raw",
+    "{set} (printed raw)",
+    approved=True)   # Knut, #182 5850164956
+
+#: ...and where it judged nothing (every value INFO or N-A).
+M_REPORT_RAW_NOT_JUDGED = _m(
+    "M-REPORT-RAW-NOT-JUDGED",
+    "Judged against, a sheet printed raw that judged nothing",
+    "not judged (printed raw)",
+    approved=True)   # Knut, #182 5850164956
+
+#: The Overall word's sentence (tooltip, one-page summary) of a raw column
+#: that judged nothing. It replaces the profiling sheet's "It was measured to
+#: build a profile rather than to check one", which is false of a
+#: verification sheet; the same sentence is `compliance_sets.
+#: SUMMARY_REASONS["raw_print"]`.
+M_REPORT_RAW_OVERALL = _m(
+    "M-REPORT-RAW-OVERALL",
+    "Overall, a sheet printed raw that judged nothing",
+    "This sheet was printed raw, without the profile, so its values are shown "
+    "for information only and nothing on it was judged.",
+    approved=True)   # Knut, #182 5850164956
+
+#: The sentence under Report Results where a raw column judged ALL THREE of
+#: its paper and solid rows, in every raw column: Knut's approved K51 clause
+#: ("the paper and the solid colours are judged against the profile; the
+#: other colours are compared with the chart's design colours for
+#: information") is exactly true there and kept verbatim. Only the first
+#: sentence, which named the "drift" cells, is new.
+M_REPORT_RAW_RESULTS_JUDGED = _m(
+    "M-REPORT-RAW-RESULTS-JUDGED",
+    "Under the results, sheets printed raw that judged their paper and solids",
+    "Columns marked “printed raw” under “Judged against” are sheets printed "
+    "without the profile. On them the paper and the solid colours are judged "
+    "against the profile; the other colours are compared with the chart's "
+    "design colours for information, because a sheet printed raw is not "
+    "expected to match the design closely, and PASS or FAIL there would be "
+    "unfair to a perfectly healthy printer. For those sheets the detailed "
+    "chapter shows how far the printer has moved since the previous raw "
+    "check.",
+    approved=True)   # Knut, #182 5850164956
+
+#: ...where a raw column judged some of those rows but not all (a set that
+#: limits the paper only, as ISO 12647-8 does; a row that read N-A). Challenge
+#: 9 of beta 44: the clause must be true of exactly the rows judged.
+M_REPORT_RAW_RESULTS_SOME = _m(
+    "M-REPORT-RAW-RESULTS-SOME",
+    "Under the results, sheets printed raw that judged some of their paper and "
+    "solid rows",
+    "Columns marked “printed raw” under “Judged against” are sheets printed "
+    "without the profile. On them the paper and the solid colours are judged "
+    "against the profile where the limit set has a limit for them and the "
+    "measurement can answer them; the other colours are compared with the "
+    "chart's design colours for information, because a sheet printed raw is "
+    "not expected to match the design closely, and PASS or FAIL there would "
+    "be unfair to a perfectly healthy printer. For those sheets the detailed "
+    "chapter shows how far the printer has moved since the previous raw "
+    "check.",
+    approved=True)   # Knut, #182 5850164956
+
+#: ...and where no raw column judged anything.
+M_REPORT_RAW_RESULTS = _m(
+    "M-REPORT-RAW-RESULTS",
+    "Under the results, sheets printed raw that judged nothing",
+    "Columns marked “printed raw” under “Judged against” are sheets printed "
+    "without the profile. They are not expected to match the design closely, "
+    "and PASS or FAIL would be unfair to a perfectly healthy printer, so their "
+    "values are shown for information. For those sheets the detailed chapter "
+    "shows how far the printer has moved since the previous raw check.",
+    approved=True)   # Knut, #182 5850164956
+
+#: "How to read this report": the paragraph about a raw column. The last
+#: sentence, about the Overall word, is the one the guide carried before.
+M_REPORT_RAW_GUIDE_JUDGED = _m(
+    "M-REPORT-RAW-GUIDE-JUDGED",
+    "How to read this report, a sheet printed raw",
+    "A column marked “printed raw” under “Judged against” is a sheet printed "
+    "without the profile. Its paper and solid colour rows are judged against "
+    "the profile where the limit set has a limit for them; its values that "
+    "compare the print with the chart's design colours read INFO, with a "
+    "numbered note that says so. A column's Overall word is PASS when every "
+    "row that could be checked passed; a row the test chart used could not "
+    "answer is not counted as a failure, and the sentence under the word says "
+    "how many there were.",
+    approved=True)   # Knut, #182 5850164956
+
+#: ...in a document whose raw columns judged nothing.
+M_REPORT_RAW_GUIDE = _m(
+    "M-REPORT-RAW-GUIDE",
+    "How to read this report, a sheet printed raw that judged nothing",
+    "A column marked “printed raw” under “Judged against” is a sheet printed "
+    "without the profile. Its values that compare the print with the chart's "
+    "design colours read INFO, with a numbered note that says so. A column's "
+    "Overall word is PASS when every row that could be checked passed; a row "
+    "the test chart used could not answer is not counted as a failure, and "
+    "the sentence under the word says how many there were.",
+    approved=True)   # Knut, #182 5850164956
+
+#: The detailed chapter, under a raw sheet's table (Knut: "Change", not
+#: "Drift"). The first raw sheet of a chart:
+M_REPORT_RAW_BASELINE = _m(
+    "M-REPORT-RAW-BASELINE",
+    "The first raw check of a chart",
+    "This sheet was printed raw, without the profile, and it is the first raw "
+    "check of this chart: it is the baseline that later raw checks of this "
+    "chart are compared with.",
+    approved=True)   # Knut, #182 5850164956
+
+#: ...a raw sheet whose previous raw check used another chart:
+M_REPORT_RAW_INCOMPARABLE = _m(
+    "M-REPORT-RAW-INCOMPARABLE",
+    "A raw check after one of a different chart",
+    "This sheet was printed raw, without the profile. The previous raw check "
+    "used a different chart, so the change from print to print cannot be "
+    "measured for this pair; the next raw check of THIS chart will start a "
+    "fresh comparison.",
+    approved=True)   # Knut, #182 5850164956
+
+#: ...the print-to-print comparison with the previous raw check. Knut: "A
+#: Comparison against another value cannot conclude that it is a drift. It is
+#: better that a person looks at the trend to diagnose this."
+M_REPORT_RAW_CHANGE = _m(
+    "M-REPORT-RAW-CHANGE",
+    "Change since the previous raw check",
+    "Change since the previous raw check ({prev}): average {avg} ΔE00, "
+    "maximum {max}: this print measured against that print, patch by patch, "
+    "{n} patches. Small numbers mean the printer still behaves as it did "
+    "then; larger numbers mean it has changed since. Whether it keeps "
+    "changing in one direction can be read from the trend graphs, across all "
+    "the dated checks. (PASS and FAIL against the report's limit set are not "
+    "shown here: a raw sheet is not expected to match the design closely, so "
+    "it would fail even a perfectly healthy printer.)",
+    approved=True)   # Knut, #182 5850164956
+
+#: ...a raw sheet with no comparison record at all:
+M_REPORT_RAW_SHEET = _m(
+    "M-REPORT-RAW-SHEET",
+    "A sheet printed raw",
+    "This sheet was printed raw, without the profile. Its figures compared "
+    "with the chart's design colours describe the distance from the design, "
+    "and what matters is how they change between dated checks, not their "
+    "size.",
+    approved=True)   # Knut, #182 5850164956
+
+#: The opening of a report whose sheets were printed both ways (B8-1380).
+#: Knut: *"The use of the word “drift” for a chart printed raw is not a good
+#: wording ... When that is resolved and the message reworded, the rest of
+#: the message is ok."* Only "marked “drift”" is reworded: the others are now
+#: marked "printed raw" under "Judged against". Shown because
+#: the approved sentence it replaces ("It was verified by printing a chart
+#: through that profile") is false of the raw sheets.
+M_REPORT_MIXED_OPENING = _m(
+    "M-REPORT-MIXED-OPENING",
+    "The opening of a report of sheets printed both ways",
+    "This report judges the profile built in {where}. Some of its sheets were "
+    "printed through that profile and compared with the chart's own aim "
+    "values; the others, marked “printed raw”, were printed without it. The "
+    "measurements it covers are listed under Report Scope.",
+    approved=True)   # Knut, #182 5850164956
+
+#: The opening of a report ACROSS RUNS whose sheets were printed both ways
+#: (B8-1397). Knut, #182 5850164956, D2: *"Accepted."*, verbatim.
+M_REPORT_MIXED_OPENING_RUNS = _m(
+    "M-REPORT-MIXED-OPENING-RUNS",
+    "The opening of a report across runs of sheets printed both ways",
+    "This report judges the profiles built in {where}. Some of their sheets "
+    "were printed through their profiles and compared with the charts' own "
+    "aim values; the others, marked “printed raw”, were printed without them. "
+    "The measurements it covers, and the profile run each comes from, are "
+    "listed under Report Scope.",
+    approved=True)   # Knut, #182 5850164956 (D2, "Accepted.")
+
+#: The K59 texts as one tuple, in the order PROPOSALS.txt lists them (all
+#: fourteen approved by Knut in #182 5850164956).
+K59_TEXTS = (
+    M_REPORT_RAW_PRINT_INFO, M_REPORT_RAW_JUDGED_AGAINST,
+    M_REPORT_RAW_NOT_JUDGED, M_REPORT_RAW_OVERALL,
+    M_REPORT_RAW_RESULTS_JUDGED, M_REPORT_RAW_RESULTS_SOME,
+    M_REPORT_RAW_RESULTS, M_REPORT_RAW_GUIDE_JUDGED, M_REPORT_RAW_GUIDE,
+    M_REPORT_RAW_BASELINE, M_REPORT_RAW_INCOMPARABLE, M_REPORT_RAW_CHANGE,
+    M_REPORT_RAW_SHEET, M_REPORT_MIXED_OPENING,
+)
+
+#: The two remedies of M-REPORT-DELETE-FAILED (re-challenge R2, #8). "Copy
+#: the project" is only a remedy for a report that lives in a project; a
+#: report across projects lives in the folder that holds them, and copying
+#: one project would leave it behind.
+_DELETE_REMEDY_PROJECT = ("Give yourself permission to change it, or copy "
+                          "the project somewhere you may write, and try "
+                          "again.")
+_DELETE_REMEDY_OUTSIDE = ("This report is not kept in a project but beside "
+                          "the projects it covers. Give yourself permission "
+                          "to change it, or copy {place}, the folder that "
+                          "holds those projects, somewhere you may write, "
+                          "and try again.")
+
+
+def report_delete_remedy(report_file, stop=None) -> str:
+    """The ``{remedy}`` of M-REPORT-DELETE-FAILED for a report at
+    *report_file*: the project's remedy when a folder above it holds a
+    ``project.json``, otherwise the one that names the folder holding the
+    projects (``<ChromIQ folder>/reports/`` or a ``reports/`` beside the
+    projects)."""
+    from pathlib import Path
+    p = Path(str(report_file))
+    for up in list(p.parents)[:6]:
+        if (up / "project.json").is_file():
+            return tr(_DELETE_REMEDY_PROJECT)
+    place = p.parent.parent if p.parent.name == "reports" else p.parent
+    return tr(_DELETE_REMEDY_OUTSIDE).format(place=str(place))
+
+
+#: The reasons `report_gone_line` gives, one module constant each so the
+#: extractor resolves ``tr(NAME)`` (challenge C, beta 39).
+_GONE_PROJECT = "ChromIQ cannot find this project"
+_GONE_RUN = "its profile run was deleted"
+_GONE_FOLDER = "its folder is no longer in the project"
+_GONE_FILE = "its measurement file is no longer in its folder"
+_GONE_PLACE_RUN = "{project}, run {run}, {when}: {why}"
+_GONE_PLACE_CAL = "{project}, calibration, {when}: {why}"
+
+
+def report_gone_line(entry: dict) -> str:
+    """One line of M-REPORT-UPDATE-NOT-FOUND's or M-REPORT-UPDATE-LEAVES-OUT's
+    ``{missing}``: where the measurement was, when it was measured, and why
+    it is not there (an entry of `workflow.measurement_report.update_losses`).
+    """
+    from pathlib import PurePath
+    from core.report_refs import DELETED_RUN_SUFFIX
+    reason = str(entry.get("reason") or "")
+    if reason == "project":
+        why = tr(_GONE_PROJECT)
+    elif reason == "run_deleted":
+        why = tr(_GONE_RUN)
+    elif reason == "file":
+        why = tr(_GONE_FILE)
+    else:
+        why = tr(_GONE_FOLDER)
+    parts = list(PurePath(str(entry.get("dir") or "")).parts)
+    when = str(entry.get("created") or "").replace("T", " ")[:16]
+    if parts and parts[-1] == "cal":
+        project = parts[-2] if len(parts) >= 2 else ""
+        return "•  " + tr(_GONE_PLACE_CAL).format(
+            project=project, when=when, why=why)
+    run, project = "", ""
+    if "runs" in parts:
+        i = len(parts) - 1 - parts[::-1].index("runs")
+        project = parts[i - 1] if i >= 1 else ""
+        run = parts[i + 1] if i + 1 < len(parts) else ""
+    if run.endswith(DELETED_RUN_SUFFIX):
+        run = run[:-len(DELETED_RUN_SUFFIX)]
+    num = run[3:] if run.startswith("run") else run
+    return "•  " + tr(_GONE_PLACE_RUN).format(
+        project=project, run=num, when=when, why=why)
+
+
 CATALOGUE = {m.id: m for m in (
+    M_LIMIT_RECOMMENDED,
+    M_CAL_FOUND_ENGINE,
+    M_REPORT_CHART_MISMATCH, M_REPORT_CHART_MISMATCH_LAYOUT,
+    M_REPORT_CHART_MISMATCH_NO_GREY,
+    M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
+    M_REPORT_UPDATE_OR_NEW, M_REPORT_UNCHANGED_UPDATE_OR_NEW,
+    M_REPORT_WORKED_OUT_DIFFERENTLY_UPDATE_OR_NEW,
+    M_REPORT_NEW_REPORT_SETTINGS,
+    M_REPORT_ONE_PAGE_ONE_DATE,
+    M_REPORT_UPDATE_NOT_FOUND, M_REPORT_UPDATE_LEAVES_OUT,
+    M_REPORT_UPDATE_NOTHING_LEFT,
+    M_REPORT_DELETE_FAILED, M_REPORT_NOT_WRITABLE,
+    M_RUN_DELETE_REPORTS_LOCKED,
+    M_REPORT_SCOPE_RUN_DELETED, M_REPORT_NO_PAPER_PATCH,
+    M_REPORT_PAPER_WHITE_FROM_PROFILE,
+    M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE,
+    M_REPORT_STRIP_CORNERS_PREDICTED, M_REPORT_STRIP_CORNERS_IDEAL,
+    M_REPORT_SOLIDS_PREDICTED, M_REPORT_PAPER_AGAINST_PROFILE,
+    M_REPORT_WORKED_OUT_EARLIER, M_REPORT_NOT_WORKED_OUT,
+    *K59_TEXTS, M_REPORT_MIXED_OPENING_RUNS,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
     M_IMPORT_REPLACED_KEPT,
     M_IMPORT_NOT_OPENED, M_IMPORT_FOLDER_EXISTS,
     M_IMPORT_REPLACE_FOLDER_CONFIRM, M_IMPORT_REPLACE_FOLDER_FAILED,
+    M_IMPORT_NOT_A_CHART,
     M_CHART_PROFILING, M_CHART_W4, M_CHART_VERIFY, M_CHART_NOPAGES,
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
@@ -2155,14 +3733,21 @@ CATALOGUE = {m.id: m for m in (
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
+    M_IMPORT_DONE_PROFILING,
+    M_IMPORT_DEVICE_FROM_CHART,
     M_VERIFY_SAVED, M_HOW_PRINTED,
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
     M_ENGINE_FELL_BACK,
     M_PATCHSET_MISSING,
+    M_PATCHSET_KEPT_UNCHECKED,
+    M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
+    M_VERIFY_UNCHECKED_METRICS, M_VERIFY_SOLIDS_REASON,
+    M_REPORT_PATCH_COUNTS_DIFFER,
     M_PROJECT_EXISTS,
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,
+    M_PROJECT_FOLDER_RENAMED, M_PROJECT_FOLDER_RENAME_FAILED,
     M_CR30_STOCK_READER,
     M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,
     M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK, M_CR30_MAGNET,
@@ -2177,11 +3762,13 @@ CATALOGUE = {m.id: m for m in (
     M_SCAN_SHOT_EMPTY, M_SCAN_TARGET_CHANGED,
     M_SCAN_DARK, M_SCAN_FIT_UNSUPPORTED, M_SCAN_SELFCHECK_UNUSABLE,
     M_SCAN_ALIGN_AMBIGUOUS, M_SCAN_ALIGN_NO_MATCH,
-    M_SCAN_ALIGN_NOT_FOUND, M_SCAN_ALIGN_NO_FIT,
+    M_SCAN_ALIGN_NOT_FOUND, M_SCAN_ALIGN_NOT_FOUND_HEX, M_SCAN_ALIGN_NO_FIT,
     M_SCAN_ALIGN_NO_GEOMETRY, M_SCAN_ALIGN_NO_BETTER, M_SCAN_ALIGN_NOT_SEATED,
+    M_SCAN_ALIGN_PLACED_UNCHECKED, M_SCAN_ALIGN_PLACED_NOT_SEATED,
     M_SCAN_ALIGN_DONE, M_SCAN_ALIGN_NO_INPUT,
     M_SCAN_CONVERTED, M_SCAN_FIT_TOO_FAR,
     M_SCAN_PROFILE_ARCHIVED,
+    M_SCAN_WP_DEFAULT,
 )}
 
 #: Paragraphs appended to another message rather than shown on their own.

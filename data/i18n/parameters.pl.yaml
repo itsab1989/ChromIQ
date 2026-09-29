@@ -7,11 +7,11 @@ parameters:
       tooltip_body: |-
         Określa kombinację barwników urządzenia wyjściowego.
 
-        Przestrzenie druku są subtraktywne: wartość urządzenia 0 = biel
+        **Przestrzenie druku są subtraktywne:** wartość urządzenia 0 = biel
         (brak atramentu), maksimum = czerń (pełny atrament).  Przestrzenie
         wideo/ekranowe są addytywne: wartość 0 = czerń, maksimum = biel.
 
-        Częste wybory:
+        **Częste wybory:**
           • Druk szary (-d 0)    — monochromatyczna drukarka w skali
                                    szarości
           • Wideo szare (-d 1)   — jednokanałowy ekran/monitor
@@ -52,7 +52,7 @@ parameters:
         jest już w zestawie — zostaje usunięty; jeśli go brakuje —
         zostaje dodany.
 
-        Typowe zastosowania:
+        **Typowe zastosowania:**
           • Dodanie pomarańczowego (-D 5) do standardowego CMYK dla
             rozszerzonego gamutu
           • Dodanie jasnego cyjanu (-D 11) / jasnej magenty (-D 12) do
@@ -95,7 +95,7 @@ parameters:
           • Wysoka jakość:   1500–2000
           • Najwyższa:       2500–3000
 
-        Auto (obok pola liczbowego): gdy zaznaczone, liczba pól jest
+        **Auto (obok pola liczbowego):** gdy zaznaczone, liczba pól jest
         liczona na bieżąco z papieru, przyrządu, double density, lewej
         krawędzi, skali pól, marginesu i pola Strony w sekcji printtarg —
         wybierana jest największa wartość wypełniająca dokładnie tę
@@ -117,7 +117,7 @@ parameters:
         kotwicząc jasny koniec profilu. 4 to dobre domyślne; bardzo
         błyszczące papiery mogą zyskać na kilku polach więcej.
 
-        Auto (pole wyboru):
+        **Auto (pole wyboru):**
         Włącz „Auto”, a ChromIQ dobierze liczbę za ciebie, według liczby
         pól całego wzorca — mały jednostronicowy wzorzec dostaje mało
         pól białych, duży wielostronicowy więcej, bez twojego udziału.
@@ -140,7 +140,7 @@ parameters:
         tonu, jaki drukarka potrafi wytworzyć — kotwicząc ciemny koniec
         profilu. 4 to dobre domyślne dla drukarek RGB.
 
-        Auto (pole wyboru):
+        **Auto (pole wyboru):**
         Włącz „Auto”, a ChromIQ dobierze liczbę za ciebie, według liczby
         pól całego wzorca — mały wzorzec dostaje mało pól czarnych, duży
         więcej.
@@ -164,7 +164,7 @@ parameters:
         szybkiego profilu, 50–100 dla standardowego, 128+ dla wysokiej
         jakości.
 
-        Auto (pole wyboru):
+        **Auto (pole wyboru):**
         Włącz „Auto”, a ChromIQ dobierze liczbę za ciebie, proporcjonalnie
         do liczby pól całego wzorca — większy wzorzec dostaje dłuższą i
         drobniejszą rampę szarości.
@@ -263,7 +263,7 @@ parameters:
           • -n dodaje jawne pola neutralne, wyprowadzone z profilu, jako
             uzupełnienie tego, co daje reszta dystrybucji.
 
-        Kiedy używać:
+        **Kiedy używać:**
           • Masz już profil ICC pierwszego przejścia dla tego papieru i
             tworzysz wzorzec dopracowujący.  Wczytaj ten profil w Profil
             wstępny (-c), a potem ustaw -n na 32–64, aby gęsto
@@ -272,7 +272,7 @@ parameters:
             nie istnieje „prawdziwa” oś neutralna do próbkowania, a -g
             i tak pokrywa rampę w przestrzeni urządzenia.
 
-        Typowe wartości dopracowania: 32 do zwykłej pracy, 64 dla
+        **Typowe wartości dopracowania:** 32 do zwykłej pracy, 64 dla
         fine-art / prób, gdzie neutralność jest krytyczna.
 
         Wymaga ustawionego -c; inaczej nie działa.
@@ -305,7 +305,7 @@ parameters:
         zbudowany z takich pól przewiduje kolory, których drukarka w
         rzeczywistości nie wytworzy.
 
-        Jak dobrać wartość:
+        **Jak dobrać wartość:**
           • Większość atramentówek CMYK:    260 – 320%
           • Papiery powlekane / błyszczące: 320 – 360%
           • Papier gazetowy, niska jakość:  220 – 260%
@@ -317,7 +317,7 @@ parameters:
         testowy limitu atramentu i wybierz najwyższą wartość, która
         schnie czysto bez rozmazywania.
 
-        Dla przepływów RGB: zwykle zostaw wyłączone — atramentówki RGB
+        **Dla przepływów RGB:** zwykle zostaw wyłączone — atramentówki RGB
         zarządzają limitem atramentu wewnętrznie, więc targen nie musi
         dzielić budżetu między kanały.
 
@@ -333,7 +333,7 @@ parameters:
         Wybierz JEDEN. Wykluczają się wzajemnie — wybór jednego całkiem
         zastępuje domyślne rozmieszczanie OFPS.
 
-        OFPS (domyślny, zalecany):
+        **OFPS (domyślny, zalecany):**
         Optimised Farthest Point Sampling. Iteracyjnie umieszcza każde
         nowe pole możliwie najdalej od wszystkich istniejących —
         najrównomierniejsze pokrycie ze wszystkich wymienionych tu
@@ -341,30 +341,30 @@ parameters:
         profilu. Połącz z „Dokładną optymalizacją (-G)” dla najlepszego
         wyniku.
 
-        Incremental Far Point (-t):
+        **Incremental Far Point (-t):**
         Prostsza metoda najdalszego punktu. Szybsza od OFPS, nieco mniej
         równomierna. Użyj, gdy OFPS jest za wolny przy bardzo dużych
         liczbach pól i akceptujesz mały spadek jakości.
 
-        Losowa — przestrzeń urządzenia (-r):
+        **Losowa — przestrzeń urządzenia (-r):**
         Pola jednostajnie losowe w surowych wartościach urządzenia (np.
         RGB). Najszybsza możliwa, ale pokrycie w kolorze *postrzeganym*
         jest nierówne — marnuje pola w strefach, które oko ledwo
         rozróżnia.
 
-        Losowa — przestrzeń percepcyjna (-R):
+        **Losowa — przestrzeń percepcyjna (-R):**
         Jednostajnie losowa w kolorze postrzeganym (Lab). Lepsza od -r,
         jeśli już ma być losowo, bo pola rozkładają się równomiernie
         według tego, co widzi oko. Nadal mniej optymalna od OFPS przy tej
         samej liczbie.
 
-        Quasi-losowa wypełniająca (-q / -Q):
+        **Quasi-losowa wypełniająca (-q / -Q):**
         Ciągi o niskiej rozbieżności (typu Sobol), wypełniające przestrzeń
         równomierniej niż prawdziwy los, bez iteracyjnego kosztu OFPS.
         -q w przestrzeni urządzenia, -Q w percepcyjnej. Dobry kompromis,
         gdy OFPS jest za wolny.
 
-        Siatka regularna centrowana (BCC) (-i / -I):
+        **Siatka regularna centrowana (BCC) (-i / -I):**
         Stała regularna siatka (każde pole otoczone 8 sąsiadami w
         sześciennym wzorze). Deterministyczna i bardzo równomierna, ale
         sztywna — tylko niektóre liczby pól pasują do siatki. -i w
@@ -415,7 +415,7 @@ parameters:
         Ustaw 0 (domyślnie), aby pominąć — niemal zawsze właściwy wybór.
         OFPS pokrywa wnętrze kostki wydajniej.
 
-        Kiedy używać:
+        **Kiedy używać:**
           • Powtarzalność między maszynami: stała siatka jest identyczna
             za każdym razem, niezależnie od rozmieszczeń OFPS wybranych
             przez targen — przydatne do porównywania profili między
@@ -423,7 +423,7 @@ parameters:
           • Wzorce diagnostyczne z przewidywalnymi, nazwanymi pozycjami
             kostki.
 
-        Typowe wartości przy użyciu: 3 – 6 (kroków na oś). Liczby szybko
+        **Typowe wartości przy użyciu:** 3 – 6 (kroków na oś). Liczby szybko
         rosną — 6 kroków w RGB to 216 pól, 8 to 512.
 
         Zaznacz pole, aby włączyć.
@@ -437,13 +437,13 @@ parameters:
 
         Ustaw 0 (domyślnie), aby pominąć.
 
-        Kiedy używać:
+        **Kiedy używać:**
           • Chcesz przypilnować konkretnie granicy gamutu i narożników
             podstawowych/pochodnych bez wewnętrznego narzutu -m.
           • Porównanie, jak różne atramenty/papiery przesuwają obwiednię
             gamutu — pola powierzchniowe są najbardziej dotknięte.
 
-        Typowe wartości przy użyciu: 4 – 8 kroków na ścianę.
+        **Typowe wartości przy użyciu:** 4 – 8 kroków na ścianę.
 
         Zaznacz pole, aby włączyć.
     "-b":
@@ -456,13 +456,13 @@ parameters:
 
         Ustaw 0 (domyślnie), aby pominąć — to pokrętło niszowe.
 
-        Kiedy używać:
+        **Kiedy używać:**
           • Chcesz regularnych, dopasowanych do siatki pozycji pól, ale z
             lepszym upakowaniem niż -m, bez sięgania po OFPS.
           • Scenariusze badawcze / powtarzalności, gdzie sama struktura
             BCC jest celem.
 
-        Uwaga: to forma *licznika kroków* (dodaje do listy pól); dla
+        **Uwaga:** to forma *licznika kroków* (dodaje do listy pól); dla
         wzorca, którego *cała* dystrybucja jest BCC, użyj selektora
         „Dystrybucja pól” powyżej i tam wybierz opcję siatki centrowanej.
 
@@ -624,7 +624,7 @@ parameters:
       tooltip_title: "Bez losowania (-r)"
       tooltip_body: |-
         Domyślnie printtarg losuje pozycje pól, aby zmniejszyć artefakty
-        dryfu przyrządu.
+        odczytów przyrządu, które zmieniają się powoli w trakcie pomiaru.
         Włącz tę opcję tylko, gdy testujesz konkretną sekwencję pól albo
         gdy przyrząd wymaga pól uporządkowanych.
     "-b":
@@ -676,7 +676,7 @@ parameters:
         też osadzany w pliku .ti2, aby colprof mógł się do niego odwołać
         przy budowie profilu ICC.
 
-        Typowe zastosowanie: biurkowe atramentówki bez wbudowanej
+        **Typowe zastosowanie:** biurkowe atramentówki bez wbudowanej
         linearyzacji, sterowane bezpośrednio TIFF-em bez pośredniego RIP.
 
         Wyklucza się wzajemnie z „Osadź kalibrację” (-I) — tylko jedna
@@ -694,7 +694,7 @@ parameters:
         osadza plik .cal w wyjściowym .ti2 wyłącznie jako metadane,
         zostawiając wszystkie wartości nietknięte.
 
-        Typowe zastosowanie: profesjonalne RIP-y atramentowe (np. EFI
+        **Typowe zastosowanie:** profesjonalne RIP-y atramentowe (np. EFI
         Fiery, Wasatch, ColorBurst) lub drukarki z aktywną wbudowaną
         linearyzacją podczas druku profilującego.
 
@@ -783,96 +783,6 @@ parameters:
         czarno-białe).  Może poprawić rozpoznawanie pasków na niektórych
         kolorowych atramentówkach, gdzie czarne separatory mają mały
         kontrast z ciemnymi polami.
-  chartread:
-    "-B":
-      name: "Odczyt dwukierunkowy wył."
-      tooltip_title: "Wyłącz odczyt dwukierunkowy (-B)"
-      tooltip_body: |-
-        Uniemożliwia chartread automatyczne wykrywanie, czy pasek
-        zeskanowano do przodu czy do tyłu. ChromIQ zostawia to domyślnie
-        wyłączone, aby przyrząd mógł czytać paski w obu kierunkach.
-
-        Włącz tylko, jeśli przyrząd zgłasza fałszywe błędy kierunku
-        paska podczas pomiaru.
-    "-b":
-      name: "Wymuś odczyt dwukierunkowy"
-      tooltip_title: "Wymuś odczyt dwukierunkowy (-b)"
-      tooltip_body: |-
-        Zmusza chartread do akceptowania paska zeskanowanego w dowolnym
-        kierunku.
-
-        Normalnie chartread wykrywa kierunek automatycznie tylko na
-        wzorcach losowych; na wzorcu o stałej kolejności czyta w jednym
-        kierunku i odrzuca paski skanowane odwrotnie. Włącz, aby mimo to
-        wymusić wykrywanie — przydatne dla rodziny i1 Pro, która chętnie
-        czyta w obie strony. To przeciwieństwo -B; obowiązywać może
-        tylko jedno.
-    "-S":
-      name: "Ukryj ostrzeżenia"
-      tooltip_title: "Ukryj ostrzeżenia (-S)"
-      tooltip_body: |-
-        Ukrywa niekrytyczne okna ostrzeżeń chartread.
-        Zalecane dla sesji pomiarowych bez nadzoru lub seryjnych.
-        Błędy uniemożliwiające zbudowanie profilu są nadal zgłaszane.
-    "-N":
-      name: "Bez kalibracji początkowej"
-      tooltip_title: "Wyłącz kalibrację początkową (-N)"
-      tooltip_body: |-
-        Pomija automatyczną kalibrację na białej płytce przy starcie.
-        Użyj tylko, jeśli przyrząd był już kalibrowany w tej sesji i
-        chcesz mierzyć kolejne wzorce bez rekalibracji.
-    "-p":
-      name: "Tryb pole po polu"
-      tooltip_title: "Tryb pole po polu (-p)"
-      tooltip_body: |-
-        Przełącza z odczytu pasków na pomiar pojedynczych pól.
-        Przydatne do pojedynczych pomiarów ręcznych albo gdy odczyt
-        pasków zawodzi na danym papierze.  Zdecydowanie wolniejsze na
-        dużych wzorcach.
-    "-H":
-      name: "Tryb spektralny wys. rozdz."
-      tooltip_title: "Widmo wysokiej rozdzielczości (-H)"
-      tooltip_body: |-
-        Włącza spektralne próbkowanie wysokiej rozdzielczości na
-        przyrządach, które je obsługują (np. i1Pro 2/3).  Daje
-        dokładniejsze wartości Lab, ale nieznacznie wydłuża pomiar.
-    "-T":
-      name: "Tolerancja spójności"
-      tooltip_title: "Mnożnik tolerancji pól (-T)"
-      tooltip_body: |-
-        Mnożnik wbudowanego w chartread progu spójności pól — nie
-        wartość delta-E. chartread odczytuje każde pole ponownie i
-        odrzuca paski, których odczyty różnią się o więcej niż próg ×
-        ta liczba.
-
-        Niżej = surowiej. Surowe ustawienie wcześnie łapie prawdziwe
-        problemy: zatkane dysze, mało atramentu, brudne rolki bębna,
-        niestabilny toner. Przy zdrowej parze drukarka +
-        spektrofotometr domyślne 0.7 zostawia wygodny zapas;
-        doświadczeni użytkownicy z printerknowledge.com używają 0.4 z
-        i1 Pro 2 / 3.
-
-        Zwiększ do 0.8–1.5, jeśli na papierach fakturowanych, matowych
-        lub fine-art dostajesz fałszywe błędy „inconsistent patch” —
-        tam sama powierzchnia wnosi rzeczywistą zmienność. Wartości
-        powyżej 2 głównie maskują prawdziwe problemy; jeśli ich
-        potrzebujesz, najpierw napraw drukarkę.
-    "-l":
-      name: "Zapisz wartości D50 L*a*b*"
-      tooltip_title: "Zapisz L*a*b* zamiast XYZ (-l)"
-      tooltip_body: |-
-        Zapisuje dane pomiarowe jako wartości L*a*b* D50 zamiast XYZ.
-        Większość przepływów używa XYZ (domyślnie).  Włącz tylko, jeśli
-        dalsze narzędzia wymagają konkretnie wejścia L*a*b*.
-    "-X":
-      name: "Korekcja kolorymetru"
-      tooltip_title: "Macierz korekcji kolorymetru (-X)"
-      tooltip_body: |-
-        Stosuje macierz korekcji kolorymetru (.ccmx) albo spektralny
-        zestaw kalibracji (.ccss), aby poprawić dokładność kolorymetru.
-        Dotyczy tylko kolorymetrów (nie spektrofotometrów).
-        Właściwy plik weź od producenta przyrządu albo utwórz
-        narzędziami ccss/ccmx ArgyllCMS.
   colprof:
     "-D":
       name: "Opis profilu"
@@ -906,13 +816,6 @@ parameters:
       labels:
         - "l — Lab cLUT (zalecane dla drukarek RGB)"
         - "x — XYZ cLUT"
-        - "X — XYZ cLUT (bezwzględny)"
-        - "g — gamma + macierz (szybkie, mniej dokładne)"
-        - "G — gamma + macierz (wymuszone)"
-        - "s — jedna gamma + macierz"
-        - "S — jedna gamma + macierz (wymuszone)"
-        - "m — tylko macierz"
-        - "M — tylko macierz (wymuszone)"
     "-q":
       name: "Jakość profilu"
       tooltip_title: "Jakość profilu (-q)"
@@ -1109,7 +1012,7 @@ parameters:
         Steruje dodatkowym wygładzaniem krzywych kalibracji.  Wyższe
         wartości dają gładsze, ale mniej dokładne krzywe.
 
-        Domyślnie: 1.0 — odpowiednie dla większości drukarek.
+        **Domyślnie:** 1.0 — odpowiednie dla większości drukarek.
         Zwiększ (np. 2.0–5.0), jeśli odpowiedź tonalna drukarki wygląda
         nieregularnie albo krzywe są postrzępione.
     "-z":

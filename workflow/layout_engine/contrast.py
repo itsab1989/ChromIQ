@@ -72,6 +72,39 @@ def spacer_for_mode(mode: str, above, below,
         else spacer_rgb(above, below)
 
 
+def ring_for_mode(mode: str, neighbours: "list[tuple[int, int, int]]",
+                  palette: "list[tuple[int, int, int]] | None" = None
+                  ) -> tuple[int, int, int]:
+    """Spacer colour for a RING drawn around one hexagon (#159).
+
+    A bar sits between exactly two patches, so `spacer_for_mode` asks for two
+    colours and maximises the worst of the two. A ring sits between one patch
+    and up to SIX, and the honest generalisation is the same rule over the whole
+    set: pick the colour whose WORST-case contrast, against the patch itself and
+    against every neighbour it touches, is largest.
+
+    That is not an extension of the pair logic so much as the pair logic finally
+    written down: both `spacer_rgb` and `colored_spacer_rgb` already reduce their
+    two arguments to a list and score candidates by `min(...)` over it, so they
+    generalise with no change of meaning. This function only removes the
+    assumption that the list has two entries in it.
+    """
+    neigh = [n for n in neighbours if n is not None]
+    if not neigh:
+        return (0, 0, 0) if mode != "colored" else (palette or _COLOURED_PALETTE)[0]
+    if mode == "colored":
+        pal = palette or _COLOURED_PALETTE
+        best, best_score = pal[0], -1.0
+        for cand in pal:
+            score = min(_rgb_dist(cand, n) for n in neigh)
+            if score > best_score:
+                best, best_score = cand, score
+        return best
+    lums = [luminance(n) for n in neigh]
+    return (0, 0, 0) if min(lums) >= min(255.0 - l for l in lums) \
+        else (255, 255, 255)
+
+
 def min_boundary_contrast(patch_rgbs: list[tuple[int, int, int]]) -> float:
     """Worst patch↔spacer luminance gap across a pass (spacers chosen optimally)."""
     if len(patch_rgbs) < 2:

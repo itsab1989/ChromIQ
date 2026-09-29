@@ -43,6 +43,7 @@ def build_ti2_from_ti1(
     seed: int | None = None,
     randomize: bool = True,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     spacer_on: bool = True,
     pscale: float = 1.0,
@@ -61,7 +62,7 @@ def build_ti2_from_ti1(
     """
     target = ti1_reader.read_ti1(ti1_path)
     geom = instruments.build(
-        instrument, hflag=hflag, density=density, spacer_on=spacer_on, pscale=pscale,
+        instrument, hflag=hflag, hex_flat_top=hex_flat_top, density=density, spacer_on=spacer_on, pscale=pscale,
         sscale=sscale, border=border, nolpcbord=nolpcbord, nolimit=nolimit,
     )
     w_mm, h_mm = papers.dimensions_mm(paper)
@@ -87,6 +88,80 @@ def build_ti2_from_ti1(
 
 
 
+#: Instrument key → the name a person reads, used in the layout stamp and in
+#: the {instrument} placeholder. The CR30's device key IS its friendly name
+#: (#159), so the .get() fallback below would already be right — listed
+#: explicitly so the table is a complete answer to "which instruments does the
+#: engine know", not a coincidence that happens to work.
+_INSTR_FRIENDLY = {"i1": "i1Pro", "p3": "i1Pro3+", "CM": "ColorMunki",
+                   "SS": "SpectroScan", "41": "DTP41", "51": "DTP51",
+                   "CR30": "CR30"}
+
+
+def friendly_instrument(instrument: str) -> str:
+    """The name of *instrument* as the sheet prints it."""
+    return _INSTR_FRIENDLY.get(instrument, instrument)
+
+
+def text_placeholder_context(*, project: str = "", rundescription: str = "",
+                             instrument: str = "", paper: str = "",
+                             dpi: int = 300, patches: int = 0, pages: int = 1,
+                             seed: int = 0, chart_date: str = "") -> dict:
+    """The values `{project}`, `{paper}`, `{seed}` and the rest resolve to.
+
+    LIFTED OUT OF `build_chart` FOR THE SAME REASON `stamp_summary_line` WAS.
+    The Create Chart panel warns about a line that is too long, and it measured
+    the string with the braces still in it while the sheet prints the resolved
+    one. On Knut's own example line, `{project}-{rundescription}-{page}-{paper}-
+    {date}-{pages}-{patchcount}-{dpi}-{seed}` at 12 pt, the panel measured
+    172.3 mm and the sheet prints 184.8: it is two characters longer and
+    12.6 mm wider, because digits and capitals are wider than braces and
+    lowercase. The error goes both ways, `{seed}` alone is 23.3 mm wider
+    resolved and a long chain of token names is 11.3 mm narrower, so the panel
+    could equally miss a real overflow or warn about a sheet that comes out
+    clean.
+
+    `{page}` is NOT here. It needs the page index and `render_pages` adds it
+    per page, which is the one placeholder a prediction cannot know; the panel
+    supplies its own first-page stand-in.
+    """
+    import time as _time
+    return {
+        "project": project,
+        "rundescription": rundescription,
+        "instrument": friendly_instrument(instrument),
+        "paper": papers.friendly_label(paper) if paper else "",
+        "dpi": f"{dpi} dpi",
+        "patchcount": f"{patches} patches",
+        "pages": str(pages),
+        "date": chart_date or _time.strftime("%Y-%m-%d"),
+        "seed": f"seed {seed}",
+    }
+
+
+def stamp_summary_line(instrument: str, paper: str, dpi: int, patches: int,
+                       seed: int) -> str:
+    """The one line "Stamp layout summary along the bottom" prints.
+
+    LIFTED OUT OF `build_chart` SO THE PANEL CAN ASK FOR IT. Knut, 2026-09-13,
+    testing beta 8: *"When using 'Stamp layout information along the bottom'
+    (and no custom text) with font size 13 or 14 makes text that cross into the
+    right clip-border text, but no warning is given. This happens regardless of
+    the clip-border is on left of right side."*
+
+    He is right, and the reason is that the panel's width check measured
+    `chart_text` alone while the renderer measures BOTH bottom lines and shrinks
+    the pair (`raster.render_pages`, `_btxt`). With no custom text there was
+    nothing to measure, so the check did not run at all. The panel now predicts
+    this line, and it must be THIS function rather than a second copy of the
+    f-string: a re-implementation that drifts from the shipped one is how a
+    prediction comes to warn about a sheet nobody prints.
+    """
+    return (f"ChromIQ engine · {friendly_instrument(instrument)} · "
+            f"{papers.friendly_label(paper)} · {dpi} dpi · "
+            f"{patches} patches · seed {seed}")
+
+
 def build_chart(
     ti1_path: str | Path,
     out_base: str | Path,
@@ -97,6 +172,7 @@ def build_chart(
     randomize: bool = True,
     dpi: int = 300,
     hflag: bool = False,
+    hex_flat_top: bool = False,
     density: int = 1,
     cm_stagger: bool = False,
     spacer_on: bool = True,
@@ -146,6 +222,8 @@ def build_chart(
     chart_text_size_mm: float = 0.0,
     chart_text_bold: bool = False,
     chart_text_italic: bool = False,
+    #: Where the bottom lines sit across the page (Knut, 2026-09-14).
+    chart_text_align: str = "left_margin",
     helper_markers: bool = False,
     helper_marker_edge: float = 2.0,
     helper_marker_len: float = 2.0,
@@ -157,6 +235,18 @@ def build_chart(
     text_edge_clip: float = 4.0,
     use_instrument_margins: bool = False,
     stamp_command: bool = False,
+    #: Whether anything will be stamped down the RIGHT page edge afterwards --
+    #: the run's chart notes, the "Stamp settings down the right edge" line, or
+    #: both. Not drawn here: `workflow/tiff_metadata.py::stamp_chart_metadata`
+    #: paints it onto the finished raster. The layout is told because it has to
+    #: leave the strip clear -- see `raster._clear_the_side_stamp` (§R9).
+    #:
+    #: **THE DEFAULT IS True BECAUSE THE APP'S IS.** `ChartParams.stamp_
+    #: commands` ships True and Guided has no control for it, so a caller that
+    #: does not know reserves the strip rather than laying patches under it.
+    #: `stamp_command` above is a DIFFERENT control (the layout summary along
+    #: the BOTTOM); the two have been confused before.
+    side_stamp: bool = True,
     project: str = "",
     # #130: the run's own description (or the calibration's), for the
     # {rundescription} placeholder in sheet text and the clip border. Empty
@@ -173,6 +263,10 @@ def build_chart(
     clip_border_width: float = 26.0,
     clip_side: str = "left",
     clip_content_mode: str = "off",
+    # B8-1402: carried by `LayoutRecipe.build_kwargs` so a chart restored from
+    # its build settings keeps the kind a clip border switched On takes (K57).
+    # A setting of the panel, not of the sheet: nothing here draws with it.
+    clip_content_when_on: str = "",
     clip_text: str = "",
     clip_text_font: str = "Inter",
     clip_text_size_mm: float = 0.0,
@@ -212,6 +306,7 @@ def build_chart(
     # capacity estimate exactly (#93).
     geom = instruments.geom_from_build_kwargs({
         "instrument": instrument, "paper": paper, "hflag": hflag,
+        "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,
         "spacer_on": spacer_on, "pscale": pscale,
         "sscale": sscale, "border": border, "margins": margins,
@@ -223,6 +318,44 @@ def build_chart(
         "clip_border_width": clip_border_width, "clip_side": clip_side,
         "clip_content_mode": clip_content_mode,
         "text_edge_top": text_edge_top, "text_edge_clip": text_edge_clip,
+        # THE RULER HELPER MARKERS ARE GEOMETRY, AND THIS DICT LEFT THEM OUT.
+        #
+        # `instruments.GEOM_BUILD_KEYS` lists them, `build()` takes them and
+        # `geom_from_build_kwargs` copies them onto the `Geom` — but only from
+        # the dict it is handed, and this one is assembled by hand. Every key
+        # missing here reads as its default, so the geometry that lays out the
+        # REAL sheet was built with `helper_markers=False`, a 0.0 mm distance
+        # and a 0.0 mm dash, while the same markers were passed to
+        # `render_pages` below and drawn. The whole of #182's marker reserve
+        # therefore reached the panel, the capacity estimate and the note
+        # stamper (they all start from `LayoutRecipe.build_kwargs()`, which
+        # carries the keys) and reached the sheet nowhere.
+        #
+        # Measured on screen, ColorMunki / A4 / 200 dpi, markers at 4.0 mm with
+        # a 2.0 mm dash and "Clip" / "T" at 4.0, each element isolated against
+        # a control sheet with only that element switched off:
+        #
+        # * the clip band's text was printed at 4.70 mm from the paper edge,
+        #   bit-identical to the same sheet with the markers OFF, with 917
+        #   pixels of it inside the 4.0 to 6.0 mm dash band — the collision
+        #   Knut reported, whose fix in `geometry.clip_area_mm` could not act
+        #   because `geom.helper_markers` was False;
+        # * the strip letters' ink began 5.97 mm down with the markers on and
+        #   5.97 mm down with them off, while `geometry.strip_label_reserve_mm`
+        #   answers 7.0 mm for that recipe;
+        # * the row indicator labels' leftmost ink was 9.65 mm in with the
+        #   markers on and 9.65 mm with them off, while the panel quoted a
+        #   7.0 mm floor and a 17.38 mm left margin against the 4.0 / 14.38 the
+        #   sheet used.
+        #
+        # `_engine_total_patches` builds its geometry straight from
+        # `build_kwargs()`, so the patch-count estimate reserved the marker
+        # room this build did not, which is the same disagreement one level up.
+        "helper_markers": helper_markers,
+        "helper_marker_edge": helper_marker_edge,
+        "helper_marker_len": helper_marker_len,
+        "helper_markers_top_bottom": helper_markers_top_bottom,
+        "helper_markers_sides": helper_markers_sides,
         "use_instrument_margins": use_instrument_margins,
         "edge_spacers": edge_spacers,
         "patch_area_align": patch_area_align, "layout_mode": layout_mode,
@@ -240,7 +373,15 @@ def build_chart(
         "indicator_rotation": indicator_rotation, "underline_mode": underline_mode,
         "underline_thickness_mm": underline_thickness_mm,
         "underline_gap_mm": underline_gap_mm,
+        # The geometry needs the label OFFSET too, and only for one thing: a
+        # turned honeycomb's patch block has to start below the labels' ink, and
+        # this is what moves that ink. Without it a +3 mm offset printed the
+        # letters 2.46 mm into the first row of hexagons. Read by
+        # `raster._furniture_reserves_mm` alone, so no other layout moves.
+        "strip_label_offset_mm": strip_label_offset_mm,
         "chart_text": chart_text, "stamp_command": stamp_command,
+        "side_stamp": side_stamp,
+        "chart_text_size_mm": chart_text_size_mm,
         "text_edge": text_edge})
     w_mm, h_mm = papers.dimensions_mm(paper)
     layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
@@ -272,31 +413,16 @@ def build_chart(
         with open(ti2_path, "a", encoding="utf-8") as fh:
             fh.write("\n" + calibration.cal_table_text(cal))
 
-    import time as _time
     # Human-friendly placeholder values for {project}/{instrument}/{paper}/… in
     # chart text, clip text and the stamp. {page} is resolved per page inside
     # render_pages (it needs the page index), so it's not in this dict. (#93)
-    _instr_friendly = {"i1": "i1Pro", "p3": "i1Pro3+", "CM": "ColorMunki",
-                       "SS": "SpectroScan", "41": "DTP41", "51": "DTP51",
-                       # The CR30's device key IS its friendly name (#159), so
-                       # the .get() fallback below would already be right —
-                       # listed explicitly so the table is a complete answer to
-                       # "which instruments does the engine know", not a
-                       # coincidence that happens to work.
-                       "CR30": "CR30"}
-    _ctx = {
-        "project": project or Path(out_base).name,
-        "rundescription": rundescription,
-        "instrument": _instr_friendly.get(instrument, instrument),
-        "paper": papers.friendly_label(paper),          # "A4 landscape"
-        "dpi": f"{dpi} dpi",
-        "patchcount": f"{layout.total_patches} patches",
-        "pages": str(layout.pages),                     # total; {page} = "page X/Y"
-        "date": chart_date or _time.strftime("%Y-%m-%d"),
-        "seed": f"seed {seed}",
-    }
-    stamp_text = (f"ChromIQ engine · {_ctx['instrument']} · {_ctx['paper']} · "
-                  f"{_ctx['dpi']} · {_ctx['patchcount']} · {_ctx['seed']}"
+    _ctx = text_placeholder_context(
+        project=project or Path(out_base).name,
+        rundescription=rundescription, instrument=instrument, paper=paper,
+        dpi=dpi, patches=layout.total_patches, pages=layout.pages, seed=seed,
+        chart_date=chart_date)
+    stamp_text = (stamp_summary_line(instrument, paper, dpi,
+                                     layout.total_patches, seed)
                   if stamp_command else "")
     def _to_rgb(c):
         if isinstance(c, str):
@@ -323,7 +449,8 @@ def build_chart(
         strip_label_offset_mm=strip_label_offset_mm,
         chart_text=chart_text, chart_text_font=chart_text_font,
         chart_text_size_mm=chart_text_size_mm, chart_text_bold=chart_text_bold,
-        chart_text_italic=chart_text_italic, stamp_text=stamp_text,
+        chart_text_italic=chart_text_italic,
+        chart_text_align=chart_text_align, stamp_text=stamp_text,
         helper_markers=helper_markers,
         helper_marker_edge_mm=helper_marker_edge,
         helper_marker_len_mm=helper_marker_len,
@@ -375,6 +502,7 @@ def build_chart(
         # whose labels match its .ti2 and one whose labels are a guess.
         "patch_pattern": patch_pattern,
         "label_band_bottom_px": render.label_band_bottom_px,
+        "patch_ink_top_px": render.patch_ink_top_px,
         "strips": rects, "patches": patch_rects,
     }, indent=2), encoding="utf-8")
 

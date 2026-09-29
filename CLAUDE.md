@@ -117,6 +117,21 @@ reference to a bound receiver and lets Qt sever the connection when it dies,
 instead of parking a Python closure inside a C++ object on the far side of the
 cycle.
 
+**AND THE GARBAGE COLLECTOR MAY NOT RUN INSIDE QT'S EVENT DELIVERY (B8-1392).**
+The other half of the same crash class, found 2026-09-26 from a core dump: a
+worker died 3 runs in 9 in `sendThroughObjectEventFilters`. A widget tree left in
+a reference cycle was still receiving a queued event; a Python event filter on
+it allocated, the allocation triggered an automatic collection, and the
+collection deleted the very widget Qt was delivering to. Beta 43 had it too, and
+B8-1191's "GC on the layout thread" was the same fault seen from one side.
+`core/gc_guard.py` turns automatic collection off and collects from a timer on
+the GUI thread, between events; `main()`, `scripts/capture_screens.py::build_app`
+and the suite's QApplication fixture install it. **Never switch
+automatic collection on in app code**; code that holds it off for a while
+restores only what it found (`core/sound.py`, `workflow/preset_layout.py`), and a test that must measure CPython's own collector
+asks for the `automatic_gc` fixture. `tests/test_b8_1392_no_collection_inside_
+event_delivery.py` keeps it that way.
+
 `pytest.ini` scopes collection to `tests/` (via `testpaths`). Without it a
 bare `pytest` recurses into `.venv/` and — with `pytest-qt` active —
 collection appears to hang for many minutes. Anything far beyond the times
@@ -233,6 +248,21 @@ Delete `$TMPDIR/chromiq-demo-projects-cache`, or point `CHROMIQ_DEMO_CACHE`
 elsewhere, to force a rebuild. Every consumer still copies what it uses, because
 `Project.load` migrates in place.
 
+**`pytest | tail` REPORTS TAIL'S EXIT CODE, NOT PYTEST'S.** A gate run piped
+into `tail -4` and followed by `echo "exit=$?"` prints `exit=0` however red the
+run was, because `$?` is the last command in the pipeline. That was quoted as
+evidence of three green gates on four releases in one night; the runs really
+were green, but the number cited proved nothing, and on the fifth the same
+script printed `exit=0` beside `1 failed`. Redirect instead:
+
+```bash
+QT_QPA_PLATFORM=offscreen pytest --runslow -n auto -q > /tmp/gate.txt 2>&1
+echo "exit=$?"            # this one is pytest's
+```
+
+or read `${PIPESTATUS[0]}` in bash / `$pipestatus[1]` in zsh. **The count line
+is the other check**: `N passed` with no `failed,` in it.
+
 **Do not edit source files while a gate is running.** Many tests asserts on
 `inspect.getsource(...)`, which reads from disk — an edit mid-run shifts line
 offsets and produces dozens of failures that look like real regressions and are
@@ -265,6 +295,80 @@ projects get built twice per run. Tests copy what they use, because
 **Never call `qapp.setStyleSheet()` in a test.** It re-polishes every widget the
 suite has alive — two tests that took 0.2 s alone cost 29 s inside a full run.
 Style the widget under test instead; it measures the same thing.
+
+## ON SCREEN IS THE DEFAULT. OFFSCREEN IS A FAILURE TO BE REPORTED.
+
+**Every check for a regression, and every piece of proof, is produced by driving
+the REAL app in a REAL window.** Basti, 2026-09-11: *"why is it seemingly so
+hard to understand that i want you to run the app on screen when check for
+regressions or should leave proof? we established that this is always the better
+way to do it and yet if i don't explicitly tell you every time you and the
+agents are doing offscreen tests"*.
+
+He is right, and this is here so it stops depending on anyone remembering to say
+it again. It applies to this file's reader and to every agent briefed from it.
+
+* **Do not ask permission and do not offer offscreen as an equal option.** Open
+  a window.
+* `QT_QPA_PLATFORM=offscreen` belongs to the TEST SUITE, which is a different
+  thing from driving the app. Setting it in a driver is not a neutral choice: a
+  `widget.grab()` render is not a screenshot, it cannot show compositing,
+  stacking, a popup, a native dialog, or anything the window server does, and
+  several findings on this project turned out to be artefacts of exactly that.
+* If a window genuinely cannot be opened, that is a **finding to report at the
+  top of your result**, with what you measured, not a detail in a methods
+  section and never a silent fallback. Say which mode you used, every time.
+* Ten rounds in a row reported the window server "refusing windows"; two later
+  agents measured it again and got real windows on the first try. **Measure it
+  yourself before believing any such claim, including one in this file.**
+* **Screen Recording IS granted** (Basti, 2026-09-11), so `screencapture` gives
+  a real picture of a real window. Check it rather than assume, with
+  `CGPreflightScreenCaptureAccess()`, and capture the window rather than
+  `widget.grab()` it. Before the grant, `screencapture -l` answered *"could not
+  create image from window"* and `-R` returned wallpaper, and one round kept
+  three wallpaper files named `BLOCKED-CAPTURE-*` rather than pass them off as
+  evidence. That was the right call and it is no longer necessary.
+* **A LOCKED SCREEN IS NOT A BLOCKER ON THIS MACHINE. WAKE IT.** Basti,
+  2026-09-13: *"my screen never needs a password to be unlocked"*, asked after
+  a round spent a morning writing "the screen is locked, so there are no
+  photographs". `CGSSessionScreenIsLocked` really was 1, and the round was
+  still wrong: on a session with no password on the lock, asserting user
+  activity clears it. `scripts/onscreen_capture.py::wake_the_screen` does that
+  (`caffeinate -u`, then re-ask), and `capture_window` now calls it before
+  refusing anything. Proved by putting the machine back into that exact state
+  with `pmset displaysleepnow`, watching the flag go to 1, and watching the
+  helper clear it unaided. **Only report a lock as a blocker after the wake has
+  failed**, which means a password really is wanted.
+  * This is also the honest answer to "why can you unlock it sometimes and not
+    others": nobody ever unlocked anything. Earlier rounds woke a display that
+    happened to be asleep and it looked like an unlock. The variable was the
+    agent's behaviour, not the machine's.
+* **A WINDOW DOES NOT HAVE TO BE IN FRONT TO BE PHOTOGRAPHED.** `screencapture
+  -R` copies a RECTANGLE of the screen, so whatever is stacked above the window
+  is what comes out, and `win.raise_()` cannot fix it: a process macOS never
+  activated cannot bring itself to the front. Measured the same day, with the
+  screen unlocked: every capture came back 0 % different from the same
+  rectangle with the window hidden, because the app sat behind the terminal
+  that launched it. `NSRunningApplication.activateWithOptions_` does not help
+  either: it returns True and `isActive` stays False, because macOS 15 does not
+  let a process take focus.
+  * **AND `screencapture -l` DOES NOT WORK EITHER, WHILE THE API BEHIND IT
+    DOES.** The CLI exits 1 with *"could not create image from window"*, which
+    is the same string the bullet above blames on the missing permission grant
+    and which survives the grant, so that attribution was wrong.
+    `CGWindowListCreateImage(..., kCGWindowListOptionIncludingWindow, wid, ...)`
+    returns the window's own buffer: measured 2026-09-13, a 700x528 picture
+    with the title bar in it, taken while the window was on another Space and
+    while the CLI refused. `capture_window` uses that first
+    (`window_id_for` finds the id via pyobjc) and keeps the rectangle, with its
+    hide/show proof, as the fallback.
+  * `tests/test_a_driver_photographs_the_window_not_the_screen.py` is what
+    makes this stick: a driver that aims `screencapture -R` or `-l` at a window
+    itself fails the suite, and so does a helper that reaches for the screen
+    before the window or reports a lock before waking it.
+
+The sandbox rules in the next section are how you do this SAFELY. They are not
+an alternative to doing it.
 
 ## Driving the app on screen — sandbox the settings FIRST
 
@@ -407,6 +511,20 @@ Rules when touching UI code:
 - Wrap every new user-facing literal in `tr()`; runtime values use
   `tr("… {name} …").format(name=…)` (placeholders are part of the key).
 - Count-bearing messages get explicit singular/plural variants, never `(s)`.
+- **No em dash (—) in new or modified user-facing text.** It is one of the
+  clearest tells of machine-written prose, and a comma, a colon, a full stop or
+  brackets almost always read better anyway. The 1,225 strings that carried one
+  before this rule (2026-09-06) are frozen in `tests/data/em_dash_baseline.json`
+  and are NOT to be swept; but a string you touch for any reason stops matching
+  the baseline, so clean its dash while you are in there.
+  `tests/test_no_new_em_dash_in_user_facing_text.py` enforces it over `tr()`
+  literals, `data/parameters.yaml` and the §M catalogue, and separately refuses
+  a translation that adds an em dash its English source does not have. The en
+  dash (–) is deliberately untouched: it is the correct dash in German and
+  Norwegian. If one is genuinely unavoidable, put the string in
+  `tests/data/em_dash_allowed.json` with a real reason. Never add it to the
+  baseline, which only shrinks: `python scripts/em_dash_check.py --report`
+  says where it stands, `--prune` tidies it.
 - After string changes run `python scripts/i18n_extract.py --missing de`
   and add the German translations — `tests/test_i18n.py` fails CI on missing
   keys, stale keys, placeholder mismatches, and over-long short labels.
@@ -463,6 +581,8 @@ Two obligations, and the second is the one that is easy to get wrong:
 | `calibration_run_type.md` | calibration as a run type |
 | `tool_availability.md` | which Tools apply to which run-type/profile-run selection, and where each may write (**DRAFT — awaiting confirmation**) |
 | `verification_printing_and_target.md` | printing a verification chart through its profile, and #133's profile-tailored target — condition→action tables mapped to code (**DRAFT — awaiting confirmation**) |
+| `measurement_report_limits.md` | the Measurement Report's limit sets (#182): rows, the five verdict words, where a run's set lives and when it may change, report types per run type, report folders and the report list, evenness, the trend graphs; every ruling since beta 34 indexed at the top (**the sections on Knut's confirmation list were CONFIRMED by him on 2026-09-23, #182 5794311113; older blocks and the §20 gaps still await confirmation**) |
+| `chart_load_and_generate_paths.md` | every path that shows a stored chart and every path that builds a new one (#182), measured by driving the app; the chart-file import rule, and the two ways of laying a chart out again (**DRAFT, awaiting confirmation**) |
 
 New user-facing message text is governed by §M of
 `unified_measurement_management.md`: it goes to §M-PROPOSED first and is not

@@ -7,11 +7,11 @@ parameters:
       tooltip_body: |-
         Bepaalt de kleurmiddelcombinatie van je uitvoerapparaat.
 
-        Drukruimtes zijn subtractief: apparaatwaarde 0 = wit (geen inkt),
+        **Drukruimtes zijn subtractief:** apparaatwaarde 0 = wit (geen inkt),
         maximum = zwart (volle inkt).  Video-/beeldschermruimtes zijn
         additief: apparaatwaarde 0 = zwart, maximum = wit.
 
-        Gangbare keuzes:
+        **Gangbare keuzes:**
           • Druk grijs (-d 0)  — éénkanaals grijswaardenprinter
           • Video grijs (-d 1) — éénkanaals beeldscherm/monitor
           • Druk RGB (-d 2)    — standaard RGB-inkjet (standaard, aanbevolen)
@@ -48,7 +48,7 @@ parameters:
         gekozen kleurmiddel al in de set, dan wordt het verwijderd; ontbreekt
         het, dan wordt het toegevoegd.
 
-        Typische toepassingen:
+        **Typische toepassingen:**
           • Oranje (-D 5) aan standaard-CMYK toevoegen voor een ruimer gamut
           • Lichtcyaan (-D 11) / lichtmagenta (-D 12) aan CMYK toevoegen
             voor vloeiendere verlopen in de lichten
@@ -90,7 +90,7 @@ parameters:
           • Hoge kwaliteit: 1500–2000
           • Zeer hoog:  2500–3000
 
-        Auto (naast het draaiveld): aangevinkt wordt het meetveldaantal live
+        **Auto (naast het draaiveld):** aangevinkt wordt het meetveldaantal live
         berekend uit het gekozen papier, instrument, double-density,
         linkerrand, meetveldgrootte, marge en het paginadraaiveld in de
         printtarg-sectie — de grootste waarde die precies dat aantal vellen
@@ -111,7 +111,7 @@ parameters:
         verankert de lichte kant van het profiel. 4 is een goede standaard;
         zeer glanzend papier kan van een paar extra profiteren.
 
-        Auto (vinkje):
+        **Auto (vinkje):**
         Zet "Auto" aan en ChromIQ kiest dit aantal voor je, op basis van
         hoeveel meetvelden de hele kaart bevat — een kleine éénpaginakaart krijgt
         een paar witte meetvelden en een grote meerpaginakaart meer, zonder dat je
@@ -135,7 +135,7 @@ parameters:
         die je printer kan maken — dat verankert de schaduwkant van het
         profiel. 4 is een goede standaard voor RGB-printers.
 
-        Auto (vinkje):
+        **Auto (vinkje):**
         Zet "Auto" aan en ChromIQ kiest dit aantal voor je, op basis van
         hoeveel meetvelden de hele kaart bevat — een kleine kaart krijgt een paar
         zwarte meetvelden, een grote kaart meer.
@@ -158,7 +158,7 @@ parameters:
         Vuistregel bij handmatig instellen: 0 voor een snel profiel,
         50–100 voor een standaard, 128+ voor hoge kwaliteit.
 
-        Auto (vinkje):
+        **Auto (vinkje):**
         Zet "Auto" aan en ChromIQ kiest dit aantal voor je, geschaald naar
         hoeveel meetvelden de hele kaart bevat — een grotere kaart krijgt een
         langere, fijnere grijstrap.
@@ -255,7 +255,7 @@ parameters:
           • -n voegt expliciete, uit het profiel afgeleide neutrale meetvelden
             toe bovenop wat de rest van de verdeling oplevert.
 
-        Wanneer te gebruiken:
+        **Wanneer te gebruiken:**
           • Je hebt al een ICC-profiel uit een eerste ronde voor dit papier
             en bouwt een verfijningskaart.  Laad dat profiel onder
             ‘Voorconditioneringsprofiel’ (-c) en zet -n op 32–64 om de
@@ -264,7 +264,7 @@ parameters:
             voorconditioneringsprofiel is er geen "echte" neutrale as om
             uit te bemonsteren, en -g dekt de apparaat-grijstrap al.
 
-        Typische verfijningswaarden: 32 voor gewoon werk, 64 voor
+        **Typische verfijningswaarden:** 32 voor gewoon werk, 64 voor
         fine-art / proefdrukken waar neutraliteit kritiek is.
 
         Vereist dat -c is ingesteld; heeft anders geen effect.
@@ -297,7 +297,7 @@ parameters:
         zulke meetvelden voorspelt kleuren die je printer in werkelijkheid niet
         kan maken.
 
-        Zo kies je een waarde:
+        **Zo kies je een waarde:**
           • De meeste CMYK-inkjets:    260 – 320 %
           • Gestreken / glanzend papier: 320 – 360 %
           • Krantenpapier, lage kwaliteit: 220 – 260 %
@@ -309,7 +309,7 @@ parameters:
         inktlimiet-testwig af en kies de hoogste waarde die schoon droogt
         zonder uitlopen.
 
-        Voor RGB-werkstromen: meestal uitgeschakeld laten — RGB-inkjets
+        **Voor RGB-werkstromen:** meestal uitgeschakeld laten — RGB-inkjets
         regelen hun inktbegrenzing intern, dus targen hoeft niet over
         kanalen te budgetteren.
 
@@ -325,36 +325,36 @@ parameters:
         Kies ER ÉÉN. Ze sluiten elkaar uit — elk van deze keuzes vervangt
         de standaard-OFPS-plaatsing volledig.
 
-        OFPS (standaard, aanbevolen):
+        **OFPS (standaard, aanbevolen):**
         Optimised Farthest Point Sampling. Plaatst elk nieuw meetveld iteratief
         zo ver mogelijk van elk bestaand meetveld — de gelijkmatigste dekking
         van alle algoritmen hier. Trager dan de alternatieven, maar de
         gouden standaard voor profielkwaliteit. Combineer met "Grondige
         optimalisatie (-G)" voor het beste resultaat.
 
-        Incremental Far Point (-t):
+        **Incremental Far Point (-t):**
         Een eenvoudiger verstepunt-methode. Sneller dan OFPS, iets minder
         gelijkmatig. Gebruik wanneer OFPS te traag is bij zeer grote
         meetveldaantallen en je een klein kwaliteitsverlies accepteert.
 
-        Willekeurig — apparaatruimte (-r):
+        **Willekeurig — apparaatruimte (-r):**
         Uniform willekeurige meetvelden in rauwe apparaatwaarden (bijv. RGB).
         Het snelst, maar de dekking in *waargenomen* kleur is ongelijk —
         verspilt meetvelden in gebieden die ons oog nauwelijks onderscheidt.
 
-        Willekeurig — perceptuele ruimte (-R):
+        **Willekeurig — perceptuele ruimte (-R):**
         Uniform willekeurig in waargenomen kleur (Lab). Beter dan -r als
         het per se willekeurig moet, omdat de meetvelden gelijkmatig naar wat
         het oog ziet worden gespreid. Bij gelijk aantal nog steeds minder
         optimaal dan OFPS.
 
-        Quasi-willekeurig ruimtevullend (-q / -Q):
+        **Quasi-willekeurig ruimtevullend (-q / -Q):**
         Lage-discrepantie-reeksen (Sobol-achtig) die de ruimte gelijkmatiger
         vullen dan echt willekeurig, zonder de iteratieve kosten van OFPS.
         -q in apparaatruimte, -Q in perceptuele ruimte. Een goede middenweg
         wanneer OFPS te traag is.
 
-        Kubisch ruimtelijk gecentreerd rooster (-i / -I):
+        **Kubisch ruimtelijk gecentreerd rooster (-i / -I):**
         Een vast regelmatig rooster (elk meetveld omringd door 8 buren in een
         kubuspatroon). Deterministisch en zeer gelijkmatig, maar star —
         alleen bepaalde meetveldaantallen passen in het rooster. -i in
@@ -408,13 +408,13 @@ parameters:
         Zet op 0 (standaard) om over te slaan — vrijwel altijd de juiste
         keuze. OFPS dekt het kubusbinnenste al efficiënter.
 
-        Wanneer te gebruiken:
+        **Wanneer te gebruiken:**
           • Herhaalbaarheid tussen machines: een vast raster is elke keer
             hetzelfde, ongeacht welke OFPS-plaatsingen targen koos — dat
             helpt profielen tussen runs te vergelijken.
           • Diagnosekaarten met voorspelbare, benoemde kubusposities.
 
-        Typische waarden bij gebruik: 3 – 6 (stappen per as). De aantallen
+        **Typische waarden bij gebruik:** 3 – 6 (stappen per as). De aantallen
         groeien snel — 6 stappen in RGB is 216 meetvelden, 8 is er 512.
 
         Vink het vakje aan om in te schakelen.
@@ -429,13 +429,13 @@ parameters:
 
         Zet op 0 (standaard) om over te slaan.
 
-        Wanneer te gebruiken:
+        **Wanneer te gebruiken:**
           • Je wilt gericht de gamutgrens en de primaire/secundaire hoeken
             vastleggen, zonder de binnenste overhead van -m.
           • Vergelijken hoe verschillende inkten/papieren de gamutomhulling
             verschuiven — oppervlaktemeetvelden worden het meest beïnvloed.
 
-        Typische waarden bij gebruik: 4 – 8 stappen per vlak.
+        **Typische waarden bij gebruik:** 4 – 8 stappen per vlak.
 
         Vink het vakje aan om in te schakelen.
     "-b":
@@ -449,13 +449,13 @@ parameters:
 
         Zet op 0 (standaard) om over te slaan — dit is een nicheknop.
 
-        Wanneer te gebruiken:
+        **Wanneer te gebruiken:**
           • Je wilt regelmatige, roosteruitgelijnde meetveldposities, maar met
             betere pakking dan -m geeft, zonder helemaal naar OFPS te gaan.
           • Onderzoeks- / herhaalbaarheidsscenario's waarin de BCC-structuur
             zelf het doel is.
 
-        Let op: dit is de *stappenteller*-vorm (voegt toe aan je meetveldlijst);
+        **Let op:** dit is de *stappenteller*-vorm (voegt toe aan je meetveldlijst);
         voor een kaart waarvan de *hele* verdeling BCC is, gebruik je de
         keuzelijst "Meetveldverdeling" hierboven en kies je daar de optie
         kubisch ruimtelijk gecentreerd.
@@ -615,8 +615,9 @@ parameters:
       name: "Meetveldvolgorde behouden (niet randomiseren)"
       tooltip_title: "Geen randomisatie (-r)"
       tooltip_body: |-
-        Standaard randomiseert printtarg de meetveldposities om drift-artefacten
-        van het instrument te verminderen.  Schakel deze optie alleen in
+        Standaard randomiseert printtarg de meetveldposities om artefacten
+        te verminderen van meetwaarden die tijdens een meting langzaam
+        veranderen.  Schakel deze optie alleen in
         als je een specifieke meetveldvolgorde test of je instrument geordende
         meetvelden vereist.
     "-b":
@@ -671,7 +672,7 @@ parameters:
         De .cal wordt ook in het .ti2-bestand ingesloten, zodat colprof er
         bij het bouwen van het ICC-profiel naar kan verwijzen.
 
-        Typisch gebruik: desktop-inkjetprinters zonder ingebouwde
+        **Typisch gebruik:** desktop-inkjetprinters zonder ingebouwde
         linearisatie, rechtstreeks vanuit een TIFF aangestuurd zonder
         tussenliggende RIP.
 
@@ -691,7 +692,7 @@ parameters:
         -I sluit het .cal-bestand alleen als metadata in de .ti2-uitvoer in
         en laat alle meetveldwaarden onaangeroerd.
 
-        Typisch gebruik: professionele inkjet-RIP's (bijv. EFI Fiery,
+        **Typisch gebruik:** professionele inkjet-RIP's (bijv. EFI Fiery,
         Wasatch, ColorBurst) of printers met ingebouwde linearisatie die
         tijdens de profileer-afdrukrun actief is.
 
@@ -782,96 +783,6 @@ parameters:
         instrumentprofiel zwart-wit kan zijn).  Kan de strookherkenning
         verbeteren op sommige kleureninkjets waar zwarte scheidingslijnen
         weinig contrast hebben met donkere meetvelden.
-  chartread:
-    "-B":
-      name: "Bidirectioneel lezen uit"
-      tooltip_title: "Bidirectioneel lezen uitschakelen (-B)"
-      tooltip_body: |-
-        Verhindert dat chartread automatisch detecteert of je een strook
-        vooruit of achteruit hebt gescand. ChromIQ laat dit standaard uit,
-        zodat het instrument stroken in beide richtingen kan lezen.
-
-        Alleen aanzetten als je instrument tijdens het meten valse
-        strookrichting-fouten meldt.
-    "-b":
-      name: "Bidirectioneel lezen forceren"
-      tooltip_title: "Bidirectioneel lezen forceren (-b)"
-      tooltip_body: |-
-        Dwingt chartread een strook te accepteren die in willekeurige
-        richting is gescand.
-
-        Normaal detecteert chartread de strookrichting alleen automatisch op
-        gerandomiseerde kaarten; op een kaart met vaste volgorde leest het
-        maar één richting en verwerpt het achteruit gescande stroken. Zet
-        dit aan om de detectie hoe dan ook af te dwingen — nuttig voor de
-        i1 Pro-familie, die beide kanten op leest. Dit is het omgekeerde
-        van -B; er kan er maar één gelden.
-    "-S":
-      name: "Waarschuwingen onderdrukken"
-      tooltip_title: "Waarschuwingen onderdrukken (-S)"
-      tooltip_body: |-
-        Onderdrukt niet-fatale meetwaarschuwingsdialogen van chartread.
-        Aanbevolen voor onbeheerde of batch-meetsessies.
-        Fouten die het genereren van een profiel zouden verhinderen,
-        worden nog steeds gemeld.
-    "-N":
-      name: "Startkalibratie uitschakelen"
-      tooltip_title: "Startkalibratie uitschakelen (-N)"
-      tooltip_body: |-
-        Slaat de automatische wittegelkalibratie van het instrument bij het
-        starten over.  Alleen gebruiken als je het instrument in deze sessie
-        al hebt gekalibreerd en extra kaarten wilt meten zonder opnieuw te
-        kalibreren.
-    "-p":
-      name: "Per-meetveld-modus"
-      tooltip_title: "Per-meetveld-modus (-p)"
-      tooltip_body: |-
-        Schakelt van strooklezen over op het meten van losse meetvelden.
-        Nuttig voor losse handmetingen of wanneer strooklezen op een
-        bepaald papier mislukt.  Aanzienlijk trager bij grote kaarten.
-    "-H":
-      name: "Hoge-resolutie spectrale modus"
-      tooltip_title: "Hoge-resolutie spectrum (-H)"
-      tooltip_body: |-
-        Schakelt hoge-resolutie spectrale bemonstering in op instrumenten
-        die dat ondersteunen (bijv. i1Pro 2/3).  Levert nauwkeurigere
-        Lab-waarden op, maar verlengt de meettijd iets.
-    "-T":
-      name: "Consistentietolerantie"
-      tooltip_title: "Consistentietolerantie (-T)"
-      tooltip_body: |-
-        Een vermenigvuldiger op chartreads ingebouwde
-        meetveld-consistentiedrempel — geen delta-E-waarde. chartread leest elk
-        meetveld opnieuw en verwerpt stroken waarvan de metingen meer dan de
-        drempel × dit getal van elkaar afwijken.
-
-        Lager = strenger. Een strenge instelling vangt echte problemen
-        vroeg: verstopte inkjet-spuitmonden, weinig inkt, vuile drumrollen,
-        verlopende lasertoner. Op een gezonde printer-spectrofotometer-
-        combinatie laat de standaard van 0.7 ruime marge; ervaren gebruikers
-        op printerknowledge.com draaien 0.4 met een i1 Pro 2 / 3.
-
-        Verhoog naar 0.8–1.5 bij valse "inconsistent patch"-fouten op
-        gestructureerd, mat of fine-art-papier — het oppervlak zelf draagt
-        daar echte variatie bij. Waarden boven 2 maskeren vooral echte
-        problemen; heb je ze nodig, repareer dan eerst de printer.
-    "-l":
-      name: "D50-L*a*b*-waarden opslaan"
-      tooltip_title: "L*a*b* in plaats van XYZ opslaan (-l)"
-      tooltip_body: |-
-        Bewaart meetgegevens als D50-L*a*b*-waarden in plaats van XYZ.
-        De meeste werkstromen gebruiken XYZ (standaard).  Alleen inschakelen
-        als vervolgtools uitdrukkelijk L*a*b*-invoer vereisen.
-    "-X":
-      name: "Colorimeter-correctie"
-      tooltip_title: "Colorimeter-correctiematrix (-X)"
-      tooltip_body: |-
-        Past een colorimeter-correctiematrix (.ccmx) of spectrale
-        kalibratieset (.ccss) toe om de nauwkeurigheid van een colorimeter
-        te verbeteren.
-        Alleen relevant voor colorimeters (niet voor spectrofotometers).
-        Vraag het juiste bestand op bij de instrumentfabrikant of maak het
-        met de ccss-/ccmx-tools van ArgyllCMS.
   colprof:
     "-D":
       name: "Profielbeschrijving"
@@ -905,13 +816,6 @@ parameters:
       labels:
         - "l — Lab-cLUT (aanbevolen voor RGB-printers)"
         - "x — XYZ-cLUT"
-        - "X — XYZ-cLUT (absoluut)"
-        - "g — gamma + matrix (snel, minder nauwkeurig)"
-        - "G — gamma + matrix (geforceerd)"
-        - "s — enkele gamma + matrix"
-        - "S — enkele gamma + matrix (geforceerd)"
-        - "m — alleen matrix"
-        - "M — alleen matrix (geforceerd)"
     "-q":
       name: "Profielkwaliteit"
       tooltip_title: "Profielkwaliteit (-q)"
@@ -1103,7 +1007,7 @@ parameters:
         toegepast.  Hogere waarden geven gladdere maar minder precieze
         curves.
 
-        Standaard: 1.0 — goed voor de meeste printers.
+        **Standaard:** 1.0 — goed voor de meeste printers.
         Verhoog (bijv. 2.0–5.0) als de printer een ruisige toonrespons
         heeft of de kalibratiecurves er hoekig uitzien.
     "-z":

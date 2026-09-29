@@ -12,8 +12,11 @@ on a report that names it, and only then is it frozen under a version number.
 For a given profile this module *selects*: every master colour is pushed
 backward through the profile (its B2A — "which ink amounts produce this
 colour?") and forward again (its A2B), and the round-trip ΔE76 says whether
-the profile can actually reach it. Two numbers fall out, answering two
-different questions (§5.1):
+the profile can actually reach it — **together with the ink amount itself,
+which has to exist**: the numeric inverse answers outside the device cube and
+the forward leg extrapolates back, so a colour needing device 107.69 round
+trips perfectly and is still unprintable (:func:`device_is_printable`). Two
+numbers fall out, answering two different questions (§5.1):
 
 * **coverage** — how many of the master set this profile can print at all;
 * the **chart** — reachable colours in master order, with one adjustment for
@@ -48,8 +51,10 @@ injectable runners — never the ArgyllRunner singleton, always with a timeout.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import struct
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -94,6 +99,47 @@ CORNER_DEVICES: "tuple[tuple[float, float, float], ...]" = (
 )
 
 
+#: The printable device cube. Argyll speaks 0..100 per channel and there is
+#: no ink amount outside it: printtarg and the ChromIQ layout engine both
+#: clip what they render, so a value beyond these bounds can only mislead
+#: whoever reads the file.
+DEVICE_MIN = 0.0
+DEVICE_MAX = 100.0
+#: How far outside the cube is still the same value. Arithmetic dust only —
+#: measured over the whole 5,960-colour master set through two real profiles,
+#: nothing at all lands in (0, 0.01] outside the cube, so this tolerance
+#: decides no colour's fate; it exists so a 100.0000001 from the inverse is
+#: not read as a different number from 100.
+DEVICE_EPS = 0.01
+
+
+def device_is_printable(device: "Sequence[float]") -> bool:
+    """Is this ink amount one the printer can actually be asked for?
+
+    **xicclu's numeric inverse answers outside the device cube.** Asked for a
+    colour the profile cannot reach, ``-fif`` extrapolates the forward table
+    and hands back device values above 100 (measured: 304 of 5,960 master
+    colours through a 210-patch ``colprof -ql -aG`` profile, the largest
+    107.69). The round trip does not catch it, because the forward leg
+    extrapolates the same way and the two errors cancel: those colours come
+    back 0.000 ΔE00 from their aim while no printer can print them.
+    """
+    return all(DEVICE_MIN - DEVICE_EPS <= float(v) <= DEVICE_MAX + DEVICE_EPS
+               for v in device)
+
+
+def snap_to_device_cube(device: "Sequence[float]") -> "tuple[float, ...]":
+    """*device* with each channel put back inside 0..100.
+
+    The last line of defence, applied by both file writers so the chart and
+    its colorimetric reference can never describe the same patch with two
+    different ink amounts. After :func:`select_gamut_targets` it moves
+    nothing further than :data:`DEVICE_EPS`, because a colour that needs more
+    than that is not selected at all.
+    """
+    return tuple(min(DEVICE_MAX, max(DEVICE_MIN, float(v))) for v in device)
+
+
 class GamutTargetError(RuntimeError):
     """Selection could not run (missing master set, unusable profile, …)."""
 
@@ -121,6 +167,13 @@ class GamutSelection:
     targets: "list[tuple[int, tuple[float, float, float], tuple[float, ...]]]" = field(default_factory=list)
     #: The §9a corners: (device, ideal sRGB Lab), appended after the targets.
     corners: "list[tuple[tuple[float, ...], tuple[float, float, float]]]" = field(default_factory=list)
+    #: #182 A11 (Knut, 5817809396): the paper THE PROFILE DESCRIBES, its media
+    #: white (``wtpt``) as L*a*b* D50, and the profile's file name. The row
+    #: "Paper white, difference from the reference paper" compares the bare
+    #: paper of the printed chart with this, so it asks "is this the paper the
+    #: profile was made for". None when the profile carries no media white.
+    profile_white_lab: "tuple[float, float, float] | None" = None
+    profile_name: str = ""
 
     @property
     def achieved(self) -> int:
@@ -129,6 +182,23 @@ class GamutSelection:
     @property
     def total_patches(self) -> int:
         return len(self.targets) + len(self.corners)
+
+
+def profile_media_white_lab(profile: "Path | str"
+                            ) -> "tuple[float, float, float] | None":
+    """The profile's media white (its ``wtpt`` tag) as L*a*b* D50, rounded to
+    four places, or None when the file has no readable one (#182 A11).
+
+    This is the paper the profile was measured on: what a bare patch of that
+    paper reads, in absolute colorimetry. Never raises."""
+    try:
+        from workflow.icc_info import read_icc
+        lab = read_icc(Path(profile)).white_lab
+    except Exception:                                  # noqa: BLE001
+        return None
+    if lab is None:
+        return None
+    return tuple(round(float(v), 4) for v in lab)
 
 
 def load_master_labs(path: "Path | None" = None) -> "list[tuple[float, float, float]]":
@@ -228,6 +298,92 @@ def _spread_order(n: int) -> "list[int]":
     return order
 
 
+#: (profile path, profile digest, intent letter, bin dir, colour count, colour
+#: digest) → (device, back). Bounded, because each entry holds two rows per
+#: colour asked about.
+_ROUND_TRIP_CACHE: "dict[tuple, tuple[list, list]]" = {}
+_ROUND_TRIP_CACHE_MAX = 3
+
+
+def clear_round_trip_cache() -> None:
+    """Forget every remembered round trip. For tests, and for anything that
+    wants the profiles re-read from disk."""
+    _ROUND_TRIP_CACHE.clear()
+
+
+def _round_trip(
+    labs: "list[tuple[float, float, float]]",
+    profile: Path,
+    bin_dir: "str | Path",
+    letter: str,
+    runner: "Callable[..., subprocess.CompletedProcess]",
+) -> "tuple[list, list]":
+    """Lab → device → Lab′ through *profile*, the one place that asks.
+
+    **THE MARGIN IS NOT PART OF THE QUESTION.** It is a threshold applied to
+    the answer, and so is the patch count, so re-asking xicclu when only one
+    of those changed spends seconds re-deriving numbers that cannot have
+    moved. Both entry points share this function and its memo, so flicking
+    Margin after the reach is known costs nothing.
+
+    Only a REAL ``subprocess.run`` is remembered. An injected runner is a
+    test's stand-in for the process and its answers are the test's business,
+    so those callers always re-run.
+    """
+    from workflow.xicclu_runner import XiccluError, backward_device, forward_lab
+
+    key = None
+    if runner is subprocess.run:
+        try:
+            # THE PROFILE'S CONTENTS, not its name and timestamp. `shutil.copy2`
+            # PRESERVES the modification time, and ChromIQ really does copy an
+            # ICC onto a run's own profile path that way (`ui/ti2_loader.py`
+            # importing a measurement with its profile beside it), so path +
+            # size + mtime can describe two different profiles. Reading it
+            # costs about 2 ms against the second this saves, and it makes a
+            # stale answer impossible rather than unlikely.
+            h = hashlib.blake2b(profile.read_bytes(), digest_size=16)
+            # THE COLOURS THEMSELVES, digested too, because `flags_in_gamut` is
+            # handed an arbitrary list by the measurement report: a key that
+            # said only how MANY there were would serve one set of colours the
+            # answer computed for a different set of the same length.
+            c = hashlib.blake2b(digest_size=16)
+            for lab in labs:
+                c.update(struct.pack("<3d", *lab))
+            # The PATH joins both digests. Two identical profiles in two places
+            # then get an entry each, which is a little wasteful and never
+            # wrong; keying on the contents alone made every caller holding the
+            # same small stand-in profile share one answer, which is how this
+            # broke `test_gamut_target.py` when it was first written.
+            key = (str(profile.resolve()), h.hexdigest(), letter,
+                   str(bin_dir), len(labs), c.hexdigest())
+        except (OSError, struct.error, TypeError):
+            key = None
+    if key is not None and key in _ROUND_TRIP_CACHE:
+        return _ROUND_TRIP_CACHE[key]
+
+    try:
+        # RGB output profiles have no K channel — no -k rule.
+        # THE NUMERIC INVERSE, because this device value is going on paper.
+        # `-fb` reads the profile's baked B2A table, which is a fast
+        # approximation of an inverse; over the eleven bundled sets it lands
+        # 0.366 dE00 from the aim on average against 0.052 for `-fif`, and 659
+        # of 792 patches inside 0.5 against 770. It cost 0.17 s for 1,617.
+        device = backward_device(labs, profile, bin_dir, intent=letter,
+                                 k_rule=None, numeric_inverse=True,
+                                 runner=runner)
+        back = forward_lab(device, profile, bin_dir, intent=letter,
+                           runner=runner)
+    except XiccluError as exc:
+        raise GamutTargetError(str(exc)) from exc
+
+    if key is not None:
+        while len(_ROUND_TRIP_CACHE) >= _ROUND_TRIP_CACHE_MAX:
+            _ROUND_TRIP_CACHE.pop(next(iter(_ROUND_TRIP_CACHE)))
+        _ROUND_TRIP_CACHE[key] = (device, back)
+    return device, back
+
+
 def select_gamut_targets(
     profile: Path,
     count: int,
@@ -244,6 +400,9 @@ def select_gamut_targets(
     The round trip: master Lab → B2A → device → A2B → Lab′. A colour the
     profile can reach comes back within interpolation error; a clipped one
     lands on the gamut surface and moves far. The margin picks the threshold.
+    A colour whose ink amount falls outside the device cube is not reachable
+    whatever the round trip says (:func:`device_is_printable`), so it counts
+    against neither ``in_gamut_total`` nor the chart.
 
     The pick is the first *count* reachable colours in master order, EXCEPT
     that the master's opening neutral block (white, black, grey wedge — read
@@ -252,7 +411,6 @@ def select_gamut_targets(
     result is deterministic, and a smaller chart's colours are a subset of a
     larger chart's for the same profile.
     """
-    from workflow.xicclu_runner import XiccluError, backward_device, forward_lab
     profile = Path(profile)
     if not profile.is_file():
         raise GamutTargetError(f"the profile file is missing: {profile}")
@@ -264,25 +422,40 @@ def select_gamut_targets(
     letter = intent_letter(intent)
 
     labs = load_master_labs(master_path)
-    try:
-        # RGB output profiles have no K channel — no -k rule.
-        device = backward_device(labs, profile, bin_dir, intent=letter,
-                                 k_rule=None, runner=runner)
-        back = forward_lab(device, profile, bin_dir, intent=letter,
-                           runner=runner)
-    except XiccluError as exc:
-        raise GamutTargetError(str(exc)) from exc
+    device, back = _round_trip(labs, profile, bin_dir, letter, runner)
 
     selection = GamutSelection(
         master_version=MASTER_SET_VERSION, master_total=len(labs),
         in_gamut_total=0, requested=int(count),
-        intent=intent, margin=margin)
+        intent=intent, margin=margin,
+        profile_white_lab=profile_media_white_lab(profile),
+        profile_name=profile.name)
 
+    # THE ROUND TRIP ALONE IS NOT THE QUESTION: A COLOUR IS REACHABLE ONLY IF
+    # ITS INK AMOUNT EXISTS. `-fif` extrapolates outside the device cube, and
+    # the forward leg extrapolates back, so a colour needing device 107.69
+    # returns 0.000 ΔE00 from its aim and reads as comfortably in gamut. It is
+    # not: the printer receives 100, and what it prints is up to 8.86 ΔE00
+    # from the aim the chart's reference file would store beside it (measured
+    # over the whole master set, 238 such colours, mean 2.34). Keeping the
+    # patch and clamping it writes an aim the print provably cannot hit, and
+    # the verification report then charges that error to the printer. Dropping
+    # it costs nothing: the next reachable colour in master order takes the
+    # slot, every prefix stays nested, and the chart is the size asked for.
     passing = []
+    unprintable = 0
     for i, (lab, lab2) in enumerate(zip(labs, back)):
-        if math.dist(lab, lab2) <= threshold:
-            passing.append(i)
+        if math.dist(lab, lab2) > threshold:
+            continue
+        if not device_is_printable(device[i]):
+            unprintable += 1
+            continue
+        passing.append(i)
     selection.in_gamut_total = len(passing)
+    if unprintable:
+        log.info("gamut selection: %d master colours round-tripped inside the "
+                 "%s margin but need ink amounts outside 0..100 and are not "
+                 "reachable", unprintable, margin)
 
     # The neutral block at the head of the master order, budgeted. The
     # header says where it ends; the chroma check makes sure the entries
@@ -328,7 +501,7 @@ def select_gamut_targets(
         chosen.extend(rest[:count - len(chosen)])
 
     for i in sorted(chosen):
-        selection.targets.append((i, labs[i], tuple(device[i])))
+        selection.targets.append((i, labs[i], snap_to_device_cube(device[i])))
     selection.corners = list(zip(CORNER_DEVICES, _corner_ideal_labs()))
     log.info("gamut selection: %d of %d master colours in gamut (%s margin), "
              "%d requested, %d chosen (%d neutral) + %d corners",
@@ -352,8 +525,11 @@ def flags_in_gamut(
     thresholds as :func:`select_gamut_targets` — Lab → B2A → device → A2B →
     Lab′; a reachable colour comes back within interpolation error, a clipped
     one lands on the gamut surface and moves far. Used by the measurement
-    report's split statistics (Knut, 2026-08-10)."""
-    from workflow.xicclu_runner import XiccluError, backward_device, forward_lab
+    report's split statistics (Knut, 2026-08-10).
+
+    Shares :func:`_round_trip` with :func:`select_gamut_targets`, so the
+    numeric inverse is asked for in one place and the two can never drift into
+    answering the same question differently."""
     profile = Path(profile)
     if not profile.is_file():
         raise GamutTargetError(f"the profile file is missing: {profile}")
@@ -361,13 +537,7 @@ def flags_in_gamut(
     if threshold is None:
         raise GamutTargetError(f"unknown margin {margin!r}")
     letter = intent_letter(intent)
-    try:
-        device = backward_device(list(labs), profile, bin_dir, intent=letter,
-                                 k_rule=None, runner=runner)
-        back = forward_lab(device, profile, bin_dir, intent=letter,
-                           runner=runner)
-    except XiccluError as exc:
-        raise GamutTargetError(str(exc)) from exc
+    _device, back = _round_trip(list(labs), profile, bin_dir, letter, runner)
     return [math.dist(lab, lab2) <= threshold
             for lab, lab2 in zip(labs, back)]
 
@@ -381,10 +551,20 @@ def write_gamut_ti1(selection: GamutSelection, out_path: Path) -> Path:
 
     Uses the battle-tested 3-table RGB emitter, so printtarg and the ChromIQ
     layout engine both accept the file exactly as they do any other .ti1.
+
+    **No ink amount outside 0..100 reaches the file** (:func:`snap_to_device_cube`,
+    applied identically by :func:`write_colorimetric_reference` so the two can
+    never describe one patch two ways). With a selection from
+    :func:`select_gamut_targets` this changes nothing — such a colour is not
+    selected — but one patch above 100 in a chart is enough to make the
+    measurement report read the whole chart as 0..255 code values and divide
+    every device value by 2.55, and then not one cube corner is found.
     """
     from workflow.i1profiler_import import RgbPatch, write_ti1
-    patches = [RgbPatch(*dev) for _i, _lab, dev in selection.targets]
-    patches += [RgbPatch(*dev) for dev, _lab in selection.corners]
+    patches = [RgbPatch(*snap_to_device_cube(dev))
+               for _i, _lab, dev in selection.targets]
+    patches += [RgbPatch(*snap_to_device_cube(dev))
+                for dev, _lab in selection.corners]
     if not patches:
         raise GamutTargetError("nothing to write — no colour is in gamut")
     return write_ti1(patches, Path(out_path))
@@ -396,10 +576,10 @@ def reference_rows(selection: GamutSelection):
     rows = []
     sid = 1
     for _i, lab, dev in selection.targets:
-        rows.append((sid, dev, lab))
+        rows.append((sid, snap_to_device_cube(dev), lab))
         sid += 1
     for dev, lab in selection.corners:
-        rows.append((sid, dev, lab))
+        rows.append((sid, snap_to_device_cube(dev), lab))
         sid += 1
     return rows
 
@@ -434,6 +614,16 @@ def write_colorimetric_reference(selection: GamutSelection, out_path: Path) -> P
         f'CHROMIQ_IN_GAMUT "{selection.in_gamut_total}"',
         f'CHROMIQ_REQUESTED "{selection.requested}"',
         f'CHROMIQ_CORNER_IDS "{" ".join(str(i) for i in corner_ids)}"',
+    ]
+    # #182 A11: the paper the profile describes, which the paper white row
+    # compares the bare paper with. Written only when it is known, so a reader
+    # of an older file can tell "not recorded" from any value.
+    if selection.profile_white_lab is not None:
+        lines.append('CHROMIQ_PROFILE_WHITE_LAB "{}"'.format(
+            " ".join(f"{float(v):.4f}" for v in selection.profile_white_lab)))
+    if selection.profile_name:
+        lines.append(f'CHROMIQ_PROFILE "{selection.profile_name}"')
+    lines += [
         "",
         "NUMBER_OF_FIELDS 10",
         "BEGIN_DATA_FORMAT",
@@ -459,9 +649,15 @@ def write_colorimetric_reference(selection: GamutSelection, out_path: Path) -> P
 
 
 def read_colorimetric_reference(path: Path) -> "dict | None":
-    """{"labs": {sample_id_str: (L,a,b)}, "corner_ids": set[str], meta…} — or
-    None when the file is missing or unreadable. Sample ids are strings, the
-    same shape ``parse_ti3`` gives the report, so pairing needs no casts."""
+    """{"labs": {sample_id_str: (L,a,b)}, "devices": {sample_id_str: (R,G,B)},
+    "corner_ids": set[str], meta…} — or None when the file is missing or
+    unreadable. Sample ids are strings, the same shape ``parse_ti3`` gives the
+    report, so pairing needs no casts.
+
+    ``devices`` is the chart's OWN record of which ink amount each sample was
+    given, which is how the measurement report can tell WHICH corner a
+    declared corner id is (the file names the ids, not the corners) without
+    depending on the order they were written in."""
     path = Path(path)
     if not path.is_file():
         return None
@@ -472,6 +668,7 @@ def read_colorimetric_reference(path: Path) -> "dict | None":
     keywords: dict = {}
     fields: "list[str]" = []
     labs: dict = {}
+    devices: dict = {}
     in_fmt = in_data = False
     for raw in text.splitlines():
         s = raw.strip()
@@ -503,6 +700,12 @@ def read_colorimetric_reference(path: Path) -> "dict | None":
                                           float(row["LAB_B"]))
             except (KeyError, ValueError):
                 continue
+            try:
+                devices[row["SAMPLE_ID"]] = (float(row["RGB_R"]),
+                                             float(row["RGB_G"]),
+                                             float(row["RGB_B"]))
+            except (KeyError, ValueError):
+                pass          # a reference without ink amounts still has aims
             continue
         if " " in s and s.split(None, 1)[1].startswith('"'):
             key, val = s.split(None, 1)
@@ -510,14 +713,35 @@ def read_colorimetric_reference(path: Path) -> "dict | None":
     if not labs:
         return None
     corner_ids = set((keywords.get("CHROMIQ_CORNER_IDS") or "").split())
+    profile_white = None
+    try:
+        vals = [float(v) for v in
+                (keywords.get("CHROMIQ_PROFILE_WHITE_LAB") or "").split()]
+        if len(vals) == 3:
+            profile_white = tuple(vals)
+    except ValueError:
+        profile_white = None
+    if profile_white is not None:
+        # #182 A11: THE BARE-PAPER CORNER AIMS AT THE PAPER THE PROFILE
+        # DESCRIBES, not at device white read as sRGB (an ideal L* 100). One
+        # rule for every reader of this file: the report, the demo pack's
+        # generator and the presets window.
+        from workflow.measurement_report import paper_corner_ids
+        for sid in paper_corner_ids({"corner_ids": corner_ids,
+                                     "devices": devices}):
+            labs[sid] = tuple(profile_white)
     return {
         "labs": labs,
+        "devices": devices,
         "corner_ids": corner_ids,
         "set_version": keywords.get("CHROMIQ_SET_VERSION", ""),
         "intent": keywords.get("CHROMIQ_INTENT", ""),
         "margin": keywords.get("CHROMIQ_MARGIN", ""),
         "master_total": keywords.get("CHROMIQ_MASTER_TOTAL", ""),
         "in_gamut": keywords.get("CHROMIQ_IN_GAMUT", ""),
+        #: #182 A11: None in a file written before beta 42.
+        "profile_white_lab": profile_white,
+        "profile": keywords.get("CHROMIQ_PROFILE", ""),
     }
 
 

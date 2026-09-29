@@ -10,20 +10,33 @@ real text string while the SVG export outlines most of them. This script:
   2. verifies every label it knows against the PDF, **by position in the
      document**, so a re-exported PDF with changed wording fails loudly here
      instead of silently shipping a half-translated picture;
-  3. replaces the labels for each of the twelve catalogue languages —
-     folder names (runs/, run1/, verifications/, reports/), dates and the
-     example project/description names stay in English on purpose: they are
-     the literal names on the user's disk;
+  3. replaces the labels for every language that ships a catalogue in
+     ``data/i18n/`` (the list is discovered, not written out here, so a new
+     language needs no edit in this file) — folder names (runs/, run1/,
+     verifications/, reports/), dates and the example project/description
+     names stay in English on purpose: they are the literal names on the
+     user's disk;
   4. repairs the one defect the PDF carries (the legend title is truncated
      to "Lege…" in the export — every language, English included, gets the
      full word);
-  5. writes ``assets/help/workflow/<code>.svg`` for en + the twelve
-     languages, cropped to the drawing.
+  5. writes ``assets/help/workflow/<code>.svg`` for en + every catalogue
+     language, cropped to the drawing.
 
 Label translations: the box/tab names come from the app's own i18n
 catalogues at generation time (single source, no drift); the diagram-only
 phrases were translated in one reviewed batch (Opus draft, human-checked —
 Norwegian "sti" not "bane", Russian paucal "1944 патча").
+
+A language may be missing from a ``T`` row. That is not an error: the row
+falls back to the English run, byte-identical, exactly as ``en`` does. A
+half-English picture is the honest state for a catalogue whose contributor
+has not covered these diagram-only phrases yet — inventing the text here
+would put unreviewed prose on Knut's drawing under someone else's name.
+Ukrainian (LackiUA, 2026-09) has a translation for 7 of the 29 diagram
+phrases and 6 of those are used; the other 23 are English until a native
+speaker supplies them. The seventh, "Print Chart", is deliberately not
+used because the word does not fit its box, measured — see the comment on
+that row.
 
 Run:  .venv/bin/python scripts/make_workflow_diagram.py
 """
@@ -41,8 +54,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 PDF = ROOT / "assets" / "help" / "example-workflow.pdf"
 OUT_DIR = ROOT / "assets" / "help" / "workflow"
-LANGS = ["de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru", "sv",
-         "zh_CN"]
+#: Every language that ships a catalogue, discovered rather than listed:
+#: a fourteenth language is picked up by dropping its JSON in beside the
+#: others. English is the source language and has no catalogue, so it is
+#: added separately at generation time.
+LANGS = sorted(p.stem for p in (ROOT / "data" / "i18n").glob("*.json"))
 
 # ---------------------------------------------------------------------------
 # The diagram-only phrases (not in the app catalogues). One reviewed batch.
@@ -54,7 +70,7 @@ T = {
  "folder_path_sample": {"de": ["ordner_pfad/"], "es": ["ruta_carpeta/"], "fr": ["chemin_dossier/"], "it": ["path_cartella/"], "ja": ["フォルダ_パス/"], "nl": ["map_pad/"], "no": ["mappe_sti/"], "pl": ["ścieżka_folderu/"], "pt": ["caminho_pasta/"], "ru": ["путь_папки/"], "sv": ["mapp_sökväg/"], "zh_CN": ["文件夹_路径/"]},
  "action": {"de": ["Aktion"], "es": ["Acción"], "fr": ["Action"], "it": ["Azione"], "ja": ["アクション"], "nl": ["Actie"], "no": ["Handling"], "pl": ["Działanie"], "pt": ["Ação"], "ru": ["Действие"], "sv": ["Åtgärd"], "zh_CN": ["操作"]},
  "normal_workflow": {"de": ["Normaler", "Workflow"], "es": ["Flujo normal", "de trabajo"], "fr": ["Flux normal", "de travail"], "it": ["Flusso", "normale"], "ja": ["通常の", "ワークフロー"], "nl": ["Normale", "workflow"], "no": ["Normal", "arbeidsflyt"], "pl": ["Normalny", "przebieg"], "pt": ["Fluxo normal", "de trabalho"], "ru": ["Обычный", "процесс"], "sv": ["Normalt", "arbetsflöde"], "zh_CN": ["正常", "工作流程"]},
- "run_description": {"de": ["Beschreibung Lauf {n}:"], "es": ["Descripción ejec. {n}:"], "fr": ["Description exéc. {n} :"], "it": ["Descrizione esec. {n}:"], "ja": ["実行 {n} の説明:"], "nl": ["Beschrijving run {n}:"], "no": ["Beskrivelse kjøring {n}:"], "pl": ["Opis przebiegu {n}:"], "pt": ["Descrição da exec. {n}:"], "ru": ["Описание запуска {n}:"], "sv": ["Beskrivning körning {n}:"], "zh_CN": ["运行 {n} 说明:"]},
+ "run_description": {"de": ["Beschreibung Lauf {n}:"], "es": ["Descripción ejec. {n}:"], "fr": ["Description exéc. {n} :"], "it": ["Descrizione esec. {n}:"], "ja": ["実行 {n} の説明:"], "nl": ["Beschrijving run {n}:"], "no": ["Beskrivelse kjøring {n}:"], "pl": ["Opis przebiegu {n}:"], "pt": ["Descrição da exec. {n}:"], "ru": ["Описание запуска {n}:"], "sv": ["Beskrivning körning {n}:"], "zh_CN": ["运行 {n} 说明:"], "uk": ["Запустіть {n} Опис:"]},
  "dated_check": {"de": ["Datierte Prüfung"], "es": ["Control fechado"], "fr": ["Contrôle daté"], "it": ["Verifica datata"], "ja": ["日付付きチェック"], "nl": ["Controle met datum"], "no": ["Datert kontroll"], "pl": ["Datowana kontrola"], "pt": ["Verificação datada"], "ru": ["Проверка с датой"], "sv": ["Daterad kontroll"], "zh_CN": ["按日期存档的检查"]},
  "repeated_checks": {"de": ["Wiederholte", "Prüfungen", "mit der Zeit"], "es": ["Controles", "repetidos", "en el tiempo"], "fr": ["Contrôles", "répétés", "sur la durée"], "it": ["Verifiche", "ripetute", "nel tempo"], "ja": ["繰り返し", "チェック", "（時系列）"], "nl": ["Herhaalde", "controles", "in de tijd"], "no": ["Gjentatte", "kontroller", "over tid"], "pl": ["Powtarzane", "kontrole", "w czasie"], "pt": ["Verificações", "repetidas", "com o tempo"], "ru": ["Повторные", "проверки", "со временем"], "sv": ["Upprepade", "kontroller", "över tid"], "zh_CN": ["定期重复", "检查", "（随时间）"]},
  "with_trends": {"de": ["(mit Trends)"], "es": ["(con tendencias)"], "fr": ["(avec tendances)"], "it": ["(con tendenze)"], "ja": ["（傾向つき）"], "nl": ["(met trends)"], "no": ["(med trender)"], "pl": ["(z trendami)"], "pt": ["(com tendências)"], "ru": ["(с трендами)"], "sv": ["(med trender)"], "zh_CN": ["（含趋势）"]},
@@ -66,12 +82,27 @@ T = {
  "n_patches_1page_484": {"de": ["484 Messfelder", "1 Seite"], "es": ["484 parches", "1 página"], "fr": ["484 plages", "1 page"], "it": ["484 tasselli", "1 pagina"], "ja": ["484 パッチ", "1 ページ"], "nl": ["484 meetvelden", "1 pagina"], "no": ["484 felt", "1 side"], "pl": ["484 pola", "1 strona"], "pt": ["484 amostras", "1 página"], "ru": ["484 патча", "1 страница"], "sv": ["484 fält", "1 sida"], "zh_CN": ["484 色块", "1 页"]},
  "n_patches_1page_240": {"de": ["240 Messfelder", "1 Seite"], "es": ["240 parches", "1 página"], "fr": ["240 plages", "1 page"], "it": ["240 tasselli", "1 pagina"], "ja": ["240 パッチ", "1 ページ"], "nl": ["240 meetvelden", "1 pagina"], "no": ["240 felt", "1 side"], "pl": ["240 pól", "1 strona"], "pt": ["240 amostras", "1 página"], "ru": ["240 патчей", "1 страница"], "sv": ["240 fält", "1 sida"], "zh_CN": ["240 色块", "1 页"]},
  "measure": {"de": ["Messen"], "es": ["Medir"], "fr": ["Mesurer"], "it": ["Misura"], "ja": ["測定"], "nl": ["Meten"], "no": ["Mål"], "pl": ["Pomiar"], "pt": ["Medir"], "ru": ["Измерение"], "sv": ["Mät"], "zh_CN": ["测量"]},
- "measurement_report_2l": {"de": ["Messbericht", ""], "es": ["Informe de", "medición"], "fr": ["Rapport de", "mesure"], "it": ["Rapporto di", "misura"], "ja": ["測定", "レポート"], "nl": ["Meetrapport", ""], "no": ["Målerapport", ""], "pl": ["Raport", "pomiaru"], "pt": ["Relatório de", "medição"], "ru": ["Отчёт об", "измерении"], "sv": ["Mätrapport", ""], "zh_CN": ["测量", "报告"]},
- "refine": {"de": ["Verfeinern"], "es": ["Refinar"], "fr": ["Affiner"], "it": ["Affina"], "ja": ["改良"], "nl": ["Verfijnen"], "no": ["Forbedre"], "pl": ["Dopracuj"], "pt": ["Refinar"], "ru": ["Уточнить"], "sv": ["Förfina"], "zh_CN": ["精修"]},
- "create_chart_2l": {"de": ["Chart", "erstellen"], "es": ["Crear", "carta"], "fr": ["Créer la", "mire"], "it": ["Crea", "grafico"], "ja": ["チャート", "作成"], "nl": ["Kaart", "maken"], "no": ["Lag", "kart"], "pl": ["Utwórz", "wzorzec"], "pt": ["Criar", "carta"], "ru": ["Создать", "шкалу"], "sv": ["Skapa", "diagram"], "zh_CN": ["创建", "色卡"]},
+ "measurement_report_2l": {"de": ["Messbericht", ""], "es": ["Informe de", "medición"], "fr": ["Rapport de", "mesure"], "it": ["Rapporto di", "misura"], "ja": ["測定", "レポート"], "nl": ["Meetrapport", ""], "no": ["Målerapport", ""], "pl": ["Raport", "pomiaru"], "pt": ["Relatório de", "medição"], "ru": ["Отчёт об", "измерении"], "sv": ["Mätrapport", ""], "zh_CN": ["测量", "报告"], "uk": ["Звіт про", "вимірювання"]},
+ "refine": {"de": ["Verfeinern"], "es": ["Refinar"], "fr": ["Affiner"], "it": ["Affina"], "ja": ["改良"], "nl": ["Verfijnen"], "no": ["Forbedre"], "pl": ["Dopracuj"], "pt": ["Refinar"], "ru": ["Уточнить"], "sv": ["Förfina"], "zh_CN": ["精修"], "uk": ["Уточніть"]},
+ "create_chart_2l": {"de": ["Chart", "erstellen"], "es": ["Crear", "carta"], "fr": ["Créer la", "mire"], "it": ["Crea", "grafico"], "ja": ["チャート", "作成"], "nl": ["Kaart", "maken"], "no": ["Lag", "kart"], "pl": ["Utwórz", "wzorzec"], "pt": ["Criar", "carta"], "ru": ["Создать", "шкалу"], "sv": ["Skapa", "diagram"], "zh_CN": ["创建", "色卡"], "uk": ["Створити", "діаграму"]},
  "print_chart_2l": {"de": ["Chart", "drucken"], "es": ["Imprimir", "carta"], "fr": ["Imprimer", "la mire"], "it": ["Stampa", "grafico"], "ja": ["チャート", "印刷"], "nl": ["Kaart", "afdrukken"], "no": ["Skriv ut", "kart"], "pl": ["Drukuj", "wzorzec"], "pt": ["Imprimir", "carta"], "ru": ["Печать", "шкалы"], "sv": ["Skriv ut", "diagram"], "zh_CN": ["打印", "色卡"]},
- "build_profile_2l": {"de": ["Profil", "erstellen"], "es": ["Crear", "perfil"], "fr": ["Créer le", "profil"], "it": ["Crea", "profilo"], "ja": ["プロファイル", "作成"], "nl": ["Profiel", "maken"], "no": ["Bygg", "profil"], "pl": ["Zbuduj", "profil"], "pt": ["Criar", "perfil"], "ru": ["Собрать", "профиль"], "sv": ["Bygg", "profil"], "zh_CN": ["生成", "配置文件"]},
- "check_refine_2l": {"de": ["Prüfen &", "Verfeinern"], "es": ["Comprobar y", "refinar"], "fr": ["Vérifier et", "affiner"], "it": ["Verifica e", "affina"], "ja": ["検証と", "改良"], "nl": ["Controleren", "& verfijnen"], "no": ["Sjekk &", "forbedre"], "pl": ["Sprawdź i", "dopracuj"], "pt": ["Verificar e", "refinar"], "ru": ["Проверить и", "уточнить"], "sv": ["Kontrollera", "och förfina"], "zh_CN": ["检查与", "精修"]},
+ # NO "uk" HERE ON PURPOSE, AND DO NOT PASTE THE LONG WORD BACK.
+ # LackiUA's translation of "Print Chart" is "Роздрукувати діаграму", and
+ # "Роздрукувати" does not fit this box. Measured on the rendered SVG at
+ # 3x: the box is 96 px wide (x 645..741) and the word's ink runs
+ # 634..757, so it overhangs 11 px left and 16 px right, where en has
+ # +26/+32, de +28/+22 and ru +20/+14. In the two verification columns it
+ # also runs into the "raw, no profile" note beside it: the gap between
+ # the two falls from 46 px (en), 32 (de), 33 (pl) and 51 (ru) to 1 px,
+ # and on screen they read as a single run, `Роздрукувати"raw, no`.
+ # Falling back to the English "Print Chart" is the lesser fault (Basti's
+ # ruling, 2026-09-21). What is wanted is a SHORT Ukrainian form from a
+ # native speaker. The catalogue does not supply one honestly: its other
+ # key "2. Print Chart" gives "2. Надрукувати мішень" (11 characters
+ # against 12, which does not fit either), and composing its own short
+ # noun "Друк" with a noun of our choosing would be inventing Ukrainian.
+ "build_profile_2l": {"de": ["Profil", "erstellen"], "es": ["Crear", "perfil"], "fr": ["Créer le", "profil"], "it": ["Crea", "profilo"], "ja": ["プロファイル", "作成"], "nl": ["Profiel", "maken"], "no": ["Bygg", "profil"], "pl": ["Zbuduj", "profil"], "pt": ["Criar", "perfil"], "ru": ["Собрать", "профиль"], "sv": ["Bygg", "profil"], "zh_CN": ["生成", "配置文件"], "uk": ["Побудувати", "профіль"]},
+ "check_refine_2l": {"de": ["Prüfen &", "Verfeinern"], "es": ["Comprobar y", "refinar"], "fr": ["Vérifier et", "affiner"], "it": ["Verifica e", "affina"], "ja": ["検証と", "改良"], "nl": ["Controleren", "& verfijnen"], "no": ["Sjekk &", "forbedre"], "pl": ["Sprawdź i", "dopracuj"], "pt": ["Verificar e", "refinar"], "ru": ["Проверить и", "уточнить"], "sv": ["Kontrollera", "och förfina"], "zh_CN": ["检查与", "精修"], "uk": ["Перевірити та", "уточнити"]},
  "create_from_gamut_3l": {"de": ["Chart aus dem", "Profil-Gamut", "erstellen"], "es": ["Crear carta", "desde el gamut", "del perfil"], "fr": ["Créer la mire", "depuis le gamut", "du profil"], "it": ["Crea grafico", "dal gamut del", "profilo"], "ja": ["プロファイルの", "色域から", "チャート作成"], "nl": ["Kaart maken", "uit het", "profielgamut"], "no": ["Lag kart fra", "profilens", "gamut"], "pl": ["Utwórz wzorzec", "z gamutu", "profilu"], "pt": ["Criar carta", "do gamut", "do perfil"], "ru": ["Создать шкалу", "из охвата", "профиля"], "sv": ["Skapa diagram", "från profilens", "gamut"], "zh_CN": ["从配置文件", "色域创建", "色卡"]},
  "profile_run_n": {"de": ["Profillauf: run {n}"], "es": ["Ejec. del perfil: run {n}"], "fr": ["Exéc. du profil : run {n}"], "it": ["Esec. profilo: run {n}"], "ja": ["プロファイル実行: run {n}"], "nl": ["Profielrun: run {n}"], "no": ["Profilkjøring: run {n}"], "pl": ["Przebieg profilu: run {n}"], "pt": ["Exec. do perfil: run {n}"], "ru": ["Запуск профиля: run {n}"], "sv": ["Profilkörning: run {n}"], "zh_CN": ["配置文件运行: run {n}"]},
  "run_type_profiling": {"de": ["Lauftyp: Profilierung"], "es": ["Tipo de ejec.: Perfilado"], "fr": ["Type d'exéc. : Profilage"], "it": ["Tipo esec.: Profilazione"], "ja": ["実行タイプ: プロファイリング"], "nl": ["Runtype: Profilering"], "no": ["Kjøringstype: Profilering"], "pl": ["Typ przebiegu: Profilowanie"], "pt": ["Tipo de exec.: Perfilagem"], "ru": ["Тип запуска: Профилирование"], "sv": ["Körningstyp: Profilering"], "zh_CN": ["运行类型: 特性化"]},
@@ -231,7 +262,15 @@ def _labels_for(lang: str) -> dict:
         base.update(EN_SELF)
         base.update(_cataloguish("en"))
         return base
-    out = {k: v[lang] for k, v in T.items()}
+    # ``v.get(lang)``, not ``v[lang]``: a language may not cover every
+    # diagram-only phrase, and None is the same "leave this run exactly as
+    # the PDF drew it" signal English already uses (see ``_sub``). The
+    # alternative — a KeyError — would force whoever adds a catalogue to
+    # invent ~29 phrases in a language they may not speak, or to leave the
+    # whole picture in English. Falling back phrase by phrase ships the
+    # translated part immediately and leaves the rest visibly English, which
+    # is what a reviewer needs to see in order to fill it in.
+    out = {k: v.get(lang) for k, v in T.items()}
     out["__drop__"] = [""]
     out.update(_cataloguish(lang))
     return out
@@ -370,8 +409,10 @@ def generate() -> int:
             if row is None:
                 return head + f"<tspan{attrs}>{content}</tspan></text>"
             _i, expect, key, line_no, anchor, n = row
-            lines = labels[key]
-            if lang == "en" and lines is None:
+            lines = labels.get(key)
+            if lines is None:
+                # English, or a language with no entry for this phrase: the
+                # original run stays, so the picture reads in English there.
                 return head + f"<tspan{attrs}>{content}</tspan></text>"
             text = lines[line_no] if line_no < len(lines) else ""
             if n is not None:

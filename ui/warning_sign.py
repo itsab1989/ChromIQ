@@ -171,7 +171,14 @@ def warn(
                            else QMessageBox.StandardButton.Ok)
     if default is not None:
         box.setDefaultButton(default)
-    from ui.widgets import fit_message_box_buttons
+    # A LONG BODY MUST NOT TAKE THE BUTTONS OFF THE SCREEN WITH IT.
+    # `fit_message_box_buttons` widens a box for its BUTTONS and caps nothing;
+    # this caps and clamps it against the work area, widens it for its TEXT, and
+    # puts an overflowing body behind Qt's own "Show Details". Called BEFORE the
+    # button fit so the details button it may add is fitted with the rest.
+    from ui.widgets import (fit_message_box_buttons,
+                            keep_message_box_inside_the_work_area)
+    keep_message_box_inside_the_work_area(box)
     fit_message_box_buttons(box)
     box.exec()
     return box.standardButton(box.clickedButton())
@@ -361,7 +368,26 @@ def ask(
     :func:`ui.widgets.confirm` shows no sign at all and stays that way: it is
     the everyday Yes/No, and a badge on every routine confirmation is noise.
     This is for the question that genuinely needs marking as a question.
+
+    **A QUESTION DEFAULTS TO YES AND NO, WHICH IT DID NOT.** It shared
+    `_boxed`'s default with :func:`warn` and :func:`inform`, and their default
+    is a single OK, which is right for a statement and impossible for a
+    question. Knut, 2026-09-13, on the one call site in the app: *"a window
+    appears saying 'Replace the current clip-border text with the example
+    table?', but the window has only OK button, so I am not given the choice to
+    NOT replace the text."* The caller was comparing the answer against `Yes`,
+    so the only button on screen performed the negative action, which is worse
+    than either outcome the user was choosing between.
+
+    **No is the default button**, so a stray Return keeps whatever the user has
+    already typed. A question whose accidental answer destroys work should
+    accidentally answer No.
     """
+    from PyQt6.QtWidgets import QMessageBox as _QMB
+    if buttons is None:
+        buttons = _QMB.StandardButton.Yes | _QMB.StandardButton.No
+        if default is None:
+            default = _QMB.StandardButton.No
     return _boxed(parent, title, text, buttons, default, set_question_icon)
 
 
@@ -392,7 +418,14 @@ def _boxed(parent, title, text, buttons, default, set_icon):
                            else QMessageBox.StandardButton.Ok)
     if default is not None:
         box.setDefaultButton(default)
-    from ui.widgets import fit_message_box_buttons
+    # A LONG BODY MUST NOT TAKE THE BUTTONS OFF THE SCREEN WITH IT.
+    # `fit_message_box_buttons` widens a box for its BUTTONS and caps nothing;
+    # this caps and clamps it against the work area, widens it for its TEXT, and
+    # puts an overflowing body behind Qt's own "Show Details". Called BEFORE the
+    # button fit so the details button it may add is fitted with the rest.
+    from ui.widgets import (fit_message_box_buttons,
+                            keep_message_box_inside_the_work_area)
+    keep_message_box_inside_the_work_area(box)
     fit_message_box_buttons(box)
     box.exec()
     return box.standardButton(box.clickedButton())

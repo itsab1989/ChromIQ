@@ -146,7 +146,7 @@ def _alternatives() -> "list[tuple[str, str]]":
          tr("Tools ▸ “Convert i1Profiler → TI3”, or browse for a .ti3 file on "
             "Build Profile or Check & Refine.")),
         (tr("Check a profile"),
-         tr("Check & Refine ▸ “Analyse Profile Quality”, a Verification run "
+         tr("Check & Refine ▸ “Analyse Profile Quality”, a verification run "
             "with its measurement report, or the independent checks under "
             "Tools ▸ Profiles.")),
         (tr("Read a few patches without a chart"),
@@ -169,6 +169,19 @@ def _keeping() -> "list[tuple[str, str]]":
             "earlier run keeps its own chart, measurement and profile. To "
             "build on what you already have rather than start over, use "
             "“← Use as Pre-conditioning”.")),
+        # docs/design/per_target_settings.md §2.2, confirmed by Knut and
+        # Sebastian on 2026-09-10: the second of the two things he asked for is
+        # that this fact be readable BEFORE it bites, not only in the red line
+        # that appears once it has.
+        (tr("A setting reaches your chart only when you press Generate Chart"),
+         tr("Choosing a Profile run, or a Run type, puts that target's own "
+            "chart back on screen together with the settings it was made with. "
+            "Anything you changed in Create Chart and did not build is "
+            "replaced at that moment, and the same happens when you close the "
+            "project. So press “Generate Chart” first: that is what writes "
+            "what is on screen into the chart. A red line appears above the "
+            "button whenever the settings showing are not yet in this run's "
+            "chart.")),
         (tr("Replacing keeps a copy"),
          tr("Replacing a chart, or generating a new one over an old one, moves "
             "what it displaces into an “old” folder inside the run. Nothing is "
@@ -213,7 +226,7 @@ def _verifying() -> "list[tuple[str, str]]":
     return [
         (tr("Why check at all"),
          tr("A profile describes how your printer behaved on the day you "
-            "measured. Ink ages, paper batches differ, printheads drift — a "
+            "measured. Ink ages, paper batches differ, printheads change. A "
             "check tells you whether the profile still holds, with numbers "
             "instead of a feeling.")),
         (tr("The short version"),

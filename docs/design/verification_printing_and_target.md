@@ -469,9 +469,22 @@ feature here.** It belongs in the tool-availability work
 (`tool_availability.md`), because it is exactly the shape that document is for:
 an option offered in one place that the rest of the app cannot honour.
 
-**Not investigated here:** whether `chartread` itself accepts a CMYK chart, i.e.
-whether the wall is at measuring or only at reporting. Worth establishing before
-anyone decides what to do about it.
+**Established 2026-09-04: the wall is at REPORTING only.** `chartread` accepts a
+CMYK chart. It reads the chart's declared `COLOR_REP`, turns it into an ink mask
+with `icx_char2inkmask` and loops over `icx_noofinks(nmask)` device channels,
+naming each field from the mask. There is no RGB branch in it
+(`spectro/chartread.c:3052-3082`, Argyll 3.5.0 source, through
+`xicc/xcolorants.c`). `colprof`, `profcheck` and `colverify` were run live on a
+CMYK measurement built from a real FOGRA51 dataset and all three worked.
+
+So the gap is `parse_ti3` and what is shaped around RGB device values, exactly
+as the section below describes, and nothing in the measuring path.
+
+*Worked out in `ChromIQ-research/issue-182/07-cmyk-verification/AB-FINDINGS.md`
+§5 and reported on issue #182 on 2026-09-04 (comment 5545838349); the Argyll
+source was re-read on 2026-09-11 before this paragraph was written.*
+**Confirmed by:** *nobody yet.* The `chartread` half has never been run against
+an instrument.
 
 ### If CMYK verification were ever wanted
 
@@ -753,7 +766,7 @@ about a rule being broken:
 > The sheet goes to the printer exactly as it is, with no profile involved. That
 > is useful for one particular question: *"is my printer still behaving the way
 > it did last time?"* Print the same chart the same way each month and compare
-> the results, and you will see it drift before it becomes visible in your work.
+> the results, and you will see it change before it becomes visible in your work.
 >
 > What it cannot tell you is how accurate your profile is, because no profile
 > took part. For that, choose **Through this run's profile** above — then the
@@ -771,6 +784,39 @@ from two technical fields.
 
 **Test T12** (§9): a regular verification chart offers both options with neither
 disabled, and the notice changes with the selection.
+
+⏳ **Awaiting confirmation (K51, #182 5846167083, "yes for both"; built for
+beta 44, B8-1330):** Knut's answer is confirmed, what was built is not. On
+the report a raw print of a regular chart stays a drift check, with one
+change: the paper row and the two solid rows, whose reference is the
+profile's own description of the printing condition (§41.7 of
+`measurement_report_limits.md`), are judged where the limit set limits them;
+every row compared with the chart's design colours stays for information.
+The sentence under the results names the judged rows. See
+`measurement_report_limits.md` §45.2. **Confirmed by:** *nobody yet.*
+
+✅ **Confirmed behaviour (K59, the word and the cells).** **Confirmed by:**
+Knut, 2026-09-26, #182
+[5849392788](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5849392788),
+for exactly these answers. On the report a raw print is not called a
+"drift check", and "drift" is not used anywhere: *"The word drift is not
+used at all. A user can analyse the trend graphs to ascertain if what he
+sees is a drift. The comparison of prints is in the reports called trend
+graphs."*; *"Use the word "Change" instead of "Drift"."* Option C of the
+K56 analysis is to be built (*"Yes, but see above."*), its cell word INFO
+*"but also [with] a numbered reference to a note that explains the issue,
+where that is relevant"*. The notice quoted above reads "you will see it
+change" (it said "drift"), the only change to it.
+
+⏳ **Awaiting confirmation (K59, what was built):** a raw print's cells
+read the words its rows hold: PASS or FAIL on the paper and solid rows
+where the set limits them, INFO with the numbered note
+M-REPORT-RAW-PRINT-INFO on every value compared with the chart's design
+colours, N-A with its note where the sheet cannot answer; the Overall word
+is the judged rows' word, else INFO; "Judged against" names the raw print
+once. The texts are ours and wait in §M-PROPOSED of
+`unified_measurement_management.md`. See `measurement_report_limits.md`
+§49. **Confirmed by:** *nobody yet.*
 
 ### 3.2 Feature A — the conversion itself
 

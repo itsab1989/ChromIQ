@@ -57,6 +57,11 @@ def is_multi_ink(ti3_path: Path | str) -> bool:
 # colprof's own errors for input-profile options on output data (colprof.c).
 _WP_MODE_ERRORS = {
     "u": "Input auto WP scale mode isn't applicable to an output device",
+    # "uR" is `-u -R`: the -R half is fine on output data, the -u half is the
+    # one colprof refuses, so it refuses the pair for the same reason and with
+    # the same words. The scanner window strips white-point handling in printer
+    # mode (`effective_adv_vals`), so this is the belt behind that brace.
+    "uR": "Input auto WP scale mode isn't applicable to an output device",
     "ua": "Force absolute colorimetric isn't applicable to an output device",
     "uc": "Input cLUT clipping above WP mode isn't applicable to an output "
           "device",
@@ -422,7 +427,7 @@ class EngineProfileBuilder:
         # which Qt emits after run() has returned.
         t.finished.connect(_released)
         t.finished.connect(t.deleteLater)
-        on_line(tr("Building with the ChromIQ profile engine (beta) — "
+        on_line(tr("Building with the ChromIQ profile engine (beta): "
                    "{mode}…").format(mode=accuracy_mode_label(
                        settings.gammap_mode)))
         EngineProfileBuilder._RUNNING.add(self)

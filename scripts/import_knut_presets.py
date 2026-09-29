@@ -36,6 +36,9 @@ Usage::
     python scripts/import_knut_presets.py <family> <export-folder> [--write]
 
     family: cm  (ColorMunki)  |  p3  (i1Pro 3 Plus)  |  i1  (i1Pro, 8 mm)
+            i175 (i1Pro, 7.5 mm)  |  i175max (i1Pro, 7.5 mm, maximised)
+            i1photo (i1Pro, photo cards)
+            cr30 (ChnSpec CR30)
 
 Without ``--write`` it only validates and prints, so you can see what would
 change before anything is touched.
@@ -56,6 +59,40 @@ ASSETS = REPO / "assets" / "charts" / "knut" / "rgb"
 
 
 @dataclass(frozen=True)
+class Overlay:
+    """A named CUT of a family: one boolean the helper takes, and the block of
+    recipe fields it stands for.
+
+    Some line-ups come in two shapes that move the same handful of fields
+    together every time. The CR30 set is the first: its eight hexagonal charts
+    all carry ``hflag`` with ``margin_left`` 13, ``margin_top`` /
+    ``margin_bottom`` 13 and ``text_edge_top_mm`` 4, where the twelve
+    rectangular ones carry 15 / 17 / 12 / 8. Spelling five keyword arguments out
+    on eight rows would bury the two fields a chart really owns, so the shape
+    gets a name instead: the row says ``hexagonal=True`` and this table says
+    what that means, once.
+
+    ``discriminator`` is the recipe field whose truth picks the cut. A chart
+    that takes the overlay is then diffed against ``base | delta``, so a
+    hexagonal chart still spells out a margin it does NOT share with the other
+    seven.
+    """
+    keyword: str             # the helper's boolean keyword argument
+    discriminator: str       # recipe field whose truth selects this cut
+    delta: dict              # what the cut sets on top of the family base
+    #: What the discriminator has to SAY for the cut to apply. ``None`` is the
+    #: original rule: any truthy value takes it, which is what a cut named by a
+    #: flag (``hflag``) wants.
+    #:
+    #: A cut is not always an extra flag, though. The i1Pro photo cards'
+    #: "Maximised - No Clip-border" charts are the family's standard cut with
+    #: the clip band switched OFF, so what picks them out is ``clip_border``
+    #: being **False** — and False is exactly what the truthy rule cannot ask
+    #: about. Naming the value here asks the question directly.
+    when: object = None
+
+
+@dataclass(frozen=True)
 class Family:
     """One instrument's line-up of charts, as Knut exports them."""
     key: str                 # command-line name
@@ -66,6 +103,22 @@ class Family:
     dest: Path               # where the bundled assets land
     varying: frozenset       # recipe fields ONE chart may set for itself
     helper: str              # the tab_chart.py helper the rows call
+    #: Named CUTS of the family, in the order they are applied. A chart
+    #: whose recipe answers to more than one discriminator takes them all,
+    #: and the row says only the LAST one: a later cut in this tuple is a
+    #: refinement of an earlier one, exactly as `_cr30_preset` spells it
+    #: out (`straight=True` applies `_CR30_HEX` and then `_CR30_STRAIGHT`).
+    overlays: tuple["Overlay", ...] = ()
+    #: Fields every row spells out, even where it agrees with the batch base.
+    #:
+    #: The emitter's normal rule — say a field only where it differs from the
+    #: base — reads well for a family whose charts really do share a margin
+    #: set. It reads as a LIE for one whose base has no margin set at all: the
+    #: first chart of such a batch defines the base by being first, so it emits
+    #: nothing and the second emits everything, and a reviewer is told the two
+    #: differ in five fields when in truth neither one inherits any of them.
+    #: Naming those fields here makes both rows say all five.
+    always: frozenset = frozenset()
 
 
 FAMILIES: dict[str, Family] = {
@@ -121,15 +174,149 @@ FAMILIES: dict[str, Family] = {
                            "margin_right", "margin_bottom"}),
         helper="_i1_75_preset",
     ),
+    # THE 7.5 mm "MAXIMISED - NO CLIP-BORDER" CUT ON A4 AND LETTER (Knut,
+    # 2026-09-22, issue #182, beta-34 batch K1): eight charts, one to four
+    # sheets. Measured against the shipped `_I1_75_BASE` all eight move the
+    # same EIGHT fields: the clip band off (two fields), the left, right and
+    # bottom margins (5 / 5 / 9 on both papers), the ruler marks (2 per patch,
+    # 4 mm long) and the top text distance (4 mm). None of them is in the
+    # `i175` `varying` set and none differs between the eight, so they are a
+    # design with a base of its own, exactly the call `i175` and `i1photo`
+    # were added for. Only the sheet and the grid are a chart's own.
+    "i175max": Family(
+        key="i175max", label="i1Pro (7.5 mm, maximised)", prefix="i1Pro-",
+        slug_prefix="i1_w75max_", instrument="i1", dest=ASSETS / "i1pro75max",
+        varying=frozenset({"paper", "area_cols", "area_rows"}),
+        helper="_i1_75_max_preset",
+    ),
+    # A THIRD i1Pro FAMILY: the two photo-card charts (Knut, 2026-09-09).
+    #
+    # Knut re-cut the Pharmacist 10 x 15 cm and 13 x 18 cm photo cards for a
+    # strip reader. His words: *"I had to adjust the margins a bit to assure
+    # space for starting and ending a strip reading. Thus the measurements are
+    # very slightly different from the original pharmacist presets."*
+    #
+    # WHY IT IS ITS OWN FAMILY, and not two rows on "i1" or "i175". Measured
+    # against the shipped `_I1_BASE`, both cards move ELEVEN fields that no
+    # i1Pro `varying` set allows a chart to own: `area_min_patch_mm` 17.5 (0.0),
+    # `border` 10.0 (6.0), `clip_text` (Knut's note, against ""),
+    # `edge_spacers` False (True), `helper_marker_edge_mm` 2.0 (4.0),
+    # `indicator_size_mm` 0.0 (4.23), `nolimit` False (True), `pscale` 0.95
+    # (1.0), `sscale` 0.6 (0.8), `text_edge_top_mm` 4.0 (8.0) — and `margin_top`.
+    # Ten of the eleven are IDENTICAL between his two cards, so they are a
+    # shared design of their own; folding them into either existing i1Pro base
+    # would have silently re-cut the nineteen 8 mm charts and the nineteen
+    # 7.5 mm ones. Exactly the trap the `i175` entry above was added for.
+    #
+    # WHAT A CARD OWNS, and why it is more than the grid. A photo card is a
+    # QUARTER of an A4 and the two cards are not even the same shape, so every
+    # sheet-scaled number is per card: all four margins, and the clip band's
+    # width (19 mm on the 10 x 15, 26 on the 13 x 18). None of them is shared,
+    # so `always` makes both rows state all five rather than letting whichever
+    # file sorts first define a "base" nobody authored.
+    #
+    # THIRTEEN MORE CARDS, AND A SECOND CUT (Knut, 2026-09-17, issue #182).
+    # He sent the whole photo-card line-up again: the two above plus eleven
+    # new counts on the same two sheets, from 720 patches up to 1512. Half of
+    # them are named "Maximised - No Clip-border" and are exactly that — the
+    # same design with the clip band switched off and both side margins pulled
+    # in to 5 mm, which buys two more columns per sheet. So the family grew an
+    # `overlay` the way the CR30 one did, with one difference: the cut is
+    # picked out by `clip_border` being FALSE, which the truthy test cannot
+    # ask about. See `Overlay.when`.
+    "i1photo": Family(
+        key="i1photo", label="i1Pro (photo card)", prefix="i1Pro-",
+        slug_prefix="i1_photo_", instrument="i1", dest=ASSETS / "i1prophoto",
+        varying=frozenset({"paper", "area_cols", "area_rows",
+                           "margin_top", "margin_bottom", "margin_left",
+                           "margin_right", "clip_border_width_mm",
+                           "clip_border", "clip_content_mode"}),
+        always=frozenset({"margin_top", "margin_bottom", "margin_left",
+                          "margin_right", "clip_border_width_mm"}),
+        helper="_i1_photo_preset",
+        overlays=(
+            Overlay("maximised", "clip_border", {
+                "clip_border": False, "clip_content_mode": "off",
+            }, when=False),
+        ),
+    ),
+    # The CR30 line-up (2026-09-06). Knut's charts for the ChnSpec CR30, cut
+    # down by Basti to the twenty worth shipping: ten on A4, ten on US Letter,
+    # one to three sheets, patches 11 mm to 24 mm wide, each size offered in a
+    # rectangular and (mostly) a hexagonal cut.
+    #
+    # It is the FIRST family with two shapes, so the first to carry an
+    # `overlay`: the base is the rectangular cut, and `hexagonal=True` stands
+    # for the four fields the hex cut moves together. A hexagonal chart that
+    # ALSO moves a margin (the three Letter 15x26 ones do) still spells that
+    # margin out, so nothing hides inside the flag.
+    #
+    # `area_min_patch_mm` is per chart here where it is 0.0 everywhere else:
+    # four of Knut's exports carry a floor (10.5 / 16.5 / 17.5 mm) and it is
+    # carried through rather than flattened.
+    #
+    # The CR30 never reaches printtarg (data/patch_db.py, and
+    # chart_creator._should_use_engine forces the engine for it), so every one
+    # of these is engine-built by construction.
+    "cr30": Family(
+        key="cr30", label="CR30", prefix="CR30-", slug_prefix="cr30_",
+        instrument="CR30", dest=ASSETS / "cr30",
+        varying=frozenset({"paper", "area_cols", "area_rows",
+                           "area_min_patch_mm", "hflag", "hex_flat_top",
+                           "margin_top", "margin_bottom", "margin_left",
+                           "text_edge_top_mm", "indicator_size_mm"}),
+        helper="_cr30_preset",
+        overlays=(
+            Overlay("hexagonal", "hflag", {
+                "hflag": True, "margin_left": 13.0, "margin_top": 13.0,
+                "margin_bottom": 13.0, "text_edge_top_mm": 4.0,
+            }),
+            # THE STRAIGHT-STRIPS CUT (2026-09-12): the same honeycomb turned
+            # 30 degrees. It is a refinement of the hexagonal cut, not an
+            # alternative to it -- every one of his six carries `hflag` too --
+            # so it sits after it here and the row says `straight=True` alone.
+            Overlay("straight", "hex_flat_top", {
+                "hflag": True, "hex_flat_top": True,
+                "margin_left": 11.0, "margin_top": 11.0, "margin_bottom": 6.0,
+                "text_edge_top_mm": 7.0, "indicator_size_mm": 3.88,
+            }),
+        ),
+    ),
 }
 
 # The names carry the layout: "<paper>-<patches>p-<pages>page(s)-<orientation>…".
-_NAME_TAIL = (r"(?P<paper>A4|A3Plus|A3|Letter)-(?P<patches>\d+)p-"
-              r"(?P<pages>\d+)pages?-(?P<rest>.+)$")
+#
+# A sheet is a NAMED size or a "<W>x<H>mm" one. The second form arrived with the
+# photo cards: 100 x 150 mm and 130 x 180 mm are real sheets a shop prints on and
+# are already valid paper codes everywhere else in ChromIQ (the two "by
+# Pharmacist" bundles are filed under exactly those folder names), so a name may
+# carry one. The recipe's own `paper` drops the "mm" — "100x150mm" in the name,
+# "100x150" in the layout; `check` pins that agreement rather than assuming it.
+_CUSTOM_SHEET = r"\d+x\d+mm"
+_NAME_TAIL = (r"(?P<paper>A4|A3Plus|A3|Letter|" + _CUSTOM_SHEET + r")-"
+              r"(?P<patches>\d+)p-(?P<pages>\d+)pages?-(?P<rest>.+)$")
 
 # Display order: smallest sheet first (matching _paper_sort_key), then ascending
 # patch count. Portrait and landscape share a sheet, so they interleave by count.
 _SHEET_ORDER = {"A4": 0, "Letter": 1, "A3": 2, "A3Plus": 3}
+
+
+def _sheet_order(sheet: str) -> float:
+    """Sort key for a sheet token, smallest first.
+
+    A named size keeps its curated slot. A "<W>x<H>mm" one sorts ahead of them
+    all, by area, which is where such a sheet belongs — every photo card
+    ChromIQ ships a chart for is smaller than an A4, and `_paper_sort_key` in
+    ``tab_chart.py`` (which orders the dropdown itself) is area-based too. The
+    1e7 divisor keeps even an A2-sized custom code below A4's 0.
+    """
+    if sheet in _SHEET_ORDER:
+        return float(_SHEET_ORDER[sheet])
+    m = re.fullmatch(_CUSTOM_SHEET, sheet)
+    if m:
+        w, h = sheet[:-2].split("x", 1)
+        return -1.0 + int(w) * int(h) / 1e7
+    return 9.0
 
 
 def _shipped_base(fam: Family) -> dict:
@@ -149,7 +336,10 @@ def _shipped_base(fam: Family) -> dict:
                              # i175 was MISSING, so the guard was a no-op for
                              # the very family it was written for: a drifting
                              # 7.5 mm batch validated rc=0.
-                             "i175": "_I1_75_BASE"}.get(fam.key, ""), None) or {})
+                             "i175": "_I1_75_BASE",
+                             "i175max": "_I1_75_MAX_BASE",
+                             "i1photo": "_I1_PHOTO_BASE",
+                             "cr30": "_CR30_BASE"}.get(fam.key, ""), None) or {})
 
 
 def slugify(name: str, fam: Family) -> str:
@@ -231,6 +421,17 @@ def check(export: dict, ti1: Path, base: dict | None,
                 problems.append(
                     f"{k}: {recipe.get(k)!r} differs from the family base "
                     f"{base.get(k)!r}")
+
+    # A "<W>x<H>mm" sheet token says the sheet outright, so it can be checked
+    # against the layout instead of trusted. (A NAMED token cannot: the i1Pro
+    # family writes an A3 landscape chart's paper as "420x297", so "A3" in the
+    # name is right and a literal comparison would be wrong.)
+    if re.fullmatch(_CUSTOM_SHEET, m.group("paper")):
+        want = m.group("paper")[:-2]
+        if recipe.get("paper") != want:
+            problems.append(
+                f"name says a {want} mm sheet, the recipe lays it out on "
+                f"{recipe.get('paper')!r}")
 
     if recipe.get("instrument") != fam.instrument:
         problems.append(f"instrument is {recipe.get('instrument')!r}, "
@@ -317,6 +518,16 @@ def normalise_recipe(editor: dict, layout: dict, fam: Family,
     return out, notes
 
 
+def _takes(recipe: dict, ov: Overlay) -> bool:
+    """Does *recipe* belong to the cut *ov* names?
+
+    ``when is None`` keeps the original truthy test; a stated ``when`` is
+    compared for equality, so a cut can be picked out by a field being False.
+    """
+    got = recipe.get(ov.discriminator)
+    return got == ov.when if ov.when is not None else bool(got)
+
+
 def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
     """The ``_Ti1Preset`` rows, ready to paste into tab_chart.py.
 
@@ -327,14 +538,35 @@ def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
     """
     out = []
     pad = " " * (len(fam.helper) + 5)
+    # The helper takes these positionally, so they are never keyword arguments.
+    positional = {"paper", "area_cols", "area_rows"}
     for r in rows:
+        recipe = r["layout_recipe"]
+        effective = dict(base)
         extra = ""
-        if "margin_left" in fam.varying and r["margin_left"] != base.get("margin_left"):
-            extra += f", margin_left={r['margin_left']}"
-        for field in ("margin_right", "margin_bottom"):
-            if field in fam.varying and r.get(field) != base.get(field):
-                extra += f", {field}={r[field]}"
-        if "clip_text" in fam.varying and r["clip_text"] != base.get("clip_text"):
+        # A named cut of the family: say its name, then diff what is left
+        # against what the cut already implies. Where two cuts both answer,
+        # each one's fields are applied in turn and only the LAST is named --
+        # the later cut refines the earlier and its keyword implies it.
+        taken = [ov for ov in fam.overlays if _takes(recipe, ov)]
+        for ov in taken:
+            effective.update(ov.delta)
+        if taken:
+            extra += f", {taken[-1].keyword}=True"
+        for field in ("margin_left", "margin_top", "margin_right",
+                      "margin_bottom", "clip_border_width_mm",
+                      "clip_border", "clip_content_mode",
+                      "text_edge_top_mm", "area_min_patch_mm", "hflag",
+                      "hex_flat_top", "indicator_size_mm"):
+            if field not in fam.varying or field in positional:
+                continue
+            # `always` fields are stated on every row — see Family.always.
+            if (field not in fam.always
+                    and recipe.get(field) == effective.get(field)):
+                continue
+            extra += f", {field}={recipe.get(field)!r}"
+        if ("clip_text" in fam.varying
+                and recipe.get("clip_text") != effective.get("clip_text")):
             # Only the ColorMunki family authors a second note (its Hand Held
             # charts); the constant sits beside the base in tab_chart.py.
             extra += ", clip_text=_CM_CLIP_TEXT_HAND_HELD"
@@ -352,7 +584,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("family", choices=sorted(FAMILIES),
                     help="which line-up these exports belong to "
-                         "(cm = ColorMunki, p3 = i1Pro 3 Plus)")
+                         "(cm = ColorMunki, p3 = i1Pro 3 Plus, "
+                         "i1 / i175 / i175max / i1photo = i1Pro, "
+                         "cr30 = ChnSpec CR30)")
     ap.add_argument("src", type=Path, help="folder of <name>.ti1 + <name>.json")
     ap.add_argument("--write", action="store_true",
                     help="copy the assets into place (otherwise only report)")
@@ -403,7 +637,7 @@ def main() -> int:
         print(f"\n{failed} chart(s) rejected — fix them before importing.")
         return 1
 
-    rows.sort(key=lambda r: (_SHEET_ORDER.get(r["sheet"], 9), r["patches"],
+    rows.sort(key=lambda r: (_sheet_order(r["sheet"]), r["patches"],
                              r["pages"]))
     slugs = [r["slug"] for r in rows]
     if len(set(slugs)) != len(slugs):
@@ -436,7 +670,16 @@ def main() -> int:
         print("  (dry run — pass --write to copy the assets into place)")
 
     print("\n--- rows for KNUT_PRESETS ---\n")
-    print(emit_rows(rows, fam, base))
+    # EMITTED AGAINST THE SHIPPED BASE, not this batch's first file. The rows
+    # are pasted into `tab_chart.py`, where the base is the one that family
+    # already ships — so "say a field only where it differs" has to mean
+    # different from THAT. A batch whose first file happens to be an unusual
+    # cut (the photo cards' first file alphabetically is a "Maximised - No
+    # Clip-border" one) would otherwise make every ordinary chart spell out
+    # fields it actually inherits, and the odd ones spell out nothing.
+    # A brand-new family has no shipped base and falls back to the batch's,
+    # exactly as before.
+    print(emit_rows(rows, fam, shipped or base))
     return 0
 
 

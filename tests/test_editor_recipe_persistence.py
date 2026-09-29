@@ -228,10 +228,19 @@ def test_builtin_fulllayout_recipes_appear_starred(qapp):
     # #164, and the two A4-924p ones by Knut in 4.1.3-beta.13), the six Scanner
     # charts (#107, #108, #118), Knut's 45 ColorMunki charts (2026-08-16), his
     # 24 i1Pro 3 Plus charts (2026-08-18) and his 19 8 mm i1Pro charts
-    # (#164, 2026-08-23).
-    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19   # +19: the 7.5 mm i1Pro family
-    assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45
+    # (#164, 2026-08-23), his 26 CR30 charts (20 of 2026-09-06 plus the six
+    # straight-strip ones of 2026-09-12) and his nineteen i1Pro photo cards
+    # (two of 2026-09-09, thirteen of 2026-09-17 and four of 2026-09-18,
+    # issue #182), and his eight 7.5 mm "Maximised - No Clip-border" i1Pro
+    # charts on A4 and Letter (2026-09-22, issue #182), and eight of the nine
+    # "by Pharmacist" charts with a layout (beta 47, #182 5860041950: the
+    # TC3.00 Target ships no editor design), two of them ColorMunki, and the
+    # five "by Pharmacist" charts of 4.3.1 (#182 5875467209), three of them
+    # ColorMunki.
+    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19 + 26 + 19 + 8 + 8 + 5
+    assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45 + 2 + 3
     assert sum(1 for n in starred if n.startswith("★ i1Pro 3 Plus")) == 24
+    assert sum(1 for n in starred if n.startswith("★ CR30 ")) == 26
     assert sum(1 for n in starred if "Scanner" in n) == 6
 
 

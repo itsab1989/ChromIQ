@@ -36,11 +36,6 @@ from workflow.layout_engine import instruments            # noqa: E402
 from workflow.layout_engine.presets import LayoutRecipe   # noqa: E402
 
 
-class _Btn:
-    def isChecked(self):
-        return True
-
-
 class _Settings:
     def get(self, key, default=None):
         return True if key == "use_chromiq_layout_engine" else default
@@ -48,7 +43,16 @@ class _Settings:
 
 class _Tab:
     """Just enough TabChart for the real method to run — nothing calculated."""
-    _manual_btn = _Btn()
+    def _current_mode(self):
+        """The gate `_engine_text_notes` really asks, and NOT `_manual_btn`.
+
+        The FROM PROFILE GAMUT module is the Manual page with its own targen
+        section, and it leaves that BUTTON unchecked; keying the notices on it
+        turned every one of them off there. The stand-in carries no
+        `_manual_btn` on purpose, so a revert to the button spelling makes this
+        file go red rather than quietly produce no notices.
+        """
+        return "manual"
     _manual_layout_panel = object()
     _settings = _Settings()
 
@@ -76,10 +80,34 @@ def _recipe(*, margin_l=4.0, clip=4.0, border=False, border_w=26.0,
 
 
 def _raise_warning(r) -> str:
+    """The raise notice for this chart, from the list the ⓘ is given.
+
+    Matched on "row indicators" rather than on a phrase of the sentence: the
+    wording was rewritten on 2026-09-11 for Knut's #182 ruling (it now opens
+    "The left margin is below what the row indicators need", names the label
+    size in points and lists all three levers), and a matcher pinned to the old
+    opening words made four tests here fail with "the premise failed" while the
+    notice was sitting in the list in front of them.
+
+    `_engine_text_overflow_warnings` is `warns + over`, so it still finds the
+    notice now that it travels in the overlap list as well; the test below
+    checks that it reaches the RED message field too.
+    """
     lines = [w for w in TabChart._engine_text_overflow_warnings(_Tab(r))
-             if "left margin was widened" in w]
+             if "row indicators" in w and "widened" in w]
     assert lines, "the premise failed: this chart's margin was not raised"
     return lines[0]
+
+
+def _raise_warning_is_red(r) -> bool:
+    """Whether that notice also reaches the panel's message field.
+
+    Knut, #182, 2026-09-11: *"add also a warning in red text …"*. The tab
+    returns `(everything, the overlap notices)` and the caller hands the second
+    list to the red field, so this is where the ruling is visible from here.
+    """
+    _warns, over = TabChart._engine_text_notes(_Tab(r), None)
+    return any("row indicators" in w and "widened" in w for w in over)
 
 
 def _geom(r):
@@ -95,9 +123,12 @@ def test_the_advice_does_not_name_clip_when_clip_cannot_move_anything():
         f"the premise failed: the floor is {g.row_label_floor:.2f} mm and Clip "
         f"is {g.text_edge_clip_mm:.2f} mm, so Clip IS the anchor here")
     msg = _raise_warning(r)
-    assert "reduce “Clip”" not in msg, (
+    assert "reduce “Clip”" not in msg and "lower “Clip”" not in msg, (
         "the inspector still tells the user to reduce a setting that cannot "
         f"move the labels:\n  {msg}")
+    assert _raise_warning_is_red(r), (
+        "Knut's ruling of 2026-09-11 puts this notice on the panel in red, "
+        "not only on its ⓘ")
 
 
 def test_it_says_plainly_that_clip_is_not_the_lever():
@@ -105,8 +136,14 @@ def test_it_says_plainly_that_clip_is_not_the_lever():
     again once you set it above 26.0 mm"* unexplained beside a warning that
     never mentions Clip at all."""
     msg = _raise_warning(_recipe(border=True))
-    assert "“Clip” is set to 4.0 mm" in msg, msg
+    # The rewrite of 2026-09-11 names the frame Clip lives in as well as the
+    # box, which was Knut's other objection about this panel: *"the 'Clip' is
+    # not a clear reference for a user that you mean the 'Clip' setting in
+    # 'Text distance from edge' frame."* So the sentence now reads
+    # "“Clip” under “Text distance from edge (mm)” is set to 4.0 mm".
+    assert "“Clip” under “Text distance from edge (mm)” is set to 4.0 mm" in msg, msg
     assert "lowering it moves nothing" in msg, msg
+    assert _raise_warning_is_red(_recipe(border=True))
 
 
 def test_the_advice_still_names_clip_when_clip_is_what_holds_them():
@@ -118,7 +155,8 @@ def test_the_advice_still_names_clip_when_clip_is_what_holds_them():
     assert g.text_edge_clip_mm >= g.row_label_floor - 0.05, (
         "the premise failed: Clip did not win the max() at 30 mm")
     msg = _raise_warning(r)
-    assert "reduce “Clip”" in msg, msg
+    assert "lower “Clip”" in msg, msg
+    assert _raise_warning_is_red(r)
 
 
 def test_both_forms_still_carry_the_two_numbers_the_raise_is_made_of():

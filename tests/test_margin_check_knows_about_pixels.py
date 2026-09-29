@@ -19,12 +19,14 @@ preset. Nothing was wrong with the chart, the recipe or the engine.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
-from workflow.hex_support import recipe_is_hexagonal
 from workflow.layout_engine import geometry, instruments, papers
 from workflow.layout_engine.presets import LayoutRecipe
-from workflow.margin_inspector import MarginReport, check_violations
+from workflow.margin_inspector import (MarginReport, check_violations,
+                                       measure_from_engine)
 
 
 def _builtin_presets_with_recipes():
@@ -78,33 +80,46 @@ def _own_thresholds(preset):
 
 
 def _inspector_report(preset):
-    """What `margin_inspector.measure_from_engine` would report for page 0.
+    """What `margin_inspector.measure_from_engine` reports for page 0.
 
-    Same three steps that function takes: the patch rectangles' bounding box,
-    the edge-spacer overhang, the hexagon apex overhang.
+    IT CALLS THAT FUNCTION. It used to re-implement its three steps here, and
+    the copy drifted: the shipped one asks `recipe_is_flat_top` which axis the
+    hexagons point along, this one always took the vertical apex. On a turned
+    honeycomb (`hex_flat_top`, the "Straight strips" tick of #159) the apexes
+    point sideways, so the copy moved 1.82 mm off the top and bottom that the
+    ink does have, and left 1.59 mm on the left and right that it does not.
+
+    That is not an abstract divergence. Knut's six straight-strip CR30 presets
+    were held out of a release for a day on the strength of it: this file
+    reported the three A4 charts at Top 10.499 / Bottom 5.112 against their own
+    declared 11.0 / 6.0 and called them self-accusing, while the app's margin
+    panel, which calls the shipped function, showed Knut 12.3 and 6.9 with no
+    warning on beta 7. The panel was right. The presets were always inside
+    their box.
+
+    Feeding the shipped function means building the sidecar it reads, which is
+    what `chart_creator._embed_layout_geometry` writes: `strips.json` (the
+    `patch_rects_px` output, the paper and the dpi) plus the engine marker and
+    the recipe.
     """
+    import json
+    import tempfile
+
     geom, layout, w_mm, h_mm, dpi = _laid_out(preset)
-    rects = [r for r in geometry.patch_rects_px(geom, w_mm, h_mm, layout, dpi)
-             if r["page"] == 0]
-    px2mm = 25.4 / dpi
-    x0 = min(r["x"] for r in rects)
-    x1 = max(r["x"] + r["w"] for r in rects)
-    y0 = min(r["y"] for r in rects)
-    y1 = max(r["y"] + r["h"] for r in rects)
-    if geom.edge_spacers:
-        sp = round(geom.pspa * dpi / 25.4)
-        y0, y1 = y0 - sp, y1 + sp
-    if recipe_is_hexagonal(preset.layout_recipe):
-        hh = max(r["h"] for r in rects)
-        y0, y1 = y0 - hh / 6.0, y1 + hh / 6.0
-    return MarginReport(
-        left_mm=max(0.0, x0 * px2mm), right_mm=max(0.0, w_mm - x1 * px2mm),
-        top_mm=max(0.0, y0 * px2mm), bottom_mm=max(0.0, h_mm - y1 * px2mm),
-        strip_width_mm=rects[0]["w"] * px2mm,
-        page_w_mm=w_mm, page_h_mm=h_mm,
-        strip_length_mm=(y1 - y0) * px2mm,
-        dpi=dpi,
-    )
+    doc = {"layout": {
+        "engine": "chromiq",
+        "dpi": dpi,
+        "paper_mm": [w_mm, h_mm],
+        "patches": geometry.patch_rects_px(geom, w_mm, h_mm, layout, dpi),
+        "recipe": preset.layout_recipe,
+    }}
+    with tempfile.TemporaryDirectory() as td:
+        sc = Path(td) / f"{preset.slug}.channels.json"
+        sc.write_text(json.dumps(doc), encoding="utf-8")
+        out = measure_from_engine(sc, 0)
+    assert out is not None, (
+        f"{preset.slug}: measure_from_engine refused the engine's own geometry")
+    return out[0]
 
 
 def test_no_builtin_preset_breaks_its_own_declared_margins():

@@ -59,13 +59,14 @@ def test_all_fields_persist_through_named_dict():
         offset_x_mm=4.0, offset_y_mm=5.0, bit16=True, compression="zlib",
         show_strip_indicators=True, show_row_indicators=False,
         label_style_explicit=True,
-        layout_explicit=True,
+        layout_explicit=True, margins_explicit=True, align_explicit=True,
         indicator_font="Inter", indicator_size_mm=4.0,
         indicator_bold=True, indicator_italic=True, underline_mode="cycle",
         underline_thickness_mm=0.8, underline_gap_mm=1.2, chart_text="{project}",
         chart_text_font="Inter", chart_text_size_mm=3.5, chart_text_bold=True,
-        chart_text_italic=True, stamp_command=True, clip_border_width_mm=30.0,
-        clip_content_mode="text", clip_text="ID", clip_text_font="Inter",
+        chart_text_italic=True, chart_text_align="between_margins",
+        stamp_command=True, clip_border_width_mm=30.0,
+        clip_content_mode="text", clip_content_when_on="image", clip_text="ID", clip_text_font="Inter",
         clip_image_path="/tmp/logo.png", nolimit=True, strip_pattern="A-Z",
         patch_pattern="1-99",
         # EVERY field has to be set to a NON-DEFAULT value, or the loop below
@@ -83,6 +84,7 @@ def test_all_fields_persist_through_named_dict():
         strip_label_offset_mm=-1.5, indicator_rotation=90,
         indicator_align="center", edge_spacers=True,
         patch_area_align="center-right", cm_stagger=True, export_pdf=True,
+        hex_flat_top=True,
         hflag=True, use_instrument_margins=False, layout_mode="patch_first",
         area_method="by_grid", area_cols=12, area_rows=18, area_ratio=1.25,
         area_min_patch_mm=6.0, strip_gap_mm=2.5)
@@ -94,6 +96,12 @@ def test_all_fields_persist_through_named_dict():
     for f in fields(LayoutRecipe):
         if f.name == "seed":
             assert got.seed is None
+            continue
+        if f.name == "seed_fixed":
+            # Dropped with the seed, and for the same reason: a stored ON with
+            # no number beside it would tick "Use a fixed seed" over whatever
+            # the Seed box happened to be holding.
+            assert got.seed_fixed is None
             continue
         assert getattr(got, f.name) == getattr(full, f.name), f.name
 
@@ -114,6 +122,7 @@ def test_the_full_recipe_really_is_full():
     # Fields that legitimately cannot be varied here.
     skip = {
         "seed",                 # deliberately dropped by a preset
+        "seed_fixed",           # dropped with it (PresetStore.set)
         "instrument", "paper",  # the preset KEY — varying them changes the slot
         "clip_border",          # ditto: part of the mode in the key
         "spacer_overrides",     # per-chart click state, not a preset value
@@ -187,7 +196,10 @@ def test_spectroscan_defaults_to_patch_first():
 def test_from_build_kwargs_roundtrip_and_detection():
     """A chart whose channels.json stored build-kwargs (not a recipe) must
     reload faithfully — esp. clip_border (kwargs spell it nolpcbord) (#93)."""
+    # "Prioritise patch size", where the patch scale reaches the engine; in the
+    # dataclass default, area-first, it is hidden and sent as 1.0 (B8-1540).
     r = LayoutRecipe(instrument="i1", paper="A4", clip_border=False, border=10.0,
+                     layout_mode="patch_first",
                      pscale=0.95, underline_mode="cycle", cm_density=1,
                      indicator_rotation=90)
     kw = r.build_kwargs()

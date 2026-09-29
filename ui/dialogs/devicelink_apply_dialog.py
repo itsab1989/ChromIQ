@@ -392,7 +392,7 @@ class DeviceLinkApplyDialog(_ToolDialogBase):
         self._temp_files = []
         self._jobs, warnings = self._build_jobs()
         for w in warnings:
-            self._log.appendPlainText(f"[WARN] {w}")
+            self._log.appendPlainText(f"[WARNING] {w}")
         if not self._jobs:
             self._cleanup_temps()
             self._log.appendPlainText(tr("Nothing to convert — see messages above."))

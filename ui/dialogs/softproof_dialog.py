@@ -133,7 +133,7 @@ _HELP = tr(
     "This tool gives you a rough on-screen preview of how a photo will look once "
     "it's printed on a particular printer and paper — a “soft-proof” — so you can "
     "spot trouble before you commit ink and paper to it.\n\n"
-    "It's simple to use: pick an image and your printer's ICC profile (the same one "
+    "**It's simple to use:** pick an image and your printer's ICC profile (the same one "
     "you'd print it with). The preview then appears on its own and refreshes "
     "automatically whenever you change a setting — there's no button to press.\n\n"
     "There are two ways to look at it:\n"
@@ -143,7 +143,7 @@ _HELP = tr(
     "• Gamut fit shows your image's colours as a 3D shape sitting inside your "
     "printer's colour space, so you can see exactly where — and how far — colours "
     "fall outside it.\n\n"
-    "The settings, in plain terms:\n"
+    "**The settings, in plain terms:**\n"
     "• Colour space — how the numbers in your image should be read. “Embedded” "
     "trusts the profile saved inside the file (most phone and web images are sRGB); "
     "pick “Other ICC profile…” to choose your own.\n"
@@ -154,7 +154,7 @@ _HELP = tr(
     "instead of bright screen white, for a more honest preview.\n"
     "• Monitor profile — set this to your display's own profile for a truer match; "
     "left empty, the preview assumes a standard sRGB screen.\n\n"
-    "Two honest caveats: the preview is an approximation, not a fully colour-managed "
+    "**Two honest caveats:** the preview is an approximation, not a fully colour-managed "
     "proof, and it assumes an sRGB-like display unless you set a monitor profile. "
     "Also, ArgyllCMS reads only ICC v2 profiles, so v4 profiles (often from "
     "i1Profiler) can't be used here — open those in the Profile info tool instead."
@@ -745,6 +745,11 @@ class SoftproofDialog(QDialog):
     # ------------------------------------------------------------------
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
+        # K44 (Knut, #182 5833983335): the button Return presses is drawn
+        # filled. Qt made the first button created the default here, a
+        # file chooser; this window has no main action for Return (C9).
+        from ui.dialogs.no_default_button import no_default_button
+        no_default_button(self)
         pin_min_height(
             self, min_width=1180, min_height=600,
             wrap_labels=(self._body, self._banner, self._status),

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import html
 import json
+import shlex
 import subprocess
 import sys
 import time
@@ -58,7 +59,7 @@ from ui.cr30_calibration import Cr30CalibrationMixin
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import TooltipButton
-from ui.widgets import ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import TailFollowLog, ElidingComboBox, ElidingLabel, WrappingCheckBox, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 
 _TAB_COLOR = "#56d6a5"  # Measure tab accent
 from ui.styles import SPEC_GREEN, TAB_COLORS
@@ -243,6 +244,19 @@ def _strip_outlier_fence(des: "list[float]") -> float:
 
     q1, q3 = pct(0.25), pct(0.75)
     return q3 + 1.5 * (q3 - q1)
+
+
+def _save_partial_name() -> str:
+    """The Save Partial & Quit button's label, as HTML.
+
+    Qt reads `&&` in a button label as one literal ampersand; HTML wants
+    `&amp;`. Naming the button in a message therefore needs this one
+    substitution — and doing it here, from the button's OWN key, is what stops
+    the message and the button becoming two separately translated strings. They
+    already had: German called the button „Teilweise speichern && beenden" and
+    every message that named it „Teil speichern &amp; beenden".
+    """
+    return tr("Save Partial && Quit").replace("&&", "&amp;")
 
 
 def _xyz_d50_to_srgb8(xyz: "list[float]") -> tuple[int, int, int]:
@@ -485,9 +499,28 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
     recorded patch geometry, so the strip-hover frame must add them back.
 
     Read straight from the chart's own geometry so it is always accurate: the
-    channels.json recipe's ``edge_spacers`` flag says whether they exist, and
-    the engine geometry gives their height (the patch spacing ``pspa``, the same
-    value the margin inspector uses for edge spacers, #18)."""
+    engine geometry says whether the sheet has them and gives their height (the
+    patch spacing ``pspa``, the same value the margin inspector uses for edge
+    spacers, #18).
+
+    **ASK THE BUILD, NOT THE RECORD (R23-F3, and R22-F4 before it).** This read
+    `recipe["edge_spacers"]`, which is what the chart's stored recipe happens to
+    say, and for a strip reader that is not what the sheet has:
+    `LayoutRecipe.build_kwargs` forces edge spacers on for i1 / i1Pro 3+ /
+    ColorMunki, so the box cannot change those sheets and the spacers are
+    printed whatever the field says. The two doors then record opposite things
+    for the SAME sheet, Manual storing the recipe's own field (`false`) and
+    Guided the resolved build kwargs (`true`), and this function believed each
+    of them: measured by round 23 on one sheet, Manual answered **0 px** and
+    Guided **12 px**, the blank of "Show only measured patches" came out EIGHT
+    device rows shorter, and the row below it was 86.8 % dark where the other
+    was 0 %. On a black-and-white spacer chart that bar is black, which is
+    Basti's own hairline report arriving through a second door.
+
+    `workflow/margin_inspector.py` was corrected the same way and for the same
+    reason; resolving it here rather than at the recording end also reaches
+    every chart already on a user's disk, which no migration would.
+    """
     if ti2_path is None:
         return 0
     import json
@@ -497,18 +530,214 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
     try:
         layout = json.loads(read_text(channels)).get("layout") or {}
         recipe = layout.get("recipe") or {}
-        if not recipe.get("edge_spacers"):
-            return 0
-        from dataclasses import fields as _fields
         from workflow.layout_engine import instruments
-        from workflow.layout_engine.presets import LayoutRecipe
-        valid = {f.name for f in _fields(LayoutRecipe)}
-        rc = LayoutRecipe(**{k: v for k, v in recipe.items() if k in valid})
-        geom = instruments.geom_from_build_kwargs(rc.build_kwargs())
+        from workflow.layout_engine.presets import build_kwargs_as_built
+        kw = build_kwargs_as_built(recipe)      # B8-1570: as it was built
+        if not kw.get("edge_spacers"):
+            return 0
+        geom = instruments.geom_from_build_kwargs(kw)
         dpi = float(layout.get("dpi") or 300) or 300.0
         return max(0, round(geom.pspa * dpi / 25.4))
     except Exception:  # noqa: BLE001 — a hover nicety must never break loading
         return 0
+
+
+#: How far a pixel's channels must spread before it is certainly not a strip
+#: letter. A letter is drawn in black and fades to the paper through NEUTRAL
+#: greys, where the three channels are equal, so any spread at all is chart
+#: ink in principle; the floor is here to keep a JPEG-ish fringe or a scanner
+#: artefact out. Measured on real pages: a 15 % magenta tint (255, 212, 255)
+#: spreads 43 and is found, and (255, 217, 255) spreads 38 and is not, so the
+#: faintest tint this misses is about a seventh of full strength.
+_INK_CHROMA_FLOOR = 40
+
+#: `{chart|page:size:mtime|...: {page: row}}` for charts that do not record
+#: their own ink line. Keyed on the PAGES, which are what is read, so a rebuilt
+#: chart is read again; process-local, nothing is written to disk.
+_INK_TOP_CACHE: "dict[str, dict[int, float]]" = {}
+_INK_TOP_CACHE_MAX = 32
+
+
+def _first_coloured_row(page: "Path", x0: int, x1: int,
+                        stop_at: int) -> "int | None":
+    """The first row of *page* between 0 and *stop_at* carrying COLOURED ink,
+    inside the patch columns' own x range, or None.
+
+    **Colour is the only thing that separates chart ink from a strip letter
+    here, and it does not always separate them.** A letter is drawn in black
+    and fades to the paper through neutral greys, so a row with chroma in it
+    cannot be a letter, whatever else is on it. The converse does not hold: a
+    spacer ring drawn in BLACK is chart ink with no chroma at all, and
+    "Black & white" is a spacer mode a user can choose, so this answers "the
+    first row I can PROVE is ink", not "the first inked row". The caller turns
+    a useless answer into no answer rather than into a wrong number.
+    """
+    try:
+        from PIL import Image
+        import numpy as np
+        with Image.open(page) as im:
+            band = im.convert("RGB").crop((max(0, x0), 0,
+                                           max(x0 + 1, x1), max(1, stop_at)))
+        a = np.asarray(band).astype(np.int16)
+        chroma = a.max(axis=2) - a.min(axis=2)
+        rows = np.where((chroma > _INK_CHROMA_FLOOR).any(axis=1))[0]
+        return int(rows[0]) if len(rows) else None
+    except Exception:      # noqa: BLE001 — a preview must never die on a page
+        return None
+
+
+def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]":
+    """Per page, the first inked row of the patch field, in image px.
+
+    Recorded by the layout engine at the moment it draws (see
+    `TiffPreview.set_patch_ink_top_px`).
+
+    **AND MEASURED OFF THE PAGE FOR EVERY CHART BUILT BEFORE THE KEY EXISTED.**
+    The key is what lets "Show only measured patches" cover a honeycomb's
+    printed ring, and without it a chart already on disk keeps the leak it
+    always had: measured on screen, 30, 36 and 30 device pixels of ring at
+    three window sizes, against none with the key. Nothing migrates a chart, so
+    the page itself is asked, by colour, which cannot answer with a letter.
+    """
+    if ti2_path is None:
+        return {}
+    import json
+    channels = Path(ti2_path).with_suffix(".channels.json")
+    if not channels.is_file():
+        return {}
+    try:
+        layout = json.loads(read_text(channels)).get("layout") or {}
+        tops = layout.get("patch_ink_top_px")
+        if isinstance(tops, list):
+            # ZERO IS A ROW, NOT A MISSING VALUE. A page whose ink starts at
+            # its very first row records 0, and dropping it here while the
+            # preview's own test said `is not None` left the two halves
+            # disagreeing about what "no ink line" means (R13-7, R14-F6).
+            out = {i: float(v) for i, v in enumerate(tops)
+                   if isinstance(v, (int, float)) and not isinstance(v, bool)
+                   and v >= 0}
+            if out:
+                return out
+        # ...the fall-back, for a chart whose sidecar predates the key.
+        #
+        # ONCE PER CHART, NOT ONCE PER LOAD. This runs from `set_ti1_path`,
+        # which is where a project open, a Profile-run change, a Run-type
+        # change and every cross-tab load all arrive, and it decodes each page
+        # to do its work: measured on a 3-page A3 at 600 dpi it is 832 ms of
+        # frozen window, against 1.6 ms when the chart records the key
+        # (R15-F4). The pages cannot change under a chart that is already
+        # written, so the answer is kept against their size and timestamp.
+        band_bot = layout.get("label_band_bottom_px")
+        band_bot = (float(band_bot)
+                    if isinstance(band_bot, (int, float))
+                    and not isinstance(band_bot, bool) else None)
+        if band_bot is None:
+            # No label band means no clamp in the preview at all, so there is
+            # nothing this line could be compared against. Do not read the
+            # pages to answer a question nobody asks.
+            return {}
+        pats = layout.get("patches") or []
+        if not pats:
+            return {}
+        # A LITERAL STEM, NOT A PATTERN. `Path.glob` reads `[`, `]`, `*` and
+        # `?` in a project's own name as wildcards, so a chart called
+        # `Chart [v2]` found no pages at all and the fall-back returned
+        # nothing. `stem_files` escapes the stem once, which is what it is for.
+        from core.file_manager import stem_files
+        stem = Path(ti2_path).with_suffix("")
+        # ...AND THE ONE-PAGE NAME IS BUILT, NOT DERIVED. `with_suffix` eats
+        # everything after the LAST dot, and a dot is legal in a chart's name:
+        # `TC9.18`, which is a preset this app ships, asked for `TC9.tif` and
+        # found nothing. R14-F3 fixed the multi-page branch and its own
+        # docstring named this one as the branch its mutation could not reach.
+        _one = stem.parent / (stem.name + ".tif")
+        pages = (sorted(stem_files(stem.parent, stem.name, "_*.tif"))
+                 or ([_one] if _one.is_file() else []))
+        # **THE KEY NAMES WHAT IS READ, WHICH IS THE PAGES.** An earlier
+        # version keyed on the sidecar alone, so a page rewritten under an
+        # untouched sidecar kept the old answer; and it kept an EMPTY answer
+        # that had come from pages which were simply not there yet, which then
+        # survived their arrival (R16-W1). Both are the same mistake: the
+        # answer belongs to the files it was read from.
+        _key = str(Path(ti2_path))
+        for _pg in pages:
+            try:
+                _ps = _pg.stat()
+                _key += f"|{_pg.name}:{_ps.st_size}:{_ps.st_mtime_ns}"
+            except OSError:
+                _key += f"|{_pg.name}:?"
+        if not pages:
+            # Nothing to read, so nothing is learned and nothing is kept: a
+            # chart whose pages are missing must be asked again when they are
+            # back.
+            return {}
+        _hit = _INK_TOP_CACHE.get(_key)
+        if _hit is not None:
+            return dict(_hit)
+        found: "dict[int, float]" = {}
+        for i, page in enumerate(pages):
+            own = [p for p in pats if int(p.get("page", 0)) == i]
+            if not own:
+                continue
+            x0 = min(int(p["x"]) for p in own)
+            x1 = max(int(p["x"]) + int(p["w"]) for p in own)
+            top = min(int(p["y"]) for p in own)
+            row = _first_coloured_row(page, x0, x1, top + 1)
+            # USEFUL OR SILENT, NEVER WRONG. This line only ever does anything
+            # when the ink starts ABOVE the label band's bottom, which is where
+            # the blank would otherwise cut. A row found below that line tells
+            # the caller nothing it did not already know, and on a chart whose
+            # ring is black -- `contrast.spacer_rgb` returns black or white, and
+            # "Black & white" is a spacer mode a user can pick -- the first row
+            # with any chroma in it is a PATCH, well below the ring that is
+            # really the top of the ink. Reporting that as "the first inked
+            # row" would be a wrong number dressed as a measurement.
+            if row is not None and row < band_bot:
+                found[i] = float(row)
+        _INK_TOP_CACHE[_key] = dict(found)
+        while len(_INK_TOP_CACHE) > _INK_TOP_CACHE_MAX:
+            _INK_TOP_CACHE.pop(next(iter(_INK_TOP_CACHE)))
+        return found
+    except Exception:      # noqa: BLE001 — a preview must never die on a sidecar
+        return {}
+
+
+def hex_ring_px_from_sidecar(ti2_path: "Path | None") -> float:
+    """The paper ring between a honeycomb's hexagons (image px), or 0 (B8-318).
+
+    **The recorded patch boxes cannot answer this.** A honeycomb built with a
+    spacer takes the ring out of the patch's own area, so the boxes do not
+    move: measured, they are byte-identical between `spacer_on=False` and
+    `spacer_width=1.5`, 150 of them, in both orientations. Only the INK gets
+    smaller. CR30 A4 at 300 dpi, one box at its centre row: 142 px at every
+    spacer width, against ink of 142 / 137 / 125 / 109 px at 0 / 0.5 / 1.5 /
+    3.0 mm.
+
+    So it is read from the chart's own recipe, the way the edge spacer is, and
+    the preview insets the hexagon it draws by half of it. Without that the
+    split is drawn at CELL size and swallows the ring, which is what Basti
+    photographed on a rotated CR30 honeycomb: *"honeycombs with spacers.
+    spacers get covered by split overlay"*.
+    """
+    if ti2_path is None:
+        return 0.0
+    import json
+    channels = Path(ti2_path).with_suffix(".channels.json")
+    if not channels.is_file():
+        return 0.0
+    try:
+        layout = json.loads(read_text(channels)).get("layout") or {}
+        recipe = layout.get("recipe") or {}
+        if not recipe:
+            return 0.0
+        from workflow.hex_support import ring_mm_of
+        ring_mm = float(ring_mm_of(recipe) or 0.0)
+        if ring_mm <= 0:
+            return 0.0
+        dpi = float(layout.get("dpi") or 300) or 300.0
+        return max(0.0, ring_mm * dpi / 25.4)
+    except Exception:  # noqa: BLE001 — a preview nicety must never break loading
+        return 0.0
 
 
 def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
@@ -535,8 +764,21 @@ def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
     was removed at the same time.
     """
     import re
-    from workflow.hex_support import chart_is_hexagonal
+    from workflow.hex_support import chart_is_hexagonal, chart_is_flat_top
     if not chart_is_hexagonal(ti2_path):
+        return
+    # A ROTATED HONEYCOMB HAS ONE X PER COLUMN BY DESIGN, so the fingerprint
+    # below reads every one of them as legacy and shifts every box by a quarter
+    # patch: measured 31 px on a 123 px patch, on every patch of every page.
+    # That is the fault Sebastian reported once already, reintroduced by a
+    # heuristic that was correct for the only orientation that existed when it
+    # was written.
+    #
+    # The answer is a POSITIVE signal rather than a cleverer heuristic. The
+    # sidecar's recipe round-trips, so ask it. A legacy sidecar predates the
+    # field, so `hex_flat_top` is absent there, reads falsy, and the heuristic
+    # still runs for exactly the vintage it was written for.
+    if chart_is_flat_top(ti2_path):
         return
     for page in pages:
         if not page:
@@ -900,6 +1142,68 @@ def _cgats_has_no_readings(path) -> bool:
     return held == 0
 
 
+#: #182 R2 (G5): the measure the verification pre-flight wraps its text at,
+#: so the full M-VERIFY-UNCHECKED-METRICS paragraph fits without the popup
+#: growing past a laptop screen. MEASURED on screen in beta 36
+#: (`~/Desktop/ChromIQ-beta36-proof/design-R3-R2-R1/`): a spacer of 920 gives
+#: a box 968 px wide whose German frame, the longer language, is 875 px tall;
+#: re-measured for beta 39 in `~/Desktop/ChromIQ-beta39-proof/k28-a/`.
+PREFLIGHT_TEXT_WIDTH = 920
+#: Qt's own ceiling on a QMessageBox's width is the screen's width less 480
+#: (and never over 1000). Asked for more, Qt wraps the label ANYWHERE, words
+#: broken mid-word; this keeps the spacer inside it, with the box's margins.
+_MESSAGE_BOX_QT_MARGIN = 480 + 48
+#: The title bar a frame adds to the box's own height, which cannot be read
+#: before the window is mapped. Measured on macOS 15: 28.
+_PREFLIGHT_CAPTION = 28
+
+
+def preflight_text_width(box) -> int:
+    """`PREFLIGHT_TEXT_WIDTH`, held inside Qt's width ceiling for the screen
+    *box* opens on."""
+    from PyQt6.QtGui import QGuiApplication
+    screen = box.screen() or QGuiApplication.primaryScreen()
+    if screen is None:
+        return PREFLIGHT_TEXT_WIDTH
+    room = screen.availableGeometry().width() - _MESSAGE_BOX_QT_MARGIN
+    return max(360, min(PREFLIGHT_TEXT_WIDTH, room))
+
+
+def _preflight_work_height(box) -> int:
+    """The height of the work area *box* opens on (menu bar and Dock taken
+    off). A function of its own so a test can give it a 13-inch screen."""
+    from PyQt6.QtGui import QGuiApplication
+    screen = box.screen() or QGuiApplication.primaryScreen()
+    if screen is None:
+        return 10_000
+    return screen.availableGeometry().height()
+
+
+def _preflight_fits(box) -> bool:
+    """Whether *box*, with its title bar, fits the work area. Asked of the
+    shown box's frame; before it is shown, of its size hint (an estimate that
+    can be 140 px short, which is why the pre-flight asks after showing).
+
+    A MacBook Air 13 has about 918 px of work area with the Dock hidden and
+    about 860 with it at the bottom. The wide German popup is 875 tall, so on
+    the second the one-line version is shown instead, and the OK button and
+    the "do not show again" tick can never fall off the screen.
+    """
+    lay = box.layout()
+    if lay is not None:
+        lay.activate()
+    if box.isVisible():
+        # the real frame, title bar included: see `_show_verification_
+        # preflight_now`, where this is asked once the box is on screen
+        need = box.frameGeometry().height() - _PREFLIGHT_CAPTION
+    else:
+        need = max(box.sizeHint().height(), box.minimumSizeHint().height())
+    work = _preflight_work_height(box)
+    log.info("Verification pre-flight: box needs %d px with its title bar, "
+             "work area %d px", need + _PREFLIGHT_CAPTION, work)
+    return need + _PREFLIGHT_CAPTION <= work
+
+
 class TabMeasure(Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
 
@@ -977,6 +1281,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # silence the other — they say different things and one of them is the
         # last guard before readings are overwritten.
         self._offer_silenced: set = set()
+        # …and the third, for the verification pre-flight (#182, Knut,
+        # 2026-09-21). A SEPARATE set again, for the same reason: its tick
+        # says "do not show this message again", about this message. Keys come
+        # from `_preflight_scope`, which is NOT `_replace_warning_scope` --
+        # see the note there. IN MEMORY ONLY: *"until I restart ChromIQ"*, so
+        # nothing about it is written into the project on disk.
+        self._preflight_silenced: set = set()
+        #: True only while the pre-flight is on screen, so two queued triggers
+        #: cannot stack two windows.
+        self._preflight_open: bool = False
+        #: True between asking for the pre-flight and the event loop getting
+        #: round to it; coalesces the show-event and the run-switch triggers,
+        #: which arrive together whenever a run switch brings the tab forward.
+        self._preflight_queued: bool = False
         # A chart was loaded while another tab was on screen and still owes the
         # user the "this chart already has a measurement" offer — made when this
         # tab is next shown. See set_ti1_path / showEvent. (Since #130
@@ -998,6 +1316,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # #126 chart-reading engine session state
         self._engine_strips: list[dict] = []      # session_start strip map
         self._engine_read: dict[str, bool] = {}   # letter → measured?
+        #: Every patch location this session has a reading for, whichever way
+        #: it arrived (B8-385). The strip map above is the ENGINE's, one entry
+        #: per strip, and the two modes that do not read strips cannot fill it:
+        #: a whole-chart read reports a chart and a spot read reports one
+        #: patch. This is what those two put their answers in, and
+        #: `_strips_fully_read` turns it back into strips for the preview.
+        #: It only ever grows within a chart, so a strip cannot flicker off.
+        self._engine_patch_read: set[str] = set()
+        #: (path, size, mtime) of the measurement `_note_measurement_on_disk`
+        #: last read its locations out of, so the ordinary path does not re-read
+        #: the file every time a view control moves.
+        self._disk_read_key: "tuple | None" = None
         # Per-page {loc: QRect} for the split-patch overlay; empty when the
         # chart exposes no per-patch geometry (then the overlay is suppressed).
         self._patch_boxes: list[dict[str, QRect]] = []
@@ -1155,12 +1485,29 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     # Mode switching
     # ------------------------------------------------------------------
 
+    def _guided_available(self) -> bool:
+        """Whether the GUIDED module is offered at all.
+
+        Preferences → Calibration options hides it, which is that feature's own
+        promise in as many words: *"When active: the guided modes in all tabs
+        are hidden"* (`docs/design/calibration_run_type.md`, §the Settings
+        card). Asked as a question rather than read off the button, because
+        `_switch_mode` needs the answer before the button exists.
+        """
+        return not bool(getattr(self, "_calibration_mode", False))
+
     def _switch_mode(self, mode: str) -> None:
-        # IMPORT exists only while the shared Run type is Verification; asked
+        # IMPORT exists only while the shared Run type allows it; asked
         # for at any other moment (e.g. a restored state) it falls back to
         # Guided rather than showing a module that cannot run (#133).
         if mode == "import" and not self._import_available():
             mode = "guided"
+        # …AND GUIDED IS NOT ALWAYS THERE TO FALL BACK TO. With Preferences →
+        # Calibration options on it is hidden, so landing on it would put the
+        # person on a module with no button to leave it by. Manual is the
+        # module that feature locks to, and it is the one that is always there.
+        if mode == "guided" and not self._guided_available():
+            mode = "manual"
         if mode == "guided":
             self._stack.setCurrentIndex(0)
         elif mode == "import":
@@ -1197,6 +1544,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._preview.set_overlay_mode(combo.currentData())
         if only is not None:
             self._preview.set_show_only_measured(only.isChecked())
+            # **AND WHAT THE CHART'S OWN MEASUREMENT ALREADY HOLDS (B8-385).**
+            # "Show only measured patches" blanks every strip the preview has
+            # not been told is read, and outside a session nothing tells it:
+            # round 23 photographed a window reading "Progress: 100.0 %" over a
+            # wholly blank sheet, on the ordinary path of opening a project
+            # that already has a measurement.
+            if only.isChecked():
+                self._note_measurement_on_disk()
         if tile is not None:
             self._preview.set_show_patch_tile(tile.isChecked())
         aim = getattr(self, f"_{prefix}_aim_help", None)
@@ -1226,6 +1581,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # button follows the bar — and the destination line inside the module
         # follows the selected run / verification date.
         controller.changed.connect(self._refresh_import_visibility)
+        # **KNUT'S SECOND TRIGGER, AND THE ONE HE SAID WOULD BE MISSED**
+        # (#182, 2026-09-21): *"by standing on Measure tab on a different
+        # 'Profile run' and then changing 'Profile run' to the run that has
+        # the above preconditions fulfilled, thus entering the Measure tab"*.
+        # `showEvent` does not fire for that, because the tab never leaves the
+        # screen. `changed` is the bar's one signal for a new selection, and
+        # it carries a run-type change too, which is the same arrival by
+        # another door.
+        #
+        # A BOUND METHOD, never a self-capturing lambda on a signal
+        # (CLAUDE.md, the fade-scroll SIGSEGV).
+        controller.changed.connect(self._queue_verification_preflight)
         self._refresh_import_visibility()
 
     # ------------------------------------------------------------------
@@ -1722,10 +2089,49 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._fit_log_height()
 
     def set_calibration_mode(self, enabled: bool) -> None:
-        """Hide guided mode toggle and lock to manual when calibration mode is active."""
-        self._mode_row_widget.setVisible(not enabled)
-        if enabled:
+        """Hide the GUIDED module and lock to manual while Preferences →
+        Calibration options is on.
+
+        IT USED TO HIDE THE WHOLE ROW, AND THE ROW HAS THREE BUTTONS IN IT.
+        When this was written it held two, GUIDED and MANUAL, so hiding it said
+        exactly what the preference promises: *"the guided modes in all tabs
+        are hidden"*. #133 then put IMPORT in the same row, and the measurement
+        import door was widened to profiling runs, so from that day a person
+        who had switched this preference on could not reach the import module
+        AT ALL, on any run type, and nothing said why: `_import_available()`
+        answered True, `_refresh_import_visibility` showed the button, and the
+        button's parent was hidden underneath it. Measured on screen on a
+        PROFILING run with the preference on
+        (`~/Desktop/ChromIQ-beta18-proof/combined-round-2/`,
+        `H-measure-tab-calibration-mode-ON.png` beside `...-OFF.png`): the
+        three buttons are simply not on the tab.
+
+        So the GUIDED button goes, which is what the sentence promises, and the
+        row stays for as long as it still offers a choice.
+        """
+        self._calibration_mode = bool(enabled)
+        self._guided_btn.setVisible(not enabled)
+        # Only when the person is actually standing on the guided module: this
+        # also runs on any Preferences save, and kicking somebody out of the
+        # import module they are filling in is not what "lock to manual" means.
+        if enabled and self._stack.currentIndex() == 0:
             self._switch_mode("manual")
+        self._refresh_import_visibility()
+        self._sync_mode_row_visibility()
+
+    def _sync_mode_row_visibility(self) -> None:
+        """The row is on screen while it still offers a CHOICE.
+
+        MANUAL on its own is not one: it is the module already showing, and a
+        lone checked button that does nothing is worse than no row. So the row
+        follows the two buttons that can appear and disappear.
+        """
+        if not hasattr(self, "_mode_row_widget"):
+            return
+        row = self._mode_row_widget
+        self._mode_row_widget.setVisible(
+            self._guided_btn.isVisibleTo(row)
+            or self._import_btn.isVisibleTo(row))
 
     # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
@@ -1832,14 +2238,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "on the printed chart and records what colour your printer actually "
                 "produced. ChromIQ pairs each measurement with the RGB value that "
                 "was requested in step 1, and saves the result as a .ti3 file.\n\n"
-                "Before you start:\n"
+                "**Before you start:**\n"
                 "• Your measurement device (e.g. i1Pro, ColorMunki, ColorMeter) "
                 "MUST be plugged in via USB before you open this tab. If ChromIQ "
                 "doesn't see it, unplug and replug, then restart the app.\n"
                 "• The print must be fully dry — wet ink gives wrong readings.\n"
                 "• Have the printed chart in front of you, well-lit, on a flat "
                 "surface. Avoid direct sunlight.\n\n"
-                "How to use this screen:\n"
+                "**How to use this screen:**\n"
                 "• Guided mode walks you through reading the chart one strip (row) "
                 "at a time. Recommended for first-timers.\n"
                 "• Manual mode exposes every chartread option for advanced users.\n"
@@ -1848,7 +2254,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "beep before moving to the next.\n\n"
                 "If you misread a patch, you can usually re-do that strip from the "
                 "prompt. Don't rush — accurate reads now mean an accurate profile.\n\n"
-                "Next step: build the ICC profile on tab 4.")
+                "**Next step:** build the ICC profile on tab 4.")
             ),
             trailing_widget=_hdr_trailing,
         ))
@@ -2013,14 +2419,63 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         # #131: master switch for measurement sounds (shared by both modes). The
         # individual sounds for each event are chosen in Preferences → Sounds.
-        sound_row = QHBoxLayout()
-        self._sound_cb = QCheckBox(tr("Play sounds during measurement"), btn_outer)
+        #
+        # **ON ONE LINE EACH WHERE THE ROW CANNOT HOLD BOTH (B8-1051).** In
+        # Ukrainian "Відтворення звуків під час вимірювання" wrapped onto two
+        # lines beside "Зберегти звіт про вимірювання", though it fits on one
+        # line of its own (Basti, 2026-09-24). A `ReflowRow`: the two options
+        # side by side where they fit, the report option on a second line
+        # where they do not. The row's minimum is a label's own
+        # (`shrink_groups`), so no language widens the panel.
+        #
+        # **EACH ⓘ DIRECTLY AFTER ITS OWN LABEL (B8-1052).** Basti, 2026-09-24,
+        # on a German photograph: the sounds ⓘ sat at the far right of the
+        # line, after "Messbericht speichern" and ITS ⓘ, so it read as a second
+        # help for the report. Each option and its ⓘ are one group now, as in
+        # the Live preview options, and a group never splits.
+        from ui.widgets import ReflowRow
+        sound_row = ReflowRow(btn_outer, spacing=6, gap=18,
+                              shrink_groups=True)
+        self._sound_row = sound_row
+        self._sound_cb = WrappingCheckBox(
+            tr("Play sounds during measurement"), btn_outer)
         self._sound_cb.setChecked(bool(self._settings.get("sound_enabled", False)))
         self._sound_cb.toggled.connect(self._on_sound_toggled)
-        sound_row.addWidget(self._sound_cb)
-        # Tooltip icon sits at the far right of the panel (Basti), not hugging
-        # the checkbox label.
-        sound_row.addStretch()
+        # #182 (Knut, 2026-09-18, B8-388): *"The 'Save measurement report'
+        # should be ON, visible in the settings on-screen (measurement tab?)
+        # when 'Preferences -> reports' 'Save measurement report after each
+        # measurement' is set (should be default ON). When ... is OFF, then
+        # 'Save measurement report' is default OFF, but a user may still change
+        # it to ON. 'Save measurement report' parameter is also remembered as
+        # all other settings are remembered for a run."*
+        #
+        # ONE CONTROL, ON THE SHARED ROW. Guided, Manual and Import all end in
+        # `measure_finished`, which is what writes the report, so a copy per
+        # module would be three widgets answering one question. It rides the
+        # sound row rather than a row of its own because this tab's buttons are
+        # levelled against every other tab's and a new row moves them (Basti,
+        # 2026-08-07).
+        self._save_report_cb = WrappingCheckBox(
+            tr("Save measurement report"), btn_outer)
+        self._save_report_cb.setChecked(
+            bool(self._settings.get("save_measurement_report", True)))
+        self._save_report_tip = TooltipButton(
+            tr("Save measurement report"),
+            tr("Writes a small dated report when the measurement finishes, in "
+               "a “reports” folder beside the measurement: the run's own for "
+               "a profiling measurement, that date's own "
+               "(verifications/<date>/reports) for a verification, and the "
+               "project's cal/reports with Run type Calibration. It says how "
+               "close the measurement came to the chart's design colours, the "
+               "worst patches, the cube corners, paper white and black.\n\n"
+               "It starts from Preferences → Reports → “Save a measurement "
+               "report after each measurement”, and you can change it here for "
+               "this run. Like every other setting on this tab, the run "
+               "remembers what you chose.\n\n"
+               "**Nothing is overwritten:** each measurement gets its own dated "
+               "report, and the Measurement Report window can rebuild any of "
+               "them from the measurement itself at any time."),
+            btn_outer, min_width=460)
         self._sound_tip = TooltipButton(
             tr("Play sounds during measurement"),
             tr("Plays a short sound at each step of a measurement — a tick as "
@@ -2032,8 +2487,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                "Preferences → Sounds. This switch is remembered between "
                "sessions."),
             btn_outer, min_width=460)
-        sound_row.addWidget(self._sound_tip)
-        bo_layout.addLayout(sound_row)
+        sound_row.add_group(self._sound_cb, self._sound_tip)
+        sound_row.add_group(self._save_report_cb, self._save_report_tip)
+        bo_layout.addWidget(sound_row)
         bo_layout.addLayout(btn_row)
         lc_layout.addWidget(btn_outer)
 
@@ -2052,7 +2508,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # on 13. Elsewhere the gap is *above* the log and the 2 px has to move
         # the other way, into the wrapper: see ui.widgets.add_log_row.
         lo_layout.setContentsMargins(16, 0, 16, 10)
-        self._log = QPlainTextEdit(log_outer)
+        self._log = TailFollowLog(log_outer)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
         # Height in LINES, not pixels (Knut, beta.120: "only 6 lines of text
@@ -2234,9 +2690,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Suppress warning messages (-S)"), True,
             tr("Suppress Warnings (-S)"),
             tr("Suppresses non-fatal instrument warnings from chartread.\n\n"
-            "Suppressed messages include: calibration drift notices,\n"
-            "reflectance range warnings on very dark patches, and strip\n"
-            "timing cautions. These rarely affect measurement quality.\n\n"
+            "**Suppressed messages include:** notices that the calibration\n"
+            "has changed, reflectance range warnings on very dark\n"
+            "patches, and strip timing cautions. These rarely affect\n"
+            "measurement quality.\n\n"
             "Fatal errors that would prevent a .ti3 from being written are\n"
             "always shown regardless of this setting."),
         )
@@ -2286,7 +2743,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "patch you have just read is the only one that has arrived. So this "
             "mode asks the plainer question on its own: is this patch past your "
             "limit?\n\n"
-            "What that means in practice: patch by patch flags MORE patches "
+            "**What that means in practice:** patch by patch flags MORE patches "
             "than strip reading does on the same chart, and vivid colours are "
             "among them. That is the honest consequence of having no "
             "neighbours to compare with — not a fault, and not something to "
@@ -2419,16 +2876,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         for opt in self._chartread_opts:
             if opt.key == "tolerance":
-                # -T IS NOT FORCED ON ANY MORE. It used to be ticked here at
-                # 0.7 for everybody, and chartread hands that number to the
-                # instrument, where it scales the driver's own
+                # -T is ON at 0.7 by default, and that default is
+                # `core.settings.DEFAULTS` (which `AppSettings.get` answers
+                # before the fallbacks written here). chartread hands the
+                # number to the instrument, where it scales the driver's own
                 # patch-recognition threshold while a strip is being swiped
-                # (munki_imp.c:5353). Every measurement anybody made was
-                # therefore judged stricter than the manufacturer's setting,
-                # and on a ColorMunki that reads as a swipe the driver will not
-                # recognise at all — Knut, beta.139: *"no strip is ever
-                # finished without the 'Strip Read Failed' window"*. The row
-                # stays visible so the option is still one tick away.
+                # (munki_imp.c:5353). beta.140 switched it off after Knut's
+                # beta.139 log showed many misreads; that log's failures had
+                # been provoked on purpose, and he asked for 0.7 back, which
+                # 37d70704 did in DEFAULTS and not here (B8-1417 corrected this
+                # comment, which still said the opposite). The row stays
+                # visible so the option is always one tick away.
                 opt.checkbox.setChecked(
                     bool(self._settings.get("measure_tolerance_enabled", False)))
                 if opt.widget is not None:
@@ -2513,7 +2971,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         combo.currentIndexChanged.connect(
             lambda _i, p=prefix: self._on_view_control_changed(p))
         show_row.addWidget(combo)
-        show_row.addStretch(1)
+        # The ⓘ right after the control it explains, like the two options
+        # below it (B8-1052); the slack goes after it.
         show_row.addWidget(TooltipButton(
             tr("What each patch shows"),
             tr("Choose what the coloured patches in the preview show:\n\n"
@@ -2530,23 +2989,39 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "readings. (Screen colours are approximate; the numbers in your "
             "file are exact.)"),
             row))
+        show_row.addStretch(1)
         v.addLayout(show_row)
 
-        only = QCheckBox(tr("Show only measured patches"), row)
+        # WRAPPING, NOT PLAIN. `QCheckBox` has no word wrap and clips
+        # rather than eliding, so a label longer than the English one
+        # loses words off the end with nothing to say so. Measured on
+        # screen 2026-09-21 in Ukrainian: these three were over their
+        # room by 61, 38 and 11 px and read "...при н", "...вимірю"
+        # and "...ділянк". Same class and same reasoning as the
+        # Create Chart options; English is unchanged, because the
+        # preferred size is still one line.
+        only = WrappingCheckBox(tr("Show only measured patches"), row)
         only.toggled.connect(
             lambda _on, p=prefix: self._on_view_control_changed(p))
-        tile = QCheckBox(tr("Show patch values on hover"), row)
+        tile = WrappingCheckBox(tr("Show patch values on hover"), row)
         tile.toggled.connect(
             lambda _on, p=prefix: self._on_view_control_changed(p))
         # Two options share this row: "only measured" on the left with its help
         # icon right beside it, then a stretch, then "values on hover" with its
         # own help icon on the right (Basti).
-        om_row = QHBoxLayout()
-        om_row.setContentsMargins(0, 0, 0, 0)
-        om_row.setSpacing(0)
-        om_row.addWidget(only)
-        om_row.addSpacing(10)   # a little breathing room before the help icon
-        om_row.addWidget(TooltipButton(
+        #
+        # **…WHILE BOTH FIT ON ONE LINE EACH (B8-1051).** Side by side in a
+        # fixed row, each label got half the panel, and in Ukrainian both
+        # wrapped onto two lines ("Показувати лише виміряні / патчі") though
+        # either fits on one line of its own (Basti, 2026-09-24). A
+        # `ReflowRow` keeps the two side by side where they fit and puts the
+        # second on a line of its own where they do not; `shrink_groups`
+        # keeps the row's minimum at a label's own, so no language widens the
+        # panel.
+        from ui.widgets import ReflowRow
+        om_row = ReflowRow(row, spacing=10, gap=18, spread=True,
+                           shrink_groups=True)
+        only_tip = TooltipButton(
             tr("Show only measured patches"),
             tr("Turn this on to see your progress through the chart at a glance: "
             "every patch you have already read keeps its colour (or split), and "
@@ -2556,11 +3031,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "you've come and which rows are still to do. Turn it off to see the "
             "whole printed chart again. It only changes the preview, never your "
             "readings."),
-            row))
-        om_row.addStretch(1)
-        om_row.addWidget(tile)
-        om_row.addSpacing(10)   # same breathing room before its help icon
-        om_row.addWidget(TooltipButton(
+            row)
+        om_row.add_group(only, only_tip)
+        tile_tip = TooltipButton(
             tr("Show patch values on hover"),
             tr("Turn this on to inspect any patch you've already measured: point "
             "at it and a small card appears next to your mouse with the exact "
@@ -2576,8 +3049,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "'Expected & measured (split)' you get both colours and the ΔE; with "
             "'Expected colour only' or 'Measured colour only' you get just that "
             "one. It only reads out numbers — it never changes your readings."),
-            row))
-        v.addLayout(om_row)
+            row)
+        om_row.add_group(tile, tile_tip)
+        v.addWidget(om_row)
 
         # AIMING HELP — a CR30 row, hidden for every other instrument (#159).
         #
@@ -2771,9 +3245,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Suppress warning messages (-S)"), True,
             tr("Suppress Warnings (-S)"),
             tr("Suppresses non-fatal instrument warnings from chartread.\n\n"
-            "Suppressed messages include: calibration drift notices,\n"
-            "reflectance range warnings on very dark patches, and strip\n"
-            "timing cautions. These rarely affect measurement quality.\n\n"
+            "**Suppressed messages include:** notices that the calibration\n"
+            "has changed, reflectance range warnings on very dark\n"
+            "patches, and strip timing cautions. These rarely affect\n"
+            "measurement quality.\n\n"
             "Fatal errors that would prevent a .ti3 from being written are\n"
             "always shown regardless of this setting."),
         )
@@ -2816,7 +3291,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "patch you have just read is the only one that has arrived. So this "
             "mode asks the plainer question on its own: is this patch past your "
             "limit?\n\n"
-            "What that means in practice: patch by patch flags MORE patches "
+            "**What that means in practice:** patch by patch flags MORE patches "
             "than strip reading does on the same chart, and vivid colours are "
             "among them. That is the honest consequence of having no "
             "neighbours to compare with — not a fault, and not something to "
@@ -2912,16 +3387,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         _report_row.addWidget(TooltipButton(
             tr("Measurement report"),
             tr("Opens a report on the chart you've measured: how close each "
-            "patch came to the colour the chart was designed to have — the "
-            "average, worst and spread of the colour difference (ΔE00), the "
+            "patch came to the colour the chart was designed to have (the "
+            "average, worst and spread of the colour difference, ΔE00), the "
             "worst-offending patches with their colours side by side, and the "
-            "paper white and darkest black.\n\n"
-            "Its real strength is comparing over time: if you turn on "
-            "“Save a measurement report after each measurement” in "
-            "Settings, ChromIQ keeps a dated report beside every chart, and "
-            "this window shows how the latest one has changed from the last — "
-            "a rising colour difference or a shifting white/black points to "
-            "ageing inks, a drifting printer, or a drifting instrument.\n\n"
+            "paper white and darkest black. With Run type Calibration it "
+            "opens on the project's calibration measurement and lists that "
+            "calibration's reports.\n\n"
+            "Its real strength is comparing over time: with “Save "
+            "measurement report” ticked on this tab (it starts from "
+            "Preferences → Reports), ChromIQ keeps a dated report of every "
+            "measurement, and this window shows how the latest one has "
+            "changed from the last. A rising colour difference or a shifting "
+            "white/black points to ageing inks, or to a printer or an "
+            "instrument that has changed.\n\n"
             "Measure the chart first, then open this. Screen colours are "
             "approximate; the numbers come from your measurement file."),
             left))
@@ -3186,9 +3664,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         info.setWordWrap(True)
         dlg_layout.addWidget(info)
         bb = QDialogButtonBox(dlg)
-        bb.addButton(tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
+        cancel_btn = bb.addButton(tr("Cancel"),
+                                  QDialogButtonBox.ButtonRole.RejectRole)
         del_btn = bb.addButton(tr("Delete"), QDialogButtonBox.ButtonRole.AcceptRole)
+        # Coloured in the tab's colour before K44, and kept (B8-1156).
         del_btn.setObjectName("primary")
+        # Destructive: never where the keyboard focus starts (B8-1181).
+        # Not the default, so the mark changes nothing in its colour.
+        from ui.default_button import mark_destructive
+        mark_destructive(del_btn)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return presses Cancel, which stays plain; Delete keeps
+        # its colour and is reached by a click.
+        cancel_btn.setDefault(True)
         bb.rejected.connect(dlg.reject)
         bb.accepted.connect(dlg.accept)
         dlg_layout.addWidget(bb)
@@ -3611,6 +4099,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # paint completely first, and the window then opens over a finished
         # screen.
         self._queue_overlay_offer()
+        # KNUT'S FIRST TRIGGER for the verification pre-flight (#182,
+        # 2026-09-21): *"entering the Measure tab […] by clicking on Measure
+        # tab"*. The second, the run switch made while already standing here,
+        # is on the target controller's `changed` — see
+        # `_queue_verification_preflight` and `set_target_controller`.
+        self._queue_verification_preflight()
 
     def _queue_overlay_offer(self) -> None:
         """Ask for the existing-measurement offer on the next turn of the event
@@ -4202,7 +4696,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "of colour patches — that row is called a \"strip\". You can slide\n"
             "it either way: left-to-right or right-to-left. This setting tells\n"
             "the measuring tool which sliding directions to accept.\n\n"
-            "Why it matters: if the tool expects one direction but you slide\n"
+            "**Why it matters:** if the tool expects one direction but you slide\n"
             "the other way, it can't tell which patch is which, so it rejects\n"
             "the read and makes you scan the strip again. The right setting\n"
             "here lets a strip be accepted however you happen to slide it.\n\n"
@@ -4690,6 +5184,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._page_stripe_rects = []
         self._strips_per_page = []
         self._stripe_arrow_mode = "base"
+        # A DIFFERENT CHART MEANS DIFFERENT PATCHES (B8-385). The locations are
+        # this chart's, so carrying them across would mark strips of the new one
+        # read on the strength of the old one's reading.
+        self._engine_patch_read = set()
+        self._disk_read_key = None
         if not self._tiff_pages:
             return
 
@@ -4707,12 +5206,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Grow the strip-hover frame over the edge spacers, when the chart's own
         # geometry says it has them (#43).
         self._preview.set_edge_spacer_px(edge_spacer_px_from_sidecar(self._ti1_path))
+        # And the ring between a honeycomb's hexagons, which the boxes do not
+        # carry: the split would otherwise be drawn at CELL size (B8-318).
+        self._preview.set_hex_ring_px(hex_ring_px_from_sidecar(self._ti1_path))
+        # ...and the first row of ink the page actually carries, which the
+        # blank's top cut is not allowed to fall below.
+        self._preview.set_patch_ink_top_px(
+            patch_ink_top_px_from_sidecar(self._ti1_path))
         # SpectroScan hexagonal charts: the strip highlight follows the column's
         # zigzag (staggered hexagons) instead of a straight rect that would spill
         # into the neighbouring column, and the swipe arrow is hidden — an XY
         # table reads patch-by-patch, so there's nothing to swipe (Knut/Basti).
-        from workflow.hex_support import chart_is_hexagonal
-        self._preview.set_hex_zigzag(chart_is_hexagonal(self._ti1_path))
+        from workflow.hex_support import chart_is_hexagonal, chart_is_flat_top
+        self._preview.set_hex_zigzag(
+            chart_is_hexagonal(self._ti1_path),
+            # The same route, off the same sidecar, so the overlay and the
+            # ink cannot disagree about which way up the honeycomb is.
+            flat_top=chart_is_flat_top(self._ti1_path))
         # A CR30 chart has no swipe either, so the arrow goes — but its patches
         # are square, so it must NOT borrow the hex zigzag to achieve that
         # (#159). Read from the chart, like everything else on this path — via
@@ -4726,6 +5236,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._strips_per_page = counts
             self._stripe_arrow_mode = arrow_mode
             self._preview.set_stripe_rects(per_page[0], arrow_mode)
+            self._note_measurement_on_disk()
             return
 
         # PASSES_IN_STRIPS2 lives only in the .ti2, but _ti1_path can hold either
@@ -5591,15 +6102,27 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "measurement always describes a sheet you still have. The chart "
             "loaded now is a different one.\n\n"
             "What each choice does:\n\n"
-            "•  Replace stored chart — the copy is updated to the chart you "
+            "•  {replace} — the copy is updated to the chart you "
             "are about to measure. Use this when the new chart is the one this "
             "run should keep.\n\n"
-            "•  Keep stored chart — the copy is left exactly as it is, and the "
+            "•  {keep} — the copy is left exactly as it is, and the "
             "measurement still goes ahead. Use this to try a chart out. The "
             "copy will then describe an earlier measurement, and ChromIQ says "
-            "so on the “Restore Used Chart” button.\n\n"
+            "so on the “{restore}” button.\n\n"
             "•  Cancel — nothing is written and no measurement starts."
-        ).format(run=self._pretty_run_name(run)) + extra)
+            # The three bullets name three controls, and a name TYPED here is a
+            # name that drifts: German called these buttons „Gespeichertes
+            # Chart ersetzen/behalten" while they read „Gesichertes
+            # ersetzen/behalten", and Italian had the same pair twice over.
+            # Each bullet now interpolates the button's OWN tr() key, so the
+            # two cannot disagree in any language. (This window is NOT in §M —
+            # it has no M- id and is in neither of test_message_catalogue's
+            # allow-lists — so the English may move; §M's own M-END window a
+            # few hundred lines below is fixed in the catalogue instead.)
+        ).format(run=self._pretty_run_name(run),
+                 replace=tr("Replace stored chart"),
+                 keep=tr("Keep stored chart"),
+                 restore=tr("Restore Used Chart")) + extra)
         replace = box.addButton(tr("Replace stored chart"),
                                 QMessageBox.ButtonRole.DestructiveRole)
         keep = box.addButton(tr("Keep stored chart"),
@@ -6090,19 +6613,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # overwrites the file it resumed from, so this is the last moment the
         # previous readings still exist to be protected.
         self._begin_session_guard(_ti3_pre)
-        if sys.platform == "win32":
-            subprocess.run(
-                ["taskkill", "/F", "/IM", "chartread.exe"],
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-        else:
-            subprocess.run(
-                ["killall", "-q", "chartread"],
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
-            )
+        # A TIDY-UP MUST NEVER BE THE THING THAT STOPS THE SESSION.
+        # This is the last bare launch left in the start path after B8-220, and
+        # it has the same shape: a `subprocess.run` that raises stops `_on_start`
+        # halfway - here with the previous measurement ALREADY archived by the
+        # question above and the session guard already begun, so nothing would
+        # ever call `_finish_session_guard` to put it back. `killall` and
+        # `taskkill` are system binaries and this round could not drive it;
+        # guarded because the consequence is the fault above, not because a
+        # failure was measured.
+        try:
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", "chartread.exe"],
+                    capture_output=True,
+                    stdin=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+            else:
+                subprocess.run(
+                    ["killall", "-q", "chartread"],
+                    capture_output=True,
+                    stdin=subprocess.DEVNULL,
+                )
+        except OSError:
+            log.warning("could not sweep a stray chartread before starting; "
+                        "carrying on", exc_info=True)
         # W8 — START MEASUREMENT WRITES THIS TAB'S SETTINGS FOR THIS TARGET.
         #
         # `per_target_settings.md` §3: *"Load settings when activating tab, Save
@@ -6198,8 +6734,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "[NOTE] Skip initial calibration (-N) is switched on, so your "
                 "instrument will not be calibrated before this measurement.\n"
                 "That is fine if you calibrated it earlier in this session. If "
-                "you did not, readings can drift and whole patches may come "
-                "back as “inconsistent” — switch the option off in the "
+                "you did not, readings can change and whole patches may come "
+                "back as “inconsistent”. Switch the option off in the "
                 "measurement options and start again.")
                 if not params.external_values else
                 "\n" + tr(
@@ -6536,7 +7072,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._log.ensureCursorVisible()
             return "discard"
 
-        self._cue_window("STRIP_FAIL")
+        # THIS WINDOW PLAYS NOTHING, AND THAT IS THE TABLE'S ANSWER.
+        #
+        # It used to cue "STRIP_FAIL" here, on EVERY ending: Stop, Cmd-Q, Give
+        # Up, a disconnection, a CR30 loss, the magnet warning, No Instrument
+        # Found, Confirm Abort and "Patches still unread". Two things were
+        # wrong with that and `measurement_window_sounds.md` settles both --
+        # it is binding, and its table is generated from
+        # `core.measure_windows.WINDOW_ROWS`, which is also the help card the
+        # user reads under Preferences -> Sounds.
+        #
+        #  * THE TABLE HAS NO ROW FOR "Keep what you have measured so far?".
+        #    Its own opening sentence is *"Every window a measurement can
+        #    raise, and the sound played as it opens"*, so a window sounding
+        #    off the table tells the user "Strip read failed" when no strip
+        #    failed -- and on this window nothing has failed at all, because
+        #    the user pressed Stop.
+        #  * IT PLAYED TWICE. "Patches still unread" cues STRIP_FAIL from the
+        #    top of its own slot (the table's row 8) and then arrived here two
+        #    lines later; `play_window` has no de-duplication, so the second
+        #    play restarted the same QSoundEffect and truncated the first. On
+        #    the eight routes that come here from a failure window the user
+        #    heard that window's own cue and this one back to back.
+        #
+        # Every route in reaches this window either from a window that has
+        # already cued (all of the above) or from a button the user has just
+        # pressed themselves, so nothing is left unannounced by the removal.
         n = self._manager.readings_this_session
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
@@ -6717,7 +7278,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if idle < self._key_watchdog.interval() / 1000.0 - 0.5:
             return
         self._log.appendPlainText(
-            "[WARN] No response from chartread after sending a key. "
+            "[WARNING] No response from chartread after sending a key. "
             "The keystroke may not have reached the instrument. "
             "Try pressing the key again, or click Stop and restart the measurement."
         )
@@ -6729,7 +7290,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _on_keypress_failed(self, key_label: str, reason: str) -> None:
         self._log.appendPlainText(
-            f"[WARN] Could not send '{key_label}' to chartread: {reason} "
+            f"[WARNING] Could not send '{key_label}' to chartread: {reason} "
             "Click Stop and restart the measurement; if the problem persists, "
             "please report it with the log file."
         )
@@ -6767,11 +7328,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "first patch), so every patch is filed one position out and the last "
             "one reads the empty paper.<br><br>Nothing else is affected — your "
             "other strips and everything read so far are saved. It is only this "
-            "one strip.<br><br>&nbsp;&nbsp;<b>Re-measure this strip</b> — jump "
+            "one strip.<br><br>&nbsp;&nbsp;<b>{remeasure}</b> — jump "
             "back to strip {strip} and scan it again (recommended).<br><br>"
-            "&nbsp;&nbsp;<b>Keep it</b> — accept this reading as it is.<br><br>"
-            "&nbsp;&nbsp;<b>Stop</b> — stop measuring for now."
-        ).format(strip=strip, patches=patches, base=base_de, best=best_de), dlg)
+            "&nbsp;&nbsp;<b>{keep}</b> — accept this reading as it is.<br><br>"
+            "&nbsp;&nbsp;<b>{stop}</b> — stop measuring for now."
+        ).format(strip=strip, patches=patches, base=base_de, best=best_de,
+                 remeasure=tr("Re-measure this strip"), keep=tr("Keep it"),
+                 stop=tr("Stop")), dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
@@ -6956,13 +7519,39 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
 
         msg = QLabel(
-            tr("<b>This reading looks like strip {read}, but strip {expected} was expected.</b><br><br>This usually means the instrument was placed on the wrong row — or two rows simply look very similar. You have three options:<br><br>&nbsp;&nbsp;<b>Use Anyway</b> — keep this reading and save it as strip {expected} (the row you were asked to scan). Only choose this if you are sure the instrument really was on strip {expected} and the warning is a false alarm — the reading is always filed under {expected}, not {read}.<br><br>&nbsp;&nbsp;<b>Retry</b> — discard this reading and try again. Place your instrument on strip {expected} and re-scan.<br><br>&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving.").format(read=read, expected=expected),
+            tr("<b>This reading looks like strip {read}, but strip {expected} was expected.</b><br><br>This usually means the instrument was placed on the wrong row — or two rows simply look very similar. You have three options:<br><br>&nbsp;&nbsp;<b>{use_anyway}</b> — keep this reading and save it as strip {expected} (the row you were asked to scan). Only choose this if you are sure the instrument really was on strip {expected} and the warning is a false alarm — the reading is always filed under {expected}, not {read}.<br><br>&nbsp;&nbsp;<b>{retry}</b> — discard this reading and try again. Place your instrument on strip {expected} and re-scan.<br><br>&nbsp;&nbsp;<b>{give_up}</b> — stop the measurement without saving.").format(read=read, expected=expected,
+                    use_anyway=tr("Use Anyway"), retry=tr("Retry"),
+                    give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
-        chosen = ["\r"]   # default: use anyway
+        # A DISMISSAL IS A WITHDRAWAL, SO IT IS RETRY -- NOT "USE ANYWAY".
+        #
+        # This value is what gets sent when NO button was pressed: all three
+        # buttons below set it for themselves, so the initial value is read
+        # only when the window is dismissed -- the title-bar X, the red traffic
+        # light, Escape. It used to be "\r", which is Use Anyway, so the one
+        # window whose whole job is to say THIS READING IS PROBABLY WRONG filed
+        # the suspect reading under the expected strip's name the moment the
+        # user closed it, with no confirmation and nothing in the window
+        # warning them. Measured at the far end of a real PTY: a `reject()` on
+        # this dialog put `\r` into the reader.
+        #
+        # `unified_measurement_management.md` already rules on what a dismissal
+        # means, twice, and it is not taste: *"Skipping a calibration step is a
+        # positive decision and keeps its own button. Dismissing a window is a
+        # withdrawal"*, and at M-CR30-INSTRUMENT-GONE *"`clickedButton()` is
+        # None for the red traffic light, the Windows X and Esc alike, and
+        # ending is the consequential act, so a dismissal takes the option that
+        # changes nothing"*. Here the consequential act is FILING the reading.
+        # Retry files nothing and ends nothing -- the reader re-scans the same
+        # strip, and Knut himself called Retry on these windows *"the same
+        # thing as 'Keep measuring'"* (`measurement_exit_strategy.md`, note 1).
+        # So retry is the option that changes nothing, and it is what a
+        # dismissal now sends.
+        chosen = [" "]   # a dismissal means Retry
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
@@ -7020,7 +7609,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         QApplication.instance().removeEventFilter(self)
 
         dlg = QDialog(self)
-        dlg.setWindowTitle(tr("Unexpected Color Response"))
+        dlg.setWindowTitle(tr("Unexpected Colour Response"))
         dlg.setMinimumWidth(500)
 
         layout = QVBoxLayout(dlg)
@@ -7028,13 +7617,39 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
 
         msg = QLabel(
-            tr("<b>An unexpected color response was detected (ΔE {delta_e}).</b><br><br>This usually means the instrument was not aligned correctly with the strip, was moved during the scan, or the wrong strip was read. A ΔE this high indicates the measured colors are very far from what is expected.<br><br>&nbsp;&nbsp;<b>Use Anyway</b> — accept the reading and continue. Only use this if you are sure the scan was correct.<br><br>&nbsp;&nbsp;<b>Retry</b> — discard this reading, re-position your instrument carefully on the correct strip, and try again.<br><br>&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving.").format(delta_e=delta_e),
+            tr("<b>An unexpected colour response was detected (ΔE {delta_e}).</b><br><br>This usually means the instrument was not aligned correctly with the strip, was moved during the scan, or the wrong strip was read. A ΔE this high indicates the measured colours are very far from what is expected.<br><br>&nbsp;&nbsp;<b>{use_anyway}</b>: accept the reading and continue. Only use this if you are sure the scan was correct.<br><br>&nbsp;&nbsp;<b>{retry}</b>: discard this reading, re-position your instrument carefully on the correct strip, and try again.<br><br>&nbsp;&nbsp;<b>{give_up}</b>: stop the measurement without saving.").format(delta_e=delta_e,
+                    use_anyway=tr("Use Anyway"), retry=tr("Retry"),
+                    give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
-        chosen = ["\r"]
+        # A DISMISSAL IS A WITHDRAWAL, SO IT IS RETRY -- NOT "USE ANYWAY".
+        #
+        # This value is what gets sent when NO button was pressed: all three
+        # buttons below set it for themselves, so the initial value is read
+        # only when the window is dismissed -- the title-bar X, the red traffic
+        # light, Escape. It used to be "\r", which is Use Anyway, so the one
+        # window whose whole job is to say THIS READING IS PROBABLY WRONG filed
+        # the suspect reading under the expected strip's name the moment the
+        # user closed it, with no confirmation and nothing in the window
+        # warning them. Measured at the far end of a real PTY: a `reject()` on
+        # this dialog put `\r` into the reader.
+        #
+        # `unified_measurement_management.md` already rules on what a dismissal
+        # means, twice, and it is not taste: *"Skipping a calibration step is a
+        # positive decision and keeps its own button. Dismissing a window is a
+        # withdrawal"*, and at M-CR30-INSTRUMENT-GONE *"`clickedButton()` is
+        # None for the red traffic light, the Windows X and Esc alike, and
+        # ending is the consequential act, so a dismissal takes the option that
+        # changes nothing"*. Here the consequential act is FILING the reading.
+        # Retry files nothing and ends nothing -- the reader re-scans the same
+        # strip, and Knut himself called Retry on these windows *"the same
+        # thing as 'Keep measuring'"* (`measurement_exit_strategy.md`, note 1).
+        # So retry is the option that changes nothing, and it is what a
+        # dismissal now sends.
+        chosen = [" "]   # a dismissal means Retry
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
@@ -7140,9 +7755,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("<b>The strip read was stopped before it finished.</b><br><br>"
             "This usually happens if the instrument switch is pressed mid-scan "
             "or if scanning is interrupted by another process.<br><br>"
-            "&nbsp;&nbsp;<b>Resume</b> — chartread is still waiting; "
+            "&nbsp;&nbsp;<b>{resume}</b> — chartread is still waiting; "
             "re-position the instrument at the start of the current strip and continue.<br><br>"
-            "&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving."),
+            "&nbsp;&nbsp;<b>{give_up}</b> — stop the measurement without saving."
+            ).format(resume=tr("Resume"), give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
@@ -7312,7 +7928,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         # Show the friendly message first, with the technical detail as a smaller line.
         msg = QLabel(
-            tr("<b>{friendly}</b><br><span style='color:#888;'>({technical})</span><br><br>&nbsp;&nbsp;<b>Retry</b> — try the operation again.<br><br>&nbsp;&nbsp;<b>Give Up</b> — stop the measurement without saving.").format(friendly=friendly, technical=technical),
+            tr("<b>{friendly}</b><br><span style='color:#888;'>({technical})</span><br><br>&nbsp;&nbsp;<b>{retry}</b> — try the operation again.<br><br>&nbsp;&nbsp;<b>{give_up}</b> — stop the measurement without saving.").format(friendly=friendly, technical=technical,
+                    retry=tr("Retry"), give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
@@ -7909,9 +8526,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # shape of every fault this area has had.
         self._log.appendPlainText(tr(
             "This measurement cannot carry on: there is no patch waiting to "
-            "be read. Start the measurement again with “Refine / resume "
-            "existing measurement (-r)” ticked and ChromIQ will offer you only "
-            "the patches that are still missing."))
+            "be read. Start the measurement again with “{refine}” ticked and "
+            "ChromIQ will offer you only the patches that are still missing."
+            ).format(refine=tr("Refine / resume existing measurement (-r)")))
         self._log.ensureCursorVisible()
 
     def _on_cr30_gave_up(self, loc: str, message: str) -> None:
@@ -8059,7 +8676,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
         msg = QLabel(
-            tr("<b>Place sheet {sheet_n} of {total} on the XY table.</b><br><br>Press <b>Continue</b> when the sheet is positioned, or <b>Give Up</b> to stop without saving.").format(sheet_n=sheet_n, total=total),
+            tr("<b>Place sheet {sheet_n} of {total} on the XY table.</b><br><br>Press <b>{continue_}</b> when the sheet is positioned, or <b>{give_up}</b> to stop without saving.").format(sheet_n=sheet_n, total=total,
+                    continue_=tr("Continue"), give_up=tr("Give Up")),
             dlg,
         )
         msg.setWordWrap(True)
@@ -8207,7 +8825,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # _on_measure_done reports the failure.
         if self._manager.save_partial_in_progress:
             self._log.appendPlainText(
-                "\n" + tr("[WARN] Instrument connection lost — still trying "
+                "\n" + tr("[WARNING] Instrument connection lost. Still trying "
                           "to save the partial measurement…")
             )
             self._log.ensureCursorVisible()
@@ -8359,8 +8977,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "<b>Note:</b> saving needs one last response from the instrument. "
                 "Unplug the USB cable and plug it back in — directly into the "
                 "computer if possible, not through a hub — and only then click "
-                "<i>Save Partial &amp; Quit</i>. If the instrument stays silent, "
-                "the readings from this session cannot be saved.") + "<br><br>"
+                "<i>{save_partial}</i>. If the instrument stays silent, "
+                "the readings from this session cannot be saved."
+            ).format(save_partial=_save_partial_name()) + "<br><br>"
         elif bool(getattr(self, "_spot_session", False)):
             # Reading one patch at a time there is no swipe, so swipe advice is
             # not merely unhelpful — it describes an action the user is not
@@ -8390,43 +9009,50 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # question the user has to answer for no reason (Knut, #131
             # 2026-07-28). What it explained is now said by the remaining one.
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same patch again.<br>")
+                "&nbsp;&nbsp;<b>{retry}</b> — read this same patch again.<br>"
+            ).format(retry=tr("Retry"))
         elif last_one:
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>")
+                "&nbsp;&nbsp;<b>{retry}</b> — read this same strip again.<br>"
+            ).format(retry=tr("Retry"))
         elif _spot:
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same patch again.<br>"
-                "&nbsp;&nbsp;<b>Skip Patch</b> — leave this patch unread and move "
+                "&nbsp;&nbsp;<b>{retry}</b> — read this same patch again.<br>"
+                "&nbsp;&nbsp;<b>{skip}</b> — leave this patch unread and move "
                 "on to the next one. You can come back to it later in this "
                 "session; the chart is not finished until every patch has a "
-                "reading.<br>")
+                "reading.<br>"
+            ).format(retry=tr("Retry"), skip=tr("Skip Patch"))
         else:
             choices = tr(
-                "&nbsp;&nbsp;<b>Retry</b> — read this same strip again.<br>"
-                "&nbsp;&nbsp;<b>Skip Strip</b> — leave this strip unread for now "
+                "&nbsp;&nbsp;<b>{retry}</b> — read this same strip again.<br>"
+                "&nbsp;&nbsp;<b>{skip}</b> — leave this strip unread for now "
                 "and jump to the next unread one. You can come back to it later in "
-                "this session.<br>")
+                "this session.<br>"
+            ).format(retry=tr("Retry"), skip=tr("Skip Strip"))
         # Describe only what is on screen: no "nowhere to skip to", because
         # there is no Skip button in this case to refer to (Knut's standing
         # rule, restated #131 2026-07-28).
         if last_one and _spot:
             save_text = tr(
-                "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — ends the measurement "
+                "&nbsp;&nbsp;<b>{save_partial}</b> — ends the measurement "
                 "and saves every patch you have read. This patch stays unread, "
                 "and nothing else is lost. Next time you load this chart, "
-                "<i>Continue Measurement</i> picks up from here.")
+                "<i>Continue Measurement</i> picks up from here."
+            ).format(save_partial=_save_partial_name())
         elif last_one:
             save_text = tr(
-                "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — ends the measurement "
+                "&nbsp;&nbsp;<b>{save_partial}</b> — ends the measurement "
                 "and saves every strip you have read. This strip stays unread, "
                 "and nothing else is lost. Next time you load this chart, "
-                "<i>Continue Measurement</i> picks up from here.")
+                "<i>Continue Measurement</i> picks up from here."
+            ).format(save_partial=_save_partial_name())
         else:
             save_text = tr(
-                "&nbsp;&nbsp;<b>Save Partial &amp; Quit</b> — stop here and save what "
+                "&nbsp;&nbsp;<b>{save_partial}</b> — stop here and save what "
                 "you have read so far. Next time you load this chart, "
-                "<i>Continue Measurement</i> will pick up where you left off.")
+                "<i>Continue Measurement</i> will pick up where you left off."
+            ).format(save_partial=_save_partial_name())
         msg = QLabel(advice + choices + save_text, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
@@ -9349,31 +9975,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "noise and can improve profile accuracy.<br><br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Average all reads &amp; build</b> — combine all "
                 "{n} reads into one measurement, then continue to Build Profile.<br>"
-                "&nbsp;&nbsp;•&nbsp; <b>Measure again to average</b> — read the whole "
+                "&nbsp;&nbsp;•&nbsp; <b>{measure_again}</b> — read the whole "
                 "chart once more and add it to the set.<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Use last read only</b> — build from this most "
                 "recent read and ignore the others.<br><br>"
-                "<span style='color:#909090;'>After <b>Measure again to average</b> the "
+                "<span style='color:#909090;'>After <b>{measure_again}</b> the "
                 "instrument is set up again — this can take a few seconds and may ask you "
                 "to recalibrate before the next read starts, so a brief pause here is "
                 "normal.</span>"
-            ).format(n=n_total)
+            ).format(n=n_total,
+                     measure_again=tr("Measure again to average"))
         else:
             body = tr(
                 "<b>All strips have been read successfully.</b><br><br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Build Profile</b> — finalise the measurement and "
                 "go to the Build Profile tab.<br>"
-                "&nbsp;&nbsp;•&nbsp; <b>Measure again to average</b> — read the whole chart "
+                "&nbsp;&nbsp;•&nbsp; <b>{measure_again}</b> — read the whole chart "
                 "once more; the reads are averaged together to reduce instrument noise "
                 "(saved as …_average).<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Re-read Individual Strips</b> — re-read individual strips into "
                 "this same measurement. Use <b>f</b>&nbsp;/&nbsp;<b>b</b> to move, "
                 "<b>n</b> for the next unread strip, and <b>d</b> when done.<br><br>"
-                "<span style='color:#909090;'>After <b>Measure again to average</b> the "
+                "<span style='color:#909090;'>After <b>{measure_again}</b> the "
                 "instrument is set up again — this can take a few seconds and may ask you "
                 "to recalibrate before the next read starts, so a brief pause here is "
                 "normal.</span>"
-            )
+            ).format(measure_again=tr("Measure again to average"))
         msg = QLabel(body, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
@@ -9684,30 +10311,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             color=_TAB_COLOR)
         self._import_browse_btn.clicked.connect(self._on_import_browse)
         row.addWidget(self._import_browse_btn)
-        row.addWidget(TooltipButton(
+        # THE HELP FOLLOWS THE RUN TYPE, because the module now serves two
+        # of them (§I.9, amended 2026-09-15). Built with the verification
+        # text and re-filled by `_update_import_panel` on every refresh,
+        # which is the same signal that already keeps the info box current
+        # — so the two can never describe different acts.
+        self._import_help_btn = TooltipButton(
             tr("Import a measurement made in i1Profiler"),
-            tr("Use this when this run's verification chart was printed and "
-               "measured outside ChromIQ — typically on an i1iO table in "
-               "i1Profiler, using the chart's exported patch list from the "
-               "run's exports folder.\n\n"
-               "What to pick: i1Profiler's own measurement file (.mxf or "
-               ".cxf), its CGATS text export (.txt), or a measurement that is "
-               "already a .ti3. Measure with the chart's NORMAL export — not "
-               "the file with “shuffled” in its name — so the patches come "
-               "back in the order ChromIQ sent them.\n\n"
-               "What happens when you press Import Measurement:\n"
-               "1. ChromIQ converts the file to Argyll's .ti3 format for you "
-               "(nothing to do by hand).\n"
-               "2. It checks, patch for patch, that the measurement really "
-               "belongs to this run's verification chart. A file that does "
-               "not match is refused before anything is written.\n"
-               "3. It files a copy in its own dated verification folder — the "
-               "same place a measurement made here would go — together with a "
-               "copy of the chart it was measured against.\n\n"
-               "Your original file is never moved or changed. Afterwards, "
-               "open Tools ▸ “Measurement report” to see the colour-accuracy "
-               "figures — the imported measurement is already in place there."),
-            grp, min_width=480))
+            self._import_help_body(verifying=True), grp, min_width=480)
+        row.addWidget(self._import_help_btn)
         g.addLayout(row)
         ll.addWidget(grp)
 
@@ -9735,6 +10347,64 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         scroll.setWidget(left)
         return scroll
 
+    @staticmethod
+    def _import_help_body(*, verifying: bool) -> str:
+        """The ⓘ button's standing help, in the words of the act being
+        performed.
+
+        Two bodies rather than one hedged one. The verification text is the
+        text this module shipped with (#133, seen live by Sebastian on
+        2026-08-10) and is not re-worded here; the profiling text is its twin,
+        and names the run's own chart, the run's own measurement and the tab
+        that builds from it. A profiling reader is never told about
+        verifications (§I.9).
+        """
+        if verifying:
+            return tr(
+                "Use this when this run's verification chart was printed and "
+                "measured outside ChromIQ — typically on an i1iO table in "
+                "i1Profiler, using the chart's exported patch list from the "
+                "run's exports folder.\n\n"
+                "What to pick: i1Profiler's own measurement file (.mxf or "
+                ".cxf), its CGATS text export (.txt), or a measurement that is "
+                "already a .ti3. Measure with the chart's NORMAL export — not "
+                "the file with “shuffled” in its name — so the patches come "
+                "back in the order ChromIQ sent them.\n\n"
+                "What happens when you press Import Measurement:\n"
+                "1. ChromIQ converts the file to Argyll's .ti3 format for you "
+                "(nothing to do by hand).\n"
+                "2. It checks, patch for patch, that the measurement really "
+                "belongs to this run's verification chart. A file that does "
+                "not match is refused before anything is written.\n"
+                "3. It files a copy in its own dated verification folder — the "
+                "same place a measurement made here would go — together with a "
+                "copy of the chart it was measured against.\n\n"
+                "Your original file is never moved or changed. Afterwards, "
+                "open Tools ▸ “Measurement report” to see the colour-accuracy "
+                "figures — the imported measurement is already in place there.")
+        return tr(
+            "Use this when this run's chart was printed and measured outside "
+            "ChromIQ, typically on an i1iO table in i1Profiler, using the "
+            "chart's exported patch list from the run's exports folder.\n\n"
+            "What to pick: i1Profiler's own measurement file (.mxf or .cxf), "
+            "its CGATS text export (.txt), or a measurement that is already a "
+            ".ti3. Measure with the chart's NORMAL export, not the file with "
+            "“shuffled” in its name, so the patches come back in the order "
+            "ChromIQ sent them.\n\n"
+            "What happens when you press Import Measurement:\n"
+            "1. ChromIQ converts the file to Argyll's .ti3 format for you "
+            "(nothing to do by hand).\n"
+            "2. It checks, patch for patch, that the measurement really "
+            "belongs to this run's chart. A file that does not match is "
+            "refused before anything is written.\n"
+            "3. It files a copy as this run's own measurement, together with a "
+            "copy of the chart it was measured against. A run that already "
+            "holds a measurement is never written over: ChromIQ offers a new "
+            "run beside it instead.\n\n"
+            "Your original file is never moved or changed. Afterwards you can "
+            "build a profile from it on the Build ICC profile tab, exactly as "
+            "if the chart had been read here.")
+
     def _apply_import_box_style(self) -> None:
         """Paint the import info box in the Measure tab's green — readable in
         both themes (the shared QLabel#info chrome is magenta, so this box
@@ -9760,10 +10430,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             body=body_color, mode=getattr(self, "_mode", "dark"), kind="note"))
 
     def _import_available(self) -> bool:
-        """The IMPORT module exists only while the shared Run type is
-        Verification — a profiling measurement must come from a real read
-        here, never from an outside file (#133 §9.1)."""
-        return self._is_verification_run()
+        """Whether the IMPORT module has anywhere to file a measurement.
+
+        IT USED TO BE VERIFICATION ONLY, on the reasoning that *"a profiling
+        measurement must come from a real read here, never from an outside
+        file"* (#133 §9.1). §I.9 withdrew that in as many words on 2026-08-31 —
+        the app already builds a profile from a partial measurement made here,
+        and Tools already advertises bringing i1Profiler readings back *"so you
+        can build a profile from them"* — and Katrina found the consequence a
+        fortnight later: the same act lived on two different tabs depending on
+        which kind of run you were doing.
+
+        So the answer is now "anything but a calibration". A calibration is the
+        one run type that still cannot import, and for a data-safety reason
+        rather than a preference: there is one `cal/` per project, shared by
+        every run, and `Calibration.reset()` has no `old/` archive
+        (`calibration_run_type.md` §3 D1), so an import there has no safe way to
+        displace what is already present (§I.9).
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return False
+        try:
+            return not ctl.target.is_calibration()
+        except Exception:      # noqa: BLE001 — a visibility rule never raises
+            return False
 
     def _refresh_import_visibility(self) -> None:
         """Follow the bar: show/hide the IMPORT mode button, leave the module
@@ -9773,9 +10464,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         avail = self._import_available()
         self._import_btn.setVisible(avail)
         if not avail and self._stack.currentIndex() == 2:
+            # `_switch_mode` lands on manual instead when guided is hidden.
             self._switch_mode("guided")
         elif self._stack.currentIndex() == 2:
             self._update_import_panel()
+        # The row shows or hides with the buttons in it, so a bar change that
+        # takes IMPORT away takes the empty row with it.
+        self._sync_mode_row_visibility()
 
     def _refresh_import_controls(self) -> None:
         """Swap the action row for the active module: IMPORT shows one Import
@@ -9809,16 +10504,28 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     @staticmethod
     def _chart_patch_count(ti2: "Path | None") -> "int | None":
-        """The chart's patch count, from its own header — cheap enough to read
-        on every panel refresh."""
-        import re
+        """The chart's patch count: what a complete measurement of it holds.
+
+        THROUGH `expected_patches`, NOT A `NUMBER_OF_SETS` OF ITS OWN. A chart's
+        last strip is filled out with rows that are not part of the design, and
+        `measurement_state.expected_patches` is the one place that knows how to
+        discount them for both layout engines (printtarg marks them `SAMPLE_ID`
+        0, ChromIQ's numbers them like any other row). Three other places in
+        this tab already ask it.
+
+        This one read the raw header, and it is the door that REFUSES: on a
+        4,014-row chart of 4,000 designed patches it told the user "the
+        verification chart has 4014 patches, but this file holds 4000
+        measurements" and turned a complete measurement away, while the info
+        box above named 4,014 as the chart's size. The profile-build import met
+        the same arithmetic on 2026-09-11 and was put through `expected_patches`
+        the same day; this copy was left behind. One counting rule, in one
+        place.
+        """
         if ti2 is None:
             return None
-        try:
-            m = re.search(r"NUMBER_OF_SETS\s+(\d+)", read_text(ti2, lenient=True))
-        except OSError:
-            return None
-        return int(m.group(1)) if m else None
+        from workflow.measurement_state import expected_patches
+        return expected_patches(ti2)
 
     def _update_import_panel(self) -> None:
         """Fill the info box for the current file + target, and set the Import
@@ -9826,6 +10533,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not hasattr(self, "_import_box_body"):
             return
         parts: "list[str]" = []
+        # THE HELP IS PART OF THE PANEL, and is refreshed with it. A ⓘ built
+        # once at construction time describes whichever run type happened to be
+        # on the bar when the tab was built, which for a restored session is
+        # not the one on screen.
+        help_btn = getattr(self, "_import_help_btn", None)
+        if help_btn is not None:
+            help_btn.set_content(
+                tr("Import a measurement made in i1Profiler"),
+                self._import_help_body(verifying=self._is_verification_run()))
         path = getattr(self, "_import_path", None)
         if path is None:
             self._import_file_lbl.setText(tr("No file chosen yet"))
@@ -9835,7 +10551,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "file (.mxf or .cxf), its CGATS text export (.txt), or a "
                 "ready .ti3."))
         else:
-            self._import_file_lbl.setText(str(path))
+            # THE SAME MARK THE BUILD ICC PROFILE TAB PUTS ON THE SAME FAULT,
+            # on the label rather than in a tooltip nobody hovers over. One
+            # place fills this label for BOTH run types, so both import doors
+            # are covered by asking here once. See
+            # `measurement_filing.the_colour_scale_note` for what was measured.
+            from ui.measurement_filing import (the_colour_scale_note,
+                                               the_colour_scale_tag)
+            _scale = the_colour_scale_note(path)
+            self._import_file_lbl.setText(
+                str(path) + (the_colour_scale_tag() if _scale else ""))
+            # THE SENTENCE GOES IN THE INFO BOX, NOT IN THIS LABEL'S TOOLTIP.
+            # `ElidingLabel` owns its own tooltip (it puts the full text there
+            # when the name is too long to fit), so setting one here showed the
+            # sentence on one door and the elided path on the other - measured,
+            # combined round 10. The box below is the loud surface anyway, and
+            # it is the same box that already explains what the import will do.
+            if _scale:
+                parts.append(_scale)
             ext = Path(path).suffix.lower()
             if ext in (".mxf", ".cxf"):
                 parts.append(tr(
@@ -9852,22 +10585,66 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     "with ArgyllCMS's txt2ti3 for you.").format(
                         name=Path(path).name))
         run = self._guard_run()
-        chart = run.verify_chart_ti2 if run is not None else None
+        # WHICH CHART, ASKED ONCE. The module serves two run types since
+        # §I.9's "Where the door is" was amended, and the chart the panel NAMES
+        # has to be the chart the validation CHECKS — see `_import_chart_for`.
+        verifying = self._is_verification_run()
+        chart = self._import_chart_for(run)
         if chart is not None and chart.exists():
             n = self._chart_patch_count(chart)
-            if n:
+            from workflow.measurement_state import sheet_patches
+            sheet = sheet_patches(chart)
+            if n and sheet and sheet != n:
+                # BOTH NUMBERS, WHERE THEY DIFFER. This box said "408 patches"
+                # while the chart preview two inches to the right of it said
+                # "420 patches", and the refusal window quoted the 408 at a
+                # user whose measurement held 420. The chart was DESIGNED with
+                # 408 and PRINTS 420, because its last strip is filled out, and
+                # a person reading the sheet reads what is on it.
+                #
+                # SIX SENTENCES RATHER THAN THREE WITH A NOUN SLOTTED IN. The
+                # chart's name is a placeholder; "verification chart" against
+                # "chart" is not, because a translator needs the whole sentence
+                # to put the words in their own order. A profiling reader is
+                # never told about verifications (§I.9).
+                parts.append(tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's verification chart "
+                    "({name}). It was designed with {n} patches and prints "
+                    "{sheet} squares, because its last strip is filled out, so "
+                    "a measurement of the whole sheet holds {sheet}. A file "
+                    "that does not match is refused, and nothing changes."
+                ).format(name=chart.name, n=n, sheet=sheet) if verifying else tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's chart ({name}). It was "
+                    "designed with {n} patches and prints {sheet} squares, "
+                    "because its last strip is filled out, so a measurement of "
+                    "the whole sheet holds {sheet}. A file that does not match "
+                    "is refused, and nothing changes."
+                ).format(name=chart.name, n=n, sheet=sheet))
+            elif n:
                 parts.append(tr(
                     "Before anything is filed, the measurement is checked "
                     "patch for patch against this run's verification chart "
                     "({name}, {n} patches). A file that does not match is "
                     "refused, and nothing changes.").format(name=chart.name,
-                                                            n=n))
+                                                            n=n) if verifying
+                    else tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's chart ({name}, {n} "
+                    "patches). A file that does not match is refused, and "
+                    "nothing changes.").format(name=chart.name, n=n))
             else:
                 parts.append(tr(
                     "Before anything is filed, the measurement is checked "
                     "patch for patch against this run's verification chart "
                     "({name}). A file that does not match is refused, and "
-                    "nothing changes.").format(name=chart.name))
+                    "nothing changes.").format(name=chart.name) if verifying
+                    else tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's chart ({name}). A "
+                    "file that does not match is refused, and nothing "
+                    "changes.").format(name=chart.name))
         parts.append(self._import_destination_text(run))
         parts.append(tr(
             "Your original file is not moved or changed — ChromIQ files a "
@@ -9880,10 +10657,26 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "Choose a measurement file first — press the green folder button "
             "above."))
 
+    def _import_chart_for(self, run) -> "Path | None":
+        """The chart THIS import will be judged against.
+
+        The one place the two run types part company, and the reason it is a
+        method: the panel names a chart, the validation checks against a chart,
+        and a build that took them from two different lines is exactly how a
+        profiling import would come to be paired against a verification's
+        chart. Both callers ask here.
+        """
+        if run is None:
+            return None
+        return run.verify_chart_ti2 if self._is_verification_run() \
+            else run.chart_ti2
+
     def _import_destination_text(self, run) -> str:
         """Where the measurement will be filed, named exactly — so 'where are
         my files?' is answered before the import runs."""
         ctl = getattr(self, "_target_ctl", None)
+        if not self._is_verification_run():
+            return self._import_destination_text_profiling(run)
         if run is None:
             return tr(
                 "Pick a profile run in the bar above first — the measurement "
@@ -9908,6 +10701,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "and time), under:\n{folder}").format(
                 folder=str(run.verifications_dir))
 
+    def _import_destination_text_profiling(self, run) -> str:
+        """The destination line for a profiling run: the run's own measurement,
+        and — before it is pressed rather than after — what happens if that
+        slot is taken.
+
+        SAYING IT UP FRONT IS THE POINT. §I.9's answer to a run that already
+        holds a measurement is a new run beside it, not an overwrite; a person
+        who reads that only in the window that asks it has already committed to
+        the act. The verification twin above does the same thing with its own
+        "that verification already holds a measurement" note.
+        """
+        if run is None:
+            return tr(
+                "Pick a profile run in the bar above first: the measurement "
+                "is filed as that run's own measurement.")
+        text = tr(
+            "It will be filed as this run's measurement, in:\n{folder}"
+        ).format(folder=str(run.dir))
+        if run.measurement_ti3.exists():
+            text += "\n\n" + tr(
+                "⚠ This run already holds a measurement, and an import "
+                "never writes over one. ChromIQ will offer to make a new run "
+                "beside it with a copy of the same chart, and file this "
+                "measurement there instead.")
+        return text
+
     def _on_import_browse(self) -> None:
         # The house file dialog — sidebar shortcuts incl. the working folder
         # — not the bare native one (Sebastian, 2026-08-10).
@@ -9925,33 +10744,36 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._settings.set("import_measurement_dir", str(Path(path).parent))
         self._update_import_panel()
 
+    def _import_verdict(self, ti3: Path, ti2: Path):
+        """Judge this file against the verification chart, THROUGH THE ONE
+        RULE both import doors use (`workflow.measurement_import.assess`).
+
+        IT USED TO HAVE ITS OWN COPY OF THAT RULE, and the copy drifted twice
+        in two days. The profile-build door learned to read a spectral-only
+        i1Profiler export on 2026-09-11; this one still refused it with "No
+        device RGB columns" the next morning, about a user's complete
+        measurement of her own verification chart. It also counted the design
+        where it had to count the sheet, so her 420 readings of a 420-square
+        sheet were "a measurement of a different chart". Two doors, one rule,
+        or neither of them can be trusted.
+
+        The one thing this door still decides for itself is what to do with a
+        SHORT measurement: the profiling door files it (§I.10), and this one
+        refuses it, which is §I as shipped.
+        """
+        from workflow.measurement_import import assess
+        return assess(Path(ti3), Path(ti2))
+
     def _import_mismatch_reason(self, ti3: Path, ti2: Path) -> "str | None":
         """The plain-words reason this file must be refused, or None when it
-        really belongs to the chart. Patch counts first (the cheap, clear
-        check), then the patch-identity comparison the report itself uses."""
-        from workflow.ti3_analysis import Ti3ParseError, parse_ti3
-        try:
-            measured = parse_ti3(ti3)
-        except (Ti3ParseError, OSError) as exc:
-            return tr("the file could not be read as a measurement "
-                      "({error})").format(error=exc)
-        n_chart = self._chart_patch_count(ti2)
-        if n_chart is not None and measured.n_patches != n_chart:
+        really belongs to the chart."""
+        verdict = self._import_verdict(ti3, ti2)
+        if not verdict.ok:
+            return verdict.reason
+        if verdict.partial:
             return tr("the verification chart has {chart} patches, but this "
-                      "file holds {got} measurements").format(
-                          chart=n_chart, got=measured.n_patches)
-        from workflow.measurement_report import verify_patch_identity
-        identity = verify_patch_identity(measured, ti2)
-        if identity.get("verdict") == "mismatch":
-            return identity.get("reason") or tr(
-                "the measured colours do not agree with the chart's patches")
-        if not identity.get("checked"):
-            # An uncheckable identity is not a refusal — the report records the
-            # same state. Say so in the log rather than blocking the user.
-            self._log.appendPlainText("\n" + tr(
-                "[INFO] The patch-identity check could not run ({reason}) — "
-                "the import continues.").format(
-                    reason=identity.get("reason", "")))
+                      "file holds only {got} measurements").format(
+                          chart=verdict.n_chart, got=verdict.n_measured)
         return None
 
     def _show_import_refusal(self, message, **kw) -> None:
@@ -9971,12 +10793,108 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         fit_message_box_buttons(box)
         box.exec()
 
+    def _ask_import_question(self, message, go_label: str, **kw) -> bool:
+        """One of the IMPORT module's two-button windows. True = go ahead.
+
+        The same rule as `_show_import_refusal`: the **text** comes from §M and
+        this method writes no prose of its own. Cancel is the default, because
+        the question is only asked where ChromIQ cannot answer it itself.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        title, body = message.render(**kw)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(go_label, QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        # The platform's own order, which puts the confirming action last:
+        # `order_message_box_buttons` exists for the windows whose order the
+        # owner asked to change, and this is not one of them.
+        box.setDefaultButton(cancel)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        box.exec()
+        return box.clickedButton() is go
+
+    def _convert_import_file(self, run, path: Path) -> "Path | None":
+        """§I.4 for both doors: the chosen file as a `.ti3` in the run's cache.
+
+        `.mxf`/`.cxf` are read directly, `.txt` goes through txt2ti3, and a
+        `.ti3` passes through untouched. None means the conversion failed and
+        has already said so on screen. The user's original is never touched.
+
+        ONE COPY, because the two doors must convert identically: the profiling
+        door judges the converted file against `Run.chart_ti2` and the
+        verification door against `Run.verify_chart_ti2`, and that is the ONLY
+        difference there is meant to be between them.
+        """
+        # ASKED OF THE FILE THE PERSON PICKED, BEFORE ANYTHING IS CONVERTED.
+        #
+        # Challenge round 6, 2026-09-15: the run's own `.ti2` picked as the
+        # measurement was FILED, in silence, as the run's measurement. The chart
+        # and the measurement sit in the same folder under the same stem and are
+        # both CGATS tables, so it is an easy slip — and every check downstream
+        # was blind to it. A `.ti2` is not a `.ti3`, so it goes through txt2ti3
+        # first, and what comes back is a well-formed CTI3 table of the chart's
+        # own aim values: it parses as a full set of readings, the patch count
+        # matches exactly because it is the same file, and the identity check
+        # compares the chart with itself and reports a flawless match. The
+        # profile built from it would describe a printer that never printed.
+        from workflow.measurement_import import (CHART_NOT_A_MEASUREMENT,
+                                                 looks_like_a_chart)
+        if looks_like_a_chart(path):
+            from ui.measurement_filing import refuse_it_does_not_belong
+            refuse_it_does_not_belong(self, tr(CHART_NOT_A_MEASUREMENT))
+            return None
+        try:
+            from workflow.reference_convert import (
+                ReferenceConvertError, convert_i1profiler_measurement)
+            argyll = self._settings.get("argyll_bin_path",
+                                        "/Applications/Argyll/bin")
+            converted = convert_i1profiler_measurement(
+                Path(path), argyll, run.ensure_cache_dir() / "import")
+        except ReferenceConvertError as exc:
+            self._say_on_screen(
+                tr("The file could not be converted"), str(exc))
+            return None
+        if converted != Path(path):
+            self._log.appendPlainText("\n" + tr(
+                "[OK] Converted {name} to Argyll's .ti3 format.").format(
+                    name=Path(path).name))
+        # AND WHETHER ITS COLOUR NUMBERS ARE ON THE SCALE ARGYLLCMS MEANS.
+        #
+        # Both doors converge here, so the question is asked once for both -
+        # the same reason the conversion itself is in this method. A `.ti3`
+        # that was converted before `repair_converted_cie` existed passes
+        # through untouched, so only a READING can catch it, and until
+        # combined round 10 the only reader in the app was the Build ICC
+        # profile tab: each door filed such a file in silence, and the
+        # profiling one saved a dated measurement report from it.
+        #
+        # Said, not mended and not forbidden - `tab_profile`'s own rule for the
+        # same fact. It goes in the log as well as on the panel's label,
+        # because the log is what stays behind after the window is closed.
+        from ui.measurement_filing import the_colour_scale_note
+        note = the_colour_scale_note(converted)
+        if note:
+            self._log.appendPlainText("\n[WARNING] " + note)
+            self._log.ensureCursorVisible()
+        return Path(converted)
+
     def _on_import_measurement(self) -> None:
-        """The whole import, through the same doors a native verification read
-        uses: guards → convert → validate → dated folder + chart snapshot →
-        file the copy → say where it went. Nothing is written until the file
-        has passed validation, and the user's original is never touched."""
-        from workflow import measurement_messages as M
+        """The whole import, through the same doors a native read uses:
+        guards → convert → validate → the run's own filing → say where it went.
+        Nothing is written until the file has passed validation, and the user's
+        original is never touched.
+
+        TWO RUN TYPES, ONE BUTTON (§I.9, amended 2026-09-15). The guards up to
+        and including "is there a file" are the same question whichever kind of
+        run this is, so they are asked once, here; everything after them differs
+        in WHERE the measurement belongs, and is split into the two methods
+        below.
+        """
         if self._runner.is_running:
             return
         ctl = getattr(self, "_target_ctl", None)
@@ -9999,6 +10917,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                    "you made in i1Profiler — then press Import Measurement "
                    "again."))
             return
+        if not self._is_verification_run():
+            self._import_into_profiling_run(ctl, run, Path(path))
+            return
+        self._import_into_verification(ctl, run, Path(path))
+
+    def _import_into_verification(self, ctl, run, path: Path) -> None:
+        """§I.1-§I.8 for a verification run, exactly as it shipped in #133.
+
+        Lifted out of `_on_import_measurement` unchanged when the profiling
+        door was added: this path was confirmed on hardware by Sebastian on
+        2026-08-10, so the split must not be able to alter it.
+        """
+        from workflow import measurement_messages as M
         # A chosen dated verification that already holds its measurement is
         # refused BEFORE anything is converted or written (§ the import never
         # replaces a result).
@@ -10011,27 +10942,60 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         # 1) Convert — into the run's cache (always safe to delete); a .ti3
         #    passes through untouched.
-        try:
-            from workflow.reference_convert import (
-                ReferenceConvertError, convert_i1profiler_measurement)
-            argyll = self._settings.get("argyll_bin_path",
-                                        "/Applications/Argyll/bin")
-            converted = convert_i1profiler_measurement(
-                Path(path), argyll, run.ensure_cache_dir() / "import")
-        except ReferenceConvertError as exc:
-            self._say_on_screen(
-                tr("The file could not be converted"), str(exc))
+        converted = self._convert_import_file(run, path)
+        if converted is None:
             return
-        if converted != Path(path):
-            self._log.appendPlainText("\n" + tr(
-                "[OK] Converted {name} to Argyll's .ti3 format.").format(
-                    name=Path(path).name))
 
         # 2) Validate — before anything is filed.
-        reason = self._import_mismatch_reason(converted, run.verify_chart_ti2)
+        verdict = self._import_verdict(converted, run.verify_chart_ti2)
+        reason = (verdict.reason if not verdict.ok else
+                  tr("the verification chart has {chart} patches, but this "
+                     "file holds only {got} measurements").format(
+                         chart=verdict.n_chart, got=verdict.n_measured)
+                  if verdict.partial else "")
         if reason:
             self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=reason)
             return
+
+        # 2a) A measurement with no device values of its own takes them from
+        #     the chart, on the CONVERTED COPY in the run's cache and never on
+        #     the user's file. It is done here, after the names have been
+        #     checked against the chart and before anything reads the copy as a
+        #     measurement — the other order would let `verify_patch_identity`
+        #     compare the chart's device values with a copy of themselves and
+        #     answer "verified" whatever had happened.
+        if verdict.device_from_chart:
+            #     AND THE PERSON IS ASKED FIRST, because this is the one thing
+            #     ChromIQ genuinely cannot check. The patch-identity check
+            #     compares device values and the file has none; the names all
+            #     belong to this chart, and another chart laid out the same way
+            #     would carry the same names. Only the person who printed the
+            #     sheet knows. §I.10's own principle: state the facts, leave
+            #     the judgement with them.
+            if not self._ask_import_question(
+                    M.M_IMPORT_DEVICE_FROM_CHART,
+                    tr("Import it"),
+                    count=verdict.n_measured,
+                    chart=run.verify_chart_ti2.name):
+                self._log.appendPlainText("\n" + tr(
+                    "[INFO] The import was cancelled. Nothing has been "
+                    "changed."))
+                return
+            from workflow.measurement_import import complete_from_chart
+            n = complete_from_chart(converted, run.verify_chart_ti2)
+            if not n:
+                self._show_import_refusal(M.M_IMPORT_MISMATCH, reason=tr(
+                    "this file carries no device values, and the chart's own "
+                    "values could not be read to supply them"))
+                return
+            self._log.appendPlainText("\n" + (tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
+                "value of the one patch from the chart.") if n == 1 else tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
+                "values of all {count} patches from the chart.")).format(
+                    chart=run.verify_chart_ti2.name, count=n))
 
         # 3) File it. The snapshot step is the same front door a native
         #    verification read uses: it creates the dated folder on "New
@@ -10067,6 +11031,444 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # how, unless a record already travelled with the chart snapshot.
         self._ask_how_printed(dst)
         self._show_import_done(verification, dst)
+
+    def _import_into_profiling_run(self, ctl, run, path: Path) -> None:
+        """§I.9: the same import, filed as the run's OWN measurement.
+
+        The sequence is §I.1-§I.8 with the three substitutions §I.9 names, and
+        it is written to reach the SAME code the Build ICC profile tab's import
+        reaches at every step where the two could disagree:
+
+        * **I.5** judges against `Run.chart_ti2`, never `verify_chart_ti2`, and
+          judges it with `measurement_import.assess` — the function that door
+          uses. §I.10's partial rule comes with it: fewer readings than the
+          chart has patches is FILED and both counts are stated; more readings
+          is refused, because that is a different chart.
+        * **I.6** keeps the chart snapshot. For a profiling run
+          `_snapshot_verification_chart` routes to `_snapshot_profiling_chart`
+          on its own, so the run keeps a copy of the chart this measurement was
+          made from — without it the filed `.ti3` has no record of what it is a
+          measurement OF.
+        * **I.7** copies to `Run.measurement_ti3`, the run's canonical stem,
+          never the source file's name: the report finds a measurement's chart
+          by that stem (`measurement_report._find_reference_ti2`) and anything
+          else falls back to `reference_source: device` without saying so.
+
+        AND A RUN THAT ALREADY HOLDS A MEASUREMENT IS NOT DISPLACED. That is
+        the rule §I.9 states and the one this project has already broken once:
+        writing over the `.ti3` leaves the run's `.icc` and its reports
+        describing a measurement that no longer exists, with nothing on screen
+        saying so. The answer is a new place to put it — `duplicate_run` with
+        `groups=("chart",)`, the chart only — asked with the same window the
+        other door asks it with.
+
+        NO AVERAGING SLOT. An import is a standalone read and the tab already
+        treats one that way: `_promote_completed_read` files into
+        `reads/readN.ti3` only while an averaging set is live, and a standalone
+        read *"ignores any reads/ left over from an earlier session"*. An
+        imported file has no position in a sequence of reads taken here, so it
+        lands where a standalone read lands.
+        """
+        from ui.measurement_filing import (ask_to_make_a_new_run,
+                                           finish_the_import,
+                                           refuse_it_does_not_belong)
+
+        # A CHART TO JUDGE IT AGAINST, FIRST. Without one `assess` has nothing
+        # to compare and accepts anything at all — the exact fault the other
+        # door was given this guard for (§I.9, driven 2026-09-01: "a six-patch
+        # file bearing no relation to anything went into a real project with
+        # not one word on screen").
+        if not run.chart_ti2.is_file():
+            self._say_on_screen(
+                tr("There is no chart to check this measurement against"),
+                tr("A measurement is filed against the chart it was made "
+                   "from, and this run has no chart in it yet. Make or load "
+                   "the chart first, then import the measurement, and ChromIQ "
+                   "can tell you whether the two match."))
+            return
+
+        # 1) Convert (§I.4) — into the run's cache; the original is untouched.
+        converted = self._convert_import_file(run, path)
+        if converted is None:
+            return
+
+        # 2) Validate (§I.5) — BEFORE anything is written, against this run's
+        #    own chart. THROUGH `_import_verdict`, the wrapper both doors use,
+        #    and not through `assess` directly: the verification door's own
+        #    docstring records what a second copy of that rule cost twice in
+        #    two days. The refusal window is the shared one, so the two doors
+        #    cannot describe the same file differently (round 2, T1-G).
+        verdict = self._import_verdict(converted, run.chart_ti2)
+        if not verdict.ok:
+            refuse_it_does_not_belong(self, verdict.reason)
+            return
+
+        # 2a) A MEASUREMENT WITH NO DEVICE VALUES TAKES THEM FROM THE CHART,
+        #     here exactly as on the verification door.
+        #
+        #     i1Profiler's measure tool reads a chart it did not generate, so
+        #     it has no colour space to express device values in and exports
+        #     none at all. The verification door learned to take them from the
+        #     chart on 2026-09-12, after a user's complete i1iO reading of her
+        #     own chart was refused with "No device RGB columns"; the profiling
+        #     door was written the same week and would have refused the same
+        #     file for the same reason, which is the identical fault one door
+        #     further along. Caught by that fix's own test noticing this door
+        #     did not exist yet.
+        #
+        #     On the CONVERTED COPY in the run's cache, never on the user's
+        #     file, and after the names have been checked — the other order
+        #     would let `verify_patch_identity` compare the chart's device
+        #     values with a copy of themselves and answer "verified" whatever
+        #     had happened.
+        if verdict.device_from_chart:
+            from workflow import measurement_messages as M
+            #     AND THE PERSON IS ASKED FIRST, because this is the one thing
+            #     ChromIQ genuinely cannot check.
+            if not self._ask_import_question(
+                    M.M_IMPORT_DEVICE_FROM_CHART,
+                    tr("Import it"),
+                    count=verdict.n_measured,
+                    chart=run.chart_ti2.name):
+                self._log.appendPlainText("\n" + tr(
+                    "[INFO] The import was cancelled. Nothing has been "
+                    "changed."))
+                return
+            from workflow.measurement_import import complete_from_chart
+            n = complete_from_chart(converted, run.chart_ti2)
+            if not n:
+                refuse_it_does_not_belong(self, tr(
+                    "this file carries no device values, and the chart's own "
+                    "values could not be read to supply them"))
+                return
+            self._log.appendPlainText("\n" + (tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
+                "value of the one patch from the chart.") if n == 1 else tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
+                "values of all {count} patches from the chart.")).format(
+                    chart=run.chart_ti2.name, count=n))
+
+        # 3) Make room (§I.9) — never an overwrite.
+        proj = ctl.project_or_none()
+        # What to put back if a later step refuses: the run this import made
+        # (None while it has made none) and the run the person was standing on.
+        made_here = None
+        was_on = ""
+        try:
+            was_on = str(ctl.target.profile_run or "")
+        except Exception:      # noqa: BLE001 — a missing bar is not a reason
+            was_on = ""         # to block an import
+        was_current = was_on
+        # …AND WHAT THE MANIFEST ITSELF SAID, which is a different question.
+        # `profile_run` is the BAR; `current_run` is the field `duplicate_run`'s
+        # rollback rewrites and the field a fresh open of this project stands
+        # on. The bar can be empty ("New run") while the manifest is not, so a
+        # refusal that moved the manifest needs the manifest's own answer to
+        # put it back.
+        was_in_manifest = ""
+        if proj is not None:
+            from ui.measurement_filing import run_the_project_is_on
+            was_in_manifest = run_the_project_is_on(proj.root) or ""
+        if run.measurement_ti3.is_file():
+            if proj is None:
+                # NOT IN SILENCE. Without a project there is nowhere to put a
+                # duplicate, so the import cannot go on — but a button that
+                # does nothing at all reads as a broken app, which is the fault
+                # this project has fixed on four other doors.
+                self._say_on_screen(
+                    tr("ChromIQ could not make a new run"),
+                    tr("This run already holds a measurement, and ChromIQ "
+                       "could not open the project it would need to make a "
+                       "new run beside it. Nothing has been imported and "
+                       "nothing has been changed."))
+                return
+            try:
+                go = ask_to_make_a_new_run(self, proj, run)
+            except (OSError, ValueError) as exc:
+                self._put_the_project_back(proj, was_in_manifest)
+                self._say_import_failed(exc)
+                return
+            if not go:
+                return                       # cancelled; nothing touched
+            try:
+                run = proj.duplicate_run(run, ("chart",))
+            except (OSError, ValueError) as exc:
+                # AND THE PROJECT IS PUT BACK WHERE THE PERSON LEFT IT.
+                # `duplicate_run` makes the run with `new_run()`, undoes it
+                # itself when the copy fails, and that undo points the manifest
+                # at `runs[-1]` - so a refusal HERE moved a three-run project
+                # from Run 1 to Run 3 under "nothing has been changed" (driven,
+                # combined round 6). `made_here` is still None at this line, so
+                # the shared `_undo_the_run` was doing nothing here at all.
+                self._put_the_project_back(proj, was_in_manifest)
+                self._say_import_failed(exc)
+                return
+            made_here, was_current = run, was_on
+            # THE BAR MOVES BEFORE THE SNAPSHOT, not after it.
+            # `_snapshot_profiling_chart` reads `target.profile_run` to decide
+            # WHICH run to copy a chart into, so a bar still pointing at the
+            # original would re-snapshot the source run and leave the copy —
+            # the run the measurement is about to land in — with no record of
+            # its own chart.
+            try:
+                ctl.set_profile_run(run.id)
+            except Exception:      # noqa: BLE001 — the file still gets filed
+                log.warning("import: could not point the bar at %s", run.id,
+                            exc_info=True)
+
+        # 4) The chart snapshot (§I.6). For a profiling run this routes to
+        #    `_snapshot_profiling_chart` inside the shared method.
+        #
+        # AND A REFUSAL HERE KEPT THE RUN STEP 3 HAD JUST MADE. This said
+        # `return`, full stop. Every other refusal on this door undoes that run
+        # first and says so, and the sibling door has `_undo_the_run` for
+        # exactly this; only the one refusal that can happen AFTER the
+        # duplicate was missing it.
+        #
+        # WHAT A PERSON WAS LEFT WITH, driven on screen with every window
+        # answered by clicking its own button (combined round 4,
+        # `N-result.json`): import a measurement into Run 1, regenerate its
+        # chart so the stored copy no longer matches (or answer "Keep stored
+        # chart" once, which ChromIQ records as `chart_snapshot_stale`), import
+        # a second measurement, answer "Make a new run", then press CANCEL on
+        # "Stored chart differs". Run 2 stayed on disk and in `project.json`
+        # holding no measurement, the bar was left standing on it
+        # ("Location being edited: runs/run2/"), the file was not imported, and
+        # NOTHING WAS SAID — the same silent no-op this door's own comments
+        # record fixing on four other routes.
+        if not self._snapshot_verification_chart():
+            from ui.measurement_filing import _undo_the_run
+            if made_here is not None and proj is not None:
+                _undo_the_run(proj, made_here, was_current)
+                try:
+                    ctl.set_profile_run(was_current or "")
+                except Exception:  # noqa: BLE001 — the run is gone either way
+                    log.warning("import: could not put the bar back on %s",
+                                was_current, exc_info=True)
+                self._say_on_screen(
+                    tr("The measurement was not imported"),
+                    tr("You stopped at the stored-chart question, so nothing "
+                       "has been imported and nothing has been changed. The "
+                       "new run ChromIQ had started making has been removed "
+                       "again, and your own file is untouched where it is."))
+            return
+
+        # 5) File it (§I.7) — the run's canonical stem.
+        dst = run.measurement_ti3
+        import shutil
+        try:
+            shutil.copy2(converted, dst)
+        except (OSError, ValueError) as exc:
+            # A COPY THAT FAILS MUST END IN A SENTENCE, not in a traceback out
+            # of a Qt slot: a read-only folder, a full disk or a share that has
+            # gone away are ordinary things to meet here.
+            # AND THE SENTENCE MUST BE TRUE. Round 4 gave step 4's refusal
+            # the rollback every other refusal on this door has; this one, one
+            # line further along, still said "nothing has been changed" over a
+            # run it had just made. The SIBLING door has always undone the run
+            # at exactly this failure (`ui/measurement_filing.py`, the same
+            # words), so the two doors described the same accident differently.
+            #
+            # Driven on screen with the copy refused once, as a full disk or a
+            # share that has gone away refuses it (combined round 5,
+            # `F-result.json`, `F1-after-the-refused-copy.png`): run 2 was left
+            # on disk and in `project.json`, `current_run` was left pointing at
+            # it and the bar read "Location being edited: runs/run2/", under a
+            # window saying nothing had been changed.
+            log.warning("import: could not copy the measurement into %s", dst,
+                        exc_info=True)
+            from ui.measurement_filing import _undo_the_run
+            undone = made_here is not None and proj is not None
+            if undone:
+                _undo_the_run(proj, made_here, was_current)
+                try:
+                    ctl.set_profile_run(was_current or "")
+                except Exception:  # noqa: BLE001 — the run is gone either way
+                    log.warning("import: could not put the bar back on %s",
+                                was_current, exc_info=True)
+            self._say_on_screen(
+                tr("ChromIQ could not write into that run"),
+                (tr("The measurement has not been filed, and nothing has been "
+                    "changed. Your own file is untouched where it is. The "
+                    "reason: {reason}.") if not undone else
+                 tr("The measurement has not been filed, and nothing has been "
+                    "changed. The new run ChromIQ had started making has been "
+                    "removed again, and your own file is untouched where it "
+                    "is. The reason: {reason}.")).format(
+                       reason=getattr(exc, "strerror", None) or exc))
+            return
+        self._log.appendPlainText(
+            "\n" + tr("[OK] Measurement imported.") + f"\nSaved: {dst}")
+
+        # 6) The shared ending (§I.8): point the bar at the run the file went
+        #    into, refresh it, and say §I.10's partial sentence if it applies —
+        #    one copy of that sentence, in `say_what_was_filed`.
+        finish_the_import(self, ctl, run.id, dst,
+                          self._adopt_imported_measurement)
+        # …AND THE TAB THAT BUILDS FROM IT IS ARMED, exactly as it is after a
+        # read made here. `MainWindow._on_measure_done` is what puts a finished
+        # measurement into Build ICC profile (`set_ti3_path(ti3,
+        # propagate=False)`), and a native session emits this one line before
+        # it offers to go there.
+        #
+        # CHALLENGE ROUND 2 FOUND IT MISSING. The done window says "You can
+        # build a profile from it now on the Build ICC profile tab" and carries
+        # a **Build the profile** button — and that button emitted only
+        # `proceed_to_profile`, which changes tab and nothing else. The person
+        # arrived on a tab that was still holding whatever it held before, in
+        # front of a sentence promising it held their import. A message is a
+        # promise.
+        #
+        # AND IT ALSO SAVES THE DATED REPORT, DELIBERATELY. The same signal is
+        # wired to `_maybe_save_measurement_report`, so an import now accrues a
+        # dated accuracy report beside the measurement exactly as a read made
+        # here does — when the person has that Settings option on, and silently
+        # not at all when they have not. Found by driving it (round 4) rather
+        # than designed in, so it is written down here instead of left as a
+        # surprise: it is the behaviour the feature wants. Knut's reason for
+        # dated reports is that they accrue for over-time comparison, and an
+        # imported measurement already carries the date it was MEASURED rather
+        # than the date it was converted (`reference_convert` stamps
+        # CHROMIQ_MEASURED), so it trends beside the others correctly.
+        self.measure_finished.emit(dst)
+        self._show_import_done_profiling(run, dst)
+
+    @staticmethod
+    def _put_the_project_back(proj, was_on: str) -> None:
+        """Point the manifest at the run the person was on, if it has moved.
+
+        The same act `_undo_the_run` performs, reached without a run to discard:
+        these two handlers refuse AFTER `duplicate_run` has already moved
+        `current_run` to `runs[-1]` through its own rollback, and before
+        `made_here` has been assigned.
+        """
+        from ui.measurement_filing import _undo_the_run
+        if proj is None or not was_on:
+            return
+        _undo_the_run(proj, None, was_on)
+
+    def _say_import_failed(self, exc: Exception) -> None:
+        """A run that could not be made, said in a sentence. Both call sites
+        end the same way, so the promise they make is the same one."""
+        self._say_on_screen(
+            tr("ChromIQ could not make a new run"),
+            tr("Nothing has been imported and nothing has been changed. The "
+               "reason: {reason}.").format(
+                   reason=getattr(exc, "strerror", None) or exc))
+
+    def _adopt_imported_measurement(self, filed: Path) -> None:
+        """What this tab does with the copy the shared ending just filed.
+
+        The chart first, because everything else is read from beside it: after
+        a duplicate the measurement lives in a DIFFERENT run from the one the
+        preview was showing, and a tab still pointed at the old chart would
+        draw its overlay from the old run's `.ti3`. Then the progress readout,
+        through the same method `_on_measure_done` uses once a session's file
+        is authoritative.
+        """
+        try:
+            chart = Path(filed).with_suffix(".ti2")
+            if chart.is_file() and chart != self._chart_file_for(
+                    getattr(self, "_ti1_path", None)):
+                self.set_ti1_path(chart)
+                # …and Create Chart follows, by the signal this tab already
+                # uses to reflect a chart it has loaded.
+                run = Run.for_dir(chart.parent)
+                self.chart_load_requested.emit(chart, list(run.chart_tiffs()))
+        except Exception:      # noqa: BLE001 — the file is filed either way
+            log.warning("import: could not show the chart of %s", filed,
+                        exc_info=True)
+        # AND IT MUST NOT THEN ASK ABOUT THE FILE IT JUST FILED.
+        #
+        # Found by driving it, twice (challenge rounds 1 and 2, 2026-09-15).
+        # `_maybe_offer_existing_overlay` opens "This chart already has a
+        # measurement — show the overlay? refine / resume it?" with a warning
+        # that starting a new measurement would REPLACE it. Every word of it is
+        # true and none of it is a question the person asked: they were told
+        # one second earlier that the measurement had been imported. The window
+        # is for ARRIVING at a run somebody measured earlier.
+        #
+        # Round 1 put this inside the chart-changed branch above, which covers
+        # only the import that DUPLICATES the run. Round 2 drove the ordinary
+        # one: the chart does not change, so nothing was silenced, and simply
+        # coming back to the Measure tab raised the window through
+        # `showEvent` → `_queue_overlay_offer`. A remedy that depends on which
+        # branch the import took is not a remedy; the silence belongs to the
+        # import.
+        #
+        # Through the mechanism that already exists for this shape — Knut's
+        # per-run "stop asking about the run I am working through" (#131,
+        # 2026-07-28) — rather than a new flag, so it is scoped to THIS run in
+        # THIS project and every other run still asks.
+        try:
+            scope = self._replace_warning_scope()
+            if scope is not None:
+                self._offer_silenced.add(scope)
+        except Exception:      # noqa: BLE001 — the file is filed either way
+            log.warning("import: could not silence the overlay offer",
+                        exc_info=True)
+        # AN IMPORT IS NOT A MEMBER OF AN AVERAGING SET (§I.9). A set left live
+        # by an earlier session would otherwise still be live, and the next
+        # read taken here would be averaged with the file that was imported —
+        # a sheet measured somewhere else, on another instrument, on another
+        # day. Opting into averaging again starts a clean set, exactly as it
+        # does after any standalone read.
+        self._averaging_active = False
+        try:
+            self._refresh_progress_from_files()
+        except Exception:      # noqa: BLE001
+            log.warning("import: could not refresh the progress readout",
+                        exc_info=True)
+        self._update_import_panel()
+
+    def _show_import_done_profiling(self, run, dst: Path) -> None:
+        """The success window for a profiling import — the §M text, plus the
+        two buttons §I.9's I.8 names: the measurement report, and the tab that
+        builds a profile from what was just filed."""
+        from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
+                                     QVBoxLayout)
+        from workflow import measurement_messages as M
+        title, body = M.M_IMPORT_DONE_PROFILING.render(
+            run=tr("Run {n}").format(
+                n=getattr(run, "number", None) or run.id.replace("run", "")),
+            folder=str(run.dir))
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(560)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(16)
+        lay.setContentsMargins(24, 20, 24, 20)
+        msg = QLabel(title + "\n\n" + body, dlg)
+        msg.setWordWrap(True)
+        lay.addWidget(msg)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        close_btn = QPushButton(tr("Close"), dlg)
+        close_btn.clicked.connect(dlg.reject)
+        report_btn = QPushButton(tr("Open measurement report"), dlg)
+        report_btn.clicked.connect(lambda: dlg.done(2))
+        build_btn = QPushButton(tr("Build the profile"), dlg)
+        build_btn.setObjectName("primary")
+        build_btn.setDefault(True)
+        build_btn.clicked.connect(dlg.accept)
+        row.addWidget(close_btn)
+        row.addWidget(report_btn)
+        row.addWidget(build_btn)
+        lay.addLayout(row)
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        answer = dlg.exec()
+        if answer == 2:
+            from ui.dialogs.measurement_report_dialog import \
+                MeasurementReportDialog
+            MeasurementReportDialog(self._settings, self,
+                                    initial_ti3=dst).exec()
+        elif answer == QDialog.DialogCode.Accepted:
+            # The tab that builds from it — the same signal the completion
+            # dialog's "Build profile" answer uses, so there is one route to
+            # tab 4 rather than this window inventing a second one.
+            self.proceed_to_profile.emit()
 
     def _show_import_done(self, verification, dst: Path) -> None:
         """The success window — the §M text, plus a button straight into the
@@ -10649,6 +12051,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._log.appendPlainText(
                 "\n" + tr("[INFO] Measurement stopped — no measurement (.ti3) file was created.")
             )
+        # A LIVE AVERAGING SET WHOSE NEXT READ PRODUCED NOTHING must not leave
+        # the run with no measurement — see the method's own docstring. LAST,
+        # so the sentence about what was kept follows the one about what ended.
+        if not ti3_exists:
+            self._restore_a_read_when_the_set_lost_its_measurement(ti3)
         self._auto_proceed = False
         self._log.ensureCursorVisible()
 
@@ -10746,6 +12153,26 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
 
         # "continue" / "build" (single read) or "use_last" (last read of a set).
+        #
+        # AND AN ENDING THAT BUILDS FROM ONE READ MUST STILL LEAVE THE RUN
+        # HOLDING IT. `Run.promote_measurement_to_read` MOVES the measurement
+        # into `reads/readN.ti3`; the "average" ending above writes the result
+        # back to `Run.measurement_ti3`, and this one used to hand the run's
+        # file over to Build Profile FROM INSIDE `reads/` and leave the run
+        # itself with no measurement at all.
+        #
+        # §I.7 of `docs/design/unified_measurement_management.md` says why that
+        # matters, in its own words: a measurement filed under any other name
+        # *"falls back to `reference_source: device` without saying so"*,
+        # because the report finds its chart by the run's stem
+        # (`measurement_report._find_reference_ti2`). Driven on screen, combined
+        # round 5: after "Use last read only" on a real 90-patch chart the run
+        # folder held NO `.ti3`, the Measurement Report window opened on it with
+        # zero rows, and the report the Preferences option saved automatically
+        # went to `runs/run1/reads/reports/` — a folder nothing in ChromIQ ever
+        # lists — carrying `"chart": "read2"`, `sheet_kind: "standalone"` and no
+        # verdict set at all, while the log said "Measurement report saved".
+        current = self._keep_the_read_as_the_runs_measurement(ti3, current)
         self.measure_finished.emit(current)
         if action == "close":
             # Knut (#131): keep the measurement, go nowhere. The profile can be
@@ -10757,6 +12184,96 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         self.proceed_to_profile.emit()
 
+
+    def _keep_the_read_as_the_runs_measurement(self, ti3: Path,
+                                               current: Path) -> Path:
+        """Put the read this ending builds from back at `Run.measurement_ti3`.
+
+        Returns the path the run's measurement now lives at — the canonical one
+        when the copy worked, and `current` unchanged when it did not, because
+        an ending must never be lost to a failed copy.
+
+        The per-read snapshots stay in `reads/` exactly as the "average" ending
+        leaves them; what changes is that the run holds the sheet it is about
+        to be judged and built from.
+        """
+        import shutil
+        if current == ti3 or not current.is_file():
+            return current            # a standalone read; nothing was moved
+        try:
+            run = Run.for_dir(ti3.parent)
+            dst = run.measurement_ti3
+        except Exception:      # noqa: BLE001 — a path we cannot name is not a
+            return current      # reason to lose the measurement
+        if current == dst:
+            return current
+        try:
+            shutil.copy2(current, dst)
+        except OSError as exc:
+            log.warning("could not keep %s as the run's measurement: %s",
+                        current.name, exc)
+            return current
+        self._log.appendPlainText("\n" + tr(
+            "[OK] {read} is this run's measurement now. The individual reads "
+            "are kept in the run's reads folder.").format(read=current.name))
+        return dst
+
+    def _restore_a_read_when_the_set_lost_its_measurement(self, ti3) -> None:
+        """A live averaging set whose next read produced no file at all.
+
+        "Measure again to average" MOVES the finished measurement into
+        `reads/read1.ti3` and starts a second read. Stop that read, or let it
+        fail, and the run is left holding no measurement: the reading the
+        person actually took is in `reads/`, where the Measurement Report
+        window, Build Profile and the run's own state cannot see it, and
+        ChromIQ says "no measurement (.ti3) file was created" about a chart
+        that was measured perfectly well a minute earlier.
+
+        A COPY, never a move: the set is still live, so `reads/` must keep
+        every read it has. A retry overwrites this file and promotes the real
+        new read beside the others exactly as before.
+        """
+        if ti3 is None or not self._averaging_active:
+            return
+        kept = self._put_the_last_read_back(ti3)
+        if kept is None:
+            return
+        self._log.appendPlainText("\n" + tr(
+            "[INFO] The reading you already took is kept: {read} is this "
+            "run's measurement again. Measure the chart once more whenever "
+            "you want the two averaged.").format(read=kept.name))
+
+    def _put_the_last_read_back(self, ti3) -> "Path | None":
+        """Copy the newest file in ``reads/`` back to ``Run.measurement_ti3``.
+
+        The MECHANISM shared by every ending that can leave an averaging set's
+        run holding nothing; each caller says its own sentence, because what
+        happened differs and the sentence is the part the person reads.
+
+        Returns the read that was put back, or None when there was nothing to
+        do: no run, no reads, the run already holds a measurement, or the copy
+        itself was refused. A COPY, never a move — `reads/` keeps every read it
+        has, so a retry promotes the next one beside them exactly as before.
+        """
+        if ti3 is None:
+            return None
+        try:
+            run = Run.for_dir(Path(ti3).parent)
+            if run.measurement_ti3.is_file():
+                return None
+            reads = run.reads()
+        except Exception:      # noqa: BLE001 — never break an ending
+            return None
+        if not reads:
+            return None
+        import shutil
+        try:
+            shutil.copy2(reads[-1], run.measurement_ti3)
+        except OSError as exc:
+            log.warning("could not put %s back as the run's measurement: %s",
+                        reads[-1].name, exc)
+            return None
+        return reads[-1]
 
     def _show_completion_dialog(
         self, current: Path, reads: list[Path]
@@ -10804,11 +12321,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "&nbsp;&nbsp;•&nbsp; <b>Go to {tab} Tab</b> — use this single "
                 "measurement as it is, and open the {tab} tab. The profile "
                 "is built there, when you press <i>Build Profile</i>.<br>"
-                "&nbsp;&nbsp;•&nbsp; <b>Measure again to average</b> — read the same "
+                "&nbsp;&nbsp;•&nbsp; <b>{measure_again}</b> — read the same "
                 "chart once more; the results will be averaged together.<br>"
                 "&nbsp;&nbsp;•&nbsp; <b>Close</b> — keep this measurement and go "
                 "nowhere; you can build the profile whenever you like."
-            ).format(tab=self._profile_tab_name())
+            ).format(tab=self._profile_tab_name(),
+                     measure_again=tr("Measure again to average"))
         msg = QLabel(body, dlg)
         msg.setWordWrap(True)
         layout.addWidget(msg)
@@ -10879,7 +12397,44 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return choice["action"], method
 
     def _start_averaging_read(self) -> None:
-        """Re-run a fresh, full read of the same chart for the averaging set."""
+        """Re-run a fresh, full read of the same chart for the averaging set.
+
+        AND A READ THAT NEVER STARTS IS AN ENDING TOO.
+
+        "Measure again to average" has already MOVED the finished measurement
+        into `reads/read1.ti3` by the time this runs — `_apply_completion_action`
+        promotes it and only then fires this through a timer. `_on_start` then
+        asks its questions, and every one of them can be answered no: it has a
+        dozen early returns, and rounds 5 and 6 closed only the endings that
+        happen AFTER chartread has run. This is the branch where chartread never
+        runs at all, and nothing here put the measurement back.
+
+        WHAT A PERSON SAW, driven on screen in a real window with two DIFFERENT
+        real refusals (combined round 7, `A-result.json` / `B-result.json`,
+        `A2-stored-chart-differs.png`, `B3-bidirectional-reading-on-a-fixed-
+        order-chart.png`): a finished 240-patch measurement, "Measure again to
+        average", then Cancel on "Stored chart differs" (A) or on the
+        bidirectional warning (B). Afterwards, in both:
+
+        * the run folder held **no** `.ti3` — the reading was in `reads/`,
+        * **nothing at all was said**; the log's last line was still
+          "[INFO] First read saved as reads/read1.ti3",
+        * the Build Profile tab still NAMED `runs/run1/<chart>.ti3`, a file that
+          no longer existed, and pressing Build Profile answered
+          "[ERROR] No valid .ti3 file selected."
+
+        …under a window whose own words are *"Cancel — nothing is written and no
+        measurement starts."* Something had been written: the measurement had
+        left the run. And that window knows it is an averaging set — its last
+        paragraph says so.
+
+        `_session_live` is the honest marker: `_on_start` sets it at its point of
+        no return, one line before `self._manager.start(...)`, so every refusal
+        above it leaves it False. The restore is round 5's own, sentence and
+        all, because what happened is the same thing it already describes: the
+        reading you took is kept, measure again whenever you want the two
+        averaged.
+        """
         if self._ti1_path is None:
             return
         if self._runner.is_running:
@@ -10889,7 +12444,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         cb = self._resume_cb if self._current_mode() == "guided" else self._m_resume_cb
         if cb.isChecked():
             cb.setChecked(False)
+        # NOT ASSIGNED HERE, only read. `_on_measure_done` clears it at the end
+        # of every session, so it is already False; forcing it would be the one
+        # way this could corrupt a session that really is live.
         self._on_start()
+        if not getattr(self, "_session_live", False):
+            self._restore_a_read_when_the_set_lost_its_measurement(
+                self._ti1_path.with_suffix(".ti3"))
 
     def _run_average_and_proceed(
         self, base: Path, reads: list[Path], method: str
@@ -10906,6 +12467,36 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 fail = self._avg_runner.primary_failure()
                 detail = fail[1] if fail else tr("see the output log above.")
                 self._log.appendPlainText(f"[ERROR] Averaging failed — {detail}")
+                # AN AVERAGE THAT REFUSES IS AN ENDING TOO, and it leaves the
+                # run with nothing unless somebody puts a read back. Every read
+                # has already been MOVED into `reads/` by
+                # `promote_measurement_to_read`, and `average` writes its output
+                # only on success — so this branch used to hand the person back
+                # a run holding no `.ti3` at all: the Measurement Report window
+                # opened on it with ZERO rows and the Build Profile tab read
+                # "No file selected", under a window telling them they could
+                # "continue from the Build Profile tab using one of them".
+                #
+                # Driven on screen with a REAL Argyll refusal (combined round 6,
+                # `A-result.json`, `A1-the-averaging-failed-window.png`): two
+                # promoted reads, `average: Error - File 'reads/read2.ti3' has
+                # 15 sets, file 'reads/read1.ti3 has 90`, and afterwards the run
+                # folder held no `.ti3`, the report window listed nothing and
+                # the tab the window names held nothing.
+                #
+                # Round 5 gave the other two endings of this shape a file back
+                # (B8-213); this is the third, and it takes the same mechanism
+                # and the same rule: the newest read, COPIED, `reads/` intact.
+                kept = self._put_the_last_read_back(out)
+                if kept is not None:
+                    self._log.appendPlainText("\n" + tr(
+                        "[INFO] The reads are all kept. {read}, the one you "
+                        "took last, is this run's measurement, so you can "
+                        "build from it or measure the chart again.").format(
+                            read=kept.name))
+                    # …and the tab the window sends them to is armed with it,
+                    # exactly as every other ending arms it.
+                    self.measure_finished.emit(out)
                 self._show_average_failed_dialog(detail)
                 return
             self._log.appendPlainText(
@@ -10933,11 +12524,25 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout = QVBoxLayout(dlg)
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
+        # THE TITLE WENT THROUGH tr() AND THE BODY NEVER DID, so eleven of the
+        # twelve languages showed this window in English. It was invisible to
+        # `i18n_extract.unwrapped_literals`, which only inspected a bare literal
+        # argument and skipped this one because `+ detail` makes the whole
+        # argument an expression. `detail` is now a placeholder rather than a
+        # concatenation, so a translator is given the sentence whole and can
+        # put the reason where their language wants it.
+        #
+        # The closing sentence was checked against the code before it was
+        # translated, because it is a promise: `_put_the_last_read_back` copies
+        # the newest read back as the run's measurement and leaves `reads/`
+        # untouched, so every read really is still there and Build Profile
+        # really is armed (B8-213's mechanism, applied to this ending in the
+        # same round). The em dash went for the house rule.
         msg = QLabel(
-            "<b>The reads could not be averaged.</b><br><br>"
-            + detail
-            + "<br><br>Your individual reads are still saved — you can continue "
-            "from the Build Profile tab using one of them.",
+            tr("<b>The reads could not be averaged.</b><br><br>{detail}<br><br>"
+               "Your individual reads are still saved, you can continue "
+               "from the Build Profile tab using one of them.").format(
+                   detail=detail),
             dlg,
         )
         msg.setWordWrap(True)
@@ -10986,6 +12591,68 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # session that ended in one of those windows.
             if not getattr(self, "_session_live", False):
                 QApplication.instance().removeEventFilter(self)
+                return False
+            # NO KEY PRESSED AT ONE OF OUR OWN WINDOWS REACHES THE INSTRUMENT.
+            #
+            # This filter is installed on the whole APPLICATION, so it is first
+            # in line for a key pressed at a modal window ChromIQ has put in
+            # front of the user -- and it forwarded that key to the reader and
+            # then ate it (`return True` below). Escape at "Keep what you have
+            # measured so far?" therefore wrote `\x1b` down the pipe, which on
+            # stock chartread is GIVE UP: the process returns without writing
+            # its `.ti3` (chartread.c:1654) and every reading that window was
+            # offering to save is gone. Measured through a real PTY with the
+            # reader's own file recording the byte; the window did not even
+            # close, so the natural next move was to press Escape again. Return
+            # had the mirror fault -- eaten here, so the default button could
+            # not be pressed from the keyboard at all.
+            #
+            # NINE FAILURE-WINDOW SLOTS EACH REMOVED THE FILTER BY HAND before
+            # showing their window, and the two routes every ending goes
+            # through -- `_confirm_end_of_session` and `_on_stop`, plus
+            # `confirm_quit_during_measurement` -- did not. Adding a tenth
+            # removal would leave the eleventh window to remember; and a
+            # removal has its own failure mode, which the comment above this
+            # one describes: a filter taken out and put back by hand is left
+            # behind when a window closes by a route nobody planned for.
+            #
+            # So the question asked here is not "did this slot remember" but
+            # "is the user looking at one of our windows". A modal window IS
+            # the user's attention. `return False` hands the key to that window
+            # instead of consuming it, which is what makes Return press the
+            # default button and Escape answer the dialog. Nothing has to be
+            # removed and nothing has to be put back, so a window closed by the
+            # title-bar X, by Escape, by `_close_measurement_windows()` or by
+            # the application quitting simply stops being the active modal and
+            # forwarding resumes on its own.
+            #
+            # The CR30 read-failure window is deliberately NOT modal
+            # (`_show_cr30_read_failed_window`): its remedy is to press the
+            # button on the instrument, so it must not stand between the user
+            # and that press -- and this gate leaves it alone.
+            #
+            # AND A MENU IS NOT A MODAL WINDOW (R24-F4). Qt keeps a QMenu, a
+            # combo-box popup and any other `Qt::Popup` under
+            # `activePopupWidget()`, NOT under `activeModalWidget()`, so the
+            # gate above saw nothing while ChromIQ's own right-click menu stood
+            # over the measurement log -- and Escape, which is how a menu is
+            # dismissed, went down the pipe as `\x1b`. That is the same
+            # give-up byte, at the same prompt, with the same `.ti3` never
+            # written: round 24 measured `b'\x1b'` at the far end of a real
+            # pty with the real menu up, against nothing at all at the modal
+            # ending window in the same session. Right-clicking the log to
+            # copy a line out of it is an ordinary thing to do while a strip
+            # reader waits.
+            #
+            # A popup takes the key for the same reason a modal does: it is
+            # what the user is looking at. `return False` hands it over, so
+            # Escape closes the menu and nothing is consumed and nothing is
+            # sent. A TOOLTIP is not caught by this and does not need to be --
+            # `activePopupWidget` is only set for `windowType() == Qt::Popup`,
+            # and `Qt::ToolTip` is its own type.
+            app = QApplication.instance()
+            if app.activeModalWidget() is not None \
+                    or app.activePopupWidget() is not None:
                 return False
             key = event.key()
             # A SHORTCUT IS NOT AN INSTRUMENT KEY.
@@ -11254,6 +12921,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # immediately re-drawn from the file, and this session's strips add to
         # it as they are read.
         self._preview.clear_patch_overlay()
+        # …AND THE PATCHES THE OVERLAY IS MADE OF (B8-385). The set is what
+        # decides which strips a whole-chart or spot read has finished, so it
+        # is cleared with the overlay and re-filled by the same repaint: the
+        # two must always describe the same picture.
+        self._engine_patch_read = set()
         self._repaint_overlay_from_disk()
         self._patch_geom_warned = False
         self._patch_missing_warned = False
@@ -11264,6 +12936,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # (because strip-click is tested before patch-click) swallows the
             # patch click so nothing jumps.
             self._preview.set_stripe_click_enabled(False)
+            # THAT CLEARS THE READ MAP (it takes one and defaults to {}), and
+            # spot mode had nothing to put back: every strip read as unread for
+            # the whole session, so "Show only measured patches" blanked the
+            # sheet under every patch it drew (B8-385).
+            self._update_engine_read_map()
             self._m_engine_tip.setVisible(False)
             self._set_autosave_banner()
             return
@@ -11282,6 +12959,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             _pg, li, _r = self._locate_strip(s.get("strip", "A"))
             read_map[li] = bool(s.get("read"))
         self._preview.set_stripe_click_enabled(True, read_map)
+        # ONE ANSWER, from the one function that gives it: `set_stripe_click_
+        # enabled` takes a read map too, and it is built above from the session
+        # map alone. On a multi-page chart that map collides local indices
+        # across sheets, and it cannot see a patch read since.
+        self._update_engine_read_map()
         if any(not s.get("verifiable", True) for s in strips):
             self._log.appendPlainText(
                 tr("[Engine] Note: some rows of this chart are too similar "
@@ -11314,6 +12996,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         idx = max(0, min(int(page), len(rects) - 1))
         self._preview.set_stripe_rects(rects[idx],
                                        getattr(self, "_stripe_arrow_mode", "base"))
+        # AND THE READ MAP WITH THEM (B8-385): it is keyed by the local index
+        # on the sheet, so it means something different on every page, and
+        # "Show only measured patches" paints from it.
+        self._update_engine_read_map(idx)
 
     def _on_preview_strip_clicked(self, page: int, local_idx: int) -> None:
         if not self._manager.engine_active:
@@ -12000,6 +13686,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # re-reading a patch refreshes it rather than stacking).
         self._preview.set_patch_overlay(page, [item])
         self._preview.set_patch_info(page, [info])
+        # …and the strip this patch belongs to is read once all of it is
+        # (B8-385). Patch by patch is the mode that shows this best: the strip
+        # stops being blanked at the moment its last patch is reported, and
+        # never before, so nothing flickers on and off as the reader moves.
+        self._note_patches_read([loc])
 
     def _on_chart_reading(self) -> None:
         """XY/chart mode (engine opt-in): an autonomous whole-chart read began."""
@@ -12017,11 +13708,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
         items: dict[int, list] = {}
         infos: dict[int, list] = {}
+        placed: list = []
         for p in patches:
             loc = str(p.get("loc", ""))
             page, box = self._locate_patch(loc)
             if page < 0 or box is None:
                 continue
+            placed.append(loc)
             de_p = float(p.get("de", 0))
             exyz = p.get("exyz", [0, 0, 0])
             mxyz = p.get("xyz", [0, 0, 0])
@@ -12040,6 +13733,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         for page, its in items.items():
             self._preview.set_patch_overlay(page, its)
             self._preview.set_patch_info(page, infos[page])
+        # WHAT THIS MODE HAS READ, in the only terms the preview understands
+        # (B8-385). Only the patches that found a box are counted, which is the
+        # same set the loop above drew and the same set `_letters_fully_read`
+        # measures against.
+        self._note_patches_read(placed)
 
     def _read_builds_on_existing(self) -> bool:
         """True when this read ADDS to the measurement already on disk.
@@ -12206,8 +13904,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # a measurement — it is the last chance to stop — so the button says
         # what pressing it does now, not what happened before.
         go = box.addButton(tr("Measure anyway"), QMessageBox.ButtonRole.AcceptRole)
-        box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(go)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return presses Cancel; the destructive action stays
+        # plain (B8-1156) and is reached by a click.
+        box.setDefaultButton(cancel)
+        # K44 (beta 43, 2026-09-25): a destructive action is never drawn
+        # filled.
+        from ui.default_button import mark_destructive
+        mark_destructive(go)
         # Long labels clip once the font swap widens them, and polish
         # does not happen offscreen — so fit them here (Knut, #130).
         from ui.widgets import (fit_message_box_buttons,
@@ -12319,6 +14024,435 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001
             pass
         return tr("Don't ask again for this profile run, until I close ChromIQ")
+
+    # -- the verification pre-flight (#182, Knut, 2026-09-21) -------------
+    #
+    # "There is one popup-message that is missing, that would help a user in
+    # the process of verification." Arriving on this tab with a verification
+    # run whose chart is built and whose measurement has not begun, the reader
+    # is told what the Measurement Report will be able to judge on THAT chart,
+    # at the last moment when changing the chart is still free.
+    #
+    # **FOUR PRECONDITIONS, AND HE IS EXPLICIT THAT IT MUST FIRE ON NONE
+    # OTHER**: *"test that this popup-window only comes for the defined
+    # preconditions"*. They are one predicate, `_verification_preflight_due`,
+    # so there is one place to read them and one place to test them.
+
+    def _verification_preflight_due(self) -> bool:
+        """Whether the pre-flight window is owed, right now.
+
+        1. **Run type is Verification** — `_is_verification_run`, the tab's own
+           accessor, which asks the shared Run type and nothing else.
+        2. **A chart with a patch set exists.** Knut: *"Either made manually,
+           or imported as ti2 file, or loaded a preset etc. Whatever method
+           that was used is not relevant, only that a chart with a patch set
+           exists"*, and *"a chart needs to have been generated with a layout
+           that has a given patch set, as a minimum"*. So: the chart handed to
+           this tab is a file on disk and it parses as a patch set. HOW it got
+           there is never asked.
+        3. **No measurement yet.** He named the rule himself: *"the criteria
+           used for checking if a ti3 is valid is used by other checks in the
+           Measure tab, f.ex. when clicking Start Measurement"*. That is
+           `_measurement_at_risk` (which knows a verification's readings live
+           in its dated folder, not beside the shared chart) put through
+           `_cgats_has_no_readings` (which is what "empty or invalid" means
+           everywhere else on this tab). **No second definition is written
+           here**; both halves are the ones Start Measurement already uses.
+        4. **Measurement not yet initiated** — `a_measurement_is_running`,
+           the tab's combined session-and-process answer.
+
+        …and two more things that can withhold the window, neither of them one
+        of his four: a run the reader has silenced with the tick for this
+        session, and **a profile run that already has a measured dated
+        verification** (his beta-32 report, B8-776), however new and empty the
+        date now selected is. The second is recorded in the M-VERIFY-PREFLIGHT
+        entry as awaiting confirmation.
+        """
+        if not self._is_verification_run():
+            return False
+        if self.a_measurement_is_running() or self._runner.is_running:
+            return False
+        chart = getattr(self, "_ti1_path", None)
+        if chart is None or not Path(chart).is_file():
+            return False
+        # **BOTH OF THE TAB'S OWN ANSWERS, BECAUSE A VERIFICATION KEEPS ITS
+        # READINGS SOMEWHERE ELSE.** `_measurement_at_risk` looks in the dated
+        # verification folder, which is where a verification's `.ti3` really
+        # goes and which `_existing_ti3_for_chart` cannot see (#131:
+        # "keying on the chart-adjacent .ti3 meant the warning could never
+        # fire for a verification at all"). `_existing_ti3_for_chart` looks
+        # beside the chart, which the other one skips entirely for a
+        # verification. Asking only one of them left a hole a guard walked
+        # straight into. Neither defines validity for itself: both are
+        # `_cgats_has_no_readings`, the tab's one test for "empty or invalid".
+        if self._existing_ti3_for_chart() is not None:
+            return False
+        ti3 = self._measurement_at_risk()
+        if ti3 is not None and not _cgats_has_no_readings(ti3):
+            return False
+        scope = self._preflight_scope()
+        if scope is not None and scope in self._preflight_silenced:
+            return False
+        # **ONCE THE RUN HAS MEASURED VERIFICATIONS, IT IS TOO LATE TO SAY
+        # THIS.** Knut, on beta 32: *"The popup message happens every time I
+        # enter the Measure tab, while run type is verification, even when many
+        # dated verification runs exist ... It does not have value to show this
+        # when measurements have been performed, and especially when many dated
+        # verification runs already exist, because then it is a bit late to
+        # change the chart."*
+        #
+        # The checks above ask only about THIS dated verification, so starting
+        # a new one inside a run with a long history put the window back on
+        # screen with advice about changing a chart the history is already
+        # built on. The window exists to be read BEFORE the first measurement;
+        # after that the chart is settled by the comparability the series
+        # depends on.
+        if self._run_has_a_measured_verification():
+            return False
+        # LAST, because it reads and parses the chart. Everything cheap that
+        # can say "no" has said it by now.
+        from workflow.preset_eligibility import patch_count
+        return patch_count(chart) > 0
+
+    def _run_has_a_measured_verification(self) -> bool:
+        """Has this profile run any dated verification that was measured?
+
+        Not "does a dated folder exist": a folder is created when the sheet is
+        printed, before anything is read, and the pre-flight is exactly for
+        that moment. What settles the chart is a verification that carries
+        READINGS, judged by the tab's own one test for an empty or invalid
+        file so this cannot drift from what counts as a measurement anywhere
+        else.
+        """
+        try:
+            ctl = self._target_ctl
+            proj = ctl.project_or_none()
+            if proj is None:
+                return False
+            run = proj.run(ctl.target.profile_run)
+            # `measurement_ti3`, ASKED DIRECTLY. Until beta 36 this read
+            # `getattr(v, "ti3", None)`: `Verification` has no `ti3`, so every
+            # run answered "no history" and Knut's beta-32 report survived the
+            # fix that claimed it. No default here, so a renamed attribute is
+            # an AttributeError in the log and not a silent "no".
+            for v in run.verifications():
+                ti3 = v.measurement_ti3
+                if ti3.is_file() and not _cgats_has_no_readings(ti3):
+                    return True
+        except Exception:      # noqa: BLE001 — advisory, never a gate
+            log.warning("could not count this run's verifications",
+                        exc_info=True)
+        return False
+
+    def _preflight_scope(self) -> "tuple | None":
+        """What the pre-flight's tick is remembered against, or None.
+
+        **NOT `_replace_warning_scope`, and the difference is the whole
+        point.** That one returns None for a verification whose dated folder
+        holds no measurement, which is *precisely* the state this window fires
+        in, so keying on it would mean the tick could never be honoured. It is
+        right for its own window, whose subject is a measurement that exists.
+
+        Knut's tick says *"for this profile run"*, so the key is the profile
+        run: the project root and the run id, and nothing finer. Keying on the
+        dated verification as well would ask again inside the same profile run
+        and break the promise the label makes.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            proj = ctl.project_or_none()
+            if proj is None:
+                return None
+            run_id = ctl.target.profile_run
+            if not run_id or not proj.has_run(run_id):
+                return None            # "New run" names nothing to key on
+            return (str(proj.root), run_id)
+        except Exception:      # noqa: BLE001 — a scope is a convenience
+            return None
+
+    def _preflight_silence_label(self) -> str:
+        """Knut's own words for the tick, 2026-09-21."""
+        return tr("Do not show this message again for this profile run, "
+                  "until I close ChromIQ")
+
+    def _preflight_chart_row(self):
+        """The chart this tab holds, as the presets window's own row type.
+
+        The SAME row the presets window's first line is built from, so the two
+        windows judge one chart with one piece of code. `TabChart` builds it
+        for its own window; this tab has the chart path already (the Create
+        Chart tab hands it over through `set_ti1_path`), so it builds the row
+        from that rather than reaching across into another tab.
+        """
+        from ui.dialogs.preset_verification_dialog import PresetRow
+        from workflow.preset_eligibility import patch_count
+        from workflow.verification_print import (STATE_CONVERTED,
+                                                 chart_conversion_state)
+        chart = Path(self._ti1_path)
+        return PresetRow(
+            group="", label="", chart=chart, patches=patch_count(chart),
+            pages=len(list(chart.parent.glob(chart.stem + "_*.tif"))),
+            builtin=False, key=None, is_current_chart=True,
+            from_profile_gamut=chart_conversion_state(chart) == STATE_CONVERTED)
+
+    def _preflight_selection(self) -> "tuple[str, str, dict | None]":
+        """The report type and limit set this run will really be judged by.
+
+        The presets window asks the reader to choose both, because it is
+        comparing 177 charts and the answer moves with the choice. This window
+        is about ONE chart, the reader's own, and guessing would make it
+        describe a report they are not going to produce: so it asks what the
+        date's own report will start on (K31), through the same two accessors
+        the Measurement Report asks (`new_report_type` and `run_limits`).
+        """
+        from core.settings import compliance_overrides_of
+        from workflow.measurement_report import REPORT_TYPE_DEFAULT
+        overrides = compliance_overrides_of(self._settings)
+        type_id, set_id = REPORT_TYPE_DEFAULT, ""
+        try:
+            from workflow.compliance_sets import DEFAULT_SET_ID
+            from workflow.measurement_report import KIND_VERIFICATION
+            from workflow.run_compliance import new_report_type, run_limits
+            ctl = self._target_ctl
+            proj = ctl.project_or_none()
+            run = proj.run(ctl.target.profile_run) if proj is not None else None
+            # K31: what the date's own report will start on, the Preferences
+            # type and the run's own default set, else the Preferences set.
+            type_id = new_report_type(
+                str(self._settings.get("report_default_type", "") or ""),
+                KIND_VERIFICATION) or REPORT_TYPE_DEFAULT
+            set_id = run_limits(
+                run, overrides,
+                str(self._settings.get("compliance_default_set",
+                                       DEFAULT_SET_ID) or DEFAULT_SET_ID)).set_id
+            # K36-1: an ISO type is judged against an ISO set
+            from workflow.measurement_report import set_held_to_type
+            set_id = set_held_to_type(type_id, set_id)
+        except Exception:      # noqa: BLE001 — the defaults are a fair answer
+            log.debug("could not read the run's report settings", exc_info=True)
+            if not set_id:
+                from workflow.compliance_sets import DEFAULT_SET_ID
+                set_id = DEFAULT_SET_ID
+        return type_id, set_id, overrides
+
+    def _verification_preflight_message(self, row, short: bool = False
+                                        ) -> "tuple[str, str]":
+        """§M's frame, with this chart's own answer set into it.
+
+        The frame is **M-VERIFY-PREFLIGHT** and nothing else in here writes a
+        sentence. The metric list is
+        `ui.dialogs.preset_verification_dialog.summary_lines`, which is the
+        presets window's own pane in short form, because Knut asked this
+        window to *"initiate the same function used inside 'Which presets can
+        be used for verification?' window"* and to show *"a summary of that
+        info […] so that the text does not become too long"*.
+
+        The FROM PROFILE GAMUT paragraph is appended only when a metric is
+        missing that nothing else can supply, so a reader whose chart already
+        carries the reference is not sent after a feature they have used.
+        """
+        from ui.dialogs.preset_verification_dialog import (gamut_only_shortfalls,
+                                                           summary_lines)
+        from workflow import measurement_messages as M
+        title, body = M.M_VERIFY_PREFLIGHT.render()
+        # **THE HEADLINE IS IN THE TEXT, NOT ONLY IN THE TITLE BAR** (B8-615).
+        # Photographed on screen: macOS draws no title on a `QMessageBox`, so
+        # `setWindowTitle` put §M's headline somewhere nobody can read it and
+        # the window opened straight into its second sentence. It is still set
+        # on the window as well, for the platforms that do draw one.
+        # A BLANK LINE BETWEEN THE TOP-LEVEL SENTENCES AND NONE UNDER A METRIC.
+        # Photographed before this: the gamut note, the count and "Nothing is
+        # missing" arrived as three lines of one solid block, which reads as a
+        # paragraph and is three separate statements. A metric and the reason
+        # under it are the opposite case and stay tight together, which is what
+        # the indent is already saying.
+        block: "list[str]" = []
+        for line in summary_lines(row, generic=True):
+            if block and not line.indent:
+                block.append("")
+            block.append(" " * line.indent + line.text)
+        parts = [title, body, "\n".join(block)]
+        # **UNTIL BETA 39: ONE LINE HERE, THE PARAGRAPH IN THE PRESETS
+        # WINDOW** (superseded by R2 below, kept as the reason for the
+        # 13-inch guard). Knut asked
+        # for both windows to say what the report does with a metric this
+        # chart cannot answer; he also specified that this popup must not
+        # *"become too long"*, and the two collided. Measured on screen by
+        # adversary round 40b, this popup, before and after the full
+        # paragraph: `minimumHeight()` 798 to 958 in English and 798 to 974 in
+        # German, on a window with no scroll area, against about 918 px of
+        # usable height on a 13-inch MacBook Air. The OK button and his own
+        # "do not show this again" tick would have been off the screen.
+        #
+        # Shown ONLY when this chart really is short of something: a sentence
+        # about rows that will read N-A, on a chart where none will, is noise,
+        # and it would sit under this window's own line "Nothing is missing".
+        #
+        # **R2 (Knut, 5781645939, and again 5795087247: "Leave the window
+        # wider as previously specified").** So the FULL paragraph the presets
+        # window shows, M-VERIFY-UNCHECKED-METRICS, goes here, in a box made
+        # wide enough (`PREFLIGHT_TEXT_WIDTH`) that it is not as tall. The one
+        # line is kept for a screen whose work area cannot hold the wide box:
+        # `_show_verification_preflight_now` asks `_preflight_fits` and swaps
+        # it back in (*short=True*).
+        _short = (row is not None and row.assessment.checked
+                  and row.assessment.missing)
+        if _short and short:
+            parts.append(tr(M.M_VERIFY_PREFLIGHT_UNCHECKED))
+        elif _short:
+            u_title, u_body = M.M_VERIFY_UNCHECKED_METRICS.render()
+            parts.append(u_title + "\n\n" + u_body)
+        if gamut_only_shortfalls(row):
+            parts.append(tr(M.M_VERIFY_PREFLIGHT_GAMUT))
+        return title, "\n\n".join(parts)
+
+    def _queue_verification_preflight(self) -> None:
+        """Ask for the pre-flight on the next turn of the event loop, once.
+
+        **BOTH OF KNUT'S TRIGGERS ARRIVE HERE**, and the second is the one he
+        warned would be missed: *"either by clicking on Measure tab or by
+        standing on Measure tab on a different 'Profile run' and then changing
+        'Profile run' to the run that has the above preconditions fulfilled"*.
+        The first is `showEvent`; the second is the target controller's
+        `changed`, which `set_target_controller` connects.
+
+        Deferred for the same two reasons `_queue_overlay_offer` is. A modal
+        opened inside `showEvent` comes up over a half-painted tab (Knut,
+        #130 2026-07-28), and on a run switch the chart itself does not arrive
+        until Create Chart has re-pointed it through `main_window`, which
+        happens in another handler of the same signal: asked synchronously,
+        this would read the OLD run's chart or no chart at all.
+        """
+        if getattr(self, "_preflight_queued", False):
+            return
+        self._preflight_queued = True
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._show_verification_preflight_now)
+
+    def _show_verification_preflight_now(self) -> None:
+        """Show it, if it is still owed once the tab has painted."""
+        self._preflight_queued = False
+        if not self.isVisible():
+            return
+        # NEVER TWO AT ONCE, and never over the existing-measurement offer:
+        # both are queued on the same turn when a run switch lands, and two
+        # modals stacked on one another is how a reader loses track of which
+        # question they are answering. They cannot both be due in practice
+        # (this one needs no measurement, that one needs one), but a guard
+        # that depends on that staying true is a guard waiting to fail.
+        if getattr(self, "_preflight_open", False) or \
+                getattr(self, "_offer_open", False):
+            # …BUT A REQUEST THAT ARRIVES WHILE ONE IS OPEN IS NOT DROPPED
+            # (challenge round B before beta 37). A run switch landing while
+            # run3's window was open asked for run2's, found this guard, and
+            # was never asked again: the English drive got no pre-flight on
+            # run2 at all while the German one, timed differently, did. The
+            # request is remembered and made again when the window closes.
+            self._preflight_missed = True
+            return
+        try:
+            if not self._verification_preflight_due():
+                return
+            row = self._preflight_chart_row()
+            # EVERY COMBINATION, NOT THE RUN'S CURRENT ONE. Knut, on beta 32:
+            # *"At the time of the popup message, when entering Measure tab,
+            # how do you know the report type and limit set asked for? We have
+            # not opened the Measurement Report yet ... So this message must be
+            # generic, giving a count based on the maximum of metrics a report
+            # can check."* Measured on his own chart: one type against one set
+            # asks 7 rows, and the union over every built type and every
+            # selectable set asks 16, so the window was describing less than
+            # half of what could matter and calling it the whole question.
+            _, _, overrides = self._preflight_selection()
+            from workflow import preset_eligibility as PE
+            row.assessment = PE.assess_any(row.chart, overrides)
+        except Exception:      # noqa: BLE001 — an advisory window, never a gate
+            log.warning("could not prepare the verification pre-flight",
+                        exc_info=True)
+            return
+        from PyQt6.QtWidgets import QCheckBox, QMessageBox
+        title, text = self._verification_preflight_message(row)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(text)
+        # ONE BUTTON, AND ESCAPE CLOSES IT. Knut: *"The pop-up window only
+        # needs one button saying 'OK', which closes the window (ESC button
+        # also closes window, as per standard behaviour of popup windows)."*
+        # A QMessageBox with a single button routes Escape to it, so the
+        # standard behaviour is the behaviour without a second code path.
+        ok = box.addButton(QMessageBox.StandardButton.Ok)
+        box.setDefaultButton(ok)
+        box.setEscapeButton(ok)
+        scope = self._preflight_scope()
+        cb = None
+        if scope is not None:
+            cb = QCheckBox(self._preflight_silence_label(), box)
+            box.setCheckBox(cb)
+        from ui.widgets import fit_message_box_buttons, widen_message_box
+        widen_message_box(box, preflight_text_width(box))
+        fit_message_box_buttons(box)
+        # THE 13-INCH GUARD. The wide box carries the full paragraph; where
+        # the screen's work area cannot hold it, the one line goes back in
+        # (the popup as it was before beta 39, which fits a 13-inch Air).
+        #
+        # **ASKED OF THE SHOWN WINDOW, NOT BEFORE IT.** Measured on screen: the
+        # box's own size hint before `exec()` said 683 px with its title bar,
+        # and the frame it then opened with was 827. A QMessageBox lays its
+        # text out for its final width only when it is shown, so a guard asked
+        # beforehand passes boxes that do not fit. So it is asked on the first
+        # turn of the box's own event loop, of `frameGeometry()`.
+        def _fit_the_screen() -> None:
+            try:
+                if _preflight_fits(box):
+                    return
+                _t, short_text = self._verification_preflight_message(
+                    row, short=True)
+                box.setText(short_text)
+                if box.layout() is not None:
+                    box.layout().activate()
+                from ui.widgets import keep_message_box_inside_the_work_area
+                keep_message_box_inside_the_work_area(box)
+                log.info("Verification pre-flight: the full paragraph does "
+                         "not fit this screen's work area; showing the "
+                         "one-line version")
+            except Exception:      # noqa: BLE001 — never block the window
+                log.debug("pre-flight fit check failed", exc_info=True)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, _fit_the_screen)
+        self._preflight_open = True
+        self._preflight_missed = False
+        shown = self._preflight_key()
+        try:
+            box.exec()
+        finally:
+            self._preflight_open = False
+            self._after_preflight_closed(shown)
+        # **REMEMBERED IN THIS PROCESS AND NOWHERE ELSE.** Knut: *"this window
+        # will not come again for this run until I restart ChromIQ"*. A set on
+        # the tab dies with the tab, so there is nothing on disk to forget to
+        # clear and no project file that could carry the answer to another
+        # machine.
+        if cb is not None and cb.isChecked():
+            self._preflight_silenced.add(scope)
+            log.info("Verification pre-flight silenced for %s (this session)",
+                     scope)
+
+    def _preflight_key(self) -> tuple:
+        """Which run and chart a pre-flight is about: the profile run's scope
+        and the chart path."""
+        return (self._preflight_scope(),
+                str(getattr(self, "_ti1_path", None) or ""))
+
+    def _after_preflight_closed(self, shown: tuple) -> None:
+        """Ask again for a pre-flight that was requested while one was open,
+        unless it is about the run and chart the reader has just answered."""
+        missed = bool(getattr(self, "_preflight_missed", False))
+        self._preflight_missed = False
+        if missed and self._preflight_key() != shown:
+            self._queue_verification_preflight()
 
     def _measurement_at_risk(self) -> "Path | None":
         """The measurement a plain re-read would overwrite, or None.
@@ -12830,11 +14964,139 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._log.appendPlainText(
             tr("[Engine] Jumping to patch {loc}…").format(loc=loc))
 
-    def _update_engine_read_map(self) -> None:
+    @staticmethod
+    def _strip_of(loc: str) -> str:
+        """The strip letter of a patch location: "A12" -> "A", "AB3" -> "AB"."""
+        return "".join(c for c in str(loc) if c.isalpha()).upper()
+
+    def _note_patches_read(self, locs) -> None:
+        """Record that these patch locations now have a reading, and tell the
+        preview which strips that finishes (B8-385).
+
+        **THE READ MAP IS PER STRIP AND THESE TWO MODES DO NOT READ STRIPS.**
+        A whole-chart read (the engine's XY and CHART modes) reports a chart at
+        once and a spot read reports one patch at a time, so neither could ever
+        reach `_update_engine_read_map`, which is the only thing that tells the
+        preview what has been read. With "Show only measured patches" on, the
+        blank therefore covered every strip for the whole measurement: in chart
+        mode nothing at all appeared until the read ended, and in spot mode
+        every patch that did appear sat on blanked ground on all four sides,
+        which is why B8-371's hairline bit so hard.
+
+        **WHEN A STRIP COUNTS AS READ**, and it is the same rule in both modes:
+        when the chart's own geometry has a box for every one of its patches
+        and each of those has been reported. That is the same thing strip mode
+        means by "read" (the strip was swiped end to end), it needs no count
+        from the engine, and it cannot flicker: this set only grows while a
+        chart is loaded, so a strip that has earned the mark keeps it until the
+        chart or the session changes.
+
+        A patch the chart has no geometry for is not counted, so a strip whose
+        locations the sidecar does not know simply never completes, and the
+        preview goes on showing exactly what it shows today.
+        """
+        got = self._engine_patch_read
+        before = len(got)
+        for loc in locs:
+            if loc:
+                got.add(str(loc))
+        if len(got) != before:
+            self._update_engine_read_map()
+
+    def _note_measurement_on_disk(self) -> None:
+        """Record every patch the chart's own measurement already holds.
+
+        **THE DEFAULT PATH, AND IT IS THE ONE A USER MEETS (B8-385).** The read
+        map is a session thing: `_on_session_map` fills it when a measurement
+        starts. Open a project that already HAS a measurement, tick "Show only
+        measured patches", and nothing has ever told the preview that anything
+        was read, so the blank covers the whole sheet. Round 23 photographed
+        exactly that, with the window reading *"Progress: 100.0 %"* above it.
+
+        The split overlay is not the answer, and cannot be: it is drawn only
+        when "Expected & measured" is switched on, and this must be true
+        whether it is or not. So the measurement is read for its patch
+        LOCATIONS here, and nothing is drawn.
+
+        Cheap to call: the answer is cached on the measurement's own path,
+        size and modification time, and re-read when the set has been cleared
+        (a new chart, or a session starting).
+        """
+        if not any(self._patch_boxes) or self._ti1_path is None:
+            return
+        try:
+            ti3 = self._existing_ti3_for_chart()
+            if ti3 is None:
+                return
+            st = Path(ti3).stat()
+            key = (str(ti3), st.st_size, st.st_mtime_ns)
+            if key == getattr(self, "_disk_read_key", None) \
+                    and self._engine_patch_read:
+                return
+            self._disk_read_key = key
+            from workflow.measurement_report import per_patch_overlay
+            patches = per_patch_overlay(ti3, self._chart_file_for(self._ti1_path))
+        except Exception:      # noqa: BLE001 — a preview is never worth a crash
+            log.debug("could not read the measurement for the read map",
+                      exc_info=True)
+            return
+        self._note_patches_read(str(p.get("loc", "")) for p in patches)
+
+    def _letters_fully_read(self) -> set:
+        """The strips every patch of which has been reported this session."""
+        got = self._engine_patch_read
+        if not got:
+            return set()
+        need: "dict[str, int]" = {}
+        have: "dict[str, int]" = {}
+        for boxes in self._patch_boxes:
+            for loc in boxes:
+                letter = self._strip_of(loc)
+                if not letter:
+                    continue
+                need[letter] = need.get(letter, 0) + 1
+                if loc in got:
+                    have[letter] = have.get(letter, 0) + 1
+        return {s for s, n in need.items() if n and have.get(s, 0) >= n}
+
+    def _strip_letters(self) -> list:
+        """Every strip this chart has, from the engine's map or the geometry.
+
+        THE GEOMETRY AS WELL AS THE SESSION, because a chart can be on screen
+        with no session at all: opening a project paints the overlay from the
+        measurement already on disk (`_show_overlay_from_existing_ti3`), and
+        `_engine_strips` is empty there. Without this, a reopened project with
+        "Show only measured patches" on blanked a sheet whose every patch had
+        been measured.
+        """
+        letters = {self._strip_of(s.get("strip", ""))
+                   for s in self._engine_strips}
+        letters |= {self._strip_of(loc)
+                    for boxes in self._patch_boxes for loc in boxes}
+        return sorted(l for l in letters if l)
+
+    def _update_engine_read_map(self, page: "int | None" = None) -> None:
+        """Tell the preview which strips OF THE PAGE IT IS SHOWING are read.
+
+        **THE PAGE, AND IT USED TO BE EVERY PAGE AT ONCE.** The map is keyed by
+        the strip's LOCAL index on its sheet, which `TiffPreview` matches
+        against the rects of the one page it is drawing, so a three-page chart
+        wrote strip A, strip H and strip O into key 0 and the last one won.
+        Nothing showed while every value was False; the moment a whole-chart or
+        spot read starts filling them in, reading strip A on sheet 1 would have
+        un-blanked strip H on sheet 2.
+        """
+        page = self._preview.current_page() if page is None else int(page)
+        done = self._letters_fully_read()
+        # NORMALISED, because the engine's keys are whatever the session map
+        # and `strip_measured` called the strip and these are the chart's own.
+        eng = {self._strip_of(k): v for k, v in self._engine_read.items()}
         read_map = {}
-        for s in self._engine_strips:
-            _pg, li, _r = self._locate_strip(s.get("strip", "A"))
-            read_map[li] = self._engine_read.get(s.get("strip", ""), False)
+        for letter in self._strip_letters():
+            pg, li, _r = self._locate_strip(letter)
+            if pg != page:
+                continue
+            read_map[li] = bool(eng.get(letter, False) or letter in done)
         self._preview.set_stripe_read_map(read_map)
 
     def _reveal_chart_folder(self) -> None:
@@ -12848,35 +15110,122 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             target = Path(custom).expanduser() if custom else default_output_root()
         reveal_in_file_manager(target)
 
+    def _report_limits_for(self, ti3):
+        """The limit set this measurement's own report of one date is judged
+        with (#182 K31).
+
+        Knut, 5801677743: *"the limit set belongs to the report that is made
+        for the profile run"*, and the report written after a measurement is
+        that date's own report with its own settings. They are the starting
+        choice of a new report: the run's own default when it has one (chosen
+        in Edit limits, or bound by an earlier ChromIQ), else the Preferences
+        default. NOTHING IS BOUND OR WRITTEN onto the run: until K31 the first
+        verification bound the run and the second locked it, and both are
+        gone. A file that is not in a run (an import in Downloads) is judged
+        with the Preferences default.
+        """
+        from workflow.run_compliance import run_context_for, run_limits
+        from core.settings import compliance_overrides_of
+        overrides = compliance_overrides_of(self._settings)
+        default_set = str(self._settings.get("compliance_default_set",
+                                             "chromiq_default") or "chromiq_default")
+        ctx = run_context_for(ti3)
+        lim = run_limits(ctx.run if ctx is not None else None, overrides,
+                         default_set)
+        # **K36-1 (Knut, #182 5820871320): a report of an ISO type is judged
+        # against an ISO set.** The type this report is written as is the
+        # Preferences type fitted to the measurement's kind, and the set is
+        # chosen elsewhere, so the two can disagree; the set then follows
+        # the type, as choosing the type in the report window moves it.
+        try:
+            from workflow.measurement_report import (KIND_CALIBRATION,
+                                                     KIND_PROFILING,
+                                                     KIND_VERIFICATION,
+                                                     measurement_dir_kind)
+            from workflow.run_compliance import (limits_held_to_type,
+                                                 new_report_type)
+            if ctx is not None:
+                kind = (KIND_VERIFICATION
+                        if getattr(ctx, "verification", None) is not None
+                        else KIND_PROFILING)
+            else:
+                kind = (KIND_CALIBRATION
+                        if measurement_dir_kind(Path(ti3).parent)
+                        == KIND_CALIBRATION else None)
+            tid = new_report_type(
+                str(self._settings.get("report_default_type", "") or ""),
+                kind)
+            lim = limits_held_to_type(lim, tid, overrides)
+        except Exception:                            # noqa: BLE001
+            log.debug("could not hold the set to the report type",
+                      exc_info=True)
+        return lim
+
     def _maybe_save_measurement_report(self, ti3) -> None:
         """When the Settings option is on, build + save a dated accuracy report
         next to the chart after a measurement, so reports accrue for
         over-time comparison (Knut). Best-effort — never blocks or errors the
         measurement flow."""
-        if not bool(self._settings.get("save_measurement_report", False)):
+        from pathlib import Path as _P
+        ti3 = _P(ti3)
+        try:
+            limits = self._report_limits_for(ti3)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("limit set for %s not resolved: %s", ti3, exc)
+            from workflow.run_compliance import run_limits
+            limits = run_limits(None, None)
+        if not self._save_report_wanted():
             return
         try:
-            from workflow.measurement_report import (
-                DEFAULT_PASS_AVG, DEFAULT_PASS_MAX, build_report, save_report,
-                stamp_verdict)
-            from pathlib import Path as _P
-            ti3 = _P(ti3)
+            from workflow.measurement_report import (build_report, save_report,
+                                                     stamp_verdict)
             if ti3.suffix.lower() != ".ti3" or not ti3.exists():
                 return
             report = build_report(
                 ti3, argyll_bin=str(self._settings.get("argyll_bin_path", "") or ""))
             # #182, Knut 2026-09-04: *"Verdict should be saved for each dated
-            # run."* The thresholds are a GLOBAL setting, so a report that
-            # stored neither them nor its verdict was re-graded by whatever the
-            # spin boxes said the next time anybody opened the window. Stamped
-            # HERE, with the thresholds in force at the moment of the
-            # measurement, and never again afterwards.
-            stamp_verdict(
-                report,
-                float(self._settings.get("report_pass_threshold_avg",
-                                         DEFAULT_PASS_AVG)),
-                float(self._settings.get("report_pass_threshold_max",
-                                         DEFAULT_PASS_MAX)))
+            # run."* Stamped HERE, with the limits this date's own report
+            # starts on (K31), and never again unless the user updates that
+            # report from the report window.
+            stamp_verdict(report, limits.limits, set_id=limits.set_id,
+                          set_label=limits.label_en, edited=limits.edited)
+            # …and WHICH KIND of document this run produces, beside the verdict
+            # and for the same reason (#182 D28). A report archived into
+            # reports/old/ should say what it was as well as what it was judged
+            # against, and a measurement outside a project has nowhere else to
+            # keep it.
+            # STAMPED WHETHER OR NOT THERE IS A RUN, and it used to be
+            # gated on there being one. `_report_type_now` reads this stamp in
+            # exactly the OTHER case, when the measurement is in no project, so
+            # the writer was placed where nothing reads it and left out of the
+            # one case the commit message names. `run_report_type(None)`
+            # answers with today's report, which is what such a file renders
+            # as, so the record is true either way.
+            from workflow.measurement_report import stamp_report_type
+            from workflow.run_compliance import run_context_for
+            _ctx = run_context_for(ti3)
+            stamp_report_type(report, _ctx.run if _ctx is not None else None)
+            # **AND A DOCUMENT BLOCK OF ITS OWN (Knut, 2026-09-18, B8-388).**
+            # *"I suggest that the automatic record should itself carry a
+            # document block, so that 'Show all measurement runs' and 'Show
+            # detailed data for each run' are a fact on disk rather than an
+            # inference when it is loaded. Bot set to OFF as default."*
+            #
+            # Until this, the report window worked those two out from his own
+            # sentence at LOAD time (`_settings_of_one_saved_report`) and wrote
+            # nothing; a record that carries them says so itself, and says it
+            # to any later ChromIQ as well.
+            #
+            # BOTH OFF, ALWAYS, and they do not read the Preferences defaults:
+            # *"during automatic saving of a report during measurement, these
+            # are always OFF (that is natural because it is one measurement
+            # only)"*. The TYPE does follow the run, with the Preferences
+            # default behind it: *"The type belongs to the run, yes, but the
+            # default should be the 'Full colour check'."*
+            #
+            # The block is ADDITIVE and `REPORT_SCHEMA` stays 7, so a ChromIQ
+            # that has never heard of it reads this file exactly as before.
+            self._stamp_the_automatic_document(report, ti3, _ctx)
             path = save_report(report, ti3.parent)
             self._log.appendPlainText(
                 tr("[Report] Measurement report saved: {name}").format(
@@ -12884,6 +15233,95 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception as exc:  # noqa: BLE001
             log.warning("measurement report failed: %s", exc)
             self._say_report_not_saved(exc)
+
+    def _save_report_wanted(self) -> bool:
+        """Whether a report is written for THIS run's measurement (B8-388).
+
+        Knut, 2026-09-18: the tick box on this tab is the answer, and it starts
+        from Preferences → Reports. *"When ['Save measurement report after each
+        measurement'] is OFF, then 'Save measurement report' is default OFF,
+        but a user may still change it to ON."* So the run's own control
+        decides, and the preference decides what that control starts as
+        (`_restore_defaults`, and the tab's constructor).
+
+        The preference is still the answer when there is no control to ask,
+        which is every caller that builds this tab's logic without its widgets.
+        """
+        cb = getattr(self, "_save_report_cb", None)
+        if cb is None:
+            return bool(self._settings.get("save_measurement_report", True))
+        return bool(cb.isChecked())
+
+    def _stamp_the_automatic_document(self, report, ti3, ctx) -> None:
+        """Give the measurement-time record a document block of its own.
+
+        ONE MEASUREMENT, ONE DOCUMENT, and the two tick boxes OFF on disk
+        rather than worked out when it is read (Knut, B8-388). Never raises:
+        a report that could not be stamped is still a report, exactly as
+        `stamp_report_type` beside it.
+        """
+        from datetime import datetime as _dt
+        try:
+            from workflow.measurement_report import (SCOPE_ONE_DATE,
+                                                     document_measurement_key,
+                                                     new_document_id,
+                                                     report_type,
+                                                     set_report_type,
+                                                     stamp_document)
+            from workflow.run_compliance import new_report_type
+            run = ctx.run if ctx is not None else None
+            # WHICH KIND OF MEASUREMENT THIS IS decides which types it may be
+            # (K13): a profiling sheet's automatic report is the Printing
+            # record, a verification's follows the run and Preferences.
+            from workflow.measurement_report import (KIND_PROFILING,
+                                                     KIND_VERIFICATION)
+            kind = None
+            if ctx is not None:
+                kind = (KIND_VERIFICATION
+                        if getattr(ctx, "verification", None) is not None
+                        else KIND_PROFILING)
+            else:
+                # **A CALIBRATION'S AUTOMATIC REPORT (#182 beta 39).** Knut
+                # retracted "no reports under Calibration" (5794078008) and
+                # allows every type but the Printing record, so it follows
+                # the Verification pattern: the Preferences default type,
+                # never the Printing record. It is saved beside the
+                # measurement, in `<project>/cal/reports/`.
+                from workflow.measurement_report import (
+                    KIND_CALIBRATION, measurement_dir_kind)
+                if measurement_dir_kind(ti3.parent) == KIND_CALIBRATION:
+                    kind = KIND_CALIBRATION
+            # K31: the Preferences default, fitted to the kind; the run's
+            # stored type is no longer a starting choice.
+            tid = new_report_type(
+                str(self._settings.get("report_default_type", "") or ""),
+                kind)
+            if tid and tid != report_type(report):
+                set_report_type(report, tid)
+            when = _dt.now()
+            created = str(report.get("created") or "")
+            stamp_document(
+                report, doc_id=new_document_id(when),
+                created=when.isoformat(timespec="seconds"),
+                type_id=report_type(report),
+                compliance=report.get("compliance"),
+                detail=False,
+                # **"One date", ALWAYS** (B8-392, Knut 2026-09-18): *"If the
+                # list of measurement dates to be included only holds one
+                # measurement … the report name should include the flag 'One
+                # date'. This should include all the automatically created
+                # reports during measurement."* It is one measurement by
+                # construction, so the flag is a fact here and not a guess.
+                scope=SCOPE_ONE_DATE,
+                measurements=[{
+                    "dir": str(ti3.parent),
+                    "created": created,
+                    "ti3": str(ti3.name),
+                    "key": document_measurement_key(ti3.parent, created,
+                                                    str(ti3.name)),
+                }])
+        except Exception as exc:                     # noqa: BLE001
+            log.warning("could not record the report's document block: %s", exc)
 
     def _say_report_not_saved(self, exc: Exception) -> None:
         """Tell the user, on screen, that the report they asked for is not there.
@@ -12927,13 +15365,30 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _open_measurement_report(self) -> None:
         """Open the measurement-report viewer for the current chart's .ti3."""
         from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+        # **RUN TYPE CALIBRATION: THE CALIBRATION'S MEASUREMENT (#182 beta
+        # 39).** Knut retracted "no reports under Calibration" (5794078008),
+        # so beta 38's empty window (K26) is gone: the button opens the
+        # window on `<project>/cal/<name>-cal.ti3`, as Tools ▸ Measurement
+        # report does (`_report_seed`), and a calibration not measured yet is
+        # answered like a run's chart: "Measure this chart first".
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            calibration = bool(ctl is not None and ctl.target.is_calibration())
+        except Exception:                                # noqa: BLE001
+            calibration = False
         ti3 = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
+        if calibration:
+            try:
+                proj = ctl.project_or_none()
+                ti3 = proj.calibration.ti3 if proj is not None else None
+            except Exception:                            # noqa: BLE001
+                ti3 = None
         # A verification's measurements live in DATED folders, never beside
         # the shared chart — so the beside-the-chart guess above never finds
         # them (Sebastian, 2026-08-10: after Restore Used Chart the report
         # claimed the measured chart was unmeasured). Resolve through the
         # bar: the selected date first, else the run's newest measured date.
-        if self._is_verification_run():
+        if not calibration and self._is_verification_run():
             run = self._guard_run()
             if run is not None:
                 ctl = getattr(self, "_target_ctl", None)
@@ -13065,7 +15520,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             patch_by_patch      = self._resolve_patch_by_patch("guided"),
             resume              = self._resume_has_anything_to_resume(
                 self._resume_cb.isChecked()),
-            extra_args          = " ".join(extra_args),
+            # `shlex.join`, not `" ".join`: `measure_manager` re-splits
+            # this with `shlex.split`, so a value containing a space is
+            # torn in two on the way back. No option row carries one
+            # today, but chartread's `-X file.ccmx` takes a path, and a
+            # path with a space is the normal case the day a row offers
+            # it. `tab_chart` does this
+            # round trip correctly already.
+            extra_args          = shlex.join(extra_args),
         )
 
     def _collect_manual(self) -> MeasureParams:
@@ -13083,7 +15545,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             patch_by_patch      = self._resolve_patch_by_patch("manual"),
             resume              = self._resume_has_anything_to_resume(
                 self._m_resume_cb.isChecked()),
-            extra_args          = " ".join(extra_args),
+            # `shlex.join`, not `" ".join`: `measure_manager` re-splits
+            # this with `shlex.split`, so a value containing a space is
+            # torn in two on the way back. No option row carries one
+            # today, but chartread's `-X file.ccmx` takes a path, and a
+            # path with a space is the normal case the day a row offers
+            # it. `tab_chart` does this
+            # round trip correctly already.
+            extra_args          = shlex.join(extra_args),
         )
 
     def _collect_params(self) -> MeasureParams:
@@ -13168,6 +15637,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # help without having to know the option exists.
         self._g_aim_help.setChecked(bool(s.get("measure_aim_help", True)))
         self._g_patch_tile.setChecked(bool(s.get("measure_patch_tile", False)))
+        # #182 (Knut, B8-388): a run with nothing stored opens on the
+        # PREFERENCES value, which is what "default ON, and default OFF when
+        # the preference is off, but a user may still change it" means. It is
+        # deliberately NOT written by "Save as Defaults": the default for this
+        # one lives in Preferences → Reports and nowhere else.
+        if getattr(self, "_save_report_cb", None) is not None:
+            self._save_report_cb.setChecked(
+                bool(s.get("save_measurement_report", True)))
         for opt in self._chartread_opts:
             if opt.checkbox:
                 enabled = bool(s.get(f"measure_{opt.key}_enabled", False))

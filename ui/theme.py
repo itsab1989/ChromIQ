@@ -345,6 +345,52 @@ def accent_for(colour: str, mode: "str | None" = None) -> str:
     return colour
 
 
+def app_accent(mode: "str | None" = None) -> str:
+    """The APPLICATION's fill in ``mode``: what its own style sheet paints an
+    untinted ``#primary`` and a default button with, in a window that has no
+    accent of its own. Near-black in Light (Restore Factory Defaults' look,
+    Basti 2026-09-26: the blue it used to be appeared nowhere else in the
+    app), near-white in Dark, ACTION in Neutral."""
+    return by_mode(light_styles.FALLBACK_FILL, styles.FALLBACK_FILL,
+                   neutral_styles.NM_ACTION, mode)
+
+
+def default_button_qss(accent: str, mode: "str | None" = None) -> str:
+    """A window's rules for its DEFAULT button, filled in its own accent.
+
+    The application sheets fill the default button (the one Return presses)
+    in :func:`app_accent`. A window that has its own accent (a masthead, a
+    tab) appends this so the fill takes that colour instead (Knut, #182
+    5833776276, 5833983335). The label, hover and disabled values are the
+    ones :func:`ui.widgets.tint_dialog_primary` gives a ``#primary`` button
+    in a dialog, so a filled default and a tinted primary are one look.
+    """
+    from ui.default_button import default_fill_qss
+    from ui.widgets import primary_hover, primary_label
+    mode = mode or active_mode()
+    accent = accent_for(accent, mode)
+    if mode == APPEARANCE_NEUTRAL:
+        nm = neutral_styles
+        dis = ("transparent", nm.NM_DISABLED, nm.NM_DISABLED)
+        plain = (nm.NM_BG_WIDGET, nm.NM_BORDER, nm.NM_TEXT_MAIN,
+                 nm.NM_BG_HOVER, nm.NM_BORDER_HI)
+    elif mode == APPEARANCE_LIGHT:
+        ls = light_styles
+        dis = ("#e8e6e1", accent, "#a8a4a0")
+        plain = (ls.LM_BG_WIDGET, ls.LM_BORDER_HI, ls.LM_TEXT_MAIN,
+                 "#e4e0da", "#a0a09a")
+    else:
+        dis = ("#1e1e1e", accent, "#484848")
+        plain = (styles.NEUTRAL_BTN, styles.BORDER_HI, styles.TEXT_MAIN,
+                 styles.NEUTRAL_BTN_HOVER, "#606060")
+    return default_fill_qss(
+        accent=accent, label=primary_label(mode),
+        hover=primary_hover(accent, mode),
+        dis_bg=dis[0], dis_border=dis[1], dis_fg=dis[2],
+        plain_bg=plain[0], plain_border=plain[1], plain_fg=plain[2],
+        plain_hover_bg=plain[3], plain_hover_border=plain[4])
+
+
 def ink_for(colour: str, mode: "str | None" = None, *,
             level: str = "main") -> str:
     """The value to paint where ``colour`` is TEXT.
@@ -389,3 +435,53 @@ def by_mode(light, dark, neutral, mode: "str | None" = None):
     return {APPEARANCE_LIGHT: light,
             APPEARANCE_DARK: dark,
             APPEARANCE_NEUTRAL: neutral}.get(mode or active_mode(), dark)
+
+
+def info_colours(mode: "str | None" = None) -> "dict[str, str]":
+    """``{"bg", "text", "border"}`` of the app's information note in ``mode``:
+    the colours the style sheets give ``QLabel#info`` (the Create Chart note
+    box), for a note that is PAINTED rather than a label, such as the
+    paper-filter note at the bottom of the two preset lists (Knut, #182
+    5834773589, B8-1171). Neutral has one accent and no coloured note, so it
+    answers what its ``QLabel#info`` is: the surface, the main ink and the
+    border."""
+    return by_mode(
+        {"bg": light_styles.LM_INFO_BG, "text": light_styles.LM_INFO_TEXT,
+         "border": light_styles.LM_INFO_BORDER},
+        {"bg": styles.INFO_BG, "text": styles.SPEC_MAGENTA,
+         "border": styles.SPEC_MAGENTA},
+        {"bg": neutral_styles.NM_BG_SURFACE,
+         "text": neutral_styles.NM_TEXT_MAIN,
+         "border": neutral_styles.NM_BORDER},
+        mode)
+
+
+def panel_border_qss(*, radius: int = 4, mode: "str | None" = None) -> str:
+    """The plain, colourless rounded outline for a bare ``QFrame(StyledPanel)``.
+
+    Sebastian photographed square corners on the section frames in the
+    Reference values window (2026-09-20) while every other panel in ChromIQ is
+    rounded. The cause: three ``QFrame`` instances call
+    ``setFrameShape(QFrame.Shape.StyledPanel)`` and never set a stylesheet, so
+    Fusion draws its native square bevel, while every rounded panel in the app
+    gets its radius from an explicit per-widget rule. There is no app-wide
+    ``QFrame`` rule to fall back on, and adding one is not the fix: roughly a
+    dozen other ``QFrame`` instances in the app are ``HLine``/``VLine``
+    separators, which Qt draws with a native sunken bevel that a stylesheet
+    rule on ``QFrame`` overrides the instant it matches, with no equivalent
+    rule of its own — every divider in the app would flatten. So this is
+    reached explicitly, per affected frame, not injected globally.
+
+    The values are measured against the nearest comparable section, not
+    guessed: a bare ``StyledPanel`` here is an outline with no tint, the same
+    shape ``QGroupBox`` already draws in all three appearance stylesheets
+    (``ui/styles.py``, ``ui/light_styles.py``, ``ui/neutral_styles.py``) at
+    ``border: 1px solid <BORDER>; border-radius: 4px``, which is why those are
+    this function's defaults. The tinted "info box" family
+    (:func:`info_box_qss`) was considered and rejected: those cards carry a
+    background wash that a plain categorising section never had, and adding
+    one here would be a redesign, not a corner fix.
+    """
+    border = by_mode(light_styles.LM_BORDER, styles.BORDER,
+                     neutral_styles.NM_BORDER, mode)
+    return f"QFrame {{ border: 1px solid {border}; border-radius: {radius}px; }}"

@@ -88,6 +88,20 @@ def test_every_translation_keeps_the_list_shape(qapp, path):
 def test_the_printed_card_numbers_with_dots_and_still_fits_one_page(qapp, tmp_path):
     """`1.` not `1)`, and NOT at the cost of a second sheet holding one line —
     that waste is what Knut objected to elsewhere in the same batch."""
+    # B8-1656: IN ENGLISH, whatever an earlier test left behind. The card is
+    # rendered through tr(), and a worker left in another language printed it
+    # longer, on two pages (German, French, Polish and Ukrainian all do, which
+    # is B8-1657), so this failed twice in multi-file runs and passed alone.
+    import core.i18n as _i18n
+    _before = _i18n._language
+    _i18n.set_language("en")
+    try:
+        _render_and_check_the_card(tmp_path)
+    finally:
+        _i18n.set_language(_before)
+
+
+def _render_and_check_the_card(tmp_path):
     from PyQt6.QtCore import QMarginsF
     from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter
     from PyQt6.QtPdf import QPdfDocument
@@ -125,3 +139,60 @@ def test_the_tighter_item_spacing_is_scoped_to_this_card(qapp):
     assert "ol.tight li" in _PRINT_CSS, "the tighter rule is not scoped"
     assert re.search(r"^li\s*\{[^}]*margin-bottom:\s*10px", _PRINT_CSS, re.M), (
         "the global list spacing changed — every other card's lists move with it")
+
+
+# ---------------------------------------------------------------------------
+# B8-1657: one page in EVERY language
+# ---------------------------------------------------------------------------
+_EVERY_LANGUAGE_CHILD = r'''
+import glob, importlib, json, os, sys, tempfile
+sys.path.insert(0, ".")
+from PyQt6.QtWidgets import QApplication
+app = QApplication.instance() or QApplication([])
+from PyQt6.QtCore import QMarginsF
+from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter
+import core.i18n as i18n
+import ui.dialogs.welcome_dialog as wd
+from ui import help_card_print as hp
+out = {}
+for code in ["en"] + sorted(p.split("/")[-1][:-5]
+                            for p in glob.glob("data/i18n/*.json")):
+    i18n.set_language(code)
+    importlib.reload(wd)            # WORKFLOWS is translated when it is built
+    wf = next(w for w in wd.WORKFLOWS if w["key"] == "cmyk_n")
+    pdf = tempfile.mktemp(suffix=".pdf")
+    w = QPdfWriter(pdf)
+    w.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
+    w.setPageMargins(QMarginsF(15, 15, 15, 15), QPageLayout.Unit.Millimeter)
+    out[code] = hp.render_card(wf, w, lang=code)
+    del w
+    os.remove(pdf)
+print("PAGES " + json.dumps(out))
+'''
+
+
+def test_the_printed_card_fits_one_page_in_every_language():
+    """B8-1657. The card is translated when `WORKFLOWS` is BUILT, at import,
+    so switching the language inside a live process measures English, which
+    is how B8-1656's English pin hid this. One child process, the module
+    reloaded per language. Before the fix ten of fourteen printed two pages."""
+    import subprocess
+    import sys
+    done = subprocess.run(
+        [sys.executable, "-c", _EVERY_LANGUAGE_CHILD],
+        cwd=str(pathlib.Path(__file__).resolve().parents[1]),
+        capture_output=True, text=True, encoding="utf-8", timeout=600,
+        env={**os.environ, "QT_QPA_PLATFORM": "offscreen"})
+    assert done.returncode == 0, (
+        f"the every-language probe did not finish cleanly:\n{done.stderr[-2000:]}")
+    line = [x for x in done.stdout.splitlines() if x.startswith("PAGES ")][-1]
+    pages = json.loads(line[len("PAGES "):])
+    assert len(pages) >= 14, pages
+    over = {k: v for k, v in pages.items() if v != 1}
+    assert not over, f"the CMYK+N card takes more than one page in {over}"
+
+
+def test_english_keeps_its_14_px():
+    """The step-down applies only to a card that overflows."""
+    from ui.help_card_print import _PRINT_CSS
+    assert "color: #000000; font-size: 14px;" in _PRINT_CSS

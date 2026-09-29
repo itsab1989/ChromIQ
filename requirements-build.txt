@@ -1,0 +1,27 @@
+# The release build, pinned (B8-555).
+#
+# PyInstaller 6.19.0 built a macOS app that does not start: it laid
+# QtWebEngineCore.framework out without its Helpers symlink, and the app exited
+# at once looking for QtWebEngineProcess. The workflows used to install
+# whatever was newest ("pip install pyinstaller", and requirements.txt says
+# pyinstaller>=6.0), so a release could change under us with no change here.
+#
+# These are the exact versions every platform built v4.3.0-beta.48 with, read
+# from its CI logs (runs 36375778073 macOS, 36375778042 Linux, 36375778029
+# Windows), and that build was started and checked on screen. The Qt family is
+# pinned too, because the fault that broke the app was in how the Qt WebEngine
+# framework and PyInstaller fit together.
+#
+# To move a version: change it here, build, and check the downloaded app on
+# screen before a release. tests/test_release_builds_are_pinned.py keeps every
+# workflow installing from this file.
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.7
+altgraph==0.17.5
+macholib==1.16.4 ; sys_platform == "darwin"
+pefile==2024.8.26 ; sys_platform == "win32"
+PyQt6==6.11.0
+PyQt6-Qt6==6.11.2
+PyQt6-sip==13.12.0
+PyQt6-WebEngine==6.11.0
+PyQt6-WebEngine-Qt6==6.11.2

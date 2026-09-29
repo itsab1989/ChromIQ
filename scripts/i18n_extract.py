@@ -22,7 +22,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-SCAN_DIRS = ("ui", "workflow", "core", "main.py")
+#: `data/patch_db.py` translates the paper list's orientation word (B8-1640).
+SCAN_DIRS = ("ui", "workflow", "core", "main.py", "data/patch_db.py")
 
 
 def _python_files() -> "list[Path]":
@@ -64,7 +65,108 @@ def extract_keys() -> set[str]:
             elif isinstance(arg, ast.Name) and arg.id in consts:
                 keys.add(consts[arg.id])
     keys |= _message_catalogue_keys()
+    keys |= _compliance_set_keys()
+    keys |= _report_type_keys()
+    keys |= _reference_set_keys()
     return keys
+
+
+def _reference_set_keys() -> set[str]:
+    """The Measurement Report's reference sets (#182): group labels, per-set
+    labels and blurbs, and the refusal sentences are data in
+    `workflow/reference_sets.py` and reach the screen through `tr()` on a
+    variable, which the AST walk above cannot see. Swept from the module for
+    the same reason `_compliance_set_keys` sweeps its neighbour."""
+    try:
+        from workflow import reference_sets as refs
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: could not import workflow.reference_sets ({exc})",
+              file=sys.stderr)
+        return set()
+    out: set[str] = set(refs.GROUP_LABELS.values())
+    out |= set(refs.REFUSAL_REASONS.values())
+    for s in refs.available():
+        out.add(s.label)
+        if s.blurb:
+            out.add(s.blurb)
+    return out
+
+
+def _compliance_set_keys() -> set[str]:
+    """The Measurement Report's limit-set table (#182): row labels, row notes,
+    set labels, set blurbs and group labels are data in
+    `workflow/compliance_sets.py` and reach the screen through `tr(row.label)`,
+    an attribute the AST walk above cannot see. Swept from the module itself,
+    like the message catalogue, so nothing has to be remembered."""
+    try:
+        from workflow import compliance_sets as cs
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: could not import workflow.compliance_sets ({exc})",
+              file=sys.stderr)
+        return set()
+    out: set[str] = set()
+    for row in cs.ROWS:
+        out.add(row.label)
+        if row.note:
+            out.add(row.note)
+        # …AND THE TWO HALVES OF THE ROW'S HELP ICON (Knut, 2026-09-14), which
+        # reach the screen the same invisible way, through `tr(row.blurb)`.
+        # Without this sweep thirty descriptions and eleven conditions would
+        # ship English in twelve languages and nothing would say so: the
+        # everyday tier noticed only the THREE frame strings around them,
+        # because those are the only ones written as literals.
+        if row.blurb:
+            out.add(row.blurb)
+        if row.detect:
+            out.add(row.detect)
+        if row.remedy:
+            out.add(row.remedy)
+        # Knut, #182 5841606710: how a row relates to its family
+        if getattr(row, "relation", ""):
+            out.add(row.relation)
+    # The two halves of the grey rows' lever (`tr(remedy_for(...))`), a tr()
+    # on a variable. (K61: the within-gamut names are no longer keys of their
+    # own; the report window translates the label and "(within gamut)" apart.)
+    out.add(cs._R_GREY_RAMP_DEVICE)
+    out.add(cs._R_GREY_RAMP_AIMS)
+    # K40-2: the same two halves of the tone row's lever
+    out.add(cs._R_RAMPS_DEVICE)
+    out.add(cs._R_RAMPS_AIMS)
+    for st in cs.SETS:
+        out.add(st.label)
+        if st.blurb:
+            out.add(st.blurb)
+    out |= set(cs.GROUP_LABELS.values())
+    out |= set(cs.SUMMARY_REASONS.values())        # the Overall sentences (review F6)
+    # Reached as `tr(STANDARD_CAVEAT)`, a tr() ON A VARIABLE, which this
+    # extractor cannot see by design. Named here so the sentence is
+    # translated rather than silently English in twelve languages.
+    # TWO KEYS SINCE 2026-09-22. The caveat is printed whole where there
+    # is room and as its second half alone on the one-page summary, so
+    # each half is translated separately and the JOIN is not a key.
+    out.add(cs.STANDARD_CAVEAT_APPLIED)
+    out.add(cs.STANDARD_CAVEAT_PROOF)
+    return out
+
+
+def _report_type_keys() -> set[str]:
+    """The Measurement Report's six TYPE names and the line under each
+    (#182 D28). Data in `workflow/measurement_report.py`, reaching the screen
+    through `tr(name)`, which the AST walk cannot see. Same shape as the limit
+    sets above, swept the same way, so a seventh type is translated the day it
+    is added rather than the day somebody notices."""
+    try:
+        from workflow import measurement_report as mr
+    except Exception as exc:  # noqa: BLE001
+        print(f"warning: could not import workflow.measurement_report ({exc})",
+              file=sys.stderr)
+        return set()
+    out: set[str] = {mr.REPORT_TYPE_MENU_HEADING}
+    for _tid, name, blurb, _built in mr.REPORT_TYPE_MENU:
+        out.add(name)
+        if blurb:
+            out.add(blurb)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -131,12 +233,27 @@ _DIALOG_CALLS = {
 _DRAW_TEXT = "drawText"
 
 #: An identifier, a key, a file extension, a stylesheet — not a sentence.
+#:
+#: `^\s*<` USED TO BE IN HERE, and it meant that a sentence beginning with a
+#: tag was read as "markup" and waved through. ChromIQ's rich-text windows open
+#: with `<b>` as a matter of course, so the rule was excusing exactly the
+#: strings it should have been reading. Markup is now stripped and the WORDS
+#: are judged (`_prose`), which still rejects a bare `<br>` or a stylesheet
+#: while seeing `<b>The reads could not be averaged.</b>` for what it is.
 _NOT_TEXT = re.compile(r"""
       ^[a-z0-9_.-]+$           # snake_case key, extension, css class
     | %[sdrf]                  # a logging/printf format
-    | ^\s*<                    # markup
     | ://                      # a URL
 """, re.X)
+
+#: A tag, and a CSS declaration block, so `_prose` can take them out.
+_TAG = re.compile(r"<[^>]*>")
+_CSS = re.compile(r"[#.\w-]*\s*\{[^}]*\}")
+
+
+def _prose(s: str) -> str:
+    """*s* with its markup and its stylesheet rules removed."""
+    return _TAG.sub(" ", _CSS.sub(" ", s))
 
 #: Strings that ARE handed to a text sink and are deliberately not translated.
 #: Every entry needs the reason, because an allow-list with no reasons becomes
@@ -148,8 +265,11 @@ UNTRANSLATED_ON_PURPOSE = {
     " patches",
     # The name of a file format, as its own vendor spells it.
     "Excel (XLSX)",
-    # A tool's own command line, echoed so the user can copy it.
+    # A tool's own command line, echoed so the user can copy it. The second is
+    # the same preview with the real arguments joined onto it; it only became
+    # visible when the sweep learned to look through `+` concatenation.
     "colprof …",
+    "colprof ",
     # The product word-mark, drawn as artwork in the masthead and the splash.
     # `ChromIQ` is not translated anywhere, and these two are set in the logo's
     # own letterforms; a longer word in another language does not fit the mark.
@@ -201,7 +321,25 @@ def is_user_facing_text(s: str) -> bool:
         return False
     if _NOT_TEXT.search(s):
         return False
+    # A string that is ALL markup carries nothing to translate; one that opens
+    # with a tag and then says something does.
+    words = _prose(s).strip()
+    if len(words) < 2 or not any(c.isalpha() for c in words):
+        return False
     return True
+
+
+def _literal_leaves(node):
+    """Every ``str`` constant in *node*, looking through ``+`` concatenation.
+
+    A `tr(...)` call, a variable or an f-string yields nothing, which is the
+    point: those are either already translated or not a literal at all.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        yield node
+    elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        yield from _literal_leaves(node.left)
+        yield from _literal_leaves(node.right)
 
 
 def unwrapped_literals():
@@ -221,18 +359,21 @@ def unwrapped_literals():
             for i in _sink_positions(node):
                 if not 0 <= i < len(node.args):
                     continue
-                a = node.args[i]
-                if not (isinstance(a, ast.Constant)
-                        and isinstance(a.value, str)):
-                    continue                   # tr(…), a variable, an f-string
-                if a.value in UNTRANSLATED_ON_PURPOSE:
-                    continue
-                if not is_user_facing_text(a.value):
-                    continue
-                name = (node.func.id if isinstance(node.func, ast.Name)
-                        else node.func.attr)
-                out.append((f.relative_to(ROOT).as_posix(), a.lineno,
-                            name, i, a.value))
+                # EVERY LITERAL IN THE ARGUMENT, not just a bare one.
+                # `QLabel("<b>…</b>" + detail + "…")` is a BinOp, so the old
+                # `isinstance(a, ast.Constant)` skipped the whole argument and
+                # with it two sentences that then shipped in English to eleven
+                # languages. Adjacent literals are folded by the parser already;
+                # it is the `+` that hid them.
+                for a in _literal_leaves(node.args[i]):
+                    if a.value in UNTRANSLATED_ON_PURPOSE:
+                        continue
+                    if not is_user_facing_text(a.value):
+                        continue
+                    name = (node.func.id if isinstance(node.func, ast.Name)
+                            else node.func.attr)
+                    out.append((f.relative_to(ROOT).as_posix(), a.lineno,
+                                name, i, a.value))
     return sorted(out)
 
 

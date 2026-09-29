@@ -15,7 +15,8 @@ pytest.importorskip("PyQt6")
 from PyQt6.QtCore import QSettings  # noqa: E402
 from PyQt6.QtWidgets import QApplication  # noqa: E402
 
-from ui.tabs.tab_chart import TabChart, TC918EG_A4_PRESET_KEY  # noqa: E402
+from tests._prebuilt_fixture import PHOTOCARD600_KEY as PHOTOCARD600_PRESET_KEY  # noqa: E402
+from ui.tabs.tab_chart import TabChart  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -38,7 +39,7 @@ def _make_tab(qapp, tmp_path):
     return tab, s
 
 
-def test_prebuilt_preset_reveals_engine_panel_on_toggle(qapp, tmp_path):
+def test_prebuilt_preset_reveals_engine_panel_on_toggle(prebuilt_bundles, qapp, tmp_path):
     tab, s = _make_tab(qapp, tmp_path)
     tab.show()
     qapp.processEvents()
@@ -47,7 +48,7 @@ def test_prebuilt_preset_reveals_engine_panel_on_toggle(qapp, tmp_path):
     # layout shown, engine off.
     tab._set_manual_value("printtarg", "-i", "i1")
     tab._prebuilt_active = True
-    tab._prebuilt_key = TC918EG_A4_PRESET_KEY
+    tab._prebuilt_key = PHOTOCARD600_PRESET_KEY
     tab._refresh_manual_command_preview()
     qapp.processEvents()
     assert tab._manual_layout_grp.isHidden()          # engine panel hidden

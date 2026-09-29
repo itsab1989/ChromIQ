@@ -24,7 +24,7 @@ from ui.tabs.tab_measure import TabMeasure      # noqa: E402
 
 #: Every window that can end a session and used to offer only Give Up.
 GIVE_UP_WINDOWS = ("Strip may be misaligned", "Wrong Strip Read",
-                   "Unexpected Color Response", "Instrument Error")
+                   "Unexpected Colour Response", "Instrument Error")
 
 
 # ---- one window, every route --------------------------------------------

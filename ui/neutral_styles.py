@@ -226,6 +226,23 @@ def make_neutral_palette() -> QPalette:
 # QSS stylesheet
 # -----------------------------------------------------------------------
 
+# The window's default button, filled (K44). Built here, before the sheet,
+# from this appearance's own tokens: see ui/default_button.py.
+from ui.default_button import default_fill_qss as _default_fill_qss
+_DEFAULT_QSS = _default_fill_qss(
+    accent=NM_ACTION,
+    label=NM_ON_ACTION,
+    hover=NM_BORDER_HI,
+    dis_bg="transparent",
+    dis_border=NM_DISABLED,
+    dis_fg=NM_DISABLED,
+    plain_bg=NM_BG_WIDGET,
+    plain_border=NM_BORDER,
+    plain_fg=NM_TEXT_MAIN,
+    plain_hover_bg=NM_BG_HOVER,
+    plain_hover_border=NM_BORDER_HI,
+)
+
 NEUTRAL_STYLESHEET = f"""
 /* -- Base ---------------------------------------------------------- */
 /* No `background` on QWidget — that would paint over each GroupBox's
@@ -314,6 +331,32 @@ QPushButton:disabled {{
     color: {NM_DISABLED};
     border: 1px solid {NM_DISABLED};
 }}
+/* THE BUTTON RETURN PRESSES IS FILLED IN THE ACCENT (Knut, #182 5833776276,
+ * 5833983335): one standard for every window and pop-up, the #primary look.
+ * `:default` is Qt's isDefault(), the button Return presses; ui/default_button.py
+ * keeps it from moving with focus and holds the rules. A window with its own
+ * accent re-fills it in that accent. */
+{_DEFAULT_QSS}
+/* The graph tab bar's scroll arrows (ui/peek_tab_bar.py) get the outline
+ * every other button has (Knut, #182 5832746557). Disabled keeps the faint
+ * edge of a disabled button, so a greyed arrow still reads as greyed. */
+QToolButton#peek_tab_arrow {{
+    background: {NM_BG_WIDGET};
+    border: 1px solid {NM_BORDER};
+    border-radius: 3px;
+    padding: 0;
+}}
+QToolButton#peek_tab_arrow:hover {{
+    background: {NM_BG_HOVER};
+    border-color: {NM_BORDER_HI};
+}}
+QToolButton#peek_tab_arrow:pressed {{
+    background: {NM_BG_PRESSED};
+}}
+QToolButton#peek_tab_arrow:disabled {{
+    background: {NM_BG_WINDOW};
+    border: 1px solid {NM_DISABLED};
+}}
 QPushButton#primary {{
     background: {NM_ACTION};
     color: {NM_ON_ACTION};
@@ -369,11 +412,17 @@ QPlainTextEdit:disabled, QTextEdit:disabled {{
     background: {NM_BG_PANEL};
     border: 1px solid {NM_DISABLED};
 }}
-QSpinBox:disabled::up-button,   QSpinBox:disabled::down-button,
-QDoubleSpinBox:disabled::up-button, QDoubleSpinBox:disabled::down-button {{
+/* THE STATE GOES ON THE SUB-CONTROL: `QSpinBox::up-button:disabled`, never
+   `QSpinBox:disabled::up-button`. Written the second way (until beta 41) Qt
+   painted every ENABLED plain QComboBox / QSpinBox in the disabled colour:
+   the beige pulldowns in Patch distribution and Preferences > Reports.
+   Only NoScrollComboBox escaped, through its per-widget sheet.
+   tests/test_the_patch_distribution_pulldown_matches_create_chart.py */
+QSpinBox::up-button:disabled,   QSpinBox::down-button:disabled,
+QDoubleSpinBox::up-button:disabled, QDoubleSpinBox::down-button:disabled {{
     background: {NM_BG_PANEL};
 }}
-QComboBox:disabled::drop-down {{ background: {NM_BG_PANEL}; }}
+QComboBox::drop-down:disabled {{ background: {NM_BG_PANEL}; }}
 QComboBox {{
     padding-right: 28px;
 }}
@@ -723,13 +772,16 @@ QPushButton#browse:disabled, QPushButton#browse_compact:disabled {{
 /* -- Settings dialog: Restore Factory Defaults -------------------- */
 /* An ACTION fill with ON_ACTION on it: 15.53:1, and the one sanctioned
    light-on-dark pairing in this theme (rule 2). It is a FILL, not an
-   inversion — the label belongs to the button, not to the page. */
-QPushButton#reset_defaults {{
+   inversion — the label belongs to the button, not to the page.
+   K44: left exactly as it was (Basti, 2026-09-25: a colour a window already
+   has is not changed). Since K44 OK, the default, is ACTION-filled too, so
+   Neutral's Preferences shows two black buttons: put to Knut. */
+QPushButton#reset_defaults, QPushButton#prefs_ok {{
     background: {NM_ACTION};
     color: {NM_ON_ACTION};
     border: 1px solid {NM_ACTION};
 }}
-QPushButton#reset_defaults:hover {{
+QPushButton#reset_defaults:hover, QPushButton#prefs_ok:hover {{
     background: {NM_BORDER_HI};
     border-color: {NM_BORDER_HI};
 }}

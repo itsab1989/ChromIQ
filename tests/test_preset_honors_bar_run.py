@@ -46,12 +46,12 @@ def _tab_with_three_runs(tmp_path):
     return tab, fm, ctl
 
 
-def test_prebuilt_preset_builds_into_bar_run_not_last(qapp, tmp_path):
+def test_prebuilt_preset_builds_into_bar_run_not_last(prebuilt_bundles, qapp, tmp_path):
     tab, fm, ctl = _tab_with_three_runs(tmp_path)
     assert Project.load(tmp_path / "P").current_run().id == "run3"   # last is current
     ctl.set_profile_run("run1"); ctl.set_run_type(RUN_TYPE_PROFILING)
 
-    tab._apply_prebuilt_preset("__chromiq_tc300_builtin__", "P")
+    tab._apply_prebuilt_preset("__chromiq_abw702_builtin__", "P")
 
     # The chart landed in run1 (the bar's selection), not run3.
     p = Project.load(tmp_path / "P")

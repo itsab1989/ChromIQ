@@ -14,6 +14,8 @@ import os
 import re
 import shlex
 import sys
+import unicodedata
+from glob import escape as glob_escape
 from pathlib import Path
 from typing import Any
 
@@ -67,12 +69,82 @@ def sidecar_path(tab: str, name: str, suffix: str) -> Path:
     return tab_dir(tab) / (_sanitize(name) + suffix)
 
 
+def same_file_name(a: str, b: str) -> bool:
+    """True when presets named `a` and `b` would be stored in the same files.
+
+    "a/b" and "a_b" are two names and one ``.json`` (and one ``.ti1``), and on
+    a case-insensitive disk so are "Mine" and "mine". Saving the second one
+    replaced the first one's files while both names stayed in the list.
+    """
+    def key(n: str) -> str:
+        return unicodedata.normalize("NFC", _sanitize(n)).casefold()
+    return key(a) == key(b)
+
+
+def _recorded_names(d: Path) -> dict[str, Path]:
+    """``{listed name: .json}`` for every preset file in `d`, as
+    :func:`load_presets` lists them."""
+    out: dict[str, Path] = {}
+    claimed: dict[str, Path] = {}
+    docs = []
+    for p in sorted(d.glob("*.json")):
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8"))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("preset_store: skipping malformed %s (%s)", p, exc)
+            continue
+        if isinstance(doc, dict):
+            docs.append((p, doc))
+    # The file that is still called what it records goes first, so it keeps
+    # the name when a copy of it claims the same one.
+    docs.sort(key=lambda pd: not _is_its_own_file(pd[1], pd[0]))
+    for p, doc in docs:
+        name = str(doc.get("name") or "") or p.stem
+        if name in claimed:
+            name = unicodedata.normalize("NFC", p.stem)
+        claimed[name] = p
+        out[name] = p
+    return out
+
+
+def _is_its_own_file(doc: dict, p: Path) -> bool:
+    name = str(doc.get("name") or "")
+    nfc = unicodedata.normalize
+    return bool(name) and nfc("NFC", _sanitize(name)) == nfc("NFC", p.stem)
+
+
+def find_sidecar(tab: str, name: str, suffix: str) -> Path:
+    """The bundled file of preset `name`, tolerating a rename by hand.
+
+    :func:`sidecar_path` when that file exists. Otherwise the one beside the
+    ``.json`` that records this name: a preset file renamed by hand, or by a
+    download (an attachment on the issue tracker loses its spaces), keeps its
+    name inside and its ``.ti1`` under the new file name, and the preset then
+    quietly built from targen instead of its own patch set. Always returns a
+    path; the caller checks ``is_file()``.
+    """
+    primary = sidecar_path(tab, name, suffix)
+    if primary.is_file():
+        return primary
+    own = _recorded_names(tab_dir(tab)).get(name)
+    if own is not None:
+        other = own.with_suffix(suffix)
+        if other.is_file():
+            return other
+    return primary
+
+
 def load_presets(tab: str, settings: Any = None) -> dict[str, Any]:
     """Return ``{name: payload_dict}`` for `tab`.
 
     On first call for a tab (when the subfolder doesn't yet exist) the
     legacy QSettings preset dict, if any, is migrated to disk before the
     folder is scanned.
+
+    A preset is listed under the name recorded inside its file. TWO FILES
+    CLAIMING ONE NAME ARE TWO PRESETS: a copy made in the file manager ("Mine
+    copy.json" still says "Mine") showed as one, and the next save deleted the
+    other file. The copy is listed under its own file name instead.
     """
     d = tab_dir(tab)
     if not d.exists():
@@ -80,15 +152,11 @@ def load_presets(tab: str, settings: Any = None) -> dict[str, Any]:
         if settings is not None:
             _migrate_from_settings(tab, settings)
     out: dict[str, Any] = {}
-    for p in sorted(d.glob("*.json")):
+    for name, p in _recorded_names(d).items():
         try:
             doc = json.loads(p.read_text(encoding="utf-8"))
-        except Exception as exc:
-            log.warning("preset_store: skipping malformed %s (%s)", p, exc)
+        except Exception:  # noqa: BLE001 — logged by _recorded_names
             continue
-        if not isinstance(doc, dict):
-            continue
-        name = str(doc.get("name") or p.stem)
         data = doc.get("data", {})
         if isinstance(data, dict):
             out[name] = data
@@ -105,9 +173,14 @@ def save_presets(tab: str, presets: dict[str, Any]) -> None:
 
     Files for presets no longer present in the dict are removed, so this
     one call cleanly handles add, rename and delete.
+
+    A preset whose ``.json`` was not called what it records is written under
+    the name's own file, and its bundled files (the ``.ti1``) move with it:
+    otherwise the first save orphaned them under the old file name.
     """
     d = tab_dir(tab)
     d.mkdir(parents=True, exist_ok=True)
+    before = _recorded_names(d)
     wanted: set[str] = set()
     for name, payload in presets.items():
         fname = _sanitize(name) + ".json"
@@ -125,8 +198,40 @@ def save_presets(tab: str, presets: dict[str, Any]) -> None:
             )
         except OSError as exc:
             log.warning("preset_store: failed to write %s (%s)", d / fname, exc)
+            continue
+        old = before.get(name)
+        if old is not None and old.name != fname:
+            for extra in d.glob(glob_escape(old.stem) + ".*"):
+                if extra.suffix.lower() == ".json" or extra.stem != old.stem:
+                    continue
+                target = d / (_sanitize(name) + extra.suffix)
+                if not target.exists():
+                    try:
+                        extra.rename(target)
+                    except OSError as exc:
+                        log.warning("preset_store: could not move %s (%s)",
+                                    extra, exc)
+    # THE FILE JUST WRITTEN IS NOT A LEFTOVER, WHATEVER IT IS CALLED. On a
+    # case- and normalisation-insensitive disk (APFS, NTFS) writing
+    # "Mine.json" goes into an existing "mine.json", or into a "Grün.json"
+    # spelled in decomposed form, and the directory keeps that spelling; the
+    # name test below then deleted the preset it had just saved. Saving ANY
+    # preset lost it.
+    written: set[tuple[int, int]] = set()
+    for fname in wanted:
+        try:
+            st = (d / fname).stat()
+        except OSError:
+            continue
+        written.add((st.st_dev, st.st_ino))
     for p in d.glob("*.json"):
         if p.name not in wanted:
+            try:
+                st = p.stat()
+                if (st.st_dev, st.st_ino) in written:
+                    continue
+            except OSError:
+                pass
             try:
                 p.unlink()
             except OSError as exc:

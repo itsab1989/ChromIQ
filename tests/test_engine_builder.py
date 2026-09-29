@@ -162,7 +162,12 @@ def test_engine_builder_builds_profile(tmp_path, qtbot):
 
     def done() -> bool:
         return bool(finished)
-    qtbot.waitUntil(done, timeout=60000)
+    # A REAL BUILD, BUDGETED FOR THE LOADED MACHINE (CLAUDE.md: a timeout
+    # that is too tight is a phantom red). 60 s ran out once in the beta 39
+    # gate under -n auto (18663 passed, this one red, green in the next two
+    # gates). 300 s is the suite's own faulthandler limit, so a genuine hang
+    # still shows.
+    qtbot.waitUntil(done, timeout=300000)
     assert finished == [0]
     icc = builder.expected_icc_path(params)
     assert icc == ti3.with_suffix(".icc") and icc.exists()
@@ -205,7 +210,7 @@ def test_thread_reference_is_held_until_the_thread_really_stops(qtbot, tmp_path)
         finished.append(code)
 
     builder.build(params, on_line=lambda _l: None, on_finish=_on_finish)
-    qtbot.waitUntil(lambda: bool(finished), timeout=60000)
+    qtbot.waitUntil(lambda: bool(finished), timeout=300000)   # a real build
 
     assert finished == [0]
     assert held == [True], "the QThread was released while still running"

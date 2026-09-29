@@ -428,3 +428,18 @@ def test_list_project_reports_trends_verification_dates(tmp_path):
     prof_reports = list_project_reports(run.dir)
     assert len(prof_reports) == 1                      # profiling only
     assert all("verifications" not in str(p) for p in prof_reports)
+
+
+def test_the_pdf_name_carries_the_documents_time_not_the_windows():
+    """K12, Knut on beta 34: a NEW report's PDF pre-filled the PREVIOUS PDF's
+    name, because the stamp was the second the window opened. The page's own
+    "Created:" line reads `_doc_created` (B8-461); the file name reads the
+    same, and falls back to the window's clock only when nothing is saved."""
+    d = _title_helpers()
+    veri = [{"chart": "Canon-Glossy", "is_verification": True}]
+    d._doc_created = "2026-09-22T19:11:09"
+    assert d._report_filename(veri) == \
+        "V-prefix - Canon-Glossy - 2026-09-22_19-11-09.pdf"
+    d._doc_created = ""
+    assert d._report_filename(veri) == \
+        "V-prefix - Canon-Glossy - 2026-07-23_14-30-00.pdf"

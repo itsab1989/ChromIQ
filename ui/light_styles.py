@@ -110,6 +110,33 @@ def make_light_palette() -> QPalette:
 # QSS stylesheet
 # -----------------------------------------------------------------------
 
+# The window's default button, filled (K44). Built here, before the sheet,
+# from this appearance's own tokens: see ui/default_button.py.
+from ui.default_button import default_fill_qss as _default_fill_qss
+# A window with no accent of its own (no masthead, not opened from a tab)
+# used to fill its main button in ACCENT_BLUE, a blue nothing else in the app
+# uses. Basti, 2026-09-26: "the main action button was blue. this color is
+# used nowhere else in the app"; and for Preferences, "if it gets any color
+# than restore factory settings had before". So the fallback fill is the
+# Restore Factory Defaults look, as in Neutral. A window with an accent still
+# fills in it (ui.theme.default_button_qss).
+FALLBACK_FILL = "#121212"
+FALLBACK_LABEL = "#f4f4f4"
+FALLBACK_HOVER = "#1f1f1f"
+_DEFAULT_QSS = _default_fill_qss(
+    accent=FALLBACK_FILL,
+    label=FALLBACK_LABEL,
+    hover=FALLBACK_HOVER,
+    dis_bg="#e8e6e1",
+    dis_border="#d0ccc4",
+    dis_fg="#a8a4a0",
+    plain_bg=LM_BG_WIDGET,
+    plain_border=LM_BORDER_HI,
+    plain_fg=LM_TEXT_MAIN,
+    plain_hover_bg="#e4e0da",
+    plain_hover_border="#a0a09a",
+)
+
 LIGHT_STYLESHEET = f"""
 /* -- Base ---------------------------------------------------------- */
 /* No `background` on QWidget — that would paint over each GroupBox's
@@ -182,20 +209,45 @@ QPushButton:disabled {{
     color: {LM_TEXT_FAINT};
     border-color: {LM_BORDER};
 }}
+/* THE BUTTON RETURN PRESSES IS FILLED IN THE ACCENT (Knut, #182 5833776276,
+ * 5833983335): one standard for every window and pop-up, the #primary look.
+ * `:default` is Qt's isDefault(), the button Return presses; ui/default_button.py
+ * keeps it from moving with focus and holds the rules. A window with its own
+ * accent re-fills it in that accent. */
+{_DEFAULT_QSS}
+/* The graph tab bar's scroll arrows (ui/peek_tab_bar.py) get the outline
+ * every other button has (Knut, #182 5832746557). Disabled keeps the faint
+ * edge of a disabled button, so a greyed arrow still reads as greyed. */
+QToolButton#peek_tab_arrow {{
+    background: {LM_BG_WIDGET};
+    border: 1px solid {LM_BORDER_HI};
+    border-radius: 3px;
+    padding: 0;
+}}
+QToolButton#peek_tab_arrow:hover {{
+    background: #e4e0da;
+    border-color: #a0a09a;
+}}
+QToolButton#peek_tab_arrow:pressed {{
+    background: #d8d4ce;
+}}
+QToolButton#peek_tab_arrow:disabled {{
+    border-color: {LM_BORDER};
+}}
 QPushButton#primary {{
-    background: {ACCENT_BLUE};
-    color: #ffffff;
-    border: 1px solid {ACCENT_BLUE};
+    background: {FALLBACK_FILL};
+    color: {FALLBACK_LABEL};
+    border: 1px solid {FALLBACK_FILL};
     font-weight: bold;
 }}
 QPushButton#primary:hover {{
-    background: {ACCENT_HOVER};
-    border-color: {ACCENT_HOVER};
+    background: {FALLBACK_HOVER};
+    border-color: {FALLBACK_HOVER};
 }}
 QPushButton#primary:disabled {{
-    background: #b8cef8;
-    border-color: #b8cef8;
-    color: #7890c0;
+    background: #e8e6e1;
+    border-color: #d0ccc4;
+    color: #a8a4a0;
 }}
 QPushButton#danger {{
     background: #fde8e8;
@@ -229,11 +281,17 @@ QPlainTextEdit:disabled, QTextEdit:disabled {{
     background: {LM_BG_SURFACE};
     border-color: {LM_BORDER};
 }}
-QSpinBox:disabled::up-button,   QSpinBox:disabled::down-button,
-QDoubleSpinBox:disabled::up-button, QDoubleSpinBox:disabled::down-button {{
+/* THE STATE GOES ON THE SUB-CONTROL: `QSpinBox::up-button:disabled`, never
+   `QSpinBox:disabled::up-button`. Written the second way (until beta 41) Qt
+   painted every ENABLED plain QComboBox / QSpinBox in the disabled colour:
+   the beige pulldowns in Patch distribution and Preferences > Reports.
+   Only NoScrollComboBox escaped, through its per-widget sheet.
+   tests/test_the_patch_distribution_pulldown_matches_create_chart.py */
+QSpinBox::up-button:disabled,   QSpinBox::down-button:disabled,
+QDoubleSpinBox::up-button:disabled, QDoubleSpinBox::down-button:disabled {{
     background: {LM_BG_SURFACE};
 }}
-QComboBox:disabled::drop-down {{ background: {LM_BG_SURFACE}; }}
+QComboBox::drop-down:disabled {{ background: {LM_BG_SURFACE}; }}
 QComboBox {{
     padding-right: 28px;
 }}
@@ -543,12 +601,12 @@ QPushButton#browse_compact:hover {{
 }}
 
 /* -- Settings dialog: Restore Factory Defaults (dark button, bright text) */
-QPushButton#reset_defaults {{
+QPushButton#reset_defaults, QPushButton#prefs_ok {{
     background: #121212;
     color: #f4f4f4;
     border: 1px solid #2a2a2a;
 }}
-QPushButton#reset_defaults:hover {{
+QPushButton#reset_defaults:hover, QPushButton#prefs_ok:hover {{
     background: #1f1f1f;
     border-color: #3a3a3a;
 }}

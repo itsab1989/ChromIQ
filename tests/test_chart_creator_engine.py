@@ -172,7 +172,16 @@ def test_guided_and_manual_colormunki_extra_high_same_patch_geometry(tmp_path: P
     # Guided here uses user margins while the Manual default recipe has "Use
     # instrument margins" on, so those two flags legitimately differ — exclude them
     # and assert the patch geometry proper is identical (Knut instrument-margins fix).
-    _BOX_FLAGS = {"margins_are_law", "fill_beyond_ruler"}
+    # …and neither are the TEXT-PLACEMENT reservations (#182). "B" and the
+    # ruler helper markers reserve paper for TEXT against the page edges; they
+    # move no patch and change no patch size, and Guided has no controls for
+    # them, so it carries the defaults while a Manual recipe carries whatever
+    # the panel is set to. Excluded for the same reason as the box flags above:
+    # this assertion is about the patch geometry proper.
+    _BOX_FLAGS = {"margins_are_law", "fill_beyond_ruler",
+                  "text_edge_bottom_mm", "helper_markers",
+                  "helper_marker_edge_mm", "helper_marker_len_mm",
+                  "helper_markers_sides", "helper_markers_top_bottom"}
     diffs = [f.name for f in dataclasses.fields(instruments.Geom)
              if f.name not in _BOX_FLAGS
              and getattr(gg, f.name) != getattr(gm_pf, f.name)]
@@ -191,7 +200,11 @@ def test_engine_kwargs_uses_full_recipe(tmp_path: Path) -> None:
     from workflow.layout_engine.presets import LayoutRecipe
     creator = ChartCreator(_EngineRunner(), _MockFileManager(tmp_path / "p"),
                            _EngineSettings())
+    # "Prioritise patch size": a typed patch size and a chart offset reach the
+    # engine only there. The dataclass default is area-first, where both are
+    # hidden and inert (B8-1540).
     recipe = LayoutRecipe(instrument="i1", paper="A4", margin_top=10,
+                          layout_mode="patch_first",
                           patch_w_mm=9.0, offset_x_mm=4.0, spacer_mode="bw")
     params = ChartParams(instrument="i1", paper="Letter",
                          layout_recipe=recipe, engine_cal_path="/tmp/c.cal",

@@ -108,18 +108,53 @@ def _silence_done_dialog(tab, monkeypatch):
     return done
 
 
-def test_import_button_appears_only_for_a_verification_run(qapp, tmp_path):
+def test_import_button_appears_for_profiling_and_verification(qapp, tmp_path):
+    """IT USED TO BE VERIFICATION ONLY, and that is the change.
+
+    Katrina (Red River Paper), 2026-09-15: *"when doing an icc profile,
+    importing from another program is on the Build ICC Profile tab, and when
+    doing a verification, importing is on the Measurement tab. Probably makes
+    sense for it to be on the Measurement tab on both?"* Sebastian ruled that
+    the module is offered for a profiling run as well, and that the Build ICC
+    profile tab's own import stays exactly where it is (§I.9, "Where the door
+    is", amended the same day).
+
+    The one run type that still cannot import is CALIBRATION, and for a
+    data-safety reason rather than a preference: one `cal/` per project, shared
+    by every run, and `Calibration.reset()` has no `old/` archive, so an import
+    there has no safe way to displace what is already present.
+    """
     s, fm, ctl = _env(tmp_path)
     tab = _tab(s, fm, ctl)
-    assert not tab._import_btn.isVisibleTo(tab)
     ctl.set_profile_run("run1")
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    assert tab._import_btn.isVisibleTo(tab), (
+        "the profiling door Katrina asked for is not there")
     ctl.set_run_type(RUN_TYPE_VERIFICATION)
-    assert tab._import_btn.isVisibleTo(tab)
-    # Switching away leaves the module and hides the button.
+    assert tab._import_btn.isVisibleTo(tab), (
+        "adding the profiling door must not remove the verification one")
+
+
+def test_a_calibration_run_still_cannot_import(qapp, tmp_path):
+    """§I.9's one surviving limit, and the module is left when it applies."""
+    from core.measurement_target import RUN_TYPE_CALIBRATION
+    s, fm, ctl = _env(tmp_path)
+    fm.project().calibration.ensure_dir()
+    # The run type is gated by the preference, not by the folder — without
+    # this the controller coerces Calibration straight back to Profiling and
+    # the test would pass while proving nothing.
+    ctl.set_calibration_allowed(True)
+    tab = _tab(s, fm, ctl)
+    ctl.set_profile_run("run1")
+    ctl.set_run_type(RUN_TYPE_PROFILING)
     tab._switch_mode("import")
     assert tab._stack.currentIndex() == 2
-    ctl.set_run_type(RUN_TYPE_PROFILING)
+    ctl.set_run_type(RUN_TYPE_CALIBRATION)
+    assert ctl.target.is_calibration(), (
+        "the fixture could not reach the calibration run type, so this test "
+        "proves nothing")
     assert not tab._import_btn.isVisibleTo(tab)
+    # …and the module is not left on screen with nowhere to file into.
     assert tab._stack.currentIndex() == 0
 
 

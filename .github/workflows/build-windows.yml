@@ -52,8 +52,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           grep -v 'pycups' requirements.txt > requirements-win.txt
-          pip install -r requirements-win.txt
-          pip install pyinstaller
+          pip install -r requirements-win.txt -r requirements-build.txt
 
       # Generate a .ico from the existing app_icon.png using Pillow (already installed).
       - name: Generate Windows icon

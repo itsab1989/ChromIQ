@@ -1,0 +1,319 @@
+{
+  "p3_A4R": {
+    "instr_text": "i1Pro 3 Plus",
+    "paper_text": "A4 (297 \u00d7 210 mm) Landscape",
+    "ok": [
+      true,
+      true
+    ],
+    "headline": "112<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 112 | 112 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 112 | 112 | Patches per strip | 7 | 7 | Strips (this page) | 16 | 16 | Pages | 1 | 1 | Patch size (mm) | 16\u00d720.07 | 16\u00d720",
+      "layout_info_actual": {
+        "total": 112,
+        "fillup": 0,
+        "page_patches": 112,
+        "rows": 7,
+        "cols": 16,
+        "pages": 1,
+        "patch": [
+          16.0,
+          20.07
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 112,
+        "fillup": 0,
+        "page_patches": 112,
+        "rows": 7,
+        "cols": 16,
+        "pages": 1,
+        "patch": [
+          16.0,
+          20.0
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 28.0 | Right (to first patch) | 15.0 | 0.590 | 9.0 | Top (to first patch) | 33.4 | 1.317 | 40.0 | Bottom (to first patch) | 20.4 | 0.804 | 9.0 | Patch width (in strip reading direction) | 16.0 | 0.630 | Strip length | 156.1 | 6.147 | \u26a0 Left margin 26.0 mm is below the 28 mm instrument minimum\n\u26a0 Top margin 33.4 mm is below the 40 mm instrument minimum",
+      "margin_status": "\u26a0 Left margin 26.0 mm is below the 28 mm instrument minimum\n\u26a0 Top margin 33.4 mm is below the 40 mm instrument minimum",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "recipe_instr": "p3",
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e2 -B2 -g8 chart\nChromIQ layout engine \u00b7 p3 \u00b7 A4R \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 clip border on"
+  },
+  "p3_A4": {
+    "instr_text": "i1Pro 3 Plus",
+    "paper_text": "A4 (210 \u00d7 297 mm) Portrait",
+    "ok": [
+      true,
+      true
+    ],
+    "headline": "99<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 99 | 99 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 99 | 99 | Patches per strip | 9 | 9 | Strips (this page) | 11 | 11 | Pages | 1 | 1 | Patch size (mm) | 16\u00d719.98 | 16\u00d720",
+      "layout_info_actual": {
+        "total": 99,
+        "fillup": 0,
+        "page_patches": 99,
+        "rows": 9,
+        "cols": 11,
+        "pages": 1,
+        "patch": [
+          16.0,
+          19.98
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 99,
+        "fillup": 0,
+        "page_patches": 99,
+        "rows": 9,
+        "cols": 11,
+        "pages": 1,
+        "patch": [
+          16.0,
+          20.0
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 28.0 | Right (to first patch) | 8.0 | 0.314 | 9.0 | Top (to first patch) | 54.9 | 2.163 | 40.0 | Bottom (to first patch) | 42.0 | 1.653 | 9.0 | Patch width (in strip reading direction) | 16.0 | 0.630 | Strip length | 200.1 | 7.877 | \u26a0 Left margin 26.0 mm is below the 28 mm instrument minimum\n\u26a0 Right margin 8.0 mm is below the 9 mm instrument minimum",
+      "margin_status": "\u26a0 Left margin 26.0 mm is below the 28 mm instrument minimum\n\u26a0 Right margin 8.0 mm is below the 9 mm instrument minimum",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "recipe_instr": "p3",
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e2 -B2 -g8 chart\nChromIQ layout engine \u00b7 p3 \u00b7 A4 \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 clip border on"
+  },
+  "i1_LetterR": {
+    "instr_text": "i1Pro / i1Pro 2 / i1Pro 3",
+    "paper_text": "Letter (11 \u00d7 8.5\") Landscape",
+    "ok": [
+      true,
+      true
+    ],
+    "headline": "544<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 544 | 544 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 544 | 544 | Patches per strip | 17 | 17 | Strips (this page) | 32 | 32 | Pages | 1 | 1 | Patch size (mm) | 7.62\u00d79.48 | 7.6\u00d79.5",
+      "layout_info_actual": {
+        "total": 544,
+        "fillup": 0,
+        "page_patches": 544,
+        "rows": 17,
+        "cols": 32,
+        "pages": 1,
+        "patch": [
+          7.62,
+          9.48
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 544,
+        "fillup": 0,
+        "page_patches": 544,
+        "rows": 17,
+        "cols": 32,
+        "pages": 1,
+        "patch": [
+          7.6,
+          9.5
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 10.2 | 0.400 | 9.0 | Top (to first patch) | 27.2 | 1.070 | 38.0 | Bottom (to first patch) | 10.2 | 0.400 | 9.0 | Patch width (in strip reading direction) | 7.6 | 0.300 | Strip length | 178.6 | 7.030 | \u26a0 Top margin 27.2 mm is below the 38 mm instrument minimum",
+      "margin_status": "\u26a0 Top margin 27.2 mm is below the 38 mm instrument minimum",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "recipe_instr": "i1",
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e4 -B4 -g30 chart\nChromIQ layout engine \u00b7 i1 \u00b7 LetterR \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on"
+  },
+  "CM_A4R": {
+    "instr_text": "ColorMunki / i1Studio / ColorChecker Studio",
+    "paper_text": "A4 (297 \u00d7 210 mm) Landscape",
+    "ok": [
+      true,
+      true
+    ],
+    "headline": "100<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 100 | 100 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 100 | 100 | Patches per strip | 10 | 10 | Strips (this page) | 10 | 10 | Pages | 1 | 1 | Patch size (mm) | 28.02\u00d714.05 | 28\u00d714",
+      "layout_info_actual": {
+        "total": 100,
+        "fillup": 0,
+        "page_patches": 100,
+        "rows": 10,
+        "cols": 10,
+        "pages": 1,
+        "patch": [
+          28.02,
+          14.05
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 100,
+        "fillup": 0,
+        "page_patches": 100,
+        "rows": 10,
+        "cols": 10,
+        "pages": 1,
+        "patch": [
+          28.0,
+          14.0
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 6.0 | 0.237 | 6.0 | Right (to first patch) | 11.0 | 0.433 | 6.0 | Top (to first patch) | 33.4 | 1.317 | 33.0 | Bottom (to first patch) | 25.5 | 1.004 | 10.0 | Patch width (in strip reading direction) | 28.0 | 1.103 | Strip length | 151.0 | 5.947 | Margins: OK",
+      "margin_status": "Margins: OK",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 1,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "recipe_instr": "CM",
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e2 -B2 -g8 chart\nChromIQ layout engine \u00b7 CM \u00b7 A4R \u00b7 300 dpi \u00b7 margin 6 mm \u00b7 hand-held"
+  },
+  "i1_A4_2p": {
+    "instr_text": "i1Pro / i1Pro 2 / i1Pro 3",
+    "paper_text": "A4 (210 \u00d7 297 mm) Portrait",
+    "ok": [
+      true,
+      true
+    ],
+    "headline": "968<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "snap": {
+      "layout_info_visible": true,
+      "layout_info_text": "on screen | estimate | Total patches | 968 | 968 | \u2026 of those, fill-up | 0 | 0 | Patches (this page) | 484 | 484 | Patches per strip | 22 | 22 | Strips (this page) | 22 | 22 | Pages | 2 | 2 | Patch size (mm) | 7.62\u00d79.48 | 7.6\u00d79.5",
+      "layout_info_actual": {
+        "total": 968,
+        "fillup": 0,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 2,
+        "patch": [
+          7.62,
+          9.48
+        ],
+        "pitch": null
+      },
+      "layout_info_estimate": {
+        "total": 968,
+        "fillup": 0,
+        "page_patches": 484,
+        "rows": 22,
+        "cols": 22,
+        "pages": 2,
+        "patch": [
+          7.6,
+          9.5
+        ],
+        "pitch": null
+      },
+      "margin_panel_visible": true,
+      "margin_panel_text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 16.8 | 0.661 | 9.0 | Top (to first patch) | 41.6 | 1.637 | 38.0 | Bottom (to first patch) | 24.6 | 0.970 | 19.0 | Patch width (in strip reading direction) | 7.6 | 0.300 | Strip length | 230.8 | 9.087 | Margins: OK",
+      "margin_status": "Margins: OK",
+      "margin_status_visible": true,
+      "margin_notes": "",
+      "generate_enabled": true,
+      "stop_visible": false,
+      "preview_pages": 2,
+      "built_ok": true,
+      "errors": [],
+      "engine_lines": [
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)",
+        "[DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)"
+      ]
+    },
+    "recipe_margins": [
+      6.0,
+      6.0,
+      6.0,
+      6.0
+    ],
+    "recipe_instr": "i1",
+    "clamp_lines": [],
+    "guided_info": "Guided mode applies these fixed settings:\ntargen -d2 -G -e6 -B6 -g55 chart\nChromIQ layout engine \u00b7 i1 \u00b7 A4 \u00b7 300 dpi \u00b7 margin 10 mm \u00b7 patch \u00d70.95 \u00b7 clip border on"
+  },
+  "unexpected": [],
+  "serious": []
+}

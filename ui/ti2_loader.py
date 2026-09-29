@@ -337,19 +337,19 @@ def patch_measurement_instructions_html(family: "str | None") -> str:
             "Turn the dial to the <b>measurement position</b> (the target / "
             "aperture icon). Rest the device flat on the highlighted patch, "
             "with the aperture fully inside it, and <b>press the side button "
-            "once</b>. Hold it still until the reading is taken, there is no "
+            "once</b>. Hold it still until the reading is taken. There is no "
             "sliding in this mode.")
     if family == "cr30":
         return tr(
-            "Take the <b>magnetic cap off</b> the measuring end first, with "
+            "Take the <b>magnetic cap off</b> the measuring end first. With "
             "the cap on, the CR30 reads its own white tile instead of your "
             "print.<br><br>Rest the instrument flat on the highlighted patch "
             "with the aperture fully inside it, hold it still, and <b>press "
             "the button on the instrument</b>. ChromIQ collects the reading by "
-            "itself and moves on to the next patch, there is nothing to press "
+            "itself and moves on to the next patch. There is nothing to press "
             "on screen, and there is no sliding in this mode.<br><br>"
             "You can also press the <b>space bar</b> (or Enter) to take the "
-            "reading without touching the instrument at all, that keeps it "
+            "reading without touching the instrument at all. That keeps it "
             "perfectly still and is steadier than pressing its button. It "
             "becomes available once ChromIQ has learned your instrument's "
             "white tile, which it offers after calibrating.<br><br>"
@@ -359,7 +359,7 @@ def patch_measurement_instructions_html(family: "str | None") -> str:
         return tr(
             "Take the i1Pro off its base. Place it flat on the highlighted "
             "patch so the aperture sits fully inside it, and <b>press the "
-            "button once</b>. Keep it still until the reading is taken, there "
+            "button once</b>. Keep it still until the reading is taken. There "
             "is no sliding in this mode.")
     if family == "spectroscan":
         return tr(
@@ -498,6 +498,26 @@ def _say_where_the_old_project_went(parent, name, dest) -> None:
     box.addButton(QMessageBox.StandardButton.Ok)
     box.exec()
 
+
+def _say_that_file_holds_no_chart(parent, path) -> None:
+    """M-IMPORT-NOT-A-CHART (PROPOSED) — the file picked as a chart is not one.
+
+    Said BEFORE anything is made, because the whole point is that nothing is:
+    the import used to copy whatever it was handed into a new project as that
+    project's chart. See :func:`workflow.chart_import.holds_a_chart`.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    from workflow import measurement_messages as M
+    title, body = M.M_IMPORT_NOT_A_CHART.render(name=Path(path).name)
+    box = QMessageBox(parent)
+    set_warning_icon(box)
+    box.setWindowTitle(title)
+    box.setText(title)
+    box.setInformativeText(body)
+    box.addButton(QMessageBox.StandardButton.Ok)
+    box.exec()
+
+
 def resolve_ti2(
     parent: "QWidget",
     ti2_path: Path,
@@ -529,6 +549,17 @@ def resolve_ti2(
         inside_root = _project_root_for(ti2_path, working_dir)
         loaded_root = _loaded_project_root(controller)
 
+        # A FILE THAT IS NOT A CHART NEVER BECOMES ONE BY BEING COPIED.
+        #
+        # Only for a file that is about to be IMPORTED: one already inside a
+        # project is opened in place and must go on opening, because refusing
+        # it would lock a person out of their own work over a header this
+        # function is in no position to judge. See `holds_a_chart`.
+        if inside_root is None and not _chart_import.holds_a_chart(ti2_path):
+            log.info("refused to import %s: it holds no chart", ti2_path)
+            _say_that_file_holds_no_chart(parent, ti2_path)
+            return None
+
         # NOTHING OPEN, BUT THE CHART BELONGS TO A PROJECT.
         #
         # This used to fall through to the create-a-new-project flow below, which is
@@ -552,14 +583,15 @@ def resolve_ti2(
             full = _chart_import.is_full_project(ti2_path)
             if full is not None:
                 return _handle_full_project(parent, ti2_path, full, working_dir,
-                                            controller)                        # A1b
+                                            controller, settings)              # A1b
             return _handle_loose_into_project(parent, ti2_path, working_dir,
-                                              controller)                      # A1a/A2c
+                                              controller, settings)            # A1a/A2c
 
         # No project loaded → the original new-project flow (loads the first chart).
         if inside_root is not None:
             return _handle_inside(parent, ti2_path, working_dir)
-        return _handle_outside(parent, ti2_path, working_dir)
+        return _handle_outside(parent, ti2_path, working_dir,
+                               controller=controller)
     except ReplaceFailed as exc:
         # ONLY a failed archive. Any other OSError is a different fault and
         # must not be reported as "the existing project could not be moved
@@ -568,11 +600,32 @@ def resolve_ti2(
         return None
 
 def _loaded_project_root(controller) -> "Path | None":
+    """The open project's folder, in the SAME spelling `_project_root_for` uses.
+
+    `resolve_ti2` decides between A2a ("this chart belongs to the project you
+    have open") and A2b ("it belongs to another one") by comparing this against
+    `_project_root_for`, and that function answers with a **resolved** path
+    (`path.resolve()`). `Project.root` is whatever the working folder was
+    configured as, unresolved — so the moment the ChromIQ folder is reached
+    through a symlink the two spellings of one folder compare unequal and the
+    run's own chart is announced as another project's.
+
+    Measured on screen, 2026-09-11, with the working folder at `/tmp/...`
+    (macOS makes `/tmp` a symlink to `/private/tmp`): opening the selected
+    run's own `.ti2` offered *"Load another profile project -> Open
+    Demo-Full-RGB"* about the project already open. Resolving both sides makes
+    the comparison about the folder rather than about how it was spelled.
+    """
     if controller is None:
         return None
     try:
         proj = controller.project_or_none()
-        return proj.root if proj is not None else None
+        if proj is None:
+            return None
+        try:
+            return Path(proj.root).resolve()
+        except OSError:
+            return Path(proj.root)
     except Exception:      # noqa: BLE001 — never break a load on this
         return None
 
@@ -717,8 +770,20 @@ def _next_run_id(project) -> str:
 
 
 def _dest_tiffs(ti2_in_project: Path) -> "list[Path]":
+    """The imported chart's page bitmaps, for the windows that show them.
+
+    `<stem>_*.tif` MISSES A SINGLE-PAGE CHART, which is `<stem>.tif` —
+    printtarg's own convention, and the trap `Run.chart_tiffs` already carries a
+    warning about. It went unnoticed because the import renames every page it
+    COPIES to `<stem>_01.tif`, so a one-page chart only reaches this function
+    under its real name when the pages were drawn rather than copied. Found on
+    screen: the run held its page, and the loader handed the Create Chart and
+    Print Chart tabs an empty list, so the preview stayed empty and the Print
+    tab had nothing in it — the very fault the redraw exists to remove.
+    """
     from core.file_manager import stem_files
-    return stem_files(ti2_in_project.parent, ti2_in_project.stem, "_*.tif")
+    return stem_files(ti2_in_project.parent, ti2_in_project.stem,
+                      "*.tif", "*.TIF", "*.tiff")
 
 
 def _run_and_kind_for_ti2(ti2_path: Path) -> "tuple[str, bool]":
@@ -733,7 +798,58 @@ def _run_and_kind_for_ti2(ti2_path: Path) -> "tuple[str, bool]":
     return run.id, False
 
 
-def _copy_out_new_project(parent, ti2_path, working_dir):
+def _enter_the_new_project(controller, ti2_in_project, working_dir) -> None:
+    """A project the user has just named IS the project they are now in.
+
+    THE NAMING WINDOW IS WHERE A PERSON BELIEVES THE PROJECT IS MADE, and until
+    this existed it was made on disk and nowhere else. Knut, #182 2026-09-11,
+    after importing a chart from outside the ChromIQ folder and naming it
+    `scan-test2`: *"the project was not created, only the defined name was
+    placed in the project name field"* — with the Profile-run bar still locked
+    on New run, and red text under the name saying *"You already have a project
+    with this name"* about the very project the import had just made.
+
+    All three of those are one omission. Every other route through
+    :func:`resolve_ti2` that ends in a project opens it and points the bar
+    (``_handle_inside_current``, ``_handle_inside_nothing_open``,
+    ``_handle_inside_other``, ``_handle_full_project``, ``_handle_loose_into_
+    project``); the two that CREATE one did not, so the app finished the import
+    standing outside the folder it had just filled. Create Chart then judged the
+    chart to be "loaded from elsewhere" — which is what refused Generate Chart —
+    and its name box, seeded by the app itself, matched a project on disk that
+    was not the open one.
+
+    Best-effort by design: a project that cannot be opened must not lose the
+    import, which is already on disk.
+    """
+    if controller is None or ti2_in_project is None:
+        return
+    root = _project_root_for(Path(ti2_in_project), working_dir)
+    if root is None:
+        return
+    try:
+        controller._fm.open_project_at(root)
+    except Exception:      # noqa: BLE001 — the files are safe either way
+        log.warning("imported chart: could not open the new project at %s",
+                    root, exc_info=True)
+        return
+    # PROFILING, WHATEVER THE BAR SAID A MOMENT AGO. `_copy_files` makes one
+    # run and files the chart in it as that run's own chart; it never writes a
+    # verification. A bar left on Verification would therefore point at a
+    # verification chart this brand-new project has not got — and "Use as base
+    # for a new profile" is reachable with Run type = Verification.
+    try:
+        controller.set_run_type(RUN_TYPE_PROFILING)
+    except Exception:      # noqa: BLE001
+        log.warning("imported chart: could not set the run type", exc_info=True)
+    # The run is not named here. `_point_bar_at_current_run` asks the project
+    # which run is current, which is the same answer and one that stays right
+    # if `_copy_files` ever files somewhere other than run1.
+    _point_bar_at_current_run(controller)
+    log.info("imported chart: opened the new project at %s", root)
+
+
+def _copy_out_new_project(parent, ti2_path, working_dir, controller=None):
     """Reuse the classic 'copy to a new profile project' flow (name prompt +
     copy), used by the 'Use as base for a new profile' choice."""
     ti1, tiffs = _related_files(ti2_path)
@@ -741,10 +857,41 @@ def _copy_out_new_project(parent, ti2_path, working_dir):
     if res is None:
         return None
     name, overwrite = res
-    return _copy_files(ti2_path, ti1, tiffs, working_dir, name, overwrite=overwrite)
+    out = _copy_files(ti2_path, ti1, tiffs, working_dir, name, overwrite=overwrite)
+    _enter_the_new_project(controller, out[0] if out else None, working_dir)
+    return out
 
 
-def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
+def _bin_dir(settings) -> "Path | None":
+    """The ArgyllCMS binaries, or None when nobody passed the settings along.
+
+    None means "copy and draw nothing", which is what an import did before a
+    chart arriving with no pages was found to leave a run that cannot be
+    printed (Knut, #182 2026-09-11). Every live path passes the settings; the
+    default keeps a caller that does not from changing behaviour by accident.
+    """
+    if settings is None:
+        return None
+    try:
+        # THE SAME DEFAULT THE REST OF THE APP USES. Reading this key with an
+        # empty default would have drawn no pages on a machine whose setting is
+        # blank and whose Argyll sits where it always does, while every other
+        # tool in ChromIQ ran fine — a silent difference between this path and
+        # all the others.
+        # AND A BLANK VALUE IS NOT A VALUE. `get` falls back only when the key
+        # is ABSENT, so a stored empty string comes straight through, and
+        # `Path("")` is the CURRENT DIRECTORY, which `is_dir()` cheerfully
+        # accepts. That would have handed the layout tool a folder with no
+        # tools in it.
+        raw = str(settings.get("argyll_bin_path", "") or "").strip()
+        d = Path(raw or "/Applications/Argyll/bin")
+    except Exception:      # noqa: BLE001 — never break an import on this
+        return None
+    return d if d.is_dir() else None
+
+
+def _handle_loose_into_project(parent, ti2_path, working_dir, controller,
+                               settings=None):
     """A1a / A2c — a loose external chart (or an older/flat layout inside the
     working folder). Import into the bar's target run per Run type."""
     ti1, tiffs = _related_files(ti2_path)
@@ -769,7 +916,8 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
                              [(tr("Import as a new run"), desc, "import")])
         if key != "import":
             return None
-        out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t)
+        out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t,
+                                                 bin_dir=_bin_dir(settings))
     else:                                       # Overwrite run N
         runlabel = _run_label(t)
         rid = t.profile_run
@@ -800,14 +948,51 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller):
             (tr("Replace {run}").format(run=runlabel), rep, "replace")])
         if key == "new":
             t = MeasurementTarget(run_type=t.run_type, profile_run="")
-            out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t)
+            out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj, t,
+                                                     bin_dir=_bin_dir(settings))
         elif key == "replace":
             out = _chart_import.import_external_chart(ti2_path, ti1, tiffs, proj,
-                                                     t, replace=True)
+                                                     t, replace=True,
+                                                     bin_dir=_bin_dir(settings))
         else:
             return None
+    _maybe_warn_no_control_strip(parent, out, verif)
     _point_bar_at_current_run(controller)
     return out, _dest_tiffs(out)
+
+
+def _maybe_warn_no_control_strip(parent, ti2: "Path | None", verif: bool) -> None:
+    """Say so when an imported VERIFICATION chart cannot carry a control strip.
+
+    #182, beta 22. `workflow.chart_import.import_external_chart` has already
+    written the declaration if the chart can carry one; this asks the same
+    question without touching the disk again, and is the only thing the door
+    needs in order to tell the user. Knut asked for the notice on *"the other
+    usual paths to create a chart while 'run type' = Verification"*, and this
+    is the one that does not pass through Create Chart's own funnel.
+    """
+    if not verif or ti2 is None:
+        return
+    try:
+        from workflow.control_strip import ELIGIBILITY_CONTROL, declare_for_chart
+        result = declare_for_chart(ti2, write=False)
+    except Exception:      # noqa: BLE001 — never break a finished import
+        log.warning("imported chart: control-strip check failed", exc_info=True)
+        return
+    if not result.needs_warning:
+        return
+    from workflow import measurement_messages as M
+    title, body = M.M_VERIFY_NO_CONTROL_STRIP.render(
+        n=result.selection.n, button=ELIGIBILITY_CONTROL)
+    _info_dialog(parent, title, body)
+
+
+def _info_dialog(parent, title: str, body: str) -> None:
+    """One modal notice. A module-level function, as `_choice_dialog` is, so a
+    test can drive this door without a window opening in front of a suite that
+    has nobody to close it."""
+    from ui.tooltip_button import InfoDialog
+    InfoDialog(title, body, parent, min_width=560).exec()
 
 
 def _handle_inside_current(parent, ti2_path, working_dir, controller):
@@ -832,7 +1017,7 @@ def _handle_inside_current(parent, ti2_path, working_dir, controller):
         _, tiffs = _related_files(ti2_path)
         return ti2_path, tiffs
     if key == "new":
-        return _copy_out_new_project(parent, ti2_path, working_dir)
+        return _copy_out_new_project(parent, ti2_path, working_dir, controller)
     return None
 
 
@@ -878,7 +1063,7 @@ def _handle_inside_nothing_open(parent, ti2_path, inside_root, working_dir,
         _, tiffs = _related_files(ti2_path)
         return ti2_path, tiffs
     if key == "new":
-        return _copy_out_new_project(parent, ti2_path, working_dir)
+        return _copy_out_new_project(parent, ti2_path, working_dir, controller)
     return None
 
 
@@ -908,11 +1093,12 @@ def _handle_inside_other(parent, ti2_path, inside_root, working_dir, controller)
         _, tiffs = _related_files(ti2_path)
         return ti2_path, tiffs
     if key == "new":
-        return _copy_out_new_project(parent, ti2_path, working_dir)
+        return _copy_out_new_project(parent, ti2_path, working_dir, controller)
     return None
 
 
-def _handle_full_project(parent, ti2_path, src_root, working_dir, controller):
+def _handle_full_project(parent, ti2_path, src_root, working_dir, controller,
+                         settings=None):
     """A1b — a complete ChromIQ project sitting outside the working folder."""
     t = controller.target
     key = _choice_dialog(parent, tr("This is a complete ChromIQ project"), "", [
@@ -946,7 +1132,8 @@ def _handle_full_project(parent, ti2_path, src_root, working_dir, controller):
         run = Project.load(dest).current_run()
         return run.chart_ti2, run.stem_files(run.stem, "_*.tif")
     if key == "chart":
-        return _handle_loose_into_project(parent, ti2_path, working_dir, controller)
+        return _handle_loose_into_project(parent, ti2_path, working_dir,
+                                          controller, settings)
     return None
 
 
@@ -1219,6 +1406,7 @@ def _handle_outside(
     working_dir: Path,
     *,
     name: str | None = None,
+    controller=None,
 ) -> tuple[Path, list[Path]] | None:
     ti1, tiffs = _related_files(ti2_path)
     if name and _name_is_free(working_dir, name):
@@ -1232,6 +1420,10 @@ def _handle_outside(
     out = _copy_files(ti2_path, ti1, tiffs, working_dir, new_name, overwrite=overwrite)
     if overwrite:
         _say_where_the_old_project_went(parent, new_name, working_dir / new_name)
+    # …and the project the person has just named is the one they are now in.
+    # `resolve_ti3` passes no controller: a measurement import is filed by
+    # `ui/measurement_filing.py`, which asks its own where-does-this-go question.
+    _enter_the_new_project(controller, out[0] if out else None, working_dir)
     return out
 
 

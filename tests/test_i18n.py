@@ -532,20 +532,1020 @@ def test_every_deliberate_exception_says_why():
 # PROPOSED. German is translated for all 22 and does not move. See §M-PROPOSED,
 # "⏳ Awaiting confirmation — Profile type help text". These are each language's
 # ACTUAL count.
+# +4 each in the eleven, 0 in German, 2026-09-05 (AGENT BJ): the white-point
+# help in Tools ▸ Build profile with scanner or camera ▸ Advanced. The sentence
+# that went away — "1.00 makes no change" — was FALSE: ArgyllCMS sets
+# `autowpsc = 1` before it reads the number (`colprof.c:494`) and defaults the
+# scale to 1.0 anyway (`xfit.c:2753`), so `-u 1` builds the same profile as a
+# bare `-u`. Two keys are the corrected tooltip bodies, two are the combo label
+# and tip title, which stopped saying "(-u)" — the list had TWO different
+# entries under that one flag. German is translated for all four and does not
+# move. The eleven carry the English source: new wording in a beta, and it is
+# PROPOSED wording besides. These are each language's ACTUAL count.
+# +10 each in the eleven, 0 in German, 2026-09-05 (AGENT BJ, second commit):
+# the -ua help. Eleven keys arrive and five retire — the printer-mode help, the
+# scanner-profile help, the "Which source?" help, the white-point help, the
+# "Restrict" help, three new help-card steps, the standard-mode explanation of
+# why "Profile my printer from this scan" is not offered there, and the visible
+# line in the printer box. Knut, beta 9: *"this is really an important detail
+# that the workflow steps in help cards and help descriptions must be clear
+# about"* — he wrote his own colprof command with -ua in it and still had to
+# relearn why. German is translated for all eleven and does not move. The
+# eleven catalogues carry the English source: new wording in a beta, and
+# PROPOSED wording besides. These are each language's ACTUAL count.
+# -1 in each of the eleven and -35 in German, 2026-09-05 (AGENT BP). THE
+# BUDGET MOVES DOWN, WHICH IS THE ONLY DIRECTION IT MAY MOVE.
+#
+# The eleven lose ONE key: "Not now" (W-06). It is the DECLINE button of the
+# driver-consent window "Before ChromIQ starts", the one window in ChromIQ
+# whose entire purpose is informed consent before an elevated driver install,
+# and it read the English "Not now" in every language but German. This is a
+# deliberate exception to "translate before the final, not during a beta" and
+# it is worth stating why, so the next agent does not read it as a licence:
+# the key is NOT new beta wording. `ui/cr30_calibration.py` has shipped a
+# button carrying it since the CR30 work, German has carried "Jetzt nicht"
+# throughout, and §M's entry for it says in as many words "zero new
+# translation keys". Nothing about it is a draft. What the beta rule protects
+# against is re-translating wording that is still moving; it was never meant
+# to leave the word "no" in English on a consent button.
+#
+# German loses THIRTY-FIVE, and that is the more interesting half. German is
+# recorded here at 152 and ACTUALLY sat at 139, so the ratchet had thirteen of
+# slack and could not fire for German at all — and inside those 139 were 22
+# strings of real German-facing PROSE still in English, every one of them from
+# the CR30 sprint of 2026-08-28 → 2026-09-01 (`22f005aa`, `8ecac82f`,
+# `e7eb81f9`, `18867d76`, `1bbc2211`). Among them: "ChromIQ has lost contact
+# with your CR30 while measuring patch {loc}", both windows of the white and
+# dark calibration, the magnet give-up window, and the two longest pieces of
+# Chart Layout help in the app. The standing convention every note above this
+# one repeats is that German is carried in German BECAUSE IT IS THE LANGUAGE
+# THE OWNER READS; those 22 are that convention having quietly slipped, not an
+# instance of it. All 22 are now German. The remaining four "prose-shaped"
+# identity values in German are file-path and format templates
+# ("reports/Verify_Reference_N_{name}.txt", "{name}.ti1 / {name}.ti2") and are
+# correctly English. 139 - 22 = 117.
+#
+# The 262 keys that are identity in ALL ELEVEN while German has a translation
+# are NOT touched and are NOT a leak: they are the tracked deferral every note
+# above accounts for, most of them §M-PROPOSED wording nobody has ruled on. A
+# ranked list of them, by the harm of reading them in English, is in the
+# AGENT BP report. These are each language's ACTUAL count.
+# +4 each in the eleven, 0 in German, 2026-09-05 (AGENT BQ): the scanner
+# white-point default moved to "Scale white to a perfect white surface" (-u -R).
+# Eight keys arrive and five retire — the two shortened combo labels, the new
+# one, the three help bodies that had to move with the default (white-point
+# handling, the manual scale, and "Restrict white, black and primaries"), the
+# profile-type help's Lab-cLUT bullet, whose ceiling is a different height under
+# the new default, and the two halves of M-SCAN-WP-DEFAULT, the one-time note
+# saying the default moved and took the user's remembered setting with it.
+# German is translated for all eight and does not move. The eleven catalogues
+# carry the English source: new wording in a beta, and PROPOSED wording besides.
+# Moved again on 2026-09-06 by Knut's beta 10 batch for this same window:
+# the usage-scenario control (heading, three labels, three glosses, the
+# divergence line, the greyed printer reason and its ⓘ), the two
+# white-point "(best for …)" markers that replaced the single
+# "(default)" one, the line that says what the patch count set up, the
+# note under the locked -R switch, and the six help bodies that had to be
+# rewritten with them. 26 keys in, 9 stale keys out. German is translated
+# for all 26 and does not move; the eleven others carry the English
+# source, so each of them gains 17.
+# …and again the same day, by the review of that work (CL-1, CL-6): the
+# line that says a saved bucket is being left alone rather than blaming
+# the user for ChromIQ's own choice, in its two forms, and the rewritten
+# Lab-table note, which had gone on describing the world before B8-75
+# moved the white-point default. Three keys in, one out; German
+# translated, the eleven +2 each.
+# …and once more on 2026-09-06 (AGENT CR), bringing the scanner and camera
+# HELP up to the usage scenarios those two entries added. Both printable help
+# cards were rewritten around the three scenarios, with their reasoning moved
+# out of the numbered steps into the new note register; the window's own ⓘ was
+# corrected, having said for fifty-five days that the source choice was "at the
+# top of the window" (it is the scenario radios) and that the build button
+# reads "Build profile with scanner or camera" (it reads "Build printer
+# profile" in printer mode); and three more bodies gained a sentence naming the
+# scenarios. 50 keys in, 20 stale out. German is translated for all 50 and does
+# not move; the eleven others carry the English source under the beta rule, so
+# each of them gains 43.
+# …and again on 2026-09-06, by the colprof algorithm fix. Five of the
+# Build Profile Algorithm list's eight entries could not build a printer
+# profile at all and a sixth built the same file as the entry above it, so
+# the list is now the two that work, in both windows: the two Algorithm
+# tooltips are rewritten, the Profile type ⓘ says why the printer side
+# offers two and the scanner side four, the Quality note stops claiming it
+# applies to cLUTs only, and three lines say out loud when a stored
+# algorithm had to be moved. 8 keys in, 4 stale keys out. German is
+# translated for all 8 and does not move; the eleven others carry the
+# English source, and each gains 5 (three of the four keys that left were
+# English placeholders there too).
+# These are each language's ACTUAL count, re-measured on the merged tree:
+# both changes above landed together, so neither branch's figure was right
+# on its own.
+# RE-MEASURED 2026-09-07, after the English-source fixes for 4.2.0: every
+# one of these twelve numbers is UNCHANGED. Fourteen English keys were
+# re-spelled that day (comma splices, quoted control names, `dark
+# calibration`, `[WARN]`, `Unexpected Colour Response`), and a re-key is
+# the one move that loses twelve translations at once. The table not
+# moving is the proof that every one of them was carried across rather
+# than left to fall back to English.
+# …and again on 2026-09-07, by the usage-scenario glosses (B8-101). Basti:
+# *"the help text for the usage scenarios under the 3 radio options is very
+# extensive (which is good) but it uses a lot of space there. I'd rather have
+# the detailed info put inside the tooltip."* Each gloss is now one line and
+# the full text moved into the window's own ⓘ. The MOVE cost nothing: the tip
+# body is composed from the same `tr()` literals the glosses carried, so all
+# twelve translations came across and no key went stale. 4 keys in (three
+# one-line glosses and the heading above them in the tip), 0 out. German is
+# translated for all 4 and does not move; the eleven others carry the English
+# source under the beta rule, so each of them gains 4.
+# 2026-09-08, #182: the Measurement Report is judged against LIMIT SETS. 137
+# keys in (the report window's Judged-against row, its five verdict words and
+# their definitions, the Report limits window, the Preferences frame, the
+# limit-set table's row and set labels), 15 out (the two Pass-threshold spin
+# boxes and their help). German is translated for all 137; it moves by exactly
+# the FIVE verdict words PASS / FAIL / COND / INFO / N-A, which Knut ruled as
+# English tokens (K-f) and which read the same in German. The eleven others
+# carry the English source under the beta rule, so each gains 137.
+# Same day, after the adversarial review: 17 sentences added (the Overall
+# summaries, the two write-failure windows, the reworded provenance and COND
+# texts) and six long texts re-keyed after a rewording; German carries all of
+# them, the eleven others gain the difference.
+# 2026-09-10, #182: REFERENCE sets, which are a different object from the limit
+# sets above. A limit set says how close is close enough; a reference set says
+# what colour a patch was supposed to be, and eleven Fogra printing conditions
+# are now bundled (`data/reference_sets/`, `workflow/reference_sets.py`).
+# 37 keys in: six group labels, eleven set labels, eleven blurbs, four refusal
+# sentences, the Fogra credit line, three coverage sentences and the display
+# label. 0 out. German is translated for 36 of the 37 and moves by exactly ONE,
+# `{label} ({name})`, which is punctuation in every language. The eleven others
+# carry the English source under the beta rule; two of the 37 keys ("Magazine",
+# "Metal") were already in those catalogues and translated, so each gains 35.
+# …and again on 2026-09-10, by Knut's ruling that text on any of the four sides
+# is never dropped. The two overflow warnings that existed (top strip labels,
+# bottom sheet text) were rewritten to name the exact boxes that fix the
+# collision, and more joined them: two for the chart notes down the right edge
+# (the lever differs when a clip border sits on that edge), two for the clip
+# border's own content on either side, a two-line variant of the bottom one
+# because "(s)" is not written in this project's text, and the reworded help
+# line above them. **8 keys in, 3 stale out.** German is translated for all 8
+# and does not move; the eleven others carry the English source under the beta
+# rule, and all three that left were translated in every one of them, so each
+# gains exactly 8.
+#
+# THE FIRST DRAFT OF THIS NOTE SAID 7 IN AND 2 OUT while raising every ceiling
+# by 8, and it is worth saying why that matters more than an arithmetic slip.
+# This dict is the one place in the suite where a check is loosened on purpose,
+# so the note beside it is the whole audit trail. A note that does not match its
+# own numbers is how the next person raises a ceiling without noticing they are
+# the second to do it. Counted from the catalogues, not from memory:
+# `set(after) - set(before)` is 8 and `set(before) - set(after)` is 3, in every
+# one of the twelve.
+# 2026-09-11: the 4.2.4 line merged into this branch. THE CATALOGUES WERE NOT
+# UNIONED, and that is the point worth recording. A union cannot tell "they
+# added this key" from "we deleted it", so it silently resurrected 22 strings
+# the #182 report rework had removed, in ten languages. The catalogues follow
+# the MERGED SOURCE instead: `scripts/i18n_extract.py --stale <code>` names
+# every key the merged code no longer uses, and those were pruned. The ceilings
+# below did not move, which is the check that the merge changed no translation.
+# 2026-09-11, Knut's "several report types per run": every language gains one,
+# German included, for "{type} ({count})". That string is two placeholders and
+# a bracket; it is the same in every language that uses round brackets, and the
+# two that do not (ja, zh_CN) were given their own full-width form and are NOT
+# among the identical ones. An identity, not a missing translation.
+# 2026-09-11, #182 F3, fr 314 -> 315: the French for "Licences" is
+# "Licences". An identical value here means "untranslated" for every string
+# but the handful that are genuinely the same word, and this is one of them.
+# 2026-09-11, #182 F7. The seven strings the Report limits window now uses to
+# name what it could not read in a licence holder's own limits file were
+# translated into all twelve rather than carried in English under the beta
+# rule, so the ceilings came DOWN by two instead of up by five: two English
+# placeholders from an earlier round were replaced in the same pass.
+# 2026-09-11, #182: the one-page colour summary is about ONE sheet, so the tick
+# box that widens every other report to the whole history is disabled while T1
+# is chosen, and its tooltip says why. German is translated; the other eleven
+# carry the English sentence under the beta rule, so every ceiling but de goes
+# up by exactly one. Counted, not assumed: `set(after) - set(before)` is that
+# one string in each of the eleven, and `set(before) - set(after)` is empty.
+#
+# …and again on 2026-09-11, by Knut's ruling that shrinking text has a floor
+# (#182). **9 keys in, 6 stale out**, counted with `set(after) - set(before)`
+# and `set(before) - set(after)` on each catalogue rather than from memory:
+# four help texts (Chart Notes, "Stamp settings used on the chart", the
+# Sheet-text Font/Size row, the Clip-border Font/Size row), three chart-note
+# warnings where there were two, and the clip-border text's own warning in a
+# singular and a plural form. **EVERY TWELVE IS TRANSLATED, so every number
+# below is UNCHANGED: 0 in, 0 out, in all twelve.**
+#
+# THE BETA RULE DOES NOT REACH THESE NINE, and that was found the hard way:
+# each of them quotes a ChromIQ control in curly quotes, and
+# `test_a_quoted_control_names_the_control_the_reader_has.py` refuses a
+# translation that sends a Spanish reader looking for a control called “Clip”
+# when the window says «Pinza». English placeholders in the eleven raised 238
+# offences there. A string that quotes a control is translated or it is not
+# added.
+#
+# **AND THE TABLE IS NOW EACH LANGUAGE'S ACTUAL COUNT, which it had stopped
+# being.** It stood eight above every one of them (es was recorded at 112 and
+# was 104), and eight units of slack is eight free regressions per language.
+# Re-measured here, on the catalogues: de 117, es 104, fr 125, it 115, ja 91,
+# nl 132, no 116, pl 108, pt 106, ru 79, sv 118, zh_CN 85.
+# 2026-09-11, THE MERGE OF THE TWO ROUNDS ABOVE. The report round and
+# the text-fitting round each moved this table on their own base, so the
+# two tables disagreed and neither described the merged catalogues. The
+# numbers below are MEASURED on the merged tree, not reconciled from the
+# two sides: a ceiling carried across a merge is a ceiling nobody has
+# counted, and a ceiling above the truth admits the next regression for
+# free.
+#
+# RE-MEASURED 2026-09-11, #182 items A/B and K7: NOT RAISED, because it did not
+# need to be. Three keys arrive (the rewritten hexagon note, the rewritten
+# Custom-paper naming note, the new margin-inspector "Patch width" note) and two
+# go stale, so the eleven non-German catalogues each gain 3 English echoes and
+# German gains 0. Counted from the catalogues on the tree this commit leaves
+# behind: de 117, es 107, fr 128, it 118, ja 94, nl 135, no 119, pl 111, pt 109,
+# ru 82, sv 121, zh_CN 88 -- every one at or under the ceiling already recorded
+# here, German exactly at 117 and the rest with room to spare. Left alone on
+# purpose: a raised budget admits the next regression for free.
+# 2026-09-11, THE SECOND MERGE. Three rounds have now moved this table,
+# each on its own base. Re-measured on the merged catalogues rather than
+# reconciled: a number carried across a merge is a number nobody counted.
+# 2026-09-11, the from-profile-gamut round. The grey line under "Colours to
+# test" used to say the in-gamut count "runs the first time a profile is
+# available" -- in a label that is only drawn when a profile IS available, so
+# it named a cause that cannot be the one. It becomes two sentences that say
+# what actually happened, one per case. **2 keys in, 1 stale out, counted with
+# `set(after) - set(before)` and `set(before) - set(after)` on each catalogue
+# and not from memory.** German is translated, so de does not move at all
+# (124, unchanged); the eleven others carry the English sentences under the
+# beta rule and each gains exactly 2 -- the stale key they lost was itself
+# translated in every one of the twelve, so it was never in these counts.
+# Re-measured on the catalogues this commit leaves behind, not derived: de 124,
+# es 300, fr 322, it 311, ja 286, nl 327, no 312, pl 304, pt 302, ru 275,
+# sv 313, zh_CN 280.
+# 2026-09-12, MERGED with the sheet-text and demo-pack rounds and measured
+# AGAIN on the merged catalogues. Every round counted on its own base, so no
+# round's table described this tree. Counted with the same expression the
+# test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
-    "de": 152,
-    "es": 369,
-    "fr": 389,
-    "it": 381,
-    "ja": 358,
-    "nl": 398,
-    "no": 382,
-    "pl": 373,
-    "pt": 373,
-    "ru": 345,
-    "sv": 386,
-    "zh_CN": 351,
+    # RE-MEASURED 2026-09-29, research/profile-engine (master merged into the engine-accuracy branch; NEVER on master): two engine texts lost their em dash as whole sentences (the quit-during-build question, the -v4.icc twin in the file guide), 2 keys replaced by 2. German by hand, does not move; the eleven others carry the English under the beta rule: +2 per language. `uk` was added on master after the branch forked and never had the branch's 17 engine strings; they arrive as English: 77 -> 92. COUNTED off the tree.
+    # RE-MEASURED 2026-09-28, the 4.3.0 translation pass (every language translated, reviewed a second time and checked on screen; German's eight long help texts translated): the ceilings came DOWN from the hundreds to what is left identical on purpose (names, units, symbols, the verdict words), so a new untranslated string is noticed again. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1592 (Knut #182 5859248797): with every measurement unticked the red line says one must be ticked, 1 key in. German by hand, does not move; the twelve others carry the English under the beta rule: +1 per language. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1500 and B8-1503 (Knut #182 5857473253): M-REPORT-NOT-WORKED-OUT (§M-PROPOSED, a title and a singular and a plural body, 3 keys in) says a new report's date whose measurement is gone carries an earlier report's figures; the Report Limits note on the Custom columns takes Knut's accepted wording (1 key out, 2 in: with and without the pointer to note ⁴). German by hand, does not move; the twelve others carried the old note in English and carry the new English under the beta rule, so each rises by exactly 4, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1502 (beta 45 challenge 3): a sheet the filter takes to 0 everywhere names no area and no pair, 2 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, Knut #182 5856723428 (bold lead-ins in every help window): 107 help texts had their topic lead-ins marked **...**, so 107 keys were renamed in every catalogue and each value moved with its key (an English echo stays an echo, a translation keeps its words and gains the marks where its own paragraph shows the lead-in); and "comes from the instrument" became "may come from the instrument" in the two evenness helps, 2 keys replaced by 2. No key in, none out, no value changed from translated to English or back. Counted off the tree against HEAD with the expressions these tests use: every language identical in both ledgers (de 141 / 13, uk 1642 / 1272, the rest unchanged). COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, Knut #182 5855780690 (the evenness filter, converted ISO limits, the feature description): the two evenness rows' help, their relation guide, three set blurbs, the Report Limits note on the converted cells and the presets window's "can be judged" line, 6 keys replaced and 6 new. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1471 (beta 45 challenge 2, F2): the presets window's evenness sentence on a chart whose last page the report leaves out says "the same ninth of {pages} of the chart's {total} pages" instead of "all {pages} pages", and names the page left out in the report's own (already translated) words: 2 keys in, none out. And Knut's #182 5853818821: the Build Profile tab's calibration help moves its advice for newcomers early, 1 key replaced by 1 (German by hand; the twelve others carried the English before and after, so it does not move a count). German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1460 (on top of B8-1451): an older chart whose patch set targen could not be asked about keeps it, and says so in Create Chart's log (M-PATCHSET-KEPT-UNCHECKED, §M-PROPOSED), 2 keys in (title and body), none out. German by hand, does not move; the twelve others carry the English under the beta rule: +2 per language. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1451: the presets window's evenness sentence names the counts the report pools over every page and one needed count per limit: the two K61 keys (one patch / many, "about {need}") out, four in (one page or several, ninths equal or not, "at least {need}"). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 2, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1418: the Preferences > Sounds help "Measurement windows and their sounds" (core/measure_windows.py) puts its four paragraphs, its bold lead-ins and its column headings through tr() literals, which were `_esc("...")` and a key in no catalogue; em dashes of the touched texts cleaned. 14 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule. Their counts had slack before this change (the help-card echoes were 6 under this budget, the identical values 5 under the other), so each is now set to the count measured off the tree: +7 echoes (the seven keys of 25 characters or more) and +14 identical values per language. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1415 (Knut #182 5849392788, "The word drift is not used at all"): every user-facing text outside the report that said drift, drifted, drifting or drifts now says change, changed, moved away from, slid or slipped (Getting Started, "Inspect a measurement", the grey-balance, Accuracy, black-generation, out-of-gamut, calibration, placement-agreement, strip-outlier, -S and -N texts, Verify against reference and its 3D map, Reset grid), their em dashes cleaned, 16 keys replaced by 16. German by hand, does not move; the twelve others had 15 of the 16 translated and carry the new English under the beta rule, so each rises by exactly 15, here and in the other ledger, except Russian, which keeps its own translation of the Accuracy help (the English carries spaced en-dash bullets, which test_russian_keeps_one_dash_and_it_is_the_em_dash refuses in ru.json) and rises by 14. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, K61 (Knut #182 5851645723; B8-1410 to B8-1413): the two help icons of "Settings for built-in presets" say Custom lists every Custom preset and the named paper its size equals too; its OK is "Apply & save" and six of its texts say so; the note under both preset lists ends ", or {click_here}" ("click here", 1 key in); Preferences' clip-border note keeps its first sentence. 9 keys replaced by 9, 1 replaced by 1, 1 in. German by hand, does not move; the twelve others carried the English of the replaced keys and carry the new English, so the echo budget does not move and the other ledger rises by exactly 1 ("click here" is too short to be an echo). COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1391: the "too long for the page" check covers the branding's lines against the room beside the ChromIQ wordmark, 1 key in ("⚠ The clip border text is too long for the room beside the ChromIQ wordmark. …"), none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-27, B8-1396 (Knut #182 5849392788, "The word drift is not used at all"): the FROM PROFILE GAMUT module help and its patch count help say "changed" and "a change in the printer" instead of "drifted" and "a drifting printer", their em dashes cleaned, 2 keys replaced by 2. German by hand, does not move; the twelve others had these two translated and carry the new English under the beta rule, so each rises by exactly 2, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, K60 (Knut #182 5850164956, D1 to D3; B8-1395, B8-1397, B8-1398, B8-1403): the D1 sentence, three plural raw openings with the judged clause, and M-REPORT-MIXED-OPENING-RUNS (headline and body), 6 keys in; and Knut #182 5850330710 (no COND, no limit numbers, no relations between sets): 11 keys re-keyed, the guide's COND bullet out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 5, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, K59 (B8-1393, B8-1394, B8-1380 to B8-1386, Knut #182 5849392788): option C for a sheet printed raw and no "drift" in the report or its help: 14 §M-PROPOSED texts in, 7 approved openings and state lines in or re-keyed, 40 help and report texts re-keyed with "change" for "drift" (and their em dashes cleaned), "drift" and the old raw texts out. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1362, Knut #182 5847578917): Preferences > Chart Layout shows "Clip-border content" with the clip border Off, with a note that its fields apply only when the clip border is On, 1 key in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the echo budget. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, fixes of challenge 8 (B8-1341): the ★ sentence in the tooltip of "Which presets can be used for verification?" says rule (4) as K51 set it, 1 key replaced by 1. German by hand, does not move; the twelve others carried the old paragraph in English and carry the new one in English, so none moves. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, K51 (B8-1330 to B8-1340, Knut #182 5846167083 and 5846297769): the drift sentence and guide line, the information note under a graph (two forms), the three sheet-graph sentences, the record's sentence, the star line and its two help cards, the media-relative line, the i1Pro group's title and help. German by hand; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, K53 (B8-1353, Knut #182 5846545713): the engine box locked on the CR30 says why in its tooltip, 1 key in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 1, here and in the echo budget. The instrument help (parameters.yaml, B8-1283) is an overlay and in neither ledger. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, K50 (B8-1320, Knut #182 5845519118): the sentence under a graph with no limit line speaks of this report only, never of other limit sets: B8-1274's five reasons out ("ChromIQ has no limit ... in any of its limit sets" and the four "although other limit sets ... have one"), one in ("This report sets no limit for what this graph shows, so no limit line is drawn."). 1 key in, 5 out. German by hand, does not move; the twelve others carry the English under the beta rule and each falls by exactly 4 here and 3 in the echo budget (the "ChromIQ has no limit" key starts with "ChromIQ" and was never an echo there). COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, challenge 2 of beta 44 (B8-1271, B8-1273 to B8-1275): the three reference rows' help and the paper row's lever say a profiling measurement reads N-A (4 keys replaced by 4), the Printing record names every graph it carries (9 graph names in, the four-graph sentence out), why no limit line is drawn chosen from the set data (5 sentences in, 1 out), the Cube corners sentence says aim values (1 replaced by 1), the Paper white difference caption no longer says "with its limit" (1 replaced by 1). 20 keys in, 8 out. German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, K49 (B8-1244 to B8-1252, Knut #182 5841092535 and 5841606710): (b2) built, the paper row and the two solid rows compared with the profile (the three row help texts and the lever of the solid rows reworded, a lever of the paper row's own, four report reasons, two §M notes proposed, one line in the presets window), a graph with values but no limit shown, with a sentence per graph (13 graphs, three reasons no line is drawn) in place of K47's one note, the surface gamut's line word "Surface" in place of "Shell" (F4), and the metric help's "How this row relates to the others" (its heading and three family texts, F5). 35 keys in, 6 out. Measured on the tree rebased onto 011d4772 (K48). German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, K48 (B8-1239, Knut #182 5840677938 and 5840692243): the gear window's two help bodies reworded (the rule for when a preset shows; Scanner filtered too), 2 keys replaced by 2. German by hand, does not move; the twelve others carried the old English and carry the new, so none moves. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-26, K47 (B8-1231 to B8-1236, Knut #182 5840152058): the three new graph tabs (Solid colours, Hue of the solids, Outer and surface gamut), their two new line words ("Outer", "Shell") and four descriptions, the control strip's description reworded for its maximum (one key replaced by one), and the note under a graph with no limit. 10 keys in, 1 out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 9. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-25, K45-2 (B8-1202, Knut #182 5834422633): the Colour accuracy graph's Avg and Max sentences name every row they are the limit for, 3 keys in (the quoted name, the "and" of a list, "the limit for {metrics}."), none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. The echo budget does not move (all three are under 25 characters). COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-25, K46 (B8-1171 to B8-1173, Knut #182 5834773589): the paper-filter note at the bottom of both preset lists, 2 keys in (filter on, filter off); the window NAMED "Settings for built-in presets" in its title, the gear's tooltip, the Manual Presets help, the arrow rows' tooltip and both help icons, 6 keys replaced by 6 (all English echoes outside German already). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 2. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-25, challenge 1 of beta 43 fixes (B8-1162 to B8-1164: the gear window's Import list refuses a file it cannot read as a table, reports a key listed more than once (two variants), and its status line says when an import or an export did not happen). 5 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 5, here and in the echo budget. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-25, K42-3 (B8-1144, Knut #182 5832746557 and 5833232475): the gear window's third paragraph reworded (one key replaced by one), its two help icons in (4 keys: two titles, two bodies), the box's tooltip out (1 key). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-25, K40 (Knut #182 5832026677: B8-1121 to B8-1125: the presets window's Working… state, Still being checked, the layout and printtarg reason lines, the tone row's two neutral-aim reasons in the window and the report, its help, lever, the report's chart help and the Dictionary's Grey ramp). 16 keys in, 3 out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 13 here and 8 in the echo budget. COUNTED off the tree rebased onto ae9594cb (K41), BOTH ledgers.
+    # RE-MEASURED 2026-09-25, K41 (B8-1131 to B8-1134, Knut #182 5832303551): the gear window's "Filter preset-dropdown list according to selected paper size" and its tooltip, 2 keys in, none out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 2. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-25, K39 (Knut #182 5831246553: B8-1111 to B8-1114, M-REPORT-WORKED-OUT-EARLIER without "Update works the report out again.", M-REPORT-WORKED-OUT-DIFFERENTLY-UPDATE-OR-NEW and M-REPORT-NEW-REPORT-SETTINGS titles and bodies, the "New report…" tooltip, and the audit's rewordings: "the profile runs it is drawn from", the colorimetric-missing paragraphs, the Paper white graph's reason). 10 keys in, 6 out. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 5 (5 of the 6 retired keys were English echoes there). COUNTED off the tree rebased onto 1c4995c2, BOTH ledgers.
+    # RE-MEASURED 2026-09-25, K39-7 (B8-1101 to B8-1104, Knut #182 5831246553): Export list and Import list in the gear window, 23 keys in, none out (the two buttons, their tooltips, the fourth paragraph, the import summary and its report lines, the two file-error messages). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 23. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-25, B8-1097 (Basti: the gear window gets OK and Close; its third paragraph now says "OK keeps your choice; Close leaves the lists as they were."). One key replaced by one: German by hand, does not move; the twelve others carried the old sentence in English already (K35, beta rule), so each loses one English echo and gains one and does not move. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-25, challenge 5 of beta 42 fixes (B8-1091 to B8-1095: M-REPORT-WORKED-OUT-EARLIER, title and body, and the two true reasons an empty trend graph gives). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 4. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, K37 (B8-1081 to B8-1088: M-REPORT-PAPER-WHITE-FROM-PROFILE, M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE, M-REPORT-STRIP-CORNERS-PREDICTED and M-REPORT-STRIP-CORNERS-IDEAL, titles and bodies, and the (e) line of "How the colours were judged"). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 9. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, K36 (B8-1061 to B8-1068: the ISO report type holds "Judged against" to the four ISO sets and its refusal lines, the Preferences type help, the Dictionary's profile run, verification run and calibration run, the Run type entry, the help cards' and the report's run words, M-REPORT-NO-PAPER-PATCH reworded). German by hand, does not move; the twelve others carry the English under the beta rule. COUNTED off the tree rebased onto 3d05ec2b (challenge 3 fixes, B8-1051 to B8-1053, the 4.3 landing page), BOTH ledgers.
+    # RE-MEASURED 2026-09-24, challenge 3 fixes of beta 42 (B8-1031 to B8-1040: the ISO heading and the two ISO lines, the red line while Generate is greyed, the greyed controls' tooltip) rebased onto B8-1011 to B8-1016 and B8-1041. German by hand; the others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, K34 (B8-1011 to B8-1016: M-REPORT-SCOPE-RUN-DELETED's title and two bodies, M-REPORT-NO-PAPER-PATCH's title and body, "Paper white" as a note's label) rebased onto K35 (B8-1021 to B8-1024). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 6 here and 5 in the echo budget ("Paper white" is under 25 characters). COUNTED off the rebased tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, K35 (B8-1021 to B8-1024: the curated built-in presets, the gear button's window, the arrow rows, the Manual Presets help with the gear line). German by hand; the others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B8-1008 (the trend title names no printer) merged. COUNTED off the merged tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, challenge round 2 fixes (B8-1001 to B8-1007) merged onto K33 (B8-991 to B8-999). German by hand; the others carry the English under the beta rule. COUNTED off the merged tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, K33 (B8-992 to B8-999: the presets window's intro, Any and its count lines, the repeatability note, Sort by and its two entries, the ISO-use paragraph, the Custom blurbs, the refusal of an ISO type without values, the two report help paragraphs). German by hand; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, K32 (B8-981 to B8-990: the Printing record's graph sentence, the empty window's three sentences, the reordered Update / Create New bodies) merged onto B8-974 and B8-978. German by hand; each of the others carries the English under the beta rule. COUNTED off the merged tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B8-978 (Custom ISO columns, three texts re-keyed, all already English outside German) merged with B8-974 (All metrics). COUNTED off the merged tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B42 (B8-974): "All metrics" in the presets window, five keys in, and the FROM PROFILE GAMUT remedy says "metric" for "row" (its translations lost under the beta rule). German by hand, does not move; the eleven translated languages rise by exactly 6, Ukrainian (which carried that remedy in English already) by 5. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B42 (B8-965, B8-968): the Max strip length tooltips, two keys in and the (i) help text changed. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, the translation credit removed from Settings (Basti). COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B40-B (B8-940 to B8-952), the beta 40 challenge B text fixes: German by hand; the twelve others carry the new English under the beta rule. COUNTED off the tree with this file's own expression, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, B40-A (B8-935 to B8-939): one key in, the "Judged against" tooltip for a set carried over from an earlier ChromIQ. German by hand, so it does not move; the twelve others carry the English and each rises by exactly 1. COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-24, K31-A (B8-890 to B8-899) and K31-B (B8-900 to B8-909) cherry-picked onto beta 39 (B8-910 to B8-925). COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, the R2 text fixes (B8-911 to B8-915) merged onto the help fixes. COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, the beta 39 help fixes (B8-910) merged onto the R1 fixes. COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, the R1 fixes (B8-916 to B8-919): M-REPORT-UPDATE-NOTHING-LEFT and "covers no measurement". COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, K31 metrics (B8-900 to B8-907): the version 1 names, rule A, the neutral aims, the evenness line and their help texts; German by hand, the twelve others English under the beta rule. COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, the report-window fixes (B8-880 to B8-886) merged onto the challenge C fixes. COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, the challenge C fixes (B8-870 to B8-873) merged onto K30. COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, G7 (B8-848) merged onto K28a. COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, K28a (B8-846) merged onto Calibration and G12.
+    # COUNTED off the merged tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, Calibration reports (B8-844) merged onto the G12
+    # notes (B8-845). COUNTED off the merged tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, the beta 38 challenge-round fixes and Knut's
+    # 5794078008: 23 new keys and 10 retired (see `_BUDGET` in
+    # test_help_cards_untranslated_are_tracked.py). German by hand and
+    # unmoved; the twelve others carry the English under the beta rule and
+    # each rises by exactly 13. COUNTED off the tree, BOTH ledgers in the
+    # same commit.
+    # RE-MEASURED 2026-09-23, the fixes for the two challenge rounds before
+    # beta 37: report text reworded for K18 ("the test chart used", no
+    # "you"/"your", no ChromIQ explanation), the evenness noise note
+    # (A-F3/B-H2), the worst-5 % note (B-M5), the one-page ISO summary
+    # (B-M1), the translated title prefixes (B-H5) and one new strip
+    # message (B-M7). German by hand, and two report lines that were still
+    # English in German translated, so de falls; the twelve others carry
+    # the new English under the beta rule. COUNTED off the tree with this
+    # file's own expression, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-23, the trend graphs for the judged metrics (#182
+    # K20/K21): eleven short keys (six tab titles, five limit-line words).
+    # German by hand; it rises by exactly ONE because "P95" is a statistical
+    # symbol written the same in German, like "Max" beside it. The twelve
+    # others carry the English under the beta rule and rise by 11. The other
+    # ledger, `_BUDGET` in `tests/test_help_cards_untranslated_are_tracked.py`,
+    # was re-measured in the same commit and does not move: it counts strings
+    # of 25 characters or more, and none of the eleven is that long.
+    # RE-MEASURED 2026-09-23, the evenness rows (B8-814) merged onto K22/K24:
+    # the new evenness strings are German by hand and English placeholders in
+    # the twelve others. COUNTED off the merged tree, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, K22 (Knut: every N-A note names what is missing
+    # in the measured chart, never what to add or where). Twenty-seven reason
+    # sentences reworded ("the measured chart", no instructions). German by
+    # hand; the twelve others back to English placeholders for the reworded
+    # keys. COUNTED off the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-23, the final round before beta 36 (K18 again):
+    # six report sentences that still explained ChromIQ reworded (bound and
+    # locked, the recorded-verdict line, the verification bullet, the drift
+    # paragraph, the example-colours line, the summary footer), and one key
+    # added (the mixed-kinds Generate tooltip). German by hand; the twelve
+    # others back to English placeholders for the reworded keys. COUNTED off
+    # the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-23, K18 (Knut: report text is for a customer; it
+    # never explains the past or how to use ChromIQ). Twelve report strings
+    # reworded: the COND, INFO and drift lines of the guide, the standard
+    # paragraph and its caveat, the three standard summaries, the Printing
+    # record and nothing-checked summaries, and the example-colours line; one
+    # key folded into the existing "not recorded". German by hand, so it does
+    # not move. The twelve others had TRANSLATED the old sentences, and a
+    # translation of the old text under the new key would say the old thing,
+    # so each is back to the English placeholder under the beta rule and the
+    # counts rise. COUNTED off the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-23, round 3B's text findings: three several-places
+    # tooltips reworded (one entry at a time), the Report type help and the
+    # Preferences default text corrected, "{type} ({count})" became
+    # "{type}: {count}", and one key added ("No measurement is loaded yet.").
+    # German by hand, so it does not move; the placeholders follow their
+    # renamed keys, so only the new key moves the others. COUNTED off the
+    # tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-22, round 2B's text findings on K13/K14: the
+    # several-runs tooltips, the Report type help, the Preferences default
+    # text and the coverage sentences reworded, one no-run tooltip added.
+    # German by hand, so it does not move; `uk` does not move because the
+    # departing keys were English echoes in it already; the eleven others rise
+    # by exactly 2 in both ledgers. COUNTED off the tree, BOTH ledgers in the
+    # same commit.
+    # RE-MEASURED 2026-09-22, K10 (Knut on beta 34: the one-page summary's
+    # numbers carried no unit). Two keys in ("Average difference {v} ΔE00",
+    # "Largest {v} ΔE00") and their two unit-less predecessors out. German by
+    # hand, so it does not move. The identical-to-key count rises by 2 in the
+    # eleven languages that had translated the old keys and not at all in
+    # `uk`, which had not; the echo budget rises by 1 everywhere, because the
+    # "Largest" key is too short for that detector. COUNTED off the tree,
+    # BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-22, K4 (Knut on beta 34: Generate on a selected
+    # report with nothing changed made a new report without asking). Two keys
+    # in, none out: M-REPORT-UNCHANGED-UPDATE-OR-NEW's headline and body.
+    # German by hand, so it does not move; the twelve others rise by exactly
+    # 2. COUNTED off the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-22, K14 (Knut on beta 34: the Report Scope count
+    # belongs to the run type and the listed measurements). Five keys in (the
+    # coverage sentence for a profiling document, one project or several, and
+    # for a verification document, this run / these runs / several projects)
+    # and none out. German is translated by hand for all five AND for the four
+    # older coverage sentences round B found still in English, so German FALLS
+    # by 4; the twelve others rise by exactly 5. COUNTED off the tree, BOTH
+    # ledgers in the same commit.
+    # RE-MEASURED 2026-09-22, round B's text findings: German loses one English
+    # echo (the N-A note, translated by hand) and gains none, because the
+    # three rewritten "more than one profile run" tooltips and the extended
+    # Report type help are translated by hand in the same change; the twelve
+    # others do not move, because the departing keys were English echoes in
+    # them already. COUNTED off the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-22, K13 (Knut on beta 34: which report types each
+    # run type may have). Four keys in (the two greyed-entry tooltips, the
+    # Report type help paragraph saying which types are available when, and
+    # the Preferences "Report type, default" text with its new paragraph) and
+    # one out (that text's previous version, translated in every language).
+    # German by hand, so it does not move; all twelve others, uk included,
+    # rise by exactly 3. COUNTED off the tree, BOTH ledgers in one commit.
+    # RE-MEASURED 2026-09-22, K17 (Knut on beta 34: two runs ticked and the
+    # report type could not be chosen). One key out (the type pulldown's
+    # "Several measurement runs are loaded" tooltip, retired with the grey)
+    # and one in (Generate's reason with several runs). German by hand, so it
+    # does not move; `uk` does not move because the departing key was already
+    # English there; the eleven others rise by exactly 1. COUNTED off the
+    # tree with each file's own helper, BOTH ledgers in the same commit.
+    # RE-MEASURED a third time on 2026-09-22, after adversary round 40b drove
+    # both new messages in the real app and found the first one false in most
+    # states. The texts were rewritten, so six keys changed: German is written
+    # by hand and stays at its number, which is how a hand translation that
+    # quietly fell back to English would show up here. Counted off the tree
+    # with this file's own helper, BOTH ledgers in the same commit.
+    # RE-MEASURED AGAIN the same day, when `STANDARD_CAVEAT` was split into
+    # two keys. The one-page summary branches away before the block that
+    # prints the caveat, so T1 needed it too, and measured on that page's own
+    # A4 layout the whole caveat left 52 px spare against the 60 px its
+    # headroom guard requires. The second half leaves 82, so the note is
+    # translated in halves and joined where there is room for both. One key
+    # out, two in; German written by hand for both and unmoved.
+    # RE-MEASURED 2026-09-22, the ISO COND cap round, and **BOTH LEDGERS IN
+    # THE SAME COMMIT**: its twin is `_BUDGET` in
+    # `tests/test_help_cards_untranslated_are_tracked.py`. Updating one of
+    # them is not updating the ledgers, which was learned the hard way on
+    # 2026-09-22 itself: three gate runs came back red identically, twelve
+    # failures each, because the other ledger had been missed.
+    #
+    # The change: four keys out (the report guide's COND bullet, its standards
+    # paragraph, the Getting Started glossary's Overall entry, and
+    # STANDARD_CAVEAT) and eight in (their replacements, plus a title and a
+    # body each for M-VERIFY-UNCHECKED-METRICS and
+    # M-REPORT-PATCH-COUNTS-DIFFER). German is written by hand and does not
+    # move at all, which is how a hand translation that quietly fell back to
+    # the English would show up here.
+    #
+    # Ukrainian rises by 4 and the other eleven by 5, measured per language:
+    # all four departing keys were untranslated in `uk`, and one of the four
+    # was genuinely translated in the others.
+    # RE-MEASURED 2026-09-22, for Knut's ruling that the unchecked values
+    # shall be listed. The ISO summary sentence is now three sentences, one
+    # per case, because the promise was unconditional and a column with
+    # nothing unchecked also said the unchecked values were listed below.
+    # German by hand; the twelve others carry the English under the beta
+    # rule. COUNTED off the tree, BOTH ledgers this time.
+
+    # RE-MEASURED 2026-09-22 again, for Knut's four faults in the verification
+    # pre-flight. The biggest is a fault of LOGIC rather than wording: the
+    # window named "this report type and limit set" at a moment when the user
+    # has opened no report and chosen neither, so it now asks the union over
+    # every built type and every selectable set. Measured on his chart: one
+    # pair asks 7 rows, the union asks 16. Four keys in, two stale out; German
+    # written by hand, the twelve others carry the English source under the
+    # beta rule, so each rises by exactly TWO. COUNTED off the catalogues.
+
+    # RE-MEASURED 2026-09-22, Knut's beta 32 batch: the Report limits button is
+    # renamed "Restore defaults" on his word, and the Measurement Report now
+    # says which metrics a report type actually judges, because Grey and tone
+    # check showed three rows while the set had thresholds for far more and
+    # nothing said that was deliberate. Three keys in, two stale out. German is
+    # written by hand and does not move; the twelve others carry the English
+    # source under the rule that they are translated in one pass before a
+    # final, not during a beta, so each rises by exactly ONE. COUNTED off the
+    # catalogues on disk.
+
+# +324 each in the eleven and +1 in German, 2026-09-21: Knut's help-card batch
+# (issue #182, 2026-09-20 20:58). Twelve cards rewritten into his
+# to-do-steps-first shape with the reasoning in collapsible notes; the
+# verification card updated for the preset-eligibility window and the
+# Measurement Report; the folder guide given the folders and files the report
+# work introduced (compliance/, reference_sets/, the control-strip
+# declaration, the colorimetric reference, the print record, reports/old); and
+# thirty new Dictionary terms for the report, verification, the standards and
+# the Fogra tools. 324 keys arrive, 69 retire.
+#
+# German is translated by hand for all 324. It rises by exactly ONE because
+# the headword "FOGRAxx (FOGRA39, FOGRA51, FOGRA61 …)" is a list of Fogra's
+# own set identifiers, identical in every language; translating it would mean
+# inventing a German name for a standard's designation.
+#
+# The eleven carry the English source under the project's rule that eleven
+# languages are translated in one pass before a final, not during a beta.
+# These are each language's ACTUAL count, measured off the tree.
+    # RE-MEASURED 2026-09-20, challenge round 31 on the Fogra reference-set
+    # door: seven new strings, German written by hand (de does not move) and
+    # the eleven others carrying the English source under the beta rule, so
+    # each rises by exactly 7. COUNTED off the catalogues on disk, never
+    # adjusted upward.
+    # RE-MEASURED 2026-09-18, round 19: the numberless scope sentence gained
+    # its own plural form for a document drawn from more than one project,
+    # which the numbered one has had since R13-3. One key in, none out.
+    # RE-MEASURED 2026-09-18 again, for round 18's fix to the report's scope
+    # sentence: a folder that cannot be counted no longer has a number invented
+    # for it, so there is a second wording with no numbers in it. ONE key in,
+    # none out, every catalogue up by exactly 1. Counted, not adjusted.
+    # RE-MEASURED 2026-09-18, the round-13 fix for B8-346/R13-3: the
+    # Measurement Report's scope sentence gained a second form for a document
+    # drawn from more than one project ("...recorded for the projects it is
+    # drawn from"), because the single-project wording was summing two folders
+    # and calling the total "this project". ONE key in, none out, so every
+    # catalogue rose by exactly 1 -- German included, because the sentence it
+    # is a sibling of is itself an English placeholder there, so the family is
+    # on the beta rule and not on the German-is-complete rule. Counted with
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # per catalogue, which is the expression the test below uses.
+    # RE-MEASURED AGAIN after the merge of that round into this branch:
+    # the numbers above were counted on ITS base, which did not carry the
+    # report round's placeholders. Counted on the merged catalogues.
+    # RE-MEASURED 2026-09-11 (#182, the chart-file import refusal).
+    # M-IMPORT-NOT-A-CHART is two strings, a headline and a body. German is
+    # translated, so its 124 is unchanged; the other eleven carry the English
+    # source as a documented placeholder under the beta rule, so each rose by
+    # exactly 2. COUNTED, not adjusted upward: the count is
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # per catalogue, which is the same expression the test below uses.
+    # RE-MEASURED AGAIN 2026-09-11 (#182, the adversarial round): the Build
+    # Profile tab now says when a measurement already on disk carries its CIE
+    # columns on the 0..1 scale. Two more strings, a label suffix and the Build
+    # button's tooltip; German is translated, so 124 stands, and the other
+    # eleven each rose by exactly 2 again. Counted with the expression above.
+    # RE-MEASURED 2026-09-11, the Report-window round on Knut's report of that
+    # day (#182 W1 to W7). **12 keys in, 3 stale out**, counted with
+    # `set(after) - set(before)` and `set(before) - set(after)` on each
+    # catalogue rather than from memory. The twelve: the five verdict words
+    # broken out of one paragraph into one bullet each (W5), the paragraph that
+    # replaces the struck "never says that anything conforms" sentence (W6),
+    # the lead sentence those bullets hang off, the "Bound, and locked."
+    # heading and its paragraph (W4), the two rewritten Custom-set blurbs and
+    # the note at the limits table saying whose numbers those columns hold
+    # (W7). The three that went stale are the single long verdict-words
+    # paragraph and the two old Custom blurbs, and all three were translated in
+    # every one of the twelve, so they were never in these counts.
+    #
+    # German is translated, so **de does not move at all (124)**; the eleven
+    # others carry the English under the beta rule and each rises by exactly 9.
+    # None of the twelve quotes a ChromIQ control in curly quotes, which is the
+    # rule that would have required all twelve to be translated: the only
+    # quoted word is "drift", which is a word the report PRINTS IN A CELL
+    # rather than a control the reader has to find, and
+    # `test_a_quoted_control_names_the_control_the_reader_has.py` was run to
+    # confirm that rather than assumed.
+    #
+    # Every number below is this tree's actual count, not the old number plus
+    # nine: a ceiling above the truth admits the next regression for free.
+    #
+    # RE-MEASURED 2026-09-12, the verification-import round. An i1Profiler
+    # export of a chart i1Profiler did not generate carries no device values at
+    # all, so the import now pairs it with the chart by patch NAME, asks the
+    # person the one thing it cannot check, and states the counts against the
+    # SHEET as well as the design. **18 keys in, 3 stale out**, counted with
+    # `set(after) - set(before)` and `set(before) - set(after)` on each
+    # catalogue and not from memory. The eighteen: the asking window's
+    # headline, its "Import it" button, its two bodies (singular and plural),
+    # the cancelled-import log line, the two "the chart supplied the device
+    # values" log lines, eleven refusal reasons, and the rewritten import-panel
+    # sentence that now names the designed count AND the printed one. The three
+    # that went stale are the patch-identity INFO line the tab no longer writes
+    # and the two count sentences that stopped being true; all three were
+    # translated in every one of the twelve, so they were never in these counts.
+    #
+    # German is translated, so **de does not move at all (124)**; the eleven
+    # others carry the English under the beta rule and each rises by exactly
+    # 18. Counted on the catalogues this commit leaves behind, with the same
+    # expression the test below uses, never adjusted upward.
+    #
+    # RE-MEASURED 2026-09-12 AGAIN, the adversarial round after it. A
+    # measurement with no device values and NO chart beside it had nothing to
+    # complete it from and was being filed anyway, so `assess` refuses it with
+    # one new reason sentence. **1 key in, 0 stale out**, counted the same way.
+    # German is translated, so **de does not move (124)**; the eleven others
+    # carry the English under the beta rule and each rises by exactly 1.
+    #
+    # RE-MEASURED 2026-09-16, the beta 19 text-placement round. Three testers
+    # drove beta 18 on screen and found six remedies that name a control which
+    # does not move what the sentence says it moves; every one of them is now
+    # offered where it works and withheld, with the reason, where it does not.
+    # **13 keys in, 6 stale out**, counted with `set(after) - set(before)` and
+    # `set(before) - set(after)` on each catalogue rather than from memory. The
+    # thirteen: the two conditional "Clip border width" clauses and their
+    # positive counterpart, the two "smaller Size under Sheet text" clauses,
+    # the "lowering B buys almost nothing in Prioritise patch size" sentence,
+    # the four clip-border and chart-note messages with their inert levers
+    # taken out, the two bottom-text messages with theirs taken out, and the
+    # new strip-letter message for the layout mode in which "T" moves nothing.
+    # The six that went stale are the earlier wordings of those same messages,
+    # and all six were translated in every one of the twelve, so they were
+    # never in these counts.
+    #
+    # German is translated, so **de does not move at all (124)**; the eleven
+    # others carry the English under the beta rule and each rises by exactly
+    # 13. Every number below is this tree's actual count, taken with the same
+    # expression the test below uses, never the old number plus thirteen.
+    #
+    # RE-MEASURED 2026-09-16, B8-246: a report is written against ONE limit
+    # set, so the red line that told a reader the table they were reading was
+    # not comparable is replaced by three keys that say which measurements are
+    # left out and why. **3 keys in, 0 stale out**, counted with
+    # `set(after) - set(before)` on each catalogue. The old warning's two keys
+    # are still used, as the backstop for a state nothing can reach any more,
+    # and both are translated everywhere, so they were never in these counts.
+    #
+    # German is translated, so **de does not move (124)**; the eleven others
+    # carry the English under the beta rule and each rises by exactly 3. Every
+    # number below is this tree's own count, taken from the test's own
+    # expression.
+    #
+    # RE-MEASURED 2026-09-16, B8-250: the Measurement Report gained a "Saved
+    # reports" row, so a run's several reports of one measurement can be shown
+    # and one of them deleted, with M-REPORT-DELETE's question in front of it.
+    # **10 keys in, 0 stale out**, counted with `set(after) - set(before)`.
+    # German is translated, so **de does not move (124)**; the eleven others
+    # carry the English under the beta rule and each rises by exactly 10.
+    # 2026-09-16, the text round: SIX more, and two of them are the price of a
+    # rewording rather than of a new sentence. The Print Chart tab's "Load
+    # image (TIFF)" tooltip and its status line both sent the reader to "the
+    # grid button", which that tab has not had since #130 moved it to the
+    # masthead; the new wording names "Open Chart File (.ti2)" instead, and the
+    # eleven lose the translation the OLD sentence had until the pass before
+    # GA. The other four are the averaging-failed window's body (title
+    # translated, body never) and the three sentences of the lp-path print
+    # warning, all four of which were hidden from `unwrapped_literals` by a `+`
+    # in the argument. de does not move (124); the eleven rise by exactly six,
+    # and every number is this tree's measured count.
+    #
+    # MERGED 2026-09-16: both branches above raised this budget for
+    # different reasons, and the numbers here are NEITHER side's and not
+    # their sum. They are counted off the merged catalogues, because a
+    # budget adjusted upward admits the next regression for free.
+    # 2026-09-17: EVERY language rises by exactly TWO, and by the same two.
+    # Knut asked for the difference between the two chart layout methods to be
+    # explained properly: *"The help text for the chart layout options does not
+    # clear enough detail the differences between them and the advantages the
+    # 'Prioritise chart area...' method has over the old printtarg-based
+    # method... it is also not mentioned that 'Prioritise patch size...' is
+    # based on the ArgyllCMS printtarg, thus have many of its limitations."*
+    # So the "Create layout" tooltip and the Create Chart step help were both
+    # rewritten, and the twelve translations the OLD wording had do not carry
+    # over to a string that now says something different.
+    #
+    # They stay English until the pass before GA, which is the standing rule
+    # for a beta: strings churn, and translating each change as it lands is
+    # work that gets thrown away. Every number below is counted off this tree,
+    # not the old number plus two, because a budget adjusted upward admits the
+    # next regression for free.
+    # 2026-09-18: every language rises by exactly EIGHT, and by the same eight.
+    # Knut's Patch Set editor batch (#182): the Add window's count beside
+    # "Pure white & black" disagreed with the total it fed, and "Fill remaining
+    # gaps" showed 0 without saying that its target counts the patches already
+    # on the chart. Fixing both changed five strings (the shared generator
+    # essay, the Add window's intro, the white/black, fill and unique tooltips)
+    # and added three ("fill chart to:", "patches in total", "target already
+    # met"). The translations the OLD wording had do not carry over to strings
+    # that now say something different.
+    #
+    # They stay English until the pass before GA, which is the standing rule
+    # for a beta. Every number below is counted off this tree.
+    # 2026-09-18, later the same night: B8-309, and the numbers move in BOTH
+    # directions, which is why they are counted and not adjusted. Knut ruled
+    # that the Measurement Report must read as a document printed for a
+    # customer, so five sentences that named a window control or another
+    # report's limit set were rewritten or removed. The removals took
+    # untranslated placeholders with them in the eleven languages that had not
+    # been swept, so de rises by five while es, fr and the rest fall.
+    # ...and once more, +1 each, for B8-328's SECOND attempt: three layout help
+    # texts rewritten after an adversary round measured the first rewrite false
+    # on 154 of the 160 built-in charts.
+    # 2026-09-18, B8-380/B8-383: the generated-reports control gained fourteen
+    # strings (the list's own name and help, "Delete Selected Report", the two
+    # sentences L.9 asks for, the four clauses a generated NAME is built from,
+    # and the revised M-REPORT-DELETE). German is translated in the same commit,
+    # so `de` does not move; the other twelve stay English until the pass before
+    # GA, which is the standing rule for a beta, so each rises by six. Six and
+    # not fourteen: eight of the fourteen were already in those catalogues from
+    # elsewhere, and `i18n_sync` also retired eight stale keys.
+    # 2026-09-18, B8-388/B8-391/B8-392: seventeen new strings (the renamed
+    # Preferences frame, the "Report type, default" pulldown and its two tick
+    # boxes with their help, the "New report…" entry and its tooltip, the
+    # Measure tab's "Save measurement report" help, the sentence a window
+    # holding one measurement shows, the three date flags and "Detailed" in a
+    # generated report's name, and the unlock question with its false clause
+    # removed). German is translated in the same commit, so `de` does not move;
+    # the other twelve rise by eleven each, which is the seventeen less the six
+    # that were already in those catalogues from elsewhere. **Counted off this
+    # tree, not adjusted**: `python - <<'PY'` over data/i18n/*.json, values
+    # identical to their key.
+    # 2026-09-18, B8-397: the five limit rows that had no detection method got
+    # one, so the limits window gained 22 strings (the changed group heading,
+    # five blurbs, three detection essays, three levers, and the ten fragments
+    # the report window builds the four new reasons out of). German is
+    # translated in the same commit, so `de` does not move; the other twelve
+    # rise by twenty-one each, which is the twenty-two less the one that was
+    # already in those catalogues from elsewhere, and `i18n_sync` also retired
+    # nine stale keys. **Counted off this tree, not adjusted.**
+    # RE-MEASURED 2026-09-19, the round-24 fix set (B8-404): the Measurement
+    # Report's limit controls no longer tell a user that the calibration they
+    # are looking at is outside the project it sits in. ONE key in, none out --
+    # "This measurement does not belong to a profile run, so the choice is not
+    # stored anywhere." -- and the sentence it replaces is still in use for a
+    # file that really is in no project, so nothing went stale. German is
+    # translated, so **de does not move (143)**; the eleven others carry the
+    # English under the beta rule and each rises by exactly 1.
+    #
+    # COUNTED, not adjusted: every number below is
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # run over each catalogue at HEAD and again here, and the HEAD column came
+    # back equal to the numbers that were recorded, so the eleven +1s are the
+    # whole of the change.
+    # 2026-09-19, beta 22, TWO change sets landing together and the split is
+    # worth recording because the two behave differently.
+    #
+    # * the control-strip declaration (#182, M-VERIFY-NO-CONTROL-STRIP and four
+    #   Create Chart log lines) adds **6 keys, all six translated into German**,
+    #   so de does not move for them and the eleven others each carry the
+    #   English under the beta rule;
+    # * the "Which presets can be verified?" window adds **38**, and the line
+    #   above recorded them as untranslated in German too. **RE-MEASURED the
+    #   same day, once that window's German landed: all 38 are translated, so
+    #   de does not move at all and stays at 143.** 181 would have been an
+    #   upper bound with 38 keys of slack under it, and a budget with slack
+    #   admits the next regression for free -- this test only checks `<=`, so
+    #   nothing would have gone red.
+    #
+    # So de does NOT move (143) and each of the other eleven rises by 44.
+    # COUNTED, not adjusted: every number below is
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # run over each catalogue as it stands, and the arithmetic above is the
+    # whole of the difference from the previous column.
+    # RE-MEASURED 2026-09-19, the round-26 fix set: three strings, all three
+    # translated into German in the same commit, so **de does not move (143)**
+    # and each of the other eleven rises by exactly 3.
+    #
+    # * the Apply Calibration output placeholder, which promised a filename
+    #   nothing writes ("cal_<name>.icc" and "cal_{stem}.icc", both retired);
+    # * the printcal success window's next step, which sent the user to a
+    #   checkbox #137 removed, so its old translations describe a control that
+    #   is not there and could not be carried across;
+    # * the warning line for a profile that could not be archived before the
+    #   build that replaces it.
+    #
+    # Two keys out, three in. COUNTED, not adjusted:
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # run over each catalogue as it stands.
+    # RE-MEASURED again the same morning, the round-26 printing fix: the macOS
+    # print dialog refuses a chart it would otherwise convert, which is two new
+    # strings (the window's title and its body). German is translated in the
+    # same commit, so **de does not move (143)** and each of the other eleven
+    # rises by exactly 2. COUNTED off the tree, not adjusted.
+    # RE-MEASURED 2026-09-19, Knut's beta 25 Create Chart batch (B8-444 to
+    # B8-450): the preset-eligibility window is renamed "Which presets can be
+    # used for verification", says "metric" where it said "row", names the
+    # metrics a prebuilt-TIFF preset can never fulfil, and tells the reader a
+    # double-click loads the preset. **17 keys in, 11 stale out.**
+    #
+    # Sixteen of the seventeen are translated into German in the same change.
+    # The seventeenth is `{metric}: {explanation}`, which is nothing but two
+    # placeholders and has no German to write, so it counts as identical to
+    # its key and **de moves by exactly one, 143 -> 144**. The eleven others
+    # carry the English under the beta rule and each rises by 17 - 11 = 6.
+    #
+    # THREE OF THE SEVENTEEN ARE NOT THIS CHANGE SET'S. "Report settings",
+    # "Included Measurements in report:" and "Every metric this report judges,
+    # and what it means:" arrived in the same working tree from the concurrent
+    # Measurement Report work and were already missing from every catalogue
+    # before this change; `i18n_sync` is a whole-tree operation and picked them
+    # up, and their German is written here so the tree is not left red. If that
+    # work rewords them, sync again and re-measure this block rather than
+    # nudging it.
+    #
+    # COUNTED, not adjusted:
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # run over each catalogue as it stands.
+    # RE-MEASURED once more the same evening, for B8-464, which the concurrent
+    # Measurement Report round found and left alone rather than have two agents
+    # rewrite one ledger. It is INHERITED: `1db705f1` grew the Report limits
+    # window's two ISO sentences and never synced the catalogues, so both were
+    # stale AND missing in all twelve at HEAD. Two keys in, two out; **de does
+    # not move**, because both German translations already existed for the
+    # shorter sentences and the added sentence is written here by hand (and the
+    # older of the two was in Sie-Form against the German Du rule, which the
+    # rewrite corrects). Each of the eleven others rises by exactly 1.
+    # COUNTED off the tree, not adjusted.
+    # 2026-09-19, Knut's beta-25 report-window ruling (B8-490 / B8-491). SIX
+    # keys in: the three-button question's headline and body, its two new
+    # button labels ("Update", "Create New"), and the "updated {when}" clause a
+    # report's name gains when Update is pressed. The two tick-box tooltips
+    # were REWORDED rather than added, so each of them is one key in and one
+    # key out and neither moves a count: German is written by hand in the same
+    # change for both, and the eleven others carried the old sentences in
+    # English already. **German does not move at all (144, unchanged): all six
+    # new keys are translated here.** Each of the eleven others gains exactly
+    # 6. COUNTED off the catalogues this commit leaves behind, with the same
+    # expression the test below uses, and never adjusted upward.
+    # RE-MEASURED 2026-09-20, the whole of Knut's beta 25 batch in one sweep:
+    # the Create Chart rename and its metrics wording, the report window's
+    # three bugs and its re-layout, the Update / Create New / Cancel popup, and
+    # the door that lets a licence holder supply a standard's own limit values
+    # without a terminal. German is translated by hand for every one of them,
+    # so **de does not move**; the eleven others carry the English under the
+    # beta rule. COUNTED off the tree with each file's own expression, never
+    # adjusted to make a red go green.
+    # RE-MEASURED 2026-09-20, Knut's beta 26 review (B8-520 to B8-526): nine
+    # new keys and none retired -- the four sentences a greyed "Unlock this
+    # run's limits" owes the reader, the two the one-page summary owes it, the
+    # bullet heading "What each set is", the type bullet that says what a
+    # Colour summary cannot hold, and the sentence that says why "Judged
+    # against" is not the Preferences default. **German is translated by hand
+    # in the same change, so de does not move (145)**; the eleven others carry
+    # the English under the beta rule and each rises by exactly 9. COUNTED off
+    # the catalogues this change leaves behind, with the expression the test
+    # below uses, and never adjusted to make a red go green.
+    # RE-MEASURED 2026-09-20, the Fogra reference-set upgrade path: a user may
+    # point ChromIQ at a newer Fogra file, per set, without a new ChromIQ.
+    # TWENTY-EIGHT keys in and TWO out. The two that went are casualties of the
+    # same change and not of a rename elsewhere: the Reference values window's
+    # opening sentence, which said the data "cannot be shipped inside the
+    # program" and is now false of half of what the window covers, and "Use a
+    # file I filled in", which came back a moment later as `Source.pick_title`
+    # because deriving a dialog title by stripping "…" off a button label
+    # makes it invisible to `scripts/i18n_extract.py` and guesses at
+    # punctuation in thirteen languages.
+    #
+    # **German does not move (145)**: all twenty-eight are translated by hand
+    # in this change. The eleven others carry the English under the beta rule
+    # and each rises by exactly 28 - 2 = 26. COUNTED off the catalogues this
+    # change leaves behind, with the expression the test below uses, and never
+    # adjusted to make a red go green.
+    # RE-MEASURED 2026-09-20, B8-548. The ISO half of the Reference values
+    # window used to print a raw Python exception at a user who picked the
+    # wrong file ("'utf-8' codec can't decode byte 0xe2 in position 10"),
+    # measured on screen in challenge round 31. It now answers with two
+    # sentences ChromIQ wrote. German is translated by hand in the same change,
+    # so **de does not move (145)** and each of the eleven others rises by
+    # exactly 2, which is the two new keys carrying their English source under
+    # the beta rule. COUNTED off the catalogues this change leaves behind,
+    # never adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging four parallel
+    # rounds (the help-card rework, the verification pre-flight popup, the
+    # guided stamp and the rounded frames). Neither agent's numbers were taken:
+    # both rounds moved these files, so either set alone would have been stale
+    # the moment the other landed. COUNTED with this file's own helper on the
+    # tree this commit leaves behind, never adjusted upward. German is
+    # translated by hand in the same change and so moves only by strings that
+    # are identical in every language.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging five parallel
+    # rounds. Neither any agent's numbers nor my own earlier ones were carried
+    # forward: every round that lands moves these files, so any figure written
+    # before the last merge is stale by construction. COUNTED with this file's
+    # own helper on the tree this commit leaves behind, never adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging six parallel
+    # rounds. No agent's numbers and none of my own earlier ones were carried
+    # forward: every round that lands moves these files, so any figure written
+    # before the last merge is stale by construction. COUNTED with this file's
+    # own helper on the tree this commit leaves behind, never adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging eight rounds
+    # and adding Ukrainian. No agent's numbers and none of my own earlier ones
+    # were carried forward: every round that lands moves these files, so any
+    # figure written before the last merge is stale by construction. COUNTED
+    # with this file's own helper on the tree this commit leaves behind.
+    # RE-MEASURED 2026-09-21, B8-670 (Knut's researched industry figures as
+    # the two Custom columns' defaults). **13 keys in, 7 stale out**, and
+    # every count FALLS: the eleven fall by 4 and Ukrainian by 8, because the
+    # seven retired keys were English placeholders in those catalogues and the
+    # thirteen replacements were translated in all thirteen languages rather
+    # than carried in English. German is written by hand and does not move.
+    #
+    # The one that mattered is `ChromIQ's own numbers`, which had been an
+    # English placeholder in all twelve. It is a FRAGMENT of a sentence those
+    # twelve now assemble, so left untranslated it would have put an English
+    # phrase in the middle of translated prose; and this round left it with
+    # exactly one caller, so translating it could not disturb anything else.
+    # Counted off the catalogues on disk with the expression the test below
+    # uses, and NEVER adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after ten rounds and a fix
+    # round. No agent's numbers and none of my own earlier ones were carried
+    # forward: every round that lands moves these files, so any figure written
+    # before the last merge is stale by construction. COUNTED with this file's
+    # own helper on the tree this commit leaves behind.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after ten rounds, a fix round
+    # and a recovery. No agent's numbers and none of my own earlier ones were
+    # carried forward. German stands still at its own figure because German is
+    # translated by hand in the same change; a RISING German number means an
+    # untranslated German string, not a bigger budget, and is fixed rather than
+    # recorded. COUNTED with this file's own helper on the tree this commit
+    # leaves behind.
+    # RE-MEASURED 2026-09-23, K25 (the grouped "Report shown" list, #182):
+    # five new keys ("Run{number}", two group headings, two guide rows),
+    # English in the twelve under the beta rule, so each rises by exactly 5.
+    # The two M-REPORT-DELETE keys were renamed in place and reset to the new
+    # English. German by hand, does not move. The other ledger, `_BUDGET`,
+    # rose by 4 in the same commit ("Run{number}" is under 25 characters).
+    # RE-MEASURED 2026-09-23, #182 K25 graphs (the trend graphs explain their
+    # lines, their red x and themselves), on top of the K25 list round. 26 new
+    # keys. German is translated by hand and rises by exactly 2:
+    # `{metric} ({unit})` and `{word} ({value}): {text}` are pure placeholder
+    # templates, identical to their key in every language. Each of the twelve
+    # others rises by exactly 26, the new keys carrying their English source
+    # under the beta rule. COUNTED off the catalogues this change leaves
+    # behind with the expression the test below uses.
+    # RE-MEASURED 2026-09-23, #182 beta 39 G12 (Knut 5774852534, "OK" in
+    # 5775260868): three new keys (the Printing record's notes heading
+    # "Notes on the values above:", its closing sentence, and the detailed
+    # gamut paragraph without "The Result judges"). German by hand, does not
+    # move; the twelve others carry the English under the beta rule and each
+    # rises by exactly 3. COUNTED off the tree with this file's own
+    # expression, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-23, #182 beta 38 E2 (page coverage): nine new keys
+    # (the coverage notes, the two lines of the presets window, the pages left
+    # out) and three changed ones (the evenness help and remedy text, and
+    # M-REPORT-CHART-MISMATCH-LAYOUT). German by hand, does not move; the twelve
+    # others carry the English under the beta rule and each rises by exactly 9.
+    # COUNTED off the tree with this file's own expression, BOTH ledgers in the
+    # same commit.
+    # RE-MEASURED 2026-09-23, #182 K26 (Knut 5792484060): 20 new keys (the
+    # Calibration red line and its tooltip, the rename chooser's folder mode
+    # and its two §M-PROPOSED messages, the Profiling names "All runs" /
+    # "Multiple runs", "for these measurements", the within-gamut legend and
+    # description) and two changed ones (the Report type help, the help card's
+    # "Locked" entry), whose old keys left every catalogue. German by hand,
+    # does not move; each of the twelve others rises by exactly 18 (20 new
+    # English placeholders, 2 old English placeholders gone). COUNTED off the
+    # tree with this file's own expression, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-23, #182 S-2 (§23, the ISO values prepared to ship):
+    # 20 new keys, 12 of them replacing changed texts whose old keys left every
+    # catalogue. German by hand, does not move; each of the twelve others
+    # rises by exactly 8 (20 new English placeholders, 12 old ones gone).
+    # COUNTED off the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-23, #182 K30 (Knut 5798461562; challenge rounds
+    # A and B of beta 39): 25 new keys and 8 retired (texts rewritten for the
+    # report across places, the calibration title and scope, the report's own
+    # limits, the ChromIQ folder's reports/, and the report text that
+    # explained ChromIQ). German by hand, and its count FALLS by one: the
+    # Report limits intro was English in de.json and is German now. Each of
+    # the twelve others rises by exactly 20 (25 English placeholders in, 5
+    # English echoes out; 3 of the 8 retired keys were translated there).
+    # COUNTED off the tree with this file's own expression, BOTH ledgers in
+    # the same commit.
+    # RE-MEASURED 2026-09-26, beta 44 challenge 8 (B8-1370, B8-1373,
+    # B8-1375, B8-1376): five new keys (M-VERIFY-SOLIDS-REASON's headline and
+    # body, the Printing record's INFO bullet, the as-measured line for a
+    # sheet printed through its profile, and the guide's drift sentence of
+    # before K51, back for a document whose drift columns judge nothing) and
+    # two retired ("This chart carries no colorimetric reference.", the old
+    # INFO bullet), both translated in every catalogue. German by hand, does
+    # not move; each of the twelve others rises by exactly 3 net (5 English
+    # placeholders in, the two retired translations out). COUNTED off the
+    # tree with this file's own expression.
+    # RE-MEASURED 2026-09-26, K56 (Knut #182 5848287278; B8-1374,
+    # B8-1377): the pre-flight's FROM PROFILE GAMUT paragraph revised as he
+    # accepted it (its old key left every catalogue), and the two openings of
+    # a report whose sheets were all printed raw, 3 keys in, 1 out. German by
+    # hand, does not move; each of the twelve others rises by exactly 2 (3
+    # English placeholders in, 1 out). COUNTED off the tree with this file's
+    # own expression, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-26, K57 (Knut #182 5848511977; B8-1387): the
+    # verification mark is ● instead of ★, six keys renamed in place (the
+    # window's line and row word, the help card's title and body, the
+    # Dictionary entry, the presets button's tooltip). German by hand; each of
+    # the twelve others keeps the English under the beta rule, so every count
+    # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
+    "de": 134,
+    "es": 118,
+    "fr": 140,
+    "it": 125,
+    "ja": 96,
+    "nl": 143,
+    "no": 125,
+    "pl": 120,
+    "pt": 118,
+    "ru": 91,
+    "sv": 129,
+    "zh_CN": 92,
+    # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
+    # one direction this ledger is not normally allowed to move. The three are
+    # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
+    # the contributed catalogue had translated into `діаграма` ("chart"),
+    # `кольпроф` (a transliteration) and `сканування` ("scanning"). A user
+    # types those names, reads them in a log and sees them in Finder, so they
+    # must stay in English, and all twelve other catalogues leave them alone.
+    # Restoring them therefore ADDS three values identical to their key.
+    #
+    # A FOURTH followed the same day and for the same reason: `Lab (CIELAB)`.
+    # The catalogue had rendered Lab, the colour space, as "Лабораторія", a
+    # LABORATORY, and once as "Лабораторний стіл", a laboratory BENCH, on the
+    # profile-type control. Every one of the twelve other catalogues keeps
+    # `Lab`, so Ukrainian does too, and `Lab (CIELAB)` is then identical to its
+    # key.
+    #
+    # This is the one shape of rise that is not translation rot, and it is
+    # spelled out here because the rule everywhere else in this project is that
+    # a rising number means an untranslated string and the budget is never
+    # nudged to admit it. COUNTED off the catalogue on disk: 1166 before the
+    # restorations, 1169 after the three tool names, 1170 with `Lab (CIELAB)`,
+    # and back to 1169 once `Edit / create chart patch set` was translated: it
+    # had never been translated at all, while two messages quoted that control
+    # in Ukrainian, so the pointer could not match whatever the user read.
+    # Nothing else changed. The ceiling is re-measured DOWN here rather than
+    # left where it was, so the next rise still has to justify itself.
+    # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
+    # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
+    "uk": 92,
 }
+
 
 
 @pytest.mark.parametrize("code", _catalog_codes())
@@ -579,3 +1579,96 @@ def test_the_import_button_is_translated_everywhere(_=None):
             assert k in cat, f"[{code}] the import button lost its key {k!r}"
             assert cat[k] != k, (
                 f"[{code}] the import button is still English: {k!r}")
+
+
+# ---- Ukrainian, contributed on issue #198 by LackiUA ---------------------
+#
+# A language is "working" only if all four of these are true at once, and each
+# of them has been the thing that was missing on this project at some point:
+# the Settings combobox can FIND it (it discovers a language by globbing
+# `data/i18n/*.json` and reading `@language_name` out of it, so a catalogue
+# with no native name is listed by its bare code), `set_language` LOADS it,
+# the UI catalogue actually answers, and the parameter overlay merges so the
+# Create Chart rows are Ukrainian too rather than half-English.
+#
+# The native name is asserted verbatim because it is the string the user picks
+# in the combobox, and a catalogue that lost it still passes every other test
+# in this file.
+
+def test_ukrainian_is_discoverable_in_the_language_list():
+    langs = dict(i18n.available_languages())
+    assert langs.get("uk") == "Українська", (
+        "Settings would not offer Ukrainian by name; available_languages() "
+        f"returned {langs.get('uk')!r}")
+
+
+def test_ukrainian_loads_and_translates():
+    i18n.set_language("uk")
+    assert i18n.current_language() == "uk"
+    assert i18n.tr("Cancel") == "Скасувати"
+    assert i18n.tr("Build Profile") == "Побудувати профіль"
+
+
+def test_ukrainian_parameter_overlay_merges():
+    """The overlay is a separate file from the catalogue and it is merged by a
+    separate function, so a language can be fully loaded and still show every
+    Create Chart row in English."""
+    i18n.set_language("uk")
+    params = i18n.translate_parameters(_load_params())
+    d = next(p for p in params["targen"] if p["flag"] == "-d")
+    english = next(p for p in _load_params()["targen"] if p["flag"] == "-d")
+    assert d["name"] == "Тип пристрою"
+    assert len(d["labels"]) == len(english["labels"]) == 16
+    assert d["labels"] != english["labels"]
+
+
+#: The longest verbatim run of the ENGLISH source that may appear inside a
+#: German string. MEASURED off the catalogue, 2026-09-22, over all 1,750
+#: German strings of 120 characters or more: the largest legitimate run is
+#: **215** characters, inside a 5,199-character technical passage about
+#: building a printer profile from a scan. The next four are 106, 104, 104 and
+#: 96, and the 104s are a list of file names and an HTML fragment, which are
+#: identical in every language by nature.
+_DE_MAX_ENGLISH_RUN = 300
+
+
+def test_a_german_string_is_not_english_with_a_sentence_spliced_in():
+    """German is translated by hand, and half-translating it passes every
+    other guard in this file.
+
+    **MEASURED, AND IT WAS MINE.** Renaming one button changed one sentence
+    inside a 684-character Report-limits help text. What went in as "German
+    written by hand" was the ENGLISH source with a single German sentence
+    spliced into the middle: the string went from **5.7 % English to 76.8 %
+    English**, and a German user read an English paragraph with one German
+    sentence in it.
+
+    It slipped past everything: it is not a MISSING key, so the missing-key
+    guard is silent; it is not IDENTICAL to its key, so
+    `_IDENTICAL_TO_KEY` is silent and stayed at 146; and it carries no
+    placeholder fault. Challenge round 38 found it by measuring the text
+    against its own source.
+
+    Only German is asked, deliberately. The other twelve carry the English
+    source ON PURPOSE during a beta, which is the project's own rule and the
+    reason `_IDENTICAL_TO_KEY` exists with numbers in the hundreds.
+    """
+    from difflib import SequenceMatcher
+    cat = _load_catalog("de")
+    bad = []
+    for key, val in cat.items():
+        if key.startswith("@") or len(key) < 120 or val == key:
+            continue
+        m = SequenceMatcher(None, key, val, autojunk=False).find_longest_match(
+            0, len(key), 0, len(val))
+        if m.size > _DE_MAX_ENGLISH_RUN:
+            bad.append(f"{m.size} characters of the English source survive "
+                       f"verbatim in: {key[:70]!r}")
+    assert not bad, (
+        "a German string carries a long verbatim run of its English source, "
+        "which is what a half-translated string looks like:\n  "
+        + "\n  ".join(bad[:5])
+        + f"\n\nThe measured ceiling is {_DE_MAX_ENGLISH_RUN}; the largest "
+          "legitimate run in the catalogue is 215. Translate the whole string "
+          "rather than splicing a sentence into the English."
+    )

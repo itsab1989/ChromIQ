@@ -34,9 +34,13 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-#: Every shipped language, English included.
-_LANGS = ["en", "de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru",
-          "sv", "zh_CN"]
+#: Every shipped language, English included — read off `data/i18n/`, not
+#: written out. A literal list here says "every shipped language" and stops
+#: being true the day a contributor adds one, silently: the new language is
+#: simply not rendered, and the sweep stays green over a pane it never opened.
+from tests.helpers.languages import shipped_languages   # noqa: E402
+
+_LANGS = shipped_languages()
 
 #: What the panel actually gets, measured on screen (cocoa, 1440x900,
 #: `.agent-reports/hscroll-probe3.py`): the Manual scroll area's viewport is

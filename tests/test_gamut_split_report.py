@@ -87,10 +87,11 @@ def test_dialog_grades_within_gamut_and_shows_the_blocks(
         import html as _html
         overview = _html.unescape(dlg._comparison_table_html([rep, rep]))
         for block in ("Within the profile's gamut",
-                      "Beyond the profile's gamut", "All patches together"):
+                      "Beyond the profile's gamut", "Within and beyond the gamut together"):
             assert block in overview
         # the split blocks list the five accuracy metrics three times over
-        assert overview.count("Average ΔE, all patches") == 3
+        # K28: the one name, "Average ΔE00, all patches", in each block
+        assert overview.count("Average ΔE00, all patches") == 3
         results = _html.unescape(dlg._report_results_html([rep]))
         assert "within-gamut" in results
     finally:
@@ -122,32 +123,74 @@ def test_user_switch_mode_marks_the_choice(qapp):
     assert seen == ["manual"] and dummy._user_chose_module is True
 
 
-def test_report_options_are_remembered(qapp, tmp_path):
-    """The dialog's options survive closing it: detail + all-runs checkboxes
-    and the Pass thresholds come back as last set (Sebastian, 2026-08-10)."""
+def test_report_options_open_on_the_preferences_defaults(qapp, tmp_path):
+    """**KNUT'S DEFAULTS SUPERSEDED THE REMEMBERED TICK BOXES (B8-388).**
+
+    This was `test_report_options_are_remembered`, for Sebastian's rule of
+    2026-08-10: *"so I don't have to select it every time again"* — the two
+    tick boxes came back as last set. Knut, 2026-09-18, specified where their
+    starting value comes from instead: *"Add two checkboxes [in Preferences ▸
+    Reports] to set the default value for 'Show all measurement runs' and
+    'Show detailed data for each run'. These shall be default ON"*, and *"when
+    'Report shown' is set to 'New report....', all default values shall be
+    loaded on the settings … fetched from the preferences->reports tab."*
+
+    A window that is showing no report is in exactly that state, so it opens on
+    the defaults. **The two conflict, and this is the one recorded as needing a
+    word from Basti**: the last-used values are still written to settings and
+    nothing of Sebastian's feature is deleted, so restoring it is one line if
+    they rule that way.
+
+    The limit set half of the old test changed with K31 (Knut, 5801677743):
+    the set is the REPORT's, so a set chosen in one window is not stored on
+    the run and a new window starts on the Preferences default again.
+    """
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
     v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    # **TWO DATES, BECAUSE ONE WOULD NOT TEST THIS ANY MORE (B8-392).** Knut,
+    # 2026-09-18: *"If the list of measurement dates to be included only holds
+    # one measurement, then the 'Show all measurement runs' is automatically
+    # set to OFF"*, and it is greyed while it is alone, so on a one-date
+    # project this box could neither be at its default nor be remembered.
+    # Sebastian's rule (*"so I don't have to select it every time again"*) is
+    # what is under test and it is unchanged.
+    v2 = run.new_verification()
+    v2.ensure_dir()
+    v2.measurement_ti3.write_text(
+        _cgats("CTI3", [(min(100.0, r + 2.0), g, b) for r, g, b in _PATCHES]),
+        encoding="utf-8")
 
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg = MeasurementReportDialog(s, None, initial_ti3=v2.measurement_ti3)
     try:
-        assert dlg._all_runs_check.isChecked()          # the default
-        assert not dlg._detail_check.isChecked()
-        dlg._detail_check.setChecked(True)
-        dlg._all_runs_check.setChecked(False)
-        dlg._avg_thr_spin.setValue(1.5)
-        dlg._max_thr_spin.setValue(4.0)
+        # DEFAULT ON (Knut, B8-388), where "detailed" used to start off.
+        # It was a pair until B8-590 removed "Show all measurement runs" and
+        # the feature behind it (Knut, 2026-09-20); what a new report covers
+        # is every ticked measurement, so that half is asked of the list.
+        assert getattr(dlg, "_all_runs_check", None) is None
+        assert dlg._detail_check.isChecked()
+        assert dlg._hidden_runs == set()
+        dlg._detail_check.setChecked(False)
+        dlg._deselect_all_btn.click()
+        # K31: the limit set is the REPORT's; nothing is stored on the run
+        idx = dlg._set_combo.findData("chromiq_tight")
+        dlg._set_combo.setCurrentIndex(idx)
+        dlg._on_set_chosen(idx)
     finally:
         dlg.deleteLater()
 
-    dlg2 = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg2 = MeasurementReportDialog(s, None, initial_ti3=v2.measurement_ti3)
     try:
-        assert dlg2._detail_check.isChecked()
-        assert not dlg2._all_runs_check.isChecked()
-        assert dlg2._avg_thr_spin.value() == 1.5
-        assert dlg2._max_thr_spin.value() == 4.0
+        # THE DEFAULTS, not the last-used values (B8-388).
+        assert dlg2._detail_check.isChecked() is bool(
+            s.get("report_default_show_details", True))
+        # …and the ticks are back too: the previous window unticked every
+        # measurement and that must not carry into a new one.
+        assert dlg2._hidden_runs == set(), dlg2._hidden_runs
+        assert dlg2._report_limits().set_id == "chromiq_default"
+        assert run.load_meta().compliance_set_id != "chromiq_tight"
     finally:
         dlg2.deleteLater()
 
@@ -202,10 +245,12 @@ def test_raw_drift_identical_prints_measure_zero(tmp_path):
     assert r2["raw_drift"]["avg"] == 0.0 and r2["raw_drift"]["max"] == 0.0
 
 
-def test_raw_sheets_show_drift_not_pass_fail(qapp, tmp_path, monkeypatch):
-    """Report Results: a raw sheet's cells say “drift”; its detail table has
-    no Pass/Fail; the drift paragraph appears. Gamut and through sheets keep
-    their grading."""
+def test_raw_sheets_show_info_not_pass_fail(qapp, tmp_path, monkeypatch):
+    """Report Results: a raw sheet's design-colour cells read INFO with the
+    raw print's numbered note (K59, Knut #182 5849392788, option C: the word
+    "drift" is not used at all); its detail table has no Pass/Fail; the
+    baseline paragraph appears. Gamut and through sheets keep their
+    grading."""
     import html as _html
     from workflow.measurement_report import build_report
     s, run, ti3 = _measured(tmp_path, monkeypatch,
@@ -231,10 +276,11 @@ def test_raw_sheets_show_drift_not_pass_fail(qapp, tmp_path, monkeypatch):
     dlg = MeasurementReportDialog(s, None, initial_ti3=ti3)
     try:
         results = _html.unescape(dlg._report_results_html([rep]))
-        assert ">drift<" in results.replace("</td>", "<")
+        assert "drift" not in results.lower()
+        assert ">INFO" in results
         assert "not expected to match the design closely" in results
         detail = _html.unescape(dlg._run_detail_html(rep))
-        assert "it becomes the baseline" in detail
+        assert "it is the baseline" in detail
         assert ">Pass<" not in detail and ">Fail<" not in detail
     finally:
         dlg.deleteLater()
@@ -260,8 +306,14 @@ def test_the_audit_batch_texts_are_in_the_report(qapp, tmp_path, monkeypatch):
         pct = round(100 * gs["n_in"] / (gs["n_in"] + gs["n_out"]))
         assert f"({pct} %)" in detail
         how = _html.unescape(dlg._how_to_read_html())
-        assert "Analyse Profile Quality" in how
-        assert "not a fair way to rank papers or printers" in how
+        # NOT "use Check & Refine ▸ Analyse Profile Quality" any more: Knut
+        # ruled in beta 20 that the report is a document printed for someone
+        # who has never seen the window, and a menu path is not something they
+        # can follow. The fact it carried survives, the route does not.
+        # R2 of beta 39 (#20): and not the tip about a separate check
+        # either, which was advice about another ChromIQ tool (K18).
+        assert "Judging the profile on its own" not in how
+        assert "not a fair measure for ranking papers or printers" in how
         assert "whole chain in one number" in how
     finally:
         dlg.deleteLater()

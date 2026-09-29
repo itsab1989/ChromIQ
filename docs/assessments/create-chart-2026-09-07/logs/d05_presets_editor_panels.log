@@ -1,0 +1,784 @@
+2026-09-07 08:37:58,219 [WARNING] core.settings: Settings SANDBOXED to /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini (CHROMIQ_SETTINGS_FILE is set) — the real preferences are untouched
+2026-09-07 08:37:58,219 [DEBUG] core.settings: Settings loaded from /Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 08:37:58,219 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 08:37:58,219 [INFO] assess: app built: v4.2.0 appearance=neutral lang=en settings=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+2026-09-07 08:37:58,660 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_refresh_manual_command_preview:5501  ←  _init_manual_layout_panel:5630  ←  _set_engine_recipe:17986]
+2026-09-07 08:37:58,681 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:37:58,681 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:37:58,681 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:37:58,681 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:37:58,681 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:37:58,681 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:37:58,698 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:37:58,698 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:37:58,698 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:37:58,698 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:37:58,698 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:37:58,698 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:00,039 [INFO] ui.main_window: MainWindow initialised
+2026-09-07 08:38:00,546 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 08:38:00,560 [DEBUG] ui.theme: Appearance applied: setting=neutral mode=neutral
+2026-09-07 08:38:00,705 [INFO] ui.main_window: ---- Tab → 1. Create Chart ----
+2026-09-07 08:38:03,731 [DEBUG] core.settings: settings.set session_target_name = 'A1-EngineVsPrinttarg'
+2026-09-07 08:38:03,731 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 08:38:03,732 [DEBUG] core.file_manager: Target name set to: A1-EngineVsPrinttarg (root /Users/Basti/ChromIQ-assessment/A1-EngineVsPrinttarg)
+2026-09-07 08:38:03,736 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/A1-EngineVsPrinttarg (2 run(s) on disk)
+2026-09-07 08:38:03,745 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 08:38:03,745 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 08:38:03,747 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:03,777 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:03,777 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:03,777 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:03,777 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:03,777 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:03,777 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:03,799 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:03,799 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:03,799 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:03,799 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:03,799 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:03,799 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:03,831 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 08:38:03,832 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:03,849 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:03,849 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:03,849 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:03,849 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:03,849 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:03,849 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:03,865 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:03,865 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:03,865 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:03,865 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:03,865 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:03,865 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:03,893 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 08:38:03,893 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:03,911 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:03,911 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:03,911 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:03,911 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:03,911 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:03,911 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:03,927 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:03,927 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:03,927 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:03,927 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:03,927 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:03,927 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:03,952 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 08:38:03,952 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:03,969 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:03,969 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:03,969 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:03,969 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:03,969 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:03,970 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:03,986 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:03,986 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:03,986 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:03,986 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:03,986 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:03,986 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:04,015 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:04,228 [INFO] ui.tabs.tab_chart: chart loaded: 1 page(s) counted from the page images (field was 1, now 1)
+2026-09-07 08:38:04,229 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:04,232 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:04,337 [INFO] ui.tabs.tab_measure: Uniform strip detection: 20 strips, block x=123–885 (scaled)
+2026-09-07 08:38:04,339 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 4 parameters and 0 ui values away from the target's own
+2026-09-07 08:38:04,341 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:04,445 [INFO] ui.tabs.tab_measure: Uniform strip detection: 20 strips, block x=123–885 (scaled)
+2026-09-07 08:38:04,447 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:04,447 [INFO] ui.main_window: Session restored: target=A1-EngineVsPrinttarg run=run2
+2026-09-07 08:38:05,656 [INFO] assess: open_project('A1-EngineVsPrinttarg') -> run bar reads 'Run 2 (overwrite)' ok=True
+2026-09-07 08:38:06,275 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run2 (40 parameters + ui state)
+2026-09-07 08:38:06,282 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:06,282 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:06,324 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:06,367 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:06,367 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:06,367 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:06,367 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:06,367 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:06,367 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:06,404 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:06,404 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:06,404 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:06,404 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:06,404 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:06,404 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:06,433 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:06,433 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:06,468 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:06,468 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:06,468 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:06,468 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:06,468 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:06,468 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:06,504 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:06,504 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:06,504 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:06,504 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:06,504 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:06,504 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:06,532 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:06,573 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:06,608 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:06,608 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:06,608 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:06,608 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:06,608 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:06,608 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:06,644 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:06,644 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:06,644 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:06,644 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:06,644 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:06,644 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:06,671 [INFO] ui.tabs.tab_chart: chart loaded: 1 page(s) counted from the page images (field was 1, now 1)
+2026-09-07 08:38:06,689 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:06,691 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:06,694 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 1 parameters and 1 ui values away from the target's own
+2026-09-07 08:38:08,907 [INFO] assess:   shot Screenshots/A6-info-panels/p01-run1.png  (3400x2100)
+2026-09-07 08:38:08,908 [INFO] assess: [run1] engine=True actual={'total': 418, 'fillup': 18, 'page_patches': 418, 'rows': 22, 'cols': 19, 'pages': 1, 'patch': (9.23, 9.82), 'pitch': None} est={'total': 425, 'fillup': 7, 'page_patches': 425, 'rows': 25, 'cols': 17, 'pages': 1, 'patch': (8.33, 8.56), 'pitch': None} status='Margins: OK'
+2026-09-07 08:38:08,910 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 08:38:08,910 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 08:38:08,912 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:08,929 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:08,929 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:08,929 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:08,929 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:08,929 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:08,929 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:08,948 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:08,948 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:08,948 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:08,948 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:08,948 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:08,948 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:08,974 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = False
+2026-09-07 08:38:08,975 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:08,992 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:08,992 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:08,992 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:08,992 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:08,992 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:08,992 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:09,012 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:09,012 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:09,012 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:09,012 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:09,012 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:09,012 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:09,040 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:09,255 [INFO] ui.tabs.tab_chart: chart loaded: 1 page(s) counted from the page images (field was 1, now 1)
+2026-09-07 08:38:09,256 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:09,257 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:09,365 [INFO] ui.tabs.tab_measure: Uniform strip detection: 20 strips, block x=123–885 (scaled)
+2026-09-07 08:38:11,463 [INFO] assess:   shot Screenshots/A6-info-panels/p01-run2.png  (3400x2100)
+2026-09-07 08:38:11,463 [INFO] assess: [run2] engine=False actual={'total': 420, 'fillup': 20, 'page_patches': 420, 'rows': 21, 'cols': 20, 'pages': 1, 'patch': None, 'pitch': None} est=None status='Margins: OK'
+2026-09-07 08:38:11,463 [INFO] assess:     set_combo_data: 'run3' not in ['run1', 'run2', '\x00new']
+2026-09-07 08:38:12,833 [INFO] assess:   shot Screenshots/A6-info-panels/p01-run3.png  (3400x2100)
+2026-09-07 08:38:12,833 [INFO] assess: [run3] engine=False actual={'total': 420, 'fillup': 20, 'page_patches': 420, 'rows': 21, 'cols': 20, 'pages': 1, 'patch': None, 'pitch': None} est=None status='Margins: OK'
+2026-09-07 08:38:12,833 [INFO] assess: reflecting external chart A2-Instruments.ti2 (1 tiff) via reflect_loaded_chart (the Measure tab's Load .ti2 signal)
+2026-09-07 08:38:12,834 [INFO] ui.tabs.tab_chart: Create Chart: showing a chart loaded from elsewhere: /Users/Basti/ChromIQ-assessment/A2-Instruments/runs/run1/A2-Instruments.ti2
+2026-09-07 08:38:12,837 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:12,838 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_on_manual_engine_toggled:5062  ←  _convert_printtarg_to_engine:5156  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:12,896 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:12,896 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:12,896 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:12,896 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:12,896 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:12,896 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:12,938 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:12,938 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:12,938 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:12,938 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:12,938 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:12,938 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:12,998 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:12,998 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:12,998 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:12,998 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:12,998 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:12,998 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:13,060 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [reflect_loaded_chart:11293  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:13,112 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:13,112 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:13,112 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:13,112 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:13,112 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:13,112 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:13,128 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:13,128 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:13,128 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:13,128 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:13,128 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:13,128 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:13,135 [DEBUG] ui.tiff_preview: TiffPreview: loaded 1 page(s)
+2026-09-07 08:38:13,273 [INFO] assess:   DIALOG UNEXPECTED [QDialog] title='Loaded chart is now shown in Create Chart' buttons=['OK'] text="The chart you just loaded is now also shown in “Create Chart” | So every tab agrees on what you're working with, the Create Chart tab now mirrors this loaded chart — “A2-Instruments.ti2”. Its patch recipe and page layout are shown locked, because the chart already exists; ChromIQ won't change it.\n\nN"
+2026-09-07 08:38:13,290 [INFO] assess:     closed via clicked 'OK'
+2026-09-07 08:38:15,059 [INFO] assess:   shot Screenshots/A6-info-panels/p02-reflected-external.png  (3400x2100)
+2026-09-07 08:38:15,059 [INFO] assess: [reflected] {'actual': {'total': 238, 'fillup': 0, 'page_patches': 238, 'rows': 17, 'cols': 14, 'pages': 1, 'patch': (12.02, 13.89), 'pitch': 10.41}, 'estimate': {'total': 238, 'fillup': 0, 'page_patches': 238, 'rows': 17, 'cols': 14, 'pages': 1, 'patch': (12.0, 13.86), 'pitch': 10.39}, 'status': 'No instrument margins set for this instrument and paper size.', 'margin_text': 'mm | inch | min | Left (to first patch) | 14.4 | 0.567 | — | Right (to first patch) | 11.5 | 0.454 | — | Top (to first patch) | 9.9 | 0.392 | — | Bottom (to first patch) | 10.0 | 0.392 | — | Patch width (in strip reading direction) | 12.0 | 0.473 | Strip lengt', 'generate_enabled': True, 'engine_panel_enabled': False, 'override_targen': True, 'run_bar': 'Run 2 (overwrite)', 'location': 'Location being edited: ChromIQ-assessment/A1-EngineVsPrinttarg/runs/run2/'}
+2026-09-07 08:38:15,059 [INFO] assess:   armed: dialog ~'loaded from elsewhere' -> click 'Close' reflected-chart info
+2026-09-07 08:38:15,060 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in manual: patch set targen | manual panel: 200x200, 0x0 grid, margins T6.0 R6.0 B6.0 L14.4
+2026-09-07 08:38:15,088 [INFO] assess:   DIALOG expected [_InfoDialog] 'This chart is loaded from elsewhere' -> clicked 'Close'
+2026-09-07 08:38:16,494 [DEBUG] core.settings: settings.set session_target_name = ''
+2026-09-07 08:38:16,495 [DEBUG] core.settings: settings.set session_target_name = 'A5-Furniture'
+2026-09-07 08:38:16,495 [DEBUG] core.settings: settings.set session_project_root = ''
+2026-09-07 08:38:16,495 [DEBUG] core.file_manager: Target name set to: A5-Furniture (root /Users/Basti/ChromIQ-assessment/A5-Furniture)
+2026-09-07 08:38:16,500 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/A5-Furniture (1 run(s) on disk)
+2026-09-07 08:38:16,504 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 08:38:16,508 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:16,509 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:16,558 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,558 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,558 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,558 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,558 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,558 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,564 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,564 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,564 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,564 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,564 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,564 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,566 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:16,567 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:16,599 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,599 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,599 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,599 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,599 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,599 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,604 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,604 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,604 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,604 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,604 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,604 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,608 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:16,608 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:16,638 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,638 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,638 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,638 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,638 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,638 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,643 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,643 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,643 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,643 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,643 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,643 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,645 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:16,645 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:16,674 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,674 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,674 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,674 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,674 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,674 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,679 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,679 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,679 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,679 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,679 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,679 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,681 [INFO] ui.tabs.tab_chart: Create Chart: leaving the loaded-from-elsewhere state
+2026-09-07 08:38:16,684 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 08:38:16,693 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=colored/True gaps=0.0/0.0  [_display_run_chart:6588  ←  _restore_chart_settings:11047  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:16,714 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,714 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,714 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,714 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,714 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,714 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,740 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,740 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,740 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,740 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,740 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,740 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,771 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:16,771 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:16,772 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:16,772 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:16,772 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:16,772 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:16,818 [INFO] ui.tabs.tab_chart: chart loaded: 3 page(s) counted from the page images (field was 3, now 3)
+2026-09-07 08:38:16,837 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 08:38:16,839 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 08:38:16,843 [DEBUG] ui.tabs.tab_chart: the chart sidecar moved 5 parameters and 2 ui values away from the target's own
+2026-09-07 08:38:16,845 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 08:38:16,849 [DEBUG] ui.tiff_preview: TiffPreview: loaded 3 page(s)
+2026-09-07 08:38:16,849 [INFO] ui.main_window: Session restored: target=A5-Furniture run=run1
+2026-09-07 08:38:18,054 [INFO] assess: open_project('A5-Furniture') -> run bar reads 'Run 1 (overwrite)' ok=True
+2026-09-07 08:38:18,704 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:18,705 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:18,745 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:18,745 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:18,745 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:18,745 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:18,745 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:18,745 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:18,773 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:18,773 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:18,773 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:18,773 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:18,773 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:18,773 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:18,796 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:18,796 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:18,796 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:18,796 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:18,796 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:18,796 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:18,800 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 08:38:18,800 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:18,800 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:18,832 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:18,832 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:18,832 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:18,832 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:18,832 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:18,832 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:18,837 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:18,837 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:18,837 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:18,837 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:18,837 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:18,837 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:18,875 [INFO] assess:   DIALOG UNEXPECTED [TargetChangeDialog] title='Rename Printer Profile' buttons=['Rename the existing profile to "A8-Presets"', 'Create "A8-Presets" and keep "A5-Furniture"', 'Create "A8-Presets" and delete "A5-Furniture"', 'Cancel'] text='You already created the profile "A5-Furniture", and now asked to generate one called "A8-Presets". | Each profile is a separate folder on disk. Changing the name points ChromIQ at a different folder, so the work you already created would be left behind. What would you like to do? | Existing:  /Users'
+2026-09-07 08:38:18,888 [INFO] assess:     closed via clicked 'Cancel'
+2026-09-07 08:38:18,891 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:18,891 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:18,922 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:18,922 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:18,922 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:18,922 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:18,922 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:18,922 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:18,928 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:18,928 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:18,928 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:18,928 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:18,928 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:18,928 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:18,930 [DEBUG] core.settings: settings.set use_chromiq_layout_engine = True
+2026-09-07 08:38:18,930 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [load_target_settings:14638  ←  _apply_ui_state:14991  ←  _set_engine_recipe:17986]
+2026-09-07 08:38:18,962 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:18,962 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:18,962 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:18,962 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:18,962 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:18,962 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:18,968 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:18,968 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:18,968 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:18,968 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:18,968 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:18,968 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:19,537 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:19,537 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:19,538 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:19,538 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:19,538 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:19,538 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:19,703 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:19,703 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:19,703 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:19,703 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:19,703 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:19,703 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:19,873 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:19,873 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:19,873 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:19,873 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:19,873 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:19,873 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:19,878 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:19,878 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:19,878 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:19,878 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:19,878 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:19,878 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:20,200 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:20,201 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:20,201 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:20,201 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:20,201 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:20,201 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:20,343 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:20,343 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:20,344 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:20,344 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:20,344 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:20,344 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:20,474 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:20,474 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:20,474 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:20,474 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:20,474 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:20,474 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:20,645 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:20,645 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:20,645 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:20,645 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:20,645 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:20,645 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:20,779 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:20,779 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:20,779 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:20,779 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:20,779 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:20,779 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:20,911 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:20,912 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:20,912 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:20,912 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:20,912 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:20,912 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:21,043 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:21,043 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:21,043 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:21,043 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:21,043 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:21,043 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:21,176 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:21,176 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:21,176 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:21,176 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:21,176 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:21,176 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:21,183 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:21,183 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:21,183 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:21,183 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:21,183 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:21,183 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:21,606 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:21,606 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:21,606 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:21,606 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:21,606 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:21,606 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:21,866 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:21,866 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:21,866 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:21,866 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:21,866 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:21,866 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:22,272 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:22,272 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:22,272 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:22,272 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:22,272 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:22,272 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:23,162 [INFO] assess: recipe to save: {'instrument': 'i1', 'paper': 'A4R', 'layout_mode': 'patch_first', 'area_method': 'by_grid', 'patch_w_mm': 12.0, 'patch_h_mm': 12.0, 'margin_top': 15.0, 'margin_right': 15.0, 'margin_bottom': 15.0, 'margin_left': 15.0, 'use_instrument_margins': False, 'clip_border': False, 'clip_content_mode': 'off', 'chart_text': 'Preset {project}', 'helper_markers': True, 'show_row_indicators': True, 'pscale': 1.0, 'spacer_mode': 'none', 'indicator_size_mm': 1.41, 'randomize': True}
+2026-09-07 08:38:23,325 [INFO] assess:   shot Screenshots/A8-presets/q01-before-save.png  (3400x2100)
+2026-09-07 08:38:23,326 [INFO] assess:   armed: dialog ~'Give this project a name' -> click '<reject>' 
+2026-09-07 08:38:23,479 [INFO] assess:   [save A] dialog QDialog title='Save Preset'
+2026-09-07 08:38:23,736 [INFO] assess:   shot Screenshots/A8-presets/q02-save-dialog.png  (1354x1044)
+2026-09-07 08:38:23,736 [INFO] assess:     clicking 'Save'
+2026-09-07 08:38:25,469 [INFO] assess: after save: dialog seen=True err=None combo has A=False current='▶  i1Pro-A4-525p-3pages-Landscape-AssessPresetA' files=[]
+2026-09-07 08:38:25,476 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:25,476 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:25,476 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:25,476 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:25,476 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:25,476 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:25,899 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:25,899 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:25,899 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:25,899 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:25,899 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:25,899 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:26,317 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:26,317 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:26,317 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:26,317 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:26,317 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:26,317 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:26,701 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:26,701 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:26,701 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:26,701 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:26,701 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:26,701 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:27,087 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:27,087 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:27,087 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:27,087 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:27,087 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:27,087 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:27,470 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:27,470 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:27,471 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:27,471 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:27,471 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:27,471 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:27,855 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:27,855 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:27,855 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:27,855 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:27,855 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:27,855 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:28,245 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:28,245 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:28,245 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:28,245 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:28,245 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:28,245 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:28,500 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:28,501 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:28,501 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:28,501 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:28,501 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:28,501 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:29,069 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 08:38:29,070 [INFO] assess:     set_combo_data: 'AssessPresetA' not in [None, 'Alpha', 'CR30-A4-77p-1page-Portrait-w24.0mm', 'CR30-A4-153p-1page-Portrait-w18.0mm-Hexagonal', 'CR30-A4-160p-1page-Portrait-w17.0mm', 'CR30-A4-192p-1page-Portrait-w11.0mm', 'CR30-A4-360p-1page-Portrait-w11.0mm', 'CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal', 'CR30-A4-720p-2pages-Portrait-w11.0mm', 'CR30-A4-840p-2pages-Portrait-w11.0mm-Hexagonal', 'CR30-A4-1080p-3pages-Portrait-w11.0mm', 'CR30-A4-1260p-3pages-Portrait-w11.0mm-Hexagonal', 'CR30-Letter-88p-1page-Portrait-w22.0mm', 'CR30-Letter-150p-1page-Portrait-w17.0mm', 'CR30-Letter-170p-1page-Portrait-w16.0mm-Hexagonal', 'CR30-Letter-184p-1page-Portrait-w11.0mm', 'CR30-Letter-368p-1page-Portrait-w11.0mm', 'CR30-Letter-390p-1page-Portrait-w11.0mm-Hexagonal', 'CR30-Letter-736p-2pages-Portrait-w11.0mm', 'CR30-Letter-780p-2pages-Portrait-w11.0mm-Hexagonal', 'CR30-Letter-1104p-3pages-Portrait-w11.0mm', 'CR30-Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal', 'i1Pro-A4-1page-Portrait-BrandNew', 'i1Pro-A4-525p-3pages-Landscape-AssessPresetA', None, None, '__chromiq_tc300_builtin__', '__chromiq_abw702_builtin__', '__chromiq_tc924_cm_a3_builtin__', '__chromiq_tc918eg_cm_a3_builtin__', '__chromiq_knut_cm_a4_84p_1page_portrait_w26_0mm_fast_reading_speed_hand_held__', '__chromiq_knut_cm_a4_144p_1page_portrait_w14_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_204p_1page_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_306p_1page_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a4_374p_1page_portrait_w10_0mm_very_slow_reading_speed__', '__chromiq_knut_cm_a4_408p_2pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_612p_2pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a4_612p_3pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_1224p_4pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a4_1224p_6pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_1615p_5pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a4_1623p_8pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_2040p_10pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_2142p_7pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_84p_1page_portrait_w26_0mm_fast_reading_speed_hand_held__', '__chromiq_knut_cm_letter_144p_1page_portrait_w15_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_204p_1page_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_306p_1page_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_374p_1page_portrait_w10_0mm_very_slow_reading_speed__', '__chromiq_knut_cm_letter_408p_2pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_612p_2pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_612p_3pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_1224p_4pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_1224p_6pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_1615p_5pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_1623p_8pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_2040p_10pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_2142p_7pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_180p_1page_landscape_w26_0mm_fast_reading_speed_hand_held__', '__chromiq_knut_cm_a3_450p_1page_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_456p_1page_landscape_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_800p_1page_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_900p_2pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_912p_2pages_landscape_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_1224p_2pages_landscape_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_1350p_3pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_1368p_2pages_landscape_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_1368p_3pages_landscape_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_1600p_2pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_2052p_3pages_landscape_w10_0mm_slow_reading_speed_nature__', '__chromiq_knut_cm_a3_2280p_5pages_landscape_w10_0mm_fast_reading_speed_nature__', '__chromiq_knut_cm_a3plus_588p_1page_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3plus_616p_1page_landscape_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3plus_1176p_2pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3plus_1232p_2pages_landscape_w10_0mm_fast_reading_speed__', None, None, '__chromiq_abw1110_builtin__', '__chromiq_tc918eg_a4_builtin__', '__chromiq_ext1944_a4_builtin__', '__chromiq_tc918eg_letter_builtin__', '__chromiq_ext1944_letter_builtin__', '__chromiq_knut_i1_w75_a4_162p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_324p_1page_portrait_w7_5mm__', '__chromiq_knut_fls_i1pro_a4_484p_1page_portrait__', '__chromiq_knut_i1_w75_a4_648p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_1296p_2pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_1944p_3pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_2592p_4pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_3240p_5pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_3888p_6pages_portrait_w7_5mm__', '__chromiq_knut_i1_w8_a4_156p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_312p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_572p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_1144p_2pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_1716p_3pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_2288p_4pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_2860p_5pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_3432p_6pages_portrait_w8_0mm__', '__chromiq_knut_fls_i1pro_a4_1200p_3pages_portrait__', '__chromiq_knut_i1_w75_letter_162p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_324p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_648p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_1296p_2pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_1944p_3pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_2592p_4pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_3240p_5pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_3888p_6pages_portrait_w7_5mm__', '__chromiq_knut_i1_w8_letter_156p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_312p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_572p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_1144p_2pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_1716p_3pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_2288p_4pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_2860p_5pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_3432p_6pages_portrait_w8_0mm__', '__chromiq_knut_i1_w75_a3_1404p_1page_landscape_w7_5mm__', '__chromiq_knut_i1_w75_a3_2808p_2pages_landscape_w7_5mm__', '__chromiq_knut_i1_w75_a3_4212p_3pages_landscape_w7_5mm__', '__chromiq_knut_i1_w8_a3_1144p_1page_landscape_w9_0mm__', '__chromiq_knut_i1_w8_a3_2288p_2pages_landscape_w9_0mm__', '__chromiq_knut_i1_w8_a3_3432p_3pages_landscape_w9_0mm__', None, None, '__chromiq_knut_p3_a4_84p_1page_portrait_w25_0mm__', '__chromiq_knut_p3_a4_154p_1page_portrait_w16_0mm__', '__chromiq_knut_p3_a4_308p_2pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_462p_3pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_616p_4pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_924p_6pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_1232p_8pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_1540p_10pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_2002p_13pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_84p_1page_portrait_w25_0mm__', '__chromiq_knut_p3_letter_143p_1page_portrait_w16_0mm__', '__chromiq_knut_p3_letter_286p_2pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_429p_3pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_572p_4pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_858p_6pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_1144p_8pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_1430p_10pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_2002p_14pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_336p_1page_portrait_w16_0mm__', '__chromiq_knut_p3_a3_672p_2pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_1008p_3pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_1344p_4pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_1680p_5pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_2016p_6pages_portrait_w16_0mm__', None, None, '__chromiq_knut_cr30_a4_77p_1page_portrait_w24_0mm__', '__chromiq_knut_cr30_a4_153p_1page_portrait_w18_0mm_hexagonal__', '__chromiq_knut_cr30_a4_160p_1page_portrait_w17_0mm__', '__chromiq_knut_cr30_a4_192p_1page_portrait_w11_0mm__', '__chromiq_knut_cr30_a4_360p_1page_portrait_w11_0mm__', '__chromiq_knut_cr30_a4_420p_1page_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_a4_720p_2pages_portrait_w11_0mm__', '__chromiq_knut_cr30_a4_840p_2pages_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_a4_1080p_3pages_portrait_w11_0mm__', '__chromiq_knut_cr30_a4_1260p_3pages_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_letter_88p_1page_portrait_w22_0mm__', '__chromiq_knut_cr30_letter_150p_1page_portrait_w17_0mm__', '__chromiq_knut_cr30_letter_170p_1page_portrait_w16_0mm_hexagonal__', '__chromiq_knut_cr30_letter_184p_1page_portrait_w11_0mm__', '__chromiq_knut_cr30_letter_368p_1page_portrait_w11_0mm__', '__chromiq_knut_cr30_letter_390p_1page_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_letter_736p_2pages_portrait_w11_0mm__', '__chromiq_knut_cr30_letter_780p_2pages_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_letter_1104p_3pages_portrait_w11_0mm__', '__chromiq_knut_cr30_letter_1170p_3pages_portrait_w11_0mm_hexagonal__', None, None, '__chromiq_knut_scanner_a4_3430p_1page_landscape__', '__chromiq_knut_scanner_a4_6860p_2pages_landscape__', '__chromiq_knut_scanner_a4_10290p_3pages_landscape__', '__chromiq_knut_scanner_letter_3250p_1page_landscape__', '__chromiq_knut_scanner_letter_6500p_2pages_landscape__', '__chromiq_knut_scanner_letter_9750p_3pages_landscape__', None, None, '__chromiq_knut_redriver_i1pro_a4_2052p_4pages__', '__chromiq_knut_redriver_colormunki_a4_2052p_8pages__', '__chromiq_knut_redriver_colormunki_a4_2052p_9pages__', '__chromiq_knut_redriver_i1pro_letter_2052p_4pages__', '__chromiq_knut_redriver_colormunki_letter_2052p_8pages__', '__chromiq_knut_redriver_colormunki_letter_2052p_9pages__']
+2026-09-07 08:38:31,582 [INFO] assess: reload: engine=True diff vs saved={'paper': ('A4R', 'A4'), 'layout_mode': ('patch_first', 'area_first'), 'patch_w_mm': (12.0, 0.0), 'margin_top': (15.0, 8.0), 'margin_right': (15.0, 8.0), 'margin_bottom': (15.0, 8.0), 'margin_left': (15.0, 8.0), 'chart_text': ('Preset {project}', 'changed'), 'helper_markers': (True, False)}  override_targen_visible=False generate_enabled=True panel_enabled=True
+2026-09-07 08:38:31,744 [INFO] assess:   shot Screenshots/A8-presets/q03-after-reload.png  (3400x2100)
+2026-09-07 08:38:31,746 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:31,746 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:31,746 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:31,746 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:31,746 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:31,746 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:32,082 [INFO] assess:   armed: dialog ~'Preset already exists' -> click 'Overwrite' 
+2026-09-07 08:38:32,234 [INFO] assess:   [save A again] dialog QDialog title='Save Preset'
+2026-09-07 08:38:32,234 [INFO] assess:     clicking 'Save'
+2026-09-07 08:38:33,968 [INFO] assess: overwrite: {'seen': True, 'dialogs': ["clicked 'Close'", 'UNEXPECTED']}
+2026-09-07 08:38:34,120 [INFO] assess:   [delete A] dialog QDialog title='Delete Preset'
+2026-09-07 08:38:34,121 [INFO] assess:     clicking 'Delete'
+2026-09-07 08:38:35,568 [INFO] assess: delete: seen=True still in combo=False files=[] current='none'
+2026-09-07 08:38:35,577 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:35,577 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:35,577 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:35,577 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:35,577 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:35,577 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:35,744 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:35,744 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:35,744 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:35,744 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:35,744 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:35,744 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:35,924 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:35,926 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:35,926 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:35,926 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:35,926 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:35,926 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:36,192 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:36,193 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:36,193 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:36,193 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:36,193 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:36,193 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:36,324 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:36,324 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:36,324 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:36,324 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:36,324 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:36,324 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:36,458 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:36,458 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:36,458 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:36,458 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:36,458 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:36,458 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:36,593 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:36,593 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:36,593 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:36,593 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:36,593 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:36,593 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:36,727 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:36,727 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:36,727 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:36,727 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:36,727 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:36,727 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:36,734 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:36,734 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:36,734 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:36,734 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:36,734 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:36,734 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:37,152 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:37,152 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:37,152 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:37,152 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:37,152 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:37,152 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:37,996 [INFO] assess:   [save B] dialog QDialog title='Save Preset'
+2026-09-07 08:38:37,997 [INFO] assess:     clicking 'Save'
+2026-09-07 08:38:39,738 [INFO] assess:   json Test Runs/logs/d05_presetB_recipe_saved.json
+2026-09-07 08:38:39,738 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 08:38:39,739 [INFO] assess:   armed: dialog ~'scanner' -> click 'OK' 
+2026-09-07 08:38:39,739 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 08:38:42,767 [INFO] assess:   shot Screenshots/A8-presets/q04-builtin-tc918eg-a4-printtarg-kind.png  (3400x2100)
+2026-09-07 08:38:42,768 [INFO] assess: [builtin tc918eg-a4-printtarg-kind] engine True->True (enabled=True) actual={'total': 527, 'fillup': 2, 'page_patches': 238, 'rows': 17, 'cols': 14, 'pages': 3, 'patch': (12.53, 12.7), 'pitch': None} est={'total': 924, 'fillup': 0, 'page_patches': 308, 'rows': 14, 'cols': 22, 'pages': 3, 'patch': (12.0, 12.0), 'pitch': None} info='ngine · i1 · A4 landscape · 300 dpi · margin 15 mm · patch 12×12 mm · clip border off · align center-left\nLayout preset: i1 · A4 landscape · noclip   ● modified'
+2026-09-07 08:38:42,768 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 08:38:42,768 [INFO] assess:   armed: dialog ~'scanner' -> click 'OK' 
+2026-09-07 08:38:42,768 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 08:38:45,805 [INFO] assess:   shot Screenshots/A8-presets/q04-builtin-knut-i1-w75-162p-fulllayout.png  (3400x2100)
+2026-09-07 08:38:45,806 [INFO] assess: [builtin knut-i1-w75-162p-fulllayout] engine True->True (enabled=True) actual={'total': 527, 'fillup': 2, 'page_patches': 238, 'rows': 17, 'cols': 14, 'pages': 3, 'patch': (12.53, 12.7), 'pitch': None} est={'total': 924, 'fillup': 0, 'page_patches': 308, 'rows': 14, 'cols': 22, 'pages': 3, 'patch': (12.0, 12.0), 'pitch': None} info='ngine · i1 · A4 landscape · 300 dpi · margin 15 mm · patch 12×12 mm · clip border off · align center-left\nLayout preset: i1 · A4 landscape · noclip   ● modified'
+2026-09-07 08:38:45,806 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 08:38:45,806 [INFO] assess:   armed: dialog ~'scanner' -> click 'OK' 
+2026-09-07 08:38:45,806 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 08:38:48,839 [INFO] assess:   shot Screenshots/A8-presets/q04-builtin-knut-cr30-153p-hex.png  (3400x2100)
+2026-09-07 08:38:48,840 [INFO] assess: [builtin knut-cr30-153p-hex] engine True->True (enabled=True) actual={'total': 527, 'fillup': 2, 'page_patches': 238, 'rows': 17, 'cols': 14, 'pages': 3, 'patch': (12.53, 12.7), 'pitch': None} est={'total': 924, 'fillup': 0, 'page_patches': 308, 'rows': 14, 'cols': 22, 'pages': 3, 'patch': (12.0, 12.0), 'pitch': None} info='ngine · i1 · A4 landscape · 300 dpi · margin 15 mm · patch 12×12 mm · clip border off · align center-left\nLayout preset: i1 · A4 landscape · noclip   ● modified'
+2026-09-07 08:38:48,840 [INFO] assess:     set_combo_data: 'none' not in [None, 'Alpha', 'CR30-A4-77p-1page-Portrait-w24.0mm', 'CR30-A4-153p-1page-Portrait-w18.0mm-Hexagonal', 'CR30-A4-160p-1page-Portrait-w17.0mm', 'CR30-A4-192p-1page-Portrait-w11.0mm', 'CR30-A4-360p-1page-Portrait-w11.0mm', 'CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal', 'CR30-A4-720p-2pages-Portrait-w11.0mm', 'CR30-A4-840p-2pages-Portrait-w11.0mm-Hexagonal', 'CR30-A4-1080p-3pages-Portrait-w11.0mm', 'CR30-A4-1260p-3pages-Portrait-w11.0mm-Hexagonal', 'CR30-Letter-88p-1page-Portrait-w22.0mm', 'CR30-Letter-150p-1page-Portrait-w17.0mm', 'CR30-Letter-170p-1page-Portrait-w16.0mm-Hexagonal', 'CR30-Letter-184p-1page-Portrait-w11.0mm', 'CR30-Letter-368p-1page-Portrait-w11.0mm', 'CR30-Letter-390p-1page-Portrait-w11.0mm-Hexagonal', 'CR30-Letter-736p-2pages-Portrait-w11.0mm', 'CR30-Letter-780p-2pages-Portrait-w11.0mm-Hexagonal', 'CR30-Letter-1104p-3pages-Portrait-w11.0mm', 'CR30-Letter-1170p-3pages-Portrait-w11.0mm-Hexagonal', 'i1Pro-A4-1page-Portrait-BrandNew', 'i1Pro-A4-525p-3pages-Landscape-AssessPresetA', 'i1Pro-A4-525p-3pages-Landscape-AssessPresetB', None, None, '__chromiq_tc300_builtin__', '__chromiq_abw702_builtin__', '__chromiq_tc924_cm_a3_builtin__', '__chromiq_tc918eg_cm_a3_builtin__', '__chromiq_knut_cm_a4_84p_1page_portrait_w26_0mm_fast_reading_speed_hand_held__', '__chromiq_knut_cm_a4_144p_1page_portrait_w14_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_204p_1page_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_306p_1page_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a4_374p_1page_portrait_w10_0mm_very_slow_reading_speed__', '__chromiq_knut_cm_a4_408p_2pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_612p_2pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a4_612p_3pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_1224p_4pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a4_1224p_6pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_1615p_5pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a4_1623p_8pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_2040p_10pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a4_2142p_7pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_84p_1page_portrait_w26_0mm_fast_reading_speed_hand_held__', '__chromiq_knut_cm_letter_144p_1page_portrait_w15_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_204p_1page_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_306p_1page_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_374p_1page_portrait_w10_0mm_very_slow_reading_speed__', '__chromiq_knut_cm_letter_408p_2pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_612p_2pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_612p_3pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_1224p_4pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_1224p_6pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_1615p_5pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_letter_1623p_8pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_2040p_10pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_letter_2142p_7pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_180p_1page_landscape_w26_0mm_fast_reading_speed_hand_held__', '__chromiq_knut_cm_a3_450p_1page_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_456p_1page_landscape_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_800p_1page_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_900p_2pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_912p_2pages_landscape_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_1224p_2pages_landscape_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_1350p_3pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_1368p_2pages_landscape_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_1368p_3pages_landscape_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3_1600p_2pages_portrait_w10_0mm_slow_reading_speed__', '__chromiq_knut_cm_a3_2052p_3pages_landscape_w10_0mm_slow_reading_speed_nature__', '__chromiq_knut_cm_a3_2280p_5pages_landscape_w10_0mm_fast_reading_speed_nature__', '__chromiq_knut_cm_a3plus_588p_1page_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3plus_616p_1page_landscape_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3plus_1176p_2pages_portrait_w10_0mm_fast_reading_speed__', '__chromiq_knut_cm_a3plus_1232p_2pages_landscape_w10_0mm_fast_reading_speed__', None, None, '__chromiq_abw1110_builtin__', '__chromiq_tc918eg_a4_builtin__', '__chromiq_ext1944_a4_builtin__', '__chromiq_tc918eg_letter_builtin__', '__chromiq_ext1944_letter_builtin__', '__chromiq_knut_i1_w75_a4_162p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_324p_1page_portrait_w7_5mm__', '__chromiq_knut_fls_i1pro_a4_484p_1page_portrait__', '__chromiq_knut_i1_w75_a4_648p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_1296p_2pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_1944p_3pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_2592p_4pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_3240p_5pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_a4_3888p_6pages_portrait_w7_5mm__', '__chromiq_knut_i1_w8_a4_156p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_312p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_572p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_1144p_2pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_1716p_3pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_2288p_4pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_2860p_5pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_a4_3432p_6pages_portrait_w8_0mm__', '__chromiq_knut_fls_i1pro_a4_1200p_3pages_portrait__', '__chromiq_knut_i1_w75_letter_162p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_324p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_648p_1page_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_1296p_2pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_1944p_3pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_2592p_4pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_3240p_5pages_portrait_w7_5mm__', '__chromiq_knut_i1_w75_letter_3888p_6pages_portrait_w7_5mm__', '__chromiq_knut_i1_w8_letter_156p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_312p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_572p_1page_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_1144p_2pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_1716p_3pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_2288p_4pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_2860p_5pages_portrait_w8_0mm__', '__chromiq_knut_i1_w8_letter_3432p_6pages_portrait_w8_0mm__', '__chromiq_knut_i1_w75_a3_1404p_1page_landscape_w7_5mm__', '__chromiq_knut_i1_w75_a3_2808p_2pages_landscape_w7_5mm__', '__chromiq_knut_i1_w75_a3_4212p_3pages_landscape_w7_5mm__', '__chromiq_knut_i1_w8_a3_1144p_1page_landscape_w9_0mm__', '__chromiq_knut_i1_w8_a3_2288p_2pages_landscape_w9_0mm__', '__chromiq_knut_i1_w8_a3_3432p_3pages_landscape_w9_0mm__', None, None, '__chromiq_knut_p3_a4_84p_1page_portrait_w25_0mm__', '__chromiq_knut_p3_a4_154p_1page_portrait_w16_0mm__', '__chromiq_knut_p3_a4_308p_2pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_462p_3pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_616p_4pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_924p_6pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_1232p_8pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_1540p_10pages_portrait_w16_0mm__', '__chromiq_knut_p3_a4_2002p_13pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_84p_1page_portrait_w25_0mm__', '__chromiq_knut_p3_letter_143p_1page_portrait_w16_0mm__', '__chromiq_knut_p3_letter_286p_2pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_429p_3pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_572p_4pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_858p_6pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_1144p_8pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_1430p_10pages_portrait_w16_0mm__', '__chromiq_knut_p3_letter_2002p_14pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_336p_1page_portrait_w16_0mm__', '__chromiq_knut_p3_a3_672p_2pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_1008p_3pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_1344p_4pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_1680p_5pages_portrait_w16_0mm__', '__chromiq_knut_p3_a3_2016p_6pages_portrait_w16_0mm__', None, None, '__chromiq_knut_cr30_a4_77p_1page_portrait_w24_0mm__', '__chromiq_knut_cr30_a4_153p_1page_portrait_w18_0mm_hexagonal__', '__chromiq_knut_cr30_a4_160p_1page_portrait_w17_0mm__', '__chromiq_knut_cr30_a4_192p_1page_portrait_w11_0mm__', '__chromiq_knut_cr30_a4_360p_1page_portrait_w11_0mm__', '__chromiq_knut_cr30_a4_420p_1page_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_a4_720p_2pages_portrait_w11_0mm__', '__chromiq_knut_cr30_a4_840p_2pages_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_a4_1080p_3pages_portrait_w11_0mm__', '__chromiq_knut_cr30_a4_1260p_3pages_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_letter_88p_1page_portrait_w22_0mm__', '__chromiq_knut_cr30_letter_150p_1page_portrait_w17_0mm__', '__chromiq_knut_cr30_letter_170p_1page_portrait_w16_0mm_hexagonal__', '__chromiq_knut_cr30_letter_184p_1page_portrait_w11_0mm__', '__chromiq_knut_cr30_letter_368p_1page_portrait_w11_0mm__', '__chromiq_knut_cr30_letter_390p_1page_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_letter_736p_2pages_portrait_w11_0mm__', '__chromiq_knut_cr30_letter_780p_2pages_portrait_w11_0mm_hexagonal__', '__chromiq_knut_cr30_letter_1104p_3pages_portrait_w11_0mm__', '__chromiq_knut_cr30_letter_1170p_3pages_portrait_w11_0mm_hexagonal__', None, None, '__chromiq_knut_scanner_a4_3430p_1page_landscape__', '__chromiq_knut_scanner_a4_6860p_2pages_landscape__', '__chromiq_knut_scanner_a4_10290p_3pages_landscape__', '__chromiq_knut_scanner_letter_3250p_1page_landscape__', '__chromiq_knut_scanner_letter_6500p_2pages_landscape__', '__chromiq_knut_scanner_letter_9750p_3pages_landscape__', None, None, '__chromiq_knut_redriver_i1pro_a4_2052p_4pages__', '__chromiq_knut_redriver_colormunki_a4_2052p_8pages__', '__chromiq_knut_redriver_colormunki_a4_2052p_9pages__', '__chromiq_knut_redriver_i1pro_letter_2052p_4pages__', '__chromiq_knut_redriver_colormunki_letter_2052p_8pages__', '__chromiq_knut_redriver_colormunki_letter_2052p_9pages__']
+2026-09-07 08:38:49,644 [INFO] assess: after 'none': engine=True recipe={'instrument': 'i1', 'paper': 'A4R', 'layout_mode': 'patch_first', 'area_method': 'by_grid', 'patch_w_mm': 12.0, 'patch_h_mm': 12.0, 'margin_top': 15.0, 'margin_right': 15.0, 'margin_bottom': 15.0, 'margin_left': 15.0, 'use_instrument_margins': False, 'clip_border': False, 'clip_content_mode': 'off', 'chart_text': 'Preset {project}', 'helper_markers': True, 'show_row_indicators': True, 'pscale': 1.0, 'spacer_mode': 'none', 'indicator_size_mm': 1.41, 'randomize': True}
+2026-09-07 08:38:49,809 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:49,809 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:49,809 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:49,809 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:49,809 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:49,809 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:50,266 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:50,266 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:50,266 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:50,266 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:50,266 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:50,266 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:50,522 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:50,522 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:50,522 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:50,522 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:50,522 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:50,522 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:50,954 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:50,954 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:50,954 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:50,954 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:50,954 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:50,954 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:51,539 [DEBUG] core.settings: settings.set helper_markers_show = True
+2026-09-07 08:38:51,539 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:51,539 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:51,539 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:51,539 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:51,539 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:51,952 [DEBUG] core.settings: settings.set helper_markers_show = False
+2026-09-07 08:38:51,952 [DEBUG] core.settings: settings.set helper_marker_edge_mm = 2.0
+2026-09-07 08:38:51,952 [DEBUG] core.settings: settings.set helper_marker_len_mm = 2.0
+2026-09-07 08:38:51,952 [DEBUG] core.settings: settings.set helper_marker_per_patch = 3
+2026-09-07 08:38:51,952 [DEBUG] core.settings: settings.set helper_markers_top_bottom = True
+2026-09-07 08:38:51,952 [DEBUG] core.settings: settings.set helper_markers_sides = True
+2026-09-07 08:38:52,630 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 08:38:52,630 [INFO] assess:   armed: dialog ~'quite fill' -> click 'Edit patch set' 
+2026-09-07 08:38:52,630 [INFO] ui.tabs.tab_chart: chart build (Generate Chart) in manual: patch set targen | manual panel: A4, 0x0 grid, margins T38.0 R9.0 B19.0 L26.0
+2026-09-07 08:38:52,631 [DEBUG] core.settings: settings.set session_ti3_path = ''
+2026-09-07 08:38:52,631 [DEBUG] core.settings: settings.set session_icc_path = ''
+2026-09-07 08:38:52,631 [DEBUG] core.settings: settings.set session_cal_ti3_path = ''
+2026-09-07 08:38:52,632 [DEBUG] core.file_manager: Target name set to: A5-Furniture (root /Users/Basti/ChromIQ-assessment/A5-Furniture)
+2026-09-07 08:38:52,633 [INFO] core.file_manager: opened the EXISTING project at /Users/Basti/ChromIQ-assessment/A5-Furniture (1 run(s) on disk)
+2026-09-07 08:38:52,636 [INFO] workflow.chart_creator: Chart generation: 300 patches, instrument=i1 paper=A4 disable_lb=True
+2026-09-07 08:38:52,636 [INFO] workflow.chart_creator: targen args: ['-v', '-d2', '-f300', '-e3', '-B3', '-G', '-g17', 'A5-Furniture']
+2026-09-07 08:38:52,636 [INFO] core.argyll_runner: Run: /Applications/Argyll/bin/targen -v -d2 -f300 -e3 -B3 -G -g17 A5-Furniture  [cwd=/Users/Basti/ChromIQ-assessment/A5-Furniture/runs/run1]
+2026-09-07 08:38:52,723 [DEBUG] core.argyll_runner: [argyll] iRGB test chart
+2026-09-07 08:38:52,724 [DEBUG] core.argyll_runner: [argyll] White patches = 3
+2026-09-07 08:38:52,724 [DEBUG] core.argyll_runner: [argyll] Black patches = 3
+2026-09-07 08:38:52,724 [DEBUG] core.argyll_runner: [argyll] Composite Grey steps = 17
+2026-09-07 08:38:52,724 [DEBUG] core.argyll_runner: [argyll] Full spread patches = 300
+2026-09-07 08:38:52,724 [DEBUG] core.argyll_runner: [argyll] Degree of adaptation: 0.100
+2026-09-07 08:38:52,724 [DEBUG] core.argyll_runner: [argyll] Adaptation weights: Device = 0.935, Perceptual = 0.065, Curvature = 0.010
+2026-09-07 08:38:52,725 [DEBUG] core.argyll_runner: [argyll] Perceptual cache resolution = 7
+2026-09-07 08:38:52,725 [DEBUG] core.argyll_runner: [argyll] Seeding cache...done
+2026-09-07 08:38:52,725 [DEBUG] core.argyll_runner: [argyll] Acceleration grid res = 7
+2026-09-07 08:38:52,725 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 08:38:52,725 [DEBUG] core.argyll_runner: [argyll] There are 17 unique fixed points to add (21 total fixed points)
+2026-09-07 08:38:52,725 [DEBUG] core.argyll_runner: [argyll] There are 279 far spread points to add
+2026-09-07 08:38:52,726 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 08:38:52,726 [DEBUG] core.argyll_runner: [argyll] Added 12/296
+2026-09-07 08:38:52,726 [DEBUG] core.argyll_runner: [argyll] Added 23/296
+2026-09-07 08:38:52,726 [DEBUG] core.argyll_runner: [argyll] Added 34/296
+2026-09-07 08:38:52,726 [DEBUG] core.argyll_runner: [argyll] Added 45/296
+2026-09-07 08:38:52,727 [DEBUG] core.argyll_runner: [argyll] Added 56/296
+2026-09-07 08:38:52,727 [DEBUG] core.argyll_runner: [argyll] Added 67/296
+2026-09-07 08:38:52,728 [DEBUG] core.argyll_runner: [argyll] Added 78/296
+2026-09-07 08:38:52,729 [DEBUG] core.argyll_runner: [argyll] Added 89/296
+2026-09-07 08:38:52,730 [DEBUG] core.argyll_runner: [argyll] Added 100/296
+2026-09-07 08:38:52,731 [DEBUG] core.argyll_runner: [argyll] Added 111/296
+2026-09-07 08:38:52,732 [DEBUG] core.argyll_runner: [argyll] Added 122/296
+2026-09-07 08:38:52,734 [DEBUG] core.argyll_runner: [argyll] Added 133/296
+2026-09-07 08:38:52,755 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 08:38:52,755 [DEBUG] core.argyll_runner: [argyll] Added 144/296
+2026-09-07 08:38:52,755 [DEBUG] core.argyll_runner: [argyll] Added 155/296
+2026-09-07 08:38:52,755 [DEBUG] core.argyll_runner: [argyll] Added 166/296
+2026-09-07 08:38:52,756 [DEBUG] core.argyll_runner: [argyll] Added 177/296
+2026-09-07 08:38:52,756 [DEBUG] core.argyll_runner: [argyll] Added 188/296
+2026-09-07 08:38:52,757 [DEBUG] core.argyll_runner: [argyll] Added 199/296
+2026-09-07 08:38:52,758 [DEBUG] core.argyll_runner: [argyll] Added 210/296
+2026-09-07 08:38:52,759 [DEBUG] core.argyll_runner: [argyll] Added 221/296
+2026-09-07 08:38:52,760 [DEBUG] core.argyll_runner: [argyll] Added 232/296
+2026-09-07 08:38:52,761 [DEBUG] core.argyll_runner: [argyll] Added 243/296
+2026-09-07 08:38:52,762 [DEBUG] core.argyll_runner: [argyll] Added 254/296
+2026-09-07 08:38:52,763 [DEBUG] core.argyll_runner: [argyll] Added 265/296
+2026-09-07 08:38:52,765 [DEBUG] core.argyll_runner: [argyll] Added 276/296
+2026-09-07 08:38:52,767 [DEBUG] core.argyll_runner: [argyll] Added 287/296
+2026-09-07 08:38:52,768 [DEBUG] core.argyll_runner: [argyll] Added 296/296
+2026-09-07 08:38:53,208 [DEBUG] core.argyll_runner: [argyll] 
+2026-09-07 08:38:53,208 [DEBUG] core.argyll_runner: [argyll] After seeding points: MinPoint = 3.847, Min = 5.284, Avg. = 13.258, Max = 16.725, 0.0 secs
+2026-09-07 08:38:53,209 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,209 [DEBUG] core.argyll_runner: [argyll] It 1: Maxmv = 0.135022, MinPoint = 4.062, Min = 5.851, Avg. = 13.327, Max = 17.919, 0.0 secs.
+2026-09-07 08:38:53,209 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,209 [DEBUG] core.argyll_runner: [argyll] It 2: Maxmv = 0.097942, MinPoint = 5.856, Min = 6.115, Avg. = 13.230, Max = 17.114, 0.0 secs.
+2026-09-07 08:38:53,210 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,210 [DEBUG] core.argyll_runner: [argyll] It 3: Maxmv = 0.093783, MinPoint = 8.418, Min = 7.548, Avg. = 13.074, Max = 17.417, 0.0 secs.
+2026-09-07 08:38:53,210 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,210 [DEBUG] core.argyll_runner: [argyll] It 4: Maxmv = 0.077311, MinPoint = 4.821, Min = 7.877, Avg. = 12.984, Max = 16.708, 0.0 secs.
+2026-09-07 08:38:53,211 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,211 [DEBUG] core.argyll_runner: [argyll] It 5: Maxmv = 0.089221, MinPoint = 7.387, Min = 8.104, Avg. = 12.930, Max = 16.445, 0.0 secs.
+2026-09-07 08:38:53,211 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,211 [DEBUG] core.argyll_runner: [argyll] It 6: Maxmv = 0.069757, MinPoint = 6.241, Min = 7.119, Avg. = 12.852, Max = 15.841, 0.0 secs.
+2026-09-07 08:38:53,211 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,212 [DEBUG] core.argyll_runner: [argyll] It 7: Maxmv = 0.075299, MinPoint = 9.140, Min = 9.050, Avg. = 12.827, Max = 16.313, 0.0 secs.
+2026-09-07 08:38:53,212 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,212 [DEBUG] core.argyll_runner: [argyll] It 8: Maxmv = 0.054404, MinPoint = 10.429, Min = 8.418, Avg. = 12.811, Max = 16.222, 0.0 secs.
+2026-09-07 08:38:53,212 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,213 [DEBUG] core.argyll_runner: [argyll] It 9: Maxmv = 0.047499, MinPoint = 10.429, Min = 9.367, Avg. = 12.768, Max = 15.738, 0.0 secs.
+2026-09-07 08:38:53,213 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,213 [DEBUG] core.argyll_runner: [argyll] It 10: Maxmv = 0.046922, MinPoint = 10.429, Min = 8.596, Avg. = 12.729, Max = 15.473, 0.0 secs.
+2026-09-07 08:38:53,213 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,214 [DEBUG] core.argyll_runner: [argyll] It 11: Maxmv = 0.040487, MinPoint = 10.429, Min = 9.479, Avg. = 12.721, Max = 15.481, 0.0 secs.
+2026-09-07 08:38:53,214 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,214 [DEBUG] core.argyll_runner: [argyll] It 12: Maxmv = 0.036408, MinPoint = 10.429, Min = 9.329, Avg. = 12.699, Max = 15.408, 0.0 secs.
+2026-09-07 08:38:53,214 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,214 [DEBUG] core.argyll_runner: [argyll] It 13: Maxmv = 0.028835, MinPoint = 10.429, Min = 9.578, Avg. = 12.696, Max = 15.313, 0.0 secs.
+2026-09-07 08:38:53,215 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,215 [DEBUG] core.argyll_runner: [argyll] It 14: Maxmv = 0.026673, MinPoint = 10.429, Min = 9.498, Avg. = 12.689, Max = 15.012, 0.0 secs.
+2026-09-07 08:38:53,215 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,215 [DEBUG] core.argyll_runner: [argyll] It 15: Maxmv = 0.019550, MinPoint = 10.429, Min = 9.590, Avg. = 12.685, Max = 15.130, 0.0 secs.
+2026-09-07 08:38:53,216 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,216 [DEBUG] core.argyll_runner: [argyll] It 16: Maxmv = 0.012864, MinPoint = 10.429, Min = 9.543, Avg. = 12.679, Max = 15.160, 0.0 secs.
+2026-09-07 08:38:53,216 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,216 [DEBUG] core.argyll_runner: [argyll] It 17: Maxmv = 0.010460, MinPoint = 10.429, Min = 9.475, Avg. = 12.673, Max = 15.317, 0.0 secs.
+2026-09-07 08:38:53,217 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,217 [DEBUG] core.argyll_runner: [argyll] It 18: Maxmv = 0.006328, MinPoint = 10.429, Min = 9.452, Avg. = 12.674, Max = 15.410, 0.0 secs.
+2026-09-07 08:38:53,217 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,217 [DEBUG] core.argyll_runner: [argyll] It 19: Maxmv = 0.002174, MinPoint = 10.429, Min = 9.433, Avg. = 12.672, Max = 15.445, 0.0 secs.
+2026-09-07 08:38:53,218 [DEBUG] core.argyll_runner: [argyll] Re-seeding
+2026-09-07 08:38:53,218 [DEBUG] core.argyll_runner: [argyll] It 20: Maxmv = 0.002136, MinPoint = 10.429, Min = 9.414, Avg. = 12.675, Max = 15.482, 0.0 secs.
+2026-09-07 08:38:53,218 [DEBUG] core.argyll_runner: [argyll] After optimization: MinPoint = 10.429, Min = 9.414, Avg. = 12.675, Max = 15.482
+2026-09-07 08:38:53,218 [DEBUG] core.argyll_runner: [argyll] Total number of patches = 300
+2026-09-07 08:38:53,219 [DEBUG] core.argyll_runner: [argyll] Execution time = 0.496647 seconds
+2026-09-07 08:38:53,231 [INFO] core.argyll_runner: ArgyllRunner: finished with code 0
+2026-09-07 08:38:53,338 [DEBUG] workflow.chart_creator: Wrote channel sidecar A5-Furniture.channels.json: ['r', 'g', 'b']
+2026-09-07 08:38:53,494 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 08:38:53,495 [INFO] ui.tabs.tab_chart: Preview loaded: 2 TIFF(s)
+2026-09-07 08:38:53,506 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 08:38:53,508 [DEBUG] ui.tiff_preview: TiffPreview: loaded 2 page(s)
+2026-09-07 08:38:53,512 [DEBUG] ui.tabs.tab_chart: create-chart settings written for run1 (40 parameters + ui state)
+2026-09-07 08:38:57,633 [INFO] assess: [editor] {'seen': False, 'err': None, 'tab_recipe_changed_by_open_close': {}}
+2026-09-07 08:38:57,634 [INFO] assess:   armed: dialog ~'already' -> click 'Continue this project' 
+2026-09-07 08:38:57,634 [INFO] assess:   armed: dialog ~'quite fill' -> click 'OK' 
+2026-09-07 08:38:58,142 [DEBUG] ui.dialogs.layout_options_panel: layout panel set_recipe: spacer=none/False gaps=0.0/0.0  [open_tool_dialog:2464  ←  <lambda>:4373  ←  _load_chart_from:5422]
+2026-09-07 08:38:58,191 [INFO] assess:   [editor from hint] dialog Ti2RelayoutDialog title='Edit / create chart patch set'
+2026-09-07 08:38:58,200 [INFO] assess:   [editor apply] dialog Ti2RelayoutDialog title='Edit / create chart patch set'
+2026-09-07 08:39:00,835 [INFO] assess:   shot Screenshots/A9-patch-editor/e02-editor-before-apply.png  (2560x1640)
+2026-09-07 08:39:00,850 [INFO] assess:   DIALOG expected [QDialog] 'Apply or save this patch set' -> NO BUTTON MATCHING 'Continue this project' among ['Overwrite', 'Save As…', 'Cancel', 'Overwrite', 'Cancel', 'Save As…']

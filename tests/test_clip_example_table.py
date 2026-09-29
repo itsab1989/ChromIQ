@@ -143,7 +143,18 @@ def test_deleting_blank_lines_tightens_the_clip_text():
 
 def test_clip_flip_180_persists_and_flips_render(app):
     """The clip flip-180 toggle round-trips through the recipe (so it saves as a
-    default and inside a preset) and actually turns the clip content over (Knut)."""
+    default and inside a preset) and actually turns the clip content over (Knut).
+
+    **IT NO LONGER MOVES WHICH END THE BLOCK IS ANCHORED TO**, and this test
+    used to pin that it did: it asserted the flipped strip was the plain one
+    turned by exactly 180 degrees, which is the same thing as saying the block
+    changes ends. Measured with the dash rule that begins Knut's own clip text:
+    with "Flip 180" on, a right-hand band put line 1 against the PATCHES and
+    grew the block toward the paper edge, across the "Text distance from edge"
+    limit that his ruling of 2026-09-12 says nothing may cross. The block is
+    now anchored at the page-edge end whichever way the content reads, so the
+    two strips are the same turn of the same block and NOT the same rectangle.
+    """
     import numpy as np
     from dataclasses import replace
     from workflow.layout_engine import geometry, instruments, raster
@@ -172,7 +183,26 @@ def test_clip_flip_180_persists_and_flips_render(app):
 
     a0, a1 = _clip(False), _clip(True)
     assert not np.array_equal(a0, a1)                 # the toggle changed the strip
-    assert np.array_equal(a1, a0[::-1, ::-1])         # …by exactly 180°
+
+    def _ink_box(a):
+        """The rows and columns that carry ink, so the block can be compared
+        without the blank paper either side of it."""
+        m = a.min(axis=2) < 200
+        rows, cols = np.flatnonzero(m.any(axis=1)), np.flatnonzero(m.any(axis=0))
+        assert len(rows) and len(cols), "the clip strip printed nothing"
+        return a[rows[0]:rows[-1] + 1, cols[0]:cols[-1] + 1]
+
+    b0, b1 = _ink_box(a0), _ink_box(a1)
+    # THE CONTENT IS TURNED OVER: the inked block is the other one's 180° turn.
+    assert np.array_equal(b1, b0[::-1, ::-1]), (
+        "flipping no longer turns the clip content over")
+    # WHICH END THE BLOCK IS ANCHORED TO is checked in
+    # `tests/test_the_sheet_text_fits_the_sheet.py`, on a band with real slack
+    # and a first line that can be told from the others. It cannot be checked
+    # here: one line of "TOP edge" grows to fill this 130 px band, and the 23 px
+    # by which its first inked column moves is the glyph's own ascent padding
+    # swapping ends with its descent, not the block moving. Three probes in a
+    # row were fooled by exactly that before the dash rule settled it.
 
 
 def test_clip_text_keeps_every_blank_line():

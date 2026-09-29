@@ -20,6 +20,103 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+#: Every letter colprof's ``-a`` accepts, and no other.
+#:
+#: ChromIQ offered **M**, "Matrix only (forced)", in both the Guided and the
+#: Manual algorithm dropdown and in ``data/parameters.yaml``. colprof has no
+#: ``M``: ``profile/colprof.c:599-631`` is a ``switch (na[0])`` with cases
+#:
+#:     l  L  x  X  Y  g  G  s  S  m
+#:
+#: and a ``default:`` that calls ``usage("Unknown argument '%c' to algorithm
+#: flag -a")``. MEASURED against the 3.5.0 binary, one probe per ASCII letter:
+#: those ten parse and every other letter, ``M`` included, exits 1.
+#:
+#: And it failed in SILENCE. ``_build_args`` below appends the letter verbatim,
+#: no entry in ``_COLPROF_ERROR_PATTERNS`` matches "Unknown argument 'M' to
+#: algorithm flag -a", and the Profile tab only opens a window when a pattern
+#: matches or the FWA case fires — so the user got no profile, no dialog and one
+#: line in a log. ``tests/test_printtarg_argument_vocabulary.py`` now pins every
+#: letter the UI offers against this set.
+COLPROF_ALGORITHMS = frozenset("lLxXYgGsSm")
+
+
+#: …and that set is only HALF the rule. The missing half is what beta 11 left
+#: behind: `-a` is parsed long before the measurement is read, so every one of
+#: those ten letters parses, and the **DEVICE_CLASS in the .ti3** then decides
+#: whether it can be used at all. READ-FROM-SOURCE, colprof.c 3.5.0:
+#:
+#: * ``OUTPUT`` (a printer), ``colprof.c:1244-1246``::
+#:
+#:       else if (ptype != prof_clutLab && ptype != prof_clutXYZ)
+#:           error ("Output profile can only be a cLUT algorithm");
+#:
+#:   A printer profile is a cLUT or it is nothing.
+#: * ``INPUT`` / ``EMISINPUT`` (a scanner or camera), ``colprof.c:1272-1287`` —
+#:   every letter is accepted; ``X`` and ``Y`` *warn* ("-aX not applicable to
+#:   input profile, using -ax") and fall back to ``x``.
+#: * ``DISPLAY``, ``colprof.c:1296-1310`` — every letter, and the only branch
+#:   that passes ``mtxtoo`` on to ``make_output_icc``, so it is the only place
+#:   ``X`` and ``Y`` mean anything at all. ChromIQ profiles no displays.
+#:
+#: MEASURED against the 3.5.0 binary on real measurements of both classes
+#: (a printer chart, Knut's scanner-measured printer chart, a scanned IT8) and
+#: on a synthetic 300-patch chart: exactly the letters below build a profile,
+#: and every other letter exits 1 having written nothing.
+COLPROF_ALGORITHMS_BY_DEVICE_CLASS: "dict[str, frozenset[str]]" = {
+    "OUTPUT":    frozenset("lLxXY"),
+    "INPUT":     frozenset("lLxXYgGsSm"),
+    "EMISINPUT": frozenset("lLxXYgGsSm"),
+    "DISPLAY":   frozenset("lLxXYgGsSm"),
+}
+
+#: The ``-a`` letters ChromIQ OFFERS for a printer profile, and the reason the
+#: list is two where colprof accepts five.
+#:
+#: ``X`` and ``Y`` are legal for an OUTPUT profile but inert in one: the OUTPUT
+#: call site is ``make_output_icc(ptype, 0, …)`` (``colprof.c:1256``) with
+#: ``mtxtoo`` a hard-coded literal ``0``, so the fallback matrix those two
+#: letters exist to add is discarded before it is built. MEASURED, byte-comparing
+#: three profiles built from one printer .ti3: ``x``, ``X`` and ``Y`` differ only
+#: in the header creation time. colprof prints no warning about it either (the
+#: INPUT branch does). An entry that silently makes the same file as the one
+#: above it is a trap, and ChromIQ's label for ``X``, "XYZ cLUT + matrix",
+#: promised a matrix the file does not contain.
+OUTPUT_ALGORITHM_CHOICES = ("l", "x")
+
+#: Where a stored letter goes when it is no longer offered for a printer.
+#: ``X``/``Y``/``L`` are aliases of a letter that IS offered and produce the
+#: identical file, so those projects build exactly what they built before.
+#: ``g G s S m`` never built anything at all, so they land on colprof's own
+#: default for an output profile, ``l`` (``colprof.c:1243``).
+_OUTPUT_ALGORITHM_FALLBACK = {"L": "l", "X": "x", "Y": "x",
+                              "g": "l", "G": "l", "s": "l", "S": "l", "m": "l"}
+
+
+def output_algorithm(letter: "str | None") -> "tuple[str, bool]":
+    """Coerce a stored ``-a`` letter to one ChromIQ offers for a PRINTER.
+
+    Returns ``(letter, changed)``. ``changed`` is True only when the stored
+    letter was one this app no longer offers, which is the caller's cue to
+    SAY SO: a setting that quietly means something else is the failure mode
+    this whole change exists to remove.
+    """
+    # `isinstance`, NOT `letter or ""`. A stored setting is whatever the file
+    # holds, and a damaged or hand-edited meta.json / preset .json can hold a
+    # number or a list there. `7 or ""` is 7, and `7.strip()` is an
+    # AttributeError raised from the FIRST line of `_m_apply_preset_data` —
+    # which abandons the other 42 settings in the same dict and leaves the
+    # previous target's Build Profile settings on screen. Measured, agent CV.
+    # Before this release the same value simply missed `findData` and was
+    # ignored, so treating a non-string as "nothing stored" restores that.
+    letter = (letter if isinstance(letter, str) else "").strip()
+    if letter in OUTPUT_ALGORITHM_CHOICES:
+        return letter, False
+    if letter in _OUTPUT_ALGORITHM_FALLBACK:
+        return _OUTPUT_ALGORITHM_FALLBACK[letter], True
+    return OUTPUT_ALGORITHM_CHOICES[0], bool(letter)
+
+
 # Errors that colprof can print when it fails. Each entry pairs a regex that
 # captures the dynamic part of the message (filename, value, etc.) with a
 # (key, friendly_template) tuple. The key lets the UI choose a bespoke dialog
@@ -38,6 +135,20 @@ _COLPROF_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
      "FWA compensation requires you to also set a viewing condition and/or "
      "illuminant in Build Profile → Color Science. Either pick one of those, "
      "or disable FWA Compensation."),
+    # L1246 — the algorithm is not one an OUTPUT (printer) profile can use.
+    # colprof refuses -ag/-aG/-as/-aS/-am for a printer measurement outright,
+    # before it reads a single patch, and until now nothing here matched that
+    # line: no profile, no window, one line in a log. ChromIQ no longer offers
+    # those letters for a printer, so a user should never see this; it is here
+    # because the class of failure must never be silent again, and a stored
+    # setting, a preset or a hand-typed extra argument can still reach it.
+    (re.compile(r"Output profile can only be a cLUT algorithm"),
+     "algo_not_clut",
+     "A printer profile has to be a lookup table, and the algorithm this "
+     "build asked for is not one.\n\nSet Algorithm to \"Lab cLUT\" or "
+     "\"XYZ cLUT\" in Build Profile and build again. ArgyllCMS supports the "
+     "gamma, shaper and matrix algorithms only for scanners, cameras and "
+     "displays, never for a printer."),
     # L1048 — input .ti3 unreadable / corrupt
     (re.compile(r"CGATS file read error\s*:\s*(.+)$"),
      "ti3_read",
@@ -102,8 +213,177 @@ _COLPROF_WARNING_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# What `colprof -v` says while it is working
+#
+# MEASURED against ArgyllCMS 3.5.0 on a real 4,000-patch measurement, output
+# timestamped byte by byte (a `\r` counts as the end of a field):
+#
+#   * WITHOUT `-v`, colprof prints **nothing at all** for the whole build —
+#     18.71 s at `-qm`, zero bytes, exit 0. There is nothing to read, nothing
+#     buffered and nothing withheld; the tool is simply silent.
+#   * WITH `-v` it names each phase on its own line and then ticks a
+#     percentage for that phase, `\r`-terminated. The percentage RESTARTS at
+#     0 for every phase, so there is no single number for the whole build and
+#     any bar claiming one would be inventing it. What the tool does support,
+#     and all it supports, is "this phase, this far".
+#   * The same measurement at `-qu` (the quality this was reported against)
+#     took 457 s: phases for the first 21 s, one silent stretch of 107 s while
+#     the B2A tables are set up, then a percentage every ~4 s for the
+#     remaining 5.5 minutes. So the readout is honest about being unable to
+#     say anything during that stretch — the bar stays indeterminate until a
+#     percentage actually arrives.
+#
+# Both helpers are pure so the parsing can be tested without a subprocess.
+# ---------------------------------------------------------------------------
+
+#: The openings colprof uses to announce a phase (3.5.0, `profile/profout.c`).
+_COLPROF_PHASE_OPENERS = (
+    "About to ", "Creating ", "Create ", "Setting up ", "Doing ",
+    "Estimating ", "Find ",
+)
+
+#: A percentage field on its own, e.g. `"  0"`, `" 17"`, `"100"` + `"%"`.
+_COLPROF_PCT_RE = re.compile(r"^\s*(\d{1,3})\s*%$")
+
+
+def colprof_phase(line: str) -> "str | None":
+    """The phase *line* announces, or None when it announces none.
+
+    The trailing colon of "Doing White point fine tune:" is dropped so the
+    phrase reads the same as every other one.
+    """
+    text = line.strip()
+    if not text.startswith(_COLPROF_PHASE_OPENERS):
+        return None
+    return text.rstrip(":").strip() or None
+
+
+def colprof_percent(line: str) -> "float | None":
+    """*line* as a 0.0-1.0 fraction when it is a bare percentage field, else
+    None. Anything above 100 % is a misread, not progress, and is refused."""
+    m = _COLPROF_PCT_RE.match(line)
+    if m is None:
+        return None
+    pct = int(m.group(1))
+    if pct > 100:
+        return None
+    return pct / 100.0
+
+
 def _profile_dir() -> Path:
     return icc_install_dir()
+
+
+#: Names Windows refuses for a file whatever extension follows them, so
+#: "CON.icc" is as unusable there as "CON". ChromIQ ships on Windows and the
+#: description is free text, so a user may type any of these.
+_WINDOWS_RESERVED_STEMS = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{i}" for i in range(1, 10)}
+    | {f"LPT{i}" for i in range(1, 10)})
+
+#: A generous cap on the installed copy's stem. The system profile folder's own
+#: path eats into Windows' 260-character limit, and a name past this is not a
+#: name anybody reads anyway.
+MAX_INSTALL_STEM = 100
+
+
+def sanitise_install_stem(text: str) -> "str | None":
+    """A file name (no extension) for the installed copy, or None.
+
+    One sanitiser for BOTH Install buttons, so the two cannot drift.
+
+    Beyond the characters Windows forbids it handles three more things a plain
+    character filter keeps and Windows still refuses: a **reserved device
+    name** ("CON", "nul", "COM1" — matched whatever the case, and repaired
+    with a trailing underscore rather than thrown away), a name far too
+    **long**, and **control characters**. Returns None when nothing usable is
+    left, which the caller reads as "keep the project's own name".
+    """
+    import unicodedata
+    if not text:
+        return None
+    # Control characters are illegal in a Windows file name and invisible in a
+    # dialog, so a pasted description can carry one with nothing to see.
+    cleaned = "".join(ch for ch in text
+                      if unicodedata.category(ch) != "Cc")
+    safe = re.sub(r'[\\/:*?"<>|]+', "_", cleaned).strip(" .")
+    if not safe:
+        return None
+    if len(safe) > MAX_INSTALL_STEM:
+        # Trim, then strip again: the cut can land on a space or a dot, and
+        # Windows refuses a name ending in either.
+        safe = safe[:MAX_INSTALL_STEM].strip(" .")
+        if not safe:
+            return None
+    if safe.upper() in _WINDOWS_RESERVED_STEMS:
+        safe = f"{safe}_"
+    return safe
+
+
+def installed_profile_name(description: "str | None", settings) -> "str | None":
+    """The stem the INSTALLED COPY should carry, or None for a plain copy.
+
+    THE ONE PLACE that decides, because ChromIQ has two Install buttons and
+    they disagreed: Build ICC profile honoured Knut's "Name the installed copy
+    after the description" tick and Check and Refine did not, so the same
+    profile, the same tick and the same description installed under two
+    different names depending on which button was pressed.
+
+    The project's own file is never touched, which is the deliberate half of
+    the rule (:meth:`ProfileBuilder.install_profile`).
+    """
+    try:
+        if not settings.get("install_named_by_description", False):
+            return None
+    except Exception:      # noqa: BLE001 — a name must never break an install
+        return None
+    return sanitise_install_stem((description or "").strip())
+
+
+def install_profile_file(icc_path: Path,
+                         install_name: "str | None" = None,
+                         *, fallback_stem: "str | None" = None) -> Path:
+    """Copy *icc_path* into the system ICC profile folder; return where it went.
+
+    **THE ONE DOOR.** ChromIQ has two Install buttons — Build ICC profile's and
+    Check and Refine's "Install Profile Anyway" — and they used to be two
+    separate copies with two different naming rules, so the same profile, the
+    same tick and the same description installed under two different names
+    depending on which one was pressed. Both come through here now.
+
+    ``install_name`` (no extension) names the INSTALLED COPY only. The
+    project's own file always keeps its stem: that is the deliberate half of
+    Knut's rule, and nothing here writes to the source.
+
+    ``fallback_stem`` is what to call the copy when there is no
+    ``install_name``, for a profile whose file on disk is ROLE-named: Check and
+    Refine can be handed ``merged.icc`` or ``calibrated.icc``, and a system
+    profile folder full of files called "merged" names nothing. Without it the
+    source file's own name is kept, which is the long-standing behaviour for a
+    normal ``<project>.icc``.
+
+    An installed profile of the same name is replaced, which is the normal way
+    to update one.
+    """
+    profile_dir = _profile_dir()
+    try:
+        profile_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        log.warning("Cannot create profile dir %s — elevation may be required",
+                    profile_dir)
+        raise
+    if install_name:
+        name = f"{install_name}.icc"
+    elif fallback_stem:
+        name = f"{fallback_stem}{icc_path.suffix}"
+    else:
+        name = icc_path.name
+    dest = profile_dir / name
+    shutil.copy2(icc_path, dest)
+    log.info("Profile installed: %s", dest)
+    return dest
 
 
 @dataclass
@@ -146,8 +426,14 @@ class ProfileParams:
     # Curve / embedding flags
     no_grid_pos: bool = False
     no_embedded_data: bool = False
-    # Input-profile white-point handling (#121): wp_mode ∈ {"", "u", "ua", "uc",
-    # "scale"} → -u / -ua / -uc / -u <wp_scale>; clip_primaries → -R.
+    # Input-profile white-point handling (#121): wp_mode ∈ {"", "u", "uR", "ua",
+    # "uc", "scale"} → nothing / -u / -u -R / -ua / -uc / -u <wp_scale>;
+    # clip_primaries → -R on its own.
+    #
+    # "" stays "no flag" here, and stays this dataclass's default, because every
+    # caller that is not the scanner window builds an OUTPUT profile, where the
+    # -u family is not applicable at all. The scanner window's own default is
+    # "uR" and lives in `ui/dialogs/scanner_colprof.WP_MODE_DEFAULT`.
     wp_mode: str = ""
     wp_scale: float = 0.0
     clip_primaries: bool = False
@@ -320,25 +606,30 @@ class ProfileBuilder:
         return list(self._matched_warnings)
 
     def install_profile(self, icc_path: Path,
-                        install_name: "str | None" = None) -> Path:
+                        install_name: "str | None" = None,
+                        *, fallback_stem: "str | None" = None) -> Path:
         """Copy .icc file to the system ICC profile folder. Returns the installed path.
+
+        **THE ONE DOOR.** Both Install buttons come through here, so the name
+        they give the installed copy cannot drift apart again.
 
         ``install_name`` (no extension) names the INSTALLED COPY only — Knut's
         "Profile file name same as description for installed copy" checkbox.
         The project's own file always keeps its name; an installed profile of
         the same name is replaced, which is the normal way to update one.
+
+        ``fallback_stem`` is what to call the copy when there is no
+        ``install_name``, for a profile whose file on disk is ROLE-named:
+        Check and Refine can be handed ``merged.icc`` or ``calibrated.icc``,
+        and a system profile folder full of files called "merged" names
+        nothing. Without it the source file's own name is kept, which is the
+        long-standing behaviour for a normal ``<project>.icc``.
+
+        The work is :func:`install_profile_file`; this stays because the Build
+        tab holds a builder and reads better for it.
         """
-        profile_dir = _profile_dir()
-        try:
-            profile_dir.mkdir(parents=True, exist_ok=True)
-        except PermissionError:
-            log.warning("Cannot create profile dir %s — elevation may be required", profile_dir)
-            raise
-        name = f"{install_name}.icc" if install_name else icc_path.name
-        dest = profile_dir / name
-        shutil.copy2(icc_path, dest)
-        log.info("Profile installed: %s", dest)
-        return dest
+        return install_profile_file(icc_path, install_name,
+                                    fallback_stem=fallback_stem)
 
     def sanity_check(self, icc_path: Path, log_output: str = "") -> list[str]:
         """Return list of warning strings; empty = pass."""
@@ -466,7 +757,7 @@ class ProfileBuilder:
             args.append("-no")
         # Input-profile white-point handling (-u / -ua / -uc / -u <scale>) and the
         # general primary clamp (-R). Mutually-exclusive -u modes (#121, Knut).
-        if p.wp_mode == "u":
+        if p.wp_mode in ("u", "uR"):
             args.append("-u")
         elif p.wp_mode == "ua":
             args.append("-ua")
@@ -474,7 +765,11 @@ class ProfileBuilder:
             args.append("-uc")
         elif p.wp_mode == "scale" and p.wp_scale > 0:
             args += ["-u", f"{p.wp_scale:g}"]
-        if p.clip_primaries:
+        # -R, from either the "uR" white-point mode (which IS -u -R) or the
+        # switch on its own — ONCE, however both arrive. colprof takes the flag
+        # twice without complaining, but the command ChromIQ shows the user is
+        # the command it runs, and "-u -R -R" is not a command anybody wrote.
+        if p.clip_primaries or p.wp_mode == "uR":
             args.append("-R")
         if p.extra_args:
             args += shlex.split(p.extra_args)

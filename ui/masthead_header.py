@@ -288,6 +288,27 @@ class MastheadHeader(QWidget):
         `ver_fg`/`tag_fg` are the colours the rail already uses for its own
         text in each theme, so the labels now follow the rail rather than the
         application palette.
+
+        AND IT LISTED TWO OBJECT NAMES WHILE THE BAR HAD THREE. "Location
+        being edited: …/runs/runN/" is a `QLabel#target_bar_location` on the
+        same widget, added for #130 to answer "where are my files?", and it was
+        never in this rule. So it kept the application palette and was drawn
+        **#000000 on the #070707 rail: 1.04:1** — a shade worse than the
+        1.11:1 this method was written to fix, on the one line whose whole job
+        is to be read. Light and Neutral were unaffected, because there
+        near-black on a pale rail happens to be legible. Measured on screen in
+        all three appearances, 2026-09-15
+        (`~/Desktop/ChromIQ-beta18-proof/combined-round-3/J-result.json`,
+        `J1-dark-the-rail.png`).
+
+        It takes `rail_hint_fg` rather than `ver_fg`: a path is read
+        deliberately, like the first-run sentence, and not glanced at like the
+        word "Profile run:".
+
+        `tests/test_masthead_rail_text_is_legible.py` no longer takes a list of
+        names from anybody. It walks every `QLabel` actually on the hosted
+        widget and measures the colour each one ends up with, because an
+        enumeration is how the third label came to be missing.
         """
         w = self._center_widget
         if w is None:
@@ -295,7 +316,8 @@ class MastheadHeader(QWidget):
         pal = self._palette
         w.setStyleSheet(
             f"QLabel#target_bar_label {{ color: {pal['ver_fg']}; }}"
-            f"QLabel#target_bar_hint  {{ color: {pal['rail_hint_fg']}; }}")
+            f"QLabel#target_bar_hint  {{ color: {pal['rail_hint_fg']}; }}"
+            f"QLabel#target_bar_location {{ color: {pal['rail_hint_fg']}; }}")
 
     # ------------------------------------------------------------------
     def setVersion(self, v: str) -> None:

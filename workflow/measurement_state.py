@@ -131,8 +131,15 @@ def expected_patches(ti2_path: "Path | str | None") -> "int | None":
     count that disagreed, and it told the user their finished measurement was
     "1,152 of 1,155" and advised them to go back and resume.
 
-    Charts from ChromIQ's own layout engine have no padding, which is why this
-    never showed up on a CR30 and only bit the established instruments.
+    THE LINE THAT USED TO STAND HERE — "charts from ChromIQ's own layout engine
+    have no padding" — IS FALSE, and a user met the consequence on 2026-09-11.
+    The engine pads exactly as printtarg does (``layout_engine/ti2_writer``
+    appends ``layout.padding`` copies of the media patch), it simply numbers
+    those rows ``SAMPLE_ID`` 4001, 4002 … like any other, so the ``SAMPLE_ID``
+    0 rule cannot see them. Her chart: 4,000 designed, 4,014 in the ``.ti2``,
+    the last 14 rows paper white. A complete 4,000-patch measurement of it was
+    labelled "4000 of 4014 patches measured" and filed as partial. See
+    :func:`_engine_fill_up_rows`.
     """
     if ti2_path is None or not Path(ti2_path).is_file():
         return None
@@ -149,8 +156,49 @@ def expected_patches(ti2_path: "Path | str | None") -> "int | None":
     return max(0, claimed - padding) if claimed is not None else None
 
 
+def sheet_patches(ti2_path: "Path | str | None") -> "int | None":
+    """How many patches the chart actually PRINTS, or ``None`` if unreadable.
+
+    :func:`expected_patches` is the DESIGN — how many patches were asked for,
+    and the number a measurement is judged complete against. This is the SHEET:
+    every square the instrument passes over, the fill-up rows of the last strip
+    included. The two differ by the padding, and both are real:
+
+    * a person reading the sheet in ChromIQ, or aiming an i1iO at it in
+      i1Profiler, reads what is PRINTED, so a complete measurement of her chart
+      holds the sheet count;
+    * the chart was DESIGNED with fewer, and that is what "the whole chart was
+      measured" has to mean, because the fill-up rows are copies of the media
+      patch and were never part of the target.
+
+    Counting only the design made a complete 420-patch measurement of a
+    408-patch chart read as "a measurement of a different chart" and refused it
+    (a user verifying a profile, 2026-09-11). Counting only the sheet had
+    already made the mirror mistake the day before, and called a complete
+    measurement partial. A measurement between the two numbers covers the whole
+    design; above the sheet it is a measurement of something else.
+    """
+    if ti2_path is None or not Path(ti2_path).is_file():
+        return None
+    counts = count_sets(ti2_path)
+    if counts is None:
+        return None
+    claimed, held = counts
+    if held:
+        return held
+    return claimed
+
+
 def _padding_rows(path: "Path | str") -> int:
-    """Rows a printtarg sheet adds to fill its last strip: ``SAMPLE_ID`` 0."""
+    """Rows the chart adds to fill its last strip, which are not patches.
+
+    TWO LAYOUT ENGINES PAD, NOT ONE.
+
+    * ``printtarg`` marks its fill-up rows by giving them ``SAMPLE_ID`` 0.
+    * ChromIQ's own layout engine appends copies of the media patch with
+      ordinary sequential ids, so nothing in the row says what it is. That is
+      what :func:`_engine_fill_up_rows` reads instead.
+    """
     try:
         text = Path(path).read_text(encoding="utf-8", errors="replace")
     except OSError:
@@ -165,7 +213,63 @@ def _padding_rows(path: "Path | str") -> int:
         fields = ln.split()
         if fields and fields[0] == "0":
             n += 1
-    return n
+    return n or _engine_fill_up_rows(path, text, body)
+
+
+_ENGINE_ORIGINATOR_RE = re.compile(
+    r'^\s*ORIGINATOR\s+"?ChromIQ layout engine', re.MULTILINE | re.IGNORECASE)
+_STEPS_RE = re.compile(r'^\s*STEPS_IN_PASS\s+"?(\d+)', re.MULTILINE | re.IGNORECASE)
+
+
+def _engine_fill_up_rows(path: "Path | str", text: str, body: str) -> int:
+    """How many trailing rows of a ChromIQ-layout-engine ``.ti2`` are fill-up.
+
+    THE ANSWER IS IN THE ``.ti1``, NOT IN A GUESS. The engine lays the chart out
+    from the run's ``.ti1`` and appends ``[media] * layout.padding`` after the
+    designed patches, so the designed count is the ``.ti1``'s own first table
+    and the difference is the fill-up — exact, not a heuristic. A trailing-white
+    scan on its own would over-count whenever the design's own last patch is
+    paper white, and the design is randomised, so that happens.
+
+    Three guards, because a stale or unrelated ``.ti1`` must never be allowed to
+    shrink a chart's patch count and turn a partial measurement into a complete
+    one:
+
+    * the ``.ti2`` must say it came from the engine (``ORIGINATOR``);
+    * the surplus must be smaller than one strip — that is all padding can ever
+      be (``geometry.py``: ``padding = pprow - lpprow``, one pass at most);
+    * the trailing rows must all be the SAME patch, which is what appending one
+      media colour that many times produces.
+
+    0 when any of that does not hold, which reads as "this chart has no fill-up"
+    and leaves the old count exactly as it was.
+    """
+    if not _ENGINE_ORIGINATOR_RE.search(text):
+        return 0
+    rows = [ln.split() for ln in body.splitlines() if ln.strip()]
+    if not rows:
+        return 0
+    try:
+        ti1 = Path(path).with_suffix(".ti1")
+        designed_text = ti1.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return 0
+    # The FIRST table of a .ti1 is the patch set; targen writes two reference
+    # tables after it (see workflow/i1profiler_import.read_first_cgats_table).
+    m = _SETS_RE.search(designed_text)
+    if m is None:
+        return 0
+    surplus = len(rows) - int(m.group(1))
+    steps = _STEPS_RE.search(text)
+    limit = int(steps.group(1)) if steps else 0
+    if surplus <= 0 or not limit or surplus >= limit:
+        return 0
+    tail = rows[-surplus:]
+    # Column 0 is SAMPLE_ID and column 1 SAMPLE_LOC; both differ per row by
+    # construction. Everything after them is the patch itself.
+    if any(r[2:] != tail[0][2:] for r in tail):
+        return 0
+    return surplus
 
 
 def classify(ti3_path: "Path | str | None",
@@ -186,7 +290,16 @@ def classify(ti3_path: "Path | str | None",
         return Ti3Facts(Ti3State.EMPTY, claimed, 0, expected)
     if claimed is not None and claimed != held:
         return Ti3Facts(Ti3State.MISMATCHED, claimed, held, expected)
-    if expected is not None and held > expected:
+    # ABOVE THE SHEET, NOT ABOVE THE DESIGN. A chart whose last strip is filled
+    # out is read patch by patch including those fill-up rows, so a complete
+    # measurement of a 408-patch design printed on a 420-square sheet holds 420
+    # — and judging that against 408 called it a measurement of a different
+    # chart. `sheet_patches` is the number of squares; `expected_patches` the
+    # number the design asked for. Only past the sheet is it another chart.
+    sheet = sheet_patches(ti2_path)
+    if sheet is not None and held > sheet:
+        return Ti3Facts(Ti3State.MISMATCHED, claimed, held, expected)
+    if sheet is None and expected is not None and held > expected:
         return Ti3Facts(Ti3State.MISMATCHED, claimed, held, expected)
     if expected is not None and held < expected:
         return Ti3Facts(Ti3State.PARTIAL, claimed, held, expected)

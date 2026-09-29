@@ -131,6 +131,15 @@ def main() -> int:
     app.setApplicationName("ChromIQ")
     app.setApplicationVersion(APP_VERSION)
     app.setOrganizationName("ChromIQ")
+    # THE GARBAGE COLLECTOR RUNS FROM THE EVENT LOOP, ON THIS THREAD, AND
+    # NOWHERE ELSE (B8-1392). Left automatic, it runs on whatever allocation
+    # crosses its threshold: inside a Python event filter (the app filter
+    # below sees every event) while Qt is delivering an event to a widget of a
+    # closed dialog that has just become garbage, which deletes the receiver
+    # under Qt, or on a worker thread. See `core/gc_guard.py`. Before any
+    # widget and before the app filter.
+    from core.gc_guard import install_gui_thread_collector
+    install_gui_thread_collector(app)
     # The display name is set LATER, once the catalogue is loaded — see the
     # `setApplicationDisplayName` call below `set_language`.
 

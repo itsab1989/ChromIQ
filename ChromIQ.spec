@@ -156,6 +156,27 @@ if not _engine_datas:
     print(f"[ChromIQ.spec] {_cr_path} not built — chart-reading engine "
           f"will be unavailable in this bundle (stock chartread still works).")
 
+# THE AGPL LICENCES THAT COVER THOSE TWO BINARIES, and they were not shipping.
+# `chromiq-gammap` and `chromiq-chartread` are built from ArgyllCMS 3.5.0 under
+# AGPLv3 (`native/argyll/PROVENANCE.md`), and AGPLv3 requires the licence to be
+# conveyed with the work. The files were on disk, THIRD-PARTY-NOTICES.md said
+# they "travel with the code they cover", and nothing put them in the bundle:
+# an adversarial round read the spec against the sentence. They are the only
+# licence files in the project that did not travel.
+_licence_files = [
+    ('native/argyll/LICENSE', 'native/argyll'),
+    ('native/instlib/License.txt', 'native/instlib'),
+    ('native/instlib/License2.txt', 'native/instlib'),
+]
+_native_licences = [(src, dest) for src, dest in _licence_files
+                    if os.path.exists(src)]
+_missing_licences = [src for src, _d in _licence_files if not os.path.exists(src)]
+if _missing_licences:
+    # Loud, not silent: a missing licence for a conveyed AGPL binary is the one
+    # thing in this file that must never pass unnoticed.
+    print("[ChromIQ.spec] MISSING LICENCE FILE(S) for the Argyll-derived "
+          f"helpers: {_missing_licences}")
+
 a = Analysis(
     ['main.py'],
     pathex=['.'],
@@ -166,10 +187,22 @@ a = Analysis(
               # binaries, not just as importable names.
               *_bl_binaries, *_btp_binaries],
     datas=[
+        # #182 F3: a licence page can only show what actually travelled. These
+        # two were at the project root and in nobody's `datas`, so a user who
+        # installed the .dmg had neither ChromIQ's own licence nor the notices
+        # that record every third-party file it ships. The Fogra grant makes
+        # that a condition, not a courtesy: the data is here on terms that
+        # require Fogra to be named as its source.
+        ('LICENSE',              '.'),
+        ('THIRD-PARTY-NOTICES.md', '.'),
+        *_native_licences,
         ('assets',           'assets'),
         ('data/parameters.yaml', 'data'),
+        ('data/preset_defaults.json', 'data'),
         ('data/i18n',        'data/i18n'),
         ('data/scanner_targets', 'data/scanner_targets'),
+        ('data/compliance_sets', 'data/compliance_sets'),
+        ('data/reference_sets', 'data/reference_sets'),
         (certifi_where, 'certifi'),
         *_gammap_datas,
         *_engine_datas,

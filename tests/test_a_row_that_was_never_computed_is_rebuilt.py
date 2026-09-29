@@ -1,0 +1,244 @@
+"""A report saved before a row existed must not read N-A for ever.
+
+Grey balance and the 30 to 70 per cent tone ramps were added additively, and
+the design record says in as many words that the schema was NOT bumped so that
+no report on disk would be re-derived. The consequence nobody traced: version
+4.2.0 already wrote schema 7 and had no grey balance in its builder at all, so
+every report saved by 4.2.0 and the first two betas fails the staleness test, is
+never rebuilt, and shows N-A on both grey rows for ever.
+
+Surveyed on one real disk by a challenge round: 58 saved reports, none carrying
+a grey block, 33 of them already at schema 7. And the reason printed beside the
+N-A says the measurement file could not be read again, which is untrue. It was
+never asked for; the number it was hiding was in the same folder.
+
+The rebuild carries the saved verdict across untouched, so this computes rows
+that were never computed and re-grades nothing.
+"""
+from __future__ import annotations
+
+import os
+
+import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from workflow.measurement_report import REPORT_SCHEMA          # noqa: E402
+
+# THE REAL RULE, not a copy of it. It used to live inline in the loop that
+# reads saved reports, so a test could only restate it, and a mutation that
+# broke the window left every assertion here green. It is a module-level
+# function now for exactly that reason.
+from ui.dialogs.measurement_report_dialog import (                # noqa: E402
+    _report_needs_rebuilding as _stale)
+
+
+def test_the_window_uses_this_very_function():
+    """Guards the seam: if the loop stops calling it, these tests go blind."""
+    import inspect
+    from ui.dialogs import measurement_report_dialog as m
+    src = inspect.getsource(m.MeasurementReportDialog)
+    assert "_report_needs_rebuilding(rep)" in src, (
+        "the report loop no longer calls the rule these tests exercise")
+
+
+def test_a_report_from_4_2_0_is_rebuilt():
+    """Current schema, real statistics, and no grey block: exactly what 4.2.0
+    wrote. It used to pass the test and never be rebuilt."""
+    rep = {"schema": REPORT_SCHEMA, "de00": {"avg_all": 1.2}}
+    assert _stale(rep), (
+        "a report with no grey balance is treated as current, so its grey rows "
+        "read N-A for ever with a reason that is not true")
+
+
+def test_a_report_missing_only_the_grey_block_is_rebuilt():
+    """SEPARATES THE CLAUSES, and the first draft of this file did not.
+
+    Removing the grey clause from the rule left every test green, because the
+    ramps clause caught the same fixture. Two clauses that can only be exercised
+    together are one clause with a spare.
+    """
+    rep = {"schema": REPORT_SCHEMA, "de00": {"avg_all": 1.2},
+           "ramps_30_70": {"max": 0.8}, "summary_patches": [{"de": 1.0}]}
+    assert _stale(rep), "a missing grey block alone no longer forces a rebuild"
+
+
+def test_a_report_missing_only_the_ramps_is_rebuilt():
+    rep = {"schema": REPORT_SCHEMA, "de00": {"avg_all": 1.2},
+           "grey_balance": {"avg": 1.4}, "summary_patches": [{"de": 1.0}]}
+    assert _stale(rep)
+
+
+def test_a_report_missing_only_the_example_colours_is_rebuilt():
+    """THE THIRD BLOCK, AND IT WAS NOT IN THE RULE.
+
+    Knut, 2026-09-11, reading a Colour summary out of the shared demo package:
+    "This measurement was saved before ChromIQ chose example colours. Measure
+    the chart again to have them." The sixteen colours are most of what that
+    one-page document IS, they are computed from the measurement file sitting
+    in the same folder, and the report asked him to print and measure a chart
+    again to get them.
+
+    `summary_patches` arrived after the two blocks above and nobody added it
+    here, which is the same fault this file was written for, one block later.
+
+    MUTATION: take "summary_patches" out of ALWAYS_BUILT_BLOCKS and this goes
+    red.
+    """
+    rep = {"schema": REPORT_SCHEMA, "de00": {"avg_all": 1.2},
+           "grey_balance": {"avg": 1.4}, "ramps_30_70": {"max": 0.8}}
+    assert _stale(rep), (
+        "a report with no example colours is treated as current, so the "
+        "one-page summary tells the reader to measure the chart again for "
+        "sixteen colours that are computable from the file beside it")
+
+
+def test_the_rule_enumerates_nothing_it_can_list():
+    """The three blocks live in one tuple, so the next one is added in the
+    place the comment tells you to add it rather than in a chain of `or`s that
+    has already been forgotten twice.
+
+    MUTATION: inline the tuple back into the return expression and this goes
+    red.
+    """
+    import inspect
+
+    from ui.dialogs.measurement_report_dialog import ALWAYS_BUILT_BLOCKS
+    assert "grey_balance" in ALWAYS_BUILT_BLOCKS
+    src = inspect.getsource(_stale)
+    assert "ALWAYS_BUILT_BLOCKS" in src, (
+        "the rule no longer reads the shared list, so a block added to the "
+        "builder can be forgotten here a fourth time")
+
+
+def test_every_block_in_the_list_really_is_always_built(tmp_path):
+    """And the list must name blocks the builder ACTUALLY always writes.
+
+    A name in this tuple that the builder only sometimes writes would make
+    every such report stale for ever and re-read on every open.
+
+    **THIS TEST USED TO GREP THE BUILDER'S SOURCE FOR `report["<key>"]`, AND
+    THAT IS TRUE OF EVERY KEY THE BUILDER EVER WRITES.** `report["gamut_split"]`
+    is written inside two nested `if`s and a `try`; `report["printing"]` and
+    `report["colorimetric"]` are conditional too, and all three would have
+    satisfied it. So the one thing it was written to stop, a CONDITIONAL block
+    being added to the tuple, was the one thing it could not see: it asked "is
+    this key mentioned?" under the name of "is this key always written?".
+
+    It runs the builder now, on a real measurement with a real design
+    reference, and looks at what came out. That is the only form of the
+    question that has an answer.
+
+    MUTATION: add "gamut_split" to ALWAYS_BUILT_BLOCKS and this goes red. The
+    grep version passed that mutation, which is how it was found.
+    """
+    from ui.dialogs.measurement_report_dialog import ALWAYS_BUILT_BLOCKS
+    from workflow import measurement_report as mr
+    from tests.test_report_judging import _colours, _ramp, _write_ti3
+
+    p = tmp_path / "m.ti3"
+    _write_ti3(p, _ramp(16) + _colours(), verification=False)
+    rep = mr.build_report(p)          # no argyll_bin: the optional blocks stay out
+    assert (rep.get("de00") or {}).get("avg_all") is not None, \
+        "the fixture produced no statistics, so this proves nothing"
+    for key in ALWAYS_BUILT_BLOCKS:
+        assert key in rep, (
+            f"{key!r} is in ALWAYS_BUILT_BLOCKS but the builder did not write "
+            f"it on an ordinary measurement, so every report of that kind "
+            f"would be stale for ever and re-read on every window open")
+    assert not _stale(rep), (
+        "a report the builder has just written is already stale, which is a "
+        "rebuild on every open of the window")
+
+
+def test_every_block_a_row_is_read_from_is_in_the_list(tmp_path):
+    """THE OTHER DIRECTION, AND THE ONE NOTHING WAS ASKING.
+
+    The test above proves every NAME in the tuple is a block the builder really
+    always writes. Nothing proved the converse: that every block a ROW is read
+    from is in the tuple. So the tuple went on naming three blocks while the
+    builder grew four more, and the instruction written directly above it --
+    "ADD TO THIS TUPLE WHEN YOU ADD A BLOCK TO THE BUILDER" -- was not followed
+    once.
+
+    Measured 2026-09-22 on a report this branch's own demo builder saved:
+    schema 7, `avg_all` present, the three listed blocks present, so the rule
+    answered "not stale"; `repeat_within_sheet` and `repeat_across_sheets` were
+    absent, and `row_values` answered both of ChromIQ's own repeatability rows
+    `value=None, reason='not_computed'` -- *"this value is not in this saved
+    report"* -- with the .ti3 that answers them in the same folder. That is the
+    fault the first three clauses of this file were each written for, arriving
+    a fourth time and for four blocks at once.
+
+    DERIVED, NOT LISTED. The blocks come from `row_values`'s own source and
+    from a report the real builder has just written, so a block added to the
+    builder and read by a row arrives here without anybody remembering to.
+
+    MUTATION: take "repeat_within_sheet" (or any of the other six) out of
+    ALWAYS_BUILT_BLOCKS and this goes red naming it.
+    """
+    import inspect
+    import re
+
+    from ui.dialogs.measurement_report_dialog import ALWAYS_BUILT_BLOCKS
+    from workflow import measurement_report as mr
+    from tests.test_report_judging import _colours, _ramp, _write_ti3
+
+    read_by_a_row = set(re.findall(r'report\.get\("([a-z_0-9]+)"\)',
+                                   inspect.getsource(mr.row_values)))
+    assert "grey_balance" in read_by_a_row, (
+        "row_values no longer reads its blocks through report.get(\"…\"), so "
+        "this test is deriving nothing and must be rewritten")
+
+    p = tmp_path / "m.ti3"
+    _write_ti3(p, _ramp(16) + _colours(), verification=False)
+    rep = mr.build_report(p)
+    assert (rep.get("de00") or {}).get("avg_all") is not None, \
+        "the fixture produced no statistics, so this proves nothing"
+
+    # A BLOCK IS A STRUCTURE, and two of the things `row_values` reads are not
+    # blocks at all. `printing` is a field the builder writes only sometimes,
+    # so naming it here would make every report without it stale for ever;
+    # `reference_source` is a scalar string that says where the aim values came
+    # from, which no row is computed FROM. A block is what a row's number comes
+    # out of: a dict or a list the builder always writes.
+    always_built = {k for k in read_by_a_row
+                    if isinstance(rep.get(k), (dict, list))}
+    missing = sorted(always_built - set(ALWAYS_BUILT_BLOCKS))
+    assert not missing, (
+        f"{missing} are blocks a report row is read from and the builder "
+        f"always writes, and they are not in ALWAYS_BUILT_BLOCKS. Every "
+        f"report saved before each of them existed is therefore treated as "
+        f"current, is never rebuilt, and shows those rows as 'not computed' "
+        f"for ever, with the measurement that answers them in the same folder")
+
+
+def test_a_report_from_beta_29_is_rebuilt_for_the_repeatability_rows():
+    """The measured case, as a fixture: exactly what 4.3.0-beta.29 wrote.
+
+    Everything the old rule looked at is present and current; the two blocks
+    of 2026-09-21 are not.
+    """
+    rep = {"schema": REPORT_SCHEMA, "de00": {"avg_all": 1.2},
+           "grey_balance": {"avg": 1.4}, "ramps_30_70": {"max": 0.8},
+           "summary_patches": [{"de": 1.0}], "corners": [],
+           "control_strip": {}, "gamut_populations": {}}
+    assert _stale(rep), (
+        "a report saved before ChromIQ's two repeatability rows existed is "
+        "treated as current, so both rows read 'not computed' for ever")
+
+
+def test_a_current_report_is_left_alone():
+    """The other half. Rebuilding a report that has everything would re-read
+    the measurement on every open for nothing."""
+    from ui.dialogs.measurement_report_dialog import ALWAYS_BUILT_BLOCKS
+    rep = {"schema": REPORT_SCHEMA, "de00": {"avg_all": 1.2}}
+    rep.update({k: {} for k in ALWAYS_BUILT_BLOCKS})
+    assert not _stale(rep)
+
+
+def test_an_older_schema_is_still_stale():
+    """The original rule must survive the new clauses."""
+    rep = {"schema": REPORT_SCHEMA - 1, "de00": {"avg_all": 1.2},
+           "grey_balance": {}, "ramps_30_70": {}, "summary_patches": []}
+    assert _stale(rep)

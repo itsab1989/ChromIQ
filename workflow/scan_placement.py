@@ -38,6 +38,19 @@ needs more than 0.75 of a pitch of correction, the refinement refuses to move
 that far, and the drift stays where the gate can still see it. **That clamp
 must not be raised while these two are chained.**
 
+THERE ARE TWO SEARCHES, AND THE SECOND ONE RUNS ONLY FOR A HONEYCOMB.
+``scanin``'s recogniser finds a chart by the continuous straight edges in the
+picture, and an interlocking hexagonal chart has none to give it: it returns
+*not recognised* with **zero** candidates, from every starting placement. That
+is step 1 failing completely rather than failing badly, and it is the only step
+a honeycomb defeats — the refinement reshapes one onto its patches like any
+other chart, and the checks separate a right placement from a wrong one on one
+by 0.969 against 0.514 with the floor at 0.80. So when the caller says the
+chart is a honeycomb and the first search came back empty,
+:mod:`workflow.hex_block_search` is asked for a starting quad instead. It goes
+to the same refinement and the same three gates, it can apply nothing itself,
+and ``hexagonal`` defaults to False so a rectangular chart never reaches it.
+
 WHAT HAPPENS WHEN A STEP DECLINES.
 Neither step is required to answer, and the operation carries on either way:
 
@@ -56,13 +69,25 @@ Neither step is required to answer, and the operation carries on either way:
   user put them.
 
 WHAT IT NEVER DOES.
-It never applies a placement no check has seen. Every answer that reaches the
-grid has passed :func:`~workflow.scan_auto_align.border_agreement` (which sees
-a grid slid onto the neighbouring patch) and
-:func:`~workflow.scan_auto_align.seating_drift` (which sees a photographed
-sheet's keystone) on the exact corners about to be set, and carries a reference
-agreement measured at those same corners rather than at the answer the search
-gave before the refinement moved it.
+It never calls a placement TRUSTED that no check has seen. Every answer marked
+:attr:`PlacementResult.trusted` has passed
+:func:`~workflow.scan_auto_align.border_agreement` (which sees a grid slid onto
+the neighbouring patch) and :func:`~workflow.scan_auto_align.seating_drift`
+(which sees a photographed sheet's keystone) on the exact corners about to be
+set, and carries a reference agreement measured at those same corners rather
+than at the answer the search gave before the refinement moved it.
+
+IT DOES NOW HAND BACK A PLACEMENT THE CHECKS REFUSED, and that is a change of
+2026-09-11 rather than a weakening of the paragraph above. Knut was asked what
+should happen when the grid cannot be placed well enough to trust, and ruled:
+*"place its best attempt and tell user to check it."* Before that, a candidate
+that failed the seating check or the reference check was discarded and the
+user's own corners were left alone — so the one thing ChromIQ had actually
+found was never shown to the person who had to correct it. Both endings now
+come back with `corners` set and `trusted` False; the window applies them and
+says, in its own words, that they were not trusted and must be checked. Nothing
+about the CHECKS changed: the same two run on the same corners and say the same
+thing. What changed is who gets to see the answer.
 """
 from __future__ import annotations
 
@@ -180,7 +205,22 @@ class PlacementResult:
 
     @property
     def ok(self) -> bool:
+        """There is a placement to apply. NOT the same as "it can be relied on"
+        -- see :attr:`trusted`."""
         return self.corners is not None
+
+    @property
+    def trusted(self) -> bool:
+        """The placement passed BOTH picture checks and the colour check.
+
+        Knut, #182, 2026-09-11, on what should happen when it does not: *"place
+        its best attempt and tell user to check it."* So a candidate that fails
+        a check is still returned -- the user gets to see what ChromIQ found --
+        and this is the flag that decides which of the two things the window
+        says about it. Nothing else in the app may read `ok` and conclude the
+        grid is right.
+        """
+        return self.ending == "placed"
 
 
 def _ending(find_reason: str, fit_reason: str) -> str:
@@ -247,6 +287,48 @@ def is_seated(scan: Path, boxes: Sequence,
     return seated_verdict(scan, boxes, corners)[0]
 
 
+def _hex_search(scan: Path, boxes: Sequence, expected_y: dict,
+                image_size: tuple[int, int],
+                start: "list[tuple[float, float]] | None",
+                search_region: "tuple[float, float, float, float] | None"):
+    """Step 1 again, for a chart scanin's recogniser cannot see.
+
+    WHY A SECOND SEARCH AND NOT A BETTER FIRST ONE. ``scanin`` finds a chart by
+    building an XLIST and a YLIST out of the continuous straight edges in the
+    picture. An interlocking honeycomb has no continuous horizontal edge to
+    give it, so it does not return a poor answer — it returns **none**, with
+    zero candidates, from every starting placement
+    (``~/Desktop/ChromIQ-knut-hex/records/G-placement-stages.json``). Nothing
+    about how it is called changes that, and the rest of the ladder is
+    blameless: measured on the same chart, the refinement reshapes a honeycomb
+    onto its patches and the checks score a right placement 0.969 against a
+    wrong one's 0.514, with the floor at 0.80.
+
+    So this runs only where the first search came back empty AND the caller
+    said the chart is a honeycomb, and it hands its answer to exactly the same
+    refinement and the same three gates. It cannot apply anything, and it
+    cannot reach a rectangular chart, whose caller leaves *hexagonal* False.
+
+    THE USER'S SAMPLE AREA IS NOT PASSED, and that is deliberate. Which quad
+    holds the chart is a fact about the picture; it was decided with the
+    fraction the Sample area spinbox happened to be on, so moving that spinbox
+    could hand back a different placement of the same chart. The search uses
+    :data:`~workflow.hex_block_search.SEARCH_SAMPLE_AREA` instead, the same
+    fixed share the drift gate uses and for the same reason.
+
+    An exception here is not a failure of the operation: the ladder carries on
+    from the user's own corners, which is what it did before this existed.
+    """
+    try:
+        from workflow.hex_block_search import find_block
+        return find_block(scan, boxes, expected_y, image_size,
+                          current_corners=start,
+                          search_region=search_region)
+    except Exception:  # noqa: BLE001 — a search must not become a crash
+        log.warning("the hexagonal block search failed", exc_info=True)
+        return None
+
+
 def place_grid(scanin_exe: str | Path,
                scan: Path,
                cht: Path,
@@ -261,6 +343,7 @@ def place_grid(scanin_exe: str | Path,
                search_region: "tuple[float, float, float, float] | None" = None,
                timeout: int = 300,
                runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+               hexagonal: bool = False,
                ) -> PlacementResult:
     """Search, refine, check — and return the corners only if the check passed.
 
@@ -270,6 +353,13 @@ def place_grid(scanin_exe: str | Path,
     refinement starts from when the search declines, and (through
     *search_region*, which the caller computes) as a hint about where in the
     picture to look.
+
+    *hexagonal* says the chart is a honeycomb, and it changes exactly one
+    thing: when scanin has found nothing, :mod:`workflow.hex_block_search` is
+    asked for a starting quad instead. It is not a shape hint for anything
+    else here — steps 2 and 3 measured the same on a honeycomb as on a grid of
+    squares — and it defaults to False, so a rectangular chart cannot reach
+    that code at all. See :func:`_hex_search`.
     """
     from workflow.photo_fit import refine_corners
     from workflow.scan_auto_align import auto_align, reference_agreement_at
@@ -299,7 +389,21 @@ def place_grid(scanin_exe: str | Path,
                           log_tail=found.log_tail,
                           rejected=list(found.rejected))
 
+    # ---- 1b. the search scanin cannot do, for the charts it cannot see -----
     working = ([tuple(p) for p in found.corners] if found.ok else start)
+    searched = bool(found.ok)
+    if not found.ok and hexagonal:
+        hex_found = _hex_search(scan, boxes, expected_y, image_size, start,
+                                search_region)
+        if hex_found is not None and hex_found.ok:
+            working = hex_found.corners
+            searched = True
+            res.found = True
+            res.find_reason = "hex-block-search"
+            res.candidates = hex_found.candidates
+            if hex_found.rho_before is not None:
+                res.rho_before = hex_found.rho_before
+
     if working is None:
         # No answer and nowhere to refine from — the user has not placed a
         # grid at all. There is nothing to check and nothing to apply.
@@ -313,13 +417,28 @@ def place_grid(scanin_exe: str | Path,
     res.moved = float(fit.moved_pitch or 0.0)
     candidate = [tuple(p) for p in fit.corners] if fit.ok else working
 
-    if not (found.ok or fit.ok):
+    if not (searched or fit.ok):
         # Both steps declined. Nothing has been proposed, so there is nothing
         # to submit to a check and nothing to apply.
         res.ending = _ending(found.reason, fit.reason)
         return res
 
     # ---- 3. the two picture checks, on the placement about to be applied --
+    #
+    # THE BEST ATTEMPT IS RETURNED WHATEVER THE CHECKS SAY. Knut's ruling of
+    # 2026-09-11: *"place its best attempt and tell user to check it."* Until
+    # then a candidate that failed either check was thrown away and the user's
+    # corners left alone, which gave them nothing to look at and nothing to
+    # correct -- the search had found something and they never saw it. It is
+    # set HERE, before the checks, so no later return can forget it; every one
+    # of them records WHY in `ending`, and `trusted` is the only thing that may
+    # be read as "this grid is right".
+    #
+    # Nothing above this line changes. Where both steps declined there is no
+    # candidate but the user's own corners, and putting those back is a no-op
+    # dressed up as an answer -- so that ending still returns with no corners
+    # and keeps its own wording.
+    res.corners = candidate
     seated, drift = seated_verdict(scan, boxes, candidate)
     res.drift = drift
     if not seated:
@@ -357,6 +476,5 @@ def place_grid(scanin_exe: str | Path,
         res.ending = "below-floor"
         return res
 
-    res.corners = candidate
     res.ending = "placed"
     return res

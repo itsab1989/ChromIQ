@@ -47,7 +47,7 @@ from ui.dialogs.tools_dialogs import _indicator_color, neutral_controls_qss
 from ui.styles import SPEC_GREEN
 from ui.tab_header import dialog_masthead
 from ui.warning_sign import inform, set_warning_icon, warn
-from ui.widgets import NoScrollComboBox, set_ink, tint_dialog_primary
+from ui.widgets import NoScrollComboBox, TailFollowLog, set_ink, tint_dialog_primary
 from workflow.spot_read_io import SpotReading, average_readings, write_csv, write_ti3
 from workflow.spot_read_manager import SpotReadManager, SpotReadParams
 
@@ -445,7 +445,7 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         # window it was. The CR30's calibration writes the notes that matter —
         # which way it connected, what the dark reference read back at — and
         # they have to be readable somewhere.
-        self._log = QPlainTextEdit(self)
+        self._log = TailFollowLog(self)
         self._log.setReadOnly(True)
         self._log.setMaximumBlockCount(2000)
         self._log.setFixedHeight(120)
@@ -1125,6 +1125,12 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         )
 
     def _append_row(self, r: SpotReading) -> None:
+        # Follow the newest reading only while the reader is already looking at
+        # it — the same rule as the log panes (`ui.widgets.TailFollowLog`), and
+        # asked BEFORE the row exists, because a row added first makes the
+        # maximum grow and a reader who has not moved look as if they had.
+        sb = self._table.verticalScrollBar()
+        at_bottom = sb.value() >= sb.maximum()
         self._table.blockSignals(True)
         row = self._table.rowCount()
         self._table.insertRow(row)
@@ -1147,7 +1153,8 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
         self._table.setItem(row, 7, swatch)
 
         self._table.blockSignals(False)
-        self._table.scrollToBottom()
+        if at_bottom:
+            self._table.scrollToBottom()
 
     def _on_item_changed(self, item: QTableWidgetItem) -> None:
         if item.column() != 0:
@@ -1264,10 +1271,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             fm = getattr(self, "_file_mgr", None)
             if fm is not None and getattr(fm, "has_project", lambda: False)():
                 run = fm.project().current_run()
-                exports = getattr(run, "exports", None)
-                if exports is not None:
-                    return Path(exports) / name
-                return Path(run.dir) / name
+                # `exports_dir`, ASKED DIRECTLY (adversary round on 528b7cfc).
+                # This read `getattr(run, "exports", None)`; `Run` has no
+                # `exports`, so the default hid the mistake and every save was
+                # offered the run folder instead of its exports/ folder.
+                return Path(run.exports_dir) / name
         except Exception:      # noqa: BLE001 — a suggestion is never worth a crash
             pass
         return chromiq_root_dir() / name

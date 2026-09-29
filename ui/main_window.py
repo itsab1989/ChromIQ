@@ -932,6 +932,23 @@ class MainWindow(QMainWindow):
         # behaves the same wherever it is opened. See that function for why BOTH
         # rules are needed and why `padding-left: 0px` is not cosmetic.
         _sheet += combo_popup_qss(color)
+        # A list's SELECTED row, in a tab or a window opened from it, is this
+        # tab's accent too, not the appearance's own selection colour (cyan in
+        # Dark, blue in Light), which belonged to no tab. Basti, 2026-09-26, on
+        # "Which presets can be used for verification": "selected item is blue,
+        # should be magenta". Only the two selection properties are set, so the
+        # lists keep everything else of the application sheet.
+        _sheet += (
+            f"QTreeView, QListView, QTableView {{"
+            f" selection-background-color: {color};"
+            f" selection-color: {primary_text}; }}"
+        )
+        # K44 (Knut, #182 5833983335): a window or pop-up opened from this tab
+        # fills the button Return presses in the TAB's accent, the colour
+        # `tint_dialog_primary` gives its #primary. A tab's own buttons are
+        # never a default (only a QDialog has one), so this reaches only them.
+        from ui.theme import default_button_qss
+        _sheet += default_button_qss(color, _mode)
 
         # The stylesheet is a pure function of (index, theme); a set stylesheet
         # stays applied and cascades to children added later, so on a revisit for
@@ -1384,10 +1401,17 @@ class MainWindow(QMainWindow):
         # 1. No project is named any more — exactly as at launch.
         self._file_mgr.close_project()
         # 2. No run, no run type, no verification date is selected any more.
+        #    The chart tab lets go of its store FIRST: resetting the bar emits
+        #    `changed`, and that handler writes the outgoing target, which is a
+        #    folder inside the project being closed. See `forget_target_store`.
+        try:
+            self._tab_chart.forget_target_store()
+        except Exception:      # noqa: BLE001 — a close must never end in a crash
+            log.debug("Could not release the chart tab's store", exc_info=True)
         self._target_ctl.reset_to_empty()
         # 3. Every tab lets go of what it was showing.
         try:
-            self._tab_chart.clear_loaded_project()
+            self._tab_chart.clear_loaded_project(deleted=deleted)
         except Exception:      # noqa: BLE001 — a delete must never end in a crash
             log.warning("Could not clear the Create Chart tab", exc_info=True)
         self._tab_print.load_tiffs([])
@@ -1574,6 +1598,10 @@ class MainWindow(QMainWindow):
                 return
             run = proj.run(run_id)
             tiffs = run.chart_tiffs()
+            # `chart_tiffs()` has always matched on the composed spelling of
+            # both sides; `chart_ti2.exists()` did not, so on NTFS this returned
+            # early with four page bitmaps in hand and refused to show the
+            # duplicate it had just made. Both halves agree now (B8-61).
             if not run.chart_ti2.exists() or not tiffs:
                 return              # nothing to show; the copy is still real
             source_id = (run.load_meta().duplicated_from or "")
@@ -2096,8 +2124,16 @@ class MainWindow(QMainWindow):
         # (#45) — same accessor as the 3D-cube tool, guarded on the project
         # manifest existing (project() would otherwise materialise one).
         initial_chart = None
+        preset_recipe = None
         if key == "ti2_relayout":
             initial_chart = self._current_chart_ti2()
+            # "New Patch Set…" opens with the SELECTED preset's design, not the
+            # run's last build (Knut, #182 5872273862).
+            try:
+                preset_recipe = self._tab_chart.recipe_for_new_patch_set()
+            except Exception:  # noqa: BLE001 — never block opening the tool
+                log.warning("could not read the selected preset's design",
+                            exc_info=True)
         # The Verify-a-Profile tool points its file pickers at the loaded
         # project's run + verification history (#130). Guarded — a missing
         # manifest must never block opening a tool.
@@ -2122,7 +2158,7 @@ class MainWindow(QMainWindow):
                 project = None
         open_tool_dialog(key, self._runner, self._settings, self,
                          on_apply=on_apply, initial_chart=initial_chart,
-                         project=project)
+                         project=project, preset_recipe=preset_recipe)
 
     def _current_chart_ti2(self) -> "Path | None":
         """The SELECTED target's generated chart .ti2, or None when there isn't
@@ -2194,9 +2230,17 @@ class MainWindow(QMainWindow):
                 self,
             ).exec()
             return False
+        # THE TAB CHANGES FIRST, THEN THE CHART IS APPLIED.
+        #
+        # Applying a patch set from the editor does two things that both write
+        # settings: the build itself, and the tab change that follows it. Done
+        # in this order the tab-change load lands ON TOP of the build's result,
+        # so the run and the sheet on disk can end up disagreeing about the
+        # layout. Switching first puts the load before the build, where it can
+        # do no harm. This route is named nowhere in `docs/design/`, which is
+        # why nobody had noticed it saves at all.
+        self._tabs.setCurrentWidget(self._tab_chart)
         applied = self._tab_chart.apply_external_chart(src_dir, name)
-        if applied:
-            self._tabs.setCurrentWidget(self._tab_chart)
         return applied
 
     def _show_patch_cube(self) -> None:
@@ -2229,6 +2273,16 @@ class MainWindow(QMainWindow):
         # building Knut's tool-availability table, which is exactly the kind of
         # thing that table is meant to surface. Resolve through the one method
         # that knows all three run types, and fall back to the .ti1 as before.
+        # THE `.ti1` FALLBACK IS A SUBSTITUTION, SO THE `.exists()` HAS TO BE
+        # TRUE. This branch does not refuse and does not warn — it quietly draws
+        # a different chart's cube under the label "Current chart". On NTFS that
+        # made it wrong for real: a project restored from a Mac OS Extended
+        # backup has decomposed file names, `<stem>.ti2` composed is not there
+        # as far as NTFS is concerned, and the `.ti1` it fell back to was not
+        # there either (measured on this machine, B8-61). `Run.chart_ti2` now
+        # answers with the spelling the volume actually holds — see
+        # `core.file_manager.resolve_existing` — so `.exists()` here is the
+        # question it always read as, and the path it returns opens.
         resolved = self._tab_chart._resolve_target_chart()
         if resolved:
             ti2, _tiffs, ti1 = resolved
@@ -2339,16 +2393,25 @@ class MainWindow(QMainWindow):
         layout_combo = None
         if hasattr(self._tab_chart, "current_layout_combo"):
             layout_combo = self._tab_chart.current_layout_combo()
+        from PyQt6.QtWidgets import QDialog
+        preset_before = (self._tab_chart.i1pro_preset()
+                         if hasattr(self._tab_chart, "i1pro_preset") else None)
         dlg = SettingsDialog(self._settings, self, margin_combo=margin_combo,
                              layout_combo=layout_combo)
-        dlg.exec()
+        accepted = dlg.exec() == QDialog.DialogCode.Accepted
         self._check_argyll_binaries()
         self._apply_calibration_mode()
         self._tab_print.apply_native_dialog_mode()
-        # Pick up an updated i1Pro chart-defaults preset immediately so the user
-        # doesn't have to toggle instruments to see the new margin / scale.
-        if hasattr(self._tab_chart, "_apply_instrument_default_margin"):
-            self._tab_chart._apply_instrument_default_margin()
+        # A CHANGED i1Pro chart-defaults preset reaches Manual at once, and the
+        # saved defaults with it, so a restart agrees (B8-1285). ONLY a changed
+        # one, confirmed with OK (B8-1284): this used to call
+        # `_apply_instrument_default_margin()` on every close, Cancel too, and
+        # moved a margin or scale the person had typed back to his
+        # instrument's house value.
+        if (preset_before is not None
+                and hasattr(self._tab_chart, "apply_i1pro_preset_if_changed")):
+            self._tab_chart.apply_i1pro_preset_if_changed(preset_before,
+                                                          accepted)
         if hasattr(self._tab_chart, "_update_patch_count"):
             self._tab_chart._update_patch_count()
         # Manual mode's Auto -g/-e/-B reflect the grey-ramp-reference anchor;
@@ -2862,7 +2925,10 @@ class MainWindow(QMainWindow):
             self._tab_print.load_tiffs(tiffs)
             # A LOADED chart must carry its .ti2 into the Print tab too —
             # an already-converted chart forces Raw only if the tab knows
-            # which chart it is holding (§3.1a; Basti, 2026-08-10).
+            # which chart it is holding (§3.1a; Basti, 2026-08-10). The pages
+            # above are found by spelling-insensitive matching, so this had to
+            # be as well or a restored project printed its chart as if nobody
+            # knew what it was (B8-61).
             if run.chart_ti2.exists():
                 self._tab_print.note_generated_chart(run.chart_ti2)
 
@@ -2948,7 +3014,7 @@ class MainWindow(QMainWindow):
             box.setWindowTitle(tr("A profile is being built"))
             box.setText(tr(
                 "ChromIQ is still building a profile. If you quit now, the "
-                "build is thrown away — nothing is saved until it finishes.\n\n"
+                "build is thrown away. Nothing is saved until it finishes.\n\n"
                 "Keep building, or quit anyway?"))
             keep = box.addButton(tr("Keep building"),
                                  QMessageBox.ButtonRole.RejectRole)

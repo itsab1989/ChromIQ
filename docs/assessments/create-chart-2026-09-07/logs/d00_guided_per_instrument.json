@@ -1,0 +1,118 @@
+{
+  "i1": {
+    "papers": [
+      "594x420",
+      "483x329",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254",
+      "127x178",
+      "4x6"
+    ],
+    "count_lbl": "1936<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "detail": "PATCHES \u00b7 4 PAGES \u00b7 A4",
+    "dd": false,
+    "td": false,
+    "lb": true,
+    "nsl": true
+  },
+  "p3": {
+    "papers": [
+      "594x420",
+      "483x329",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254"
+    ],
+    "count_lbl": "396<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "detail": "PATCHES \u00b7 4 PAGES \u00b7 A4",
+    "dd": false,
+    "td": false,
+    "lb": true,
+    "nsl": true
+  },
+  "CM": {
+    "papers": [
+      "A2",
+      "594x420",
+      "329x483",
+      "483x329",
+      "A3",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254",
+      "127x178",
+      "4x6"
+    ],
+    "count_lbl": "420<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "detail": "PATCHES \u00b7 4 PAGES \u00b7 A4",
+    "dd": true,
+    "td": true,
+    "lb": false,
+    "nsl": false
+  },
+  "SS": {
+    "papers": [
+      "A2",
+      "329x483",
+      "483x329",
+      "A3",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254",
+      "127x178",
+      "4x6"
+    ],
+    "count_lbl": "4212<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "detail": "PATCHES \u00b7 4 PAGES \u00b7 A4",
+    "dd": true,
+    "td": false,
+    "lb": false,
+    "nsl": false
+  },
+  "CR30": {
+    "papers": [
+      "A2",
+      "594x420",
+      "329x483",
+      "483x329",
+      "A3",
+      "420x297",
+      "11x17",
+      "Legal",
+      "A4",
+      "A4R",
+      "Letter",
+      "LetterR",
+      "203x254",
+      "127x178",
+      "4x6"
+    ],
+    "count_lbl": "1380<span style=\"color: #101010; font-style: italic;\">!</span>",
+    "detail": "PATCHES \u00b7 4 PAGES \u00b7 A4",
+    "dd": true,
+    "td": false,
+    "lb": false,
+    "nsl": false
+  }
+}

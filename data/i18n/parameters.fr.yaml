@@ -7,11 +7,11 @@ parameters:
       tooltip_body: |-
         Définit la combinaison de colorants de ton périphérique de sortie.
 
-        Les espaces d'impression sont soustractifs : valeur 0 = blanc (pas
+        **Les espaces d'impression sont soustractifs :** valeur 0 = blanc (pas
         d'encre), maximum = noir (encre pleine).  Les espaces vidéo/écran
         sont additifs : valeur 0 = noir, maximum = blanc.
 
-        Choix courants :
+        **Choix courants :**
           • Impression grise (-d 0) — imprimante monocanale en niveaux de
                                       gris
           • Vidéo grise (-d 1)      — écran/moniteur monocanal
@@ -50,7 +50,7 @@ parameters:
         en ajoutant ou retirant un colorant précis.  Si le colorant choisi
         est déjà dans le jeu, il est retiré ; s'il manque, il est ajouté.
 
-        Usages typiques :
+        **Usages typiques :**
           • Ajouter de l'orange (-D 5) au CMYK standard pour un gamut
             étendu
           • Ajouter du cyan clair (-D 11) / magenta clair (-D 12) au CMYK
@@ -94,7 +94,7 @@ parameters:
           • Haute qualité : 1500–2000
           • Très haute :    2500–3000
 
-        Auto (à côté du champ numérique) : si coché, le nombre de plages
+        **Auto (à côté du champ numérique) :** si coché, le nombre de plages
         est calculé en temps réel à partir du papier, de l'instrument, du
         double density, du bord gauche, de l'échelle de plage, de la marge
         et du champ Pages de la section printtarg — en choisissant la plus
@@ -118,7 +118,7 @@ parameters:
         bon défaut ; les papiers très brillants peuvent profiter de
         quelques plages de plus.
 
-        Auto (case) :
+        **Auto (case) :**
         Active « Auto » et ChromIQ choisit le nombre pour toi, selon le
         nombre de plages de toute la mire — une petite mire d'une page
         reçoit peu de plages blanches, une grande mire multipage plus,
@@ -142,7 +142,7 @@ parameters:
         sombre que l'imprimante peut produire — ancrant l'extrémité sombre
         du profil. 4 est un bon défaut pour les imprimantes RGB.
 
-        Auto (case) :
+        **Auto (case) :**
         Active « Auto » et ChromIQ choisit le nombre pour toi, selon le
         nombre de plages de toute la mire — une petite mire reçoit peu de
         plages noires, une grande plus.
@@ -166,7 +166,7 @@ parameters:
         à la main : 0 pour un profil rapide, 50–100 pour un standard, 128+
         pour la haute qualité.
 
-        Auto (case) :
+        **Auto (case) :**
         Active « Auto » et ChromIQ choisit le nombre pour toi, en
         proportion du nombre de plages de toute la mire — une mire plus
         grande reçoit une rampe de gris plus longue et plus fine.
@@ -266,7 +266,7 @@ parameters:
           • -n ajoute des plages neutres explicites, dérivées du profil,
             en plus de ce que le reste de la distribution produit.
 
-        Quand l'utiliser :
+        **Quand l'utiliser :**
           • Tu as déjà un profil ICC de première passe pour ce papier et
             tu crées une mire d'affinage.  Charge ce profil dans Profil de
             préconditionnement (-c), puis mets -n à 32–64 pour
@@ -276,7 +276,7 @@ parameters:
             échantillonner, et -g couvre déjà la rampe dans l'espace du
             périphérique.
 
-        Valeurs d'affinage typiques : 32 pour le travail ordinaire, 64
+        **Valeurs d'affinage typiques :** 32 pour le travail ordinaire, 64
         pour le fine-art / l'épreuvage où la neutralité est critique.
 
         Exige que -c soit défini ; sinon, sans effet.
@@ -310,7 +310,7 @@ parameters:
         le profil construit sur ces plages prédit des couleurs que
         l'imprimante ne peut en réalité pas produire.
 
-        Comment choisir une valeur :
+        **Comment choisir une valeur :**
           • Majorité des jets d'encre CMYK :   260 – 320 %
           • Papiers couchés / brillants :      320 – 360 %
           • Papier journal, basse qualité :    220 – 260 %
@@ -322,7 +322,7 @@ parameters:
         coin de test de limite d'encre et choisis la valeur la plus haute
         qui sèche proprement sans baver.
 
-        Pour les flux RGB : laisse en général désactivé — les jets d'encre
+        **Pour les flux RGB :** laisse en général désactivé — les jets d'encre
         RGB gèrent la limitation d'encre en interne, targen n'a donc pas à
         répartir le budget entre canaux.
 
@@ -338,7 +338,7 @@ parameters:
         Choisis-en UN. Ils s'excluent mutuellement — en sélectionner un
         remplace complètement le placement OFPS par défaut.
 
-        OFPS (par défaut, recommandé) :
+        **OFPS (par défaut, recommandé) :**
         Optimised Farthest Point Sampling. Place itérativement chaque
         nouvelle plage aussi loin que possible de toutes les plages
         existantes — la couverture la plus uniforme de tous les
@@ -346,31 +346,31 @@ parameters:
         référence en qualité de profil. Associe-le à « Optimisation
         précise (-G) » pour le meilleur résultat.
 
-        Incremental Far Point (-t) :
+        **Incremental Far Point (-t) :**
         Une méthode du point le plus lointain plus simple. Plus rapide
         qu'OFPS, un peu moins uniforme. À utiliser quand OFPS est trop
         lent avec de très grands nombres de plages et que tu acceptes une
         petite perte de qualité.
 
-        Aléatoire — espace du périphérique (-r) :
+        **Aléatoire — espace du périphérique (-r) :**
         Plages uniformément aléatoires dans les valeurs brutes du
         périphérique (p. ex. RGB). Le plus rapide possible, mais la
         couverture en couleur *perçue* est inégale — des plages sont
         gâchées dans des zones que l'œil distingue à peine.
 
-        Aléatoire — espace perceptuel (-R) :
+        **Aléatoire — espace perceptuel (-R) :**
         Uniformément aléatoire en couleur perçue (Lab). Mieux que -r s'il
         faut vraiment de l'aléatoire, car les plages se répartissent
         uniformément selon ce que l'œil voit. Reste moins optimal qu'OFPS
         à nombre égal.
 
-        Quasi-aléatoire remplissant (-q / -Q) :
+        **Quasi-aléatoire remplissant (-q / -Q) :**
         Des suites à basse discrépance (type Sobol) qui remplissent
         l'espace plus uniformément que le vrai hasard, sans le coût
         itératif d'OFPS. -q en espace du périphérique, -Q en espace
         perceptuel. Un bon compromis quand OFPS est trop lent.
 
-        Réseau cubique centré (-i / -I) :
+        **Réseau cubique centré (-i / -I) :**
         Un réseau régulier fixe (chaque plage entourée de 8 voisines en
         motif cubique). Déterministe et très uniforme, mais rigide — seuls
         certains nombres de plages rentrent dans le réseau. -i en espace
@@ -424,14 +424,14 @@ parameters:
         Mets 0 (par défaut) pour sauter — presque toujours le bon choix.
         OFPS couvre déjà l'intérieur du cube plus efficacement.
 
-        Quand l'utiliser :
+        **Quand l'utiliser :**
           • Répétabilité entre machines : une grille fixe est identique à
             chaque fois, quels que soient les placements OFPS choisis par
             targen — utile pour comparer des profils entre exécutions.
           • Mires de diagnostic avec des positions de cube prévisibles et
             nommées.
 
-        Valeurs typiques quand utilisé : 3 – 6 (pas par axe). Les nombres
+        **Valeurs typiques quand utilisé :** 3 – 6 (pas par axe). Les nombres
         grimpent vite — 6 pas en RGB font 216 plages, 8 en font 512.
 
         Coche la case pour activer.
@@ -446,14 +446,14 @@ parameters:
 
         Mets 0 (par défaut) pour sauter.
 
-        Quand l'utiliser :
+        **Quand l'utiliser :**
           • Tu veux cerner spécifiquement la frontière du gamut et les
             coins primaires/secondaires sans le surcoût intérieur de -m.
           • Comparer comment différentes encres/papiers déplacent
             l'enveloppe du gamut — les plages de surface sont les plus
             touchées.
 
-        Valeurs typiques quand utilisé : 4 – 8 pas par face.
+        **Valeurs typiques quand utilisé :** 4 – 8 pas par face.
 
         Coche la case pour activer.
     "-b":
@@ -467,14 +467,14 @@ parameters:
 
         Mets 0 (par défaut) pour sauter — c'est un réglage de niche.
 
-        Quand l'utiliser :
+        **Quand l'utiliser :**
           • Tu veux des positions de plages régulières, alignées sur le
             réseau, mais avec un meilleur empilement que -m, sans aller
             jusqu'à OFPS.
           • Scénarios de recherche / répétabilité où la structure BCC
             elle-même est le but.
 
-        Note : c'est la forme à *compteur de pas* (elle s'ajoute à ta
+        **Note :** c'est la forme à *compteur de pas* (elle s'ajoute à ta
         liste de plages) ; pour une mire dont la distribution *entière*
         est BCC, utilise le sélecteur « Distribution des plages »
         ci-dessus et choisis-y l'option cubique centrée.
@@ -652,7 +652,8 @@ parameters:
       tooltip_title: "Pas de randomisation (-r)"
       tooltip_body: |-
         Par défaut, printtarg randomise les positions des plages pour
-        réduire les artefacts de dérive de l'instrument.
+        réduire les artefacts dus à des lectures de l'instrument qui
+        changent lentement pendant une mesure.
         N'active cette option que si tu testes une séquence de plages
         précise ou si ton instrument exige des plages ordonnées.
     "-b":
@@ -706,7 +707,7 @@ parameters:
         périphérique.  Le .cal est aussi incorporé dans le fichier .ti2
         pour que colprof puisse s'y référer à la création du profil ICC.
 
-        Usage typique : jets d'encre de bureau sans linéarisation
+        **Usage typique :** jets d'encre de bureau sans linéarisation
         intégrée, pilotés directement depuis un TIFF sans RIP
         intermédiaire.
 
@@ -727,7 +728,7 @@ parameters:
         .ti2 de sortie comme simples métadonnées, en laissant toutes les
         valeurs intactes.
 
-        Usage typique : RIP jet d'encre professionnels (p. ex. EFI Fiery,
+        **Usage typique :** RIP jet d'encre professionnels (p. ex. EFI Fiery,
         Wasatch, ColorBurst) ou imprimantes à linéarisation intégrée
         active pendant l'impression de profilage.
 
@@ -821,104 +822,6 @@ parameters:
         d'instrument peut être noir et blanc).  Peut améliorer la
         reconnaissance des bandes sur certains jets d'encre couleur où
         les séparateurs noirs contrastent peu avec les plages sombres.
-  chartread:
-    "-B":
-      name: "Lecture bidirectionnelle off"
-      tooltip_title: "Désactiver la lecture bidirectionnelle (-B)"
-      tooltip_body: |-
-        Empêche chartread de détecter automatiquement si tu as scanné une
-        bande vers l'avant ou vers l'arrière. ChromIQ le laisse désactivé
-        par défaut, pour que l'instrument puisse lire les bandes dans les
-        deux sens.
-
-        Ne l'active que si l'instrument signale de fausses erreurs de
-        sens de bande pendant la mesure.
-    "-b":
-      name: "Forcer lecture bidirectionnelle"
-      tooltip_title: "Forcer la lecture bidirectionnelle (-b)"
-      tooltip_body: |-
-        Oblige chartread à accepter une bande scannée dans n'importe quel
-        sens.
-
-        Normalement, chartread ne détecte le sens automatiquement que sur
-        les mires randomisées ; sur une mire à ordre fixe, il ne lit que
-        dans un sens et rejette les bandes scannées à l'envers. Active-le
-        pour forcer quand même la détection — utile pour la famille
-        i1 Pro, qui lit volontiers dans les deux sens. C'est l'inverse de
-        -B ; un seul des deux peut s'appliquer.
-    "-S":
-      name: "Supprimer les avertissements"
-      tooltip_title: "Supprimer les avertissements (-S)"
-      tooltip_body: |-
-        Supprime les fenêtres d'avertissement non fatales de chartread.
-        Recommandé pour les sessions de mesure sans surveillance ou en
-        série.
-        Les erreurs qui empêcheraient la génération du profil restent
-        signalées.
-    "-N":
-      name: "Sans calibration initiale"
-      tooltip_title: "Désactiver la calibration initiale (-N)"
-      tooltip_body: |-
-        Saute la calibration automatique sur la céramique blanche au
-        démarrage. Sers-t'en seulement si tu as déjà calibré l'instrument
-        dans cette session et veux mesurer d'autres mires sans
-        recalibrer.
-    "-p":
-      name: "Mode plage par plage"
-      tooltip_title: "Mode plage par plage (-p)"
-      tooltip_body: |-
-        Passe de la lecture de bandes à la mesure de plages individuelles.
-        Utile pour des mesures ponctuelles à la main ou si la lecture de
-        bandes échoue sur un papier donné.  Nettement plus lent sur les
-        grandes mires.
-    "-H":
-      name: "Mode spectral haute résol."
-      tooltip_title: "Spectre haute résolution (-H)"
-      tooltip_body: |-
-        Active l'échantillonnage spectral haute résolution sur les
-        instruments qui le permettent (p. ex. i1Pro 2/3).  Produit des
-        valeurs Lab plus précises mais augmente légèrement le temps de
-        mesure.
-    "-T":
-      name: "Tolérance de cohérence"
-      tooltip_title: "Multiplicateur de tolérance de plage (-T)"
-      tooltip_body: |-
-        Un multiplicateur du seuil de cohérence des plages intégré à
-        chartread — pas une valeur delta-E. chartread relit chaque plage
-        et rejette les bandes dont les lectures divergent de plus que le
-        seuil × ce nombre.
-
-        Plus bas = plus strict. Un réglage strict détecte tôt les vrais
-        problèmes : buses bouchées, encre faible, rouleaux sales, toner
-        laser instable. Sur un couple imprimante + spectrophotomètre
-        sain, le 0.7 par défaut laisse une marge confortable ; les
-        utilisateurs expérimentés de printerknowledge.com tournent à 0.4
-        avec un i1 Pro 2 / 3.
-
-        Monte à 0.8–1.5 si tu obtiens de fausses erreurs « inconsistent
-        patch » sur des papiers texturés, mats ou fine-art — la surface
-        elle-même y apporte une variance réelle. Au-dessus de 2, on
-        masque surtout de vrais problèmes ; si tu en as besoin, répare
-        d'abord l'imprimante.
-    "-l":
-      name: "Garder valeurs D50 L*a*b*"
-      tooltip_title: "Garder L*a*b* au lieu de XYZ (-l)"
-      tooltip_body: |-
-        Enregistre les données de mesure en valeurs L*a*b* D50 au lieu de
-        XYZ. La plupart des flux utilisent XYZ (par défaut).  N'active
-        que si des outils en aval exigent spécifiquement une entrée
-        L*a*b*.
-    "-X":
-      name: "Correction de colorimètre"
-      tooltip_title: "Matrice de correction de colorimètre (-X)"
-      tooltip_body: |-
-        Applique une matrice de correction de colorimètre (.ccmx) ou un
-        jeu spectral de calibration (.ccss) pour améliorer la précision
-        d'un colorimètre.
-        Pertinent uniquement pour les colorimètres (pas les
-        spectrophotomètres).
-        Procure-toi le bon fichier auprès du fabricant de l'instrument ou
-        crée-le avec les outils ccss/ccmx d'ArgyllCMS.
   colprof:
     "-D":
       name: "Description du profil"
@@ -957,13 +860,6 @@ parameters:
       labels:
         - "l — Lab cLUT (recommandé pour imprimantes RGB)"
         - "x — XYZ cLUT"
-        - "X — XYZ cLUT (absolu)"
-        - "g — gamma + matrice (rapide, moins précis)"
-        - "G — gamma + matrice (forcé)"
-        - "s — gamma unique + matrice"
-        - "S — gamma unique + matrice (forcé)"
-        - "m — matrice seule"
-        - "M — matrice seule (forcé)"
     "-q":
       name: "Qualité du profil"
       tooltip_title: "Qualité du profil (-q)"
@@ -1164,7 +1060,7 @@ parameters:
         calibration.  Des valeurs plus hautes donnent des courbes plus
         douces mais moins précises.
 
-        Défaut : 1.0 — adapté à la plupart des imprimantes.
+        **Défaut :** 1.0 — adapté à la plupart des imprimantes.
         Monte (p. ex. 2.0–5.0) si la réponse tonale de l'imprimante
         paraît irrégulière ou si les courbes semblent dentelées.
     "-z":

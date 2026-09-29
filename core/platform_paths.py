@@ -147,8 +147,24 @@ def default_output_root() -> Path:
     return Path.home() / "ChromIQ"
 
 
+#: Moves :func:`log_dir`, and with it `chromiq.log` and `chromiq-crash.log`.
+#: The test suite sets it (B8-1419): its workers' own log lines were already
+#: kept off the real log by a NullHandler, but every CHILD process a test
+#: starts (``subprocess.run([sys.executable, "-c", ...])``) imports `core` with
+#: no conftest in it, configured logging from scratch and appended to the
+#: user's real `chromiq.log`: 20 to 60 "Settings SANDBOXED to .../pytest-of-..."
+#: lines per on-screen drive while an everyday tier ran. A child inherits the
+#: environment, so this reaches it where the NullHandler cannot.
+LOG_DIR_ENV = "CHROMIQ_LOG_DIR"
+
+
 def log_dir() -> Path:
-    """Directory where ChromIQ writes its rotating log file."""
+    """Directory where ChromIQ writes its rotating log file.
+
+    ``CHROMIQ_LOG_DIR`` overrides it (see :data:`LOG_DIR_ENV`)."""
+    override = os.environ.get(LOG_DIR_ENV, "").strip()
+    if override:
+        return Path(override)
     if is_windows():
         base = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ChromIQ" / "Logs"
     elif is_macos():
@@ -184,6 +200,47 @@ def presets_dir() -> Path:
         xdg = os.environ.get("XDG_CONFIG_HOME")
         base = (Path(xdg) if xdg else Path.home() / ".config") / "ChromIQ"
     return base / "presets"
+
+
+def compliance_dir() -> Path:
+    """Where a licence holder's own limit values live, beside their presets.
+
+    **BECAUSE THE SHIPPED APP CANNOT READ AN ENVIRONMENT VARIABLE.** ChromIQ
+    keeps the ISO 12647 tolerance values out of the repository and reads them
+    from a file the user supplies, and until now the only way to name that file
+    was `CHROMIQ_COMPLIANCE_ISO_FILE`. That is fine for this checkout and
+    useless for anybody else: a `.dmg` carries no `scripts/` folder to make the
+    template with, and a variable exported in a shell never reaches an app
+    launched from Finder or the Dock. Basti, 2026-09-20: *"i just hope this is
+    straightforward and does not require any special knowledge."* It was not.
+
+    So there is a known place instead, beside `presets_dir()` and found the
+    same way on each platform, and the Report limits window puts the file there
+    with a file dialog. The environment variable still wins where it is set,
+    which is what the test suite and this checkout use.
+    """
+    return presets_dir().parent / "compliance"
+
+
+def reference_sets_dir() -> Path:
+    """Where a user's OWN copies of reference data live, beside their presets.
+
+    The second half of the same problem :func:`compliance_dir` solves, and a
+    different one from it. ChromIQ SHIPS reference data: eleven Fogra
+    characterisation files, under a grant that lets them travel. What it cannot
+    ship is a file Fogra publishes AFTER this build. Sebastian, 2026-09-20:
+    *"allow for a way to use newer values if they are released at some point in
+    the future without relying on an update to ChromIQ for it."*
+
+    So a user may put their own copy here and ChromIQ prefers it, per set, over
+    the one that shipped. The folder is kept apart from ``compliance`` because
+    the two answer different questions and must never be confused in a credit:
+    what is in ``compliance`` is a licence holder's own numbers that ChromIQ
+    has never seen, and what is here is a file whose provenance ChromIQ records
+    at import and does not vouch for. `workflow/reference_sets.py` keeps the
+    record.
+    """
+    return presets_dir().parent / "reference_sets"
 
 
 # User override for icc_install_dir (Settings → Paths, Knut #108). Set at

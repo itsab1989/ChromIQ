@@ -197,6 +197,15 @@ reads exist:
   - *Average all reads & build* → `average_runner` over all `_readN` →
     `<base>_average.ti3`, then proceed with that file.
   - *Use last read only & build* → proceed with `<base>_read{N}.ti3`.
+    **Amended 2026-09-15 (B8-213).** In the per-run layout the reads live in
+    `reads/readN.ti3`, where `measurement_report._find_reference_ti2` cannot
+    see the run's chart, so this ending left the run holding no measurement at
+    all: no row in the Measurement Report window, a dated report filed into
+    `reads/reports/` against a device reference, and an unmeasured run after a
+    restart. The chosen read is now COPIED back to `Run.measurement_ti3` and
+    that is what is proceeded with, exactly as the *Average* ending does with
+    its result; `reads/` still keeps every read. Edge case 1 below is what this
+    realises, by placing the file rather than by stripping a suffix.
   - *Measure again* → accumulate one more (`_read{N+1}`).
   - (Optional) a `mean`/`median` toggle, with median greyed/annotated "needs 3+
     reads".
@@ -237,6 +246,19 @@ Phase 1–3 are proven.
    `_on_measure_done`.
 4. **Field / patch / device-value mismatch** between reads — `average` errors
    (`average.c:642–695`); surface it and do not emit success.
+
+   **Amended 2026-09-15 (B8-215 · combined round 6).** "Do not emit success" is
+   right and was not enough: every read has already been MOVED into `reads/` by
+   then, and `average` writes its output only when it succeeds, so surfacing the
+   error and returning left the run holding **no measurement at all** — a
+   Measurement Report window with no rows, a Build Profile tab reading "No file
+   selected", and a restart finding an unmeasured run, under a window saying the
+   reads were still there to carry on from. A refusal is an ENDING, and the rule
+   B8-213 wrote for the other endings applies to it: the newest read is COPIED
+   back to `Run.measurement_ti3`, `reads/` keeps every read, the log names what
+   was kept, and `measure_finished` is emitted for that file so the tab the
+   window points at actually holds it. The failure window itself is unchanged
+   and still shown; nothing here is a success.
 5. **Cleanup** — `_readN`/`_average` files should survive `clean_folder` between
    steps but be removable on a true "start over". Check against the extension-
    based cleanup in `workflow/chart_creator.py`.

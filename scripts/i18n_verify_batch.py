@@ -39,7 +39,12 @@ _HTML = re.compile(
     r"(?:\s[^>]*)?/?>", re.I)
 
 _BRACE = re.compile(r"\{[^}]*\}")
-_LOGP = re.compile(r"\[(?:INFO|OK|WARN|ERROR)\]")
+#: ANY bracketed tag, anchored at the start, and compared as a tag.
+#: Naming four of them left six unchecked, which is where the 221
+#: translated tags of the 4.2.0 wave were; and a mere presence test
+#: would count a translated [HINWEIS] as kept once the pattern was
+#: widened. Same fix as tests/test_translation_integrity.py.
+_LOGP = re.compile(r"^\s*\[[A-Za-z]{2,12}\]")
 _QUOTED = re.compile(r"'[^'\n]{0,80}'|\"[^\"\n]{0,80}\"|„[^“”\n]{0,80}[“”]"
                      # Curly quotes too. Missing them made the check flag the
                      # run's literal “chart” folder as Dutch glossary drift —
@@ -152,12 +157,18 @@ def check(code: str) -> "tuple[dict, list[str]]":
     # Log prefixes must be handled the SAME way throughout one language. Either
     # all kept in English or all translated — a log that mixes [ERROR] and
     # [FOUT] line by line looks broken. (Project rule: keep them as-is.)
-    kept = sum(1 for k, v in done if _LOGP.search(k) and _LOGP.search(v))
-    changed = sum(1 for k, v in done if _LOGP.search(k) and not _LOGP.search(v))
+    def _tag(t):
+        m = _LOGP.match(t)
+        return m.group(0).strip() if m else None
+
+    kept = sum(1 for k, v in done
+               if _tag(k) and _tag(v) == _tag(k))
+    changed = sum(1 for k, v in done
+                  if _tag(k) and _tag(v) != _tag(k))
     if kept and changed:
         fails.append(f"[log-prefix] inconsistent: {kept} keep the English prefix, "
-                     f"{changed} translate it. Pick one — the project rule is to keep "
-                     f"[INFO]/[OK]/[WARN]/[ERROR] as they are.")
+                     f"{changed} translate it. The project rule is to keep EVERY "
+                     f"bracketed tag in English, not only the common four.")
 
     stats = {"total": len(pairs), "translated": len(done),
              "placeholders": len(placeholders),

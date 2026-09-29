@@ -1,0 +1,50 @@
+09:37:35 app built: v4.2.0 appearance=neutral lang=en settings=/Users/Basti/Desktop/Create Chart Assessment/Test Runs/sandbox/chromiq-assessment.ini
+09:37:42 open_project('Demo-Full-RGB') -> run bar reads 'Run 2 (overwrite)' ok=True
+09:37:46 calibration fresh: {'generate_enabled': True, 'generate_tip': 'Generate Chart (⌘↵)', 'stop_visible': False, 'in_flight': False, 'run': 'Project calibration', 'location': 'Location being edited: ChromIQ-assessment/Demo-Full-RGB/cal/', 'mode_btns_visible': (False, False), 'estimate': {'total': 75, 'fillup': 11, 'page_patches': 75, 'rows': 15, 'cols': 5, 'pages': 1, 'patch': (28.0, 14.0), 'pitch': None}, 'actual': {'total': 64, 'fillup': 4, 'page_patches': 64, 'rows': 16, 'cols': 4, 'pages': 1, 'patch': (28.02, 13.97), 'pitch': None}, 'info': 'tion (1 page):\ntargen -d2 -f64 -e4 -B4 -G chart\nChromIQ layout engine · CM · A4 portrait · 300 dpi · margin 6 mm · hand-held · align center-left\nLayout preset: CM · A4 portrait · freehand   ● modified'}
+09:37:46   shot Screenshots/B4-calibration/c10-fresh-session.png  (3400x2100)
+09:37:46   armed: dialog ~'calibration' -> click 'Cancel' 
+09:37:46   armed: dialog ~'quite fill' -> click 'OK' 
+09:37:46   armed: dialog ~'already' -> click 'Continue this project' 
+09:37:46   DIALOG expected [QMessageBox] '' -> clicked 'Cancel'
+09:37:48 calibration generate (fresh): {'generate_was_enabled': True, 'ok': True, 'actual': {'total': 64, 'fillup': 4, 'page_patches': 64, 'rows': 16, 'cols': 4, 'pages': 1, 'patch': (28.02, 13.97), 'pitch': None}, 'estimate': {'total': 75, 'fillup': 11, 'page_patches': 75, 'rows': 15, 'cols': 5, 'pages': 1, 'patch': (28.0, 14.0), 'pitch': None}, 'status': 'Margins: OK', 'dialogs': [('This project already has a finished calibration, and generating a new chart starts that wo', "clicked 'Cancel'", ['Replace the calibration', 'Cancel'])], 'serious': [], 'log_tail': ["Switched to this run's profiling chart.", "Restored the chart's own layout settings — patch size, spacers, margins, seed and patch count now show the values this chart was made with.", "Switched to this run's profiling chart.", "Restored the chart's own layout settings — patch size, spacers, margins, seed and patch count now show the values this chart was made with."]}
+09:37:48   json Test Runs/logs/d08b_results.json
+09:37:55   shot Screenshots/B3-gamut/g10-guided-verification-before-gamut.png  (3400x2100)
+09:37:58   shot Screenshots/B3-gamut/g11-manual-verification-after-gamut.png  (3400x2100)
+09:38:00 verification leak: before={'generate_enabled': True, 'generate_tip': 'Generate Chart (⌘↵)', 'stop_visible': False, 'in_flight': False, 'noprofile_visible': True} gamut={'generate_enabled': False, 'generate_tip': 'Generate Chart (⌘↵)', 'stop_visible': True, 'in_flight': True} guided_after={'generate_enabled': False, 'generate_tip': 'Generate Chart (⌘↵)', 'stop_visible': True, 'in_flight': True} manual_after={'generate_enabled': False, 'generate_tip': 'Generate Chart (⌘↵)', 'stop_visible': True, 'in_flight': True} profiling_after={'generate_enabled': False, 'generate_tip': 'Generate Chart (⌘↵)', 'stop_visible': True, 'in_flight': True}
+09:38:00   json Test Runs/logs/d08b_results.json
+09:38:00   header load .ti1: native file dialog replaced by the path external_patchset.ti1 (logged substitution)
+09:38:00   armed: dialog ~'Build it as a new run' -> click 'Build it as a new run instead' 
+09:38:00   armed: dialog ~'quite fill' -> click 'OK' 
+09:38:00   armed: dialog ~'loaded' -> click 'OK' 
+09:38:00   DIALOG expected [QMessageBox] '' -> clicked 'Build it as a new run instead'
+09:38:04 header load ti1: {'actual': {'total': 308, 'fillup': 4, 'page_patches': 308, 'rows': 22, 'cols': 14, 'pages': 1, 'patch': (7.62, 9.48), 'pitch': None}, 'estimate': {'total': 484, 'fillup': 0, 'page_patches': 484, 'rows': 22, 'cols': 22, 'pages': 1, 'patch': (7.6, 9.5), 'pitch': None}, 'info': 'de — your current configuration (4 pages · Auto grey/white/black):\ntargen -d2 -f400 -e3 -B3 -G -g23 chart\nChromIQ layout engine · i1 · A4 portrait · 300 dpi · margins 38/9/19/26 mm · area-fit · clip border on\nLayout preset: i1 · A4 portrait · clip   ● modified', 'preset_ti1': '/Users/Basti/Desktop/Create Chart Assessment/Evidence/external_patchset.ti1', 'override_targen': (False, False), 'dialogs': [("Where should this patch set's chart go? | You loaded the patch set <b>external_patchset.ti1</b>.<br><br>A profile projec", "clicked 'Build it as a new run instead'", ['Cancel', 'Replace run 3', 'Build it as a new run instead', 'Replace only the chart', 'Start a new project'])], 'mode': 'other', 'run_bar': 'Run 4 (overwrite)', 'location': 'on being edited: ChromIQ-assessment/Demo-Full-RGB/runs/run4/', 'engine': True}
+09:38:04   shot Screenshots/B5-header/h01-after-load-ti1.png  (3400x2100)
+09:38:04   json Test Runs/logs/d08b_results.json
+09:38:06 open_project('A5-Furniture') -> run bar reads 'Run 2 (overwrite)' ok=True
+09:38:09   armed: dialog ~'quite fill' -> click 'OK' 
+09:38:09   armed: dialog ~'already' -> click 'Continue this project' 
+09:38:14   armed: dialog ~'quite fill' -> click 'OK' 
+09:38:14   armed: dialog ~'already' -> click 'Continue this project' 
+09:38:17 failed build restore: {'good': {'total': 304, 'fillup': 0, 'page_patches': 304, 'rows': 19, 'cols': 16, 'pages': 1, 'patch': (10.92, 11.68), 'pitch': None}, 'bad_log': ['[ChromIQ layout engine] building chart from the targen .ti1…', '[ChromIQ layout engine] Drawing the pages. This part runs in one go and cannot be stopped, so the window will not respond until it is finished.', '[ERROR] ChromIQ layout engine: paper too short: a single pass of patches does not fit (8.0 mm available)', '[ERROR] Chart generation failed.'], 'bad_dialogs': [], 'files_before': ['A5-Furniture.channels.json', 'A5-Furniture.ti1', 'A5-Furniture.ti2', 'A5-Furniture.tif', 'meta.json'], 'files_after': ['A5-Furniture.channels.json', 'A5-Furniture.ti1', 'A5-Furniture.ti2', 'A5-Furniture.tif', 'meta.json'], 'preview_pages_after': 0, 'frames_after': (None, 'Margins: OK'), 'generate_enabled': True, 'generate_tip': 'Generate Chart (⌘↵)', 'stop_visible': False, 'in_flight': False, 'log_visible': False, 'status_bar': ''}
+09:38:17   shot Screenshots/A10-extremes/x10-after-failed-build.png  (3400x2100)
+09:38:17   json Test Runs/logs/d08b_results.json
+09:38:21 after run round trip: {'preview_pages': 1, 'actual': {'total': 304, 'fillup': 0, 'page_patches': 304, 'rows': 19, 'cols': 16, 'pages': 1, 'patch': (10.92, 11.51), 'pitch': None}}
+09:38:21   json Test Runs/logs/d08b_results.json
+09:38:21   json Test Runs/logs/d08b_tooltips_dump.json
+09:38:21 tooltips: 144 scanned, 4 with history/plural markers: [{'title': 'Edit patch recipe', 'hits': ['no longer']}, {'title': 'Strip indicators', 'hits': ['no longer']}, {'title': 'Show markers for', 'hits': ['no longer']}, {'title': 'Which rendering intent builds this chart', 'hits': ['no longer']}]
+09:38:21   json Test Runs/logs/d08b_results.json
+09:38:22 open_project('A1-EngineVsPrinttarg') -> run bar reads 'Run 2 (overwrite)' ok=True
+09:38:26   shot Screenshots/B9-window/w-1280x800-manual.png  (2560x1600)
+09:38:26   shot Screenshots/B9-window/w-1280x800-guided.png  (2560x1600)
+09:38:28   shot Screenshots/B9-window/w-1700x1050-manual.png  (3400x2100)
+09:38:29   shot Screenshots/B9-window/w-1700x1050-guided.png  (3400x2100)
+09:38:32   shot Screenshots/B9-window/w-maximized-manual.png  (3456x2102)
+09:38:37   shot Screenshots/B11-appearance/a-light-manual.png  (3400x2100)
+09:38:38   shot Screenshots/B11-appearance/a-light-guided.png  (3400x2100)
+09:38:44   shot Screenshots/B11-appearance/a-dark-manual.png  (3400x2100)
+09:38:44   shot Screenshots/B11-appearance/a-dark-guided.png  (3400x2100)
+09:38:50   shot Screenshots/B11-appearance/a-neutral-manual.png  (3400x2100)
+09:38:51   shot Screenshots/B11-appearance/a-neutral-guided.png  (3400x2100)
+09:38:51   json Test Runs/logs/d08b_results.json
+09:38:51 unexpected: [] serious: ['[ERROR] workflow.chart_creator: ChromIQ layout engine failed']
+exit=0

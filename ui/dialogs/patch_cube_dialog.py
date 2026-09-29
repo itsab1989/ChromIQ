@@ -114,16 +114,21 @@ class PatchCubeDialog(QDialog):
             self.setStyleSheet(self.styleSheet() + combo_popup_qss(SPEC_MAGENTA))
             self._compare_combo.addItem(tr("None"), None)
             for group, items in self._compare_presets:
-                self._compare_combo.insertSeparator(self._compare_combo.count())
-                self._compare_combo.addItem(group)          # instrument header
-                hdr = self._compare_combo.model().item(self._compare_combo.count() - 1)
-                if hdr is not None:
-                    f = hdr.font(); f.setBold(True); hdr.setFont(f)
-                    # Bold, but the same colour as the entries (not greyed) — and
-                    # still not selectable (Enabled flag kept, Selectable dropped).
-                    hdr.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                # An empty heading is the user's own presets, which Create
+                # Chart lists straight under "none" with no heading and no
+                # separator (`preset_dropdown_groups`); so does this list.
+                indent = "    " if group else ""
+                if group:
+                    self._compare_combo.insertSeparator(self._compare_combo.count())
+                    self._compare_combo.addItem(group)          # instrument header
+                    hdr = self._compare_combo.model().item(self._compare_combo.count() - 1)
+                    if hdr is not None:
+                        f = hdr.font(); f.setBold(True); hdr.setFont(f)
+                        # Bold, but the same colour as the entries (not greyed) — and
+                        # still not selectable (Enabled flag kept, Selectable dropped).
+                        hdr.setFlags(Qt.ItemFlag.ItemIsEnabled)
                 for label, path in items:
-                    self._compare_combo.addItem("    " + label, str(path))
+                    self._compare_combo.addItem(indent + label, str(path))
             self._compare_combo.currentIndexChanged.connect(self._on_compare_changed)
             bar.addWidget(self._compare_combo)
         lay.addLayout(bar)

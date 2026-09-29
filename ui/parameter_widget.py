@@ -11,16 +11,35 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
 
 from core.logger import get_logger
 from ui.tooltip_button import TooltipButton
-from ui.widgets import NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog
+from ui.widgets import ElidingCheckBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog
 from core.i18n import tr
 
 log = get_logger(__name__)
+
+
+def as_bool(v: Any) -> bool:
+    """A stored flag as the bool it was saved as (B8-1282).
+
+    A settings file in INI format keeps no types: "Save as Defaults" writes
+    False and the next process reads the string "false", which ``bool()``
+    calls True. That is the sandbox every on-screen drive uses, and Linux's
+    own format. macOS's plist keeps the bool, so the owner's store never
+    showed it."""
+    if isinstance(v, str):
+        return v.strip().lower() in ("true", "1", "yes", "on")
+    return bool(v)
+
+
+#: The widest an expert row's name check box grows to show its whole name
+#: (B8-929). The name column is 190 px; past this a name elides.
+NAME_CELL_MAX = 260
 
 
 class ParameterWidget(QWidget):
@@ -140,7 +159,7 @@ class ParameterWidget(QWidget):
 
     def set_value(self, v: Any) -> None:
         if self._control is None and self._enable_check is not None:
-            self._enable_check.setChecked(bool(v))
+            self._enable_check.setChecked(as_bool(v))
             return
         c = self._control
         if c is None:
@@ -148,7 +167,7 @@ class ParameterWidget(QWidget):
         t = self._param.get("type", "string")
         try:
             if t == "boolean":
-                c.setChecked(bool(v))
+                c.setChecked(as_bool(v))
             elif t == "choice" or t == "flag_choice":
                 combo = self._custom_combo if self._custom_combo is not None else c
                 idx = combo.findData(str(v))
@@ -189,7 +208,7 @@ class ParameterWidget(QWidget):
     def set_user_enabled(self, checked: bool) -> None:
         """Programmatically set the expert enable-checkbox state."""
         if self._enable_check is not None:
-            self._enable_check.setChecked(checked)
+            self._enable_check.setChecked(as_bool(checked))
 
     def reset_to_default(self) -> None:
         """Restore the YAML default and clear any expert enable-checkbox.
@@ -269,15 +288,47 @@ class ParameterWidget(QWidget):
             return  # early exit — no _control needed
 
         # Expert non-boolean: enable-checkbox replaces label
+        #
+        # ELIDING, BOTH OF THEM. The name column is a hard 190 px so that every
+        # control below it lines up, and a plain QLabel or QCheckBox given a
+        # name wider than that does not elide -- it is cut off at the frame with
+        # nothing to say what it said. English fits; Ukrainian put 22 of these
+        # names over the column, the widest asking 332 px of 163 (measured
+        # 2026-09-21, `colprof -S`). Widening the column is not available (the
+        # pane is locked to 580 px to line up with Print, Measure and Check &
+        # Refine) and wrapping would make the rows different heights, so the
+        # name elides and carries the full text as its tooltip. `text()` still
+        # returns the whole name on both widgets, so nothing that reads them
+        # sees an ellipsis.
         if self.expert_only:
-            self._enable_check = QCheckBox(name + ":", self)
+            self._enable_check = ElidingCheckBox(name + ":", self)
             self._enable_check.setChecked(False)
-            self._enable_check.setFixedWidth(190)
+            # **AT LEAST THE COLUMN, AND AS WIDE AS THE NAME ASKS (B8-929).**
+            # The box shares the 190 px with its indicator, so a name got
+            # only 166 px of it: "Body-Centered Cubic Steps:" (175) and
+            # "Include Calibration File (no apply):" (209) were elided in
+            # English, measured on screen. The row's control has room to
+            # give, so the cell grows to the whole name, up to
+            # `NAME_CELL_MAX`; a longer name still elides there, with its
+            # tooltip, so a long language cannot push the control off.
+            self._enable_check.setMinimumWidth(190)
+            self._enable_check.setMaximumWidth(NAME_CELL_MAX)
+            self._enable_check.setSizePolicy(QSizePolicy.Policy.Fixed,
+                                             QSizePolicy.Policy.Preferred)
             self._enable_check.setObjectName("param_label")
             layout.addWidget(self._enable_check)
         else:
-            lbl = QLabel(name + ":", self)
+            lbl = ElidingLabel(name + ":", self)
             lbl.setFixedWidth(190)
+            # FIXED, NOT THE `Ignored` ElidingLabel ASKS FOR. `Ignored` zeroes
+            # the label's size hint AFTER the fixed width is applied, so the
+            # row's QHBoxLayout hands the label cell 0 px whenever the control
+            # beside it stretches (a combo, the -G check box, a plain spin box)
+            # and puts the control at x=8, on top of a label that still paints
+            # 190 px wide (B8-922: "D Print RGB", "T■rough Optimisation",
+            # "S 0"). The width is pinned anyway, so elision is unchanged.
+            lbl.setSizePolicy(QSizePolicy.Policy.Fixed,
+                              QSizePolicy.Policy.Preferred)
             lbl.setWordWrap(False)
             lbl.setObjectName("param_label")
             self._label = lbl

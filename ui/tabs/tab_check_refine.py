@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -44,14 +43,13 @@ from ui.fade_scroll import FadeScrollArea
 from ui.gamut_panel import GamutPanel
 from ui.tab_header import TabHeader
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import add_log_row, fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import TailFollowLog, add_log_row, fit_log_height, GatedOption, NoScrollComboBox, NoScrollDoubleSpinBox, make_browse_button, open_file_dialog, replace_log_line, set_accent_html, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
                           read_target_instrument, spectral_options_unavailable)
 
 _TAB_COLOR = "#9f82ff"  # Check & Refine tab accent
 
 from ui.styles import SPEC_VIOLET, TAB_COLORS
-from workflow.profile_builder import _profile_dir as _get_profile_dir
 from workflow.scanin_target import has_scanner_geometry
 from workflow.profcheck_runner import (
     REFINE_DE_THRESHOLD,
@@ -324,7 +322,7 @@ class TabCheckRefine(QWidget):
                 "(.icc) and reports how accurately the profile predicts your "
                 "printer's behaviour, so you know whether to trust it for real "
                 "prints.\n\n"
-                "How to use this screen:\n"
+                "**How to use this screen:**\n"
                 "• The .ti3 and .icc fields are pre-filled if you came from step 4. "
                 "You can also load any older pair to re-check an existing profile.\n"
                 "• Click “Analyse Profile Quality” to see the error report. Lower "
@@ -340,7 +338,7 @@ class TabCheckRefine(QWidget):
                 "The 3D viewer on the right shows your profile's gamut — the volume "
                 "of colours your printer can reproduce. Bigger and smoother is "
                 "generally better; sharp dents usually indicate measurement issues.\n\n"
-                "When you're happy: install the .icc and use it in your image "
+                "**When you're happy:** install the .icc and use it in your image "
                 "editor's “soft-proofing” or print dialog."
             ),
         ))
@@ -466,7 +464,7 @@ class TabCheckRefine(QWidget):
         left_layout.addLayout(btn_row)
 
         # ── Log (outside stack) ────────────────────────────────────────
-        self._log = QPlainTextEdit(self)
+        self._log = TailFollowLog(self)
         self._log.setObjectName("log")
         self._log.setReadOnly(True)
         # Sized like every other log panel, and resizable with them (Basti:
@@ -1214,9 +1212,19 @@ class TabCheckRefine(QWidget):
         info.setWordWrap(True)
         dlg_layout.addWidget(info)
         bb = QDialogButtonBox(dlg)
-        bb.addButton(tr("Cancel"), QDialogButtonBox.ButtonRole.RejectRole)
+        cancel_btn = bb.addButton(tr("Cancel"),
+                                  QDialogButtonBox.ButtonRole.RejectRole)
         del_btn = bb.addButton(tr("Delete"), QDialogButtonBox.ButtonRole.AcceptRole)
+        # Coloured in the tab's colour before K44, and kept (B8-1156).
         del_btn.setObjectName("primary")
+        # Destructive: never where the keyboard focus starts (B8-1181).
+        # Not the default, so the mark changes nothing in its colour.
+        from ui.default_button import mark_destructive
+        mark_destructive(del_btn)
+        # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
+        # the safest." Return presses Cancel, which stays plain; Delete keeps
+        # its colour and is reached by a click.
+        cancel_btn.setDefault(True)
         bb.rejected.connect(dlg.reject)
         bb.accepted.connect(dlg.accept)
         dlg_layout.addWidget(bb)
@@ -1235,22 +1243,74 @@ class TabCheckRefine(QWidget):
     def set_target_controller(self, controller) -> None:
         """Receive the shared Profile-run / Run-type controller (#130).
 
-        STORES THE REFERENCE AND NOTHING ELSE. This tab was the only one left
-        out of the registration loop, and the comment that used to sit in
-        `_on_browse_ti3` blamed the absence for the bar not moving after an
-        import — but it also said a `getattr` guard once sat there "looking
-        like a fix and doing nothing", which is exactly what it was: the bar
-        did not move because `resolve_ti3` creates a project and never OPENS
-        it, not because the controller was missing.
+        This tab was the only one left out of the registration loop, and the
+        comment that used to sit in `_on_browse_ti3` blamed the absence for the
+        bar not moving after an import — but it also said a `getattr` guard
+        once sat there "looking like a fix and doing nothing", which is
+        exactly what it was: the bar did not move because `resolve_ti3`
+        creates a project and never OPENS it, not because the controller was
+        missing.
 
-        Deliberately no `controller.changed` connection. A challenge round
-        injected a controller onto the real tab and drove its whole surface:
-        zero `changed` signals, no behaviour change anywhere. Connecting one
-        would be a new behaviour nobody has asked for; what this tab needs the
-        controller for is to point the bar at a run AFTER an import, which is
-        an act, not a subscription.
+        AND IT FOLLOWS THE BAR, which it used not to. The note here said a
+        `changed` connection "would be a new behaviour nobody has asked for",
+        on the strength of a challenge round that injected a controller and saw
+        zero `changed` signals — a fact about that harness, not about the app.
+        A tester asked for it in as many words: *"even though the profile run is
+        set to run1 and its folder has all files, ti1, ti2, ti3 and icc ... The
+        ti3 and the icc file is not automatically loaded as default when
+        entering Check & Refine tab. Measure and Build Profile tabs both loads
+        the ti3 file for the run, if it exists, as default."* Those two tabs are
+        the model and this mirrors `TabProfile._on_target_changed`.
         """
         self._target_ctl = controller
+        controller.changed.connect(self._follow_the_bar)
+        self._follow_the_bar()
+
+    def _follow_the_bar(self) -> None:
+        """Show the selected run's own measurement and profile.
+
+        Only ever OFFERS what is on disk for the selected run: a run with no
+        measurement of its own leaves whatever is loaded alone, so moving the
+        bar never empties the tab.
+
+        Nothing is broadcast. `_adopt_ti3` tells Measure and Build Profile
+        about a file the person chose, and that is also what can raise an
+        import window; the bar moving is not a choice about files and must
+        stay silent, exactly as Build Profile's own follow does with
+        ``propagate=False``.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        try:
+            from core.measurement_target import resolve_run
+            proj = ctl.project_or_none()
+            # PROFILING RUNS ONLY. A verification's measurement lives in a
+            # dated folder and a CALIBRATION's lives in `cal/`, so for either
+            # of those `resolve_run(...).measurement_ti3` is the run's
+            # profiling measurement: a real file, belonging to something the
+            # bar is not pointing at. Build Profile's own follow guards only
+            # the first of the two; offering the wrong file is worse than
+            # offering none, so this guards both.
+            if (proj is None or ctl.target.is_verification()
+                    or ctl.target.is_calibration()):
+                return
+            ti3 = resolve_run(proj, ctl.target).measurement_ti3
+            if not ti3.is_file() or ti3 == self._ti3_path:
+                return
+            # A measurement inside a run is filed by definition, so the
+            # in-place flag cannot survive the move (or the next report would
+            # be written beside the PREVIOUS file).
+            self._checking_in_place = False
+            self._ti3_path = ti3
+            self._ti3_edit.setText(str(ti3))
+            self._auto_fill_icc(ti3, quiet=True)
+            self._update_run_btn()
+            self._detect_instrument(ti3)
+            log.info("Check & Refine: measurement follows the bar -> %s", ti3)
+        except Exception:      # noqa: BLE001 - never break a selection change
+            log.warning("Could not follow the bar in Check & Refine",
+                        exc_info=True)
 
     def _on_browse_ti3(self) -> None:
         path = open_file_dialog(
@@ -1377,11 +1437,16 @@ class TabCheckRefine(QWidget):
             self._update_run_btn()
             self._gamut_panel.set_icc_path(self._icc_path)
 
-    def _auto_fill_icc(self, ti3: Path) -> None:
+    def _auto_fill_icc(self, ti3: Path, *, quiet: bool = False) -> None:
         """Try to find a matching ICC/ICM in the same folder.
 
         Prefers the run's refinement-merged profile (merged.icc) when one was
         built, falling back to the same-stem profile (chart.icc / chart.icm).
+
+        ``quiet`` suppresses the "Profile Not Found" window. A person who
+        browsed to a measurement asked a question and is owed an answer; the
+        tab filling itself from the selected run asked nothing, and a modal
+        thrown at somebody who merely opened a project is not an answer.
         """
         candidates: list[Path] = []
         run = Run.for_dir(ti3.parent)
@@ -1400,6 +1465,8 @@ class TabCheckRefine(QWidget):
         self._icc_edit.clear()
         self._update_run_btn()
         self._gamut_panel.set_icc_path(None)
+        if quiet:
+            return
         from PyQt6.QtWidgets import QMessageBox
         warn(
             self,
@@ -1821,15 +1888,35 @@ class TabCheckRefine(QWidget):
             def _on_install():
                 try:
                     _persist_and_build_scanner()
-                    profile_dir = _get_profile_dir()
-                    profile_dir.mkdir(parents=True, exist_ok=True)
-                    # Install under the project name (Run.stem), so the system
-                    # ColorSync folder ends up with descriptive,
-                    # non-colliding filenames even when the on-disk profile is
-                    # the build-time `merged.icc`.
-                    install_stem = Run.for_dir(icc.parent).stem
-                    dest = profile_dir / f"{install_stem}{icc.suffix}"
-                    shutil.copy2(icc, dest)
+                    # THROUGH THE SAME DOOR AS BUILD ICC PROFILE'S INSTALL.
+                    # This used to be its own shutil.copy2 under its own name
+                    # rule, and never read "Name the installed copy after the
+                    # description" at all: with the tick on and the description
+                    # "RR ColorJet Canon Pro-1100 v5", the Build tab installed
+                    # "RR ColorJet Canon Pro-1100 v5.icc" and this button
+                    # installed "Pro-1100-ColorJet3.icc", from the same window
+                    # in the same tick.
+                    #
+                    # The description comes from the PROFILE'S OWN 'desc' tag
+                    # rather than a field on another tab: it is a fact about
+                    # the file being installed, it is what colprof was given
+                    # when this profile was built, and it is the name other
+                    # applications list the profile under. the tester's point was
+                    # exactly that the two should match.
+                    from workflow.profile_builder import (
+                        install_profile_file, installed_profile_name)
+                    desc = ""
+                    try:
+                        from workflow.icc_info import read_icc
+                        desc = read_icc(icc).description or ""
+                    except Exception:      # noqa: BLE001 — a name, not the install
+                        log.debug("could not read the description out of %s",
+                                  icc, exc_info=True)
+                    # The fallback keeps the old behaviour when the tick is
+                    # off: the project name, not a role name like merged.icc.
+                    dest = install_profile_file(
+                        icc, installed_profile_name(desc, self._settings),
+                        fallback_stem=Run.for_dir(icc.parent).stem)
                     dlg.accept()
                     self._log.appendPlainText(f"[OK] Profile installed to {dest}")
                 except Exception as exc:

@@ -10,12 +10,13 @@ It is Qt-only UI glue — no engine logic beyond reading/writing the recipe.
 """
 from __future__ import annotations
 
+import time
 from contextlib import contextmanager
 
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (
     QButtonGroup, QGridLayout, QGroupBox, QHBoxLayout, QLabel, QMenu,
-    QToolButton, QVBoxLayout, QWidget,
+    QSizePolicy, QSpacerItem, QToolButton, QVBoxLayout, QWidget,
 )
 
 from core.i18n import tr
@@ -31,6 +32,8 @@ from ui.widgets import (
     set_ink,
 )
 from ui.warning_sign import ask, inform
+from workflow import text_edge_fit as _TEF
+from workflow.hex_support import hex_two_heights_note
 from workflow.layout_engine.presets import LayoutRecipe
 
 log = get_logger(__name__)
@@ -69,12 +72,31 @@ MM_PER_PT = 25.4 / 72.0          # ≈ 0.3528
 
 
 def mm_to_pt(mm: float) -> float:
-    """Round-trip-stable mm → points for the size spinboxes (0 stays 0=auto)."""
-    return round(float(mm or 0.0) * PT_PER_MM)
+    """Round-trip-stable mm → points for the size spinboxes (0 stays 0=auto).
+
+    **SNAPPED TO THE HALF-POINT GRID, WHICH IS WHAT THE BOXES STEP BY.** This
+    rounded to a WHOLE point, and until 2026-09-13 that was round-trip stable
+    because the boxes were whole points too. Giving them a 0.5 step without
+    moving this line made the feature inert the moment anything reloaded a
+    recipe: an adversary round drove it on screen and photographed a box typed
+    at "9,5" reading "9,0" after `_set_engine_recipe`, which every preset,
+    every chart opened from disk and every restored session goes through.
+    Fifteen of the thirty-one grid values between 5 and 20 pt were lost, and
+    not even consistently (7.5 rounded UP to 8, 9.5 DOWN to 9).
+
+    `pt_to_mm` keeps two decimals, so 9.5 pt is stored as 3.35 mm and comes
+    back as 9.4961: rounding that to the nearest HALF gives 9.5 again. The two
+    functions are a pair and have to be read together.
+    """
+    return round(float(mm or 0.0) * PT_PER_MM * 2.0) / 2.0
 
 
 def pt_to_mm(pt: float) -> float:
-    """Points → mm for storing/rendering (0 stays 0=auto)."""
+    """Points → mm for storing/rendering (0 stays 0=auto).
+
+    Two decimals is 0.01 mm, about 0.028 pt, which is finer than half the
+    half-point grid `mm_to_pt` snaps back to. See there.
+    """
     return round(float(pt or 0.0) * MM_PER_PT, 2)
 
 
@@ -213,17 +235,17 @@ class LayoutOptionsPanel(QWidget):
                        "default; hexagonal is worth considering on a CR30, for "
                        "a reason that does not apply to the other "
                        "instruments.\n\n"
-                       "The CR30 is a ROUND instrument: a 33 mm barrel reading "
+                       "**The CR30 is a ROUND instrument:** a 33 mm barrel reading "
                        "through a 4 mm circular window. A round window can "
                        "never use the corners of a square patch, so on a "
                        "square grid that paper is spent for nothing. Hexagons "
                        "are the tightest way to pack round openings into a "
-                       "sheet — 90.7 % of the area is within reach of a "
-                       "circle, against 78.5 % for squares — so you keep the "
+                       "sheet: 90.7 % of the area is within reach of a "
+                       "circle, against 78.5 % for squares, so you keep the "
                        "same 4 mm of clearance all round the window while each "
                        "patch uses less paper. Measured on A4 at the standard "
                        "size and default margins: 345 patches rectangular, 405 "
-                       "hexagonal. The gain depends on the paper — on A3 it is "
+                       "hexagonal. The gain depends on the paper; on A3 it is "
                        "much smaller.\n\n"
                        "It is also reasonable to expect a honeycomb to be "
                        "easier to aim at, since its six sides close in on the "
@@ -233,22 +255,23 @@ class LayoutOptionsPanel(QWidget):
                        "is the packing above.\n\n"
                        "The shape costs a CR30 nothing to read. It matters "
                        "only to an instrument that has to travel ALONG a row "
-                       "of patches, and a CR30 never does — you lift it onto "
+                       "of patches, and a CR30 never does. You lift it onto "
                        "one patch, press the button on the instrument, and "
                        "lift it onto the next.\n\n"
-                       "Two costs, both real. The scanner and camera tools "
+                       "**One cost, and one limit.** The scanner and camera tools "
                        "turn a honeycomb chart away unless you switch them on "
-                       "for it in Preferences → Beta; and the ruler helper "
-                       "markers are not drawn on a honeycomb, because it has "
-                       "no straight rows to line a ruler against. If you want "
-                       "either of those, stay on Rectangular.\n\n"
+                       "for it in Preferences → Beta; and of the two ruler "
+                       "helper marker combs only the left and right one is "
+                       "drawn, because a honeycomb's rows are evenly spaced "
+                       "down the page but every second row is shifted half a "
+                       "patch sideways.\n\n"
                        "Either shape is a grid with row indicators down the left "
                        "and column letters along the top, so you can always "
                        "find the patch ChromIQ is asking for. Patch size is "
                        "PROVISIONAL: 12 mm is a reasoned starting point, "
                        "chosen because the CR30's body hides the patch once "
                        "you set it down and you are aiming from the cells "
-                       "around it — but the smallest patch a CR30 can read "
+                       "around it, but the smallest patch a CR30 can read "
                        "has never been measured. Make them bigger in Patch "
                        "size below if you find yourself missing patches."))
         return (tr("Layout mode"),
@@ -271,8 +294,34 @@ class LayoutOptionsPanel(QWidget):
 
     def __init__(self, parent: QWidget | None = None, *,
                  with_calibration: bool = False, with_selectors: bool = False,
-                 defer_clip_preview: bool = False) -> None:
+                 defer_clip_preview: bool = False,
+                 clip_content_always_shown: bool = False,
+                 browse_icon: str = "folder") -> None:
         super().__init__(parent)
+        #: The folder glyph of this panel's browse buttons (the clip-border
+        #: image, the .cal file). Basti, 2026-09-26: magenta ("folder_create",
+        #: as the Presets row) only in the Create Chart tab; Preferences keeps
+        #: the plain themed folder its own look paints. Set before any widget.
+        self._browse_icon = browse_icon
+        #: PREFERENCES > CHART LAYOUT SHOWS "Clip-border content" ALWAYS
+        #: (B8-1362, Knut #182 5847578917): *"It is wrong that some settings
+        #: are hidden. Even if Clip-border is set to be default OFF, a user
+        #: needs to be able to see and set the values for the clip-border
+        #: content fields (for when a clip-border is actually used)"*. That
+        #: page is where the defaults are stored, so the frame stays on screen
+        #: and editable with the clip border Off, with a note that it applies
+        #: only when the clip border is On. Create Chart passes nothing and
+        #: keeps the frame hidden while its chart has no clip border.
+        self._clip_content_always_shown = bool(clip_content_always_shown)
+        #: K57 (Knut #182 5848511977): in Preferences the clip border's On /
+        #: Off is its own switch, and a Content chosen while it is Off is the
+        #: content it takes when switched On, not a switch. True while
+        #: Preferences holds a band instrument's clip border Off; the Content
+        #: box then shows `clip_content_when_on`. See `_holds_clip_off`.
+        self._clip_held_off = False
+        #: The content a clip border switched On starts on (the recipe's
+        #: `clip_content_when_on`); "" = the notes box.
+        self._clip_when_on = ""
         # Set BEFORE any widget exists: constructing the panel already renders
         # the clip preview a handful of times. A caller that is going to load a
         # recipe straight afterwards (Preferences -> Chart Layout) passes True
@@ -287,6 +336,20 @@ class LayoutOptionsPanel(QWidget):
         #: control that is NOT in here, and may never overwrite one that is.
         #: Mirrors `LayoutRecipe.layout_explicit` in both directions.
         self._layout_answered: set = set()
+        #: True once the four page margins are SOMEBODY'S CHOICE: typed by a
+        #: person, or carried by a recipe somebody chose (a preset picked by
+        #: name, a chart's own recorded layout, the editor's carry-back: every
+        #: such load arrives with `layout_explicit`). False on a fresh panel and
+        #: after a load of the app's own starting point (the factory store,
+        #: `default_recipe`, Reset). Only the Extra-high seed reads it: it may
+        #: replace margins nobody chose and never ones somebody did (Basti,
+        #: 2026-09-24, B8-965).
+        self._margins_chosen = False
+        #: The same question for "Patch area alignment": True once a PERSON
+        #: picked it, or a recipe somebody chose was loaded. The Extra-high
+        #: seed moves the block to centre-left only while this is False
+        #: (B8-965, extended to every field the seed writes).
+        self._align_chosen = False
         #: True once a PERSON has set one of the ten label-style controls, or a
         #: recipe that already owned its style was loaded. Mirrors
         #: `LayoutRecipe.label_style_explicit` in both directions.
@@ -427,6 +490,16 @@ class LayoutOptionsPanel(QWidget):
             self.mode.currentIndexChanged.connect(self._sync_clip_content_for_mode)
             self.mode.currentIndexChanged.connect(self._emit)
             self.mode.currentIndexChanged.connect(self._update_clip_visibility)
+            # The shape selector decides whether the two area-first boxes below
+            # can do anything at all (see `_update_area_hex_locks`). It is
+            # connected here, before those boxes exist; the slot is guarded on
+            # `hasattr`, and `_sync_layout_mode` runs the same update once the
+            # panel is built.
+            self.mode.currentIndexChanged.connect(self._update_area_hex_locks)
+            # The turn is offered only on a honeycomb, so the SHAPE decides its
+            # visibility as much as the instrument does.
+            self.mode.currentIndexChanged.connect(
+                self._sync_hex_flat_top_visibility)
             self._on_instr_changed()
 
         def mm(special_auto: bool = False, top: float = 300.0) -> NoScrollDoubleSpinBox:
@@ -623,7 +696,7 @@ class LayoutOptionsPanel(QWidget):
                "off and keep only these, which is what you want when every "
                "patch is read on its own. Turn it on for any chart you want to "
                "read by hand, or off to get the space back.\n\n"
-               "Where the labels sit. They start at a fixed distance from the "
+               "**Where the labels sit.** They start at a fixed distance from the "
                "left edge of the paper, and you choose that distance yourself "
                "with “Clip” under “Text distance from edge”. If the chart has "
                "a clip border down the same edge, the labels start at the "
@@ -631,7 +704,7 @@ class LayoutOptionsPanel(QWidget):
                "two, so the border cannot be printed on top of them. The band "
                "itself is as wide as the widest label at the size you chose, "
                "plus 1 mm of air to the left of the text.\n\n"
-               "How much paper it takes. The left margin has to hold the "
+               "**How much paper it takes.** The left margin has to hold the "
                "whole band, so ChromIQ widens it when the one you asked for "
                "is too narrow. The width it needs is the starting distance, "
                "plus the width of the label text, plus 1 mm before it and "
@@ -646,7 +719,7 @@ class LayoutOptionsPanel(QWidget):
                "margin and you get 33 mm.\n"
                "Whenever the margin is widened like that, it is reported "
                "under the preview with both numbers in it.\n\n"
-               "Moving the labels. Raise “Clip” to push them to the right, "
+               "**Moving the labels.** Raise “Clip” to push them to the right, "
                "towards the patches, and lower it to bring them back towards "
                "the paper edge. They never come closer to the paper edge than "
                "“Clip” says, and when the left margin is wider than they "
@@ -655,7 +728,7 @@ class LayoutOptionsPanel(QWidget):
                "with a clip border, a “Clip” value smaller than the border's "
                "width changes nothing, because the labels are already being "
                "held clear of the border.\n\n"
-               "When they can be covered. Nothing moves the patches or the "
+               "**When they can be covered.** Nothing moves the patches or the "
                "clip-border content to make room for these labels. So if they "
                "are printed where the clip border's text, notes box or "
                "picture is, they are printed underneath it and you may see "
@@ -725,7 +798,19 @@ class LayoutOptionsPanel(QWidget):
             engine stores and renders these sizes in mm, so the value is
             converted at the recipe boundary (see PT_PER_MM). 0 = "auto"."""
             sb = NoScrollDoubleSpinBox(self)
-            sb.setRange(0, top_pt); sb.setDecimals(0); sb.setSingleStep(1)
+            # HALF A POINT AT A TIME, AND ONE DECIMAL. Knut, 2026-09-13:
+            # *"All the places where font size is defined, the side pt number
+            # should have one decimal and jump half a point at a time when
+            # scrolling on the input box (increments of 0,5 pt). The 1 pt
+            # resolution is too course, so a 5,5 pt, of 7,5 pt might some times
+            # be needed."* One helper builds the Sheet text, Clip-border
+            # content and Strip & row label boxes, so all three move together;
+            # Preferences → Chart Layout has its own and is changed with it.
+            #
+            # The box does not need widening by hand: `_fit_spin_widths` asks
+            # the box what its longest string is (`textFromValue(maximum())`),
+            # which is now "72.0" rather than "72".
+            sb.setRange(0, top_pt); sb.setDecimals(1); sb.setSingleStep(0.5)
             # Provisional only — settled in `_fit_spin_widths()` once the style
             # has been polished, for the same reason as `small_mm` above: 84/96
             # is the English width this was measured at, and these boxes carry
@@ -766,25 +851,79 @@ class LayoutOptionsPanel(QWidget):
                 tip=TooltipButton(
                     tr("Create layout"),
                     tr("Two ways to decide patch size against how many fit. "
-                       "Whichever you pick, its own settings appear directly "
-                       "below this box.\n\n"
-                       "• Prioritise patch size — you set the patch size, or a "
-                       "scale to grow and shrink the instrument's standard "
-                       "size, and ChromIQ fits as many patches as it can. "
-                       "Simple, but the last strip may not reach the far "
-                       "margin. Leave the size on “auto” and ChromIQ uses the "
-                       "size your instrument prefers.\n\n"
-                       "• Prioritise chart area — you decide the GRID and "
-                       "ChromIQ sizes the patches so it fills the space inside "
-                       "your margins. Two ways to describe the grid: by patch "
-                       "width, where you give the smallest patch you are "
-                       "willing to read and ChromIQ fits as many as that "
-                       "allows; or by columns and rows, where you say how many "
-                       "strips and how many patches per strip you want. Either "
-                       "way the patch area lands exactly where you defined it, "
-                       "and you trade patch size for the grid you asked for. "
-                       "Watch that the patches don't get too small for your "
-                       "instrument to read."), self))
+                       "They are not just two settings: they are two different "
+                       "layout methods, and they behave differently in ways "
+                       "worth knowing before you pick one. Whichever you "
+                       "choose, its own settings appear directly below this "
+                       "box.\n\n"
+                       "• Prioritise patch size, then fit to page\n"
+                       "You set the patch size, or a scale that grows and "
+                       "shrinks the instrument's standard size, and ChromIQ "
+                       "fits as many patches as will go. Leave the size on "
+                       "“auto” and it uses the size your instrument prefers.\n"
+                       "This is the traditional method, and it follows the "
+                       "same packing rules as ArgyllCMS's own “printtarg” "
+                       "tool, which is where it comes from. That brings "
+                       "printtarg's limitations with it, and there are two "
+                       "you will notice:\n"
+                       "   1. The margins you type are TREATED AS MINIMUMS, "
+                       "not as exact positions. Your instrument needs a clear "
+                       "run-up before the first patch, and the strip labels "
+                       "and any sheet text need room of their own, so the real "
+                       "margin can come out larger than the number you asked "
+                       "for. The “Measured from Preview” panel shows you what "
+                       "the sheet really got.\n"
+                       "   2. A strip is capped at your instrument's ruler "
+                       "length, so it can stop well before the far margin "
+                       "rather than filling the page.\n"
+                       "Choose it when you want a particular patch size, or a "
+                       "chart laid out the way older tools would have done "
+                       "it.\n\n"
+                       "• Prioritise chart area, then fit patches to it\n"
+                       "ChromIQ's own method, and the one to pick if you care "
+                       "where things land. You define the area and the grid, "
+                       "and ChromIQ sizes the patches to fill it. Two ways to "
+                       "describe the grid: by patch width, where you give the "
+                       "smallest patch you are willing to read and ChromIQ "
+                       "fits as many as that allows; or by columns and rows, "
+                       "where you say how many strips and how many patches per "
+                       "strip you want.\n"
+                       "Your margins are kept wherever nothing else needs "
+                       "that space, which is what makes fine control of the "
+                       "margins and the surrounding text possible at all. "
+                       "What you type is a MINIMUM, and two things can raise "
+                       "it:\n"
+                       "   1. The clip border, on the side it is printed on. "
+                       "That side is raised to at least the band's own width, "
+                       "26 mm on the default sheet, and the band is never "
+                       "added on top of your number: ask for 5 mm on the clip "
+                       "side and the patches start where the band ends, ask "
+                       "for 40 and you get 40. Move the band to the right "
+                       "under Clip-border content and the same happens to the "
+                       "right margin instead.\n"
+                       "   2. What the instrument needs at the edges of the "
+                       "sheet. An i1Pro, a Pro-300 and a ColorMunki need "
+                       "nothing there. A SpectroScan or a CR30 needs room at "
+                       "BOTH sides: on an A4 sheet with nothing asked for it "
+                       "keeps about 8.5 mm at the left, and at the right 3.5 "
+                       "on a SpectroScan or 5.9 on a CR30.\n"
+                       "Down the page the block sits between two reserves that "
+                       "are not the same size: the strip letters above the "
+                       "patches and the run-out below them. The top and bottom "
+                       "gaps are worked out from what is left over, so they "
+                       "can both come out larger than you asked and they need "
+                       "not match each other.\n"
+                       "The “Measured from Preview” panel always shows what "
+                       "the sheet really got, and the Margins and Clip border "
+                       "width boxes below have the same rule in their own "
+                       "help.\n"
+                       "A strip may also run past your instrument's ruler, and "
+                       "ChromIQ warns you about it rather than quietly "
+                       "shortening the strip.\n"
+                       "The trade is that patch size is decided for you, so "
+                       "keep an eye on it: patches can end up too small for "
+                       "your instrument to read reliably. ChromIQ warns you if "
+                       "they do."), self))
         # PATCH-FIRST FIELDS, IN BASIC, BESIDE THE MODE THAT NEEDS THEM.
         #
         # Area-first has always shown its sizing inputs right here; patch-first
@@ -835,7 +974,8 @@ class LayoutOptionsPanel(QWidget):
         self.area_method.currentIndexChanged.connect(self._emit)
         self.area_method.currentIndexChanged.connect(self._sync_layout_mode)
         self._track_answer(self.area_method, "area_method")
-        add_row(afg, 0, tr("Calculation method:"), self.area_method,
+        self._area_row_method = add_row(afg, 0, tr("Calculation method:"),
+                self.area_method,
                 tip=TooltipButton(
                     tr("Calculation method"),
                     tr("How to work out the patch grid inside the area:\n\n"
@@ -858,8 +998,21 @@ class LayoutOptionsPanel(QWidget):
                        "width, then grows them slightly so the grid fills the area "
                        "exactly. The patch height follows the height % below."),
                     self))
+        # EVERY CONTROL IN THIS COLUMN CARRIES A TRAILING STRETCH, and that is
+        # not tidiness. A bare spin box here has `setMaximumWidth(96)`, which
+        # gives the whole COLUMN a maximum of 96 -- so `setColumnStretch(1, 1)`
+        # had nowhere to put the slack and the right-aligned label column
+        # absorbed it instead. Measured on screen, 2026-09-11: switching from
+        # "By patch width" (whose one mm row already wraps its spin box in
+        # `mm_inch`, which ends in a stretch) to "By columns / rows" moved the
+        # Calculation-method combo 157 px to the right and took 157 px off it,
+        # 288 down to 131, which is why it elided to "By colum...". Knut's
+        # requirement is that changing the method moves neither the position nor
+        # the size of the input boxes, only the labels and the options in them.
+        # `cell()` ends in `addStretch()`, so the wrapper grows and the spin box
+        # keeps its 96 px exactly where the mm row's does.
         self._area_row_ratio = add_row(afg, 2,
-                tr("Minimum patch height (% of width):"), self.area_ratio,
+                tr("Minimum patch height (% of width):"), cell(self.area_ratio),
                 tip=TooltipButton(
                     tr("Minimum patch height"),
                     tr("The patch height as a percentage of its width. 100% keeps "
@@ -867,7 +1020,8 @@ class LayoutOptionsPanel(QWidget):
                        "as tall as it is wide; below 100% makes them wider than "
                        "tall. It's a minimum — the engine grows the patches from "
                        "here to fill the chart area."), self))
-        self._area_row_cols = add_row(afg, 3, tr("Strips (columns):"), self.area_cols,
+        self._area_row_cols = add_row(afg, 3, tr("Strips (columns):"),
+                cell(self.area_cols),
                 tip=TooltipButton(
                     tr("Strips (columns)"),
                     tr("How many strips (columns of patches) to fit across the "
@@ -879,7 +1033,7 @@ class LayoutOptionsPanel(QWidget):
                        "size it was designed to read — then fills the width to "
                        "that count."), self))
         self._area_row_rows = add_row(afg, 4, tr("Patches per strip (rows):"),
-                self.area_rows,
+                cell(self.area_rows),
                 tip=TooltipButton(
                     tr("Patches per strip (rows)"),
                     tr("How many patches to stack down each strip. ChromIQ makes "
@@ -889,6 +1043,31 @@ class LayoutOptionsPanel(QWidget):
                        "patch close to your instrument's natural patch size — the "
                        "size it was designed to read — then fills the height to "
                        "that count."), self))
+        #: The area-first grid, and the invisible strut that holds its label
+        #: column at the width of the widest label of EVERY row, not only the
+        #: ones the chosen method shows.
+        #:
+        #: A SPACER ITEM AND NOT A WIDGET, and both halves of that are
+        #: deliberate. `setColumnMinimumWidth` would do the same job and would
+        #: also raise the panel's own MINIMUM width, measured at +43 px in
+        #: English and +34 in German -- and the labels here are wrappable on
+        #: purpose so this panel can shrink inside a 580 px pane without putting
+        #: a horizontal scroll bar under the Expert section (Basti, twice). A
+        #: `Maximum` horizontal policy gives the column the width as a size
+        #: HINT with a minimum of zero, so it prefers the full width whenever
+        #: there is room and still collapses when there is not.
+        #:
+        #: It shares the first label's cell, which a WIDGET may never do --
+        #: `tests/test_the_layout_panel_has_no_two_widgets_in_one_cell.py`
+        #: exists because two checkboxes were once drawn two pixels apart. A
+        #: spacer paints nothing and is zero pixels tall, so it cannot be that
+        #: fault; a row of its own would cost the grid's row spacing, measured
+        #: at +6 px of empty height under the last row.
+        self._area_fields_grid = afg
+        self._area_label_strut = QSpacerItem(
+            0, 0, QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        # NO SPACER ITEM IN THIS GRID AT ALL. See `_pin_area_label_column`.
+        self._pin_area_label_column()
         lgg.addWidget(self._patch_fields_w, 1, 0, 1, 3)
         lgg.addWidget(self._area_fields_w, 2, 0, 1, 3)
         # "Show strip indicators" is a layout option (not a selector), so it is
@@ -922,7 +1101,7 @@ class LayoutOptionsPanel(QWidget):
         self.cm_stagger_cb.toggled.connect(self._emit)
         self._cm_stagger_tip = TooltipButton(
             tr("Offset every second strip"),
-            tr("ColorMunki only: shifts every second strip down by half a patch so "
+            tr("**ColorMunki only:** shifts every second strip down by half a patch so "
                "the columns interleave like a brick wall — matching ArgyllCMS "
                "printtarg's measuring-rig layout. Reserves a little space at the "
                "top and bottom for the offset, so the patch count drops slightly. "
@@ -964,7 +1143,12 @@ class LayoutOptionsPanel(QWidget):
                     tr("Width × height of each patch in millimetres. Leave at "
                        "“auto” (0) to use the instrument's recommended size "
                        "(scaled by Patch scale). A value below ~6 mm can make the "
-                       "chart hard to read."), self))
+                       "chart hard to read.")
+                    # THE HEIGHT BOX IS THE ROW PITCH ON A HONEYCOMB. What you
+                    # type becomes `geom.plen`, and a hexagon stands 4/3 of that
+                    # tip to tip, so the note has to be here as well as on the
+                    # readout that shows both (B8-80, Knut).
+                    + "\n\n" + hex_two_heights_note(), self))
         self._patch_scale_row = add_row(
                 self._patch_fields_grid, 1, tr("Patch scale:"), self.pscale,
                 tip=TooltipButton(
@@ -1076,6 +1260,40 @@ class LayoutOptionsPanel(QWidget):
                "doesn't reduce the patch count. Turn it on if you prefer the "
                "printtarg look or want an extra separator at the strip ends."),
             self), 10, 2)
+
+        # ---- Straight strips: the honeycomb, turned 30 degrees (#159) ----
+        #
+        # It lives HERE, in Expert Options -> Patches & spacers, on Basti's
+        # ruling of 2026-09-09. It is a property of the patch lattice, which is
+        # what this group is about, and it is an expert choice rather than one
+        # every CR30 user has to meet.
+        self.hex_flat_top_cb = WrappingCheckBox(
+            tr("Straight strips (turn the honeycomb 30°)"), self)
+        self.hex_flat_top_cb.toggled.connect(self._emit)
+        g.addWidget(self.hex_flat_top_cb, 11, 1)
+        g.addWidget(TooltipButton(
+            tr("Straight strips"),
+            tr("Turns the honeycomb 30°, so every strip runs straight down the "
+               "page instead of zigzagging from side to side.\n\n"
+               "**The patches themselves do not change.** It is the same hexagon, "
+               "the same size, simply stood on a flat side instead of a point, "
+               "so nothing is stretched and each patch holds the same amount of "
+               "ink. What changes is how the strips line up: on the standard "
+               "honeycomb every second patch in a strip sits half a patch to the "
+               "side, and with this on they sit one under another.\n\n"
+               "**Why you might want it.** A strip you read patch by patch is easier "
+               "to follow when it is straight, and a straight strip is easier to "
+               "lay a ruler along. The ruler helper markers follow the turn with "
+               "it: on a standard honeycomb the left and right dashes are the "
+               "ones that line up with the patches, and on a turned one it is "
+               "the top and bottom dashes.\n\n"
+               "**What it costs.** The strips and rows come out a different length, "
+               "so the number of patches on a sheet can move a little in either "
+               "direction. Watch the patch count beside the preview and adjust "
+               "the margins or patch size if you want it back.\n\n"
+               "Only for the CR30 with hexagon patches. The option is hidden "
+               "otherwise, and has no effect on any other chart."),
+            self), 11, 2)
         _expert_v.addWidget(ps)
 
         # ---- Randomisation ----
@@ -1113,7 +1331,10 @@ class LayoutOptionsPanel(QWidget):
                "layout is reproduced every build (handy for re-printing an "
                "identical chart), otherwise a fresh seed is drawn each time. "
                "Press New seed to draw one now; it's saved with the chart so you "
-               "can always recreate it."), self), 2, 2)
+               "can always recreate it. After every build the Seed box shows the "
+               "number the chart on screen was shuffled with, even while the box "
+               "is greyed out — tick “Use a fixed seed” to build that exact "
+               "layout again."), self), 2, 2)
         _basic_v.addWidget(rg)
         self._on_randomize_toggled(True)
 
@@ -1161,9 +1382,18 @@ class LayoutOptionsPanel(QWidget):
         # font has an italic face, so it draws nothing on either side and must
         # not be claimed by either sub-frame's title.
         _si_v = QVBoxLayout(si)
-        si_both = QGroupBox(tr("Strip letters and row numbers"), si)
+        # **THE TWO TITLES ARE KNUT'S OWN WORDS, 2026-09-16.** They used to
+        # name the GLYPHS -- "Strip letters and row numbers", "Strip letters
+        # only" -- and that is a claim the panel cannot keep, because the
+        # patterns below decide which set gets letters and which gets digits:
+        # *"a user may change the strip and patch pattern to be letters for
+        # rows and numbers for strip. Thus, a better name for the frame would
+        # be 'Strip and row indicators' and, the frame 'Strip letters only'
+        # could be named 'Strip indicators only'."* So they name the two
+        # POSITIONS instead, which no setting can swap.
+        si_both = QGroupBox(tr("Strip and row indicators"), si)
         sig2 = QGridLayout(si_both)
-        si_only = QGroupBox(tr("Strip letters only"), si)
+        si_only = QGroupBox(tr("Strip indicators only"), si)
         sig3 = QGridLayout(si_only)
         # THE NESTING IS PAID FOR OUT OF THE MARGINS IT REPLACES, NOT ADDED TO
         # THEM. A sub-frame costs 1 px of border plus its own layout margins on
@@ -1175,14 +1405,39 @@ class LayoutOptionsPanel(QWidget):
         # `tests/test_the_layout_panel_fits_the_pane_in_every_language.py` was
         # written for, and it caught it.
         #
-        # So the outer column gives up its own margins (the group box's border
-        # is the inset) and each sub-grid takes 8: 0 + 1 border + 8 = 9 px per
-        # side, which is what a plain grid on the group box used to take. The
-        # split is width-neutral by construction, not by luck.
-        _si_v.setContentsMargins(0, 0, 0, 0)
+        # So the 9 px per side that a plain grid on the group box used to take
+        # is SPLIT, not spent twice: 4 px of outer column margin + the
+        # sub-frame's 1 px border + 4 px of sub-grid margin. The split is
+        # width-neutral by construction, not by luck — the total inset from the
+        # outer frame to the first control is the same 9 px it always was.
+        #
+        # The outer margins used to be 0, which put each sub-frame's border
+        # flush against the outer frame's. Knut, 4.1.5-beta.9: *"The frames
+        # around the options in the Strip & row labels frame need some pixels
+        # space, so they do not hug each other on left and right side."* Those
+        # pixels come out of the sub-grids (8 → 4), because there are none
+        # spare: Dutch sits exactly on the 514 px budget in
+        # `tests/test_the_layout_panel_fits_the_pane_in_every_language.py`, and
+        # this frame is the widest thing in the panel.
+        #
+        # THE TOP MARGIN IS 0 AND STILL MEASURES 4 — DO NOT "FIX" IT TO MATCH
+        # THE OTHER THREE. All three stylesheets carry
+        # `QGroupBox { margin-top: 14px; padding-top: 4px; }` and no
+        # padding-bottom, so the group box hands its layout a contents rect that
+        # is already inset 4 px at the top and 0 at the bottom. Writing 4 here
+        # would stack on that padding and make the top 8. Measured
+        # border-to-border with the app's own QSS: left 4, right 4, top 4,
+        # bottom 4. Fixing only left/right (which is all Knut named) left the
+        # bottom at 0 and made the asymmetry the obvious remaining fault —
+        # Basti, on the round-1 screenshots: *"the bottom ones are still
+        # touching"*. Height is not budgeted the way width is: the Manual pane
+        # pins its HORIZONTAL scrollbar off (`ui/tabs/tab_chart.py`) and leaves
+        # the vertical one AsNeeded, so the 4 px costs a scrolling column 4 px
+        # and nothing else.
+        _si_v.setContentsMargins(4, 0, 4, 4)
         _si_v.setSpacing(6)
         for _g in (sig2, sig3):
-            _g.setContentsMargins(8, 4, 8, 4)
+            _g.setContentsMargins(4, 4, 4, 4)
             _g.setVerticalSpacing(4)
         self._label_sub_both = si_both
         self._label_sub_strip_only = si_only
@@ -1200,7 +1455,7 @@ class LayoutOptionsPanel(QWidget):
                             tip=TooltipButton(
                                 tr("Indicator font"),
                                 tr("Typeface, size and style of BOTH sets of "
-                                   "labels — the strip letters across the top "
+                                   "labels: the strip letters across the top "
                                    "and the row numbers down the left. Bundled "
                                    "fonts are listed first, then every font "
                                    "installed on your system. Size “auto” fits "
@@ -1210,7 +1465,47 @@ class LayoutOptionsPanel(QWidget):
                                    "changing the font or the size re-lays the "
                                    "page. Bold applies to both. Italic greys "
                                    "out for fonts that don't offer it, which "
-                                   "includes both of the bundled ones."), self))
+                                   "includes both of the bundled ones.\n\n"
+                                   "“auto” has two limits of its own. It never "
+                                   "shrinks a label below about 4 pt, and it "
+                                   "never makes a row number taller than 85% "
+                                   "of the row it names, so on a chart with "
+                                   "very small patches the labels stop "
+                                   "following the patches down. Type a size to "
+                                   "decide it yourself: a typed size is used "
+                                   "exactly as typed.")
+                                # **AND THE THIRD LIMIT, WHICH THE PARAGRAPH
+                                # ABOVE USED TO CONTRADICT.** It promises that
+                                # "the row numbers follow the same size", and
+                                # since §R8 they need not: where the left
+                                # margin is too narrow for the band, "auto"
+                                # walks the ROW numbers down until they fit
+                                # rather than widening the margin. Measured on
+                                # `CR30-A4-420p…-Hexagonal` at 13.0 mm: strip
+                                # letters 19.0 pt, row numbers 16.0 pt. A help
+                                # text that promises one size while the sheet
+                                # prints two is a false sentence, so it is said
+                                # here.
+                                #
+                                # ITS OWN `tr()` KEY: folding it into the
+                                # paragraph above would change that key and
+                                # turn thirteen shipped translations of a long
+                                # string stale, which is B8-270's lesson.
+                                + "\n\n" + tr(
+                                   "The row numbers can also come out SMALLER "
+                                   "than the strip letters. When Size is "
+                                   "“auto” and the left margin is too narrow "
+                                   "for the row numbers at the size the strip "
+                                   "letters use, they are stepped down half a "
+                                   "point at a time until they fit the margin "
+                                   "you asked for. That step stops at 7 pt, "
+                                   "which is higher than the 4 pt floor above: "
+                                   "a number you have to find by eye among "
+                                   "hundreds is worth more than the paper it "
+                                   "would save. If even 7 pt will not fit, the "
+                                   "margin is widened instead and the message "
+                                   "under the measured margins says so."),
+                                self))
         self.underline_mode = ElidingComboBox(self)
         for k, lbl in (("off", tr("Off")),
                        ("segments", tr("Coloured (5 segments)")),
@@ -1355,6 +1650,9 @@ class LayoutOptionsPanel(QWidget):
         pg = QGroupBox(tr("Page geometry"), self)
         gg = QGridLayout(pg)
         self.margins = {k: small_mm(top=60.0) for k in ("t", "r", "b", "l")}
+        # A margin a person typed is theirs (B8-965): see `_margins_at_default`.
+        for _sb in self.margins.values():
+            _sb.valueChanged.connect(self._mark_margins_chosen)
         # One row per edge (Top/Right/Bottom/Left), each with a live inch readout
         # — Knut's "list all 4 margins, mm and inch" (#93).
         _mlabels = {"t": tr("Top"), "r": tr("Right"), "b": tr("Bottom"),
@@ -1407,6 +1705,11 @@ class LayoutOptionsPanel(QWidget):
         ):
             self.patch_align.addItem(_lbl, _key)
         self.patch_align.currentIndexChanged.connect(self._emit)
+        # A person's pick is theirs (B8-965): see `_apply_mode_defaults`.
+        # `activated` too, because a re-pick of the row already shown is an
+        # answer and `currentIndexChanged` is silent for it.
+        self.patch_align.currentIndexChanged.connect(self._mark_align_chosen)
+        self.patch_align.activated.connect(self._mark_align_chosen)
         # Clip-border width (i1/p3, clip mode only) — reserved left zone for the
         # scanner's paper clip; printtarg hard-codes 26 mm, we make it adjustable.
         self.clip_width = small_mm(top=100.0)
@@ -1463,9 +1766,19 @@ class LayoutOptionsPanel(QWidget):
                        "in mm. Leave at “auto” to use the instrument's limit (set "
                        "per instrument/paper in Preferences → Instrument Limits). Some "
                        "scanners can't read a strip past a certain length; lower "
-                       "this if long strips misread. Only used in “Prioritise patch "
-                       "size” — area-first fills the page and warns if a strip is "
-                       "longer than the instrument's ruler instead."), self))
+                       "this if long strips misread.\n\n"
+                       "Only used in “Prioritise patch size”. In “Prioritise "
+                       "chart area” the box is greyed out: there the chart area "
+                       "and the grid decide the strips, and a strip longer than "
+                       "the instrument's ruler is reported under the preview "
+                       "instead."), self))
+        # ONE LINE, ALWAYS. This row is now shown in both layout modes
+        # (B8-968), and in French, Italian and Portuguese its wrapping label
+        # took a second line in a row sized for one: measured 22 px given,
+        # 30 needed ("Longueur max. de bande :"), top of the text cut off. It
+        # did so in patch-first before too, where no test looked. Not wrapping
+        # makes the label ask for its whole width instead.
+        self._max_strip_row[0].setWordWrap(False)
         self._offset_row = add_row(gg, 5, tr("Chart offset (mm):"),
                 cell(self.offx, QLabel("×", self), self.offy),
                 tip=TooltipButton(
@@ -1483,14 +1796,14 @@ class LayoutOptionsPanel(QWidget):
                        "reads this the way ArgyllCMS's printtarg does; in practice "
                        "it decides whether strips are labelled with LETTERS or "
                        "NUMBERS.\n\n"
-                       "Valid examples:\n"
+                       "**Valid examples:**\n"
                        "• A-Z, A-Z — the default: letters A, B, C … Z, then AA, "
                        "AB, AC … once past 26 strips (like spreadsheet columns).\n"
                        "• A-Z — plain letters A, B, C … (same result while a chart "
                        "has 26 strips or fewer).\n"
                        "• 1-999 — numbers 1, 2, 3 …\n"
                        "• 0-9 — also numbers 1, 2, 3 …\n\n"
-                       "Rule: any pattern that contains “A-Z” labels with letters; "
+                       "**Rule:** any pattern that contains “A-Z” labels with letters; "
                        "anything else counts in plain numbers (no zero-padding). "
                        "This works together with the Patch pattern below — the two "
                        "combine into each location label, strip then patch (e.g. "
@@ -1503,9 +1816,9 @@ class LayoutOptionsPanel(QWidget):
                        "of a location, e.g. the “12” in A12. The patch label is "
                        "joined to the strip label to form each patch's full "
                        "location (strip then patch, e.g. A12).\n\n"
-                       "The one rule that always applies: if the pattern contains "
+                       "**The one rule that always applies:** if the pattern contains "
                        "“A-Z” you get LETTERS, otherwise you get NUMBERS.\n\n"
-                       "Common patterns:\n"
+                       "**Common patterns:**\n"
                        "• 0-9,@-9,@-9;1-999 — the default: numbers 1, 2, 3 …\n"
                        "• 1-999 — numbers 1, 2, 3 … (simpler, same result).\n"
                        "• A-Z, A-Z — letters A, B, C … Z, AA, AB ….\n"
@@ -1520,7 +1833,7 @@ class LayoutOptionsPanel(QWidget):
                        "• To keep every number the same width WITH leading zeros "
                        "(01, 02, … 09, 10), use a fixed-width digit range such as "
                        "00-99 (two digits) or 000-999 (three).\n\n"
-                       "Note: ChromIQ's own layout engine keeps patch numbers "
+                       "**Note:** ChromIQ's own layout engine keeps patch numbers "
                        "simple (1, 2, 3 …) whatever the digit details; the “@” "
                        "and leading-zero options above take effect when a chart "
                        "is built with the classic printtarg engine. Leave the "
@@ -1594,7 +1907,7 @@ class LayoutOptionsPanel(QWidget):
                     tr("Also export a PDF"),
                     tr("Saves a press-ready PDF of the chart next to the usual "
                        "TIFF — the TIFF is still made, this just adds a PDF copy.\n\n"
-                       "When it helps:\n"
+                       "**When it helps:**\n"
                        "• Your print shop or RIP prefers PDF, or asks for one.\n"
                        "• You want a file that prints at the exact paper size, with "
                        "no print dialog quietly scaling it down.\n"
@@ -1605,7 +1918,7 @@ class LayoutOptionsPanel(QWidget):
                        "device colours and the labels stay crisp at any zoom — and "
                        "it uses the same fonts as the chart. All pages are in one "
                        "file.\n\n"
-                       "One rule matters more than the rest: nothing between "
+                       "**One rule matters more than the rest:** nothing between "
                        "this file and the paper may convert the colours. That is "
                        "not the same advice as for the TIFF, and the reason is in "
                        "the PDF format rather than in any one system. Both files "
@@ -1641,11 +1954,11 @@ class LayoutOptionsPanel(QWidget):
                        "conversion measures the conversion rather than your "
                        "printer, and nothing afterwards can tell that it "
                        "happened.\n\n"
-                       "How to use it: tick this, build the chart as usual, and "
+                       "**How to use it:** tick this, build the chart as usual, and "
                        "you'll find a .pdf beside the .tif in the chart folder.\n\n"
                        "Leave it off if you only print through ChromIQ or just need "
                        "the TIFF.\n\n"
-                       "Default: off."), self))
+                       "**Default:** off."), self))
         _expert_v.addWidget(og)
 
         # ---- Ruler helper markers (#152, moved here by #158) ----
@@ -1689,7 +2002,7 @@ class LayoutOptionsPanel(QWidget):
             tr("Prints short dashes along all four edges of the sheet, so you "
                "can lay a ruler against the paper and line your instrument up "
                "with a row of patches.\n\n"
-               "What you get: a dash at the centre of every patch and one "
+               "**What you get:** a dash at the centre of every patch and one "
                "between each pair, evenly spaced the whole way along. They "
                "follow your patch spacing automatically, so they stay correct "
                "whatever else you change.\n\n"
@@ -1697,12 +2010,37 @@ class LayoutOptionsPanel(QWidget):
                "along a ruler. Leave it off for a chart you read without one — "
                "the dashes cost nothing but ink, and some people prefer a clean "
                "sheet.\n\n"
-               "Press Generate Chart after changing this: the dashes are "
+               "**Press Generate Chart after changing this:** the dashes are "
                "printed onto the sheet, and the preview only shows you where "
                "they will land. If \u201cAuto-update preview when a layout setting "
                "changes\u201d is ticked, the sheet is rebuilt for you and there is "
                "nothing more to do.\n\n"
-               "Default: off."), self), 0, 2)
+               "**Default:** off.")
+            # WHY THE TWO EDGE BOXES GO GREY, IN THE HELP AND NOT ONLY IN A
+            # TOOLTIP ON THE DEAD CONTROL. Knut, 2026-09-16: *"It is not clear
+            # why they are unavailable and help text does not say the
+            # conditions where they are not available."* What he saw was a
+            # ticked "Print helper markers" with both sub-options grey and no
+            # dashes on the preview, and nothing anywhere saying why: the
+            # reason lived on a control he could not hover usefully, because
+            # the one axis those presets asked for was the greyed one.
+            #
+            # ITS OWN `tr()` KEY, not an edit to the paragraph above. Folding
+            # it in changes that string's key and turns all thirteen shipped
+            # translations of it stale in one edit, which is the trap B8-270
+            # records paying for. Separate, the tooltip keeps every translation
+            # it has and only this paragraph falls back to English until each
+            # catalogue catches up.
+            + "\n\n" + tr(
+               "On a chart with hexagonal patches only one of the two pairs "
+               "of edges can carry dashes, and which pair depends on the way "
+               "the honeycomb sits. Every second row, or every second column, "
+               "is shifted half a patch, so dashes along the edges it is "
+               "shifted against would point at the seam between two patches "
+               "instead of at a patch. The pair that cannot be used is "
+               "greyed out and the other one stays available. If you then "
+               "untick the pair that is left, this box can be ticked and "
+               "still print nothing."), self), 0, 2)
         self._hm_rows = []
         self._hm_rows.append(add_row(hmg, 1, tr("Distance from page edge (mm):"),
                 cell(self.helper_marker_edge), align_left=True,
@@ -1718,7 +2056,7 @@ class LayoutOptionsPanel(QWidget):
                        "If a dash would land where the strip labels or the "
                        "clip-border text sit, they may overlap: move whichever "
                        "one is in the way.\n\n"
-                       "Default: 2.0 mm."), self)))
+                       "**Default:** 2.0 mm."), self)))
         self._hm_rows.append(add_row(hmg, 2, tr("Marker length (mm):"), cell(self.helper_marker_len),
                 align_left=True, tip=TooltipButton(
                     tr("Marker length"),
@@ -1730,7 +2068,7 @@ class LayoutOptionsPanel(QWidget):
                        "The four sets of dashes never cross in the corners — a "
                        "dash is left out where it would run into the dashes "
                        "coming from the edge next to it.\n\n"
-                       "Default: 2.0 mm."), self)))
+                       "**Default:** 2.0 mm."), self)))
         self._hm_rows.append(add_row(hmg, 3, tr("Markers per patch:"),
                 cell(self.helper_marker_per_patch),
                 align_left=True, tip=TooltipButton(
@@ -1748,7 +2086,7 @@ class LayoutOptionsPanel(QWidget):
                        "you pick. With an even number there is no dash at the "
                        "centre of the patch — the middle one is replaced by two "
                        "sitting either side of it.\n\n"
-                       "Default: 3."), self)))
+                       "**Default:** 3."), self)))
         # WHICH EDGES CARRY THE DASHES (#164, Knut): *"for some layouts, it
         # might be an idea to have checkbox choice … Then a user can choose to
         # turn off the ones not needed, especially as the strip markers are the
@@ -1802,21 +2140,22 @@ class LayoutOptionsPanel(QWidget):
         self._hm_edges_tip = TooltipButton(
                     tr("Show markers for"),
                     tr("Which edges of the sheet get the dashes.\n\n"
-                       "Tick “Sides” for the dashes down the left and right "
-                       "edges — these are the ones that line up with the rows "
-                       "of patches, so they are what you want when you read a "
-                       "strip with a hand-held instrument. Tick “Top/bottom” "
-                       "for the dashes along the top and bottom edges, which "
-                       "line up with the strips across the page.\n\n"
+                       "Tick “Sides (vertical)” for the dashes down the left "
+                       "and right edges. These are the ones that line up with "
+                       "the rows of patches, so they are what you want when "
+                       "you read a strip with a hand-held instrument. Tick "
+                       "“Top/bottom (horizontal)” for the dashes along the top "
+                       "and bottom edges, which line up with the strips across "
+                       "the page.\n\n"
                        "Untick the set you don't need and it simply isn't "
-                       "printed — less ink on the sheet, and nothing in the way "
+                       "printed: less ink on the sheet, and nothing in the way "
                        "of your margins or the clip-border text. The set you "
                        "keep then reaches into the corners as well, because "
                        "there is no longer another set there to bump into.\n\n"
-                       "With both unticked no dashes are printed at all — the "
+                       "With both unticked no dashes are printed at all, the "
                        "same as turning the markers off. Leave it that way and "
                        "this ⓘ says so, at the top, before this help.\n\n"
-                       "Default: both ticked."), self)
+                       "**Default:** both ticked."), self)
         self._hm_rows.append(add_row(hmg, 4, tr("Show markers for:"), QWidget(self),
                 align_left=True, tip=self._hm_edges_tip))
         hmg.addWidget(self.helper_markers_top_bottom, 5, 0, 1, 2)
@@ -1862,8 +2201,26 @@ class LayoutOptionsPanel(QWidget):
         self.ct_bold.toggled.connect(self._emit)
         self.ct_italic = WrappingCheckBox(tr("Italic"), self)
         self.ct_italic.toggled.connect(self._emit)
-        self.stamp_command = WrappingCheckBox(tr("Stamp layout summary on the sheet"), self)
+        self.stamp_command = WrappingCheckBox(tr("Stamp layout summary along the bottom"), self)
         self.stamp_command.toggled.connect(self._emit)
+        # KNUT, 2026-09-14. Both bottom lines follow this, and his own list is
+        # the pulldown: *"1. Left margin (default) … 2. Centre of available
+        # space: This is the alignment type already in the design on beta 13.
+        # 3. Centre between left and right margin."* The DATA is the stable
+        # English key that goes into the recipe; the text is what a reader sees.
+        self.chart_text_align = ElidingComboBox(self)
+        for _key, _label in ((_TEF.BOTTOM_TEXT_LEFT_MARGIN, tr("Left margin")),
+                             (_TEF.BOTTOM_TEXT_CENTRE_AVAILABLE,
+                              tr("Centre of available space")),
+                             (_TEF.BOTTOM_TEXT_CENTRE_MARGINS,
+                              tr("Centre between left and right margin"))):
+            self.chart_text_align.addItem(_label, _key)
+        self.chart_text_align.currentIndexChanged.connect(self._emit)
+        # NOT `_track_answer`. That set is `INSTRUMENT_DEFAULTED`, the four
+        # fields an instrument choice fills in for you, and touching one of
+        # them makes `layout_explicit` true for the whole recipe. Alignment is
+        # not filled in by an instrument, so recording it there would make a
+        # cosmetic pick look like "this person has taken the layout over".
         add_row(stg, 0, tr("Custom text:"),
                 cell_fill(self.chart_text, self.insert_token_btn),
                 tip=TooltipButton(
@@ -1881,16 +2238,48 @@ class LayoutOptionsPanel(QWidget):
                             tip=TooltipButton(
                                 tr("Sheet-text font"),
                                 tr("Typeface, size and style of the custom sheet "
-                                   "text in the bottom margin. Size “auto” uses a "
-                                   "sensible default; Bold / Italic grey out for "
-                                   "fonts that don't offer them."), self))
-        stg.addWidget(self.stamp_command, 4, 1)
+                                   "text in the bottom margin. Bold / Italic grey "
+                                   "out for fonts that don't offer them.\n\n"
+                                   "THEY ALSO GOVERN THE TEXT DOWN THE RIGHT "
+                                   "EDGE: the run's Chart Notes and “Stamp "
+                                   "settings down the right edge”, both on the "
+                                   "Create Chart tab, are printed in this font "
+                                   "and this size.\n\n"
+                                   "Size “auto” lets that text shrink to fit the "
+                                   "margin it is in, and it stops shrinking at "
+                                   "7 pt. Set a size and nothing shrinks: the "
+                                   "text is printed at exactly the size you "
+                                   "typed, below 7 pt included. Either way, text "
+                                   "that no longer fits is still printed, over "
+                                   "the patches if it must be, and the message "
+                                   "under the measured margins says which edge "
+                                   "and what to change."), self))
+        add_row(stg, 4, tr("Alignment:"), self.chart_text_align,
+                tip=TooltipButton(
+                    tr("Sheet-text alignment"),
+                    tr("Where the bottom lines sit across the page. Both of "
+                       "them follow this: your Custom text and, when it is on, "
+                       "the layout summary.\n\n"
+                       "**Left margin:** each line starts at the patch area's "
+                       "left margin, so the two share a left edge and a long "
+                       "line grows to the right only.\n\n"
+                       "**Centre of available space:** each line is centred "
+                       "between the two side limits, which are the distances "
+                       "under “Text distance from edge (mm)”, the clip border "
+                       "and the margin on the clip border's side.\n\n"
+                       "**Centre between left and right margin:** each line is "
+                       "centred on the patch area instead, so it lines up with "
+                       "the patches above it rather than with the paper.\n\n"
+                       "Whichever you pick, a line is never started inside a "
+                       "side limit, and the message under the measured margins "
+                       "still says when one runs off."), self))
+        stg.addWidget(self.stamp_command, 5, 1)
         stg.addWidget(TooltipButton(
             tr("Stamp layout summary"),
             tr("Prints a one-line summary of how the chart was made (engine, "
                "instrument, paper, dpi, patch count, seed) in the bottom margin. "
                "Handy for re-creating an identical chart later from the printed "
-               "sheet alone."), self), 4, 2)
+               "sheet alone."), self), 5, 2)
         # Min distance from the paper edge to text, one per text-bearing side
         # (Knut #93): top = strip labels, bottom = sheet text, clip = notes/clip
         # band. Independent of the margins; text overflows toward this line (and a
@@ -1917,27 +2306,47 @@ class LayoutOptionsPanel(QWidget):
         # the combos and the spin widths were fixed. Spanning 0-2 lets Qt charge
         # it to the whole grid instead, and the left margin below keeps Knut's
         # indent on screen.
-        stg.addWidget(QLabel(tr("Text distance from edge (mm):"), self), 5, 0, 1, 2)
+        stg.addWidget(QLabel(tr("Text distance from edge (mm):"), self), 6, 0, 1, 2)
         _te.setContentsMargins(16, 0, 0, 0)
-        stg.addWidget(_te_w, 6, 0, 1, 3)
+        stg.addWidget(_te_w, 7, 0, 1, 3)
         self._text_edge_tip = TooltipButton(
             tr("Text distance from edge"),
             tr("The minimum distance from the paper edge to the text on each side "
                "that can carry text: Top = strip labels, Bottom = sheet text, "
-               "Clip = the clip-border / notes band and the row indicator "
-               "labels down the left. Increase a value if your "
+               "Clip = everything in the two side margins, which is three "
+               "things: the clip-border / notes band, the row indicator labels "
+               "down the left, and the chart notes and stamped settings down "
+               "the right edge. There is no separate box for the right edge; "
+               "“Clip” is the one that moves it. Increase a value if your "
                "printer clips text near that edge. These are independent of the "
                "page margins; if a margin is too small for its text, the text "
-               "overflows toward this line, and the ⓘ beside the measured "
-               "margins under the preview says so.\n\n"
+               "is still printed, over the patches if it must be, and the "
+               "message under the measured margins says which edge and what to "
+               "change.\n\n"
                "If you also print the ruler helper markers (the short dashes "
                "along the page edges, switched on under the preview), a dash "
                "can land on top of this text. Nothing is hidden or moved "
                "automatically, because the dashes have to keep step with the "
                "patches to be useful. Move whichever one is in the way: give "
                "the text more room here, or shift the dashes with their own "
-               "“Distance from page edge”."), self)
-        stg.addWidget(self._text_edge_tip, 5, 2)
+               "“Distance from page edge”.")
+            # **ITS OWN STRING, NOT APPENDED TO THE ONE ABOVE.** The paragraph
+            # below is new (a ruling on beta 19), and folding it into the
+            # existing literal changes that literal's KEY, which turns the
+            # thirteen shipped translations of it stale in one edit -- 23 red
+            # tests, and twelve languages that would have to lose a translated
+            # tooltip or gain an untranslated English tail inside it. As a
+            # separate key the old tooltip keeps every translation it has and
+            # only this paragraph falls back to English until each catalogue
+            # catches up.
+            + "\n\n" + tr(
+               "“Top” does not move the strip labels when the layout is set to "
+               "“Prioritise patch size”. That layout places them "
+               "automatically, the way printtarg does, hanging from the top "
+               "margin; the two controls that move them there are “Top” under "
+               "“Margins (mm)” and “Label offset” under “Strip indicators only”."),
+            self)
+        stg.addWidget(self._text_edge_tip, 6, 2)
         # WHEN THE NUMBER IN THE BOX IS NOT THE NUMBER THAT APPLIES.
         #
         # "Clip" is a request, not a result: the row-label band's floor is
@@ -1970,7 +2379,28 @@ class LayoutOptionsPanel(QWidget):
 
         # ---- Clip-border content (i1/p3 clip mode) ----
         self._clip_content_grp = QGroupBox(tr("Clip-border content"), self)
-        ccg = QGridLayout(self._clip_content_grp)
+        # A column holding the note above the grid, and the note is BUILT IN
+        # PREFERENCES ONLY (B8-1362): Knut asked for it there, where the frame
+        # now shows with the clip border Off, and Create Chart's sections
+        # print no prose (their notes live in the ⓘ, see
+        # tests/test_the_notes_left_the_sections_for_the_tooltips.py). A
+        # nested layout has no margins of its own, so the frame Create Chart
+        # shows is unchanged.
+        _ccv = QVBoxLayout(self._clip_content_grp)
+        self._clip_content_note = None
+        if self._clip_content_always_shown:
+            # Knut, #182 5851645723 (K61): "They are kept while it is Off"
+            # is not relevant to know, so the note says the first sentence
+            # only (B8-1413).
+            self._clip_content_note = QLabel(tr(
+                "These settings apply only when the clip border is On in a "
+                "chart layout."), self)
+            self._clip_content_note.setWordWrap(True)
+            self._clip_content_note.setObjectName("info")
+            self._clip_content_note.setVisible(False)  # _update_clip_visibility
+            _ccv.addWidget(self._clip_content_note)
+        ccg = QGridLayout()
+        _ccv.addLayout(ccg)
         self.clip_content_mode = ElidingComboBox(self)
         for k, lbl in (("off", tr("Off")), ("text", tr("Custom text")),
                        ("example", tr("Custom text example")),
@@ -2016,7 +2446,6 @@ class LayoutOptionsPanel(QWidget):
         self.clip_image_path.textChanged.connect(self._emit)
         self.clip_image_browse = self._compact_browse(tr("Browse for an image"))
         self.clip_image_browse.clicked.connect(self._browse_clip_image)
-        from PyQt6.QtWidgets import QSizePolicy
         self.clip_dims_label = QLabel("", self)
         self.clip_dims_label.setWordWrap(True)
         self.clip_preview = QLabel(self)
@@ -2118,12 +2547,20 @@ class LayoutOptionsPanel(QWidget):
         add_row(ccg, 3, tr("Font:"), _clip_font_w,
                 tip=TooltipButton(
                     tr("Clip text font & size"),
-                    tr("Typeface and size for the clip-strip text. Size is in mm; "
-                       "leave it at “auto” to let ChromIQ fit the text to the "
-                       "strip width. Set a smaller size when the auto text looks "
-                       "too large and you want to keep the strip narrow / maximise "
-                       "patch space. Applies to the custom-text clip content; the "
-                       "Notes-box record has its own auto layout."), self))
+                    tr("Typeface and size for the clip-strip text. Size is in "
+                       "points.\n\n"
+                       "Leave it at “auto” to let ChromIQ fit the text to the "
+                       "strip width. Auto shrinks to fit and stops at 7 pt; "
+                       "below that it keeps 7 pt and takes room from the "
+                       "“Clip” distance under “Text distance from edge (mm)” "
+                       "rather than being cut, which the message under the "
+                       "measured margins tells you about.\n\n"
+                       "**Set a size and nothing shrinks:** the text is printed at "
+                       "exactly the size you typed, below 7 pt included. Use "
+                       "that when the auto text looks too large and you want to "
+                       "keep the strip narrow and maximise patch space.\n\n"
+                       "Applies to the custom-text clip content; the Notes-box "
+                       "record has its own auto layout."), self))
         self._clip_image_row = add_row(
             ccg, 4, tr("Image:"),
             cell_fill(self.clip_image_path, self.clip_image_browse))
@@ -2176,7 +2613,7 @@ class LayoutOptionsPanel(QWidget):
                        "Anything you push past the edge of the band is cut off, "
                        "and the Preview below shows that before it reaches "
                        "paper.\n\n"
-                       "Default: 0°, 100 %."), self))
+                       "**Default:** 0°, 100 %."), self))
         self._clip_image_move_row = add_row(
                 ccg, 6, tr("Content move:"), self._clip_image_move_w,
                 tip=TooltipButton(
@@ -2197,7 +2634,7 @@ class LayoutOptionsPanel(QWidget):
                     tr("The size of the printable clip-border strip — width × "
                        "height in millimetres — where your text or branding is "
                        "placed.\n\n"
-                       "Where the numbers come from:\n"
+                       "**Where the numbers come from:**\n"
                        "  • Width is the “Clip border width” you set above (or the "
                        "clip-side page margin, whichever is larger — the engine "
                        "reserves the bigger of the two on that edge).\n"
@@ -2307,25 +2744,123 @@ class LayoutOptionsPanel(QWidget):
     def _apply_mode_defaults(self, *_a) -> None:
         """Seed the Guided-matching defaults when the user picks a mode that has
         its own preset. ColorMunki Extra-high density mirrors Guided's triple
-        density exactly: 5 mm margins on every side (clip already defaults off for
-        CM). Skipped during load so a loaded recipe's own margins win (#93,
-        Sebastian)."""
+        density: 5 mm margins on every side, a 5 mm base margin and the block
+        centred on the left (clip already defaults off for CM). Skipped during
+        load so a loaded recipe's own values win (#93, Sebastian).
+
+        ONLY WHAT IS STILL AT DEFAULT IS SEEDED (B8-965, Basti 2026-09-24),
+        and that goes for EVERY field this writes, not only the four margins.
+        The first B8-965 fix guarded the margins and still moved "Patch area
+        alignment" to centre-left unchecked, and nothing moved it back: a
+        chosen layout (T20 R6 B6 L6 typed, or a Red River preset set to
+        top-left) came back from an Extra-high detour with its block 7 mm
+        lower, and the same visible density built a different chart.
+
+        The three fields go together, because together they ARE Guided's
+        Extra-high page: the centred block is centred between Guided's 5 mm
+        margins. So nothing is seeded unless the margins are (default, and
+        not locked by "Use instrument margins", B8-963); then the base margin
+        only if it is still the default one, and the alignment only if nobody
+        picked it. A density change therefore never overwrites what a preset
+        set or a person chose, and a chosen layout comes back from High ->
+        Extra-high -> High as the identical recipe.
+        """
         if self._loading or self.mode is None or self.instr is None:
             return
         if (self.instr.currentData() == "CM"
                 and self.mode.currentData() == "extrahigh"):
+            # A LOCKED BOX IS NOT SEEDED (B8-963). With "Use instrument
+            # margins" ticked the four boxes are disabled and say they are
+            # locked to the instrument's minimums; writing 5 mm into them
+            # anyway built the chart at 5 mm while the tick and the tooltip
+            # still promised the instrument's margins. The lock is the user's
+            # explicit choice and wins over this default, and so does
+            # everything that belongs to the same page: the base margin (it
+            # went 6 -> 5 into the recipe and the build under the lock) and
+            # the alignment.
+            locked = (hasattr(self, "use_instr_margins")
+                      and self.use_instr_margins.isChecked())
+            if locked or not self._margins_at_default():
+                return
             self._loading = True
-            for k in ("t", "r", "b", "l"):
-                self.margins[k].setValue(5.0)
-            self._border = 5.0                       # base margin, = Guided
-            # Guided centres the patch block (the small extra gap below the strip
-            # labels Sebastian liked); match it here.
-            if hasattr(self, "patch_align"):
-                j = self.patch_align.findData("center-left")
-                if j >= 0:
-                    self.patch_align.setCurrentIndex(j)
-            self._loading = False
+            try:
+                for k in ("t", "r", "b", "l"):
+                    self.margins[k].setValue(5.0)
+                if round(float(self._border), 1) in (5.0, 6.0):
+                    self._border = 5.0               # base margin, = Guided
+                # Guided centres the patch block (the small extra gap below
+                # the strip labels Sebastian liked); match it, unless a person
+                # or a preset put the block somewhere.
+                if hasattr(self, "patch_align") and not self._align_chosen:
+                    j = self.patch_align.findData("center-left")
+                    if j >= 0:
+                        self.patch_align.setCurrentIndex(j)
+            finally:
+                self._loading = False
             self._emit()
+
+    def _mark_align_chosen(self, *_a) -> None:
+        """"Patch area alignment" changed: a PERSON's change makes it theirs.
+        The app's own writes (a recipe load, the Extra-high seed) hold
+        `_loading`."""
+        if not self._loading:
+            self._align_chosen = True
+
+    def _mark_margins_chosen(self, *_a) -> None:
+        """A margin box changed. Only a PERSON's change makes the margins
+        chosen: every write the app makes itself (a recipe load, the Extra-high
+        seed) holds `_loading`, and "Use instrument margins" writes with the
+        signals blocked."""
+        if not self._loading:
+            self._margins_chosen = True
+
+    def _margins_at_default(self) -> bool:
+        """Whether the four margins are still the DEFAULT, which is what the
+        Extra-high seed may replace (B8-965).
+
+        Two conditions, both needed. Nobody chose them: not typed, and not
+        loaded from a recipe somebody chose (`_margins_chosen`). And they are
+        values the app itself starts this instrument and paper with: the
+        recipe default (`default_recipe`, 6 mm), the instrument's own margins
+        that "Use instrument margins" fills in (Preferences -> Instrument
+        Limits, else the engine geometry) and leaves behind when unticked on a
+        fresh panel, or the 5 mm this seed wrote itself, so a second visit to
+        Extra-high changes nothing. A recipe that carries other margins without
+        saying who chose them (one saved before the flag existed, the Save as
+        Defaults recipe) is somebody's choice too, and its numbers say so."""
+        if self._margins_chosen:
+            return False
+        inst, paper = self._current_instrument_paper()
+        inst, paper = inst or "i1", paper or "A4"
+        defaults = [(5.0, 5.0, 5.0, 5.0), (6.0, 6.0, 6.0, 6.0)]
+        try:
+            from workflow.layout_engine.presets import default_recipe
+            d = default_recipe(inst, paper)
+            defaults.append((d.margin_top, d.margin_right,
+                             d.margin_bottom, d.margin_left))
+        except Exception:      # noqa: BLE001 -- a default, never fatal
+            pass
+        fn = getattr(self, "_threshold_lookup", None)
+        try:
+            thr = fn(inst, paper) if fn is not None else None
+        except Exception:      # noqa: BLE001
+            thr = None
+        if thr:
+            try:
+                defaults.append(tuple(float(thr.get(k)) for k in "TRBL"))
+            except (TypeError, ValueError):
+                pass
+        try:
+            from workflow.layout_engine import instruments as _ins
+            g = _ins.geom_from_build_kwargs(
+                {"instrument": inst, "paper": paper,
+                 "layout_mode": "patch_first"})
+            defaults.append((g.margin_t, g.margin_r, g.margin_b, g.margin_l))
+        except Exception:      # noqa: BLE001
+            pass
+        have = tuple(round(self.margins[k].value(), 1) for k in ("t", "r", "b", "l"))
+        return any(have == tuple(round(float(v), 1) for v in want)
+                   for want in defaults)
 
     def _sync_instrument_widgets(self, inst: str) -> None:
         """Show/hide the instrument-specific layout controls for *inst*.
@@ -2348,8 +2883,26 @@ class LayoutOptionsPanel(QWidget):
         if hasattr(self, "cm_stagger_cb"):
             self.cm_stagger_cb.setVisible(inst == "CM")
             self._cm_stagger_tip.setVisible(inst == "CM")
+        # HIDE, NEVER UNTICK, and never disable: a box that is set and
+        # unclickable is the `ca0f639c` shape. The value stays in the recipe and
+        # simply cannot reach any other instrument's Geom, because `_build_base`
+        # writes `hex_flat_top` only in the CR30 honeycomb branch.
+        self._sync_hex_flat_top_visibility()
 
     def _on_instr_changed(self, *_a) -> None:
+        """The instrument combo moved. ``_instr_changing`` is True for the
+        whole of it, including the ``changed`` it emits at the end, which is
+        BEFORE the Create Chart tab's mirror into printtarg's -i has run (that
+        slot is connected after this one). The tab reads it so that a frame
+        refreshed in that window does not take -i, still on the instrument
+        before, as the newer choice and put the panel back on it (B8-1360)."""
+        self._instr_changing = True
+        try:
+            self._on_instr_changed_body()
+        finally:
+            self._instr_changing = False
+
+    def _on_instr_changed_body(self) -> None:
         from workflow.layout_engine import papers
         if self.instr is None:
             return
@@ -2498,12 +3051,25 @@ class LayoutOptionsPanel(QWidget):
             inst = self._inst
             clip_mode = self._clip and inst in ("i1", "p3")
         is_band_inst = inst in ("CM", "SS", "CR30")
-        content_on = (hasattr(self, "clip_content_mode")
-                      and self.clip_content_mode.currentData() != "off")
+        content_on = hasattr(self, "clip_content_mode") and self.clip_enabled()
         # For CM/SS the band (and its content group) appears only when the clip
         # border is turned on — i.e. content is set to something — matching the
         # i1Pro, whose group hides when its clip is off (#93).
-        show_group = clip_mode or (is_band_inst and content_on)
+        # Preferences (B8-1362) shows the frame with the clip border Off on the
+        # instruments whose clip border is a switch INSIDE one layout
+        # combination (ColorMunki, SpectroScan, CR30), so what is set there is
+        # what that combination uses once it is switched On. On the i1Pro and
+        # the i1Pro 3 Plus "Off" is a combination of its own (Mode "noclip"),
+        # which never has a clip border: nothing set there could ever be used,
+        # so the i1Pro is left as it was.
+        always = self._clip_content_always_shown and is_band_inst
+        show_group = clip_mode or (is_band_inst and content_on) or always
+        if getattr(self, "_clip_content_note", None) is not None:
+            self._clip_content_note.setVisible(always)
+            if always and hasattr(self, "clip_text_size"):
+                # a recipe load names the instrument after it has synced the
+                # fields, so they are put live again here
+                self._sync_clip_content_enabled()
         show_width = clip_mode or (is_band_inst and content_on)
         for w in (self.clip_width_label,
                   getattr(self, "_clip_width_row", self.clip_width),
@@ -2526,6 +3092,14 @@ class LayoutOptionsPanel(QWidget):
         # (#164, Knut: *"Only Notes box shall have the text field disabled"*).
         custom_text = mode in ("text", "branding", "image")
         font_modes = mode in ("text", "branding", "notes", "image")
+        if ((mode in (None, "off") or self._clip_held_off)
+                and self._clip_content_always_shown
+                and ((getattr(self, "instr", None).currentData()
+                      if getattr(self, "instr", None) is not None
+                      else getattr(self, "_inst", "")) in ("CM", "SS", "CR30"))):
+            # Preferences with the clip border Off (B8-1362): every field is
+            # set here for when it is switched On, so none is greyed.
+            custom_text = font_modes = True
         self.clip_text.setEnabled(custom_text)
         self.clip_insert_btn.setEnabled(custom_text)
         # …and grey its LABEL with it. A live-looking "Text:" over a dead box is
@@ -2539,8 +3113,33 @@ class LayoutOptionsPanel(QWidget):
         self.clip_text_font.setEnabled(font_modes)
         # Manual size applies to the free-text clip content; the notes design
         # lays itself out, so the size box is inert there (#125).
+        #
+        # **AND AN INERT BOX MUST NOT SHOW A NUMBER.** A tester, beta 18:
+        # *"under the Clip-border content frame with selected Notes box has the
+        # Size input box locked with 12 pt inside the input box. Is it locked
+        # because it has its own shrinking feature? If so, should it not show
+        # auto?"* It is locked for exactly that reason, and a greyed "12 pt" is
+        # a promise the sheet does not keep: the notes box sizes itself and
+        # nothing on the chart is 12 pt. The box carries `auto` as its special
+        # value at 0, so the honest display is 0.
+        #
+        # The typed size is STASHED rather than lost, so switching Notes → Text
+        # brings it back, and the write is made with signals blocked so that
+        # merely selecting Notes does not re-render the live preview. The
+        # recipe then records 0 for a size nothing uses, which is what it means.
         if hasattr(self, "clip_text_size"):
             self.clip_text_size.setEnabled(custom_text)
+            _blocked = self.clip_text_size.blockSignals(True)
+            try:
+                if not custom_text:
+                    if self.clip_text_size.value() > 0:
+                        self._clip_text_size_stash = self.clip_text_size.value()
+                    self.clip_text_size.setValue(0.0)
+                elif (self.clip_text_size.value() <= 0
+                      and getattr(self, "_clip_text_size_stash", 0.0) > 0):
+                    self.clip_text_size.setValue(self._clip_text_size_stash)
+            finally:
+                self.clip_text_size.blockSignals(_blocked)
         # The image PATH row only makes sense for an imported image, so it is
         # hidden entirely unless "Imported image" is the content type (Knut),
         # rather than just greyed out.
@@ -2569,6 +3168,15 @@ class LayoutOptionsPanel(QWidget):
         if self.clip_content_mode.currentData() == "example":
             self._load_example_clip_table()
             return
+        _cur = self.clip_content_mode.currentData()
+        if _cur not in (None, "off"):
+            # K57: the kind chosen is the one a clip border switched On
+            # starts on, and choosing it while Preferences holds the clip
+            # border Off leaves it Off.
+            self._clip_when_on = _cur
+        elif self._holds_clip_off():
+            # "Off" chosen as the Content in Preferences switches it Off.
+            self._clip_held_off = True
         self._sync_clip_content_enabled()
         # On CM/SS the clip-width row appears only once notes content is on, so
         # re-evaluate visibility when the content mode changes (#93).
@@ -2629,8 +3237,7 @@ class LayoutOptionsPanel(QWidget):
         own handler (#93)."""
         if not hasattr(self, "clip_enable"):
             return
-        on = (hasattr(self, "clip_content_mode")
-              and self.clip_content_mode.currentData() not in (None, "off"))
+        on = self.clip_enabled()
         i = self.clip_enable.findData("on" if on else "off")
         self.clip_enable.blockSignals(True)
         self.clip_enable.setCurrentIndex(i if i >= 0 else 0)
@@ -2651,8 +3258,24 @@ class LayoutOptionsPanel(QWidget):
         if self.instr.currentData() in ("i1", "p3"):
             self.set_clip_enabled(self.mode.currentData() == "clip")
 
+    def _holds_clip_off(self) -> bool:
+        """Preferences (``clip_content_always_shown``) on an instrument whose
+        clip border is a switch inside one layout combination (K57)."""
+        if not self._clip_content_always_shown:
+            return False
+        inst = (self.instr.currentData() if self.instr is not None
+                else self._inst)
+        return inst in ("CM", "SS", "CR30")
+
+    def _when_on_kind(self) -> str:
+        """The content a clip border switched On starts on (K57)."""
+        k = self._clip_when_on or "notes"
+        return k if self.clip_content_mode.findData(k) >= 0 else "notes"
+
     def clip_enabled(self) -> bool:
         """Whether a clip / notes band is currently turned on (content set)."""
+        if self._clip_held_off:
+            return False
         return (hasattr(self, "clip_content_mode")
                 and self.clip_content_mode.currentData() not in (None, "off"))
 
@@ -2661,8 +3284,29 @@ class LayoutOptionsPanel(QWidget):
         seeds a notes band (if none yet), Off clears it (#93). Lets a host (the
         Settings window) expose the CM/SS clip toggle without its own selector."""
         cur = self.clip_content_mode.currentData()
+        if self._holds_clip_off():
+            # K57: Preferences switches the clip border and nothing else; the
+            # Content box keeps the kind it takes when On.
+            if on:
+                self._clip_held_off = False
+                if cur in (None, "off"):
+                    self._select_clip_content(self._when_on_kind())
+                    return
+            else:
+                if cur not in (None, "off", "example"):
+                    self._clip_when_on = cur
+                self._clip_held_off = True
+                if cur in (None, "off"):
+                    self._select_clip_content(self._when_on_kind())
+                    return
+            self._sync_clip_enable_display()
+            self._update_clip_visibility()
+            self._emit()
+            return
         if on and cur in (None, "off"):
-            j = self.clip_content_mode.findData("notes")
+            # K57: a clip border switched On starts on the content its
+            # recipe keeps for it (the notes box unless one was chosen).
+            j = self.clip_content_mode.findData(self._when_on_kind())
             if j >= 0:
                 self.clip_content_mode.setCurrentIndex(j)   # fires content-changed
         elif not on and cur not in (None, "off"):
@@ -2956,8 +3600,7 @@ class LayoutOptionsPanel(QWidget):
             return (self.mode.currentData() == "clip") if self.mode is not None \
                 else bool(self._clip)
         if inst in ("CM", "SS", "CR30"):
-            return (hasattr(self, "clip_content_mode")
-                    and self.clip_content_mode.currentData() not in (None, "off"))
+            return hasattr(self, "clip_content_mode") and self.clip_enabled()
         return False
 
     # Scoped to the spinbox classes so the red outline MERGES with the
@@ -3126,11 +3769,11 @@ class LayoutOptionsPanel(QWidget):
         _patch_first_rows = [getattr(self, "_patch_size_row", []),
                              getattr(self, "_patch_scale_row", []),
                              getattr(self, "_patch_align_row", []),
-                             getattr(self, "_max_strip_row", []),
                              getattr(self, "_offset_row", [])]
         for row in _patch_first_rows:
             for w in row:
                 w.setVisible(not area)
+        self._sync_max_strip_for_layout(area)
         for w in (getattr(self, "nolimit", None), getattr(self, "_nolimit_tip", None)):
             if w is not None:
                 w.setVisible(not area)
@@ -3142,6 +3785,10 @@ class LayoutOptionsPanel(QWidget):
             w.setVisible(area and by_width)
         for w in self._area_row_cols + self._area_row_rows:
             w.setVisible(area and not by_width)
+        # …and the label column keeps the width of the widest label of ALL of
+        # them, so the input boxes stay where they are while the labels change
+        # around them (Knut, 2026-09-10).
+        self._pin_area_label_column()
         # THE COLORMUNKI DENSITY ROW USED TO BE HIDDEN IN AREA-FIRST. IT MUST NOT
         # BE. The belief was that in area-first "the patch size comes from the
         # columns/rows you set", so Density does nothing — true only when the
@@ -3161,6 +3808,263 @@ class LayoutOptionsPanel(QWidget):
                       getattr(self, "_mode_tip", None)):
                 if w is not None:
                     w.setVisible(True)
+        self._update_area_hex_locks()
+
+    # ------------------------------------------------------------------
+    # A HONEYCOMB HAS ONE FREE DIMENSION, AND THE PANEL OFFERED TWO.
+    # ------------------------------------------------------------------
+    def _sync_max_strip_for_layout(self, area: bool) -> None:
+        """"Max strip length" is GREYED OUT in "Prioritise chart area", with a
+        tooltip that says why, and live in "Prioritise patch size" (B8-968,
+        Basti 2026-09-24).
+
+        It used to be hidden in area-first, which left a person who had set it
+        in patch-first no way to see that it had stopped counting. In
+        area-first the strips run from the top of the chart area to the
+        bottom whatever the box says (`geometry.py`: only area-first fills
+        past the ruler), so the box stays in view, disabled, and keeps its
+        value for when the layout goes back to patch-first. Every instrument
+        alike: the rule is the layout mode's, not an instrument's. The (i)
+        beside it stays clickable."""
+        row = getattr(self, "_max_strip_row", None)
+        if not row:
+            return
+        for w in row[:2]:                  # the label and the box (+ inch)
+            w.setVisible(True)
+            w.setEnabled(not area)
+        if len(row) > 2:
+            row[2].setVisible(True)
+            row[2].setEnabled(True)
+        tip = self.max_strip_tooltip(area)
+        for w in (row[0], row[1], self.max_strip):
+            w.setToolTip(tip)
+
+    @staticmethod
+    def max_strip_tooltip(area_first: bool) -> str:
+        """The hover text of "Max strip length" in each layout mode (B8-968)."""
+        if area_first:
+            return tr(
+                "Greyed out: it has no effect in “Prioritise chart area”.\n\n"
+                "In this layout the chart area and the grid decide the strips. "
+                "The chart area is the page minus the margins, and the patches "
+                "are sized so that every strip runs from the top of that area "
+                "to the bottom. A cap on the strip length has nothing to act "
+                "on here, so it is not used. The value in the box is kept and "
+                "counts again when you switch back.\n\n"
+                "To make the strips shorter in this layout, raise the Top or "
+                "Bottom margin. If your instrument reads against a ruler (the "
+                "i1Pro and the i1Pro 3 Plus, or a “Strip length limit” set in "
+                "Preferences → Instrument Limits), a strip longer than the "
+                "ruler is still built, and the warnings under the preview say "
+                "so.\n\n"
+                "Max strip length applies in “Prioritise patch size”: choose "
+                "it under “Create layout” and this box caps how long a strip "
+                "may get.")
+        return tr(
+            "Caps how long a single strip (column of patches) may get, in mm. "
+            "“auto” uses the instrument's own limit.\n\n"
+            "This applies only in “Prioritise patch size”. In “Prioritise "
+            "chart area” the box is greyed out, because there the chart area "
+            "and the grid decide the strips.")
+
+    def _sync_hex_flat_top_visibility(self) -> None:
+        """Show the turn only on a CR30 honeycomb.
+
+        `_area_is_hexagonal()` alone is NOT the test: it ends in
+        `instruments.hex_capable(inst)`, which is True for the SpectroScan, and
+        Basti ruled the turn is CR30-only (2026-09-09, answer 2: *"in this case
+        no for the spectrosscan"*). Naming the instrument here is the third of
+        the three gates that all name it; the others are in `_build_base` and in
+        `area_fit.derive_area_patch_size`.
+        """
+        cb = getattr(self, "hex_flat_top_cb", None)
+        if cb is None:
+            return
+        inst = ""
+        if getattr(self, "instr", None) is not None:
+            inst = str(self.instr.currentData() or "")
+        cb.setVisible(self._area_is_hexagonal() and inst == "CR30")
+
+    def _area_is_turned_hex(self) -> bool:
+        """Whether the honeycomb on screen is TURNED, from the live selectors.
+
+        The same three gates as `_sync_hex_flat_top_visibility`, and asked here
+        rather than passed in, so the turn keeps ONE reader on this screen. A
+        caller that computed it separately would be a second writer, which is
+        the mistake `d1adbe31` made.
+        """
+        cb = getattr(self, "hex_flat_top_cb", None)
+        if cb is None or not cb.isChecked():
+            return False
+        # The same fallback `_area_is_hexagonal` uses: this panel has no
+        # selectors of its own in Preferences > Chart Layout or the relayout
+        # dialog, and there the last recipe loaded is the honest answer.
+        inst = ((self.instr.currentData() if getattr(self, "instr", None)
+                 is not None else getattr(self, "_inst", "i1")) or "i1")
+        return self._area_is_hexagonal() and str(inst) == "CR30"
+
+    def _area_is_hexagonal(self) -> bool:
+        """Whether the chart on screen is a honeycomb.
+
+        Asked of the shape selector when this panel owns one, and of the last
+        recipe loaded when it does not (Preferences > Chart Layout and the
+        relayout dialog have no selectors of their own).
+
+        `instruments.hex_capable` is the same single source of truth
+        `area_fit.derive_area_patch_size` consults, so the lock and the maths
+        can never disagree about which instruments this applies to. The flag
+        alone is not the test: on a ColorMunki it means density, not hexagons.
+        """
+        from workflow.layout_engine import instruments
+        inst = ((self.instr.currentData() if self.instr is not None
+                 else getattr(self, "_inst", "i1")) or "i1")
+        if self.mode is not None:
+            hexed = (self.mode.currentData() == "hex")
+        else:
+            hexed = bool(getattr(self, "_recipe_hflag", False))
+        return bool(hexed and instruments.hex_capable(str(inst)))
+
+    def _pin_area_label_column(self) -> None:
+        """Give the area-first label column the width of its WIDEST label, over
+        every row, not only the rows the chosen method shows.
+
+        THE CONTROLS MUST NOT MOVE WHEN THE METHOD DOES. The two methods show
+        different rows, so without this the label column is sized by whichever
+        set happens to be visible -- "Minimum patch height (% of width)" in one
+        and "Patches per strip (rows)" in the other -- and the control column
+        starts somewhere different in each. Measured with both halves of this
+        fix and only the stretch wrappers in place, the combo still moved 26 px
+        between the two methods; with the column pinned it moves 0.
+
+        A COLUMN MINIMUM, AND IT HAD TO STOP BEING A SPACER ITEM. The first
+        version put a zero-height `QSpacerItem` in the grid to ask for the
+        width without demanding it. Measured on screen, that cost
+        "Minimum patch width (mm):" its second line: the label needs 32 px and
+        the row gave it 22, so the top of the text was cut in half. Basti
+        photographed it. Bisected here in a real window, both halves separately:
+        removing the spacer fixes it and removing the stretch wrappers does not.
+
+        `setColumnMinimumWidth` cannot touch a row's height. It was passed over
+        the first time because it raises the panel's own minimum width by 34 to
+        43 px, which was measured but never checked against the space the panel
+        actually gets: the Create Chart pane gives it 504 px at the app's
+        smallest window, against a floor of 403 in German, so the growth fits
+        with room to spare and the horizontal scrollbar Basti reported twice
+        does not come back.
+
+        Measured from the labels themselves so it follows the language and the
+        font instead of a number typed here.
+        Re-measured on every method change, which is also every point at which
+        the visible labels change; a language change builds a new panel.
+        """
+        afg = getattr(self, "_area_fields_grid", None)
+        if afg is None:
+            return
+        from PyQt6.QtGui import QFontMetrics
+        widest = 0
+        for attr in ("_area_row_method", "_area_row_minpatch", "_area_row_ratio",
+                     "_area_row_cols", "_area_row_rows"):
+            row = getattr(self, attr, None) or []
+            for w in row:
+                if isinstance(w, QLabel):
+                    widest = max(widest,
+                                 QFontMetrics(w.font()).horizontalAdvance(w.text()))
+        # THE LABELS, NOT THE COLUMN. Pinning the column leaves each label at
+        # its own sizeHint width (they are right-aligned), so a label narrower
+        # than the column still wraps to two lines while the row is sized for
+        # one, and the top line is cut in half. Giving every label the same
+        # minimum width makes them all wide enough not to wrap, which is the
+        # same alignment with none of the clipping. Bisected on screen.
+        for attr in ("_area_row_method", "_area_row_minpatch", "_area_row_ratio",
+                     "_area_row_cols", "_area_row_rows"):
+            for w in (getattr(self, attr, None) or []):
+                if isinstance(w, QLabel):
+                    w.setMinimumWidth(widest)
+        afg.invalidate()
+
+    def _hex_locked_rows(self) -> "list[tuple[list, bool, str]]":
+        """``(row_widgets, locked, reason)`` for the two area-first boxes a
+        honeycomb takes out of the user's hands. Shared by the lock itself and
+        by the guard that proves it, so neither can drift from the other."""
+        by_width = (self.area_method.currentData() == "by_width")
+        hexed = self._area_is_hexagonal()
+        cols_pinned = int(self.area_cols.value()) > 0
+        return [
+            (list(getattr(self, "_area_row_ratio", [])),
+             hexed and by_width, self._hex_ratio_note()),
+            (list(getattr(self, "_area_row_rows", [])),
+             hexed and (not by_width) and cols_pinned, self._hex_rows_note()),
+        ]
+
+    @staticmethod
+    def _hex_ratio_note() -> str:
+        """Why "Minimum patch height (% of width)" is dead on a honeycomb."""
+        return tr(
+            "Hexagons: this box has no effect, because the patch height is "
+            "fixed by the shape.\n\n"
+            "A honeycomb interlocks, which only works when each cell is "
+            "exactly 86.6 % as tall as it is wide. Any other percentage would "
+            "draw stretched hexagons whose rows no longer nest, so ChromIQ "
+            "keeps the honeycomb proportion and ignores this value. Set Patch "
+            "shape to Rectangular if you want to choose the height yourself.")
+
+    @staticmethod
+    def _hex_rows_note() -> str:
+        """Why "Patches per strip (rows)" is dead once the strips are pinned."""
+        return tr(
+            "Hexagons: this box has no effect while Strips (columns) is set to "
+            "a number.\n\n"
+            "A honeycomb interlocks, which fixes each cell at 86.6 % as tall "
+            "as it is wide. So the number of strips already decides the patch "
+            "width, the width decides the height, and the height decides how "
+            "many patches fit down the page. To choose the patches per strip "
+            "yourself, put Strips (columns) back to auto, or set Patch shape "
+            "to Rectangular.")
+
+    def _update_area_hex_locks(self, *_a) -> None:
+        """Grey the area-first boxes a honeycomb makes inert, and say why.
+
+        MEASURED, not assumed. A hexagon's height is `width * sqrt(3)/2`:
+        `area_fit.derive_area_patch_size` sets that ratio before it solves and
+        snaps to it again afterwards, so the honeycomb cannot come out
+        stretched (Basti's ruling, 2026-08-28). Two controls are therefore
+        inert on a honeycomb and both stayed live and looked armed. On a CR30,
+        A4, default margins:
+
+        * "Minimum patch height (% of width)", in "By patch width", ALWAYS:
+          50 / 100 / 150 / 200 / 300 % all give 8.29 x 7.18 mm, 20 strips of
+          33, 660 patches. Rectangular, the same five values give 1113 / 630 /
+          441 / 336 / 231 patches.
+        * "Patches per strip (rows)", in "By columns / rows", WHEN the strips
+          are pinned: at 15 strips, 0 / 5 / 10 / 20 / 28 / 40 patches per strip
+          all give 10.85 x 9.39 mm, 15 x 26, 390 patches. That is Knut's
+          report, 4.1.5-beta.10.
+
+        THE ROW BOX IS NOT LOCKED WHEN "Strips (columns)" IS ON AUTO. There the
+        column count is derived from it and it does move the chart (5 / 10 / 20
+        / 28 / 40 give 4 / 8 / 18 / 27 / 39 rows). The lock follows what is
+        actually inert, never the shape alone.
+
+        NOTHING HERE TOUCHES A VALUE OR A GEOMETRY. The boxes keep what they
+        hold, the recipe still carries it, and a chart built before this change
+        builds identically after it.
+
+        AND THE INFO BUTTON STAYS LIVE, WHICH IS THE WHOLE MECHANISM. A
+        disabled QWidget receives no hover events, so a tooltip parked on the
+        greyed spin box may never appear at all. The reason rides on the row's
+        own info button instead, which `TooltipButton.changeEvent` keeps
+        enabled inside a disabled parent and whose hover tip carries the note's
+        first line. Same rule as `_update_helper_marker_rows` (Knut: greyed,
+        but never unexplained).
+        """
+        if not hasattr(self, "area_method") or not hasattr(self, "area_cols"):
+            return
+        for row, locked, note in self._hex_locked_rows():
+            for w in row:
+                if isinstance(w, TooltipButton):
+                    w.set_live_note(note if locked else "")
+                else:
+                    w.setEnabled(not locked)
 
     def _browse_clip_image(self) -> None:
         from pathlib import Path
@@ -3296,10 +4200,11 @@ class LayoutOptionsPanel(QWidget):
           `max(Clip, the clip border's width, the furniture on that edge)`, so
           Knut's `i1Pro-A4-162p-1page-Portrait-w7.5mm` (a 26 mm clip border)
           holds them at 26.0 mm while the box reads 4.0.
-        * **The clip-border text is capped nearer the edge.**
-          `geometry.clip_area_mm` insets the content by
-          `min(Clip, a fifth of the clip band)`, so on that same 26 mm band
-          the text stops at 5.2 mm however high "Clip" goes.
+        * **The clip-border text is held further in by the ruler helper
+          markers.** `geometry.clip_area_mm` insets the content by whichever of
+          "Clip" and `"Distance from page edge" + "Marker length" + 1.0 mm`
+          reaches further in (#182), so a chart whose side markers sit 4 mm in
+          with a 2 mm dash keeps 7.0 mm while the box reads 4.0.
         * **A typed 0 mm is read as 4 mm** (`LayoutRecipe.build_kwargs`).
 
         Numbers come from the geometry the renderer itself builds, never from a
@@ -3345,28 +4250,55 @@ class LayoutOptionsPanel(QWidget):
                     "above {border:.1f} mm.").format(
                         floor=floor, typed=typed, border=border_w))
 
-        # 2. The clip-border content is capped at a fifth of the band.
+        # 2. The ruler helper markers hold the clip content FURTHER IN than
+        #    "Clip" asks. Knut, #182, 2026-09-12: the text-box sits at
+        #    whichever of "Clip" and "Distance from page edge" + "Marker
+        #    length" + 1.0 mm goes further in from the paper.
+        #
+        #    THIS USED TO REPORT A CAP THAT NO LONGER EXISTS. The content was
+        #    inset by `min(Clip, a fifth of the band)`, so the note said the
+        #    text was kept NEARER the edge than asked and told the user to
+        #    widen the band. That cap is the fault he reported the same day
+        #    (a 24 mm band froze the text at 4.8 mm and every "Clip" above
+        #    5 mm moved nothing), and with it removed the override on this
+        #    setting runs the other way.
         if geom is not None and self._clip_content_printed():
-            zone = float(getattr(geom, "lbord", 0.0) or 0.0) + \
-                float(getattr(geom, "border", 0.0) or 0.0)
-            area = None
-            try:
-                from workflow.layout_engine import geometry as _geometry
-                area = _geometry.clip_area_mm(geom, gh[1], gh[2])
-            except Exception:      # noqa: BLE001 — a note is never fatal
-                area = None
-            if area is not None and zone > 0:
-                run_up = zone - float(area[2])
-                if run_up + 0.05 < typed:
+            from workflow import text_edge_fit as _tef
+            if (bool(getattr(geom, "helper_markers", False))
+                    and bool(getattr(geom, "helper_markers_sides", True))):
+                reserve = _tef.helper_marker_ink_reach_mm(
+                    getattr(geom, "helper_marker_edge_mm", 0.0),
+                    getattr(geom, "helper_marker_len_mm", 0.0))
+                # AGAINST THE DISTANCE THE SHEET USES, NOT THE ONE TYPED. This
+                # asked `reserve > typed`, and a typed 0 is not 0: the geometry
+                # already holds `TEXT_EDGE_DEFAULT_MM` for it (note 3 below says
+                # so on the same panel). With "Clip" typed 0 and the markers at
+                # 0.5 + 1.0 mm the reserve is 2.5, the sheet prints the clip
+                # text at 4.0, and this said *"kept 2.5 mm in from the paper
+                # edge, not the 0.0 mm you asked for"* and then advised raising
+                # "Clip" above 2.5 mm "to move the text further in" — which
+                # moves it OUT, toward the edge, from 4.0 to 3.0. Two false
+                # halves and a note contradicting the one under it.
+                #
+                # `geom.text_edge_clip_mm` is the effective figure, because
+                # `geom_from_build_kwargs` is fed by `build_kwargs()`, and
+                # `geom_side_text_edge_mm` is the one place that says which of
+                # the two wins.
+                effective = float(_tef.geom_side_text_edge_mm(geom))
+                held = float(getattr(geom, "text_edge_clip_mm", typed) or typed)
+                if reserve > held + 0.05 and effective > held + 0.05:
                     lines.append(tr(
-                        "The clip border's text is kept clear of the paper "
-                        "edge by {run_up:.1f} mm, not by the {typed:.1f} mm "
-                        "you asked for. The text has to stay inside the clip "
-                        "band, which is {zone:.1f} mm wide on this chart, and "
-                        "at most a fifth of that width may be given over to "
-                        "that clearance. Widen “Clip border width” if you "
-                        "want the text further in.").format(
-                            run_up=run_up, typed=typed, zone=zone))
+                        "The clip border's text is kept {reserve:.1f} mm in "
+                        "from the paper edge, not the {typed:.1f} mm you asked "
+                        "for. The ruler helper markers are printed down that "
+                        "edge, {edge:.1f} mm in and {length:.1f} mm long, and "
+                        "the text stays a millimetre clear of their tips so it "
+                        "does not print over them. Raise “Clip” above "
+                        "{reserve:.1f} mm to move the text further in, or turn "
+                        "off “Sides” under “Ruler helper markers”.").format(
+                            reserve=reserve, typed=typed,
+                            edge=float(getattr(geom, "helper_marker_edge_mm", 0.0) or 0.0),
+                            length=float(getattr(geom, "helper_marker_len_mm", 0.0) or 0.0)))
 
         # 3. An empty box is read as 4 mm.
         if typed <= 0.001 and (geom is not None or self._row_indicators_wanted()):
@@ -3376,6 +4308,23 @@ class LayoutOptionsPanel(QWidget):
                 "paper edge. Type any distance above 0.0 mm to choose it "
                 "yourself.").format(fallback=self._clip_zero_resolves_to()))
         return lines
+
+    def _clip_text_fit_inputs(self) -> tuple[int, float]:
+        """``(lines, size_pt)`` for the clip band's own text, or ``(0, 0.0)``.
+
+        What `workflow/text_edge_fit.py` needs to say how far the band's text
+        reaches INWARD over the patch area (Knut, 2026-09-12). Only the
+        plain-text content mode has lines to measure: an image or the branding
+        scales to whatever band it is handed, so it has no floor to overflow
+        from.
+        """
+        cm = getattr(self, "clip_content_mode", None)
+        if cm is None or cm.currentData() != "text":
+            return 0, 0.0
+        from workflow.layout_engine.raster import clip_text_lines
+        n = len(clip_text_lines(
+            self._resolve_sample(self.clip_text.toPlainText())))
+        return n, float(self.clip_text_size.value() or 0.0)
 
     def _clip_content_printed(self) -> bool:
         """Whether anything is actually printed IN the clip border.
@@ -3504,7 +4453,16 @@ class LayoutOptionsPanel(QWidget):
         # The paper WIDTH matters: a right-side band is mirrored to the far edge
         # and `clip_area_mm` cannot place it without knowing how wide the sheet
         # is — and the ColorMunki family's own default puts the clip on the right.
-        area = geometry.clip_area_mm(gh[0], gh[1], gh[2]) if gh else None
+        #
+        # THE PREVIEW SHOWS THE BAND THE SHEET WILL HAVE, including the part
+        # that reaches inward over the patch area when the text will not fit
+        # (Knut, 2026-09-12). Without these two arguments the strip on screen
+        # would be narrower than the one on paper and the Size box would again
+        # look like it does nothing, which is how #163's shrunken branding went
+        # unnoticed.
+        area = (geometry.clip_area_mm(gh[0], gh[1], gh[2],
+                                      *self._clip_text_fit_inputs())
+                if gh else None)
         if area is None:
             self.clip_dims_label.setText(tr("—"))
             self._clear_clip_preview()
@@ -3555,7 +4513,10 @@ class LayoutOptionsPanel(QWidget):
         from PyQt6.QtWidgets import QMessageBox
         from workflow.layout_engine import geometry, raster
         gh = self._clip_geom_and_height()
-        area = geometry.clip_area_mm(gh[0], gh[1], gh[2]) if gh else None
+        # The template is the band the sheet gets, overhang included.
+        area = (geometry.clip_area_mm(gh[0], gh[1], gh[2],
+                                      *self._clip_text_fit_inputs())
+                if gh else None)
         if area is None:
             return
         _x, _y, w_mm, h_mm = area
@@ -3619,6 +4580,68 @@ class LayoutOptionsPanel(QWidget):
         from workflow.layout_engine.permutation import pick_seed
         self.fixed_seed_cb.setChecked(True)   # a drawn seed is a reproducible one
         self.seed_spin.setValue(pick_seed())
+
+    def show_built_seed(self, seed: "int | None") -> None:
+        """Put the seed the chart on screen was ACTUALLY built with in the box.
+
+        Basti, 4.1.5-beta.9: *"on initial generation the seed number there is
+        always 0 at first or stuck at any other number even when i generate
+        again. i think that even when this field is greyed it should reflect the
+        seed number of the chart on screen"*. He was right, and the box was
+        worse than empty: with "Use a fixed seed" unticked the recipe asks the
+        engine for ``seed=None``, the engine draws one
+        (:func:`workflow.layout_engine.chart.build_chart`) and nothing ever
+        carried it back here — so the box read **0**, a number that was never
+        used for anything, while the sheet on the printer had been shuffled with
+        something else entirely.
+
+        DISPLAY ONLY, and deliberately so. It does not tick "Use a fixed seed",
+        so :meth:`get_recipe` still answers ``seed=None`` and the next build
+        still draws a fresh one — the randomisation behaviour is untouched; only
+        the reporting of it changed. The write goes in with the spin box's
+        signals blocked for the same reason: this is not the user editing a
+        setting, and ``valueChanged`` drives the live preview and the helper-
+        marker memory, neither of which should move because a build finished.
+        """
+        if seed is None or not self.randomize_cb.isChecked():
+            return
+        try:
+            value = int(seed)
+        except (TypeError, ValueError):
+            return
+        if not (self.seed_spin.minimum() <= value <= self.seed_spin.maximum()):
+            return
+        was = self.seed_spin.blockSignals(True)
+        try:
+            self.seed_spin.setValue(value)
+        finally:
+            self.seed_spin.blockSignals(was)
+
+    def set_fixed_seed_tag(self, on: bool) -> None:
+        """Set the "Use a fixed seed" tick WITHOUT touching the seed number.
+
+        Knut, 2026-09-11: *"since there is a new tag stored in the chart's json
+        file about the 'Use a fixed seed' box, can you add programmatically this
+        tag for all built in presets and define the 'Use a fixed seed' box as
+        OFF? … All seed numbers stored in the presets should be as they are
+        today."* Two instructions, and this method exists so the second cannot be
+        broken while obeying the first: the seed spin box is not written here at
+        all, so whatever number a preset (or the build that just finished)
+        put in it stays visible and stays reproducible.
+
+        SILENT, like :meth:`show_built_seed` and for the same reason: the caller
+        is a preset being loaded, not a person editing a setting, and
+        ``toggled`` drives the live preview. ``get_recipe`` reads the box, so the
+        tag itself is set as surely as if the person had clicked — only the
+        redraw is suppressed. The enable state is re-synced, because a tick that
+        goes off must grey its own number box.
+        """
+        was = self.fixed_seed_cb.blockSignals(True)
+        try:
+            self.fixed_seed_cb.setChecked(bool(on))
+        finally:
+            self.fixed_seed_cb.blockSignals(was)
+        self._sync_seed_enabled()
 
     def _make_insert_button(self, target, *, multiline: bool = False):
         """A compact "Insert ▾" token menu that inserts into *target* (a QLineEdit
@@ -3735,9 +4758,14 @@ class LayoutOptionsPanel(QWidget):
         """A magenta folder browse button sized like the targen -c browse
         (objectName browse_compact, 14px icon, 22px tall)."""
         from PyQt6.QtCore import QSize
-        from ui.widgets import load_magenta_folder_icon, make_browse_button
+        from ui.widgets import make_browse_button, set_folder_icon
         b = make_browse_button(self, tooltip)
-        b.setIcon(load_magenta_folder_icon())
+        # A THEMED glyph, chosen by the host (``browse_icon``): a bare setIcon
+        # was overwritten on every theme reload, because make_browse_button
+        # tags the button as the plain "folder". Create Chart asks for
+        # "folder_create", the Presets row's magenta (ACTION in Neutral);
+        # Preferences keeps the plain folder (Basti, 2026-09-26).
+        set_folder_icon(b, self._browse_icon)
         b.setObjectName("browse_compact")
         b.style().unpolish(b)
         b.style().polish(b)
@@ -4052,15 +5080,45 @@ class LayoutOptionsPanel(QWidget):
         return self.apply_to_recipe(r)
 
     def _emit(self, *_a) -> None:
+        # **TIMED, BECAUSE A LOG CANNOT BE READ FOR A DURATION IT NEVER
+        # RECORDED.** Knut reports that a spin box in this panel lags on his
+        # machine and is comfortable on another instrument; nothing here
+        # reproduces it, and every attempt to get the figure out of his log
+        # measured the spacing of his CLICKS instead. Across 198 helper-marker
+        # steps in one of his logs the median gap is 0.499 s and the fastest is
+        # 0.003 s, which is a rhythm, not a cost. So the chain times itself: one
+        # DEBUG line per change with the three panel steps and the whole emit,
+        # which is synchronous and therefore covers every slot the host
+        # connected. Four `perf_counter` reads on a path that already builds
+        # strings and repaints a preview.
+        t0 = time.perf_counter()
         self._update_text_preview()
+        t1 = time.perf_counter()
         self._refresh_clip_preview()
+        t2 = time.perf_counter()
         # HERE, not on the Clip box's own signal. Whether the typed "Clip" is
         # the one in force depends on the clip border's width, which side it
         # sits on, whether it carries content, the instrument, the paper and
         # the row indicators — every one of which already lands here.
         self._update_text_edge_clip_note()
+        t3 = time.perf_counter()
         if not self._loading:
             self.changed.emit()
+        t4 = time.perf_counter()
+        # **AND NOT WHILE THE PANEL IS LOADING, UNLESS THE LOAD ITSELF WAS
+        # SLOW (R22-F3).** All three steps above early-return during a load and
+        # nothing is emitted, so the line came out
+        # `0.0 ms total (0.0, 0.0, 0.0, 0.0)` and that was **68 %** of every
+        # line it wrote: an instrument change alone produced eight of them, a
+        # preset apply ten. The file handler is DEBUG and rotates at 5 MB, so
+        # noise here costs a user the log they would have sent. A load that
+        # really did take time still says so.
+        total = (t4 - t0) * 1000.0
+        if not self._loading or total >= 1.0:
+            log.debug("layout panel change: %.1f ms total "
+                      "(text %.1f, clip %.1f, note %.1f, listeners %.1f)",
+                      total, (t1 - t0) * 1000.0, (t2 - t1) * 1000.0,
+                      (t3 - t2) * 1000.0, (t4 - t3) * 1000.0)
 
     def _update_helper_marker_rows(self, *_a) -> None:
         """Grey the three distances while the markers are switched off.
@@ -4075,6 +5133,19 @@ class LayoutOptionsPanel(QWidget):
                 if isinstance(w, TooltipButton):
                     continue
                 w.setEnabled(on)
+        # AND THE SIDE COMB STAYS DOWN ON A HONEYCOMB. It is one of the widgets
+        # in `_hm_rows`, so without this line ticking the markers on hands it
+        # straight back: `set_helper_markers_supported` greys it once, when the
+        # instrument changes, and this method runs every time the box is
+        # toggled. Caught by the on-screen driver, which found both edge
+        # switches greyed because the master tick was off, and then, ticking
+        # it, found the side one live on a honeycomb.
+        if getattr(self, "_hm_one_axis_only", False):
+            # …and it is the comb that DRAWS NOTHING that stays down, which on a
+            # turned honeycomb is the side one. See `set_helper_markers_supported`.
+            (self.helper_markers_sides
+             if getattr(self, "_hm_axis_is_top_bottom", False)
+             else self.helper_markers_top_bottom).setEnabled(False)
 
     def _update_helper_marker_edge_warning(self, *_a) -> None:
         """Say it when the markers are on but no edge is ticked.
@@ -4095,8 +5166,17 @@ class LayoutOptionsPanel(QWidget):
     def _helper_marker_edge_warning_text(self) -> str:
         """The warning, or ``""`` when at least one edge will actually print."""
         on = bool(self.helper_markers_cb.isChecked())
-        none_ticked = not (self.helper_markers_top_bottom.isChecked()
-                           or self.helper_markers_sides.isChecked())
+        # ONLY THE BOXES THAT CAN ACTUALLY PRINT COUNT. On a honeycomb the
+        # top/bottom comb is greyed and its stored tick is deliberately left
+        # standing (disable, never untick), so an `or` across both boxes is
+        # always satisfied — the user unticks the one live box, the engine
+        # prints nothing, and the panel says nothing because the greyed box
+        # answered for it. Ask each box whether it is enabled as well as ticked.
+        will_print = ((self.helper_markers_top_bottom.isChecked()
+                       and self.helper_markers_top_bottom.isEnabled())
+                      or (self.helper_markers_sides.isChecked()
+                          and self.helper_markers_sides.isEnabled()))
+        none_ticked = not will_print
         if on and none_ticked:
             # "…at least one edge ABOVE" was true of a label printed under the
             # two boxes and is false of an ⓘ that sits on the row above them.
@@ -4106,19 +5186,43 @@ class LayoutOptionsPanel(QWidget):
         return ""
 
     def set_helper_markers_supported(self, supported: bool,
-                                     reason: str = "") -> None:
+                                     reason: str = "",
+                                     *, one_axis_only: bool = False) -> None:
         """Grey the ruler-marker controls out when the chart cannot carry them.
 
-        A hexagonal SpectroScan chart is a honeycomb — it has no rows to lay a
-        ruler against, so the dashes are meaningless there and the engine draws
-        none. Knut asked (#152) for the reason to be readable rather than the
-        box simply going dead, so it goes on the group and on every control
-        inside it, which is what a hover reaches.
+        Knut asked (#152) for the reason to be readable rather than the box
+        simply going dead, so it goes on the group and on every control inside
+        it, which is what a hover reaches.
+
+        *one_axis_only* is the honeycomb case, and it is not the same as
+        unsupported. A honeycomb's patch centres lie on straight lines along
+        three directions, and on any page exactly one of the two page axes is
+        one of them. WHICH ONE FOLLOWS THE TURN, and reading it as always the
+        same axis is what made this wrong for nine rounds.
+
+        On a POINTY honeycomb the stagger is applied to x, so the centres are
+        uniform in y and zigzag by half a patch width in x: the left and right
+        dashes land and the top and bottom ones would mark the seam between two
+        columns. Measured on A4 portrait, worst distance from a centre to its
+        nearest dash: CR30 sides 0.0310 mm against top/bottom 2.9830 mm; SS
+        sides 0.0250 mm against 1.7450 mm.
+
+        TURNING the honeycomb moves the stagger to y and indexes it by strip,
+        so the straight axis becomes the other one and the engine draws the top
+        and bottom comb instead. `geometry.helper_marker_lines_mm` says so in
+        two branches; this panel now asks `_area_is_turned_hex` and greys the
+        comb that draws NOTHING, whichever it is.
+
+        This replaces a blanket refusal whose premise was measurably false, on
+        Basti's ruling of 2026-09-09: *"can't they be turned on by the user if
+        he wants? they are optional anyway."* They can now, and they still
+        default to off.
         """
         grp = getattr(self, "_helper_markers_grp", None)
         if grp is None:
             return
-        grp.setEnabled(bool(supported))
+        supported = bool(supported) or bool(one_axis_only)
+        grp.setEnabled(supported)
         tip = "" if supported else (reason or tr(
             "This chart's patches are hexagons, which have no rows to lay a "
             "ruler against — so helper markers cannot be printed on it."))
@@ -4126,8 +5230,48 @@ class LayoutOptionsPanel(QWidget):
                   self.helper_marker_len, self.helper_marker_per_patch,
                   self.helper_markers_top_bottom, self.helper_markers_sides):
             w.setToolTip(tip)
+        # DISABLE, NEVER UNTICK. The saved value belongs to the target and must
+        # survive for the day the same chart is laid out with square patches
+        # that can honour it, which is the doctrine `tab_measure.py` states in
+        # capitals for the same problem. What falls silent is the engine, which
+        # drops the side comb for a honeycomb by itself.
+        self._hm_one_axis_only = bool(one_axis_only)
+        # WHICH COMB SURVIVES FOLLOWS THE TURN, AND FOR NINE ROUNDS IT DID NOT.
+        # `helper_marker_lines_mm` draws the side comb on a pointy honeycomb and
+        # the TOP AND BOTTOM comb on a turned one, because turning the patches
+        # moves the straight axis. This panel greyed the top/bottom switch in
+        # both cases, so on a turned sheet it greyed the comb that prints and
+        # offered the one that does nothing: the tooltip was false, unticking
+        # the only live box made the panel say "No dashes will be printed" while
+        # the sheet printed a full comb, and the dashes that did print could not
+        # be switched off at all.
+        self._hm_axis_is_top_bottom = bool(one_axis_only) and self._area_is_turned_hex()
+        _live = (self.helper_markers_top_bottom if self._hm_axis_is_top_bottom
+                 else self.helper_markers_sides)
+        _dead = (self.helper_markers_sides if self._hm_axis_is_top_bottom
+                 else self.helper_markers_top_bottom)
+        _live.setEnabled(supported)
+        _dead.setEnabled(supported and not one_axis_only)
+        if one_axis_only:
+            _dead.setToolTip(tr(
+                "Not available on a turned honeycomb. Its columns sit at an "
+                "even spacing across the page, but every second column is "
+                "shifted half a patch up or down, so dashes along the left and "
+                "right edges would point at the seam between two rows rather "
+                "than at the patches. The top and bottom dashes line up exactly "
+                "and stay available.")
+                if self._hm_axis_is_top_bottom else tr(
+                "Not available on hexagonal patches. A honeycomb's rows sit at "
+                "an even spacing down the page, but every second row is shifted "
+                "half a patch sideways, so dashes along the top and bottom edges "
+                "would point at the seam between two columns rather than at the "
+                "patches. The left and right dashes line up exactly and stay "
+                "available."))
         if supported:
             self._update_helper_marker_rows()
+        # The greying itself can create or clear the contradiction, so the
+        # notice is refreshed here too and not only on a user toggle.
+        self._update_helper_marker_edge_warning()
 
     @contextmanager
     def _clip_preview_batched(self):
@@ -4237,6 +5381,7 @@ class LayoutOptionsPanel(QWidget):
         self.spacer_width.setValue(r.spacer_width_mm)
         self.edge_spacers_cb.setChecked(bool(r.edge_spacers))
         self.cm_stagger_cb.setChecked(bool(getattr(r, "cm_stagger", False)))
+        self.hex_flat_top_cb.setChecked(bool(getattr(r, "hex_flat_top", False)))
         self._spacer_overrides = {str(k): v for k, v in (r.spacer_overrides or {}).items()}
         _pal = list(r.spacer_palette or [])
         self.custom_spacer_cb.setChecked(bool(_pal))
@@ -4308,6 +5453,15 @@ class LayoutOptionsPanel(QWidget):
         # One flag for the group, exactly as `label_style_explicit` covers ten
         # fields: a recipe is authored as a whole, so a saved chart that owns
         # one of these owns all four. It errs towards leaving a value alone.
+        # The margins follow the same rule (B8-965): a recipe somebody chose
+        # owns its margins, the app's own starting point does not.
+        # A person's typed margins or picked alignment ride in their own
+        # flags (`margins_explicit`, `align_explicit`) for a recipe whose
+        # layout is otherwise nobody's, so Save as Defaults and a restart keep
+        # them chosen (B8-965): typed 6/6/6/6 is still typed tomorrow.
+        _lx = bool(getattr(r, "layout_explicit", False))
+        self._margins_chosen = _lx or bool(getattr(r, "margins_explicit", False))
+        self._align_chosen = _lx or bool(getattr(r, "align_explicit", False))
         if bool(getattr(r, "layout_explicit", False)):
             self._layout_answered.update(self.INSTRUMENT_DEFAULTED)
         else:
@@ -4322,6 +5476,10 @@ class LayoutOptionsPanel(QWidget):
         _ctf = self.chart_text_font.findData(r.chart_text_font)
         self.chart_text_font.setCurrentIndex(_ctf if _ctf >= 0 else 0)
         self.chart_text_size.setValue(mm_to_pt(r.chart_text_size_mm))
+        _ai = self.chart_text_align.findData(
+            str(getattr(r, "chart_text_align", "")
+                or _TEF.BOTTOM_TEXT_ALIGN_DEFAULT))
+        self.chart_text_align.setCurrentIndex(max(0, _ai))
         self.text_edge.setValue(getattr(r, "text_edge_mm", 4.0) or 4.0)
         self.text_edge_top.setValue(getattr(r, "text_edge_top_mm", 4.0) or 4.0)
         self.text_edge_clip.setValue(getattr(r, "text_edge_clip_mm", 4.0) or 4.0)
@@ -4348,12 +5506,49 @@ class LayoutOptionsPanel(QWidget):
         self._sync_clip_content_enabled()
         self._sync_clip_enable_display()
         self.randomize_cb.setChecked(r.randomize)
-        _fixed = r.seed is not None
+        # THE TICK COMES FROM THE RECORDED TICK, AND THE NUMBER FROM THE NUMBER.
+        #
+        # Knut, 2026-09-10, on loading a chart as it was made: the stored seed
+        # goes into the Seed box "even when 'Use a fixed seed' is OFF", and the
+        # checkbox is set to the stored tag. Those are two facts and they used
+        # to share one field: `seed is not None` answered both, so a chart built
+        # with the box UNTICKED (the build still draws a number, and the restore
+        # path puts it in `seed` so the sheet can be reproduced exactly) came
+        # back with the box ticked, every visit.
+        #
+        # `seed_fixed` is None on every recipe written before the tag existed,
+        # and for those the old reading is the only evidence there is.
+        _tag = getattr(r, "seed_fixed", None)
+        _fixed = (r.seed is not None) if _tag is None else bool(_tag)
         self.fixed_seed_cb.setChecked(_fixed)
-        if _fixed:
+        if r.seed is not None:
+            # Even with the box unticked: the number is what reproduces this
+            # sheet, and a greyed box showing it is the same display-only
+            # reporting `show_built_seed` does after a build. Ticking the box
+            # then builds that exact layout again, which is what the
+            # Randomisation tooltip promises.
             self.seed_spin.setValue(int(r.seed))
         self._sync_seed_enabled()
         self._inst, self._clip = r.instrument, r.clip_border
+        # K57: the content a clip border switched On starts on, and in
+        # Preferences a band instrument's clip border held Off with the
+        # Content box showing that content.
+        self._clip_when_on = str(getattr(r, "clip_content_when_on", "") or "")
+        self._clip_held_off = False
+        if self._holds_clip_off() and r.clip_content_mode in (None, "", "off"):
+            self._clip_held_off = True
+            _k = self.clip_content_mode.findData(self._when_on_kind())
+            _b = self.clip_content_mode.blockSignals(True)
+            try:
+                self.clip_content_mode.setCurrentIndex(max(0, _k))
+            finally:
+                self.clip_content_mode.blockSignals(_b)
+            self._sync_clip_content_enabled()
+        # The shape, for the panels that have no shape selector of their own
+        # (Preferences > Chart Layout, the relayout dialog). Without it those
+        # panels cannot tell a honeycomb from a rectangular chart and would
+        # leave the two inert area-first boxes live. See `_area_is_hexagonal`.
+        self._recipe_hflag = bool(getattr(r, "hflag", False))
         # …and the paper it was written for, so a panel with no paper selector
         # measures its clip band against the right sheet (see _preview_paper).
         self._paper_hint = getattr(r, "paper", None) or None
@@ -4368,6 +5563,10 @@ class LayoutOptionsPanel(QWidget):
         # Final pass with loading off: computes the real conflict state for
         # the values just loaded (during loading only the clean-up runs).
         self._update_clip_margin_conflict()
+        # …and the same for the honeycomb locks. `_sync_layout_mode` ran above,
+        # BEFORE `_inst` / `_recipe_hflag` were written, so on a selector-less
+        # panel it could only ask about the previous recipe's shape.
+        self._update_area_hex_locks()
         # One consolidated refresh now that loading is off: every field above was
         # set with change-signals suppressed, so without this the text/clip
         # previews and any listener (the layout editor's render preview) kept
@@ -4407,6 +5606,10 @@ class LayoutOptionsPanel(QWidget):
         r.spacer_on = r.spacer_mode != "none"
         r.edge_spacers = self.edge_spacers_cb.isChecked()
         r.cm_stagger = self.cm_stagger_cb.isChecked()
+        # Read the BOX, not "the box if it happens to be visible": hiding must
+        # never change the stored answer, and the build gate is what makes the
+        # value inert elsewhere.
+        r.hex_flat_top = self.hex_flat_top_cb.isChecked()
         r.spacer_width_mm = self.spacer_width.value()
         r.layout_mode = self.layout_mode.currentData() or "patch_first"
         r.area_method = self.area_method.currentData() or "by_width"
@@ -4450,6 +5653,15 @@ class LayoutOptionsPanel(QWidget):
         # preset carries the answer with it, so re-loading it is protected from
         # the instrument defaults exactly as the original was.
         r.layout_explicit = bool(self._layout_answered)
+        # WHOSE MARGINS, WHOSE ALIGNMENT? (B8-965) Typing a margin or picking
+        # an alignment is not one of the four answers above, so it used to be
+        # lost with the session: after Save as Defaults and a restart, typed
+        # margins that happen to equal a default (6/6/6/6, or the instrument's
+        # own) looked like nobody's and Extra-high seeded 5 mm into them.
+        # Written only where `layout_explicit` does not already say it, so a
+        # recipe that owns its whole layout is not recorded twice.
+        r.margins_explicit = bool(self._margins_chosen and not r.layout_explicit)
+        r.align_explicit = bool(self._align_chosen and not r.layout_explicit)
         # WHOSE STYLE IS THIS? False until a person answers (or a recipe that
         # already owned its style was loaded) — see LayoutRecipe.
         r.label_style_explicit = self._label_style_touched
@@ -4478,6 +5690,8 @@ class LayoutOptionsPanel(QWidget):
         r.chart_text = self.chart_text.text()
         r.chart_text_font = self.chart_text_font.currentData() or "Inter"
         r.chart_text_size_mm = pt_to_mm(self.chart_text_size.value())
+        r.chart_text_align = str(self.chart_text_align.currentData()
+                                 or _TEF.BOTTOM_TEXT_ALIGN_DEFAULT)
         r.text_edge_mm = self.text_edge.value()
         r.text_edge_top_mm = self.text_edge_top.value()
         r.text_edge_clip_mm = self.text_edge_clip.value()
@@ -4486,7 +5700,12 @@ class LayoutOptionsPanel(QWidget):
         r.stamp_command = self.stamp_command.isChecked()
         r.compression = self.compression.currentData() or "lzw"
         r.clip_border_width_mm = self.clip_width.value()
-        r.clip_content_mode = self.clip_content_mode.currentData() or "off"
+        _cc = self.clip_content_mode.currentData() or "off"
+        # K57: held Off in Preferences, the recipe's clip border is Off and
+        # the Content box's kind is the one it takes when switched On.
+        r.clip_content_mode = "off" if self._clip_held_off else _cc
+        r.clip_content_when_on = (_cc if _cc not in ("off", "example")
+                                  else self._clip_when_on)
         r.clip_side = self.clip_side.currentData() or "left"
         r.clip_flip_180 = self.clip_flip_180.isChecked()
         r.clip_text = self.clip_text.toPlainText()
@@ -4500,4 +5719,11 @@ class LayoutOptionsPanel(QWidget):
         r.randomize = self.randomize_cb.isChecked()
         r.seed = (int(self.seed_spin.value())
                   if r.randomize and self.fixed_seed_cb.isChecked() else None)
+        # The tick itself, recorded whatever the seed came out as (Knut,
+        # 2026-09-10). It is stored even while "Randomise patch order" is off
+        # and the box is greyed: the box keeps its state through a randomise
+        # off-and-on again, so the tag is simply what the box says. What the
+        # tick MEANS with randomisation off is a question for him -- there is no
+        # order to fix -- and recording it commits to nothing either way.
+        r.seed_fixed = bool(self.fixed_seed_cb.isChecked())
         return r

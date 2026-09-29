@@ -200,6 +200,12 @@ def _page_content(page_elems: list[tuple], device_fields: list[str],
                 tuple(c / 255.0 for c in rgb), spacing_pt=spc * px2pt,
                 rotation_deg=rot, variation=var))
         elif kind == "vrect":                 # furniture rule (underline etc.)
+            # HALF-OPEN, like a Python slice: the box covers x0..x1-1 and
+            # y0..y1-1, so its size is the plain difference. Pillow's own
+            # `rectangle` is INCLUSIVE, so an emitter that hands its Pillow box
+            # straight over loses a pixel in each dimension -- which is
+            # invisible on a thick rule and total on a one-pixel one. See
+            # `raster._ul_geom_rect`, which is the only converter.
             _, (x0p, y0p, x1p, y1p), rgb = elem
             r, g, b = (c / 255.0 for c in rgb)
             ops.append(f"{r:.4f} {g:.4f} {b:.4f} rg")

@@ -45,6 +45,7 @@ def pump(app, ms: int) -> None:
 
 def main() -> int:
     W = float(sys.argv[1]) if len(sys.argv) > 1 else 12.0
+    FLAT = "--flat-top" in sys.argv[1:]
     app = QApplication.instance() or QApplication(sys.argv[:1])
     app.setApplicationName("ChromIQ")
     for fp in resource_path("assets/fonts").glob("*.ttf"):
@@ -88,8 +89,10 @@ def main() -> int:
     ti1 = work / "HexChart" / "probe.ti1"
     ti1.write_text("\n".join(lines), encoding="utf-8")
     stem = work / "HexChart" / "HexChart"
-    res = le_chart.build_chart(ti1, stem, instrument="SS", paper="A4",
-                               hflag=True, pscale=W / 7.0, border=6.0,
+    _instr = "CR30" if FLAT else "SS"
+    res = le_chart.build_chart(ti1, stem, instrument=_instr, paper="A4",
+                               hflag=True, hex_flat_top=FLAT,
+                               pscale=W / (12.0 if FLAT else 7.0), border=6.0,
                                dpi=200, randomize=False)
     print(f"built {res.layout.total_patches} hexagons of {W:.0f} mm, "
           f"{res.layout.passes} x {res.layout.steps_in_pass}")
@@ -107,7 +110,8 @@ def main() -> int:
         "ink_channels": ["r", "g", "b"],
         "layout": {"engine": "chromiq", "engine_version": 1, "dpi": 200,
                    "paper_mm": [210.0, 297.0], "patches": strips["patches"],
-                   "recipe": {"instrument": "SS", "hflag": True}}}), encoding="utf-8")
+                   "recipe": {"instrument": _instr, "hflag": True,
+                              "hex_flat_top": FLAT}}}), encoding="utf-8")
     from workflow.hex_support import chart_is_hexagonal
     print(f"chart_is_hexagonal -> {chart_is_hexagonal(stem.with_suffix('.ti2'))}\n")
 
@@ -156,6 +160,26 @@ def main() -> int:
                 getattr(tab._preview, z)()
         pump(app, 1200)
         tab._preview.grab().save(str(shots / f"3_zoom_{loc}.png"))
+
+    # THE CLICK, NOT JUST THE PICTURE. A correct-looking ring proves the
+    # drawing; only a click proves the hit test, and the hit test is the one
+    # site that is two inequalities rather than vertices. Assert the centre
+    # selects the patch and the recorded box's four CORNERS do not: on a
+    # hexagon those corners belong to the neighbours, which is the whole reason
+    # `_in_hexagon` exists.
+    if loc:
+        b = boxes[loc]
+        hits = []
+        for cx, cy in ((b.left(), b.top()), (b.right(), b.top()),
+                       (b.right(), b.bottom()), (b.left(), b.bottom())):
+            hit = tab._preview._in_hexagon(b, cx, cy, tab._preview._hex_flat_top)
+            hits.append(hit)
+        inside = tab._preview._in_hexagon(b, b.center().x(), b.center().y(),
+                                          tab._preview._hex_flat_top)
+        print(f"click on the CENTRE of {loc}: inside = {inside}")
+        print(f"click on its four CORNERS: {hits}  (all must be False)")
+        if not inside or any(hits):
+            print(">>> the hit test does not match the drawn hexagon")
 
     print(f"\nscreenshots: {shots}")
     win.close()

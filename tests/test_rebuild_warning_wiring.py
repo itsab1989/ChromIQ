@@ -28,11 +28,38 @@ class _Silent:
         self._log = self._Log()
 
 
+def _on_build_without_prose() -> str:
+    """`_on_build` with its docstring and every `#` comment stripped.
+
+    AN ORDER TEST THAT INDEXES RAW SOURCE GOES RED ON A CORRECT TREE the moment
+    a comment happens to name the thing it is looking for. Combined round 7
+    wrote that down after it happened; combined round 9 walked into it here,
+    because the comment explaining WHY the builder is now chosen above the
+    question says the word "colprof".
+    """
+    import ast
+    import textwrap
+    tree = ast.parse(textwrap.dedent(inspect.getsource(TabProfile._on_build)))
+    fn = tree.body[0]
+    if (fn.body and isinstance(fn.body[0], ast.Expr)
+            and isinstance(fn.body[0].value, ast.Constant)):
+        fn.body = fn.body[1:]
+    return ast.unparse(fn)
+
+
 def test_the_question_comes_before_the_build():
-    src = inspect.getsource(TabProfile._on_build)
+    """Before the BUILD, which is the launch and not the word.
+
+    "colprof" used to stand in for the launch here, and it stopped being a
+    proxy for one when `_on_build` began naming the builder it is about to use
+    BEFORE the question - which is the whole of combined round 9's B8-224 fix:
+    a build that cannot run must be refused before anything is archived. The
+    two launches are what must come after.
+    """
+    src = _on_build_without_prose()
     assert "_confirm_rebuild_over_verifications()" in src
     i = src.index("_confirm_rebuild_over_verifications()")
-    for later in ("_runner.run", "start(", "colprof"):
+    for later in ("_runner.run", "_builder.build(", "_engine_builder.build("):
         if later in src:
             assert i < src.index(later), f"the question must come before {later}"
 

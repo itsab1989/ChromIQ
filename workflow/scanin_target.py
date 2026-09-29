@@ -32,11 +32,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.i18n import count_phrase, tr
+from core.logger import get_logger
 from core.stem_paths import artefact
 from core.text_io import read_text
 
 from workflow.layout_engine import cht_writer, cie_writer
 from workflow.ti3_analysis import Ti3Data, parse_ti3
+
+log = get_logger(__name__)
 
 
 class ScaninTargetError(ValueError):
@@ -340,7 +343,39 @@ def build_scanin_target_from_render(patch_set_path: str | Path, tiff_paths: list
 
     out_base = Path(out_base)
     channels = artefact(out_base, ".channels.json")
-    channels.write_text(json.dumps({"layout": layout}, indent=2), encoding="utf-8")
+    # **THE SIDECAR IS SHARED, SO ONLY THE ``layout`` KEY IS OURS TO WRITE.**
+    # This wrote `{"layout": layout}` over the file. `out_base` is
+    # `_chart_base(the measurement the user picked)`
+    # (`ui/dialogs/scanin_target_dialog.py:520`), which is nothing more than
+    # that file's folder and stem — so choosing a ChromIQ run's own `.ti3` in
+    # the i1Profiler mode aimed it at that chart's own `<stem>.channels.json`.
+    #
+    # MEASURED, 2026-09-22, on a sidecar holding what the shipped writers put
+    # there: SEVEN keys were destroyed in one press — `ink_channels`,
+    # `chart_notes`, `run_description`, `stamp_commands`,
+    # `create_chart_settings` (Knut's K2 registry, which is what Create Chart
+    # restores a chart from), `printtarg_fields` and `colorimetric_reference`
+    # — and the chart's own `chromiq` layout, seed and recipe were replaced by
+    # a render-derived block. `colorimetric_reference` is the worst of them:
+    # `workflow.verification_print.chart_conversion_state` reads it to REFUSE
+    # to print a colorimetric chart through a profile, so losing it silently
+    # re-offers the conversion that flag exists to forbid.
+    #
+    # Every other writer of this file already read-modify-writes
+    # (`chart_creator._embed_layout_geometry`, `_capture_printtarg_cht`,
+    # `gamut_target.mark_chart_as_colorimetric`); this one is now the same.
+    doc: "dict" = {}
+    if channels.is_file():
+        try:
+            loaded = json.loads(channels.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            log.warning("could not read %s, writing a fresh layout sidecar: %s",
+                        channels.name, exc)
+        else:
+            if isinstance(loaded, dict):
+                doc = loaded
+    doc["layout"] = layout
+    channels.write_text(json.dumps(doc, indent=2), encoding="utf-8")
     return build_scanin_target_from_paths(channels, ti3_path, out_base)
 
 

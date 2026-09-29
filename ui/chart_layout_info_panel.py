@@ -18,6 +18,8 @@ from PyQt6.QtWidgets import (QGridLayout, QGroupBox, QHBoxLayout, QLabel,
 from core.i18n import tr
 from ui.widgets import set_ink
 from ui.tooltip_button import TooltipButton
+from workflow.hex_support import (HEX_HEIGHT_FACTOR,
+                                  hex_two_heights_note)
 
 _DASH = "—"
 _AMBER = "#c47f17"      # estimate differs from the chart on screen
@@ -39,6 +41,11 @@ class ChartLayoutInfoPanel(QGroupBox):
         self._estimate: dict | None = None       # predicted from current settings
         self._actual_labels: dict[str, QLabel] = {}
         self._estimate_labels: dict[str, QLabel] = {}
+        self._row_names: dict[str, QLabel] = {}
+        #: Which axis the pitch row means, per column. None until a column has
+        #: been filled, so an empty panel does not claim an orientation.
+        self._pitch_axis: dict[str, "bool | None"] = {
+            "actual": None, "estimate": None}
         self._build_ui()
         self._render()
 
@@ -65,10 +72,17 @@ class ChartLayoutInfoPanel(QGroupBox):
 
         hdr_screen = QLabel(tr("on screen"), self)
         hdr_est = QLabel(tr("estimate"), self)
+        # A column is as wide as its header needs, and never narrower than
+        # _COLW (B8-757): German's "auf dem Bildschirm" is wider than 72 px and
+        # lost its first word on Create Chart at 1280 x 800.
         for w in (hdr_screen, hdr_est):
             w.setAlignment(Qt.AlignmentFlag.AlignRight)
             w.setStyleSheet("color: #909090; font-size: 10px;")
-            w.setFixedWidth(_COLW)
+            w.ensurePolished()
+        colw = {id(w): max(_COLW, w.fontMetrics().horizontalAdvance(w.text()) + 2)
+                for w in (hdr_screen, hdr_est)}
+        for w in (hdr_screen, hdr_est):
+            w.setFixedWidth(colw[id(w)])
         grid.addWidget(hdr_screen, 0, 1)
         grid.addWidget(hdr_est, 0, 2)
 
@@ -80,15 +94,22 @@ class ChartLayoutInfoPanel(QGroupBox):
             ("cols", tr("Strips (this page)")),
             ("pages", tr("Pages")),
             ("patch", tr("Patch size (mm)")),
+            # RENAMED AT RUNTIME ON A TURNED HONEYCOMB. See `set_pitch_axis`:
+            # on a rotated sheet the second number is a COLUMN pitch across the
+            # page, not a row pitch down a strip, and the panel printed 10.39 mm
+            # under "Row pitch" where the sheet's rows are 12.00 mm apart.
+            ("pitch", tr("Row pitch (mm)")),
         )
         for r, (key, label) in enumerate(rows, start=1):
-            grid.addWidget(QLabel(label, self), r, 0)
+            name = QLabel(label, self)
+            self._row_names[key] = name
+            grid.addWidget(name, r, 0)
             for col, store in ((1, self._actual_labels), (2, self._estimate_labels)):
                 val = QLabel(_DASH, self)
                 val.setAlignment(Qt.AlignmentFlag.AlignRight
                                  | Qt.AlignmentFlag.AlignVCenter)
                 val.setStyleSheet("font-family: Menlo; font-size: 11px;")
-                val.setFixedWidth(_COLW)
+                val.setFixedWidth(colw[id(hdr_screen if col == 1 else hdr_est)])
                 grid.addWidget(val, r, col)
                 store[key] = val
         grid.setColumnStretch(0, 1)
@@ -103,7 +124,7 @@ class ChartLayoutInfoPanel(QGroupBox):
                "colour patches it has, how they're arranged, and how many pages "
                "it needs — so you can judge a chart before (and after) you make "
                "it.\n\n"
-               "What the rows mean:\n"
+               "**What the rows mean:**\n"
                "• Total patches — how many colour squares the whole chart holds. "
                "More patches usually means a more accurate profile, but a bigger "
                "chart to print and measure.\n"
@@ -124,7 +145,7 @@ class ChartLayoutInfoPanel(QGroupBox):
                "• Patch size — how big each patch is (width × height in mm). With "
                "“Prioritise chart area” this is worked out for you; very small "
                "patches can be hard for the instrument to read.\n\n"
-               "The two columns:\n"
+               "**The two columns:**\n"
                "• on screen — the real numbers of the chart currently in the "
                "preview.\n"
                "• estimate — what the settings you have right now would produce "
@@ -134,7 +155,8 @@ class ChartLayoutInfoPanel(QGroupBox):
                "Change a setting (patch size, paper, margins, alignment…) and the "
                "estimate updates live. Any number that would come out different "
                "from the chart on screen turns amber — so you can see the effect "
-               "of a change before re-generating the chart."),
+               "of a change before re-generating the chart.")
+            + "\n\n" + hex_two_heights_note(),
             self))
         v.addLayout(bottom)
 
@@ -147,49 +169,158 @@ class ChartLayoutInfoPanel(QGroupBox):
 
     @staticmethod
     def _as_dict(total, rows, cols, pages, patch_w, patch_h,
-                 page_patches=None, fillup=None) -> dict:
+                 page_patches=None, fillup=None, row_pitch=None) -> dict:
         # Patch size is held as a rounded (w, h) tuple so the diff-highlight can
         # compare it; formatted to "w×h mm" at render time. 2 decimals so a
         # derived size like 7.34 mm is visible instead of hidden by 1-dp rounding.
         patch = None
         if patch_w and patch_h and patch_w > 0 and patch_h > 0:
             patch = (round(float(patch_w), 2), round(float(patch_h), 2))
+        # `row_pitch` is set ONLY for a honeycomb, where the patch is taller than
+        # the spacing between rows (they interlock). Square patches have nothing
+        # to say here — their pitch is the height plus the spacer, a different
+        # question — so the row stays hidden (#B8-80, Knut).
+        pitch = (round(float(row_pitch), 2)
+                 if row_pitch and float(row_pitch) > 0 else None)
         return {"total": total, "fillup": fillup, "page_patches": page_patches,
-                "rows": rows, "cols": cols, "pages": pages, "patch": patch}
+                "rows": rows, "cols": cols, "pages": pages, "patch": patch,
+                "pitch": pitch}
 
     def set_actual(self, *, total: int, rows: int, cols: int, pages: int,
                    patch_w: float = 0.0, patch_h: float = 0.0,
                    page_patches: "int | None" = None,
-                   fillup: "int | None" = None) -> None:
+                   fillup: "int | None" = None,
+                   row_pitch: float = 0.0) -> None:
         """The measured values of the chart currently in the preview.
 
         *fillup* = how many of *total* are paper-white strip fill-up patches
         (None = unknown), so a total that grew past the designed count is
-        explained right where the number is read (#124, Knut)."""
+        explained right where the number is read (#124, Knut).
+
+        *patch_h* is the patch's REAL height: for a hexagon that is tip to tip,
+        not the slot it is drawn in. *row_pitch* carries the slot spacing for a
+        honeycomb, where the two are different numbers and both matter."""
         self._actual = self._as_dict(total, rows, cols, pages, patch_w, patch_h,
-                                     page_patches, fillup)
+                                     page_patches, fillup, row_pitch)
         self._render()
 
     def clear_actual(self) -> None:
+        self._forget_pitch_axis("actual")
         self._actual = None
         self._render()
+
+    def set_pitch_axis(self, flat_top: bool, *, column: str = "estimate") -> None:
+        """Name the pitch row for the orientation, per COLUMN.
+
+        The interlocking pitch is a ROW pitch down a strip on a pointy
+        honeycomb and a COLUMN pitch across the page on a turned one, so the
+        row has to say which. `_panel_patch_size_mm`'s docstring puts that duty
+        on the caller.
+
+        ONE NAME SERVES TWO COLUMNS THAT NEED NOT DESCRIBE THE SAME CHART, and
+        that is what made the first two attempts at this wrong. The left column
+        is the chart ON DISK and the right is what the current settings would
+        build; with "Auto-update preview" off -- the state the two-column panel
+        exists for -- they routinely differ, and whichever path ran last
+        overwrote the other's label. The panel then printed "Patch size
+        13.89 x 12.02" above "Row pitch 10.41" for a sheet whose rows are 12.02
+        mm apart.
+
+        So both are remembered and the name is a function of the pair: when
+        they agree it names the axis, and when they disagree it says neither,
+        because there is no single true answer to print.
+        """
+        if column not in ("actual", "estimate"):
+            return
+        self._pitch_axis[column] = bool(flat_top)
+        self._name_the_pitch_row()
 
     def set_estimate(self, *, total: int, rows: int, cols: int, pages: int,
                      patch_w: float = 0.0, patch_h: float = 0.0,
                      page_patches: "int | None" = None,
-                     fillup: "int | None" = None) -> None:
+                     fillup: "int | None" = None,
+                     row_pitch: float = 0.0) -> None:
         """The predicted values for the current (engine) settings."""
         self._estimate = self._as_dict(total, rows, cols, pages, patch_w, patch_h,
-                                       page_patches, fillup)
+                                       page_patches, fillup, row_pitch)
         self._render()
 
+    def predicted(self) -> "dict | None":
+        """The estimate this panel is showing, or None when it has none.
+
+        READ BY THE TEXT-WIDTH PREDICTION, which needs the patch count and the
+        page count the sheet will actually carry. With "Auto patch count"
+        ticked, which is how a fresh Manual panel opens, `_estimate_patch_total`
+        answers None because there is no fixed set and no `-f` value, and the
+        layout stamp was then predicted as "0 patches" while the sheet stamps
+        the real figure. On a 918-patch chart that is 4.6 mm of line, and about
+        7 on a 2,052-patch one, all of it invisible to the width check. This
+        panel has already computed the number for its own column.
+        """
+        return dict(self._estimate) if self._estimate else None
+
     def clear_estimate(self) -> None:
+        self._forget_pitch_axis("estimate")
         self._estimate = None
         self._render()
 
     def show_placeholder(self) -> None:
+        self._forget_pitch_axis("actual")
+        self._forget_pitch_axis("estimate")
         self._actual = self._estimate = None
         self._render()
+
+    def _forget_pitch_axis(self, column: str) -> None:
+        """A CLEARED COLUMN STOPS VOTING ON THE ROW'S NAME.
+
+        K1: every path that empties a column has to withdraw its claim, or the
+        row goes on naming an axis for a column that is no longer shown -- or,
+        worse, keeps saying "Patch pitch" because it still believes two columns
+        disagree when only one is left. Measured on screen as
+        `Patch size 13.89 x 12.02 / Patch pitch 10.41  --`, where the only
+        pitch present is unambiguously a column pitch.
+        """
+        self._pitch_axis[column] = None
+        self._name_the_pitch_row()
+
+    def _name_the_pitch_row(self) -> None:
+        """ONLY A COLUMN THAT IS SHOWING A PITCH GETS A VOTE.
+
+        K1(b): the vote is recorded from the chart's orientation, but a
+        rectangular chart has no interlocking pitch at all -- the panel prints
+        "--" for it -- and its `flat_top=False` was still counted. So a turned
+        honeycomb beside a rectangular estimate looked like a DISAGREEMENT and
+        the row fell back to the neutral "Patch pitch (mm)", refusing to name
+        the axis of the only pitch on the panel. Photographed in Manual and in
+        Guided, where the estimate is an i1-style rectangular layout:
+
+            Patch size (mm)      13.89x12.02       12x12
+            Patch pitch (mm)           10.41         --
+
+        A column whose data is loaded and whose pitch is `None` therefore
+        abstains. A column with no data YET keeps its vote: that is the state
+        between `set_pitch_axis` and the `set_actual`/`set_estimate` that
+        follows it, and dropping it there would make the name flicker.
+        """
+        name = self._row_names.get("pitch")
+        if name is None:
+            return
+        seen = set()
+        for col, data in (("actual", self._actual),
+                          ("estimate", self._estimate)):
+            vote = self._pitch_axis.get(col)
+            if vote is None:
+                continue                       # never filled, or cleared
+            if data is not None and data.get("pitch") is None:
+                continue                       # on screen, but with no pitch
+            seen.add(bool(vote))
+        if len(seen) == 1:
+            name.setText(tr("Column pitch (mm)") if seen.pop()
+                         else tr("Row pitch (mm)"))
+        elif len(seen) > 1:
+            name.setText(tr("Patch pitch (mm)"))
+        else:
+            name.setText(tr("Row pitch (mm)"))  # nothing to name it from
 
     # ------------------------------------------------------------------
     def _render(self) -> None:
@@ -199,12 +330,29 @@ class ChartLayoutInfoPanel(QGroupBox):
             return
         self._placeholder.setVisible(False)
         self._table.setVisible(True)
+        # The pitch row's NAME depends on which columns are showing a pitch,
+        # and that changes with the data, not only with the vote. See
+        # `_name_the_pitch_row`.
+        self._name_the_pitch_row()
         def _fmt(key, v):
             if v is None:
                 return _DASH
             if key == "patch":
                 return f"{v[0]:g}×{v[1]:g}"
+            if key == "pitch":
+                return f"{v:g}"
             return str(v)
+
+        # The row pitch row is a honeycomb's business only, and it is hidden
+        # rather than dashed: a permanent "—" against a square chart would read
+        # as a number the app failed to work out.
+        _hex = bool((self._actual or {}).get("pitch")
+                    or (self._estimate or {}).get("pitch"))
+        for w in (self._row_names.get("pitch"),
+                  self._actual_labels.get("pitch"),
+                  self._estimate_labels.get("pitch")):
+            if w is not None:
+                w.setVisible(_hex)
 
         for key in self._actual_labels:
             a = self._actual.get(key) if self._actual else None
@@ -218,8 +366,15 @@ class ChartLayoutInfoPanel(QGroupBox):
             if a is None or e is None:
                 differs = False
             elif key == "patch":
+                # The tolerance absorbs ONE pixel of render snapping. A hexagon's
+                # reported height is its slot scaled by 4/3, so that pixel is
+                # scaled with it and the height tolerance has to be too, or a
+                # honeycomb rendered at a low dpi flags amber against itself.
+                _htol = self._PATCH_TOL_MM * (HEX_HEIGHT_FACTOR if _hex else 1.0)
                 differs = (abs(a[0] - e[0]) > self._PATCH_TOL_MM
-                           or abs(a[1] - e[1]) > self._PATCH_TOL_MM)
+                           or abs(a[1] - e[1]) > _htol)
+            elif key == "pitch":
+                differs = abs(a - e) > self._PATCH_TOL_MM
             else:
                 differs = a != e
             # THE FLAG SURVIVES WITHOUT THE HUE. Amber-versus-grey was the

@@ -161,13 +161,29 @@ def test_add_with_no_chart_open_seeds_a_chart_and_previews(qapp, monkeypatch):
         def exec(self):
             return QDialog.DialogCode.Accepted
     monkeypatch.setattr(M, "_AddPatchesDialog", _StubAdd)
+    # THE PREVIEW HAS TWO RENDERERS, AND THIS USED TO WATCH ONLY ONE.
+    #
+    # `_set_chart` chooses between them: an engine chart previews through
+    # `_do_engine_preview`, a printtarg chart through `_regenerate`. This test
+    # watched `_regenerate` alone, which was safe only for as long as
+    # `_engine_active()` was permanently False — and that WAS the defect
+    # (B8-79: a widget's visibility standing in for "is this an engine chart",
+    # nailed to False by `72c54d1f` for two months). With the predicate fixed,
+    # a from-scratch chart follows the layout-engine setting, which is on by
+    # default, so the engine draws it and `_regenerate` is correctly not
+    # called. The question this test asks is "was a preview kicked off", so it
+    # now watches both answers.
     rendered = []
     monkeypatch.setattr(editor, "_regenerate", lambda **k: rendered.append(k))
+    monkeypatch.setattr(editor._engine_preview_timer, "start",
+                        lambda *a: rendered.append("engine"))
 
     editor._add_patch()
     assert editor._spec is not None          # a chart was seeded
     assert editor._grid.count() == 2         # patches landed in the grid
-    assert rendered                          # initial preview was kicked off
+    assert rendered, (                       # initial preview was kicked off
+        "neither renderer was asked to draw the seeded chart "
+        f"(engine active: {editor._engine_active()})")
 
 
 def test_fill_counts_existing_chart_patches(qapp):
@@ -696,9 +712,33 @@ def test_fill_to_pages_target(qapp, tmp_path):
     # patches mode → the patches spin
     d._gen_fill_unit_patches.setChecked(True)
     assert d._effective_fill_target() == 900
-    # pages mode → pages spin × capacity
+    # ...AND THE HIDDEN PAGES UNIT CANNOT DECIDE IT. #93 took "fill to pages"
+    # out of the window and left the widgets constructed but hidden, while
+    # `fill_unit_pages` stayed in the persisted state and in every chart recipe
+    # written before that. Round 10 measured what a restored True then did: the
+    # visible box read "fill to: 1000 patches", greyed un-editable, and the
+    # chart came out with 1,364. Nothing on screen said 1,364.
     d._gen_fill_unit_pages.setChecked(True)
+    d._sync_fill_unit()
+    # The radio KEEPS what a recipe restored, so the preference is not lost if
+    # the row is ever offered again; what it may not do is decide the number.
+    assert d._gen_fill_unit_pages.isChecked()
+    assert not d._pages_unit_is_live()
+    assert d._effective_fill_target() == 900
+    d._mode_generate.setChecked(True)     # the panel on...
+    d._gen_fill.setChecked(True)          # ...and the row on, so only the unit
+    d._update_gen_counts()                #    can grey the box
+    assert d._gen_fill_to.isEnabled(), (
+        "the box that decides the number was greyed out by a hidden unit")
+    d._gen_fill.setChecked(False)
+    # The plumbing itself still works, so the row can come back if it is ever
+    # offered again: shown, the pages spin multiplies by the capacity.
+    d._gen_fill_unit_pages.setVisible(True)
+    d._gen_fill_unit_pages.setChecked(True)
+    d._sync_fill_unit()
     assert d._effective_fill_target() == 2 * per
+    d._gen_fill_unit_pages.setVisible(False)
+    d._sync_fill_unit()
 
     # engine off → no per-page capacity, 'pages' toggle disabled + reverts
     s.set("use_chromiq_layout_engine", False)

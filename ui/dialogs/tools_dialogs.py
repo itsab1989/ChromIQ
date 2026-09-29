@@ -55,13 +55,14 @@ from ui.styles import (
 )
 from ui import neutral_styles
 from ui.theme import (
-    APPEARANCE_NEUTRAL, accent_for, active_mode, resolve_mode,
+    APPEARANCE_LIGHT, APPEARANCE_NEUTRAL, accent_for, active_mode,
+    resolve_mode,
 )
 from ui.tab_header import dialog_masthead
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (
-    confirm, make_browse_button, NoScrollComboBox, NoScrollSpinBox,
-    open_dir_dialog, open_file_dialog, open_files_dialog,
+    confirm, make_browse_button, NoScrollComboBox, NoScrollSpinBox, TailFollowLog,
+    open_dir_dialog, open_file_dialog, open_files_dialog, WorkAreaClamped,
 )
 
 
@@ -123,6 +124,12 @@ def neutral_controls_qss(color: str, popup: str | None = None,
     # and a coloured focus ring in the third.
     color = accent_for(color, mode)
     popup_qss = combo_popup_qss(*_popup_pair(popup, mode)) if popup else ""
+    # THE BUTTON RETURN PRESSES, FILLED IN THE WINDOW'S OWN ACCENT (Knut,
+    # #182 5833776276, 5833983335). ``popup`` is the masthead's accent; a
+    # window that passes none (Preferences) keeps the application's fill.
+    if popup:
+        from ui.theme import default_button_qss
+        popup_qss += default_button_qss(popup, mode)
     return (popup_qss +
         f"QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus {{"
         f" border-color: {color}; }}"
@@ -141,8 +148,9 @@ def neutral_controls_qss(color: str, popup: str | None = None,
 def _disabled_indicator_qss(mode: "str | None" = None) -> str:
     """How a DISABLED checkbox or radio reads, per appearance.
 
-    Light and Dark keep the mid-grey block they have always had — a fill that
-    is neither the accent nor the ground.
+    Dark keeps the mid-grey block it has always had, a fill that is neither
+    the accent nor the ground. Light fills with its own border grey instead
+    (B8-1078): the same #4a4a4a was the darkest thing on a light window.
 
     Neutral cannot use a fill at all. Its rule is the handoff's, and it is a
     shape rather than a value: **enabled controls carry a fill and a solid 1px
@@ -156,11 +164,23 @@ def _disabled_indicator_qss(mode: "str | None" = None) -> str:
     back. A ticked box that is disabled loses its ACTION fill; that, and the
     DISABLED value, are what carry it.
     """
-    if (mode or active_mode()) == APPEARANCE_NEUTRAL:
+    mode = mode or active_mode()
+    if mode == APPEARANCE_NEUTRAL:
         return (f"QCheckBox::indicator:checked:disabled,"
                 f" QRadioButton::indicator:checked:disabled {{"
                 f" background: transparent;"
                 f" border: 1px solid {neutral_styles.NM_DISABLED}; }}")
+    if mode == APPEARANCE_LIGHT:
+        # B8-1078: a ticked box here is a filled square with no tick drawn, so
+        # the #4a4a4a block below became the darkest thing on a light window
+        # and read as a solid dark square in some third state. A muted mid
+        # grey still reads as "filled", so still distinct from an unticked
+        # disabled box, without shouting. LM_BORDER_HI is the light palette's
+        # own hover/focus border grey.
+        from ui.light_styles import LM_BORDER_HI
+        return ("QCheckBox::indicator:checked:disabled,"
+                " QRadioButton::indicator:checked:disabled {"
+                f" background: {LM_BORDER_HI}; border-color: {LM_BORDER_HI}; }}")
     return ("QCheckBox::indicator:checked:disabled,"
             " QRadioButton::indicator:checked:disabled {"
             " background: #4a4a4a; border-color: #4a4a4a; }")
@@ -290,13 +310,17 @@ def _remember_dir(settings: "AppSettings", tool_key: str, path: Path) -> None:
 # Base dialog
 # ---------------------------------------------------------------------------
 
-class _ToolDialogBase(QDialog):
+class _ToolDialogBase(WorkAreaClamped, QDialog):
     """Shared chrome: title, descriptive body, content area, log, Run/Close."""
 
     TOOL_KEY: str   = ""
     TITLE: str      = ""
     EYEBROW: str    = ""    # uppercase masthead eyebrow above the title
     ACCENT: str     = SPEC_MAGENTA   # masthead accent (stroke + ⓘ tint)
+    #: Whether the masthead title may wrap onto a second line (B8-973). A
+    #: window whose HEIGHT floor is tight turns it off: its title then holds
+    #: the window's minimum width at one line instead (B8-1041).
+    WRAP_TITLE: bool = True
     DESCRIPTION: str = ""
     HELP: str       = ""    # extended ⓘ popup text; falls back to DESCRIPTION
     RUN_LABEL: str  = tr("Run")
@@ -333,7 +357,7 @@ class _ToolDialogBase(QDialog):
         head, self._header, stripe = dialog_masthead(
             self, self.EYEBROW, self.TITLE,
             tooltip_title=self.TITLE, tooltip_body=self.HELP or self.DESCRIPTION,
-            accent=self._accent)
+            accent=self._accent, wrap_title=self.WRAP_TITLE)
         outer.addLayout(head)
         outer.addWidget(stripe)
 
@@ -393,7 +417,7 @@ class _ToolDialogBase(QDialog):
         self._busy_tick.timeout.connect(self._update_busy_label)
 
         # Log / status area
-        self._log = QPlainTextEdit(self)
+        self._log = TailFollowLog(self)
         self._log.setReadOnly(True)
         self._log.setMaximumBlockCount(2000)
         self._log.setFixedHeight(120)
@@ -473,15 +497,21 @@ class _ToolDialogBase(QDialog):
         layout.activate()
         hint  = layout.sizeHint()
         floor = layout.minimumSize()
-        screen = self.screen() or QGuiApplication.primaryScreen()
-        cap_h = (int(screen.availableGeometry().height() * 0.9)
-                 if screen is not None else hint.height())
+        cap_h = self._work_area_cap(hint.height())
         # The minimum is the layout's floor (where every widget is at its own
         # minimum) — never below it, or the user could drag the window short
         # enough for rows to overlap. Only the *opening* size is capped to the
         # screen; the floor itself isn't, so it stays overlap-free.
         self.setMinimumHeight(floor.height())
         self.resize(target_w, max(floor.height(), min(hint.height(), cap_h)))
+        self._keep_inside_the_work_area()
+
+    # ------------------------------------------------------------------
+    # `_work_area_cap` and `_keep_inside_the_work_area` are inherited from
+    # `ui.widgets.WorkAreaClamped`. They were METHODS OF THIS CLASS, and that is
+    # exactly why `Ti2RelayoutDialog` — a plain QDialog with a hard-coded
+    # `resize(1280, 820)` — was outside B8-72's fix for three weeks. The
+    # arithmetic is unchanged; only its address is.
 
     # ------------------------------------------------------------------
     def _refit_height(self) -> None:
@@ -497,11 +527,10 @@ class _ToolDialogBase(QDialog):
         layout.activate()
         hint = layout.sizeHint()
         floor = layout.minimumSize()
-        screen = self.screen() or QGuiApplication.primaryScreen()
-        cap_h = (int(screen.availableGeometry().height() * 0.9)
-                 if screen is not None else hint.height())
+        cap_h = self._work_area_cap(hint.height())
         self.setMinimumHeight(floor.height())  # never below the no-overlap floor
         self.resize(self.width(), max(floor.height(), min(hint.height(), cap_h)))
+        self._keep_inside_the_work_area()
 
     # ------------------------------------------------------------------
     # Subclass hooks
@@ -1581,7 +1610,12 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
                 # when the file names none) (Knut).
                 try:
                     from workflow.reference_convert import finalize_converted_ti3
-                    instr, date = finalize_converted_ti3(out, self._txt)
+                    # With the ArgyllCMS folder, so the finalise step can run
+                    # `spec2cie` on a conversion that carries no CIE columns.
+                    instr, date = finalize_converted_ti3(
+                        out, self._txt,
+                        self._settings.get("argyll_bin_path",
+                                           "/Applications/Argyll/bin"))
                     if instr:
                         self._log.appendPlainText(
                             tr("Instrument: {name}").format(name=instr))
@@ -1740,14 +1774,14 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
     RUN_LABEL   = tr("Verify")
     HELP = (
         tr("This tool tells you how close your colours came out compared to where "
-        "they were supposed to be — without building a profile first.\n\n"
+        "they were supposed to be, without building a profile first.\n\n"
         "The idea is simple: you give it what you actually measured, and what the "
         "colours were meant to be, and it tells you how far apart they are. That "
-        "gap is measured as \"ΔE\" (delta-E) — think of it as a colour-difference "
+        "gap is measured as \"ΔE\" (delta-E). Think of it as a colour-difference "
         "score where smaller is better and 0 would be a perfect match.\n\n"
         "Here's how:\n\n"
         "1. Pick the chart you measured (your .ti3 measurement file).\n"
-        "2. Give it the reference to compare against — either a reference "
+        "2. Give it the reference to compare against: either a reference "
         "measurement file, or a set of expected values you load or paste in.\n"
         "3. Click Verify.\n\n"
         "You'll see the ΔE for every single patch plus an overall average. If most "
@@ -1755,13 +1789,13 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
         "misread or a problem patch on the print.\n\n"
         "A tip if the numbers look alarmingly high: if your reference values were "
         "made for a different paper or finish (for example glossy values checked "
-        "against a matte print), the deep shadows can't match — matte simply can't "
-        "go as dark. ChromIQ tells you when an error is mostly lightness (a "
+        "against a matte print), the deep shadows can't match, because matte simply "
+        "can't go as dark. ChromIQ tells you when an error is mostly lightness (a "
         "black-point limit you can't avoid) versus a real colour shift. You can "
         "also point it at your own profile (.icc) and it will skip the colours your "
         "paper physically can't reproduce, so they stop dominating the score.\n\n"
         "It's a quick way to sanity-check a profile, compare one paper or ink "
-        "batch against another, or keep an eye on a printer drifting over time — "
+        "batch against another, or keep an eye on how a printer changes over time, "
         "all without building anything."))
     MIN_WIDTH   = 660
     DESCRIPTION = (
@@ -1907,7 +1941,7 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                 "finishes. Every patch is drawn as a short line from the colour you "
                 "asked for (a green dot) to the colour you actually measured (a red "
                 "dot), placed in 3D colour space. Long lines all leaning the same way "
-                "tell you the print drifts consistently in that direction; a few long "
+                "tell you the print has moved consistently in that direction; a few long "
                 "lines among short ones point to specific problem patches. Drag to "
                 "rotate, scroll to zoom."),
                 self, min_width=500, color=_indicator_color(self._settings),
@@ -2365,11 +2399,73 @@ def _report_seed(parent, project) -> "Path | None":
     target's, so the window shows the loaded project's reports right away
     instead of opening empty (Sebastian, 2026-08-10). For a verification
     target the newest measured date; otherwise the run's own measurement.
-    None when nothing is measured yet — the Add button covers the rest."""
+    None when nothing is measured yet — the Add button covers the rest.
+
+    A CALIBRATION IS A THIRD TARGET, AND THIS KNEW ONLY TWO. It read "for a
+    verification target the newest measured date; otherwise the run's own
+    measurement", and a calibration fell into "otherwise": `resolve_run` hands
+    back a RUN for a target that is not one, so with Run type = Calibration
+    Tools ▸ Measurement report opened on the PROFILE run's measurement.
+    Measured on screen on `Demo-Switching` with the bar genuinely on
+    Calibration (`~/Desktop/ChromIQ-beta18-proof/combined-round-3/`,
+    `O-result.json`): the window described `runs/run2/Demo-Switching.ti3`, 240
+    patches, while `cal/Demo-Switching-cal.ti3` sat unread beside it, and
+    Generate report would have filed the calibration's report into
+    `runs/run2/reports/`. Same shape as `MainWindow._current_chart_ti2`'s
+    "A CALIBRATION IS A THIRD TARGET, AND THIS KNEW ONLY ONE", and as
+    beta.165's: two run types assumed where there are three.
+
+    `docs/design/tool_availability.md` §4 gives this tool ● in S5 with the
+    note *"Reports on a measurement this selection has"*, so a calibration
+    with nothing measured answers None rather than borrowing a run's
+    measurement. That table is a DRAFT awaiting Knut's confirmation; what is
+    fixed here is the part that needs no ruling, which is that one selection's
+    report must not be filed into another selection's folder.
+
+    AND "NEW RUN" IS THE SAME SENTENCE A THIRD TIME (R24-F5): a selection that
+    has created nothing has no measurement of its own, so it seeds nothing.
+    """
     try:
         run = None
         ctl = getattr(parent, "_target_ctl", None)
+        if ctl is not None and project is not None \
+                and ctl.target.is_calibration():
+            # `Calibration.ti3`, NOT `measurement_ti3`: a Run and a
+            # Verification spell it the second way and a Calibration does not,
+            # and the first cut of this used the Run's spelling. The
+            # `except Exception` below swallowed the AttributeError and the
+            # fix answered None for every calibration — right-looking on
+            # screen, and inert. Caught by driving it again rather than by
+            # trusting the edit.
+            cal = project.calibration.ti3
+            # A calibration whose measurement was moved to cal/old/ by a new
+            # chart still has its saved reports (#182 K30, F5): the window
+            # lists and opens them.
+            from ui.dialogs.measurement_report_dialog import (
+                _a_calibration_with_saved_reports)
+            return (cal if cal.exists()
+                    or _a_calibration_with_saved_reports(cal) else None)
         if ctl is not None and project is not None:
+            # **"NEW RUN" IS NOT A RUN, AND `resolve_run` ANSWERS ONE ANYWAY
+            # (R24-F5).** With `create=False` it falls through to
+            # `project.current_run()`, so Tools ▸ Measurement report opened on
+            # the MANIFEST's current run while the bar said "Profile run: New
+            # run": measured on screen, the window labelled itself *"Judged
+            # against (run2):"*, Generate report was live, and moving the
+            # pulldown rewrote `runs/run2/meta.json` -- the limit set of a run
+            # the user was not looking at, re-bound from a window they opened
+            # while the bar said they were about to make a new one.
+            #
+            # Whether the tool should REFUSE to open here is
+            # `tool_availability.md` §4's ✕, and that document is a DRAFT
+            # awaiting Knut's confirmation, so it is not decided in code. What
+            # needs no ruling is this docstring's own rule: one selection's
+            # report must not be filed into another selection's folder. A
+            # selection that has no measurement of its own seeds nothing, and
+            # the window opens empty with its "Add measurement…" button, which
+            # is what it does for any other unmeasured selection.
+            if ctl.target.is_new_run():
+                return None
             from core.measurement_target import resolve_run
             run = resolve_run(project, ctl.target)
         elif project is not None:
@@ -2377,10 +2473,28 @@ def _report_seed(parent, project) -> "Path | None":
         if run is None:
             return None
         dated = [v for v in run.verifications() if v.exists()]
-        if ctl is not None and ctl.target.is_verification() and dated:
-            return dated[-1].measurement_ti3
+        # **A SELECTION WITH NOTHING MEASURED OPENS AN EMPTY LIST (K32, Knut
+        # on beta 41, #182 5814558912 and 5814673639).** A verification run
+        # with no dated verification fell through to the run's PROFILING
+        # sheet, and the window, which lists every run's sheet beside the one
+        # it opens on, showed Report-Limits-Evenness run 3 with eight
+        # measurements ticked, none of them a verification. Knut: *"Then
+        # "Include measurements..." list should be empty, awaiting the user
+        # to add measurements ... or go out and perform a verification
+        # measurement."* And the same for Profiling: a profile run with no
+        # sheet borrowed its newest dated VERIFICATION. Now each run type
+        # seeds only its own kind of measurement: a verification its newest
+        # date, a profiling run its sheet (or, when it has none, the newest
+        # sheet of the project's other runs, which that window lists anyway),
+        # and nothing at all when there is none.
+        if ctl is not None and ctl.target.is_verification():
+            return dated[-1].measurement_ti3 if dated else None
         if run.measurement_ti3.exists():
             return run.measurement_ti3
+        if ctl is not None and project is not None:
+            sheets = [r.measurement_ti3 for r in project.all_runs()
+                      if r.measurement_ti3.exists()]
+            return sheets[-1] if sheets else None
         if dated:
             return dated[-1].measurement_ti3
     except Exception:      # noqa: BLE001 — seeding is best-effort
@@ -2396,13 +2510,50 @@ def open_tool_dialog(
     on_apply: "Callable[[Path, str], bool | None] | None" = None,
     initial_chart: "Path | None" = None,
     project=None,
+    preset_recipe: "dict | None" = None,
 ) -> None:
     """Open the dialog for the given tool key (no-op for unknown keys).
 
     ``on_apply`` is forwarded to the TI2 layout editor so its "Save & apply"
     button can hand a freshly-saved chart folder back to the Create Chart tab.
     ``initial_chart`` pre-loads that editor with the Create Chart tab's current
-    chart so it opens ready to edit (#45).
+    chart so it opens ready to edit (#45). ``preset_recipe`` is the design of
+    the preset selected there, which "New Patch Set…" opens with.
+    """
+    dlg = build_tool_dialog(key, runner, settings, parent, on_apply=on_apply,
+                            initial_chart=initial_chart, project=project,
+                            preset_recipe=preset_recipe)
+    if dlg is not None:
+        dlg.exec()
+        # The patch set editor is parented to the main window, which kept every
+        # closed one alive (B8-1462): free it now that its loop has ended.
+        dispose = getattr(dlg, "dispose", None)
+        if key == "ti2_relayout" and dispose is not None:
+            dispose()
+
+
+#: Every key :func:`build_tool_dialog` knows, in its order.
+TOOL_DIALOG_KEYS = (
+    "spot_read", "ti2_relayout", "average", "merge", "ti1_to_i1p",
+    "i1p_to_ti3", "i1p_to_ti1", "verify", "verify_profile", "profile_info",
+    "ti3_info", "measurement_report", "softproof", "device_link",
+    "devicelink_apply", "scanner_target", "scanner_profile", "translate",
+)
+
+
+def build_tool_dialog(
+    key: str,
+    runner: "ArgyllRunner",
+    settings: "AppSettings",
+    parent: QWidget | None = None,
+    on_apply: "Callable[[Path, str], bool | None] | None" = None,
+    initial_chart: "Path | None" = None,
+    project=None,
+    preset_recipe: "dict | None" = None,
+) -> "QDialog | None":
+    """The dialog :func:`open_tool_dialog` opens for ``key``, built and not
+    shown, or None for an unknown key. Split out so a check can build every
+    tool window without entering its modal loop (beta 41, the pulldown audit).
     """
     if key == "spot_read":
         from ui.dialogs.spot_read_dialog import SpotReadDialog
@@ -2410,7 +2561,8 @@ def open_tool_dialog(
     elif key == "ti2_relayout":
         from ui.dialogs.ti2_relayout_dialog import Ti2RelayoutDialog
         dlg = Ti2RelayoutDialog(runner, settings, parent, on_apply=on_apply,
-                                initial_chart=initial_chart)
+                                initial_chart=initial_chart,
+                                preset_recipe=preset_recipe)
     elif key == "average":
         dlg = AverageMeasurementsDialog(runner, settings, parent)
     elif key == "merge":
@@ -2455,5 +2607,5 @@ def open_tool_dialog(
         dlg = TranslationDialog(settings, parent)
     else:
         log.warning("Unknown tool key: %s", key)
-        return
-    dlg.exec()
+        return None
+    return dlg

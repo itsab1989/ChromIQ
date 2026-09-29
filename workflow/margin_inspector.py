@@ -24,6 +24,8 @@ so no black-and-white twin render is needed.
 """
 from __future__ import annotations
 
+import math
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
@@ -201,6 +203,197 @@ def _tolerance_mm(report: MarginReport) -> float:
     return tol
 
 
+def engine_ink_bounds_px(rects, rec, dpi: float):
+    """``(x0, x1, y0, y1, patch_w_px)`` — where a chart's INK really reaches.
+
+    **ONE IMPLEMENTATION, BECAUSE TWO OF THEM IS THE FAULT ITSELF.** These are
+    the patch rectangles widened by everything the renderer draws outside them:
+    the edge spacers, a honeycomb's ring band, and the hexagon apexes that poke
+    past their slot. :func:`measure_from_engine` reads the rects out of a built
+    chart's ``channels.json``; :func:`engine_patch_bottom_mm` builds them for a
+    recipe that has not been generated. Both come here, so a search for a margin
+    that clears cannot walk a different sheet from the one the panel measures.
+
+    Split out of `measure_from_engine` unchanged; see the comments inside for
+    why each correction is what it is.
+    """
+    x0 = min(r["x"] for r in rects)
+    x1 = max(r["x"] + r["w"] for r in rects)
+    y0 = min(r["y"] for r in rects)
+    y1 = max(r["y"] + r["h"] for r in rects)
+
+    # Edge spacers bracket each strip with one spacer ABOVE the first patch and
+    # one BELOW the last (raster.render_pages), so the printed content reaches
+    # pspa past the patch rects along the strip axis. The recorded patch rects
+    # don't include them, so add that overhang here — otherwise the top/bottom
+    # margins under-report and the measured-margin guides land inside the edge
+    # spacers, which then look like they overflow the margins (Knut #18). Along
+    # the strip axis (vertical in the printtarg frame) only.
+    # **ASK THE BUILD, NOT THE RECORD (R22-F4).** `rec["edge_spacers"]` is what
+    # the chart's stored recipe happens to say, and for a strip reader that is
+    # not what the sheet has: `LayoutRecipe.build_kwargs` forces edge spacers on
+    # for i1 / i1Pro 3+ / ColorMunki, so the box cannot change those sheets and
+    # the sheet has the spacers whatever the field says. The two doors then
+    # recorded opposite things for the SAME sheet -- Manual stored the recipe's
+    # own field (`false`), Guided stored the resolved build kwargs (`true`) --
+    # and this tool believed each of them. On a Manual i1Pro A4 chart the panel
+    # read *Top 39.0 / min 38.0, Bottom 20.1 / min 19.0, "Margins: OK"* while
+    # every pixel row of the millimetre above the first patch and below the last
+    # carried ink and the bottom-most ink sat at 19.05 mm. That is the unsafe
+    # direction, on the one tool whose job is to say whether the ink clears the
+    # paper edge.
+    #
+    # Resolving it here rather than at the recording end also fixes every chart
+    # already on disk, which no migration would reach.
+    from workflow.layout_engine import instruments
+    from workflow.layout_engine.presets import build_kwargs_as_built
+    try:
+        # B8-1570: a built chart is described as it was built.
+        _kw_built = build_kwargs_as_built(rec)
+        _edge = bool(_kw_built.get("edge_spacers"))
+    except Exception:  # pragma: no cover - defensive
+        _edge = bool(rec.get("edge_spacers"))
+    if _edge:
+        try:
+            _geom = instruments.geom_from_build_kwargs(_kw_built)
+            _sp_px = round(_geom.pspa * dpi / _MM_PER_INCH)
+            if _sp_px > 0:
+                y0 -= _sp_px
+                y1 += _sp_px
+            # A HONEYCOMB'S EDGE SPACER IS A RING SEGMENT, AND `pspa` IS NOW 0
+            # FOR IT. #159 moved a honeycomb's spacer out of the pitch and into
+            # `hex_ring_mm`, so the branch above silently allowed nothing on
+            # every hexagonal chart and this tool over-reported bottom clearance
+            # by 0.879 mm -- in the UNSAFE direction, on the one tool whose job
+            # is telling the user whether the ink clears the paper edge.
+            #
+            # An edge band reaches ring/2 OUTWARD past the hexagon, because the
+            # side facing the paper has no neighbour to share the gap with
+            # (raster.render_pages). It is the outermost ink on the sheet, so it
+            # is what the margins have to be measured to.
+            # ...and the APEX reaches further than the flat sides: moving an
+            # edge outward by d along its normal moves the vertex by d/cos 30,
+            # so the band is 0.5774*ring past the points and 0.5*ring past the
+            # flats. Using ring/2 on all four sides over-reported clearance by
+            # 0.13-0.22 mm at the default and 0.60 mm at the clamp maximum, on
+            # the two sides that carry the apexes -- and which two those are
+            # swaps with the orientation.
+            _r = float(getattr(_geom, "hex_ring_mm", 0.0) or 0.0) / 2.0
+            _flat_px = round(_r * dpi / _MM_PER_INCH)
+            _apex_px = round(_r * 2.0 / math.sqrt(3.0) * dpi / _MM_PER_INCH)
+            if _flat_px > 0 or _apex_px > 0:
+                _vert, _horz = ((_flat_px, _apex_px)
+                                if getattr(_geom, "hex_flat_top", False)
+                                else (_apex_px, _flat_px))
+                y0 -= _vert
+                y1 += _vert
+                x0 -= _horz
+                x1 += _horz
+        except Exception:  # pragma: no cover - defensive; fall back to patch rects
+            pass
+
+    # SpectroScan hexagonal patches are DRAWN beyond their slot rectangles: the
+    # top/bottom apex pokes ph/6 past the slot (reserved as hxeh) — see
+    # raster._hexagon_points. So the true ink extremes, and thus the margins
+    # Knut wants the guides to mark, are the hex tips, not the slot box (#28).
+    #
+    # ONLY the apex. The ±¼·w row stagger is ALREADY in the recorded rects —
+    # `geometry.patch_rects_px` applies it when it writes them, precisely so
+    # that everything reading this geometry describes where the ink is. Adding
+    # it again here double-counted it by w/4: 3.0 mm at a 12 mm hexagon, 5.0 mm
+    # at 20 mm, reported as margin that does not exist. The hexagon's flat sides
+    # span exactly the staggered slot, so no horizontal expansion is right.
+
+    # ACROSS THE FLATS, IN EITHER ORIENTATION. "Patch width" is the width of
+    # one patch, and for a hexagon the honest single number is the distance
+    # between its two parallel flats: that is the biggest circle that fits
+    # inside it, which is what a round instrument head has to land in.
+    #
+    # On a POINTY-top honeycomb that is the slot's width, so `rects[0]["w"]`
+    # has always been right and nothing here changes. On a FLAT-top one --
+    # #159's "Straight strips" tick -- the hexagon is the same shape turned 30
+    # degrees: the flats move to the top and bottom, the slot's width becomes
+    # the COLUMN PITCH, and the patch is 4/3 of it across the points and `h`
+    # across the flats. Reporting the pitch there under the name "patch width"
+    # understated Knut's six straight-strip CR30 charts by 14 %: 9.4 mm on
+    # screen for a 10.9 mm patch, on charts whose own names say 11 mm.
+    from workflow.hex_support import recipe_is_flat_top, recipe_is_hexagonal
+    patch_w_px = rects[0]["w"]
+    if recipe_is_hexagonal(rec) and recipe_is_flat_top(rec):
+        patch_w_px = rects[0]["h"]
+    if recipe_is_hexagonal(rec):
+        # RESOLVED, never the raw flag: a recipe can carry a tick made on a
+        # CR30 long after the user has moved to another instrument.
+        if recipe_is_flat_top(rec):
+            # ROTATED: THE OVERHANG CHANGES AXIS, and the sentence above
+            # inverts with it. The flat sides are now the top and bottom, so
+            # they span exactly the slot vertically and no VERTICAL expansion is
+            # right; the apexes stick out sideways instead. Left alone, this
+            # tool understates the left and right margins by pwid/6 (1.73 mm at
+            # a 12 mm hexagon) and overstates the top and bottom by the same,
+            # which is the opposite of useful on the one tool whose whole job is
+            # telling the user whether the ink clears the paper edge.
+            w_px = max(r["w"] for r in rects)
+            x0 -= w_px / 6.0      # left apex of the first column
+            x1 += w_px / 6.0      # right apex of the last column
+        else:
+            h_px = max(r["h"] for r in rects)
+            y0 -= h_px / 6.0      # upper apex of the top row
+            y1 += h_px / 6.0      # lower apex of the bottom row
+    return x0, x1, y0, y1, patch_w_px
+
+
+def engine_patch_bottom_mm(recipe, patches: int = 0) -> "Optional[float]":
+    """Where a recipe's patch INK would end, in mm from the page's top edge.
+
+    **THE MEASURED QUESTION, ASKED OF A SHEET THAT DOES NOT EXIST YET.** It
+    builds the geometry, lays the patches out and widens them by
+    :func:`engine_ink_bounds_px` -- the very function that measures a BUILT
+    chart -- so the answer is the one "Measured from Preview" would show for
+    this recipe, not the grid box `geometry.compute` returns.
+
+    That distinction is the whole point. The prediction it replaces read the
+    grid box and answered 18.60 mm on a flat-top honeycomb whose ink really
+    ends at 15.82, because the last row's apexes hang below the box. A search
+    built on that number names a margin that does not clear.
+
+    Returns ``None`` when the candidate cannot be laid out at all (a margin the
+    paper will not take), which a caller reads as "does not clear".
+    """
+    try:
+        from workflow.layout_engine import geometry, instruments, papers
+        kw = recipe.build_kwargs()
+        geom = instruments.geom_from_build_kwargs(kw)
+        paper_w_mm, paper_h_mm = papers.dimensions_mm(recipe.paper)
+        dpi = float(getattr(recipe, "dpi", 300) or 300)
+        # THE PATCH COUNT THIS RECIPE IS FOR. `area_target_count` is what the
+        # chart builder puts in, and it is what decides how many rows the last
+        # strip has -- which is the row whose bottom edge this whole function
+        # is about.
+        n = int(kw.get("area_target_count") or 0) or int(patches or 0) or 1000
+        layout = geometry.compute(geom, paper_w_mm, paper_h_mm, n)
+        rects = geometry.patch_rects_px(geom, paper_w_mm, paper_h_mm,
+                                        layout, int(dpi))
+        page0 = [r for r in rects if int(r.get("page", 0)) == 0] or rects
+        if not page0:
+            return None
+        # **THE RECIPE'S OWN FIELDS, NOT `build_kwargs()`.**
+        # `engine_ink_bounds_px` rebuilds a `LayoutRecipe` out of what it is
+        # given and keeps only keys that are field names. `build_kwargs()`
+        # renames several of them ("helper_marker_edge" for
+        # "helper_marker_edge_mm", and so on), so handing it those produced a
+        # DEFAULT recipe: the honeycomb ring band went missing and this
+        # answered 19.853 mm where the built chart measures 18.964 -- 0.889 mm,
+        # which is the ring correction to the tenth.
+        # `to_dict`, not `asdict`: it carries B8-1570's mark, so a recipe
+        # being planned is read by today's rule, not as a pre-fix chart.
+        _x0, _x1, _y0, y1, _pw = engine_ink_bounds_px(
+            page0, recipe.to_dict(), dpi)
+        return float(paper_h_mm) - float(y1) * _MM_PER_INCH / dpi
+    except Exception:          # noqa: BLE001 - a prediction, never a blocker
+        return None
+
+
 def measure_from_engine(
     channels_path: "Path | str", page_idx: int = 0,
 ) -> "tuple[Optional[MarginReport], Optional[float]] | None":
@@ -241,57 +434,15 @@ def measure_from_engine(
     px2mm = _MM_PER_INCH / dpi
     paper_w_mm, paper_h_mm = float(pm[0]), float(pm[1])
 
-    x0 = min(r["x"] for r in rects)
-    x1 = max(r["x"] + r["w"] for r in rects)
-    y0 = min(r["y"] for r in rects)
-    y1 = max(r["y"] + r["h"] for r in rects)
-
-    # Edge spacers bracket each strip with one spacer ABOVE the first patch and
-    # one BELOW the last (raster.render_pages), so the printed content reaches
-    # pspa past the patch rects along the strip axis. The recorded patch rects
-    # don't include them, so add that overhang here — otherwise the top/bottom
-    # margins under-report and the measured-margin guides land inside the edge
-    # spacers, which then look like they overflow the margins (Knut #18). Along
-    # the strip axis (vertical in the printtarg frame) only.
     rec = layout.get("recipe") or {}
-    if rec.get("edge_spacers"):
-        try:
-            from dataclasses import fields as _fields
-            from workflow.layout_engine import instruments
-            from workflow.layout_engine.presets import LayoutRecipe
-            _valid = {f.name for f in _fields(LayoutRecipe)}
-            _rc = LayoutRecipe(**{k: v for k, v in rec.items() if k in _valid})
-            _g = instruments.geom_from_build_kwargs(_rc.build_kwargs())
-            _sp_px = round(_g.pspa * dpi / _MM_PER_INCH)
-            if _sp_px > 0:
-                y0 -= _sp_px
-                y1 += _sp_px
-        except Exception:  # pragma: no cover - defensive; fall back to patch rects
-            pass
-
-    # SpectroScan hexagonal patches are DRAWN beyond their slot rectangles: the
-    # top/bottom apex pokes ph/6 past the slot (reserved as hxeh) — see
-    # raster._hexagon_points. So the true ink extremes, and thus the margins
-    # Knut wants the guides to mark, are the hex tips, not the slot box (#28).
-    #
-    # ONLY the apex. The ±¼·w row stagger is ALREADY in the recorded rects —
-    # `geometry.patch_rects_px` applies it when it writes them, precisely so
-    # that everything reading this geometry describes where the ink is. Adding
-    # it again here double-counted it by w/4: 3.0 mm at a 12 mm hexagon, 5.0 mm
-    # at 20 mm, reported as margin that does not exist. The hexagon's flat sides
-    # span exactly the staggered slot, so no horizontal expansion is right.
-    from workflow.hex_support import recipe_is_hexagonal
-    if recipe_is_hexagonal(rec):
-        h_px = max(r["h"] for r in rects)
-        y0 -= h_px / 6.0          # upper apex of the top row
-        y1 += h_px / 6.0          # lower apex of the bottom row
+    x0, x1, y0, y1, patch_w_px = engine_ink_bounds_px(rects, rec, dpi)
 
     report = MarginReport(
         left_mm=max(0.0, x0 * px2mm),
         right_mm=max(0.0, paper_w_mm - x1 * px2mm),
         top_mm=max(0.0, y0 * px2mm),
         bottom_mm=max(0.0, paper_h_mm - y1 * px2mm),
-        strip_width_mm=rects[0]["w"] * px2mm,        # exact patch width (pwid)
+        strip_width_mm=patch_w_px * px2mm,           # exact patch width (pwid)
         page_w_mm=paper_w_mm, page_h_mm=paper_h_mm,
         strip_length_mm=(y1 - y0) * px2mm,
         dpi=dpi,
@@ -340,6 +491,16 @@ def _estimate_patch_width_mm(block_w_mm: float, n_strips: int) -> Optional[float
     page *width* and the patch width is the block width ÷ strip count. This is
     what a ruler measures across a strip and matches the ``.cht`` XLIST pitch
     (verified against ColorMunki double-/triple-density and landscape charts).
+
+    **ON A TURNED HONEYCOMB THIS IS THE COLUMN PITCH, NOT THE PATCH, AND IT
+    CANNOT BE HELPED HERE.** `measure_from_engine` reports the across-flats
+    measure in both orientations (see its own note); this function is the
+    fall-back for a chart with no `channels.json`, so it has no recipe and
+    cannot know which way the hexagons point. Measured 2026-09-13 on one chart
+    through both paths: `measure_from_engine` 10.922 mm, this 9.638 mm. It is a
+    pixel estimate for a chart ChromIQ has no geometry for, and the honest thing
+    is to say so rather than guess an orientation from a bitmap. Registered as
+    B8-108.
     """
     if n_strips < 1:
         return None

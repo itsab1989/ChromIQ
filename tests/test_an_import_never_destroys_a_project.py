@@ -24,7 +24,7 @@ def _project(root: pathlib.Path) -> pathlib.Path:
 
 @pytest.fixture()
 def work():
-    return pathlib.Path(tempfile.mkdtemp())
+    return pathlib.Path(tempfile.mkdtemp(prefix="chromiq-test-"))
 
 
 def test_a_replaced_project_is_still_readable_afterwards(work):

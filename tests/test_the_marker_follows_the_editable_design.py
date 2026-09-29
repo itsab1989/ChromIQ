@@ -17,15 +17,37 @@ def _app():
     return QApplication.instance() or QApplication([])
 
 
-def test_the_marker_counts_are_exactly_115_6_and_9():
+def test_the_marker_counts_are_what_the_registry_holds():
     knut = list(tc.KNUT_PRESETS)
     marked = [p for p in knut if p.has_full_layout_setup]
     unmarked = [p for p in knut if not p.has_full_layout_setup]
 
-    assert len(tc.BUILTIN_PRESET_KEYS) == 130
-    assert len(tc.PREBUILT_PRESETS) == 9        # the "by Pharmacist" rows
-    assert (len(marked), len(unmarked)) == (115, 6)
-    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 130
+    # 2026-09-06: +20 CR30 charts, every one shipping a recipe.json sidecar, so
+    # the marked count moves and the unmarked one does not.
+    # 2026-09-08: +2 prebuilt photo-card charts (Nelson Lau's 10x15 and 13x18),
+    # which carry no recipe.json, so only the prebuilt count moves.
+    # 2026-09-09: +2 ENGINE-built photo cards by Knut (10x15 and 13x18, his own
+    # margins), each shipping a recipe.json sidecar, so the marked count moves.
+    # 2026-09-12: +6 CR30 straight-strip charts, the honeycomb turned 30
+    # degrees; each ships a recipe.json sidecar, so again only marked moves.
+    # 2026-09-17 (issue #182): +13 engine-built photo cards by Knut, eleven new
+    # patch counts on the same two cards plus the "Maximised - No Clip-border"
+    # cut; each ships a recipe.json sidecar, so only the marked count moves.
+    # 2026-09-18: +4 more of the same family, one sheet each.
+    # 2026-09-22 (issue #182, K1): +8 of Knut's 7.5 mm i1Pro "Maximised - No
+    # Clip-border" charts on A4 and Letter; each ships a recipe.json sidecar,
+    # so only the marked count moves.
+    # 2026-09-27 (beta 47, #182 5860041950): seven of the eleven prebuilt "by
+    # Pharmacist" images withdrawn, and nine "by Pharmacist" charts with a page
+    # layout added. Eight ship a recipe.json and are marked; the TC3.00 Target
+    # ships none and carries "Layout, but no editor setup" instead.
+    # 4.3.1 (#182 5875467209): the last four prebuilt images withdrawn, and
+    # five "by Pharmacist" charts with a page layout added, each with a
+    # recipe.json, so all five are marked.
+    assert len(tc.BUILTIN_PRESET_KEYS) == 188
+    assert len(tc.PREBUILT_PRESETS) == 0        # none ships since 4.3.1
+    assert (len(marked), len(unmarked)) == (181, 7)
+    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 188
 
 
 def test_no_red_river_row_carries_the_marker():
@@ -39,7 +61,8 @@ def test_no_red_river_row_carries_the_marker():
 
 def test_every_other_family_still_carries_it():
     """THE CONTROL. "mark nothing" must not pass the two tests above."""
-    others = [p for p in tc.KNUT_PRESETS if p.display_group != "Red River Paper"]
+    others = [p for p in tc.KNUT_PRESETS if p.display_group != "Red River Paper"
+              and not p.layout_only]
     assert others, "no non-Red-River presets found"
     assert all(p.has_full_layout_setup for p in others)
     assert all(tc.KNUT_FLS_SUFFIX in p.marked_name for p in others)

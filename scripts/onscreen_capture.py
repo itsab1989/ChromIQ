@@ -1,0 +1,441 @@
+#!/usr/bin/env python3
+"""Photograph a real window, or say plainly that it could not be done.
+
+CLAUDE.md: a `widget.grab()` render is not a screenshot, and an on-screen run
+that cannot open or photograph a window is a FINDING to report, never a silent
+fallback. This module exists because a driver found the opposite failure: it
+called ``screencapture -R`` on the window's frame rectangle, got back 4.4 MB of
+desktop wallpaper, and its own "a real screenshot was taken" check passed on the
+file size. The screen was LOCKED. macOS keeps drawing into the window server
+while the session is locked, so the window really was there, and every capture
+came back as the desktop picture with no window, no menu bar and no dock.
+
+Two guards, because either alone can be fooled:
+
+* ``session_is_locked()`` asks the window server directly. A locked session
+  cannot produce a photograph of anything, so the capture is refused before it
+  is taken rather than judged afterwards.
+* ``capture_window()`` then proves the picture actually contains the window: it
+  photographs the same rectangle with the window hidden and requires the two to
+  differ. A permission failure, a window on another Space and a window behind
+  another application all fail that test; a real photograph passes it.
+
+``CGPreflightScreenCaptureAccess`` is NOT one of the guards. It answered True on
+the locked session that produced the wallpaper.
+"""
+from __future__ import annotations
+
+import ctypes
+import subprocess
+import time
+from pathlib import Path
+
+
+def session_is_locked() -> bool:
+    """Whether the login session's screen is locked, per the window server."""
+    try:
+        cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework"
+                         "/CoreGraphics")
+        cf = ctypes.CDLL("/System/Library/Frameworks/CoreFoundation.framework"
+                         "/CoreFoundation")
+        cg.CGSessionCopyCurrentDictionary.restype = ctypes.c_void_p
+        cf.CFDictionaryGetValue.restype = ctypes.c_void_p
+        cf.CFDictionaryGetValue.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
+        cf.CFStringCreateWithCString.restype = ctypes.c_void_p
+        cf.CFStringCreateWithCString.argtypes = [ctypes.c_void_p, ctypes.c_char_p,
+                                                 ctypes.c_uint32]
+        cf.CFNumberGetValue.argtypes = [ctypes.c_void_p, ctypes.c_int,
+                                        ctypes.c_void_p]
+        d = cg.CGSessionCopyCurrentDictionary()
+        if not d:
+            return False
+        key = cf.CFStringCreateWithCString(None, b"CGSSessionScreenIsLocked",
+                                           0x08000100)   # kCFStringEncodingUTF8
+        v = cf.CFDictionaryGetValue(d, key)
+        if not v:
+            return False
+        out = ctypes.c_int()
+        cf.CFNumberGetValue(v, 9, ctypes.byref(out))       # kCFNumberIntType
+        return bool(out.value)
+    except Exception:                                      # noqa: BLE001
+        return False
+
+
+def wake_the_screen(timeout: float = 6.0) -> tuple[bool, str]:
+    """Try to clear a locked screen, and say what happened.
+
+    **A LOCKED SCREEN IS NOT AUTOMATICALLY A BLOCKER, AND ONE ROUND REPORTED IT
+    AS ONE.** Basti, 2026-09-13: *"my screen never needs a password to be
+    unlocked"*. On a session with no password on the lock, asserting user
+    activity dismisses it, and every capture then works. The round that spent a
+    morning writing "the screen is locked, so there are no photographs" had the
+    fix available the whole time and never tried it. That is also the honest
+    explanation for why earlier rounds "managed to unlock the screen" and this
+    one did not: nobody unlocked anything, they woke a display that happened to
+    be asleep.
+
+    So the order is: ask, WAKE, ask again, and only then give up. When a
+    password IS required the wake changes nothing and the caller gets the same
+    refusal it always got, with the difference that it has now been earned.
+
+    ``caffeinate -u`` asserts user activity; it does not type anything and it
+    cannot defeat a password.
+    """
+    if not session_is_locked():
+        return True, "the screen was not locked"
+    try:
+        subprocess.run(["caffeinate", "-u", "-t", "1"], timeout=10,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:                                      # noqa: BLE001
+        return False, "caffeinate could not be run"
+    end = time.time() + timeout
+    while time.time() < end:
+        if not session_is_locked():
+            return True, "the screen was locked and a wake cleared it"
+        time.sleep(0.25)
+    return False, ("the screen is locked and a wake did NOT clear it, so this "
+                   "session wants a password; unlock it by hand")
+
+
+def _by_geometry(win, cands: list, slack: float = 24.0):
+    """The candidate whose bounds are where *win* says it is, or None.
+
+    Separate from :func:`window_id_for` so a test can drive it with plain
+    dictionaries and no window server at all: the fault it fixes is a CHOICE
+    between two windows, and a choice can be proved without photographing
+    anything.
+
+    ``slack`` is in points and covers the frame shadow and a window the server
+    has just finished moving. A match must be the closest candidate AND within
+    the slack, so two windows genuinely stacked on the same rectangle still
+    fall through to the caller's size rule rather than being guessed at.
+    """
+    try:
+        g = win.frameGeometry()
+        want = (float(g.x()), float(g.y()), float(g.width()), float(g.height()))
+    except Exception:                                      # noqa: BLE001
+        return None
+    if want[2] <= 0 or want[3] <= 0:
+        return None
+
+    def _off(w) -> float:
+        b = w.get("kCGWindowBounds") or {}
+        try:
+            got = (float(b["X"]), float(b["Y"]),
+                   float(b["Width"]), float(b["Height"]))
+        except (KeyError, TypeError, ValueError):
+            return float("inf")
+        return max(abs(a - c) for a, c in zip(want, got))
+
+    best = min(cands, key=_off, default=None)
+    return best if best is not None and _off(best) <= slack else None
+
+
+def window_id_for(win) -> "int | None":
+    """The CGWindowID of *win*, found by this process's pid and the title.
+
+    **A WINDOW DOES NOT HAVE TO BE IN FRONT TO BE PHOTOGRAPHED, and requiring
+    it to be cost this round its pictures too.** `screencapture -R` copies a
+    RECTANGLE of the screen, so anything stacked above the window is what comes
+    out, and the guard below correctly refused it: the app's window sat behind
+    the terminal that launched it, and the capture was 0 % different from the
+    same rectangle with the window hidden. `win.raise_()` cannot fix that on
+    macOS, because a process that was never activated cannot bring itself to
+    the front.
+
+    `screencapture -l <id>` copies the WINDOW's own buffer instead, so the
+    stacking order stops mattering. Returns None when pyobjc is not installed
+    or the window cannot be matched, and the caller falls back to the rectangle.
+    """
+    try:
+        import Quartz
+    except ImportError:
+        return None
+    import os as _os
+    try:
+        title = win.windowTitle()
+        pid = _os.getpid()
+
+        def _own(option) -> list:
+            infos = Quartz.CGWindowListCopyWindowInfo(
+                option | Quartz.kCGWindowListExcludeDesktopElements,
+                Quartz.kCGNullWindowID) or []
+            return [w for w in infos
+                    if int(w.get("kCGWindowOwnerPID", -1)) == pid]
+
+        # ON SCREEN FIRST, THEN ALL, AND THE SECOND HALF IS NOT OPTIONAL.
+        # `kCGWindowListOptionOnScreenOnly` lists what the window server is
+        # currently compositing, so a window on another Space, or one the
+        # display dropped while it slept, is simply absent and this returned
+        # None. The caller then fell through to the rectangle route, which
+        # cannot photograph an unfocused window and correctly refused: measured
+        # 2026-09-13, two of five captures in one run were lost that way, the
+        # same two on a re-run. `CGWindowListCreateImage` does not need the
+        # window to be composited, so the id is worth having either way.
+        import time as _time
+        # **A WINDOW JUST SHOWN IS NOT YET WHERE QT SAYS IT IS.** Measured on
+        # K2's driver, 2026-09-22: a message box `show()`n 900 ms earlier had
+        # no title the window server knew and bounds that did not yet match
+        # its `frameGeometry`, so the old fallback took the biggest window this
+        # process owns and filed a photograph of the MAIN WINDOW under the
+        # popup's name, 3 of 4 times on one run and 0 of 4 on the next. So ask
+        # again for up to a second, and then give up rather than guess.
+        pick = None
+        for _attempt in range(10):
+            cands = _own(Quartz.kCGWindowListOptionOnScreenOnly) \
+                or _own(Quartz.kCGWindowListOptionAll)
+            pick = _pick_window(win, cands, title)
+            if pick is not None:
+                break
+            _time.sleep(0.1)
+        return None if pick is None else int(pick["kCGWindowNumber"])
+    except Exception:                                      # noqa: BLE001
+        return None
+
+
+def _pick_window(win, cands: list, title: str):
+    """Which of this process's windows is *win*, or None when it cannot tell.
+
+    A title the window server knows is trusted, and among several windows
+    carrying it the geometry decides, then the size. **With no title match,
+    only the geometry may answer.** The old rule fell back to the biggest
+    window, which is right for a main window and wrong for every popup whose
+    title the server has not been told (macOS gives a `QMessageBox` none), and
+    a wrong id photographs a real window, so nothing downstream can see it.
+    """
+    if not cands:
+        return None
+    # A Qt app also owns tiny helper windows (tooltips, shadows), so a title
+    # match is preferred over the whole list.
+    # **AN EMPTY TITLE MATCHES NOTHING (adversary round on 528b7cfc).** On
+    # macOS Qt compiles `QMessageBox::setWindowTitle` out, so every message
+    # box asks for title "", and "every window whose name is empty" is then
+    # every untitled window of the process: a message box behind the one
+    # asked for, a sheet, a helper. The size rule then answered for the wrong
+    # box, measured on screen. With no title only the geometry may answer.
+    named = [w for w in cands
+             if title and str(w.get("kCGWindowName") or "") == title]
+    # THE GEOMETRY DECIDES BEFORE THE SIZE DOES, AND "biggest" ALONE
+    # PHOTOGRAPHED THE WRONG WINDOW FOR AS LONG AS THIS HELPER HAS EXISTED.
+    #
+    # `ui.tooltip_button.InfoDialog` takes its PARENT's title, so a message
+    # box over the Reference values window is also called "Reference
+    # values". Both then land in `named`, `max(..., area)` picks the parent
+    # because a message box is smaller than the window it covers, and the
+    # capture comes back as the window BEHIND the thing it is filed as.
+    # Measured on challenge round 31 against the pictures of round 30:
+    # `C-said-en-1.png`, `E-stop-said-en-1.png` and `G-zip-said-en-1.png`
+    # are all photographs of the parent, greyed out, with the sentence they
+    # are named for nowhere in them. Nothing was faked; the helper simply
+    # answered a different question.
+    #
+    # A widget knows where it is, so ask. `frameGeometry` is in logical
+    # points and `kCGWindowBounds` is too (both are in the display's
+    # points, not device pixels), so they compare directly, with a few
+    # points of slack for the shadow and for a window the server has just
+    # moved. Only a TITLE match may fall back to the size rule; see the
+    # docstring for why no title and no geometry is None.
+    exact = _by_geometry(win, named or cands)
+    if exact is not None or not named:
+        return exact
+    return max(named, key=lambda w: (w["kCGWindowBounds"]["Width"]
+                                     * w["kCGWindowBounds"]["Height"]))
+
+
+def _grab_window_id(wid: int, path: Path) -> bool:
+    """Photograph one window by id, through Quartz rather than the CLI.
+
+    **`screencapture -l` DOES NOT WORK ON THIS MACHINE AND THE API BEHIND IT
+    DOES.** Measured 2026-09-13 on macOS 15.6 (Darwin 24.6.0), Screen Recording
+    granted, screen unlocked, on a plain Qt window this process had just
+    opened:
+
+    | route | result |
+    |---|---|
+    | `screencapture -R <the window's rect>` | the DESKTOP PICTURE. The window is not composited on the Space being captured, so the rectangle contains wallpaper, and `capture_window`'s hide/show guard correctly called it 0 % different |
+    | `screencapture -l <window id>` | exit 1, *"could not create image from window"* |
+    | `CGWindowListCreateImage(..., kCGWindowListOptionIncludingWindow, wid, ...)` | **a 700x528 picture of the window, title bar and all** |
+
+    The CLI is the one thing that fails. CLAUDE.md recorded *"could not create
+    image from window"* as a symptom of the missing Screen Recording grant; it
+    survives the grant, so it is not that.
+
+    The Quartz route also does not care about stacking or Spaces, which is what
+    makes it usable from a driver: the app never has to steal focus, and on
+    macOS 15 it cannot anyway (`NSRunningApplication.activateWithOptions_`
+    returns True and `isActive` stays False).
+    """
+    try:
+        import Quartz
+        from CoreFoundation import (CFURLCreateWithFileSystemPath,
+                                    kCFURLPOSIXPathStyle)
+    except ImportError:
+        return False
+    try:
+        img = Quartz.CGWindowListCreateImage(
+            Quartz.CGRectNull,
+            Quartz.kCGWindowListOptionIncludingWindow,
+            wid,
+            Quartz.kCGWindowImageBoundsIgnoreFraming
+            # BEST, NOT NOMINAL. `kCGWindowImageNominalResolution` hands back a
+            # 1x picture of a 2x window, so every device pixel in the window is
+            # averaged with its neighbour before anyone can look at it. A
+            # tester found a one-device-pixel gap along the bottom of a split
+            # patch (2026-09-17) that this helper physically could not show:
+            # measured on the same window, nominal 560x1028, best 1120x2056,
+            # and the offending row is only in the second. Proof of a pixel
+            # must be taken at the resolution the pixel exists at.
+            | Quartz.kCGWindowImageBestResolution)
+        if img is None or Quartz.CGImageGetWidth(img) < 1:
+            return False
+        url = CFURLCreateWithFileSystemPath(None, str(path),
+                                            kCFURLPOSIXPathStyle, False)
+        dest = Quartz.CGImageDestinationCreateWithURL(url, "public.png", 1, None)
+        if dest is None:
+            return False
+        Quartz.CGImageDestinationAddImage(dest, img, None)
+        if not Quartz.CGImageDestinationFinalize(dest):
+            return False
+    except Exception:                                      # noqa: BLE001
+        return False
+    return path.exists() and path.stat().st_size > 0
+
+
+def _grab_region(rect: str, path: Path) -> bool:
+    try:
+        subprocess.run(["screencapture", "-x", "-R", rect, str(path)],
+                       check=True, timeout=30,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:                                      # noqa: BLE001
+        return False
+    return path.exists() and path.stat().st_size > 0
+
+
+def _is_one_flat_colour(path: Path) -> bool:
+    """True when every sampled pixel of *path* is the same colour.
+
+    **A WINDOW IS NEVER ONE COLOUR, AND A FAILED BUFFER OFTEN IS.** Measured
+    2026-09-13: `CGWindowListCreateImage` returned a 960x717 image of pure
+    black (mean 0.0) for a real, visible, correctly sized dialog, and the size
+    check below waved it through because 960x717 is a plausible window. The
+    round that produced it then compared that black rectangle against a good
+    capture, got "34.75 % of pixels differ", and filed the pair as proof that
+    two scans behaved differently. They did, but not one pixel of that picture
+    showed it.
+
+    The same shape as the wallpaper trap the region route already guards, and
+    it needs its own guard because the window-id route skips that one: a window
+    id cannot return the desktop, so nothing was checking what it DID return.
+    """
+    from PyQt6.QtGui import QImage
+    im = QImage(str(path))
+    if im.isNull():
+        return True
+    first = im.pixel(0, 0)
+    for y in range(0, im.height(), 7):
+        for x in range(0, im.width(), 7):
+            if im.pixel(x, y) != first:
+                return False
+    return True
+
+
+def _difference(a: Path, b: Path) -> float:
+    """Share of sampled pixels that differ between two captures, 0..1."""
+    from PyQt6.QtGui import QImage
+    ia, ib = QImage(str(a)), QImage(str(b))
+    if ia.isNull() or ib.isNull() or ia.size() != ib.size():
+        return 1.0 if not (ia.isNull() or ib.isNull()) else 0.0
+    n = diff = 0
+    for y in range(0, ia.height(), 4):
+        for x in range(0, ia.width(), 4):
+            n += 1
+            ca, cb = ia.pixel(x, y), ib.pixel(x, y)
+            if ca != cb:
+                diff += 1
+    return diff / n if n else 0.0
+
+
+def capture_window(win, path: Path, settle: float = 0.6,
+                   min_difference: float = 0.25) -> tuple[bool, str]:
+    """Photograph *win* into *path*. Returns (ok, why-not).
+
+    The caller is expected to REPORT a False at the top of its result. The file
+    is not left behind when the capture could not be proved, so a later reader
+    cannot mistake wallpaper for evidence.
+    """
+    from PyQt6.QtWidgets import QApplication
+    # ASK, WAKE, ASK AGAIN. See `wake_the_screen`: a lock with no password on
+    # it is cleared by asserting user activity, and refusing before trying is
+    # what turned one round's proof into a paragraph of excuses.
+    if session_is_locked():
+        woke, why = wake_the_screen()
+        if not woke:
+            return False, ("the login session's screen is LOCKED and a wake "
+                           f"did not clear it ({why}), so the window server "
+                           "hands every capture the desktop picture instead "
+                           "of the window; unlock the screen and run again")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    win.raise_()
+    win.activateWindow()
+    QApplication.processEvents()
+    time.sleep(settle)
+
+    # THE WINDOW'S OWN BUFFER FIRST. `-l` does not care what is stacked above
+    # it, so the app does not have to steal focus from whatever launched it,
+    # and the hide/show proof below is unnecessary: a window id cannot return
+    # the desktop. The size is checked instead, because a minimised or
+    # zero-sized window would give a picture of nothing.
+    wid = window_id_for(win)
+    if wid is not None:
+        # THREE TRIES, BECAUSE AN EMPTY BUFFER IS OFTEN JUST AN EARLY ONE.
+        # Measured 2026-09-13: on a run that began with the screen locked, two
+        # of five captures came back as one flat colour and both succeeded on
+        # the next attempt a moment later. The window server has the window;
+        # it has not finished painting into the buffer this call reads. So the
+        # flat-colour refusal below is a LAST word, not a first one.
+        from PyQt6.QtGui import QImage
+        for attempt in range(3):
+            if attempt:
+                QApplication.processEvents()
+                time.sleep(0.5)
+                # ASK AGAIN WHICH WINDOW IT IS. A native window can be
+                # recreated under the same QWidget, and an id that was right
+                # a second ago photographs nothing.
+                wid = window_id_for(win) or wid
+            if not _grab_window_id(wid, path):
+                continue
+            im = QImage(str(path))
+            big = not im.isNull() and im.width() > 200 and im.height() > 200
+            # ...AND IT HAS TO HAVE SOMETHING IN IT. See `_is_one_flat_colour`:
+            # a plausible size is not a picture, and an empty buffer of the
+            # right size was filed as evidence once.
+            if big and not _is_one_flat_colour(path):
+                return True, ""
+            path.unlink(missing_ok=True)
+
+    g = win.frameGeometry()
+    rect = f"{g.x()},{g.y()},{g.width()},{g.height()}"
+    if not _grab_region(rect, path):
+        return False, "screencapture refused the window's rectangle"
+
+    # Prove the picture contains the WINDOW and not what is behind it.
+    empty = path.with_name(path.stem + "__behind.png")
+    win.hide()
+    QApplication.processEvents()
+    time.sleep(0.35)
+    got_empty = _grab_region(rect, empty)
+    win.show()
+    win.raise_()
+    QApplication.processEvents()
+    time.sleep(settle)
+    if not got_empty:
+        empty.unlink(missing_ok=True)
+        return True, ""            # cannot prove it either way; keep the file
+    d = _difference(path, empty)
+    empty.unlink(missing_ok=True)
+    if d < min_difference:
+        path.unlink(missing_ok=True)
+        return False, (f"the capture is {d:.0%} different from the same "
+                       "rectangle with the window HIDDEN, so it is a picture "
+                       "of what is behind the window, not of the window")
+    return True, ""

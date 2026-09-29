@@ -125,8 +125,19 @@ def test_generate_routes_through_the_gamut_pipeline(qapp, tmp_path, monkeypatch)
     monkeypatch.setattr("workflow.gamut_target.select_gamut_targets",
                         fake_select)
     built: list = []
-    monkeypatch.setattr(tab, "_generate_from_ti1",
-                        lambda ti1, **kw: built.append(Path(ti1)))
+
+    def _fake_build(ti1, **kw):
+        # THE DOUBLE HAS TO CLEAR THE LOG, because the real one does -- and
+        # the capped-and-said-so line below used to be written BEFORE this
+        # call and wiped by it. With a double that only records, this
+        # assertion passed while the user saw nothing at all (2026-09-11:
+        # 542 colours asked for, a 25-patch chart, no notice). It also has to
+        # return True: "the build started" is what says the notice describes
+        # a chart that exists.
+        tab._log.clear()
+        built.append(Path(ti1))
+        return True
+    monkeypatch.setattr(tab, "_generate_from_ti1", _fake_build)
     tab._gamut_count_spin.setValue(100)
 
     tab._on_generate()

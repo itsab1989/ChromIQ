@@ -1,0 +1,1881 @@
+"""The Report limits window (#182): every limit set side by side, editable
+where Knut ruled it editable, read-only where a standard defines the numbers.
+
+Knut's rulings this window is built from (issue #182, 2026-09-05 to 07):
+
+* **K1 / D15** the big table leaves the Preferences tab and becomes its own
+  window, opened from the Reports frame; every limit written out in full,
+  ChromIQ's own rows included.
+* **D29** the window EDITS: input boxes for ChromIQ's three sets and the two
+  Custom sets; the ISO columns are read-only; per-set checkboxes choose which
+  columns are shown.
+* **K-a** shape A: rows are grouped by the patches a limit is written over; a
+  statistic ChromIQ computes and a standard also limits is one row.
+* **K-b** all columns on by default; the choice is remembered per profile run
+  when the window is opened from the report window.
+* **D16** three cell states beyond a number: ``–`` the set defines no limit,
+  ``✕`` ChromIQ cannot measure it (the row stays in the table so the user sees
+  what a standard asks), ``?`` the number is in a clause ChromIQ does not hold
+  or may not show.
+* **D21** "Restore defaults" per editable column (named "Restore this
+  column" until 2026-09-22), kept apart from the
+  Preferences window's global Restore Factory Defaults.
+* **D11 / D24** the note at the foot: what ChromIQ cannot evaluate, and that
+  it does not certify anything.
+
+Two doors, two behaviours (CH-19). From **Preferences** the window edits a
+buffer the Preferences dialog owns; the blob is written on Preferences Save
+and dropped on Cancel, like every other control on that tab. From the
+**Measurement Report window** there is no Save around it, so edits are written
+as they are made, and a first column "This report" holds the report's own
+limits, in memory until Generate report writes them into the report (K31;
+it was the run's own copy, "This run", editable only while the run was
+unlocked, until the run lock was removed).
+
+Every signal is connected to a bound method that reads ``self.sender()``. A
+lambda or a ``functools.partial`` capturing ``self`` on a child widget's
+signal is the shape that segfaulted the app (CLAUDE.md), and this window
+holds up to two hundred spin boxes.
+"""
+from __future__ import annotations
+
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont, QFontMetrics
+from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QDialog, QFrame,
+                             QGridLayout, QHBoxLayout, QLabel, QPushButton,
+                             QRadioButton, QScrollArea, QSizePolicy,
+                             QVBoxLayout, QWidget)
+
+from core.i18n import tr
+from core.logger import get_logger
+from ui.dialogs.reference_values_dialog import SMALL_BTN_QSS
+from ui.fade_scroll import attach_edge_fades
+from pathlib import Path
+
+from ui.styles import ACCENT_WARN, SPEC_GREEN
+from ui.tab_header import dialog_masthead
+from ui.tooltip_button import TooltipButton
+from ui.theme import resolve_mode
+from ui.widgets import NoScrollDoubleSpinBox, WorkAreaClamped
+from workflow.compliance_sets import (GROUP_LABELS, GROUP_ORDER, ROWS, SET_BY_ID,
+                                      SETS, Limit, effective_limits,
+                                      factory_limits, limit_text, rows_in_group,
+                                      selectable_set_ids)
+
+log = get_logger(__name__)
+
+#: the "This report" pseudo column id (it was "This run" until K31; the id is
+#: kept so a caller's reference to the first column still resolves)
+RUN_COLUMN = "__run__"
+
+#: Gap between the items of the "Show:" row. Named, because the number is the
+#: whole of the fix: the row holds up to eight ticks with long names, and the
+#: style's own spacing left none between one name and the next tick.
+SHOW_ROW_SPACING_PX = 24
+
+
+class ReportLimitsColumn:
+    """The "This report" column: a REPORT's own limits (#182 K30, K31).
+
+    Knut, 5798461562: *"all settings belong to a report, not a specific
+    run"*, and 5801677743: *"the limit set belongs to the report that is
+    made for the profile run"*. Since K31 this is the first column from every
+    report window, one profile run or several: it stands in for a run, in
+    memory only, answering `load_meta` / `save_meta` exactly as a run does for
+    the fields this window reads and writes, and nothing it holds ever reaches
+    a disk. The report window reads the edited numbers back with `limits`,
+    and the column choice (a view setting, K-b) with `columns`.
+    """
+
+    def __init__(self, lim, columns: "list | None" = None) -> None:
+        import copy
+        from core.file_manager import RunMeta
+        from workflow.compliance_sets import limits_to_json
+        self.dir = Path("report")
+        m = RunMeta()
+        m.compliance_set_id = lim.set_id
+        m.compliance_set_label = lim.label_en
+        m.compliance_thresholds = limits_to_json(lim.limits)
+        m.compliance_columns = list(columns or [])
+        self._meta = m
+        self._copy = copy.deepcopy
+
+    def load_meta(self):
+        return self._copy(self._meta)
+
+    def save_meta(self, meta) -> None:
+        self._meta = self._copy(meta)
+
+    def columns(self) -> "list":
+        return list(self._meta.compliance_columns or [])
+
+    def limits(self) -> "dict":
+        from workflow.compliance_sets import limits_from_json
+        return limits_from_json(self._meta.compliance_thresholds,
+                                self._meta.compliance_set_id)
+
+
+def _heading(text: str) -> str:
+    """A section heading of a row's help, in bold in the help window (Knut,
+    #182 5856723428: a heading that is plain in the app "disappears"). The
+    marks go round the TRANSLATED heading, so the catalogue key stays the
+    plain English phrase."""
+    from core.help_markup import MARK
+    return MARK + text + MARK
+
+
+def _stored_column(run) -> "dict | None":
+    """Everything about the run that a Report limits window can write, straight
+    off its `meta.json`, so that another window's write can be seen.
+
+    BOTH KEYS, BECAUSE THE UNDO PUTS BOTH BACK. This watched
+    `compliance_thresholds` alone while `_undo_the_edit` restores
+    `compliance_columns` as well, so another window's choice of which columns
+    the report shows was reverted with no collision reported and nothing said.
+
+    None only when the run itself is missing. `Run.load_meta` answers a
+    truncated or absent file with a fresh `RunMeta` rather than raising, on
+    purpose (Knut's D2), so a corrupt meta reads here as an unbound run and
+    this function cannot tell them apart. Saying so rather than implying a
+    distinction the code does not make.
+    """
+    if run is None:
+        return None
+    m = run.load_meta()
+    return {"thresholds": dict(m.compliance_thresholds or {}),
+            "columns": list(getattr(m, "compliance_columns", []) or [])}
+
+#: the fixed width of an editable cell; eight columns fit a 1728 px work area
+#: with it, and do not with the spin box's natural 140 px (AR-CODE-MAP §4.2)
+CELL_W = 104
+#: the gap between two columns. It is NOT the grid's own horizontal spacing:
+#: both grids run at spacing 0 and carry the gap inside each column's pinned
+#: width, because Qt charges spacing to a column that holds a widget spanning
+#: it (the group titles) and not to one that is merely hidden. With the
+#: spacing left on, a hidden column cost the body 14 px that the head did not
+#: pay, and every heading after it sat 14 px off its column, measured on
+#: screen 2026-09-10.
+COLUMN_GAP = 14
+
+
+
+def _columns_paragraph() -> str:
+    """What the seven columns hold, measured rather than asserted (B8-571).
+
+    THE SENTENCE THIS REPLACES WAS FALSE IN THE STATE CHROMIQ SHIPS. It read
+    "The two ISO columns hold a standard's published values and are read-only;
+    the two Custom columns start from them and are yours to change", and
+    measured against the repository's own data file the two read-only ISO
+    columns carry ZERO limit-bearing rows while Custom ISO 12647-7 and Custom
+    ISO 12647-8 carry eighteen each, none of them a standard's figure. So it
+    told a reader that the empty columns were full and that the full ones came
+    from a standard.
+
+    THE SAME CLASS OF FALSE SENTENCE AS THE `SetDef` BLURBS, which were
+    corrected three times for it, and as the report guide's own paragraph. What
+    those corrections settled is that a column's NAME is not its CONTENTS, and
+    that a sentence here has to be true both of a build as it ships and of one
+    a licence holder has pointed at their own file.
+
+    AND THE CUSTOM COLUMNS NOW HOLD NUMBERS FROM TWO SOURCES, not one. Knut's
+    researched industry figures became their starting values on 2026-09-21, and
+    ChromIQ's own numbers stayed on the rows his research does not cover, so a
+    sentence naming one source would be false about the other. This paragraph
+    NAMES THE SOURCES IT COUNTS: `custom_default_counts` says how many limits
+    of each column came from the user's own values file, from Knut's research
+    and from ChromIQ, and only a source with at least one limit behind it is
+    mentioned. Drop a source from `compliance_sets` and the sentence stops
+    claiming it, without anybody editing this function.
+    """
+    from workflow.compliance_sets import (factory_limits, limit_bearing,
+                                          shipped_iso_sets)
+    supplied = any(limit_bearing(factory_limits(sid))
+                   for sid in ("iso_12647_7", "iso_12647_8"))
+    own = tr("ChromIQ default, ChromIQ tight and Quick check are ChromIQ's "
+             "own sets and can be edited here.")
+    if shipped_iso_sets():
+        # #182 S-2, §23: A SET CHROMIQ SHIPS. From here on the two ISO columns
+        # can be in three different states each, so the sentence is built per
+        # column from what is actually loaded rather than chosen whole.
+        iso = _iso_columns_sentence()
+    elif supplied:
+        iso = tr("The two ISO columns are read-only and hold the published "
+                 "values you supplied from your own copy of each standard.")
+    else:
+        # THE SHIPPING STATE, and the one the old sentence described wrongly.
+        # …AND THE BUTTON IS AT THE TOP (rechallenge R2, 3), and "no
+        # permission" stopped being the reason when the values shipped (§23):
+        # this state is now a values file that supplied nothing.
+        iso = tr(
+            "The two ISO columns are read-only and hold a standard's "
+            "published values. No values file supplied any, so they are empty "
+            "here, and every cell in them reads ?, “–” or ✕ until you supply "
+            "that standard's figures with "
+            "“Reference values…” at the top of this window.")
+    return own + " " + iso + " " + _custom_columns_sentence()
+
+
+def _iso_use_paragraph() -> str:
+    """When to judge against which set (K33, B8-993): the Measurement Report
+    window's "Judged against" help paragraph, one text in two places."""
+    from ui.dialogs.measurement_report_dialog import _ISO_USE_HELP
+    return tr(_ISO_USE_HELP)
+
+
+def _iso_columns_sentence() -> str:
+    """The two read-only ISO columns, one clause each, once a set SHIPS.
+
+    Three states per column, and each is measured, not assumed: its values
+    ship with ChromIQ (a user's own figure, where they gave one, takes the
+    shipped one's place), the user supplied them, or it holds none. The two
+    older sentences in `_columns_paragraph` stay for the states they were
+    written for, where nothing ships.
+    """
+    from workflow.compliance_sets import (SET_BY_ID, factory_limits,
+                                          limit_bearing, shipped_iso_sets,
+                                          supplied_iso_rows)
+    shipped = shipped_iso_sets()
+    parts = [tr("The two ISO columns are read-only.")]
+    for sid in ("iso_12647_7", "iso_12647_8"):
+        name = tr(SET_BY_ID[sid].label)
+        if sid in shipped:
+            parts.append(tr("“{name}” holds that standard's published values, "
+                            "which ship with ChromIQ.").format(name=name))
+        elif limit_bearing(factory_limits(sid)):
+            parts.append(tr("“{name}” holds the published values you supplied "
+                            "from your own copy.").format(name=name))
+        else:
+            parts.append(tr("“{name}” is empty, and every cell in it reads "
+                            "?, “–” or ✕ until you supply that standard's "
+                            "figures with “Reference values…” at the top of "
+                            "this window.").format(name=name))
+    if any(supplied_iso_rows(sid) for sid in shipped):
+        parts.append(tr("A figure you supplied from your own copy takes the "
+                        "place of the one ChromIQ ships for that row."))
+    return " ".join(parts)
+
+
+def _custom_columns_sentence() -> str:
+    """Where the two Custom columns' numbers come from, counted.
+
+    Knut, #182, 2026-09-21, on the figures that are now their starting values:
+    *"based on findings from research online of industry practice and reasoned
+    limits from the industry […] not based on ISO standard values"*. A column
+    named after a standard that holds numbers which are not that standard's
+    has to say so, and this is where it says it.
+    """
+    from workflow.compliance_sets import custom_default_counts
+    totals = {"supplied": 0, "industry": 0, "chromiq": 0}
+    for sid in ("custom_iso_12647_7", "custom_iso_12647_8"):
+        counts = custom_default_counts(sid)
+        for key in totals:
+            totals[key] += counts.get(key, 0)
+    # Only a source with a limit actually behind it is named, and in the order
+    # a reader cares about: what they supplied, then what was researched, then
+    # what is ours.
+    names = {
+        "supplied": tr("the figures you supplied"),
+        "industry": tr("limits researched from industry practice"),
+        "chromiq": tr("ChromIQ's own numbers"),
+    }
+    parts = [names[key] for key in ("supplied", "industry", "chromiq")
+             if totals[key]]
+    if not parts:
+        # No Custom column carries a limit at all. Nothing to attribute, and
+        # the window already says a column with no limits is not a choice.
+        return tr("The two Custom columns are named after the same standards "
+                  "and carry no limits at all.")
+    if totals["supplied"]:
+        lead = tr("The two Custom columns are named after the same standards "
+                  "and hold their published values only where you supplied "
+                  "them: they start from {sources}, and every limit in them "
+                  "is yours to change.")
+    else:
+        lead = tr("The two Custom columns are named after the same standards "
+                  "and hold none of their published values: they start from "
+                  "{sources}, and every limit in them is yours to change.")
+    return lead.format(sources=_join_sources(parts))
+
+
+def _join_sources(items: "list[str]") -> str:
+    """"a, b and c" — real prose, and correct for one item."""
+    if len(items) == 1:
+        return items[0]
+    return tr("{first} and {last}").format(
+        first=", ".join(items[:-1]), last=items[-1])
+
+
+def _recommended_note_text() -> str:
+    """The body of M-LIMIT-RECOMMENDED as one line.
+
+    THE SAME FUNCTION THE REPORT ASKS. Knut asked for this note in the Report
+    limits window *and* in the report text on 2026-09-21, so it is one
+    catalogue entry rendered twice rather than two sentences that can drift.
+    `measurement_report_dialog._recommended_limit_note` is the other caller.
+    """
+    from workflow.measurement_messages import M_LIMIT_RECOMMENDED
+    _title, body = M_LIMIT_RECOMMENDED.render()
+    return " ".join(body.split())
+
+
+class _ScrolledBody(QWidget):
+    """The scrolled half of the table.
+
+    It exists only to say when its width changed, so the frozen head can be
+    given the same width and lay its columns out over the same span. A bound
+    method on a plain widget, not a lambda on a scroll bar's signal, which is
+    the shape that segfaulted the app (CLAUDE.md).
+    """
+
+    def __init__(self, owner: "ThresholdsDialog") -> None:
+        super().__init__()
+        self._owner = owner
+
+    def resizeEvent(self, event) -> None:  # noqa: N802
+        super().resizeEvent(event)
+        self._owner._match_head_to_body()
+
+
+class ThresholdsDialog(WorkAreaClamped, QDialog):
+    def __init__(self, settings, parent: "QWidget | None" = None, *,
+                 run=None, run_editable: bool = False,
+                 buffer: "dict | None" = None,
+                 report_column: bool = True,
+                 run_default=None, report_type: str = "",
+                 default_type: str = "") -> None:
+        super().__init__(parent)
+        self._settings = settings
+        self._run = run
+        #: K36-1 (Knut, #182 5820871320): the report type of the report shown
+        #: ("Used for this report" pairs with it) and the Preferences default
+        #: type ("Default for new reports" and "Default for this run" pair
+        #: with it). An ISO type allows only the four ISO sets; the others
+        #: are greyed, still visible, and say why.
+        self._report_type = str(report_type or "")
+        self._default_type = str(default_type or "")
+        #: K30/K31: the first column is always a REPORT's own limits
+        #: (`ReportLimitsColumn`). The keyword is kept for older callers.
+        self._report_column = run is not None
+        #: K31: the profile run whose OWN DEFAULT for new reports the
+        #: "Default for this run" row sets, or None (Preferences, a report
+        #: across places, a file in no run). Nothing is written here: the
+        #: report window applies `run_default_chosen` after the close.
+        self._run_default = run_default
+        self.run_default_chosen: str = ""
+        self._run_default_radios: "dict[str, QRadioButton]" = {}
+        self._run_default_group: "QButtonGroup | None" = None
+        self._run_editable = bool(run_editable and run is not None)
+        #: {"overrides": {...}, "default_set": str} owned by Preferences, or
+        #: None when edits go straight to the settings (report-window door)
+        self._buffer = buffer
+        from core.settings import compliance_overrides_of
+        self._overrides = (dict(buffer.get("overrides") or {}) if buffer is not None
+                           else compliance_overrides_of(settings))
+        self._default_set = str((buffer or {}).get("default_set")
+                                or settings.get("compliance_default_set",
+                                                "chromiq_default"))
+        #: the run's editable copy, edited in memory and written once on close
+        self._run_limits: "dict[str, Limit]" = {}
+        self._run_set_id = ""
+        self._run_dirty = False
+        #: WHAT THE WINDOW OPENED WITH, so that typing a number and typing it
+        #: straight back is not an edit. `_run_dirty` was set on every
+        #: `valueChanged`, so a net-zero visit wrote the column, asked the
+        #: report window to recalculate a whole history, and on an unbound run
+        #: bound it permanently, from an act that changed nothing. Filled in by
+        #: `_fill_run_column`, which is where the opening values are known.
+        self._run_limits_at_open: "dict | None" = None
+        #: True after close when the run's copy was changed (the report window
+        #: recalculates the run's dated reports then, once; CH-29)
+        self.run_limits_changed = False
+        #: THE RUN'S OWN COLUMN AS IT SAT ON DISK WHEN THIS WINDOW OPENED, and
+        #: the only way this window can tell that somebody else moved it.
+        #: NOT `_run_limits_at_open`, which is derived: on an unbound run it is
+        #: the live default set's numbers, and this window edits the overrides
+        #: those are derived from, so it moves for reasons that are this
+        #: window's own doing.
+        self._run_stored_at_open: "dict | None" = None
+        #: True after close when the run's stored column had been changed by
+        #: SOMEBODY ELSE while this window was open. The report window's
+        #: "the binding has not moved" test cannot see that: it compares
+        #: `compliance_bound_at`, which only `bind_run` stamps, and the other
+        #: writer here is `set_run_limits`, which is this same `done()` in
+        #: another window. A challenge round drove it: a second Report limits
+        #: window on the same run had its number erased with no message at all,
+        #: indistinguishable from the case where nobody else wrote.
+        self.run_limits_collided = False
+        #: THE SAME QUESTION FOR THE TWO APP-WIDE STORES this window writes:
+        #: the default set and the overrides. A challenge round found that the
+        #: report window puts BOTH back to its own snapshot when the user
+        #: refuses, unconditionally, so another writer's change to the default
+        #: set was destroyed with nothing said. That store is what every
+        #: UNBOUND run is judged by, so it is not a small one.
+        #: ONE BASELINE PER STORE, because a refresh is only ever earned by
+        #: one of them. Held as a single tuple, this window's click on the
+        #: "Default for new runs" radio swallowed another writer's change to
+        #: the overrides, and the other way round: the watch never fired and
+        #: the change was destroyed in silence. A challenge round drove both.
+        self._default_set_last_seen: "str | None" = None
+        self._overrides_last_seen: "str | None" = None
+        #: True after close when those stores were changed by somebody else
+        #: while this window was open.
+        self.prefs_collided = False
+        self._sized_once = False
+        self._cells: "dict[tuple[str, str], QWidget]" = {}
+        self._column_widgets: "dict[str, list[QWidget]]" = {}
+        #: row id → the QLabel carrying the metric's name and its reference
+        #: number, so the number can be redrawn when the visible columns change
+        self._row_labels: "dict[str, QLabel]" = {}
+        self._notes_label = None
+        self._column_checks: "dict[str, QCheckBox]" = {}
+        self._default_radios: "dict[str, QRadioButton]" = {}
+        #: The "Used for this run" radios, and the set the user picked with
+        #: them, or "" if they touched none. READ BY THE REPORT WINDOW ON
+        #: CLOSE: this dialog does not rebind a run itself, because the one
+        #: writer (`MeasurementReportDialog._on_set_chosen`) carries the lock
+        #: re-check, the preferences-moved check and the recalculate question,
+        #: and a second copy of those here would be a second set to keep in
+        #: step.
+        self._run_set_radios: "dict[str, QRadioButton]" = {}
+        #: EACH ROW IS ITS OWN EXCLUSIVE GROUP, AND THE ROWS ARE NOT.
+        #:
+        #: Qt's auto-exclusivity is per PARENT WIDGET, and both rows are laid
+        #: into `_head_grid`, so without these the ten radios were one group:
+        #: picking a set for the run silently unchecked "Default for new runs",
+        #: and the row the user had just clicked could end up showing TWO
+        #: filled buttons. An adversary round photographed exactly that, in the
+        #: window written to stop a radio row being read wrong. The initial
+        #: state looked right only by accident, because `setChecked` runs
+        #: before `addWidget` reparents the button.
+        self._default_group: "QButtonGroup | None" = None
+        self._run_set_group: "QButtonGroup | None" = None
+        self.run_set_chosen: str = ""
+        self._syncing = False
+
+        if run is not None:
+            from workflow.run_compliance import run_limits
+            rl = run_limits(run, self._overrides, self._default_set)
+            self._run_limits = dict(rl.limits)
+            self._run_set_id = rl.set_id
+            from workflow.compliance_sets import limits_to_json as _l2j
+            self._run_limits_at_open = _l2j(self._run_limits)
+            self._run_stored_at_open = _stored_column(run)
+            self._run_label = rl.set_label
+
+        self._default_set_last_seen, self._overrides_last_seen = self._prefs_now()
+
+        self.setWindowTitle(tr("Report limits"))
+        self.setMinimumWidth(720)
+        self.setWindowFlags(
+            self.windowFlags() & ~Qt.WindowType.WindowContextHelpButtonHint)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        head, self._header, stripe = dialog_masthead(
+            self, tr("MEASUREMENT REPORT"), tr("Report limits"),
+            tooltip_title=tr("Report limits"),
+            tooltip_body=tr(
+                "A limit set is one column of this table: the numbers a "
+                "Measurement Report is judged against, one per row. Rows are "
+                "grouped by the patches a limit is written over; where a "
+                "statistic ChromIQ computes is also limited by a standard, it "
+                "is one row, so the sets can be read side by side.")
+            + "\n\n" + _columns_paragraph()
+            # K33 (B8-993): when each standard's sets are the right choice,
+            # the same paragraph as the "Judged against" help.
+            + "\n\n" + _iso_use_paragraph() + "\n\n" + tr(
+                "A number in brackets is a limit the set recommends rather "
+                "than requires. It is judged and reported exactly like any "
+                "other limit; the brackets, and the raised number after the "
+                "metric's name, point to a note below the table saying so. "
+                "“–” means the set puts "
+                "no limit on that row. ✕ means ChromIQ cannot measure it at "
+                "all; the row stays so you can see what the standard asks. "
+                "? means the set limits that row but no number has been "
+                "supplied for it.\n\n"
+                "Turn a spin box down to 0 to remove a limit (it shows “–”). "
+                "Restore defaults puts a column back to its factory "
+                "values. Default for new reports marks the limit set a new "
+                "report starts on; Default for this run, shown when the window "
+                "is opened from a report of one profile run, marks the one new "
+                "reports of that run start on instead. A saved report keeps "
+                "the limits it was generated with.")
+            # #182 K30 (B8-853) and K31: the first column is always the
+            # report's own, whatever the report holds.
+            + "\n\n" + tr(
+                "The first column is “This report”: the limits of the report "
+                "the window was opened from, whether it holds one profile run "
+                "or several. A change there applies to that report only, is "
+                "used when you press Generate report and is stored with the "
+                "report, never on a profile run."),
+            accent=SPEC_GREEN)
+        outer.addLayout(head)
+        outer.addWidget(stripe)
+        inner = QVBoxLayout()
+        inner.setContentsMargins(22, 12, 22, 14)
+        inner.setSpacing(10)
+        outer.addLayout(inner)
+
+        sub_text = tr(
+            "Rows are grouped by the patches a limit is written over. A "
+            "statistic ChromIQ computes and a standard also limits is one row.")
+        if not any(sid in set(selectable_set_ids(self._overrides))
+                   for sid in ("iso_12647_7", "iso_12647_8")):
+            # …AND IT NO LONGER SAYS THE CUSTOM SETS ARE EMPTY, because as of
+            # 2026-09-12 they are not. Knut asked for a value on every metric
+            # ChromIQ can measure, `custom_defaults` supplies eighteen, and
+            # both Custom sets became selectable the same day. This sentence's
+            # own guard is "neither ISO set is selectable", so it was shown
+            # ONLY in the state where its second clause had become false, with
+            # the two enabled radio buttons three rows above it.
+            # AND IT NOW SAYS HOW, which it did not. Knut asked for the
+            # standards' limits laid out in this window's own order so they
+            # could be filled in; the values cannot come from ChromIQ, but the
+            # table can, and a reader who is told "supply your own copy"
+            # without being told how has been given a shrug.
+            # …AND "STILL BEING DECIDED" WAS DECIDED (§23, rechallenge R2,
+            # 6): the values ship, so this line is shown only when the values
+            # file ChromIQ reads supplied none.
+            sub_text += " " + tr(
+                "Neither ISO value set can be chosen here: the values file "
+                "ChromIQ reads for them supplied no number for either, "
+                "because it is missing, empty or could not be read. A cell "
+                "reading ? is a limit the standard defines for which no "
+                "number has been supplied; you may type your own "
+                "number into a Custom column from your own copy of the "
+                "standard. To fill a whole column at once, press “Reference "
+                "values…” below: its window saves a file listing every row "
+                "these sets use, in the order shown here, for you to type the "
+                "numbers into, and reads that file back into ChromIQ.")
+        sub = QLabel(sub_text, self)
+        sub.setWordWrap(True)
+        inner.addWidget(sub)
+
+        # -- ONE DOOR, NOT THREE BUTTONS AND COUNTING.
+        # ChromIQ reads other people's published numbers rather than shipping
+        # them: ISO 12647's limits today, Fogra's characterisation data next.
+        # Beta 26 gave the first of those three buttons in this window, and
+        # Basti saw where it was going: *"if you are putting in 3 more buttons
+        # there will be quite a lot in the end"*. One data source cost three
+        # buttons, so two would cost six, in a window whose subject is a table
+        # of limits and not a file manager. The buttons live in
+        # `ReferenceValuesDialog` now, one section per source, and adding Fogra
+        # changes nothing here.
+        #
+        # 18 px, which is this window's own smallest interactive control, its
+        # check boxes. 22 was the spin boxes' height and he asked twice for
+        # smaller.
+        iso_row = QHBoxLayout()
+        iso_row.setSpacing(8)
+        self._iso_values_btn = QPushButton(tr("Reference values…"), self)
+        # NOT A FIXED HEIGHT. It cannot shrink a button in this app: the
+        # application stylesheet's `QPushButton { padding: 6px 18px;
+        # min-height: 28px; }` reaches `minimumSizeHint` as 42 px and a layout
+        # honours that over a fixed height. A fixed 18 measured 42 px on
+        # screen, exactly as beta 26's fixed 22 did, which is what Basti was
+        # looking at when he asked a SECOND time for smaller. The same
+        # declaration as this window's own "Restore defaults" button, which
+        # is 22 px and always has been.
+        self._iso_values_btn.setStyleSheet(SMALL_BTN_QSS)
+        self._iso_values_btn.setToolTip(tr(
+            "Supply the limit values of a standard you own, so ChromIQ can "
+            "judge against them."))
+        self._iso_values_btn.clicked.connect(self._on_reference_values)
+        iso_row.addWidget(self._iso_values_btn)
+        self._iso_state_lbl = QLabel("", self)
+        self._iso_state_lbl.setStyleSheet("color: #8a8a8a; font-size: 10px;")
+        iso_row.addWidget(self._iso_state_lbl)
+        iso_row.addStretch(1)
+        inner.addLayout(iso_row)
+        self._sync_iso_buttons()
+
+        # -- the user's OWN limits file, when it could not be understood (F7)
+        trouble = self._iso_file_trouble()
+        if trouble:
+            warn = QLabel(trouble, self)
+            warn.setWordWrap(True)
+            warn.setTextFormat(Qt.TextFormat.PlainText)
+            # THE PANEL FOLLOWS THE THEME, and it did not: #3a2a00 is a
+            # dark-mode ground, and on the light window this whole dialog is,
+            # it painted a dark brown box in the middle of a pale page.
+            # Photographed on screen. The same three-way the report window's
+            # own strip uses, and for the same reason: every other colour here
+            # is chosen per appearance, so one that is not stands out as a
+            # mistake rather than as a warning.
+            _mode = resolve_mode(self._settings.get("appearance", "auto"))
+            if _mode == "dark":
+                _skin = ("border: 1px solid #b08040; color: #f0b35a;"
+                         " background: rgba(240,180,80,0.14);")
+            elif _mode == "neutral":
+                from ui import neutral_styles
+                _skin = (f"border: 1px solid {neutral_styles.NM_BORDER_HI};"
+                         f" color: {neutral_styles.NM_TEXT_MAIN};"
+                         f" background: {neutral_styles.NM_BG_SURFACE};")
+            else:
+                _skin = ("border: 1px solid #c8922a; color: #8a5a00;"
+                         " background: rgba(240,180,80,0.12);")
+            warn.setObjectName("isoFileTrouble")
+            warn.setStyleSheet(
+                "QLabel#isoFileTrouble { border-radius: 4px;"
+                " padding: 6px 10px; " + _skin + " }")
+            inner.addWidget(warn)
+
+        # -- which columns are shown (D29, K-b)
+        #
+        # THE LABELS NEED AIR BETWEEN THEM. Seven column names sit in this one
+        # row, and with the layout's own spacing each name ended one pixel
+        # before the next box began: "ChromIQ default (recommended)" ran
+        # straight into the tick for "ChromIQ tight", so the row read as one
+        # long sentence with squares in it. Reported twice (round 2 N5, round 3
+        # N7). A checkbox's text has no right-hand padding of its own, so the
+        # gap has to be the layout's, and it has to be set rather than
+        # inherited: the style's default put 8 px between the "Show:" label and
+        # the first box and nothing at all between the boxes.
+        show_row = QHBoxLayout()
+        show_row.setSpacing(SHOW_ROW_SPACING_PX)
+        show_row.addWidget(QLabel(tr("Show:"), self))
+        visible = self._visible_columns()
+        if run is not None:
+            cb = QCheckBox(tr("This report"), self)
+            cb.setChecked(True)
+            cb.setEnabled(False)
+            show_row.addWidget(cb)
+        for s in SETS:
+            cb = QCheckBox(tr(s.label), self)
+            cb.setProperty("set_id", s.id)
+            cb.setChecked(s.id in visible)
+            cb.toggled.connect(self._on_column_toggled)
+            self._column_checks[s.id] = cb
+            show_row.addWidget(cb)
+        show_row.addStretch(1)
+        inner.addLayout(show_row)
+
+        # -- the table: a head that stays put over a body that scrolls under
+        # it (Knut, beta 3). Two grids, ONE column geometry (_sync_columns),
+        # and the head is moved by the body's own horizontal scroll bar, so a
+        # heading cannot come to sit over the wrong column.
+        self._head_clip = QWidget(self)
+        self._head_clip.setSizePolicy(QSizePolicy.Policy.Ignored,
+                                      QSizePolicy.Policy.Fixed)
+        self._head = QWidget(self._head_clip)
+        self._head_grid = QGridLayout(self._head)
+        self._scroll = QScrollArea(self)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        body = _ScrolledBody(self)
+        self._grid = QGridLayout(body)
+        for g in (self._head_grid, self._grid):
+            g.setHorizontalSpacing(0)          # the gap lives in COLUMN_GAP
+            g.setVerticalSpacing(3)
+            g.setContentsMargins(0, 0, 0, 0)
+        self._build_head()
+        self._build_rows()
+        # F7: with setWidgetResizable the body shrinks to the viewport and the
+        # last column is clipped; pinning the body's minimum width to what it
+        # paints brings the horizontal scroll bar back
+        self._scroll.setWidget(body)
+        self._scroll.horizontalScrollBar().valueChanged.connect(self._on_hscroll)
+        self._sync_columns()
+        self._fades = attach_edge_fades(self._scroll, surface="dialog")
+        self._fades.set_appearance(resolve_mode(settings.get("appearance", "auto")))
+        inner.addWidget(self._head_clip)
+        inner.addWidget(self._scroll, 1)
+
+        # -- legend, footnotes, notes (D11, D24)
+        notes = QLabel(self._notes_text(), self)
+        notes.setWordWrap(True)
+        notes.setTextFormat(Qt.TextFormat.PlainText)
+        notes.setStyleSheet("color: #8a8a8a; font-size: 11px;")
+        self._notes_label = notes
+        inner.addWidget(notes)
+
+        close_row = QHBoxLayout()
+        close_row.addStretch(1)
+        close_btn = QPushButton(tr("Close"), self)
+        close_btn.clicked.connect(self.accept)
+        close_row.addWidget(close_btn)
+        inner.addLayout(close_row)
+
+        from ui.dialogs.tools_dialogs import neutral_controls_qss
+        self.setStyleSheet(neutral_controls_qss(SPEC_GREEN, popup=SPEC_GREEN))
+        for sid in SET_BY_ID:
+            if sid not in visible:
+                self._set_column_visible(sid, False)
+
+    # ------------------------------------------------------------------ build
+    # ---------------------------------------------------------- the ISO file
+    #
+    # THE SAME THREE STEPS ON ALL THREE PLATFORMS, and that is the point of
+    # doing it here rather than in a shell. `compliance_dir()` is derived from
+    # `presets_dir()`, so the file lands in %APPDATA%\ChromIQ on Windows,
+    # ~/Library/Preferences/ChromIQ on macOS and $XDG_CONFIG_HOME/ChromIQ on
+    # Linux, and `save_file_dialog` / `open_file_dialog` are the app's own
+    # wrappers that every other tool uses. Nothing here touches a shell, a
+    # PATH, or a Python interpreter the user may not have: a shipped ChromIQ
+    # has no `scripts/` folder at all.
+    def _sync_iso_buttons(self) -> None:
+        """The grey line beside the door, so the window says what is in use."""
+        from workflow.compliance_sets import iso_data_path_text
+
+        if getattr(self, "_iso_state_lbl", None) is None:
+            return
+        where = iso_data_path_text()
+        # NOT "ChromIQ's own numbers" ANY MORE. This label says which STATE
+        # the window is in, and that spelling stopped being true of the state
+        # on 2026-09-21: the Custom columns start from Knut's researched
+        # industry figures where his research covers a row, and only from
+        # ChromIQ's numbers where it does not. A label naming one of two
+        # sources is the same half-truth as a column naming a standard it does
+        # not hold, so it names the CONDITION the button controls instead.
+        self._iso_state_lbl.setText(
+            tr("using your own values") if where
+            else tr("no reference values supplied"))
+
+    def _on_reference_values(self) -> None:
+        from ui.dialogs.reference_values_dialog import ReferenceValuesDialog
+
+        ReferenceValuesDialog(self).exec()
+        self._sync_iso_buttons()
+
+    def _iso_file_trouble(self) -> str:
+        """What to tell a licence holder whose own limits file was not read.
+
+        The route in `data/compliance_sets/README.md` ("point ChromIQ at your
+        own file") had no way of failing out loud: `Limit.from_json` turns
+        anything it cannot read into `?`, which is exactly what the empty
+        bundled file produces, so a file in the wrong shape looked identical to
+        no permission at all. Every sentence here is about the file the USER
+        named; the bundled one says nothing, because being empty is what it is
+        for.
+        """
+        from workflow.compliance_sets import (iso_data_path_text,
+                                              iso_data_problems)
+        problems = iso_data_problems()
+        if not problems:
+            return ""
+        lines = [tr("ChromIQ could not use the limits file you pointed it at, "
+                    "so the ISO limits still read ?.")]
+        for kind, detail in problems:
+            if kind == "unreadable":
+                lines.append(tr("The file could not be read: {reason}")
+                             .format(reason=detail))
+            elif kind in ("not_an_object", "set_not_an_object"):
+                lines.append(tr(
+                    "The file must hold a JSON object with one key per limit "
+                    "set, and each set holding that set's rows."))
+            elif kind == "no_known_set":
+                lines.append(tr(
+                    "The file names no limit set ChromIQ knows. It needs a "
+                    "top-level key {names}, holding that set's rows.")
+                    .format(names=detail))
+            elif kind == "unreadable_cells":
+                lines.append(tr(
+                    "These limits could not be read and still show ?: {rows}. "
+                    "A limit is a plain number, or [number, \"should\"] for a "
+                    "recommendation.").format(rows=detail))
+            elif kind == "unknown_rows":
+                lines.append(tr(
+                    "These names are not rows ChromIQ has, and were ignored: "
+                    "{rows}").format(rows=detail))
+            else:
+                lines.append(f"{kind}: {detail}")
+        path = iso_data_path_text()
+        if path:
+            lines.append(tr("CHROMIQ_COMPLIANCE_ISO_FILE points at {path}")
+                         .format(path=path))
+        return "\n".join(lines)
+
+    def _column_ids(self) -> "list[str]":
+        cols = [RUN_COLUMN] if self._run is not None else []
+        return cols + [s.id for s in SETS]
+
+    def _visible_columns(self) -> "set[str]":
+        """K-b: per run from the report window, from Preferences otherwise."""
+        import json
+        ids = None
+        if self._run is not None:
+            try:
+                ids = list(self._run.load_meta().compliance_columns or [])
+            except Exception:  # noqa: BLE001
+                ids = None
+        else:
+            raw = str(self._settings.get("compliance_columns_shown", "") or "")
+            if self._buffer is not None and "columns" in self._buffer:
+                raw = str(self._buffer.get("columns") or "")
+            if raw:
+                try:
+                    ids = json.loads(raw)
+                except ValueError:
+                    ids = None
+        if not ids:
+            return set(SET_BY_ID)
+        return {i for i in ids if i in SET_BY_ID} or set(SET_BY_ID)
+
+    def _limits_of(self, col: str) -> "dict[str, Limit]":
+        if col == RUN_COLUMN:
+            # A REPORT'S STORED COPY READS ✕ THERE TOO. Every report saved
+            # before Knut's 5815435713 stored "–" on the rows ChromIQ cannot
+            # measure in its three own sets; the column beside the sets must
+            # not say otherwise. Shown only: the copy itself is not rewritten,
+            # and those rows are never judged whichever mark they carry.
+            from workflow.compliance_sets import mark_unmeasurable
+            return mark_unmeasurable(self._run_limits)
+        return effective_limits(col, self._overrides)
+
+    def _header_text(self, col: str) -> str:
+        if col == RUN_COLUMN:
+            return tr("This report")
+        return tr(SET_BY_ID[col].label)
+
+    def _build_head(self) -> None:
+        """The three rows that stay put: the column names, the Restore /
+        read-only / locked line, and Default for new runs (Knut, beta 3)."""
+        g = self._head_grid
+        faint = "color: #8a8a8a; font-size: 10px;"
+        cols = self._column_ids()
+        g.addWidget(QLabel(tr("Row"), self), 0, 0)
+        g.addWidget(QLabel(tr("Unit"), self), 0, 1)
+        # The spare width goes to a trailing column, NOT to the row labels
+        # (Knut, beta 3). With the stretch on column 0 every column a user
+        # unticked was paid for in blank space in front of the Unit column,
+        # and the columns still shown walked to the right edge.
+        g.setColumnStretch(0, 0)
+        g.setColumnStretch(2 + len(cols), 1)
+        for ci, col in enumerate(cols, start=2):
+            hdr = QLabel(self._header_text(col), self)
+            hdr.setStyleSheet("font-weight: bold;")
+            hdr.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignBottom)
+            hdr.setWordWrap(True)
+            # B8-1653: a wrapped heading never breaks INSIDE a word, so its
+            # column must be at least as wide as its longest word, in the bold
+            # font it is shown in. Dutch "Waarden van ISO 12647-8:2021" wraps
+            # before the number, and "12647-8:2021" ran into the next heading.
+            _bold = QFont(hdr.font())
+            _bold.setBold(True)
+            _fm = QFontMetrics(_bold)
+            _longest = max((_fm.horizontalAdvance(w)
+                            for w in hdr.text().split()), default=0)
+            # …and its text keeps a gap from the heading to its left. A
+            # wrapped label fills its whole cell, so without a margin of its
+            # own a right-aligned heading could start at the cell's left edge
+            # and touch the one before it ("12647-8:2021Aangepast").
+            hdr.setContentsMargins(COLUMN_GAP, 0, 0, 0)
+            hdr.setMinimumWidth(max(CELL_W + 20, _longest + 8 + COLUMN_GAP))
+            g.addWidget(hdr, 0, ci)
+            self._column_widgets.setdefault(col, []).append(hdr)
+            # row 1: the read-only mark / Restore defaults / locked note
+            editable = self._column_editable(col)
+            # K31: no run's limits are locked any more, so there is no
+            # "locked" note over the first column.
+            if editable:
+                # RENAMED ON KNUT'S WORD, 2026-09-22: *"I also think all the
+                # buttons called 'Restore this column' can be renamed to
+                # 'Restore Defaults'. Since the button exists for most of the
+                # columns it is understood that the button restores defaults
+                # for the specific column the button belong to."* The button
+                # sits under the column it acts on, so naming the column in
+                # the label repeated what the position already said.
+                #
+                # NOT a width saving, and an earlier comment here claimed it
+                # was. Measured by challenge round 38: "Restore this column"
+                # has a sizeHint of 129 px, "Restore defaults" 111, and the
+                # grid gives the cell 138 px in every language, so the rename
+                # freed nothing. It is what Knut asked for; the reason was
+                # mine and it was wrong.
+                btn = QPushButton(tr("Restore defaults"), self)
+                btn.setProperty("set_id", col)
+                btn.setStyleSheet("QPushButton { padding: 1px 6px; font-size: 10px;"
+                                  " min-height: 22px; max-height: 22px; }")
+                btn.setMinimumWidth(btn.sizeHint().width())      # F6: German is longer
+                btn.clicked.connect(self._on_restore_column)
+                g.addWidget(btn, 1, ci)
+                self._column_widgets[col].append(btn)
+            else:
+                ro = QLabel(tr("read-only"), self)
+                ro.setStyleSheet(faint)
+                ro.setAlignment(Qt.AlignmentFlag.AlignRight)
+                g.addWidget(ro, 1, ci)
+                self._column_widgets[col].append(ro)
+        # row 2: the Preferences default a new report starts on (CH-1 /
+        # S-13). "Default for new runs" until K31, when a run was BOUND to it
+        # at its first verification; nothing is bound any more.
+        g.addWidget(QLabel(tr("Default for new reports"), self), 2, 0)
+        selectable = set(selectable_set_ids(self._overrides))
+        for ci, col in enumerate(cols, start=2):
+            if col == RUN_COLUMN or col not in selectable:
+                continue
+            rb = QRadioButton(self)
+            rb.setProperty("set_id", col)
+            if self._default_group is None:
+                self._default_group = QButtonGroup(self)
+                self._default_group.setExclusive(True)
+            self._default_group.addButton(rb)
+            rb.setChecked(col == self._default_set)
+            rb.toggled.connect(self._on_default_toggled)
+            _tip = tr("A new report starts on this limit set, unless its "
+                      "profile run has a default of its own.")
+            if self._buffer is None:
+                # B8-943: from the report window this row is Preferences,
+                # written at once, and nothing else in the window says so.
+                _tip += " " + tr(
+                    "This is the setting of Preferences, Reports: a click "
+                    "here stores it at once, without Generate report, and "
+                    "changes no saved report.")
+            rb.setToolTip(_tip)
+            self._hold_radio_to_type(rb, col, self._default_type)
+            self._default_radios[col] = rb
+            g.addWidget(rb, 2, ci, Qt.AlignmentFlag.AlignRight)
+            self._column_widgets[col].append(rb)
+        # row 3: WHICH SET THIS RUN USES, and it is a different question from
+        # the row above it.
+        #
+        # Knut, 2026-09-13, on `Report-Limits-Report-Types` run 5: *"The Judged
+        # against is set to 'ChromIQ tight', but when opening 'Edit Limits'
+        # window the 'ChromIQ default' was enabled. Manually clicking any of
+        # the 5 radio-buttons to select a limit set did nothing."*
+        #
+        # Both halves were true and neither was a broken control. Driven on
+        # screen: the run really is bound to `chromiq_tight`, the row he
+        # clicked really is "Default for new runs", and clicking it really did
+        # move `compliance_default_set` and leave the run alone. What the
+        # window never said, anywhere, is which set THIS RUN uses, so the only
+        # radios on screen read as the run's selector.
+        #
+        # So the answer is the row he expected, beside the one that was there,
+        # rather than repurposing a specified setting (CH-1 / S-13) nobody
+        # asked to lose. It follows his rule exactly: enabled only when the run
+        # is editable, which `_run_editable` already computes from the same
+        # predicate the report window's pulldown uses (the unlock tick OR a run
+        # with a single dated verification).
+        #
+        # IT WRITES NOTHING ITSELF. `MeasurementReportDialog._on_set_chosen` is
+        # the one writer, and it carries the lock re-check, the
+        # preferences-moved-underneath check and the recalculate question. A
+        # second implementation here would be a second set of those guards to
+        # keep in step, which is the fault this file has been bitten by twice.
+        # The choice is recorded and the report window applies it on close.
+        if self._run is not None:
+            g.addWidget(QLabel(tr("Used for this report"), self), 3, 0)
+            for ci, col in enumerate(cols, start=2):
+                if col == RUN_COLUMN or col not in selectable:
+                    continue
+                rb = QRadioButton(self)
+                rb.setProperty("set_id", col)
+                if self._run_set_group is None:
+                    self._run_set_group = QButtonGroup(self)
+                    self._run_set_group.setExclusive(True)
+                self._run_set_group.addButton(rb)
+                rb.setChecked(col == self._run_set_id)
+                rb.setEnabled(bool(self._run_editable))
+                rb.setToolTip(
+                    # B8-947: since K31 no run HAS limits of its own.
+                    tr("Judge this report against this set. The choice is "
+                       "this report's: it is applied when you press Generate "
+                       "report, and no saved report changes."))
+                self._hold_radio_to_type(rb, col, self._report_type)
+                rb.toggled.connect(self._on_run_set_toggled)
+                self._run_set_radios[col] = rb
+                g.addWidget(rb, 3, ci, Qt.AlignmentFlag.AlignRight)
+                self._column_widgets[col].append(rb)
+        # row 4 (K31): WHICH SET NEW REPORTS OF THIS PROFILE RUN START ON.
+        # Knut, 5801677743: *"the starting choice for 'New report...' should
+        # be the defaults in preferences -> reports first, then the default
+        # in the Edit limits for that run, if it changed to be different from
+        # the preferences default"*. The radio on the Preferences default
+        # means "follow Preferences"; any other is the run's own default. It
+        # writes nothing: `run_default_chosen` is applied by the report window.
+        if self._run_default is not None:
+            from workflow.run_compliance import run_default_set_id
+            own = run_default_set_id(self._run_default) or self._default_set
+            g.addWidget(QLabel(tr("Default for this run"), self), 4, 0)
+            for ci, col in enumerate(cols, start=2):
+                if col == RUN_COLUMN or col not in selectable:
+                    continue
+                rb = QRadioButton(self)
+                rb.setProperty("set_id", col)
+                if self._run_default_group is None:
+                    self._run_default_group = QButtonGroup(self)
+                    self._run_default_group.setExclusive(True)
+                self._run_default_group.addButton(rb)
+                rb.setChecked(col == own)
+                rb.setToolTip(tr(
+                    "New reports of this profile run start on this limit set "
+                    "instead of the default for new reports. Choose the same "
+                    "set as the default for new reports to follow Preferences "
+                    "again. No saved report changes."))
+                self._hold_radio_to_type(rb, col, self._default_type)
+                rb.toggled.connect(self._on_run_default_toggled)
+                self._run_default_radios[col] = rb
+                g.addWidget(rb, 4, ci, Qt.AlignmentFlag.AlignRight)
+                self._column_widgets[col].append(rb)
+
+    @staticmethod
+    def _hold_radio_to_type(rb, col: str, type_id: str) -> None:
+        """Grey *rb* when a report of *type_id* may not be judged against
+        *col* (K36-1, Knut #182 5820871320), and say why. A radio already
+        on (a saved choice from before the rule) stays on and greyed."""
+        from workflow.measurement_report import (report_type_name,
+                                                 set_allowed_for_type)
+        if not type_id or set_allowed_for_type(type_id, col):
+            return
+        rb.setEnabled(False)
+        rb.setToolTip(tr(
+            "Not with the report type “{type}”: it is judged against one of "
+            "the four ISO limit sets (ISO 12647-7, ISO 12647-8, Custom ISO "
+            "12647-7, Custom ISO 12647-8). Choose another report type to "
+            "judge against this set."
+        ).format(type=tr(report_type_name(type_id))))
+
+    def _build_rows(self) -> None:
+        """The scrolled half: the groups and their limit rows."""
+        g = self._grid
+        faint = "color: #8a8a8a; font-size: 10px;"
+        cols = self._column_ids()
+        g.setColumnStretch(0, 0)
+        g.setColumnStretch(2 + len(cols), 1)
+        r = 0
+        for group in GROUP_ORDER:
+            title = QLabel(tr(GROUP_LABELS[group]), self)
+            title.setStyleSheet("font-weight: bold; margin-top: 8px; "
+                                "text-transform: uppercase; font-size: 10px;"
+                                " letter-spacing: 1px;")
+            g.addWidget(title, r, 0, 1, 2 + len(cols))
+            r += 1
+            for row in rows_in_group(group):
+                lab = QLabel(self._row_label_text(row), self)
+                lab.setStyleSheet("padding-left: 12px;")
+                # THE REFERENCE NUMBER IS PART OF THE NAME, so it is refreshed
+                # with the name whenever the visible columns change: a marker
+                # pointing at a bracket in a column the user has just hidden
+                # points at nothing.
+                self._row_labels[row.id] = lab
+                if row.status == "unmeasurable" and row.note:
+                    lab.setToolTip(tr(row.note))
+                elif self._row_is_recommended(row.id):
+                    lab.setToolTip(_recommended_note_text())
+                # THE NAME AND ITS INFO ICON SHARE COLUMN 0, with the icon
+                # pushed to the right edge of that column so the icons line up
+                # in a straight column of their own. Knut, 2026-09-14: *"Right
+                # aligned to the end of each metric name, add an info help
+                # icon, where each help icon describes the metric for that line
+                # and details the conditions used to detect if a chart contains
+                # the patches needed to assess and judge this metric."*
+                #
+                # The text of both halves lives on the ROW, in
+                # `compliance_sets.ROWS`, so the window cannot describe a row
+                # the limits table does not have and a new row cannot be added
+                # without one. `Row.__post_init__` refuses a row with no blurb.
+                cell = QWidget(self)
+                _h = QHBoxLayout(cell)
+                # THE GRID'S OWN HORIZONTAL SPACING IS ZERO, so without a
+                # right margin here the icon's edge lands one pixel from the
+                # unit text and reads as "ⓘΔE00". Photographed on all thirty
+                # rows, in three languages, at two window sizes.
+                _h.setContentsMargins(0, 0, 10, 0)
+                _h.setSpacing(6)
+                _h.addWidget(lab)
+                _h.addStretch(1)
+                _h.addWidget(TooltipButton(tr(row.label),
+                                           self._row_help(row), self,
+                                           min_width=460, color=SPEC_GREEN))
+                g.addWidget(cell, r, 0)
+                unit = QLabel(row.unit, self)
+                unit.setStyleSheet(faint)
+                g.addWidget(unit, r, 1)
+                for ci, col in enumerate(cols, start=2):
+                    w = self._make_cell(col, row.id)
+                    g.addWidget(w, r, ci, Qt.AlignmentFlag.AlignRight)
+                    self._cells[(col, row.id)] = w
+                    self._column_widgets[col].append(w)
+                r += 1
+
+    # ---------------------------------------------------- the metric's note
+    #
+    # KNUT'S SECOND HALF OF THE RULING THAT RETIRED COND (2026-09-21):
+    # *"there should be a note associated with the metric its self, like a
+    # reference number at the end of the metric label-name, pointing to a note
+    # below the table in the Report Limits window (and in the report text also
+    # a number on the metric name, pointing to a note in the report text)."*
+    #
+    # The marker is ⁵ because the notes already under this table are ¹ ² ³
+    # and ⁴ (the converted evenness limits below); one series, continuing, so
+    # a reader has one numbered list to look down rather than two notations.
+    # `_notes_text` writes the item, and it is written ONLY when some visible
+    # column really marks a row a recommendation -- after the same ruling's
+    # point 5 no ChromIQ set does, so on a stock install there is no marker
+    # and no such note at all.
+    RECOMMENDED_MARK = "\u2075"          # ⁵
+
+    # **THE LOCKED ISO SETS' EVENNESS LIMITS ARE CONVERTED, AND SAY SO**
+    # (Knut, #182 5855780690: "use the converted values. To make this more
+    # visible in the Report Layout window, maybe add a superscript number
+    # reference that points to a note that explains this in the window").
+    # The mark sits on the CELL, not on the row's name, because the other
+    # columns' numbers on the same row are not conversions.
+    CONVERTED_MARK = "\u2074"           # ⁴
+    _CONVERTED_SETS = ("iso_12647_7", "iso_12647_8")
+    _CONVERTED_ROWS = ("uniformity_sd", "uniformity_de00_max_from_mean")
+    #: the standard's own designation, not the column's name ("... values
+    #: states" read wrong on screen); a designation is not translated
+    _STANDARD_NAMES = {"iso_12647_7": "ISO 12647-7:2016",
+                       "iso_12647_8": "ISO 12647-8:2021"}
+
+    def _cell_is_converted(self, col: str, row_id: str) -> bool:
+        if col not in self._CONVERTED_SETS or row_id not in self._CONVERTED_ROWS:
+            return False
+        lim = self._limits_of(col).get(row_id)
+        return lim is not None and lim.is_numeric
+
+    def _converted_sets_shown(self) -> "list[str]":
+        return [c for c in self._CONVERTED_SETS
+                if c in self._column_ids() and self._column_shown(c)
+                and any(self._cell_is_converted(c, r)
+                        for r in self._CONVERTED_ROWS)]
+
+    def _converted_note_text(self) -> str:
+        """⁴'s note: which standard's figures, and how they became the two
+        numbers in the column (the guide the rows' help gives in full)."""
+        from workflow.compliance_sets import iso_evenness_figures
+        from PyQt6.QtCore import QLocale
+        loc = QLocale.system()
+
+        def num(x: float) -> str:
+            return loc.toString(float(x), "f", 1)
+        parts = []
+        for sid in self._converted_sets_shown():
+            fig = iso_evenness_figures(sid)
+            lim = self._limits_of(sid)
+            if "sd" not in fig or "from_mean" not in fig:
+                continue
+            parts.append(tr(
+                "{standard} states a standard deviation of {sd} and a maximum "
+                "difference from the average of {fm}, which become {pw} and "
+                "{fm2}").format(
+                    standard=self._STANDARD_NAMES[sid], sd=num(fig["sd"]),
+                    fm=num(fig["from_mean"]),
+                    pw=num(lim["uniformity_sd"].number),
+                    fm2=num(lim["uniformity_de00_max_from_mean"].number)))
+        head = tr("These two evenness limits are the standard's own figures "
+                  "converted to ChromIQ's method, so that a PASS means the "
+                  "sheet likely meets the standard.")
+        tail = tr("The standard deviation is multiplied by about 3 for "
+                  "\u201cbetween two of the nine sheet areas\u201d and by about "
+                  "2 for \u201cone sheet area against the whole sheet\u201d, "
+                  "the standard's maximum difference from the average is used "
+                  "as it is where it is stricter, and the first limit is kept "
+                  "under twice the second. The help of the two rows explains "
+                  "it.")
+        body = (" " + "; ".join(parts) + ".") if parts else ""
+        return head + body + " " + tail
+
+    def _row_is_recommended(self, row_id: str) -> bool:
+        """Does any column this window is SHOWING mark *row_id* a should?"""
+        for col in self._column_ids():
+            if not self._column_shown(col):
+                continue
+            lim = self._limits_of(col).get(row_id)
+            if lim is not None and lim.is_should:
+                return True
+        return False
+
+    def _any_row_is_recommended(self) -> bool:
+        return any(self._row_is_recommended(r.id) for r in ROWS)
+
+    def _row_label_text(self, row) -> str:
+        t = tr(row.label)
+        return (t + self.RECOMMENDED_MARK) if self._row_is_recommended(row.id) else t
+
+    def _refresh_row_labels(self) -> None:
+        """Re-draw the markers, the notes block, and the tooltips with them."""
+        for row in ROWS:
+            lab = self._row_labels.get(row.id)
+            if lab is None:
+                continue
+            lab.setText(self._row_label_text(row))
+            if not (row.status == "unmeasurable" and row.note):
+                lab.setToolTip(_recommended_note_text()
+                               if self._row_is_recommended(row.id) else "")
+        if getattr(self, "_notes_label", None) is not None:
+            self._notes_label.setText(self._notes_text())
+
+    @staticmethod
+    def _row_help(row) -> str:
+        """What one metric measures, and when a chart can be judged on it.
+
+        Two paragraphs, always in the same order, because Knut asked for both
+        in one icon: *"describes the metric for that line and details the
+        conditions used to detect if a chart contains the patches needed"*.
+
+        An `unmeasurable` row has no detection to describe and never had one;
+        its `note` already says why ChromIQ does not evaluate it at all, and it
+        is framed here so the icon does not read as a fault.
+        """
+        parts = [tr(row.blurb)]
+        if row.detect:
+            parts.append(_heading(tr("How ChromIQ decides your chart can be "
+                                     "judged on this row"))
+                         + "\n" + tr(row.detect))
+        # …AND THE LEVER, which every other help text in this app ends with and
+        # the first version of these thirty did not. Only where there is one:
+        # on a row that needs a gloss meter, advice would be invention.
+        if row.remedy:
+            parts.append(_heading(tr("What you can do about it")) + "\n"
+                         + tr(row.remedy))
+        # Knut, #182 5841606710: how the statistic relates to the others of
+        # its family, and what that means for choosing limits.
+        if getattr(row, "relation", ""):
+            parts.append(_heading(tr("How this row relates to the others"))
+                         + "\n" + tr(row.relation))
+        if not row.detect and row.note:
+            parts.append(tr("ChromIQ does not evaluate this row: {why}. There "
+                            "is nothing to detect on your chart, and the cell "
+                            "shows a cross in every limit set.").format(
+                                why=tr(row.note)))
+        return "\n\n".join(parts)
+
+    def _column_editable(self, col: str) -> bool:
+        # A WINDOW THAT WRITES NOTHING OFFERS NOTHING TO WRITE WITH.
+        # The app-wide writes were guarded and the CONTROLS were left as they
+        # were, so a "Show limits…" window still took a typed number into its
+        # spin box and showed it for ever while the settings held something
+        # else, and its "Restore this column" button wiped the column on screen
+        # while the stored override went on governing every unbound run in
+        # every project. A challenge round photographed both. Guarding a write
+        # without guarding the control that invites it trades a window that
+        # does the wrong thing for one that says the wrong thing.
+        if self._read_only_here():
+            return False
+        if col == RUN_COLUMN:
+            return self._run_editable
+        return SET_BY_ID[col].editable
+
+    @staticmethod
+    def _cell_text(lim: Limit) -> str:
+        """A read-only cell in the SAME number format as the spin boxes beside
+        it: the spin boxes follow the system locale (a German machine shows
+        2,00), so a plain "2.0" next to them read as a different number. Seen on
+        screen, 2026-09-08."""
+        if lim.is_numeric:
+            from PyQt6.QtCore import QLocale
+            txt = QLocale.system().toString(float(lim.number), "f", 2)
+            return f"({txt})" if lim.is_should else txt
+        return limit_text(lim)
+
+    def _make_cell(self, col: str, row_id: str) -> QWidget:
+        from workflow.compliance_sets import ROW_BY_ID
+        row = ROW_BY_ID[row_id]
+        lim = self._limits_of(col).get(row_id, Limit.none())
+        # A Custom column inherits its ISO parent's cells; while S-2 is open
+        # those read ? and the user may still type their own number (the
+        # fallback the licensing question was asked with). So an editable
+        # column's cell is a spin box unless the ROW is out of ChromIQ's reach.
+        editable = (self._column_editable(col)
+                    and row.status in ("now", "build", "ref")
+                    and lim.kind in ("value", "should", "none", "unknown"))
+        if not editable:
+            txt = self._cell_text(lim)
+            if self._cell_is_converted(col, row_id):
+                txt += self.CONVERTED_MARK
+            lab = QLabel(txt, self)
+            # B8-556: AND THE VERTICAL HALF, WHICH AlignRight DOES NOT CARRY.
+            # `setAlignment` REPLACES the whole alignment rather than adding to
+            # it, and `AlignRight` has no vertical bit, so Qt fell back to the
+            # default for a label, which is top. A read-only cell (?, ✕, –, a
+            # number, a bracketed number) therefore sat above the spin boxes
+            # beside it in the same row; measured on screen as a baseline
+            # difference, not read off the flag.
+            lab.setAlignment(Qt.AlignmentFlag.AlignRight
+                             | Qt.AlignmentFlag.AlignVCenter)
+            lab.setFixedWidth(CELL_W)
+            if lim.kind == "unmeasurable" and row.note:
+                lab.setToolTip(tr(row.note))
+            elif lim.kind == "unknown":
+                lab.setToolTip(tr("The set limits this row, but no number "
+                                  "has been supplied for it."))
+            return lab
+        sb = NoScrollDoubleSpinBox(self)
+        sb.setDecimals(2)
+        sb.setRange(0.0, 100.0)
+        sb.setSingleStep(0.1)
+        sb.setFixedWidth(CELL_W)
+        sb.setSpecialValueText("–")            # 0 = no limit (CH-21)
+        if lim.is_should:
+            sb.setPrefix("(")
+            sb.setSuffix(")")
+        sb.setValue(float(lim.number) if lim.is_numeric else 0.0)
+        sb.setProperty("set_id", col)
+        sb.setProperty("row_id", row_id)
+        sb.valueChanged.connect(self._on_cell_changed)
+        return sb
+
+    def _notes_text(self) -> str:
+        from workflow.measurement_messages import M_THRESHOLDS_NOT_CERTIFICATION
+        # THE LEGEND LINE KNUT ASKED FOR, 2026-09-21: *"Keep the bracket in
+        # the table cells, and add one line of legend to the window saying what
+        # it means, alongside what –, ? and ✕ mean."* The line was already
+        # here; what it said about the bracket was the COND rule, which he
+        # retired in the same message. A bracket now says WHAT THE SET CALLS
+        # THE ROW, and says nothing about the word the row will read, because
+        # the word is PASS or FAIL like every other row's.
+        # IT DOES NOT NAME THE NUMBER, because the number is only on screen
+        # when a row carries one. Naming ⁴ in a window with no ⁴ in it sends a
+        # reader looking for a note that is not written; the legend says a
+        # raised number appears, and the note under the table carries it.
+        legend = tr("Legend: a number is a required limit; (a number) a limit "
+                    "the set recommends rather than requires, judged and "
+                    "reported the same way, with a raised number after the "
+                    "metric's name pointing to a note below; “–” the set puts "
+                    "no limit on the row; ✕ ChromIQ cannot measure it; ? the "
+                    "set limits the row but no number has been supplied for "
+                    "it.")
+        foot = tr("¹ The standards write these limits over their own chart and "
+                  "control strip; ChromIQ applies them to the patches of the "
+                  "chart that was measured, and the report says so. ² The "
+                  "standards' aim is characterization data of a printing "
+                  "condition; without a reference file the aim is the chart's "
+                  "own design. ³ The standards set a maximum only over their "
+                  "control strip, not over all patches.")
+        # …AND THE FOURTH NOTE, WRITTEN ONLY WHEN SOMETHING POINTS AT IT. An
+        # item in a numbered list that no marker references is a paragraph
+        # pretending to be a note, and on a stock install nothing is marked: the
+        # ruling's point 5 took the last recommendation out of ChromIQ's own
+        # sets, so this appears when a licence holder's file marks a row
+        # "should" or a user marks one in an editable Custom column.
+        if self._converted_sets_shown():
+            foot += " " + self.CONVERTED_MARK + " " + self._converted_note_text()
+        if self._any_row_is_recommended():
+            foot += " " + self.RECOMMENDED_MARK + " " + _recommended_note_text()
+        # WHOSE NUMBERS THE TWO CUSTOM COLUMNS HOLD, said at the table where
+        # they are read. They are named after a standard and start from
+        # ChromIQ's own figures, so a reader who is not told will take them for
+        # the standard's. Required by the owner's standing rule on #182: no
+        # value from ISO 12647-7 or ISO 12647-8 is in ChromIQ, and a column
+        # bearing those names must not be allowed to imply otherwise.
+        # AND IT NAMES BOTH SOURCES, because since 2026-09-21 there are two.
+        # It also stopped sending a user to a terminal: a shipped ChromIQ
+        # carries no `scripts/` folder, and an environment variable exported in
+        # a shell never reaches an app launched from the Dock, so the route
+        # this sentence gave was one nobody outside a checkout could take. The
+        # button two rows below does the same job.
+        from workflow.compliance_sets import shipped_iso_sets
+        if shipped_iso_sets():
+            # #182 S-2, §23. "which ChromIQ does not hold" stops being true
+            # the day a set ships, and the Custom columns still do not start
+            # from it: Knut's researched figures stay their starting numbers,
+            # and since 2026-09-24 (#182 5815346140) a user's own file does
+            # not replace them either.
+            # **THE EVENNESS ROWS ARE THE EXCEPTION (B8-1503).** Since B8-1476
+            # the two Custom columns' evenness rows ARE the standards' figures
+            # converted, so "Neither source is the published tolerances" was
+            # false for them. Knut accepted this wording verbatim, #182
+            # 5857473253 on our 5857381652, item 3. It names note \u2074, so the
+            # reference is written only when note \u2074 is (an ISO column hidden
+            # takes the note away; a pointer to a note that is not there is
+            # the fault the legend's comment above describes).
+            if self._converted_sets_shown():
+                custom = tr(
+                    "The two Custom columns start from limits researched "
+                    "from industry practice, and from ChromIQ's own numbers "
+                    "on the rows that research does not cover, so that every "
+                    "row ChromIQ can measure has a limit to be judged "
+                    "against. Apart from the two evenness rows, which are the "
+                    "standard's figures converted to ChromIQ's method (note "
+                    "\u2074), neither source is the published tolerances of "
+                    "ISO 12647-7 or ISO 12647-8: where ChromIQ ships those, "
+                    "they are in the read-only ISO column, and a Custom "
+                    "column does not start from them. Every limit here is "
+                    "yours to change.")
+            else:
+                custom = tr(
+                    "The two Custom columns start from limits researched "
+                    "from industry practice, and from ChromIQ's own numbers "
+                    "on the rows that research does not cover, so that every "
+                    "row ChromIQ can measure has a limit to be judged "
+                    "against. Apart from the two evenness rows, which are the "
+                    "standard's figures converted to ChromIQ's method, "
+                    "neither source is the published tolerances of "
+                    "ISO 12647-7 or ISO 12647-8: where ChromIQ ships those, "
+                    "they are in the read-only ISO column, and a Custom "
+                    "column does not start from them. Every limit here is "
+                    "yours to change.")
+        else:
+            custom = tr(
+                "The two Custom columns start from limits researched from "
+                "industry practice, and from ChromIQ's own numbers on the rows "
+                "that research does not cover, so that every row ChromIQ can "
+                "measure has a limit to be judged against. Neither source is the "
+                "published tolerances of ISO 12647-7 or ISO 12647-8, which "
+                "ChromIQ does not hold. If you hold either standard, use "
+                "\u201cReference values\u2026\u201d at the top of this window "
+                "to supply its figures from your own copy: they go into the "
+                "read-only ISO column, never into a Custom one. Every limit "
+                "here is yours to change.")
+        cannot = [tr(r.label) for r in ROWS if r.status == "unmeasurable"]
+        title, body = M_THRESHOLDS_NOT_CERTIFICATION.render(rows=", ".join(cannot))
+        return legend + "\n" + foot + "\n\n" + custom + "\n\n" + title + "\n" + body
+
+    # ------------------------------------------------------------------ slots
+    def _on_cell_changed(self, value: float) -> None:
+        if self._syncing:
+            return
+        sb = self.sender()
+        if sb is None:
+            return
+        col = sb.property("set_id")
+        row_id = sb.property("row_id")
+        if not col or not row_id:
+            return
+        if col == RUN_COLUMN:
+            # F4: a recommendation stays a recommendation when a cell passes
+            # through 0. The kind comes from the run's SET (as effective_limits
+            # decides it), not from the cell's last state; a historical set
+            # falls back to the cell.
+            if self._run_set_id in SET_BY_ID:
+                base = effective_limits(self._run_set_id, self._overrides).get(row_id, Limit.none())
+            else:
+                base = self._run_limits.get(row_id, Limit.none())
+            if value <= 0.0:
+                new = Limit.none()
+            else:
+                new = Limit.should(value) if base.is_should else Limit.value(value)
+            self._run_limits[row_id] = new
+            self._run_dirty = True
+            return
+        mine = self._overrides.setdefault(col, {})
+        fac = factory_limits(col).get(row_id, Limit.none())
+        if value <= 0.0:
+            if fac.kind == "none":
+                mine.pop(row_id, None)          # back to the factory "–"
+            else:
+                mine[row_id] = None
+        elif fac.is_numeric and abs(float(fac.number) - value) < 1e-9:
+            mine.pop(row_id, None)              # back to the factory number
+        else:
+            mine[row_id] = float(value)
+        if not mine:
+            self._overrides.pop(col, None)
+        self._write_overrides()   # a no-op when this window is only showing
+
+    def _on_restore_column(self) -> None:
+        btn = self.sender()
+        col = btn.property("set_id") if btn is not None else None
+        if not col:
+            return
+        if col == RUN_COLUMN:
+            if self._run_set_id in SET_BY_ID:
+                self._run_limits = dict(effective_limits(self._run_set_id,
+                                                         self._overrides))
+                self._run_dirty = True
+        else:
+            self._overrides.pop(col, None)
+            self._write_overrides()
+        self._refill_column(col)
+
+    def _on_column_toggled(self, on: bool) -> None:
+        cb = self.sender()
+        col = cb.property("set_id") if cb is not None else None
+        if not col:
+            return
+        # A LOCKED RUN IS NOT WRITTEN, AND THIS SLOT WAS THE ONE THAT DID.
+        # `done()` checks `_run_editable` before it stores the numbers; this
+        # writes `set_run_columns` the moment the box is clicked and checked
+        # nothing, so a window opened as "Show limits…" on a locked run still
+        # changed what that run stores. The column choice is per run and is
+        # part of what the undo puts back, so it is not a view setting that can
+        # be exempt.
+        if self._run is not None and not self._run_editable:
+            self._set_column_visible(col, bool(on))
+            return
+        self._set_column_visible(col, bool(on))
+        shown = [sid for sid, c in self._column_checks.items() if c.isChecked()]
+        import json
+        if self._run is not None:
+            from workflow.run_compliance import set_run_columns
+            try:
+                _wrote = shown if len(shown) < len(SET_BY_ID) else []
+                set_run_columns(self._run, _wrote)
+                # AND THIS WINDOW HAS NOW SEEN ITS OWN WRITE, THE COLUMNS
+                # AND NOTHING ELSE. Without any refresh the collision check
+                # reports this click as somebody else's work; with a refresh of
+                # the WHOLE baseline it does the opposite, and swallows a
+                # thresholds change another window made while this one sat
+                # open. Two challenge rounds drove one each, and the second is
+                # the quieter fault: it fails silent.
+                #
+                # A baseline is refreshed exactly as wide as the write that
+                # earned it.
+                if self._run_stored_at_open is not None:
+                    # WHAT WE WROTE, NOT WHAT IS THERE NOW. Reading it back
+                    # records whatever landed between this window's write and
+                    # this line as seen, so another window's column choice was
+                    # overwritten AND marked as ours. The right width and the
+                    # wrong moment is still the wrong baseline.
+                    self._run_stored_at_open["columns"] = list(_wrote)
+            except OSError as exc:
+                log.warning("could not store the column choice: %s", exc)
+        elif self._buffer is not None:
+            # F12: from Preferences the choice waits for Save like every other
+            # setting on that tab
+            self._buffer["columns"] = json.dumps(shown) if len(shown) < len(SET_BY_ID) else ""
+        else:
+            self._settings.set("compliance_columns_shown",
+                               json.dumps(shown) if len(shown) < len(SET_BY_ID) else "")
+
+    def _prefs_now(self) -> "tuple[str | None, str | None]":
+        """The two app-wide stores this window can write, SEPARATELY.
+
+        Read from the settings, not from `self._overrides`, which is this
+        window's working copy and therefore always agrees with itself. From
+        Preferences the edits go to a buffer and nothing app-wide is touched,
+        so there is nothing to collide with and both are None.
+        """
+        if self._buffer is not None:
+            return (None, None)
+        from core.settings import compliance_overrides_of
+        import json as _json
+        try:
+            return (str(self._settings.get("compliance_default_set", "") or ""),
+                    _json.dumps(compliance_overrides_of(self._settings),
+                                sort_keys=True))
+        except Exception:              # noqa: BLE001
+            return (None, None)
+
+    def _read_only_here(self) -> bool:
+        """Whether this window is showing a run rather than editing one.
+
+        `run_editable` was read as "read-only for the RUN", and everything
+        app-wide was left writable on the reasoning that a bound run's limits
+        come from its own stored copy, so nothing app-wide can reach it. True
+        of that run, and it does not reach the harm: a challenge round moved
+        "Default for new runs" from a "Show limits…" window with no question
+        and no undo, and a DIFFERENT project's next run was then bound to it
+        and judged by 4.0 instead of 2.0. A window that says it is showing
+        writes nothing.
+
+        From Preferences there is no run, so this is False and that door is
+        untouched.
+        """
+        return self._run is not None and not self._run_editable
+
+    def _restore_default_radio(self) -> None:
+        """Put the radio back on the set that is really the default.
+
+        AND WHEN THERE IS NO SUCH RADIO, PUT THEM ALL BACK. The stored default
+        can name a set this window does not offer: emptying a column's last
+        limit-bearing row takes it out of `selectable_set_ids` (CH-11, an empty
+        column is never a choice) while the stored id still names it. With no
+        radio to restore, this returned and left the one the user had just
+        clicked checked, in a window that writes nothing, so the click stuck
+        and the window showed a default it had not set.
+        """
+        rb = self._default_radios.get(self._default_set)
+        if rb is None:
+            _was = self._syncing
+            self._syncing = True
+            try:
+                for _r in self._default_radios.values():
+                    _r.setAutoExclusive(False)
+                    _r.setChecked(False)
+                    _r.setAutoExclusive(True)
+            finally:
+                self._syncing = _was
+            return
+        _was = self._syncing
+        self._syncing = True
+        try:
+            rb.setChecked(True)
+        finally:
+            self._syncing = _was
+
+    def _on_run_set_toggled(self, on: bool) -> None:
+        """Remember which set the user picked for THIS RUN. Writes nothing.
+
+        The radios are disabled when the run is not editable, so this cannot
+        fire on a locked run through the UI; the guard is here as well because
+        `setChecked` from code does not care about `setEnabled`, and a future
+        caller that syncs the row must not be able to record a choice through
+        it.
+        """
+        if not on or self._syncing:
+            return
+        rb = self.sender()
+        col = rb.property("set_id") if rb is not None else None
+        if not col or not self._run_editable:
+            return
+        self.run_set_chosen = "" if col == self._run_set_id else str(col)
+
+    def _on_run_default_toggled(self, on: bool) -> None:
+        """Remember the default the user picked for THIS RUN. Writes nothing
+        (K31): the report window applies it after the window closes."""
+        if not on or self._syncing:
+            return
+        rb = self.sender()
+        col = rb.property("set_id") if rb is not None else None
+        if not col:
+            return
+        from workflow.measurement_report import set_allowed_for_type
+        if not set_allowed_for_type(self._default_type, col):
+            # K36-1 (B8-1071): greyed beside an ISO default type, and a
+            # click from code is not recorded either.
+            log.warning("refused %s as this run's default set beside the "
+                        "default report type %s (K36-1)", col,
+                        self._default_type)
+            return
+        self.run_default_chosen = str(col)
+
+    def _on_default_toggled(self, on: bool) -> None:
+        if not on:
+            return
+        rb = self.sender()
+        col = rb.property("set_id") if rb is not None else None
+        if not col:
+            return
+        if self._read_only_here():
+            self._restore_default_radio()
+            return
+        from workflow.measurement_report import set_allowed_for_type
+        if not set_allowed_for_type(self._default_type, col):
+            # K36-1 (B8-1071): the radio is greyed; a click from code or a
+            # style that ignores the flag must not write the pair either.
+            log.warning("refused %s as the default set beside the default "
+                        "report type %s (K36-1)", col, self._default_type)
+            self._restore_default_radio()
+            return
+        self._default_set = col
+        if self._buffer is not None:
+            self._buffer["default_set"] = col
+        else:
+            self._settings.set("compliance_default_set", col)
+            self._default_set_last_seen = self._prefs_now()[0]
+
+    # --------------------------------------------------------------- helpers
+    def _write_overrides(self) -> None:
+        if self._read_only_here():
+            # SHOWING, NOT EDITING. The same rule as the run's own numbers and
+            # its columns, and for the same reason: nothing in a window that
+            # says "Show limits…" may write, app-wide or not.
+            return
+        if self._buffer is not None:
+            self._buffer["overrides"] = {k: dict(v) for k, v in self._overrides.items()}
+        else:
+            from core.settings import store_compliance_overrides
+            store_compliance_overrides(self._settings, self._overrides)
+            self._overrides_last_seen = self._prefs_now()[1]
+        # a Custom column inherits nothing from its parent's overrides, but the
+        # selectable set of columns can change when a column is emptied
+        #
+        # **AND THE K36-1 HOLD IS ASKED AGAIN (challenge 4 of beta 42,
+        # B8-1071).** This re-enabled every "Default for new reports" radio
+        # from `selectable_set_ids` alone, so the first number edited under an
+        # ISO default type made ChromIQ's three sets clickable beside it, and
+        # a click wrote a pair K36-1 says cannot exist.
+        _selectable = set(selectable_set_ids(self._overrides))
+        for col, rb in self._default_radios.items():
+            rb.setEnabled(col in _selectable)
+            self._hold_radio_to_type(rb, col, self._default_type)
+
+    def _refill_column(self, col: str) -> None:
+        self._syncing = True
+        try:
+            limits = self._limits_of(col)
+            for (c, rid), w in self._cells.items():
+                if c != col:
+                    continue
+                lim = limits.get(rid, Limit.none())
+                if isinstance(w, NoScrollDoubleSpinBox):
+                    w.setValue(float(lim.number) if lim.is_numeric else 0.0)
+                elif isinstance(w, QLabel):
+                    w.setText(self._cell_text(lim))
+        finally:
+            self._syncing = False
+
+    @staticmethod
+    def _natural_column_widths(g: QGridLayout) -> "list[int]":
+        """What one grid would give each column on its own, laid out at its
+        own size hint. Read off the layout, never guessed from a style sheet:
+        a wrapped heading's ``sizeHint`` is a heuristic and QSS padding lands
+        only at polish, so both would lie about a column's real width.
+        """
+        holder = g.parentWidget()
+        hint = g.sizeHint()
+        if holder is not None:
+            holder.resize(max(hint.width(), 1), max(hint.height(), 1))
+        g.invalidate()
+        g.activate()
+        return [max(0, g.cellRect(0, ci).width()) for ci in range(g.columnCount())]
+
+    def _sync_columns(self) -> None:
+        """ONE column geometry for the head and the body, and the width the
+        two of them ask for.
+
+        The head and the rows are different layouts now, so nothing makes
+        their columns agree by itself: left alone, a "Restore defaults"
+        button wider than a cell (F6: German is longer) would push its heading
+        off the column it names, and every heading after it with it. Each
+        column is therefore given the SAME explicit minimum width in both
+        grids, the wider of what the two would take on their own.
+
+        A hidden column is pinned to 0, because a minimum width is charged
+        whether or not anything is painted in the column, and pinning it to
+        its natural width would undo the hidden-column fix this window was
+        opened for.
+        """
+        cols = self._column_ids()
+        n = 2 + len(cols)
+        # measure what each grid would take UNPINNED, or the gap folded in
+        # below would be folded in again on every call
+        for ci in range(n):
+            self._head_grid.setColumnMinimumWidth(ci, 0)
+            self._grid.setColumnMinimumWidth(ci, 0)
+        head_w = self._natural_column_widths(self._head_grid)
+        body_w = self._natural_column_widths(self._grid)
+        for ci in range(n):
+            if ci >= 2 and not self._column_shown(cols[ci - 2]):
+                w = 0                       # a hidden column costs nothing
+            else:
+                w = max(head_w[ci] if ci < len(head_w) else 0,
+                        body_w[ci] if ci < len(body_w) else 0)
+                if ci:
+                    w += COLUMN_GAP         # every column but the first
+            self._head_grid.setColumnMinimumWidth(ci, w)
+            self._grid.setColumnMinimumWidth(ci, w)
+        self._pin_body_width()
+
+    def _column_shown(self, col: str) -> bool:
+        cb = self._column_checks.get(col)
+        return True if cb is None else cb.isChecked()
+
+    def _pin_body_width(self) -> None:
+        """Pin the scrolled body, and the head with it, to the width the
+        columns that are SHOWN need.
+
+        F7 pinned it once, at build time, with every column visible. Hiding a
+        column then left that width behind: the body stayed 1,405 px wide when
+        its contents needed 909, and the horizontal scroll bar stayed with it,
+        offering 496 px of nothing (measured on screen, 2026-09-10, Knut's
+        beta-3 report). Re-pinned on every visibility change, the bar appears
+        only when the columns really are wider than the window.
+
+        BOTH halves, always. The head lives in its own widget with its own
+        width, and a head left at the old width would lay its columns out over
+        a longer span than the rows below it.
+        """
+        body = self._scroll.widget() if self._scroll is not None else None
+        if body is None:
+            return
+        for g in (self._head_grid, self._grid):
+            g.invalidate()
+            g.activate()
+        want = max(self._grid.sizeHint().width(), self._head_grid.sizeHint().width())
+        body.setMinimumWidth(want)
+        self._head.setMinimumWidth(want)
+        self._match_head_to_body()
+        # LEAVE THEM DIRTY. A grid laid out and marked clean at the width it
+        # had a moment ago keeps that arithmetic when the widget is then given
+        # its new width: ticking a hidden column back on left the row-label
+        # column 138 px short of its own labels, head and body alike (measured
+        # 2026-09-10). Invalidated last, the next real geometry pass rebuilds
+        # at the width the widget actually gets.
+        for g in (self._head_grid, self._grid):
+            g.invalidate()
+
+    def _match_head_to_body(self) -> None:
+        """Give the head the body's width and the clip its height, then put it
+        back under the body's current horizontal scroll."""
+        body = self._scroll.widget() if self._scroll is not None else None
+        if body is None or self._head is None:
+            return
+        h = max(self._head_grid.sizeHint().height(), 1)
+        self._head.resize(max(body.width(), self._head.minimumWidth()), h)
+        self._head_clip.setFixedHeight(h)
+        self._on_hscroll(self._scroll.horizontalScrollBar().value())
+
+    def _on_hscroll(self, value: int) -> None:
+        """The head scrolls sideways with the body, and only sideways.
+
+        A frozen head that did not follow would put every heading over the
+        wrong column the moment the table is wider than the window, which is
+        worse than the fault it was meant to fix.
+        """
+        if self._head is not None:
+            self._head.move(-int(value), 0)
+
+    def _set_column_visible(self, col: str, on: bool) -> None:
+        for w in self._column_widgets.get(col, []):
+            w.setVisible(on)
+        self._refresh_row_labels()
+        self._sync_columns()
+
+    def value_of(self, col: str, row_id: str) -> "Limit":
+        """What the window currently shows for one cell (for tests/drivers)."""
+        return self._limits_of(col).get(row_id, Limit.none())
+
+    # ------------------------------------------------------------ lifecycle
+    def showEvent(self, event) -> None:  # noqa: N802
+        super().showEvent(event)
+        # C9: Return in a limit field opens no "Reference values…" window.
+        from ui.dialogs.no_default_button import no_default_button
+        no_default_button(self)
+        if self._sized_once:
+            return
+        self._sized_once = True
+        from PyQt6.QtGui import QGuiApplication
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is None:
+            return
+        area = screen.availableGeometry()
+        body = self._scroll.widget()
+        # body + the dialog's side insets + the vertical scroll bar + a margin
+        natural_w = (body.sizeHint().width() + 44 + 16 + 24) if body else 1200
+        w = max(self.minimumWidth(), min(natural_w, area.width() - 40))
+        h = min(self.sizeHint().height() + 400, self._work_area_cap(area.height() - 40))
+        self.resize(w, h)
+        self._keep_inside_the_work_area()
+
+    def _run_column_really_moved(self) -> bool:
+        """Whether the run's column ends this visit different from how it
+        started. Compared through `limits_to_json`, the same shape that is
+        written to disk, so two Limits that store the same thing compare equal.
+        """
+        from workflow.compliance_sets import limits_to_json
+        if self._run_limits_at_open is None:
+            return True                 # nothing to compare against; be safe
+        try:
+            return limits_to_json(self._run_limits) != self._run_limits_at_open
+        except Exception:               # noqa: BLE001
+            return True
+
+    def done(self, result: int) -> None:  # noqa: D102
+        # DID SOMEBODY ELSE MOVE THIS RUN WHILE THE WINDOW WAS OPEN?
+        # Asked BEFORE the write below, because after it the answer is this
+        # window's own. There is no other moment it can be asked from: the
+        # report window sees only the state this `done()` leaves behind, and
+        # both writers leave the same shape.
+        if self._run is not None and self._run_stored_at_open is not None:
+            _now = _stored_column(self._run)
+            if _now is not None and _now != self._run_stored_at_open:
+                self.run_limits_collided = True
+                log.info("this run's limits were changed elsewhere while the "
+                         "limits window was open: %s", self._run.dir)
+        _dflt, _ovr = self._prefs_now()
+        if ((self._default_set_last_seen is not None
+             and _dflt != self._default_set_last_seen)
+                or (self._overrides_last_seen is not None
+                    and _ovr != self._overrides_last_seen)):
+            self.prefs_collided = True
+            log.info("the app-wide report limits were changed elsewhere while "
+                     "the limits window was open")
+        # DIRTY MEANS DIFFERENT, NOT TOUCHED.
+        if (self._run is not None and self._run_dirty and self._run_editable
+                and self._run_column_really_moved()):
+            from workflow.compliance_sets import limits_to_json
+            try:
+                _m = self._run.load_meta()
+                _m.compliance_thresholds = limits_to_json(self._run_limits)
+                self._run.save_meta(_m)
+                self.run_limits_changed = True
+            except OSError as exc:
+                log.warning("could not store this run's limits: %s", exc)
+        super().done(result)

@@ -27,6 +27,18 @@ measured, and rejected on the evidence (§I.9, Basti 2026-08-31):
 
 A wrong repair is invisible: the report renders normally, every patch compared
 against a real patch, just not the right one. Refusing is the honest answer.
+
+**WHAT IT DOES DO, AND WHY THAT IS A DIFFERENT THING.** A measurement that
+carries NO device values at all — an i1Profiler export of a chart i1Profiler did
+not generate — is paired with the chart by the patch NAME each one carries, and
+the chart's own device values are written beside the readings before the copy is
+filed (:func:`complete_from_chart`, :mod:`workflow.measurement_pairing`).
+
+That is not the rejected repair. Nothing here looks at a colour, so nothing here
+can be validated by the quantity it minimised. A name is exact: the chart issued
+it, printed it beside the patch, and the person aimed the instrument at it. A
+measurement of somebody else's chart names patches this chart does not have, and
+is refused on that.
 """
 from __future__ import annotations
 
@@ -35,7 +47,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from core.i18n import tr
-from core.text_io import read_text
 
 log = logging.getLogger(__name__)
 
@@ -55,17 +66,87 @@ class ImportVerdict:
     partial: bool = False
     n_chart: int = 0
     n_measured: int = 0
+    #: True when the file carries no device values and the chart has to supply
+    #: them before it is filed — see :func:`complete_from_chart`. The verdict
+    #: says so rather than the caller guessing, because a file filed WITHOUT
+    #: them is paired by i1Profiler's reading order and every number in the
+    #: report is then about the wrong patch.
+    device_from_chart: bool = False
+
+
+def _cgats_table_kind(path: Path) -> str:
+    """The CGATS keyword the file opens with (``CTI1``/``CTI2``/``CTI3``/…), or
+    "" when it does not announce one.
+
+    The first non-blank line of an ArgyllCMS table IS its type — printtarg
+    writes `CTI2` at the top of every chart it lays out, chartread writes
+    `CTI3` at the top of every measurement — so this is the file saying what it
+    is rather than anybody guessing from a suffix.
+    """
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for _ in range(8):
+                line = fh.readline()
+                if not line:
+                    break
+                word = line.strip().split()[:1]
+                if word:
+                    return word[0].upper()
+    except OSError:
+        return ""
+    return ""
+
+
+def looks_like_a_chart(path: "Path | str") -> bool:
+    """Is this file a CHART rather than a measurement of one?
+
+    Public because it has to be asked TWICE, in two different places, and the
+    second one is not obvious. `assess` asks it below and catches a chart that
+    arrives under a `.ti3` name — but a chart picked as a `.ti2` never reaches
+    `assess` looking like one: it is not a `.ti3`, so the import hands it to
+    txt2ti3 first, and what comes back out is a well-formed CTI3 table of the
+    chart's aim values with nothing left in it to give the game away. So the
+    door asks this of the file the PERSON picked, before anything is converted.
+    """
+    return _cgats_table_kind(Path(path)) in ("CTI1", "CTI2")
+
+
+#: The one sentence both places say about it, so they cannot drift.
+CHART_NOT_A_MEASUREMENT = (
+    "this file is a chart, not a measurement of one. It is the list of "
+    "colours to print, and the numbers in it are the colours ChromIQ "
+    "ASKED for, not the ones an instrument read back. Choose the file "
+    "your measuring software saved instead.")
 
 
 def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
     """Decide whether *ti3* is a measurement OF *chart_ti2*.
 
-    Order matters: the patch count is the cheap, clear check and gives the
-    clearest sentence, so it runs first. The identity comparison — the one the
-    report itself uses — runs second and is what catches a file of the right
-    SIZE but the wrong chart.
+    Order matters: is it a measurement at all, then the patch count (the cheap,
+    clear check, and the clearest sentence), then the identity comparison — the
+    one the report itself uses — which is what catches a file of the right SIZE
+    but the wrong chart.
     """
     from workflow.ti3_analysis import Ti3ParseError, parse_ti3
+
+    # A CHART IS NOT A MEASUREMENT OF ITSELF, and nothing below could tell.
+    #
+    # Found by driving the refusal doors (challenge round 6, 2026-09-15) with
+    # the run's own `.ti2` picked as the measurement — an easy slip, since the
+    # chart and the measurement sit in the same folder under the same stem and
+    # both are CGATS tables. printtarg writes the chart's AIM XYZ into the
+    # `.ti2`, so `parse_ti3` reads it happily as a full set of readings, the
+    # patch count matches exactly (it is the same file), and
+    # `verify_patch_identity` compares the chart against itself and reports a
+    # flawless match. It was filed, in silence, as the run's measurement — and
+    # a profile built from it would be a profile of a printer that had never
+    # printed anything.
+    #
+    # The file says what it is on its first line, so ask it. Here rather than
+    # in one door, because both doors reach `assess` and neither could see it.
+    if looks_like_a_chart(ti3):
+        return ImportVerdict(False, tr(CHART_NOT_A_MEASUREMENT))
+
     try:
         measured = parse_ti3(ti3)
     except (Ti3ParseError, OSError) as exc:
@@ -74,16 +155,28 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
                 error=exc))
 
     n_chart = _chart_patch_count(chart_ti2)
+    n_sheet = _chart_sheet_count(chart_ti2) or n_chart
     n_got = int(measured.n_patches or 0)
 
     if n_chart:
-        if n_got > n_chart:
-            # NOT a partial. More readings than the chart has patches means it
-            # is a measurement of something else.
+        if n_got > n_sheet:
+            # NOT a partial. More readings than the SHEET carries squares means
+            # it is a measurement of something else.
+            #
+            # AGAINST THE SHEET, NOT AGAINST THE DESIGN. A chart's last strip
+            # is filled out with rows that are not part of the design, and the
+            # person reading it reads them too — so a complete measurement of a
+            # 408-patch design printed as 420 squares holds 420. Judged against
+            # 408 it was called "a measurement of a different chart" and
+            # refused, on a user's own verification of her own profile,
+            # 2026-09-11. `expected_patches` is the design and says when a
+            # measurement is SHORT; `sheet_patches` is the paper and says when
+            # it is somebody else's.
             return ImportVerdict(False, tr(
-                "the chart has {chart} patches, but this file holds {got} "
-                "measurements, so it is a measurement of a different chart"
-            ).format(chart=n_chart, got=n_got), n_chart=n_chart, n_measured=n_got)
+                "the chart carries {chart} patches on the sheet, but this file "
+                "holds {got} measurements, so it is a measurement of a "
+                "different chart"
+            ).format(chart=n_sheet, got=n_got), n_chart=n_chart, n_measured=n_got)
         if n_got < n_chart:
             # §I.10: filed, not refused, and both counts are stated — BUT it is
             # still checked against the chart. Returning here unchecked meant a
@@ -97,6 +190,49 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
 
     else:
         partial = False
+
+    if not measured.has_device:
+        if chart_ti2 is None:
+            # …AND WITH NO CHART BESIDE IT, NOTHING WILL EVER SUPPLY THEM.
+            #
+            # `parse_ti3` used to refuse a file with no device columns outright,
+            # so BOTH profile-build doors refused this before the pairing work.
+            # Teaching the parser to read such a file opened it at every door at
+            # once, and only the doors that HAVE a chart were given the
+            # completion step: `say_what_was_filed` returns before it, with the
+            # comment "a bare measurement: nothing to judge it by", so a
+            # spectral-only export dropped into "New project from a
+            # measurement" was copied in, announced as filed, and left with no
+            # device values at all. `colprof` cannot build from it, the grey
+            # ramp cannot be found in it, and no later action supplies what is
+            # missing, because the completion only ever runs at import.
+            #
+            # A file that cannot be completed and cannot be used is refused at
+            # the only moment where nothing has been changed yet, which is what
+            # it was before and what §I.9 asks for.
+            return ImportVerdict(False, tr(
+                "this file carries no device values, and there is no chart "
+                "file beside it to supply them, so nothing in it says which "
+                "colour each reading was printed with"),
+                n_chart=n_chart or 0, n_measured=n_got)
+        # NO DEVICE VALUES, SO THE CHECK IS THE NAME. An i1Profiler export of a
+        # chart i1Profiler did not generate carries the patch NAME and the
+        # spectral curve and nothing else — it has no colour space to write
+        # device values in, and will not let you ask for them. The colour
+        # comparison below therefore has nothing to compare, and said so
+        # ("the measurement carries no device values"), which let the file pass
+        # unchecked while `parse_ti3` refused it outright a few lines earlier.
+        #
+        # The name is a real check, and a stricter one than "unchecked": the
+        # chart issued those labels and printed them beside the patches, so a
+        # measurement of a different chart names patches this one does not
+        # have. See `workflow.measurement_pairing` for why this is NOT the
+        # device-value re-pairing §I forbids.
+        verdict = _name_verdict(ti3, chart_ti2, n_chart, n_got, partial)
+        if verdict is not None:
+            return verdict
+        return ImportVerdict(True, "", partial=partial, n_chart=n_chart or 0,
+                             n_measured=n_got, device_from_chart=True)
 
     from workflow.measurement_report import verify_patch_identity
     identity = verify_patch_identity(measured, chart_ti2)
@@ -113,6 +249,83 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
                          n_chart=n_chart or 0, n_measured=n_got)
 
 
+def _name_verdict(ti3: Path, chart_ti2: Path, n_chart: int, n_got: int,
+                  partial: bool) -> "ImportVerdict | None":
+    """The refusal for a device-less file whose names are not this chart's, or
+    ``None`` when they are. Counts travel so the window can state them."""
+    from workflow.measurement_pairing import (match_by_name,
+                                              measurement_locations)
+    m = match_by_name(ti3, chart_ti2)
+    if m.ok:
+        return None
+    if m.reason == "the chart file carries no patch names":
+        # Never `tr(m.reason)`: a tr() whose argument is a variable is
+        # invisible to the extractor, so the string would ship untranslated.
+        return ImportVerdict(False, tr(
+            "this file carries no device values, so ChromIQ has to pair it "
+            "with the chart by the patch names, and the chart file carries "
+            "none"), n_chart=n_chart or 0, n_measured=n_got)
+    if m.reason:
+        return ImportVerdict(False, tr(
+            "this file carries no device values and no patch names either, so "
+            "there is nothing in it that says which patch each reading "
+            "belongs to"), n_chart=n_chart or 0, n_measured=n_got)
+    if m.unknown:
+        n = len(m.unknown)
+        # The names in the FILE'S OWN ORDER, not sorted: a sorted sample of
+        # "ZA1, ZA10, ZA11, ZA12" reads like a bug in the app rather than a
+        # sample of the file, because nobody's chart is numbered that way.
+        first = [loc for loc in measurement_locations(ti3) if loc in
+                 set(m.unknown)][:4]
+        shown = ", ".join(first) + ("…" if n > 4 else "")
+        if n >= m.n_measured:
+            # EVERY name is a stranger. Naming four of them suggests the other
+            # 416 were fine, and they were not.
+            return ImportVerdict(False, tr(
+                "not one of the {count} patch names in this file is on this "
+                "chart ({names}), so it is a measurement of a different chart"
+            ).format(count=n, names=shown),
+                n_chart=n_chart or 0, n_measured=n_got)
+        return ImportVerdict(False, (tr(
+            "one patch in this file ({names}) is not on this chart, so it is a "
+            "measurement of a different chart") if n == 1 else tr(
+            "{count} patches in this file ({names}) are not on this chart, so "
+            "it is a measurement of a different chart")).format(
+                count=n, names=shown),
+            n_chart=n_chart or 0, n_measured=n_got)
+    n = len(m.duplicated)
+    shown = ", ".join(m.duplicated[:4]) + ("…" if n > 4 else "")
+    return ImportVerdict(False, (tr(
+        "one patch ({names}) is measured twice in this file, so ChromIQ "
+        "cannot tell which reading belongs to it") if n == 1 else tr(
+        "{count} patches ({names}) are measured twice in this file, so ChromIQ "
+        "cannot tell which reading belongs to each")).format(
+            count=n, names=shown),
+        n_chart=n_chart or 0, n_measured=n_got)
+
+
+def complete_from_chart(ti3: Path, chart_ti2: "Path | None") -> int:
+    """Give a device-less measurement the chart's device values and row order.
+
+    Call it on the COPY, after :func:`assess` has said ``device_from_chart``,
+    and BEFORE anything reads the file as a measurement. Returns how many rows
+    were written, 0 when there was nothing to do.
+
+    Filing such a file without this step is worse than refusing it: the report
+    pairs by ``SAMPLE_ID``, the file's ids are i1Profiler's reading order, and
+    every patch would be compared against a real patch that is not the right
+    one — which renders as an ordinary report saying nothing is wrong.
+    """
+    if chart_ti2 is None:
+        return 0
+    from workflow.measurement_pairing import attach_device_values_from_chart
+    n = attach_device_values_from_chart(ti3, chart_ti2)
+    if n:
+        log.info("import: %d patches took their device values from %s",
+                 n, Path(chart_ti2).name)
+    return n
+
+
 def _chart_patch_count(ti2: "Path | None") -> int:
     """How many patches the chart has, or 0 when that cannot be known.
 
@@ -123,14 +336,33 @@ def _chart_patch_count(ti2: "Path | None") -> int:
     # FROM THE HEADER, not by parsing it as a measurement. A `.ti2` carries
     # device values and no XYZ, so `parse_ti3` raises "No XYZ or Lab columns"
     # on every chart — which returned 0 here, silently switched the count check
-    # off, and let a partial through as an ordinary import. The same one-line
-    # read the Measure tab already uses (`tab_measure._chart_patch_count`).
-    import re
+    # off, and let a partial through as an ordinary import.
+    #
+    # THROUGH `expected_patches`, NOT A `NUMBER_OF_SETS` OF ITS OWN. A chart's
+    # last strip is filled out with patches that are not part of the design —
+    # printtarg's carry `SAMPLE_ID` 0, ChromIQ's layout engine's are copies of
+    # the media patch — and the Build Profile tab has discounted them since
+    # report 16. This door counted the raw header instead, so the same
+    # measurement was "complete" to one part of the app and "partial" to the
+    # other: a user's complete 4,000-patch measurement of a 4,014-row chart was
+    # filed with "part of the chart was not measured" on 2026-09-11. One
+    # counting rule, in one place.
     if ti2 is None:
         return 0
-    try:
-        m = re.search(r"NUMBER_OF_SETS\s+(\d+)",
-                      read_text(Path(ti2), lenient=True))
-    except OSError:
+    from workflow.measurement_state import expected_patches
+    return int(expected_patches(Path(ti2)) or 0)
+
+
+def _chart_sheet_count(ti2: "Path | None") -> int:
+    """How many patches the chart PRINTS, fill-up rows included, or 0.
+
+    The other half of the pair above. `_chart_patch_count` is what the design
+    asked for and says when a measurement is short; this is what is on the
+    paper and says when a measurement is of another chart entirely. Using one
+    number for both questions got both of them wrong, a day apart and in
+    opposite directions.
+    """
+    if ti2 is None:
         return 0
-    return int(m.group(1)) if m else 0
+    from workflow.measurement_state import sheet_patches
+    return int(sheet_patches(Path(ti2)) or 0)

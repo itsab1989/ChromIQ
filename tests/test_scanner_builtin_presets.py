@@ -167,7 +167,7 @@ def test_selecting_scanner_preset_turns_engine_on(qapp, tmp_path, monkeypatch):
     assert built and built[-1].name == "chart.ti1"     # the bundled patch set
 
 
-def test_selecting_a_printtarg_builtin_turns_the_engine_off(qapp, tmp_path,
+def test_selecting_a_printtarg_builtin_turns_the_engine_off(prebuilt_bundles, qapp, tmp_path,
                                                             monkeypatch):
     """The other half of the pair, SPLIT OUT so neither can hide the other.
 
@@ -189,8 +189,8 @@ def test_selecting_a_printtarg_builtin_turns_the_engine_off(qapp, tmp_path,
     # engine flag back and hide this test's real subject.
     tab._manual_target_name_edit.setText("ZZ-engine-off-probe")
 
-    idx = tab._preset_combo.findData("__chromiq_tc918eg_a4_builtin__")
-    assert idx > 0, "the TC9.18 built-in is not in the dropdown"
+    idx = tab._preset_combo.findData("__chromiq_abw702_builtin__")
+    assert idx > 0, "the ABW 702 built-in is not in the dropdown"
     _choose(tab, idx)
 
     assert bool(s.get("use_chromiq_layout_engine", False)) is False, (
@@ -205,7 +205,7 @@ def test_scanner_tooltip_mentions_scan_workflow(qapp, tmp_path):
     assert "printtarg" not in tip            # engine preset, no printtarg line
 
 
-def test_the_parking_mechanism_is_still_wired(qapp, tmp_path):
+def test_the_parking_mechanism_is_still_wired(prebuilt_bundles, qapp, tmp_path):
     """Nothing is parked today, and the machinery to park something must survive
     that.
 
@@ -219,8 +219,8 @@ def test_the_parking_mechanism_is_still_wired(qapp, tmp_path):
     """
     import inspect
 
-    from ui.tabs.tab_chart import (DISABLED_BUILTIN_PRESET_KEYS, TabChart,
-                                   TC924_CM_A3_PRESET_KEY)
+    from tests._prebuilt_fixture import TC924_CM_A3_KEY as TC924_CM_A3_PRESET_KEY
+    from ui.tabs.tab_chart import DISABLED_BUILTIN_PRESET_KEYS, TabChart
     assert DISABLED_BUILTIN_PRESET_KEYS == frozenset()
     src = inspect.getsource(TabChart._add_builtin_preset_item)
     assert "temporarily unavailable" in src
@@ -230,11 +230,23 @@ def test_the_parking_mechanism_is_still_wired(qapp, tmp_path):
 
     tab, _s = _make_tab(qapp, tmp_path)
     try:
+        # THE PARKING RULE ALONE: since Knut's #182 5833232475 the paper
+        # filter is ON by default and hides (and disables) an A3 preset on
+        # the default A4 paper, which is not what "parked" means here.
+        from core.curated_presets import PAPER_FILTER_KEY
+        _s.set(PAPER_FILTER_KEY, False)
+        tab._apply_preset_collapse()
         combo = tab._preset_combo
         # …and the ColorMunki A3 TC9.24, a different chart entirely, is
-        # untouched by that removal.
+        # untouched by that removal. (Withdrawn itself in 4.3.1, it is
+        # registered from tests/fixtures for this test.)
+        # Not PARKED: listed, and without the parking label. (Whether it is
+        # enabled while the list is closed depends on the curated list since
+        # K35: a preset under a closed "N more presets" arrow is disabled too,
+        # and Knut's shipped list of 2026-09-25 does not tick this one.)
         j = combo.findData(TC924_CM_A3_PRESET_KEY)
-        assert j > 0 and combo.model().item(j).isEnabled()
+        assert j > 0
+        assert "temporarily unavailable" not in combo.itemText(j).lower()
         assert all("temporarily unavailable" not in combo.itemText(i).lower()
                    for i in range(combo.count()))
     finally:

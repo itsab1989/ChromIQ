@@ -90,6 +90,17 @@ def test_the_header_promises_the_census():
     ("Argyll targen not available", "ArgyllCMS is not installed here"),
     ("offscreen platform doesn't report app-level focus here",
      "the platform cannot show it"),
+    # Names Windows for a good reason and must not land in the platform
+    # bucket because of it.
+    ("wdi_simple.exe is a Windows binary and cannot be run here",
+     "wdi-simple is not here"),
+    ("wdi_simple.exe is not on this host (looked in …)",
+     "wdi-simple is not here"),
+    # …while the Argyll half of the same test file still reads as Argyll,
+    # even though its reason mentions wdi-simple.
+    ("ArgyllCMS is not installed on this host, so its usb/ArgyllCMS.inf "
+     "cannot be read; wdi-simple's own numbering still applies",
+     "ArgyllCMS is not installed here"),
     ("slow end-to-end build — use --runslow", "the slow tier was not asked for"),
 ])
 def test_a_reason_lands_in_the_bucket_that_describes_it(reason, bucket):

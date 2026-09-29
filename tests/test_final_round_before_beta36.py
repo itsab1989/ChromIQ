@@ -1,0 +1,112 @@
+"""The final challenge round before 4.3.0-beta.36, 2026-09-23, on screen.
+Report: ~/Desktop/ChromIQ-beta36-proof/final-challenge/REPORT.md.
+
+FC-2 (and B8-803) a profiling sheet loaded beside dated verifications: one
+     press wrote one type into BOTH kinds of folder, which K19 then hid from
+     both readouts, so the press looked like it did nothing (FC-1 was seen
+     downstream of it).
+FC-3 report text still told a ChromIQ user how ChromIQ works (K18).
+FC-6 (open, B8-811) the title names the verification chart's file.
+FC-8 after Clear list, Unlock still spoke of "this measurement".
+"""
+from __future__ import annotations
+
+import os
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+import pytest                                                  # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    from PyQt6.QtWidgets import QApplication
+    return QApplication.instance() or QApplication([])
+
+
+def test_both_kinds_loaded_generate_is_refused_and_says_why(tmp_path, qapp):
+    """MUTATION: drop `_kinds_are_mixed()` from the handler and the press
+    writes Printing records into the dated folder: red."""
+    from tests.test_k19_counts_follow_the_run_type import (
+        _run_with_a_profiling_record)
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    s, _fm, run, vs = _run_with_a_profiling_record(tmp_path)
+    dlg = MeasurementReportDialog(s, None, initial_ti3=vs[-1].measurement_ti3)
+    dlg.show()
+    qapp.processEvents()
+    try:
+        dlg._add_source(run.dir / "sheet.ti3")
+        qapp.processEvents()
+        assert dlg._kinds_are_mixed()
+        assert not dlg._generate_btn.isEnabled()
+        assert "each has its own kind of report" in dlg._generate_btn.toolTip()
+        before = set(run.dir.rglob("report_*.json"))
+        dlg._say_generated = lambda saved, failed: None
+        dlg._ask_update_or_create_new = lambda: "new"
+        dlg._on_generate_report()
+        qapp.processEvents()
+        assert set(run.dir.rglob("report_*.json")) == before, (
+            "a press with both kinds loaded wrote a report")
+    finally:
+        dlg.close()
+
+
+def test_the_guide_explains_no_chromiq_mechanics(tmp_path, qapp):
+    """FC-3. MUTATION: put any of these clauses back and this goes red."""
+    import html as _html
+    import re
+    from tests.test_import_measurement_module import _verify_env
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    s, _fm, _ctl, _run = _verify_env(tmp_path)
+    dlg = MeasurementReportDialog(s, None)
+    try:
+        g = re.sub(r"\s+", " ", _html.unescape(dlg._how_to_read_html()))
+    finally:
+        dlg.deleteLater()
+    for said in ("ChromIQ copied", "in Preferences", "the report window",
+                 "Save a report after", "ChromIQ converts",
+                 "your finished profile", "your measurement file"):
+        assert said not in g, said
+
+
+def test_the_recorded_verdict_sentence_names_no_ChromIQ_action(tmp_path, qapp):
+    """FC-3: *"Only unlocking the run's limits recalculates it"* was an
+    instruction, and untrue as worded (unlocking recalculates nothing)."""
+    import inspect
+    from ui.dialogs import measurement_report_dialog as M
+    src = inspect.getsource(M.MeasurementReportDialog._verdict_provenance)
+    assert "Only unlocking" not in src
+
+
+# RETIRED BY K31 (beta 40): `test_after_clear_list_unlock_says_nothing_is_loaded`.
+# The unlock box is gone (K31). After Clear List the Judged against pulldown
+# and Edit limits say 'No measurement is loaded yet.' (_sync_limit_controls).
+
+
+_EVERY_REASON = ("no_greys", "too_few_steps", "no_white", "no_black",
+                 "no_reference", "needs_reference_file", "no_ramp",
+                 "small_sample", "printing_unrecorded", "no_corners",
+                 "not_computed", "no_control_strip", "control_strip_too_small",
+                 "too_few_surface_patches", "too_few_outer_patches",
+                 "no_repeat_patches", "too_few_repeat_groups",
+                 "no_earlier_measurement", "too_few_shared_patches")
+
+
+@pytest.mark.parametrize("code", _EVERY_REASON)
+def test_every_na_note_names_what_is_missing_and_nothing_to_do(code, qapp):
+    """K22 (Knut, 2026-09-23): *"each names the thing missing in the measured
+    chart"*. No note tells the reader what to add, where, or how, and none
+    explains ChromIQ.
+
+    MUTATION: put "Use a larger chart" back on the outer-gamut sentence (or
+    any instruction on any of them) and that code goes red."""
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    text = MeasurementReportDialog._reason_sentence(None, code, {})
+    assert text, code
+    import re
+    low = text.lower()
+    for bad in (r"\bdeclare a\b", r"\badd\b", r"\buse a\b",
+                r"create chart", r"chromiq", r"control-strip\.json",
+                r"control_strip_ids", r"name the patches",
+                r"this chart declares", r"measure the same"):
+        assert not re.search(bad, low), (code, bad, text)

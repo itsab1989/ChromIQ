@@ -1,10 +1,19 @@
 """Windows-only: enumerate connected ArgyllCMS-compatible USB devices and
-install WinUSB drivers via wdi-simple (libwdi)."""
+install the libusb-win32 driver via wdi-simple (libwdi).
+
+The names in this module still say WinUSB — `has_winusb`, `install_winusb` —
+and they are wrong. What is installed, and the only thing ArgyllCMS can read an
+instrument through, is libusb-win32. See `ARGYLL_USB_SERVICE`. The names are
+left alone deliberately: three branches are live in this file and a rename
+would collide with all of them."""
 from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes as wt
+import os
 import sys
+import time
+from enum import Enum
 from pathlib import Path
 from typing import NamedTuple
 
@@ -88,8 +97,29 @@ KNOWN_COLORIMETERS: dict[tuple[str, str], str] = {
 # serial devices — Arduinos, cheap adapters, lab gear. Its presence NEVER means
 # "a CR30 is attached". Identification stays behavioural (open the port and ask
 # the device what it is), which is why nothing here may auto-install anything.
+# ⚠ THE WHOLE CH34x FAMILY, NOT JUST THE CR30's CHIP. Read from WCH's own
+# CH341SER.INF (4.0.2026.02) as installed on Windows, [ControlFlags]:
+#
+#     ExcludeFromSelect = USB\VID_1A86&PID_7523
+#     ExcludeFromSelect = USB\VID_1A86&PID_5523
+#     ExcludeFromSelect = USB\VID_1A86&PID_7522
+#     ExcludeFromSelect = USB\VID_1A86&PID_E523
+#     ExcludeFromSelect = USB\VID_4348&PID_5523
+#     ExcludeFromSelect = USB\VID_4348&PID_5523&REV_0250   <- same chip, REV-qualified
+#
+# Six hardware IDs, FIVE distinct VID/PID pairs. This table used to hold one of
+# them, so `is_vendor_serial()` said False for four serial bridges that WinUSB
+# would destroy exactly as thoroughly as it destroys the CR30's. That was
+# harmless only for as long as nothing else consumed the list; `core.ch34x_driver`
+# now derives CH34X_IDS from it, so the set that decides "offer driver help for
+# this adapter" and the set that decides "never give this adapter WinUSB" are
+# literally the same object and cannot drift apart.
 VENDOR_SERIAL_DEVICES: dict[tuple[str, str], str] = {
     ("1a86", "7523"): "USB-serial bridge (CH340) — used by the CR30",
+    ("1a86", "5523"): "USB-serial bridge (CH341A)",
+    ("1a86", "7522"): "USB-serial bridge (CH340K)",
+    ("1a86", "e523"): "USB-serial bridge (CH330)",
+    ("4348", "5523"): "USB-serial bridge (CH341)",
 }
 
 
@@ -98,11 +128,45 @@ def is_vendor_serial(vid: str, pid: str) -> bool:
     return (str(vid).lower(), str(pid).lower()) in VENDOR_SERIAL_DEVICES
 
 
+#: The one Windows service name that means ArgyllCMS can open the instrument.
+#:
+#: NOT A LIST, AND IT USED TO BE ONE. `("winusb", "libusb0")` was accepted here
+#: for as long as this file has existed, which made a WinUSB-bound instrument
+#: report "driver installed ✓" while `spotread` printed `** No ports found **`
+#: — a closed loop with no way out from inside the app, and ChromIQ's own Zadig
+#: instructions walked users into it by telling them to choose WinUSB.
+#:
+#: Argyll reaches a USB instrument on Windows by opening the kernel device
+#: object `\\.\libusb0-%04d`. Measured on `spotread.exe` (Argyll 3.5.0): that
+#: format string is the ONLY device path in the binary, it imports no
+#: `WinUsb_*` symbol at all, and it does not link `libusb0.dll` either — so a
+#: user-mode compatibility shim cannot stand in for the driver. Only
+#: libusb-win32's `libusb0.sys` creates that object. `usb/ArgyllCMS.inf` binds
+#: `AddService = libusb0` for all 28 devices Argyll supports, and Argyll's own
+#: changelog dates the switch at V1.5.0 (2013): "No longer using libusb for USB
+#: access… MSWin uses the libusb-win32 kernel driver."
+#:
+#: `libusbk` IS DELIBERATELY NOT HERE EITHER. Zadig offers it and users pick it,
+#: and its `libusb0.dll` shim makes it look interchangeable — but that shim is
+#: user-mode API emulation, and Argyll neither links it nor enumerates a device
+#: interface: it calls `CreateFile` on the name and then issues
+#: `LIBUSB_IOCTL_*` codes to whatever answers. Nothing in this project has
+#: measured `libusbK.sys` creating `\\.\libusb0-NNNN`, so accepting it would be
+#: asserting a compatibility claim nobody here has tested, in order to withhold
+#: help from a user whose instrument may well be dark. Argyll installs libusb0
+#: and nothing else; so does ChromIQ, and so this accepts libusb0 and nothing
+#: else.
+ARGYLL_USB_SERVICE = "libusb0"
+
+
 class UsbDevice(NamedTuple):
     vid: str        # 4-char hex, lower-case, no 0x prefix
     pid: str
     name: str
-    has_winusb: bool   # True if WinUSB or libusb0 (Argyll) driver is active
+    # True only if libusb-win32 (`libusb0`) is bound — the one driver ArgyllCMS
+    # can read an instrument through. The NAME is a leftover; see
+    # ARGYLL_USB_SERVICE above for why WinUSB is not enough.
+    has_winusb: bool
 
 
 def _wdi_simple_path() -> Path:
@@ -110,26 +174,157 @@ def _wdi_simple_path() -> Path:
     return resource_path("assets/wdi_simple.exe")
 
 
-def enumerate_connected() -> list[UsbDevice]:
-    """Return connected USB devices that match the known colorimeter list."""
-    if sys.platform != "win32":
-        return []
-    import winreg
-    found: list[UsbDevice] = []
-    try:
-        base = winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum\USB"
-        )
-    except OSError:
-        return []
+# ---------------------------------------------------------------------------
+# Which of the remembered devices is actually attached
+# ---------------------------------------------------------------------------
+#
+# `HKLM\SYSTEM\CurrentControlSet\Enum\USB` is a MEMORY, NOT A CENSUS. Windows
+# keeps a subkey for every USB device the machine has ever seen, for ever, and
+# for every port each one was ever plugged into. A plain walk of it therefore
+# answers "what has this machine known?", which is not the question anyone here
+# is asking.
+#
+# Measured on the ARM64 box, 2026-09-05: the registry remembered 6 vid:pid,
+# cfgmgr32 said 5 were present; and the ONE attached instrument had two instance
+# keys, only one of which was live. Both halves of that matter, and they fail
+# differently:
+#
+#   • a remembered vid:pid that is gone  -> a device reported as connected when
+#     it is not in the building. `unbound_targets()` then says "the driver did
+#     not bind" about hardware that cannot bind anything.
+#   • a remembered INSTANCE that is gone -> its stale `Service` value is OR-ed
+#     into `has_winusb`. Move the instrument to another USB port and the old
+#     ghost's `libusb0` masks the new instance's missing driver, so
+#     `unbound_targets()` returns empty and the app claims an install that never
+#     happened. That is precisely the failure `unbound_targets()` exists to
+#     catch, so the check must not be built on the thing it is checking.
+#
+# `CM_Get_Device_ID_ListW` with `CM_GETIDLIST_FILTER_PRESENT` answers the real
+# question, at instance granularity, with no extra dependency.
+#
+# ONE IMPLEMENTATION, DELIBERATELY. This used to live in
+# `ui/dialogs/settings_dialog.py`, where it filtered the dialog's own call and
+# left `unbound_targets()` — the other caller, and the one whose entire job is
+# to not be fooled — reading ghosts. A filter that lives beside one caller is a
+# filter the next caller will not know about. It belongs where the ghosts come
+# from, so that no consumer of `enumerate_connected()` has to remember anything.
+#
+# NOTE ON THE FAILURE DIRECTION. When the question cannot be asked at all — not
+# Windows, no cfgmgr32, the call fails — `present_usb_instance_ids()` returns
+# None and NOTHING is filtered. A ghost in the list is a lie the user can see
+# and ignore. A real instrument filtered OUT is a working feature that silently
+# refuses to help. Of the two, only the first is survivable, so the fallback is
+# deliberately the noisy one.
 
-    i = 0
-    while True:
-        try:
-            combo = winreg.EnumKey(base, i)   # e.g. "VID_0765&PID_5020"
-        except OSError:
-            break
-        i += 1
+#: `CM_GETIDLIST_FILTER_ENUMERATOR` — restrict to the "USB" enumerator.
+_CM_GETIDLIST_FILTER_ENUMERATOR = 0x00000001
+#: `CM_GETIDLIST_FILTER_PRESENT` — the whole point: attached right now.
+_CM_GETIDLIST_FILTER_PRESENT = 0x00000100
+_CR_SUCCESS = 0
+
+
+def usb_ids_in_instance(instance_id: str) -> "tuple[str, str] | None":
+    r"""The (vid, pid) inside a PnP instance ID, lower-case, or None.
+
+    ``USB\VID_1A86&PID_7523\7&3b74c78&0&1`` → ``("1a86", "7523")``.
+    Composite children carry a third token (``&MI_00``) and hubs carry no VID
+    at all (``USB\ROOT_HUB30\…``); both are handled by looking for the tokens
+    rather than counting them.
+
+    Lower-case out, because the registry side of the comparison is lower-cased
+    too and the two have to agree — Windows writes these IDs upper-case.
+    """
+    parts = instance_id.split("\\")
+    if len(parts) < 2:
+        return None
+    vid = pid = None
+    for token in parts[1].upper().split("&"):
+        if token.startswith("VID_"):
+            vid = token[4:].lower()
+        elif token.startswith("PID_"):
+            pid = token[4:].lower()
+    if vid is None or pid is None:
+        return None
+    return vid, pid
+
+
+def present_usb_instance_ids() -> "set[str] | None":
+    """Every USB device-instance ID attached right now, UPPER-CASE.
+
+    None means the question could not be asked — see the note above: callers
+    must then filter nothing rather than hide anything. An empty set is a real
+    answer ("nothing is attached") and is NOT the same as None.
+    """
+    if sys.platform != "win32":
+        return None
+    try:
+        cfgmgr = ctypes.WinDLL("cfgmgr32")
+        flags = ctypes.c_ulong(
+            _CM_GETIDLIST_FILTER_ENUMERATOR | _CM_GETIDLIST_FILTER_PRESENT)
+        enumerator = ctypes.c_wchar_p("USB")
+        size = ctypes.c_ulong(0)
+        if cfgmgr.CM_Get_Device_ID_List_SizeW(
+                ctypes.byref(size), enumerator, flags) != _CR_SUCCESS:
+            return None
+        buf = ctypes.create_unicode_buffer(size.value)
+        if cfgmgr.CM_Get_Device_ID_ListW(
+                enumerator, buf, size, flags) != _CR_SUCCESS:
+            return None
+        raw = buf[:size.value]
+    except Exception as exc:   # noqa: BLE001 — a missing DLL must not kill the caller
+        log.warning("could not ask Windows which USB devices are present: %s", exc)
+        return None
+    return {one.upper() for one in raw.split("\0") if one}
+
+
+def present_usb_ids() -> "set[tuple[str, str]] | None":
+    """Every (vid, pid) attached to this machine right now, or None.
+
+    Derived from `present_usb_instance_ids()`, so this module asks cfgmgr32
+    exactly once and cannot hold two answers that disagree.
+    """
+    instances = present_usb_instance_ids()
+    if instances is None:
+        return None
+    return {ids for one in instances
+            if (ids := usb_ids_in_instance(one)) is not None}
+
+
+def _instance_id(combo: str, instance: str) -> str:
+    r"""Rebuild the PnP instance ID a registry path stands for, UPPER-CASE.
+
+    ``VID_0765&PID_6008`` + ``7&3b74c78&0&1``
+    → ``USB\VID_0765&PID_6008\7&3B74C78&0&1``.
+
+    The registry's key names reproduce the middle token of the instance ID
+    exactly, composite ``&MI_00`` children included, so this compares character
+    for character against cfgmgr32's list once both are upper-cased.
+    """
+    return ("USB\\" + combo + "\\" + instance).upper()
+
+
+def attached_devices(
+    entries: "list[tuple[str, list[tuple[str, str]]]]",
+    present_instances: "set[str] | None",
+) -> list[UsbDevice]:
+    """The known colorimeters among *entries* that are attached right now.
+
+    *entries* is what the registry holds, already read out:
+    ``[(combo_key, [(instance_key, service), …]), …]`` — e.g.
+    ``("VID_0765&PID_6008", [("7&3b74c78&0&1", "libusb0")])``. A service that
+    could not be read is ``""``.
+
+    *present_instances* is `present_usb_instance_ids()`: upper-case instance
+    IDs, or None for "could not ask", in which case nothing is filtered.
+
+    Pure — no registry, no ctypes — so it runs and is tested on every OS.
+    """
+    present_pairs = (None if present_instances is None
+                     else {ids for one in present_instances
+                           if (ids := usb_ids_in_instance(one)) is not None})
+
+    found: list[UsbDevice] = []
+    for combo, instances in entries:
         parts = combo.upper().split("&")
         if len(parts) < 2:
             continue
@@ -139,27 +334,41 @@ def enumerate_connected() -> list[UsbDevice]:
         if name is None:
             continue
 
-        # Check if any instance already has WinUSB as its service driver.
-        has_winusb = False
-        try:
-            dev_key = winreg.OpenKey(base, combo)
-            j = 0
-            while True:
-                try:
-                    inst = winreg.EnumKey(dev_key, j)
-                    inst_key = winreg.OpenKey(dev_key, inst)
-                    try:
-                        svc, _ = winreg.QueryValueEx(inst_key, "Service")
-                        if str(svc).lower() in ("winusb", "libusb0"):
-                            has_winusb = True
-                    except OSError:
-                        pass
-                    j += 1
-                except OSError:
-                    break
-        except OSError:
-            pass
+        # GUARD 1 — remembered, but gone. Drop it here: nothing downstream
+        # should ever be handed a device that is not attached.
+        if present_pairs is not None and (vid, pid) not in present_pairs:
+            log.debug("skipping %s:%s (%s): remembered by the registry, "
+                      "not attached", vid, pid, name)
+            continue
 
+        # GUARD 2 — remembered INSTANCES of a device that IS attached. Only the
+        # live ones may speak for the driver state; a ghost instance's stale
+        # `Service` is exactly what fools the post-install check.
+        live = instances
+        if present_instances is not None:
+            live = [pair for pair in instances
+                    if _instance_id(combo, pair[0]) in present_instances]
+            if not live:
+                # cfgmgr32 says this vid:pid IS here but no instance ID matched.
+                # Presence is not in doubt, only which node it is, so fall back
+                # rather than hide a real instrument — see the note on the
+                # failure direction above.
+                log.debug("no instance of %s:%s matched the present list; "
+                          "falling back to every remembered instance", vid, pid)
+                live = instances
+
+        # ONE SERVICE, NOT A SET — see ARGYLL_USB_SERVICE. A device bound to
+        # WinUSB is not driven for our purposes: Argyll cannot open it.
+        #
+        # `.strip()` because an equality test is less forgiving than the `in`
+        # test it replaced was ever asked to be, and this value comes back from
+        # the registry rather than from us. A stray space would read as "not
+        # driven", which errs in the module's stated safe direction — offering
+        # help that is not needed is visible and declinable — but there is no
+        # reason to make a working user argue with the window over whitespace.
+        has_winusb = any(
+            str(service).strip().lower() == ARGYLL_USB_SERVICE
+            for _, service in live)
         found.append(UsbDevice(vid=vid, pid=pid, name=name, has_winusb=has_winusb))
 
     # Composite USB devices register multiple keys per VID/PID (parent + MI_xx
@@ -174,11 +383,480 @@ def enumerate_connected() -> list[UsbDevice]:
     return unique
 
 
-def install_winusb(device: UsbDevice) -> bool:
-    """Install the WinUSB driver for *device* via wdi-simple (elevated UAC).
+def _registry_usb_entries() -> "list[tuple[str, list[tuple[str, str]]]]":
+    r"""Read ``Enum\USB`` into the plain data `attached_devices()` consumes.
 
-    Returns True if wdi-simple exits with code 0.
-    Returns False if the user cancels the UAC prompt or the install fails.
+    Everything this returns is REMEMBERED, not present. The filtering is
+    `attached_devices()`'s job and happens in exactly one place.
+    """
+    import winreg
+    try:
+        base = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, r"SYSTEM\CurrentControlSet\Enum\USB"
+        )
+    except OSError:
+        return []
+
+    entries: "list[tuple[str, list[tuple[str, str]]]]" = []
+    i = 0
+    while True:
+        try:
+            combo = winreg.EnumKey(base, i)   # e.g. "VID_0765&PID_5020"
+        except OSError:
+            break
+        i += 1
+
+        instances: "list[tuple[str, str]]" = []
+        try:
+            dev_key = winreg.OpenKey(base, combo)
+            j = 0
+            while True:
+                try:
+                    inst = winreg.EnumKey(dev_key, j)
+                except OSError:
+                    break
+                j += 1
+                try:
+                    svc, _ = winreg.QueryValueEx(
+                        winreg.OpenKey(dev_key, inst), "Service")
+                except OSError:
+                    svc = ""
+                instances.append((inst, str(svc)))
+        except OSError:
+            pass
+        entries.append((combo, instances))
+    return entries
+
+
+def enumerate_connected() -> list[UsbDevice]:
+    """Return the known colorimeters ATTACHED RIGHT NOW, with their driver state.
+
+    "Connected" is meant literally: devices the registry merely remembers are
+    filtered out here, once, so that no caller has to know the registry
+    remembers anything. See the long note above for why, and for what happens
+    when Windows cannot be asked.
+    """
+    if sys.platform != "win32":
+        return []
+    return attached_devices(_registry_usb_entries(), present_usb_instance_ids())
+
+
+# ---------------------------------------------------------------------------
+# The command line, built where a test can read it
+# ---------------------------------------------------------------------------
+#
+# `--driver` IS NOT AN OPTION OF wdi-simple, AND NEVER WAS. This read
+# `--driver WinUSB` until 2026-09-06, and wdi-simple answers an unknown long
+# option by printing its usage and exiting ZERO — which `install_winusb()`
+# returned as success. Measured against a real driverless i1Studio: the app
+# reported the install had succeeded, and `setupapi.dev.log` recorded nothing
+# whatever. It had never installed a driver for any instrument, on any
+# architecture, for as long as the feature had existed.
+#
+# It survived because nothing asserted on the command line. Every test either
+# monkeypatched `install_winusb` whole or exercised the serial refusal, so the
+# string was the one part of this file no oracle could see. That is why it is
+# a named function now:
+# `tests/test_the_driver_installer_speaks_wdi_simples_language.py` checks every
+# option it emits against wdi-simple's OWN usage text, so an option libwdi does
+# not have cannot survive a run.
+
+#: wdi-simple's `-t/--type` numbering, quoted from its usage text:
+#: "(0=WinUSB, 1=libusb-win32, 2=libusbK, 3=usbser, 4=custom)".
+#:
+#: 1, AND THE ALTERNATIVE IS NOT MERELY WORSE — IT DOES NOT WORK. ArgyllCMS
+#: reaches a USB instrument on Windows by opening the kernel device object
+#: `\\.\libusb0-%04d`, which only libusb-win32's libusb0.sys creates: that
+#: format string is the ONLY device path in `spotread.exe`, which imports no
+#: `WinUsb_*` symbol at all. Argyll's own changelog dates the switch — V1.5.0,
+#: 2013: "No longer using libusb for USB access, using native USB access
+#: instead. MSWin uses the libusb-win32 kernel driver." — and `usb/ArgyllCMS.inf`
+#: still binds `AddService = libusb0` for all 28 devices it supports. A WinUSB
+#: binding would leave `spotread` printing "** No ports found **" while Device
+#: Manager showed a healthy driver.
+#:
+#: (The two WinUSB lines in Argyll's changelog are from V1.2.0 and V1.3.3,
+#: 2010-2011, and describe the FORKED libusb-1.0 back end Argyll abandoned in
+#: V1.5.0. They do not say the shipping code speaks WinUSB. It does not.)
+WDI_DRIVER_TYPE = 1
+
+
+# ---------------------------------------------------------------------------
+# WHAT THE INSTALL WRITES TO THE MACHINE BESIDES A DRIVER — measured, and not
+# avoidable with the tool we ship
+# ---------------------------------------------------------------------------
+#
+# Pressing Install Driver puts a **self-signed certificate** into
+# `Cert:\LocalMachine\Root` AND `Cert:\LocalMachine\TrustedPublisher`, subject
+# `CN=<hardware id> (libwdi autogenerated)`. `Root` is the trusted ROOT store,
+# so the whole machine trusts it — every user, every program, not just ChromIQ.
+# `usb_installer_text()` in `ui/dialogs/settings_dialog.py` tells the user so
+# before they click; this comment is the evidence behind that text.
+#
+# ⚠ AND IT IS NOT "TRUSTED FOR EVERYTHING", WHICH IS WHAT THIS COMMENT SAID
+# FIRST. The certificate carries extension 2.5.29.37 (Extended Key Usage),
+# marked CRITICAL, containing exactly one purpose: Code Signing
+# (1.3.6.1.5.5.7.3.3). Critical means Windows must honour it, so the
+# certificate cannot vouch for a web site, an e-mail, a client identity or a
+# timestamp — only for signed code. Read off the store by OID; the first read
+# selected extensions by `Oid.FriendlyName -match 'Enhanced|Key Usage'` on a
+# GERMAN Windows, where that name is "Erweiterte Schlüsselverwendung", matched
+# nothing, and was written up as "no EKU at all". A scarier sentence than the
+# truth, in a change whose whole subject is saying what is true. Confirmed in
+# libwdi's source as well: `pki.c:723,749`.
+#
+# Two more properties, both measured, both load-bearing for the user text:
+#   • `HasPrivateKey : False` in both stores — the machine keeps the public
+#     certificate only. libwdi destroys the key after signing (`pki.c:938`'s own
+#     header: "deleting the self signed certificate private key so that it
+#     cannot be reused"), though `DeletePrivateKey` only warns on failure, so
+#     the user text says what the store holds rather than promising a deletion.
+#   • `wdi_simple.exe` imports ADVAPI32, KERNEL32, SETUPAPI, SHELL32, USER32,
+#     ntdll and ole32 — no networking library — and its strings contain no
+#     `winhttp`/`wininet`/`ws2_32`/`urlmon`/`InternetOpen`/`WSAStartup` either,
+#     so it cannot load one dynamically. That is what "nothing is sent
+#     anywhere" rests on.
+#
+# MEASURED ON THE ARM64 BENCH, 2026-09-06, `--type 1`, one instrument
+# (0765:6008), read-only. Attribution is from three clocks:
+#
+#     06:38:32  an unrelated `--type 0` (WinUSB) install
+#     06:43:28  chromiq.log: "Installing libusb-win32: wdi_simple.exe --vid …"
+#     06:43:31  certificate NotBefore, thumbprint AE01C1E7…7D1F
+#     06:43:32  DriverStore package usb_device.inf_arm64_fc20940799386822
+#     06:44:11  chromiq.log: "wdi-simple exit code: 0"
+#
+# Three seconds after our click, five minutes after anything else.
+#
+# IT IS NOT `--cert`. `wdi_simple_args()` passes neither `--cert` nor
+# `--stealth-cert` — those install a certificate from wdi-simple's own embedded
+# resources, an opt-in feature we do not use. libwdi does this on its own,
+# because it GENERATES the driver package: the INF it writes carries
+# `CatalogFile = usb_device.cat`, and nobody can pre-sign a catalogue for a
+# file that does not exist until the user clicks. So libwdi mints a certificate,
+# signs the catalogue, and installs the certificate where Windows will look.
+#
+# THERE IS NO WAY TO TURN IT OFF FROM HERE. wdi-simple's whole option surface,
+# read out of the shipped binary, is: --name --inf --manufacturer --vid --pid
+# --iid --type --wcid --filter --dest --external --extract --cert
+# --stealth-cert --silent --progressbar --timeout --log --help. No --no-sign,
+# no --cert-subject, no way to reach only TrustedPublisher and not Root.
+#
+# `--external` DOES NOT HELP, and the reason is specific: it would hand libwdi
+# an INF of ours instead of its embedded one, and the obvious candidate —
+# ArgyllCMS's own `usb/ArgyllCMS.inf` — ships with UNSIGNED catalogues
+# (ArgyllCMS.cat / _x64 / _arm64 all decode to zero SignerInfos). libwdi would
+# sign them with the same autogenerated certificate.
+#
+# ARGYLL'S OWN INSTALLER DOES THE IDENTICAL THING. `ArgyllCMS_install_USB.exe`
+# is itself a libwdi program — it carries `wdi_prepare_driver`,
+# `wdi_install_driver`, `CreateSelfSignedCert`, `CN=%s (libwdi autogenerated)`
+# and the literal message `Added certificate '%s' to 'Root' and
+# 'TrustedPublisher' stores`. `CN=ArgyllCMS (libwdi autogenerated)` has been in
+# both stores on this bench since 2026-05-08, four months before ChromIQ ran.
+#
+# A FRESH ONE EACH TIME, AND THE OLD ONE IS DELETED. Three libusb-win32
+# packages are in this machine's DriverStore and their catalogues carry three
+# different thumbprints under one subject; only the newest is still in the
+# store. The store holds one certificate, not one per install.
+#
+# THE DRIVER DOES NOT DEPEND ON IT. `libusb0.sys` — the image Windows actually
+# loads — is signed by a commercial EV certificate (CN=Dontech ApS, issued by
+# GlobalSign GCC R45 EV CodeSigning CA 2020), independently of anything libwdi
+# generated. And the two older packages, whose certificates libwdi has already
+# deleted, are still enumerated and ranked by Windows with the instrument
+# running. So the certificate is an INSTALL-TIME gate. The exact experiment —
+# delete the current certificate, reboot, does the bound device still start —
+# was NOT run, because it would mean modifying a certificate store on a working
+# bench. Do not upgrade "expected to keep working" into a guarantee.
+
+
+def driver_extraction_dir() -> Path:
+    r"""Where wdi-simple should unpack the driver package before installing it.
+
+    `--dest` IS NOT OPTIONAL, though it looks it. wdi-simple's default is the
+    RELATIVE path `usb_driver`, so the files land wherever the elevated process
+    happens to be started from — a directory this code neither chooses nor can
+    predict. Measured on the bench it resolved to `C:\Users\<user>\usb_driver`,
+    a stale x64-only tree another tool had left months earlier, and wdi-simple
+    died with `check_dir: Unable to create directory 'usb_driver'
+    (0x000000B7 ERROR_ALREADY_EXISTS)` then `Extracting driver files...
+    Access denied` (WDI_ERROR_ACCESS). Run from inside the app, whose working
+    directory differs again, the same cause surfaced as WDI_ERROR_RESOURCE,
+    because the arm64 files it needed were not in that x64-only tree.
+
+    So the value must be ABSOLUTE and must not depend on a working directory.
+    `%SystemRoot%\Temp` is that: it exists on every Windows install, it is the
+    same path for the elevated child as for us, and it does not roam.
+
+    ⚠ IT IS NOT A SECURITY BOUNDARY, WHATEVER IT LOOKS LIKE. This was first
+    written believing `Windows\Temp` was administrators-only. It is not.
+    Measured on the ARM64 bench with an unprivileged token: an ordinary user
+    can create a directory here, and the ACL the new directory inherits is
+    `BUILTIN\Users:(I)(CI)(S,WD,AD,X)` plus CREATOR OWNER full control — so
+    whoever creates `chromiq-wdi` OWNS everything wdi-simple later extracts
+    into it, including the `installer_x64.exe` / `installer_arm64.exe` that the
+    ELEVATED process then runs. Both were openable for writing from a normal
+    shell. A user-writable destination and this one are equally exposed; do not
+    add a check here and think the gap is closed. See A8_wdi_hardening.md.
+    """
+    return Path(os.environ.get("SystemRoot", r"C:\Windows")) / "Temp" / "chromiq-wdi"
+
+
+def wdi_simple_args(device: UsbDevice) -> str:
+    """The exact command line `install_winusb()` hands to wdi-simple.
+
+    Split out so the arguments can be asserted on without launching anything —
+    see the note above for what the absence of that assertion cost.
+
+    `--vid` / `--pid` carry the `0x` prefix wdi-simple's usage demands ("use 0x
+    prefix for hex"): without it 0765 is read as decimal 765 and the installer
+    binds a driver to a device that does not exist. `--name` is quoted because
+    every name in `KNOWN_COLORIMETERS` contains spaces.
+    """
+    return (
+        f'--vid 0x{device.vid} --pid 0x{device.pid} '
+        f'--name "{device.name}" '
+        f'--type {WDI_DRIVER_TYPE} --dest "{driver_extraction_dir()}"'
+    )
+
+
+DEFAULT_INSTALL_TIMEOUT_MS = 300_000
+"""How long ChromIQ WATCHES an elevated wdi-simple before it stops watching.
+
+Five minutes, and it is the SIBLING'S number: `ch34x_driver._run_elevated`
+already waits exactly this long for an elevated `pnputil`. It is deliberately
+not offered as a margin over a measurement. Measured on the bench 2026-09-06,
+a real successful install of an X-Rite i1Studio on an IDLE 2-core ARM64 VM:
+`00:41:24.501` to `00:42:13.129`, **48.6 s** against the 60 s this used to
+allow — 11.4 s of headroom on a machine doing nothing else.
+
+Most of that is libwdi creating a system restore point, which is neither our
+cost nor controllable, and it is not even a stable cost: Windows throttles it
+with `SystemRestorePointCreationFrequency` (24 h by default), so the FIRST
+install of a day is the slow one and the rest are seconds. On a machine that is
+actually busy the first one can outrun any number written here.
+
+CLAUDE.md: *"a timeout that is too TIGHT is a phantom red … budget a subprocess
+for the loaded machine, not the idle one, and make a timeout say 'did not
+finish' rather than letting it read like a crash."* Both halves are needed, and
+the SECOND is what makes the first survivable — see `InstallAttempt`. This
+number is a ceiling on how long a person is asked to sit and watch. It is not a
+promise about libwdi, and running out of it is not a failure.
+"""
+
+_WAIT_SLICE_MS = 100
+
+# `WAIT_TIMEOUT` IS 258. `STILL_ACTIVE` IS 259. They are one apart and they are
+# not the same KIND of thing: the first is what a wait returned, the second is
+# what a still-running process's exit code reads as. Reading the second because
+# the first had been thrown away is the whole of the bug this module carried
+# until 2026-09-06, so both are written down here, next to each other, where
+# the difference cannot be missed.
+WAIT_OBJECT_0 = 0x00000000
+WAIT_ABANDONED = 0x00000080
+WAIT_TIMEOUT = 0x00000102        # 258
+STILL_ACTIVE = 259               # 0x103 — an EXIT CODE. Never a wait result.
+
+ERROR_ACCESS_DENIED = 5
+ERROR_CANCELLED = 1223
+
+
+class InstallAttempt(Enum):
+    """What ChromIQ SAW when it asked Windows to install a driver.
+
+    **NOT A BOOL, AND DELIBERATELY NOT USABLE AS ONE.** `install_winusb` used
+    to return `code.value == 0`, and its caller wrote
+    `all(install_winusb(d) for d in targets)` — so every ending this function
+    can reach was squeezed through one yes/no, and the ending that is neither a
+    yes nor a no came out as "no". `__bool__` raises for that reason: the shape
+    that caused the bug cannot be written again without an exception naming it.
+
+    `STILL_RUNNING` is the member the whole class exists for. It means ChromIQ
+    stopped WATCHING — because its own budget ran out, or because the user
+    pressed the button that says so. It does **not** mean stopped installing:
+    nothing here stops an elevated driver install, nothing here tries, and
+    closing the process handle does not touch the process. Reported as a
+    failure it sends somebody to Zadig to repair a machine that is repairing
+    itself.
+    """
+
+    #: The elevated process ran and exited 0.
+    INSTALLED = "installed"
+    #: ChromIQ's own guard refused the device — it is a vendor SERIAL
+    #: instrument, and WinUSB would destroy its COM port.
+    REFUSED = "refused"
+    #: Drivers can only be installed on Windows.
+    NOT_WINDOWS = "not_windows"
+    #: `wdi_simple.exe` is not in this build, or is empty.
+    NO_INSTALLER = "no_installer"
+    #: The user answered No at the permission prompt (`ERROR_CANCELLED`).
+    CANCELLED_AT_PROMPT = "cancelled_at_prompt"
+    #: Windows refused to ask for permission at all — the managed-desktop
+    #: `ConsentPromptBehaviorUser = 0`. NOT the same as declining a prompt.
+    ELEVATION_REFUSED = "elevation_refused"
+    #: `ShellExecuteExW` failed before any prompt appeared.
+    ELEVATION_FAILED = "elevation_failed"
+    #: The process ran and exited non-zero.
+    FAILED = "failed"
+    #: Still running when ChromIQ stopped watching. NOT stopped, NOT undone,
+    #: and NOT a failure.
+    STILL_RUNNING = "still_running"
+    #: The wait ended in a way that says nothing about the install.
+    LOST_TRACK = "lost_track"
+
+    def __bool__(self) -> bool:
+        raise TypeError(
+            f"{self!r} is not a yes/no answer. 'Still running' is neither a "
+            "success nor a failure, and collapsing it into one is how a "
+            "timeout came to be reported as a failed install. Compare it to "
+            "the member you mean."
+        )
+
+
+#: Endings after which ChromIQ must NOT go on to elevate for the next
+#: instrument, when a run covers more than one.
+#:
+#: THE DEFAULT IS TO CARRY ON, and that is the fix to a second fault in the
+#: same expression as the timeout one. `all(install_winusb(d) for d in targets)`
+#: is a GENERATOR, so the first falsy answer stopped the iteration and the
+#: remaining instruments were never attempted at all — while the outcome window
+#: named them among the ones the install "did not take" on. A device that was
+#: never tried is not a device that failed.
+#:
+#: But "attempt every target unconditionally" is wrong in the other direction,
+#: and one of the reasons only exists now that the timeout is honest:
+#:
+#: * `STILL_RUNNING` / `LOST_TRACK` — an elevated wdi-simple may still be
+#:   running. Starting a second one while the first holds Windows' PnP install
+#:   lock is a way to make a good install fail, and it would ask for consent
+#:   while the last install is unfinished.
+#: * `CANCELLED_AT_PROMPT` — the user said No. Putting the prompt straight back
+#:   up is not a thing to do to somebody.
+#: * `ELEVATION_REFUSED` / `ELEVATION_FAILED` / `NOT_WINDOWS` / `NO_INSTALLER` —
+#:   nothing about the next device would go any differently.
+#:
+#: `FAILED` and `REFUSED` are deliberately NOT here. A process that ran and
+#: exited non-zero has released the lock, and the serial-device guard's refusal
+#: is about that one device and elevates nothing — in both cases the next
+#: instrument deserves its own attempt. The caller must then say which
+#: instruments it did not reach; see `usb_install_outcome`.
+HALTS_A_MULTI_DEVICE_RUN = frozenset({
+    InstallAttempt.STILL_RUNNING,
+    InstallAttempt.LOST_TRACK,
+    InstallAttempt.CANCELLED_AT_PROMPT,
+    InstallAttempt.ELEVATION_REFUSED,
+    InstallAttempt.ELEVATION_FAILED,
+    InstallAttempt.NOT_WINDOWS,
+    InstallAttempt.NO_INSTALLER,
+})
+
+
+def _watch_the_installer(kernel32, handle, *, timeout_ms: int,
+                         progress=None, label: str = "wdi-simple",
+                         ) -> InstallAttempt:
+    """Wait for an elevated installer, without going deaf while it runs.
+
+    Split out of `install_winusb` so that it can be driven WITHOUT Windows and
+    without a real elevated process: *kernel32* is any object carrying
+    `WaitForSingleObject`, `GetExitCodeProcess` and `CloseHandle`, and *handle*
+    is whatever those three accept. That seam is what
+    `tests/test_a_driver_install_that_has_not_finished_is_not_a_failure.py`
+    drives, and the thing it pins is that a `WAIT_TIMEOUT` never reaches
+    `GetExitCodeProcess` AT ALL — not that its answer is interpreted kindly.
+
+    The wait is taken in `_WAIT_SLICE_MS` slices rather than one long one, so
+    that *progress* can be called between them. *progress* receives the seconds
+    waited so far and may return `False` to say "stop watching"; the deadline is
+    measured with `time.monotonic()` and NOT by counting slices, because a slice
+    costs `_WAIT_SLICE_MS` PLUS however long *progress* takes — and *progress*
+    is the Qt event pump, which can spin a nested modal loop for minutes.
+    Counted slices would make "five minutes" mean anything at all.
+
+    Every ending closes the handle, including the ones that give up. Closing a
+    process handle releases OUR reference to the process; it does not signal,
+    stop or otherwise affect the process.
+    """
+    started = time.monotonic()
+    deadline = started + timeout_ms / 1000.0
+    try:
+        while True:
+            wait = kernel32.WaitForSingleObject(handle, _WAIT_SLICE_MS)
+            if wait != WAIT_TIMEOUT:
+                break
+            if progress is not None and \
+                    progress(time.monotonic() - started) is False:
+                log.info("%s: ChromIQ stopped watching at the user's request "
+                         "after %.1f s. The install has NOT been stopped and "
+                         "nothing has been undone.",
+                         label, time.monotonic() - started)
+                return InstallAttempt.STILL_RUNNING
+            if time.monotonic() >= deadline:
+                log.info("%s: still running after %.0f s, which is ChromIQ's "
+                         "whole budget. It has NOT been stopped and nothing "
+                         "has been undone.", label, timeout_ms / 1000.0)
+                return InstallAttempt.STILL_RUNNING
+        if wait != WAIT_OBJECT_0:
+            # `WAIT_FAILED` is 0xFFFFFFFF and arrives here as 4294967295 only
+            # because `install_winusb` sets `restype` to DWORD; ctypes would
+            # otherwise hand back a signed -1. Either way it is not
+            # WAIT_OBJECT_0 and says nothing about the install.
+            log.error("%s: the wait ended in 0x%X, which says nothing about "
+                      "the install", label, wait & 0xFFFFFFFF)
+            return InstallAttempt.LOST_TRACK
+        code = wt.DWORD()
+        if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+            # AND THIS RETURN VALUE MATTERS TOO. On failure `code.value` is
+            # left at 0, and 0 is the success code — so an unchecked call turns
+            # "we could not ask" into "it worked". (The serial half still has
+            # this one, at `core/ch34x_driver.py:1561`.)
+            log.error("%s: GetExitCodeProcess failed; the exit code is not "
+                      "known and must not be guessed", label)
+            return InstallAttempt.LOST_TRACK
+    finally:
+        kernel32.CloseHandle(handle)
+    log.info("%s exit code: %d", label, code.value)
+    return (InstallAttempt.INSTALLED if code.value == 0
+            else InstallAttempt.FAILED)
+
+
+def install_winusb(device: UsbDevice, *,
+                   progress=None,
+                   timeout_ms: int = DEFAULT_INSTALL_TIMEOUT_MS,
+                   ) -> InstallAttempt:
+    """Install the USB driver for *device* via wdi-simple (elevated UAC).
+
+    Returns an `InstallAttempt`, never a bool — see that class for why, and for
+    the one member that is neither a success nor a failure.
+
+    *progress* is called with the seconds waited so far while the elevated
+    process runs, roughly ten times a second, and may return `False` to stop
+    the WAIT. The UI passes a callback that pumps Qt's event loop and reads its
+    "Stop waiting" button; nothing else in this module knows or cares that Qt
+    exists. Nothing here can stop the INSTALL, and nothing here tries.
+
+    **THIS FUNCTION USED TO END LIKE THIS:**
+
+        kernel32.WaitForSingleObject(sei.hProcess, 60_000)
+        code = wt.DWORD()
+        kernel32.GetExitCodeProcess(sei.hProcess, ctypes.byref(code))
+        return code.value == 0
+
+    Three faults in four lines, all measured on the bench 2026-09-06 against a
+    real driverless i1Studio. The budget was 60 s against an install that took
+    **48.6 s on an idle machine**. The wait's return value was discarded, so a
+    `WAIT_TIMEOUT` fell through to `GetExitCodeProcess`, which answers
+    `STILL_ACTIVE` (259) for a process that is still installing — and `259 != 0`
+    reported a FAILED install about one that was succeeding, then offered Zadig
+    to repair a machine that was repairing itself. And the whole wait sat on the
+    GUI thread: `Responding = False` for ~50 s with no spinner, no message and
+    no cursor change.
+
+    The COM-port half next door had all of this right already
+    (`core/ch34x_driver.py::_run_elevated` — 300 s, `WAIT_TIMEOUT` mapped to
+    `Reason.STILL_RUNNING`, `CloseHandle` in a `finally`, the three elevation
+    failures kept apart), and its own comment names this function as the
+    pattern it deliberately did not copy. This is that standard, arriving here.
     """
     # REFUSED OUTRIGHT, BELT AND BRACES. The table above is the guard; this is
     # the one that still holds if somebody adds a serial instrument to
@@ -189,22 +867,35 @@ def install_winusb(device: UsbDevice) -> bool:
         log.error("refusing to install WinUSB on %s (%s:%s): it is a vendor "
                   "serial device, and WinUSB would destroy its COM port",
                   device.name, device.vid, device.pid)
-        return False
+        return InstallAttempt.REFUSED
+
+    # AFTER the serial guard, never before it. On a non-Windows host every
+    # refusal used to come out as the same `False`, so
+    # `test_install_winusb_refuses_it_even_when_asked_directly` passed with the
+    # guard deleted — its own docstring says so. Three named refusals make that
+    # test mean what it says on every platform.
+    if sys.platform != "win32":
+        return InstallAttempt.NOT_WINDOWS
 
     wdi = _wdi_simple_path()
     if not wdi.exists() or wdi.stat().st_size == 0:
         log.error("wdi-simple not found or empty at %s", wdi)
-        return False
+        return InstallAttempt.NO_INSTALLER
 
-    args = (
-        f'--vid 0x{device.vid} --pid 0x{device.pid} '
-        f'--name "{device.name}" --driver WinUSB'
-    )
-    log.info("Installing WinUSB: %s %s", wdi.name, args)
+    args = wdi_simple_args(device)
+    log.info("Installing libusb-win32: %s %s", wdi.name, args)
 
     # ShellExecuteExW with "runas" → UAC elevation for wdi-simple only,
     # without re-launching the full ChromIQ process as admin.
     SEE_MASK_NOCLOSEPROCESS = 0x40
+    # `SEE_MASK_NOASYNC` makes ShellExecuteExW finish the shell operation before
+    # it returns, instead of leaving it to be completed asynchronously against
+    # the caller's message loop. It is what the serial half sets
+    # (`ch34x_driver._run_elevated`) and it is the reason the permission prompt
+    # is still, deliberately, frozen time: consent is answered before this call
+    # returns, and ChromIQ pumps nothing while Windows is asking. That is a
+    # second or two. The fifty seconds are afterwards, and those are pumped.
+    SEE_MASK_NOASYNC = 0x100
     SW_HIDE = 0
 
     class _SHELLEXECUTEINFOW(ctypes.Structure):
@@ -228,29 +919,42 @@ def install_winusb(device: UsbDevice) -> bool:
 
     sei = _SHELLEXECUTEINFOW()
     sei.cbSize       = ctypes.sizeof(_SHELLEXECUTEINFOW)
-    sei.fMask        = SEE_MASK_NOCLOSEPROCESS
+    sei.fMask        = SEE_MASK_NOCLOSEPROCESS | SEE_MASK_NOASYNC
     sei.lpVerb       = "runas"
     sei.lpFile       = str(wdi)
     sei.lpParameters = args
     sei.nShow        = SW_HIDE
 
-    shell32  = ctypes.windll.shell32
-    kernel32 = ctypes.windll.kernel32
+    # `use_last_error=True`, so that the three ways elevation can fail stay
+    # three things. This used to log "UAC cancelled or ShellExecuteExW failed"
+    # for all of them — and `ConsentPromptBehaviorUser = 0`, an ordinary
+    # managed-desktop setting, makes it fail with NO PROMPT AT ALL, which is not
+    # the same as somebody declining one.
+    shell32  = ctypes.WinDLL("shell32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
     if not shell32.ShellExecuteExW(ctypes.byref(sei)):
-        log.info("wdi-simple: UAC cancelled or ShellExecuteExW failed")
-        return False
+        err = ctypes.get_last_error()
+        if err == ERROR_CANCELLED:
+            log.info("wdi-simple: the user said No at the permission prompt")
+            return InstallAttempt.CANCELLED_AT_PROMPT
+        if err == ERROR_ACCESS_DENIED:
+            log.info("wdi-simple: Windows refused to ask for permission at "
+                     "all — no prompt was shown")
+            return InstallAttempt.ELEVATION_REFUSED
+        log.error("wdi-simple: ShellExecuteExW failed (%d)", err)
+        return InstallAttempt.ELEVATION_FAILED
 
-    kernel32.WaitForSingleObject(sei.hProcess, 60_000)   # 60 s timeout
-    code = wt.DWORD()
-    kernel32.GetExitCodeProcess(sei.hProcess, ctypes.byref(code))
-    kernel32.CloseHandle(sei.hProcess)
-    log.info("wdi-simple exit code: %d", code.value)
-    return code.value == 0
+    # ctypes defaults `restype` to a SIGNED int, which would hand back -1 for
+    # `WAIT_FAILED` instead of 0xFFFFFFFF. Neither is WAIT_OBJECT_0 so the
+    # outcome is the same either way, but the log line should read 0xFFFFFFFF.
+    kernel32.WaitForSingleObject.restype = wt.DWORD
+    return _watch_the_installer(kernel32, sei.hProcess,
+                                timeout_ms=timeout_ms, progress=progress)
 
 
 def unbound_targets(targets: list[UsbDevice]) -> list[UsbDevice]:
-    """Re-enumerate and return which *targets* still lack a WinUSB/libusb0 driver.
+    """Re-enumerate and return which *targets* still lack the `libusb0` driver.
 
     wdi-simple can exit 0 without actually binding the driver to the live device
     — e.g. a stale "ghost" instance from a previous USB port misdirects it — so

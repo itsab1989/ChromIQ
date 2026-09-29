@@ -33,7 +33,8 @@ from __future__ import annotations
 
 from PyQt6.QtCore import QPointF, QRectF, QSizeF, Qt
 from PyQt6.QtGui import (QAbstractTextDocumentLayout, QColor, QFont,
-                         QFontMetricsF, QPainter, QTextCursor, QTextFormat,
+                         QFontMetricsF, QPainter, QTextBlockFormat,
+                         QTextCharFormat, QTextCursor, QTextFormat,
                          QTextTable, QTextTableCellFormat)
 
 from core.i18n import tr
@@ -111,8 +112,41 @@ def paginate_tables(doc, body_h: float) -> None:
     table when that block would otherwise stay behind; if the straddle
     survives the next pass, the table itself gets the break too. Tables taller
     than a page can't be helped and are left to :func:`avoid_split_rows`.
+
+    **AND A TABLE IS NEVER PUSHED AWAY FROM A HEADING THAT CANNOT FOLLOW IT.**
+    Breaking the table is the fallback for a table with nothing attached above
+    it; taking it when a heading IS attached produces exactly the orphan the
+    paragraph above forbids. The Measurement Report printed a page 2 carrying
+    the words "How to read this report" and nothing else (Basti, 2026-09-10)
+    and this function is what put it there, twice over:
+
+    * the gap between a heading and its table was measured from the HEADING,
+      across the whitespace spacer the walk-up had just decided belonged to
+      it. `_h2() + _gap() + <table>` puts 26 px there — over the 24 px this
+      test allows — so the heading was judged unattached and the table went
+      on alone. Measured 2026-09-10: with the spacer the report orphans at
+      every length that straddles, without it never. The distance is now read
+      from the block that really does sit against the table; a heading with a
+      paragraph of its own between it and the table is still detached, because
+      the walk only ever steps over whitespace;
+    * and a heading that ALREADY carries a forced break — every `_h2(…,
+      page_break=True)` in the report — failed the `not … & always` guard and
+      fell through to the same fallback. There is nothing to gain there: the
+      heading is already at the top of a page, so moving the table alone
+      cannot make them fit together, it only strands the heading. The table
+      is left straddling instead, which reads as a section flowing over the
+      page break under its own heading. Measured on the four report shapes
+      and on all 18 help cards at A4, US Letter and A5.
+
+    Neither half is sufficient alone: fixing only the distance lets the
+    heading move once and then hit the second path on the next pass, which
+    cost a page as well as the orphan (2026-09-10, 2 pages → 3).
     """
     always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+    # Tables that cannot be helped without orphaning their heading. Keyed on
+    # the table's POSITION, not `id(table)` — PyQt6 recycles the wrappers
+    # between walks, the same trap `avoid_split_rows` documents.
+    hopeless: set = set()
 
     def _straddling_tables():
         lay = settled_layout(doc)
@@ -123,7 +157,8 @@ def paginate_tables(doc, body_h: float) -> None:
                 stack.append(ch)
                 if isinstance(ch, QTextTable):
                     r = lay.frameBoundingRect(ch)
-                    if (r.height() < body_h - 1
+                    if (ch.firstPosition() not in hopeless
+                            and r.height() < body_h - 1
                             and int(r.top() // body_h)
                             != int((r.bottom() - 1) // body_h)):
                         found.append((r.top(), ch))
@@ -132,14 +167,25 @@ def paginate_tables(doc, body_h: float) -> None:
 
     def _push_to_next_page(table) -> None:
         lay = settled_layout(doc)
-        block = doc.findBlock(table.firstPosition() - 1)
+        # `anchor` is the block that physically sits against the table; `block`
+        # walks up from it to the heading the spacer belongs to.
+        anchor = block = doc.findBlock(table.firstPosition() - 1)
         # The spacer lines of the gap batch (2026-08-13) are whitespace-only
         # blocks sitting between a heading and its table; without skipping
         # them the "take the heading along" rule below would see only the
         # spacer and leave the heading behind — the exact orphan this
-        # function exists to prevent. Walk up past pure-whitespace blocks;
-        # the same_page/close checks still decide whether what we find is
-        # really attached.
+        # function exists to prevent. Walk up past pure-whitespace blocks; the
+        # same_page/close checks still decide whether what we find is really
+        # attached.
+        #
+        # NOTHING CAPS HOW MUCH WHITESPACE THE WALK MAY CROSS, and a per-step
+        # distance check was written here and then taken out again: no test in
+        # the suite could tell it apart from its absence (113 PDF tests, all 18
+        # cards at A4, US Letter and A5, and four real reports, identical page
+        # for page, 2026-09-10), and on a section whose spacer happened to be
+        # taller than the threshold it would have judged the heading detached
+        # and recreated the very orphan below. A heading separated from its
+        # table by blank lines and nothing else is still its heading.
         while (block.isValid() and not block.text().strip()
                and doc.findBlock(block.position() - 1).isValid()):
             prev = doc.findBlock(block.position() - 1)
@@ -155,13 +201,23 @@ def paginate_tables(doc, body_h: float) -> None:
             t_top = lay.frameBoundingRect(table).top()
             b_rect = lay.blockBoundingRect(block)
             same_page = int(b_rect.top() // body_h) == int(t_top // body_h)
-            close = t_top - b_rect.bottom() < 24
-            if same_page and close \
-                    and not block.blockFormat().pageBreakPolicy() & always:
-                bf = block.blockFormat()
-                bf.setPageBreakPolicy(always)
-                cur = QTextCursor(block)
-                cur.setBlockFormat(bf)
+            # FROM THE BLOCK THAT SITS AGAINST THE TABLE, not from the
+            # heading: the walk above stepped over the spacer precisely
+            # because it belongs to the heading, and measuring across it
+            # again undoes that.
+            gap_from = (lay.blockBoundingRect(anchor).bottom()
+                        if anchor.isValid() else b_rect.bottom())
+            close = t_top - max(gap_from, b_rect.bottom()) < 24
+            if same_page and close:
+                if not block.blockFormat().pageBreakPolicy() & always:
+                    bf = block.blockFormat()
+                    bf.setPageBreakPolicy(always)
+                    cur = QTextCursor(block)
+                    cur.setBlockFormat(bf)
+                    return
+                # Attached, and already at the top of its own page: pushing
+                # the table would leave the heading alone on the sheet.
+                hopeless.add(table.firstPosition())
                 return
         fmt = table.frameFormat()
         fmt.setPageBreakPolicy(always)
@@ -485,6 +541,110 @@ def _first_orphan_heading(doc, body_h: float, skip: "set | None" = None):
     return None
 
 
+def no_blank_page_before_a_break(doc, body_h: float) -> int:
+    """Never print a sheet that holds only the air in front of a forced break.
+
+    **A FEW PIXELS OF WHITESPACE OVER A FULL PAGE, FOLLOWED BY A HEADING THAT
+    BREAKS BEFORE ITSELF, IS A BLANK SHEET.** The Measurement Report's trend
+    graphs are one-cell tables with a small empty line under each, and the
+    section after them starts with `page-break-before`. On the German
+    calibration report across two projects (re-challenge R2 of beta 39, #12)
+    the last graph ended 7 px above the foot of page 6; its table frame and
+    spacer ran 3 px past it, and Qt then broke to the page AFTER that sliver:
+    page 7 of 8 carried the header, the page number and nothing else. Moving
+    the break up onto the spacer did not help (measured: the spacer itself
+    was then pushed to page 8), because the break is taken from where the
+    frame ends, not from where its text ends.
+
+    So the break is taken off the heading when the page in front of it holds
+    no text at all: the heading then follows the whitespace onto that page,
+    which is the page it was meant to start. Checked by the page count, and
+    undone when it does not drop. Returns how many breaks were taken off.
+    """
+    always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+    auto = QTextFormat.PageBreakFlag.PageBreak_Auto
+    removed = 0
+    tried: set = set()
+    for _ in range(200):
+        lay = settled_layout(doc)
+        target = None
+        block = doc.begin()
+        spans = []                  # (top, bottom) of every block with text
+        breaks = []
+        while block.isValid():
+            r = lay.blockBoundingRect(block)
+            if block.text().strip():
+                spans.append((r.top(), r.bottom()))
+                if (block.blockFormat().pageBreakPolicy() & always
+                        and QTextCursor(block).currentTable() is None
+                        and block.position() not in tried):
+                    breaks.append(block)
+            block = block.next()
+        for brk in breaks:
+            page = _line_page(lay, brk, body_h)
+            if page < 1:
+                continue
+            lo, hi = (page - 1) * body_h, page * body_h
+            if not any(top < hi - 0.5 and bottom > lo + 0.5
+                       for top, bottom in spans):
+                target = brk
+                break
+        if target is None:
+            return removed
+        tried.add(target.position())
+        before = doc.pageCount()
+        fmt = target.blockFormat()
+        fmt.setPageBreakPolicy(auto)
+        QTextCursor(target).setBlockFormat(fmt)
+        settled_layout(doc)
+        if doc.pageCount() < before:
+            removed += 1
+        else:                       # nothing gained: put it back
+            fmt.setPageBreakPolicy(always)
+            QTextCursor(target).setBlockFormat(fmt)
+    return removed
+
+
+def pages_that_carry_something(doc, body_h: float) -> int:
+    """How many pages any of *doc*'s content actually reaches, at least 1.
+
+    **A SHEET NO BLOCK REACHES IS A BLANK SHEET, and `pageCount()` cannot see
+    that.** It is derived from the document's HEIGHT, which includes whatever
+    trailing space sits below the last block, so a document whose content ends
+    inside page N can still report N+1 and be painted onto N+1 sheets.
+
+    Measured on the Swedish glossary card at US Letter, which is how this was
+    found: body 886.6 px, so eleven pages end at 9752.8. The colophon, the
+    document's last block, runs 9738.1 to **9752.1** -- it fits, by 0.7 px --
+    and the document's own height is **9774.7**. `pageCount()` answered 12,
+    ChromIQ printed a twelfth sheet carrying the header, the page number and a
+    0.7 px sliver of a line, and a PDF text extractor reads the colophon on it
+    because the block's box crosses the boundary even though its glyphs do not.
+
+    `drop_orphan_tail` is the right answer to the neighbouring fault and cannot
+    reach this one: it moves a BLOCK off a sheet, and here no block is on the
+    sheet to move.
+
+    **IT CAN ONLY EVER REMOVE A SHEET THAT IS EMPTY**, which is why it is safe
+    where trusting `pageCount()` downward would not be (see `settled_layout`,
+    and the card that once printed four sheets with three sheets' worth
+    missing). Every block is measured, not only the ones with text, so a block
+    holding nothing but an image still counts.
+    """
+    if body_h <= 0.0:
+        return 1
+    lay = settled_layout(doc)
+    bottom = 0.0
+    block = doc.begin()
+    while block.isValid():
+        bottom = max(bottom, lay.blockBoundingRect(block).bottom())
+        block = block.next()
+    if bottom <= 0.0:
+        return 1
+    # A block ending exactly on a boundary belongs to the page above it.
+    return max(1, int((bottom - 0.5) // body_h) + 1)
+
+
 def drop_orphan_tail(doc, body_h: float, footer_h: float) -> "str | None":
     """Take a lone trailing line off its own sheet, and hand it to the footer.
 
@@ -544,6 +704,197 @@ def drop_orphan_tail(doc, body_h: float, footer_h: float) -> "str | None":
     cursor.removeSelectedText()
     settled_layout(doc)
     return text or None
+
+
+# ---------------------------------------------------------------------------
+# Two rules the Measurement Report asked for (Knut, #182 5834422633)
+# ---------------------------------------------------------------------------
+def _last_line_page(lay, block, body_h: float) -> int:
+    """The page the block's LAST line of text lands on (see `_line_page`)."""
+    rect = lay.blockBoundingRect(block)
+    layout = block.layout()
+    if layout is None or not layout.lineCount():
+        return int(rect.top() // body_h)
+    line = layout.lineAt(layout.lineCount() - 1)
+    return int((rect.top() + line.y()) // body_h)
+
+
+def _text_blocks_between(doc, first_pos: int, last_pos: int) -> list:
+    """Every block holding text from *first_pos* to *last_pos*, in order."""
+    out = []
+    block = doc.findBlock(first_pos)
+    while block.isValid() and block.position() <= last_pos:
+        if block.text().strip():
+            out.append(block)
+        block = block.next()
+    return out
+
+
+def frame_text_pages(doc, frame, body_h: float) -> "tuple[int, int] | None":
+    """``(first, last)``: the pages the first and the last line of text inside
+    *frame* land on, or None when it holds no text.
+
+    From the LINES, not the frame's box: a table's box carries its padding, and
+    a box can cross a boundary its text never does."""
+    lay = settled_layout(doc)
+    blocks = _text_blocks_between(doc, frame.firstPosition(),
+                                  frame.lastPosition())
+    if not blocks:
+        return None
+    return (_line_page(lay, blocks[0], body_h),
+            _last_line_page(lay, blocks[-1], body_h))
+
+
+#: The only two steps :func:`tighten_to_close_a_page` may take, in points of
+#: the text it is set in. Knut, #182 5834422633: *"if the default text font
+#: size is 11 pt, then reducing it to 10.9 pt or 10.8 pt is acceptable"*.
+TIGHTEN_STEPS_PT = (0.1, 0.2)
+
+
+def tighten_to_close_a_page(doc, frame, body_h: float, text_pt: float,
+                            steps=TIGHTEN_STEPS_PT) -> "float | None":
+    """Set the text inside *frame* at most 0.2 pt smaller when, and only when,
+    that brings its last line or two back onto the page it started on and so
+    saves the sheet they spilled onto. Returns the step taken (0.1 or 0.2) or
+    None, in which case the document is exactly as it was.
+
+    Knut, #182 5834422633, on the "How to read this report" frame: *"Several of
+    the reports have ONE line passing to the next page ... then the rest of the
+    page is empty until next page starts at the top. This is as it should, when
+    the text gets too big for a page. So leave it, unless you find a way to
+    compress the text ... to be one line less line, without affecting the font
+    size too much ... reducing it to 10.9 pt or 10.8 pt is acceptable."*
+
+    **HOW 0.2 PT IS SET, BECAUSE QT CANNOT SET IT AS A FONT SIZE.** Qt rounds
+    every font to a whole pixel before it lays text out (measured,
+    2026-09-25: a 12 px line and an 11.73 px one are the same width to the
+    hundredth, 11 px is 6 % narrower), and the report is laid out in 96-dpi
+    pixels, where one pixel is 0.75 pt. The smallest real size step there is is
+    therefore 0.75 pt, nearly four times what Knut allowed. So the step is
+    taken as the SPACE the smaller size would take: every glyph's advance and
+    every line's height are scaled by ``(text_pt - step) / text_pt``, which is
+    exactly the room text set 0.1 or 0.2 pt smaller occupies. The letter shapes
+    keep their size; 2.2 % of a 9 pt letter is 0.2 pt, which no eye resolves.
+
+    The fit is measured, never estimated: the document is re-laid out after
+    each step and the step is kept only if the frame's last line of text now
+    lands on the page its first line does AND the document is a page shorter.
+    Neither step fitting leaves the document untouched (an undo, not a
+    reconstruction), so a frame that will not fit keeps its full size.
+    """
+    pages = frame_text_pages(doc, frame, body_h)
+    if pages is None or pages[0] == pages[1] or text_pt <= 0:
+        return None
+    before = pages_that_carry_something(doc, body_h)
+    first, last = frame.firstPosition(), frame.lastPosition()
+    for step in steps:
+        factor = (text_pt - step) / text_pt
+        cur = QTextCursor(doc)
+        cur.beginEditBlock()
+        cur.setPosition(first)
+        cur.setPosition(last, QTextCursor.MoveMode.KeepAnchor)
+        cf = QTextCharFormat()
+        cf.setFontLetterSpacingType(QFont.SpacingType.PercentageSpacing)
+        cf.setFontLetterSpacing(100.0 * factor)
+        cur.mergeCharFormat(cf)
+        bf = QTextBlockFormat()
+        bf.setLineHeight(100.0 * factor,
+                         QTextBlockFormat.LineHeightTypes.ProportionalHeight
+                         .value)
+        cur.mergeBlockFormat(bf)
+        cur.endEditBlock()
+        now = frame_text_pages(doc, frame, body_h)
+        if (now is not None and now[0] == now[1]
+                and pages_that_carry_something(doc, body_h) < before):
+            return step
+        doc.undo()
+        settled_layout(doc)
+    return None
+
+
+def break_before_unless_overflowed(doc, heading: str, section: str,
+                                   body_h: float) -> list:
+    """Start every block reading *heading* on a fresh page, unless the section
+    in front of it (headed *section*) already ran over a page boundary.
+    Returns how many breaks were set.
+
+    Knut, #182 5834422633: *"add a page break in front of 'For information (no
+    limit applies)', so that they always start on a fresh page, unless the
+    information from the previous section 'Colour accuracy (ΔE00 against the
+    chart's design)' overflows to the next page (then no page break is needed
+    in front of 'For information (no limit applies)')"*.
+
+    The previous section runs from its heading to the last line of text in
+    front of *heading*. When no *section* heading is found before the previous
+    forced break, the section is taken to start there (a measurement whose
+    colour table is missing still has a first block). Measured on the settled
+    layout, one heading at a time from the top, because each break moves
+    everything under it.
+
+    Returns the positions of the blocks it gave a break, so a caller that
+    wants the rest of the page rules to start again from a clean document
+    (their breaks were set for the layout BEFORE these) can put exactly
+    these back: see :func:`set_breaks_before`.
+    """
+    always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+    done: set = set()
+    set_at: list = []
+    for _ in range(400):
+        lay = settled_layout(doc)
+        target = None
+        block = doc.begin()
+        while block.isValid():
+            if (block.text().strip() == heading
+                    and block.position() not in done
+                    and QTextCursor(block).currentTable() is None):
+                target = block
+                break
+            block = block.next()
+        if target is None:
+            return set_at
+        done.add(target.position())
+        if target.blockFormat().pageBreakPolicy() & always:
+            continue
+        prev = target.previous()
+        while prev.isValid() and not prev.text().strip():
+            prev = prev.previous()
+        if not prev.isValid():
+            continue
+        start = prev
+        walk = prev
+        while walk.isValid():
+            if QTextCursor(walk).currentTable() is None:
+                if walk.text().strip() == section:
+                    start = walk
+                    break
+                if walk.blockFormat().pageBreakPolicy() & always:
+                    start = walk
+                    break
+            if walk.text().strip():
+                start = walk
+            walk = walk.previous()
+        end_page = _last_line_page(lay, prev, body_h)
+        if _line_page(lay, target, body_h) > end_page:
+            continue                      # already at the top of a page
+        if _line_page(lay, start, body_h) != end_page:
+            continue                      # the section before overflowed
+        fmt = target.blockFormat()
+        fmt.setPageBreakPolicy(always)
+        QTextCursor(target).setBlockFormat(fmt)
+        set_at.append(target.position())
+    return set_at
+
+
+def set_breaks_before(doc, positions) -> None:
+    """Give the block at each of *positions* a page break before itself."""
+    always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+    for pos in positions:
+        block = doc.findBlock(pos)
+        if block.isValid():
+            fmt = block.blockFormat()
+            fmt.setPageBreakPolicy(always)
+            QTextCursor(block).setBlockFormat(fmt)
+    settled_layout(doc)
 
 
 # ---------------------------------------------------------------------------
@@ -639,7 +990,13 @@ def render_paged(doc, device, *, page_w: float, page_h: float,
         # document that has been ruined, which is how a card once printed on
         # four sheets with three sheets' worth of it missing. See
         # :func:`settled_layout`.
+        # …AND NEVER A TRAILING SHEET NOTHING REACHES. `pageCount()` is the
+        # ceiling and stays the ceiling; `pages_that_carry_something` can only
+        # lower it past pages that hold no block at all, which is the one
+        # direction that cannot lose content. See its docstring for the
+        # Swedish glossary card this was measured on.
         total = max(1, doc.pageCount())
+        total = max(1, min(total, pages_that_carry_something(doc, body_h)))
         foot_font = QFont()
         foot_font.setPixelSize(10)
         for pg in range(total):

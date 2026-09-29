@@ -1,0 +1,187 @@
+[
+  {
+    "before": {
+      "L": 26,
+      "R": 9,
+      "T": 38,
+      "B": 19,
+      "desc": "i1Pro ruler / jig"
+    },
+    "after": {
+      "L": 26.0,
+      "R": 9.0,
+      "T": 50.0,
+      "B": 19.0,
+      "desc": "i1Pro ruler / jig",
+      "ruler": 200.0
+    },
+    "panel_margins_after_prefs": {
+      "t": 38.0,
+      "r": 9.0,
+      "b": 19.0,
+      "l": 26.0
+    },
+    "est_after_prefs": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.33,
+        8.56
+      ],
+      "pitch": null
+    },
+    "built": {
+      "total": 525,
+      "fillup": 0,
+      "page_patches": 525,
+      "rows": 25,
+      "cols": 21,
+      "pages": 1,
+      "patch": [
+        8.3,
+        8.55
+      ],
+      "pitch": null
+    },
+    "margin_text_built": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 39.0 | 1.537 | 50.0 | Bottom (to first patch) | 20.0 | 0.786 | 19.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 238.0 | 9.370 | \u26a0 Top margin 39.0 mm is below the 50 mm instrument minimum",
+    "notes_built": "\u26a0 Strip length 238 mm exceeds the 200 mm instrument ruler \u2014 the strip may not fit your jig",
+    "status_built": "\u26a0 Top margin 39.0 mm is below the 50 mm instrument minimum"
+  },
+  {
+    "ruler200_longstrip_notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 283 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+    "status": "",
+    "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 26.0 | Right (to first patch) | 9.1 | 0.358 | 9.0 | Top (to first patch) | 7.0 | 0.277 | 6.0 | Bottom (to first patch) | 7.2 | 0.283 | 6.0 | Patch width (in strip reading direction) | 8.3 | 0.327 | Strip length | 282.8 | 11.133"
+  },
+  {
+    "a3": "patch_first",
+    "cap": 0.0,
+    "est": {
+      "total": 672,
+      "fillup": 0,
+      "page_patches": 672,
+      "rows": 21,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 672,
+      "fillup": 0,
+      "page_patches": 672,
+      "rows": 21,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "notes": "",
+    "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 15.0 | 0.590 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 180.0 | 7.085 | 9.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip length | 230.0 | 9.057 | Margins: OK"
+  },
+  {
+    "a3": "patch_first",
+    "cap": 200.0,
+    "est": {
+      "total": 576,
+      "fillup": 0,
+      "page_patches": 576,
+      "rows": 18,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.0,
+        10.0
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 576,
+      "fillup": 0,
+      "page_patches": 576,
+      "rows": 18,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.04,
+        9.99
+      ],
+      "pitch": null
+    },
+    "notes": "",
+    "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 15.0 | 0.590 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 213.0 | 8.385 | 9.0 | Patch width (in strip reading direction) | 8.0 | 0.317 | Strip length | 197.0 | 7.757 | Margins: OK"
+  },
+  {
+    "a3": "area_first",
+    "cap": 0.0,
+    "est": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.21,
+        8.3
+      ],
+      "pitch": null
+    },
+    "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+    "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 9.2 | 0.363 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 10.2 | 0.402 | 9.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 399.8 | 15.740"
+  },
+  {
+    "a3": "area_first",
+    "cap": 200.0,
+    "est": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.18,
+        8.32
+      ],
+      "pitch": null
+    },
+    "actual": {
+      "total": 1376,
+      "fillup": 0,
+      "page_patches": 1376,
+      "rows": 43,
+      "cols": 32,
+      "pages": 1,
+      "patch": [
+        8.21,
+        8.3
+      ],
+      "pitch": null
+    },
+    "notes": "\u26a0 Top margin is too small for the strip labels \u2014 they overflow toward the page edge.\n\n\u26a0 Strip length 400 mm exceeds the 240 mm instrument ruler \u2014 the strip may not fit your jig",
+    "text": "mm | inch | min | Left (to first patch) | 26.0 | 1.023 | 9.0 | Right (to first patch) | 9.2 | 0.363 | 9.0 | Top (to first patch) | 10.0 | 0.393 | 9.0 | Bottom (to first patch) | 10.2 | 0.402 | 9.0 | Patch width (in strip reading direction) | 8.2 | 0.323 | Strip length | 399.8 | 15.740"
+  }
+]

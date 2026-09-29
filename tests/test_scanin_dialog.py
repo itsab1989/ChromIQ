@@ -107,8 +107,16 @@ def test_profile_type_options_and_mapping(_app, _out_dir):
         assert dlg._ptype.currentData() == "s"           # default shaper+matrix
         assert dlg._pq.currentData() == "m"              # medium default
         assert dlg._current_main_vals() == {"ptype": "s", "quality": "m"}
-        # Quality is disabled unless a cLUT type is chosen.
-        assert not dlg._pq.isEnabled()
+        # QUALITY IS LIVE FOR EVERY TYPE, and this line used to assert the
+        # opposite (B8-95). The row greyed Quality out for the two matrix
+        # types and `make_profile_params` put the greyed value on the command
+        # line regardless, so the control said it did not apply, could not be
+        # changed, and was used. ArgyllCMS's own `-q` documentation covers
+        # matrix profiles ("the per channel curve detail level and fitting
+        # 'effort'"), and measured, `-q l/m/h/u` produces four different
+        # profiles for -as, -am, -ag, -aS and -aG.
+        assert dlg._pq.isEnabled() and dlg._q_label.isEnabled()
+        assert "-qm" in dlg._cmd_preview.text()      # …and it is on the line
         assert "colprof" in dlg._cmd_preview.text() and "-as" in dlg._cmd_preview.text()
     finally:
         dlg.deleteLater()
@@ -195,12 +203,23 @@ def test_printer_mode_switches_default_profile_type(_app, _out_dir):
         assert dlg._ptype.currentData() == "s"           # back to shaper+matrix
         # Each context keeps its own choice: a type picked in printer mode is
         # remembered for printer mode and doesn't bleed into scanner mode.
+        #
+        # THE TYPE PICKED HERE USED TO BE "m", AND THAT IS B8-94: a printer
+        # profile is a cLUT or it is nothing (`colprof.c:1244-1246`), so
+        # "Matrix only" is no longer on the list with the tick on, and this
+        # test was pinning that it could be chosen there. The property it
+        # exists for is the per-bucket memory, which is unchanged, so it is
+        # proved with a type printer mode really offers.
         dlg._printer_cb.setChecked(True)
-        dlg._ptype.setCurrentIndex(dlg._ptype.findData("m"))
+        assert dlg._ptype.findData("m") == -1, \
+            "Matrix only is on offer for a printer profile again"
+        assert dlg._ptype.findData("s") == -1
+        dlg._ptype.setCurrentIndex(dlg._ptype.findData("x"))
         dlg._printer_cb.setChecked(False)
         assert dlg._ptype.currentData() == "s"           # scanner bucket unchanged
+        assert dlg._ptype.findData("m") >= 0             # …and still offered there
         dlg._printer_cb.setChecked(True)
-        assert dlg._ptype.currentData() == "m"           # printer bucket remembered
+        assert dlg._ptype.currentData() == "x"           # printer bucket remembered
     finally:
         dlg.deleteLater()
 
@@ -227,7 +246,11 @@ def test_profile_type_clut_lab_high_maps_and_previews(_app, _out_dir):
         assert dlg._ptype_tip.live_note() == ""      # no chart picked yet
         dlg._layout = {"patches": [{"page": 0} for _ in range(288)]}
         dlg._refresh()
-        assert "cannot describe anything lighter" in dlg._ptype_tip.live_note()
+        # "has a ceiling", not the old "cannot describe anything
+        # lighter than your target's own white patch": since B8-75 the
+        # ceiling moves with the white-point setting, and on the shipped
+        # default it is above anything physical (CL-6).
+        assert "has a ceiling" in dlg._ptype_tip.live_note()
         assert dlg._ptype.currentData() == "l"       # still the user's choice
         dlg._layout = None
         dlg._pq.setCurrentIndex(dlg._pq.findData("h"))
@@ -1201,7 +1224,17 @@ def test_colprof_settings_are_stored_per_context(_app, _out_dir):
         dlg._printer_cb.setChecked(False)
         assert dlg._active_ctx == "chart" and dlg._prof_name.text() == "chart-scan"
         dlg._mode_standard.setChecked(True)
-        assert dlg._active_ctx == "standard" and dlg._ptype.currentData() == "s"
+        # The bucket is a third independent one, and it is EMPTY — so Knut's
+        # patch-count rule (beta 10) is free to set it up, and does: the
+        # standard-target combo already names a target with a known size, and
+        # a bought IT8 is 288 patches, which is over the hundred-patch
+        # crossover. So the type is the XYZ cLUT here and not shaper+matrix.
+        # What is being asserted is still the same thing: this bucket did not
+        # inherit the chart bucket's settings.
+        assert dlg._active_ctx == "standard"
+        assert dlg._ptype.currentData() == "x", (
+            "a standard target of 288 patches gets the cLUT set up for it")
+        assert dlg._pq.currentData() == "h"
         assert dlg._prof_name.text() == ""                     # separate from chart-scanner
         # only the printer bucket was persisted
         stored = settings.get("scanner_colprof_configs", {})
