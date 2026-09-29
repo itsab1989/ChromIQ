@@ -119,30 +119,43 @@ def _separation(dev: np.ndarray, l_axis: np.ndarray) -> dict:
 
 
 def neutral_axis(prof, reader: str, truth: Truth, black_l: float, n_ch: int,
-                 additive: bool) -> dict:
-    ls = np.arange(max(black_l + 1.0, 1.0), 100.0 + 1e-9, 0.25)
+                 additive: bool, sink: dict | None = None) -> dict:
+    # fixed start (L* 1) so ramps pair across profiles; the part below the
+    # printer's own black is reported separately in "shadow"
+    ls = np.arange(1.0, 100.0 + 1e-9, 0.25)
     target = np.stack([ls, np.zeros_like(ls), np.zeros_like(ls)], 1)
     dev = cmm.b2a(prof, target, reader)
     printed = truth.lab(dev)
     de = colour.de2000(printed, target)
-    chroma = np.hypot(printed[:, 1], printed[:, 2])
-    dL = np.diff(printed[:, 0])
-    d2 = np.linalg.norm(np.diff(printed, 2, axis=0), axis=1)
-    out = {"de": stats(de), "chroma_max": float(chroma.max()),
+    if sink is not None:
+        sink["neutral_L"] = ls
+        sink["neutral_de"] = de
+        sink["neutral_dev"] = dev
+        sink["neutral_printed"] = printed
+        sink["neutral_black_L"] = np.array(black_l)
+    pr = ls >= black_l + 1.0            # targets the printer can reach
+    P, D, Lp, E = printed[pr], dev[pr], ls[pr], de[pr]
+    chroma = np.hypot(P[:, 1], P[:, 2])
+    dL = np.diff(P[:, 0])
+    d2 = np.linalg.norm(np.diff(P, 2, axis=0), axis=1)
+    out = {"from_L": float(Lp[0]), "de": stats(E), "chroma_max": float(chroma.max()),
            "chroma_median": float(np.median(chroma)),
-           "a_range": [float(printed[:, 1].min()), float(printed[:, 1].max())],
-           "b_range": [float(printed[:, 2].min()), float(printed[:, 2].max())],
+           "a_range": [float(P[:, 1].min()), float(P[:, 1].max())],
+           "b_range": [float(P[:, 2].min()), float(P[:, 2].max())],
            "L_reversals": int((dL < -0.05).sum()),
            "L_min_step": float(dL.min()),
            "banding_max_d2": float(d2.max()),
-           "separation": _separation(dev, ls)}
-    # shadow third of the ramp on its own (F-00 lives there)
-    sh = ls < 30
+           "separation": _separation(D, Lp),
+           # below the printer's black the table should hold the black ink
+           # steady: any device movement there is wasted variation
+           "below_black_device_tv": float(np.abs(np.diff(dev[~pr], axis=0)).sum())
+           if (~pr).sum() > 1 else 0.0}
+    sh = Lp < 30
     if sh.sum() > 3:
-        out["shadow"] = {"de": stats(de[sh]),
-                         "separation": _separation(dev[sh], ls[sh]),
+        out["shadow"] = {"de": stats(E[sh]),
+                         "separation": _separation(D[sh], Lp[sh]),
                          "banding_max_d2": float(np.linalg.norm(
-                             np.diff(printed[sh], 2, axis=0), axis=1).max())}
+                             np.diff(P[sh], 2, axis=0), axis=1).max())}
     return out
 
 
@@ -179,14 +192,18 @@ def _black_dev(n_ch: int) -> np.ndarray:
 
 
 def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
-          light: bool = False) -> dict:
-    """All metrics for one profile under one reader."""
+          light: bool = False, sink: dict | None = None) -> dict:
+    """All metrics for one profile under one reader. ``sink`` (optional)
+    receives the per-point dE arrays, index-aligned across profiles of the
+    same dataset (deterministic points), for the paired statistics."""
+    sink = sink if sink is not None else {}
     n = dataset.n_channels
     additive = dataset.color_rep.startswith(("iRGB", "RGB"))
     out: dict = {"reader": reader, "truth": "proxy" if truth.is_proxy else "printer"}
     if dataset.kind == "real":
         pred = cmm.a2b(prof, dataset.holdout_device, reader)
         de = colour.de2000(pred, dataset.holdout_lab)
+        sink["a2b"] = de
         out["a2b_heldout"] = _subsets(dataset.holdout_lab, de,
                                       colour.de_itp(pred, dataset.holdout_lab))
         dev = eval_device(n, additive, dataset.ink_limit, n_eval // 4)
@@ -195,13 +212,16 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
         lab_t = truth.lab(dev)
         pred = cmm.a2b(prof, dev, reader)
         de = colour.de2000(pred, lab_t)
+        sink["a2b"] = de
         out["a2b"] = _subsets(lab_t, de, colour.de_itp(pred, lab_t))
     lab_t = truth.lab(dev)
     ink = cmm.b2a(prof, lab_t, reader)
     printed = truth.lab(ink)
     de_b = colour.de2000(printed, lab_t)
     out["b2a"] = _subsets(lab_t, de_b, colour.de_itp(printed, lab_t))
+    sink["b2a"] = de_b
     uni = lab_uniform_index(lab_t)
+    sink["b2a_lab_uniform_index"] = uni
     out["b2a"]["lab_uniform"] = stats(de_b[uni])
     # dedicated highlight sample (true L* > 85): the device-uniform grid
     # holds only a handful of points there (12 of 20,000 on S3)
@@ -222,7 +242,8 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
             out["b2a"]["over_limit_frac"] = float(
                 np.mean(tac > dataset.ink_limit + 1.0))
     rt = cmm.a2b(prof, ink, reader)
-    out["roundtrip"] = stats(colour.de2000(rt, lab_t))
+    sink["roundtrip"] = colour.de2000(rt, lab_t)
+    out["roundtrip"] = stats(sink["roundtrip"])
     if light:
         return out
     # white and black
@@ -236,7 +257,8 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
     blab = truth.lab(bd)[0]
     out["black"] = {"printed_L": float(blab[0]), "printed_ab": [float(blab[1]), float(blab[2])],
                     "tac_pct": float(bd.sum() * 100) if not additive else None}
-    out["neutral"] = neutral_axis(prof, reader, truth, float(blab[0]), n, additive)
+    out["neutral"] = neutral_axis(prof, reader, truth, float(blab[0]), n, additive,
+                                  sink=sink)
     if not additive:
         out["ramps"] = ramps(prof, reader, truth, n, additive)
     return out

@@ -19,6 +19,8 @@ Suites (``--suite``, comma-separated):
                 37357e92~1 vs colprof vs fast on the CMYK printers at -ql and
                 -qm, neutral ramp printed on the truth.
 * ``repeat``    the same accurate/fast build twice: byte determinism.
+* ``physics``   accurate with and without spectral_physics on S3/S5 (YNSN)
+                and X3/X5 (Clapper-Yule): the size of the family circularity.
 
 Hard rules enforced here, not by convention:
 
@@ -219,6 +221,14 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
                 if keep(pid):
                     specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers),
                                   "variant": f"f00-q{q}", "quality": q})
+    elif suite == "physics":
+        # audit R3: size of the YNSN circularity. The engine's opt-in
+        # spectral_physics is a YNSN model; compare its gain on the YNSN
+        # printers (S) with its gain on the Clapper-Yule printers (X).
+        for pid in ["S3", "S5", "X3", "X5"]:
+            if keep(pid):
+                specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers),
+                              "variant": "physics"})
     elif suite == "repeat":
         for pid in ["S3", "X5"]:
             if keep(pid):
@@ -242,6 +252,8 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         engines = [e for e in engines if e in ("colprof", "accurate")]
     if suite == "repeat":
         engines = ["accurate", "fast"]
+    if suite == "physics":
+        engines = ["accurate"]
     base = {"ti3": str(ds.ti3), "quality": q, "icc_version": "both",
             "ink_limit": ds.ink_limit, "argyll_bin": ARGYLL,
             "timestamp": TIMESTAMP, "illuminant": ds.illuminant,
@@ -264,6 +276,10 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
                 jobs.append(dict(base, engine=e, tree=str(trees["master"]),
                                  out=str(profdir / "master" / f"{tag}-{e}.icc"),
                                  role="master"))
+    if suite == "physics":
+        jobs.append(dict(base, engine="accurate", tree=str(trees["accurate"]),
+                         spectral_physics=True,
+                         out=str(profdir / f"{tag}-accurate-sp.icc"), role="sp"))
     if suite == "f00" and trees.get("f00"):
         jobs.append(dict(base, engine="accurate", tree=str(trees["f00"]),
                          out=str(profdir / f"{tag}-accurate-37357e92parent.icc"),
@@ -382,12 +398,18 @@ def main(argv=None) -> int:
                     rec["raw_neutral_column"] = metrics.raw_neutral_column(j["out"])
                     rec["scores"] = {}
                     for r in readers:
+                        sink: dict = {}
                         try:
                             rec["scores"][r] = metrics.score(
                                 j["out"], ds, r, truth, n_eval=args.eval,
-                                light=s["suite"] in ("seeds", "noise"))
+                                light=s["suite"] in ("seeds", "noise"), sink=sink)
                         except Exception as exc:
                             rec["scores"][r] = {"error": f"{type(exc).__name__}: {exc}"}
+                        if sink:
+                            (out / "points").mkdir(exist_ok=True)
+                            np.savez_compressed(
+                                out / "points" / f"{Path(j['out']).stem}-{r}.npz",
+                                **{k: np.asarray(v) for k, v in sink.items()})
                     if ds.kind == "synthetic" and j["engine"] != "colprof":
                         flagged = set(b.get("outlier_rows") or [])
                         true = set(int(x) for x in ds.misread_rows)
@@ -454,7 +476,7 @@ def check_gates(builds: list[dict], specs: list[dict]) -> dict:
     out = {"checked": [], "failures": []}
     for b in builds:
         j = b["job"]
-        if j["engine"] != "accurate" or j.get("role") not in ("branch", "repeat"):
+        if j["engine"] != "accurate" or j.get("role") not in ("branch", "repeat", "sp"):
             continue
         ds = specs[j["spec_index"]]["ds"]
         name = Path(j["out"]).name

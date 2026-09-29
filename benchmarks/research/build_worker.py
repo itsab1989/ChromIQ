@@ -51,6 +51,7 @@ def build_engine(job: dict) -> dict:
         sat_gamut=bool(job.get("source_gamut")),
         illuminant=job.get("illuminant", ""),
         observer=job.get("observer", ""),
+        spectral_physics=bool(job.get("spectral_physics", False)),
         timestamp=datetime.fromisoformat(job.get("timestamp",
                                                  "2026-01-01T00:00:00")),
     )

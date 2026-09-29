@@ -149,16 +149,25 @@ def mxf_to_ti3(src: Path, out: Path, mode: str | None = None) -> dict:
         c = o.find("cc:DeviceColorValues/cc:ColorRGB", _NS)
         rep = "RGB"
         dev.append([float(c.find(f"cc:{k}", _NS).text) * 100 / 255 for k in "RGB"])
-    refl = []
+    refl, labs, start = [], [], 380.0
     for o in meas:
         sp = o.find("cc:ColorValues/cc:ReflectanceSpectrum", _NS)
-        start = float(sp.get("StartWL") or 380)
-        refl.append([float(v) for v in sp.text.split()])
-    refl = np.asarray(refl)
-    lam = start + 10.0 * np.arange(refl.shape[1])
-    # 1 nm by linear interpolation of the 10 nm data (ends held) - CIE 15 practice.
-    r1 = np.stack([np.interp(colour.LAM_1NM, lam, r) for r in refl])
-    xyz = colour.xyz_from_reflectance_1nm(r1, "D50")
+        if sp is not None:
+            start = float(sp.get("StartWL") or 380)
+            refl.append([float(v) for v in sp.text.split()])
+            continue
+        c = o.find("cc:ColorValues/cc:ColorCIELab", _NS)
+        labs.append([float(c.find(f"cc:{k}", _NS).text) for k in "LAB"])
+    if refl:
+        refl = np.asarray(refl)
+        lam = start + 10.0 * np.arange(refl.shape[1])
+        # 1 nm by linear interpolation of the 10 nm data (ends held), CIE 15 practice.
+        r1 = np.stack([np.interp(colour.LAM_1NM, lam, r) for r in refl])
+        xyz = colour.xyz_from_reflectance_1nm(r1, "D50")
+    else:
+        # Colorimetric-only reference data (FOGRA/IDEAlliance): Lab, D50/2 deg
+        refl, lam = None, np.array([])
+        xyz = colour.lab_to_xyz(np.asarray(labs))
     dev = np.asarray(dev)
     rep_full = ("iRGB" if rep == "RGB" else rep) + "_XYZ"
     letters = list("RGB") if rep == "RGB" else list("CMYK")
@@ -166,20 +175,22 @@ def mxf_to_ti3(src: Path, out: Path, mode: str | None = None) -> dict:
     sf = [f"SPEC_{int(w)}" for w in lam]
     lines = ["CTI3", 'DESCRIPTOR "converted by benchmarks.research (read-only source)"',
              'ORIGINATOR "ChromIQ benchmarks.research"', 'DEVICE_CLASS "OUTPUT"',
-             f'COLOR_REP "{rep_full}"',
-             f'SPECTRAL_BANDS "{len(lam)}"', f'SPECTRAL_START_NM "{lam[0]:g}"',
-             f'SPECTRAL_END_NM "{lam[-1]:g}"',
-             f"NUMBER_OF_FIELDS {1 + len(fields) + len(sf)}", "BEGIN_DATA_FORMAT",
+             f'COLOR_REP "{rep_full}"']
+    if refl is not None:
+        lines += [f'SPECTRAL_BANDS "{len(lam)}"', f'SPECTRAL_START_NM "{lam[0]:g}"',
+                  f'SPECTRAL_END_NM "{lam[-1]:g}"']
+    lines += [f"NUMBER_OF_FIELDS {1 + len(fields) + len(sf)}", "BEGIN_DATA_FORMAT",
              "SAMPLE_ID " + " ".join(fields + sf), "END_DATA_FORMAT",
              f"NUMBER_OF_SETS {len(dev)}", "BEGIN_DATA"]
     for i in range(len(dev)):
         lines.append(" ".join([str(i + 1)] + [f"{v:.4f}" for v in dev[i]]
                               + [f"{v:.5f}" for v in xyz[i]]
-                              + [f"{v:.6f}" for v in refl[i]]))
+                              + ([f"{v:.6f}" for v in refl[i]] if refl is not None else [])))
     lines.append("END_DATA")
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"mode": mode, "patches": len(dev), "rep": rep_full,
-            "bands": f"{lam[0]:g}-{lam[-1]:g}/10"}
+            "data": f"spectral {lam[0]:g}-{lam[-1]:g}/10 nm" if refl is not None
+            else "Lab only (D50/2)"}
 
 
 def _ti3_table(text: str):
