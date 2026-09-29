@@ -786,7 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
-    # RE-MEASURED 2026-09-29, research/profile-engine (master merged into the engine-accuracy branch; NEVER on master): two engine texts lost their em dash as whole sentences (the quit-during-build question, the -v4.icc twin in the file guide), 2 keys replaced by 2. German by hand, does not move; the eleven others carry the English under the beta rule: +2 per language. `uk` was added on master after the branch forked and never had the branch's 17 engine strings; they arrive as English: 77 -> 92. COUNTED off the tree.
+    # RE-MEASURED 2026-09-29, research/profile-engine (master merged into the engine-accuracy branch; NEVER on master): the quit-during-build question lost its em dash as a whole sentence, 1 key replaced by 1, translated by hand in every language (the branch's own translation, split where the English splits), so no count moves; the branch's -v4.icc row in the File guide is held back (it cost US Letter a sixteenth sheet). `uk` was added on master after the branch forked and never had the branch's 17 engine strings; translated by hand here, so the count stays at 77. COUNTED off the tree.
     # RE-MEASURED 2026-09-28, the 4.3.0 translation pass (every language translated, reviewed a second time and checked on screen; German's eight long help texts translated): the ceilings came DOWN from the hundreds to what is left identical on purpose (names, units, symbols, the verdict words), so a new untranslated string is noticed again. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1592 (Knut #182 5859248797): with every measurement unticked the red line says one must be ticked, 1 key in. German by hand, does not move; the twelve others carry the English under the beta rule: +1 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1500 and B8-1503 (Knut #182 5857473253): M-REPORT-NOT-WORKED-OUT (§M-PROPOSED, a title and a singular and a plural body, 3 keys in) says a new report's date whose measurement is gone carries an earlier report's figures; the Report Limits note on the Custom columns takes Knut's accepted wording (1 key out, 2 in: with and without the pointer to note ⁴). German by hand, does not move; the twelve others carried the old note in English and carry the new English under the beta rule, so each rises by exactly 4, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
@@ -1504,17 +1504,17 @@ _IDENTICAL_TO_KEY = {
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 134,
-    "es": 118,
-    "fr": 140,
-    "it": 125,
-    "ja": 96,
-    "nl": 143,
-    "no": 125,
-    "pl": 120,
-    "pt": 118,
-    "ru": 91,
-    "sv": 129,
-    "zh_CN": 92,
+    "es": 116,
+    "fr": 138,
+    "it": 123,
+    "ja": 94,
+    "nl": 141,
+    "no": 123,
+    "pl": 118,
+    "pt": 116,
+    "ru": 89,
+    "sv": 127,
+    "zh_CN": 90,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1543,7 +1543,7 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 92,
+    "uk": 77,
 }
 
 

@@ -6411,17 +6411,15 @@
  "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "该限值集所设限的各项数值，在本页上均未作评定，因此没有可判断的内容。",
  "Building with Argyll colprof: {why}.": "正在使用 Argyll colprof 构建: {why}。",
  "Maximum accuracy (ChromIQ engine only):": "最高精度（仅 ChromIQ 引擎）:",
- "Build Profile (ChromIQ engine)": "构建配置文件（ChromIQ 引擎）",
  "ChromIQ engine · {mode}": "ChromIQ 引擎 · {mode}",
  "the ChromIQ profile engine is switched off": "ChromIQ 配置文件引擎已关闭",
  "Bit-exact on a standard (≤4-ink) measurement is Argyll colprof itself": "标准（≤4 色墨水）测量下的精确模式就是 Argyll colprof 本身",
  "A profile is being built": "正在构建配置文件",
  "Keep building": "继续构建",
  "Quit anyway": "仍要退出",
- "[WARNING] Could not put the previous profile back: {error}": "[警告] 无法把之前的配置文件放回原处: {error}",
+ "[WARNING] Could not put the previous profile back: {error}": "[WARNING] 无法把之前的配置文件放回原处: {error}",
  "The previous profile was put back: {names}": "之前的配置文件已放回原处: {names}",
  "Building with the ChromIQ profile engine (beta): {mode}…": "正在使用 ChromIQ 配置文件引擎（测试版）构建: {mode}…",
- "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?",
- "ChromIQ profile engine · {mode} (instead of: colprof {args})": "ChromIQ 配置文件引擎 · {mode} (而不是: colprof {args})",
- "The ICC version 4 twin of your profile. It is written only when the ChromIQ engine's Maximum accuracy mode is set to \"Both (v2 + v4)\". Same colour tables, newer container; Install and the rest of ChromIQ keep using {name}.icc.": "The ICC version 4 twin of your profile. It is written only when the ChromIQ engine's Maximum accuracy mode is set to \"Both (v2 + v4)\". Same colour tables, newer container; Install and the rest of ChromIQ keep using {name}.icc."
+ "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ 仍在构建配置文件。如果现在退出，本次构建将被丢弃。完成前不会保存任何内容。\n\n继续构建，还是仍要退出？",
+ "ChromIQ profile engine · {mode} (instead of: colprof {args})": "ChromIQ 配置文件引擎 · {mode} (而不是: colprof {args})"
 }

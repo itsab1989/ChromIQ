@@ -6411,17 +6411,15 @@
  "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "この許容値セットが上限を設けている値は、このシートではいずれも判定されていないため、判断するものがありません。",
  "Building with Argyll colprof: {why}.": "Argyll colprof で作成中: {why}。",
  "Maximum accuracy (ChromIQ engine only):": "最高精度（ChromIQ エンジンのみ）:",
- "Build Profile (ChromIQ engine)": "プロファイル作成（ChromIQ エンジン）",
  "ChromIQ engine · {mode}": "ChromIQ エンジン · {mode}",
  "the ChromIQ profile engine is switched off": "ChromIQ プロファイルエンジンがオフになっています",
  "Bit-exact on a standard (≤4-ink) measurement is Argyll colprof itself": "標準（インク4色以下）の測定でのビット精密は Argyll colprof そのものです",
  "A profile is being built": "プロファイルを作成中です",
  "Keep building": "作成を続ける",
  "Quit anyway": "終了する",
- "[WARNING] Could not put the previous profile back: {error}": "[警告] 以前のプロファイルを元に戻せませんでした: {error}",
+ "[WARNING] Could not put the previous profile back: {error}": "[WARNING] 以前のプロファイルを元に戻せませんでした: {error}",
  "The previous profile was put back: {names}": "以前のプロファイルを元に戻しました: {names}",
  "Building with the ChromIQ profile engine (beta): {mode}…": "ChromIQ プロファイルエンジン（ベータ）で作成中: {mode}…",
- "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?",
- "ChromIQ profile engine · {mode} (instead of: colprof {args})": "ChromIQ プロファイルエンジン · {mode} (代わりに: colprof {args})",
- "The ICC version 4 twin of your profile. It is written only when the ChromIQ engine's Maximum accuracy mode is set to \"Both (v2 + v4)\". Same colour tables, newer container; Install and the rest of ChromIQ keep using {name}.icc.": "The ICC version 4 twin of your profile. It is written only when the ChromIQ engine's Maximum accuracy mode is set to \"Both (v2 + v4)\". Same colour tables, newer container; Install and the rest of ChromIQ keep using {name}.icc."
+ "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ はまだプロファイルを作成中です。今終了すると作成内容は破棄されます。完了するまで何も保存されません。\n\n作成を続けますか、それとも終了しますか？",
+ "ChromIQ profile engine · {mode} (instead of: colprof {args})": "ChromIQ プロファイルエンジン · {mode} (代わりに: colprof {args})"
 }

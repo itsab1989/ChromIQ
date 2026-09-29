@@ -6411,17 +6411,15 @@
  "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Keiner der Werte, für die dieser Grenzwertsatz eine Grenze setzt, wurde auf diesem Bogen bewertet, also gibt es nichts zu beurteilen.",
  "Building with Argyll colprof: {why}.": "Erstelle mit Argyll colprof: {why}.",
  "Maximum accuracy (ChromIQ engine only):": "Maximale Genauigkeit (nur ChromIQ-Engine):",
- "Build Profile (ChromIQ engine)": "Profil erstellen (ChromIQ-Engine)",
  "ChromIQ engine · {mode}": "ChromIQ-Engine · {mode}",
  "the ChromIQ profile engine is switched off": "die ChromIQ-Profil-Engine ist ausgeschaltet",
  "Bit-exact on a standard (≤4-ink) measurement is Argyll colprof itself": "Bit-genau bei einer Standard-Messung (≤4 Tinten) ist Argyll colprof selbst",
  "A profile is being built": "Ein Profil wird gerade erstellt",
  "Keep building": "Weiter erstellen",
  "Quit anyway": "Trotzdem beenden",
- "[WARNING] Could not put the previous profile back: {error}": "[WARNUNG] Das bisherige Profil konnte nicht zurückgelegt werden: {error}",
+ "[WARNING] Could not put the previous profile back: {error}": "[WARNING] Das bisherige Profil konnte nicht zurückgelegt werden: {error}",
  "The previous profile was put back: {names}": "Das bisherige Profil wurde zurückgelegt: {names}",
  "Building with the ChromIQ profile engine (beta): {mode}…": "Erstelle mit der ChromIQ-Profil-Engine (Beta): {mode}…",
  "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ erstellt gerade noch ein Profil. Wenn du jetzt beendest, geht der Build verloren. Gespeichert wird erst, wenn er fertig ist.\n\nWeiter erstellen oder trotzdem beenden?",
- "ChromIQ profile engine · {mode} (instead of: colprof {args})": "ChromIQ-Profil-Engine · {mode} (statt: colprof {args})",
- "The ICC version 4 twin of your profile. It is written only when the ChromIQ engine's Maximum accuracy mode is set to \"Both (v2 + v4)\". Same colour tables, newer container; Install and the rest of ChromIQ keep using {name}.icc.": "Der ICC-Version-4-Zwilling deines Profils. Er wird nur geschrieben, wenn im Modus „Maximale Genauigkeit“ der ChromIQ-Engine „Beide (v2 + v4)“ gewählt ist. Gleiche Farbtabellen, neuerer Container; Installieren und der Rest von ChromIQ verwenden weiterhin {name}.icc."
+ "ChromIQ profile engine · {mode} (instead of: colprof {args})": "ChromIQ-Profil-Engine · {mode} (statt: colprof {args})"
 }

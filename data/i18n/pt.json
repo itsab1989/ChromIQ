@@ -6411,17 +6411,15 @@
  "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Nenhum dos valores a que este conjunto de limites impõe um limite foi avaliado nesta folha, por isso não há nada a julgar.",
  "Building with Argyll colprof: {why}.": "A construir com o Argyll colprof: {why}.",
  "Maximum accuracy (ChromIQ engine only):": "Precisão máxima (apenas motor ChromIQ):",
- "Build Profile (ChromIQ engine)": "Criar perfil (motor ChromIQ)",
  "ChromIQ engine · {mode}": "Motor ChromIQ · {mode}",
  "the ChromIQ profile engine is switched off": "o motor de perfis ChromIQ está desligado",
  "Bit-exact on a standard (≤4-ink) measurement is Argyll colprof itself": "Bit-exato numa medição padrão (≤4 tintas) é o próprio Argyll colprof",
  "A profile is being built": "Um perfil está a ser criado",
  "Keep building": "Continuar a criar",
  "Quit anyway": "Sair mesmo assim",
- "[WARNING] Could not put the previous profile back: {error}": "[AVISO] Não foi possível repor o perfil anterior: {error}",
+ "[WARNING] Could not put the previous profile back: {error}": "[WARNING] Não foi possível repor o perfil anterior: {error}",
  "The previous profile was put back: {names}": "O perfil anterior foi reposto: {names}",
  "Building with the ChromIQ profile engine (beta): {mode}…": "A construir com o motor de perfis ChromIQ (beta): {mode}…",
- "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?",
- "ChromIQ profile engine · {mode} (instead of: colprof {args})": "Motor de perfis ChromIQ · {mode} (em vez de: colprof {args})",
- "The ICC version 4 twin of your profile. It is written only when the ChromIQ engine's Maximum accuracy mode is set to \"Both (v2 + v4)\". Same colour tables, newer container; Install and the rest of ChromIQ keep using {name}.icc.": "The ICC version 4 twin of your profile. It is written only when the ChromIQ engine's Maximum accuracy mode is set to \"Both (v2 + v4)\". Same colour tables, newer container; Install and the rest of ChromIQ keep using {name}.icc."
+ "ChromIQ is still building a profile. If you quit now, the build is thrown away. Nothing is saved until it finishes.\n\nKeep building, or quit anyway?": "O ChromIQ ainda está a criar um perfil. Se sair agora, a criação perde-se. Nada é guardado até terminar.\n\nContinuar a criar ou sair mesmo assim?",
+ "ChromIQ profile engine · {mode} (instead of: colprof {args})": "Motor de perfis ChromIQ · {mode} (em vez de: colprof {args})"
 }

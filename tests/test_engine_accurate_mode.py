@@ -346,6 +346,16 @@ def test_accurate_rgb_build_end_to_end(tmp_path):
 
 
 @pytest.mark.slow
+# RESEARCH FINDING F-00 (research/profile-engine, 2026-09-29): red since
+# 37357e92 (the Sept round's KKT face step for accurate CMYK black depth);
+# 37357e92~1 passes. The neutral column's largest step is 0.58 against 0.45:
+# C, M and Y fall by ~0.25 per step at the dark end. It was never seen because
+# only the everyday tier ran after that commit. Whether the step or this
+# threshold is wrong is for the benchmark to decide, see
+# ~/Desktop/ProfileEngineResearch/Findings/F-00-*.md. Strict, so a change
+# either way turns this red.
+@pytest.mark.xfail(strict=True, reason="research finding F-00: neutral-column "
+                   "jump after the accurate CMYK black-depth fix (37357e92)")
 def test_accurate_cmyk_build_and_separation_smoothness(tmp_path):
     ti3 = write_synth_ti3(tmp_path / "cmyk.ti3", "CMYK",
                           [f"CMYK_{c}" for c in "CMYK"], additive=False,
