@@ -83,6 +83,46 @@ def run_context_for(path: "Path | str | None") -> "RunContext | None":
     return None
 
 
+def reports_dir_for(path: "Path | str") -> Path:
+    """The ``reports/`` folder a file inside a project belongs to (#182 (b)).
+
+    Asked of the OWNER, never of the file's own folder: a measurement kept in
+    ``reads/``, ``cache/``, ``chart/`` or an ``old/<stamp>/`` archive belongs
+    to the run, the dated verification or the calibration above it, and
+    ``<that folder>/reports`` would be a ``reads/reports/`` nothing in ChromIQ
+    ever lists (the bug recorded in ``TabMeasure._keep_the_read_as_the_runs_
+    measurement``). So the folders above the file are walked, nearest first,
+    and the first owner found answers:
+
+    * a dated verification: ``runs/runN/verifications/<date>/reports``;
+    * a profile run: ``runs/runN/reports``;
+    * a project's calibration: ``<project>/cal/reports``;
+    * the project itself, for a file in it that no run or calibration owns:
+      ``<project>/reports``.
+
+    Only a file in no project at all gets ``<its folder>/reports``. Nothing is
+    created here.
+    """
+    from core.file_manager import Calibration, is_a_project, reports_subdir
+    p = Path(path)
+    start = p.parent if p.suffix else p
+    try:
+        chain = [start, *list(start.parents)[:7]]
+        for d in chain:
+            ctx = run_context_for(d / "_.ti3")
+            if ctx is not None:
+                return (ctx.verification.reports_dir
+                        if ctx.verification is not None
+                        else ctx.run.reports_dir)
+            if d.name == "cal" and is_a_project(d.parent):
+                return Calibration(d.parent).reports_dir
+            if is_a_project(d):
+                return reports_subdir(d)
+    except (OSError, ValueError):
+        pass
+    return reports_subdir(start)
+
+
 def project_root_for(path: "Path | str | None") -> "Path | None":
     """The ChromIQ project a file lies in, or None when it lies in none.
 

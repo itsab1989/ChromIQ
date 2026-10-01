@@ -1377,6 +1377,8 @@ class Calibration:
 
     @property
     def dir(self) -> Path:                    return self._root / "cal"
+    @property
+    def reports_dir(self) -> Path:            return self.dir / REPORTS_DIRNAME
 
     def artefact(self, ext: str) -> Path:
         """``cal/<stem><ext>`` as the volume spells it — see
