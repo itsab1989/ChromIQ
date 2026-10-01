@@ -200,3 +200,80 @@ def test_a_message_box_shown_without_exec_is_noticed(qapp, tmp_path):
     assert not box.isVisible()
     assert box.clickedButton() is cancel
     assert dog.unexpected_events()
+
+
+# ---- the defects the challenge (G, 2026-10-02) reproduced on screen -------
+
+class _AsksAgain:
+    """An answer that opens a second question, as 'Delete run?' -> 'Really?'."""
+
+    def __init__(self):
+        self.second = None
+        self.hung = False
+
+    def first_answered(self, _button):
+        self.second, _cancel = _box("Really?", "This cannot be undone. Really delete?")
+        self.hung = _exec_with_safety(self.second)
+
+
+def test_a_question_asked_by_an_answer_is_seen_too(qapp, tmp_path):
+    first, _cancel = _box("Delete?", "Delete the selected run?")
+    chain = _AsksAgain()
+    first.buttonClicked.connect(chain.first_answered)
+    dog = PopupWatchdog(tmp_path, grace_s=0.3, interval_ms=50, log=lambda s: None)
+    dog.expect(r"Delete the selected run", "Update this one").start()
+    hung = _exec_with_safety(first)
+    dog.stop()
+    assert not hung
+    assert chain.second is not None and not chain.second.isVisible()
+    assert not chain.hung, "the second question had to be ended by the safety"
+    texts = [e["text"] for e in dog.events]
+    assert any("Really delete" in t for t in texts), texts
+
+
+class _AddsButtonLate:
+    def __init__(self, box):
+        self.box = box
+
+    def add(self):
+        self.box.addButton("Continue anyway", QMessageBox.ButtonRole.AcceptRole)
+
+
+def test_a_button_that_appears_late_still_gets_the_scripted_answer(qapp, tmp_path):
+    box, _cancel = _box("Slow", "Strip read quickly")
+    late = _AddsButtonLate(box)
+    QTimer.singleShot(400, late.add)
+    dog = PopupWatchdog(tmp_path, grace_s=2.0, interval_ms=50, log=lambda s: None)
+    dog.expect(r"Strip read quickly", "Continue anyway").start()
+    hung = _exec_with_safety(box)
+    dog.stop()
+    assert not hung
+    assert box.clickedButton().text() == "Continue anyway"
+    assert dog.unexpected_events() == []
+
+
+def test_a_popup_that_vanishes_mid_look_never_stops_the_driver(qapp, tmp_path, monkeypatch):
+    box, _cancel = _box()
+    dog = PopupWatchdog(tmp_path, grace_s=0.1, interval_ms=50, log=lambda s: None)
+
+    def gone(_w):
+        raise RuntimeError("wrapped C/C++ object of type QMessageBox has been deleted")
+    monkeypatch.setattr(PopupWatchdog, "describe", staticmethod(gone))
+    box.show()
+    dog._tick()                                   # must not raise
+    box.close()
+    assert "went away" in (tmp_path / "popups.log").read_text(encoding="utf-8")
+
+
+def test_photographing_a_popup_never_hides_it(qapp, tmp_path, monkeypatch):
+    """Hiding a dialog inside exec() ends it as Rejected: the photograph would
+    answer the question."""
+    import onscreen_capture as oc
+    monkeypatch.setattr(oc, "session_is_locked", lambda: False)
+    monkeypatch.setattr(oc, "window_id_for", lambda _w: None)
+    box, _cancel = _box()
+    box.show()
+    ok, why = oc.capture_window(box, tmp_path / "p.png", settle=0, allow_hide=False)
+    assert not ok and "hide" in why
+    assert box.isVisible()
+    box.close()

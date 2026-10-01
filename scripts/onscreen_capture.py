@@ -356,7 +356,8 @@ def _difference(a: Path, b: Path) -> float:
 
 
 def capture_window(win, path: Path, settle: float = 0.6,
-                   min_difference: float = 0.25) -> tuple[bool, str]:
+                   min_difference: float = 0.25,
+                   allow_hide: bool = True) -> tuple[bool, str]:
     """Photograph *win* into *path*. Returns (ok, why-not).
 
     The caller is expected to REPORT a False at the top of its result. The file
@@ -375,8 +376,12 @@ def capture_window(win, path: Path, settle: float = 0.6,
                            "hands every capture the desktop picture instead "
                            "of the window; unlock the screen and run again")
     path.parent.mkdir(parents=True, exist_ok=True)
-    win.raise_()
-    win.activateWindow()
+    # NO raise_() / activateWindow() HERE ANY MORE. Basti, 2026-10-02: *"when
+    # i am typing here and you bring the chromiq windows to the front i am
+    # sometimes still typing while you make another window get focus"*. The
+    # window-id capture below reads the window's own buffer and does not care
+    # what is in front of it; only the rectangle fallback needs the window on
+    # top, so only that path raises it.
     QApplication.processEvents()
     time.sleep(settle)
 
@@ -413,6 +418,17 @@ def capture_window(win, path: Path, settle: float = 0.6,
                 return True, ""
             path.unlink(missing_ok=True)
 
+    if not allow_hide:
+        # The rectangle fallback proves itself by HIDING the window, and hiding
+        # a dialog that is inside exec() ends that exec() as Rejected: the
+        # photograph would answer the question. A caller photographing a
+        # pop-up (PopupWatchdog) says no.
+        return False, ("the window could not be captured by its id, and the "
+                       "rectangle fallback would have to hide it")
+    win.raise_()                    # the rectangle needs the window on top
+    win.activateWindow()
+    QApplication.processEvents()
+    time.sleep(settle)
     g = win.frameGeometry()
     rect = f"{g.x()},{g.y()},{g.width()},{g.height()}"
     if not _grab_region(rect, path):
@@ -439,6 +455,89 @@ def capture_window(win, path: Path, settle: float = 0.6,
                        "rectangle with the window HIDDEN, so it is a picture "
                        "of what is behind the window, not of the window")
     return True, ""
+
+
+class FocusGiveBack:
+    """Hand the keyboard back to whoever had it before the driver started.
+
+    Basti, 2026-10-02: while he typed in the terminal, a driver brought a
+    ChromIQ window to the front and his keystrokes went into the app. Measured
+    the same night on macOS 27.0.1 (J_focus/ in that session's reports):
+
+    * a Qt app started from a terminal becomes the active application as soon
+      as its first window shows, whatever the flags: WA_ShowWithoutActivating,
+      AA_PluginApplication and the Accessory policy all still took focus;
+    * the Prohibited policy keeps focus but the window is then never put on
+      screen at all, which breaks the on-screen rule;
+    * re-activating the previous app from a background THREAD is refused, and
+      macOS handed focus to Finder instead;
+    * what works is the cooperative hand-over on the MAIN thread while this
+      process is the active one: ``yieldActivationToApplication_`` and then
+      ``activateWithOptions_`` on the previous app, back within about 0.3 s.
+
+    Call :meth:`remember` BEFORE the QApplication exists (afterwards the
+    frontmost app may already be the driver itself), :meth:`install` once it
+    does, and :meth:`give_back` right after showing a window. Every later
+    activation (application state goes Active) is handed back too, so a click
+    by the user INTO a driven window is bounced as well, which is the point:
+    nobody should type into a window a driver is using. Does nothing off
+    macOS or without pyobjc.
+    """
+
+    def __init__(self):
+        self.previous = None
+        self.handed_back = 0
+
+    def remember(self) -> "FocusGiveBack":
+        try:
+            import AppKit
+            import os as _os
+            front = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
+            if front is not None and int(front.processIdentifier()) != _os.getpid():
+                self.previous = front
+        except Exception:          # noqa: BLE001 - no pyobjc / not macOS
+            self.previous = None
+        return self
+
+    def install(self, app) -> "FocusGiveBack":
+        if self.previous is not None:
+            from PyQt6.QtCore import QTimer
+            app.applicationStateChanged.connect(self._state_changed)
+            # …AND A POLL, because Qt does not always say so: macOS can make
+            # the app active a second or two after its window shows, while
+            # Qt's own state already reads Active, so no signal comes. Measured:
+            # focus stayed with ChromIQ for 2 s with only the signal. The poll
+            # runs on the main thread (the hand-over only works there) and does
+            # nothing while another app is in front.
+            self._poll = QTimer(app)
+            self._poll.setInterval(50)
+            self._poll.timeout.connect(self.give_back)
+            self._poll.start()
+        return self
+
+    def _state_changed(self, state) -> None:
+        from PyQt6.QtCore import Qt
+        if state == Qt.ApplicationState.ApplicationActive:
+            self.give_back()
+
+    def give_back(self) -> bool:
+        if self.previous is None:
+            return False
+        try:
+            import AppKit
+            import os as _os
+            front = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
+            if front is None or int(front.processIdentifier()) != _os.getpid():
+                return False             # not ours to hand over
+            try:
+                AppKit.NSApp.yieldActivationToApplication_(self.previous)
+            except Exception:      # noqa: BLE001 - before macOS 14
+                pass
+            ok = bool(self.previous.activateWithOptions_(0))
+            self.handed_back += ok
+            return ok
+        except Exception:          # noqa: BLE001
+            return False
 
 
 class PopupWatchdog:
@@ -502,9 +601,13 @@ class PopupWatchdog:
         self.rules: list[tuple] = []
         self.events: list[dict] = []
         self.unexpected = False
-        self._first_seen: dict[int, float] = {}
+        #: id(widget) -> (widget, first seen). Holding the widget keeps its id
+        #: from being reused by a NEW box while this one is remembered.
+        self._first_seen: dict[int, tuple] = {}
         self._last_stuck_note: dict[int, float] = {}
         self._event_for: dict[int, dict] = {}
+        self._rule_for: dict[int, tuple] = {}
+        self._answered: set[int] = set()
         self._timer = None
 
     # -- the driver's side ----------------------------------------------------
@@ -578,13 +681,12 @@ class PopupWatchdog:
         return isinstance(w, (QMessageBox, QInputDialog, QFileDialog))
 
     # -- what it does ---------------------------------------------------------
-    def _press(self, w, label: str) -> bool:
+    def _find_button(self, w, label: str):
         want = label.replace("&", "").strip().lower()
         for b in self._buttons(w):
             if b.text().replace("&", "").strip().lower() == want:
-                b.click()
-                return True
-        return False
+                return b
+        return None
 
     @staticmethod
     def _dismiss(w) -> str:
@@ -610,50 +712,77 @@ class PopupWatchdog:
         now = time.monotonic()
         live = self._popups()
         alive_ids = {id(w) for w in live}
-        for gone in [k for k in self._first_seen if k not in alive_ids]:
+        for gone in [k for k, (held, _t) in self._first_seen.items()
+                     if k not in alive_ids or not any(w is held for w in live)]:
             self._first_seen.pop(gone, None)
             self._last_stuck_note.pop(gone, None)
             self._event_for.pop(gone, None)
+            self._rule_for.pop(gone, None)
+            self._answered.discard(gone)
         for w in live:
-            key = id(w)
-            info = self.describe(w)
-            haystack = f"{info['title']}\n{info['text']}"
-            if key not in self._first_seen:
-                self._first_seen[key] = now
-                rule = next(((p, b) for p, b in self.rules if p.search(haystack)), None)
-                question = self.is_question(w)
-                event = dict(info, kind="question" if question else "window",
-                             unexpected=rule is None and question, action="")
-                self.events.append(event)
-                self._event_for[key] = event
-                self._note(f"SEEN {info['class']} '{info['title']}' "
-                           f"buttons={info['buttons']} text={info['text'][:300]!r}")
-                if self.photograph and self.report_dir is not None:
-                    shot = self.report_dir / f"popup_{len(self.events):03d}.png"
-                    ok, why = capture_window(w, shot)
-                    self._note(f"  photo {shot.name}" if ok else f"  NO PHOTO: {why}")
-                if rule is not None:
-                    pressed = self._press(w, rule[1])
-                    event["action"] = (f"answered '{rule[1]}'" if pressed else
-                                       f"EXPECTED BUTTON '{rule[1]}' NOT FOUND")
-                    if not pressed:
-                        event["unexpected"] = True
-                    self._note(f"  {event['action']}")
-                continue
-            if now - self._first_seen[key] < self.grace_s:
-                continue
-            event = self._event_for.get(key)
-            if not self.is_question(w) and not self.dismiss_windows:
-                continue                      # a working window: leave it be
-            if self.policy == "report":
-                if now - self._last_stuck_note.get(key, 0) >= 10:
-                    self._last_stuck_note[key] = now
-                    self._note(f"STUCK on '{info['title']}' for "
-                               f"{now - self._first_seen[key]:.0f} s")
-                continue
-            action = self._dismiss(w)
-            if event is not None:
-                event["action"] = "; ".join(a for a in (event["action"], action) if a)
-            if self.policy == "fail":
-                self.unexpected = True
-            self._note(f"  unscripted, {action}")
+            try:
+                self._look_at(w, now)
+            except RuntimeError as exc:     # deleted under us between ticks
+                self._note(f"  a pop-up went away while being looked at ({exc})")
+
+    def _look_at(self, w, now: float) -> None:
+        from PyQt6.QtCore import QTimer
+        key = id(w)
+        if key not in self._first_seen:
+            self._first_sight(w, key, now)
+        event = self._event_for[key]
+        age = now - self._first_seen[key][1]
+        rule = self._rule_for.get(key)
+        if rule is not None and key not in self._answered:
+            button = self._find_button(w, rule[1])
+            if button is not None:
+                # DEFERRED, not clicked inside this tick: an answer that opens
+                # a second question would otherwise run that question's exec()
+                # inside this timer slot, and the watchdog could not look at
+                # it until it closed (challenge G, 2026-10-02).
+                self._answered.add(key)
+                QTimer.singleShot(0, button.click)
+                event["action"] = f"answered '{rule[1]}'"
+                self._note(f"  {event['action']}")
+                return
+            if age < self.grace_s:
+                return            # a button may still be added; look again
+            self._answered.add(key)
+            event["action"] = f"EXPECTED BUTTON '{rule[1]}' NOT FOUND"
+            event["unexpected"] = True
+            self._note(f"  {event['action']}")
+        if key in self._answered and rule is not None and event["action"].startswith("answered"):
+            return
+        if age < self.grace_s:
+            return
+        if not self.is_question(w) and not self.dismiss_windows:
+            return                              # a working window: leave it be
+        if self.policy == "report":
+            if now - self._last_stuck_note.get(key, 0) >= 10:
+                self._last_stuck_note[key] = now
+                self._note(f"STUCK on '{w.windowTitle()}' for {age:.0f} s")
+            return
+        action = self._dismiss(w)
+        event["action"] = "; ".join(a for a in (event["action"], action) if a)
+        if self.policy == "fail":
+            self.unexpected = True
+        self._note(f"  unscripted, {action}")
+
+    def _first_sight(self, w, key: int, now: float) -> None:
+        info = self.describe(w)
+        haystack = f"{info['title']}\n{info['text']}"
+        self._first_seen[key] = (w, now)
+        rule = next(((p, b) for p, b in self.rules if p.search(haystack)), None)
+        if rule is not None:
+            self._rule_for[key] = rule
+        question = self.is_question(w)
+        event = dict(info, kind="question" if question else "window",
+                     unexpected=rule is None and question, action="")
+        self.events.append(event)
+        self._event_for[key] = event
+        self._note(f"SEEN {info['class']} '{info['title']}' "
+                   f"buttons={info['buttons']} text={info['text'][:300]!r}")
+        if self.photograph and self.report_dir is not None:
+            shot = self.report_dir / f"popup_{len(self.events):03d}.png"
+            ok, why = capture_window(w, shot, allow_hide=False)
+            self._note(f"  photo {shot.name}" if ok else f"  NO PHOTO: {why}")
