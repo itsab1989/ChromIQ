@@ -6703,19 +6703,36 @@ class MeasurementReportDialog(QDialog):
         # ruling that Generate Report always should create a new report."*
         updating = self._document_being_updated()
         loaded = str(getattr(self, "_loaded_doc_id", "") or "")
-        if updating is None and loaded and loaded != NEW_REPORT_KEY:
-            # **A LOADED REPORT THE LIST NO LONGER HOLDS IS NEVER WRITTEN AS
-            # A NEW ONE WITHOUT THE QUESTION (GAP 0, K4).** The window first
-            # takes what "Report shown" names (`_load_what_the_list_names`),
-            # and the press then acts on THAT: asked about if it is a
-            # report, written new only if the list is on "New report…".
-            log.warning("Generate found the loaded report %s missing from "
-                        "the list; loading what the list shows", loaded)
-            self._load_what_the_list_names(force=True)
-            updating = self._document_being_updated()
-            reports = self._reports_to_generate()
-            if not reports:
-                return
+        if updating is None and loaded != NEW_REPORT_KEY:
+            # **A SAVED REPORT IN "REPORT SHOWN" IS NEVER WRITTEN OVER, OR
+            # BESIDE, WITHOUT THE QUESTION (GAP 0, K4; #182 2026-10-01).**
+            # Two doors used to write in silence:
+            # * the loaded id EMPTY (not "New report…"), which skipped this
+            #   block altogether and wrote a new report under a list naming a
+            #   saved one;
+            # * the loaded report gone from the list, where the window
+            #   reloaded what the list named (`_load_what_the_list_names(
+            #   force=True)`): on "New report…" that put back the DEFAULTS,
+            #   so the setting the user had just moved was thrown away and a
+            #   report of the defaults was written, asked nothing.
+            # Now the press acts on what "Report shown" names, WITH THE
+            # SETTINGS ON SCREEN: a saved report there is asked about (the
+            # existing three-button question); "New report…" there writes a
+            # new report, as that entry always does. Nothing on screen is
+            # reloaded first (K65: nothing changes before Generate).
+            named = self._saved_entry_the_list_names()
+            if named is not None:
+                log.warning("Generate: the loaded report %r is not the one "
+                            "'Report shown' names (%s); asking about that one",
+                            loaded, named["key"])
+                self._hold_as_loaded(named)
+                updating = named
+            elif loaded:
+                log.warning("Generate found the loaded report %s missing from "
+                            "the list; writing a new report with the "
+                            "settings on screen", loaded)
+                self._loaded_doc_id = NEW_REPORT_KEY
+                self._loaded_doc = None
         if updating is not None:
             answer = self._ask_update_or_create_new()
             if answer == "cancel":
@@ -6922,6 +6939,31 @@ class MeasurementReportDialog(QDialog):
         ctx = self._run_ctx
         docs = self._saved_documents(ctx.run if ctx is not None else None)
         return next((d for d in docs if d["key"] == key), None)
+
+    def _saved_entry_the_list_names(self) -> "dict | None":
+        """The saved report "Report shown" names now, or None when it names
+        "New report…", nothing, or an entry the window can no longer list."""
+        combo = getattr(self, "_saved_combo", None)
+        if combo is None:
+            return None
+        try:
+            key = str(combo.currentData() or "")
+        except RuntimeError:
+            return None
+        if not key or key == NEW_REPORT_KEY:
+            return None
+        ctx = self._run_ctx
+        docs = self._saved_documents(ctx.run if ctx is not None else None)
+        return next((d for d in docs if d["key"] == key), None)
+
+    def _hold_as_loaded(self, entry: dict) -> None:
+        """Make *entry* the report Generate asks about, WITHOUT touching a
+        control: the settings on screen are the user's, and the question then
+        says truthfully whether they differ from the report's own."""
+        self._loaded_doc_id = entry["key"]
+        self._loaded_doc = (entry.get("doc")
+                            or self._settings_of_one_saved_report(entry))
+        self._doc_created = self._document_created_stamp(entry)
 
     def _differs_from_the_saved_report(self) -> bool:
         """Do the report's settings on screen differ from the SELECTED saved
