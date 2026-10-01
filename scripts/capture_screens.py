@@ -167,7 +167,16 @@ def patch_loaders() -> None:
 
 
 def build_app():
+    # Remember who has the keyboard BEFORE the app exists, and hand it back
+    # whenever the app takes it (onscreen_capture.FocusGiveBack): a driver must
+    # never pull Basti's typing into a ChromIQ window.
+    try:
+        from onscreen_capture import FocusGiveBack
+    except ImportError:            # imported as scripts.capture_screens
+        from scripts.onscreen_capture import FocusGiveBack
+    focus = FocusGiveBack().remember()
     app = QApplication(sys.argv)
+    app._chromiq_focus_give_back = focus.install(app)
     app.setApplicationName("ChromIQ")
     # as main() does (B8-1392): the collector runs from the event loop
     from core.gc_guard import install_gui_thread_collector

@@ -399,6 +399,21 @@ it again. It applies to this file's reader and to every agent briefed from it.
   right after constructing the QApplication. And start a `PopupWatchdog`
   (`scripts/onscreen_capture.py`) so an unscripted question never hangs the
   run.
+* **A DRIVER NEVER TAKES THE KEYBOARD FROM BASTI.** Basti, 2026-10-02:
+  *"when i am typing here and you bring the chromiq windows to the front i am
+  sometimes still typing while you make another window get focus"*. His
+  keystrokes landed in a window under test. `capture_window` no longer raises
+  or activates anything for the window-id capture (it works behind other
+  windows), so do not call `raise_()`/`activateWindow()` before photographing.
+  And use `onscreen_capture.FocusGiveBack` (built into
+  `capture_screens.build_app`): `remember()` before the QApplication,
+  `install(app)` after it, `give_back()` after showing the main window.
+  Measured 3/3 on screen (J_focus): the terminal keeps the keyboard except
+  for a 100 ms blink when the app raises itself. What did NOT work, so nobody
+  retries it: `WA_ShowWithoutActivating`, `AA_PluginApplication`, the
+  Accessory policy (all still took focus), the Prohibited policy (the window
+  is then never on screen), and handing focus back from a background thread
+  (refused; macOS gave it to Finder).
 * **A SCRATCH FILE NAMED LIKE A STDLIB MODULE BREAKS EVERY SCRIPT BESIDE IT.**
   A probe called `bisect.py` in a report folder shadowed Python's `bisect`, so
   the app failed to import next to it and a batch of runs measured nothing.
