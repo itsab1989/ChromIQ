@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("PyQt6")
-from PyQt6.QtCore import QTimer  # noqa: E402
+from PyQt6.QtCore import Qt, QTimer  # noqa: E402
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -156,3 +156,47 @@ def test_a_working_window_can_be_dismissed_on_request(qapp, tmp_path):
     dog.stop()
     assert not hung
     assert dlg.result() == QDialog.DialogCode.Rejected
+
+
+class _DriverAnswers:
+    """What a driver does when it answers a question itself."""
+
+    def __init__(self, box, label):
+        self.box, self.label = box, label
+
+    def answer(self):
+        for b in self.box.buttons():
+            if b.text() == self.label:
+                b.click()
+
+
+def test_the_driver_gets_the_grace_period_to_answer_itself(qapp, tmp_path):
+    """Unscripted is not the same as unanswered: a driver that clicks within
+    the grace period gets its own answer, not the watchdog's Escape."""
+    box, _cancel = _box()
+    dog = PopupWatchdog(tmp_path, grace_s=2.0, interval_ms=50, log=lambda s: None).start()
+    driver = _DriverAnswers(box, "Update this one")
+    QTimer.singleShot(600, driver.answer)
+    hung = _exec_with_safety(box)
+    dog.stop()
+    assert not hung
+    assert box.clickedButton().text() == "Update this one"
+    assert dog.events[0]["action"] == ""
+
+
+def test_a_message_box_shown_without_exec_is_noticed(qapp, tmp_path):
+    """A box opened with show() is not the active MODAL widget, so the
+    top-level sweep is what finds it."""
+    box, cancel = _box()
+    box.setWindowModality(Qt.WindowModality.NonModal)
+    dog = PopupWatchdog(tmp_path, grace_s=0.1, interval_ms=50, log=lambda s: None).start()
+    box.show()
+    deadline = QTimer()
+    deadline.setSingleShot(True)
+    deadline.start(1500)
+    while deadline.isActive() and box.isVisible():
+        qapp.processEvents()
+    dog.stop()
+    assert not box.isVisible()
+    assert box.clickedButton() is cancel
+    assert dog.unexpected_events()
