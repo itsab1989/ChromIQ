@@ -1,5 +1,20 @@
 # Changelog
 
+## v4.3.3-beta.1
+
+**The i1Pro 2, 3 and 3 Plus are timed against their own reading speed, saved reports keep the run they were made in, and ChromIQ runs again on older Macs.**
+
+### Fixed
+
+- **Reading speed for the i1Pro 2, i1Pro 3 and i1Pro 3 Plus** (#202). These instruments were judged with the first-generation i1Pro's limit, so an i1Pro 2 was told to slow down to 240 ms per patch when 120 ms is enough. ChromIQ now recognises the name each instrument reports and uses its own row in Preferences ▸ Measurement. An i1Pro 3 Plus is also recognised as a Plus when the ChromIQ chart-reading engine is used.
+- **A verification measurement writes its automatic report** into its dated `reports` folder, as a profiling measurement already did, when "Save measurement report" is ticked. The Measurement Report window then opens on that saved report.
+- **Generate report always asks** whether to update the report you selected or create a new one, also in the two cases where it could write without asking.
+- **A saved report keeps the run number it was made in.** Deleting earlier runs used to make a report made in run 5 say "run 1" when it was opened again. Every report remembers its run from now on, including reports made with earlier versions: their run number is recorded before a run delete moves anything. Only reports whose runs were already renumbered before this version show the number their folder has now.
+- **"Inspect a measurement" saves into the `reports` folder** of the run, dated verification or calibration the measurement belongs to, and never overwrites a file of the same name: the old one is kept in `reports/old/`.
+- **The colour swatches in reports** have equal grey bars on both sides and the colour is twice as wide, so asked-for and measured colours are easier to compare, on screen and in the PDF.
+- **Older Macs.** ChromIQ declares macOS 13 as its minimum, but 17 of its built-in programs needed macOS 14, among them the chart-reading engine. Every part now runs on macOS 13. Intel Macs from before 2010 (for example a 2009 Mac running Ventura through OpenCore Legacy Patcher) can run the universal and Intel downloads again: they keep numpy below version 2.4, which needs a newer processor. Thanks to RobFor for finding the cause (discussion #201).
+- **macOS 27.** A question window could close ChromIQ on a Mac set to German; the number format is now set so that this cannot happen.
+
 ## v4.3.2
 
 **A small fix release: two texts now say exactly what they should.**
