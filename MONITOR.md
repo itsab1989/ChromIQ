@@ -92,9 +92,11 @@ WHAT I WANT YOU TO DO
 2c. DISK SCAN (Basti, 2026-10-01: the disk filled up during this work
        and ended in a fresh macOS install). Run
            python3 scripts/disk_report.py --check
-       If it fails, free ChromIQ's own leftovers (the rows it names) BEFORE
-       starting a gate or a driver, and say so in the cycle report. Never
-       delete anything in the user's own folders or projects.
+       If it fails, free the DELETABLE leftovers it lists BEFORE starting a
+       gate or a driver, and say so in the cycle report. Rows marked (kept)
+       are not an agent's to delete (evidence, transcripts, the running
+       session's scratch, Time Machine snapshots: Basti decides), and nothing
+       in the user's own folders or projects is ever touched.
 
 3. WORK THE TO-DO LIST FIRST. If the TO-DO SCAN found any open item, finish
    it in this cycle — all of them, not just the top one — using the phased
