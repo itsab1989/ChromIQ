@@ -140,6 +140,11 @@ def main() -> int:
     # widget and before the app filter.
     from core.gc_guard import install_gui_thread_collector
     install_gui_thread_collector(app)
+    # Qt has just set the C library's locale from the environment. On a
+    # German macOS 27 that number locale makes a native message box abort the
+    # process; pin it back before anything can show one (core/numeric_locale).
+    from core.numeric_locale import pin_c_numeric_locale
+    pin_c_numeric_locale()
     # The display name is set LATER, once the catalogue is loaded — see the
     # `setApplicationDisplayName` call below `set_language`.
 

@@ -172,6 +172,9 @@ def build_app():
     # as main() does (B8-1392): the collector runs from the event loop
     from core.gc_guard import install_gui_thread_collector
     install_gui_thread_collector(app)
+    # as main() does: macOS 27 native message boxes abort under de_DE numbers
+    from core.numeric_locale import pin_c_numeric_locale
+    pin_c_numeric_locale()
     for fp in resource_path("assets/fonts").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(fp))
     app.setStyle(WinButtonLayoutStyle("Fusion"))

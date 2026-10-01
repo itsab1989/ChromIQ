@@ -389,6 +389,21 @@ it again. It applies to this file's reader and to every agent briefed from it.
     itself fails the suite, and so does a helper that reaches for the screen
     before the window or reports a lock before waking it.
 
+* **A DRIVER BUILDS ITS QAPPLICATION LIKE THE APP DOES, OR MACOS 27 KILLS IT
+  AT THE FIRST QUESTION.** Measured 2026-10-02 on macOS 27.0.1: under a German
+  number locale a native `QMessageBox` aborts the process (SIGTRAP, CoreUI
+  `targetSizeInPoints` assertion), 5 of 5. The app is protected twice: its
+  stylesheet keeps Qt off the native box, and `core/numeric_locale.py` pins
+  `LC_NUMERIC` to "C" right after `QApplication()`. A bare driver has neither.
+  Use `scripts/capture_screens.build_app`, or call `pin_c_numeric_locale()`
+  right after constructing the QApplication. And start a `PopupWatchdog`
+  (`scripts/onscreen_capture.py`) so an unscripted question never hangs the
+  run.
+* **A SCRATCH FILE NAMED LIKE A STDLIB MODULE BREAKS EVERY SCRIPT BESIDE IT.**
+  A probe called `bisect.py` in a report folder shadowed Python's `bisect`, so
+  the app failed to import next to it, and a "crash" was blamed on the wrong
+  thing. Name scratch files after what they test.
+
 The sandbox rules in the next section are how you do this SAFELY. They are not
 an alternative to doing it.
 
