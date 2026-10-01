@@ -765,6 +765,14 @@ def _table_fits_the_page(table_html: str, width: float = _PDF_TEXT_W) -> bool:
             and not _words_broken_across_lines(doc))
 
 
+#: The swatch's three cells, in CSS px (#182 (d)): an edge bar either side,
+#: equal, and the colour between them (10 px until Basti asked for "twice the
+#: width", 2026-10-02).
+SWATCH_EDGE_PX = 3
+SWATCH_COLOUR_PX = 20
+SWATCH_HEIGHT_PX = 11
+
+
 def _swatch(hexc: str) -> str:
     """A solid colour block for rich text. Qt ignores width/height on an empty
     span but honours background-color on a span WITH content, so we fill it with
@@ -790,9 +798,27 @@ def _swatch(hexc: str) -> str:
         return _fmt(None)
     c = html.escape(hexc)
     e = html.escape(_C["swatch_edge"])
-    return (f"<span style='background-color:{e};color:{e}'>&nbsp;"
-            f"<span style='background-color:{c};color:{c}'>"
-            f"&nbsp;&nbsp;&nbsp;</span>&nbsp;</span>")
+    # **THREE CELLS OF WHOLE PIXELS, NOT SPANS OF SPACES (#182 (d), Basti
+    # 2026-10-01).** The spans were one non-breaking space per edge bar
+    # (3.375 px at 12 px) around three for the colour, and Qt rich text
+    # paints each fragment's background rounded OUT to whole pixels, left
+    # bar, colour, right bar in that order: neighbours overlapped by a pixel
+    # and the bars came out 3 : 10 : 4 on screen and in the PDF (measured at
+    # dpr 2 and with PyMuPDF). A table cell has a width of its own, so both
+    # bars are `SWATCH_EDGE_PX` everywhere. A table cannot sit inside a line
+    # of text: every caller puts the swatch in a cell of its own.
+    #
+    # **AND THE COLOUR IS TWICE AS WIDE (Basti, 2026-10-02: "like twice the
+    # width")**, so the asked-for and measured patches are easier to compare;
+    # the row height is the line's, as before.
+    return (f"<table cellspacing='0' cellpadding='0'><tr>"
+            f"<td width='{SWATCH_EDGE_PX}' bgcolor='{e}' "
+            f"style='background-color:{e}'></td>"
+            f"<td width='{SWATCH_COLOUR_PX}' height='{SWATCH_HEIGHT_PX}' "
+            f"bgcolor='{c}' style='background-color:{c}'></td>"
+            f"<td width='{SWATCH_EDGE_PX}' bgcolor='{e}' "
+            f"style='background-color:{e}'></td>"
+            f"</tr></table>")
 
 
 def _colour_line_html(height: int = 5) -> str:
@@ -17438,8 +17464,6 @@ class MeasurementReportDialog(QDialog):
 
             def _line(pt: dict, label: str) -> str:
                 bits = []
-                if pt.get("hex"):
-                    bits.append(_swatch(str(pt["hex"])))
                 bits.append(html.escape(label))
                 if pt.get("loc"):
                     bits.append(f"({html.escape(str(pt['loc']))})")
@@ -17460,7 +17484,14 @@ class MeasurementReportDialog(QDialog):
                     # a record with no usable a*/b* (or a NaN in them) still
                     # prints the one number it has, never "nan" (A-7)
                     bits.append(f"- L* {_n(lv)}")
-                return "<div>" + " ".join(bits) + "</div>"
+                # TWO CELLS, THE SWATCH AND ITS LINE (#182 (d)): the swatch is
+                # a table now, and a table inside the line broke it onto a
+                # line of its own.
+                sw = _swatch(str(pt["hex"])) if pt.get("hex") else ""
+                return ("<table cellspacing='0' cellpadding='0'><tr>"
+                        f"<td valign='middle' style='padding:1px 4px 1px 0'>{sw}"
+                        "</td><td valign='middle'>" + " ".join(bits)
+                        + "</td></tr></table>")
 
             # K28 (item 4): the lightest and darkest L* and the eight corner
             # ΔE00 never have a limit, so they sit under one heading that says
