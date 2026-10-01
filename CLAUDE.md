@@ -401,8 +401,8 @@ it again. It applies to this file's reader and to every agent briefed from it.
   run.
 * **A SCRATCH FILE NAMED LIKE A STDLIB MODULE BREAKS EVERY SCRIPT BESIDE IT.**
   A probe called `bisect.py` in a report folder shadowed Python's `bisect`, so
-  the app failed to import next to it, and a "crash" was blamed on the wrong
-  thing. Name scratch files after what they test.
+  the app failed to import next to it and a batch of runs measured nothing.
+  Name scratch files after what they test, and log every run you count.
 
 The sandbox rules in the next section are how you do this SAFELY. They are not
 an alternative to doing it.
