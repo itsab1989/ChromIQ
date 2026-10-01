@@ -296,6 +296,28 @@ projects get built twice per run. Tests copy what they use, because
 suite has alive — two tests that took 0.2 s alone cost 29 s inside a full run.
 Style the widget under test instead; it measures the same thing.
 
+## DISK HYGIENE: CHROMIQ WORK MUST NOT FILL THE DISK
+
+Basti, 2026-10-01: *"my hard drive used to be filling up significantly from
+working on this project and i was not able to completely free it up again. So
+i did a fresh install of macos."* The suite already cleans up after itself
+(see the sweep in `tests/conftest.py`); everything around it is on us:
+
+* `python3 scripts/disk_report.py` lists every place ChromIQ work writes to,
+  with sizes and what is safe to remove; `--check` fails below 100 GB free or
+  above 25 GB held. The monitor runs it every cycle (MONITOR.md step 2c).
+* Drivers and agents put sandboxes, copied projects and screenshots INSIDE the
+  session's report folder on the Desktop (or the session scratchpad), never as
+  loose folders in `/tmp` or `$TMPDIR`, and delete their copied projects when
+  the round is over. Screenshots are evidence and stay.
+* A worktree is removed (`git worktree remove`) as soon as its branch is
+  merged; old PyInstaller `build/` and `dist/` output is not kept beyond the
+  last release.
+* Deleted files can stay on disk in APFS local snapshots until macOS purges
+  them, which is the likely reason freed space did not come back.
+  `disk_report.py` shows them; `tmutil thinlocalsnapshots / 999999999999 4`
+  asks macOS to purge.
+
 ## ON SCREEN IS THE DEFAULT. OFFSCREEN IS A FAILURE TO BE REPORTED.
 
 **Every check for a regression, and every piece of proof, is produced by driving
