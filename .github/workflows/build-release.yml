@@ -90,6 +90,23 @@ jobs:
         if: matrix.arch == 'universal2'
         run: pip3 install --quiet 'numpy>=1.24.0,<2.4.0'
 
+      # The app declares LSMinimumSystemVersion 13.0 (ChromIQ.spec), but pip on
+      # this macOS 14 runner picks numpy's macosx_14_0 arm64 wheel (the
+      # Accelerate build), so numpy's arm64 half required macOS 14: measured on
+      # the v4.3.2 DMG with scripts/check_bundle_min_macos.py. Reinstall the
+      # SAME version from its macosx_11_0 arm64 wheel, which carries its own
+      # OpenBLAS (collected by ChromIQ.spec). Both jobs ship an arm64 numpy.
+      - name: Use numpy's macOS 11 arm64 wheel (min macOS 13.0)
+        run: |
+          set -euo pipefail
+          VER=$(python3 -c "import importlib.metadata as m; print(m.version('numpy'))")
+          rm -rf /tmp/np_arm64_macos11
+          pip3 download --no-deps --only-binary=:all: --platform macosx_13_0_arm64 \
+            --python-version 3.13 "numpy==${VER}" -d /tmp/np_arm64_macos11
+          ls /tmp/np_arm64_macos11
+          pip3 install --force-reinstall --no-deps /tmp/np_arm64_macos11/numpy-*.whl
+          python3 -c "import numpy; print('numpy', numpy.__version__, numpy.__file__)"
+
       # Diagnostic: numpy 2.4+ vendored OpenBLAS lives in different places
       # depending on platform/version (numpy/.dylibs/, numpy.libs/ sibling, or
       # an external scipy_openblas64 package). Print where it actually is so
@@ -129,12 +146,16 @@ jobs:
         if: matrix.arch == 'universal2'
         run: |
           SITELIB=$(python3 -c "import site; print(site.getsitepackages()[0])")
+          # The x86_64 wheel with the LOWEST macOS tag, never the first one
+          # PyPI lists: numpy ships both macosx_10_13 and macosx_14_0 x86_64
+          # wheels, and the 14_0 one would make the Intel half need macOS 14
+          # (scripts/check_bundle_min_macos.py fails the build if it did).
           lipo_pkg() {
             local pypi_name="$1" pkg_dir="$2" ver_filter="$3"
             local VER X86_URL TMPDIR safe x86_root arm_root rel arm_file merged=0
             VER=$(python3 -c "import importlib.metadata; print(importlib.metadata.version('${pypi_name}'))")
             X86_URL=$(curl -fsSL "https://pypi.org/pypi/${pypi_name}/${VER}/json" | \
-              python3 -c "import json,sys; vf='${ver_filter}'; d=json.load(sys.stdin); w=[f['url'] for f in d['urls'] if 'macosx' in f['filename'] and 'x86_64' in f['filename'] and vf in f['filename'] and f['filename'].endswith('.whl')]; print(w[0] if w else '')")
+              python3 -c "import json,re,sys; vf='${ver_filter}'; d=json.load(sys.stdin); w=[f for f in d['urls'] if 'macosx' in f['filename'] and 'x86_64' in f['filename'] and vf in f['filename'] and f['filename'].endswith('.whl')]; key=lambda f: tuple(int(x) for x in (re.search(r'macosx_(\\d+)_(\\d+)', f['filename']) or re.match('()()', '')).groups() if x); w.sort(key=key); print(w[0]['url'] if w else '')")
             if [ -z "$X86_URL" ]; then
               echo "No x86_64 wheel for ${pypi_name} ${VER} — skipping lipo"
               return 0
@@ -186,7 +207,8 @@ jobs:
           set -euo pipefail
           cmake -S native/gammap_helper -B build/gammap \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
           cmake --build build/gammap -j3
           cp build/gammap/chromiq-gammap native/chromiq-gammap
           echo "helper archs: $(lipo -archs native/chromiq-gammap)"
@@ -200,7 +222,8 @@ jobs:
           set -euo pipefail
           cmake -S native/chartread_helper -B build/chartread \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
           cmake --build build/chartread -j3
           cp build/chartread/chromiq-chartread native/chromiq-chartread
           echo "engine archs: $(lipo -archs native/chromiq-chartread)"
@@ -209,6 +232,13 @@ jobs:
         env:
           PYINSTALLER_TARGET_ARCH: ${{ matrix.target_arch_env }}
         run: python3 -m PyInstaller ChromIQ.spec
+
+      # Every binary must run on the macOS the app declares. v4.3.2 shipped 17
+      # slices that needed macOS 14 (the two native helpers, numpy's arm64
+      # half) in an app that says 13.0; macOS refuses to launch an executable
+      # built for a newer system. Fails the build instead.
+      - name: Check every binary runs on the declared minimum macOS
+        run: python3 scripts/check_bundle_min_macos.py dist/ChromIQ.app
 
       # Safety net for Intel-Mac regressions: walk every Mach-O file in the bundle
       # and assert it contains both x86_64 and arm64 slices. Catches anything the
