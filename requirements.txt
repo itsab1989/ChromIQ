@@ -7,7 +7,11 @@ pyinstaller>=6.0
 pycups>=2.0.1
 certifi>=2024.0.0
 tifffile>=2024.0.0
-numpy>=1.24.0
+# numpy 2.4 raised its x86 baseline to x86-64-v2 (SSE4.2, POPCNT): an Intel Mac
+# from before 2010 (Core 2) cannot import it at all (discussion #201). Intel
+# Macs stay below 2.4; every other platform takes the newest.
+numpy>=1.24.0 ; sys_platform != "darwin" or platform_machine != "x86_64"
+numpy>=1.24.0,<2.4.0 ; sys_platform == "darwin" and platform_machine == "x86_64"
 imagecodecs>=2024.0.0
 freetype-py>=2.4.0
 pyobjc-framework-Cocoa>=10.0 ; sys_platform == "darwin"

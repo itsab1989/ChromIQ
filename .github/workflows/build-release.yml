@@ -81,6 +81,15 @@ jobs:
         if: matrix.arch == 'universal2'
         run: pip3 install --quiet 'imagecodecs==2025.11.11'
 
+      # numpy 2.4 raised its x86 baseline to x86-64-v2 (SSE4.2, POPCNT), so the
+      # x86_64 half of a 2.4+ build dies at `import numpy` on a pre-2010 Intel Mac
+      # (Core 2, discussion #201). The lipo step below fetches the x86_64 wheel
+      # of whatever version is installed here, so pin it before that step. The
+      # arm64 DMG and the Windows and Linux builds keep the newest numpy.
+      - name: Pin numpy below 2.4 for old Intel Macs (universal2 only)
+        if: matrix.arch == 'universal2'
+        run: pip3 install --quiet 'numpy>=1.24.0,<2.4.0'
+
       # Diagnostic: numpy 2.4+ vendored OpenBLAS lives in different places
       # depending on platform/version (numpy/.dylibs/, numpy.libs/ sibling, or
       # an external scipy_openblas64 package). Print where it actually is so
