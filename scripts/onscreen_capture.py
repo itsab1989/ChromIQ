@@ -439,3 +439,221 @@ def capture_window(win, path: Path, settle: float = 0.6,
                        "rectangle with the window HIDDEN, so it is a picture "
                        "of what is behind the window, not of the window")
     return True, ""
+
+
+class PopupWatchdog:
+    """Notice every pop-up a driver runs into, record it, and keep the run moving.
+
+    Basti, 2026-10-02: *"the drivers that either you or your agents are
+    creating get stuck at some pop ups. would be nice if they could recognize
+    this"*. A driver clicks something, the app answers with a question nobody
+    scripted (a confirmation, a warning, a file dialog), and ``exec()`` sits
+    there for ever with the driver's own code waiting behind it.
+
+    A timer in the driver's process looks every ``interval_ms`` for a MODAL
+    window: ``QApplication.activeModalWidget()`` plus any visible top-level
+    ``QMessageBox``. Qt keeps delivering timer events inside a dialog's
+    ``exec()``, so this runs even while the driver is blocked.
+
+    **ONLY QUESTIONS ARE ANSWERED BY DEFAULT.** A message box, an input box
+    and a file dialog are questions; any other modal window (the Measurement
+    Report window, Preferences, the patch-set editor) is a working window the
+    driver opened on purpose. Those are logged once as ``window`` events and
+    never closed unless ``dismiss_windows=True``. The first version closed the
+    Measurement Report window two seconds after a driver opened it (challenge
+    of 2026-10-02, F_challenge_182).
+
+    For each pop-up it writes title, text and buttons to ``popups.log`` in
+    ``report_dir`` and, with ``photograph=True``, a picture of it. Then:
+
+    * a matching ``expect(pattern, button)`` rule answers it at once, which is
+      how a driver says "this question is part of the scenario";
+    * otherwise, after ``grace_s`` seconds, the policy decides: ``"dismiss"``
+      (the default) presses the dialog's own Escape/Cancel answer, ``"report"``
+      leaves it open and logs ``STUCK`` every 10 s, ``"fail"`` dismisses it
+      and sets :attr:`unexpected`, so the driver can refuse to call its run a
+      pass.
+
+    Dismissing is never the same as passing: every unscripted pop-up is in
+    :attr:`events` with ``"unexpected": True`` and belongs in the round's
+    report. A native file dialog on macOS is a ``QFileDialog`` to Qt, so it is
+    caught and rejected the same way.
+
+    Usage::
+
+        dog = PopupWatchdog(report_dir, photograph=True)
+        dog.expect(r"Create a new report or update", "Create new")
+        dog.start()
+        ... drive the app ...
+        dog.stop()
+        if dog.unexpected_events(): report them at the top of REPORT.md
+    """
+
+    def __init__(self, report_dir: "Path | None" = None, *,
+                 policy: str = "dismiss", grace_s: float = 1.5,
+                 interval_ms: int = 400, photograph: bool = False,
+                 dismiss_windows: bool = False, log=print):
+        if policy not in ("dismiss", "report", "fail"):
+            raise ValueError(f"unknown policy {policy!r}")
+        self.report_dir = Path(report_dir) if report_dir else None
+        self.policy, self.grace_s = policy, grace_s
+        self.interval_ms, self.photograph, self._log = interval_ms, photograph, log
+        self.dismiss_windows = dismiss_windows
+        self.rules: list[tuple] = []
+        self.events: list[dict] = []
+        self.unexpected = False
+        self._first_seen: dict[int, float] = {}
+        self._last_stuck_note: dict[int, float] = {}
+        self._event_for: dict[int, dict] = {}
+        self._timer = None
+
+    # -- the driver's side ----------------------------------------------------
+    def expect(self, pattern: str, button: str) -> "PopupWatchdog":
+        """Answer a pop-up whose title or text matches *pattern* (a regular
+        expression, case-insensitive) by pressing the button labelled
+        *button* (ampersands ignored, case-insensitive)."""
+        import re
+        self.rules.append((re.compile(pattern, re.I | re.S), button))
+        return self
+
+    def start(self) -> "PopupWatchdog":
+        from PyQt6.QtCore import QTimer
+        self._timer = QTimer()
+        self._timer.setInterval(self.interval_ms)
+        self._timer.timeout.connect(self._tick)       # a bound method, never a lambda
+        self._timer.start()
+        return self
+
+    def stop(self) -> None:
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer.deleteLater()
+            self._timer = None
+
+    def __enter__(self):
+        return self.start()
+
+    def __exit__(self, *exc):
+        self.stop()
+        return False
+
+    def unexpected_events(self) -> list[dict]:
+        return [e for e in self.events if e["unexpected"]]
+
+    # -- what it looks at -----------------------------------------------------
+    @staticmethod
+    def _popups() -> list:
+        from PyQt6.QtWidgets import QApplication, QMessageBox
+        found = []
+        modal = QApplication.activeModalWidget()
+        if modal is not None and modal.isVisible():
+            found.append(modal)
+        for w in QApplication.topLevelWidgets():
+            if isinstance(w, QMessageBox) and w.isVisible() and w not in found:
+                found.append(w)
+        return found
+
+    @staticmethod
+    def _buttons(w) -> list:
+        from PyQt6.QtWidgets import QAbstractButton
+        return [b for b in w.findChildren(QAbstractButton)
+                if b.isVisible() and b.text().strip()]
+
+    @classmethod
+    def describe(cls, w) -> dict:
+        from PyQt6.QtWidgets import QLabel, QMessageBox
+        if isinstance(w, QMessageBox):
+            text = "\n".join(t for t in (w.text(), w.informativeText()) if t)
+        else:
+            text = "\n".join(l.text() for l in w.findChildren(QLabel)
+                             if l.isVisible() and l.text().strip())
+        return {"class": type(w).__name__, "title": w.windowTitle(),
+                "text": text[:1200],
+                "buttons": [b.text().replace("&", "") for b in cls._buttons(w)]}
+
+    @staticmethod
+    def is_question(w) -> bool:
+        """A pop-up that asks something, as opposed to a working window."""
+        from PyQt6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
+        return isinstance(w, (QMessageBox, QInputDialog, QFileDialog))
+
+    # -- what it does ---------------------------------------------------------
+    def _press(self, w, label: str) -> bool:
+        want = label.replace("&", "").strip().lower()
+        for b in self._buttons(w):
+            if b.text().replace("&", "").strip().lower() == want:
+                b.click()
+                return True
+        return False
+
+    @staticmethod
+    def _dismiss(w) -> str:
+        from PyQt6.QtWidgets import QDialog, QMessageBox
+        if isinstance(w, QMessageBox) and w.escapeButton() is not None:
+            label = w.escapeButton().text().replace("&", "")
+            w.escapeButton().click()
+            return f"pressed its Escape answer '{label}'"
+        if isinstance(w, QDialog):
+            w.reject()
+            return "rejected it (Escape)"
+        w.close()
+        return "closed it"
+
+    def _note(self, line: str) -> None:
+        self._log(f"[popup] {line}")
+        if self.report_dir is not None:
+            self.report_dir.mkdir(parents=True, exist_ok=True)
+            with open(self.report_dir / "popups.log", "a", encoding="utf-8") as f:
+                f.write(time.strftime("%H:%M:%S ") + line + "\n")
+
+    def _tick(self) -> None:
+        now = time.monotonic()
+        live = self._popups()
+        alive_ids = {id(w) for w in live}
+        for gone in [k for k in self._first_seen if k not in alive_ids]:
+            self._first_seen.pop(gone, None)
+            self._last_stuck_note.pop(gone, None)
+            self._event_for.pop(gone, None)
+        for w in live:
+            key = id(w)
+            info = self.describe(w)
+            haystack = f"{info['title']}\n{info['text']}"
+            if key not in self._first_seen:
+                self._first_seen[key] = now
+                rule = next(((p, b) for p, b in self.rules if p.search(haystack)), None)
+                question = self.is_question(w)
+                event = dict(info, kind="question" if question else "window",
+                             unexpected=rule is None and question, action="")
+                self.events.append(event)
+                self._event_for[key] = event
+                self._note(f"SEEN {info['class']} '{info['title']}' "
+                           f"buttons={info['buttons']} text={info['text'][:300]!r}")
+                if self.photograph and self.report_dir is not None:
+                    shot = self.report_dir / f"popup_{len(self.events):03d}.png"
+                    ok, why = capture_window(w, shot)
+                    self._note(f"  photo {shot.name}" if ok else f"  NO PHOTO: {why}")
+                if rule is not None:
+                    pressed = self._press(w, rule[1])
+                    event["action"] = (f"answered '{rule[1]}'" if pressed else
+                                       f"EXPECTED BUTTON '{rule[1]}' NOT FOUND")
+                    if not pressed:
+                        event["unexpected"] = True
+                    self._note(f"  {event['action']}")
+                continue
+            if now - self._first_seen[key] < self.grace_s:
+                continue
+            event = self._event_for.get(key)
+            if not self.is_question(w) and not self.dismiss_windows:
+                continue                      # a working window: leave it be
+            if self.policy == "report":
+                if now - self._last_stuck_note.get(key, 0) >= 10:
+                    self._last_stuck_note[key] = now
+                    self._note(f"STUCK on '{info['title']}' for "
+                               f"{now - self._first_seen[key]:.0f} s")
+                continue
+            action = self._dismiss(w)
+            if event is not None:
+                event["action"] = "; ".join(a for a in (event["action"], action) if a)
+            if self.policy == "fail":
+                self.unexpected = True
+            self._note(f"  unscripted, {action}")
