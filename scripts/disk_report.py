@@ -90,7 +90,8 @@ def _rows() -> list[tuple[str, int, int, str]]:
 def _snapshots() -> list[str]:
     try:
         out = subprocess.run(["tmutil", "listlocalsnapshots", "/"],
-                             capture_output=True, text=True, timeout=30).stdout
+                             capture_output=True, text=True, encoding="utf-8",
+                             errors="replace", timeout=30).stdout
     except (OSError, subprocess.SubprocessError):
         return []
     return [l.strip() for l in out.splitlines() if "com.apple" in l]

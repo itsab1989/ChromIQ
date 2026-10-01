@@ -70,7 +70,7 @@ def test_an_unscripted_question_is_dismissed_and_recorded(qapp, tmp_path):
     assert "Replace the selected report?" in event["text"]
     assert event["buttons"] == ["Create new", "Update this one", "Cancel"]
     assert "Cancel" in event["action"]
-    assert "SEEN QMessageBox" in (tmp_path / "popups.log").read_text()
+    assert "SEEN QMessageBox" in (tmp_path / "popups.log").read_text(encoding="utf-8")
 
 
 def test_a_scripted_question_gets_the_answer_it_was_given(qapp, tmp_path):
