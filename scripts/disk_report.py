@@ -54,8 +54,8 @@ def _sum(paths) -> tuple[int, int]:
     return len(paths), sum(_size(p) for p in paths)
 
 
-def _rows() -> list[tuple[str, int, int, str, bool]]:
-    """``(label, items, bytes, hint, deletable)``. Only DELETABLE rows count
+def _rows() -> list[tuple]:
+    """``(label, items, bytes, hint, deletable, paths)``. Only DELETABLE rows count
     toward ``--check``: evidence, transcripts and the running session's own
     scratch are reported but must never be what a failing check reaches for
     (challenge G, 2026-10-02)."""
@@ -63,8 +63,9 @@ def _rows() -> list[tuple[str, int, int, str, bool]]:
     rows = []
 
     def add(label, paths, hint, deletable):
+        paths = [p for p in paths if p.exists()]
         n, b = _sum(paths)
-        rows.append((label, n, b, hint, deletable))
+        rows.append((label, n, b, hint, deletable, paths))
 
     add("$TMPDIR chromiq-* folders",
         [p for p in tmp.glob("chromiq[-_]*") if p.name != "chromiq-demo-projects-cache"],
@@ -75,9 +76,20 @@ def _rows() -> list[tuple[str, int, int, str, bool]]:
         "driver sandboxes (CHROMIQ_SETTINGS_FILE etc.); safe after the run", True)
     add("core dumps (/cores)", list(Path("/cores").glob("core.*")),
         "kern.coredump writes one per crashed process, often gigabytes each; "
-        "delete them once the crash is understood", True)
-    add("repo build/ and dist/", [REPO / "build", REPO / "dist"],
-        "PyInstaller output and old demo-project bundles", True)
+        "delete them once the crash is understood; any app can write one, "
+        "so this is Basti's to delete, never automatic", False)
+    import time as _time
+    week_ago = _time.time() - 7 * 86400
+    dist = [p for p in (REPO / "dist").glob("*")] if (REPO / "dist").is_dir() else []
+    add("repo build/", [REPO / "build"],
+        "PyInstaller's intermediate cache; may be Basti's own build", False)
+    add("repo dist/ items older than 7 days",
+        [p for p in dist if p.lstat().st_mtime < week_ago],
+        "built apps and demo bundles of earlier releases; may be Basti's own, "
+        "so delete by hand", False)
+    add("repo dist/ items of the last 7 days",
+        [p for p in dist if p.lstat().st_mtime >= week_ago],
+        "the current release's build; goes after a week", False)
     add("repo worktrees (.claude/worktrees)", [REPO / ".claude" / "worktrees"],
         "git worktree remove <path>, only once its branch is merged", False)
     add("demo-project cache", [tmp / "chromiq-demo-projects-cache"],
@@ -106,6 +118,50 @@ def _snapshots() -> list[str]:
     return [l.strip() for l in out.splitlines() if "com.apple" in l]
 
 
+BASELINE = REPO / ".claude" / "disk_baseline.json"
+
+
+def container_free() -> int:
+    """Free bytes of the APFS container (what macOS can still hand out),
+    the number that matters across volumes. Falls back to the home volume."""
+    try:
+        out = subprocess.run(["diskutil", "apfs", "list"], capture_output=True,
+                             text=True, encoding="utf-8", errors="replace",
+                             timeout=30).stdout
+        for line in out.splitlines():
+            if "Capacity Not Allocated" in line:
+                return int(line.split(":")[1].split("B")[0].strip())
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        pass
+    return shutil.disk_usage(str(HOME)).free
+
+
+def save_baseline() -> dict:
+    import json
+    import time
+    data = {"at": time.strftime("%Y-%m-%d %H:%M:%S"), "free": container_free(),
+            "rows": {r[0]: r[2] for r in _rows()}}
+    BASELINE.parent.mkdir(parents=True, exist_ok=True)
+    BASELINE.write_text(json.dumps(data, indent=1), encoding="utf-8")
+    return data
+
+
+def since_baseline() -> "str | None":
+    """What changed since the session's baseline, in plain words, or None."""
+    import json
+    try:
+        base = json.loads(BASELINE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    used = base["free"] - container_free()
+    rows = {r[0]: r[2] for r in _rows()}
+    grew = sorted(((rows.get(k, 0) - v, k) for k, v in base["rows"].items()),
+                  reverse=True)
+    lines = [f"since {base['at']}: {used / 1e9:+.2f} GB used on the disk"]
+    lines += [f"  {d / 1e9:+.2f} GB  {k}" for d, k in grew if abs(d) > 0.05e9]
+    return "\n".join(lines)
+
+
 def _min_free_bytes(total: int) -> float:
     """100 GB, or a tenth of a smaller disk, so a 256 GB Mac is not in
     permanent alarm."""
@@ -118,16 +174,27 @@ def main() -> int:
                     help=f"exit 1 if free space is below {MIN_FREE_GB} GB (or a "
                          f"tenth of a smaller disk) or the DELETABLE leftovers "
                          f"exceed {MAX_HELD_GB} GB")
+    ap.add_argument("--save-baseline", action="store_true",
+                    help="remember the disk state now (the session-start hook)")
+    ap.add_argument("--since-baseline", action="store_true",
+                    help="say what changed since the saved baseline")
     args = ap.parse_args()
+    if args.save_baseline:
+        d = save_baseline()
+        print(f"disk baseline saved: {d['free'] / 1e9:.1f} GB free")
+        return 0
+    if args.since_baseline:
+        print(since_baseline() or "no baseline saved")
+        return 0
 
     rows = _rows()
-    deletable = sum(b for *_x, b, _h, d in rows if d)
-    kept = sum(b for *_x, b, _h, d in rows if not d)
+    deletable = sum(r[2] for r in rows if r[4])
+    kept = sum(r[2] for r in rows if not r[4])
     usage = shutil.disk_usage(str(HOME))
     snaps = _snapshots() if sys.platform == "darwin" else []
 
     width = max(len(r[0]) + (0 if r[4] else 7) for r in rows)
-    for label, n, b, hint, d in rows:
+    for label, n, b, hint, d, _paths in rows:
         tag = "" if d else " (kept)"
         print(f"{label + tag:<{width}}  {b / 1e9:8.2f} GB  ({n} item{'s' if n != 1 else ''})")
         if b > 0.5e9:

@@ -303,6 +303,26 @@ working on this project and i was not able to completely free it up again. So
 i did a fresh install of macos."* The suite already cleans up after itself
 (see the sweep in `tests/conftest.py`); everything around it is on us:
 
+* **EVERY SESSION LEAVES THE DISK AS IT FOUND IT, EXCEPT FOR WHAT BASTI KEEPS.**
+  Basti, 2026-10-02: *"make sure to leave no unneccessary files on my hard
+  drive ... when i asked you to clean up after a session you never managed to
+  free up all the space you filled"*, and: *"never delete any personal data -
+  only what you added in a session that is considered not needed"*. So:
+  * the SessionStart hook (`.claude/settings.local.json`) saves a disk
+    baseline; the SessionEnd hook runs `scripts/session_cleanup.py --yes`,
+    which deletes ONLY our own tooling's leftovers (chromiq-* and pytest temp,
+    driver sandboxes, merged clean agent worktrees, the ending session's own
+    scratch) and reports the change since the baseline;
+  * its guard `is_ours` refuses any path outside those roots and names, even
+    if a bug listed it (`tests/test_session_cleanup_never_touches_personal_
+    data.py`). Never widen it to build/, dist/, /cores, the Desktop, ~/ChromIQ,
+    the Trash or snapshots: those can be Basti's, and are only REPORTED;
+  * before telling Basti a session is finished, run
+    `python3 scripts/session_cleanup.py` (dry run) and then `--yes`, and give
+    him the `--since-baseline` line in the final report. Do not wait for the
+    hook to discover what a session left;
+  * put scratch inside the session's scratchpad or report folder, never as new
+    folders elsewhere, so it is either cleaned or visibly kept.
 * `python3 scripts/disk_report.py` lists every place ChromIQ work writes to,
   with sizes and what is safe to remove; `--check` fails below 100 GB free or
   above 25 GB held. The monitor runs it every cycle (MONITOR.md step 2c).

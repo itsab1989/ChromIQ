@@ -112,3 +112,4 @@ scripts/offscreen_font_probe/_results/
 demo-projects/
 .claude/issue-watermarks/
 .claude/monitor_seen.json
+.claude/disk_baseline.json
