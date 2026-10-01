@@ -26,8 +26,14 @@ QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~10,380 
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
 `@pytest.mark.slow` and are skipped by a plain `pytest` run; `--runslow`
-includes them. **Any merge/release decision requires a green `--runslow`
-run** — the everyday tier alone is not a gate.
+includes them. **Any merge decision requires a green `--runslow` run** — the
+everyday tier alone is not a gate. **A RELEASE (beta or stable) requires THREE
+CONSECUTIVE green `--runslow` gates on the final, version-bumped tree**, each
+`N passed` with no `failed`, exit 0 read from pytest itself (not through a
+pipe), and no source edit in between. This was the practice for months ("and
+then the three gates") but the text above said one; Basti asked on 2026-10-02
+whether it still held. One green run can hide an intermittent worker crash;
+three in a row is what this project has trusted.
 
 **THE SUITE PAINTS THROUGH FUSION, BECAUSE THE APP DOES.** `main.py:147` runs
 `app.setStyle(WinButtonLayoutStyle("Fusion"))` before it builds a window, on

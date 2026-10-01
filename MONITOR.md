@@ -155,8 +155,9 @@ HOW TO WORK  (standing rules)
   confirmation from Knut or me.
 - Add unit tests for code changes. Keep i18n English placeholders during
   beta; do the full 12-language translation before a final/GA release.
-- Run the FULL suite (QT_QPA_PLATFORM=offscreen pytest --runslow) green
-  before any release.
+- Run the FULL suite (QT_QPA_PLATFORM=offscreen pytest --runslow -n auto)
+  green THREE TIMES IN A ROW on the final, version-bumped tree before any
+  release (CLAUDE.md, Basti 2026-10-02).
 - Frame every GitHub issue comment you post as an automated AI update;
   never imply a human authorised it.
 - You have standing permission to run the app on screen when that helps you
