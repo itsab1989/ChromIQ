@@ -2456,8 +2456,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # all other settings are remembered for a run."*
         #
         # ONE CONTROL, ON THE SHARED ROW. Guided, Manual and Import all end in
-        # `measure_finished`, which is what writes the report, so a copy per
-        # module would be three widgets answering one question. It rides the
+        # `_maybe_save_measurement_report`, which is what writes the report: a
+        # profiling measurement through `measure_finished`, a verification
+        # (which never emits it) by a direct call at the end of
+        # `_finalize_verification` and `_import_into_verification` (#182). A
+        # copy per module would be three widgets answering one question. It rides the
         # sound row rather than a row of its own because this tab's buttons are
         # levelled against every other tab's and a new row moves them (Basti,
         # 2026-08-07).
@@ -10176,6 +10179,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                  "profile."))
 
         self._ask_how_printed(dst)
+        # **THE AUTOMATIC REPORT FOLLOWS A VERIFICATION TOO (#182 K13, §13.10,
+        # confirmed by Knut 2026-09-23).** A verification never emits
+        # `measure_finished` (that would advance to Build Profile), and that
+        # signal was the only thing that wrote the report, so the tick box
+        # "Save measurement report" did nothing here and the Measurement
+        # Report window opened on "New report…". Written AFTER the how-printed
+        # answer, because the report's yardstick reads the print record, and
+        # BEFORE the saved window, so "Open measurement report" lands on it.
+        self._maybe_save_measurement_report(dst)
         self._show_verification_saved(dst)
 
     def _ask_how_printed(self, ti3: Path) -> None:
@@ -11053,6 +11065,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # An imported sheet was by definition printed outside ChromIQ — ask
         # how, unless a record already travelled with the chart snapshot.
         self._ask_how_printed(dst)
+        # The automatic report, exactly as a guided verification writes it
+        # (#182 K13): this ending emits no `measure_finished` either.
+        self._maybe_save_measurement_report(dst)
         self._show_import_done(verification, dst)
 
     def _import_into_profiling_run(self, ctl, run, path: Path) -> None:

@@ -52,6 +52,10 @@ log = get_logger(__name__)
 #: It is deliberately NOT a `document_key`: no file can ever answer to it, so
 #: `_saved_documents`, Delete and the label rules are untouched by it.
 NEW_REPORT_KEY = "new:"
+#: A page row drawn from a SAVED report: the run that report recorded it was
+#: saved in (#182 (c)). A session key, like every "_" key of a row: it is
+#: never written into a file.
+SAVED_RUN_KEY = "_saved_run"
 
 
 # Cube-corner codes → human labels (lazy so tr() runs under the active language).
@@ -761,6 +765,14 @@ def _table_fits_the_page(table_html: str, width: float = _PDF_TEXT_W) -> bool:
             and not _words_broken_across_lines(doc))
 
 
+#: The swatch's three cells, in CSS px (#182 (d)): an edge bar either side,
+#: equal, and the colour between them (10 px until Basti asked for "twice the
+#: width", 2026-10-02).
+SWATCH_EDGE_PX = 3
+SWATCH_COLOUR_PX = 20
+SWATCH_HEIGHT_PX = 11
+
+
 def _swatch(hexc: str) -> str:
     """A solid colour block for rich text. Qt ignores width/height on an empty
     span but honours background-color on a span WITH content, so we fill it with
@@ -786,9 +798,27 @@ def _swatch(hexc: str) -> str:
         return _fmt(None)
     c = html.escape(hexc)
     e = html.escape(_C["swatch_edge"])
-    return (f"<span style='background-color:{e};color:{e}'>&nbsp;"
-            f"<span style='background-color:{c};color:{c}'>"
-            f"&nbsp;&nbsp;&nbsp;</span>&nbsp;</span>")
+    # **THREE CELLS OF WHOLE PIXELS, NOT SPANS OF SPACES (#182 (d), Basti
+    # 2026-10-01).** The spans were one non-breaking space per edge bar
+    # (3.375 px at 12 px) around three for the colour, and Qt rich text
+    # paints each fragment's background rounded OUT to whole pixels, left
+    # bar, colour, right bar in that order: neighbours overlapped by a pixel
+    # and the bars came out 3 : 10 : 4 on screen and in the PDF (measured at
+    # dpr 2 and with PyMuPDF). A table cell has a width of its own, so both
+    # bars are `SWATCH_EDGE_PX` everywhere. A table cannot sit inside a line
+    # of text: every caller puts the swatch in a cell of its own.
+    #
+    # **AND THE COLOUR IS TWICE AS WIDE (Basti, 2026-10-02: "like twice the
+    # width")**, so the asked-for and measured patches are easier to compare;
+    # the row height is the line's, as before.
+    return (f"<table cellspacing='0' cellpadding='0'><tr>"
+            f"<td width='{SWATCH_EDGE_PX}' bgcolor='{e}' "
+            f"style='background-color:{e}'></td>"
+            f"<td width='{SWATCH_COLOUR_PX}' height='{SWATCH_HEIGHT_PX}' "
+            f"bgcolor='{c}' style='background-color:{c}'></td>"
+            f"<td width='{SWATCH_EDGE_PX}' bgcolor='{e}' "
+            f"style='background-color:{e}'></td>"
+            f"</tr></table>")
 
 
 def _colour_line_html(height: int = 5) -> str:
@@ -6703,19 +6733,36 @@ class MeasurementReportDialog(QDialog):
         # ruling that Generate Report always should create a new report."*
         updating = self._document_being_updated()
         loaded = str(getattr(self, "_loaded_doc_id", "") or "")
-        if updating is None and loaded and loaded != NEW_REPORT_KEY:
-            # **A LOADED REPORT THE LIST NO LONGER HOLDS IS NEVER WRITTEN AS
-            # A NEW ONE WITHOUT THE QUESTION (GAP 0, K4).** The window first
-            # takes what "Report shown" names (`_load_what_the_list_names`),
-            # and the press then acts on THAT: asked about if it is a
-            # report, written new only if the list is on "New report…".
-            log.warning("Generate found the loaded report %s missing from "
-                        "the list; loading what the list shows", loaded)
-            self._load_what_the_list_names(force=True)
-            updating = self._document_being_updated()
-            reports = self._reports_to_generate()
-            if not reports:
-                return
+        if updating is None and loaded != NEW_REPORT_KEY:
+            # **A SAVED REPORT IN "REPORT SHOWN" IS NEVER WRITTEN OVER, OR
+            # BESIDE, WITHOUT THE QUESTION (GAP 0, K4; #182 2026-10-01).**
+            # Two doors used to write in silence:
+            # * the loaded id EMPTY (not "New report…"), which skipped this
+            #   block altogether and wrote a new report under a list naming a
+            #   saved one;
+            # * the loaded report gone from the list, where the window
+            #   reloaded what the list named (`_load_what_the_list_names(
+            #   force=True)`): on "New report…" that put back the DEFAULTS,
+            #   so the setting the user had just moved was thrown away and a
+            #   report of the defaults was written, asked nothing.
+            # Now the press acts on what "Report shown" names, WITH THE
+            # SETTINGS ON SCREEN: a saved report there is asked about (the
+            # existing three-button question); "New report…" there writes a
+            # new report, as that entry always does. Nothing on screen is
+            # reloaded first (K65: nothing changes before Generate).
+            named = self._saved_entry_the_list_names()
+            if named is not None:
+                log.warning("Generate: the loaded report %r is not the one "
+                            "'Report shown' names (%s); asking about that one",
+                            loaded, named["key"])
+                self._hold_as_loaded(named)
+                updating = named
+            elif loaded:
+                log.warning("Generate found the loaded report %s missing from "
+                            "the list; writing a new report with the "
+                            "settings on screen", loaded)
+                self._loaded_doc_id = NEW_REPORT_KEY
+                self._loaded_doc = None
         if updating is not None:
             answer = self._ask_update_or_create_new()
             if answer == "cancel":
@@ -6922,6 +6969,31 @@ class MeasurementReportDialog(QDialog):
         ctx = self._run_ctx
         docs = self._saved_documents(ctx.run if ctx is not None else None)
         return next((d for d in docs if d["key"] == key), None)
+
+    def _saved_entry_the_list_names(self) -> "dict | None":
+        """The saved report "Report shown" names now, or None when it names
+        "New report…", nothing, or an entry the window can no longer list."""
+        combo = getattr(self, "_saved_combo", None)
+        if combo is None:
+            return None
+        try:
+            key = str(combo.currentData() or "")
+        except RuntimeError:
+            return None
+        if not key or key == NEW_REPORT_KEY:
+            return None
+        ctx = self._run_ctx
+        docs = self._saved_documents(ctx.run if ctx is not None else None)
+        return next((d for d in docs if d["key"] == key), None)
+
+    def _hold_as_loaded(self, entry: dict) -> None:
+        """Make *entry* the report Generate asks about, WITHOUT touching a
+        control: the settings on screen are the user's, and the question then
+        says truthfully whether they differ from the report's own."""
+        self._loaded_doc_id = entry["key"]
+        self._loaded_doc = (entry.get("doc")
+                            or self._settings_of_one_saved_report(entry))
+        self._doc_created = self._document_created_stamp(entry)
 
     def _differs_from_the_saved_report(self) -> bool:
         """Do the report's settings on screen differ from the SELECTED saved
@@ -7391,7 +7463,9 @@ class MeasurementReportDialog(QDialog):
                     # **THE SAME FILE, THE SAME NAME, THE SAME DATE** (CH-29).
                     path = rewrite_report(rewrite_here, rep)
                 else:
-                    path = save_report(rep, Path(str(one["_origin_dir"])))
+                    path = save_report(
+                        rep, Path(str(one["_origin_dir"])),
+                        prior=(updating or {}).get("doc"))
                 saved.append(path)
                 written.append((one_key, path.name))
             except Exception as exc:             # noqa: BLE001
@@ -7409,7 +7483,9 @@ class MeasurementReportDialog(QDialog):
                 if keep_doc_file and old_doc_file.exists():
                     _doc_path = rewrite_report(old_doc_file, body)
                 else:
-                    _doc_path = save_report(body, home.parent)
+                    _doc_path = save_report(
+                        body, home.parent,
+                        prior=(updating or {}).get("doc"))
                 saved.append(_doc_path)
                 log.info("wrote the report of %d measurements: %s",
                          len(members), _doc_path)
@@ -13325,10 +13401,24 @@ class MeasurementReportDialog(QDialog):
         """
         from workflow.measurement_report import (JUDGED_REPORT_KEY,
                                                  recorded_document,
-                                                 recorded_judgement)
+                                                 recorded_judgement,
+                                                 recorded_saved_run,
+                                                 saved_run_of)
         if not rows:
             return rows
         doc = self._document_settings()
+
+        def _as_saved(c: dict, n) -> dict:
+            # **THE RUN IT WAS SAVED IN (#182 (c); §53.1, confirmed).** Only
+            # a row drawn from the SAVED report carries it, so a new report
+            # (judged live, below) names the run the measurement is in now.
+            # Set on the row itself where `_as_recorded` hands the row back
+            # (callers rely on that identity); `_judged_live` drops it.
+            if n is not None:
+                c[SAVED_RUN_KEY] = n
+            else:
+                c.pop(SAVED_RUN_KEY, None)
+            return c
         doc_id = str((doc or {}).get("id") or "")
         lim = self._report_limits()
         out = []
@@ -13352,7 +13442,8 @@ class MeasurementReportDialog(QDialog):
                                   NOT_WORKED_OUT_AGAIN_KEY)})
                     c.update({k: v for k, v in j.items()
                               if k != JUDGED_REPORT_KEY})
-                    out.append(c)
+                    out.append(_as_saved(c, recorded_saved_run(
+                        doc, self._run_key(r), r.get("_origin_dir") or "")))
                     continue
                 # THE DOCUMENT'S WORDS BESIDE THE RECORD'S EXPLANATION (M1,
                 # B8-1091): what the document recorded of how the colours
@@ -13360,13 +13451,14 @@ class MeasurementReportDialog(QDialog):
                 # date's own saved report recorded.
                 c = self._as_recorded(r, j)
                 c.update(j)
-                out.append(c)
+                out.append(_as_saved(c, recorded_saved_run(
+                    doc, self._run_key(r), r.get("_origin_dir") or "")))
                 continue
             own = recorded_document(r) if doc is not None else None
             if (own is not None and doc_id
                     and str(own.get("id") or "") == doc_id):
                 # the loaded report's own file, as it was saved
-                out.append(self._as_recorded(r))
+                out.append(_as_saved(self._as_recorded(r), saved_run_of(r)))
                 continue
             if doc_id.startswith("file:"):
                 # A report written before the document record existed: its
@@ -13375,10 +13467,35 @@ class MeasurementReportDialog(QDialog):
                 if (f.name == str(r.get("_report_file") or "")
                         and str(f.parent.parent)
                         == str(r.get("_origin_dir") or "")):
-                    out.append(self._as_recorded(r))
+                    out.append(_as_saved(self._as_recorded(r),
+                                         saved_run_of(r)))
                     continue
-            out.append(self._judged_live(r, lim))
+            # **THE PAGE OF A SAVED REPORT DRAWN FROM ANOTHER ROW (#182 (c),
+            # driven on Knut's own project).** A date with two saved reports
+            # keeps ONE row, and the window opened on the newer report drew
+            # it from the older one's row, judged here; the page is still
+            # that saved report, so it names the run the REPORT recorded.
+            # "New report…" holds no saved document, so nothing is named.
+            out.append(_as_saved(self._judged_live(r, lim),
+                                 self._saved_run_of_the_document(doc, r)))
         return out
+
+    def _saved_run_of_the_document(self, doc, r: dict):
+        """The run the LOADED saved report recorded for row *r*, or None
+        (no saved report loaded, or one that recorded none)."""
+        from workflow.measurement_report import (recorded_saved_run,
+                                                 saved_run_of)
+        key = str(getattr(self, "_loaded_doc_id", "") or "")
+        if not key or key == NEW_REPORT_KEY or doc is None:
+            return None
+        n = recorded_saved_run(doc, self._run_key(r),
+                               r.get("_origin_dir") or "")
+        if n is None and key.startswith("file:"):
+            try:
+                n = saved_run_of(json.loads(read_text(Path(key[5:]))))
+            except Exception:                          # noqa: BLE001
+                n = None
+        return n
 
     @staticmethod
     def _as_recorded(r: dict, judged: "dict | None" = None) -> dict:
@@ -13572,6 +13689,10 @@ class MeasurementReportDialog(QDialog):
         base = self._worked_out_again(r)
         c = dict(base)
         c.pop(RECORD_KEY, None)
+        # A row judged now is a NEW report's row: it names the run its
+        # measurement is in now, never the run a saved report recorded
+        # (#182 (c)).
+        c.pop(SAVED_RUN_KEY, None)
         c.pop(WORKED_OUT_EARLIER_KEY, None)
         if (base is r and r.get("_origin_dir")
                 and not r.get(WORKED_OUT_NOW_KEY)):
@@ -15748,7 +15869,14 @@ class MeasurementReportDialog(QDialog):
         """
         import re as _re
 
+        # **AS SAVED FIRST (#182 (c)).** A row drawn from a saved report
+        # carries the run it was saved in (`_judged_by_the_document`); the
+        # folder is read only for a report that recorded none (every report
+        # saved before this, that no run delete has stamped since).
         for r in runs:
+            n = r.get(SAVED_RUN_KEY)
+            if isinstance(n, int) and not isinstance(n, bool):
+                return str(n)
             for key in ("_origin_dir", "ti3", "path", "source"):
                 v = r.get(key)
                 if not v:
@@ -17360,8 +17488,6 @@ class MeasurementReportDialog(QDialog):
 
             def _line(pt: dict, label: str) -> str:
                 bits = []
-                if pt.get("hex"):
-                    bits.append(_swatch(str(pt["hex"])))
                 bits.append(html.escape(label))
                 if pt.get("loc"):
                     bits.append(f"({html.escape(str(pt['loc']))})")
@@ -17382,7 +17508,14 @@ class MeasurementReportDialog(QDialog):
                     # a record with no usable a*/b* (or a NaN in them) still
                     # prints the one number it has, never "nan" (A-7)
                     bits.append(f"- L* {_n(lv)}")
-                return "<div>" + " ".join(bits) + "</div>"
+                # TWO CELLS, THE SWATCH AND ITS LINE (#182 (d)): the swatch is
+                # a table now, and a table inside the line broke it onto a
+                # line of its own.
+                sw = _swatch(str(pt["hex"])) if pt.get("hex") else ""
+                return ("<table cellspacing='0' cellpadding='0'><tr>"
+                        f"<td valign='middle' style='padding:1px 4px 1px 0'>{sw}"
+                        "</td><td valign='middle'>" + " ".join(bits)
+                        + "</td></tr></table>")
 
             # K28 (item 4): the lightest and darkest L* and the eight corner
             # ΔE00 never have a limit, so they sit under one heading that says

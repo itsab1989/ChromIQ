@@ -87,6 +87,17 @@ _HELP = tr(
 
 
 
+def _same_dir(a: Path, b: Path) -> bool:
+    """Whether two spellings name one folder (a symlinked temp dir, a
+    decomposed name), asked of the disk when both exist."""
+    try:
+        if a.exists() and b.exists():
+            return a.samefile(b)
+    except OSError:
+        pass
+    return Path(a).resolve() == Path(b).resolve()
+
+
 def _chromiq_root(settings) -> Path:
     """The folder the user thinks of as "the ChromIQ folder" — their custom
     output folder when they have set one, otherwise ~/ChromIQ.
@@ -520,17 +531,60 @@ class Ti3InfoDialog(QDialog):
         ]
         text = "\n".join(header + self._report) + "\n"
         default = f"{src.stem}-report.txt"
+        # **IN THE REPORTS FOLDER OF WHAT THE MEASUREMENT BELONGS TO (#182 (b),
+        # Knut 2026-10-01).** This offered the measurement's own folder, so a
+        # verification's inspection landed loose in `verifications/<date>/`
+        # beside the `.ti3`. The folder is the owner's (`reports_dir_for`: the
+        # dated verification's, the run's, the calibration's), never
+        # `reads/reports/` or `old/<stamp>/reports/`; a file in no project
+        # gets `<its folder>/reports`.
+        from workflow.run_compliance import reports_dir_for
+        reports = reports_dir_for(src)
+        # Made for the chooser to open in (a folder that does not exist is no
+        # start folder, `save_file_dialog`), and taken away again unless the
+        # file is about to be written into it, as "Save report as PDF…" does
+        # (K9): a cancelled save leaves nothing behind.
+        made = False
+        try:
+            if not reports.exists():
+                reports.mkdir(parents=True)
+                made = True
+        except OSError as exc:
+            log.warning("could not make %s for the inspection: %s", reports, exc)
+        start_dir = reports if reports.is_dir() else src.parent
         out = save_file_dialog(
             self, tr("Save measurement report"),
             tr("Text files (*.txt);;All files (*)"),
-            start_path=str(src.parent / default),
+            start_path=str(start_dir / default),
             extra_paths=[str(src.parent)])
+        if out and not out.lower().endswith(".txt"):
+            out += ".txt"
+        if made and not (out and _same_dir(Path(out).parent, reports)):
+            try:
+                reports.rmdir()          # only ever an empty folder
+            except OSError:
+                pass
         if not out:
             return
-        if not out.lower().endswith(".txt"):
-            out += ".txt"
+        target = Path(out)
+        # **NEVER OVER A SAVED FILE IN THE REPORTS FOLDER.** A file of the same
+        # name there is kept in `reports/old/<stamp>/` first, the archive
+        # every rewrite of a report uses; if it cannot be kept, nothing is
+        # written. A file chosen anywhere else is the user's own decision,
+        # confirmed in the save dialog.
+        if target.is_file() and _same_dir(target.parent, reports):
+            from core.file_manager import archive_report_files
+            try:
+                done, _failed = archive_report_files([target],
+                                                     raise_errors=True)
+            except OSError as exc:
+                self._show_error(tr("Could not save the report: {msg}").format(
+                    msg=str(exc)))
+                return
+            log.info("kept the earlier %s in %s", target.name,
+                     next(iter(done.values()), None))
         try:
-            Path(out).write_text(text, encoding="utf-8")
+            target.write_text(text, encoding="utf-8")
         except OSError as exc:
             self._show_error(tr("Could not save the report: {msg}").format(msg=str(exc)))
 

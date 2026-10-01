@@ -35,7 +35,9 @@ def test_an_absent_colour_renders_as_nothing_not_as_white():
 def test_a_real_colour_still_draws_a_block():
     out = _swatch("#ff0000")
     assert "background-color:#ff0000" in out
-    assert out.startswith("<span")
+    # A table of three cells since #182 (d): spans of spaces could not hold
+    # the two edge bars equal (tests/test_182_d_swatch_bars_are_equal.py).
+    assert out.startswith("<table")
 
 
 def test_white_is_still_drawn_when_it_is_the_answer():

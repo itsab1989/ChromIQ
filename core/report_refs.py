@@ -59,6 +59,89 @@ DELETED_RUN_SUFFIX = ".deleted"
 _STEM_FIELDS = ("ti3", "chart", "profile")
 
 
+#: **THE RUN A REPORT WAS SAVED IN, FROZEN (#182 (c), Knut 2026-10-01).**
+#: ``{"run": N}`` at the top of a saved report (the run its own file was saved
+#: in) and in each ``document.measurements`` entry (the run that measurement
+#: was in). Written once, when the report is saved, or by a run delete or a
+#: rename before anything moves for a report that lacks it, and never changed
+#: after: references follow the runs (§13.14), the number the report SHOWS
+#: does not (§53.1, confirmed: a saved report shows "the exact data that was
+#: saved at the time it was saved"). A calibration, or a file in no run, has
+#: none.
+SAVED_AS_KEY = "saved_as"
+
+#: The report's document block (`workflow.measurement_report.DOCUMENT_BLOCK`),
+#: spelled here because this module may not import ``workflow``.
+_DOCUMENT_BLOCK = "document"
+
+
+def run_number_in(path: "str | Path") -> "int | None":
+    """N of the last ``runs/runN`` in *path*, or None (a calibration, a file
+    in no run, a ``runN.deleted`` reference)."""
+    import re
+    parts = PurePath(str(path or "").replace("\\", "/")).parts
+    found = None
+    for a, b in zip(parts, parts[1:]):
+        if a == "runs":
+            m = re.fullmatch(r"run(\d+)", b)
+            if m:
+                found = int(m.group(1))
+    return found
+
+
+def _entry_identity(m: dict) -> "tuple[str, str]":
+    return (str(m.get("created") or ""), _nfc(str(m.get("ti3") or "")))
+
+
+def stamp_saved_as(report: dict, report_path: "str | Path",
+                   prior: "dict | None" = None) -> bool:
+    """Give *report* (to be written at *report_path*) its `SAVED_AS_KEY`
+    where it has none; True when anything was added.
+
+    THE FIRST VALUE WINS: a value the report already carries is never
+    changed, and one *prior* carries (the file this one replaces, or the
+    document an Update rewrites, matched per measurement by its creation
+    stamp and file name) is kept before anything is worked out from the
+    folders, which may have been renumbered since."""
+    if not isinstance(report, dict):
+        return False
+    changed = False
+    if SAVED_AS_KEY not in report:
+        old = prior.get(SAVED_AS_KEY) if isinstance(prior, dict) else None
+        if isinstance(old, dict) and old.get("run") is not None:
+            report[SAVED_AS_KEY] = dict(old)
+            changed = True
+        else:
+            n = run_number_in(Path(report_path).parent)
+            if n is not None:
+                report[SAVED_AS_KEY] = {"run": n}
+                changed = True
+    block = report.get(_DOCUMENT_BLOCK)
+    ms = block.get("measurements") if isinstance(block, dict) else None
+    if not isinstance(ms, list):
+        return changed
+    known: "dict[tuple[str, str], dict]" = {}
+    if isinstance(prior, dict):
+        pb = prior.get(_DOCUMENT_BLOCK, prior)
+        pms = pb.get("measurements") if isinstance(pb, dict) else None
+        for pm in (pms if isinstance(pms, list) else []):
+            if isinstance(pm, dict) and isinstance(pm.get(SAVED_AS_KEY), dict):
+                known.setdefault(_entry_identity(pm), pm[SAVED_AS_KEY])
+    for m in ms:
+        if not isinstance(m, dict) or SAVED_AS_KEY in m:
+            continue
+        hit = known.get(_entry_identity(m))
+        if hit is not None:
+            m[SAVED_AS_KEY] = dict(hit)
+            changed = True
+            continue
+        n = run_number_in(str(m.get("dir") or ""))
+        if n is not None:
+            m[SAVED_AS_KEY] = {"run": n}
+            changed = True
+    return changed
+
+
 def _nfc(s: str) -> str:
     import unicodedata
     return unicodedata.normalize("NFC", str(s))
@@ -320,6 +403,8 @@ def _rename_stems(obj, old: str, new: str) -> bool:
         for k, v in list(obj.items()):
             if k == "measurements" and isinstance(v, list):
                 continue
+            if k == SAVED_AS_KEY:
+                continue                # frozen: what the report was saved as
             if k in _STEM_FIELDS and isinstance(v, str):
                 nv = _renamed_stem(v, old, new)
                 if nv != v:
@@ -351,6 +436,12 @@ def _renumber_entry(m: dict, names: "frozenset[str]",
         new_run = mapping[run]
     else:
         return False
+    # The number it was saved under, BEFORE the reference moves (#182 (c));
+    # a value already there is the first one and stays.
+    if SAVED_AS_KEY not in m:
+        n = run_number_in(str(m.get("dir") or ""))
+        if n is not None:
+            m[SAVED_AS_KEY] = {"run": n}
     m["dir"] = _join(prefix, name, ["runs", new_run, *below[2:]])
     _rekey(m)
     return True
@@ -538,6 +629,11 @@ def rename_references_plan(project_root: "str | Path", old, new: str
                 rep, lambda m, o=o: _rename_entry(m, o, new, here))
             if inside:
                 changed |= _rename_stems(rep, o, new)
+        # A report rewritten anyway also records the run it was saved in,
+        # if it does not yet (#182 (c)); a rename moves no run, so the
+        # number read off the folder now is the one it was saved under.
+        if changed:
+            stamp_saved_as(rep, p)
         return changed
     return _plan(report_files_referring(root, outside=bool(outside_ok)), edit)
 
@@ -556,11 +652,31 @@ def run_references_plan(project_root: "str | Path", names,
     if not names or (not mapping and not deleted):
         return RefPlan()
 
+    moved = {str((root / "runs" / old).resolve()) for old in mapping}
+
+    def _in_a_moved_run(p: Path) -> bool:
+        try:
+            rp = str(p.resolve())
+        except OSError:
+            return False
+        return any(rp.startswith(m.rstrip(os.sep) + os.sep) for m in moved)
+
     def edit(p: Path, rep: dict) -> bool:
         here = refers_here(root, p, rep)
-        return _walk_measurement_lists(
+        changed = _walk_measurement_lists(
             rep, lambda m: _renumber_entry(m, names, dict(mapping), deleted,
                                            here))
+        # **AND THE RUN EACH REPORT WAS SAVED IN, BEFORE ITS FOLDER MOVES
+        # (#182 (c)).** A report inside a run that is about to be renumbered
+        # is read by its folder, so after the move it would say the new
+        # number; one with no document block (every report before B8-388)
+        # has no list for the lines above to touch. Every such file, and
+        # every file rewritten anyway, records the number now, unless it
+        # already carries one. This is planned before anything moves
+        # (`core.run_delete.delete_run`), so the path still names the old run.
+        if changed or _in_a_moved_run(p):
+            changed |= stamp_saved_as(rep, p)
+        return changed
     return _plan(report_files_referring(root, outside=True), edit)
 
 
