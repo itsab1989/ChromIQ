@@ -9811,3 +9811,63 @@ B8-601 guards in `tests/test_the_report_waits_for_the_generate_button.py`
 moved to the rule.
 
 **Status:** the rule is Knut's (Confirmed); what was built NOT confirmed.
+
+## 55. #182 (Knut, 2026-10-01): the automatic report after a verification, Inspect's folder, the run a saved report names, the swatch bars (4.3.3)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* Built from Knut's report of 2026-10-01 and
+the confirmed rules each item names; what was built waits for his word.
+
+* **(a) A verification writes its automatic report.** A guided verification
+  and a verification import end without `measure_finished` (they never go on
+  to Build Profile), which was the only thing that wrote the automatic
+  report, so the tick box "Save measurement report" did nothing there and
+  the window opened on "New report…". Both endings now call the same writer
+  (`TabMeasure._finalize_verification`, `_import_into_verification`), after
+  the how-printed question and before the done window: one report, in
+  `verifications/<date>/reports/`, of the type K13 (§13.10, confirmed) gives a
+  verification, "One date". Tick box off: none. A date measured again keeps
+  its old reports byte for byte and gains one. "Open measurement report"
+  then opens on that report, so a changed setting + Generate asks the K4
+  question (§13.8, confirmed).
+* **(a) Generate never writes beside a saved report unasked.** With an empty
+  loaded id, or with the loaded report gone from the list, the press now acts
+  on what "Report shown" names with the settings on screen: a saved report
+  there gets the existing three-button question; "New report…" writes a new
+  report with the settings on screen (it used to put the defaults back
+  first). No new text.
+* **(b) Inspect a measurement saves into the owner's `reports/`**: the dated
+  verification's, the run's or the calibration's (`run_compliance.
+  reports_dir_for`), never `reads/reports/` or `old/<stamp>/reports/`; the
+  project's `reports/` for a file in a project but in no run; `<folder>/
+  reports` for a file in no project. A folder made for the chooser is
+  removed again unless the file is saved into it, and a same-named file there
+  is kept in `reports/old/<stamp>/` first. The inspector's title ("ChromIQ —
+  Measurement report") is unchanged: renaming it, and whether it saves a
+  PDF, are Knut's.
+* **(c) A saved report keeps the run number it was saved in** (§53.1,
+  confirmed). `saved_as: {"run": N}` at the top of the file and in each
+  measurement entry, written when the report is saved, and by a run delete,
+  before anything moves, into every report that lacks it (a report with no
+  document block included); never changed after. References still follow
+  the runs (§13.14). The page and the PDF of a saved report read it first;
+  a report that has none (one renumbered before this) shows the folder's
+  number as before. A new report names the run its measurement is in now.
+  An Update keeps the first value. NOT built, Knut's: the project name, the
+  list label ("· Run1"), a duplicated run's copies, title and PDF name.
+* **(d) The swatch's two grey bars are equal**: three table cells, 3 px |
+  20 px colour | 3 px (the colour twice the old 10 px, Basti 2026-10-02),
+  measured 6:40:6 at dpr 2 on screen and 2.25:15:2.25 pt in the PDF; the
+  paper-white and darkest-black lines are two-cell rows. The English
+  one-page summary stays one page. The German one-page summary was two pages
+  before this change and is two after (only its closing line and footer
+  move over): reported, not changed.
+* Tests: `tests/test_182_a_a_verification_writes_its_automatic_report.py`,
+  `tests/test_182_a_b_generate_never_writes_beside_a_saved_report_unasked.py`,
+  `tests/test_182_b_inspect_saves_into_the_owners_reports.py`,
+  `tests/test_182_c_a_saved_report_keeps_its_run_number.py`,
+  `tests/test_182_d_swatch_bars_are_equal.py`, each red under its mutation.
+* Proof: `~/Desktop/ChromIQ-work/2026-10-01_session/H_impl_182/`.
+
+**Status:** ⏳ awaiting confirmation. **Confirmed by:** *nobody yet.*
