@@ -13470,8 +13470,32 @@ class MeasurementReportDialog(QDialog):
                     out.append(_as_saved(self._as_recorded(r),
                                          saved_run_of(r)))
                     continue
-            out.append(self._judged_live(r, lim))
+            # **THE PAGE OF A SAVED REPORT DRAWN FROM ANOTHER ROW (#182 (c),
+            # driven on Knut's own project).** A date with two saved reports
+            # keeps ONE row, and the window opened on the newer report drew
+            # it from the older one's row, judged here; the page is still
+            # that saved report, so it names the run the REPORT recorded.
+            # "New report…" holds no saved document, so nothing is named.
+            out.append(_as_saved(self._judged_live(r, lim),
+                                 self._saved_run_of_the_document(doc, r)))
         return out
+
+    def _saved_run_of_the_document(self, doc, r: dict):
+        """The run the LOADED saved report recorded for row *r*, or None
+        (no saved report loaded, or one that recorded none)."""
+        from workflow.measurement_report import (recorded_saved_run,
+                                                 saved_run_of)
+        key = str(getattr(self, "_loaded_doc_id", "") or "")
+        if not key or key == NEW_REPORT_KEY or doc is None:
+            return None
+        n = recorded_saved_run(doc, self._run_key(r),
+                               r.get("_origin_dir") or "")
+        if n is None and key.startswith("file:"):
+            try:
+                n = saved_run_of(json.loads(read_text(Path(key[5:]))))
+            except Exception:                          # noqa: BLE001
+                n = None
+        return n
 
     @staticmethod
     def _as_recorded(r: dict, judged: "dict | None" = None) -> dict:

@@ -334,3 +334,39 @@ def test_an_update_keeps_the_run_it_was_first_saved_in(tmp_path, qapp):
     assert rep.get("document", {}).get("updated"), "no Update happened"
     assert rep["saved_as"] == {"run": 5}, rep.get("saved_as")
     assert rep["document"]["measurements"][0]["saved_as"] == {"run": 5}
+
+
+def test_the_window_opened_on_the_newer_of_two_reports_says_run_5(tmp_path,
+                                                                  qapp):
+    """Found driving Knut's own project: a date with two saved reports keeps
+    ONE row, and the window opened on the newer report drew its page from
+    the older report's row, judged live, so it named the folder's run. The
+    page of a saved report names the run the REPORT recorded, whichever row
+    it is drawn from."""
+    from tests.test_the_measurement_report_defaults_are_knuts import \
+        _measure_tab
+    s, proj, v, auto, old = _five_runs(tmp_path, qapp)
+    old.unlink()                         # two reports of the automatic kind
+    time.sleep(1.1)
+    tab = _measure_tab(s, qapp)
+    try:
+        tab._maybe_save_measurement_report(v.measurement_ti3)
+    finally:
+        tab.deleteLater()
+    assert len(list((v.dir / "reports").glob("report_*.json"))) == 2
+    # the OLDER report touched last (as an Update of it does), so the date's
+    # one row is drawn from it while the window opens on the newer report
+    t = time.time() + 60
+    os.utime(auto, (t, t))
+    proj = _delete_runs_1_to_4(proj)
+    d = _now_in_run1(proj, v)
+    dlg = _window(s, d / v.measurement_ti3.name, qapp)
+    try:
+        names = [n for _r, n in next(
+            e for e in dlg._saved_documents(dlg._run_ctx.run)
+            if e["key"] == dlg._loaded_doc_id)["members"]]
+        text = dlg._view.toPlainText()
+        assert ", run 5" in text, (names, text[:500])
+        assert ", run 1" not in text
+    finally:
+        dlg.close()
