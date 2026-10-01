@@ -25,6 +25,8 @@ with a synthetic clock.
 """
 from __future__ import annotations
 
+import re
+
 from dataclasses import dataclass, field
 
 # A pace judgement is only meaningful once a few patches have been read: the
@@ -403,19 +405,24 @@ def estimate_patches_for(key):
 SAMPLE_HZ_RANGE = (10.0, 500.0)
 MIN_SAMPLES_RANGE = (10, 100)
 
-#: ArgyllCMS instrument names (``inst_name(itype)``) -> our model key. Argyll
-#: distinguishes the i1Pro generations even though a chart records only the
-#: family, so the connected model can be identified at read time. Most specific
-#: patterns first, so "i1 Pro3+" is never mistaken for "i1 Pro".
-_ARGYLL_MODEL_KEYS = (
-    ("i1 pro3+", "i1pro3plus"),
-    ("i1pro3+", "i1pro3plus"),
-    ("i1 pro3", "i1pro3"),
-    ("i1pro3", "i1pro3"),
-    ("i1 pro2", "i1pro2"),
-    ("i1pro2", "i1pro2"),
-    ("i1 pro", "i1pro"),
-    ("i1pro", "i1pro"),
+#: ArgyllCMS instrument names -> our model key. Argyll distinguishes the i1Pro
+#: generations even though a chart records only the family, so the connected
+#: model can be identified at read time.
+#:
+#: WHAT ARGYLL REALLY PRINTS (3.5.0, spectro/insttypes.c:240-246): "GretagMacbeth
+#: i1 Pro", "X-Rite i1 Pro 2", "X-Rite i1 Pro 3", "X-Rite ColorMunki", with a
+#: SPACE before the generation digit; the i1Pro 3 Plus is "X-Rite i1 Pro 3" with
+#: " Plus" appended only in the verbose "Instrument Type:" header
+#: (spectro/i1pro3_imp.c:927). Until 4.3.3 this table looked for "i1 pro2" and
+#: "i1 pro3", which Argyll never prints, so every i1Pro 2, 3 and 3 Plus was timed
+#: against the first-generation i1Pro row (Knut, #202). So the name is
+#: normalised first (lower case, spaces, hyphens and dots dropped) and the i1Pro
+#: generation is read by one pattern, which makes the result independent of the
+#: order of any table.
+_I1PRO_RE = re.compile(r"i1pro(?P<gen>[23])?(?P<plus>plus|\+)?")
+
+#: The other instruments, by a substring of the normalised name.
+_OTHER_MODEL_KEYS = (
     ("colormunki", "colormunki"),
     ("i1studio", "colormunki"),
     ("spectroscan", "spectroscan"),
@@ -426,15 +433,38 @@ _ARGYLL_MODEL_KEYS = (
 )
 
 
+def _normalised(name: str) -> str:
+    return re.sub(r"[\s\-_.]+", "", name.lower())
+
+
 def model_key(argyll_name):
     """Map an ArgyllCMS instrument name to a model key, or None if unrecognised."""
     if not argyll_name:
         return None
-    low = argyll_name.lower()
-    for needle, key in _ARGYLL_MODEL_KEYS:
+    low = _normalised(str(argyll_name))
+    m = _I1PRO_RE.search(low)
+    if m:
+        gen, plus = m.group("gen"), m.group("plus")
+        if gen == "3":
+            return "i1pro3plus" if plus else "i1pro3"
+        if gen == "2":
+            return "i1pro2"
+        return "i1pro"
+    for needle, key in _OTHER_MODEL_KEYS:
         if needle in low:
             return key
     return None
+
+
+def refines(new_key, old_key) -> bool:
+    """False when *new_key* would only LOSE detail about the same instrument.
+
+    In engine mode the helper prints Argyll's verbose header ("X-Rite i1 Pro 3
+    Plus") and then its JSON event, which carries ``inst_name()`` without the
+    "Plus". The second report must not turn a 3 Plus back into a plain 3: the
+    Plus wants twice the readings per patch, and the faster row would let a
+    too-quick swipe pass (Knut's rule: never a faster rate than the device's)."""
+    return not (old_key == "i1pro3plus" and new_key == "i1pro3")
 
 
 # ---------------------------------------------------------------------------

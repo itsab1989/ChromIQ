@@ -1225,6 +1225,15 @@ class MeasureManager(QObject):
                 # and they have to raise their window here too — this parser is
                 # the only one that runs in engine mode (Knut, beta.141).
                 self._check_startup_failures(line)
+                # Argyll's verbose header, which the helper prints as prose
+                # BEFORE its JSON "instrument" event. Only this line says
+                # "Plus" for an i1Pro 3 Plus (i1pro3_imp.c:927); the event
+                # carries inst_name() without it, so without reading this the
+                # engine timed a 3 Plus against the plain 3 (#202). The tab
+                # keeps the more specific of the two reports.
+                m = _INST_TYPE_RE.search(line)
+                if m:
+                    self.instrument_detected.emit(m.group(1).strip())
                 # …and the notes it prints about settings the instrument
                 # dropped, for the same reason: the user is told either way.
                 self._check_informational(line)

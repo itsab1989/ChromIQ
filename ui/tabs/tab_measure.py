@@ -1247,6 +1247,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # _detected_disable_bidir).
         self._detected_force_bidir: bool = False
         self._detected_instrument: str | None = None
+        #: What the INSTRUMENT said it is in this measurement session, and
+        #: nothing else. `_detected_instrument` is also set from the chart's
+        #: TARGET_INSTRUMENT whenever the chart is (re)read, which put
+        #: "GretagMacbeth i1 Pro" back over a reported "X-Rite i1 Pro 2" and
+        #: timed the strips against the wrong row (#202).
+        self._reported_instrument: str | None = None
         # Whether the loaded chart was laid out in randomised patch order.
         # Forcing bidirectional reading (-b) on a non-randomised chart can make
         # chartread misrecognise strips, so _on_start warns when both are true.
@@ -5370,7 +5376,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # distinguishes down to the i1Pro generation. Falls back to the chart's
         # instrument family, and finally to the slowest i1Pro rate — never to a
         # faster one, which would let a too-quick swipe pass unremarked (Knut).
-        key = model_key(getattr(self, "_detected_instrument", None))
+        key = (model_key(getattr(self, "_reported_instrument", None))
+               or model_key(getattr(self, "_detected_instrument", None)))
         if key is None:
             from ui.ti2_loader import read_target_instrument
             try:
@@ -5430,8 +5437,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """Remember the model the instrument reported when it was opened (#131).
         A chart records only the family it was laid out for, so this is the only
         place the actual generation — i1Pro vs i1Pro 2 vs i1Pro 3 — is known."""
-        self._detected_instrument = model or ""
+        from core.measure_pace import model_key, refines
+        # In engine mode the same device is reported twice, Argyll's verbose
+        # header first and the helper's JSON event after it (#202). Everything
+        # with a side the user sees (the log line, the mismatch WINDOW) happens
+        # once per device, not once per report.
+        prev = self._reported_instrument
+        new_k, prev_k = model_key(model), model_key(prev)
+        repeat = bool(model and prev) and (
+            model == prev
+            or (new_k is not None and new_k == prev_k)
+            or {new_k, prev_k} == {"i1pro3", "i1pro3plus"})
+        if model and refines(new_k, prev_k):
+            self._reported_instrument = model
+        self._detected_instrument = self._reported_instrument or model or ""
         self._pace = None            # rebuild the tracker with that model's rate
+        if repeat:
+            return
         if model:
             log.info("measurement: instrument reported as %s", model)
             # The device has answered: the startup wait is over.
@@ -6751,6 +6773,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # A fresh session: nothing detected yet, and no window pending from the
         # last one.
         self._saw_instrument = False
+        self._reported_instrument = None
         self._no_instrument = False
         # …AND THE WINDOW IS ALLOWED TO APPEAR AGAIN.
         #
