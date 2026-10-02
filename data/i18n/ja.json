@@ -6440,5 +6440,6 @@
  "Red outline: a large difference": "赤枠：大きな差",
  "Same value after a re-read:": "読み直しても同じ値なら：",
  "it is real, keep it for the profile.": "実際の差、プロファイルに残す。",
- "this printer and paper cannot reach.": "プリンターと用紙で届かない色。"
+ "this printer and paper cannot reach.": "プリンターと用紙で届かない色。",
+ "The calibration file was made for a {cal_space} chart, but the patch set you are building is {chart_space}. A calibration can only be applied to (-K) or embedded in (-I) a chart with the same inks, so the chart was not built.\n\nTo use this calibration, set “Device Type” in the targen settings to {cal_space} and press Generate Chart again. A new profiling run starts on the default Device Type, not on the one the calibration chart was made with, so check it there.\n\nTo build this {chart_space} chart without the calibration, set the printer calibration to “None”.": "このキャリブレーションファイルは {cal_space} のチャート用に作成されていますが、作成しようとしているパッチセットは {chart_space} です。キャリブレーションは同じインクのチャートにしか適用 (-K) も埋め込み (-I) もできないため、チャートは作成されませんでした。\n\nこのキャリブレーションを使うには、targen の設定で「デバイスタイプ」を {cal_space} にして、もう一度「生成」を押してください。新しいプロファイリング実行は、キャリブレーションチャートを作成したときのデバイスタイプではなく既定のデバイスタイプで始まるので、そこで確認してください。\n\nキャリブレーションなしでこの {chart_space} チャートを作成するには、プリンターキャリブレーションを「なし」にしてください。"
 }

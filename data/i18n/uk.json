@@ -6440,5 +6440,6 @@
  "Red outline: a large difference": "Червона рамка: велика різниця",
  "Same value after a re-read:": "Те саме значення після повтору:",
  "it is real, keep it for the profile.": "воно справжнє, залиште для профілю.",
- "this printer and paper cannot reach.": "недосяжний для принтера й паперу."
+ "this printer and paper cannot reach.": "недосяжний для принтера й паперу.",
+ "The calibration file was made for a {cal_space} chart, but the patch set you are building is {chart_space}. A calibration can only be applied to (-K) or embedded in (-I) a chart with the same inks, so the chart was not built.\n\nTo use this calibration, set “Device Type” in the targen settings to {cal_space} and press Generate Chart again. A new profiling run starts on the default Device Type, not on the one the calibration chart was made with, so check it there.\n\nTo build this {chart_space} chart without the calibration, set the printer calibration to “None”.": "Файл калібрування створено для діаграми {cal_space}, але набір патчів, який ви будуєте, — {chart_space}. Калібрування можна застосувати (-K) або вбудувати (-I) лише в діаграму з тими самими чорнилами, тому діаграму не побудовано.\n\nЩоб використати це калібрування, установіть «Тип пристрою» в налаштуваннях targen на {cal_space} і знову натисніть «Створити діаграму». Новий прогін профілювання починається з типового типу пристрою, а не з того, з яким створено калібрувальну діаграму, тож перевірте його там.\n\nЩоб побудувати цю діаграму {chart_space} без калібрування, установіть калібрування принтера на «Жодного»."
 }

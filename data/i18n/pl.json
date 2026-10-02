@@ -6440,5 +6440,6 @@
  "Red outline: a large difference": "Czerwona ramka: duża różnica",
  "Same value after a re-read:": "Ta sama wartość po ponownym odczycie:",
  "it is real, keep it for the profile.": "jest prawdziwa, zachowaj ją.",
- "this printer and paper cannot reach.": "poza zasięgiem drukarki i papieru."
+ "this printer and paper cannot reach.": "poza zasięgiem drukarki i papieru.",
+ "The calibration file was made for a {cal_space} chart, but the patch set you are building is {chart_space}. A calibration can only be applied to (-K) or embedded in (-I) a chart with the same inks, so the chart was not built.\n\nTo use this calibration, set “Device Type” in the targen settings to {cal_space} and press Generate Chart again. A new profiling run starts on the default Device Type, not on the one the calibration chart was made with, so check it there.\n\nTo build this {chart_space} chart without the calibration, set the printer calibration to “None”.": "Plik kalibracji został utworzony dla wzorca {cal_space}, ale budowany zestaw pól to {chart_space}. Kalibrację można zastosować (-K) lub osadzić (-I) tylko we wzorcu z tymi samymi atramentami, więc wzorzec nie został zbudowany.\n\nAby użyć tej kalibracji, ustaw „Typ urządzenia” w ustawieniach targen na {cal_space} i ponownie kliknij „Generuj”. Nowy przebieg profilowania zaczyna się od domyślnego typu urządzenia, a nie od tego, z którym utworzono wzorzec kalibracji, więc sprawdź go tam.\n\nAby zbudować ten wzorzec {chart_space} bez kalibracji, ustaw kalibrację drukarki na „Brak”."
 }

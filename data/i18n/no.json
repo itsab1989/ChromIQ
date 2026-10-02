@@ -6440,5 +6440,6 @@
  "Red outline: a large difference": "Rød ramme: stor forskjell",
  "Same value after a re-read:": "Samme verdi etter ny lesing:",
  "it is real, keep it for the profile.": "den er ekte, behold den til profilen.",
- "this printer and paper cannot reach.": "som skriver og papir ikke når."
+ "this printer and paper cannot reach.": "som skriver og papir ikke når.",
+ "The calibration file was made for a {cal_space} chart, but the patch set you are building is {chart_space}. A calibration can only be applied to (-K) or embedded in (-I) a chart with the same inks, so the chart was not built.\n\nTo use this calibration, set “Device Type” in the targen settings to {cal_space} and press Generate Chart again. A new profiling run starts on the default Device Type, not on the one the calibration chart was made with, so check it there.\n\nTo build this {chart_space} chart without the calibration, set the printer calibration to “None”.": "Kalibreringsfilen ble laget for et {cal_space}-kart, men feltsettet du bygger er {chart_space}. En kalibrering kan bare brukes på (-K) eller bygges inn i (-I) et kart med de samme blekkene, så kartet ble ikke bygget.\n\nFor å bruke denne kalibreringen setter du «Enhetstype» i targen-innstillingene til {cal_space} og trykker «Generer» igjen. En ny profileringskjøring starter på standard enhetstype, ikke på den kalibreringskartet ble laget med, så sjekk den der.\n\nFor å bygge dette {chart_space}-kartet uten kalibreringen setter du skriverkalibreringen til «Ingen»."
 }
