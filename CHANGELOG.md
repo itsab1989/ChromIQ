@@ -14,7 +14,7 @@
 - **Choosing a dated verification that has a measurement** shows "Refine / resume" and "Show overlay" again, and refining it works: the new readings go back into that date. Switching Run type to Profiling no longer shows "The chart has not been measured yet" about the verification you just left (#182).
 - **"Measure anyway" on a measured dated verification keeps the earlier measurement** in that date's `old/` folder, as the window promises. It was overwritten.
 - **Verify against reference no longer leaves a reference file beside a run's measurement.** That file has the name ChromIQ reads as the chart's own colour reference, so the run's Measurement Report then judged against the typed-in values.
-- **The Calibration Complete window** for the i1Pro family and the ColorMunki says to start sliding when you hear the beep (#202).
+- **Start sliding at the beep, said everywhere it matters** (#202): the Calibration Complete window for the i1Pro family and the ColorMunki, Preferences ▸ Measurement (which now names every strip reader), and the measuring steps of the Welcome cards and the Getting Started tour. Every strip reader is timed from its beep.
 - **Strip Read Quickly** names the same strip time as the line under the preview: 27 patches at 120 ms read "3.3 s" in both (#202).
 - **A patch outlined in red says why** on the hover card, with its ΔE*ab beside your limit from Preferences ▸ Measurement, and the help for "Show patch values on hover" explains the outline (#202).
 - **Report Results**: each date heading sits centred over its PASS, FAIL or INFO (#182).
