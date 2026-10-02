@@ -1,5 +1,14 @@
 # Changelog
 
+## v4.3.3-beta.4
+
+**A fix for a crash when building a profile with ChromIQ's own profile engine on Apple Silicon.**
+
+### Fixed
+
+- **Build Profile no longer crashes** with ChromIQ's own profile engine when the perceptual and saturation tables are built from a gamut source (#182). Since beta 1 the Apple Silicon download uses a maths library (OpenBLAS) that needs more working memory on a background thread than macOS gives one by default; every background thread now gets enough.
+- **A red outline on a patch is called "a large difference"**: either a misread, or a colour your printer and paper cannot reach. If reading the strip again gives the same value, it is real and belongs in the profile. Both help texts in Live preview explain this (#182).
+
 ## v4.3.3-beta.3
 
 **Everything Knut found in beta 2: dated verifications offer their own measurement again, a saved report keeps the numbers it was saved with, and the measuring windows explain the beep and the red outlines.**
