@@ -75,7 +75,11 @@ def parse_engine_line(line: str) -> dict | None:
     The helper starts every JSON object at column 0; anything else is
     chartread's ordinary console text (kept for the log window).
     """
-    s = line.strip()
+    # A BEL ("\a", 0x07) is Argyll's beep on Linux and is not whitespace to
+    # str.strip(). The engine writes every JSON line on its own line, so a BEL
+    # cannot precede one today, but if it ever did the whole event would be
+    # dropped (review P_review2_beta1): strip it here as well.
+    s = line.strip().strip("\x07").strip()
     if not s.startswith("{"):
         return None
     try:

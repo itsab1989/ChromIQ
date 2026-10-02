@@ -352,3 +352,22 @@ def test_a_strip_measured_on_the_engine_leaves_out_the_lamp_time(tab, tmp_path):
     assert from_press - elapsed >= 0.6, (
         f"the strip took {elapsed:.3f} s, {from_press:.3f} s from the press: "
         "the lamp's warm-up is still being counted")
+
+
+def test_the_ready_event_goes_out_before_the_beep():
+    """On Windows the beep (Beep()) blocks for its 200 ms: beeping first made
+    every strip 0.2 s short there (review P_review2_beta1, P-202-1)."""
+    src = (ROOT / "native" / "chartread_helper" / "chromiq_chartread.c").read_text(
+        encoding="utf-8")
+    body = src[src.index("void cq_event_callback("):]
+    body = body[:body.index("\n}\n")]
+    assert body.index('cq_emit_raw("{\\"event\\":\\"scan_ready\\"}")') < body.index(
+        "msec_beep(0, 1000, 200)")
+
+
+def test_a_bel_in_front_of_an_event_does_not_lose_it():
+    """Argyll's beep on Linux is a BEL on stdout; a line it lands in front of
+    must still parse (review P_review2_beta1)."""
+    from workflow.chartread_engine import parse_engine_line
+    assert parse_engine_line('\x07{"event":"scan_ready"}') is not None
+    assert parse_engine_line("\x07\n") is None

@@ -845,8 +845,13 @@ void cq_event_callback(void *cntx, inst_event_type event) {
 	(void)cntx;
 	if (event != inst_event_scan_ready)
 		return;
-	msec_beep(0, 1000, 200);
+	/* EMIT FIRST, THEN BEEP. On Windows msec_beep(0, ...) is Beep(), which
+	 * returns only after the 200 ms tone: beeping first delivered scan_ready
+	 * 0.2 s late and timed every strip 0.2 s short, so a strip within the
+	 * limit could read "Too fast" (review P_review2_beta1, P-202-1). macOS and
+	 * Linux beep asynchronously, so the order changes nothing there. */
 	cq_emit_raw("{\"event\":\"scan_ready\"}");
+	msec_beep(0, 1000, 200);
 }
 
 #ifdef TEST_EVENT_CALLBACK
