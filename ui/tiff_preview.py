@@ -491,6 +491,19 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("ΔE*ab  {de:.2f}").format(
                 de=float(info.get("de", 0.0)))))
             rows.append((None, tr("  (CIE76, L*a*b* D50)")))
+        # WHY THE RED OUTLINE, at the bottom and set apart from the numbers
+        # (Knut, #202 5951426710): the outline was never explained where it
+        # is seen. In every view mode, because the outline is drawn in every
+        # one; the ΔE is named here even when the split's own ΔE line is not.
+        if info.get("warn"):
+            rows.append((None, "─" * 30))
+            rows.append((None, tr("Red outline: likely misread")))
+            rows.append((None, tr("ΔE*ab {de:.1f} reached your limit {limit:.1f}"
+                                  ).format(de=float(info.get("de", 0.0)),
+                                           limit=float(info.get("warn_de", 0.0)))))
+            if info.get("fenced"):
+                rows.append((None, tr("and stands out from its strip")))
+            rows.append((None, tr("(Preferences ▸ Beta, “Flag a patch…”)")))
 
         self._rows = rows
 

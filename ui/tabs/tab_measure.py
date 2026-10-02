@@ -3059,7 +3059,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "The card follows the 'Each patch shows' setting above: with "
             "'Expected & measured (split)' you get both colours and the ΔE; with "
             "'Expected colour only' or 'Measured colour only' you get just that "
-            "one. It only reads out numbers — it never changes your readings."),
+            "one. It only reads out numbers — it never changes your readings.")
+            + "\n\n" + tr(
+            "A patch outlined in red is one ChromIQ thinks may have been "
+            "misread: its colour error (ΔE*ab) reached the limit set in "
+            "Preferences ▸ Beta under “Flag a patch when its colour error "
+            "reaches”, and when you read strips with “only flag a patch that "
+            "also stands out from its own strip” on, it also stands out from "
+            "the rest of its strip. Point at it and the bottom of the card "
+            "says so, with the patch's ΔE*ab beside your limit. If the strip "
+            "looks wrong, read it again. A vivid colour can be flagged even "
+            "when it was read correctly, because the chart's design colours "
+            "are sRGB values a printer does not reproduce exactly."),
             row)
         om_row.add_group(tile, tile_tip)
         v.addWidget(om_row)
@@ -13641,6 +13652,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
                 "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
                 "de": de_p,
+                # Why a red outline, for the card (Knut, #202 5951426710).
+                "warn": warn, "warn_de": warn_de, "fenced": fence > 0.0,
             }))
         if items:
             self._preview.set_patch_overlay(page, items)
@@ -13755,6 +13768,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
             "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
             "de": de_p,
+            "warn": de_p >= warn_de, "warn_de": warn_de, "fenced": False,
         })
         # Accumulate: each patch adds its own split + numbers (dedup by box, so
         # re-reading a patch refreshes it rather than stacking).
@@ -13803,6 +13817,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
                 "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
                 "de": de_p,
+                "warn": de_p >= warn_de, "warn_de": warn_de, "fenced": False,
             }))
         for page, its in items.items():
             self._preview.set_patch_overlay(page, its)
