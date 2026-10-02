@@ -2337,7 +2337,9 @@ class Run:
 
     def archive_to_old(self, paths: "list[Path]",
                        when: "datetime | None" = None,
-                       *, into: "Path | None" = None) -> "Path | None":
+                       *, into: "Path | None" = None,
+                       moved: "dict[Path, Path] | None" = None
+                       ) -> "Path | None":
         """Move existing *paths* (files or folders) into a timestamped
         ``runs/runN/old/<date>/`` folder before an overwrite, so "start fresh"
         never silently destroys the previous measurement / profile / reports
@@ -2346,7 +2348,12 @@ class Run:
 
         *into* overrides the base folder — used by a verification Replace, which
         archives into ``verifications/old/`` instead (see
-        :attr:`verifications_old_dir`)."""
+        :attr:`verifications_old_dir`).
+
+        *moved*, when given, is filled with ``{source: archived path}`` as each
+        move succeeds, so a caller that must undo the archive can find every
+        file under the name it really got, even when this raises part way or a
+        clash renamed it (two archives in the same second share a folder)."""
         existing = [p for p in paths if p.exists()]
         if not existing:
             return None
@@ -2360,6 +2367,8 @@ class Run:
                 target = dest / f"{p.stem}_{n}{p.suffix}"
                 n += 1
             shutil.move(str(p), str(target))
+            if moved is not None:
+                moved[p] = target
             log.info("archived %s -> old/%s/", p.name, dest.name)
         return dest
 

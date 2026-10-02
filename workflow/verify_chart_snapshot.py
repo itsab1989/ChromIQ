@@ -597,6 +597,32 @@ def _archive_replaced_chart(stash: Path, archive_with, existing: "Path | None"
     return archive_with(keep)
 
 
+def _fresh_stash(base: Path) -> Path:
+    """A stash folder no earlier restore is still using.
+
+    A stash survives a restore only when something could not be put where it
+    belongs (an archive or a rollback that failed), and then it holds the ONLY
+    copy of a chart. Reusing it would move the next chart's files over those
+    of the same name (``shutil.move`` replaces a file) and the success path
+    would then archive only the newer one: measured, review AM, the chart of
+    the first restore was gone."""
+    if not base.exists():
+        return base
+    n = 2
+    while (cand := base.with_name(f"{base.name}-{n}")).exists():
+        n += 1
+    return cand
+
+
+def _undo_side_archive(moved: "dict[Path, Path]", live_dir: Path) -> None:
+    """Put every file a restore archived back where it came from, by the
+    name it really got in ``old/`` (a clash renames it, and an archive that
+    raised part way has no folder to return). Raises OSError like any move."""
+    for src, dst in moved.items():
+        if dst.exists() and not src.exists():
+            shutil.move(str(dst), str(src))
+
+
 def restore_slot(slot) -> "RestoreResult":
     """Put *slot*'s copy back as the live chart.
 
@@ -660,7 +686,9 @@ def restore_slot(slot) -> "RestoreResult":
     # same dated folder, so one restore leaves one archive.
     side_replaced += list(cht_plan.remove)
     side_archive = None
-    stash = slot.snapshot_dir.parent / f".restore-stash-{slot.snapshot_dir.name}"
+    side_moved: "dict[Path, Path]" = {}
+    stash = _fresh_stash(
+        slot.snapshot_dir.parent / f".restore-stash-{slot.snapshot_dir.name}")
     # THE LIVE meta.json, READ BEFORE ANYTHING MOVES (B8-740): only the chart's
     # fields are restored from the snapshot, so the rest must come from here.
     import json as _json
@@ -679,7 +707,7 @@ def restore_slot(slot) -> "RestoreResult":
         if side_replaced:
             from core.file_manager import Run as _Run
             side_archive = _Run.for_dir(slot.live_dir).archive_to_old(
-                side_replaced, into=slot.live_dir / "old")
+                side_replaced, into=slot.live_dir / "old", moved=side_moved)
         if displaced:
             stash.mkdir(parents=True, exist_ok=True)
             for p in displaced:
@@ -729,11 +757,11 @@ def restore_slot(slot) -> "RestoreResult":
             if stash.exists():
                 for p in stash.iterdir():
                     shutil.move(str(p), str(slot.live_dir / p.name))
-            if side_archive is not None:
-                for name in {p.name for p in side_replaced}:
-                    src = side_archive / name
-                    if src.exists() and not (slot.live_dir / name).exists():
-                        shutil.move(str(src), str(slot.live_dir / name))
+            # By the name each file REALLY got (review AM): an archive that
+            # raised part way returned no folder, and one sharing its dated
+            # folder with an earlier restore renamed a clash, so `old/<date>/
+            # meta.json` could be the EARLIER restore's file.
+            _undo_side_archive(side_moved, slot.live_dir)
         except OSError as roll_exc:      # noqa: BLE001 — report, never destroy
             _rollback_ok = False
             log.error("THE ROLLBACK ITSELF FAILED (%s). The chart files are "
@@ -931,13 +959,15 @@ def restore_chart(verification: Verification) -> RestoreResult:
     side_replaced = [p for p in all_live
                      if p.name in CHART_SIDE_FILES and p.name in snap_names]
     side_archive = None
-    stash = verification.dir / f".restore-stash-{verification.id}"
+    side_moved: "dict[Path, Path]" = {}
+    stash = _fresh_stash(verification.dir / f".restore-stash-{verification.id}")
     snap_stem = _snapshot_stem(snap)
 
     try:
         if side_replaced:
             side_archive = run.archive_to_old(
-                side_replaced, into=run.verifications_old_dir)
+                side_replaced, into=run.verifications_old_dir,
+                moved=side_moved)
         # 1. move the live chart aside (not delete — this is the rollback copy)
         if displaced:
             stash.mkdir(parents=True, exist_ok=True)
@@ -963,11 +993,7 @@ def restore_chart(verification: Verification) -> RestoreResult:
         if stash.exists():
             for p in stash.iterdir():
                 shutil.move(str(p), str(vdir / p.name))
-        if side_archive is not None:
-            for name in {p.name for p in side_replaced}:
-                src = side_archive / name
-                if src.exists() and not (vdir / name).exists():
-                    shutil.move(str(src), str(vdir / name))
+        _undo_side_archive(side_moved, vdir)
         result.restored = []
         result.rolled_back = True
         result.error = str(exc)
