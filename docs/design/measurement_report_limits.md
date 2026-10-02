@@ -140,6 +140,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §51 | K62: Knut's high-pass filter on both evenness rows; the limits derived from real printers (tight 1.5 / 1.0, default 1.8 / 1.2, quick 2.5 / 1.7, Custom ISO 12647-7 1.5 / 1.0, Custom ISO 12647-8 3.0 / 2.0); the locked ISO sets' evenness figures converted (1.5 / 1.0, 3.0 / 2.0) with a note in Report Limits; the three conversion factors and the ratio guide in the help; the presets window's "can be judged" text | 2026-09-27, 5855259490; 5855780690 | the rulings and texts are Knut's (Confirmed); what was built from them NOT confirmed |
 | §53 | K64: a saved report chosen in "Report shown" is its saved file, nothing recalculated or added; a new or updated report works every date out again with the current filter and limits, and a report of several dates records the figures it judged; a run an older build bound starts new reports on the current evenness limits unless the user chose them; the Report Limits note on the Custom columns | 2026-09-27, 5857473253 | the rulings are Knut's (Confirmed); what was built NOT confirmed |
 | §54 | K65: no setting of the report window changes the page before Generate Report is pressed, on an old or a new report; any change gives the red line, with nothing ticked too; Cancel keeps the page, Update or Create new rebuilds it with the running version | 2026-09-27, 5858874320 | the rule is Knut's (Confirmed); what was built NOT confirmed |
+| §55 | A1, C1 to C4: no new "New report…" message; no PDF of an empty report area; the Create New / Update question on the first window after a verification; a saved report names the run its folder has now after a run delete and nothing else changes (the run-number freeze withdrawn); no message for reports renumbered earlier; a duplicated run's reports relate to the new run only | 2026-10-02, 5943085974 | the rulings are Knut's (Confirmed); what was built NOT confirmed |
 | §49 | K59: option C for a sheet printed raw (INFO with a numbered note where relevant, N-A with its note, the raw print named once under "Judged against"); "drift" not used in the report, its graphs, guide, help, window or PDF; "Change since the previous raw check"; the raw openings Knut chose (conditional form, plural, Report Scope sentence), true of exactly the rows judged; the mixed opening without "drift"; the two FROM PROFILE GAMUT state lines | 2026-09-26, 5849392788; 5850164956 | the answers are Knut's (Confirmed); the fourteen texts APPROVED by Knut in 5850164956 (Confirmed); K60, his answers D1 to D3 (Confirmed) and what was built from them (NOT confirmed, 49.6); one gap left (B8-1396) |
 | §48 | K58: the ChromIQ branding's wordmark at the end of the clip border, like the Notes box, for Side Left/Right x Flip 180 Off/On, the text in the box beyond it | 2026-09-18 5730034611, 2026-09-26 5848747795 | the design is Knut's; what was built (B8-1390) NOT confirmed |
 | §42 | Knut on F5: both Custom columns' "Maximum ΔE00, all patches" at 4.50, above their 95th percentile's 4.0; the metric help says how the rows of a family relate | 2026-09-26, 5841606710 | the figure and the requirement confirmed by Knut (§42.1); built for beta 44 (B8-1252), the help wording NOT confirmed |
@@ -9814,6 +9815,62 @@ moved to the rule.
 
 ## 55. #182 (Knut, 2026-10-01): the automatic report after a verification, Inspect's folder, the run a saved report names, the swatch bars (4.3.3)
 
+### ✅ Confirmed behaviour: Knut's answers A1, C1 to C4
+
+**Confirmed by:** Knut, 2026-10-02 (#182 5943085974), answering our questions
+A1 and C1 to C4 of 2026-10-01, for exactly the rulings quoted here.
+
+**55.1 The rulings, verbatim.**
+
+* **A1:** *"'New report' option already gives correct message to user, so no
+  new message. 'Save report as PDF' should not be allowed to be pressed if
+  the report area is empty (no report loaded). Also, the example I reported,
+  where the popup message, asking user if he wanted to Create New or Update,
+  did not appear...That happened when I first time opened the Measurement
+  Report Window after a verification measurement had been completed. The
+  Measurement Report Window opened with the one and only existing report
+  selected (NOT with 'New Report' in the 'Report shown' field.)"*
+* **C1:** *"This quickly becomes more complicated than needed. [...] But leave
+  the functionality as is today. Even though that means that the run number
+  changes, that is an acceptable compromise, since the run numbers were
+  renamed due to a delete. However, you need to verify that no other
+  information than the run number is changed in the 'Report shown' name or
+  the report content text. This basically voids C1 and C2."*
+* **C3:** *"Skip any message and leave reports be as is today."*
+* **C4:** *"A report in a run is only related to that run. Duplicating a run
+  will make a new run, and any reports in that run will then only relate to
+  that new run, not any other runs (where they originally were made
+  first)."*
+
+**55.2 What they mean.**
+
+* **No new message for an unsaved "New report…" page** (A1). Save report as
+  PDF… is greyed while the report area shows no report, and live while one
+  is shown.
+* **After a run delete a saved report names the run its folder has now**
+  (C1, C2), as 4.3.2 did: a report saved in run 5 says "run 1" once runs 1
+  to 4 are deleted, on the page, in the PDF and in "Report shown" ("· Run1").
+  Nothing else in the entry or the text may change. No run number is frozen
+  into a report (the `saved_as` record built for (c) on 2026-10-01 is taken
+  out again), and reports renumbered earlier are left as they are, with no
+  message (C3).
+* **A duplicated run's reports are that run's reports only** (C4): every
+  report the duplicate copies names the new run, and none of them is
+  related to the run it was copied from.
+
+**Not covered by these rulings, found while verifying C1 (for Knut).** A
+profiling report's Report Scope sentence *"This report covers {n} of the
+{total} measurements recorded for this project's profile runs"* is counted
+off the disk when the page is drawn (§11, K14, confirmed: *"Whatever is
+counted is still read off the disk"*). So deleting runs that HOLD
+measurements, or duplicating a measured run, changes that sentence on a
+saved report (measured: "covers 1 of the 5" before deleting four measured
+runs, absent after; "covers 1 of the 2" appears on the original after a
+duplicate). In Knut's own case (runs 1 to 4 held charts only) nothing but
+the run number changes. Whether the sentence of a saved report should be
+the one it was saved with (§53.1) or the live count (§11) is his call; it is
+not changed.
+
 ### ⏳ Awaiting confirmation
 
 **Confirmed by:** *nobody yet.* Built from Knut's report of 2026-10-01 and
@@ -9846,16 +9903,29 @@ the confirmed rules each item names; what was built waits for his word.
   is kept in `reports/old/<stamp>/` first. The inspector's title ("ChromIQ —
   Measurement report") is unchanged: renaming it, and whether it saves a
   PDF, are Knut's.
-* **(c) A saved report keeps the run number it was saved in** (§53.1,
-  confirmed). `saved_as: {"run": N}` at the top of the file and in each
-  measurement entry, written when the report is saved, and by a run delete,
-  before anything moves, into every report that lacks it (a report with no
-  document block included); never changed after. References still follow
-  the runs (§13.14). The page and the PDF of a saved report read it first;
-  a report that has none (one renumbered before this) shows the folder's
-  number as before. A new report names the run its measurement is in now.
-  An Update keeps the first value. NOT built, Knut's: the project name, the
-  list label ("· Run1"), a duplicated run's copies, title and PDF name.
+* **(c) WITHDRAWN by 55.1 C1.** The run-number freeze (`saved_as`) built on
+  2026-10-01 is taken out: a saved report reads its run off its folder, as
+  in 4.3.2, and references follow the runs (§13.14). Verified on Knut's own
+  run5 folder, on screen: after runs 1 to 4 are deleted, every one of the
+  five saved reports differs from before in the run number only, word for
+  word, in its "Report shown" entry, its page and its PDF
+  (`~/Desktop/ChromIQ-work/2026-10-01_session/L_impl_knut_rulings/
+  k2_onscreen/diff.txt`).
+* **(c) C4: Duplicate points the reports it copies at the new run**
+  (`Project.duplicate_run` → `core.report_refs.duplicate_references_plan`).
+  The copies used to name the source run in every measurement reference and
+  to keep their original's document id, so the new run's "Report shown"
+  listed each copy together with its original as ONE entry ("Multiple
+  runs"). Each copy now names the new run and is a document of its own (a
+  fresh id with the same time stamp, so the list keeps its order); the
+  source run's reports are not touched. Driven on Knut's folder: the three
+  copies read "· Run2" and their pages and PDFs equal the originals' with
+  the run number read as 2.
+* **A1: Save report as PDF… follows the page** (`_sync_pdf_button`,
+  `_show_no_report`): greyed while the view shows the empty page or an error
+  page, live from the moment a report is drawn and over a page kept after
+  Clear List. 4.3.2 left it live over the error page an unreadable added
+  file puts where the report was. No new text.
 * **(d) The swatch's two grey bars are equal**: three table cells, 3 px |
   20 px colour | 3 px (the colour twice the old 10 px, Basti 2026-10-02),
   measured 6:40:6 at dpr 2 on screen and 2.25:15:2.25 pt in the PDF; the
@@ -9866,8 +9936,10 @@ the confirmed rules each item names; what was built waits for his word.
 * Tests: `tests/test_182_a_a_verification_writes_its_automatic_report.py`,
   `tests/test_182_a_b_generate_never_writes_beside_a_saved_report_unasked.py`,
   `tests/test_182_b_inspect_saves_into_the_owners_reports.py`,
-  `tests/test_182_c_a_saved_report_keeps_its_run_number.py`,
+  `tests/test_182_c_only_the_run_number_follows_a_run_delete.py`,
+  `tests/test_182_a1_no_pdf_of_an_empty_report_area.py`,
   `tests/test_182_d_swatch_bars_are_equal.py`, each red under its mutation.
-* Proof: `~/Desktop/ChromIQ-work/2026-10-01_session/H_impl_182/`.
+* Proof: `~/Desktop/ChromIQ-work/2026-10-01_session/H_impl_182/` and
+  `.../L_impl_knut_rulings/`.
 
 **Status:** ⏳ awaiting confirmation. **Confirmed by:** *nobody yet.*
