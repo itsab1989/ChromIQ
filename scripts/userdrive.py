@@ -132,8 +132,13 @@ class Drive:
         apply_appearance(self.app, self.win, appearance)
         self.win.resize(*size)
         self.win.show()
-        self.win.raise_()
-        self.win.activateWindow()
+        # NO raise_() / activateWindow() (Basti, 2026-10-02: a driver never
+        # takes the keyboard from him; CLAUDE.md). `capture_window` photographs
+        # by window id, behind other windows, and build_app's FocusGiveBack
+        # hands the keyboard back when show() takes it.
+        give_back = getattr(self.app, "_chromiq_focus_give_back", None)
+        if give_back is not None and hasattr(give_back, "give_back"):
+            give_back.give_back()
         self.pump(2500)
         self.record["window_on_screen"] = bool(self.win.isVisible())
 
