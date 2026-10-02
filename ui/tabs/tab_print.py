@@ -1794,7 +1794,8 @@ class TabPrint(QWidget):
         # filled.
         from ui.default_button import mark_destructive
         mark_destructive(clear_btn)
-        dlg.addButton(tr("Print Anyway"), QMessageBox.ButtonRole.DestructiveRole)
+        anyway_btn = dlg.addButton(tr("Print Anyway"),
+                                   QMessageBox.ButtonRole.DestructiveRole)
         cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
         # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
         # the safest." Return presses Cancel; the destructive action stays
@@ -1802,7 +1803,10 @@ class TabPrint(QWidget):
         dlg.setDefaultButton(cancel_btn)
         dlg.exec()
         clicked = dlg.clickedButton()
-        if clicked is cancel_btn:
+        # Only an answer that says "print" prints. A box closed without one
+        # (reject() from code, the window torn down) is a Cancel, never a
+        # print (review P_review2_beta1 W-1).
+        if clicked not in (clear_btn, anyway_btn):
             return False
         if clicked is clear_btn:
             cleared = self._module.cancel_all_jobs(printer)

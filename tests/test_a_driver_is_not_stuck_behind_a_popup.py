@@ -341,3 +341,33 @@ def test_a_question_opened_by_a_dismissal_is_seen_too(qapp, tmp_path):
     dog.stop()
     assert not hung and not chain.hung
     assert any("Discard your changes" in e["text"] for e in dog.events)
+
+
+# ---- review P_review2_beta1 W-1: Escape is the box's own safe answer --------
+
+def test_escape_takes_the_reject_role_answer_when_no_escape_button_is_set(qapp, tmp_path):
+    """Like "Scan doesn't match the chart": Stop (RejectRole) + Build anyway,
+    no explicit escape button. reject() from code answered nothing, which the
+    app read as "build anyway"; a real Escape key presses Stop."""
+    box = QMessageBox(QMessageBox.Icon.Warning, "Scan doesn't match", "The alignment check failed:")
+    stop = box.addButton("Stop", QMessageBox.ButtonRole.RejectRole)
+    box.addButton("Build anyway", QMessageBox.ButtonRole.AcceptRole)
+    box.setDefaultButton(stop)
+    dog = PopupWatchdog(tmp_path, grace_s=0.2, interval_ms=50, log=lambda s: None).start()
+    hung = _exec_with_safety(box)
+    dog.stop()
+    assert not hung
+    assert box.clickedButton() is stop
+
+
+def test_escape_takes_cancel_in_stuck_print_jobs(qapp, tmp_path):
+    box = QMessageBox(QMessageBox.Icon.Warning, "Stuck Print Jobs Detected", "Clear them before printing?")
+    box.addButton("Clear && Print", QMessageBox.ButtonRole.AcceptRole)
+    box.addButton("Print Anyway", QMessageBox.ButtonRole.DestructiveRole)
+    cancel = box.addButton(QMessageBox.StandardButton.Cancel)
+    box.setDefaultButton(cancel)
+    dog = PopupWatchdog(tmp_path, grace_s=0.2, interval_ms=50, log=lambda s: None).start()
+    hung = _exec_with_safety(box)
+    dog.stop()
+    assert not hung
+    assert box.clickedButton() is cancel

@@ -791,15 +791,25 @@ class PopupWatchdog:
         dismissal that opens another question would otherwise run that
         question's exec() inside the watchdog's own timer slot, and nothing
         could look at it until it closed (review K_review_beta1)."""
-        from PyQt6.QtCore import QTimer
-        from PyQt6.QtWidgets import QDialog, QMessageBox
+        from PyQt6.QtCore import QEvent, Qt, QTimer
+        from PyQt6.QtGui import QKeyEvent
+        from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
         if isinstance(w, QMessageBox) and w.escapeButton() is not None:
             label = w.escapeButton().text().replace("&", "")
             QTimer.singleShot(0, w.escapeButton().click)
             return f"pressed its Escape answer '{label}'"
         if isinstance(w, QDialog):
-            QTimer.singleShot(0, w.reject)
-            return "rejected it (Escape)"
+            # A REAL Escape key, never reject(): a QMessageBox finds its own
+            # Escape answer (Cancel, Stop) only when the key arrives, and
+            # reject() from code leaves it with no answer at all, which
+            # "Stuck Print Jobs" once read as "print" (review P_review2_beta1
+            # W-1). A plain QDialog's Escape is its reject(), as for a user.
+            def _press(w=w):
+                for kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+                    QApplication.sendEvent(w, QKeyEvent(
+                        kind, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+            QTimer.singleShot(0, _press)
+            return "pressed Escape"
         QTimer.singleShot(0, w.close)
         return "closed it"
 
