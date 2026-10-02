@@ -241,7 +241,11 @@ which then would wrap round to A."*
 > measurement. This function only applies to ChromIQ measurement engine, not
 > ArgyllCMS stock chartread."*
 
-After each read ChromIQ compares two places: **N**, the strip after the one
+#### ⏳ Awaiting confirmation — our choices inside Knut's rule
+
+**Confirmed by:** *nobody yet.*
+
+**How ChromIQ carries his rule out.** After each read ChromIQ compares two places: **N**, the strip after the one
 just read (none on the last strip) or the patch after it (wrapping), and **U**,
 the first strip after it holding at least one unread patch, or the first unread
 patch after it, both going forward and wrapping. If N and U are the same place
@@ -253,10 +257,6 @@ window that is open holds the decision until it closes, and a "read it again"
 answer from that window cancels it. The user's own f, b, n, a click on the
 preview, or a swipe already started cancel that read's move too, and the
 stored answer stays. (`MeasureManager._after_a_read`.)
-
-#### ⏳ Awaiting confirmation — our choices inside Knut's rule
-
-**Confirmed by:** *nobody yet.*
 
 * **"Closest" is "the next one going forward, wrapping round"**, not the
   nearest in either direction. That is the order the reader itself moves in,
@@ -277,6 +277,15 @@ stored answer stays. (`MeasureManager._after_a_read`.)
 * **Unread is counted per patch, from the file the engine resumes from**
   (`<chart>.ti3`, which a resumed verification is copied to first), and the
   fill-up squares that complete the last strip are never counted as unread.
+* **The window plays no sound.** It is a question, not a failure, and
+  `measurement_window_sounds.md` has no row for it; whether it should sound,
+  and which sound, is Knut's to name (review AR, 2026-10-02).
+* **The progress figure can disagree with the window during a resume.** The
+  live count adds a re-read patch that the resumed file already held (a known
+  limit, corrected when the session ends: `_refresh_progress_from_files`), so
+  on screen the header said 100 % beside "21 patches on this chart have no
+  reading yet" (review AR, 2026-10-02; the same figure on the commit before
+  this feature). The window's count is the right one.
 
 ### What changed, and when
 
