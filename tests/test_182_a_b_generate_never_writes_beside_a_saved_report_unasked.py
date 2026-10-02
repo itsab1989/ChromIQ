@@ -216,6 +216,31 @@ def test_gap4b_a_list_naming_another_saved_report_asks_about_it(
 # --------------------------------------------------------------------------
 # normal: New report… still writes a new report, as it always has
 # --------------------------------------------------------------------------
+def test_a1_new_report_loaded_under_a_saved_report_asks(tmp_path, qapp):
+    """#182 A1 (Knut 5943085974): the window shows the one saved report in
+    "Report shown"; whatever the loaded id says, Generate asks about it.
+    The state the gap-3 guard still let through: loaded id "New report…"
+    while the list names the saved report. (Knut's on-screen sequence asks;
+    L_impl_knut_rulings/k3_done, k3_tools.) MUTATION: drop the A1 block in
+    `_generate_once`: red."""
+    from ui.dialogs.measurement_report_dialog import NEW_REPORT_KEY
+    s, run, (v,) = _dates(tmp_path, qapp)
+    dlg, asked = _window(s, v.measurement_ti3, qapp)
+    try:
+        shown = str(dlg._saved_combo.currentData() or "")
+        assert shown and shown != NEW_REPORT_KEY
+        _move_the_set(dlg, qapp)
+        dlg._loaded_doc_id = NEW_REPORT_KEY
+        before = _all_reports(run)
+        dlg._on_generate_report()
+        qapp.processEvents()
+        assert asked == [shown], (
+            "Generate under a saved report wrote without asking", asked)
+        assert _all_reports(run) == before, "Cancel wrote a report"
+    finally:
+        dlg.close()
+
+
 def test_new_report_still_writes_without_the_question(tmp_path, qapp):
     from ui.dialogs.measurement_report_dialog import NEW_REPORT_KEY
     s, run, (v,) = _dates(tmp_path, qapp)

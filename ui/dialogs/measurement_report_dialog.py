@@ -6753,6 +6753,14 @@ class MeasurementReportDialog(QDialog):
         # ruling that Generate Report always should create a new report."*
         updating = self._document_being_updated()
         loaded = str(getattr(self, "_loaded_doc_id", "") or "")
+        # **AND "NEW REPORT…" LOADED UNDER A LIST NAMING A SAVED REPORT
+        # (#182 A1, Knut 5943085974):** the window *"opened with the one and
+        # only existing report selected"* must ask, whatever the loaded id
+        # says. Driven on screen through a real verification read it does;
+        # this closes the one state the guard below still let through.
+        if (updating is None and loaded == NEW_REPORT_KEY
+                and self._saved_entry_the_list_names() is not None):
+            loaded = ""
         if updating is None and loaded != NEW_REPORT_KEY:
             # **A SAVED REPORT IN "REPORT SHOWN" IS NEVER WRITTEN OVER, OR
             # BESIDE, WITHOUT THE QUESTION (GAP 0, K4; #182 2026-10-01).**
