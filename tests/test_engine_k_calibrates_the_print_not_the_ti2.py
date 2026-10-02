@@ -121,7 +121,7 @@ def _build(tmp_path, ti1_text, cal_text, apply_cal):
 
 def _centre_pixels(res, tmp_path):
     """{loc: pixel (0..1 per channel)} at each patch's centre."""
-    rects = json.loads((tmp_path / "t.strips.json").read_text())["patches"]
+    rects = json.loads((tmp_path / "t.strips.json").read_text(encoding="utf-8"))["patches"]
     pages = [tifffile.imread(p) for p in res.tiff_paths]
     out = {}
     for r in rects:
@@ -190,11 +190,13 @@ def test_k_ti2_matches_printtarg(tmp_path, cal_text, prefix, targen_d):
     pt = tmp_path / "pt"
     pt.mkdir()
     r = subprocess.run([_argyll("targen"), "-v0", targen_d, "-f24", "t"], cwd=pt,
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     (pt / "c.cal").write_text(cal_text, encoding="utf-8")
     r = subprocess.run([_argyll("printtarg"), "-ii1", "-pA4", "-K", "c.cal", "t"],
-                       cwd=pt, capture_output=True, text=True, timeout=120)
+                       cwd=pt, capture_output=True, text=True, encoding="utf-8",
+                       errors="replace", timeout=120)
     assert r.returncode == 0, r.stdout + r.stderr
     eng = tmp_path / "eng"
     eng.mkdir()

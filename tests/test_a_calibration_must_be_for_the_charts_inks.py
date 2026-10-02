@@ -115,6 +115,24 @@ def _ti2_device_rows(ti2: Path, fields: list[str]) -> dict[int, tuple]:
     return out
 
 
+def _printed(res, sid: int, n: int) -> tuple:
+    """The colour patch *sid* is PRINTED with (0..100 per channel), read from
+    the centre of its rect on the page TIFF."""
+    import json
+    import re
+    import numpy as np
+    import tifffile
+    text = res.ti2_path.read_text(encoding="utf-8")
+    loc = re.search(rf'^{sid} "([^"]+)"', text, re.M).group(1)
+    sidecar = res.ti2_path.with_name(res.ti2_path.name[:-4] + ".strips.json")
+    rect = next(r for r in json.loads(sidecar.read_text(encoding="utf-8"))["patches"]
+                if r["loc"] == loc)
+    im = tifffile.imread(res.tiff_paths[rect.get("page", 0)])
+    px = im[rect["y"] + rect["h"] // 2, rect["x"] + rect["w"] // 2][:n]
+    mx = 65535.0 if im.dtype == np.uint16 else 255.0
+    return tuple(float(v) / mx * 100.0 for v in px)
+
+
 # ---- a CMYK chart with a CMYK calibration ------------------------------------
 
 def test_minus_k_builds_a_cmyk_chart_with_a_cmyk_calibration(tmp_path):
@@ -126,12 +144,16 @@ def test_minus_k_builds_a_cmyk_chart_with_a_cmyk_calibration(tmp_path):
     assert 'COLOR_REP "CMYK"' in text
     assert "CMYK_I CMYK_C CMYK_M CMYK_Y CMYK_K" in text, "the .cal is not embedded"
     rows = _ti2_device_rows(res.ti2_path, ["CMYK_C", "CMYK_M", "CMYK_Y", "CMYK_K"])
-    # 50 % of each ink alone goes through its own curve: C 30, M 40, Y 25, K 45
-    assert rows[2] == pytest.approx((30, 0, 0, 0), abs=1e-3)
-    assert rows[3] == pytest.approx((0, 40, 0, 0), abs=1e-3)
-    assert rows[4] == pytest.approx((0, 0, 25, 0), abs=1e-3)
-    assert rows[5] == pytest.approx((0, 0, 0, 45), abs=1e-3)
-    assert rows[7] == pytest.approx((100, 100, 100, 100), abs=1e-3)
+    # The .ti2 keeps the .ti1's own values, as printtarg -K does (it writes
+    # cols[i].dev); the calibration goes on paper only (AG_K_double_cal).
+    assert rows[2] == pytest.approx((50, 0, 0, 0), abs=1e-3)
+    # 50 % of each ink alone is PRINTED through its own curve: C 30, M 40, Y 25, K 45
+    tol = 100.0 / 255
+    assert _printed(res, 2, 4) == pytest.approx((30, 0, 0, 0), abs=tol)
+    assert _printed(res, 3, 4) == pytest.approx((0, 40, 0, 0), abs=tol)
+    assert _printed(res, 4, 4) == pytest.approx((0, 0, 25, 0), abs=tol)
+    assert _printed(res, 5, 4) == pytest.approx((0, 0, 0, 45), abs=tol)
+    assert _printed(res, 7, 4) == pytest.approx((100, 100, 100, 100), abs=tol)
 
 
 def test_minus_i_embeds_a_cmyk_calibration_without_touching_the_values(tmp_path):
@@ -151,7 +173,8 @@ def test_an_rgb_calibration_still_goes_on_an_rgb_chart(tmp_path, rep):
                             instrument="i1", paper="A4", seed=1, dpi=72,
                             cal_path=cal, apply_cal=True)
     rows = _ti2_device_rows(res.ti2_path, ["RGB_R", "RGB_G", "RGB_B"])
-    assert rows[2] == pytest.approx((25, 50, 40), abs=1e-3)
+    assert rows[2] == pytest.approx((50, 50, 50), abs=1e-3)   # .ti1 value, as printtarg
+    assert _printed(res, 2, 3) == pytest.approx((25, 50, 40), abs=100.0 / 255)
 
 
 # ---- a calibration for other inks ---------------------------------------------
