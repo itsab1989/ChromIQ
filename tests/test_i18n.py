@@ -1544,7 +1544,12 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 79,
+    # +2 on 2026-10-02: "reports/Quality_Check_N_{name}.txt, reports/Refine_
+    # Strips_N_{name}.txt" and "reports/Verify_Reference_N_{name}.txt" are
+    # file paths and were wrongly translated as "звіти/", a folder that does
+    # not exist on disk (review W_review_beta3); they now equal their key, as
+    # they already did in every other language.
+    "uk": 81,
 }
 
 
