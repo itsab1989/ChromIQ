@@ -571,30 +571,54 @@ def merge_restored_meta(live: dict, snapshot: dict) -> dict:
     return out
 
 
-def _archive_replaced_chart(stash: Path, archive_with, existing: "Path | None"
-                            ) -> "Path | None":
+def _archive_replaced_chart(stash: Path, archive_with, existing: "Path | None",
+                            sub: "str | None" = None) -> "Path | None":
     """Keep the chart a restore replaced (Knut, #182 5959825756: *"archive
     olde chart files to old, except the tif files, they are deleted and can
     be regenerated if the other files are restored"*). Everything set aside in
     *stash* except page images goes into *existing* (the archive this restore
     already made for its side files) or a new ``old/<date>/`` made by
     *archive_with(paths)*; page images stay in the stash, which the caller
-    then removes. Returns the archive folder, or None when nothing was kept."""
+    then removes. Returns the archive folder, or None when nothing was kept.
+
+    *sub* puts the chart one level down, in ``<archive>/<sub>/``: a
+    calibration's chart goes into ``cal/old/<date>/chart/``, because Knut ruled
+    at beta.148 that a bare chart must not sit at the top of a calibration's
+    dated folder, where it reads like a kept calibration
+    (``Calibration.archive_to_old``, core/file_manager.py)."""
     if not stash.is_dir():
         return existing
     keep = [p for p in stash.iterdir() if p.is_file() and not _is_image(p)]
     if not keep:
         return existing
-    if existing is not None:
-        for p in keep:
-            dest = existing / p.name
+    def _place(folder: Path, files) -> None:
+        if sub:
+            folder = folder / sub
+            folder.mkdir(parents=True, exist_ok=True)
+        for p in files:
+            dest = folder / p.name
             n = 2
             while dest.exists():
-                dest = existing / f"{p.stem}_{n}{p.suffix}"
+                dest = folder / f"{p.stem}_{n}{p.suffix}"
                 n += 1
             shutil.move(str(p), str(dest))
+
+    if existing is not None:
+        _place(existing, keep)
         return existing
-    return archive_with(keep)
+    arch = archive_with(keep)
+    if arch is not None and sub:
+        _place(arch, [arch / p.name for p in keep if (arch / p.name).is_file()])
+    return arch
+
+
+def _is_calibration_slot(slot) -> bool:
+    """Whether *slot* is a project's calibration chart (``<project>/cal``)."""
+    try:
+        from core.file_manager import is_a_project
+        return slot.live_dir.name == "cal" and is_a_project(slot.live_dir.parent)
+    except Exception:          # noqa: BLE001 — a guess never blocks a restore
+        return False
 
 
 def _fresh_stash(base: Path) -> Path:
@@ -782,7 +806,8 @@ def restore_slot(slot) -> "RestoreResult":
                     stash,
                     lambda ps: _Run2.for_dir(slot.live_dir).archive_to_old(
                         ps, into=slot.live_dir / "old"),
-                    side_archive)
+                    side_archive,
+                    sub="chart" if _is_calibration_slot(slot) else None)
             except OSError as exc:     # noqa: BLE001 — never lose the stash
                 log.error("could not archive the replaced chart; it is kept "
                           "at %s: %s", stash, exc)

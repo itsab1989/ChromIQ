@@ -74,3 +74,27 @@ def test_the_window_no_longer_says_not_kept():
     src = inspect.getsource(bar)
     assert "The chart that is there now is not kept" not in src
     assert src.count("_restore_archive_sentence())") == 4
+
+
+def test_a_calibrations_replaced_chart_goes_into_old_date_chart(tmp_path):
+    """Review AM_review_beta5b: a calibration's restore put the replaced
+    .ti1/.ti2 at the top of cal/old/<date>/, which Knut ruled at beta.148 must
+    not happen (a bare chart there reads like a kept calibration;
+    Calibration.archive_to_old puts it in <archive>/chart/)."""
+    from core.file_manager import Project
+    from workflow.chart_slot import slot_for_calibration
+    from workflow.verify_chart_snapshot import snapshot_slot
+    proj = Project.create(tmp_path, "Demo")
+    cal = proj.calibration
+    cal.ensure_dir()
+    stem = cal.stem
+    (cal.dir / f"{stem}.ti1").write_text("TI1 original", encoding="utf-8")
+    (cal.dir / f"{stem}.ti2").write_text("TI2 original", encoding="utf-8")
+    snapshot_slot(slot_for_calibration(cal))
+    (cal.dir / f"{stem}.ti2").write_text("TI2 replacement", encoding="utf-8")
+    result = restore_slot(slot_for_calibration(cal))
+    assert result.ok and result.archive is not None
+    top = {p.name for p in result.archive.iterdir() if p.is_file()}
+    assert f"{stem}.ti2" not in top and f"{stem}.ti1" not in top
+    kept = result.archive / "chart" / f"{stem}.ti2"
+    assert kept.read_text(encoding="utf-8") == "TI2 replacement"
