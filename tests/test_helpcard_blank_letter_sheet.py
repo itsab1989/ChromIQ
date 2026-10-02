@@ -211,7 +211,7 @@ def test_the_orphan_rule_is_what_is_saving_those_sheets(qapp, tmp_path,
 
 
 @pytest.mark.parametrize("key,pages", [
-    ("first_profile", 2), ("cmyk_n", 1), ("file_guide", 15),
+    ("first_profile", 2), ("cmyk_n", 1), ("file_guide", 16),
 ])
 def test_us_letter_costs_no_more_sheets_than_a4(qapp, tmp_path, key, pages):
     """US Letter's shorter body must not buy a sheet for one grey line.
@@ -231,6 +231,11 @@ def test_us_letter_costs_no_more_sheets_than_a4(qapp, tmp_path, key, pages):
 
     Re-measured 2026-09-23 (#182 beta 39): 14 -> 15 on A4 AND Letter, for
     `cal/reports/` (Run type Calibration makes reports, Knut 5794078008).
+
+    Re-measured 2026-10-02 (W review of 4.3.3-beta.3): 15 -> 16 on A4 AND
+    Letter, for the two Inspect tools' saved files (Knut 5950106034). Their
+    first, longer wording printed 15 on A4 and 18 on Letter, red here; the
+    wording was shortened until both sizes agreed again.
     """
     for size in _SIZES:
         _pdf, got, _pr = _print_card(key, size, tmp_path)

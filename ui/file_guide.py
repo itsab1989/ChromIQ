@@ -480,7 +480,13 @@ def _features():
          # Knut, #182 5944210498 / 5950106034: outside a project the file
          # goes straight beside the measurement, and the cards say so.
          tr("reports/Quality_Check_N_{name}.txt, reports/Refine_Strips_N_{name}.txt")
-         + " " + tr("(beside the measurement when it is not in a ChromIQ project)")),
+         + " " + tr("(beside the measurement when it is not in a ChromIQ project)")
+         # W review (beta 3): the 3D map is profcheck -w, which is THIS tab's
+         # expert option, written beside the .ti3 it checked. Verify a
+         # profile never asks for one.
+         + "; " + tr("with \u201cCreate X3DOM 3D visualisation (-w)\u201d "
+                     "ticked: a 3D difference map, {name}.x3d.html with "
+                     "x3dom.css and x3dom.js, beside the measurement")),
         (tr("Create scanner or camera target"),
          tr("A measurement of the chart ({name}.ti3 or a reference .cie/i1Profiler file)"),
          tr("{name}.cht (recognition template) + {name}.cie (reference values)")),
@@ -491,7 +497,7 @@ def _features():
          tr("{name}.icc and a verification {name}-verify.ti3 (the last step of a "
             "verification run: print through the profile → measure → report → "
             "this tool)"),
-         tr("reports/Verify_Profile_N_{name}.txt; a 3D difference map (*.x3d.html)")
+         tr("reports/Verify_Profile_N_{name}.txt")
          + " " + tr("(beside the measurement when it is not in a ChromIQ project)")),
         (tr("Verify against reference (Tools)"),
          tr("A profile / measurement and a reference"),
@@ -500,22 +506,21 @@ def _features():
         # save, and where, is on the card.
         (tr("Inspect a measurement (Tools)"),
          tr("A measurement (.ti3), in a ChromIQ project or anywhere else"),
+         # SHORT ON PURPOSE (W review, beta 3): the long first version cost
+         # the printed card three US Letter sheets against A4 (15 / 18), the
+         # A4 = Letter guarantee of tests/test_pdf_page_rules.py. The file
+         # catalogue below says the rest.
          tr("Only when you press \u201cSave inspection\u2026\u201d: "
-            "\u201cMeasurement inspection - {name} - <date and time>.txt\u201d. "
-            "In a project it goes into the reports folder of the run, dated "
-            "check or calibration the measurement belongs to, and an earlier "
-            "file of the same name is kept in reports/old/<date>/. Outside a "
-            "ChromIQ project it goes directly beside the measurement, and "
-            "nothing else is made there. A folder you cannot write to is never "
-            "offered: the save window opens in your ChromIQ folder instead.")),
+            "\u201cMeasurement inspection - {name} - <date and time>.txt\u201d, "
+            "in the reports folder of what the measurement belongs to, or "
+            "directly beside it outside a ChromIQ project. A folder you cannot "
+            "write to is never offered.")),
         (tr("Inspect a profile (Tools)"),
          tr("A profile (.icc), in a ChromIQ project, in the system's profile "
             "folders or anywhere else"),
          tr("Only when you press \u201cSave inspection\u2026\u201d: "
             "\u201cProfile inspection - {name} - <date and time>.txt\u201d, "
-            "filed by the same rule as Inspect a measurement. For a profile "
-            "in the system's profile folders the save window opens in your "
-            "ChromIQ folder.")),
+            "filed by the same rule.")),
         (tr("i1Profiler export (Tools)"),
          tr("{name}.ti1 / {name}.ti2"),
          tr("exports/{name}-i1profiler.txt and .pxf")),
@@ -587,8 +592,8 @@ def _rows():
             ("Verify_Profile_1_{name}.txt", "runs/runN/reports", tr("A readable report from “Verify a profile” — verdict, scores, full output. Numbered so repeated checks keep a history."), tr("Verify a profile (Tools)")),
             ("Verify_Reference_1_{name}.txt", "runs/runN/reports", tr("A readable report from “Verify against reference” — result summary and full output."), tr("Verify against reference (Tools)")),
             # #182 B1/B2 and Knut 5950106034 (2026-10-02).
-            (tr("Measurement inspection") + " - {name} - <date_time>.txt", "runs/runN/reports", tr("The text of Tools \u25b8 Inspect a measurement, saved when you press \u201cSave inspection\u2026\u201d, in the reports folder of the run, dated check or calibration the measurement belongs to. Named like the Measurement Report's files, with the moment it was saved at the end, so a later inspection never replaces an earlier one. Outside a ChromIQ project it is saved directly beside the measurement instead."), tr("Inspect a measurement (Tools)")),
-            (tr("Profile inspection") + " - {name} - <date_time>.txt", "runs/runN/reports", tr("The text of Tools \u25b8 Inspect a profile, saved the same way: in the reports folder of what the profile belongs to, directly beside a profile outside a ChromIQ project, or where you choose for a profile in the system's profile folders (the save window opens in your ChromIQ folder)."), tr("Inspect a profile (Tools)")),
+            (tr("Measurement inspection") + " - {name} - <date_time>.txt", "runs/runN/reports", tr("Saved by Tools \u25b8 Inspect a measurement when you press \u201cSave inspection\u2026\u201d."), tr("Inspect a measurement (Tools)")),
+            (tr("Profile inspection") + " - {name} - <date_time>.txt", "runs/runN/reports", tr("The text of Tools \u25b8 Inspect a profile, saved the same way. For a profile in the system's profile folders the save window opens in your ChromIQ folder."), tr("Inspect a profile (Tools)")),
             ("report_*.json", "runs/runN/reports", tr("Dated PROFILING measurement reports (accuracy & trends), saved automatically after each measurement (Preferences → Reports). The Measurement Report tool reads these back (it builds its figures from the run's .ti3, needs the chart's .ti2 beside it for the ΔE, and reads the instrument name from the .ti3) and plots how the printer changes over time. Verification checks keep their own report points under verifications/<date>/reports/, gathered separately."), tr("Measure tab")),
             # K25 (Knut, 2026-09-23, Q6): *"Yes"* to rows for the saved
             # reports in the two shared folders, not only their PDFs.
@@ -616,7 +621,7 @@ def _rows():
             ("preconditioning.ti3 / .icc", "runs/runN", tr("Copies of a previous run's measurement + profile, used to aim the next chart better."), tr("Refine")),
             ("merged.ti3 / merged.icc", "runs/runN", tr("The build-time merge of your new measurement with the pre-conditioning one. The installed profile still gets the clean {name}.icc name."), tr("Build Profile (refinement)")),
             ("calibrated.icc", "runs/runN", tr("Your profile with calibration curves baked in (applycal), when the calibration workflow is on."), tr("Build Profile")),
-            ("*.x3d.html + x3dom.css / x3dom.js", "runs/runN", tr("The 3D difference map from a profile verification, next to the measurement it belongs to (the three files reference each other)."), tr("Verify profile (Tools)")),
+            ("{name}.x3d.html + x3dom.css / x3dom.js", "runs/runN", tr("The 3D difference map Check & Refine writes when \u201cCreate X3DOM 3D visualisation (-w)\u201d is ticked, next to the measurement it checked (the three files reference each other)."), tr("Check & Refine")),
         ]),
         (tr("Verification runs — checking a finished profile over time"), [
             ("{name}-verify.ti1 / .ti2 / .cht …", "runs/runN/verifications", tr("The shared verification chart for this profile — usually smaller than the profiling chart (one page is plenty). You make it once on the Create Chart tab with Run type = Verification, and every future check reuses it, so results always compare like with like."), tr("Create Chart (Run type = Verification)")),

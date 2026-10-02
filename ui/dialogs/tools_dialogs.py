@@ -2049,11 +2049,22 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
 
         # For the 3D map, colverify writes the .x3d.html (plus sibling x3dom.js/
         # css) next to the measured file. Stage that run in a temp dir so the run
-        # folder isn't littered; the normal run writes only the reference beside
-        # the measurement, as before.
+        # folder isn't littered.
+        #
+        # **AND THE REFERENCE IS ALWAYS STAGED, NEVER WRITTEN BESIDE THE
+        # MEASUREMENT (W review, beta 3).** `<stem>-reference.ti3` beside a
+        # run's `<stem>.ti3` is exactly `colorimetric_reference_for(<stem>.ti2)`,
+        # the FROM PROFILE GAMUT marker: once this tool had written it, the
+        # run's Measurement Report judged the run against the values typed
+        # here (measured on Demo-Full-RGB run1: 240 patches at avg dE00 21.3
+        # became 24 patches at 43.4, reference "colorimetric"), and the chart
+        # counted as already converted. The values typed here are this
+        # check's input, nothing else's, so they live in the staging folder
+        # and go with it when the window closes.
+        work = Path(tempfile.mkdtemp(prefix="chromiq_drift_"))
+        self._temp_dirs.append(work)
+        ref_path = work / f"{self._measured.stem}-reference.ti3"
         if want_plot:
-            work = Path(tempfile.mkdtemp(prefix="chromiq_drift_"))
-            self._temp_dirs.append(work)
             measured_path = work / self._measured.name
             try:
                 shutil.copyfile(self._measured, measured_path)
@@ -2061,10 +2072,8 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                 self._log.appendPlainText(f"[ERROR] Could not stage the measurement: {exc}")
                 self._finish(False)
                 return
-            ref_path = work / f"{self._measured.stem}-reference.ti3"
         else:
             measured_path = self._measured
-            ref_path = self._measured.parent / f"{self._measured.stem}-reference.ti3"
 
         try:
             write_reference_ti3(ref_path, rows, space=space)

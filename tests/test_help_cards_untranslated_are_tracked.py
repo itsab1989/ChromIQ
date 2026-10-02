@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-10-02, W review of 4.3.3-beta.3: Verify a profile never makes a 3D map (that is Check & Refine's profcheck -w), so its output cell is now the bare path "reports/Verify_Profile_N_{name}.txt", the same in every language like "reports/Verify_Reference_N_{name}.txt" beside it: +1 per language, all thirteen, on purpose (uk had translated the folder name, which is "reports" on disk). COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-10-02, #202 (Knut 5943245399): the Preferences row label "ColorMunki / i1Studio / ColorChecker Studio" names every instrument the Instrument selection offers under that entry. It is three product names, the same in every language, so it is an echo everywhere: +1 per language, all thirteen, on purpose; the same +1 as in test_i18n's ledger. The four other #202 strings are translated in every catalogue. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-28, the 4.3.0 translation pass (every language translated, reviewed a second time and checked on screen; German's eight long help texts translated): the ceilings came DOWN from the hundreds to what is left identical on purpose (names, units, symbols, the verdict words), so a new untranslated string is noticed again. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1592 (Knut #182 5859248797): with every measurement unticked the red line says one must be ticked, 1 key in. German by hand, does not move; the twelve others carry the English under the beta rule: +1 per language. COUNTED off the tree, BOTH ledgers.
@@ -1096,19 +1097,19 @@ _BUDGET = {
     # Dictionary entry, the presets button's tooltip). German by hand; each of
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
-    "de": 6,
-    "es": 6,
-    "fr": 7,
-    "it": 6,
-    "ja": 4,
-    "nl": 7,
-    "no": 6,
-    "pl": 6,
-    "pt": 6,
-    "ru": 5,
-    "sv": 6,
-    "zh_CN": 5,
-    "uk": 2,
+    "de": 7,
+    "es": 7,
+    "fr": 8,
+    "it": 7,
+    "ja": 5,
+    "nl": 8,
+    "no": 7,
+    "pl": 7,
+    "pt": 7,
+    "ru": 6,
+    "sv": 7,
+    "zh_CN": 6,
+    "uk": 3,
 }
 
 

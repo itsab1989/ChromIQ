@@ -699,9 +699,12 @@ def test_a_straddling_row_is_pushed_by_breaking_after_the_row_above(qapp):
 # on BOTH sizes, measured, not assumed.
 # RE-MEASURED 2026-09-23, #182 beta 39: the guide gained cal/reports/ (a tree
 # entry, a folder entry and a saved-report row), 14 -> 15 on BOTH sizes.
+# RE-MEASURED 2026-10-02, W review of 4.3.3-beta.3: the two Inspect tools'
+# saved files (Knut 5950106034), 15 -> 16 on BOTH sizes. The first wording
+# printed 15 on A4 and 18 on US Letter and was shortened until they agreed.
 @pytest.mark.parametrize("page,expect", [
-    ("A4", {"main_actions": 3, "file_guide": 15}),
-    ("Letter", {"main_actions": 3, "file_guide": 15}),
+    ("A4", {"main_actions": 3, "file_guide": 16}),
+    ("Letter", {"main_actions": 3, "file_guide": 16}),
 ])
 def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
     """Keeping a row whole costs very little once the page skip is gone.
