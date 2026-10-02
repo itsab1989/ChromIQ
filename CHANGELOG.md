@@ -7,6 +7,7 @@
 ### Fixed
 
 - **Build Profile no longer crashes** with ChromIQ's own profile engine when the perceptual and saturation tables are built from a gamut source (#182). Since beta 1 the Apple Silicon download uses a maths library (OpenBLAS) that needs more working memory on a background thread than macOS gives one by default; every background thread now gets enough.
+- **"Stored chart differs" no longer appears for a chart that did not change** (#182). With "Save scanner files" on, every quality check rewrites the measured values inside the chart's `.cht`, and the comparison counted them as a change to the chart. The comparison, the Restore Used Chart button and the verification check now ignore those measured values; patch positions still count.
 - **A red outline on a patch is called "a large difference"**: either a misread, or a colour your printer and paper cannot reach. If reading the strip again gives the same value, it is real and belongs in the profile. Both help texts in Live preview explain this (#182).
 
 ## v4.3.3-beta.3
