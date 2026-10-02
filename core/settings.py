@@ -146,9 +146,14 @@ DEFAULTS: dict[str, Any] = {
     #
     # beta.140 switched this off after reading a high misread count in Knut's
     # logs as evidence. That reading was wrong: those failures were deliberately
-    # provoked for bug-fixing. He asked for the default back, and he is right —
-    # 0.7 is a tested value that accepts quite large variation and still catches
-    # real problems.
+    # provoked for bug-fixing. He asked for the default back, and he is right:
+    # 0.7 is a tested value that still catches real problems. NOTE THE
+    # DIRECTION: the ratio SCALES the instrument's own limit, so 0.7 is
+    # STRICTER than Argyll's default (0.07 on the i1Pro, 0.035 on the
+    # ColorMunki; i1pro_imp.c:189, :7379), and values above 1 loosen it
+    # (chartread.html, -T). An earlier version of this comment said 0.7
+    # "accepts quite large variation", which had it backwards (challenge of
+    # 2026-10-02, #182).
     "measure_tolerance_enabled":           True,
     "measure_tolerance_value":             0.7,
     "manual2_chartread_tolerance_enabled": True,
