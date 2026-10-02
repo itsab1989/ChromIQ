@@ -1867,6 +1867,45 @@ class ContentHeightScrollArea(QScrollArea):
 
 
 
+
+#: #202 (Knut, 5943245399): the Preferences ▸ Measurement rows whose three
+#: fields are shown but cannot be changed. Neither instrument reads a strip, so
+#: there is no swipe to time and nothing on the row is ever used.
+PACE_LOCKED_ROWS = ("spectroscan", "cr30")
+
+
+def pace_locked_reason(key: str) -> str:
+    """Why a locked pace row cannot be changed: the tooltip on its fields."""
+    if key == "cr30":
+        return tr("A CR30 is placed on one patch at a time and takes one "
+                  "reading each time you press its button. It reads no strips, "
+                  "so there is no reading speed to set here, and these values "
+                  "cannot be changed.")
+    return tr("The SpectroScan is a motorised table: it moves its head onto "
+              "each patch in turn and reads it there. It reads no strips, so "
+              "there is no reading speed to set here, and these values cannot "
+              "be changed.")
+
+
+def pace_clock_note() -> str:
+    """#202, Knut's Q3: when a strip's clock starts. One sentence, under the
+    Measurement tab's introduction."""
+    return tr("A strip is timed from the beep you hear after pressing the "
+              "instrument's button, not from the press itself. In between, the "
+              "instrument warms up its lamp (about 0.7 seconds on an i1Pro), "
+              "and that wait is not counted.")
+
+
+def pace_clock_section() -> str:
+    """#202, Knut's Q3: the same, as a section of the pace ⓘ."""
+    return tr("WHEN THE CLOCK STARTS\n"
+              "A strip is timed from the beep, not from the moment you press "
+              "the instrument's button. After the press the instrument first "
+              "warms up its lamp, about 0.7 seconds on an i1Pro, and only then "
+              "starts reading and beeps. That wait is not counted, so start "
+              "sliding when you hear the beep.")
+
+
 class SettingsDialog(QDialog):
     def __init__(self, settings: "AppSettings", parent: QWidget | None = None,
                  *, margin_combo: "tuple[str, str, str] | None" = None,
@@ -3545,7 +3584,10 @@ class SettingsDialog(QDialog):
             "a single reading per press instead, so it shows N/A and nothing on "
             "its row is used. The defaults suit each instrument; raise the "
             "minimum for more careful measurements, or set it to “Off” to "
-            "silence the hint for that instrument."), self)
+            "silence the hint for that instrument.")
+            # #202 (Knut, 5943245399): its own paragraph, not a sentence glued
+            # on with a space, because ja and zh join sentences without one.
+            + "\n\n" + pace_clock_note(), self)
         note.setWordWrap(True)
         _ink(note, "#909090", " font-size: 11px;", level="faint")
         v.addWidget(note)
@@ -3580,7 +3622,7 @@ class SettingsDialog(QDialog):
                "mentioning the speed, so a hurried strip passes without comment. "
                "Worth leaving on unless the window is interrupting you more "
                "often than it is helping.\n\n"
-               "**Default:** on."),
+               "**Default:** on.") + "\n\n" + pace_clock_section(),
             self)
         pace_row = QHBoxLayout()
         pace_row.setContentsMargins(0, 0, 0, 0)
@@ -3611,7 +3653,9 @@ class SettingsDialog(QDialog):
             "i1pro2":     tr("i1Pro 2"),
             "i1pro3":     tr("i1Pro 3"),
             "i1pro3plus": tr("i1Pro 3 Plus"),
-            "colormunki": tr("ColorMunki / i1Studio"),
+            # #202: the Instrument selection offers all three under one
+            # entry, and Argyll reports all three as "ColorMunki".
+            "colormunki": tr("ColorMunki / i1Studio / ColorChecker Studio"),
             "spectroscan": tr("SpectroScan (motorised table)"),
             "cr30":       tr("CR30 (patch by patch)"),
         }
@@ -3703,6 +3747,23 @@ class SettingsDialog(QDialog):
                 "warning for this instrument."))
             form.addWidget(mn, row, 3)
             self._pace_min[key] = mn
+
+            # #202 (Knut, 5943245399): "SpectroScan and CR30 do not perform
+            # strip readings, and the input fields ... should be locked/
+            # disabled ... with their current values. This to indicate for the
+            # user that they are not configurable." Disabled, not hidden, and
+            # loaded exactly as before, so what they show is what is stored;
+            # Save writes the same values back, which changes nothing.
+            if key in PACE_LOCKED_ROWS:
+                why = pace_locked_reason(key)
+                for _box in (self._pace_hz.get(key), pp, mn):
+                    if _box is not None:
+                        _box.setEnabled(False)
+                        _box.setToolTip(why)
+                if key == "cr30":
+                    # The rate cell is the "N/A" label (see above); greyed too,
+                    # so all three cells of the row read alike.
+                    na.setEnabled(False)
 
             # Why these two numbers, and how they were arrived at (Knut, #131
             # 2026-07-26). The text lives beside the defaults themselves, so a

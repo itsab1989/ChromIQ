@@ -339,6 +339,23 @@ static inst_code cq_read_strip(inst *p, char *name, int npatch, char *pname,
 			}
 		}
 
+		/* #202: {"cmd":"trigger"} is the instrument's button. Do what the
+		 * i1Pro driver does on a press (i1pro_imp.c:3049, 3196-3203): report
+		 * inst_triggered, then raise the ready-to-scan moment after the lamp
+		 * delay -- through Argyll's own issue_scan_ready() when an event
+		 * callback is registered, else the driver's own delayed beep. The
+		 * strip is then read by the next {"cmd":"swipe"}, as before. */
+		if (cq_trigger_pending) {
+			int delay = cq_trigger_ready_ms;
+			cq_trigger_pending = 0;
+			if (cq->uicallback != NULL)
+				cq->uicallback(cq->uic_cntx, inst_triggered);
+			if (p->eventcallback != NULL)
+				issue_scan_ready(p, delay);
+			else
+				msec_beep(delay, 1000, 200);
+		}
+
 		if (cq_swipe_pending) {
 			char fault[16];
 			cq_swipe_pending = 0;

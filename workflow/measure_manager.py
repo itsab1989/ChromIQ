@@ -273,6 +273,11 @@ class MeasureManager(QObject):
     #: instrument hands back the whole strip at once, so this and strip_measured
     #: are the only two moments from which reading pace can be judged at all.
     scan_started               = pyqtSignal()
+    #: the instrument is ready and sampling: the moment Argyll beeps, about
+    #: 0.7 s after the button on an i1Pro (200 ms + 0.5 s lamp warm-up). A
+    #: strip is timed from here (Knut, #202 5943245399); scan_started stays
+    #: the fallback for a device that never sends it.
+    scan_ready                 = pyqtSignal()
     #: the model the instrument reported when it was opened, e.g.
     #: "X-Rite i1 Pro2" — Argyll distinguishes the i1Pro generations, which a
     #: chart's TARGET_INSTRUMENT does not (#131 Phase 2)
@@ -1345,6 +1350,12 @@ class MeasureManager(QObject):
             # mode this is the only true start time — `strip_ready` arrives
             # while the user is still lining the head up.
             self.scan_started.emit()
+
+        elif kind == "scan_ready":
+            # The driver's ready-to-scan moment, the beep (#202). Emitted by
+            # the engine's event callback on Argyll's helper thread, after the
+            # lamp has warmed up: this is when sampling starts.
+            self.scan_ready.emit()
 
         elif kind == "strip_read":
             self._engine_progress = True

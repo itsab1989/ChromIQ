@@ -23,6 +23,20 @@ extern int cq_xychart;   /* 1 = engine handles XY/chart modes (else fall back) *
 
 /* ---- JSON event emission (no-ops when cq_json == 0) ------------------- */
 void cq_emit_raw(const char *fmt, ...);   /* fmt is a complete JSON object */
+
+/* #202: ONE JSON LINE IS WRITTEN WHOLE, WHICHEVER THREAD WRITES IT.
+ * The scan_ready event comes from the instrument driver's helper thread
+ * (inst.c delayed_scan_ready) while the main thread may be in the middle of a
+ * multi-call event such as strip_read. Every JSON writer holds stdout's own
+ * stdio lock for the whole line: it is recursive, and it is the very lock each
+ * printf takes, so nothing can land inside a line. */
+#ifdef NT
+# define cq_out_lock()   _lock_file(stdout)
+# define cq_out_unlock() _unlock_file(stdout)
+#else
+# define cq_out_lock()   flockfile(stdout)
+# define cq_out_unlock() funlockfile(stdout)
+#endif
 void cq_emit_simple(const char *event);   /* {"event":"..."} */
 void cq_emit_error(const char *kind, const char *detail);
 void cq_json_escape(char *dst, size_t dstlen, const char *src);
@@ -39,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-08-30 json-path-escape"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-02 scan-ready-event"
 const char *cq_helper_build_string(void);
 
 
@@ -84,6 +98,15 @@ extern char cq_swipe_as[8];
 extern int  cq_swipe_reversed;
 extern char cq_swipe_fault[16];
 
+/* #202: a pending instrument trigger injected by {"cmd":"trigger"} (replay
+ * only). The replay instrument then does what the i1Pro driver does when its
+ * button is pressed: reports inst_triggered (scan_started), and raises the
+ * ready-to-scan moment after `cq_trigger_ready_ms` through Argyll's own
+ * issue_scan_ready(). Default 700 ms = the i1Pro's 200 ms + 0.5 s lamp time
+ * (i1pro_imp.c:3197). */
+extern volatile int cq_trigger_pending;
+extern int cq_trigger_ready_ms;
+
 /* Declarations that need Argyll's inst types — visible only to translation
  * units that include inst.h first. */
 #ifdef INST_H
@@ -97,6 +120,10 @@ inst_code cq_handle_calibrate(inst *p, inst_cal_type calt, inst_cal_cond calc,
 /* The JSON-mode uicallback: identical classification to instappsup's
  * def_uicallback, with the command queue as the key source. */
 inst_code cq_uicallback(void *cntx, inst_ui_purp purp);
+/* #202: JSON-mode instrument event callback. On inst_event_scan_ready it plays
+ * the beep the driver plays when no callback is registered, then emits
+ * {"event":"scan_ready"}. Runs on Argyll's helper thread. */
+void cq_event_callback(void *cntx, inst_event_type event);
 #endif /* INST_H */
 
 #ifdef __cplusplus

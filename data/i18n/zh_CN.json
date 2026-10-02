@@ -6410,5 +6410,10 @@
  "Calibration file found": "找到了校准文件",
  "Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.": "找到了校准文件：{name}。它已填入下面「ChromIQ 布局」部分的「打印机校准」，模式仍是「无」：请在那里选择你想用的模式。「应用并嵌入 (-K)」会让每个色块都经过校准重新打印；「仅嵌入 (-I)」只是把它记录在色卡文件里。",
  "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge.": "所用测试色卡没有提供这个限值集所限制的任何数值，所以没有可评判的内容。",
- "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "该限值集所设限的各项数值，在本页上均未作评定，因此没有可判断的内容。"
+ "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "该限值集所设限的各项数值，在本页上均未作评定，因此没有可判断的内容。",
+ "A CR30 is placed on one patch at a time and takes one reading each time you press its button. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "CR30 每次放在一个色块上，每按一次按钮测量一次。它不读取色条，因此这里没有需要设置的读取速度，这些数值也无法更改。",
+ "A strip is timed from the beep you hear after pressing the instrument's button, not from the press itself. In between, the instrument warms up its lamp (about 0.7 seconds on an i1Pro), and that wait is not counted.": "色条的计时从按下仪器按钮后听到的提示音开始，而不是从按下按钮那一刻开始。这期间仪器在预热灯（i1Pro 约 0.7 秒），这段等待不计入。",
+ "ColorMunki / i1Studio / ColorChecker Studio": "ColorMunki / i1Studio / ColorChecker Studio",
+ "The SpectroScan is a motorised table: it moves its head onto each patch in turn and reads it there. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "SpectroScan 是一台电动工作台：它把测量头依次移到每个色块上并在原处读取。它不读取色条，因此这里没有需要设置的读取速度，这些数值也无法更改。",
+ "WHEN THE CLOCK STARTS\nA strip is timed from the beep, not from the moment you press the instrument's button. After the press the instrument first warms up its lamp, about 0.7 seconds on an i1Pro, and only then starts reading and beeps. That wait is not counted, so start sliding when you hear the beep.": "何时开始计时\n色条的计时从提示音开始，而不是从你按下仪器按钮的那一刻开始。按下后，仪器先预热灯，i1Pro 约 0.7 秒，然后才开始读取并发出提示音。这段等待不计入，所以听到提示音后再开始滑动。"
 }
