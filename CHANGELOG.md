@@ -1,5 +1,28 @@
 # Changelog
 
+## v4.3.3-beta.5
+
+**Two flag limits and a yellow outline for patches confirmed by a re-read; outlines that stay after the measurement; and printer calibration with Apply & Embed (-K) done the way ArgyllCMS does it.**
+
+### New
+
+- **Two limits for flagging a patch**, in Preferences ▸ Measurement: one for charts whose expected colours are estimated (default ΔE 95, the limit ArgyllCMS's own chartread uses) and one for charts made from a profile (default ΔE 30). The chart decides which applies. A limit you had changed yourself is kept (#182).
+- **Yellow outline:** a red patch that you read again and that gives the same colour is outlined in yellow: a real difference your printer and paper cannot reach, not a misread. Later patches of a similar colour with the same kind of difference turn yellow by themselves. The hover card says which (#182).
+- **The confirmed patches are remembered** with the measurement and come back when you continue or refine it (#182).
+
+### Changed
+
+- **Restore Used Chart keeps the chart it replaces** in the run's `old/` folder (page images apart, which are made again when needed); before, it was discarded. The run's `.cht` is no longer stored with the chart, is kept on restore when it matches the restored chart and otherwise moves to `old/` together with its `.cie`. The window says what happens (#182).
+- **A calibration must be for the chart's inks** for both Apply & Embed (-K) and Embed (-I), as in printtarg; a mismatch now opens a window that says how to fix it (for example, set Device Type to CMYK) instead of a line in the log (#182).
+- The hover card leaves a blank line between its sentences (#182).
+
+### Fixed
+
+- **Apply & Embed (-K) with ChromIQ's layout engine applied the calibration twice.** The engine wrote the calibrated values into the chart file as well as onto the printed page; the profile then described the printer without the calibration, and Apply Calibration added it a second time (about ΔE 21–27 off in a model printer). The chart file now keeps the uncalibrated values, as printtarg does. A run made with an earlier version is detected, and Apply Calibration and Check & Refine warn before using it (#182).
+- **Verification printing of a run printed with -K** now goes through the profile and the run's own calibration (in a model printer from ΔE 33 to 1.5). A verification chart that was itself made with -K is not printed through the profile, and printing raw without the calibration asks first. Every chart now records how its calibration was used (#182).
+- **The red and yellow outlines no longer disappear when a measurement ends.** The redrawn preview used a different colour-difference formula (ΔE2000) than the live one (ΔE*ab), so a patch at 103 became 16 (#182).
+- **Restore Used Chart never loses a file** when something fails halfway, and on a calibration the replaced chart goes into `cal/old/<date>/chart/`.
+
 ## v4.3.3-beta.4
 
 **A fix for a crash when building a profile with ChromIQ's own profile engine on Apple Silicon.**
