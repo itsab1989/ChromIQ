@@ -46,6 +46,7 @@ path construction are owned by `core/file_manager.py` via three classes:
       <target-name>.ti1 / .ti2 / .cht / .cie / .ps / .pdf / .channels.json / .strips.json
       <target-name>_NN.tif           # NN = page index (a real ordinal, not state)
       <target-name>.ti3              # the measurement (chartread output)
+      <target-name>.confirmed.json   # #182 K4: re-read-confirmed patches, keyed to the .ti3's sha256
       <target-name>.icc              # the profile (colprof output)
       preconditioning.ti3 / .icc     # role-named; seeded from a parent run
       merged.ti3 / merged.icc        # role-named; build-time refinement merge

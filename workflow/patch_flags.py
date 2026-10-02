@@ -41,8 +41,11 @@ patch:
 
 Only patches confirmed by a re-read are references; a patch that was itself
 judged yellow never is, so the rule cannot drift from one patch to the next.
-Everything is per measurement session: a new session starts with no
-references.
+
+**Kept with the measurement (#182 K4, Sebastian 5959447807).** The references
+are saved beside the ``.ti3`` (``workflow/confirmed_patches.py``) and loaded
+back when that measurement is shown again or resumed; a FRESH read starts with
+none, because it replaces the readings they were confirmed against.
 
 THE THRESHOLDS WERE CHOSEN ON KNUT'S REAL CHART (beta 3 run1, 648 patches,
 i1Pro 2, estimated expected colours) and the measurements are kept in
@@ -191,10 +194,56 @@ class FlagJudge:
     def reset(self) -> None:
         self._last: "dict[str, _Reading]" = {}
         self._refs: "dict[str, _Reference]" = {}
+        #: loc -> the confirmed patch it was last judged like (for the file).
+        self._learned: "dict[str, str]" = {}
 
     @property
     def confirmed(self) -> "list[str]":
         return sorted(self._refs)
+
+    def export(self) -> dict:
+        """The memory in the schema of ``workflow/confirmed_patches.py``."""
+        out: dict = {}
+        for loc, ref in self._refs.items():
+            out[loc] = {"kind": "confirmed", "de": ref.de, "prev_de": ref.prev_de,
+                        "exp_lab": list(ref.exp_lab),
+                        "meas_lab": list(ref.meas_lab),
+                        "shift": list(ref.shift), "standout": ref.standout}
+        for loc, like in self._learned.items():
+            if loc not in out and like in self._refs:
+                out[loc] = {"kind": "learned", "like": like}
+        return out
+
+    def load(self, patches: dict) -> int:
+        """Take the CONFIRMED patches of a stored memory as references.
+
+        Learned entries are not loaded: they are judged again from the
+        references, so a stored guess can never become a reference. Each
+        confirmed patch is also remembered as the last reading of its patch,
+        flagged, which is what it was. Returns how many were loaded.
+        """
+        n = 0
+        for loc, e in (patches or {}).items():
+            if not isinstance(e, dict) or e.get("kind") != "confirmed":
+                continue
+            try:
+                exp_lab = tuple(float(v) for v in e["exp_lab"][:3])
+                meas_lab = tuple(float(v) for v in e["meas_lab"][:3])
+                de = float(e.get("de", 0.0))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if len(exp_lab) != 3 or len(meas_lab) != 3:
+                continue
+            prev = e.get("prev_de")
+            so = e.get("standout")
+            self._refs[str(loc)] = _Reference(
+                loc=str(loc), exp_lab=exp_lab, meas_lab=meas_lab,
+                shift=_sub(meas_lab, exp_lab), de=de,
+                prev_de=None if prev is None else float(prev),
+                standout=None if so is None else float(so))
+            self._last[str(loc)] = _Reading(meas_lab, de, True)
+            n += 1
+        return n
 
     def _like(self, exp_lab, shift, standout) -> "_Reference | None":
         best = None
@@ -236,6 +285,7 @@ class FlagJudge:
         prev = self._last.get(loc)
         self._last[loc] = _Reading(meas_lab, de, bool(flagged))
         own = self._refs.get(loc)
+        self._learned.pop(loc, None)
         if not flagged:
             # Read clean now: whatever was confirmed about it no longer holds.
             self._refs.pop(loc, None)
@@ -254,5 +304,6 @@ class FlagJudge:
             self._refs.pop(loc, None)
         ref = self._like(exp_lab, _sub(meas_lab, exp_lab), standout)
         if ref is not None:
+            self._learned[loc] = ref.loc
             return Verdict(FLAG_LEARNED, like_loc=ref.loc)
         return Verdict(FLAG_RED)

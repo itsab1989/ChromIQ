@@ -3680,7 +3680,10 @@ class Project:
                    "{stem}.strips.json", "{stem}.print.json",
                    "{stem}_*.tif", "{stem}.tif",
                    "chart/**/*")),
-        ("measurement", ("{stem}.ti3", "reads/**/*")),
+        # `.confirmed.json` is the measurement's yellow memory (#182 K4): which
+        # patches a re-read confirmed. It is only believed while the .ti3 it
+        # names by hash is unchanged, and the copy is byte for byte.
+        ("measurement", ("{stem}.ti3", "{stem}.confirmed.json", "reads/**/*")),
         ("profile", ("{stem}.icc", "{stem}.icm", "merged.ti3", "merged.icc",
                      "merged.icm", "calibrated.icc", "calibrated.icm",
                      "*.x3d.html", "x3dom.css", "x3dom.js")),
