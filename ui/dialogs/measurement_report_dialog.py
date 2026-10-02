@@ -13868,7 +13868,8 @@ class MeasurementReportDialog(QDialog):
             return False
         return all(k in self._hidden_runs for k in keys)
 
-    def _metric_table(self, dates: list, data_rows: list) -> str:
+    def _metric_table(self, dates: list, data_rows: list, *,
+                      head_align: str = "right") -> str:
         """One metric×run table: a wide, no-wrap Metric column, dated run columns,
         a rule under the header row and a light-grey background on every other
         data row (Knut)."""
@@ -13886,7 +13887,11 @@ class MeasurementReportDialog(QDialog):
                          "normal'>" + html.escape(clock) + "</span>")
             else:
                 inner = html.escape(d)
-            return "<th align='right' style='" + thb + "'>" + inner + "</th>"
+            # Over its own cells: right above numbers, centred above Report
+            # Results' centred verdict words (Knut, #182 5951427228: the date
+            # sat to the right of the PASS / FAIL / INFO under it).
+            return ("<th align='" + head_align + "' style='" + thb + "'>"
+                    + inner + "</th>")
 
         # THE METRIC COLUMN KEEPS ITS SHARE (beta 37, H1). Once it could wrap,
         # Qt's table layout gave it whatever the dates left, and a PDF of six
@@ -13931,7 +13936,8 @@ class MeasurementReportDialog(QDialog):
                 "page-break-inside:avoid'>"
                 + "".join(body) + "</table>")
 
-    def _chunked_metric_tables(self, runs: list, row_getters: list) -> str:
+    def _chunked_metric_tables(self, runs: list, row_getters: list, *,
+                               head_align: str = "right") -> str:
         """Stacked metric×run tables, at most :data:`_MAX_RUN_COLS` dated columns
         each, continuing below with the Metric column repeated; oldest run first.
 
@@ -13957,7 +13963,7 @@ class MeasurementReportDialog(QDialog):
                      for r in chunk]
             rows = [(label, None if get is None else [get(r) for r in chunk])
                     for label, get in row_getters]
-            return self._metric_table(dates, rows)
+            return self._metric_table(dates, rows, head_align=head_align)
 
         floor_cols = max(1, int(getattr(self, "_table_min_cols", 1) or 1))
 
@@ -15400,7 +15406,8 @@ class MeasurementReportDialog(QDialog):
         return (_h2(tr("Report Results"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
                 + "</div>" + _gap()
-                + self._chunked_metric_tables(runs, row_getters)
+                + self._chunked_metric_tables(runs, row_getters,
+                                              head_align="center")
                 + notes)
 
     def _notes_list_html(self, numbered: list, note_css: str, *,

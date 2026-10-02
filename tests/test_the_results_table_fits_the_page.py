@@ -34,7 +34,7 @@ def _tables(n_runs: int) -> "list[str]":
     from workflow.compliance_sets import ROWS
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog as D
     stub = SimpleNamespace(_ZEBRA_BG="#eeeeee")
-    stub._metric_table = lambda dates, rows: D._metric_table(stub, dates, rows)
+    stub._metric_table = lambda dates, rows, **kw: D._metric_table(stub, dates, rows, **kw)
     runs = [{"created": f"2026-{1 + i // 28:02d}-{1 + i % 28:02d}T10:00:00"}
             for i in range(n_runs)]
     judged = (tr("ChromIQ default (recommended)") + " " + tr("(edited)"))
@@ -45,7 +45,7 @@ def _tables(n_runs: int) -> "list[str]":
     getters.append((tr("Judged against"),
                     lambda r: ("<td align='center' style='font-size:10px'>"
                                + judged + "</td>")))
-    html = D._chunked_metric_tables(stub, runs, getters)
+    html = D._chunked_metric_tables(stub, runs, getters, head_align="center")
     return [t + "</table>" for t in html.split("</table>") if t.strip()]
 
 
@@ -86,7 +86,7 @@ def test_every_results_table_fits_the_page_with_no_word_broken(code, n_runs,
                 f"{doc.size().width():.0f} px wide on a 679 px page")
             broken = _words_broken_across_lines(doc)
             assert not broken, f"{code}: a word is broken in {broken[0]!r}"
-            columns += t.count("<th align='right'")
+            columns += t.count("<th align='center'")
         assert columns == n_runs, "every date is in some table"
     finally:
         i18n.set_language(before)
