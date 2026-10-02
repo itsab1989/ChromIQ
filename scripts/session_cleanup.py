@@ -84,10 +84,24 @@ def _git(*args: str) -> subprocess.CompletedProcess:
                           text=True, encoding="utf-8", errors="replace", timeout=60)
 
 
+def main_checkout() -> Path:
+    """The MAIN checkout, also when this script runs from an agent worktree
+    (whose own ``REPO`` is the worktree): the parent of git's common dir."""
+    got = _git("rev-parse", "--path-format=absolute", "--git-common-dir")
+    if got.returncode == 0 and got.stdout.strip():
+        return Path(got.stdout.strip()).resolve().parent
+    return REPO
+
+
 def merged_worktrees() -> list[tuple[Path, str]]:
     """(path, branch) of clean worktrees under .claude/worktrees whose branch
-    is already contained in the current branch or in master."""
+    is already contained in the current branch or in master.
+
+    NEVER THE CHECKOUT THIS RUNS FROM: run inside an agent worktree, "the
+    current branch" is that worktree's own, so it always read as merged and
+    the cleanup planned to remove the worktree it was running in."""
     out = []
+    here = REPO.resolve()
     listing = _git("worktree", "list", "--porcelain").stdout.split("\n\n")
     targets = [t for t in ("HEAD", "master") if _git("rev-parse", "--verify", t).returncode == 0]
     for block in listing:
@@ -95,6 +109,11 @@ def merged_worktrees() -> list[tuple[Path, str]]:
         path = Path(fields.get("worktree", ""))
         branch = fields.get("branch", "").removeprefix("refs/heads/")
         if ".claude/worktrees" not in str(path) or not branch:
+            continue
+        try:
+            if path.resolve() == here:
+                continue
+        except OSError:
             continue
         status = subprocess.run(["git", "-C", str(path), "status", "--porcelain"],
                                 capture_output=True, text=True, encoding="utf-8",
@@ -143,7 +162,7 @@ def allowed_roots() -> list[tuple[Path, str]]:
     return [
         (tmp, "chromiq-"), (tmp, "chromiq_"), (tmp, "pytest-of-"),
         (Path("/private/tmp").resolve(), "chromiq"),
-        ((REPO / ".claude" / "worktrees").resolve(), "agent-"),
+        ((main_checkout() / ".claude" / "worktrees").resolve(), "agent-"),
     ]
 
 

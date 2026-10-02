@@ -50,7 +50,8 @@ def test_personal_and_foreign_places_are_refused(path):
     TMP / "chromiq_warmup_44100_1.wav",
     TMP / "pytest-of-Basti",
     Path("/private/tmp") / "chromiq-driver.ini",
-    REPO / ".claude" / "worktrees" / "agent-a1b2c3",
+    # the MAIN checkout's worktrees, also when the suite runs in a worktree
+    S.main_checkout() / ".claude" / "worktrees" / "agent-a1b2c3",
 ])
 def test_what_our_tooling_writes_is_accepted(path):
     assert S.is_ours(path)
@@ -74,6 +75,22 @@ def test_remove_refuses_and_leaves_a_personal_file(tmp_path, monkeypatch):
     personal.write_text("measurements", encoding="utf-8")
     assert S.remove(personal.parent, "$TMPDIR chromiq-* folders") is False
     assert personal.read_text(encoding="utf-8") == "measurements"
+
+
+def test_the_checkout_it_runs_from_is_never_a_merged_worktree(monkeypatch):
+    """Run inside an agent worktree, the worktree's own branch is always
+    contained in HEAD; it was planned for removal from under itself. Every
+    worktree is taken as clean here, so uncommitted work cannot hide it."""
+    import subprocess
+    real = subprocess.run
+
+    def _run(cmd, *a, **k):
+        if isinstance(cmd, list) and "status" in cmd and "--porcelain" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+        return real(cmd, *a, **k)
+    monkeypatch.setattr(S.subprocess, "run", _run)
+    here = S.REPO.resolve()
+    assert all(p.resolve() != here for p, _b in S.merged_worktrees())
 
 
 def test_everything_planned_passes_the_guard():
