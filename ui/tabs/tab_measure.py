@@ -2739,8 +2739,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Patch-by-Patch Mode (-p)"),
             tr("Switches from strip reading to single-patch measurement mode.\n\n"
             "Instead of scanning entire strips, chartread guides you patch\n"
-            "by patch across the chart. This is significantly slower — one\n"
-            "reading per patch — but more reliable on heavily textured\n"
+            "by patch across the chart. This is significantly slower (one\n"
+            "reading per patch) but more reliable on heavily textured\n"
             "surfaces or when strip reading consistently fails on a\n"
             "particular chart layout.\n\n"
             "RED OUTLINES WORK DIFFERENTLY HERE\n"
@@ -2749,22 +2749,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "deliberately so.\n\n"
             "Reading a STRIP, the whole strip arrives at once, so ChromIQ can "
             "ask two questions: is this patch past your colour-error limit "
-            "(Preferences → Beta), AND does it stand out from the other patches "
+            "(Preferences → Measurement), AND does it stand out from the other patches "
             "of its own strip? Both must be true. That second question matters "
             "because a chart's expected colours are design values and a printer "
-            "does not reproduce them — on a good print, vivid patches sit far "
+            "does not reproduce them: on a good print, vivid patches sit far "
             "from their design colour quite legitimately, and without the "
             "comparison half a normal chart would light up red.\n\n"
-            "Reading PATCH BY PATCH, there is no strip to compare against — the "
+            "Reading PATCH BY PATCH, there is no strip to compare against: the "
             "patch you have just read is the only one that has arrived. So this "
             "mode asks the plainer question on its own: is this patch past your "
             "limit?\n\n"
             "**What that means in practice:** patch by patch flags MORE patches "
             "than strip reading does on the same chart, and vivid colours are "
             "among them. That is the honest consequence of having no "
-            "neighbours to compare with — not a fault, and not something to "
+            "neighbours to compare with, not a fault, and not something to "
             "read as \u201cyour printer is worse than the strips suggested\u201d. If it "
-            "flags more than you want, raise the limit in Preferences → Beta."),
+            "flags more than you want, raise the limit in Preferences → Measurement."),
         )
         # SHOWN IN GUIDED (#160). It used to be hidden here while
         # `_collect_guided` still read it, so a stored preference put `-p` on
@@ -3299,8 +3299,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Patch-by-Patch Mode (-p)"),
             tr("Switches from strip reading to single-patch measurement mode.\n\n"
             "Instead of scanning entire strips, chartread guides you patch\n"
-            "by patch across the chart. This is significantly slower — one\n"
-            "reading per patch — but more reliable on heavily textured\n"
+            "by patch across the chart. This is significantly slower (one\n"
+            "reading per patch) but more reliable on heavily textured\n"
             "surfaces or when strip reading consistently fails on a\n"
             "particular chart layout.\n\n"
             "RED OUTLINES WORK DIFFERENTLY HERE\n"
@@ -3309,22 +3309,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "deliberately so.\n\n"
             "Reading a STRIP, the whole strip arrives at once, so ChromIQ can "
             "ask two questions: is this patch past your colour-error limit "
-            "(Preferences → Beta), AND does it stand out from the other patches "
+            "(Preferences → Measurement), AND does it stand out from the other patches "
             "of its own strip? Both must be true. That second question matters "
             "because a chart's expected colours are design values and a printer "
-            "does not reproduce them — on a good print, vivid patches sit far "
+            "does not reproduce them: on a good print, vivid patches sit far "
             "from their design colour quite legitimately, and without the "
             "comparison half a normal chart would light up red.\n\n"
-            "Reading PATCH BY PATCH, there is no strip to compare against — the "
+            "Reading PATCH BY PATCH, there is no strip to compare against: the "
             "patch you have just read is the only one that has arrived. So this "
             "mode asks the plainer question on its own: is this patch past your "
             "limit?\n\n"
             "**What that means in practice:** patch by patch flags MORE patches "
             "than strip reading does on the same chart, and vivid colours are "
             "among them. That is the honest consequence of having no "
-            "neighbours to compare with — not a fault, and not something to "
+            "neighbours to compare with, not a fault, and not something to "
             "read as \u201cyour printer is worse than the strips suggested\u201d. If it "
-            "flags more than you want, raise the limit in Preferences → Beta."),
+            "flags more than you want, raise the limit in Preferences → Measurement."),
         )
 
         m_resume_row = QHBoxLayout()
