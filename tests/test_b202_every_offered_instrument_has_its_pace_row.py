@@ -227,3 +227,27 @@ def test_the_help_says_the_clock_starts_at_the_beep(dlg):
     assert len(tips) == 1
     assert pace_clock_section().strip() in tips[0]._body, \
         "the pace ⓘ must say it too"
+
+
+def test_saving_keeps_a_locked_value_its_box_cannot_show(qapp, tmp_path):
+    """Review P_review2_beta1: a value an older build stored outside the box's
+    range (or a stored 0 Hz) came back clamped / as the default after OK,
+    because the locked boxes were written back. They are not written now."""
+    from core.settings import AppSettings
+    from ui.dialogs.settings_dialog import SettingsDialog
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("pace_sample_hz_spectroscan", 0.0)
+    s.set("pace_estimate_patches_spectroscan", 999)
+    s.set("pace_min_samples_spectroscan", 5)
+    s.set("pace_estimate_patches_cr30", 999)
+    d = SettingsDialog(s, None)
+    d._settings = s
+    try:
+        d._save_and_close()
+    finally:
+        d.deleteLater()
+    assert float(s.get("pace_sample_hz_spectroscan")) == 0.0
+    assert int(s.get("pace_estimate_patches_spectroscan")) == 999
+    assert int(s.get("pace_min_samples_spectroscan")) == 5
+    assert int(s.get("pace_estimate_patches_cr30")) == 999

@@ -3753,7 +3753,8 @@ class SettingsDialog(QDialog):
             # disabled ... with their current values. This to indicate for the
             # user that they are not configurable." Disabled, not hidden, and
             # loaded exactly as before, so what they show is what is stored;
-            # Save writes the same values back, which changes nothing.
+            # Save leaves them alone (see the save loop), so a stored value
+            # their boxes could not show unchanged survives too.
             if key in PACE_LOCKED_ROWS:
                 why = pace_locked_reason(key)
                 for _box in (self._pace_hz.get(key), pp, mn):
@@ -6390,12 +6391,19 @@ class SettingsDialog(QDialog):
             # on that branch), and dropping it would mean bumping the settings
             # schema, which re-runs every other migration against stores that
             # have already been through them.
+            # A locked row (SpectroScan, CR30) is never written: its boxes can
+            # only show a stored value inside their range, so writing them back
+            # would clamp a value an older build stored outside it, and turn a
+            # stored 0 Hz into the default (review P_review2_beta1).
             for _key, _hz in self._pace_hz.items():
-                s.set(f"pace_sample_hz_{_key}", float(_hz.value()))
+                if _key not in PACE_LOCKED_ROWS:
+                    s.set(f"pace_sample_hz_{_key}", float(_hz.value()))
             for _key, _mn in self._pace_min.items():
-                s.set(f"pace_min_samples_{_key}", int(_mn.value()))
+                if _key not in PACE_LOCKED_ROWS:
+                    s.set(f"pace_min_samples_{_key}", int(_mn.value()))
             for _key, _pp in self._pace_patches.items():
-                s.set(f"pace_estimate_patches_{_key}", int(_pp.value()))
+                if _key not in PACE_LOCKED_ROWS:
+                    s.set(f"pace_estimate_patches_{_key}", int(_pp.value()))
         if hasattr(self, "_pace_marginal_spin"):
             s.set("pace_marginal_percent", int(self._pace_marginal_spin.value()))
         from core.platform_paths import set_icc_install_override
