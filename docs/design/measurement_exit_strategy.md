@@ -102,6 +102,9 @@ whether the handler works.**
 | **Patch Read Failed** | Retry | `retry` | | ✅ not an exit |
 | | Skip Patch | `skip` | | ✅ not an exit |
 | | Save Partial & Quit | `send_save_partial_and_quit()` | the two-`q` chain | ⚠️ **note 1 — left as it is, by his ruling** |
+| **Some patches are still not read** (M-UNREAD-NEXT-OR-JUMP-STRIP / -PATCH, #182 5958921500, ⏳ awaiting confirmation) | Continue to next | `{"cmd":"goto","strip":N}`, or nothing in patch mode | the reader goes to the strip or patch after the one just read; the answer is kept for the measurement | ✅ not an exit |
+| | Jump to unread | `{"cmd":"goto","strip":U}` or `{"cmd":"goto","patch":U}` | the reader goes to the next unread strip or patch; kept for the measurement | ✅ not an exit |
+| | *dismissed — the X, Esc* | — | the engine's own move stands, nothing is stored, and the next read where it matters asks again | ✅ not an exit |
 | **Unread patches remain** | (three buttons) | `_end_session(choice)` | the ending | ✅ |
 | **Abort?** (Esc pressed) | Yes | `n` to chartread, then the ending | chartread leaves its own question; ours runs | ✅ *(beta.156; **unreachable until beta.160** — see note 4)* |
 | | No | `n` | keep measuring | ✅ |

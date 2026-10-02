@@ -291,6 +291,10 @@ class MeasureManager(QObject):
     # one XY sheet. `chart_reading` announces an autonomous chart read is running.
     chart_measured             = pyqtSignal(dict)      # {patches:[…]}
     chart_reading              = pyqtSignal()          # autonomous whole-chart read started
+    #: Knut, #182 5958921500: after a read, the next strip/patch and the
+    #: nearest unread one differ and nobody has said which to take yet.
+    #: (patches still unread, "strip" | "patch"). See _after_a_read.
+    unread_choice_wanted       = pyqtSignal(int, str)
 
     def __init__(self, runner: "ArgyllRunner", parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -324,12 +328,31 @@ class MeasureManager(QObject):
         # a misread retry — see send_post_retry_key().
         self._pending_post_retry_key: str | None = None
         #: The strip the engine has just reported read, until its menu comes
-        #: back — see _move_on_after_a_read. Any command sent in between (a
+        #: back — see _after_a_read. Any command sent in between (a
         #: window's "read it again", a click on another strip, guided
         #: refinement) clears it, because then the next strip has been chosen.
         self._just_read_strip: str | None = None
-        #: The move to the next strip, held while a question window is open.
-        self._held_next_strip: str | None = None
+        #: The decision after a read, held while a question window is open or
+        #: while the user is being asked which way to go — see _after_a_read.
+        self._held_after_read: "dict | None" = None
+        #: The patch the engine has just reported read (patch-by-patch), until
+        #: the spot_ready that follows it. The same rule as _just_read_strip.
+        self._just_read_patch: str | None = None
+        #: The user's answer to M-UNREAD-NEXT-OR-JUMP-*: "next" or "unread",
+        #: or None until asked. Kept for the whole measurement (Knut, #182
+        #: 5958921500: "the behaviour chosen by the user is continued until
+        #: the measurement is stopped") and reset only by start().
+        self._unread_policy: str | None = None
+        #: Every chart location in reading order (strip, then place in the
+        #: strip), the strip each one is on, the fill-up squares, and the
+        #: locations that still have no reading. Built at session_start.
+        self._read_order: list = []
+        self._loc_strip: dict = {}
+        self._padding_locs: set = set()
+        self._unread_locs: set = set()
+        #: Called with a location before every patch goto ChromIQ sends by
+        #: itself, so the CR30 bridge knows a jump is outstanding (#159 B.4).
+        self._before_goto_patch: "Callable[[str], None] | None" = None
         #: Asked before moving on by itself: True while a window is asking the
         #: user something (Strip Read Quickly, Strip may be misaligned …), whose
         #: answer may be "read this strip again". Set by the Measure tab.
@@ -415,7 +438,15 @@ class MeasureManager(QObject):
         #: menu is already up and no further event is coming.
         self._guided_menu_pending = False
         self._just_read_strip = None
-        self._held_next_strip = None
+        self._just_read_patch = None
+        self._held_after_read = None
+        #: The answer to "Continue to next / Jump to unread" lasts for one
+        #: measurement: a resume or a re-measurement asks again.
+        self._unread_policy = None
+        self._read_order = []
+        self._loc_strip = {}
+        self._padding_locs = set()
+        self._unread_locs = set()
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
         self._engine_active = params.engine_helper is not None
@@ -828,18 +859,150 @@ class MeasureManager(QObject):
         # engine) means the flag can never outlive the prompt it describes.
         self._at_unread_prompt = False
         # Whatever is sent now decides where the reader goes next, so the
-        # automatic move after a read (see _move_on_after_a_read) stands down.
+        # automatic move after a read (see _after_a_read) stands down. The
+        # user's stored answer to the unread question stays.
         self._just_read_strip = None
-        self._held_next_strip = None
+        self._just_read_patch = None
+        self._held_after_read = None
         self._runner.write_stdin(_json.dumps(cmd) + "\n")
 
     # ------------------------------------------------------------------
-    # Moving on after a read (Knut, #182 5956210745)
+    # Which patches are still unread (Knut, #182 5958921500)
+    # ------------------------------------------------------------------
+
+    def _build_read_map(self, chart: "str | None", strips: list) -> None:
+        """Learn the chart's patches, in reading order, and which are unread.
+
+        THE PATCH IS THE UNIT, NOT THE STRIP. Knut: *"This window function must
+        look at patches not yet measured, not strips, as patch-by-patch
+        measurements may have been performed."* The engine cannot be asked: its
+        strip loop calls a strip unread only when the strip's FIRST patch is
+        (chromiq_chartread.c, the `scols[oroi * stipa]->rr` tests of the
+        next-unread search and of `done`), so a strip with its first patch read
+        and the rest not is "read" to it. So the map is ours:
+
+        * the order is the engine's own location order: the strips as
+          `session_start` lists them, then the place in the strip;
+        * a patch is read when the file the engine resumes from holds it,
+          ``<chart>.ti3`` (``-r`` only; without it the engine starts empty), and
+          a staged verification is copied to exactly that file before the read
+          starts (`TabMeasure._stage_verification_for_resume`);
+        * a fill-up square is never unread, because it was never part of the
+          design (:func:`workflow.measurement_state.padding_locations`).
+
+        Anything unreadable leaves the map empty, which means "unknown" and
+        keeps the beta-4 rule unchanged: no question is ever asked from a guess.
+        """
+        self._read_order = []
+        self._loc_strip = {}
+        self._padding_locs = set()
+        self._unread_locs = set()
+        if not chart:
+            return
+        try:
+            from pathlib import Path as _P
+
+            from workflow.measurement_pairing import (chart_locations,
+                                                      measurement_locations)
+            from workflow.measurement_state import padding_locations
+            ti2 = _P(chart)
+            locs = [x for x in chart_locations(ti2) if x]
+            if not locs:
+                return
+            labels = [str(s.get("strip", "")).strip() for s in (strips or [])]
+            labels = [x for x in labels if x]
+            placed = []
+            for row, loc in enumerate(locs):
+                best = None
+                for si, lab in enumerate(labels):
+                    if not loc.startswith(lab) or len(loc) <= len(lab):
+                        continue
+                    key = (loc[len(lab):].isdigit(), len(lab))
+                    if best is None or key > best[0]:
+                        best = (key, si)
+                if best is None:
+                    placed.append(((len(labels), row, row), loc, ""))
+                    continue
+                si = best[1]
+                rest = loc[len(labels[si]):]
+                pos = int(rest) if rest.isdigit() else row
+                placed.append(((si, pos, row), loc, labels[si]))
+            placed.sort(key=lambda t: t[0])
+            self._read_order = [loc for _k, loc, _s in placed]
+            self._loc_strip = {loc: s for _k, loc, s in placed}
+            self._padding_locs = padding_locations(ti2)
+            read: set = set()
+            if self._is_resume:
+                ti3 = ti2.with_suffix(".ti3")
+                if ti3.is_file():
+                    read = set(measurement_locations(ti3))
+            self._unread_locs = {loc for loc in self._read_order
+                                 if loc not in read
+                                 and loc not in self._padding_locs}
+        except Exception:      # noqa: BLE001 — never block a measurement
+            log.warning("could not learn which patches of %s are unread",
+                        chart, exc_info=True)
+            self._read_order = []
+            self._loc_strip = {}
+            self._padding_locs = set()
+            self._unread_locs = set()
+
+    def _mark_read(self, locs) -> None:
+        for loc in locs:
+            self._unread_locs.discard(str(loc or "").strip())
+
+    def unread_patch_count(self) -> int:
+        """Design patches of this chart that still have no reading."""
+        return len(self._unread_locs)
+
+    def _next_loc_after(self, loc: str) -> "str | None":
+        """The patch the engine steps to after *loc* (wrapping, fill-up too)."""
+        order = self._read_order
+        try:
+            i = order.index(loc)
+        except ValueError:
+            return None
+        return order[(i + 1) % len(order)]
+
+    def _first_unread_loc_after(self, loc: str) -> "str | None":
+        """The first unread patch after *loc*, going forward and wrapping."""
+        order = self._read_order
+        if not self._unread_locs or loc not in order:
+            return None
+        i = order.index(loc)
+        for k in range(1, len(order) + 1):
+            cand = order[(i + k) % len(order)]
+            if cand in self._unread_locs:
+                return cand
+        return None
+
+    def _first_unread_strip_after(self, strip: str) -> "str | None":
+        """The first strip after *strip* (wrapping) with an unread patch."""
+        labels = [str(s.get("strip", "")).strip()
+                  for s in (self._session_strips or [])]
+        labels = [x for x in labels if x]
+        if not self._unread_locs or strip not in labels:
+            return None
+        holding = {self._loc_strip.get(loc) for loc in self._unread_locs}
+        i = labels.index(strip)
+        for k in range(1, len(labels) + 1):
+            cand = labels[(i + k) % len(labels)]
+            if cand in holding:
+                return cand
+        return None
+
+    # ------------------------------------------------------------------
+    # Moving on after a read (Knut, #182 5956210745 and 5958921500)
     # ------------------------------------------------------------------
 
     def set_question_probe(self, probe: "Callable[[], bool] | None") -> None:
         """Tell the manager how to ask whether a question window is open."""
         self._question_open = probe
+
+    def set_before_goto_patch(self,
+                              hook: "Callable[[str], None] | None") -> None:
+        """Called with the location before every patch goto sent by itself."""
+        self._before_goto_patch = hook
 
     def _next_strip_after(self, strip: str) -> "str | None":
         """The chart's strip after *strip*, or None when it is the last."""
@@ -852,74 +1015,165 @@ class MeasureManager(QObject):
             return None
         return labels[i + 1] if i + 1 < len(labels) else None
 
-    def _move_on_after_a_read(self, strip: str, all_done_news: bool) -> None:
-        """After a strip is read, put the reader on the strip after it.
+    def _after_a_read(self, mode: str, at: str, all_done_news: bool) -> None:
+        """After a strip or patch is read, decide where the reader goes next.
 
-        THE ENGINE STAYS PUT ON A CHART THAT IS ALREADY COMPLETE, AND THAT IS
-        CHARTREAD'S OWN RULE, NOT OURS. After a good read it "skips to the next
-        unread" (`incflag = 2`, chromiq_chartread.c, the end of the strip loop,
-        exactly as in ArgyllCMS's chartread.c), and that search goes once round
-        the chart and stops where it started when nothing is unread. So on a
-        resumed or re-read chart every strip that is read comes straight back
-        as `strip_ready` for the SAME strip, and the preview arrows, which
-        follow `strip_ready`, never moved. Knut, #182 5956210745: *"When
-        measurement of a strip is completed, the focus should jump to the next
-        strip after the one I completed … unless warning messages pop up where
-        I am asked if I want to retry."* Measured with the real helper on its
-        replay instrument: fresh reads go A→B→C, re-reads of A, B and C on the
-        complete chart each re-arm the strip just read.
+        *mode* is ``"strip"`` (from `strip_ready`) or ``"patch"`` (from the
+        `spot_ready` that follows a `patch_read`); *at* is where the engine
+        says it now is.
 
-        Only that case is acted on. Where the engine moved by itself (a chart
-        with strips still unread) it already chose, and that is left alone.
-        Not on the last strip (there is no strip after it), not when the
-        completion window is about to open, not under guided refinement, which
-        steers on its own, and not once anything else has been sent since the
-        read: a window's "read it again" and a click on another strip both
-        arrive as commands and clear `_just_read_strip`. While a question
-        window is still open the move is held, and the tab releases it when
-        the window closes (see :meth:`release_held_strip_move`).
+        THREE RULES, BY HOW MUCH OF THE CHART IS STILL UNREAD.
+
+        * **Nothing unread** (or unknown): the beta-4 rule. The engine stays on
+          a complete chart after a strip read (`incflag = 2`, a next-unread
+          search that finds nothing), so ChromIQ moves to the next strip, and
+          stays on the last one. Knut, #182 5956210745: *"the focus should jump
+          to the next strip after the one I completed"*; 5958921500, Q1:
+          *"Stay at the last strip."* In patch mode the engine already steps to
+          the next patch itself (`incflag = 1`).
+        * **The next one is also the nearest unread one**: go there. That is
+          every ordinary read of a fresh chart, and nobody is asked anything.
+        * **They differ**: Knut, 5958921500, Q2: *"re-reading a read strip
+          should not jump to next unread, but instead ask with a popup that
+          appears only one time per started measurement … then, the behaviour
+          chosen by the user is continued until the measurement is stopped"*.
+          So the decision is held and `unread_choice_wanted` asks; the answer
+          is kept in `_unread_policy` and every later read follows it.
+
+        Never in stock chartread (*"This function only applies to ChromIQ
+        measurement engine"*), never in the whole-sheet modes (they report no
+        per-strip read), not when the completion window is about to open, not
+        under guided refinement, not while a Skip is still being delivered,
+        and not once anything else has been sent since the read: a window's
+        "read it again", a click on the preview and the user's own f, b and n
+        all arrive as commands and clear `_just_read_*`. While a question
+        window is open the decision is held, and the tab releases it when the
+        window closes (see :meth:`release_held_strip_move`). A goto is never
+        sent to where the engine already is.
         """
-        just_read = self._just_read_strip
-        self._just_read_strip = None
-        strip = str(strip or "").strip()
-        if not just_read or not self._engine_active or self._spot_mode:
+        if mode == "strip":
+            just_read = self._just_read_strip
+            self._just_read_strip = None
+        else:
+            just_read = self._just_read_patch
+            self._just_read_patch = None
+        at = str(at or "").strip()
+        if not just_read or not self._engine_active:
             return
-        if strip != just_read or all_done_news:
+        if self._spot_mode != (mode == "patch"):
+            return
+        if all_done_news:
             return
         if self._guided_state not in ("idle_done", "disabled"):
             return
         if self._pending_post_retry_key is not None:
             return
-        target = self._next_strip_after(strip)
-        if target is None:
-            return
+        ctx = {"mode": mode, "read": just_read, "at": at}
         probe = self._question_open
         if probe is not None and probe():
-            self._held_next_strip = target
+            self._held_after_read = ctx
             return
-        log.info("strip %s read; moving the reader on to strip %s",
-                 strip, target)
-        self.goto_strip(target)
+        self._decide_after_read(ctx)
+
+    def _decide_after_read(self, ctx: dict) -> None:
+        """Carry out (or ask about) the move after a read — see _after_a_read."""
+        mode, read, at = ctx["mode"], ctx["read"], ctx["at"]
+        if mode == "strip":
+            nxt = self._next_strip_after(read)
+            unread = self._first_unread_strip_after(read)
+            if unread is None:
+                # The beta-4 rule: only where the engine stayed put.
+                if at != read or nxt is None:
+                    return
+                log.info("strip %s read; moving the reader on to strip %s",
+                         read, nxt)
+                self.goto_strip(nxt)
+                return
+            if nxt == unread:
+                if at != nxt:
+                    log.info("strip %s read; moving the reader on to strip %s",
+                             read, nxt)
+                    self.goto_strip(nxt)
+                return
+            choice = self._unread_policy
+            if choice is None:
+                self._ask_unread_choice(ctx)
+                return
+            # "Continue to next" on the last strip stays there (Q1), which
+            # has to be SENT: the engine has already jumped to an unread one.
+            target = (nxt or read) if choice == "next" else unread
+            if at != target:
+                log.info("strip %s read; %s: moving the reader to strip %s",
+                         read, choice, target)
+                self.goto_strip(target)
+            return
+        nxt = self._next_loc_after(read)
+        unread = self._first_unread_loc_after(read)
+        if unread is None or nxt is None or nxt == unread:
+            return                      # the engine's own step is the answer
+        choice = self._unread_policy
+        if choice is None:
+            self._ask_unread_choice(ctx)
+            return
+        if choice == "unread" and at != unread:
+            log.info("patch %s read; jumping the reader to unread patch %s",
+                     read, unread)
+            self._goto_patch_noting(unread)
+
+    def _ask_unread_choice(self, ctx: dict) -> None:
+        self._held_after_read = ctx
+        self.unread_choice_wanted.emit(self.unread_patch_count(), ctx["mode"])
+
+    def unread_choice_pending(self) -> bool:
+        """Whether a read is waiting for "Continue to next / Jump to unread"."""
+        return self._held_after_read is not None and self._unread_policy is None
+
+    def answer_unread_choice(self, choice: "str | None") -> None:
+        """Record the answer to M-UNREAD-NEXT-OR-JUMP-*.
+
+        ``"next"`` or ``"unread"`` is kept for the rest of the measurement and
+        the held decision is carried out when the window's release comes
+        (:meth:`release_held_strip_move`). ``None`` is a dismissal (the X,
+        Escape): nothing is stored, the engine's own move stands, and the next
+        read that needs an answer asks again. That cannot loop: it asks only
+        after another read.
+        """
+        if choice in ("next", "unread"):
+            self._unread_policy = choice
+            return
+        self._held_after_read = None
+
+    def _goto_patch_noting(self, loc: str) -> None:
+        hook = self._before_goto_patch
+        if hook is not None:
+            try:
+                hook(loc)
+            except Exception:      # noqa: BLE001 — the jump still has to go
+                log.warning("before-goto hook failed for %s", loc,
+                            exc_info=True)
+        self.goto_patch(loc)
 
     def release_held_strip_move(self) -> None:
-        """Make the move to the next strip that a question window held back.
+        """Make the decision after a read that a question window held back.
 
         Called by the tab once its last measurement window has closed. If the
         answer was "read it again", that answer was sent as a command and has
-        already cleared the held move, so nothing happens here.
+        already cleared the held decision, so nothing happens here. Otherwise
+        the decision is made now, which may itself ask: the unread question
+        is raised straight from a read or from here, never on top of another
+        window.
         """
-        target = self._held_next_strip
-        if target is None:
+        ctx = self._held_after_read
+        if ctx is None:
             return
         probe = self._question_open
         if probe is not None and probe():
             return                      # another window is still asking
-        self._held_next_strip = None
+        self._held_after_read = None
         if not self._engine_active or not getattr(self._runner, "is_running",
                                                    True):
             return
-        log.info("question answered; moving the reader on to strip %s", target)
-        self.goto_strip(target)
+        self._decide_after_read(ctx)
 
     def goto_strip(self, strip: str) -> None:
         """Jump the engine directly to `strip` (engine mode only)."""
@@ -1425,6 +1679,7 @@ class MeasureManager(QObject):
             self._chart_was_complete = self._measurement_was_complete(
                 ev.get("chart"), strips)
             self._session_strips = list(strips or [])
+            self._build_read_map(ev.get("chart"), self._session_strips)
             self.session_map.emit(strips)
 
         elif kind == "strip_ready":
@@ -1443,7 +1698,7 @@ class MeasureManager(QObject):
                 self.all_stripes_done.emit()
             # On a complete chart the engine re-arms the strip it has just
             # read; move on to the next one (Knut, #182 5956210745).
-            self._move_on_after_a_read(strip, news)
+            self._after_a_read("strip", strip, news)
             # Save-Partial no longer routes through the strip menu: it is two
             # 'q' commands (see send_save_partial_and_quit), which is the
             # sequence Knut verified by hand. Only the post-retry key is left.
@@ -1460,7 +1715,7 @@ class MeasureManager(QObject):
             # while the user is still lining the head up.
             # A swipe already under way is on the strip the user chose, so a
             # move held behind a question window is no longer wanted.
-            self._held_next_strip = None
+            self._held_after_read = None
             self.scan_started.emit()
 
         elif kind == "scan_ready":
@@ -1497,6 +1752,12 @@ class MeasureManager(QObject):
             # A strip read under guided refinement is steered by that instead.
             self._just_read_strip = (
                 _s if self._guided_state in ("idle_done", "disabled") else None)
+            # The read map (#182 5958921500): these patches have readings now.
+            _locs = [p.get("loc") for p in _patches
+                     if isinstance(p, dict)] if isinstance(_patches, list) else []
+            if not any(_locs):
+                _locs = [loc for loc, st in self._loc_strip.items() if st == _s]
+            self._mark_read(_locs)
             self.strip_measured.emit(ev)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
@@ -1525,6 +1786,13 @@ class MeasureManager(QObject):
                 # fresh measurement announces its completion either way.
                 if self._is_resume and not self._read_something:
                     self._chart_was_complete = bool(ev.get("all_done"))
+            # After a patch read, where next: the engine has stepped to the
+            # next patch, and that may not be the one to read (Knut, #182
+            # 5958921500). Before the emit, so the tab's highlight follows a
+            # jump straight away rather than flickering through the old patch.
+            self._after_a_read(
+                "patch", str(ev.get("loc") or ""),
+                bool(ev.get("all_done")) and self._all_done_is_news())
             self.patch_ready.emit(ev)
             # The second half of Skip Patch after a failed read: the retry
             # prompt has just been acknowledged, the menu is listening again,
@@ -1549,6 +1817,12 @@ class MeasureManager(QObject):
             self._engine_progress = True
             self._read_something = True
             self._readings_count += 1
+            _loc = str(ev.get("loc") or "").strip()
+            self._mark_read([_loc])
+            # Before the emit, for the same reason as `_just_read_strip`.
+            self._just_read_patch = (
+                _loc or None) if self._guided_state in ("idle_done",
+                                                        "disabled") else None
             self.patch_measured.emit(ev)
 
         elif kind == "mode_fallback":

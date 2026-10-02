@@ -1376,6 +1376,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # #182 5956210745). A bound method, never a lambda.
         if hasattr(self._manager, "set_question_probe"):
             self._manager.set_question_probe(self._a_question_is_open)
+        # …and when the next one and the nearest unread one differ, it asks
+        # which (Knut, #182 5958921500). Bound methods, never lambdas.
+        if hasattr(self._manager, "unread_choice_wanted"):
+            self._manager.unread_choice_wanted.connect(
+                self._on_unread_choice_wanted)
+        if hasattr(self._manager, "set_before_goto_patch"):
+            self._manager.set_before_goto_patch(self._note_patch_goto)
         # Opt-in scanner target: (re)build .cht + .cie from every finalised
         # measurement when the chart is flagged for it (#97). measure_finished
         # carries the final .ti3 in every proceed-to-build case (normal, cal/
@@ -7296,6 +7303,104 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # released AFTER the caller has acted on the answer: "read it
             # again" sends its goto first, and that cancels the move.
             QTimer.singleShot(0, self._release_held_strip_move)
+
+    def _note_patch_goto(self, loc: str) -> None:
+        """Tell the CR30 bridge a jump is outstanding, BEFORE it goes out.
+
+        The same step `_on_preview_patch_clicked` takes for a click: a reading
+        that arrives between the two belongs to the patch being left (#159
+        B.4). The manager calls this before every patch goto it sends itself.
+        """
+        bridge = getattr(self, "_cr30_bridge", None)
+        if bridge is not None:
+            bridge.note_goto(loc)
+
+    def _on_unread_choice_wanted(self, n: int, mode: str) -> None:
+        """A read needs "Continue to next / Jump to unread": ask it shortly.
+
+        Never inside the signal: the read's own windows (Strip Read Quickly,
+        Wrong Strip Read …) may be about to open from the same event, and a
+        question on top of another is what Knut keeps rejecting. So it is
+        asked from the event loop, and only if nothing else is asking then;
+        otherwise the manager keeps the decision held and asks again when
+        that window's release comes.
+        """
+        self._unread_choice_args = (int(n), str(mode))
+        QTimer.singleShot(0, self._ask_unread_choice)
+
+    def _ask_unread_choice(self) -> None:
+        mgr = self._manager
+        pending = getattr(mgr, "unread_choice_pending", None)
+        if pending is None or not pending():
+            return              # answered, cancelled by a key, or a swipe
+        if getattr(self, "_session_live", True) is False:
+            # The measurement ended between the read and this turn of the
+            # event loop. Its windows end with it (Knut, beta.139), so this
+            # one never opens: the held decision is dropped unanswered.
+            mgr.answer_unread_choice(None)
+            return
+        if self._a_question_is_open():
+            return              # its release asks again
+        n, mode = getattr(self, "_unread_choice_args", (0, "strip"))
+        answer = self._unread_choice_window(n, mode)
+        mgr.answer_unread_choice(answer)
+
+    def _unread_choice_window(self, n: int, mode: str) -> "str | None":
+        """§M's M-UNREAD-NEXT-OR-JUMP-STRIP / -PATCH, in the measurement frame.
+
+        Returns ``"next"``, ``"unread"``, or None when the window was closed
+        without an answer (the X, Escape, or the session ending under it).
+        """
+        from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
+
+        from workflow import measurement_messages as M
+        msg = (M.M_UNREAD_NEXT_OR_JUMP_PATCH if mode == "patch"
+               else M.M_UNREAD_NEXT_OR_JUMP_STRIP)
+        title, body = msg.render(n=n)
+
+        dlg = QDialog(self)
+        dlg.setObjectName("unread_choice_window")
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(500)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 20, 24, 20)
+        head = QLabel(f"<b>{html.escape(title)}</b>", dlg)
+        head.setWordWrap(True)
+        layout.addWidget(head)
+        text = QLabel(body, dlg)
+        text.setTextFormat(Qt.TextFormat.PlainText)
+        text.setWordWrap(True)
+        layout.addWidget(text)
+
+        chosen: "list[str | None]" = [None]   # a dismissal answers nothing
+        next_btn = QPushButton(tr("Continue to next"), dlg)
+        jump_btn = QPushButton(tr("Jump to unread"), dlg)
+        next_btn.setObjectName("primary")
+        next_btn.setDefault(True)
+        for b in (next_btn, jump_btn):
+            b.setFixedHeight(32)
+
+        def _next():
+            chosen[0] = "next"
+            dlg.accept()
+
+        def _jump():
+            chosen[0] = "unread"
+            dlg.accept()
+
+        next_btn.clicked.connect(_next)
+        jump_btn.clicked.connect(_jump)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addWidget(next_btn)
+        row.addWidget(jump_btn)
+        row.addStretch()
+        layout.addLayout(row)
+
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        self._exec_measurement_window(dlg)
+        return chosen[0]
 
     def _a_question_is_open(self) -> bool:
         """Whether a modal window is up, which may answer "read it again"."""
