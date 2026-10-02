@@ -1109,7 +1109,12 @@ _BUDGET = {
     "ru": 6,
     "sv": 7,
     "zh_CN": 6,
-    "uk": 3,
+    # +2 on 2026-10-02 (b740e16e): "reports/Quality_Check_N_{name}.txt,
+    # reports/Refine_Strips_N_{name}.txt" and "reports/Verify_Reference_N_
+    # {name}.txt" are file paths, wrongly translated as "звіти/" (a folder that
+    # does not exist), and now equal their key as in every other language. The
+    # same two that test_i18n's _IDENTICAL_TO_KEY["uk"] already counts.
+    "uk": 5,
 }
 
 
