@@ -14,7 +14,13 @@ there). This resolves every dependency of every architecture slice:
 ``@loader_path`` resolves against the binary's folder, ``@executable_path``
 against Contents/MacOS, ``@rpath`` against each LC_RPATH of the binary (those
 are resolved the same way). Absolute system paths (/usr/lib, /System) are
-trusted. Exit 1 with a list of (binary, arch, missing dependency).
+trusted. Anything else must resolve to a file INSIDE the app: a library that
+only exists on the build machine (/Library/Frameworks/Python.framework on the
+runner, Homebrew's /opt or /usr/local) is missing on the user's Mac, so it is
+missing here too (review P_review2_beta1, CI-M2). Exit 1 with a list of
+(binary, arch, missing dependency); also exit 1 when there is no app, when it
+holds no binary at all, or when otool cannot read one (CI-M1: the check must
+never pass because it looked at nothing).
 """
 from __future__ import annotations
 
@@ -29,9 +35,16 @@ from check_bundle_min_macos import is_macho  # noqa: E402
 _SYSTEM = ("/usr/lib/", "/System/")
 
 
-def _otool(args: list[str]) -> list[str]:
-    return subprocess.run(["otool", *args], capture_output=True, text=True,
-                          encoding="utf-8", errors="replace").stdout.splitlines()
+class OtoolFailed(RuntimeError):
+    pass
+
+
+def _otool(args: list[str], *, strict: bool = False) -> list[str]:
+    r = subprocess.run(["otool", *args], capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    if strict and r.returncode != 0:
+        raise OtoolFailed(r.stderr.strip() or f"otool exit {r.returncode}")
+    return r.stdout.splitlines()
 
 
 def archs(path: Path) -> list[str]:
@@ -42,7 +55,7 @@ def archs(path: Path) -> list[str]:
 
 def deps_and_rpaths(path: Path, arch: str) -> tuple[list[str], list[str]]:
     a = ["-arch", arch] if arch else []
-    lines = _otool([*a, "-L", str(path)])[1:]
+    lines = _otool([*a, "-L", str(path)], strict=True)[1:]
     deps = [l.strip().split(" (")[0] for l in lines if l.strip()]
     rpaths, load = [], _otool([*a, "-l", str(path)])
     for i, l in enumerate(load):
@@ -65,30 +78,52 @@ def _expand(token_path: str, binary: Path, macos_dir: Path) -> Path:
     return Path(os.path.normpath(p))
 
 
-def resolve(dep: str, binary: Path, rpaths: list[str], macos_dir: Path) -> bool:
+def _in_app(p: Path, app: Path) -> bool:
+    try:
+        return p.exists() and os.path.realpath(p).startswith(
+            os.path.realpath(app) + os.sep)
+    except OSError:
+        return False
+
+
+def resolve(dep: str, binary: Path, rpaths: list[str], macos_dir: Path,
+            app: "Path | None" = None) -> bool:
+    if app is None:
+        app = macos_dir.parent.parent
     if dep.startswith(_SYSTEM):
         return True
     if dep.startswith("@rpath/"):
         rest = dep[len("@rpath/"):]
-        return any((_expand(r, binary, macos_dir) / rest).exists() for r in rpaths)
+        return any(_in_app(_expand(r, binary, macos_dir) / rest, app) for r in rpaths)
     if dep.startswith("@"):
-        return _expand(dep, binary, macos_dir).exists()
-    return Path(dep).exists() and not dep.startswith("/opt/") and not dep.startswith("/usr/local/")
+        return _in_app(_expand(dep, binary, macos_dir), app)
+    return _in_app(Path(dep), app)
 
 
 def missing(app: Path) -> list[tuple[str, str, str]]:
     macos_dir = app / "Contents" / "MacOS"
+    if not macos_dir.is_dir():
+        return [(str(app), "-", "not an app bundle (no Contents/MacOS)")]
     bad = []
+    checked = 0
     for root, _dirs, files in os.walk(app):
         for name in files:
             p = Path(root) / name
             if p.is_symlink() or not is_macho(p):
                 continue
+            checked += 1
             for arch in archs(p):
-                deps, rpaths = deps_and_rpaths(p, arch)
+                try:
+                    deps, rpaths = deps_and_rpaths(p, arch)
+                except OtoolFailed as exc:
+                    bad.append((str(p.relative_to(app)), arch or "?",
+                                f"otool could not read it: {exc}"))
+                    continue
                 for d in deps:
-                    if not resolve(d, p, rpaths, macos_dir):
+                    if not resolve(d, p, rpaths, macos_dir, app):
                         bad.append((str(p.relative_to(app)), arch or "?", d))
+    if checked == 0:
+        bad.append((str(app), "-", "no binary found, nothing was checked"))
     return bad
 
 

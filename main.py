@@ -17,6 +17,11 @@ from core.logger import configure_logging, get_logger
 configure_logging()
 log = get_logger("chromiq")
 
+# CHROMIQ_SELFTEST=1: the release build's check of the built app (Intel half
+# under Rosetta included); prints one line and exits. Unset, nothing happens.
+from core.selftest import run_if_asked  # noqa: E402
+run_if_asked()
+
 
 def _log_excepthook(exc_type, exc, tb):
     log.critical(

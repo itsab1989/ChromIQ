@@ -146,7 +146,7 @@ jobs:
       # Rosetta, so the Intel half can be run on this arm64 runner (next steps).
       - name: Install Rosetta (universal2 only)
         if: matrix.arch == 'universal2'
-        run: softwareupdate --install-rosetta --agree-to-license || true
+        run: /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null || softwareupdate --install-rosetta --agree-to-license
 
       - name: Make C extensions universal2 via lipo (universal2 only)
         if: matrix.arch == 'universal2'
@@ -279,6 +279,19 @@ jobs:
       # for EACH architecture: a fat file whose Intel half loads a library the
       # app lacks passes every "is it fat" check and still dies on an Intel Mac
       # (K_review_beta1, CI-1).
+      # The BUILT app, both halves: numpy (with its BLAS) and Qt load and do
+      # one inversion. Under arch -x86_64 this is the Intel half, through
+      # Rosetta; the step before the build only proved the runner's python.
+      - name: Start the built app's self-test on every architecture it carries
+        run: |
+          set -euo pipefail
+          EXE=dist/ChromIQ.app/Contents/MacOS/ChromIQ
+          for a in $(lipo -archs "$EXE"); do
+            out=$(CHROMIQ_SELFTEST=1 arch -"$a" "$EXE")
+            echo "$a: $out"
+            echo "$out" | grep -q "chromiq-selftest ok machine=$a " || { echo "self-test did not run as $a"; exit 1; }
+          done
+
       - name: Check every binary finds every library it loads
         run: python3 scripts/check_bundle_load_paths.py dist/ChromIQ.app
 

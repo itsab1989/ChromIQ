@@ -65,3 +65,57 @@ def test_the_release_build_runs_it_on_the_built_app():
     build = WORKFLOW.index("run: python3 -m PyInstaller ChromIQ.spec")
     check = WORKFLOW.index("python3 scripts/check_bundle_load_paths.py dist/ChromIQ.app")
     assert check > build
+
+
+# ---- review P_review2_beta1 CI-M1/CI-M2: never pass by looking at nothing ----
+
+def test_no_app_fails(tmp_path):
+    assert C.main(["x", str(tmp_path / "Nothing.app")]) == 1
+
+
+def test_an_app_with_no_binary_fails(tmp_path):
+    app = tmp_path / "Empty.app"
+    (app / "Contents" / "MacOS").mkdir(parents=True)
+    (app / "Contents" / "MacOS" / "readme.txt").write_text("x", encoding="utf-8")
+    assert C.main(["x", str(app)]) == 1
+
+
+@needs_clang
+def test_a_library_only_on_the_build_machine_is_missing(tmp_path):
+    """An absolute path that exists HERE (like the runner's
+    /Library/Frameworks/Python.framework) is still missing on the user's Mac."""
+    app = tmp_path / "Tiny.app"
+    lib_dir = app / "Contents" / "Frameworks"
+    lib_dir.mkdir(parents=True)
+    (app / "Contents" / "MacOS").mkdir(parents=True)
+    outside = tmp_path / "buildhost"
+    outside.mkdir()
+    (tmp_path / "dep.c").write_text("int dep(void){return 1;}\n", encoding="utf-8")
+    (tmp_path / "user.c").write_text("int dep(void); int user(void){return dep();}\n",
+                                     encoding="utf-8")
+    _cc(["-dynamiclib", "-o", str(outside / "libdep.dylib"), "-install_name",
+         str(outside / "libdep.dylib"), "dep.c"], tmp_path)
+    _cc(["-dynamiclib", "-o", str(lib_dir / "libuser.dylib"), "user.c",
+         str(outside / "libdep.dylib")], tmp_path)
+    assert (outside / "libdep.dylib").exists()
+    bad = C.missing(app)
+    assert [(Path(r).name, d) for r, _a, d in bad] == [
+        ("libuser.dylib", str(outside / "libdep.dylib"))]
+
+
+@needs_clang
+def test_an_rpath_pointing_out_of_the_app_is_missing(tmp_path):
+    app = tmp_path / "Tiny.app"
+    lib_dir = app / "Contents" / "Frameworks"
+    lib_dir.mkdir(parents=True)
+    (app / "Contents" / "MacOS").mkdir(parents=True)
+    outside = tmp_path / "buildhost"
+    outside.mkdir()
+    (tmp_path / "dep.c").write_text("int dep(void){return 1;}\n", encoding="utf-8")
+    (tmp_path / "user.c").write_text("int dep(void); int user(void){return dep();}\n",
+                                     encoding="utf-8")
+    _cc(["-dynamiclib", "-o", str(outside / "libdep.dylib"), "-install_name",
+         "@rpath/libdep.dylib", "dep.c"], tmp_path)
+    _cc(["-dynamiclib", "-o", str(lib_dir / "libuser.dylib"), "user.c",
+         str(outside / "libdep.dylib"), "-Wl,-rpath," + str(outside)], tmp_path)
+    assert [d for _r, _a, d in C.missing(app)] == ["@rpath/libdep.dylib"]
