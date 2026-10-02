@@ -129,6 +129,8 @@ sys.path.insert(0, str(_HERE.parent))
 
 import numpy as np
 
+from core.printtarg_env import is_printtarg, printtarg_env   # noqa: E402
+
 ARGYLL = Path(os.environ.get("CHROMIQ_ARGYLL_BIN", "/Applications/Argyll/bin"))
 SRGB = ARGYLL.parent / "ref" / "sRGB.icm"
 
@@ -154,8 +156,12 @@ def run(cmd, cwd: Path, timeout: int) -> None:
         # a non-ASCII byte would otherwise decode differently on another
         # machine, and `tests/test_encoding_is_named.py` refuses a text call
         # site without one.
+        # flk1: printtarg lays a seeded chart out the same way on every build
+        # only with core/printtarg_env's environment
+        env = printtarg_env() if is_printtarg(args[0]) else None
         r = subprocess.run(args, cwd=str(cwd), capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=timeout)
+                           encoding="utf-8", errors="replace", timeout=timeout,
+                           env=env)
     except subprocess.TimeoutExpired:
         raise SystemExit(
             f"{args[0]} did not finish within {timeout} s in {cwd}. "
