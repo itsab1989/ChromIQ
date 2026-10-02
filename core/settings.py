@@ -292,10 +292,16 @@ DEFAULTS: dict[str, Any] = {
     # profiling line.
     "report_title_calibration":  "Measurement Report - Calibration of Printer",
     "report_add_profile_name":   True,
-    # Patch-reading error limit (#126, Knut): the ΔE at which a just-measured
-    # patch gets the red warning outline in the engine's live split-patch
-    # preview. Generous by default so only near-certain misreads are flagged.
-    "patch_read_warn_de":        50.0,
+    # Patch-reading error limits (#126, Knut; split in two by #182, Sebastian
+    # 5956560815 + Knut 5956552085): the ΔE*ab at which a just-measured patch
+    # gets the red outline in the engine's live split-patch preview. WHICH one
+    # applies is decided by the chart's own .ti2: a chart whose expected
+    # colours are ArgyllCMS's estimate uses the first, a chart made from a
+    # profile (keyword ACCURATE_EXPECTED_VALUES "true") the second. The
+    # defaults are ArgyllCMS chartread's own WERR_TH / ACC_WERR_TH. Replaces
+    # the single "patch_read_warn_de" (schema 25, _migrate_patch_warn_two_limits).
+    "patch_read_warn_de_estimated": 95.0,
+    "patch_read_warn_de_accurate":  30.0,
     # Whether a patch must ALSO be unusual for its own strip to be flagged
     # (Knut's option (c), #131 2026-07-27). On = today's behaviour.
     "patch_warn_outlier_fence":  True,
@@ -931,7 +937,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 24
+SETTINGS_SCHEMA = 25
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1009,6 +1015,8 @@ _SUPERSEDED_DEFAULTS: dict[str, tuple[float, ...]] = {
     # value — with the adaptive per-strip outlier test, 20 still lit up too many
     # legitimately-vivid patches on a scanner/print workflow). A stored echo of
     # the old 20 default falls through to 50; a value the user chose is kept.
+    # (Schema 25 split the key in two; a dropped echo then means both new
+    # defaults, see _migrate_patch_warn_two_limits.)
     "patch_read_warn_de": (20.0,),
     # schema 15 (#130, Knut 2026-07-29): the minimum readings per patch were
     # re-derived alongside the new per-instrument strip lengths. A stored echo
@@ -1108,8 +1116,9 @@ class AppSettings:
             dropped.append(_k)
         if self._migrate_colormunki_min_samples():
             dropped.append("pace_min_samples_colormunki (30 → 23)")
-        if self._migrate_patch_warn_floor():
-            dropped.append("patch_read_warn_de (raised value now too high)")
+        if self._migrate_patch_warn_two_limits():
+            dropped.append("patch_read_warn_de (now two limits: estimated / "
+                           "accurate expected colours)")
         if self._migrate_save_report_default():
             dropped.append("save_measurement_report (now on by default)")
         if self._migrate_chartread_engine_default():
@@ -1264,28 +1273,35 @@ class AppSettings:
             return True
         return False
 
-    def _migrate_patch_warn_floor(self) -> bool:
-        """schema 8 (#49): the patch-read warning outline is now adaptive — a
-        patch is flagged only if it is BOTH past this limit AND an outlier within
-        its own strip. The false alarms that led people to RAISE the old absolute
-        limit (vivid patches sit far from sRGB on a good print) are now handled
-        automatically, so a raised value merely hides genuine misreads. Reset any
-        value ABOVE the default back to it (drop it → falls back to the default).
-        A value the user LOWERED, wanting more sensitivity, is left untouched.
-        schema 9: the default floor moved to 50 ΔE, so the reset threshold tracks
-        it (a stored echo of the old 20 default is dropped separately via
-        _SUPERSEDED_DEFAULTS)."""
+    def _migrate_patch_warn_two_limits(self) -> bool:
+        """schema 25 (#182, Sebastian 5956560815 approving proposal A, Knut
+        5956552085): the single patch-read limit "patch_read_warn_de" became
+        two, one per kind of chart (estimated expected colours: default 95;
+        ACCURATE_EXPECTED_VALUES: default 30, ArgyllCMS's own thresholds).
+
+        A user who had moved the old limit away from its default 50 keeps that
+        number as the ESTIMATED-chart limit, because every chart they measured
+        with it was one (no profile-made chart carried its keyword far enough
+        to be told apart before). Otherwise both new defaults apply. The old
+        key is removed either way.
+
+        This replaces the schema-8 floor migration, which reset any value
+        above 50: with 95 as the new default, a raised value is no longer
+        "hiding misreads", it is the user's choice. A stored echo of the
+        older default 20 has already been dropped by _SUPERSEDED_DEFAULTS
+        before this runs, so it falls through to the new defaults too."""
         raw = self._qs.value("patch_read_warn_de", None)
         if raw is None:
             return False
+        self._qs.remove("patch_read_warn_de")
         try:
             val = float(raw)
         except (TypeError, ValueError):
-            return False
-        if val > 50.0 + 1e-9:              # 50.0 is the default floor
-            self._qs.remove("patch_read_warn_de")
             return True
-        return False
+        if abs(val - 50.0) > 1e-9 \
+                and self._qs.value("patch_read_warn_de_estimated", None) is None:
+            self._qs.setValue("patch_read_warn_de_estimated", val)
+        return True
 
     def _migrate_margin_landscape_jig(self) -> bool:
         """schema 7 (#125): give i1Pro / i1Pro 3+ A4 & Letter *Landscape* the jig

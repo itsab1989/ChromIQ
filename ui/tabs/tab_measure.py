@@ -212,14 +212,16 @@ _ALL_DONE_SOUND_GAP_MS = 500
 
 # Absolute FLOOR ΔE for the split-patch warning outline: a patch is never
 # flagged below this, whatever its strip looks like. It is only half the test —
-# see _strip_outlier_fence(). The design "expected" is the chart's sRGB values,
-# and a printer does NOT reproduce sRGB, so vivid patches legitimately sit at
-# 30-40+ ΔE with a perfect print (verified on a real i1Pro read). An absolute
-# threshold alone therefore flags most saturated patches on a good chart, which
-# is just noise — so we ALSO require the patch to be an outlier within its own
-# strip (a real misread stands out from its neighbours; uniform sRGB deviation
-# does not).
-_PATCH_WARN_DE = 50.0
+# see _strip_outlier_fence(). An absolute threshold alone flags most saturated
+# patches on a good chart, which is just noise — so we ALSO require the patch to
+# be an outlier within its own strip (a real misread stands out from its
+# neighbours; a uniform difference does not).
+#
+# THE FLOOR IS TWO NUMBERS SINCE #182 (Sebastian 5956560815, Knut 5956552085):
+# one for a chart whose expected colours are ArgyllCMS's estimate (default 95)
+# and one for a chart made from a profile, ACCURATE_EXPECTED_VALUES (default
+# 30). The chart's own file decides which; see workflow/patch_flags.py and
+# TabMeasure._patch_warn_limit.
 
 #: The dark-reference threshold moved with the window that reads it, to
 #: ``ui/cr30_calibration.py``. One constant, wherever the calibration runs
@@ -3101,7 +3103,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "So if a patch is still flagged with about the same value after "
             "you read its strip again, the reading is right: keep it and build "
             "the profile from it. The profile needs to know how far your "
-            "printer falls short of such colours."),
+            "printer falls short of such colours.")
+            # #182 B/B2 (Sebastian 5956560815, Knut 5956831467): the yellow
+            # outline, in its own paragraph so the one above keeps its
+            # translations.
+            + "\n\n" + tr(
+            "A yellow outline means the large difference is known to be real. "
+            "Either the patch was read again and gave the same colour (within "
+            "ΔE 3), or it has a similar colour and a difference of the same "
+            "kind, as large or larger, as a patch that was. It is not a "
+            "misread and does not need reading again; the card says which of "
+            "the two it is. A new measurement session starts without yellow "
+            "patches."),
             row)
         om_row.add_group(tile, tile_tip)
         v.addWidget(om_row)
@@ -5994,11 +6007,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         preview). ΔE is only present with the ChromIQ reading engine."""
         import core.sound as _snd
         de = payload.get("de")
-        try:
-            warn = float(self._settings.get("patch_read_warn_de", 50.0))
-        except (TypeError, ValueError):
-            warn = 50.0
-        if de is not None and de > warn:
+        warn = self._patch_warn_limit()
+        # A patch the preview has just drawn YELLOW (#182, B/B2) does not look
+        # off: it is a known, real difference. This slot is connected after
+        # _on_patch_measured, so the verdict for this very patch is in.
+        from workflow.patch_flags import is_yellow
+        last = getattr(self, "_last_patch_flag", None)
+        yellow = (last is not None and last[0] == str(payload.get("loc", ""))
+                  and is_yellow(last[1]))
+        if de is not None and de > warn and not yellow:
             self._sound.play(_snd.PATCH_OUT_OF_TOL)
         else:
             self._sound.play(_snd.PATCH_OK)
@@ -13252,6 +13269,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # immediately re-drawn from the file, and this session's strips add to
         # it as they are read.
         self._preview.clear_patch_overlay()
+        # A NEW SESSION LEARNS AFRESH (#182 B2, Knut 5956831467): the yellow
+        # references belong to one measurement session. The repaint below
+        # then seeds every patch's previous reading from the file, so re-reading
+        # a strip measured in an earlier session can still confirm it.
+        self._flag_judge().reset()
         # …AND THE PATCHES THE OVERLAY IS MADE OF (B8-385). The set is what
         # decides which strips a whole-chart or spot read has finished, so it
         # is cleared with the overlay and re-filled by the same repaint: the
@@ -13891,8 +13913,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         from PyQt6.QtGui import QColor as _QC
         # The ΔE at which a patch gets the red warning outline is user-settable
-        # (Preferences → Beta), defaulting to _PATCH_WARN_DE (Knut).
-        warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
+        # (Preferences ▸ Measurement), one limit per kind of chart (#182).
+        warn_de = self._patch_warn_limit()
         # A patch is flagged only if it is BOTH above the absolute floor AND an
         # outlier within this strip (Tukey fence). Vivid patches that all sit
         # high against sRGB stay unflagged (they're the strip's norm, not an
@@ -13900,8 +13922,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # its neighbours and is caught. This can only REDUCE flags versus the
         # floor alone, so it never adds false alarms (Nelson/pharmacist: a good
         # print was flagged almost everywhere against sRGB).
-        fence = (_strip_outlier_fence([float(p.get("de", 0)) for p in patches])
+        _des = [float(p.get("de", 0)) for p in patches]
+        fence = (_strip_outlier_fence(_des)
                  if self._use_outlier_fence() else 0.0)
+        # How far each patch stands above its strip's middle, for the yellow
+        # learning rule's third condition (workflow/patch_flags.py).
+        import statistics as _stats
+        _median = _stats.median(_des) if _des else 0.0
         from workflow.icc_info import xyz_to_lab
         items = []
         info_items = []
@@ -13915,7 +13942,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             mxyz = p.get("xyz", [0, 0, 0])
             exp_rgb = _xyz_d50_to_srgb8(exyz)
             meas_rgb = _xyz_d50_to_srgb8(mxyz)
-            items.append((box, _QC(*exp_rgb), _QC(*meas_rgb), warn))
+            exp_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3]))
+            meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
+            flag, extra = self._judge_patch(
+                str(p.get("loc", "")), exp_lab, meas_lab, de_p, warn,
+                standout=de_p - _median, live=True)
+            items.append((box, _QC(*exp_rgb), _QC(*meas_rgb), flag))
             # Numbers behind the split, for the "values on hover" tile. The tile
             # shows the SAME sRGB as the swatch (so card and patch always agree)
             # plus the exact D50 L*a*b* and the engine's own ΔE for the patch.
@@ -13923,16 +13955,85 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "loc": str(p.get("loc", "")),
                 "exp_rgb": exp_rgb,
                 "meas_rgb": meas_rgb,
-                "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
-                "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
+                "exp_lab": exp_lab,
+                "meas_lab": meas_lab,
                 "de": de_p,
                 # Why a red outline, for the card (Knut, #202 5951426710).
                 "warn": warn, "warn_de": warn_de, "fenced": fence > 0.0,
+                **extra,
             }))
         if items:
             self._preview.set_patch_overlay(page, items)
             self._preview.set_patch_info(page, info_items)
         self._update_engine_read_map()
+
+    def _flag_judge(self):
+        """This tab's yellow-outline memory (#182 B/B2), made on first use."""
+        judge = getattr(self, "_patch_flag_judge", None)
+        if judge is None:
+            from workflow.patch_flags import FlagJudge
+            judge = self._patch_flag_judge = FlagJudge()
+        return judge
+
+    def _chart_expected_is_accurate(self) -> bool:
+        """Does the chart on screen carry ACCURATE_EXPECTED_VALUES? (#182 A)
+
+        Read ONCE PER CHART: the answer is kept against the chart's identity
+        (path and the moment it was written), so a chart generated again into
+        the same run is asked again. A different chart also starts the yellow
+        memory afresh, since its patches are not the ones it remembers.
+        """
+        try:
+            key = self._chart_identity()
+        except Exception:          # noqa: BLE001
+            key = None
+        cached = getattr(self, "_warn_kind_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        accurate = False
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is not None:
+            try:
+                from workflow.patch_flags import chart_has_accurate_expected_values
+                accurate = chart_has_accurate_expected_values(
+                    self._chart_file_for(ti1))
+            except Exception:      # noqa: BLE001 — a preview is never worth a crash
+                log.debug("could not read the chart's keywords", exc_info=True)
+        if cached is not None:
+            self._flag_judge().reset()
+        self._warn_kind_cache = (key, accurate)
+        return accurate
+
+    def _patch_warn_limit(self) -> float:
+        """The red-outline limit for the chart on screen (#182 A): the user's
+        limit for a chart with estimated expected colours, or for a chart made
+        from a profile, as the chart's own file says."""
+        from workflow.patch_flags import warn_limit
+        return warn_limit(self._settings, self._chart_expected_is_accurate())
+
+    def _judge_patch(self, loc, exp_lab, meas_lab, de, flagged, *,
+                     standout=None, live=True) -> "tuple[object, dict]":
+        """The outline for one patch and the hover card's extra facts.
+
+        Returns ``(flag, extra)``: *flag* is what the preview draws (no
+        outline, red, or one of the two yellows of workflow/patch_flags.py),
+        *extra* goes into the patch's hover info.
+        """
+        from workflow.patch_flags import FLAG_CONFIRMED, FLAG_LEARNED, is_yellow
+        accurate = self._chart_expected_is_accurate()
+        extra = {"accurate": accurate}
+        try:
+            v = self._flag_judge().judge(loc, exp_lab, meas_lab, de,
+                                         bool(flagged), standout=standout,
+                                         live=live)
+        except Exception:          # noqa: BLE001 — never lose the red outline
+            log.debug("could not judge patch %s", loc, exc_info=True)
+            return bool(flagged), extra
+        if is_yellow(v.flag) and v.flag == FLAG_CONFIRMED:
+            extra.update(flag="confirmed", prev_de=v.prev_de)
+        elif is_yellow(v.flag) and v.flag == FLAG_LEARNED:
+            extra.update(flag="learned", like_loc=v.like_loc)
+        return v.flag, extra
 
     def _locate_patch(self, loc: str) -> "tuple[int, QRect | None]":
         """(page, image-px box) of patch `loc` across the chart's pages, or
@@ -14017,7 +14118,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         from PyQt6.QtGui import QColor as _QC
         from workflow.icc_info import xyz_to_lab
-        warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
+        warn_de = self._patch_warn_limit()
         de_p = float(ev.get("de", 0))
         exyz = ev.get("exyz", [0, 0, 0])
         mxyz = ev.get("xyz", [0, 0, 0])
@@ -14034,15 +14135,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # The two modes therefore behave differently ON PURPOSE, and both help
         # texts say so — see the "Patch-reading error limit" and the
         # patch-by-patch explanations.
-        item = (box, _QC(*exp_rgb), _QC(*meas_rgb), de_p >= warn_de)
+        exp_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3]))
+        meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
+        # No strip here, so no stand-out figure: the learning rule's first two
+        # conditions are the whole rule patch by patch (workflow/patch_flags.py).
+        flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de_p,
+                                        de_p >= warn_de, standout=None, live=True)
+        self._last_patch_flag = (loc, flag)
+        item = (box, _QC(*exp_rgb), _QC(*meas_rgb), flag)
         info = (box, {
             "loc": loc,
             "exp_rgb": exp_rgb,
             "meas_rgb": meas_rgb,
-            "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
-            "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
+            "exp_lab": exp_lab,
+            "meas_lab": meas_lab,
             "de": de_p,
             "warn": de_p >= warn_de, "warn_de": warn_de, "fenced": False,
+            **extra,
         })
         # Accumulate: each patch adds its own split + numbers (dedup by box, so
         # re-reading a patch refreshes it rather than stacking).
@@ -14059,15 +14168,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._log.appendPlainText(
             tr("[Engine] Reading the whole chart — this may take a moment…"))
 
-    def _on_chart_measured(self, ev: dict) -> None:
+    def _on_chart_measured(self, ev: dict, *, live: bool = True) -> None:
         """XY/chart mode: fill the expected/measured split + hover values for
-        every patch that was read at once (a whole chart, or one XY sheet)."""
+        every patch that was read at once (a whole chart, or one XY sheet).
+
+        Also the painter for a measurement already on disk, which passes
+        *live* False: those readings are remembered as the previous reading of
+        each patch, but cannot confirm one (#182 B, workflow/patch_flags.py)."""
         patches = ev.get("patches", [])
         if not patches or not any(self._patch_boxes):
             return
         from PyQt6.QtGui import QColor as _QC
         from workflow.icc_info import xyz_to_lab
-        warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
+        warn_de = self._patch_warn_limit()
         items: dict[int, list] = {}
         infos: dict[int, list] = {}
         placed: list = []
@@ -14082,16 +14195,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             mxyz = p.get("xyz", [0, 0, 0])
             exp_rgb = _xyz_d50_to_srgb8(exyz)
             meas_rgb = _xyz_d50_to_srgb8(mxyz)
+            exp_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3]))
+            meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
+            flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de_p,
+                                            de_p >= warn_de, standout=None,
+                                            live=live)
             items.setdefault(page, []).append(
-                (box, _QC(*exp_rgb), _QC(*meas_rgb), de_p >= warn_de))
+                (box, _QC(*exp_rgb), _QC(*meas_rgb), flag))
             infos.setdefault(page, []).append((box, {
                 "loc": loc,
                 "exp_rgb": exp_rgb,
                 "meas_rgb": meas_rgb,
-                "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
-                "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
+                "exp_lab": exp_lab,
+                "meas_lab": meas_lab,
                 "de": de_p,
                 "warn": de_p >= warn_de, "warn_de": warn_de, "fenced": False,
+                **extra,
             }))
         for page, its in items.items():
             self._preview.set_patch_overlay(page, its)
@@ -14987,7 +15106,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.info("overlay: none of the %d measured patches match this "
                      "chart's geometry", len(patches))
             return False
-        self._on_chart_measured({"patches": patches})
+        self._on_chart_measured({"patches": patches}, live=False)
         return True
 
     def _clear_overlay(self) -> None:

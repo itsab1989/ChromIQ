@@ -5701,3 +5701,84 @@ What *does* transfer:
 
 ---
 
+
+## 10. The patch outline in the live preview: red, and yellow (#182)
+
+### ⏳ Awaiting confirmation — two limits, and the yellow outline
+
+**Confirmed by:** *nobody yet.*
+
+**Rulings it is built from:**
+
+* Sebastian, #182 [5956560815](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5956560815):
+  *"I confirm the proposals."* (proposals A and B of
+  [5956305908](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5956305908)).
+* Knut, #182 [5956552085](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5956552085),
+  on A: *"the preferences --> measurement should have two values, one for each
+  of the two cases, so a user may change them both, each default wired to the
+  correct circumstance and chart when measuring."*
+* Knut, #182 [5956831467](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5956831467),
+  on B: *"if later strip reads come across similar colors ... then if those
+  patches have larger error than those previously flagged for the same color
+  range, then one should assume that these errors are not a misread and
+  automatically flag these patches with yellow highlighting."*
+
+**What was built** (`workflow/patch_flags.py`, `TabMeasure._patch_warn_limit`
+/ `_judge_patch`, `ui/tiff_preview.py`):
+
+**10.1 · Two limits.** Preferences ▸ Measurement, under *"Flag a patch when its
+colour error reaches:"*, holds two numbers: *on a chart with estimated colours
+(most charts)*, default **ΔE 95**, and *on a chart made from a profile*,
+default **ΔE 30** (ArgyllCMS chartread's `WERR_TH` and `ACC_WERR_TH`). The
+chart decides: a `.ti2` with `ACCURATE_EXPECTED_VALUES "true"` uses the second.
+ChromIQ's layout engine does not copy that keyword from the `.ti1` into the
+`.ti2` (printtarg does), so when the `.ti2` is silent the chart's `.ti1` is
+asked too. The keyword is read once per chart (path and modification time).
+The strip-outlier option is unchanged and applies to both.
+
+**10.2 · Migration** (settings schema 25). A user who had moved the old single
+limit away from 50 keeps that number as the estimated-chart limit; a stored
+50, the old default 20, or nothing at all gives both new defaults. The old
+schema-8 rule that reset any value above 50 is retired, because with a default
+of 95 a raised value is a choice, not a mistake.
+
+**10.3 · Yellow, confirmed.** A red patch read again (its strip re-read, or the
+patch) whose new MEASURED colour lies within ΔE*ab 3 of the previous reading,
+and which is still past the limit, is outlined in yellow. The hover card says,
+set apart at the bottom: *"Yellow outline: confirmed by a re-read"*, the two
+ΔE values, *"A real difference this printer and paper cannot reach, not a
+misread. Keep it for the profile."* A reading repainted from the file is
+remembered as the previous reading but cannot confirm (a file read twice is
+not a second reading), so re-reading a strip measured in an earlier session
+still confirms.
+
+**10.4 · Yellow, learned.** After at least one confirmed patch, a later flagged
+patch is outlined yellow when, against a confirmed patch: its expected L*a*b*
+is within ΔE*ab 15; its measured-minus-expected shift strays at most ΔE 10
+sideways from the confirmed patch's shift and is no more than ΔE 10 shorter
+along it (the same kind of error, as large or larger); and, reading strips, it
+stands above its strip's median by no more than ΔE 10 more than the confirmed
+patch did. The card says *"Yellow outline: judged like patch {loc}"*. Only
+patches confirmed by a re-read are references. Everything resets when a
+measurement session starts, or another chart is loaded.
+
+**10.5 · No longer suggested for re-reading.** The only place the app itself
+suggests re-reading a flagged patch is the per-patch "Patch reading looks off"
+sound (patch-by-patch mode); a yellow patch plays the ordinary patch sound.
+Check & Refine's strips come from the profile check, not from these outlines,
+and are unchanged.
+
+**Measured on Knut's beta-3 run1** (648 patches, estimated colours; script in
+the session report `AF_impl_flag_limits/flag_rule_knut_data.py`): ΔE ≥ 50
+flags 72 patches, ΔE ≥ 95 flags 10. At 95, confirming the first red patch
+(A17) by a re-read turns 8 of the other 9 yellow; O9, a different colour
+range, stays red. Simulated misreads (a patch given another patch's colour,
+3,000 trials) reached yellow 0 times in 430 flagged at 95, and 4 in 1,449 at
+50 with the strip test; without the strip condition it was 32.
+
+**Open questions for Knut:** whether the layout engine should write
+`ACCURATE_EXPECTED_VALUES` into the `.ti2` as printtarg does (that would also
+move the engine's own "Unexpected Colour Response" window to ΔE 30 for such
+charts); and whether a yellow patch found by learning should also turn earlier
+red patches of the same colour range yellow, which this build does not do
+("later strip reads" was the wording).

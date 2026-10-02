@@ -2826,17 +2826,25 @@ class SettingsDialog(QDialog):
         _meas.addLayout(_xy_row)
 
 
-        # Patch-reading error limit (#126, Knut): the ΔE at which a just-measured
-        # patch gets the red warning outline in the live split-patch preview.
-        self._patch_warn_spin = NoScrollDoubleSpinBox(self)
-        self._patch_warn_spin.setRange(1.0, 100.0)
-        self._patch_warn_spin.setSingleStep(1.0)
-        self._patch_warn_spin.setDecimals(1)
-        self._patch_warn_spin.setSuffix(" ΔE")
-        self._patch_warn_spin.setFixedWidth(110)
+        # Patch-reading error limits (#126, Knut; two of them since #182,
+        # Sebastian 5956560815 + Knut 5956552085): the ΔE at which a
+        # just-measured patch gets the red outline in the live split-patch
+        # preview, one for each kind of chart. The chart's own file decides
+        # which applies (workflow/patch_flags.py), so the user never picks.
+        def _limit_spin() -> NoScrollDoubleSpinBox:
+            spin = NoScrollDoubleSpinBox(self)
+            # Up to 200: a chart with estimated colours legitimately reaches
+            # ΔE 100+ (Knut's run1: largest 107), and the default is 95.
+            spin.setRange(1.0, 200.0)
+            spin.setSingleStep(1.0)
+            spin.setDecimals(1)
+            spin.setSuffix(" ΔE")
+            spin.setFixedWidth(110)
+            return spin
+        self._patch_warn_est_spin = _limit_spin()
+        self._patch_warn_acc_spin = _limit_spin()
         _pw_row = QHBoxLayout()
         _pw_row.addWidget(QLabel(tr("Flag a patch when its colour error reaches:"), self))
-        _pw_row.addWidget(self._patch_warn_spin)
         _pw_row.addStretch()
         # Knut's option (c) of 2026-07-27: the strip comparison becomes a
         # switch, on by default, and it now governs BOTH reading modes — which
@@ -2857,42 +2865,64 @@ class SettingsDialog(QDialog):
             "where there is a strip to compare against. Patch by patch, the "
             "limit above is always the whole rule."))
         _pw_row.addWidget(TooltipButton(
-            tr("Patch-reading error limit"),
+            tr("Patch-reading error limits"),
             tr("While you measure with the ChromIQ chart-reading engine, each "
-            "patch you read is shown split against the colour the chart was "
-            "designed to have. ChromIQ draws a bright red outline around a patch "
-            "that looks like a likely misread — a smudge, a skipped row, the "
-            "strip swiped the wrong way — so it jumps out at you straight away.\n\n"
-            "**Important:** the design colour is an sRGB value, and a printer does "
-            "NOT reproduce sRGB — so vivid colours (a deep red, a saturated "
-            "green) can legitimately measure 30–40 ΔE away on a perfectly good "
-            "print. That is expected, not a mistake. If ChromIQ flagged every "
-            "patch past a fixed number, it would light up half of a normal "
-            "chart in red.\n\n"
-            "So when you read STRIPS, a patch is flagged only when it is BOTH "
-            "past this limit AND clearly stands out from the other patches in "
-            "its own strip. A real misread spikes far above its neighbours; the "
-            "normal, even difference between print and sRGB does not — so it "
-            "stays quiet. In other words: a red outline means “this one patch "
-            "looks wrong compared to the rest of the strip”, not simply “this "
-            "patch differs from sRGB”.\n\n"
+            "patch you read is shown split against the colour the chart "
+            "expects. A patch whose colour error (ΔE*ab) reaches the limit gets "
+            "a red outline, so a likely misread (a smudge, a skipped row, a "
+            "strip swiped the wrong way) jumps out at you straight away.\n\n"
+            "TWO LIMITS, BECAUSE THERE ARE TWO KINDS OF CHART\n"
+            "  • Most charts: the expected colours are only ArgyllCMS's "
+            "estimate, made without a profile of your printer. Differences of "
+            "30 to 50 ΔE are normal on a good print, so this limit is high.\n"
+            "  • A chart made from a profile of your printer: ArgyllCMS marks "
+            "it in the chart file (ACCURATE_EXPECTED_VALUES), because its "
+            "expected colours are close to what the printer really prints. A "
+            "much smaller difference is already suspicious.\n"
+            "The chart decides which limit applies when you measure, so you "
+            "never have to choose. The two defaults are the ones ArgyllCMS's "
+            "own chartread uses for its “unexpected response” warning.\n\n"
             "PATCH-BY-PATCH MODE IS DIFFERENT, ON PURPOSE\n"
-            "Reading one patch at a time there is no strip to compare against — "
-            "the patch you have just read is the only one that has arrived. So "
-            "that mode uses this limit on its own, and flags every patch past "
-            "it. Expect it to outline MORE patches than strip reading does on "
-            "the very same chart, vivid colours among them: that is the honest "
-            "consequence of having no neighbours to compare with, not a "
-            "disagreement between the two modes about your print. The "
-            "patch-by-patch help text explains it there as well.\n\n"
-            "This limit is the floor beneath which a patch is never flagged. "
-            "Lower it if you want to be warned about smaller odd-looking "
-            "patches; raise it if you only want the most extreme ones. It "
-            "changes only the red outline in the preview — never your "
-            "measurements.\n\n"
-            "**Default:** 50 ΔE"),
+            "Usually, when you read STRIPS with the option below on, a patch is "
+            "flagged "
+            "only when it is past the limit AND stands out from the other "
+            "patches of its strip. Reading patch by patch there is no strip "
+            "to compare with, so there the limit is the whole rule, and more "
+            "patches may be outlined: that comes from having no neighbours to "
+            "compare with, not from the two modes disagreeing about your "
+            "print.\n\n"
+            "YELLOW OUTLINE\n"
+            "Read a red patch again (its strip, or the patch). If the second "
+            "reading gives the same colour (within ΔE 3), the difference is "
+            "real: a colour your printer and paper cannot reach, not a "
+            "misread. The outline turns yellow, and there is no need to read "
+            "it again. Later patches of a similar colour (within ΔE 15) with a "
+            "difference of the same kind, as large or larger, are then "
+            "outlined in yellow straight away, unless they stand out from "
+            "their strip much more. This is remembered for one measurement "
+            "session.\n\n"
+            "Lower a limit to be warned about smaller differences, raise it to "
+            "see only the most extreme ones. The limits change only the "
+            "outline in the preview, never your measurements.\n\n"
+            "**Default:** 95 ΔE for estimated colours, 30 ΔE for a chart made "
+            "from a profile"),
             self))
         _meas.addLayout(_pw_row)
+        _lim_labels = [
+            (QLabel(tr("on a chart with estimated colours (most charts):"), self),
+             self._patch_warn_est_spin),
+            (QLabel(tr("on a chart made from a profile:"), self),
+             self._patch_warn_acc_spin)]
+        # The two boxes line up under each other, whatever the language.
+        _lim_w = max(lbl.sizeHint().width() for lbl, _s in _lim_labels)
+        for _lbl, _spin in _lim_labels:
+            _lbl.setMinimumWidth(_lim_w)
+            _lim_row = QHBoxLayout()
+            _lim_row.addSpacing(18)
+            _lim_row.addWidget(_lbl)
+            _lim_row.addWidget(_spin)
+            _lim_row.addStretch()
+            _meas.addLayout(_lim_row)
         _fence_row = QHBoxLayout()
         _fence_row.addWidget(self._patch_fence_check)
         _fence_row.addStretch()
@@ -5184,8 +5214,10 @@ class SettingsDialog(QDialog):
             report_title_prefix(s, "report_title_calibration"))
         self._report_add_profile_check.setChecked(
             bool(s.get("report_add_profile_name", True)))
-        self._patch_warn_spin.setValue(
-            float(s.get("patch_read_warn_de", 50.0)))
+        self._patch_warn_est_spin.setValue(
+            float(s.get("patch_read_warn_de_estimated", 95.0)))
+        self._patch_warn_acc_spin.setValue(
+            float(s.get("patch_read_warn_de_accurate", 30.0)))
         self._patch_fence_check.setChecked(
             bool(s.get("patch_warn_outlier_fence", True)))
         self._cal_retries_spin.setValue(int(s.get("cal_auto_retries", 3)))
@@ -6356,7 +6388,10 @@ class SettingsDialog(QDialog):
         s.set("report_title_calibration", report_title_to_store(
             "report_title_calibration", self._report_title_cal_edit.text()))
         s.set("report_add_profile_name", self._report_add_profile_check.isChecked())
-        s.set("patch_read_warn_de", float(self._patch_warn_spin.value()))
+        s.set("patch_read_warn_de_estimated",
+              float(self._patch_warn_est_spin.value()))
+        s.set("patch_read_warn_de_accurate",
+              float(self._patch_warn_acc_spin.value()))
         s.set("patch_warn_outlier_fence",
               bool(self._patch_fence_check.isChecked()))
         s.set("cal_auto_retries", int(self._cal_retries_spin.value()))

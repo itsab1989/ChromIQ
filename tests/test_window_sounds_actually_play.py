@@ -54,7 +54,7 @@ def qapp():
 
 class _Settings:
     def __init__(self, **kw):
-        self._d = {"sound_enabled": True, "patch_read_warn_de": 10.0}
+        self._d = {"sound_enabled": True, "patch_read_warn_de_estimated": 10.0}
         self._d.update(kw)
 
     def get(self, k, d=None): return self._d.get(k, d)
