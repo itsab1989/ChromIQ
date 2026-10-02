@@ -5961,9 +5961,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # the panel under the preview still shows the verdict — only the
             # window is held back.
             return
-        ms = int(pace.mean_seconds * 1000)
-        target_ms = int(config.target_seconds * 1000)
-        good_secs = (target_ms * pace.patches) / 1000.0
+        # THE SAME NUMBERS AS THE LINE UNDER THE PREVIEW (Knut, #202
+        # 5951426710): the strip time is the limit times the patches, rounded
+        # UP to a tenth, so 27 x 120 ms reads "3.3 s" here too. It said "3 s",
+        # rounded to the nearest second, which is below the 3.24 s limit.
+        from core.measure_pace import _ms, _tenths
+        ms = _ms(pace.mean_seconds, up=False)
+        target_ms = _ms(config.target_seconds, up=True)
+        good_secs = config.strip_target_seconds(pace.patches) or 0.0
 
         QApplication.instance().removeEventFilter(self)
         dlg = QDialog(self)
@@ -5980,7 +5985,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "<b>{target} ms</b>. Reading the whole strip in about "
             "<b>{good} s</b> would sit comfortably above that."
         ).format(name=strip, secs=f"{pace.elapsed:.1f}", n=pace.patches, ms=ms,
-                 target=target_ms, good=f"{good_secs:.0f}")
+                 target=target_ms, good=_tenths(good_secs, up=True))
         if pace.est_samples is not None:
             detail += "<br><br>" + tr(
                 "At this speed each patch received roughly <b>{n} readings</b> "
