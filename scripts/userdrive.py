@@ -132,8 +132,12 @@ class Drive:
         apply_appearance(self.app, self.win, appearance)
         self.win.resize(*size)
         self.win.show()
-        self.win.raise_()
-        self.win.activateWindow()
+        # No raise_()/activateWindow(): the capture reads the window's own
+        # buffer behind other windows, and pulling ChromIQ to the front took
+        # Basti's keyboard while he typed (CLAUDE.md). Hand it straight back.
+        focus = getattr(self.app, "_chromiq_focus_give_back", None)
+        if focus is not None:
+            focus.give_back()
         self.pump(2500)
         self.record["window_on_screen"] = bool(self.win.isVisible())
 

@@ -238,6 +238,21 @@ class PaceTracker:
 # ---------------------------------------------------------------------------
 # plain-language wording (the UI never formats these itself)
 # ---------------------------------------------------------------------------
+def _ms(seconds: float, *, up: bool) -> int:
+    """Seconds as whole milliseconds, rounded in the stated direction (with a
+    tolerance for float noise, so 0.120 s stays 120 ms either way)."""
+    import math
+    v = seconds * 1000.0
+    return int(math.ceil(v - 1e-6)) if up else int(math.floor(v + 1e-6))
+
+
+def _tenths(seconds: float, *, up: bool) -> str:
+    import math
+    v = seconds * 10.0
+    n = math.ceil(v - 1e-6) if up else math.floor(v + 1e-6)
+    return f"{n / 10:.1f}"
+
+
 def strip_limit_phrase(config: PaceConfig, patches: int) -> str:
     """"400 ms or more per patch — 6.0 sec. or more per strip", or just the
     per-patch half when the strip length is unknown.
@@ -249,12 +264,15 @@ def strip_limit_phrase(config: PaceConfig, patches: int) -> str:
     decimal, and "sec." rather than "seconds", both his ruling.
     """
     from core.i18n import tr
-    target_ms = int(round(config.target_seconds * 1000))
+    # Rounded UP: an instruction to read at least this slowly must never name
+    # a number below the real limit, or "165 ms ... aim for 165 ms" reads as
+    # already done (review K_review_beta1). See `measured_phrase`.
+    target_ms = _ms(config.target_seconds, up=True)
     strip_s = config.strip_target_seconds(patches)
     if strip_s is None:
         return tr("{target} ms or more per patch").format(target=target_ms)
     return tr("{target} ms or more per patch — {secs} sec. or more per strip"
-              ).format(target=target_ms, secs=f"{strip_s:.1f}")
+              ).format(target=target_ms, secs=_tenths(strip_s, up=True))
 
 
 def strip_limit_fact(config: PaceConfig, patches: int) -> str:
@@ -262,19 +280,22 @@ def strip_limit_fact(config: PaceConfig, patches: int) -> str:
     that was read well — "aim for 400 ms" reads oddly at someone already doing
     better than that."""
     from core.i18n import tr
-    target_ms = int(round(config.target_seconds * 1000))
+    # Rounded DOWN: said to someone already reading slower than the limit.
+    target_ms = _ms(config.target_seconds, up=False)
     strip_s = config.strip_target_seconds(patches)
     if strip_s is None:
         return tr("The limit is {target} ms per patch").format(target=target_ms)
     return tr("The limit is {target} ms per patch — {secs} sec. per strip"
-              ).format(target=target_ms, secs=f"{strip_s:.1f}")
+              ).format(target=target_ms, secs=_tenths(strip_s, up=False))
 
 
 def measured_phrase(pace: StripPace) -> str:
     """"415 ms per patch, roughly 20 readings each" — the sample count only
     when the instrument's rate is known, never a guess dressed as a fact."""
     from core.i18n import tr
-    ms = int(round(pace.mean_seconds * 1000))
+    # A strip that was too fast is shown rounded DOWN, any other rounded UP, so
+    # the number always sits on the same side of the limit as the verdict.
+    ms = _ms(pace.mean_seconds, up=not pace.too_fast)
     if pace.est_samples is None:
         return tr("{ms} ms per patch").format(ms=ms)
     return tr("{ms} ms per patch, roughly {n} readings each").format(
