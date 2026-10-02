@@ -340,8 +340,10 @@ def test_g5_the_two_withdrawn_full_layout_charts_are_gone():
 def test_g5_the_nineteen_new_i1pro_charts_are_registered():
     from ui.tabs.tab_chart import KNUT_PRESETS
     new = [p for p in KNUT_PRESETS if p.slug.startswith("i1_w75_")]
-    assert len(new) == 19
-    assert sum(1 for p in new if p.layout_recipe["paper"] == "A4") == 8
+    # 19 in this batch; the 20th is the A4 "Full Page" chart of 4.3.3-beta.1
+    # (#182 5943544919).
+    assert len(new) == 20
+    assert sum(1 for p in new if p.layout_recipe["paper"] == "A4") == 9
     assert sum(1 for p in new if p.layout_recipe["paper"] == "Letter") == 8
     assert sum(1 for p in new if p.layout_recipe["paper"] == "420x297") == 3
     assert all("w7.5mm" in p.name for p in new)
@@ -354,7 +356,7 @@ def test_g5_the_page_count_comes_from_the_chart_not_the_payload():
     Taking that number would ship every one of them as a 4-page chart."""
     from ui.tabs.tab_chart import KNUT_PRESETS
     new = [x for x in KNUT_PRESETS if x.slug.startswith("i1_w75_")]
-    assert len(new) == 19          # never vacuous
+    assert len(new) == 20          # never vacuous (19 + the 4.3.3 Full Page)
     for p in new:
         said = int(re.search(r"-(\d+)pages?-", p.name).group(1))
         per_page = p.layout_recipe["area_cols"] * p.layout_recipe["area_rows"]

@@ -237,7 +237,8 @@ def test_builtin_fulllayout_recipes_appear_starred(qapp):
     # TC3.00 Target ships no editor design), two of them ColorMunki, and the
     # five "by Pharmacist" charts of 4.3.1 (#182 5875467209), three of them
     # ColorMunki.
-    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19 + 26 + 19 + 8 + 8 + 5
+    # The second 19 became 20 with the 7.5 mm "Full Page" chart (#182 5943544919).
+    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 20 + 26 + 19 + 8 + 8 + 5
     assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45 + 2 + 3
     assert sum(1 for n in starred if n.startswith("★ i1Pro 3 Plus")) == 24
     assert sum(1 for n in starred if n.startswith("★ CR30 ")) == 26

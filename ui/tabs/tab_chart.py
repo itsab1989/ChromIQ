@@ -1746,7 +1746,8 @@ _I1_75_BASE: dict = dict(_I1_BASE, sscale=0.75, margin_right=4.0)
 def _i1_75_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                   patches: int, pages: int, white: int, black: int,
                   margin_right: float | None = None,
-                  margin_bottom: float | None = None) -> "_Ti1Preset":
+                  margin_bottom: float | None = None,
+                  helper_marker_per_patch: int | None = None) -> "_Ti1Preset":
     """One chart of Knut's 7.5 mm i1Pro family (see :data:`_I1_75_BASE`).
 
     The same shape as :func:`_i1_preset`; only the base recipe and the asset
@@ -1765,6 +1766,8 @@ def _i1_75_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                               if margin_right is not None else {}),
                            **({"margin_bottom": margin_bottom}
                               if margin_bottom is not None else {}),
+                           **({"helper_marker_per_patch": helper_marker_per_patch}
+                              if helper_marker_per_patch is not None else {}),
                            area_rows=rows),
     )
 
@@ -2355,12 +2358,21 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     # out 7.41 mm against the 7.49 these actually print — inside the ±0.5 mm
     # check meant to catch exactly this. See `_I1_75_BASE`.
 
+    # Renamed by Knut (#182 5943544919, 4.3.3-beta.1); the keys stay, so a
+    # person's shown/hidden choice and every run made from them stay too.
     _i1_75_preset("i1_w75_a4_162p_1page_portrait_w7_5mm",
-                  "A4-162p-1page-Portrait-w7.5mm",
+                  "A4-162p-1page-Portrait-w7.5mm-Uniform 5x5x5-Quarter Page",
                   "A4", 24, 27, 162, 1, 1, 1),
     _i1_75_preset("i1_w75_a4_324p_1page_portrait_w7_5mm",
-                  "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6",
+                  "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page",
                   "A4", 24, 27, 324, 1, 1, 1),
+    # NEW in 4.3.3-beta.1 (Knut, #182 5943544919): the same 324 patches spread
+    # over the full page, so a small i1Pro chart can answer every metric in
+    # "Which presets can be used for verification?". Its ruler marks every
+    # second patch where the rest of the family marks every fifth.
+    _i1_75_preset("i1_w75_a4_324p_1page_portrait_w7_5mm_uniform_6x6x6_full_page",
+                  "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Full Page",
+                  "A4", 12, 27, 324, 1, 1, 1, helper_marker_per_patch=2),
     _i1_75_preset("i1_w75_a4_648p_1page_portrait_w7_5mm",
                   "A4-648p-1page-Portrait-w7.5mm-Uniform 6x6x6-Edge Emphasis",
                   "A4", 24, 27, 648, 1, 1, 1),

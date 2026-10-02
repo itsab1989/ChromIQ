@@ -44,10 +44,11 @@ def test_the_marker_counts_are_what_the_registry_holds():
     # 4.3.1 (#182 5875467209): the last four prebuilt images withdrawn, and
     # five "by Pharmacist" charts with a page layout added, each with a
     # recipe.json, so all five are marked.
-    assert len(tc.BUILTIN_PRESET_KEYS) == 188
+    assert len(tc.BUILTIN_PRESET_KEYS) == 189
     assert len(tc.PREBUILT_PRESETS) == 0        # none ships since 4.3.1
-    assert (len(marked), len(unmarked)) == (181, 7)
-    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 188
+    # 182 marked since the 7.5 mm "Full Page" chart (#182 5943544919)
+    assert (len(marked), len(unmarked)) == (182, 7)
+    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 189
 
 
 def test_no_red_river_row_carries_the_marker():

@@ -4,6 +4,15 @@
 
 **The i1Pro 2, 3 and 3 Plus are timed against their own reading speed, saved reports keep the run they were made in, and ChromIQ runs again on older Macs.**
 
+### New
+
+- **A new i1Pro preset: "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Full Page"**, made by Knut: the same 324 patches spread over the whole A4 page, so a small i1Pro chart can answer every row of "Which presets can be used for verification?". ChromIQ now has 189 built-in chart presets.
+
+### Changed
+
+- **Seven of Knut's presets use the near-neutral offset he set for them**: i1Pro A4-572p and Letter-572p (Uniform 7x7x7-Edge Emphasis), i1Pro Letter-162p, and i1Pro 3 Plus A4-462p, Letter-429p and A3-336p now have the offset 7 he chose for one ring of near-neutral greys, so their patch sets change; the i1Pro Letter-648p preset now opens its own design in the patch-set editor. A chart you already made from one of them keeps its patches.
+- Two i1Pro presets have new names: "A4-162p-1page-Portrait-w7.5mm-Uniform 5x5x5-Quarter Page" and "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page". Whether you chose to show or hide them is kept.
+
 ### Fixed
 
 - **Reading speed for the i1Pro 2, i1Pro 3 and i1Pro 3 Plus** (#202). These instruments were judged with the first-generation i1Pro's limit, so an i1Pro 2 was told to slow down to 240 ms per patch when 120 ms is enough. ChromIQ now recognises the name each instrument reports and uses its own row in Preferences ▸ Measurement. An i1Pro 3 Plus is also recognised as a Plus when the ChromIQ chart-reading engine is used.

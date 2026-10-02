@@ -366,8 +366,9 @@ def test_the_built_in_engine_presets_against_the_60_percent_floor():
     eng = [p for p in KNUT_PRESETS if getattr(p, "layout_recipe", None)]
     # 181 since beta 47: + the nine "by Pharmacist" charts with a layout
     # (#182 5860041950), none of which the coverage or the grid refuses; 186
-    # since 4.3.1, with five more of them (#182 5875467209), refused by neither.
-    assert len(eng) == 186
+    # since 4.3.1, with five more of them (#182 5875467209), refused by neither;
+    # 187 with Knut's 7.5 mm "Full Page" chart (#182 5943544919), refused by neither.
+    assert len(eng) == 187
     by_coverage, by_grid = [], []
     for p in eng:
         g = PE._evenness_grid_for(Path(resource_path(p.ti1_asset)),

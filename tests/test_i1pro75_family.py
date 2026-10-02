@@ -27,9 +27,10 @@ def _family():
 
 def test_the_family_is_all_nineteen():
     fam = _family()
-    assert len(fam) == 19, f"expected 19 charts, found {len(fam)}"
-    assert len({p.slug for p in fam}) == 19, "duplicate slugs"
-    assert len({p.key for p in fam}) == 19, "duplicate preset keys"
+    # 20 since 4.3.3-beta.1: + the A4 "Full Page" chart (#182 5943544919)
+    assert len(fam) == 20, f"expected 20 charts, found {len(fam)}"
+    assert len({p.slug for p in fam}) == 20, "duplicate slugs"
+    assert len({p.key for p in fam}) == 20, "duplicate preset keys"
 
 
 def test_every_chart_ships_its_patch_set():
@@ -77,6 +78,8 @@ def test_the_grid_is_the_one_that_makes_7_5_mm():
     still says 7.5, and nothing else in the suite notices.
     """
     for p in _family():
+        if p.slug == FULL_PAGE:
+            continue                  # see test_the_full_page_chart_names_its_width
         rec = p.layout_recipe
         paper = rec["paper"]
         expect = 52 if paper == "420x297" else 24
@@ -84,6 +87,29 @@ def test_the_grid_is_the_one_that_makes_7_5_mm():
             f"{p.slug}: area_cols {rec['area_cols']}, expected {expect} for "
             f"{paper} — the patch would not be 7.5 mm wide")
         assert rec["area_rows"] == 27, f"{p.slug}: area_rows {rec['area_rows']}"
+
+
+#: Knut's "Uniform 6x6x6-Full Page" chart (#182 5943544919, 4.3.3-beta.1):
+#: 12 strips across the A4 page instead of 24, so its patches are 15.0 mm wide
+#: (measured with the engine and the margin inspector, 2026-10-02) under a
+#: name that says w7.5mm. Shipped exactly as he sent it; the name question is
+#: on #182 (5943591913).
+FULL_PAGE = "i1_w75_a4_324p_1page_portrait_w7_5mm_uniform_6x6x6_full_page"
+
+
+def test_the_full_page_chart_is_twelve_strips_of_twenty_seven():
+    p = next(x for x in _family() if x.slug == FULL_PAGE)
+    assert (p.layout_recipe["area_cols"], p.layout_recipe["area_rows"]) == (12, 27)
+    assert p.layout_recipe.get("helper_marker_per_patch") == 2
+
+
+@pytest.mark.xfail(strict=True, reason="name says w7.5mm, the chart prints 15.0 mm "
+                   "patches; awaiting Knut's answer on #182 (5943591913). STRICT: "
+                   "when the name and the patch agree, this passes, the xfail "
+                   "fails, and the marker must go.")
+def test_the_full_page_chart_names_its_width():
+    p = next(x for x in _family() if x.slug == FULL_PAGE)
+    assert "-w15.0mm-" in p.name or p.layout_recipe["area_cols"] == 24
 
 
 def test_the_family_keeps_its_own_base():

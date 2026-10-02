@@ -147,8 +147,9 @@ def test_the_four_prebuilt_images_are_gone_and_no_other_is_left():
         assert not left, (leaf, left)
 
 
-def test_the_count_is_188():
-    assert len(TC.BUILTIN_PRESET_KEYS) == 188
+def test_the_count_is_189():
+    # 188 in 4.3.1; +1 with Knut's three i1Pro presets, #182 5943544919 (4.3.3-beta.1): the 7.5 mm "Full Page" chart.
+    assert len(TC.BUILTIN_PRESET_KEYS) == 189
 
 
 def test_a_stored_tick_for_a_removed_preset_is_harmless():
