@@ -518,6 +518,19 @@ class _PatchInfoTile(QWidget):
         # is seen. In every view mode, because the outline is drawn in every
         # one; the ΔE is named here even when the split's own ΔE line is not.
         flag = str(info.get("flag", "") or "")
+        # THE COLOUR RANGE (#182 k10, Knut 5961180259): a yellow learned from
+        # other patches is learned from the patch's own range, once that range
+        # has three confirmed patches spaced apart; each card says which range
+        # and how far it has got. Lines are M-PATCH-COLOUR-RANGE's.
+        from workflow import measurement_messages as _mm
+        rng = str(info.get("colour_range", "") or "")
+        range_k = int(info.get("range_k", 0) or 0)
+
+        def add_range_line() -> None:
+            name = _mm.RANGE_NAMES.get(rng)
+            if name:
+                rows.append((None, tr(_mm._CARD_RANGE).format(range=tr(name))))
+
         if info.get("warn") and flag == "confirmed":
             # YELLOW, CONFIRMED (#182 B, Sebastian 5956560815): read twice,
             # the same colour twice. Set apart at the bottom like the red text.
@@ -531,8 +544,17 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("paper cannot reach, not a misread.")))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Keep it for the profile.")))
+            if rng in _mm.RANGE_NAMES:
+                # A confirmed patch stays yellow whether its range has
+                # learned or not; the card says how far the range has got.
+                rows.append((None, ""))
+                add_range_line()
+                rows.append((None, tr(_mm._CARD_RANGE_CONFIRMED_LEARNED)
+                             if range_k >= 3 else
+                             tr(_mm._CARD_RANGE_SO_FAR).format(k=range_k)))
         elif info.get("warn") and flag == "learned":
-            # YELLOW, JUDGED LIKE A CONFIRMED PATCH (#182 B2, Knut 5956831467).
+            # YELLOW, JUDGED LIKE A CONFIRMED PATCH OF ITS RANGE (#182 B2,
+            # Knut 5956831467; k10).
             rows.append((None, "─" * 30))
             rows.append((None, tr("Yellow outline: judged like patch {loc}"
                                   ).format(loc=str(info.get("like_loc", "")))))
@@ -540,12 +562,17 @@ class _PatchInfoTile(QWidget):
                                   ).format(de=float(info.get("de", 0.0)),
                                            limit=float(info.get("warn_de", 0.0)))))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
-            rows.append((None, tr("{loc} was confirmed by a re-read.").format(
-                loc=str(info.get("like_loc", "")))))
+            add_range_line()
+            locs = [str(v) for v in (info.get("range_locs") or ())]
+            if locs:
+                # The first three, then "…": a list, never a counted phrase.
+                shown = ", ".join(locs[:3]) + ("…" if len(locs) > 3 else "")
+                rows.append((None, tr(_mm._CARD_RANGE_SAME).format(locs=shown)))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
-            rows.append((None, tr("This one has a similar colour and")))
-            rows.append((None, tr("a similar or larger difference,")))
-            rows.append((None, tr("so it is taken as real too.")))
+            rows.append((None, tr(_mm._CARD_RANGE_LEARNED_1)))
+            rows.append((None, tr(_mm._CARD_RANGE_LEARNED_2)))
+            rows.append((None, tr(_mm._CARD_RANGE_LEARNED_3)))
+            rows.append((None, tr(_mm._CARD_RANGE_LEARNED_4)))
         elif info.get("warn"):
             rows.append((None, "─" * 30))
             # Not "likely misread" alone (Knut, #182 5956210745): a large
@@ -561,6 +588,16 @@ class _PatchInfoTile(QWidget):
                              tr("(limit for a chart with estimated colours)")))
             if info.get("fenced"):
                 rows.append((None, tr("and stands out from its strip")))
+            if rng in _mm.RANGE_NAMES:
+                rows.append((None, ""))
+                add_range_line()
+                if range_k >= 3:
+                    # Learned, and this one is not like its confirmed patches.
+                    rows.append((None, tr(_mm._CARD_RANGE_RED_LEARNED_1)))
+                    rows.append((None, tr(_mm._CARD_RANGE_RED_LEARNED_2)))
+                elif range_k >= 1:
+                    rows.append((None, tr(_mm._CARD_RANGE_SO_FAR).format(
+                        k=range_k)))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Either a misread, or a colour")))
             rows.append((None, tr("this printer and paper cannot reach.")))
@@ -1726,6 +1763,53 @@ class TiffPreview(QWidget):
                 if (it[0].x(), it[0].y(), it[0].width(), it[0].height()) not in new_boxes
             ] + list(items)
 
+    def update_patch_flags(self, page: int, changes: dict) -> None:
+        """Change the outline and card facts of patches already on `page`.
+
+        *changes* maps a patch's image-px box to ``(flag, extra)``: *flag* is
+        the new overlay value (red, or one of workflow.patch_flags' yellows),
+        *extra* the card facts to replace (#182 k10: a colour range that has
+        just learned turns earlier red patches yellow, and back). Patches not
+        on the page are left alone; nothing is added. An open hover card is
+        redrawn when its patch changed."""
+        if not changes:
+            return
+
+        def key(r):
+            return (r.x(), r.y(), r.width(), r.height())
+
+        by_key = {key(box): fe for box, fe in changes.items()}
+        hit = False
+        overlay = self._patch_overlay.get(page)
+        if overlay:
+            new = []
+            for it in overlay:
+                fe = by_key.get(key(it[0]))
+                if fe is not None:
+                    it = (it[0], it[1], it[2], fe[0]) + tuple(it[4:])
+                    hit = True
+                new.append(it)
+            self._patch_overlay[page] = new
+        info = self._patch_info.get(page)
+        if info:
+            new_info = []
+            for box, d in info:
+                fe = by_key.get(key(box))
+                if fe is not None:
+                    d = dict(d)
+                    d.update(fe[1] or {})
+                    hit = True
+                new_info.append((box, d))
+            self._patch_info[page] = new_info
+        if not hit:
+            return
+        self._schedule_refresh()
+        tile = self._patch_tile
+        pos = getattr(self, "_patch_tile_pos", None)
+        if (page == self._current and tile is not None and not tile.isHidden()
+                and pos is not None):
+            self._update_patch_tile(pos)
+
     def set_show_patch_tile(self, on: bool) -> None:
         """Turn the hover info tile on/off. When off, any visible tile hides at
         once; when on, it appears the next time the pointer is over a measured
@@ -1755,6 +1839,8 @@ class TiffPreview(QWidget):
     def _update_patch_tile(self, pos: QPoint) -> None:
         """Show/move/hide the hover info tile for the patch under `pos` (a point
         in this widget's own coordinates)."""
+        # Kept so a change of the patch's outline can redraw an open card.
+        self._patch_tile_pos = QPoint(pos)
         if not self._show_patch_tile or self._pixmap is None:
             self._hide_patch_tile()
             return

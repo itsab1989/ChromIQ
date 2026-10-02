@@ -16,7 +16,8 @@ Each part has a test that fails without it:
 * A, the chart decides: `test_a_profile_made_chart_is_judged_by_the_accurate_limit`
 * A, the migration: tests/test_settings_patch_warn_migration.py
 * B, a re-read confirms: `test_reading_a_red_strip_again_turns_it_yellow`
-* B2, learning: `test_a_later_patch_like_a_confirmed_one_is_yellow_at_once`
+* B2, learning: `test_two_close_confirmations_do_not_teach_knuts_blues`,
+  and the colour ranges themselves: tests/test_k182_k10_colour_ranges.py
 """
 from __future__ import annotations
 
@@ -159,7 +160,10 @@ class _Settings:
 
 def _chart(tmp_path, accurate: bool):
     ti2 = tmp_path / "chart.ti2"
+    # Knut's .ti2 names D65 as its white, as printtarg does for an RGB chart;
+    # the colour ranges are classified against it (#182 k10).
     ti2.write_text('CTI2\n\nORIGINATOR "ChromIQ layout engine"\n'
+                   'APPROX_WHITE_POINT "95.050000 100.000000 108.900000"\n'
                    + ('ACCURATE_EXPECTED_VALUES "true"\n' if accurate else "")
                    + "NUMBER_OF_FIELDS 2\nBEGIN_DATA_FORMAT\nSAMPLE_ID SAMPLE_LOC\n"
                    "END_DATA_FORMAT\nNUMBER_OF_SETS 0\nBEGIN_DATA\nEND_DATA\n",
@@ -415,21 +419,45 @@ def test_a_yellow_patch_does_not_sound_off(tmp_path):
     assert played == [snd.PATCH_OUT_OF_TOL, snd.PATCH_OK]
 
 
-# ---- B2: learning ------------------------------------------------------------
-def test_a_later_patch_like_a_confirmed_one_is_yellow_at_once(qapp, tmp_path):
+# ---- B2: learning, within a colour range (#182 k10) -------------------------
+#: Three blues (D50 L*a*b*, hue about 288°) pairwise at least ΔE 7 apart: what a
+#: colour range needs before it learns (Knut 5961180259 on 5961078418).
+BLUES = [(30.0, 20.0, -60.0), (37.0, 20.0, -60.0), (44.0, 20.0, -60.0)]
+#: How each falls short of its blue: less chroma, a little lighter (ΔE 32.4).
+SHORT = (5.0, -20.0, 25.0)
+
+
+def _confirm_blues(j, *, standout=None):
+    for i, e in enumerate(BLUES, 1):
+        m = tuple(a + b for a, b in zip(e, SHORT))
+        for _ in range(2):
+            j.judge(f"X{i}", e, m, 32.4, True, standout=standout)
+    assert j.confirmed == ["X1", "X2", "X3"]
+    assert j.range_status("blue")[0] == 3
+
+
+def test_two_close_confirmations_do_not_teach_knuts_blues(qapp, tmp_path):
+    """Knut's own strips: A17 and A23 confirmed are two blues 3 ΔE apart, so
+    the blue range has one spaced confirmation of three, and F4, a blue off
+    the same way, stays red. Its card says how far the range has got."""
     tab = _tab(tmp_path)
     tab._on_strip_measured(_strip("A"))
     tab._on_strip_measured(_strip("A"))          # A17 and A23 confirmed
     tab._on_strip_measured(_strip("F"))
-    flags = _flags(tab)
-    assert flags["F4"] == pf.FLAG_LEARNED
+    assert _flags(tab)["F4"] is True
     info = _info(tab, "F4")
-    assert info["like_loc"] in ("A17", "A23")
+    assert info["colour_range"] == "blue" and info["range_k"] == 1
     rows = _card(qapp, info)
-    assert f"Yellow outline: judged like patch {info['like_loc']}" in rows
-    # O9 is a different colour range: Knut's data keeps it red.
+    assert "Colour range: blue" in rows
+    assert "1 of 3 spaced confirmations so far" in rows
+    # O9 is purple at the approved 310° edge: a range with no confirmation.
     tab._on_strip_measured(_strip("O"))
     assert _flags(tab)["O9"] is True
+    o9 = _info(tab, "O9")
+    assert o9["colour_range"] == "purple" and o9["range_k"] == 0
+    rows = _card(qapp, o9)
+    assert "Colour range: purple/violet" in rows
+    assert not any("of 3" in r for r in rows)
 
 
 def test_nothing_is_learned_before_a_confirmation(tmp_path):
@@ -439,47 +467,40 @@ def test_nothing_is_learned_before_a_confirmation(tmp_path):
     assert _flags(tab)["F4"] is True
 
 
-def test_a_misread_in_a_known_colour_range_stays_red(tmp_path):
-    """The conservative half (Basti's brief): F4 (a deep blue) misread as a
-    neighbour's red is not the printer falling short of blue, though its
-    expected colour is in the confirmed range and its ΔE is larger."""
-    tab = _tab(tmp_path)
-    tab._on_strip_measured(_strip("A"))
-    tab._on_strip_measured(_strip("A"))
-    red = next(m for l, e, m in KNUT if l == "A12")
-    tab._on_strip_measured(_strip("F", swap={"F4": red}))
-    info = _info(tab, "F4")
-    assert info["de"] > 150 and info["warn"]
-    assert _flags(tab)["F4"] is True
+def test_a_misread_in_a_learned_colour_range_stays_red():
+    """The conservative half (Basti's brief): in a blue range that HAS
+    learned, a blue misread as a red is not the printer falling short of
+    blue, though its expected colour is in the range and its ΔE is larger."""
+    j = pf.FlagJudge()
+    _confirm_blues(j)
+    e = (33.0, 21.0, -61.0)
+    assert j.judge("X4", e, (45.0, 60.0, 40.0), 112.0, True).flag is pf.FLAG_RED
+    assert j.judge("X5", e, tuple(a + b for a, b in zip(e, SHORT)), 32.4,
+                   True).flag == pf.FLAG_LEARNED
 
 
 def test_a_patch_that_stands_out_far_more_than_the_reference_stays_red():
     j = pf.FlagJudge()
-    e = (30.0, 60.0, -90.0)
-    j.judge("X1", e, (35.0, 20.0, -40.0), 64.0, True, standout=20.0)
-    assert j.judge("X1", e, (35.5, 20.5, -40.5), 64.0, True, standout=20.0).flag \
-        == pf.FLAG_CONFIRMED
-    near_e = (32.0, 62.0, -92.0)
-    shifted = (37.0, 20.0, -40.0)
-    assert j.judge("X2", near_e, shifted, 68.0, True, standout=25.0).flag == pf.FLAG_LEARNED
-    assert j.judge("X3", near_e, shifted, 68.0, True, standout=45.0).flag is pf.FLAG_RED
+    _confirm_blues(j, standout=20.0)
+    near_e = (32.0, 22.0, -62.0)
+    shifted = tuple(a + b for a, b in zip(near_e, (6.0, -20.0, 25.0)))
+    assert j.judge("X4", near_e, shifted, 33.0, True, standout=25.0).flag \
+        == pf.FLAG_LEARNED
+    assert j.judge("X5", near_e, shifted, 33.0, True, standout=45.0).flag \
+        is pf.FLAG_RED
     # a learned patch is never itself a reference
-    assert j.confirmed == ["X1"]
+    assert j.confirmed == ["X1", "X2", "X3"]
 
 
 def test_patch_by_patch_the_direction_of_the_error_is_what_decides():
     """No strip, so no stand-out figure: a reading whose error points another
-    way (here: too light and too red, where the confirmed one fell short of
-    the blue) stays red however large it is; one that falls short the same way,
-    further, turns yellow."""
+    way (here: much lighter and redder, where the confirmed ones fell short of
+    the blue) stays red however large it is; one that falls short the same
+    way, further, turns yellow."""
     j = pf.FlagJudge()
-    e = (30.0, 60.0, -90.0)
-    m = (35.0, 20.0, -40.0)                      # shift (5, -40, 50), ΔE 64
-    j.judge("X1", e, m, 64.0, True)
-    j.judge("X1", e, m, 64.0, True)
-    assert j.confirmed == ["X1"]
-    near_e = (31.0, 61.0, -91.0)
-    other_way = (60.0, 70.0, -50.0)              # shift (29, 9, 41), ΔE 51
-    further = (37.0, 15.0, -30.0)                # shift (6, -46, 61), ΔE 77
-    assert j.judge("X2", near_e, other_way, 51.0, True).flag is pf.FLAG_RED
-    assert j.judge("X3", near_e, further, 77.0, True).flag == pf.FLAG_LEARNED
+    _confirm_blues(j)
+    near_e = (31.0, 21.0, -61.0)
+    other_way = (60.0, 30.0, -20.0)              # shift (29, 9, 41)
+    further = (37.0, -6.0, -30.0)                # shift (6, -27, 31)
+    assert j.judge("X4", near_e, other_way, 51.0, True).flag is pf.FLAG_RED
+    assert j.judge("X5", near_e, further, 41.5, True).flag == pf.FLAG_LEARNED
