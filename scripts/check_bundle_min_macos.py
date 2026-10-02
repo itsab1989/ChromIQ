@@ -69,7 +69,12 @@ def too_new(app: Path) -> tuple[str, list[tuple[str, str, str]]]:
             p = Path(root) / name
             if p.is_symlink() or not is_macho(p):
                 continue
-            for arch, minos in slice_minimums(p).items():
+            mins = slice_minimums(p)
+            if not mins:
+                # A binary that states no minimum cannot be shown to run on
+                # the declared one (review K_review_beta1): refuse it.
+                bad.append((str(p.relative_to(app)), "?", "unreadable"))
+            for arch, minos in mins.items():
                 if _version(minos) > _version(declared):
                     bad.append((str(p.relative_to(app)), arch, minos))
     return declared, bad

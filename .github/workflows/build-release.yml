@@ -102,7 +102,8 @@ jobs:
           VER=$(python3 -c "import importlib.metadata as m; print(m.version('numpy'))")
           rm -rf /tmp/np_arm64_macos11
           pip3 download --no-deps --only-binary=:all: --platform macosx_13_0_arm64 \
-            --python-version 3.13 "numpy==${VER}" -d /tmp/np_arm64_macos11
+            --python-version "$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')" \
+            "numpy==${VER}" -d /tmp/np_arm64_macos11
           ls /tmp/np_arm64_macos11
           pip3 install --force-reinstall --no-deps /tmp/np_arm64_macos11/numpy-*.whl
           python3 -c "import numpy; print('numpy', numpy.__version__, numpy.__file__)"
@@ -142,6 +143,11 @@ jobs:
       #   ver_filter must appear in the wheel filename to select the right Python
       #   version. Use "cp313" for cpython-tagged wheels, "abi3" for stable-ABI
       #   wheels, "py3-none" for pure-tag arch-specific wheels (PyQt6-Qt6 etc).
+      # Rosetta, so the Intel half can be run on this arm64 runner (next steps).
+      - name: Install Rosetta (universal2 only)
+        if: matrix.arch == 'universal2'
+        run: softwareupdate --install-rosetta --agree-to-license || true
+
       - name: Make C extensions universal2 via lipo (universal2 only)
         if: matrix.arch == 'universal2'
         run: |
@@ -198,6 +204,35 @@ jobs:
           # bundle has a fat libscipy_openblas64_.dylib.
           lipo_pkg scipy-openblas64     scipy_openblas64  py3-none
 
+          # numpy's Intel OpenBLAS (numpy/.dylibs) loads libgfortran, libquadmath
+          # and libgcc_s from its OWN folder (@loader_path). The macOS-11 arm64
+          # wheel has no such files, so lipo_pkg above (which merges only files
+          # with an arm64 twin) left the Intel half without them: review
+          # K_review_beta1, CI-1. Build fat copies there from the Intel ones in
+          # numpy's own x86_64 wheel and the arm64 ones scipy-openblas64 ships.
+          NP_DYLIBS="$SITELIB/numpy/.dylibs"
+          for lib in libgfortran.5.dylib libquadmath.0.dylib libgcc_s.1.1.dylib; do
+            x86="/tmp/numpy_x86/numpy/.dylibs/$lib"
+            arm="$SITELIB/scipy_openblas64/.dylibs/$lib"
+            if [ -f "$x86" ] && [ -d "$NP_DYLIBS" ] && [ ! -f "$NP_DYLIBS/$lib" ]; then
+              if [ ! -f "$arm" ]; then
+                echo "ERROR: no arm64 $lib in scipy_openblas64 to pair with numpy's Intel one"
+                exit 1
+              fi
+              lipo -thin arm64 "$arm" -output "/tmp/arm64_$lib" 2>/dev/null || cp "$arm" "/tmp/arm64_$lib"
+              lipo -create "/tmp/arm64_$lib" "$x86" -output "$NP_DYLIBS/$lib"
+              echo "numpy/.dylibs/$lib: $(lipo -archs "$NP_DYLIBS/$lib")"
+            fi
+          done
+
+      # Import numpy AS INTEL and use its OpenBLAS, from the merged site-packages
+      # the app is built from. Fails loudly if the Intel half misses a library.
+      - name: Import numpy as x86_64 under Rosetta (universal2 only)
+        if: matrix.arch == 'universal2'
+        run: |
+          set -euo pipefail
+          arch -x86_64 python3 -c "import numpy, numpy.linalg as L; print('x86_64 numpy', numpy.__version__, L.inv(numpy.eye(3)*2)[0,0])"
+
       # Bit-exact gamut-mapping helper — ArgyllCMS's real gamut mapper compiled
       # from the vendored subset (native/argyll). Built universal2 so it passes
       # the fat-Mach-O check below and runs on both Intel and Apple Silicon.
@@ -239,6 +274,13 @@ jobs:
       # built for a newer system. Fails the build instead.
       - name: Check every binary runs on the declared minimum macOS
         run: python3 scripts/check_bundle_min_macos.py dist/ChromIQ.app
+
+      # Every library every binary loads must be in the app (or the system),
+      # for EACH architecture: a fat file whose Intel half loads a library the
+      # app lacks passes every "is it fat" check and still dies on an Intel Mac
+      # (K_review_beta1, CI-1).
+      - name: Check every binary finds every library it loads
+        run: python3 scripts/check_bundle_load_paths.py dist/ChromIQ.app
 
       # Safety net for Intel-Mac regressions: walk every Mach-O file in the bundle
       # and assert it contains both x86_64 and arm64 slices. Catches anything the

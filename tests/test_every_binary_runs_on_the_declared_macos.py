@@ -48,6 +48,7 @@ def test_numpy_arm64_comes_from_its_macos_11_wheel_before_the_build():
     step = WORKFLOW.index("Use numpy's macOS 11 arm64 wheel")
     assert step < WORKFLOW.index("run: python3 -m PyInstaller ChromIQ.spec")
     assert "--platform macosx_13_0_arm64" in WORKFLOW[step:step + 1500]
+    assert "--python-version 3.13" not in WORKFLOW, "read it from the running python"
     # and after the universal2 job's numpy<2.4 pin, so it reinstalls THAT version
     assert step > WORKFLOW.index("Pin numpy below 2.4 for old Intel Macs")
 
@@ -96,3 +97,13 @@ def test_binaries_at_or_below_the_declared_macos_pass(tmp_path):
 
 def test_versions_compare_as_numbers_not_text():
     assert C._version("13.10") > C._version("13.9")
+
+
+def test_a_binary_without_a_stated_minimum_is_refused(tmp_path, monkeypatch):
+    app = tmp_path / "A.app"
+    (app / "Contents" / "MacOS").mkdir(parents=True)
+    with open(app / "Contents" / "Info.plist", "wb") as fh:
+        plistlib.dump({"LSMinimumSystemVersion": "13.0"}, fh)
+    (app / "Contents" / "MacOS" / "x").write_bytes(b"\xcf\xfa\xed\xfe" + b"\0" * 64)
+    monkeypatch.setattr(C, "slice_minimums", lambda p: {})
+    assert [m for *_x, m in C.too_new(app)[1]] == ["unreadable"]
