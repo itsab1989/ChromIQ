@@ -15369,6 +15369,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 set_report_type(report, tid)
             when = _dt.now()
             created = str(report.get("created") or "")
+            # **THE REPORT SCOPE'S COUNT, AS IT IS TODAY (Q-C5; Knut, #182
+            # 5950006399: "Yes, Show numbers as they were saved. An update
+            # will renew the numbers.").** The same decision the report
+            # window makes (`scope_counts`), for the one measurement this
+            # report covers, read off the disk now and stored with the report.
+            from workflow.measurement_report import scope_counts
+            row = {k: v for k, v in report.items() if not k.startswith("_")}
+            row["_origin_dir"] = str(ti3.parent)
+            row["ti3"] = str(ti3)
+            scope_count = scope_counts([row])
             stamp_document(
                 report, doc_id=new_document_id(when),
                 created=when.isoformat(timespec="seconds"),
@@ -15388,7 +15398,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     "ti3": str(ti3.name),
                     "key": document_measurement_key(ti3.parent, created,
                                                     str(ti3.name)),
-                }])
+                }],
+                scope_count=scope_count)
         except Exception as exc:                     # noqa: BLE001
             log.warning("could not record the report's document block: %s", exc)
 
