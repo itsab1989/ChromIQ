@@ -4,8 +4,12 @@ A ``.cal`` is a CGATS ``CAL`` table: a shared input axis (``RGB_I``, 0–1) plus
 one calibrated-output column per device channel (e.g. ``RGB_R RGB_G RGB_B``),
 typically 256 rows.  printtarg can:
 
-* ``-K`` **apply** the curves to each patch's device values *and* embed the
-  table in the ``.ti2``;
+* ``-K`` **apply** the curves to the colour each patch is PRINTED with (the
+  page TIFF / PostScript) *and* embed the table in the ``.ti2``. The ``.ti2``'s
+  own device values stay uncalibrated: printtarg writes them from
+  ``cols[i].dev`` and calibrates only a local ``cdev`` in ``tiff_setcolor`` /
+  ``ps_setcolor``. chartread copies them into the ``.ti3``, so the profile is
+  of the calibrated device and ``applycal`` folds the curves in exactly once;
 * ``-I`` **embed** the table without applying it.
 
 This module reads the table, applies it (per-channel linear interpolation,
@@ -37,10 +41,9 @@ class Calibration:
     def apply(self, device: tuple[float, ...]) -> tuple[float, ...]:
         """Map device values (0–100) through the per-channel curves (0–100).
 
-        Per-channel linear interpolation of the LUT.  This is **self-consistent**
-        (the TIFF and ``.ti2`` are calibrated identically, so the measured chart
-        is valid), and for an identity ``.cal`` it matches ``printtarg -K``
-        exactly.  It is *not* bit-identical to printtarg for non-trivial cals
+        Per-channel linear interpolation of the LUT, used for the printed
+        pixels only (never the ``.ti2``). For an identity ``.cal`` it matches
+        ``printtarg -K`` exactly.  It is *not* bit-identical to printtarg for non-trivial cals
         across every colorspace (Argyll applies cals in the native device space
         with its own interpolation); for printtarg-exact ``-K`` output, delegate
         to ArgyllCMS.  Used for additive-RGB printers (ChromIQ's target).
@@ -164,8 +167,9 @@ def check_matches(target, cal: Calibration) -> None:
 def apply_to_target(target, cal: Calibration):
     """Return a copy of a :class:`ColorTarget` with device values calibrated.
 
-    Used for ``-K`` (apply): the TIFF and ``.ti2`` are calibrated identically,
-    keeping the printed chart and its measurement file self-consistent.
+    Used for ``-K`` (apply), for what is PRINTED only: the page raster. The
+    ``.ti2`` is written from the uncalibrated target, as printtarg does, or
+    the profile describes the raw printer and ``applycal`` calibrates twice.
     """
     from dataclasses import replace
     check_matches(target, cal)

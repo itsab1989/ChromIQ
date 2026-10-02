@@ -289,10 +289,20 @@ def build_chart(
     per-strip pixel rects for the measure-tab highlighter).
 
     *cal_path* attaches a printer calibration: with *apply_cal* True (``-K``) the
-    curves are applied to the patch values (TIFF + ``.ti2`` together) **and**
-    embedded; with it False (``-I``) the calibration is only embedded.
+    curves are applied to the PRINTED patch colours (the TIFF / PDF pixels)
+    **and** embedded; with it False (``-I``) the calibration is only embedded.
+    Either way the ``.ti2`` keeps the ``.ti1``'s own, uncalibrated device
+    values, exactly as ``printtarg -K`` does (printtarg.c: ``ps_setcolor`` /
+    ``tiff_setcolor`` calibrate a local ``cdev`` for the page, while the
+    ``.ti2`` rows are written from ``cols[i].dev``). Those are the values
+    chartread copies into the ``.ti3`` and colprof profiles against: the
+    profile is of the CALIBRATED device, and ``applycal`` folds the curves in
+    once. A ``.ti2`` carrying calibrated values made a profile of the raw
+    printer, and ``applycal`` then calibrated it a second time.
     """
     target = ti1_reader.read_ti1(ti1_path)
+    # What goes on paper. Differs from `target` only under -K.
+    printed = target
 
     cal = None
     if cal_path is not None:
@@ -303,7 +313,7 @@ def build_chart(
         # anything downstream (#182 5956560815).
         calibration.check_matches(target, cal)
         if apply_cal:
-            target = calibration.apply_to_target(target, cal)
+            printed = calibration.apply_to_target(target, cal)
     spacer_on = spacer_on and spacer_mode != "none"   # "none" ⇒ no gap
     # Build the Geom through the one chokepoint so area-first patch sizing and the
     # furniture reservations (label band, bottom sheet text / stamp) match every
@@ -437,7 +447,7 @@ def build_chart(
     _overrides = ({int(k): _to_rgb(v) for k, v in spacer_overrides.items()}
                   if spacer_overrides else None)
     render = raster.render_pages(
-        target, layout, geom, seed=seed, randomize=randomize,
+        printed, layout, geom, seed=seed, randomize=randomize,
         paper_w_mm=w_mm, paper_h_mm=h_mm, dpi=dpi, strip_pattern=strip_pattern,
         patch_pattern=patch_pattern,
         spacer_mode=spacer_mode, spacer_palette=_palette,
@@ -477,7 +487,7 @@ def build_chart(
         collect_device_geom=(target.n_channels >= 4 or export_pdf),
     )
     if target.n_channels >= 4:
-        device_pages = raster.build_device_pages(render, target, bit16=bit16)
+        device_pages = raster.build_device_pages(render, printed, bit16=bit16)
         tiff_paths = raster.save_separated_tiffs(
             device_pages, artefact(stem, ".tif"), dpi=dpi,
             ink_names=raster.ink_names_from_fields(target.device_fields),
@@ -489,7 +499,7 @@ def build_chart(
     if export_pdf:
         from . import vector_pdf
         pdf_path = vector_pdf.save_vector_pdf(
-            render, target, artefact(stem, ".pdf"),
+            render, printed, artefact(stem, ".pdf"),
             paper_w_mm=w_mm, paper_h_mm=h_mm, dpi=dpi)
 
     rects = geometry.strip_rects_px(geom, w_mm, h_mm, layout, dpi)
