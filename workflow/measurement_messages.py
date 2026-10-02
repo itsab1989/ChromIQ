@@ -1481,6 +1481,60 @@ M_CAL_CALIBRATED_TWICE = _m(
     "ChromIQ, then print and measure it again.",
     approved=False)
 
+
+# --- PROPOSED: the colour range on a flagged patch's card (#182 k10) --------
+#: The rule was approved (Knut 5961180259, Sebastian, on 5961078418): a red
+#: patch may only turn yellow from confirmed patches of its own colour range,
+#: once that range has three of them spaced at least ΔE 6 apart. The post
+#: gave one line of card text ("Blue: 2 of 3 spaced confirmations so far");
+#: the lines below are that line split so the range name stands on its own
+#: (a nominative line, which every language can say), plus the sentences the
+#: yellow and red cards need. No sentence counts anything but the fixed 3, so
+#: no language needs plural forms. The card (ui/tiff_preview.py) breaks its
+#: lines by hand, which is why each is a line of its own.
+_CARD_RANGE = "Colour range: {range}"
+_CARD_RANGE_SO_FAR = "{k} of 3 spaced confirmations so far"
+_CARD_RANGE_SAME = "Re-read and the same: {locs}"
+_CARD_RANGE_LEARNED_1 = "Its range has learned: three patches"
+_CARD_RANGE_LEARNED_2 = "of it, spaced apart, were confirmed."
+_CARD_RANGE_LEARNED_3 = "This one is off in the same way,"
+_CARD_RANGE_LEARNED_4 = "so it is taken as real too."
+_CARD_RANGE_RED_LEARNED_1 = "This range has learned, but this"
+_CARD_RANGE_RED_LEARNED_2 = "one is off in a different way."
+_CARD_RANGE_CONFIRMED_LEARNED = "This range has learned."
+#: The thirteen ranges' names, as the post named them.
+_RANGE_GREY_DARK = "dark grey"
+_RANGE_GREY_MID = "mid grey"
+_RANGE_GREY_LIGHT = "light grey"
+_RANGE_PINK = "pink/rose"
+_RANGE_RED = "red"
+_RANGE_ORANGE = "orange/brown"
+_RANGE_YELLOW = "yellow"
+_RANGE_YELLOW_GREEN = "yellow-green"
+_RANGE_GREEN = "green"
+_RANGE_CYAN = "cyan/turquoise"
+_RANGE_BLUE = "blue"
+_RANGE_PURPLE = "purple/violet"
+_RANGE_MAGENTA = "magenta"
+#: workflow.patch_flags.RANGES -> the name the card shows (through tr()).
+RANGE_NAMES = {
+    "grey_dark": _RANGE_GREY_DARK, "grey_mid": _RANGE_GREY_MID,
+    "grey_light": _RANGE_GREY_LIGHT, "pink": _RANGE_PINK, "red": _RANGE_RED,
+    "orange": _RANGE_ORANGE, "yellow": _RANGE_YELLOW,
+    "yellow_green": _RANGE_YELLOW_GREEN, "green": _RANGE_GREEN,
+    "cyan": _RANGE_CYAN, "blue": _RANGE_BLUE, "purple": _RANGE_PURPLE,
+    "magenta": _RANGE_MAGENTA,
+}
+M_PATCH_COLOUR_RANGE = _m(
+    "M-PATCH-COLOUR-RANGE",
+    _CARD_RANGE,
+    "\n".join((_CARD_RANGE_SO_FAR, _CARD_RANGE_SAME,
+               _CARD_RANGE_LEARNED_1, _CARD_RANGE_LEARNED_2,
+               _CARD_RANGE_LEARNED_3, _CARD_RANGE_LEARNED_4,
+               _CARD_RANGE_RED_LEARNED_1, _CARD_RANGE_RED_LEARNED_2,
+               _CARD_RANGE_CONFIRMED_LEARNED)),
+    approved=False)
+
 # ---------------------------------------------------------------------------
 #: Knut wrote this text himself (beta.150) to replace the original "No
 #: Instrument Found" bullet list, and asked for the window I had added at ten
@@ -3797,6 +3851,7 @@ CATALOGUE = {m.id: m for m in (
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_CM_K_CHART_THROUGH, M_CM_RAW_UNCALIBRATED,
     M_CAL_APPLIED_TWICE, M_CAL_CALIBRATED_TWICE,
+    M_PATCH_COLOUR_RANGE,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_DONE_PROFILING,

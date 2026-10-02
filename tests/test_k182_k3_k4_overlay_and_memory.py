@@ -246,10 +246,12 @@ def test_a_confirmed_patch_survives_the_end_of_the_measurement(tmp_path):
     assert data["schema"] == 1 and data["mode"] == "strip"
     assert data["ti3_sha256"] == cp.ti3_sha256(ti3)
     assert data["patches"]["A17"]["kind"] == "confirmed"
-    # F4 is like a confirmed patch of strip A: learned, stored for the preview
-    assert flags["F4"] == pf.FLAG_LEARNED
-    assert data["patches"]["F4"]["kind"] == "learned"
-    assert data["patches"]["F4"]["like"] in ("A17", "A23")
+    # F4 is a blue like A17 and A23, but two confirmations less than ΔE 6
+    # apart do not teach the blue range (#182 k10): it stays red, and nothing
+    # learned is stored. Storing a learned patch is
+    # tests/test_k182_k10_colour_ranges.py's.
+    assert flags["F4"] is pf.FLAG_RED
+    assert "F4" not in data["patches"]
 
 
 def test_the_memory_is_written_while_the_session_runs(tmp_path):

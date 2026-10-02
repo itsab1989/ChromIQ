@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.3.3-beta.6 (unreleased)
+
+### Changed
+
+- **A red patch turns yellow by itself only from confirmed patches of its own colour range** (#182). There are 13 ranges: greys (dark, mid, light) and ten hue ranges from pink/rose to magenta, judged from each patch's expected colour against the chart's own white. A range learns once three of its patches, at least ΔE 6 apart, were each read again and gave the same colour; then its other red patches that are off the same way turn yellow, earlier ones included, and they turn red again if the range loses a confirmation. A patch you confirmed stays yellow either way. The hover card shows the patch's range, and on a red patch how many of the three it has.
+
 ## v4.3.3-beta.5
 
 **Two flag limits and a yellow outline for patches confirmed by a re-read; outlines that stay after the measurement; and printer calibration with Apply & Embed (-K) done the way ArgyllCMS does it.**

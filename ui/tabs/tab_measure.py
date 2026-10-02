@@ -3110,10 +3110,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             + "\n\n" + tr(
             "A yellow outline means the large difference is known to be real. "
             "Either the patch was read again and gave the same colour (within "
-            "ΔE 3), or it has a similar colour and a difference of the same "
-            "kind, as large or larger, as a patch that was. It is not a "
+            "ΔE 3), or its colour range has learned: three patches of that "
+            "range (greys by lightness, other colours by hue), at least ΔE 6 "
+            "apart, were each read again and gave the same colour, and this "
+            "one is off in the same way, as much or more. It is not a "
             "misread and does not need reading again; the card says which of "
-            "the two it is. Which patches were confirmed is kept with the "
+            "the two it is, and on a red patch how far its range has got. "
+            "Which patches were confirmed is kept with the "
             "measurement, so they stay yellow after it ends and when you "
             "resume it; a completely new read starts without yellow "
             "patches."),
@@ -14017,20 +14020,49 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if items:
             self._preview.set_patch_overlay(page, items)
             self._preview.set_patch_info(page, info_items)
+            # The strip may have taught a colour range, or un-taught one.
+            self._apply_flag_rejudge(live=True)
         self._update_engine_read_map()
 
     def _flag_judge(self):
-        """This tab's yellow-outline memory (#182 B/B2), made on first use."""
+        """This tab's yellow-outline memory (#182 B/B2), made on first use,
+        with the chart's own white for its colour ranges (#182 k10)."""
+        judge = getattr(self, "_patch_flag_judge", None)
+        if judge is None:
+            # Asking for the chart's facts first can itself make the judge
+            # (a chart change resets it, through _reset_flag_judge).
+            white = self._chart_white()
+            judge = getattr(self, "_patch_flag_judge", None)
+            if judge is None:
+                from workflow.patch_flags import FlagJudge
+                judge = self._patch_flag_judge = FlagJudge(white=white)
+        return judge
+
+    def _reset_flag_judge(self, white=None):
+        """THE ONE WAY this tab starts the yellow memory afresh (#182 k10).
+
+        Always with the chart's white, so the colour ranges are classified
+        against the chart's own white and never fall back to D50 because a
+        caller forgot it (tests/test_k182_k10_colour_ranges.py checks that
+        every reset of the judge in this file comes through here)."""
+        if white is None:
+            white = self._chart_white()
         judge = getattr(self, "_patch_flag_judge", None)
         if judge is None:
             from workflow.patch_flags import FlagJudge
-            judge = self._patch_flag_judge = FlagJudge()
+            judge = self._patch_flag_judge = FlagJudge(white=white)
+        else:
+            judge.reset(white=white)
         return judge
 
-    def _chart_expected_is_accurate(self) -> bool:
-        """Does the chart on screen carry ACCURATE_EXPECTED_VALUES? (#182 A)
+    def _chart_flag_facts(self) -> "tuple[bool, tuple]":
+        """``(accurate, white)`` for the chart on screen (#182 A, k10).
 
-        Read ONCE PER CHART: the answer is kept against the chart's identity
+        *accurate*: does the chart carry ACCURATE_EXPECTED_VALUES? *white*: its
+        APPROX_WHITE_POINT on a 0..1 scale (D50 when it has none), which the
+        colour ranges of the yellow rule are classified against.
+
+        Read ONCE PER CHART: the answers are kept against the chart's identity
         (path and the moment it was written), so a chart generated again into
         the same run is asked again. A different chart also starts the yellow
         memory afresh, since its patches are not the ones it remembers.
@@ -14040,21 +14072,36 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:          # noqa: BLE001
             key = None
         cached = getattr(self, "_warn_kind_cache", None)
-        if cached is not None and cached[0] == key:
-            return cached[1]
-        accurate = False
+        if cached is not None and len(cached) == 3 and cached[0] == key:
+            return cached[1], cached[2]
+        from workflow.patch_flags import D50_WHITE
+        accurate, white = False, D50_WHITE
         ti1 = getattr(self, "_ti1_path", None)
         if ti1 is not None:
             try:
-                from workflow.patch_flags import chart_has_accurate_expected_values
-                accurate = chart_has_accurate_expected_values(
-                    self._chart_file_for(ti1))
+                from workflow.patch_flags import (chart_has_accurate_expected_values,
+                                                  chart_white)
+                chart = self._chart_file_for(ti1)
+                accurate = chart_has_accurate_expected_values(chart)
+                white = chart_white(chart)
             except Exception:      # noqa: BLE001 — a preview is never worth a crash
                 log.debug("could not read the chart's keywords", exc_info=True)
+        self._warn_kind_cache = (key, accurate, white)
         if cached is not None:
-            self._flag_judge().reset()
-        self._warn_kind_cache = (key, accurate)
-        return accurate
+            self._reset_flag_judge(white)
+        else:
+            judge = getattr(self, "_patch_flag_judge", None)
+            if judge is not None:
+                judge.set_white(white)
+        return accurate, white
+
+    def _chart_expected_is_accurate(self) -> bool:
+        """Does the chart on screen carry ACCURATE_EXPECTED_VALUES? (#182 A)"""
+        return self._chart_flag_facts()[0]
+
+    def _chart_white(self) -> tuple:
+        """The chart's own white, XYZ with Y = 1 (#182 k10)."""
+        return self._chart_flag_facts()[1]
 
     def _patch_warn_limit(self) -> float:
         """The red-outline limit for the chart on screen (#182 A): the user's
@@ -14071,7 +14118,6 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         outline, red, or one of the two yellows of workflow/patch_flags.py),
         *extra* goes into the patch's hover info.
         """
-        from workflow.patch_flags import FLAG_CONFIRMED, FLAG_LEARNED, is_yellow
         accurate = self._chart_expected_is_accurate()
         extra = {"accurate": accurate}
         try:
@@ -14081,13 +14127,50 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:          # noqa: BLE001 — never lose the red outline
             log.debug("could not judge patch %s", loc, exc_info=True)
             return bool(flagged), extra
-        if is_yellow(v.flag) and v.flag == FLAG_CONFIRMED:
-            extra.update(flag="confirmed", prev_de=v.prev_de)
-        elif is_yellow(v.flag) and v.flag == FLAG_LEARNED:
-            extra.update(flag="learned", like_loc=v.like_loc)
+        extra.update(self._verdict_extra(v))
         if live:
             self._save_confirmed_memory_if_changed()
         return v.flag, extra
+
+    @staticmethod
+    def _verdict_extra(v) -> dict:
+        """The hover card's facts about one verdict of the yellow rule: which
+        yellow (if any), what it agreed with or was judged like, and its
+        colour range with how many spaced confirmations it has (#182 k10)."""
+        from workflow.patch_flags import FLAG_CONFIRMED, FLAG_LEARNED, is_yellow
+        kind = ""
+        if is_yellow(v.flag) and v.flag == FLAG_CONFIRMED:
+            kind = "confirmed"
+        elif is_yellow(v.flag) and v.flag == FLAG_LEARNED:
+            kind = "learned"
+        return {"flag": kind, "prev_de": v.prev_de, "like_loc": v.like_loc,
+                "colour_range": v.colour_range, "range_k": int(v.range_k),
+                "range_locs": list(v.range_locs)}
+
+    def _apply_flag_rejudge(self, *, live: bool = True) -> None:
+        """After a batch of patches (a strip, a patch, a repaint): judge every
+        flagged patch again and redraw the ones whose outline or card changed
+        (#182 k10). A confirmation can teach a colour range, which turns
+        EARLIER red patches of it yellow; losing one can turn them red again."""
+        try:
+            changes = self._flag_judge().rejudge()
+        except Exception:          # noqa: BLE001 — never lose the outlines on screen
+            log.debug("could not judge the patches again", exc_info=True)
+            return
+        if not changes:
+            return
+        per_page: "dict[int, dict]" = {}
+        for loc, v in changes.items():
+            page, box = self._locate_patch(loc)
+            if page < 0 or box is None:
+                continue
+            per_page.setdefault(page, {})[box] = (v.flag, self._verdict_extra(v))
+        preview = getattr(self, "_preview", None)
+        if preview is not None and hasattr(preview, "update_patch_flags"):
+            for page, mapping in per_page.items():
+                preview.update_patch_flags(page, mapping)
+        if live:
+            self._save_confirmed_memory_if_changed()
 
     # ---- #182 K4: the confirmed patches, kept with the measurement ---------
     #
@@ -14130,8 +14213,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._chart_expected_is_accurate()
         except Exception:      # noqa: BLE001
             pass
-        judge = self._flag_judge()
-        judge.reset()
+        judge = self._reset_flag_judge()
         self._memory_written = None
         #: Which measurement the memory now describes.
         self._memory_for = Path(ti3) if ti3 is not None else None
@@ -14324,6 +14406,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # re-reading a patch refreshes it rather than stacking).
         self._preview.set_patch_overlay(page, [item])
         self._preview.set_patch_info(page, [info])
+        # This patch may have taught its colour range, or un-taught it.
+        self._apply_flag_rejudge(live=True)
         # …and the strip this patch belongs to is read once all of it is
         # (B8-385). Patch by patch is the mode that shows this best: the strip
         # stops being blanked at the moment its last patch is reported, and
@@ -14414,6 +14498,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         for page, its in items.items():
             self._preview.set_patch_overlay(page, its)
             self._preview.set_patch_info(page, infos[page])
+        # Judged in file order, so a patch read before the confirmations of
+        # its colour range is judged again now that they are all known.
+        self._apply_flag_rejudge(live=live)
         # WHAT THIS MODE HAS READ, in the only terms the preview understands
         # (B8-385). Only the patches that found a box are counted, which is the
         # same set the loop above drew and the same set `_letters_fully_read`
