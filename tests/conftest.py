@@ -1798,7 +1798,7 @@ def pytest_report_header(config):
         out.append(f"  chart-reading engine: helper PRESENT at {helper}")
     else:
         out.append("  chart-reading engine: helper ABSENT - 8 files SKIP "
-                   "WHOLESALE and 1 more skips in")
+                   "WHOLESALE and 3 more skip in")
         out.append("      part (85 tests when this was last measured, "
                    "2026-09-03), and a chart-reading")
         out.append("      engine deleted outright would still pass. The "
@@ -1864,7 +1864,7 @@ def _enforce_the_helper(config):
     raise pytest.UsageError(
         "--runslow is the release gate, and the chromiq-chartread helper is "
         "not here.\n"
-        "Eight files would skip WHOLESALE in silence and two more in part "
+        "Eight files would skip WHOLESALE in silence and three more in part "
         "(85 tests when\n"
         "this was last measured), and a chart-reading engine deleted outright "
         "would pass.\n"

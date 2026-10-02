@@ -1369,6 +1369,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._connect_instrument_error_cues()
         self._manager.stripe_changed.connect(self._on_stripe_changed)
         self._manager.all_stripes_done.connect(self._on_all_stripes_done)
+        # After a read the reader moves on to the next strip by itself, but not
+        # while a window is asking whether to read that strip again (Knut,
+        # #182 5956210745). A bound method, never a lambda.
+        if hasattr(self._manager, "set_question_probe"):
+            self._manager.set_question_probe(self._a_question_is_open)
         # Opt-in scanner target: (re)build .cht + .cie from every finalised
         # measurement when the chart is flagged for it (#97). measure_finished
         # carries the final .ti3 in every proceed-to-build case (normal, cal/
@@ -7259,6 +7264,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 self._live_measure_windows.remove(dlg)
             except ValueError:
                 pass
+            # A move to the next strip may have waited for this answer. It is
+            # released AFTER the caller has acted on the answer: "read it
+            # again" sends its goto first, and that cancels the move.
+            QTimer.singleShot(0, self._release_held_strip_move)
+
+    def _a_question_is_open(self) -> bool:
+        """Whether a modal window is up, which may answer "read it again"."""
+        return QApplication.activeModalWidget() is not None
+
+    def _release_held_strip_move(self) -> None:
+        """Make the move to the next strip a closed window held back."""
+        release = getattr(self._manager, "release_held_strip_move", None)
+        if release is not None:
+            release()
 
     def _close_measurement_windows(self) -> None:
         """Close every window that belongs to the measurement that just ended.
