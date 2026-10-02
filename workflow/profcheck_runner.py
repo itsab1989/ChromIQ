@@ -76,6 +76,51 @@ REFINE_START_OVER_RATIO      = 0.5   # recommend start-over if patch ratio excee
 REFINE_START_OVER_STRIP_RATIO = 0.75  # recommend start-over if strip ratio exceeds this
 
 
+def recommends_start_over(n_patches_above: int, n_total_patches: int,
+                          n_flagged: int, n_total_strips: int) -> bool:
+    """The Check & Refine start-over rule, unchanged, in one place.
+
+    Moved here from ``tab_check_refine._on_done`` so the result window and the
+    saved .txt report cannot disagree about it. The rule itself is not touched
+    (its redesign is k5, awaiting Knut).
+    """
+    n_total_patches = n_total_patches or 1
+    n_total_strips = n_total_strips or 1
+    return (n_patches_above / n_total_patches > REFINE_START_OVER_RATIO
+            or n_flagged / n_total_strips > REFINE_START_OVER_STRIP_RATIO)
+
+
+def start_over_reason(n_patches_above: int, n_total_patches: int,
+                      n_flagged: int, n_total_strips: int,
+                      threshold: float) -> str:
+    """Why the check recommends starting over: one translated sentence.
+
+    It was an f-string outside ``tr()`` with two em dashes in it, so this one
+    sentence stayed English in the middle of a translated window (#182, Knut's
+    beta 5 runs). The counted cases each get a real singular: more than half of
+    a one-patch file, or three-quarters of a one-strip chart, is that one.
+    """
+    n_total_patches = n_total_patches or 1
+    n_total_strips = n_total_strips or 1
+    if n_patches_above / n_total_patches > REFINE_START_OVER_RATIO:
+        if n_total_patches == 1:
+            return tr("Your only patch exceeds \u0394E {limit:.1f}.").format(
+                limit=threshold)
+        return tr(
+            "{n} out of {total} patches ({pct}%) exceed \u0394E {limit:.1f}: "
+            "more than half of your measurement data."
+        ).format(n=n_patches_above, total=n_total_patches,
+                 pct=round(100 * n_patches_above / n_total_patches),
+                 limit=threshold)
+    if n_total_strips == 1:
+        return tr("Your chart's only strip needs re-measuring.")
+    return tr(
+        "{n} out of {total} strips ({pct}%) need re-measuring: more than "
+        "three-quarters of your chart."
+    ).format(n=n_flagged, total=n_total_strips,
+             pct=round(100 * n_flagged / n_total_strips))
+
+
 
 @dataclass
 class ProfcheckParams:
@@ -305,7 +350,18 @@ def grade_display(grade: str) -> str:
     }.get(grade, grade)
 
 
-def quality_explanation(avg_de: float | None, peak_de: float | None) -> str:
+def quality_explanation(avg_de: float | None, peak_de: float | None,
+                        *, start_over: bool = False) -> str:
+    """The grade's explanation, as the result window and the .txt report say it.
+
+    ``start_over`` is True when the check also recommends starting over with a
+    fresh chart (:func:`recommends_start_over`). The window then offers no
+    re-measuring at all, so the explanation must not advise it either: Knut's
+    run2 check (#182, 2026-10-03) read *"Re-measuring the flagged strips can
+    help"* directly above *"Re-measuring individual strips is unlikely to
+    reliably fix this"*, with no strip list anywhere. In that case the advice
+    sentence is left out and the start-over verdict below gives the advice.
+    """
     if avg_de is None:
         return tr(
             "profcheck did not return summary statistics. "
@@ -341,6 +397,31 @@ def quality_explanation(avg_de: float | None, peak_de: float | None) -> str:
             lines.append(tr(
                 "Your profile is good. Most colours will reproduce accurately. "
                 "Small errors may be visible only in critical colour-matching situations."
+            ))
+    elif overall_rank == 2 and start_over:
+        if limiting == "peak":
+            lines.append(tr(
+                "Your profile's average accuracy is reasonable (\u0394E {avg:.2f}), but "
+                "there are individual patches with significant errors (peak \u0394E {peak:.2f}). "
+                "These outliers will likely cause noticeable colour shifts in specific areas."
+            ).format(avg=avg_de, peak=peak_de))
+        else:
+            lines.append(tr(
+                "Your profile is acceptable but has room for improvement. "
+                "Some colours may look slightly off in prints."
+            ))
+    elif overall_rank >= 3 and start_over:
+        if limiting == "peak":
+            avg_label = grade_display(_GRADE_LABELS[avg_rank]).lower()
+            lines.append(tr(
+                "Your average colour accuracy is {avg_label} (\u0394E {avg:.2f}), but "
+                "one or more individual patches have very high errors (peak \u0394E {peak:.2f}). "
+                "These outliers will cause clearly visible colour shifts in specific areas."
+            ).format(avg_label=avg_label, avg=avg_de, peak=peak_de))
+        else:
+            lines.append(tr(
+                "Your profile needs work. Colour accuracy is low and prints "
+                "will likely show noticeable colour shifts."
             ))
     elif overall_rank == 2:
         if limiting == "peak":

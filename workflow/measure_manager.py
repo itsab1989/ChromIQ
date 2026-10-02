@@ -2385,10 +2385,15 @@ class MeasureManager(QObject):
             from core.i18n import count_phrase, tr
             _n = count_phrase(len(self._guided_strips),
                               tr("1 strip"), tr("{n} strips"))
-            on_line(
-                f"[Guided Refinement] Starting auto-navigation to "
-                f"{_n}: {strips_str} — worst \u0394E first."
-            )
+            # IN CHART ORDER, NOT "WORST ΔE FIRST". `_guided_strips` comes
+            # from the Refine_Strips file, which lists strips in measurement
+            # order (Check & Refine says so in its own window), and the reader
+            # visits them in that order: Knut's beta 5 log went A, C, D, E, G,
+            # I, J, K, L under a line promising the worst one first.
+            on_line(tr(
+                "[Guided Refinement] Starting auto-navigation to {strips}: "
+                "{names}, in chart order."
+            ).format(strips=_n, names=strips_str))
             on_line("[Guided Refinement] The app will press 'f'/'b' for you. Do not touch the keyboard.")
             on_line(f"[Guided Refinement] Moving to strip {target}\u2026")
             self._navigate_toward(letter, target)

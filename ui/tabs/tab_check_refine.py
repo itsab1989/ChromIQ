@@ -53,8 +53,6 @@ from ui.styles import SPEC_VIOLET, TAB_COLORS
 from workflow.scanin_target import has_scanner_geometry
 from workflow.profcheck_runner import (
     REFINE_DE_THRESHOLD,
-    REFINE_START_OVER_RATIO,
-    REFINE_START_OVER_STRIP_RATIO,
     ProfcheckParams,
     ProfcheckRunner,
     group_by_strip,
@@ -62,6 +60,8 @@ from workflow.profcheck_runner import (
     grade_display,
     quality_explanation,
     quality_grade,
+    recommends_start_over,
+    start_over_reason,
     strips_to_refine,
     total_strip_count,
     write_quality_report,
@@ -88,6 +88,17 @@ if TYPE_CHECKING:
     from core.settings import AppSettings
 
 log = get_logger(__name__)
+
+
+def _start_over_advice_html(reason: str) -> str:
+    """The start-over verdict as the result window shows it (rich text)."""
+    return tr("<b>{reason}</b><br><br>Re-measuring individual strips is unlikely to reliably fix this. <b>Starting over with a freshly printed and measured chart is strongly recommended.</b>").format(reason=reason)
+
+
+def _plain(html: str) -> str:
+    """The same verdict for the plain-text report: line breaks kept, tags gone."""
+    import re
+    return re.sub(r"<[^>]+>", "", re.sub(r"<br\s*/?>", "\n", html))
 
 _ILLUMINANTS = [
     ("D50 (default)", "D50"),
@@ -1602,10 +1613,11 @@ class TabCheckRefine(QWidget):
         n_flagged          = len(refine_strips)
         n_patches_above    = sum(1 for _, de in result.patch_errors if de > threshold)
         n_total_patches    = len(result.patch_errors) if result.patch_errors else 1
-        recommend_start_over = (
-            n_patches_above / n_total_patches > REFINE_START_OVER_RATIO        # >50% of patches bad
-            or n_flagged / n_total_strips   > REFINE_START_OVER_STRIP_RATIO    # >75% of strips flagged
-        )
+        # >50% of patches bad, or >75% of strips flagged. Only when there is
+        # something flagged at all, which is also the only case the result
+        # window shows the verdict in: the report and the window must agree.
+        recommend_start_over = bool(refine_strips) and recommends_start_over(
+            n_patches_above, n_total_patches, n_flagged, n_total_strips)
 
         # Write output files (best-effort — a failure must not prevent the dialog)
         strips_file: Path | None = None
@@ -1635,23 +1647,11 @@ class TabCheckRefine(QWidget):
                 else:
                     from workflow.run_compliance import reports_dir_for
                     folder = ensure_subdir(reports_dir_for(self._ti3_path))
-                grade = quality_grade(result.avg_de, result.peak_de)
-                explanation = quality_explanation(result.avg_de, result.peak_de)
-                summary_text = tr("Profile Quality Assessment: {grade}").format(
-                    grade=grade_display(grade)) + f"\n\n{explanation}"
-                if all_strips_display:
-                    strip_lines = "\n".join(
-                        f"  {s:4s}  avg ΔE: {de:.2f}" for s, de in all_strips_display[:10]
-                    )
-                    summary_text += f"\n\nStrips with highest error (worst first, avg ΔE):\n{strip_lines}"
-                if refine_strips and not recommend_start_over:
-                    refine_lines = "\n".join(
-                        f"  {s:4s}  max ΔE: {de:.2f}" for s, de in refine_strips
-                    )
-                    summary_text += (
-                        f"\n\nStrips flagged for re-measurement (in measurement order, "
-                        f"threshold ΔE > {threshold:.1f}):\n{refine_lines}"
-                    )
+                summary_text = self._report_summary_text(
+                    result, all_strips_display, refine_strips,
+                    recommend_start_over, threshold,
+                    n_flagged, n_total_strips, n_patches_above,
+                    n_total_patches)
 
                 report_path = write_quality_report(folder, stem, summary_text, result.raw_log)
                 self._log.appendPlainText(
@@ -1672,6 +1672,60 @@ class TabCheckRefine(QWidget):
             n_flagged, n_total_strips, n_patches_above, n_total_patches,
         )
 
+    @staticmethod
+    def _report_summary_text(
+        result,
+        all_strips_display: list[tuple[str, float]],
+        refine_strips: list[tuple[str, float]],
+        recommend_start_over: bool,
+        threshold: float,
+        n_flagged: int,
+        n_total_strips: int,
+        n_patches_above: int,
+        n_total_patches: int,
+    ) -> str:
+        """The readable top of the saved Quality_Check .txt report.
+
+        SAYS WHAT THE WINDOW SAYS. Knut's run2 report (#182, beta 5) carried
+        the grade text *"Re-measuring the flagged strips can help"*, no strip
+        list and no verdict, while the window beside it recommended starting
+        over. The report now carries the same explanation, the same worst
+        patches, and the start-over verdict with its reason, translated.
+        """
+        grade = quality_grade(result.avg_de, result.peak_de)
+        explanation = quality_explanation(result.avg_de, result.peak_de,
+                                          start_over=recommend_start_over)
+        text = tr("Profile Quality Assessment: {grade}").format(
+            grade=grade_display(grade)) + f"\n\n{explanation}"
+        if all_strips_display:
+            strip_lines = "\n".join(
+                f"  {s:4s}  avg ΔE: {de:.2f}" for s, de in all_strips_display[:10]
+            )
+            text += "\n\n" + tr(
+                "Strips with highest error (worst first, avg ΔE):") \
+                + "\n" + strip_lines
+        if result.patch_errors:
+            worst = sorted(result.patch_errors, key=lambda pe: pe[1],
+                           reverse=True)[:5]
+            patch_lines = "\n".join(
+                f"  {p:4s}  ΔE: {de:.2f}" for p, de in worst)
+            text += "\n\n" + tr(
+                "Patches with highest error (worst first, ΔE):") \
+                + "\n" + patch_lines
+        if recommend_start_over:
+            reason = start_over_reason(n_patches_above, n_total_patches,
+                                       n_flagged, n_total_strips, threshold)
+            text += "\n\n" + _plain(_start_over_advice_html(reason))
+        elif refine_strips:
+            refine_lines = "\n".join(
+                f"  {s:4s}  max ΔE: {de:.2f}" for s, de in refine_strips
+            )
+            text += "\n\n" + tr(
+                "Strips flagged for re-measurement (in measurement order, "
+                "threshold ΔE > {limit:.1f}):").format(limit=threshold) \
+                + "\n" + refine_lines
+        return text
+
     # ------------------------------------------------------------------
     # Result dialog
     # ------------------------------------------------------------------
@@ -1689,7 +1743,9 @@ class TabCheckRefine(QWidget):
         n_total_patches: int = 1,
     ) -> None:
         grade       = quality_grade(result.avg_de, result.peak_de)
-        explanation = quality_explanation(result.avg_de, result.peak_de)
+        explanation = quality_explanation(
+            result.avg_de, result.peak_de,
+            start_over=bool(recommend_start_over and refine_strips))
 
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Profile Quality Assessment"))
@@ -1748,23 +1804,10 @@ class TabCheckRefine(QWidget):
 
         # Action recommendation
         if recommend_start_over and refine_strips:
-            thr = self._threshold_spin.value()
-            patch_pct = round(100 * n_patches_above / n_total_patches)
-            strip_pct = round(100 * n_flagged / n_total_strips)
-            if n_patches_above / n_total_patches > REFINE_START_OVER_RATIO:
-                reason = (
-                    f"{n_patches_above} out of {n_total_patches} patches ({patch_pct}%) "
-                    f"exceed ΔE {thr:.1f} — more than half of your measurement data."
-                )
-            else:
-                reason = (
-                    f"{n_flagged} out of {n_total_strips} strips ({strip_pct}%) need "
-                    f"re-measuring — more than three-quarters of your chart."
-                )
-            action_lbl = QLabel(
-                tr("<b>{reason}</b><br><br>Re-measuring individual strips is unlikely to reliably fix this. <b>Starting over with a freshly printed and measured chart is strongly recommended.</b>").format(reason=reason),
-                dlg,
-            )
+            reason = start_over_reason(
+                n_patches_above, n_total_patches, n_flagged, n_total_strips,
+                self._threshold_spin.value())
+            action_lbl = QLabel(_start_over_advice_html(reason), dlg)
             action_lbl.setWordWrap(True)
             layout.addWidget(action_lbl)
         elif refine_strips:
