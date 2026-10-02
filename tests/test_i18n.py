@@ -1503,18 +1503,19 @@ _IDENTICAL_TO_KEY = {
     # Dictionary entry, the presets button's tooltip). German by hand; each of
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
-    "de": 135,
-    "es": 117,
-    "fr": 139,
-    "it": 124,
-    "ja": 95,
-    "nl": 142,
-    "no": 124,
-    "pl": 119,
-    "pt": 117,
-    "ru": 90,
-    "sv": 128,
-    "zh_CN": 91,
+    # RE-MEASURED 2026-10-02, W review of 4.3.3-beta.3: "reports/Verify_Profile_N_{name}.txt" (Verify a profile makes no 3D map) is a bare path, identical to its key in every language, +1 each, all thirteen. COUNTED off the tree, BOTH ledgers.
+    "de": 136,
+    "es": 118,
+    "fr": 140,
+    "it": 125,
+    "ja": 96,
+    "nl": 143,
+    "no": 125,
+    "pl": 120,
+    "pt": 118,
+    "ru": 91,
+    "sv": 129,
+    "zh_CN": 92,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1543,7 +1544,7 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 78,
+    "uk": 79,
 }
 
 
