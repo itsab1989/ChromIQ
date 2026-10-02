@@ -9971,6 +9971,13 @@ Measurement Report, e.g. "Measurement inspection".
   `.icc`, by the same logic as Inspect a measurement (§55 (b)).
 * Check & Refine saves into the reports folder, unless the checked file is
   outside the project.
+* **Outside a ChromIQ project, beside the file.** Knut, #182 5944210498
+  (2026-10-02), answering Q-B3: *"Yes, I meant outside a ChromIQ project the
+  file should be saved directly beside the inspected file. It might not be
+  desired that a reports/ folder is created in this case."* This holds for
+  Inspect a measurement, Inspect a profile, Check & Refine and the Verify
+  tools: nothing of ours (no `reports/`, no `old/` archive) is made beside a
+  user's own files; a same-named file there is the save dialog's question.
 
 ### ⏳ Awaiting confirmation: what was built from it
 
@@ -9997,12 +10004,11 @@ A failed save shows "Could not save the report: …" and keeps the inspection on
 screen (it emptied it and said "Could not read this measurement", R182-1).
 
 **56.3 Our reading, for Knut to confirm.**
-* "Outside the project": Check & Refine's "check it where it is" (Basti,
-  2026-09-01) writes beside the file, as before. For a file in no project that
-  is not checked in place, and for the Inspect and Verify tools, the folder is
-  still `<its folder>/reports`, as §55 (b) built it; if Knut's parenthesis
-  means those should also write beside the file, that is a one-line change in
-  `reports_dir_for`'s last line.
+* ~~"Outside the project": the folder is still `<its folder>/reports`~~:
+  answered by Knut (above, 5944210498): beside the file. Built:
+  `run_compliance.reports_dir_for` returns the file's own folder for a file in
+  no project, `in_a_project` tells the cases apart, and `save_inspection` makes
+  and archives nothing there.
 * A profile in the system's colour-profile folders (`~/Library/ColorSync/
   Profiles` and the others Inspect a profile browses first) gets no `reports/`
   made there; the chooser opens in the ChromIQ folder.

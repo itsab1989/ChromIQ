@@ -100,8 +100,11 @@ def reports_dir_for(path: "Path | str") -> Path:
     * the project itself, for a file in it that no run or calibration owns:
       ``<project>/reports``.
 
-    Only a file in no project at all gets ``<its folder>/reports``. Nothing is
-    created here.
+    A file in no ChromIQ project at all gets ITS OWN FOLDER, with no
+    ``reports/`` made there: Knut, #182 5944210498, *"outside a ChromIQ project
+    the file should be saved directly beside the inspected file. It might not
+    be desired that a reports/ folder is created in this case."* Nothing is
+    created here. :func:`in_a_project` tells the two cases apart.
     """
     from core.file_manager import Calibration, is_a_project, reports_subdir
     p = Path(path)
@@ -120,7 +123,29 @@ def reports_dir_for(path: "Path | str") -> Path:
                 return reports_subdir(d)
     except (OSError, ValueError):
         pass
-    return reports_subdir(start)
+    return start
+
+
+def in_a_project(path: "Path | str") -> bool:
+    """Whether *path* lies in a ChromIQ project (a run, a dated verification,
+    a calibration or the project itself owns it), the case in which saved
+    reports go into a ``reports/`` folder and an earlier file of the same name
+    is archived there. Outside a project nothing of ours is made beside the
+    user's own files (Knut, #182 5944210498)."""
+    from core.file_manager import is_a_project
+    p = Path(path)
+    start = p.parent if p.suffix else p
+    try:
+        for d in [start, *list(start.parents)[:7]]:
+            if run_context_for(d / "_.ti3") is not None:
+                return True
+            if d.name == "cal" and is_a_project(d.parent):
+                return True
+            if is_a_project(d):
+                return True
+    except (OSError, ValueError):
+        pass
+    return False
 
 
 def project_root_for(path: "Path | str | None") -> "Path | None":

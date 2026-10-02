@@ -86,7 +86,8 @@ def _places(tmp_path):
                             cal.dir / "reports"),
         "project, no run": (_put(Path(proj.root) / "exports" / "x.ti3"),
                             Path(proj.root) / "reports"),
-        "outside any project": (_put(outside / "m.ti3"), outside / "reports"),
+        # beside the file, no reports/ (Knut, #182 5944210498)
+        "outside any project": (_put(outside / "m.ti3"), outside),
     }
 
 
@@ -98,7 +99,10 @@ def test_the_reports_folder_is_the_owners(tmp_path, label):
     from workflow.run_compliance import reports_dir_for
     ti3, want = _places(tmp_path)[label]
     assert reports_dir_for(ti3) == want
-    assert not want.exists(), "asking made the folder"
+    if label == "outside any project":
+        assert not (want / "reports").exists(), "asking made a reports folder"
+    else:
+        assert not want.exists(), "asking made the folder"
 
 
 def _inspector(qapp, ti3):

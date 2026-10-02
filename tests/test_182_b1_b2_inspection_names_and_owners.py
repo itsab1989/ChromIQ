@@ -78,8 +78,8 @@ def _places(tmp_path, suffix: str, data) -> dict:
                         cal.dir / "reports"),
         "project, no run": (_put(Path(proj.root) / "exports" / f"x{suffix}",
                                  data), Path(proj.root) / "reports"),
-        "outside any project": (_put(out / f"m{suffix}", data),
-                                out / "reports"),
+        # beside the file, no reports/ (Knut, #182 5944210498)
+        "outside any project": (_put(out / f"m{suffix}", data), out),
     }
 
 
@@ -385,7 +385,7 @@ def test_check_and_refine_in_place_still_writes_beside_the_file(tmp_path,
     finally:
         tab.deleteLater()
     assert (ti3.parent / f"Quality_Check_1_{ti3.stem}.txt").is_file()
-    assert not want.exists()
+    assert not (want / "reports").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -440,3 +440,22 @@ def test_verify_against_reference_reports_into_the_owners_reports(
     assert (want / f"Verify_Reference_1_{ti3.stem}.txt").is_file(), \
         sorted(p.relative_to(tmp_path) for p in tmp_path.rglob("*.txt"))
     assert not list(Path(tmp_path).rglob("reads/reports"))
+
+
+def test_outside_a_project_the_inspection_goes_beside_the_file_and_makes_nothing(
+        tmp_path, qapp, monkeypatch):
+    """Knut, #182 5944210498: outside a ChromIQ project, directly beside the
+    inspected file, and no reports/ (nor an old/ archive) is made there."""
+    import ui.dialogs.ti3_info_dialog as mod
+    ti3, folder = _places(tmp_path, ".ti3", _TI3)["outside any project"]
+    clash = folder / "taken.txt"
+    clash.write_text("the user's own file", encoding="utf-8")
+    seen = _answer(monkeypatch, mod, lambda start: str(clash))
+    from ui.inspection_save import save_inspection
+    res = save_inspection(None, ti3, "Measurement inspection", "Measurement inspection",
+                          ["line"], dialog_title="t", subject_line="s",
+                          ask=lambda *a, **k: (seen.update(start=Path(k["start_path"]))
+                                               or str(clash)))
+    assert seen["start"].parent == folder
+    assert res.path == clash
+    assert not (folder / "reports").exists() and not (folder / "old").exists()

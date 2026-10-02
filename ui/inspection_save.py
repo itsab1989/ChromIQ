@@ -84,7 +84,7 @@ def save_inspection(parent, src: Path, kind: str, header_title: str,
     """
     from core.version import APP_VERSION
     from workflow.measurement_report import inspection_file_name
-    from workflow.run_compliance import reports_dir_for
+    from workflow.run_compliance import in_a_project, reports_dir_for
     if ask is None:
         from ui.widgets import save_file_dialog as ask
     now = datetime.now().replace(microsecond=0)
@@ -105,6 +105,11 @@ def save_inspection(parent, src: Path, kind: str, header_title: str,
             fallback_dir = default_output_root()
         start_dir = (Path(fallback_dir) if Path(fallback_dir).is_dir()
                      else Path.home())
+        reports = None
+    elif not in_a_project(src):
+        # Outside a ChromIQ project: straight beside the inspected file, and
+        # nothing of ours is made there, no reports/ and no old/ archive (Knut,
+        # #182 5944210498). A clash is the save dialog's own question.
         reports = None
     # Made for the chooser to open in (a folder that does not exist is no
     # start folder, `save_file_dialog`), and taken away again unless the file
