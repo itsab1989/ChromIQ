@@ -20,6 +20,7 @@ before anything is written, and if it cannot be archived nothing is written.
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -80,7 +81,8 @@ def save_inspection(parent, src: Path, kind: str, header_title: str,
     there lies in no project, so the rule would give
     ``~/Library/ColorSync/Profiles/reports``; the chooser opens in
     *fallback_dir* instead (the user's ChromIQ folder, Preferences > Paths
-    first) and nothing is made.
+    first) and nothing is made. A file outside a project in a folder the user
+    may not write to (a printer driver's bundle) gets the same fallback.
     """
     from core.version import APP_VERSION
     from workflow.measurement_report import inspection_file_name
@@ -99,18 +101,28 @@ def save_inspection(parent, src: Path, kind: str, header_title: str,
     default = inspection_file_name(kind, src.stem, now)
     reports: "Path | None" = reports_dir_for(src)
     start_dir = src.parent
-    if _inside_any(reports, not_into):
+
+    def _fallback() -> Path:
+        nonlocal fallback_dir
         if fallback_dir is None:
             from core.platform_paths import default_output_root
             fallback_dir = default_output_root()
-        start_dir = (Path(fallback_dir) if Path(fallback_dir).is_dir()
-                     else Path.home())
+        return Path(fallback_dir) if Path(fallback_dir).is_dir() else Path.home()
+
+    if _inside_any(reports, not_into):
+        start_dir = _fallback()
         reports = None
     elif not in_a_project(src):
         # Outside a ChromIQ project: straight beside the inspected file, and
         # nothing of ours is made there, no reports/ and no old/ archive (Knut,
         # #182 5944210498). A clash is the save dialog's own question.
         reports = None
+        # ...unless nobody may write there: a profile inside a printer
+        # driver's bundle (/Library/Printers/<maker>/…/Resources, owned by
+        # root) would open the chooser in a folder every save fails in. Such
+        # a folder is treated like the ColorSync folders above (P-INS-1).
+        if not os.access(start_dir, os.W_OK):
+            start_dir = _fallback()
     # Made for the chooser to open in (a folder that does not exist is no
     # start folder, `save_file_dialog`), and taken away again unless the file
     # is about to be written into it, as "Save report as PDF…" does (K9): a

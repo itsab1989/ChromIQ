@@ -9987,11 +9987,13 @@ Measurement Report, e.g. "Measurement inspection".
 report_name_stamp`, `report_file_name`, `inspection_file_name`; the report
 window's `_report_filename` now builds its PDF name through the same two).
 The kind word is in the UI's language, as the report's default title is
-("Messungsuntersuchung", "Profiluntersuchung"); the file name part is the
+("Untersuchung der Messung", "Profiluntersuchung"; it was
+"Messungsuntersuchung" in 4.3.3-beta.1); the file name part is the
 inspected file's own name (stem). The saved text's first line is the same
 kind word (it said "ChromIQ — Measurement report" / "ChromIQ — Profile
 report"); the save dialogs are titled "Save measurement inspection" / "Save
-profile inspection". Both Inspect tools save through one door
+profile inspection", and the button that opens them reads "Save inspection…"
+(it said "Save report…" in 4.3.3-beta.1). Both Inspect tools save through one door
 (`ui/inspection_save.save_inspection`): the owner's folder from
 `run_compliance.reports_dir_for` (run, dated verification, calibration, the
 project's for a file in a project but no run), made only for the chooser and

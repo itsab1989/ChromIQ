@@ -325,7 +325,7 @@ class Ti3InfoDialog(QDialog):
         # --- Bottom buttons -----------------------------------------------
         btn_row = QHBoxLayout()
         btn_row.addStretch(1)
-        self._save_btn = QPushButton(tr("Save report…"), self)
+        self._save_btn = QPushButton(tr("Save inspection…"), self)
         self._save_btn.setEnabled(False)
         self._save_btn.clicked.connect(self._on_save_report)
         btn_row.addWidget(self._save_btn)
