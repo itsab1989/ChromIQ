@@ -1,5 +1,25 @@
 # Changelog
 
+## v4.3.3-beta.3
+
+**Everything Knut found in beta 2: dated verifications offer their own measurement again, a saved report keeps the numbers it was saved with, and the measuring windows explain the beep and the red outlines.**
+
+### Changed
+
+- **A saved Measurement Report shows its "covers n of the total measurements" sentence as it was saved** (Knut, #182). Deleting or duplicating runs no longer changes it; pressing Update counts again. A report saved by an earlier version keeps counting live until it is updated once.
+- **"Where are my files?"** names the files that Inspect a measurement and Inspect a profile save, and where they go, and says that outside a ChromIQ project Check & Refine and the two Verify tools save beside the measurement.
+
+### Fixed
+
+- **Choosing a dated verification that has a measurement** shows "Refine / resume" and "Show overlay" again, and refining it works: the new readings go back into that date. Switching Run type to Profiling no longer shows "The chart has not been measured yet" about the verification you just left (#182).
+- **"Measure anyway" on a measured dated verification keeps the earlier measurement** in that date's `old/` folder, as the window promises. It was overwritten.
+- **Verify against reference no longer leaves a reference file beside a run's measurement.** That file has the name ChromIQ reads as the chart's own colour reference, so the run's Measurement Report then judged against the typed-in values.
+- **The Calibration Complete window** for the i1Pro family and the ColorMunki says to start sliding when you hear the beep (#202).
+- **Strip Read Quickly** names the same strip time as the line under the preview: 27 patches at 120 ms read "3.3 s" in both (#202).
+- **A patch outlined in red says why** on the hover card, with its ΔE*ab beside your limit from Preferences ▸ Measurement, and the help for "Show patch values on hover" explains the outline (#202).
+- **Report Results**: each date heading sits centred over its PASS, FAIL or INFO (#182).
+- Ukrainian file paths keep the real folder name `reports/`.
+
 ## v4.3.3-beta.2
 
 **A chart built twice from the same seed now comes out the same on a Mac, and a handful of smaller fixes from the review of beta 1.**
