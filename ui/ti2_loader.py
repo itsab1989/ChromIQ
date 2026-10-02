@@ -260,8 +260,9 @@ def _WAIT_FOR_THE_BEEP() -> str:
     3.5.0), and ChromIQ times each strip from it (Preferences > Measurement,
     "When the clock starts")."""
     return tr("<b>Start sliding when you hear the beep.</b> After the press the "
-              "instrument first warms up its lamp, and the reading starts with "
-              "the beep, so a strip is timed from the beep, not from the press.")
+              "instrument needs a moment before it starts reading (an i1Pro "
+              "first warms up its lamp), and the reading starts with the beep, "
+              "so a strip is timed from the beep, not from the press.")
 
 
 def measurement_instructions_html(family: "str | None") -> str:

@@ -1890,20 +1890,27 @@ def pace_locked_reason(key: str) -> str:
 def pace_clock_note() -> str:
     """#202, Knut's Q3: when a strip's clock starts. One sentence, under the
     Measurement tab's introduction."""
-    return tr("A strip is timed from the beep you hear after pressing the "
-              "instrument's button, not from the press itself. In between, the "
-              "instrument warms up its lamp (about 0.7 seconds on an i1Pro), "
-              "and that wait is not counted.")
+    # For every strip reader, not the i1Pro alone (Knut, #202 5952802491);
+    # ArgyllCMS 3.5.0 beeps for each: i1pro_imp.c:3197 (200 ms + the lamp's
+    # 0.5 s), i1pro3_imp.c:12849, munki_imp.c:2318 (100 ms + one sample).
+    return tr("With every instrument that reads strips (i1Pro, i1Pro 2, "
+              "i1Pro 3, i1Pro 3 Plus, ColorMunki), a strip is timed from the "
+              "beep you hear after pressing the instrument's button, not from "
+              "the press itself. In between, the instrument gets ready to read "
+              "(an i1Pro warms up its lamp for about 0.7 seconds, a ColorMunki "
+              "needs only a short moment), and that wait is not counted.")
 
 
 def pace_clock_section() -> str:
     """#202, Knut's Q3: the same, as a section of the pace ⓘ."""
     return tr("WHEN THE CLOCK STARTS\n"
-              "A strip is timed from the beep, not from the moment you press "
-              "the instrument's button. After the press the instrument first "
-              "warms up its lamp, about 0.7 seconds on an i1Pro, and only then "
-              "starts reading and beeps. That wait is not counted, so start "
-              "sliding when you hear the beep.")
+              "For every instrument that reads strips (i1Pro, i1Pro 2, i1Pro 3, "
+              "i1Pro 3 Plus, ColorMunki), a strip is timed from the beep, not "
+              "from the moment you press the instrument's button. After the "
+              "press the instrument first gets ready to read: an i1Pro warms "
+              "up its lamp for about 0.7 seconds, a ColorMunki needs only a "
+              "short moment. Only then does it start reading and beep. That "
+              "wait is not counted, so start sliding when you hear the beep.")
 
 
 class SettingsDialog(QDialog):
