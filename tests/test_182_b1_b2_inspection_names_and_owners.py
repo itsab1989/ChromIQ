@@ -177,7 +177,9 @@ def test_a_failed_save_keeps_the_inspection_on_screen(tmp_path, qapp,
     want.mkdir()
     if unwritable == "reports folder":
         want.chmod(0o500)
-        answer = lambda start: str(start)              # noqa: E731
+        # The chooser no longer OFFERS a folder nobody may write to (beta 2,
+        # review T_review_beta2), so the user picks it by hand here.
+        answer = lambda start: str(want / start.name)  # noqa: E731
     else:
         (want / "taken").mkdir()          # a FOLDER where the file would go
         answer = lambda start: str(want / "taken.txt")  # noqa: E731
@@ -286,7 +288,8 @@ def test_profile_inspection_save_error_is_not_a_read_error(tmp_path, qapp,
     icc, want = _places(tmp_path, ".icc", _ICC)["run root"]
     want.mkdir()
     want.chmod(0o500)
-    _answer(monkeypatch, mod, lambda start: str(start))
+    # picked by hand: an unwritable folder is no longer offered (beta 2)
+    _answer(monkeypatch, mod, lambda start: str(want / start.name))
     dlg = _icc_dialog(qapp, icc)
     rows = dlg._grid.count()
     try:

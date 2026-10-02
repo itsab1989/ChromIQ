@@ -9993,7 +9993,10 @@ inspected file's own name (stem). The saved text's first line is the same
 kind word (it said "ChromIQ — Measurement report" / "ChromIQ — Profile
 report"); the save dialogs are titled "Save measurement inspection" / "Save
 profile inspection", and the button that opens them reads "Save inspection…"
-(it said "Save report…" in 4.3.3-beta.1). Both Inspect tools save through one door
+(it said "Save report…" in 4.3.3-beta.1). A folder the user may not write to
+(a printer driver's bundle, a project on a read-only volume) is never offered:
+the chooser opens in the user's ChromIQ folder instead, as for the system's
+colour-profile folders (beta 2, review P-INS-1). Both Inspect tools save through one door
 (`ui/inspection_save.save_inspection`): the owner's folder from
 `run_compliance.reports_dir_for` (run, dated verification, calibration, the
 project's for a file in a project but no run), made only for the chooser and

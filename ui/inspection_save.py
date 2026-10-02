@@ -138,6 +138,11 @@ def save_inspection(parent, src: Path, kind: str, header_title: str,
                         reports, exc)
         if reports.is_dir():
             start_dir = reports
+    # Wherever it came to, a folder nobody may write to is no place to offer
+    # (a project on a read-only volume, a printer driver's bundle): the
+    # ChromIQ folder instead, as for the ColorSync folders (P-INS-1).
+    if not os.access(start_dir, os.W_OK):
+        start_dir = _fallback()
     out = ask(parent, dialog_title, tr("Text files (*.txt);;All files (*)"),
               start_path=str(start_dir / default),
               extra_paths=[str(src.parent)])

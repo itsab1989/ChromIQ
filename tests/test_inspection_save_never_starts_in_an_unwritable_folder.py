@@ -70,3 +70,24 @@ def test_the_inspect_button_says_inspection(dialog):
     src = (REPO / "ui" / "dialogs" / dialog).read_text(encoding="utf-8")
     assert 'QPushButton(tr("Save inspection…"), self)' in src
     assert 'tr("Save report…")' not in src
+
+
+@pytest.mark.skipif(os.name == "nt" or os.geteuid() == 0,
+                    reason="needs POSIX permissions and a non-root user")
+def test_a_project_on_a_read_only_volume_falls_back_too(tmp_path):
+    """Review T_review_beta2: the fallback covered only files outside a
+    project; a run folder nobody may write to still got the chooser."""
+    from core.file_manager import Project
+    proj = Project.create(tmp_path / "P", "P")
+    run = proj.current_run()
+    run.ensure_dir()
+    ti3 = run.dir / "P.ti3"
+    ti3.write_text("x", encoding="utf-8")
+    home = tmp_path / "ChromIQ"
+    home.mkdir()
+    run.dir.chmod(stat.S_IRUSR | stat.S_IXUSR)
+    try:
+        assert _save(ti3, home) == home
+        assert not (run.dir / "reports").exists()
+    finally:
+        run.dir.chmod(stat.S_IRWXU)
