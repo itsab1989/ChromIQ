@@ -53,20 +53,27 @@ class Message:
     body_one: "str | None" = None
     #: Which placeholder decides singular from plural.
     count_key: str = ""
+    #: The headline used when :attr:`count_key` is exactly 1, for a headline
+    #: that counts too ("One patch is still not read").
+    title_one: "str | None" = None
 
     def render(self, **kw) -> "tuple[str, str]":
         """(title, body) with the placeholders filled and nothing left over."""
         body = self.body
-        if (self.body_one is not None and self.count_key
-                and kw.get(self.count_key) == 1):
-            body = self.body_one
-        title = tr(self.title).format(**kw) if "{" in self.title else tr(self.title)
+        head = self.title
+        if self.count_key and kw.get(self.count_key) == 1:
+            if self.body_one is not None:
+                body = self.body_one
+            if self.title_one is not None:
+                head = self.title_one
+        title = tr(head).format(**kw) if "{" in head else tr(head)
         return title, tr(body).format(**kw)
 
 
 def _m(id_: str, title: str, body: str, *, approved: bool = True,
-       body_one: "str | None" = None, count_key: str = "") -> Message:
-    return Message(id_, title, body, approved, body_one, count_key)
+       body_one: "str | None" = None, count_key: str = "",
+       title_one: "str | None" = None) -> Message:
+    return Message(id_, title, body, approved, body_one, count_key, title_one)
 
 
 # --- PROPOSED: a CR30 chart while Preferences selects stock chartread ------
@@ -1532,6 +1539,69 @@ M_OVERLAY_NO_MEASUREMENT = _m(
     "Read the chart with your instrument and the overlay will fill in as you "
     "go, showing what you measured against the colour each patch was meant to "
     "be.")
+
+# --- PROPOSED: after a read, the next strip/patch is not the unread one ---
+#: Knut, #182 5958921500, Q2, and the text is his: *"If strips still unread,
+#: then re-reading a read strip should not jump to next unread, but instead ask
+#: with a popup that appears only one time per started measurement … 'Some
+#: patches / strips are still not read. What do you want to do? 1. Continue to
+#: next: position to read jumps to next patch / strip from current position,
+#: even if previously measured. 2. Jump to unread: position to read jumps to
+#: closest unread patch / strip to complete the measurement.'"* His own words
+#: still go through §M-PROPOSED (the precedent is M-REPORT-UPDATE-OR-NEW).
+#: Two variants because the unit differs: strip mode and patch-by-patch.
+M_UNREAD_NEXT_OR_JUMP_STRIP = _m(
+    "M-UNREAD-NEXT-OR-JUMP-STRIP",
+    "Some patches are still not read",
+    "{n} patches on this chart have no reading yet. What would you like to do "
+    "next?\n\n"
+    "•  Continue to next: the reader moves to the strip after the one you "
+    "have just read, even if that strip was measured before.\n\n"
+    "•  Jump to unread: the reader moves forward to the next strip that "
+    "still has patches without a reading (after the last strip it carries "
+    "on from the first), so you can complete the measurement.\n\n"
+    "ChromIQ asks once. Your choice stays for the rest of this measurement, "
+    "and f, b, n or a click on the preview still take you anywhere.",
+    approved=False,
+    count_key="n",
+    title_one="One patch is still not read",
+    body_one=
+    "One patch on this chart has no reading yet. What would you like to do "
+    "next?\n\n"
+    "•  Continue to next: the reader moves to the strip after the one you "
+    "have just read, even if that strip was measured before.\n\n"
+    "•  Jump to unread: the reader moves forward to the strip that still "
+    "has a patch without a reading (after the last strip it carries on "
+    "from the first), so you can complete the measurement.\n\n"
+    "ChromIQ asks once. Your choice stays for the rest of this measurement, "
+    "and f, b, n or a click on the preview still take you anywhere.")
+
+M_UNREAD_NEXT_OR_JUMP_PATCH = _m(
+    "M-UNREAD-NEXT-OR-JUMP-PATCH",
+    "Some patches are still not read",
+    "{n} patches on this chart have no reading yet. What would you like to do "
+    "next?\n\n"
+    "•  Continue to next: the reader moves to the patch after the one you "
+    "have just read, even if that patch was measured before.\n\n"
+    "•  Jump to unread: the reader moves forward to the next patch that has "
+    "no reading yet (after the last patch it carries on from the first), so "
+    "you can complete the measurement.\n\n"
+    "ChromIQ asks once. Your choice stays for the rest of this measurement, "
+    "and f, b, n or a click on the preview still take you anywhere.",
+    approved=False,
+    count_key="n",
+    title_one="One patch is still not read",
+    body_one=
+    "One patch on this chart has no reading yet. What would you like to do "
+    "next?\n\n"
+    "•  Continue to next: the reader moves to the patch after the one you "
+    "have just read, even if that patch was measured before.\n\n"
+    "•  Jump to unread: the reader moves forward to the patch that has no "
+    "reading yet (after the last patch it carries on from the first), so "
+    "you can complete the measurement.\n\n"
+    "ChromIQ asks once. Your choice stays for the rest of this measurement, "
+    "and f, b, n or a click on the preview still take you anywhere.")
+
 
 #: PROPOSED (#156). Knut: *"the 'All Strips Read' message comes, despite that
 #: the progress percentage shows 97.1% … This message must come only when all
@@ -3804,6 +3874,7 @@ CATALOGUE = {m.id: m for m in (
     M_VERIFY_SAVED, M_HOW_PRINTED,
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
+    M_UNREAD_NEXT_OR_JUMP_STRIP, M_UNREAD_NEXT_OR_JUMP_PATCH,
     M_ENGINE_FELL_BACK,
     M_PATCHSET_MISSING,
     M_PATCHSET_KEPT_UNCHECKED,

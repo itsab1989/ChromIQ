@@ -216,6 +216,41 @@ def _padding_rows(path: "Path | str") -> int:
     return n or _engine_fill_up_rows(path, text, body)
 
 
+def padding_locations(path: "Path | str") -> "set[str]":
+    """The ``SAMPLE_LOC`` of every fill-up row of the chart *path*.
+
+    The same two rules as :func:`_padding_rows`, naming the rows instead of
+    counting them: ``printtarg``'s rows carry ``SAMPLE_ID`` 0, and ChromIQ's
+    layout engine appends its copies of the media patch at the END of the
+    table, so its fill-up is the last :func:`_engine_fill_up_rows` rows. Used
+    where a patch has to be called "unread": a fill-up square was never part of
+    the design, so it never is (Knut, #182 5958921500).
+    """
+    try:
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+    fmt = re.search(r"^\s*BEGIN_DATA_FORMAT\s*$(.*?)^\s*END_DATA_FORMAT\s*$",
+                    text, re.MULTILINE | re.DOTALL)
+    parts = re.split(r"^\s*BEGIN_DATA\s*$", text, maxsplit=1, flags=re.MULTILINE)
+    if fmt is None or len(parts) < 2:
+        return set()
+    fields = fmt.group(1).split()
+    if "SAMPLE_LOC" not in fields:
+        return set()
+    li = fields.index("SAMPLE_LOC")
+    ii = fields.index("SAMPLE_ID") if "SAMPLE_ID" in fields else 0
+    body = re.split(r"^\s*END_DATA\s*$", parts[1], maxsplit=1,
+                    flags=re.MULTILINE)[0]
+    rows = [ln.split() for ln in body.splitlines() if ln.strip()]
+    rows = [r for r in rows if len(r) > max(li, ii)]
+    out = {r[li].strip('"') for r in rows if r[ii].strip('"') == "0"}
+    if out:
+        return out
+    n = _engine_fill_up_rows(path, text, body)
+    return {r[li].strip('"') for r in rows[-n:]} if n else set()
+
+
 _ENGINE_ORIGINATOR_RE = re.compile(
     r'^\s*ORIGINATOR\s+"?ChromIQ layout engine', re.MULTILINE | re.IGNORECASE)
 _STEPS_RE = re.compile(r'^\s*STEPS_IN_PASS\s+"?(\d+)', re.MULTILINE | re.IGNORECASE)
