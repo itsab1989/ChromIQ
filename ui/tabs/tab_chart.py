@@ -23829,6 +23829,9 @@ class TabChart(QWidget):
             if deferred is not None:
                 self._declare_after_rebuild = None
                 self._declare_control_strip(deferred)
+            # #137 decision 5: which calibration this run's chart was made
+            # with, read from the FINAL sidecar (after the guard above).
+            self._record_calibration_used(ti2)
             # Remember the .ti1 backing this chart so the Save Preset dialog can
             # offer to attach it.
             ti1 = tiffs[0].parent / f"{stem}.ti1"
@@ -28674,6 +28677,44 @@ class TabChart(QWidget):
         except Exception as exc:  # noqa: BLE001
             log.warning("auto-tag randomised check failed for %s: %s",
                         ti2.name, exc)
+
+    def _record_calibration_used(self, ti2: Path) -> None:
+        """Fill ``RunMeta.calibration_used`` for a run's profiling chart.
+
+        Approved as decision 5 of ``calibration_run_type.md`` (2026-08-05)
+        and declared since, but never written, so every reader of it
+        (`_runs_built_on_calibration`, the profile description) only ever saw
+        "unknown". The value is the calibration's stem, as those readers
+        compare it; empty when the chart was built without one. Read from the
+        chart's own record (``printer_calibration`` in its sidecar), so it says
+        what this sheet was made with, not what the panel shows now. Runs only:
+        a calibration chart lives in ``cal/`` and a verification chart in
+        ``verifications/``, neither of which is the run's profiling chart.
+        """
+        try:
+            run_dir = Path(ti2).parent
+            if run_dir.parent.name != "runs":
+                return
+            side = Path(ti2).with_name(
+                Path(ti2).name[:-4] + ".channels.json")
+            rec = {}
+            if side.is_file():
+                rec = (json.loads(read_text(side)) or {}).get(
+                    "printer_calibration") or {}
+            if not isinstance(rec, dict) or "mode" not in rec:
+                return          # nothing recorded: leave "unknown" alone
+            name = str(rec.get("cal_name") or "")
+            stem = ""
+            if rec.get("mode") in ("apply", "include") and name:
+                stem = name[:-4] if name.lower().endswith(".cal") else name
+            from core.file_manager import Run
+            run = Run.for_dir(run_dir)
+            meta = run.load_meta()
+            if getattr(meta, "calibration_used", "") != stem:
+                meta.calibration_used = stem
+                run.save_meta(meta)
+        except Exception:  # noqa: BLE001 — metadata is non-essential
+            log.debug("could not record calibration_used", exc_info=True)
 
     def _stamp_chart_meta(self, ti2: Path) -> None:
         """Record instrument / paper AND the printtarg layout knobs in the run's

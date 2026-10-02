@@ -818,6 +818,47 @@ once. The texts are ours and wait in §M-PROPOSED of
 `unified_measurement_management.md`. See `measurement_report_limits.md`
 §49. **Confirmed by:** *nobody yet.*
 
+### ⏳ 3.1c — the printer calibration the profiling chart was printed with (B7, 2026-10-02)
+
+**Awaiting confirmation.** **Confirmed by:** *nobody yet.* Sebastian approved
+the behaviour on #182 (5959070209, answering 5958466861); what was built is
+below, and its window texts wait in §M-PROPOSED of
+`unified_measurement_management.md`. **It adds rows to §3.1 A3; it does not
+change A3 for a run printed without a calibration, or with `-I`.**
+
+A profile built from a chart printed with **`-K`** (the calibration applied to
+the printed pixels, the `.ti2` and `.ti3` left uncalibrated, printtarg.c
+3348-3352 / 3791-3795) describes the printer *behind* the calibration, so a
+sheet printed through it must be calibrated too. printtarg writes the same
+`.ti2` for `-K` and `-I`, so how the chart was printed is recorded at build
+time (`"printer_calibration"` in the chart's `.channels.json`, both engines,
+`workflow/chart_creator.py::_write_channel_sidecar`) and read back through
+one helper, `workflow/printer_calibration.py::calibration_mode_of`, in this
+order: the record; for a printtarg chart its Create Chart snapshot
+(`printtarg-K` / `printtarg-I`); for an engine chart without a record, a
+`.ti3` whose device values differ from the `.ti1` by more than 0.05 is the
+older engine `-K` (`old_engine_apply`), otherwise the printed pixels decide,
+and `unknown` when they cannot.
+
+| # | Profiling chart printed | Verification chart | Colour | Action | Where |
+|---|---|---|---|---|---|
+| A3d | `-K` (`apply`) | not `-K` | through | `cctiff … sRGB.icm … <run profile> <the run's .cal> page out`: the CAL is extracted from the run's own `.ti3` (else its `.ti2`), the calibration that was printed; never `calibrated.icc`, which can be stale or built from `<stem>.icc` instead of `merged.icc` | `verification_print.py::plan_calibration`, `cctiff_apply.py::convert_args(calibration=…)`, `tab_print.py::_apply_verification_colour` |
+| A3e | `-K`, and no CAL to be found in its `.ti3` or `.ti2` | any | through | the conversion fails with M-CM-CONVERT-FAILED and prints nothing (the profile alone would print uncalibrated) | same |
+| A3f | `-I`, none, the older engine `-K`, or unknown | any | through | as A3, the profile alone, with a log line naming which and why | same |
+| A3g | any | built with `-K` (or the older engine `-K`) | through | **refused**, nothing printed, M-CM-K-CHART-THROUGH: its pixels are calibrated device values, and this route reads them as sRGB design values | same |
+| A3h | `-K` | not `-K` | raw | warning M-CM-RAW-UNCALIBRATED, Cancel default; "Print Raw Anyway" prints as before | `tab_print.py::_confirm_raw_uncalibrated` |
+| A3i | every verification print | | | the print record carries `printer_calibration`: how both charts were printed, whether ChromIQ applied a calibration, from which file, its SHA-1 | `verification_print.py::write_print_record` |
+
+Measured on a model printer (report folder `AJ_K_verify_and_warn/model`):
+a `-K` run's verification through the profile alone missed by 33.4 ΔE76 mean;
+through the profile and the run's calibration 1.48, against 1.14 for the
+same printer profiled with no calibration at all.
+
+**Open for Knut:** whether A3f's `unknown` should refuse rather than print the
+profile alone, and whether approved text 5959070209 ("goes through
+`calibrated.icc` … asks to run Apply Calibration first") should be read as
+this chain, which needs no Apply Calibration step and cannot be stale.
+
 ### 3.2 Feature A — the conversion itself
 
 | # | Condition | Action | Where |

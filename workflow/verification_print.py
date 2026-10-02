@@ -29,6 +29,7 @@ ArgyllRunner QProcess singleton, and always with a ``timeout=``.
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass, field
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -113,6 +114,7 @@ def convert_pages_through_profile(
     source_profile: "str | Path | None" = None,
     runner: "Callable[..., subprocess.CompletedProcess]" = subprocess.run,
     on_page: "Callable[[int, int], None] | None" = None,
+    calibration: "Path | None" = None,
 ) -> "dict[Path, Path]":
     """Convert chart page TIFFs through *profile*; return ``{source: converted}``.
 
@@ -143,6 +145,11 @@ def convert_pages_through_profile(
         raise VerificationPrintError(
             "M-CM-CONVERT-FAILED",
             f"the profile file is missing: {profile}", page=1, total=total)
+    if calibration is not None and not Path(calibration).exists():
+        raise VerificationPrintError(
+            "M-CM-CONVERT-FAILED",
+            f"the printer calibration file is missing: {calibration}",
+            page=1, total=total)
 
     from workflow.cctiff_apply import _CCTIFF_ERROR_PATTERNS, convert_args
     out_dir = Path(out_dir)
@@ -154,7 +161,9 @@ def convert_pages_through_profile(
             on_page(n, total)
         out_path = out_dir / page.name
         cmd = [str(exe), *convert_args(Path(src), Path(profile), page,
-                                       out_path, intent=letter)]
+                                       out_path, intent=letter,
+                                       calibration=(Path(calibration)
+                                                    if calibration else None))]
         log.info("verification print conversion: %s", " ".join(cmd))
         try:
             r = run_text(cmd, runner=runner, capture_output=True,
@@ -274,7 +283,8 @@ def print_record_path(ti2_path: Path) -> Path:
 
 def write_print_record(ti2_path: Path, *, colour: str, intent: str,
                        profile: "Path | None", route: str,
-                       source_profile: str = "") -> "Path | None":
+                       source_profile: str = "",
+                       calibration: "dict | None" = None) -> "Path | None":
     """Record how the sheet was produced (A15–A18). Returns the path, or None
     when the record could not be written (never raises — a failed record must
     not stop a print job that is already correct)."""
@@ -294,6 +304,11 @@ def write_print_record(ti2_path: Path, *, colour: str, intent: str,
                 profile.stat().st_mtime).isoformat(timespec="seconds")
         except OSError:
             rec["profile_mtime"] = ""
+    if calibration:
+        # B7 (#182 5959070209): which printer calibration the sheet carries —
+        # how the profiling chart and this chart were printed, and whether
+        # ChromIQ applied the calibration at print time (and which one).
+        rec["printer_calibration"] = dict(calibration)
     path = print_record_path(ti2_path)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -362,3 +377,123 @@ def read_print_record(ti3_path: Path) -> "dict | None":
             if isinstance(data, dict):
                 return data
     return None
+
+
+# ---------------------------------------------------------------------------
+# B7 — the printer calibration the profiling chart was printed with
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CalibrationPlan:
+    """What a verification print does about the printer calibration.
+
+    ``refuse``   — print nothing (the verification chart itself was built
+                   with ``-K``: its pixels are calibrated device values, and
+                   the through route reads them as sRGB design values).
+    ``cal``      — the ``.cal`` to append to the conversion chain, or None.
+    ``warn_raw`` — the raw route on a run whose profiling chart was printed
+                   calibrated, with a verification chart that is not: the
+                   sheet goes to the printer uncalibrated.
+    ``record``   — what the print record says about it.
+    ``log``      — one line for the log saying what was decided and why.
+    """
+    profiling_mode: str = "off"
+    verify_mode: str = "off"
+    refuse: bool = False
+    cal: "Path | None" = None
+    warn_raw: bool = False
+    record: dict = field(default_factory=dict)
+    log: str = ""
+
+
+def plan_calibration(run, verify_ti2: "Path | None", colour: str,
+                     cache_dir: "Path | None") -> CalibrationPlan:
+    """Decide what the printer calibration does to this verification print.
+
+    * through the profile, profiling chart printed with ``-K``
+      (:data:`~workflow.printer_calibration.MODE_APPLY`): the conversion
+      chain is sRGB → the run's profile → the run's calibration, taken from
+      the run's own measurement (``.ti3``, which chartread copied it into),
+      so it is the one that was printed — never ``calibrated.icc``, which
+      can be stale or built from another profile;
+    * ``include``, ``off``, ``unknown`` and the older engine ``-K`` (whose
+      profile already describes the uncalibrated printer): as before, the
+      profile alone, with a log line naming the reason;
+    * the verification chart itself built with ``-K``, through route:
+      refused;
+    * the raw route for a ``-K`` run whose verification chart is not
+      ``-K``: printed, after a warning.
+
+    ``cache_dir`` receives the extracted ``.cal``. Never raises.
+    """
+    from workflow import printer_calibration as pc
+    plan = CalibrationPlan()
+    try:
+        plan.profiling_mode = (pc.run_calibration_mode(run) if run is not None
+                               else pc.MODE_UNKNOWN)
+        plan.verify_mode = (pc.calibration_mode_of(verify_ti2)
+                            if verify_ti2 is not None else pc.MODE_UNKNOWN)
+    except Exception:      # noqa: BLE001 — a plan must never break a print
+        log.warning("calibration plan could not be worked out", exc_info=True)
+    verify_k = plan.verify_mode in (pc.MODE_APPLY, pc.MODE_OLD_ENGINE_APPLY)
+    plan.record = {"profiling_chart": plan.profiling_mode,
+                   "verification_chart": plan.verify_mode,
+                   "applied_at_print": False}
+    if colour == COLOUR_THROUGH:
+        if verify_k:
+            plan.refuse = True
+            plan.log = ("verification print refused: the verification chart "
+                        "was built with the printer calibration applied (-K), "
+                        "so its pixels are not design colours")
+            return plan
+        if plan.profiling_mode == pc.MODE_APPLY:
+            src = pc.run_cal_source(run) if run is not None else None
+            cal = None
+            if src is not None and cache_dir is not None:
+                try:
+                    cal = pc.extract_cal(
+                        src, Path(cache_dir) / "printer-calibration.cal")
+                except OSError:
+                    log.warning("could not extract the calibration from %s",
+                                src, exc_info=True)
+            if cal is None:
+                # Applied when the chart was printed, and not to be found
+                # now. The profile alone would print the sheet uncalibrated,
+                # which is the error this exists to stop, so the conversion
+                # is handed a calibration that is not there and fails.
+                plan.cal = (Path(cache_dir) if cache_dir else Path(".")) \
+                    / "printer-calibration-missing.cal"
+                plan.log = ("the profiling chart was printed with the printer "
+                            "calibration applied (-K), and no calibration was "
+                            "found in its measurement or chart")
+                plan.record["cal_from"] = ""
+                return plan
+            plan.cal = cal
+            plan.record.update(
+                applied_at_print=True, cal_from=str(src),
+                cal_sha1=pc.cal_sha1_of_text(pc.embedded_cal_text(src)))
+            plan.log = (f"verification print: profile, then the printer "
+                        f"calibration from {Path(src).name} (the profiling "
+                        f"chart was printed with it applied, -K)")
+            return plan
+        why = {
+            pc.MODE_INCLUDE: "the calibration was only embedded (-I), so the "
+                             "printer or RIP applies it",
+            pc.MODE_OFF: "the profiling chart was printed without a printer "
+                         "calibration",
+            pc.MODE_OLD_ENGINE_APPLY: "the profile was built from an older "
+                                      "ChromIQ engine -K chart and already "
+                                      "describes the uncalibrated printer",
+            pc.MODE_UNKNOWN: "it is not known whether the profiling chart was "
+                             "printed with the calibration applied",
+        }.get(plan.profiling_mode, plan.profiling_mode)
+        plan.log = f"verification print: profile only, no calibration ({why})"
+        return plan
+    # raw: the pixels go to the printer as they are
+    if plan.profiling_mode == pc.MODE_APPLY and not verify_k:
+        plan.warn_raw = True
+        plan.log = ("verification print raw: the profiling chart was printed "
+                    "with the printer calibration applied (-K), this sheet "
+                    "is printed without it")
+    plan.record["applied_at_print"] = verify_k
+    return plan
