@@ -1601,6 +1601,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # A BOUND METHOD, never a self-capturing lambda on a signal
         # (CLAUDE.md, the fade-scroll SIGSEGV).
         controller.changed.connect(self._queue_verification_preflight)
+        # …AND THE MEASUREMENT OPTIONS FOLLOW THE SELECTION, not only the chart.
+        # Every dated verification shares one chart, so picking another date
+        # hands this tab no new chart and nothing re-decided "Refine / resume"
+        # or "Show overlay" (Knut, #182 5951427228). A bound method, as above.
+        controller.changed.connect(self._queue_selection_settle)
         self._refresh_import_visibility()
 
     # ------------------------------------------------------------------
@@ -4132,6 +4137,85 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, self._offer_existing_overlay_now)
 
+    def _queue_selection_settle(self) -> None:
+        """Re-decide the measurement options once the bar's change has landed.
+
+        On the next turn of the event loop, because one selection change
+        reaches this tab by several routes in an order nobody controls: the
+        stored settings of the new target, the new chart from Create Chart,
+        and the bar's own `changed`. Deciding inside any one of them is
+        deciding with half the facts, which is exactly Knut's stale "This chart
+        has not been measured yet" (#182 5951427228).
+        """
+        if getattr(self, "_settle_queued", False):
+            return
+        self._settle_queued = True
+        QTimer.singleShot(0, self._settle_after_selection_change)
+
+    def _selection_key(self) -> tuple:
+        """The chart on screen and the measurement the bar selects with it."""
+        ti3 = self._selected_measurement_ti3()
+        return (str(getattr(self, "_ti1_path", None) or ""),
+                str(ti3) if ti3 is not None else "")
+
+    def _selection_names_a_measurement(self) -> bool:
+        """Does the bar name something that could hold a measurement?
+
+        A profiling run that exists, or a dated verification. "New run" and
+        "New verification" name nothing yet, so there is nothing to say about
+        their measurement (Knut, #182 5951427228: with "New verification"
+        selected the options shown are correct).
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or getattr(self, "_ti1_path", None) is None:
+            return False
+        try:
+            if ctl.target.is_verification():
+                return bool(ctl.target.verification_id)
+            return not ctl.target.is_new_run()
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _settle_after_selection_change(self) -> None:
+        """Decide "Refine / resume" and "Show overlay" for what is now selected,
+        and answer a stored overlay tick about THAT measurement."""
+        self._settle_queued = False
+        asked = bool(getattr(self, "_overlay_asked_by_settings", False))
+        self._overlay_asked_by_settings = False
+        try:
+            key = self._selection_key()
+            previous = getattr(self, "_settled_selection", None)
+            self._settled_selection = key
+            if getattr(self, "_session_live", False) or self._runner.is_running:
+                return          # the session's own date; nothing to re-decide
+            if previous is not None and key != previous:
+                # The painting described the measurement selected a moment ago.
+                # Same chart, another date: `_discard_stale_overlay` keys on
+                # the chart and cannot see that.
+                self._clear_overlay()
+                self._reset_progress()   # the count belongs to that one too
+            self._update_resume_availability()
+            if previous is not None and key[0] == previous[0] \
+                    and key[1] != previous[1] and self.isVisible():
+                # Another dated verification of the same chart: the arrival
+                # Knut ruled the existing-measurement window is right for
+                # (#131 scenario 4), by the bar's third selector.
+                self._queue_overlay_offer()
+            if not asked or not self.isVisible() or not self._engine_selected():
+                return
+            cb = (self._overlay_cb if self._current_mode() == "guided"
+                  else self._m_overlay_cb)
+            if cb is not None and not cb.isHidden():
+                return          # a measurement is there; the box shows it
+            if not self._selection_names_a_measurement():
+                return
+            # The overlay is asked for and what is selected has never been
+            # measured: M-OVERLAY-NO-MEASUREMENT, about the right chart now.
+            self._on_overlay_toggled(True)
+        except Exception:      # noqa: BLE001 — never break a selection change
+            log.warning("Could not settle the Measure options after a "
+                        "selection change", exc_info=True)
+
     def _offer_existing_overlay_now(self) -> None:
         """Make the held offer, once the tab has actually painted."""
         self._offer_queued = False
@@ -4914,7 +4998,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._refine_strips_path = None
             self._strip_list = []
             return
-        ti3 = self._ti1_path.with_suffix(".ti3")
+        # The SELECTED measurement: beside the chart for a profiling run, in its
+        # dated folder for a verification (Knut, #182 5951427228).
+        ti3 = self._selected_measurement_ti3()
         # A measurement file with NO READINGS must not offer "Refine / resume":
         # chartread is then asked to resume FROM that file and rejects it with
         # "Field SAMPLE_LOC is wrong type - corrupted file ?" — an error no user
@@ -4922,7 +5008,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # file keeps its BEGIN_DATA_FORMAT naming SAMPLE_LOC but has no rows, and
         # unticking resume made the error disappear because the file was replaced.
         # The overlay is hidden for the same reason: there is nothing to draw.
-        has_ti3 = ti3.exists() and not _cgats_has_no_readings(ti3)
+        has_ti3 = False
+        if ti3 is not None:
+            has_ti3 = ti3.exists() and not _cgats_has_no_readings(ti3)
         for cb, tip in [
             (self._resume_cb,   self._resume_tip),
             (self._m_resume_cb, self._m_resume_tip),
@@ -5014,8 +5102,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         One decision now, for both modes: the row is on screen when there is a
         measurement to refine AND the resume option it belongs to is ticked.
         """
-        ti3 = (self._ti1_path.with_suffix(".ti3")
-               if self._ti1_path is not None else None)
+        ti3 = self._selected_measurement_ti3()
         has_ti3 = bool(ti3 and ti3.exists() and not _cgats_has_no_readings(ti3))
         for row, resume, cb in ((self._refine_row, self._resume_cb,
                                  self._refine_cb),
@@ -6256,6 +6343,85 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                         exc_info=True)
         return True
 
+    def _stage_verification_for_resume(self) -> "Path | None":
+        """Put the selected dated verification's readings beside the chart,
+        so "Refine / resume" continues them. Returns the staged file, or None.
+
+        chartread resumes from ``<chart>.ti3`` (``-r``), and a verification's
+        readings live in ``verifications/<date>/``, so a ticked resume on a
+        measured date used to have nothing to resume from. The copy is the
+        reader's working file and nothing else: `_finalize_verification` files
+        the result back into the same dated folder, and a session that writes
+        nothing leaves the dated file exactly as it was and the copy is
+        removed again (`_drop_unused_verification_stage`).
+
+        Only when the read builds on what is there (resume or refine ticked
+        and offered) and the date really holds readings. A stray measurement
+        already beside the chart is moved to ``old/`` first, never overwritten.
+        """
+        self._staged_verification_ti3 = None
+        try:
+            ctl = getattr(self, "_target_ctl", None)
+            if ctl is None or not ctl.target.is_verification():
+                return None
+            if not ctl.target.verification_id or self._ti1_path is None:
+                return None
+            if not self._read_builds_on_existing():
+                return None
+            dated = self._selected_measurement_ti3()
+            if dated is None or not dated.is_file() \
+                    or _cgats_has_no_readings(dated):
+                return None
+            beside = Path(self._ti1_path).with_suffix(".ti3")
+            if beside == dated:
+                return None
+            import shutil
+            if beside.exists():
+                from core.file_manager import Run
+                Run.for_dir(beside.parent).archive_to_old([beside])
+            shutil.copy2(dated, beside)
+            self._staged_verification_ti3 = beside
+            self._staged_from = dated
+            log.info("verification %s staged for resume: %s -> %s",
+                     ctl.target.verification_id, dated, beside.name)
+            return beside
+        except Exception:      # noqa: BLE001 — never block a measurement
+            log.warning("Could not stage the verification for resume",
+                        exc_info=True)
+            return None
+
+    def _drop_unused_verification_stage(self) -> None:
+        """Remove the staged copy when the session wrote nothing into it.
+
+        The dated folder still holds the original, so the copy is only a
+        duplicate, and a duplicate beside the shared chart would be resumed
+        from by the next verification of ANOTHER date.
+        """
+        staged = getattr(self, "_staged_verification_ti3", None)
+        if staged is None:
+            return
+        try:
+            if not staged.is_file():
+                self._staged_verification_ti3 = None
+                return
+            dated = getattr(self, "_staged_from", None)
+            st = staged.stat()
+            if dated is not None and dated.is_file():
+                d = dated.stat()
+                unchanged = (st.st_size == d.st_size
+                             and st.st_mtime == d.st_mtime)
+            else:
+                before = getattr(self, "_ti3_mtime_before", None)
+                unchanged = before is not None and st.st_mtime <= before
+            if unchanged:
+                staged.unlink()
+                self._staged_verification_ti3 = None
+                log.info("verification resume wrote nothing; staged copy "
+                         "removed, the dated measurement is unchanged")
+        except OSError:
+            log.warning("could not remove the staged verification copy",
+                        exc_info=True)
+
     def _snapshot_profiling_chart(self, ctl) -> bool:
         """Copy the run's chart into ``runs/runN/chart/`` before measuring.
 
@@ -6567,6 +6733,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # readings saved", ticked Refine/resume, emitted `measure_finished` and
         # minted a dated measurement report that was a byte-for-byte copy of the
         # previous session's. The owner hit exactly that on 2026-09-03.
+        #
+        # A VERIFICATION THAT RESUMES needs its readings where the reader looks
+        # for them, beside the chart, and not in its dated folder (Knut, #182
+        # 5951427228). Staged HERE, after every question that can still cancel
+        # the start, so a cancelled start can never leave the copy behind; and
+        # the resume flag is decided again now that there is a file to resume.
+        if self._stage_verification_for_resume() is not None:
+            params.resume = self._resume_has_anything_to_resume(True)
         _ti3_pre = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
         self._ti3_mtime_before = (
             _ti3_pre.stat().st_mtime if (_ti3_pre and _ti3_pre.exists()) else None
@@ -10171,6 +10345,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             verification.ensure_dir()
             dst = verification.measurement_ti3           # verifications/<date>/<name>-verify.ti3
             shutil.move(str(marked), str(dst))
+            self._staged_verification_ti3 = None         # filed; nothing left beside the chart
         except OSError as exc:
             self._log.appendPlainText(f"\n[ERROR] Could not save verification file: {exc}")
             return
@@ -10180,6 +10355,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             + tr("→ This file is for verification only — do not build a profile "
                  "from it. Open it in Tools ▸ Inspect a measurement to check the "
                  "profile."))
+        # The date now holds readings, so "Refine / resume" and "Show overlay"
+        # are offered for it, as they are for a profiling run that has just
+        # been measured (Knut, #182 5951427228).
+        try:
+            self._update_resume_availability()
+            self._adopt_overlay_after_first_measurement()
+        except Exception:      # noqa: BLE001 — never break filing a result
+            log.warning("could not refresh the options after filing the "
+                        "verification", exc_info=True)
 
         self._ask_how_printed(dst)
         # **THE AUTOMATIC REPORT FOLLOWS A VERIFICATION TOO (#182 K13, §13.10,
@@ -11774,6 +11958,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Superseded by the guard for any run it protects; still the only
         # handler for a session that never got one.
         self._archive_empty_measurement()
+        # A resumed verification that read nothing: its dated measurement is
+        # untouched, so the working copy beside the chart goes again.
+        self._drop_unused_verification_stage()
 
         # #153: NOW the .ti3 on disk is the run's answer, so it can settle the
         # count. Not one line earlier.
@@ -13550,7 +13737,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         ti1 = getattr(self, "_ti1_path", None)
         if ti1 is None:
             return None, None
-        return ti1.with_suffix(".ti3"), ti1.with_suffix(".ti2")
+        return self._selected_measurement_ti3(), ti1.with_suffix(".ti2")
 
     def _refresh_progress(self) -> None:
         """Push the current figure at the preview header."""
@@ -14154,7 +14341,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # verification. Asking only one of them left a hole a guard walked
         # straight into. Neither defines validity for itself: both are
         # `_cgats_has_no_readings`, the tab's one test for "empty or invalid".
-        if self._existing_ti3_for_chart() is not None:
+        if self._ti3_beside_chart() is not None:
             return False
         ti3 = self._measurement_at_risk()
         if ti3 is not None and not _cgats_has_no_readings(ti3):
@@ -14561,12 +14748,75 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         cand = Path(path).with_suffix(".ti3")
         return cand if cand.is_file() else None
 
+    def _selected_measurement_ti3(self) -> "Path | None":
+        """Where the measurement of what the bar SELECTS lives, or None.
+
+        Not necessarily on disk; the callers ask. For a profiling run (and any
+        chart outside a project) that is the ``.ti3`` beside the chart. For a
+        verification it is NOT: every dated verification shares the one
+        verification chart in ``verifications/``, and each keeps its readings
+        in its own dated folder. Asking beside the chart answered "never
+        measured" for every date, so a measured date offered neither "Refine /
+        resume" nor "Show overlay" (Knut, #182 5951427228, 4.3.3-beta.2):
+        *"It seems selecting an existing dated verification is not
+        recognised."* "New verification" has no measurement, so None.
+
+        While a session runs, the reader works on the file beside the chart
+        (a resumed verification is staged there, see
+        :meth:`_stage_verification_for_resume`), so that is the answer then.
+        """
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None:
+            return None
+        beside = Path(ti1).with_suffix(".ti3")
+        if getattr(self, "_session_live", False) or bool(
+                getattr(getattr(self, "_runner", None), "is_running", False)):
+            return beside
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or not ctl.target.is_verification():
+            return beside
+        from core.file_manager import VERIFICATIONS_DIRNAME
+        if Path(ti1).parent.name != VERIFICATIONS_DIRNAME:
+            # The bar says Verification but the tab still holds another chart
+            # (the moment between a Run-type change and the chart arriving).
+            return beside
+        try:
+            proj = ctl.project_or_none()
+            run_id = ctl.target.profile_run
+            if proj is None or not run_id or not proj.has_run(run_id):
+                return beside
+            vid = ctl.target.verification_id
+            if not vid:
+                return None                     # "New verification"
+            return proj.run(run_id).verification(vid).measurement_ti3
+        except Exception:      # noqa: BLE001 — a lookup must never break the tab
+            log.warning("could not resolve the selected verification",
+                        exc_info=True)
+            return None
+
+    def _ti3_beside_chart(self) -> "Path | None":
+        """A ``.ti3`` with readings right beside the loaded chart, or None,
+        whatever the bar selects. The pre-flight asks this as well as the
+        selected date, so a measurement left beside a verification chart still
+        counts there."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None:
+            return None
+        ti3 = Path(ti1).with_suffix(".ti3")
+        if not ti3.is_file() or _cgats_has_no_readings(ti3):
+            return None
+        return ti3
+
     def _existing_ti3_for_chart(self) -> "Path | None":
-        """The measured .ti3 sitting next to the loaded chart (#134), or None."""
+        """The measured .ti3 of what the bar selects (#134), or None.
+
+        Beside the loaded chart for a profiling run; in the selected dated
+        folder for a verification (:meth:`_selected_measurement_ti3`).
+        """
         if self._ti1_path is None:
             return None
-        ti3 = self._ti1_path.with_suffix(".ti3")
-        if not ti3.is_file():
+        ti3 = self._selected_measurement_ti3()
+        if ti3 is None or not ti3.is_file():
             return None
         # A file with no readings is not a measurement, and treating it as one
         # is what made ChromIQ warn about a measurement that was never taken —
@@ -14858,6 +15108,26 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not checked:
             self._clear_overlay()
             return
+        # A TICK NOBODY CLICKED IS NOT A QUESTION ABOUT THE CHART ON SCREEN.
+        #
+        # Knut, #182 5951427228 (4.3.3-beta.2): he switched Run type from
+        # Verification to Profiling and was told "This chart has not been
+        # measured yet", about the run he was LEAVING. The run he went to was
+        # measured. The tick came from that run's stored Measure settings,
+        # which are put on screen the moment the bar changes — before the new
+        # chart reaches this tab — so this handler judged the verification
+        # chart still loaded, found nothing beside it, and said so. A box that
+        # is hidden cannot have been clicked either.
+        #
+        # Both are answered once the selection has settled, about the chart
+        # and measurement it ends on: see `_settle_after_selection_change`.
+        sender = self.sender()
+        if getattr(self, "_loading_measure_settings", False) or (
+                sender is not None and hasattr(sender, "isHidden")
+                and sender.isHidden()):
+            self._overlay_asked_by_settings = True
+            self._queue_selection_settle()
+            return
         if self._show_overlay_from_existing_ti3():
             self._log.appendPlainText(tr(
                 "Showing the expected vs. measured colours from this chart's "
@@ -14982,7 +15252,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         #
         # This is the same shape as the empty-file fault he found in #130. That
         # fix taught the code to recognise EMPTY; ABSENT was left behind it.
-        if not self._ti1_path.with_suffix(".ti3").is_file():
+        _selected = self._selected_measurement_ti3()
+        if _selected is None or not _selected.is_file():
             return "absent"
         ti3 = self._existing_ti3_for_chart()
         if ti3 is None:
@@ -15015,8 +15286,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         if self._ti1_path is None:
             return False
-        ti3 = self._ti1_path.with_suffix(".ti3")
-        if not ti3.is_file():
+        ti3 = self._selected_measurement_ti3()
+        if ti3 is None or not ti3.is_file():
             return False
         return _cgats_has_no_readings(ti3)
 
