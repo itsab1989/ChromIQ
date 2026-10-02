@@ -289,12 +289,13 @@ stored answer stays. (`MeasureManager._after_a_read`.)
 * **Unread is counted per patch, from the file the engine resumes from**
   (`<chart>.ti3`, which a resumed verification is copied to first), and the
   fill-up squares that complete the last strip are never counted as unread.
-* **The progress figure can disagree with the window during a resume.** The
-  live count adds a re-read patch that the resumed file already held (a known
-  limit, corrected when the session ends: `_refresh_progress_from_files`), so
-  on screen the header said 100 % beside "21 patches on this chart have no
-  reading yet" (review AR, 2026-10-02; the same figure on the commit before
-  this feature). The window's count is the right one.
+* **The progress counts each design patch once** (fixed 2026-10-03 at Knut's
+  request, #182 5963044182: *"Re-reads shall not increase the Progress"*). It
+  used to start a resumed session from the file's row count and add every
+  patch read, so a re-read counted twice and the header said 100 % beside
+  "21 patches on this chart have no reading yet" (review AR). The file's
+  patches are now kept by location and joined with the session's, fill-up
+  squares left out (`TabMeasure._progress_measured`).
 
 ### What changed, and when
 

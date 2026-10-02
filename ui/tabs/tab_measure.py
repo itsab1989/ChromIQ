@@ -2646,6 +2646,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # measurement file already held when this chart was opened.
         self._progress_locs: set = set()
         self._progress_base = 0
+        self._progress_file_locs: set = set()
+        self._progress_padding: set = set()
         self._pace_patches = 0
 
         splitter.addWidget(right)
@@ -13994,9 +13996,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             total = expected_patches(ti2)
             if not total or total <= 0:
                 return None
-            measured = getattr(self, "_progress_base", 0) + len(
-                getattr(self, "_progress_locs", ()))
-            return max(0, int(total) - int(measured))
+            return max(0, int(total) - int(self._progress_measured(total)))
         except Exception:      # noqa: BLE001
             log.debug("could not count the unread patches", exc_info=True)
             return None
@@ -14010,16 +14010,54 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         self._progress_locs = set()
         self._progress_base = 0
+        self._progress_file_locs = set()
+        self._progress_padding = set()
+        try:
+            from workflow.measurement_state import padding_locations
+            _ti3, ti2 = self._progress_files()
+            if ti2 is not None and ti2.is_file():
+                self._progress_padding = padding_locations(ti2)
+        except Exception:  # noqa: BLE001
+            log.debug("could not read the chart's fill-up squares", exc_info=True)
         if from_files:
             try:
+                from workflow.measurement_pairing import measurement_locations
                 from workflow.measurement_state import classify, PROGRESS_STATES
                 ti3, ti2 = self._progress_files()
                 facts = classify(ti3, ti2)
                 if facts.state in PROGRESS_STATES and facts.held:
                     self._progress_base = int(facts.held)
+                    # The patches themselves, by name, so a re-read of one the
+                    # file already holds is not counted a second time (Knut,
+                    # #182 5963044182: "Re-reads shall not increase the
+                    # Progress").
+                    self._progress_file_locs = {
+                        loc for loc in measurement_locations(ti3) if loc}
             except Exception:  # noqa: BLE001
                 log.debug("could not read progress from the run", exc_info=True)
         self._refresh_progress()
+
+    def _progress_measured(self, total: "int | None" = None) -> int:
+        """How many DIFFERENT design patches have a reading (#182 5963044182).
+
+        Knut: *"Re-reads shall not increase the Progress, and the total
+        progress shall always count patches (not strips) measured compared to
+        number of patches in chart."* The file's patches and this session's are
+        joined by location, fill-up squares left out (they are not in the
+        chart's total either), and the result never passes the total. A file
+        whose rows carry no location falls back to its row count.
+        """
+        live = {loc for loc in getattr(self, "_progress_locs", ())
+                if loc not in getattr(self, "_progress_padding", ())}
+        file_locs = getattr(self, "_progress_file_locs", set())
+        if file_locs:
+            measured = len((file_locs - getattr(self, "_progress_padding", set()))
+                           | live)
+        else:
+            measured = getattr(self, "_progress_base", 0) + len(live)
+        if total:
+            measured = min(int(measured), int(total))
+        return int(measured)
 
     def _progress_files(self):
         """``(ti3, ti2)`` for the chart on screen, or ``(None, None)``."""
@@ -14041,10 +14079,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                                     progress_percent)
             _ti3, ti2 = self._progress_files()
             total = expected_patches(ti2)
-            measured = getattr(self, "_progress_base", 0) + len(
-                getattr(self, "_progress_locs", ()))
             preview.set_measurement_progress(
-                progress_percent(measured, total), tracking=True)
+                progress_percent(self._progress_measured(total), total),
+                tracking=True)
         except Exception:      # noqa: BLE001
             log.debug("could not refresh the progress bar", exc_info=True)
 
