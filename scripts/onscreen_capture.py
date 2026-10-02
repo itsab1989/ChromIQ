@@ -97,6 +97,67 @@ def wake_the_screen(timeout: float = 6.0) -> tuple[bool, str]:
                    "session wants a password; unlock it by hand")
 
 
+def display_is_asleep() -> bool:
+    """Whether the main display is asleep, per CoreGraphics.
+
+    Basti, 2026-10-02: *"from now on i will make it so my display goes to sleep
+    automatically after a while"*. A sleeping display is not a locked session
+    (no password here), but the window server may hand back an empty buffer
+    for a window on it, which `capture_window` would then refuse as flat."""
+    try:
+        cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework"
+                         "/CoreGraphics")
+        cg.CGMainDisplayID.restype = ctypes.c_uint32
+        cg.CGDisplayIsAsleep.argtypes = [ctypes.c_uint32]
+        cg.CGDisplayIsAsleep.restype = ctypes.c_bool
+        return bool(cg.CGDisplayIsAsleep(cg.CGMainDisplayID()))
+    except Exception:                                      # noqa: BLE001
+        return False
+
+
+def wake_the_display(timeout: float = 6.0) -> tuple[bool, str]:
+    """Wake a sleeping display (``caffeinate -u``: asserts user activity, types
+    nothing, moves no focus) and wait until CoreGraphics says it is awake."""
+    if not display_is_asleep():
+        return True, "the display was awake"
+    try:
+        subprocess.run(["caffeinate", "-u", "-t", "1"], timeout=10,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:                                      # noqa: BLE001
+        return False, "caffeinate could not be run"
+    end = time.time() + timeout
+    while time.time() < end:
+        if not display_is_asleep():
+            time.sleep(0.5)            # let it draw a frame before we look
+            return True, "the display was asleep and a wake cleared it"
+        time.sleep(0.25)
+    return False, "the display is asleep and a wake did not wake it"
+
+
+_KEEP_AWAKE = None
+
+
+def keep_display_awake():
+    """Hold macOS's keep-the-display-awake assertion for as long as THIS process
+    lives (``caffeinate -d -w <pid>`` ends by itself when the driver exits), so
+    Basti's display-sleep setting cannot blank the screen in the middle of a
+    driver run, and works as he set it the rest of the time. Idempotent."""
+    global _KEEP_AWAKE
+    import os as _os
+    import sys as _sys
+    if _sys.platform != "darwin":
+        return None
+    if _KEEP_AWAKE is not None and _KEEP_AWAKE.poll() is None:
+        return _KEEP_AWAKE
+    try:
+        _KEEP_AWAKE = subprocess.Popen(["caffeinate", "-d", "-w", str(_os.getpid())],
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
+    except Exception:                                      # noqa: BLE001
+        _KEEP_AWAKE = None
+    return _KEEP_AWAKE
+
+
 def _by_geometry(win, cands: list, slack: float = 24.0):
     """The candidate whose bounds are where *win* says it is, or None.
 
@@ -375,6 +436,13 @@ def capture_window(win, path: Path, settle: float = 0.6,
                            f"did not clear it ({why}), so the window server "
                            "hands every capture the desktop picture instead "
                            "of the window; unlock the screen and run again")
+    # …AND A SLEEPING DISPLAY IS WOKEN TOO (Basti lets it sleep after a while),
+    # and kept awake for the rest of this driver run.
+    keep_display_awake()
+    if display_is_asleep():
+        woke, why = wake_the_display()
+        if not woke:
+            return False, f"the display is asleep and could not be woken ({why})"
     path.parent.mkdir(parents=True, exist_ok=True)
     # NO raise_() / activateWindow() HERE ANY MORE. Basti, 2026-10-02: *"when
     # i am typing here and you bring the chromiq windows to the front i am

@@ -425,6 +425,13 @@ it again. It applies to this file's reader and to every agent briefed from it.
   right after constructing the QApplication. And start a `PopupWatchdog`
   (`scripts/onscreen_capture.py`) so an unscripted question never hangs the
   run.
+* **BASTI'S DISPLAY GOES TO SLEEP AFTER A WHILE (2026-10-02).** A sleeping
+  display is not a locked session, but a window on it can photograph as an
+  empty buffer. `capture_window` wakes it first (`wake_the_display`,
+  `caffeinate -u`) and every driver holds `keep_display_awake()` (built into
+  `capture_screens.build_app`): `caffeinate -d -w <driver pid>`, which ends by
+  itself with the driver, so his sleep setting works the rest of the time.
+  Never leave a display or system assertion running after a run.
 * **A DRIVER NEVER TAKES THE KEYBOARD FROM BASTI.** Basti, 2026-10-02:
   *"when i am typing here and you bring the chromiq windows to the front i am
   sometimes still typing while you make another window get focus"*. His

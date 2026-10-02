@@ -177,6 +177,12 @@ def build_app():
     focus = FocusGiveBack().remember()
     app = QApplication(sys.argv)
     app._chromiq_focus_give_back = focus.install(app)
+    # Basti's display sleeps after a while: keep it awake for THIS run only.
+    try:
+        from onscreen_capture import keep_display_awake
+    except ImportError:
+        from scripts.onscreen_capture import keep_display_awake
+    keep_display_awake()
     app.setApplicationName("ChromIQ")
     # as main() does (B8-1392): the collector runs from the event loop
     from core.gc_guard import install_gui_thread_collector
