@@ -175,7 +175,7 @@ def _everything(s, ti3, qapp, tmp_path, tag, monkeypatch):
     got = {}
     try:
         entries = _saved_entries(dlg, Path(ti3).parent)
-        assert len(entries) >= 2, entries
+        assert entries, "no saved report listed"
         for name, (key, label) in sorted(entries.items()):
             combo = dlg._saved_combo
             combo.setCurrentIndex(combo.findData(key))
@@ -222,6 +222,7 @@ def test_after_runs_1_to_4_go_only_the_run_number_changes(tmp_path, qapp,
     s, proj, v, auto, old = _five_runs(tmp_path, qapp)
     before = _everything(s, v.measurement_ti3, qapp, tmp_path, "before",
                          monkeypatch)
+    assert sorted(before) == sorted([auto.name, old.name]), before.keys()
     # each says run 5 somewhere, or the test proves nothing
     for name, b in before.items():
         assert re.search(r"\brun 5\b", b["page"]), (name, b["page"][:400])

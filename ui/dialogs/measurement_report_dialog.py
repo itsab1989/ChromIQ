@@ -3944,7 +3944,7 @@ class MeasurementReportDialog(QDialog):
         self._view = QTextBrowser(self)
         self._view.setOpenExternalLinks(False)
         self._view.setFrameShape(QFrame.Shape.NoFrame)
-        self._view.setHtml(self._empty_html())
+        self._show_no_report(self._empty_html())
         # The report TEXT is the point of the window — guarantee it real
         # space. With the trend visible the fixed content above squeezed it
         # to a strip a few lines high (Sebastian, 2026-08-10: "hard to get
@@ -4001,7 +4001,7 @@ class MeasurementReportDialog(QDialog):
             self._opened_empty = False
             self._load(Path(initial_ti3))
         else:
-            self._view.setHtml(self._empty_html())
+            self._show_no_report(self._empty_html())
 
     # ---- Run type Calibration (#182 beta 39) ------------------------------
     def _is_calibration_window(self) -> bool:
@@ -4660,7 +4660,7 @@ class MeasurementReportDialog(QDialog):
         try:
             added = self._append_source(ti3, origin)
         except Exception as exc:  # noqa: BLE001
-            self._view.setHtml(self._error_html(str(exc)))
+            self._show_no_report(self._error_html(str(exc)))
             return
         if added:
             # The window was opened ON this measurement — with "Show all
@@ -5220,7 +5220,7 @@ class MeasurementReportDialog(QDialog):
         # A kept page is still a report on screen, and its PDF can be saved
         # with the list emptied under it (Knut, 2026-09-18: the button is
         # greyed only "if no report is loaded in the window at all").
-        self._pdf_btn.setEnabled(has or self._page_shows_a_report())
+        self._sync_pdf_button()
         self._reveal_btn.setEnabled(has)
         self._clear_btn.setEnabled(has)
         self._update_source_buttons()
@@ -5731,7 +5731,7 @@ class MeasurementReportDialog(QDialog):
             self._report = self._subject_of(self._sources[0])
             self._rebuild_from_sources()
         if failed and not added:
-            self._view.setHtml(self._error_html(
+            self._show_no_report(self._error_html(
                 tr("Could not add these measurements:") + "\n" + "\n".join(failed)))
 
     def _as_ti3(self, src: Path) -> Path:
@@ -6180,12 +6180,36 @@ class MeasurementReportDialog(QDialog):
         self._show_stale_banner()
         self._note_which_document_the_page_is()
         if not self._sources:
-            self._view.setHtml(self._empty_html())
+            self._show_no_report(self._empty_html())
             self._remember_how_it_was_built()
             return
         self._view.setHtml(
             self._report_body_html(self._runs_for_report(), for_pdf=False))
+        self._page_drawn = True
+        self._sync_pdf_button()
         self._remember_how_it_was_built()
+
+    def _show_no_report(self, page_html: str) -> None:
+        """Put a page on the view that is NOT a report (the empty page, an
+        error), and grey Save report as PDF… with it.
+
+        **NO PDF OF AN EMPTY REPORT AREA (Knut, #182 5943085974):** *"'Save
+        report as PDF' should not be allowed to be pressed if the report area
+        is empty (no report loaded)."* The page snapshot goes too, so nothing
+        can print a report that is no longer on screen."""
+        self._view.setHtml(page_html)
+        self._page_drawn = False
+        self._page_snapshot = None
+        self._sync_pdf_button()
+
+    def _sync_pdf_button(self) -> None:
+        """Save report as PDF… is live exactly while a report is on the
+        page: drawn by `_render`, or kept there (`_keeping_the_page`, Knut
+        2026-09-18: greyed only *"if no report is loaded in the window at
+        all"*)."""
+        btn = getattr(self, "_pdf_btn", None)
+        if btn is not None:
+            btn.setEnabled(bool(getattr(self, "_page_drawn", False)))
 
     @contextmanager
     def _keeping_the_page(self):
