@@ -153,7 +153,7 @@ def test_the_engine_records_how_it_used_the_calibration(tmp_path, cal_on,
                     # never be what is recorded for an engine chart
                     extra_printtarg_args=f"-I {calp}")
     cc._write_channel_sidecar(tmp_path, "c", p, engine="chromiq")
-    rec = json.loads((tmp_path / "c.channels.json").read_text())[
+    rec = json.loads((tmp_path / "c.channels.json").read_text(encoding="utf-8"))[
         "printer_calibration"]
     assert rec["mode"] == mode
     assert rec["engine"] == "chromiq"
@@ -172,7 +172,7 @@ def test_printtarg_records_what_its_arguments_said(tmp_path, extra, mode):
     p = ChartParams(extra_printtarg_args=extra.format(cal=calp),
                     engine_cal_path=str(calp), engine_apply_cal=True)
     cc._write_channel_sidecar(tmp_path, "c", p)        # printtarg by default
-    rec = json.loads((tmp_path / "c.channels.json").read_text())[
+    rec = json.loads((tmp_path / "c.channels.json").read_text(encoding="utf-8"))[
         "printer_calibration"]
     assert rec["mode"] == mode and rec["engine"] == "printtarg"
 
@@ -184,7 +184,7 @@ def test_the_record_decides_before_anything_else(tmp_path):
     assert pc.calibration_mode_of(run.chart_ti2, run.measurement_ti3) == \
         pc.MODE_OLD_ENGINE_APPLY
     run.chart_channels_json.write_text(json.dumps(
-        {"printer_calibration": {"mode": "include"}}))
+        {"printer_calibration": {"mode": "include"}}), encoding="utf-8")
     assert pc.calibration_mode_of(run.chart_ti2, run.measurement_ti3) == "include"
 
 
@@ -196,21 +196,21 @@ def test_a_profiling_build_fills_calibration_used(tmp_path):
     rdir = tmp_path / "P" / "runs" / "run1"
     rdir.mkdir(parents=True)
     ti2 = rdir / "P.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     side = rdir / "P.channels.json"
     side.write_text(json.dumps({"printer_calibration": {
-        "mode": "apply", "cal_name": "P-cal.cal"}}))
+        "mode": "apply", "cal_name": "P-cal.cal"}}), encoding="utf-8")
     TabChart._record_calibration_used(None, ti2)
     assert Run.for_dir(rdir).load_meta().calibration_used == "P-cal"
-    side.write_text(json.dumps({"printer_calibration": {"mode": "off"}}))
+    side.write_text(json.dumps({"printer_calibration": {"mode": "off"}}), encoding="utf-8")
     TabChart._record_calibration_used(None, ti2)
     assert Run.for_dir(rdir).load_meta().calibration_used == ""
     # a verification chart is not the run's profiling chart
     vdir = rdir / "verifications"
     vdir.mkdir()
-    (vdir / "P-verify.ti2").write_text("CTI2\n")
+    (vdir / "P-verify.ti2").write_text("CTI2\n", encoding="utf-8")
     (vdir / "P-verify.channels.json").write_text(json.dumps(
-        {"printer_calibration": {"mode": "apply", "cal_name": "X.cal"}}))
+        {"printer_calibration": {"mode": "apply", "cal_name": "X.cal"}}), encoding="utf-8")
     TabChart._record_calibration_used(None, vdir / "P-verify.ti2")
     assert Run.for_dir(rdir).load_meta().calibration_used == ""
 
@@ -226,7 +226,7 @@ def _printtarg_chart(tmp_path, *, cal: bool, snapshot: "dict | None"):
                  cal=CAL if cal else "", with_loc=True)
     if snapshot is not None:
         (rdir / "P.channels.json").write_text(json.dumps(
-            {"create_chart_settings": snapshot}))
+            {"create_chart_settings": snapshot}), encoding="utf-8")
     return rdir / "P.ti2"
 
 
@@ -260,21 +260,21 @@ def test_a_current_engine_chart_without_a_record_is_read_off_its_pixels(
     ti1.write_text(TI1, encoding="utf-8")
     res = chart.build_chart(ti1, tmp_path / "t", instrument="i1", paper="A4",
                             seed=1, dpi=72, cal_path=calp, apply_cal=apply)
-    strips = json.loads((tmp_path / "t.strips.json").read_text())
+    strips = json.loads((tmp_path / "t.strips.json").read_text(encoding="utf-8"))
     (tmp_path / "t.channels.json").write_text(json.dumps(
-        {"layout": {"engine": "chromiq", **strips}}))
+        {"layout": {"engine": "chromiq", **strips}}), encoding="utf-8")
     assert pc.calibration_mode_of(res.ti2_path) == mode
     # without the rectangles nothing can be read: unknown, never a guess
     (tmp_path / "t.channels.json").write_text(json.dumps(
-        {"layout": {"engine": "chromiq"}}))
+        {"layout": {"engine": "chromiq"}}), encoding="utf-8")
     assert pc.calibration_mode_of(res.ti2_path) == pc.MODE_UNKNOWN
 
 
 def test_no_calibration_anywhere_is_off(tmp_path):
     run = _old_engine_run(tmp_path, delta=0.0)
     for p in (run.chart_ti2, run.measurement_ti3):
-        text = p.read_text()
-        p.write_text(text[:text.index("\nCAL")] + "\n")
+        text = p.read_text(encoding="utf-8")
+        p.write_text(text[:text.index("\nCAL")] + "\n", encoding="utf-8")
     assert pc.run_calibration_mode(run) == pc.MODE_OFF
 
 
@@ -311,8 +311,8 @@ def test_c1_needs_the_engine_a_calibration_and_a_ti1(tmp_path):
     assert not pc.run_is_old_engine_apply(_old_engine_run(tmp_path / "b", ti1=False))
     run = _old_engine_run(tmp_path / "c")
     for p in (run.chart_ti2, run.measurement_ti3):
-        text = p.read_text()
-        p.write_text(text[:text.index("\nCAL")] + "\n")
+        text = p.read_text(encoding="utf-8")
+        p.write_text(text[:text.index("\nCAL")] + "\n", encoding="utf-8")
     assert not pc.run_is_old_engine_apply(run)
 
 
@@ -410,14 +410,14 @@ def _current_k_run(tmp_path, *, k_verify=False):
     embedded, the record says apply. And its verification chart."""
     run = _old_engine_run(tmp_path, delta=0.0)
     run.chart_channels_json.write_text(json.dumps(
-        {"printer_calibration": {"mode": "apply", "cal_name": "c.cal"}}))
+        {"printer_calibration": {"mode": "apply", "cal_name": "c.cal"}}), encoding="utf-8")
     run.verifications_dir.mkdir(parents=True)
     _write_cgats(run.verify_chart_ti2, "CTI2", TI1_ROWS,
                  originator=pc.ENGINE_ORIGINATOR,
                  cal=CAL if k_verify else "", with_loc=True)
     if k_verify:
         run.verify_chart_channels_json.write_text(json.dumps(
-            {"printer_calibration": {"mode": "apply"}}))
+            {"printer_calibration": {"mode": "apply"}}), encoding="utf-8")
     return run
 
 
@@ -437,7 +437,7 @@ def test_a_k_run_prints_through_profile_then_its_own_calibration(tmp_path):
                                tmp_path / "cache")
     assert not plan.refuse and plan.cal is not None
     # the calibration that was PRINTED: the one in the run's measurement
-    assert plan.cal.read_text().strip() == \
+    assert plan.cal.read_text(encoding="utf-8").strip() == \
         pc.embedded_cal_text(run.measurement_ti3).strip()
     assert plan.record["applied_at_print"] is True
     assert plan.record["cal_from"] == str(run.measurement_ti3)
@@ -457,7 +457,7 @@ def test_a_k_run_prints_through_profile_then_its_own_calibration(tmp_path):
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     from core.resource_path import argyll_binary
-    (bin_dir / argyll_binary("cctiff")).write_text("")
+    (bin_dir / argyll_binary("cctiff")).write_text("", encoding="utf-8")
     src = tmp_path / "sRGB.icm"
     src.write_bytes(b"x")
     prof = run.dir / "P.icc"
@@ -487,7 +487,7 @@ def test_include_and_off_print_through_the_profile_alone(tmp_path):
     for mode in ("include", "off"):
         run = _current_k_run(tmp_path / mode)
         run.chart_channels_json.write_text(json.dumps(
-            {"printer_calibration": {"mode": mode}}))
+            {"printer_calibration": {"mode": mode}}), encoding="utf-8")
         plan = vp.plan_calibration(run, run.verify_chart_ti2,
                                    vp.COLOUR_THROUGH, tmp_path / "c")
         assert plan.cal is None and not plan.refuse
@@ -516,8 +516,8 @@ def test_a_k_run_whose_calibration_is_gone_does_not_print_uncalibrated(
         tmp_path):
     run = _current_k_run(tmp_path)
     for p in (run.chart_ti2, run.measurement_ti3):
-        text = p.read_text()
-        p.write_text(text[:text.index("\nCAL")] + "\n")
+        text = p.read_text(encoding="utf-8")
+        p.write_text(text[:text.index("\nCAL")] + "\n", encoding="utf-8")
     plan = vp.plan_calibration(run, run.verify_chart_ti2, vp.COLOUR_THROUGH,
                                tmp_path / "c")
     assert plan.cal is not None and not plan.cal.exists()
@@ -525,7 +525,7 @@ def test_a_k_run_whose_calibration_is_gone_does_not_print_uncalibrated(
         bin_dir = tmp_path / "bin"
         bin_dir.mkdir()
         from core.resource_path import argyll_binary
-        (bin_dir / argyll_binary("cctiff")).write_text("")
+        (bin_dir / argyll_binary("cctiff")).write_text("", encoding="utf-8")
         src = tmp_path / "s.icm"
         src.write_bytes(b"x")
         prof = tmp_path / "p.icc"
@@ -538,12 +538,12 @@ def test_a_k_run_whose_calibration_is_gone_does_not_print_uncalibrated(
 
 def test_the_print_record_says_what_was_applied(tmp_path):
     ti2 = tmp_path / "v.ti2"
-    ti2.write_text("CTI2\n")
+    ti2.write_text("CTI2\n", encoding="utf-8")
     vp.write_print_record(ti2, colour=vp.COLOUR_THROUGH, intent="relative",
                           profile=None, route=vp.ROUTE_CHROMIQ,
                           calibration={"profiling_chart": "apply",
                                        "applied_at_print": True})
-    rec = json.loads(vp.print_record_path(ti2).read_text())
+    rec = json.loads(vp.print_record_path(ti2).read_text(encoding="utf-8"))
     assert rec["printer_calibration"]["applied_at_print"] is True
 
 
