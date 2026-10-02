@@ -371,3 +371,18 @@ def test_escape_takes_cancel_in_stuck_print_jobs(qapp, tmp_path):
     dog.stop()
     assert not hung
     assert box.clickedButton() is cancel
+
+
+def test_a_box_with_no_escape_answer_is_still_closed(qapp, tmp_path):
+    """Review T_review_beta2: a box with only Accept/Destructive buttons has
+    no Escape answer, so the real Escape key does nothing, and the watchdog
+    dismisses a pop-up only once: the driver hung behind it. It is closed with
+    no answer after a grace period."""
+    box = QMessageBox(QMessageBox.Icon.Warning, "Unsaved", "Keep them?")
+    box.addButton("Save", QMessageBox.ButtonRole.AcceptRole)
+    box.addButton("Discard", QMessageBox.ButtonRole.DestructiveRole)
+    dog = PopupWatchdog(tmp_path, grace_s=0.2, interval_ms=50, log=lambda s: None).start()
+    hung = _exec_with_safety(box)
+    dog.stop()
+    assert not hung
+    assert box.clickedButton() is None

@@ -804,10 +804,24 @@ class PopupWatchdog:
             # reject() from code leaves it with no answer at all, which
             # "Stuck Print Jobs" once read as "print" (review P_review2_beta1
             # W-1). A plain QDialog's Escape is its reject(), as for a user.
+            #
+            # A QMessageBox with NO Escape answer (only Accept/Destructive
+            # buttons, say "Save" + "Discard") ignores the key and stays open,
+            # and the watchdog dismisses a pop-up only once, so the driver
+            # hung behind it (review T_review_beta2). Such a box is closed
+            # with reject() after a grace period: no answer, which every
+            # question in the app reads as "do nothing".
+            def _fallback(w=w):
+                from PyQt6 import sip
+                if not sip.isdeleted(w) and w.isVisible():
+                    w.reject()
+
             def _press(w=w):
                 for kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
                     QApplication.sendEvent(w, QKeyEvent(
                         kind, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+                if isinstance(w, QMessageBox):
+                    QTimer.singleShot(1000, _fallback)
             QTimer.singleShot(0, _press)
             return "pressed Escape"
         QTimer.singleShot(0, w.close)
