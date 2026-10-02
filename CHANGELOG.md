@@ -1,5 +1,19 @@
 # Changelog
 
+## v4.3.3-beta.2
+
+**A chart built twice from the same seed now comes out the same on a Mac, and a handful of smaller fixes from the review of beta 1.**
+
+### Fixed
+
+- **The same chart every time on macOS.** ArgyllCMS's printtarg reads a value it never sets when it lays out patches for a strip-reading instrument (ColorMunki, i1Pro and others), so two builds with the same seed could place the patches differently, depending on what happened to be in memory. On a Mac, ChromIQ now starts printtarg so that this memory is always empty, which gives Argyll's intended layout every time: in Create Chart, in the presets window and in the demo projects. Windows and Linux are unchanged.
+- **Inspect a measurement and Inspect a profile** never offer a folder you cannot save into, such as a profile inside a printer driver or a project on a read-only disk: the save window opens in your ChromIQ folder instead. Their button now reads "Save inspection…".
+- **The Verify tools** say "Report saved beside your measurement" for a measurement outside a ChromIQ project, where the report really goes, instead of naming a reports folder.
+- **A question closed without an answer never prints or builds.** "Stuck Print Jobs Detected" and the two "Scan doesn't match the chart" questions took a window closed without a click as "go ahead". Your Escape key was always safe; now every other way a window can close is too.
+- **Preferences ▸ Measurement** no longer changes the stored values of the locked SpectroScan and CR30 rows when you click OK.
+- **A long message from the ChromIQ chart-reading engine** that arrived in two pieces was lost; it is now put back together.
+- Clearer German in Preferences ▸ Measurement and for "Untersuchung der Messung".
+
 ## v4.3.3-beta.1
 
 **The i1Pro 2, 3 and 3 Plus are judged by their own reading speed, timed from the beep; reports and inspections are saved where they belong; and ChromIQ runs again on older Macs.**
