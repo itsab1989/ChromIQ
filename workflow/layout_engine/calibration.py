@@ -158,8 +158,18 @@ def check_matches(target, cal: Calibration) -> None:
     tells print RGB (``iRGB``) from video RGB (``RGB``); the engine has always
     accepted an RGB calibration on either, and keeps doing so, because the
     numbers mean the same channels.
+
+    Only the colorant after the ``_`` is compared. The prefix is the file's
+    own colour-space word and Argyll does not spell it the same way in both
+    files for every device: a grey ``.ti1`` names its channel ``GRAY_K``
+    (``GRAY_W`` for video grey) while the ``.cal`` printcal / synthcal write
+    for it names the same channel ``K_K`` (``W_W``). printtarg accepts that
+    pair; comparing whole field names refused every grey calibration.
     """
-    if list(cal.out_fields) != list(target.device_fields):
+    def _inks(fields) -> list[str]:
+        return [str(f).rsplit("_", 1)[-1] for f in fields]
+
+    if _inks(cal.out_fields) != _inks(target.device_fields):
         raise CalibrationMismatch(cal.color_rep, target.color_rep,
                                   cal.out_fields, target.device_fields)
 

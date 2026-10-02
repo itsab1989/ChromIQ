@@ -288,3 +288,47 @@ def test_the_same_number_of_channels_is_not_the_same_inks(tmp_path):
     with pytest.raises(calibration.CalibrationMismatch):
         chart.build_chart(ti1, tmp_path / "out", instrument="i1", paper="A4",
                           seed=1, dpi=72, cal_path=cal, apply_cal=True)
+
+
+# ---- grey: the same ink, spelled differently in the two files -----------------
+#
+# Review AH (beta 5): a grey .ti1 from targen -d0 names its channel GRAY_K
+# (-d1: GRAY_W), while the .cal that printcal / synthcal write for the same
+# device names it K_K (W_W). printtarg 3.5.0 accepts that pair for -K and -I
+# (measured, rc 0); comparing the whole field names refused every grey
+# calibration with "the calibration is K (K_K), the chart is K (GRAY_K)".
+
+def _grey_cal(rep: str, ink: str) -> str:
+    return textwrap.dedent(f"""\
+        CAL
+        COLOR_REP "{rep}"
+        BEGIN_DATA_FORMAT
+        {ink}_I {ink}_{ink}
+        END_DATA_FORMAT
+        BEGIN_DATA
+        0.00 0.00
+        0.50 0.30
+        1.00 1.00
+        END_DATA
+        """)
+
+
+@pytest.mark.parametrize("rep,ink", [("K", "K"), ("W", "W")])
+@pytest.mark.parametrize("apply_cal", [True, False], ids=["-K", "-I"])
+def test_a_grey_calibration_goes_on_a_grey_chart(tmp_path, rep, ink, apply_cal):
+    ti1 = _ti1(tmp_path / "grey.ti1", rep, [f"GRAY_{ink}"],
+               [(0,), (25,), (50,), (75,), (100,)])
+    cal = _cal(tmp_path, _grey_cal(rep, ink), "grey.cal")
+    res = chart.build_chart(ti1, tmp_path / "out", instrument="i1", paper="A4",
+                            seed=1, dpi=72, cal_path=cal, apply_cal=apply_cal)
+    rows = _ti2_device_rows(res.ti2_path, [f"GRAY_{ink}"])
+    assert rows[3] == pytest.approx((50,), abs=1e-3)   # .ti1 value, as printtarg
+    assert f"{ink}_I {ink}_{ink}" in res.ti2_path.read_text(encoding="utf-8")
+
+
+def test_a_grey_calibration_on_an_rgb_chart_is_still_refused(tmp_path):
+    cal = _cal(tmp_path, _grey_cal("K", "K"), "grey.cal")
+    with pytest.raises(calibration.CalibrationMismatch):
+        chart.build_chart(_rgb_ti1(tmp_path), tmp_path / "out",
+                          instrument="i1", paper="A4", seed=1, dpi=72,
+                          cal_path=cal, apply_cal=True)
