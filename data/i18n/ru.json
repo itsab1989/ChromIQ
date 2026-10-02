@@ -6440,5 +6440,6 @@
  "Red outline: a large difference": "Красная рамка: большая разница",
  "Same value after a re-read:": "То же значение при повторе:",
  "it is real, keep it for the profile.": "оно настоящее, оставьте для профиля.",
- "this printer and paper cannot reach.": "недоступный принтеру и бумаге."
+ "this printer and paper cannot reach.": "недоступный принтеру и бумаге.",
+ "The calibration file was made for a {cal_space} chart, but the patch set you are building is {chart_space}. A calibration can only be applied to (-K) or embedded in (-I) a chart with the same inks, so the chart was not built.\n\nTo use this calibration, set “Device Type” in the targen settings to {cal_space} and press Generate Chart again. A new profiling run starts on the default Device Type, not on the one the calibration chart was made with, so check it there.\n\nTo build this {chart_space} chart without the calibration, set the printer calibration to “None”.": "Файл калибровки был создан для мишени {cal_space}, а набор патчей, который вы строите, — {chart_space}. Калибровку можно применить (-K) или встроить (-I) только в мишень с теми же чернилами, поэтому мишень не построена.\n\nЧтобы использовать эту калибровку, установите «Тип устройства» в настройках targen на {cal_space} и снова нажмите «Создать». Новый прогон профилирования начинается с типа устройства по умолчанию, а не с того, с которым была создана калибровочная мишень, поэтому проверьте его там.\n\nЧтобы построить эту мишень {chart_space} без калибровки, установите калибровку принтера на «Нет»."
 }

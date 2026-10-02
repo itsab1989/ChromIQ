@@ -6440,5 +6440,6 @@
  "Red outline: a large difference": "Rode rand: groot verschil",
  "Same value after a re-read:": "Zelfde waarde na opnieuw lezen:",
  "it is real, keep it for the profile.": "dan echt, houd het voor het profiel.",
- "this printer and paper cannot reach.": "die printer en papier niet halen."
+ "this printer and paper cannot reach.": "die printer en papier niet halen.",
+ "The calibration file was made for a {cal_space} chart, but the patch set you are building is {chart_space}. A calibration can only be applied to (-K) or embedded in (-I) a chart with the same inks, so the chart was not built.\n\nTo use this calibration, set “Device Type” in the targen settings to {cal_space} and press Generate Chart again. A new profiling run starts on the default Device Type, not on the one the calibration chart was made with, so check it there.\n\nTo build this {chart_space} chart without the calibration, set the printer calibration to “None”.": "Het kalibratiebestand is gemaakt voor een {cal_space}-kaart, maar de patchset die u maakt is {chart_space}. Een kalibratie kan alleen worden toegepast op (-K) of ingesloten in (-I) een kaart met dezelfde inkten, dus de kaart is niet gemaakt.\n\nOm deze kalibratie te gebruiken, zet u „Apparaattype” in de targen-instellingen op {cal_space} en klikt u opnieuw op „Genereren”. Een nieuwe profileringsrun begint met het standaard apparaattype, niet met het type waarmee de kalibratiekaart is gemaakt, dus controleer het daar.\n\nOm deze {chart_space}-kaart zonder de kalibratie te maken, zet u de printerkalibratie op „Geen”."
 }

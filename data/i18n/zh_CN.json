@@ -6440,5 +6440,6 @@
  "Red outline: a large difference": "红框：差异较大",
  "Same value after a re-read:": "重新读取后数值相同：",
  "it is real, keep it for the profile.": "差异真实，请保留用于配置文件。",
- "this printer and paper cannot reach.": "打印机和纸张达不到的颜色。"
+ "this printer and paper cannot reach.": "打印机和纸张达不到的颜色。",
+ "The calibration file was made for a {cal_space} chart, but the patch set you are building is {chart_space}. A calibration can only be applied to (-K) or embedded in (-I) a chart with the same inks, so the chart was not built.\n\nTo use this calibration, set “Device Type” in the targen settings to {cal_space} and press Generate Chart again. A new profiling run starts on the default Device Type, not on the one the calibration chart was made with, so check it there.\n\nTo build this {chart_space} chart without the calibration, set the printer calibration to “None”.": "此校准文件是为 {cal_space} 色卡制作的，但您正在生成的色块集是 {chart_space}。校准只能应用于 (-K) 或嵌入 (-I) 使用相同墨水的色卡，因此色卡未生成。\n\n要使用此校准，请在 targen 设置中将“设备类型”设为 {cal_space}，然后再次点击“生成色卡”。新的配置文件运行以默认设备类型开始，而不是以制作校准色卡时的设备类型开始，因此请在那里检查。\n\n要在不使用校准的情况下生成此 {chart_space} 色卡，请将打印机校准设为“无”。"
 }

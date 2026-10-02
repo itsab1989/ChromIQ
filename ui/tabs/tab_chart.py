@@ -23891,6 +23891,8 @@ class TabChart(QWidget):
                     title = (
                         "Chart Generation Failed (targen)"
                         if tool == "targen"
+                        else tr("The chart could not be built")
+                        if tool == "engine"
                         else "Chart Layout Failed (printtarg)"
                     )
                     InfoDialog(title, friendly, self, min_width=520).exec()

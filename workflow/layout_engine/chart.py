@@ -298,6 +298,10 @@ def build_chart(
     if cal_path is not None:
         from . import calibration
         cal = calibration.read_cal(cal_path)
+        # -K AND -I: printtarg refuses both for a calibration made for other
+        # inks, and an RGB chart carrying a CMYK calibration is no use to
+        # anything downstream (#182 5956560815).
+        calibration.check_matches(target, cal)
         if apply_cal:
             target = calibration.apply_to_target(target, cal)
     spacer_on = spacer_on and spacer_mode != "none"   # "none" ⇒ no gap

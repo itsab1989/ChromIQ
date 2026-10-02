@@ -161,6 +161,14 @@ _PRINTTARG_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
 ]
 
 
+# printtarg.c, -K and -I alike: a calibration for other inks than the .ti1's.
+# Kept out of the table above because its text is translated (tr() at the
+# moment it is shown) and the table's are not; the engine refuses the same
+# case with `calibration.CalibrationMismatch` and the same words.
+_PRINTTARG_CAL_MISMATCH = re.compile(
+    r"Calibration colorspace (\S+) doesn't match \.ti1 (\S+)")
+
+
 # Instruments the ChromIQ layout engine can lay out itself (issue #93).
 ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30"}
 
@@ -1195,6 +1203,13 @@ class ChartCreator:
                 if m:
                     self._matched_warnings.append((tool, key, fmt.format(*m.groups())))
         elif tool == "printtarg":
+            m = _PRINTTARG_CAL_MISMATCH.search(line)
+            if m:
+                from workflow.layout_engine.calibration import (
+                    calibration_mismatch_message)
+                self._matched_errors.append(
+                    (tool, "cal_colorspace_mismatch",
+                     calibration_mismatch_message(m.group(1), m.group(2))))
             for pattern, key, fmt in _PRINTTARG_ERROR_PATTERNS:
                 m = pattern.search(line)
                 if m:
@@ -1557,6 +1572,14 @@ class ChartCreator:
         except Exception as exc:  # noqa: BLE001 — surface any engine failure
             log.exception("ChromIQ layout engine failed")
             on_line(f"[ERROR] ChromIQ layout engine: {exc}")
+            # A calibration for other inks is the user's to fix, so it gets
+            # the window a recognised printtarg error gets, in their words
+            # rather than the engine's (#182 5956560815: the log line alone
+            # said "calibration has 4 channels, target has 3").
+            from workflow.layout_engine.calibration import CalibrationMismatch
+            if isinstance(exc, CalibrationMismatch):
+                self._matched_errors.append(
+                    ("engine", "cal_colorspace_mismatch", exc.friendly()))
             self._finish([])
             return
 

@@ -86,6 +86,81 @@ def cal_table_text(cal: Calibration) -> str:
     return cal.raw_text.strip() + "\n"
 
 
+def colour_space_name(color_rep: str) -> str:
+    """A person's name for a CGATS ``COLOR_REP``: ``iRGB`` and ``RGB`` are
+    both "RGB" (the ``i`` is Argyll's print-RGB flag, not another set of
+    inks), a one-channel grey is "grey", everything else is its own letters
+    (``CMYK``, ``CMY``, ``CMYKOG`` …)."""
+    rep = (color_rep or "").split("_")[0].strip()
+    if rep.startswith("i") and len(rep) > 1:
+        rep = rep[1:]
+    if rep.upper() in ("W", "K", "GRAY", "GREY"):
+        from core.i18n import tr
+        return tr("grey")
+    return rep or "?"
+
+
+class CalibrationMismatch(ValueError):
+    """The calibration is for other inks than the chart (#182 5956560815).
+
+    ``printtarg`` refuses this for ``-K`` AND ``-I`` alike ("Calibration
+    colorspace CMYK doesn't match .ti1 iRGB", measured against 3.5.0), and
+    the engine does the same, so a CMYK calibration can never be printed
+    into, or recorded in, an RGB chart. ``str()`` stays the short technical
+    line for the log; :meth:`friendly` is what a person is shown.
+    """
+
+    def __init__(self, cal_rep: str, chart_rep: str,
+                 cal_fields: list[str], chart_fields: list[str]):
+        self.cal_rep, self.chart_rep = cal_rep, chart_rep
+        self.cal_fields, self.chart_fields = list(cal_fields), list(chart_fields)
+        super().__init__(
+            f"the calibration is {cal_rep} ({' '.join(cal_fields)}), the "
+            f"chart is {chart_rep} ({' '.join(chart_fields)})")
+
+    def friendly(self) -> str:
+        return calibration_mismatch_message(self.cal_rep, self.chart_rep)
+
+
+def calibration_mismatch_message(cal_rep: str, chart_rep: str) -> str:
+    """What the window says when a calibration and a chart do not match.
+
+    One text for both layout routes: the engine raises
+    :class:`CalibrationMismatch`, and printtarg's own refusal is recognised
+    in ``chart_creator`` and reworded with this.
+    """
+    from core.i18n import tr
+    return tr(
+        "The calibration file was made for a {cal_space} chart, but the patch "
+        "set you are building is {chart_space}. A calibration can only be "
+        "applied to (-K) or embedded in (-I) a chart with the same inks, so "
+        "the chart was not built.\n\n"
+        "To use this calibration, set “Device Type” in the targen settings to "
+        "{cal_space} and press Generate Chart again. A new profiling run starts "
+        "on the default Device Type, not on the one the calibration chart was "
+        "made with, so check it there.\n\n"
+        "To build this {chart_space} chart without the calibration, set the "
+        "printer calibration to “None”."
+    ).format(cal_space=colour_space_name(cal_rep),
+             chart_space=colour_space_name(chart_rep))
+
+
+def check_matches(target, cal: Calibration) -> None:
+    """Raise :class:`CalibrationMismatch` unless *cal* is for *target*'s inks.
+
+    The test is the device columns themselves (``CMYK_C CMYK_M CMYK_Y
+    CMYK_K`` against the ``.ti1``'s), in order: they are what
+    :meth:`Calibration.apply` pairs up, and they are named the same way in
+    both files by Argyll. Argyll's own test is the ``COLOR_REP``, which also
+    tells print RGB (``iRGB``) from video RGB (``RGB``); the engine has always
+    accepted an RGB calibration on either, and keeps doing so, because the
+    numbers mean the same channels.
+    """
+    if list(cal.out_fields) != list(target.device_fields):
+        raise CalibrationMismatch(cal.color_rep, target.color_rep,
+                                  cal.out_fields, target.device_fields)
+
+
 def apply_to_target(target, cal: Calibration):
     """Return a copy of a :class:`ColorTarget` with device values calibrated.
 
@@ -93,9 +168,6 @@ def apply_to_target(target, cal: Calibration):
     keeping the printed chart and its measurement file self-consistent.
     """
     from dataclasses import replace
-    if cal.n_channels != len(target.device_fields):
-        raise ValueError(
-            f"calibration has {cal.n_channels} channels, target has "
-            f"{len(target.device_fields)}")
+    check_matches(target, cal)
     new_patches = [(cal.apply(dev), xyz) for dev, xyz in target.patches]
     return replace(target, patches=new_patches)
