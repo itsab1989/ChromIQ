@@ -52,10 +52,6 @@ log = get_logger(__name__)
 #: It is deliberately NOT a `document_key`: no file can ever answer to it, so
 #: `_saved_documents`, Delete and the label rules are untouched by it.
 NEW_REPORT_KEY = "new:"
-#: A page row drawn from a SAVED report: the run that report recorded it was
-#: saved in (#182 (c)). A session key, like every "_" key of a row: it is
-#: never written into a file.
-SAVED_RUN_KEY = "_saved_run"
 
 
 # Cube-corner codes → human labels (lazy so tr() runs under the active language).
@@ -7463,9 +7459,7 @@ class MeasurementReportDialog(QDialog):
                     # **THE SAME FILE, THE SAME NAME, THE SAME DATE** (CH-29).
                     path = rewrite_report(rewrite_here, rep)
                 else:
-                    path = save_report(
-                        rep, Path(str(one["_origin_dir"])),
-                        prior=(updating or {}).get("doc"))
+                    path = save_report(rep, Path(str(one["_origin_dir"])))
                 saved.append(path)
                 written.append((one_key, path.name))
             except Exception as exc:             # noqa: BLE001
@@ -7483,9 +7477,7 @@ class MeasurementReportDialog(QDialog):
                 if keep_doc_file and old_doc_file.exists():
                     _doc_path = rewrite_report(old_doc_file, body)
                 else:
-                    _doc_path = save_report(
-                        body, home.parent,
-                        prior=(updating or {}).get("doc"))
+                    _doc_path = save_report(body, home.parent)
                 saved.append(_doc_path)
                 log.info("wrote the report of %d measurements: %s",
                          len(members), _doc_path)
@@ -13401,24 +13393,10 @@ class MeasurementReportDialog(QDialog):
         """
         from workflow.measurement_report import (JUDGED_REPORT_KEY,
                                                  recorded_document,
-                                                 recorded_judgement,
-                                                 recorded_saved_run,
-                                                 saved_run_of)
+                                                 recorded_judgement)
         if not rows:
             return rows
         doc = self._document_settings()
-
-        def _as_saved(c: dict, n) -> dict:
-            # **THE RUN IT WAS SAVED IN (#182 (c); §53.1, confirmed).** Only
-            # a row drawn from the SAVED report carries it, so a new report
-            # (judged live, below) names the run the measurement is in now.
-            # Set on the row itself where `_as_recorded` hands the row back
-            # (callers rely on that identity); `_judged_live` drops it.
-            if n is not None:
-                c[SAVED_RUN_KEY] = n
-            else:
-                c.pop(SAVED_RUN_KEY, None)
-            return c
         doc_id = str((doc or {}).get("id") or "")
         lim = self._report_limits()
         out = []
@@ -13442,8 +13420,7 @@ class MeasurementReportDialog(QDialog):
                                   NOT_WORKED_OUT_AGAIN_KEY)})
                     c.update({k: v for k, v in j.items()
                               if k != JUDGED_REPORT_KEY})
-                    out.append(_as_saved(c, recorded_saved_run(
-                        doc, self._run_key(r), r.get("_origin_dir") or "")))
+                    out.append(c)
                     continue
                 # THE DOCUMENT'S WORDS BESIDE THE RECORD'S EXPLANATION (M1,
                 # B8-1091): what the document recorded of how the colours
@@ -13451,14 +13428,13 @@ class MeasurementReportDialog(QDialog):
                 # date's own saved report recorded.
                 c = self._as_recorded(r, j)
                 c.update(j)
-                out.append(_as_saved(c, recorded_saved_run(
-                    doc, self._run_key(r), r.get("_origin_dir") or "")))
+                out.append(c)
                 continue
             own = recorded_document(r) if doc is not None else None
             if (own is not None and doc_id
                     and str(own.get("id") or "") == doc_id):
                 # the loaded report's own file, as it was saved
-                out.append(_as_saved(self._as_recorded(r), saved_run_of(r)))
+                out.append(self._as_recorded(r))
                 continue
             if doc_id.startswith("file:"):
                 # A report written before the document record existed: its
@@ -13467,35 +13443,10 @@ class MeasurementReportDialog(QDialog):
                 if (f.name == str(r.get("_report_file") or "")
                         and str(f.parent.parent)
                         == str(r.get("_origin_dir") or "")):
-                    out.append(_as_saved(self._as_recorded(r),
-                                         saved_run_of(r)))
+                    out.append(self._as_recorded(r))
                     continue
-            # **THE PAGE OF A SAVED REPORT DRAWN FROM ANOTHER ROW (#182 (c),
-            # driven on Knut's own project).** A date with two saved reports
-            # keeps ONE row, and the window opened on the newer report drew
-            # it from the older one's row, judged here; the page is still
-            # that saved report, so it names the run the REPORT recorded.
-            # "New report…" holds no saved document, so nothing is named.
-            out.append(_as_saved(self._judged_live(r, lim),
-                                 self._saved_run_of_the_document(doc, r)))
+            out.append(self._judged_live(r, lim))
         return out
-
-    def _saved_run_of_the_document(self, doc, r: dict):
-        """The run the LOADED saved report recorded for row *r*, or None
-        (no saved report loaded, or one that recorded none)."""
-        from workflow.measurement_report import (recorded_saved_run,
-                                                 saved_run_of)
-        key = str(getattr(self, "_loaded_doc_id", "") or "")
-        if not key or key == NEW_REPORT_KEY or doc is None:
-            return None
-        n = recorded_saved_run(doc, self._run_key(r),
-                               r.get("_origin_dir") or "")
-        if n is None and key.startswith("file:"):
-            try:
-                n = saved_run_of(json.loads(read_text(Path(key[5:]))))
-            except Exception:                          # noqa: BLE001
-                n = None
-        return n
 
     @staticmethod
     def _as_recorded(r: dict, judged: "dict | None" = None) -> dict:
@@ -13689,10 +13640,6 @@ class MeasurementReportDialog(QDialog):
         base = self._worked_out_again(r)
         c = dict(base)
         c.pop(RECORD_KEY, None)
-        # A row judged now is a NEW report's row: it names the run its
-        # measurement is in now, never the run a saved report recorded
-        # (#182 (c)).
-        c.pop(SAVED_RUN_KEY, None)
         c.pop(WORKED_OUT_EARLIER_KEY, None)
         if (base is r and r.get("_origin_dir")
                 and not r.get(WORKED_OUT_NOW_KEY)):
@@ -15869,14 +15816,7 @@ class MeasurementReportDialog(QDialog):
         """
         import re as _re
 
-        # **AS SAVED FIRST (#182 (c)).** A row drawn from a saved report
-        # carries the run it was saved in (`_judged_by_the_document`); the
-        # folder is read only for a report that recorded none (every report
-        # saved before this, that no run delete has stamped since).
         for r in runs:
-            n = r.get(SAVED_RUN_KEY)
-            if isinstance(n, int) and not isinstance(n, bool):
-                return str(n)
             for key in ("_origin_dir", "ti3", "path", "source"):
                 v = r.get(key)
                 if not v:
