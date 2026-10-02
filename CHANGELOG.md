@@ -2,6 +2,10 @@
 
 ## v4.3.3-beta.6 (unreleased)
 
+### New
+
+- **Continue to next or jump to unread** (#182, ChromIQ's measuring engine): when you read a strip or patch again while others are still unread, ChromIQ asks once per measurement whether the reader should go on to the next one or jump to the closest unread one, and keeps your answer until the measurement ends. Your own moves (f, b, n, a click on the preview) always win, and a chart with nothing unread behaves as before.
+
 ### Changed
 
 - **A red patch turns yellow by itself only from confirmed patches of its own colour range** (#182). There are 13 ranges: greys (dark, mid, light) and ten hue ranges from pink/rose to magenta, judged from each patch's expected colour against the chart's own white. A range learns once three of its patches, at least ΔE 6 apart, were each read again and gave the same colour; then its other red patches that are off the same way turn yellow, earlier ones included, and they turn red again if the range loses a confirmation. A patch you confirmed stays yellow either way. The hover card shows the patch's range, and on a red patch how many of the three it has.
