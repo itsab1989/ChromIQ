@@ -503,7 +503,7 @@ class _PatchInfoTile(QWidget):
                                            limit=float(info.get("warn_de", 0.0)))))
             if info.get("fenced"):
                 rows.append((None, tr("and stands out from its strip")))
-            rows.append((None, tr("(Preferences ▸ Beta, “Flag a patch…”)")))
+            rows.append((None, tr("(Preferences ▸ Measurement, “Flag a patch…”)")))
 
         self._rows = rows
 

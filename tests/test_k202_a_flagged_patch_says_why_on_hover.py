@@ -67,3 +67,29 @@ def test_the_help_explains_the_red_outline():
     src = inspect.getsource(TabMeasure)
     i = src.index('tr("Show patch values on hover"),\n')
     assert "A patch outlined in red is one ChromIQ thinks" in src[i:i + 2500]
+
+
+def test_the_card_and_the_help_name_the_tab_the_limit_is_on(qapp):
+    """Review of d222fce0: both pointed at Preferences ▸ Beta, but the limit
+    (with the reading-engine block it belongs to) moved to the Measurement tab
+    on 2026-08-13. Asked of the dialog itself, so a later move is caught."""
+    from PyQt6.QtWidgets import QLabel
+
+    from core.settings import AppSettings
+    from ui.dialogs.settings_dialog import SettingsDialog
+    from ui.tabs.tab_measure import TabMeasure
+    d = SettingsDialog(AppSettings(), None)
+    try:
+        label = next(w for w in d.findChildren(QLabel)
+                     if w.text() == "Flag a patch when its colour error reaches:")
+        tab = None
+        for i in range(d._tabs.count()):
+            if d._tabs.widget(i).isAncestorOf(label):
+                tab = d._tabs.tabText(i)
+        assert tab, "the limit is on no tab"
+    finally:
+        d.deleteLater()
+    rows = _rows(qapp, {"warn": True, "warn_de": 50.0})
+    assert f"(Preferences ▸ {tab}, “Flag a patch…”)" in rows, rows
+    help_src = inspect.getsource(TabMeasure)
+    assert f"Preferences ▸ {tab} under “Flag a patch" in help_src

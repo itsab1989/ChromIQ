@@ -3068,7 +3068,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             + "\n\n" + tr(
             "A patch outlined in red is one ChromIQ thinks may have been "
             "misread: its colour error (ΔE*ab) reached the limit set in "
-            "Preferences ▸ Beta under “Flag a patch when its colour error "
+            "Preferences ▸ Measurement under “Flag a patch when its colour "
+            "error "
             "reaches”, and when you read strips with “only flag a patch that "
             "also stands out from its own strip” on, it also stands out from "
             "the rest of its strip. Point at it and the bottom of the card "
