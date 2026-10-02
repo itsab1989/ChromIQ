@@ -172,7 +172,8 @@ class Cr30SpotManager(QObject):
         # a wait is not a rare race: it is what happens every time somebody
         # shuts the window without pressing Stop first. Measured: it aborted
         # the test run outright, in `QThread::~QThread`.
-        thread, worker = QThread(), _ReadLoop(self._reader)
+        from core.thread_stack import roomy
+        thread, worker = roomy(QThread()), _ReadLoop(self._reader)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)
         worker.reading.connect(self._on_reading)

@@ -487,7 +487,8 @@ class Cr30MeasureBridge(QObject):
     def _start_read(self, loc: str) -> None:
         self._reading_loc = loc
         gen = getattr(self._reader, "_generation", None)
-        thread = QThread()          # unparented on purpose — see `_LIVE`
+        from core.thread_stack import roomy
+        thread = roomy(QThread())   # unparented on purpose — see `_LIVE`
         worker = _ReadWorker(loc, self._reader, gen)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)

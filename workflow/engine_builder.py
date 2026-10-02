@@ -273,6 +273,10 @@ class _EngineThread(QThread):
 
     def __init__(self, ti3_path: Path, out_path: Path, settings, parent=None):
         super().__init__(parent)
+        # numpy's OpenBLAS needs more than a QThread's 512 KiB (Knut #182
+        # 5956290893: Bus error in numpy.linalg.solve). core/thread_stack.py
+        from core.thread_stack import roomy
+        roomy(self)
         self._ti3 = ti3_path
         self._out = out_path
         self._settings = settings
