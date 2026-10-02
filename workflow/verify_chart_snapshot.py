@@ -72,6 +72,58 @@ def _is_image(p: Path) -> bool:
     return p.suffix.lower() in _IMAGE_SUFFIXES
 
 
+def _cht_without_expected(data: bytes) -> bytes:
+    """A ``.cht`` with its ``EXPECTED`` block taken out.
+
+    A ``.cht`` holds two things: WHERE every patch sits on the page (``BOXES``,
+    ``XLIST``/``YLIST``, the fiducials) and an ``EXPECTED XYZ`` value per patch.
+    Only the first describes the chart. The second, in a run's folder, is
+    written from the run's MEASUREMENT: the scanner-recognition target
+    (``workflow/scanin_target.py``, "Save scanner files" in the Quality Check
+    window, ``scanner_target_enabled``) rewrites ``<stem>.cht`` from the
+    ``.ti3`` every time the run is checked, "so it always reflects the latest
+    measurement". A chart built by the layout engine writes EXPECTED values
+    that come from the patch set, and the ``.ti1``/``.ti2`` already decide
+    those.
+
+    Knut, #182 5956210745 (beta 3): re-measuring run1 said "Stored chart
+    differs", Restore Used Chart then changed nothing he could see, and the
+    question came back after every re-measurement. His run1's chart files
+    were identical to its stored copy byte for byte except ``test.cht``, and
+    that differed in five EXPECTED rows only (E23, F1, F3, H9, N1: the patches
+    he had re-read before the Quality Check rebuilt the file).
+    """
+    out: list[bytes] = []
+    in_expected = False
+    for line in data.splitlines(keepends=True):
+        stripped = line.strip()
+        if in_expected:
+            # the block is its header and the indented rows after it
+            if stripped and line[:1] in (b" ", b"\t"):
+                continue
+            in_expected = False
+        if stripped.startswith(b"EXPECTED"):
+            in_expected = True
+            continue
+        out.append(line)
+    return b"".join(out)
+
+
+def chart_content(path: Path) -> bytes:
+    """The bytes of *path* that define the chart.
+
+    Every chart file counts in full, except a ``.cht``'s ``EXPECTED`` block:
+    see :func:`_cht_without_expected`. This is what every "is it the same
+    chart?" question compares (``snapshot_matches_live``,
+    ``slot_live_differs``, ``live_differs_from_snapshot``), so the warning
+    before a measurement and the Restore Used Chart button can never disagree.
+    """
+    data = path.read_bytes()
+    if path.suffix.lower() == ".cht":
+        return _cht_without_expected(data)
+    return data
+
+
 def live_chart_files(run: Run) -> list[Path]:
     """Every file at the root of ``verifications/`` — the live verification
     chart. Folders (the dated runs, ``old/``, ``reports/``) are never included."""
@@ -288,7 +340,7 @@ def snapshot_matches_live(slot) -> bool:
         return False
     try:
         for f in live:
-            if f.read_bytes() != (d / f.name).read_bytes():
+            if chart_content(f) != chart_content(d / f.name):
                 return False
     except OSError:
         return False
@@ -456,7 +508,23 @@ def restore_slot(slot) -> "RestoreResult":
     # stash is discarded on success, and settings must never be destroyed.
     # One is replaced only when the snapshot carries a counterpart, and the
     # replaced file is archived into old/ first.
-    displaced = [p for p in all_live if p.name not in CHART_SIDE_FILES]
+    # A LIVE `.cht` THAT IS THE SAME CHART STAYS (#182 5956210745). Its
+    # EXPECTED block is the run's own measurement (see `chart_content`), so
+    # putting the stored copy back would only swap in the readings of an
+    # earlier measurement under a `.ti3` that has moved on. The patch
+    # positions, which are all of it that is chart, are identical either way.
+    kept_live = set()
+    for s in snap:
+        live_twin = slot.live_dir / s.name
+        if s.suffix.lower() == ".cht" and live_twin.is_file():
+            try:
+                if chart_content(live_twin) == chart_content(s):
+                    kept_live.add(s.name)
+            except OSError:
+                pass
+    snap = [s for s in snap if s.name not in kept_live]
+    displaced = [p for p in all_live if p.name not in CHART_SIDE_FILES
+                 and p.name not in kept_live]
     # ARCHIVE A SIDE FILE THE SNAPSHOT WILL OVERWRITE, WHATEVER THE SLOT.
     #
     # `live_files()` is suffix-filtered on a profiling run's slot and on a
@@ -600,8 +668,11 @@ def has_snapshot(verification: Verification) -> bool:
 # restore
 # ---------------------------------------------------------------------------
 def _digest(path: Path) -> str:
+    """The digest of what defines the chart in *path* (:func:`chart_content`),
+    so a measurement-derived ``.cht`` EXPECTED block is never "a different
+    chart"."""
     h = hashlib.sha256()
-    h.update(path.read_bytes())
+    h.update(chart_content(path))
     return h.hexdigest()
 
 
