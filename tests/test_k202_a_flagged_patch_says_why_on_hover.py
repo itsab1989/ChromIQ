@@ -96,3 +96,13 @@ def test_the_card_and_the_help_name_the_tab_the_limit_is_on(qapp):
     assert f"(Preferences ▸ {tab}, “Flag a patch…”)" in rows, rows
     help_src = inspect.getsource(TabMeasure)
     assert f"Preferences ▸ {tab} under “Flag a" in help_src
+
+
+def test_the_sentences_are_separated_by_blank_lines(qapp):
+    """Knut, #182 5960405382: "each sentence ... are cramped together, so a
+    new-line between each sentence should be added"."""
+    rows = _rows(qapp, {"warn": True, "warn_de": 50.0, "fenced": False})
+    i = rows.index("Either a misread, or a colour")
+    j = rows.index("Same value after a re-read:")
+    assert rows[i - 1] == "" and rows[j - 1] == ""
+    assert rows[rows.index("(Preferences ▸ Measurement, “Flag a patch…”)") - 1] == ""

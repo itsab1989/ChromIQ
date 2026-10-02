@@ -526,8 +526,10 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("ΔE*ab {de:.1f}, the reading before {prev:.1f}"
                                   ).format(de=float(info.get("de", 0.0)),
                                            prev=float(info.get("prev_de") or 0.0))))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("A real difference this printer and")))
             rows.append((None, tr("paper cannot reach, not a misread.")))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Keep it for the profile.")))
         elif info.get("warn") and flag == "learned":
             # YELLOW, JUDGED LIKE A CONFIRMED PATCH (#182 B2, Knut 5956831467).
@@ -537,8 +539,10 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("ΔE*ab {de:.1f} reached your limit {limit:.1f}"
                                   ).format(de=float(info.get("de", 0.0)),
                                            limit=float(info.get("warn_de", 0.0)))))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("{loc} was confirmed by a re-read.").format(
                 loc=str(info.get("like_loc", "")))))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("This one has a similar colour and")))
             rows.append((None, tr("a similar or larger difference,")))
             rows.append((None, tr("so it is taken as real too.")))
@@ -557,10 +561,13 @@ class _PatchInfoTile(QWidget):
                              tr("(limit for a chart with estimated colours)")))
             if info.get("fenced"):
                 rows.append((None, tr("and stands out from its strip")))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Either a misread, or a colour")))
             rows.append((None, tr("this printer and paper cannot reach.")))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Same value after a re-read:")))
             rows.append((None, tr("it is real, keep it for the profile.")))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("(Preferences ▸ Measurement, “Flag a patch…”)")))
 
         self._rows = rows
