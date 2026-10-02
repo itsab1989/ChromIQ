@@ -938,24 +938,58 @@ def verify_patch_identity(measured, ti2_path: "Path | None") -> dict:
     return out
 
 
+#: ArgyllCMS's ``icmD50`` (icc/icc_util.c), the white the ChromIQ engine's
+#: ``icmXYZ2Lab(&icmD50, …)`` uses for every live patch ΔE. Four decimals, as
+#: Argyll has it, not the five of ``workflow.icc_info``: the overlay after a
+#: measurement must give the same number the engine gave during it.
+_ICM_D50 = (0.9642, 1.0, 0.8249)
+
+
+def _engine_lab(xyz100) -> "tuple[float, float, float]":
+    """L*a*b* exactly as the engine computes it: XYZ / 100 against icmD50."""
+    return xyz_to_lab(tuple(float(v) / 100.0 for v in xyz100[:3]), _ICM_D50)
+
+
+def engine_patch_de(exyz100, xyz100) -> float:
+    """The engine's per-patch ΔE: ΔE*ab (CIE76) between expected and measured.
+
+    ``native/chartread_helper/chromiq_chartread.c`` (``cq_emit_strip_read``)
+    converts both XYZ with ``icmXYZ2Lab(&icmD50, …)`` after dividing by 100
+    and takes ``icmLabDE``, the plain Euclidean distance.
+    """
+    a, b = _engine_lab(exyz100), _engine_lab(xyz100)
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
+
+
 def per_patch_overlay(ti3_path: "str | Path",
                       ti2_path: "str | Path | None" = None) -> "list[dict]":
     """Per-patch expected-vs-measured data for the split-patch overlay (#134).
 
-    Returns ``[{loc, exyz, xyz, de}, …]`` — one entry per patch that matches
+    Returns ``[{loc, exyz, xyz, de}, …]``, one entry per patch that matches
     between the measured ``.ti3`` and its chart ``.ti2`` (by ``SAMPLE_ID``):
 
-      * ``loc``  — the patch location (``SAMPLE_LOC``, e.g. ``"A1"``) used to
+      * ``loc``  - the patch location (``SAMPLE_LOC``, e.g. ``"A1"``) used to
         place it on the chart page.
-      * ``exyz`` — the chart's EXPECTED XYZ (D50-adapted, Y≈100), the same
-        colour-correct reference the Measurement Report uses.
-      * ``xyz``  — the MEASURED XYZ from the ``.ti3`` (Y≈100).
-      * ``de``   — ΔE00 between them.
+      * ``exyz`` - the chart's EXPECTED XYZ exactly as the ``.ti2`` holds it:
+        no rescale, no white-point adaptation. That is what the ChromIQ engine
+        compares against while measuring (``chromiq_chartread.c`` reads the
+        ``.ti2`` XYZ into ``eXYZ`` unchanged).
+      * ``xyz``  - the MEASURED XYZ from the ``.ti3`` (Y≈100).
+      * ``de``   - ΔE*ab (CIE76) between them, computed as the engine does
+        (:func:`engine_patch_de`).
+
+    THE SAME NUMBERS AS DURING THE MEASUREMENT (#182 K3, Knut 5959352118).
+    This used to return the Measurement Report's figures instead: expected
+    values rescaled and adapted D65 -> D50, and ΔE2000. On Knut's patch A23
+    that is 16.1 where the engine said 103.2 ΔE*ab, so every red outline
+    vanished the moment a measurement ended, and the hover card went on
+    calling the smaller number ΔE*ab. The report keeps its own colour-correct
+    comparison (:func:`_reference_labs`); the preview shows the engine's.
 
     This is exactly the shape ``TabMeasure._on_chart_measured`` renders, so a
     measurement already on disk can be shown as the overlay without re-reading.
     Returns ``[]`` when the reference ``.ti2`` is missing/unreadable or nothing
-    matches (e.g. a foreign ``.ti3`` from a different chart) — the caller then
+    matches (e.g. a foreign ``.ti3`` from a different chart); the caller then
     falls back to the tabular "Inspect a measurement" view."""
     ti3_path = Path(ti3_path)
     ti2 = Path(ti2_path) if ti2_path else _find_reference_ti2(ti3_path)
@@ -964,24 +998,18 @@ def per_patch_overlay(ti3_path: "str | Path",
         design = parse_ti3(ti2)
     except (Ti3ParseError, OSError):
         return []
-    dxyz = _design_xyz_to_100(np.asarray(design.xyz, dtype=float))
-    adapt = _design_xyz_is_d65(design.keywords)
+    dxyz = np.asarray(design.xyz, dtype=float)
     ref: "dict[str, tuple]" = {}
     for i, sid in enumerate(design.sample_ids):
-        x, y, z = (float(v) for v in dxyz[i])
-        if adapt:
-            x, y, z = _bradford_d65_to_d50(x, y, z)
         loc = design.sample_locs[i] if i < len(design.sample_locs) else sid
-        ref[sid] = (loc, (x, y, z))
+        ref[sid] = (loc, tuple(float(v) for v in dxyz[i]))
     out: "list[dict]" = []
     for i, sid in enumerate(measured.sample_ids):
         if sid not in ref:
             continue
         loc, exyz = ref[sid]
         mxyz = tuple(float(v) for v in measured.xyz[i])
-        de = ciede2000(
-            xyz_to_lab(tuple(v / 100.0 for v in mxyz)),
-            xyz_to_lab(tuple(v / 100.0 for v in exyz)))
+        de = engine_patch_de(exyz, mxyz)
         out.append({"loc": loc, "exyz": list(exyz),
                     "xyz": list(mxyz), "de": round(float(de), 2)})
     return out

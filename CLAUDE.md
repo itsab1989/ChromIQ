@@ -532,6 +532,7 @@ Every project is a folder under `~/ChromIQ/<target-name>/` owned by the
   runs/run1/, run2/, …     # one folder per profile build
     <target-name>.*        # chart.ti1/.ti2/.cht/.ps/.channels.json + _NN.tif
     <target-name>.ti3      # the measurement (chartread output; averaged result reuses this stem)
+    <target-name>.confirmed.json  # #182 K4: patches a re-read confirmed (yellow), valid only for the .ti3 whose sha256 it holds; -verify.confirmed.json beside a dated verification
     <target-name>.icc      # the profile (colprof output)
     reads/readN.ti3        # role-named, only when averaging is used
     reports/               # #127: Quality_Check_N/Refine_Strips + report_*.json

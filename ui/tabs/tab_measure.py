@@ -3113,7 +3113,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "ΔE 3), or it has a similar colour and a difference of the same "
             "kind, as large or larger, as a patch that was. It is not a "
             "misread and does not need reading again; the card says which of "
-            "the two it is. A new measurement session starts without yellow "
+            "the two it is. Which patches were confirmed is kept with the "
+            "measurement, so they stay yellow after it ends and when you "
+            "resume it; a completely new read starts without yellow "
             "patches."),
             row)
         om_row.add_group(tile, tile_tip)
@@ -6812,6 +6814,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._ti3_mtime_before = (
             _ti3_pre.stat().st_mtime if (_ti3_pre and _ti3_pre.exists()) else None
         )
+        # Whether this read builds on the measurement there (#182 K4): decides
+        # whether the session starts with that measurement's yellow memory.
+        self._session_resumes = self._read_builds_on_existing()
         self._archive_measurement_before_replacing()
         # A FRESH READ STARTS WITH A CLEAN SHEET.
         #
@@ -6870,6 +6875,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Remember whether this is a patch-by-patch (spot) session, so the
         # completion dialog can speak of "patches" instead of "strips".
         self._spot_session = self._is_pbp_checked()
+        # Set when the instrument reads the whole chart or sheet at once (XY /
+        # chart mode): judged patch by patch, without a strip (#182 K3/K4).
+        self._session_whole_chart = False
         # Capture the verification-measurement choice now, so toggling the box
         # mid-read can't change how the finished .ti3 is handled.
         self._verify_run = self._is_verification_run()
@@ -10454,9 +10462,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                             / _dt.now().strftime("%Y-%m-%d_%H%M%S"))
                     keep.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(dst, keep / dst.name)
+                    from workflow.confirmed_patches import confirmed_path
+                    if confirmed_path(dst).is_file():
+                        shutil.copy2(confirmed_path(dst),
+                                     confirmed_path(keep / dst.name))
                     log.info("verification %s: previous measurement kept in %s",
                              verification.id, keep)
+            # The yellow memory travels with the readings (#182 K4).
+            from workflow import confirmed_patches as _cp
+            before = _cp.ti3_sha256(marked)
             shutil.move(str(marked), str(dst))
+            _cp.carry(marked, before, dst)
             self._staged_verification_ti3 = None         # filed; nothing left beside the chart
         except OSError as exc:
             self._log.appendPlainText(f"\n[ERROR] Could not save verification file: {exc}")
@@ -11866,6 +11882,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if empty_ti3.is_file():
                 empty_ti3.unlink()
             shutil.move(str(saved), str(empty_ti3))
+            # …and its yellow memory, archived with it (#182 K4).
+            from workflow.confirmed_patches import confirmed_path
+            mem = confirmed_path(saved)
+            if mem.is_file():
+                shutil.move(str(mem), str(confirmed_path(empty_ti3)))
             # Only if we emptied it — never remove a folder holding other files.
             if not any(displaced.iterdir()):
                 displaced.rmdir()
@@ -12073,6 +12094,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # A resumed verification that read nothing: its dated measurement is
         # untouched, so the working copy beside the chart goes again.
         self._drop_unused_verification_stage()
+        # THE YELLOW MEMORY, STAMPED FOR THE FINAL FILE (#182 K4). Now, before
+        # anything paints from the file, and only for a .ti3 this session
+        # actually wrote: a measurement put back from old/ (nothing was read)
+        # keeps the memory that came back with it.
+        self._save_confirmed_memory_at_end()
         # The session has ended ON the selection it began with (a "New
         # verification" read has moved the bar to its new date at Start). That
         # is the settled selection now, so a settle queued during the read does
@@ -12114,6 +12140,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # not only the interrupted one.
         self._update_resume_availability()
         self._adopt_overlay_after_first_measurement()
+        # Once more after the repaint, which has judged every patch of the
+        # finished file: a patch read before the reference it is like was
+        # confirmed is only now learned, and the file says so (#182 K4).
+        self._save_confirmed_memory_at_end()
 
         if self._usb_claimed_by_vm:
             self._cue_window("INSTRUMENT_ERROR")   # as the window opens
@@ -12521,6 +12551,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # lists — carrying `"chart": "read2"`, `sheet_kind: "standalone"` and no
         # verdict set at all, while the log said "Measurement report saved".
         current = self._keep_the_read_as_the_runs_measurement(ti3, current)
+        # The kept read may be a copy from reads/ (#182 K4): stamp the memory
+        # for the file the run now holds. No memory for a file in reads/.
+        if Path(current).parent.name != "reads":
+            self._save_confirmed_memory(current)
         self.measure_finished.emit(current)
         if action == "close":
             # Knut (#131): keep the measurement, go nowhere. The profile can be
@@ -12844,6 +12878,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                             read=kept.name))
                     # …and the tab the window sends them to is armed with it,
                     # exactly as every other ending arms it.
+                    self._save_confirmed_memory(out)     # #182 K4
                     self.measure_finished.emit(out)
                 self._show_average_failed_dialog(detail)
                 return
@@ -12851,6 +12886,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 tr("[OK] Averaged measurement saved: {name}").format(name=result.name)
                 + "\n" + tr("→ Next step: go to the '4. Build Profile' tab to create your ICC profile.")
             )
+            # The averaged file is the run's measurement now: its yellow
+            # memory is this session's, stamped for it (#182 K4). Patches are
+            # keyed by location, which averaging (by SAMPLE_ID) never changes.
+            self._save_confirmed_memory(result)
             self.measure_finished.emit(result)
             self.proceed_to_profile.emit()
 
@@ -13269,11 +13308,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # immediately re-drawn from the file, and this session's strips add to
         # it as they are read.
         self._preview.clear_patch_overlay()
-        # A NEW SESSION LEARNS AFRESH (#182 B2, Knut 5956831467): the yellow
-        # references belong to one measurement session. The repaint below
-        # then seeds every patch's previous reading from the file, so re-reading
-        # a strip measured in an earlier session can still confirm it.
-        self._flag_judge().reset()
+        # A FRESH READ LEARNS AFRESH, A RESUMED ONE REMEMBERS (#182 B2 and K4,
+        # Knut 5956831467 and 5959352118, Sebastian 5959447807). A fresh read
+        # replaces the readings the yellow references were confirmed against,
+        # so it starts with none. A read that resumes or refines a measurement
+        # builds on those readings, so it takes their stored memory back (for
+        # a resumed verification, from the dated file it was staged from).
+        # The repaint below then seeds every patch's previous reading from the
+        # file, judged as it was judged live, so re-reading a strip measured
+        # in an earlier session can still confirm it.
+        src = None
+        if getattr(self, "_session_resumes", False) and self._ti1_path is not None:
+            staged = getattr(self, "_staged_verification_ti3", None)
+            src = (getattr(self, "_staged_from", None) if staged is not None
+                   else None) or Path(self._ti1_path).with_suffix(".ti3")
+        self._memory_mode = self._load_confirmed_memory(src)
+        if self._ti1_path is not None:
+            # From here on the memory is the session's, for the file it writes.
+            self._memory_for = Path(self._ti1_path).with_suffix(".ti3")
         # …AND THE PATCHES THE OVERLAY IS MADE OF (B8-385). The set is what
         # decides which strips a whole-chart or spot read has finished, so it
         # is cleared with the overlay and re-filled by the same repaint: the
@@ -14033,7 +14085,122 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             extra.update(flag="confirmed", prev_de=v.prev_de)
         elif is_yellow(v.flag) and v.flag == FLAG_LEARNED:
             extra.update(flag="learned", like_loc=v.like_loc)
+        if live:
+            self._save_confirmed_memory_if_changed()
         return v.flag, extra
+
+    # ---- #182 K4: the confirmed patches, kept with the measurement ---------
+    #
+    # Knut 5959352118, approved by Sebastian 5959447807: which patches a
+    # re-read confirmed (yellow) is remembered after the measurement, in
+    # `<stem>.confirmed.json` beside the .ti3 (workflow/confirmed_patches.py).
+    # Written after every change during a session and once more at its end,
+    # when the .ti3 is final and the file can be stamped with its hash; read
+    # back whenever that measurement is painted outside a session, and at the
+    # start of a session that resumes or refines it. A fresh read starts empty
+    # and moves the old file to old/ with the measurement it described.
+
+    def _session_memory_mode(self) -> str:
+        """How the session on hand judged its patches: ``"strip"`` (against
+        their strip, reading strips) or ``"patch"`` (each on its own: patch by
+        patch, and a whole chart or sheet read at once, whose live painter
+        has no strip test either)."""
+        if getattr(self, "_spot_session", False) or getattr(
+                self, "_session_whole_chart", False):
+            return "patch"
+        return "strip"
+
+    def _selected_memory_mode(self) -> str:
+        """How a read started now would read (the patch-by-patch switch)."""
+        try:
+            return "patch" if self._is_pbp_checked() else "strip"
+        except Exception:      # noqa: BLE001 — a mode is never worth a crash
+            return "strip"
+
+    def _load_confirmed_memory(self, ti3) -> "str | None":
+        """Start the yellow memory again from *ti3*'s stored file.
+
+        Returns the reading mode the file records, or None when there is no
+        valid file (none, or written for another version of the .ti3).
+        """
+        # A different chart resets the memory the first time the chart is
+        # asked about (_chart_expected_is_accurate). Asked FIRST, so that reset
+        # cannot come after the load and throw it away.
+        try:
+            self._chart_expected_is_accurate()
+        except Exception:      # noqa: BLE001
+            pass
+        judge = self._flag_judge()
+        judge.reset()
+        self._memory_written = None
+        #: Which measurement the memory now describes.
+        self._memory_for = Path(ti3) if ti3 is not None else None
+        if ti3 is None:
+            return None
+        try:
+            from workflow import confirmed_patches as cp
+            data = cp.load(ti3)
+        except Exception:      # noqa: BLE001 — a preview is never worth a crash
+            log.debug("could not read the confirmed patches of %s", ti3,
+                      exc_info=True)
+            return None
+        if not data:
+            return None
+        judge.load(data.get("patches") or {})
+        self._memory_written = judge.export()
+        return data.get("mode")
+
+    def _save_confirmed_memory(self, ti3, mode: "str | None" = None) -> None:
+        """Write this session's yellow memory beside *ti3*, stamped with the
+        hash it has now."""
+        if ti3 is None:
+            return
+        try:
+            from workflow import confirmed_patches as cp
+            exported = self._flag_judge().export()
+            cp.write(ti3, exported, mode or self._session_memory_mode())
+            self._memory_written = exported
+        except Exception:      # noqa: BLE001 — never break a measurement
+            log.warning("could not save the confirmed patches beside %s", ti3,
+                        exc_info=True)
+
+    def _session_wrote(self, ti3) -> bool:
+        """Did the session that just ended write *ti3* (with readings)?"""
+        try:
+            if ti3 is None or not Path(ti3).is_file():
+                return False
+            before = getattr(self, "_ti3_mtime_before", None)
+            if before is not None and Path(ti3).stat().st_mtime <= before:
+                return False
+            return not _cgats_has_no_readings(Path(ti3))
+        except OSError:
+            return False
+
+    def _save_confirmed_memory_at_end(self) -> None:
+        """The session's last word on its yellow memory, for the file it wrote."""
+        if self._ti1_path is None:
+            return
+        ti3 = Path(self._ti1_path).with_suffix(".ti3")
+        # Only while the memory on hand is this file's: a repaint of ANOTHER
+        # measurement (a dated verification on the bar) loads that one's.
+        mine = getattr(self, "_memory_for", None)
+        if mine is not None and Path(mine) != ti3:
+            return
+        if self._session_wrote(ti3):
+            self._save_confirmed_memory(ti3)
+
+    def _save_confirmed_memory_if_changed(self) -> None:
+        """During a session: write the memory when a patch has just been
+        confirmed (or learned, or lost either), for the file being read."""
+        if not getattr(self, "_session_live", False) or self._ti1_path is None:
+            return
+        try:
+            exported = self._flag_judge().export()
+        except Exception:      # noqa: BLE001
+            return
+        if exported == (getattr(self, "_memory_written", None) or {}):
+            return
+        self._save_confirmed_memory(Path(self._ti1_path).with_suffix(".ti3"))
 
     def _locate_patch(self, loc: str) -> "tuple[int, QRect | None]":
         """(page, image-px box) of patch `loc` across the chart's pages, or
@@ -14165,22 +14332,47 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _on_chart_reading(self) -> None:
         """XY/chart mode (engine opt-in): an autonomous whole-chart read began."""
+        self._session_whole_chart = True
         self._log.appendPlainText(
             tr("[Engine] Reading the whole chart — this may take a moment…"))
 
-    def _on_chart_measured(self, ev: dict, *, live: bool = True) -> None:
+    def _on_chart_measured(self, ev: dict, *, live: bool = True,
+                           strip_fence: bool = False) -> None:
         """XY/chart mode: fill the expected/measured split + hover values for
         every patch that was read at once (a whole chart, or one XY sheet).
 
         Also the painter for a measurement already on disk, which passes
         *live* False: those readings are remembered as the previous reading of
-        each patch, but cannot confirm one (#182 B, workflow/patch_flags.py)."""
+        each patch, but cannot confirm one (#182 B, workflow/patch_flags.py).
+
+        *strip_fence* judges every patch against ITS OWN STRIP, exactly as
+        :meth:`_on_strip_measured` does while strips are read: the strip test
+        (when switched on) and the stand-out figure for the yellow rule. The
+        painter from disk passes it for a measurement read in strips (#182 K3),
+        so the outlines after a measurement are the outlines during it.
+        Patch-by-patch reading has no strip test, deliberately (see
+        :meth:`_on_patch_measured`), so it is not passed for one."""
         patches = ev.get("patches", [])
         if not patches or not any(self._patch_boxes):
             return
         from PyQt6.QtGui import QColor as _QC
         from workflow.icc_info import xyz_to_lab
         warn_de = self._patch_warn_limit()
+        # THE STRIP TEST, PER STRIP, AS LIVE (#182 K3). Every patch of the
+        # strip is in the group, placed on the preview or not, because the
+        # live strip event carries them all too.
+        fences: "dict[str, float]" = {}
+        medians: "dict[str, float]" = {}
+        if strip_fence:
+            import statistics as _stats
+            groups: "dict[str, list]" = {}
+            for p in patches:
+                groups.setdefault(self._strip_of(str(p.get("loc", ""))),
+                                  []).append(float(p.get("de", 0)))
+            use_fence = self._use_outlier_fence()
+            for letter, des in groups.items():
+                fences[letter] = _strip_outlier_fence(des) if use_fence else 0.0
+                medians[letter] = _stats.median(des) if des else 0.0
         items: dict[int, list] = {}
         infos: dict[int, list] = {}
         placed: list = []
@@ -14197,8 +14389,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             meas_rgb = _xyz_d50_to_srgb8(mxyz)
             exp_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3]))
             meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
+            if strip_fence:
+                letter = self._strip_of(loc)
+                fence = fences.get(letter, 0.0)
+                standout = de_p - medians.get(letter, 0.0)
+            else:
+                fence, standout = 0.0, None
+            warn = de_p >= warn_de and de_p >= fence
             flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de_p,
-                                            de_p >= warn_de, standout=None,
+                                            warn, standout=standout,
                                             live=live)
             items.setdefault(page, []).append(
                 (box, _QC(*exp_rgb), _QC(*meas_rgb), flag))
@@ -14209,7 +14408,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "exp_lab": exp_lab,
                 "meas_lab": meas_lab,
                 "de": de_p,
-                "warn": de_p >= warn_de, "warn_de": warn_de, "fenced": False,
+                "warn": warn, "warn_de": warn_de, "fenced": fence > 0.0,
                 **extra,
             }))
         for page, its in items.items():
@@ -14435,7 +14634,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # straight back — see _restore_displaced_measurement.
         try:
             from core.file_manager import Run
-            dest = Run.for_dir(ti3.parent).archive_to_old([ti3])
+            from workflow.confirmed_patches import confirmed_path
+            # The yellow memory goes WITH the readings it describes (#182 K4).
+            dest = Run.for_dir(ti3.parent).archive_to_old(
+                [ti3, confirmed_path(ti3)])
         except OSError as exc:
             log.warning("could not archive %s before replacing it: %s", ti3, exc)
             return
@@ -15106,7 +15308,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.info("overlay: none of the %d measured patches match this "
                      "chart's geometry", len(patches))
             return False
-        self._on_chart_measured({"patches": patches}, live=False)
+        # THE YELLOW MEMORY OF THIS MEASUREMENT (#182 K4). Outside a session
+        # the painting describes the file alone, so the memory is the file's
+        # own: read back from `<stem>.confirmed.json`, or none. Inside one
+        # (the repaint at its start) the session has already taken what it
+        # resumes from, see _on_session_map.
+        if getattr(self, "_session_live", False):
+            mode = getattr(self, "_memory_mode", None) or self._session_memory_mode()
+        else:
+            mode = self._load_confirmed_memory(ti3) or self._selected_memory_mode()
+            self._memory_mode = mode
+        # THE SAME JUDGEMENT AS DURING THE MEASUREMENT (#182 K3): the engine's
+        # ΔE*ab (per_patch_overlay), and in strips the strip test per strip.
+        # The .ti3 does not say how it was read; the memory file does, and
+        # without one the mode set on the panel is the best answer there is.
+        self._on_chart_measured({"patches": patches}, live=False,
+                                strip_fence=(mode != "patch"))
         return True
 
     def _clear_overlay(self) -> None:

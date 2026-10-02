@@ -338,13 +338,32 @@ def test_a_re_read_that_differs_stays_red(tmp_path):
     assert _flags(tab)["A17"] is True
 
 
-def test_a_new_session_forgets(tmp_path):
+def test_a_fresh_read_forgets_a_resumed_one_remembers(tmp_path):
+    """#182 K4 (Sebastian 5959447807): the yellow memory belongs to the
+    measurement. A completely new read replaces the readings it was confirmed
+    against and forgets it; a read that resumes them takes it back from the
+    file kept beside the .ti3 (tests/test_k182_k3_k4_overlay_and_memory.py
+    covers the file itself)."""
     tab = _tab(tmp_path)
+    tab._session_live = True
     tab._on_strip_measured(_strip("A"))
     tab._on_strip_measured(_strip("A"))
     assert _flags(tab)["A17"] == pf.FLAG_CONFIRMED
+    # the session wrote its memory beside the measurement it is reading
+    from workflow import confirmed_patches as cp
+    ti3 = tab._ti1_path.with_suffix(".ti3")
+    ti3.write_text("CTI3\n", encoding="utf-8")       # the final file
+    tab._session_live = False
+    tab._ti3_mtime_before = None
+    tab._save_confirmed_memory(ti3)
+    assert cp.confirmed_locations(ti3) >= {"A17", "A23"}
+    tab._session_live = True
+    tab._session_resumes = False
     tab._on_session_map([{"strip": c, "read": False} for c in "AFO"])
     assert tab._flag_judge().confirmed == []
+    tab._session_resumes = True
+    tab._on_session_map([{"strip": c, "read": False} for c in "AFO"])
+    assert set(tab._flag_judge().confirmed) >= {"A17", "A23"}
 
 
 @pytest.mark.parametrize("hex_mode", [False, True])

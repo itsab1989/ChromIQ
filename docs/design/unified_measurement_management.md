@@ -5849,7 +5849,8 @@ set apart at the bottom: *"Yellow outline: confirmed by a re-read"*, the two
 misread. Keep it for the profile."* A reading repainted from the file is
 remembered as the previous reading but cannot confirm (a file read twice is
 not a second reading), so re-reading a strip measured in an earlier session
-still confirms.
+still confirms. The repaint judges each patch exactly as it was judged live
+(10.6), so a patch that was red is remembered as red.
 
 **10.4 · Yellow, learned.** After at least one confirmed patch, a later flagged
 patch is outlined yellow when, against a confirmed patch: its expected L*a*b*
@@ -5858,8 +5859,10 @@ sideways from the confirmed patch's shift and is no more than ΔE 10 shorter
 along it (the same kind of error, as large or larger); and, reading strips, it
 stands above its strip's median by no more than ΔE 10 more than the confirmed
 patch did. The card says *"Yellow outline: judged like patch {loc}"*. Only
-patches confirmed by a re-read are references. Everything resets when a
-measurement session starts, or another chart is loaded.
+patches confirmed by a re-read are references. A completely new read starts
+with no references; a read that resumes or refines a measurement, and the
+preview of a measurement on disk, take that measurement's stored references
+back (10.7). Loading another chart starts from that chart's own.
 
 **10.5 · No longer suggested for re-reading.** The only place the app itself
 suggests re-reading a flagged patch is the per-patch "Patch reading looks off"
@@ -5881,3 +5884,81 @@ move the engine's own "Unexpected Colour Response" window to ΔE 30 for such
 charts); and whether a yellow patch found by learning should also turn earlier
 red patches of the same colour range yellow, which this build does not do
 ("later strip reads" was the wording).
+
+
+### ⏳ Awaiting confirmation — the preview after a measurement shows what it showed during it (K3)
+
+**Confirmed by:** *nobody yet.*
+
+**Ruling it is built from:** Knut, #182
+[5959352118](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5959352118):
+*"the highlighted large errors shown during a measurement is no longer visible
+[after it is stopped]. ... If no good reason, maybe this should be
+implemented?"*; answered as a bug in
+[5959399054](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5959399054).
+
+**10.6 · The same numbers and the same outlines.** When the preview is painted
+from a measurement on disk (after a session, on reopening a project, on
+switching run, run type or tab and back, and at the start of a resumed read),
+each patch is compared exactly as the ChromIQ engine compares it while
+measuring: the chart's expected XYZ as the `.ti2` holds it (no rescaling, no
+white-point adaptation), the measured XYZ from the `.ti3`, both turned into
+L\*a\*b\* against ArgyllCMS's D50 after dividing by 100, and their ΔE\*ab
+(CIE76) (`workflow/measurement_report.py::per_patch_overlay`,
+`engine_patch_de`). It used to use the Measurement Report's figures (D65 to D50
+adapted expected values and ΔE2000): Knut's A23 read ΔE\*ab 103.2 live and
+16.1 afterwards, so every red outline vanished at the end of a measurement.
+The Measurement Report itself is unchanged. For a measurement read in strips,
+each patch is also judged against its own strip as during the read (the strip
+test when it is switched on, and the stand-out figure of 10.4); patch by patch,
+and for a whole chart or sheet read at once (XY / chart instruments), there is
+no strip test, as before. The `.ti3` does not record how it was read:
+the stored memory (10.7) does, and without one the patch-by-patch setting on
+the panel decides.
+
+### ⏳ Awaiting confirmation — the confirmed patches are kept with the measurement (K4)
+
+**Confirmed by:** *nobody yet.*
+
+**Rulings it is built from:** Knut, #182
+[5959352118](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5959352118):
+*"the information on which patches were re-measured and confirmed as not to be
+misreadings are remembered after a measurement is stopped, which must anyway
+be remembered for the Check & Refine function"*; approved by Sebastian
+([5959447807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5959447807)).
+
+**10.7 · `<stem>.confirmed.json`.** Beside the `.ti3` it describes
+(`runs/runN/<stem>.confirmed.json`, and
+`verifications/<date>/<stem>-verify.confirmed.json`), written atomically after
+every change during a session and once more at its end, when the `.ti3` is
+final (`workflow/confirmed_patches.py`). It holds the `.ti3`'s SHA-256, how it
+was read (`strip` or `patch`) and, per patch, either `confirmed` (with the
+readings that confirmed it) or `learned` (and which confirmed patch it was
+judged like). It is believed only while the `.ti3` is byte for byte the one it
+names; otherwise it is ignored. Only `confirmed` patches are loaded back as
+references; learned ones are judged again from them.
+
+* A completely new read moves it to `old/` with the measurement it described,
+  and starts with none; a session that read nothing puts both back.
+* A resumed or refined read starts with it (a resumed verification, with its
+  dated file's).
+* "Measure again to average": the averaged measurement, and a read kept with
+  "Use last read only", get the memory of the last session. `merged.ti3` and
+  `reads/readN.ti3` get none.
+* A verification carries it when ChromIQ marks and files the reading
+  (`<stem>-verify.ti3`), re-stamped for the marked file.
+* Duplicating a run copies it with the measurement; renaming the project
+  renames it; Restore Used Chart leaves it alone. Older projects have none,
+  and nothing is migrated.
+* `confirmed_locations(ti3)` gives the confirmed patches of a measurement for
+  Check & Refine to leave out; using it there is not part of this change.
+
+The help text of the patch outline says so instead of *"A new measurement
+session starts without yellow patches"*.
+
+**Open questions for Knut:** (a) the engine's own ΔE during a read uses the
+`.ti2` XYZ as written; on a chart whose `.ti2` holds XYZ on a 0..1 scale (some
+printtarg charts) the expected colours are then 100 times too dark and every
+patch is far off, live and now afterwards alike. Should the engine scale such
+a chart as the Measurement Report does? (b) Should Check & Refine leave out
+only confirmed patches, or also learned ones?

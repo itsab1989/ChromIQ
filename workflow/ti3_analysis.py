@@ -67,6 +67,10 @@ def mark_verification_ti3(src: str | Path) -> Path:
     src = Path(src)
     dst = (src if src.stem.endswith("-verify")
            else src.with_name(f"{src.stem}-verify{src.suffix}"))
+    # The yellow memory of the readings (#182 K4) is carried to the marked
+    # file as <stem>-verify.confirmed.json, re-stamped for its new contents.
+    from workflow import confirmed_patches as _cp
+    before = _cp.ti3_sha256(src)
     text = read_text(src, lenient=True)
     if VERIFICATION_KEYWORD not in text:
         lines = text.splitlines()
@@ -77,6 +81,7 @@ def mark_verification_ti3(src: str | Path) -> Path:
     dst.write_text(text, encoding="utf-8")
     if dst != src and src.exists():
         src.unlink()
+    _cp.carry(src, before, dst)
     return dst
 
 
