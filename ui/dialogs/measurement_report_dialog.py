@@ -7348,6 +7348,18 @@ class MeasurementReportDialog(QDialog):
             existing = {}
         detail = self._tick_state()
         scope = self._document_scope(members)
+        # **THE REPORT SCOPE'S COUNT, READ OFF THE DISK NOW (Q-C5; Knut, #182
+        # 5950006399: "Yes, Show numbers as they were saved. An update will
+        # renew the numbers.").** Counted from the rows this press writes, at
+        # the moment it writes them, never copied from the page: the page may
+        # be showing a saved report's own count, and an Update is exactly the
+        # press that renews it. Stored as the decision, for every report.
+        from workflow.measurement_report import scope_counts
+        scope_count = scope_counts(
+            [r for r in self._runs_for_document()
+             if self._run_key(r) not in leave_out],
+            [r for r in (self._history or [])
+             if self._run_key(r) not in leave_out])
         # **AN UPDATE THAT COVERS THE SAME MEASUREMENTS KEEPS ITS NAME'S
         # SCOPE (challenge C, C10)**; only a change of membership moves it
         # (§24.2).
@@ -7486,7 +7498,7 @@ class MeasurementReportDialog(QDialog):
                                compliance=rep.get("compliance"),
                                detail=detail,
                                measurements=members, scope=scope,
-                               updated=updated)
+                               updated=updated, scope_count=scope_count)
                 if rewrite_here is not None and rewrite_here.exists():
                     # **THE SAME FILE, THE SAME NAME, THE SAME DATE** (CH-29).
                     path = rewrite_report(rewrite_here, rep)
@@ -7504,7 +7516,8 @@ class MeasurementReportDialog(QDialog):
             body = document_file(
                 doc_id=doc_id, created=doc_created, type_id=_tid,
                 compliance=(first or {}).get("compliance"), detail=detail,
-                measurements=doc_members, scope=scope, updated=updated)
+                measurements=doc_members, scope=scope, updated=updated,
+                scope_count=scope_count)
             try:
                 if keep_doc_file and old_doc_file.exists():
                     _doc_path = rewrite_report(old_doc_file, body)
@@ -14199,7 +14212,19 @@ class MeasurementReportDialog(QDialog):
         # they were drawn apart from the report's columns; since K51 and K59
         # they are columns with their own verdict word, and a document of raw
         # checks said it covered "0 of the 9 measurements".
-        covered = len(list(runs))
+        #
+        # **THE DECISION IS MADE IN ONE PLACE, AND A SAVED REPORT KEEPS IT
+        # (Q-C5; Knut, #182 5950006399: "Yes, Show numbers as they were saved.
+        # An update will renew the numbers.").** `scope_counts` in
+        # `workflow/measurement_report.py` decides which sentence and which
+        # numbers, for this page, for Generate and Update
+        # (`_write_the_document`) and for the report written automatically
+        # after a measurement; the report STORES that decision in its document
+        # block. A saved report is shown with what it stored, and only an
+        # Update counts it again; a report written before the count was
+        # stored is counted live, as it always was. The rules it follows, and
+        # why, are these:
+        #
         # THE RUN'S OWN MEASUREMENTS, NOT EVERYTHING LOADED. `self._history` is
         # every row in the window's list, and a person can load a second
         # project's measurement beside this one: round 11 photographed "This
@@ -14213,51 +14238,19 @@ class MeasurementReportDialog(QDialog):
         # runs of one project (they are comparable, which is the point), and a
         # measurement left out of one of them is still this project's. Another
         # project's is not.
-        def _project_of(_r) -> str:
-            # RESOLVED, BECAUSE TWO SPELLINGS OF ONE FOLDER ARE ONE PROJECT.
-            # These keys are grouped as strings, and on macOS `/tmp` and
-            # `/private/tmp` name the same directory: a project holding four
-            # measurements, two of them opened by each spelling, was counted
-            # TWICE and the document said "2 of the 8 measurements recorded for
-            # the projects it is drawn from" (R14-F4, photographed). A symlink
-            # or a mapped drive does the same thing on the other platforms.
-            from workflow.run_compliance import run_context_for
-            _o = str(_r.get("_origin_dir") or _r.get("ti3") or "")
-            try:
-                _c = run_context_for(_o)
-                if _c:
-                    _d = _c.run.dir.parent.parent
-                    try:
-                        return str(_d.resolve())
-                    except OSError:    # the folder has gone since it was read
-                        return str(_d)
-                # ...AND A FOLDER THAT HAS BEEN RENAMED IS STILL A PROJECT.
-                # `run_context_for` is strict on purpose and asks the disk, so
-                # renaming a project in Finder while its report is open makes
-                # every row of it answer "belongs to no project": the document
-                # then has no project to count against and the honesty note
-                # disappears, which is a filtered report passing as complete
-                # (R14-F5). The path's own shape still says which project it
-                # was, and grouping is all that is wanted here.
-                # ...RESOLVED HERE TOO. The disk branch above resolves its key
-                # and this one did not, so a renamed project went straight back
-                # to counting `/tmp` and `/private/tmp` as two projects: one
-                # project, four measurements, and the document said "recorded
-                # for THE PROJECTS it is drawn from" (R14-F4's exact symptom,
-                # brought back by R14-F5's own fix and caught by round 15).
-                try:
-                    _pp = Path(_o).resolve()
-                except OSError:
-                    _pp = Path(_o)
-                _parts = list(_pp.parts)
-                if "runs" in _parts:
-                    _i = len(_parts) - 1 - _parts[::-1].index("runs")
-                    if _i > 0:
-                        return str(Path(*_parts[:_i]))
-                return f"external:{_o}"
-            except Exception:      # noqa: BLE001 — a count is never a blocker
-                return f"external:{_o}"
-
+        #
+        # RESOLVED, BECAUSE TWO SPELLINGS OF ONE FOLDER ARE ONE PROJECT. On
+        # macOS `/tmp` and `/private/tmp` name the same directory: a project
+        # holding four measurements, two of them opened by each spelling, was
+        # counted TWICE and the document said "2 of the 8 measurements
+        # recorded for the projects it is drawn from" (R14-F4, photographed).
+        # ...AND A FOLDER THAT HAS BEEN RENAMED IS STILL A PROJECT.
+        # `run_context_for` is strict on purpose and asks the disk, so renaming
+        # a project in Finder while its report is open made every row of it
+        # answer "belongs to no project" (R14-F5). The path's own shape still
+        # says which project it was, and it is resolved too, or R14-F4 comes
+        # straight back (round 15).
+        #
         # COUNTED OFF THE DISK, NOT OUT OF THE WINDOW. `self._history` is
         # what somebody has LOADED, and the sentence says "recorded for this
         # project": round 12 drove a project holding three measurements, loaded
@@ -14271,8 +14264,9 @@ class MeasurementReportDialog(QDialog):
         # one of its measurements ("covers 2 of the 3" where the project
         # records two), and in the other direction it padded the covered count
         # until the sentence fell silent on a project that really was being
-        # filtered (B8-346 F6). Both numbers now count only the rows that
-        # belong to a project this report is about.
+        # filtered (B8-346 F6). Both numbers count only the rows that belong to
+        # a project this report is about.
+        #
         # **THE DISK'S OWN IDENTITY, NOT THE SPELLING.** `resolve()` fixes a
         # symlink and `/private/tmp`, and it does NOT case-fold: APFS is
         # case-insensitive, so `.../CaseTest/runs/run1` and
@@ -14280,45 +14274,14 @@ class MeasurementReportDialog(QDialog):
         # after `resolve()`. Driven in the real window, one project holding
         # four measurements with two rows opened through the other case said
         # "covers 3 of the 8 measurements recorded for THE PROJECTS it is drawn
-        # from" (R16-F1, photographed) -- R14-F4's symptom again, and this time
-        # in BOTH branches. It is reachable because `FileManager.root_dir()` is
-        # the custom output path verbatim, so a project carries the case typed
-        # in Settings while a `.ti3` added through the file dialog carries the
-        # volume's.
+        # from" (R16-F1, photographed). A directory's device and inode agree
+        # across every spelling of it that names the same mounted file. It is
+        # NOT universal: two MOUNTS of one filesystem give different `st_dev`
+        # for the same directory, so a share mounted twice would still split
+        # one project in two. That case is a mechanism, not something anybody
+        # has driven here, and it is recorded rather than guessed at.
         #
-        # A directory's device and inode agree across every spelling of it
-        # that names the same mounted file: `/tmp` and `/private/tmp`, a
-        # symlink, a firmlink (`/Users/...` and `/System/Volumes/Data/Users/...`
-        # are one directory and `resolve()` does not collapse them), and a
-        # different capitalisation on a case-insensitive volume. It is NOT
-        # universal: two MOUNTS of one filesystem give different `st_dev` for
-        # the same directory, so a share mounted twice would still split one
-        # project in two. That case is a mechanism, not something anybody has
-        # driven here, and it is recorded rather than guessed at.
-        #
-        # A folder that has gone has neither number, and then the resolved path
-        # is the best identity there is.
-        def _ident(_p: str) -> str:
-            try:
-                _st = os.stat(_p)
-                return f"{_st.st_dev}:{_st.st_ino}"
-            except OSError:
-                return _p
-
-        _mine: "dict[str, str]" = {}
-        for _p in (_project_of(r) for r in runs):
-            if not _p.startswith("external:"):
-                _mine.setdefault(_ident(_p), _p)
-        covered = len([r for r in runs
-                       if _ident(_project_of(r)) in _mine])
-        # A FOLDER THAT HAS GONE IS NOT A PROJECT WITH NOTHING IN IT. Rename a
-        # project in Finder while its report is open and the disk count drops
-        # to zero, `max(total, covered)` makes the two equal, and the sentence
-        # disappears -- so a filtered report passes as complete, which is the
-        # one thing Sebastian's rule two paragraphs up exists to prevent
-        # (R14-F5). Where the folder cannot be read, the rows this window holds
-        # for that project are the best count there is, which is what this
-        # counted before it counted the disk at all.
+        # A FOLDER THAT HAS GONE IS NOT A PROJECT WITH NOTHING IN IT, AND
         # **A NUMBER ONLY WHEN THE DISK CAN GIVE ONE.** A folder that has been
         # renamed or removed cannot be counted, and the two ways of guessing
         # round it were both worse than not guessing: counting the window's own
@@ -14330,14 +14293,20 @@ class MeasurementReportDialog(QDialog):
         # and the sentence carries numbers; any folder not, and it says the
         # same thing without them, which is still Sebastian's honesty rule and
         # claims nothing the app cannot stand behind.
+        # **R18-F3 IS ABOUT A REMEMBERED PER-FOLDER COUNT, AND Q-C5 IS NOT
+        # ONE.** What R18-F3 removed was a count of a FOLDER kept by the
+        # window and reused for whatever report asked next, so a folder that
+        # had changed answered with its old number. What Q-C5 stores is a
+        # record of ONE REPORT: the decision taken from the disk when that
+        # report was made or updated, kept in that report's own file, and shown
+        # as what it is, the count the report was saved with. Nothing is
+        # reused across reports or folders, and an Update reads the disk again.
+        #
         # THE REPORT'S OWN KIND, AND A VERIFICATION'S OWN RUNS (K14): a
         # profiling document is counted against the project's profiling
         # measurements, a verification document against the dated
         # verifications of the runs it is drawn from. A document mixing the
         # two kinds keeps the old count of everything.
-        _kinds = {bool(r.get("is_verification")) for r in runs}
-        _kind = ("verification" if _kinds == {True} else
-                 "profiling" if _kinds == {False} else None)
         # THE RUNS OF EVERY ROW IN THE "INCLUDED MEASUREMENTS" LIST, not only
         # of the rows the document kept. Knut's own scope: *"the measurements
         # selected in included measurements input box"*. The first cut took
@@ -14345,86 +14314,10 @@ class MeasurementReportDialog(QDialog):
         # limit set per document leaves out also left its run out of the
         # total, and the sentence saying the report is filtered vanished: an
         # existing guard caught it the same hour.
-        _run_names: "set[str] | None" = None
-        if _kind == "verification":
-            from workflow.run_compliance import run_context_for as _rcf
-            _run_names = set()
-            for r in list(runs) + list(getattr(self, "_history", None) or []):
-                if not r.get("is_verification"):
-                    continue
-                _c = _rcf(str(r.get("_origin_dir") or ""))
-                if _c is not None:
-                    _run_names.add(_c.run.dir.name)
-            _run_names = _run_names or None
-        _counts = [self._measurements_recorded_in(_p, _kind, _run_names)
-                   for _p in _mine.values()]
-        _all_known = bool(_counts) and all(n > 0 for n in _counts)
         # A measurement with no saved report beside it is still in this
         # document, so the total can never be smaller than what is covered.
-        total_known = max(sum(_counts), covered)
-        if not _all_known:
-            _held = len([r for r in self._history
-                         if _ident(_project_of(r)) in _mine])
-            if covered < _held:
-                # ONE PROJECT OR SEVERAL, HERE TOO. The numbered branch below
-                # learned this as R13-3 and this one was written without it, so
-                # a document drawn from two projects with one folder unreadable
-                # said "does not cover every measurement recorded for THIS
-                # project" with the Report Scope naming both of them in the
-                # same picture (R19-1, photographed).
-                note = (tr("This report does not cover every measurement "
-                           "recorded for this project.")
-                        if len(_mine) == 1 else
-                        tr("This report does not cover every measurement "
-                           "recorded for the projects it is drawn from."))
-                out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
-                        + html.escape(note) + "</div>")
-        elif covered < total_known:
-            # ONE PROJECT OR SEVERAL, AND THE SENTENCE SAYS WHICH. A report can
-            # hold runs of more than one project -- the window lets a second be
-            # opened beside the first -- and the total is then the sum of two
-            # folders. "This project" was still the wording, so a document
-            # covering a two-measurement project and a five-measurement one
-            # said "2 of the 7 measurements recorded for this project", and no
-            # project on the disk records seven (R13-3, photographed).
-            # SCOPED BY KIND (K14), so a reader of a Printing record is told
-            # "of the 3 measurements recorded for this project's profile runs"
-            # and not a number that counts every verification of every run as
-            # well; a verification's is the spec's own "for this run".
-            if _kind == "profiling":
-                note = (tr("This report covers {n} of the {total} measurements "
-                           "recorded for this project's profile runs.")
-                        if len(_mine) == 1 else
-                        tr("This report covers {n} of the {total} measurements "
-                           "recorded for the profile runs of the projects it is "
-                           "drawn from."))
-            elif _kind == "verification" and len(_mine) == 1:
-                # "PROFILE RUN", AND A COUNT RATHER THAN "these runs" (round
-                # 2B, #4/#10): on the same page "1 verification run" means a
-                # date, so a bare "run" was ambiguous, and "these runs" named
-                # runs the PDF never lists.
-                _nr = len(_run_names or ())
-                note = (tr("This report covers {n} of the {total} measurements "
-                           "recorded for this profile run.")
-                        if _nr <= 1 else
-                        # K39-1: "it was chosen from" named the choosing
-                        # done in the window; the report says what it is
-                        # drawn from, as the other lines here do.
-                        tr("This report covers {n} of the {total} measurements "
-                           "recorded for the {runs} profile runs it is drawn "
-                           "from."))
-            elif _kind == "verification":
-                note = tr("This report covers {n} of the {total} measurements "
-                          "recorded for the profile runs of the projects it is "
-                          "drawn from.")
-            else:
-                note = (tr("This report covers {n} of the {total} measurements "
-                           "recorded for this project.")
-                        if len(_mine) == 1 else
-                        tr("This report covers {n} of the {total} measurements "
-                           "recorded for the projects it is drawn from."))
-            note = note.format(n=covered, total=total_known,
-                               runs=len(_run_names or ()))
+        note = self._scope_count_sentence(self._scope_count_for(runs))
+        if note:
             out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
         return (out + self._scope_deleted_runs_html()
@@ -14432,6 +14325,98 @@ class MeasurementReportDialog(QDialog):
                 + self._not_worked_out_again_html(runs)
                 + self._scope_warnings_html(sc["warnings"])
                 + self._scope_notes_html(sc.get("notes") or []))
+
+    def _scope_count_for(self, runs: list) -> dict:
+        """The Report Scope's count for the page: the SAVED decision while
+        the page is a saved report that recorded one, else counted now.
+
+        **AS SAVED (Q-C5; Knut, #182 5950006399: "Yes, Show numbers as they
+        were saved. An update will renew the numbers.").** `_document_settings`
+        is the loaded report while its settings are what is on screen, and
+        `_as_the_document_was_built` puts it back for a PDF, so the page and
+        the PDF read the same record. A report written before the count was
+        recorded has none and is counted live, exactly as before; reading it
+        writes nothing. Once a control moves, the page is a report that has
+        not been made yet, and that is counted now, as Generate would.
+        """
+        from workflow.measurement_report import (SCOPE_COUNT_KEY,
+                                                 scope_count_of, scope_counts)
+        doc = self._document_settings()
+        saved = scope_count_of((doc or {}).get(SCOPE_COUNT_KEY))
+        if saved is not None:
+            return saved
+        return scope_counts(runs, list(self._history or []))
+
+    @staticmethod
+    def _scope_count_sentence(count: "dict | None") -> str:
+        """The sentence a Report Scope count says, in today's language, or ""
+        when it says nothing. `tr()` runs HERE, when the report is shown, so a
+        saved count reads in whatever language the app is in (Q-C5)."""
+        from workflow.measurement_report import (SCOPE_COUNT_COVERS,
+                                                 SCOPE_COUNT_UNKNOWN,
+                                                 scope_count_of)
+        c = scope_count_of(count)
+        if c is None:
+            return ""
+        several = c["projects"] != 1
+        if c["variant"] == SCOPE_COUNT_UNKNOWN:
+            # ONE PROJECT OR SEVERAL, HERE TOO. The numbered branch below
+            # learned this as R13-3 and this one was written without it, so
+            # a document drawn from two projects with one folder unreadable
+            # said "does not cover every measurement recorded for THIS
+            # project" with the Report Scope naming both of them in the
+            # same picture (R19-1, photographed).
+            return (tr("This report does not cover every measurement "
+                       "recorded for this project.")
+                    if not several else
+                    tr("This report does not cover every measurement "
+                       "recorded for the projects it is drawn from."))
+        if c["variant"] != SCOPE_COUNT_COVERS:
+            return ""
+        # ONE PROJECT OR SEVERAL, AND THE SENTENCE SAYS WHICH. A report can
+        # hold runs of more than one project -- the window lets a second be
+        # opened beside the first -- and the total is then the sum of two
+        # folders. "This project" was still the wording, so a document
+        # covering a two-measurement project and a five-measurement one
+        # said "2 of the 7 measurements recorded for this project", and no
+        # project on the disk records seven (R13-3, photographed).
+        # SCOPED BY KIND (K14), so a reader of a Printing record is told
+        # "of the 3 measurements recorded for this project's profile runs"
+        # and not a number that counts every verification of every run as
+        # well; a verification's is the spec's own "for this run".
+        kind = c["kind"]
+        if kind == "profiling":
+            note = (tr("This report covers {n} of the {total} measurements "
+                       "recorded for this project's profile runs.")
+                    if not several else
+                    tr("This report covers {n} of the {total} measurements "
+                       "recorded for the profile runs of the projects it is "
+                       "drawn from."))
+        elif kind == "verification" and not several:
+            # "PROFILE RUN", AND A COUNT RATHER THAN "these runs" (round
+            # 2B, #4/#10): on the same page "1 verification run" means a
+            # date, so a bare "run" was ambiguous, and "these runs" named
+            # runs the PDF never lists.
+            note = (tr("This report covers {n} of the {total} measurements "
+                       "recorded for this profile run.")
+                    if c["runs"] <= 1 else
+                    # K39-1: "it was chosen from" named the choosing
+                    # done in the window; the report says what it is
+                    # drawn from, as the other lines here do.
+                    tr("This report covers {n} of the {total} measurements "
+                       "recorded for the {runs} profile runs it is drawn "
+                       "from."))
+        elif kind == "verification":
+            note = tr("This report covers {n} of the {total} measurements "
+                      "recorded for the profile runs of the projects it is "
+                      "drawn from.")
+        else:
+            note = (tr("This report covers {n} of the {total} measurements "
+                       "recorded for this project.")
+                    if not several else
+                    tr("This report covers {n} of the {total} measurements "
+                       "recorded for the projects it is drawn from."))
+        return note.format(n=c["n"], total=c["total"], runs=c["runs"])
 
     @staticmethod
     def _worked_out_earlier_html(runs: list) -> str:
@@ -14568,57 +14553,10 @@ class MeasurementReportDialog(QDialog):
     def _measurements_recorded_in(project_dir: str, kind: "str | None" = None,
                                   run_names: "set[str] | None" = None) -> int:
         """How many measurements a project's folder holds, read from the disk.
-
-        Every run's own measurement plus every dated verification of every run.
-
-        **OF THE REPORT'S OWN KIND, AND FOR A VERIFICATION OF ITS OWN RUNS (K14,
-        Knut on beta 34).** *"This report covers 1 of the 18 measurements
-        recorded for this project" ... is wrong, as this demo project has 3
-        runs (profile runs, when run type is Profiling) ... it should only show
-        relating to run type is Profiling.* So ``kind="profiling"`` counts only
-        the runs' own sheets, and ``kind="verification"`` only the dated
-        verifications, of the runs in ``run_names`` when it is given. ``None``
-        is the old count of both.
-        Role-named files (`preconditioning.ti3`, `merged.ti3`, the
-        `reads/readN.ti3` snapshots that are averaged back into the run's own)
-        are not measurements in this sense and are not counted: what is counted
-        is what the window would show as a row.
-
-        Never raises: the count decorates a sentence and a missing folder or an
-        unreadable manifest must not cost the reader the report.
-        """
-        try:
-            from core.file_manager import VERIFICATIONS_DIRNAME
-            root = Path(project_dir) / "runs"
-            if not root.is_dir():
-                return 0
-            # ROLE-NAMED, SO NOT A MEASUREMENT. `preconditioning.ti3` is
-            # inherited from the parent run and `merged.ti3` is the average of
-            # two; neither is a sheet anybody read, and `reads/readN.ti3` lives
-            # in its own folder and is averaged back into the run's own.
-            roles = {"preconditioning.ti3", "merged.ti3"}
-            n = 0
-            for d in sorted(root.iterdir()):
-                if not (d.is_dir() and d.name.startswith("run")):
-                    continue
-                if run_names is not None and d.name not in run_names:
-                    continue
-                if kind != "verification":
-                    n += len([f for f in d.glob("*.ti3")
-                              if f.name not in roles])
-                if kind == "profiling":
-                    continue
-                # A DATED VERIFICATION IS FOUND BY ITS FOLDER, NOT BY ITS NAME.
-                # `Verification.measurement_ti3` resolves `<the run's stem>.ti3`,
-                # so a verification measured from a different chart is invisible
-                # to it: measured on a two-date fixture holding `Alpha.ti3` and
-                # `Bravo.ti3`, it found one of the two.
-                for v in sorted((d / VERIFICATIONS_DIRNAME).glob("*")):
-                    if v.is_dir() and any(v.glob("*.ti3")):
-                        n += 1
-            return n
-        except Exception:      # noqa: BLE001 — a count is never a blocker
-            return 0
+        Moved to `workflow.measurement_report.measurements_recorded_in` (Q-C5),
+        where the one shared count (`scope_counts`) asks it."""
+        from workflow.measurement_report import measurements_recorded_in
+        return measurements_recorded_in(project_dir, kind, run_names)
 
     @staticmethod
     def _document_places(runs: list) -> "tuple[set[str], set[str]]":

@@ -1273,6 +1273,15 @@ marker above.
   profile runs").
 * **Status:** agreed; the built result is confirmed. **Confirmed by:** Knut, 2026-09-23 (#182 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
 
+⏳ **Awaiting confirmation: WHEN the disk is read (Q-C5).**
+**Confirmed by:** *nobody yet.*
+The K14 count above is unchanged in what it counts. Since Knut's answer of
+2026-10-02 (#182 5950006399, §57) the disk is read when a report is MADE or
+UPDATED (Generate report, Update, and the automatic report after a
+measurement), and the result is stored in the report; a saved report is shown
+with the numbers it was saved with. The preview of a report not yet saved is
+counted when it is drawn, as before.
+
 **Still open, and it is Knut's:** a measurement left out is no longer named
 anywhere at all, including in the WINDOW. If he wants the window (not the
 document) to keep saying which measurements it dropped and why, that is a new
@@ -9856,18 +9865,9 @@ A1 and C1 to C4 of 2026-10-01, for exactly the rulings quoted here.
   report the duplicate copies names the new run, and none of them is
   related to the run it was copied from.
 
-**Not covered by these rulings, found while verifying C1 (for Knut).** A
-profiling report's Report Scope sentence *"This report covers {n} of the
-{total} measurements recorded for this project's profile runs"* is counted
-off the disk when the page is drawn (§11, K14, confirmed: *"Whatever is
-counted is still read off the disk"*). So deleting runs that HOLD
-measurements, or duplicating a measured run, changes that sentence on a
-saved report (measured: "covers 1 of the 5" before deleting four measured
-runs, absent after; "covers 1 of the 2" appears on the original after a
-duplicate). In Knut's own case (runs 1 to 4 held charts only) nothing but
-the run number changes. Whether the sentence of a saved report should be
-the one it was saved with (§53.1) or the live count (§11) is his call; it is
-not changed.
+**The Report Scope count of a saved report after a run delete or a
+duplicate** (found while verifying C1) was put to Knut and answered in #182
+5950006399: see §57.
 
 ### ⏳ Awaiting confirmation
 
@@ -10023,3 +10023,50 @@ Tests: `tests/test_182_b1_b2_inspection_names_and_owners.py`,
 its mutation. Proof: `~/Desktop/ChromIQ-work/2026-10-01_session/N_impl_inspect/`.
 
 **Status:** the rulings are Knut's (Confirmed); what was built NOT confirmed.
+
+## 57. Q-C5: a saved report's Report Scope count is the one it was saved with (#182, 2026-10-02, 4.3.3)
+
+### ⏳ Awaiting confirmation: what was built from Knut's answer
+
+**Confirmed by:** *nobody yet.*
+
+**57.1 The ruling, verbatim.** Knut, #182
+[5950006399](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5950006399)
+(2026-10-02), on the sentence *"This report covers {n} of the {total}
+measurements recorded for …"* of a saved report, which changed when runs
+holding measurements were deleted or a measured run was duplicated (found
+while verifying §55 C1): *"Yes, Show numbers as they were saved. An update
+will renew the numbers."*
+
+**57.2 Built.**
+* One decision for every door: `workflow/measurement_report.scope_counts`
+  decides which sentence and which numbers (the K14 count of §11, unchanged
+  in what it counts). The window's preview, Generate report (Create New),
+  Update and the automatic report after a measurement or a verification all
+  ask it.
+* The DECISION is stored, never the text: the report's document block
+  carries `scope_count: {variant: none|covers|unknown, n, total, kind,
+  projects, runs}`, ids and whole numbers only. It is written on every report
+  that Generate, Update (the one-date file and the document file of several
+  dates) and the automatic report write, also when no sentence shows
+  (`none`). It is counted from the rows being written, off the disk, when the
+  report is written; an Update counts again and so renews the numbers.
+* A saved report is shown, on the page and in the PDF, with its stored
+  decision; the sentence is translated when it is shown, so a report saved in
+  English and opened in German reads in German with the saved numbers.
+  "Does not cover every measurement" (a folder that could not be counted)
+  stays as saved too.
+* A report saved before this has no `scope_count` and is counted when it is
+  shown, as before; opening it writes nothing.
+* A run delete's renumbering and a duplicate's copies change only the run in
+  a report's paths (§55, C1 to C4) and leave the stored count as it was.
+
+**57.3 Our reading, for Knut to confirm.** A duplicated run's copied reports
+keep the count they were saved with in the original run (literally "as they
+were saved"), though they now belong to the new run (C4). Should a duplicate
+instead count again for the new run?
+
+Tests: `tests/test_qc5_report_scope_numbers_as_saved.py`, each red under its
+mutation. Proof: `~/Desktop/ChromIQ-work/2026-10-02_beta3/U_impl_qc5/`.
+
+**Status:** the ruling is Knut's; what was built NOT confirmed.
