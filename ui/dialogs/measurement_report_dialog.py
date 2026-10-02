@@ -15962,7 +15962,10 @@ class MeasurementReportDialog(QDialog):
         report, saved it, and was offered the previous PDF's name. B8-461 had
         already moved the page's own line to `_doc_created`; the file name was
         left behind on the window's clock."""
-        import re
+        # The stamp and the sanitising are shared with the Inspect tools'
+        # names (#182 B1/B2), so the two schemes cannot drift apart.
+        from workflow.measurement_report import (report_file_name,
+                                                 report_name_stamp)
         # WHAT THE PAGE IS, recorded when it was drawn (round A, A-3/A-6):
         # the document's creation time while it still speaks, the window's
         # clock when the page is no longer that document, and the last update
@@ -15970,11 +15973,11 @@ class MeasurementReportDialog(QDialog):
         page = getattr(self, "_page_doc_created", None)
         when = (page if page is not None
                 else getattr(self, "_doc_created", "")) or self._created
-        dt = when.replace("T", "_").replace(":", "-")
+        dt = report_name_stamp(when)
         upd = str(getattr(self, "_page_doc_updated", "") or "")
         if page and upd:
-            dt += " - updated " + upd.replace("T", "_").replace(":", "-")
-        return re.sub(r'[/\\:*?"<>|]', "_", f"{self._report_title(runs)} - {dt}") + ".pdf"
+            dt += " - updated " + report_name_stamp(upd)
+        return report_file_name(self._report_title(runs), dt, ".pdf")
 
     def _report_body_html(self, runs: list, *, for_pdf: bool,
                           charts_html: str = "", created: "str | None" = None) -> str:

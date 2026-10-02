@@ -1121,9 +1121,7 @@
  "ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.\n\nThe grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.": "ChromIQ skriver et slikt bilde etter hver avlesning: skannet ditt gjort grått, med fargen malt tilbake bare der ArgyllCMS tok prøver, og feltnavnene tegnet oppå. Det er et bilde av en avlesning, ikke noe som kan leses en gang til.\n\nRutenettet kan ikke legge seg på det, og innrettingskontrollen melder en feilplassering som ikke er virkelig. Last inn det opprinnelige skannet av targetet ditt i stedet – diagnosebildene ligger i mappen «cache» ved siden av og kan trygt slettes.",
  "ChromIQ {latest} is available — you're running {current}.\n\nDownload the new version and install it over your current one; your settings and projects are kept.": "ChromIQ {latest} er tilgjengelig — du kjører {current}.\n\nLast ned den nye versjonen og installer den over den nåværende; innstillingene og prosjektene dine beholdes.",
  "ChromIQ {version} — {title}": "ChromIQ {version} — {title}",
- "ChromIQ — Measurement report": "ChromIQ — Målerapport",
  "ChromIQ — Printer Profiling": "ChromIQ — skriverprofilering",
- "ChromIQ — Profile report": "ChromIQ — Profilrapport",
  "ChromIQ's licence": "Lisensen til ChromIQ",
  "ChromIQ's manifest: current run + run history. Please don't edit.": "ChromIQs manifest: gjeldende måling + målingshistorikk. Ikke rediger det.",
  "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.": "Navnet ChromIQ i midten. Til VENSTRE to knapper som virker på hele programmet: «Åpne prosjekt» og «Åpne kartfil (.ti2)» — åpner du et kart der, viser Lag kart, Skriv ut kart og Mål det alle sammen. Til HØYRE «Verktøy», «Innstillinger» og «?», som åpner dette vinduet. De to til venstre er utilgjengelige mens en måling pågår.",
@@ -3660,7 +3658,6 @@
  "Save now?": "Lagre nå?",
  "Save output ICC profile": "Lagre utdata-ICC-profil",
  "Save preset": "Lagre forvalg",
- "Save profile report": "Lagre profilrapport",
  "Save proof as": "Lagre prøve som",
  "Save proof as…": "Lagre prøve som…",
  "Save report as PDF": "Lagre rapport som PDF",
@@ -6410,5 +6407,9 @@
  "Calibration file found": "Kalibreringsfil funnet",
  "Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.": "Kalibreringsfil funnet: {name}. Den er fylt inn under «Skriverkalibrering» i delen ChromIQ-oppsett nedenfor, med modusen fortsatt på «Ingen»: velg modusen du vil ha der. «Bruk og bygg inn (-K)» skriver hvert felt ut på nytt gjennom kalibreringen; «Bare bygg inn (-I)» registrerer den bare i kartfilen.",
  "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge.": "Testkartet som ble brukt, ga ingen av verdiene dette grensesettet setter en grense på, så det er ingenting å bedømme.",
- "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Ingen av verdiene dette grenseverdisettet setter en grense for, ble vurdert på dette arket, så det er ingenting å bedømme."
+ "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Ingen av verdiene dette grenseverdisettet setter en grense for, ble vurdert på dette arket, så det er ingenting å bedømme.",
+ "Measurement inspection": "Målingsinspeksjon",
+ "Profile inspection": "Profilinspeksjon",
+ "Save measurement inspection": "Lagre målingsinspeksjon",
+ "Save profile inspection": "Lagre profilinspeksjon"
 }

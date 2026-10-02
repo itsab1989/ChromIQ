@@ -1582,17 +1582,26 @@ class TabCheckRefine(QWidget):
                 # Quality reports + refine lists live in reports/ next to the
                 # measurement (#127) — works for run folders and for a browsed
                 # external .ti3 alike.
-                from core.file_manager import ensure_subdir, reports_subdir
+                from core.file_manager import ensure_subdir
                 # BESIDE THE FILE WHEN THERE IS NO PROJECT. `reports_subdir`
                 # answers with a `reports/` folder, which is right inside a run
                 # and wrong in somebody's Downloads folder: a check they asked
                 # to run IN PLACE must not quietly build ChromIQ's folder
                 # structure around their file. Basti's ruling, 2026-09-01: the
                 # results are saved where the measurement is.
+                #
+                # IN THE OWNER'S REPORTS FOLDER, NOT `<the file's folder>/
+                # reports` (Knut, #182 5943085974, B2: *"'Check & Refine'
+                # shall also use the reports folder, unless the checked file
+                # is outside the project"*). A read in `reads/`, a file in
+                # `cache/` or an archived one in `old/<stamp>/` belongs to the
+                # run above it, and `reads/reports/` is a folder nothing in
+                # ChromIQ lists. `reports_dir_for` is the rule Inspect uses.
                 if getattr(self, "_checking_in_place", False):
                     folder = self._ti3_path.parent
                 else:
-                    folder = ensure_subdir(reports_subdir(self._ti3_path.parent))
+                    from workflow.run_compliance import reports_dir_for
+                    folder = ensure_subdir(reports_dir_for(self._ti3_path))
                 grade = quality_grade(result.avg_de, result.peak_de)
                 explanation = quality_explanation(result.avg_de, result.peak_de)
                 summary_text = tr("Profile Quality Assessment: {grade}").format(

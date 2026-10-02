@@ -1121,9 +1121,7 @@
  "ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.\n\nThe grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.": "ChromIQ skriver en sådan här efter varje avläsning: din skanning gjord grå, med färgen återlagd bara där ArgyllCMS tog sina prov, och fältnamnen ritade ovanpå. Det är en bild av en avläsning, inte något som går att läsa en gång till.\n\nRutnätet kan inte läggas rätt på den, och placeringskontrollen rapporterar en felplacering som inte finns. Läs in originalskanningen av ditt mål i stället: diagnosbilderna ligger i mappen ”cache” bredvid och går tryggt att radera.",
  "ChromIQ {latest} is available — you're running {current}.\n\nDownload the new version and install it over your current one; your settings and projects are kept.": "ChromIQ {latest} är tillgänglig — du kör {current}.\n\nLadda ner den nya versionen och installera den över den nuvarande; dina inställningar och projekt behålls.",
  "ChromIQ {version} — {title}": "ChromIQ {version} — {title}",
- "ChromIQ — Measurement report": "ChromIQ — Mätrapport",
  "ChromIQ — Printer Profiling": "ChromIQ — skrivarprofilering",
- "ChromIQ — Profile report": "ChromIQ — Profilrapport",
  "ChromIQ's licence": "ChromIQ:s licens",
  "ChromIQ's manifest: current run + run history. Please don't edit.": "ChromIQ:s manifest: aktuell mätning + mäthistorik. Redigera inte.",
  "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.": "ChromIQ:s namn i mitten. Till VÄNSTER två knappar som gäller hela appen: ”Öppna projekt” och ”Öppna diagramfil (.ti2)” — öppna ett diagram där, så visar Skapa diagram, Skriv ut diagram och Mät alla det. Till HÖGER ”Verktyg”, ”Inställningar” och ”?”, som öppnar detta fönster. De två till vänster är inte tillgängliga medan en mätning pågår.",
@@ -3660,7 +3658,6 @@
  "Save now?": "Spara nu?",
  "Save output ICC profile": "Spara utdata-ICC-profil",
  "Save preset": "Spara förval",
- "Save profile report": "Spara profilrapport",
  "Save proof as": "Spara korrektur som",
  "Save proof as…": "Spara korrektur som…",
  "Save report as PDF": "Spara rapport som PDF",
@@ -6410,5 +6407,9 @@
  "Calibration file found": "Kalibreringsfil hittad",
  "Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.": "Kalibreringsfil hittad: {name}. Den är ifylld under ”Skrivarkalibrering” i avsnittet ChromIQ-layout nedan, med läget fortfarande på ”Ingen”: välj där det läge du vill ha. ”Tillämpa och bädda in (-K)” skriver ut varje fält på nytt genom kalibreringen; ”Bädda bara in (-I)” registrerar den bara i diagramfilen.",
  "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge.": "Det använda testdiagrammet gav inga av de värden som den här gränsvärdesuppsättningen sätter en gräns för, så det finns inget att bedöma.",
- "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Inget av de värden som den här gränsvärdesuppsättningen sätter en gräns för har bedömts på det här arket, så det finns ingenting att döma om."
+ "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Inget av de värden som den här gränsvärdesuppsättningen sätter en gräns för har bedömts på det här arket, så det finns ingenting att döma om.",
+ "Measurement inspection": "Mätningsinspektion",
+ "Profile inspection": "Profilinspektion",
+ "Save measurement inspection": "Spara mätningsinspektion",
+ "Save profile inspection": "Spara profilinspektion"
 }

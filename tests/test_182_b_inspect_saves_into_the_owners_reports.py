@@ -39,6 +39,11 @@ _TI3 = ("CTI3\n\nCOLOR_REP \"iRGB_XYZ\"\nNUMBER_OF_FIELDS 7\nBEGIN_DATA_FORMAT\n
         "END_DATA\n")
 
 
+#: "<kind> - <name> - YYYY-MM-DD_HH-MM-SS.txt", the Measurement Report's scheme.
+_NAME = __import__("re").compile(
+    r"Measurement inspection - .+ - \d{4}-\d\d-\d\d_\d\d-\d\d-\d\d\.txt")
+
+
 @pytest.fixture(scope="module")
 def qapp():
     return QApplication.instance() or QApplication([])
@@ -134,8 +139,11 @@ def test_save_offers_and_writes_into_the_owners_reports(tmp_path, qapp,
     assert seen["start"].parent == want, (seen["start"], want)
     assert seen["start_dir_existed"], "the chooser was offered a folder that " \
         "does not exist, so it opens somewhere else"
-    assert seen["start"].name == f"{ti3.stem}-report.txt"
-    assert (want / f"{ti3.stem}-report.txt").is_file()
+    # Knut's B1 (#182 5943085974): the Measurement Report's naming
+    # structure, this tool's own word, the time stamp at the end.
+    assert _NAME.fullmatch(seen["start"].name), seen["start"].name
+    assert seen["start"].name.startswith(f"Measurement inspection - {ti3.stem} - ")
+    assert (want / seen["start"].name).is_file()
     # never a reports/ folder beside a file the run merely keeps
     for wrong in ("reads", "cache", "old"):
         assert not list(Path(tmp_path).rglob(f"{wrong}/reports")), wrong
@@ -172,9 +180,9 @@ def test_a_save_elsewhere_leaves_no_reports_folder(tmp_path, qapp,
 def test_a_second_save_keeps_the_first_in_old(tmp_path, qapp, monkeypatch):
     ti3, want = _places(tmp_path)["dated verification"]
     want.mkdir()
-    first = want / f"{ti3.stem}-report.txt"
+    first = want / "mine.txt"
     first.write_text("the first inspection\n", encoding="utf-8")
-    _answer(monkeypatch, lambda start: str(start))
+    _answer(monkeypatch, lambda start: str(first))
     dlg = _inspector(qapp, ti3)
     try:
         dlg._on_save_report()
@@ -202,4 +210,4 @@ def test_reports_as_a_file_falls_back_to_the_measurements_folder(
         dlg.close()
     assert seen["start"].parent == ti3.parent
     assert want.read_text(encoding="utf-8") == "not a folder"
-    assert (ti3.parent / f"{ti3.stem}-report.txt").is_file()
+    assert (ti3.parent / seen["start"].name).is_file()
