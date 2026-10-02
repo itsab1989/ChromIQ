@@ -618,7 +618,7 @@ def test_the_cr30_bridge_hears_of_the_jump_first(tab, qapp, tmp_path):
 def test_the_window_takes_its_words_from_the_catalogue():
     from workflow import measurement_messages as M
     for msg in (M.M_UNREAD_NEXT_OR_JUMP_STRIP, M.M_UNREAD_NEXT_OR_JUMP_PATCH):
-        assert not msg.approved, "Knut has not approved these words yet"
+        assert msg.approved, "Knut approved these words, #182 5962907586"
         t1, b1 = msg.render(n=1)
         tn, bn = msg.render(n=5)
         assert t1 == "One patch is still not read"

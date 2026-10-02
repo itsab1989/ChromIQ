@@ -1602,7 +1602,7 @@ M_OVERLAY_NO_MEASUREMENT = _m(
 #: next: position to read jumps to next patch / strip from current position,
 #: even if previously measured. 2. Jump to unread: position to read jumps to
 #: closest unread patch / strip to complete the measurement.'"* His own words
-#: still go through §M-PROPOSED (the precedent is M-REPORT-UPDATE-OR-NEW).
+#: went through §M-PROPOSED and were APPROVED by Knut, 2026-10-03 (5962907586).
 #: Two variants because the unit differs: strip mode and patch-by-patch.
 M_UNREAD_NEXT_OR_JUMP_STRIP = _m(
     "M-UNREAD-NEXT-OR-JUMP-STRIP",
@@ -1616,7 +1616,7 @@ M_UNREAD_NEXT_OR_JUMP_STRIP = _m(
     "on from the first), so you can complete the measurement.\n\n"
     "ChromIQ asks once. Your choice stays for the rest of this measurement, "
     "and f, b, n or a click on the preview still take you anywhere.",
-    approved=False,
+    approved=True,
     count_key="n",
     title_one="One patch is still not read",
     body_one=
@@ -1642,7 +1642,7 @@ M_UNREAD_NEXT_OR_JUMP_PATCH = _m(
     "you can complete the measurement.\n\n"
     "ChromIQ asks once. Your choice stays for the rest of this measurement, "
     "and f, b, n or a click on the preview still take you anywhere.",
-    approved=False,
+    approved=True,
     count_key="n",
     title_one="One patch is still not read",
     body_one=

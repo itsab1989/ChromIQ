@@ -346,13 +346,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-CR30-INSTRUMENT-GONE",
                                  "M-CR30-PATCH-GAVE-UP",
                                  "M-ALL-STRIPS-PATCHES-LEFT",
-                                 # #182 5958921500 Q2, 2026-10-02: after a
-                                 # read, when the next strip/patch is not the
-                                 # nearest unread one, ask once. Knut wrote
-                                 # the words himself; they still wait here,
-                                 # as M-REPORT-UPDATE-OR-NEW's did.
-                                 "M-UNREAD-NEXT-OR-JUMP-STRIP",
-                                 "M-UNREAD-NEXT-OR-JUMP-PATCH",
                                  # #148, 2026-08-14. Knut asked for this one
                                  # outright: the engine falling back to stock
                                  # chartread is announced only in the log, and
