@@ -736,3 +736,21 @@ def test_the_real_engine_on_a_partial_chart(tmp_path):
     finally:
         s.proc.kill()
         s.finish()
+
+
+def test_a_question_queued_as_the_measurement_ends_never_opens(
+        tab, qapp, tmp_path):
+    """Review AR, 2026-10-02: the question is asked from the event loop, so the
+    session can end between the read and the turn that would open it. A
+    measurement's windows end with it (Knut, beta.139), so it must not open
+    afterwards, and the held decision is dropped rather than kept for later."""
+    mgr = tab._manager
+    _feed(mgr, _start(_write_chart(tmp_path, read=ABC)))
+    seen: list = []
+    _answer_window(qapp, "Continue to next", seen)
+    _feed(mgr, _sread("A"), _sready("D"))
+    tab._session_live = False          # the session ends before the turn
+    _spin(qapp, 40)
+    assert seen == []
+    assert not mgr.unread_choice_pending()
+    assert _tab_gotos(tab) == []

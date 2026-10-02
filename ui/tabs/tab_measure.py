@@ -7330,6 +7330,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         pending = getattr(mgr, "unread_choice_pending", None)
         if pending is None or not pending():
             return              # answered, cancelled by a key, or a swipe
+        if getattr(self, "_session_live", True) is False:
+            # The measurement ended between the read and this turn of the
+            # event loop. Its windows end with it (Knut, beta.139), so this
+            # one never opens: the held decision is dropped unanswered.
+            mgr.answer_unread_choice(None)
+            return
         if self._a_question_is_open():
             return              # its release asks again
         n, mode = getattr(self, "_unread_choice_args", (0, "strip"))
