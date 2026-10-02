@@ -95,6 +95,25 @@ def _fill(d, n=3):
     QApplication.processEvents()
 
 
+def _focus_on(d, button, timeout_ms=10000):
+    """Give *button* the keyboard focus and wait until it really has it.
+
+    The precondition of the focus tests, not what they test. Under a loaded
+    gate the dialog was active after `_dialog()` and lost it again before the
+    assertion (4.3.3-beta.4 gate 2: "NoneType", green 5 of 5 alone), so the
+    activation is asked for again until the focus has landed."""
+    import time
+    from PyQt6.QtTest import QTest
+    end = time.monotonic() + timeout_ms / 1000.0
+    while True:
+        d.activateWindow()
+        QTest.qWaitForWindowActive(d, 1000)
+        button.setFocus()
+        QApplication.processEvents()
+        if QApplication.focusWidget() is button or time.monotonic() > end:
+            return
+
+
 def _focus_label():
     w = QApplication.focusWidget()
     return w.text() if isinstance(w, QPushButton) else w.__class__.__name__
@@ -109,8 +128,7 @@ def test_disabling_take_reading_does_not_hand_the_focus_to_a_destructive_button(
         _fill(d, readings)
         d._set_session_running(True)
         d._set_read_enabled(True)
-        d._read_btn.setFocus()
-        QApplication.processEvents()
+        _focus_on(d, d._read_btn)
         assert _focus_label() == "Take reading"
 
         d._set_read_enabled(False)          # what the misread path does
@@ -129,8 +147,7 @@ def test_the_focus_comes_back_when_take_reading_returns(qapp):
     try:
         d._set_session_running(True)
         d._set_read_enabled(True)
-        d._read_btn.setFocus()
-        QApplication.processEvents()
+        _focus_on(d, d._read_btn)
         d._set_read_enabled(False)
         d._set_read_enabled(True)
         QApplication.processEvents()
@@ -149,8 +166,7 @@ def test_space_takes_a_reading_wherever_the_focus_is(qapp):
         d._set_read_enabled(True)
         # The worst case from his report: the focus is on Close.
         close = [b for b in d.findChildren(QPushButton) if b.text() == "Close"][0]
-        close.setFocus()
-        QApplication.processEvents()
+        _focus_on(d, close)
         QTest.keyClick(QApplication.focusWidget(), Qt.Key.Key_Space)
         QApplication.processEvents()
         assert took == [True], "Space did not take a reading"
@@ -166,8 +182,7 @@ def test_space_does_not_reach_clear_and_empty_the_list(qapp):
         _fill(d, 3)
         d._set_session_running(True)
         d._set_read_enabled(True)
-        d._read_btn.setFocus()
-        QApplication.processEvents()
+        _focus_on(d, d._read_btn)
         d._set_read_enabled(False)
         d._set_read_enabled(True)
         QApplication.processEvents()
@@ -188,8 +203,7 @@ def test_a_space_typed_into_a_text_box_is_still_a_space(qapp):
         d._set_read_enabled(True)
         edit = QLineEdit(d)
         edit.show()
-        edit.setFocus()
-        QApplication.processEvents()
+        _focus_on(d, edit)
         QTest.keyClicks(edit, "a b")
         QApplication.processEvents()
         assert edit.text() == "a b", (
@@ -208,8 +222,7 @@ def test_the_filter_leaves_other_windows_alone(qapp):
         d._set_read_enabled(True)
         stranger = QPushButton("elsewhere")
         stranger.show()
-        stranger.setFocus()
-        QApplication.processEvents()
+        _focus_on(stranger, stranger)
         QTest.keyClick(stranger, Qt.Key.Key_Space)
         QApplication.processEvents()
         assert took == [], "the spot window claimed a key pressed in another window"
