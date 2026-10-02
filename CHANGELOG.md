@@ -2,7 +2,7 @@
 
 ## v4.3.3-beta.1
 
-**The i1Pro 2, 3 and 3 Plus are timed against their own reading speed, saved reports keep the run they were made in, and ChromIQ runs again on older Macs.**
+**The i1Pro 2, 3 and 3 Plus are judged by their own reading speed, timed from the beep; reports and inspections are saved where they belong; and ChromIQ runs again on older Macs.**
 
 ### New
 
@@ -16,13 +16,16 @@
 ### Fixed
 
 - **Reading speed for the i1Pro 2, i1Pro 3 and i1Pro 3 Plus** (#202). These instruments were judged with the first-generation i1Pro's limit, so an i1Pro 2 was told to slow down to 240 ms per patch when 120 ms is enough. ChromIQ now recognises the name each instrument reports and uses its own row in Preferences ▸ Measurement. An i1Pro 3 Plus is also recognised as a Plus when the ChromIQ chart-reading engine is used.
+- **A strip is timed from the beep** (#202), the moment the instrument starts reading, instead of from the button press: the lamp's warm-up of about 0.7 s before the beep no longer counts against your reading speed. The beep itself is unchanged. Preferences ▸ Measurement explains this, and the SpectroScan and CR30 rows there are locked, because these instruments do not read strips.
+- **The speed hint never contradicts itself.** It could say "Too fast · 165 ms per patch ... Aim for 165 ms or more"; the numbers are now rounded so they always sit on the right side of the limit.
 - **A verification measurement writes its automatic report** into its dated `reports` folder, as a profiling measurement already did, when "Save measurement report" is ticked. The Measurement Report window then opens on that saved report.
-- **Generate report always asks** whether to update the report you selected or create a new one, also in the two cases where it could write without asking.
-- **A saved report keeps the run number it was made in.** Deleting earlier runs used to make a report made in run 5 say "run 1" when it was opened again. Every report remembers its run from now on, including reports made with earlier versions: their run number is recorded before a run delete moves anything. Only reports whose runs were already renumbered before this version show the number their folder has now.
-- **"Inspect a measurement" saves into the `reports` folder** of the run, dated verification or calibration the measurement belongs to, and never overwrites a file of the same name: the old one is kept in `reports/old/`.
+- **Generate report always asks** whether to update the report you selected or create a new one, also in the cases where it could write without asking.
+- **"Save report as PDF…" is greyed** while the report area shows no report.
+- **Duplicating a run** gives the new run its own copies of the run's reports. The copies used to point at the run they came from, so the new run listed them under "Reports including multiple runs".
+- **Inspect a measurement and Inspect a profile** save as "Measurement inspection - <name> - <date and time>.txt" and "Profile inspection - …", named like the Measurement Report's files, into the `reports` folder of the run, dated verification, calibration or project the file belongs to. A file of the same name is kept in `reports/old/`, never overwritten. A file outside any ChromIQ project is saved directly beside it, and nothing else is created there. Check & Refine and the two Verify tools follow the same rule. A failed save no longer replaces the inspection with "Could not read this measurement".
 - **The colour swatches in reports** have equal grey bars on both sides and the colour is twice as wide, so asked-for and measured colours are easier to compare, on screen and in the PDF.
 - **Older Macs.** ChromIQ declares macOS 13 as its minimum, but 17 of its built-in programs needed macOS 14, among them the chart-reading engine. Every part now runs on macOS 13. Intel Macs from before 2010 (for example a 2009 Mac running Ventura through OpenCore Legacy Patcher) can run the universal and Intel downloads again: they keep numpy below version 2.4, which needs a newer processor. Thanks to RobFor for finding the cause (discussion #201).
-- **macOS 27.** A question window could close ChromIQ on a Mac set to German; the number format is now set so that this cannot happen.
+- **A precaution for macOS 27.** On a Mac set to German, macOS 27.0 can close a program the moment it shows a system message window (an Apple bug). ChromIQ was not affected in testing, and now sets its number format so that it cannot be.
 
 ## v4.3.2
 
