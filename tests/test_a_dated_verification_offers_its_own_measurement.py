@@ -191,3 +191,16 @@ def test_no_staging_for_new_verification_or_without_resume(qapp, tmp_path,
     assert tab._stage_verification_for_resume() is None
     tab.hide()
     assert not run.verify_chart_ti2.with_suffix(".ti3").exists()
+
+
+def test_the_overlay_handler_never_asks_qt_for_its_sender():
+    """The 4.3.3-beta.3 gate crashed a worker (SIGSEGV in sip convertSubClass
+    from QObject.sender) when `_on_overlay_toggled` was called directly and
+    asked `self.sender()`, which then named an object already deleted. The
+    box that changed is now passed by the two named slots."""
+    import inspect
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._on_overlay_toggled)
+    assert "sender()" not in src.split('"""', 2)[2]
+    for name in ("_on_guided_overlay_box_toggled", "_on_manual_overlay_box_toggled"):
+        assert "box=self." in inspect.getsource(getattr(TabMeasure, name))

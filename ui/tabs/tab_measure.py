@@ -2832,7 +2832,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._overlay_cb.setChecked(
             bool(self._settings.get("measure_show_overlay", False)))
         self._overlay_cb.setVisible(False)
-        self._overlay_cb.toggled.connect(self._on_overlay_toggled)
+        self._overlay_cb.toggled.connect(self._on_guided_overlay_box_toggled)
         overlay_row.addWidget(self._overlay_cb)
         overlay_row.addStretch()
         self._overlay_tip = TooltipButton(
@@ -3389,7 +3389,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._m_overlay_cb.setChecked(
             bool(self._settings.get("measure_show_overlay", False)))
         self._m_overlay_cb.setVisible(False)
-        self._m_overlay_cb.toggled.connect(self._on_overlay_toggled)
+        self._m_overlay_cb.toggled.connect(self._on_manual_overlay_box_toggled)
         m_overlay_row.addWidget(self._m_overlay_cb)
         m_overlay_row.addStretch()
         self._m_overlay_tip = TooltipButton(
@@ -15167,7 +15167,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.warning("Could not restore the overlay after the measurement",
                         exc_info=True)
 
-    def _on_overlay_toggled(self, checked: bool) -> None:
+    # THE BOX THAT CHANGED IS NAMED, NOT ASKED FOR WITH `self.sender()`.
+    # `_on_overlay_toggled` is also called directly (the settle after a
+    # selection change runs from a timer, the overlay window applies its
+    # choice), and `sender()` there is whatever emitted the signal now on the
+    # stack, which can already be deleted: the 4.3.3-beta.3 gate crashed a
+    # worker with SIGSEGV inside `sip convertSubClass` from `QObject.sender`
+    # at exactly that line. Bound methods, never lambdas (CLAUDE.md).
+    def _on_guided_overlay_box_toggled(self, checked: bool) -> None:
+        self._on_overlay_toggled(checked, box=self._overlay_cb)
+
+    def _on_manual_overlay_box_toggled(self, checked: bool) -> None:
+        self._on_overlay_toggled(checked, box=self._m_overlay_cb)
+
+    def _on_overlay_toggled(self, checked: bool, box=None) -> None:
         """Show/hide the from-.ti3 overlay (#134). If the chart's measurement
         can't be placed (foreign / geometry-less .ti3), inform the user and
         untick — the numbers are still available in Tools ▸ Inspect a
@@ -15189,10 +15202,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         #
         # Both are answered once the selection has settled, about the chart
         # and measurement it ends on: see `_settle_after_selection_change`.
-        sender = self.sender()
         if getattr(self, "_loading_measure_settings", False) or (
-                sender is not None and hasattr(sender, "isHidden")
-                and sender.isHidden()):
+                box is not None and box.isHidden()):
             self._overlay_asked_by_settings = True
             self._queue_selection_settle()
             return
