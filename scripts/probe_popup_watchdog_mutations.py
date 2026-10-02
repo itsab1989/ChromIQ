@@ -9,7 +9,11 @@ src = (REPO / "scripts/onscreen_capture.py").read_text(encoding="utf-8")
 test = (REPO / "tests/test_a_driver_is_not_stuck_behind_a_popup.py").read_text(encoding="utf-8")
 MUTS = {
  "dismiss does nothing": ('    def _dismiss(w) -> str:\n', '    def _dismiss(w) -> str:\n        return "mutated: nothing"\n'),
- "every modal counts as a question": ('        return isinstance(w, (QMessageBox, QInputDialog, QFileDialog))', '        return True'),
+ "every modal counts as a question": ('        from PyQt6.QtWidgets import (QDialog, QFileDialog, QInputDialog,', '        return True\n        from PyQt6.QtWidgets import (QDialog, QFileDialog, QInputDialog,'),
+ "plain dialogs are never questions": ('        buttons = [b for b in w.findChildren(QPushButton) if b.isVisible()]\n        return 0 < len(buttons) <= 4', '        return False'),
+ "working widgets ignored": ('            if names & set(cls._WORKING_WIDGETS):\n                return False', '            pass'),
+ "dismissal clicked inside the tick": ('            QTimer.singleShot(0, w.escapeButton().click)', '            w.escapeButton().click()'),
+ "dismissed again every tick": ('        if key in self._dismissed:\n            return\n', ''),
  "scripted rule never pressed": ('            button = self._find_button(w, rule[1])', '            button = None'),
  "scripted click inside the tick": ('                QTimer.singleShot(0, button.click)', '                button.click()'),
  "late buttons not waited for": ('            if age < self.grace_s:\n                return            # a button may still be added; look again\n', ''),

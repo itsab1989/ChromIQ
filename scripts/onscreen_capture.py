@@ -676,6 +676,11 @@ class PopupWatchdog:
         self._event_for: dict[int, dict] = {}
         self._rule_for: dict[int, tuple] = {}
         self._answered: set[int] = set()
+        #: Pop-ups a dismissal is already scheduled for. Once is enough: while
+        #: the dismissal's own handler runs (it may ask a second question) the
+        #: first pop-up is still visible, and dismissing it again every tick
+        #: pressed Cancel over and over, each press asking again.
+        self._dismissed: set[int] = set()
         self._timer = None
 
     # -- the driver's side ----------------------------------------------------
@@ -742,11 +747,35 @@ class PopupWatchdog:
                 "text": text[:1200],
                 "buttons": [b.text().replace("&", "") for b in cls._buttons(w)]}
 
-    @staticmethod
-    def is_question(w) -> bool:
-        """A pop-up that asks something, as opposed to a working window."""
-        from PyQt6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
-        return isinstance(w, (QMessageBox, QInputDialog, QFileDialog))
+    #: Widgets that make a dialog a WORKING window rather than a question.
+    _WORKING_WIDGETS = ("QTabWidget", "QAbstractItemView", "QComboBox",
+                        "QLineEdit", "QAbstractSpinBox", "QTextEdit",
+                        "QPlainTextEdit", "QWebEngineView", "QGraphicsView")
+
+    @classmethod
+    def is_question(cls, w) -> bool:
+        """A pop-up that asks something, as opposed to a working window.
+
+        Message, input and file dialogs always are. A plain modal QDialog is
+        one too when it holds nothing to work with (no tabs, lists, tables,
+        combo boxes, input fields, editors or web views) and at most four
+        buttons: ChromIQ's own "Strip Read Quickly" is a QDialog, and the first
+        watchdog left it hanging (review K_review_beta1). The Measurement Report
+        window, Preferences and the patch-set editor all hold working widgets."""
+        from PyQt6.QtWidgets import (QDialog, QFileDialog, QInputDialog,
+                                     QMessageBox, QPushButton, QWidget)
+        if isinstance(w, (QMessageBox, QInputDialog, QFileDialog)):
+            return True
+        if not isinstance(w, QDialog):
+            return False
+        for child in w.findChildren(QWidget):
+            if not child.isVisible():
+                continue
+            names = {k.__name__ for k in type(child).__mro__}
+            if names & set(cls._WORKING_WIDGETS):
+                return False
+        buttons = [b for b in w.findChildren(QPushButton) if b.isVisible()]
+        return 0 < len(buttons) <= 4
 
     # -- what it does ---------------------------------------------------------
     def _find_button(self, w, label: str):
@@ -758,15 +787,20 @@ class PopupWatchdog:
 
     @staticmethod
     def _dismiss(w) -> str:
+        """Dismiss *w* from a ZERO-DELAY timer, never inside this tick: a
+        dismissal that opens another question would otherwise run that
+        question's exec() inside the watchdog's own timer slot, and nothing
+        could look at it until it closed (review K_review_beta1)."""
+        from PyQt6.QtCore import QTimer
         from PyQt6.QtWidgets import QDialog, QMessageBox
         if isinstance(w, QMessageBox) and w.escapeButton() is not None:
             label = w.escapeButton().text().replace("&", "")
-            w.escapeButton().click()
+            QTimer.singleShot(0, w.escapeButton().click)
             return f"pressed its Escape answer '{label}'"
         if isinstance(w, QDialog):
-            w.reject()
+            QTimer.singleShot(0, w.reject)
             return "rejected it (Escape)"
-        w.close()
+        QTimer.singleShot(0, w.close)
         return "closed it"
 
     def _note(self, line: str) -> None:
@@ -787,6 +821,7 @@ class PopupWatchdog:
             self._event_for.pop(gone, None)
             self._rule_for.pop(gone, None)
             self._answered.discard(gone)
+            self._dismissed.discard(gone)
         for w in live:
             try:
                 self._look_at(w, now)
@@ -830,6 +865,9 @@ class PopupWatchdog:
                 self._last_stuck_note[key] = now
                 self._note(f"STUCK on '{w.windowTitle()}' for {age:.0f} s")
             return
+        if key in self._dismissed:
+            return
+        self._dismissed.add(key)
         action = self._dismiss(w)
         event["action"] = "; ".join(a for a in (event["action"], action) if a)
         if self.policy == "fail":

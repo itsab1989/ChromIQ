@@ -277,3 +277,67 @@ def test_photographing_a_popup_never_hides_it(qapp, tmp_path, monkeypatch):
     assert not ok and "hide" in why
     assert box.isVisible()
     box.close()
+
+
+# ---- review K_review_beta1 ---------------------------------------------------
+
+def test_a_plain_dialog_that_only_asks_is_a_question(qapp, tmp_path):
+    """ChromIQ's "Strip Read Quickly" is a QDialog with text and two buttons."""
+    from PyQt6.QtWidgets import QCheckBox, QLabel, QPushButton, QVBoxLayout
+    dlg = QDialog()
+    dlg.setModal(True)
+    lay = QVBoxLayout(dlg)
+    lay.addWidget(QLabel("Strip A was accepted, but it was read quickly."))
+    lay.addWidget(QCheckBox("Do not show this message again"))
+    again = QPushButton("Re-read strip")
+    again.clicked.connect(dlg.accept)
+    lay.addWidget(QPushButton("Continue anyway"))
+    lay.addWidget(again)
+    dog = PopupWatchdog(tmp_path, grace_s=0.2, interval_ms=50, log=lambda s: None).start()
+    hung = _exec_with_safety(dlg)
+    dog.stop()
+    assert not hung
+    assert dlg.result() == QDialog.DialogCode.Rejected
+    assert dog.events[0]["kind"] == "question" and dog.events[0]["unexpected"]
+
+
+def test_a_dialog_with_working_widgets_stays_a_window(qapp, tmp_path):
+    from PyQt6.QtWidgets import QComboBox, QPushButton, QVBoxLayout
+    dlg = QDialog()
+    dlg.setModal(True)
+    lay = QVBoxLayout(dlg)
+    lay.addWidget(QComboBox())
+    lay.addWidget(QPushButton("Generate report"))
+    dog = PopupWatchdog(tmp_path, grace_s=0.1, interval_ms=50, log=lambda s: None).start()
+    closer = QTimer()
+    closer.setSingleShot(True)
+    closer.timeout.connect(dlg.accept)
+    closer.start(700)
+    dlg.exec()
+    dog.stop()
+    assert dlg.result() == QDialog.DialogCode.Accepted
+    assert dog.events[0]["kind"] == "window"
+
+
+class _DismissAsksAgain:
+    """Pressing Cancel opens 'Discard your changes?'."""
+
+    def __init__(self):
+        self.second = None
+        self.hung = False
+
+    def on_click(self, button):
+        if button.text() == "Cancel":
+            self.second, _c = _box("Discard?", "Discard your changes?")
+            self.hung = _exec_with_safety(self.second)
+
+
+def test_a_question_opened_by_a_dismissal_is_seen_too(qapp, tmp_path):
+    first, _cancel = _box("Close?", "Close the window?")
+    chain = _DismissAsksAgain()
+    first.buttonClicked.connect(chain.on_click)
+    dog = PopupWatchdog(tmp_path, grace_s=0.2, interval_ms=50, log=lambda s: None).start()
+    hung = _exec_with_safety(first)
+    dog.stop()
+    assert not hung and not chain.hung
+    assert any("Discard your changes" in e["text"] for e in dog.events)
