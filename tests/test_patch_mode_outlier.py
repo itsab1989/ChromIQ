@@ -24,7 +24,7 @@ def test_patch_mode_uses_the_limit_alone():
     """Option (a): no comparison against anything, because there is nothing to
     compare against."""
     src = inspect.getsource(TabMeasure._on_patch_measured)
-    assert "de_p >= warn_de)" in src
+    assert "de_p >= warn_de, standout=None" in src
     assert "_use_outlier_fence" not in src, \
         "patch mode must not consult the strip comparison"
     assert "_spot_des" not in src, \
