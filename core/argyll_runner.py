@@ -434,6 +434,7 @@ class ArgyllRunner(QObject):
         self._run_on_line   = on_line
         self._run_tool      = tool      # for the failed-to-start message
 
+        self._partial_json = b""
         self._process.readyReadStandardOutput.connect(self._on_ready_read)
         self._process.finished.connect(self._on_finished)
         # A PROCESS THAT NEVER STARTS MUST STILL REPORT BACK.
@@ -1006,10 +1007,36 @@ class ArgyllRunner(QObject):
     # Internal slots
     # ------------------------------------------------------------------
 
+    #: A held-back fragment longer than this is emitted anyway: a tool that
+    #: prints an endless line must not make the log go silent.
+    _PARTIAL_JSON_LIMIT = 1 << 20
+
+    def _take_complete(self, raw: bytes) -> bytes:
+        """*raw* plus any fragment held back from the previous read, minus a
+        new trailing fragment that is the START OF AN ENGINE EVENT.
+
+        One read ends wherever the pipe buffer did, so a long JSON event line
+        from the chart-reading engine (a chart-mode ``chart_read``) arrived in
+        two pieces, each emitted as a "line" and neither parsing: the event
+        was lost (review P_review2_beta1, P-202-2). Only a fragment that
+        begins like an event (``{``, after an optional BEL) waits for its
+        newline. Anything else is emitted at once as before, because Argyll's
+        own prompts ("hit any key to continue") end WITHOUT a newline and the
+        user has to see them now."""
+        buf = getattr(self, "_partial_json", b"") + raw
+        self._partial_json = b""
+        cut = max(buf.rfind(b"\n"), buf.rfind(b"\r")) + 1
+        tail = buf[cut:]
+        if (tail.lstrip(b"\x07 \t").startswith(b"{")
+                and len(tail) < self._PARTIAL_JSON_LIMIT):
+            self._partial_json = tail
+            return buf[:cut]
+        return buf
+
     def _on_ready_read(self) -> None:
         if not self._process:
             return
-        raw = self._process.readAllStandardOutput().data()
+        raw = self._take_complete(self._process.readAllStandardOutput().data())
         text = decode_output(raw, what="argyll")
         for line in text.splitlines():
             log.debug("[argyll] %s", line)
@@ -1057,7 +1084,9 @@ class ArgyllRunner(QObject):
         # finished(), so the last chunk of output (e.g. profcheck per-patch lines)
         # can be silently lost without this flush.
         if self._process:
-            remaining = self._process.readAllStandardOutput().data()
+            remaining = (getattr(self, "_partial_json", b"")
+                         + self._process.readAllStandardOutput().data())
+            self._partial_json = b""
             if remaining:
                 text = decode_output(remaining, what="argyll")
                 for line in text.splitlines():
