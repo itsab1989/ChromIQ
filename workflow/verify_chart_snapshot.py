@@ -124,6 +124,29 @@ def chart_content(path: Path) -> bytes:
     return data
 
 
+def _cht_geometry(data: bytes) -> bytes:
+    """What of a ``.cht`` says where the patches are, with the incidental
+    layout of the text taken out: the ``EXPECTED`` block
+    (:func:`_cht_without_expected`), line endings, trailing blanks and empty
+    lines. Two ``.cht`` files with equal geometry describe the same sheet."""
+    kept = _cht_without_expected(data)
+    return b"\n".join(ln.rstrip() for ln in kept.split(b"\n") if ln.strip())
+
+
+def _not_kept_in_a_snapshot(slot, path: Path) -> bool:
+    """A ``.cht`` in a run's or the calibration's ``chart/`` folder.
+
+    Knut, #182 5958921500: the run's ``.cht`` is made from a completed
+    measurement and is never backed up to ``chart/``. Snapshots taken before
+    that ruling can still hold one; the file is left on disk (it is the
+    user's), but it is no longer part of the stored chart, so it neither makes
+    the stored chart "differ" nor comes back with a restore. A verification
+    slot is unchanged: every file at its root is chart.
+    """
+    return bool(getattr(slot, "holds_measurement_cht", False)) and \
+        path.suffix.lower() == ".cht"
+
+
 def live_chart_files(run: Run) -> list[Path]:
     """Every file at the root of ``verifications/`` — the live verification
     chart. Folders (the dated runs, ``old/``, ``reports/``) are never included."""
@@ -297,7 +320,8 @@ def snapshot_matches_live(slot) -> bool:
         return False
     # Through the same filter as everything else, so a stray .DS_Store cannot
     # make two identical charts look different and re-enable the button.
-    stored = slot_snapshot_files(slot)
+    stored = [f for f in slot_snapshot_files(slot)
+              if not _not_kept_in_a_snapshot(slot, f)]
     # meta.json and its kind travel WITH the chart but do not define it —
     # `slot_live_differs` has always skipped them for exactly that reason, and
     # this check must agree or the two disagree about whether a restore would
@@ -403,7 +427,8 @@ def slot_snapshot_files(slot) -> "list[Path]":
 
 
 def slot_has_snapshot(slot) -> bool:
-    return bool(slot_snapshot_files(slot))
+    return any(not _not_kept_in_a_snapshot(slot, p)
+               for p in slot_snapshot_files(slot))
 
 
 def slot_live_differs(slot) -> bool:
@@ -420,12 +445,70 @@ def slot_live_differs(slot) -> bool:
         # restored but do not decide whether the chart itself changed. Otherwise
         # editing the printtarg knobs would raise "this is a different chart"
         # (Knut, #130 2026-07-27).
-        if s.name in CHART_SIDE_FILES:
+        if s.name in CHART_SIDE_FILES or _not_kept_in_a_snapshot(slot, s):
             continue
         counterpart = live.get(s.name)
         if counterpart is None or _digest(counterpart) != _digest(s):
             return True
     return False
+
+
+@dataclass
+class ChtPlan:
+    """What Restore Used Chart will do with the run's ``.cht`` page(s)."""
+    keep: "list[Path]" = field(default_factory=list)
+    remove: "list[Path]" = field(default_factory=list)
+
+
+def restore_cht_plan(slot) -> ChtPlan:
+    """Which of the run's scanner ``.cht`` files a restore keeps, and which it
+    archives into ``old/<date>/`` and removes (Knut, #182 5958921500).
+
+    *"if the cht file exists in the run's folder (not applicable for a
+    verification run), and the content of the cht file is in agreement with
+    the chart in the chart/ folder, then the cht file should be kept in the
+    run's folder. If the cht file differs from the chart that is being
+    restored … then the cht file should be backed up to the old/ folder … and
+    removed from the run."*
+
+    AGREEMENT, precisely: a ``.cht`` is kept when it is, line for line, a
+    page the scanner target would write for the RESTORED chart, everything
+    but its ``EXPECTED`` rows compared. The page is rebuilt from the stored
+    copy's ``.channels.json`` by the code that writes the file
+    (:func:`workflow.scanin_target.scanner_cht_pages`), under the name it
+    would get (``<stem>.cht``, or ``<stem>_NN.cht`` for page NN). The
+    ``EXPECTED`` rows are left out because they are the measurement's XYZ, not
+    the chart's, and they change with every re-read (#182 5956210745). So:
+
+    * same patch boxes, fiducials, edge lists, page count and page → kept;
+    * any of those different, a page the restored chart does not have, or a
+      stored chart with no scanner geometry (no ``.channels.json`` or no
+      layout in it, so it could never have produced this file) → removed.
+
+    Empty for a verification slot, and when the run has no such file.
+    """
+    plan = ChtPlan()
+    try:
+        files = slot.scanner_cht_files()
+    except (AttributeError, OSError):
+        return plan
+    if not files:
+        return plan
+    recipe = [s for s in slot_snapshot_files(slot)
+              if s.name.endswith(".channels.json")]
+    pages = None
+    if recipe:
+        from workflow.scanin_target import scanner_cht_pages
+        pages = scanner_cht_pages(recipe[0], slot.stem)
+    for f in files:
+        want = (pages or {}).get(f.name)
+        try:
+            same = want is not None and _cht_geometry(f.read_bytes()) == \
+                _cht_geometry(want.encode("utf-8"))
+        except OSError:
+            same = False
+        (plan.keep if same else plan.remove).append(f)
+    return plan
 
 
 def restore_would_lose_pages(slot) -> "list[Path]":
@@ -508,23 +591,19 @@ def restore_slot(slot) -> "RestoreResult":
     # stash is discarded on success, and settings must never be destroyed.
     # One is replaced only when the snapshot carries a counterpart, and the
     # replaced file is archived into old/ first.
-    # A LIVE `.cht` THAT IS THE SAME CHART STAYS (#182 5956210745). Its
-    # EXPECTED block is the run's own measurement (see `chart_content`), so
-    # putting the stored copy back would only swap in the readings of an
-    # earlier measurement under a `.ti3` that has moved on. The patch
-    # positions, which are all of it that is chart, are identical either way.
-    kept_live = set()
-    for s in snap:
-        live_twin = slot.live_dir / s.name
-        if s.suffix.lower() == ".cht" and live_twin.is_file():
-            try:
-                if chart_content(live_twin) == chart_content(s):
-                    kept_live.add(s.name)
-            except OSError:
-                pass
-    snap = [s for s in snap if s.name not in kept_live]
-    displaced = [p for p in all_live if p.name not in CHART_SIDE_FILES
-                 and p.name not in kept_live]
+    # THE RUN'S `.cht` IS NOT PART OF THE STORED CHART (Knut, #182
+    # 5958921500). A `.cht` an older snapshot still holds is not put back, and
+    # the run's own `.cht` is kept when it agrees with the chart being
+    # restored, otherwise archived into old/ with the side files and removed:
+    # see `restore_cht_plan`, which the confirmation window reads too.
+    snap = [s for s in snap if not _not_kept_in_a_snapshot(slot, s)]
+    if not snap:
+        result.error = "no snapshot"
+        return result
+    cht_plan = restore_cht_plan(slot)
+    result.cht_kept = [p.name for p in cht_plan.keep]
+    result.cht_removed = [p.name for p in cht_plan.remove]
+    displaced = [p for p in all_live if p.name not in CHART_SIDE_FILES]
     # ARCHIVE A SIDE FILE THE SNAPSHOT WILL OVERWRITE, WHATEVER THE SLOT.
     #
     # `live_files()` is suffix-filtered on a profiling run's slot and on a
@@ -544,6 +623,9 @@ def restore_slot(slot) -> "RestoreResult":
     side_replaced = [slot.live_dir / name for name in CHART_SIDE_FILES
                      if name in snap_names
                      and (slot.live_dir / name).is_file()]
+    # …and the `.cht` that does not belong to the restored chart, into the
+    # same dated folder, so one restore leaves one archive.
+    side_replaced += list(cht_plan.remove)
     side_archive = None
     stash = slot.snapshot_dir.parent / f".restore-stash-{slot.snapshot_dir.name}"
     # THE LIVE meta.json, READ BEFORE ANYTHING MOVES (B8-740): only the chart's
@@ -627,6 +709,7 @@ def restore_slot(slot) -> "RestoreResult":
         result.restored = []
         result.rolled_back = True
         result.error = str(exc)
+        result.cht_removed = []
     finally:
         # Only when nothing depends on it any more.
         if _rollback_ok:
@@ -735,6 +818,11 @@ class RestoreResult:
     # honestly be said about reproducing the chart (Knut, #130 2026-07-29).
     chart_order: str = ORDER_UNKNOWN
     chart_number: str = ""
+    # The run's scanner `.cht` page(s), by name: kept because they agree with
+    # the restored chart, or archived into old/ and removed because they do
+    # not (Knut, #182 5958921500; see `restore_cht_plan`).
+    cht_kept: "list[str]" = field(default_factory=list)
+    cht_removed: "list[str]" = field(default_factory=list)
 
     @property
     def regeneration_message(self) -> str:

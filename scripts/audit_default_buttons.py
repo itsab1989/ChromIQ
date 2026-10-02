@@ -252,7 +252,10 @@ def main() -> int:
         bar._ctl = SimpleNamespace(
             restore_needs_confirmation=lambda: True,
             target=SimpleNamespace(is_verification=lambda: False),
-            selection_has_measurement=lambda: True)
+            selection_has_measurement=lambda: True,
+            restore_cht_plan=lambda: __import__(
+                "workflow.verify_chart_snapshot",
+                fromlist=["ChtPlan"]).ChtPlan())
         try:
             take_modal("Restore Chart", bar._on_restore_clicked)
         finally:

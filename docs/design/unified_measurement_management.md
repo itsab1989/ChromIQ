@@ -415,12 +415,39 @@ You are right that this must not get a second opinion. The definition already ex
 | Part | Rule | Where |
 |---|---|---|
 | Stem | the sanitised project name; `<stem>-verify` for a verification chart | `Run.stem` / `Run.verify_stem` |
-| Profiling chart files | `.ti1` · `.ti2` · `.cht` · `.channels.json` · `.strips.json` | `PROFILING_CHART_SUFFIXES` |
+| Profiling chart files | `.ti1` · `.ti2` · `.channels.json` · `.strips.json` · `.control-strip.json` | `PROFILING_CHART_SUFFIXES` |
+| Never part of a profiling chart | the run's `<stem>.cht` / `<stem>_NN.cht`: made from the measurement by the scanner target, so never copied to `chart/` (Knut, #182 5958921500). A `.cht` an older `chart/` still holds stays on disk and is ignored | `ChartSlot.scanner_cht_files`, `_not_kept_in_a_snapshot` |
 | Page images | any `.tif` / `.tiff` | `_IMAGE_SUFFIXES` |
 | Travels with the chart | `meta.json` | `CHART_SIDE_FILES` |
 | Verification chart files | **every file** at the root of `verifications/` — folders are never included, so the dated runs, `old/` and `reports/` are safe | `suffixes=None` in `slot_for_verification` |
 | Never part of a chart | dot-files (`.DS_Store`, `._name`) | `live_files()` |
 | Can the pages be redrawn? | only if a `.channels.json` is present | `has_layout_recipe()` |
+
+#### ⏳ Awaiting confirmation — what Restore Used Chart does with the run's `.cht` (4.3.3-beta.3)
+
+**Confirmed by:** *nobody yet.*
+
+Knut ruled (#182 5958921500) that a run's `.cht` is kept on restore when it is
+"in agreement with the chart in the chart/ folder", otherwise archived to
+`old/` and removed, and that the Restore window says which. What "agreement"
+means was not defined in the ruling; this is how it is implemented, and it
+waits for his confirmation:
+
+* A run's `.cht` is kept when it is, line for line, a page the scanner target
+  would write for the RESTORED chart: the page is rebuilt from the stored
+  copy's `.channels.json` by the writer itself
+  (`workflow.scanin_target.scanner_cht_pages`), under the name it would get
+  (`<stem>.cht`, or `<stem>_NN.cht` for page NN), and everything but the
+  `EXPECTED` rows is compared (they are the measurement's XYZ, not the chart).
+* Decided per file. A page the restored chart does not have, different patch
+  boxes, or a stored chart with no scanner geometry → archived into the run's
+  `old/<date>/` (the same folder as the replaced `meta.json`) and removed.
+* Not applicable to a verification date: its chart folder is copied whole, as
+  before. The calibration follows the run rule.
+* The Restore window adds one sentence naming the file(s) and saying "kept in
+  the run" or "moved to the run's “old” folder and removed from the run". The
+  window is not in the §M catalogue, so the sentence was written into it
+  directly. It is also shown when only a `.cht` would be removed.
 
 **The two chart kinds are deliberately not defined the same way**, and it is worth knowing why before reusing this: a profiling chart shares its folder with the measurement, the profile and the run's own files, so it must be identified by suffix. A verification chart has a folder to itself, so everything in it *is* the chart.
 

@@ -32,9 +32,15 @@ from workflow.verify_chart_snapshot import (chart_content, restore_slot,
                                             slot_live_differs, snapshot_slot,
                                             snapshot_matches_live)
 
-#: Two boxes, as the scanner target writes them (top-left mm).
-_BOXES = [{"loc": "A1", "x": 26.035, "y": 38.735, "w": 7.493, "h": 8.128},
-          {"loc": "A2", "x": 26.035, "y": 47.625, "w": 7.493, "h": 8.128}]
+#: A two-patch engine layout, and the boxes the scanner target writes from it
+#: (top-left mm). Since Knut's #182 5958921500 a restore keeps the run's .cht
+#: only when it agrees with the restored chart's layout, so the layout is real.
+_LAYOUT = {"engine": "chromiq", "dpi": 254, "paper_mm": [210, 297],
+           "patches": [{"loc": "A1", "x": 260, "y": 387, "w": 75, "h": 81,
+                        "page": 0},
+                       {"loc": "A2", "x": 260, "y": 476, "w": 75, "h": 81,
+                        "page": 0}]}
+_BOXES = cht_writer.boxes_from_patch_rects(_LAYOUT["patches"], 297, 254)
 #: EXPECTED rows from Knut's own files: the stored copy, then the live file
 #: after he re-read the patch (E23 in his run1, renamed to a box we have here).
 _STORED_XYZ = [("A1", 51.192480, 52.309440, 41.126560),
@@ -58,7 +64,8 @@ def _measured_run(tmp_path, runs=1):
     run = proj.all_runs()[-1]
     run.chart_ti1.write_text("TI1 patches", encoding="utf-8")
     run.chart_ti2.write_text("TI2 layout", encoding="utf-8")
-    run.chart_channels_json.write_text('{"layout": {}}', encoding="utf-8")
+    run.chart_channels_json.write_text(json.dumps({"layout": _LAYOUT}),
+                                       encoding="utf-8")
     _write_cht(run.dir / f"{run.stem}.cht", _STORED_XYZ)
     run.measurement_ti3.write_text("MEASUREMENT", encoding="utf-8")
     _edit_meta(run, run_id=run.id, description="", profile_description="P-m",
@@ -86,8 +93,8 @@ def _quality_check_rewrites_the_scanner_cht(run):
 def test_a_remeasured_scanner_cht_is_still_the_same_chart(tmp_path):
     _proj, run = _measured_run(tmp_path)
     _quality_check_rewrites_the_scanner_cht(run)
-    assert (run.dir / f"{run.stem}.cht").read_bytes() != \
-        (run.dir / "chart" / f"{run.stem}.cht").read_bytes()
+    # Knut, #182 5958921500: the .cht is never stored in chart/ at all now.
+    assert not (run.dir / "chart" / f"{run.stem}.cht").exists()
 
     slot = slot_for_run(run)
     # the warning before a measurement…
@@ -96,17 +103,20 @@ def test_a_remeasured_scanner_cht_is_still_the_same_chart(tmp_path):
     assert snapshot_matches_live(slot) is True
 
 
-def test_moved_patches_in_the_cht_are_still_a_different_chart(tmp_path):
-    """The EXPECTED block is all that is left out: a patch that moved is a
-    different chart, whatever its values."""
+def test_a_cht_is_no_longer_what_decides_a_runs_chart(tmp_path):
+    """Superseded by Knut, #182 5958921500: a run's .cht is made from the
+    measurement and is not part of the stored chart. Neither a live .cht with
+    moved patches nor one left in an older snapshot makes the charts differ;
+    whether the live one stays is decided at restore (`restore_cht_plan`)."""
     _proj, run = _measured_run(tmp_path)
     moved = [dict(b) for b in _BOXES]
     moved[1]["y"] += 1.0
     _write_cht(run.dir / f"{run.stem}.cht", _STORED_XYZ, boxes=moved)
+    _write_cht(run.dir / "chart" / f"{run.stem}.cht", _REREAD_XYZ)
 
     slot = slot_for_run(run)
-    assert slot_live_differs(slot) is True
-    assert snapshot_matches_live(slot) is False
+    assert slot_live_differs(slot) is False
+    assert snapshot_matches_live(slot) is True
 
 
 def test_chart_content_drops_only_the_expected_block(tmp_path):
