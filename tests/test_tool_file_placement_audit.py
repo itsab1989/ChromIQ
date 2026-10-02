@@ -42,7 +42,7 @@ KNOWN_SILENT = {"spot_read", "translate", "verify_profile"}
 #: run-type aware. This is a WATCHLIST, not an approval — see the issue.
 KNOWN_SHORTLIST = {
     "average", "devicelink_apply", "i1p_to_ti1", "i1p_to_ti3",
-    "merge", "profile_info", "softproof",
+    "merge", "softproof",
 }
 
 

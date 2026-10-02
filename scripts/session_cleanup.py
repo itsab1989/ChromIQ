@@ -96,6 +96,16 @@ def merged_worktrees() -> list[tuple[Path, str]]:
         branch = fields.get("branch", "").removeprefix("refs/heads/")
         if ".claude/worktrees" not in str(path) or not branch:
             continue
+        # NEVER THE WORKTREE THIS RUNS IN. Run from inside a worktree, HEAD is
+        # that worktree's own branch, so the branch is always "contained in
+        # the current branch" and the worktree planned its own removal (the
+        # guard refused it, and the suite's guard test went red in every
+        # clean agent worktree).
+        try:
+            if path.resolve() == REPO.resolve():
+                continue
+        except OSError:
+            continue
         status = subprocess.run(["git", "-C", str(path), "status", "--porcelain"],
                                 capture_output=True, text=True, encoding="utf-8",
                                 errors="replace", timeout=60)

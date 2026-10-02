@@ -243,7 +243,10 @@ def test_tab_measure_finds_refine_strips_in_reports_and_legacy(tmp_path) -> None
 
 def test_tab_check_refine_routes_reports() -> None:
     src = (REPO / "ui" / "tabs" / "tab_check_refine.py").read_text(encoding="utf-8")
-    assert "reports_subdir(self._ti3_path.parent)" in src
+    # The OWNER's reports folder since #182 B2 (Knut, 5943085974): a read in
+    # reads/ files its report with the run, not in reads/reports/. Proved by
+    # tests/test_182_b1_b2_inspection_names_and_owners.py.
+    assert "reports_dir_for(self._ti3_path)" in src
 
 
 def test_tab_chart_routes_exports() -> None:
