@@ -2370,8 +2370,8 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     # over the full page, so a small i1Pro chart can answer every metric in
     # "Which presets can be used for verification?". Its ruler marks every
     # second patch where the rest of the family marks every fifth.
-    _i1_75_preset("i1_w75_a4_324p_1page_portrait_w7_5mm_uniform_6x6x6_full_page",
-                  "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Full Page",
+    _i1_75_preset("i1_w75_a4_324p_1page_portrait_w15_0mm_uniform_6x6x6_full_page",
+                  "A4-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page",
                   "A4", 12, 27, 324, 1, 1, 1, helper_marker_per_patch=2),
     _i1_75_preset("i1_w75_a4_648p_1page_portrait_w7_5mm",
                   "A4-648p-1page-Portrait-w7.5mm-Uniform 6x6x6-Edge Emphasis",

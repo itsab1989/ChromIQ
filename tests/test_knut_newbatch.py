@@ -346,7 +346,11 @@ def test_g5_the_nineteen_new_i1pro_charts_are_registered():
     assert sum(1 for p in new if p.layout_recipe["paper"] == "A4") == 9
     assert sum(1 for p in new if p.layout_recipe["paper"] == "Letter") == 8
     assert sum(1 for p in new if p.layout_recipe["paper"] == "420x297") == 3
-    assert all("w7.5mm" in p.name for p in new)
+    # all but the Full Page chart, whose 12 strips print 15.0 mm patches and
+    # whose name says so (#182 5943665138)
+    assert all("w7.5mm" in p.name for p in new if "Full Page" not in p.name)
+    assert [p.name for p in new if "Full Page" in p.name] == [
+        "A4-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page"]
     # None of the 8 mm charts moved.
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w8_")) == 19
 

@@ -25,7 +25,7 @@
   "steps_in_pass"
  ],
  "presets": {
-  "__chromiq_knut_i1_w75_a4_324p_1page_portrait_w7_5mm_uniform_6x6x6_full_page__": {
+  "__chromiq_knut_i1_w75_a4_324p_1page_portrait_w15_0mm_uniform_6x6x6_full_page__": {
    "plen": 8.11,
    "pwid": 14.99,
    "pspa": 0.75,

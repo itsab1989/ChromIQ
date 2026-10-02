@@ -6,7 +6,7 @@
 
 ### New
 
-- **A new i1Pro preset: "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Full Page"**, made by Knut: the same 324 patches spread over the whole A4 page, so a small i1Pro chart can answer every row of "Which presets can be used for verification?". ChromIQ now has 189 built-in chart presets.
+- **A new i1Pro preset: "A4-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page"**, made by Knut: the same 324 patches spread over the whole A4 page, so a small i1Pro chart can answer every row of "Which presets can be used for verification?". ChromIQ now has 189 built-in chart presets.
 
 ### Changed
 
