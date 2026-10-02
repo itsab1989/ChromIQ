@@ -1121,9 +1121,7 @@
  "ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.\n\nThe grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.": "ChromIQ schrijft er na elke lezing zo een: je scan grijs gemaakt, met de kleur alleen teruggezet waar ArgyllCMS heeft gemeten, en de meetveldnamen erbovenop getekend. Het is een plaatje van een lezing, niet iets wat opnieuw gelezen kan worden.\n\nHet raster kan er niet op uitgelijnd worden, en de uitlijningscontrole meldt een verschuiving die er niet is. Laad in plaats daarvan de originele scan van je target: diagnosebeelden staan in de map “cache” ernaast en kunnen veilig weg.",
  "ChromIQ {latest} is available — you're running {current}.\n\nDownload the new version and install it over your current one; your settings and projects are kept.": "ChromIQ {latest} is beschikbaar — je gebruikt {current}.\n\nDownload de nieuwe versie en installeer die over de huidige; je instellingen en projecten blijven behouden.",
  "ChromIQ {version} — {title}": "ChromIQ {version} — {title}",
- "ChromIQ — Measurement report": "ChromIQ — Metingrapport",
  "ChromIQ — Printer Profiling": "ChromIQ — printerprofilering",
- "ChromIQ — Profile report": "ChromIQ — Profielrapport",
  "ChromIQ's licence": "Licentie van ChromIQ",
  "ChromIQ's manifest: current run + run history. Please don't edit.": "Het manifest van ChromIQ: huidige meting + metinggeschiedenis. Niet bewerken a.u.b.",
  "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.": "De naam van ChromIQ in het midden. LINKS twee knoppen die op de hele app werken: “Project openen” en “Kaartbestand openen (.ti2)” — open daar een kaart en Kaart maken, Kaart afdrukken en Meten tonen hem alle drie. RECHTS “Hulpmiddelen”, “Voorkeuren” en “?”, dat dit venster opent. De twee links zijn niet beschikbaar terwijl er een meting loopt.",
@@ -3660,7 +3658,6 @@
  "Save now?": "Nu opslaan?",
  "Save output ICC profile": "Uitvoer-ICC-profiel opslaan",
  "Save preset": "Preset opslaan",
- "Save profile report": "Profielrapport opslaan",
  "Save proof as": "Proef opslaan als",
  "Save proof as…": "Proef opslaan als…",
  "Save report as PDF": "Rapport opslaan als PDF",
@@ -6410,5 +6407,9 @@
  "Calibration file found": "Kalibratiebestand gevonden",
  "Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.": "Kalibratiebestand gevonden: {name}. Het is ingevuld bij ‘Printerkalibratie’ in het gedeelte ChromIQ-indeling hieronder, met de modus nog op ‘Geen’: kies daar de modus die je wilt. ‘Toepassen & insluiten (-K)’ drukt elk meetveld opnieuw af via de kalibratie; ‘Alleen insluiten (-I)’ legt haar alleen vast in het kaartbestand.",
  "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge.": "De gebruikte testkaart leverde geen van de waarden waarop deze limietset een limiet legt, dus er valt niets te beoordelen.",
- "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Geen van de waarden waar deze limietset een limiet op legt is op dit vel beoordeeld, dus er valt niets te oordelen."
+ "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Geen van de waarden waar deze limietset een limiet op legt is op dit vel beoordeeld, dus er valt niets te oordelen.",
+ "Measurement inspection": "Meetinginspectie",
+ "Profile inspection": "Profielinspectie",
+ "Save measurement inspection": "Meetinginspectie opslaan",
+ "Save profile inspection": "Profielinspectie opslaan"
 }

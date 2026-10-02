@@ -2091,8 +2091,12 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                 # measurement (the 3D-map run verifies a staged temp copy),
                 # like the quality check does (Knut, beta.5). Best-effort.
                 try:
-                    from core.file_manager import ensure_subdir, reports_subdir
+                    # The OWNER's reports folder (Knut, #182 B2): a
+                    # measurement in reads/, cache/ or old/<stamp>/ files
+                    # its report with the run, not in reads/reports/.
+                    from core.file_manager import ensure_subdir
                     from workflow.profcheck_runner import write_named_report
+                    from workflow.run_compliance import reports_dir_for
                     summary = "\n".join([
                         tr("Verification against reference values"),
                         datetime.now().isoformat(timespec="seconds"),
@@ -2104,7 +2108,7 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                         interpret(result),
                     ])
                     rp = write_named_report(
-                        ensure_subdir(reports_subdir(self._measured.parent)),
+                        ensure_subdir(reports_dir_for(self._measured)),
                         "Verify_Reference", self._measured.stem,
                         summary, result.raw_log,
                         log_title="Full colverify output")
@@ -2350,8 +2354,12 @@ class VerifyProfileDialog(_ToolDialogBase):
                 # Leave a readable report in reports/ next to the measurement,
                 # like the quality check does (Knut, beta.5). Best-effort.
                 try:
-                    from core.file_manager import ensure_subdir, reports_subdir
+                    # The OWNER's reports folder (Knut, #182 B2): a
+                    # measurement in reads/, cache/ or old/<stamp>/ files
+                    # its report with the run, not in reads/reports/.
+                    from core.file_manager import ensure_subdir
                     from workflow.profcheck_runner import write_named_report
+                    from workflow.run_compliance import reports_dir_for
                     summary = "\n".join([
                         tr("Profile verification (independent check)"),
                         datetime.now().isoformat(timespec="seconds"),
@@ -2367,7 +2375,7 @@ class VerifyProfileDialog(_ToolDialogBase):
                         quality_explanation(result.avg_de, result.peak_de),
                     ])
                     rp = write_named_report(
-                        ensure_subdir(reports_subdir(self._measured.parent)),
+                        ensure_subdir(reports_dir_for(self._measured)),
                         "Verify_Profile", self._measured.stem,
                         summary, result.raw_log,
                         log_title="Full profcheck output")

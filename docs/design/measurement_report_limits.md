@@ -9941,3 +9941,74 @@ the confirmed rules each item names; what was built waits for his word.
   `.../L_impl_knut_rulings/`.
 
 **Status:** ⏳ awaiting confirmation. **Confirmed by:** *nobody yet.*
+
+## 56. B1/B2: the Inspect tools' file names, and the reports folder for Inspect a profile and Check & Refine (#182, 2026-10-02, 4.3.3)
+
+### ✅ Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-10-02 (#182 5943085974), answering the questions
+§55 (b) left open, for exactly the rules quoted here.
+
+**56.1 The rulings, verbatim.** B1: *"Yes, the file name should be as you
+suggest, with the same naming structure as the measurement report file name
+with time-stamp at the end (but not with the special configurable title that
+the measurement report has). There shall not be any PDF support."* B2: *"Yes,
+'Inspect a profile' should also have a distinguishing file name, as 'Inspect
+a measurement' will have, in the same style with time stamp and unique for the
+'Inspect a profile' tool. It shall also use the reports folder, with the same
+logic relative to the location of the file that were opened for inspection.
+'Check & Refine' shall also use the reports folder, unless the checked file is
+outside the project (I think that also applies to the other tools mentioned
+here)."* The suggestion B1 answers was a name that cannot be taken for the
+Measurement Report, e.g. "Measurement inspection".
+
+* An inspection saved from Inspect a measurement is named
+  `Measurement inspection - <file name> - <YYYY-MM-DD_HH-MM-SS>.txt`, and one
+  from Inspect a profile `Profile inspection - <file name> - <YYYY-MM-DD_HH-MM-SS>.txt`:
+  the Measurement Report PDF's structure (`<title> - <date_time>`), without
+  its configurable title. No PDF from either tool.
+* Inspect a profile saves into the reports folder of what owns the opened
+  `.icc`, by the same logic as Inspect a measurement (§55 (b)).
+* Check & Refine saves into the reports folder, unless the checked file is
+  outside the project.
+
+### ⏳ Awaiting confirmation: what was built from it
+
+**Confirmed by:** *nobody yet.*
+
+**56.2 Built.** One naming code for all three (`workflow/measurement_report.
+report_name_stamp`, `report_file_name`, `inspection_file_name`; the report
+window's `_report_filename` now builds its PDF name through the same two).
+The kind word is in the UI's language, as the report's default title is
+("Messungsuntersuchung", "Profiluntersuchung"); the file name part is the
+inspected file's own name (stem). The saved text's first line is the same
+kind word (it said "ChromIQ — Measurement report" / "ChromIQ — Profile
+report"); the save dialogs are titled "Save measurement inspection" / "Save
+profile inspection". Both Inspect tools save through one door
+(`ui/inspection_save.save_inspection`): the owner's folder from
+`run_compliance.reports_dir_for` (run, dated verification, calibration, the
+project's for a file in a project but no run), made only for the chooser and
+removed again unless saved into, a same-named file archived into
+`reports/old/<stamp>/` first and nothing written if it cannot be. Check &
+Refine's Quality_Check / Refine_Strips files, and the two Verify tools'
+Verify_Profile / Verify_Reference reports, go to the same owner folder, so a
+read in `reads/`, `cache/` or `old/<stamp>/` no longer makes a `reads/reports/`.
+A failed save shows "Could not save the report: …" and keeps the inspection on
+screen (it emptied it and said "Could not read this measurement", R182-1).
+
+**56.3 Our reading, for Knut to confirm.**
+* "Outside the project": Check & Refine's "check it where it is" (Basti,
+  2026-09-01) writes beside the file, as before. For a file in no project that
+  is not checked in place, and for the Inspect and Verify tools, the folder is
+  still `<its folder>/reports`, as §55 (b) built it; if Knut's parenthesis
+  means those should also write beside the file, that is a one-line change in
+  `reports_dir_for`'s last line.
+* A profile in the system's colour-profile folders (`~/Library/ColorSync/
+  Profiles` and the others Inspect a profile browses first) gets no `reports/`
+  made there; the chooser opens in the ChromIQ folder.
+
+Tests: `tests/test_182_b1_b2_inspection_names_and_owners.py`,
+`tests/test_182_b_inspect_saves_into_the_owners_reports.py`, each red under
+its mutation. Proof: `~/Desktop/ChromIQ-work/2026-10-01_session/N_impl_inspect/`.
+
+**Status:** the rulings are Knut's (Confirmed); what was built NOT confirmed.

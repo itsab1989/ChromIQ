@@ -1121,9 +1121,7 @@
  "ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.\n\nThe grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.": "ChromIQ は読み取りのたびにこれを1つ書き出します: スキャンがグレーになり、ArgyllCMS がサンプリングした場所にだけ色が塗り戻され、その上にパッチ名が描かれたものです。これは読み取りの様子を写した絵であって、もう一度読み取れるものではありません。\n\nこれにグリッドを合わせることはできず、位置合わせチェックは実際には存在しないずれを報告します。代わりにターゲットの元のスキャンを読み込んでください — 診断画像はその隣の「cache」フォルダにあり、削除しても安全です。",
  "ChromIQ {latest} is available — you're running {current}.\n\nDownload the new version and install it over your current one; your settings and projects are kept.": "ChromIQ {latest} が利用可能です — 現在は {current} です。\n\n新しいバージョンをダウンロードして現在のものに上書きインストールしてください。設定とプロジェクトは保持されます。",
  "ChromIQ {version} — {title}": "ChromIQ {version} — {title}",
- "ChromIQ — Measurement report": "ChromIQ — 測定レポート",
  "ChromIQ — Printer Profiling": "ChromIQ — プリンタープロファイル作成",
- "ChromIQ — Profile report": "ChromIQ — プロファイルレポート",
  "ChromIQ's licence": "ChromIQ のライセンス",
  "ChromIQ's manifest: current run + run history. Please don't edit.": "ChromIQ のマニフェスト: 現在の測定と測定履歴。編集しないでください。",
  "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.": "中央には ChromIQ の名前。「左」にはアプリ全体に効く2つのボタン、「プロジェクトを開く」と「チャートファイル（.ti2）を開く」があります — ここでチャートを開くと、「チャート作成」「チャート印刷」「測定」のすべてにそのチャートが表示されます。「右」には「ツール」「環境設定」と、このウィンドウを開く「?」があります。左の2つは測定中は使えません。",
@@ -3660,7 +3658,6 @@
  "Save now?": "今すぐ保存しますか？",
  "Save output ICC profile": "出力ICCプロファイルを保存",
  "Save preset": "プリセットを保存",
- "Save profile report": "プロファイルレポートを保存",
  "Save proof as": "プルーフを保存",
  "Save proof as…": "プルーフを保存…",
  "Save report as PDF": "レポートを PDF として保存",
@@ -6410,5 +6407,9 @@
  "Calibration file found": "キャリブレーションファイルが見つかりました",
  "Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.": "キャリブレーションファイルが見つかりました: {name}。下の ChromIQレイアウト セクションの「プリンターキャリブレーション」に入力され、モードはまだ「なし」のままです。そこで使いたいモードを選んでください。「適用して埋め込み (-K)」はすべてのパッチをキャリブレーションを通して印刷し直し、「埋め込みのみ (-I)」はチャートファイルに記録するだけです。",
  "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge.": "使ったテストチャートは、この許容値セットが許容値を設けている値をどれも供給しなかったので、判定するものがありません。",
- "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "この許容値セットが上限を設けている値は、このシートではいずれも判定されていないため、判断するものがありません。"
+ "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "この許容値セットが上限を設けている値は、このシートではいずれも判定されていないため、判断するものがありません。",
+ "Measurement inspection": "測定の調査",
+ "Profile inspection": "プロファイルの調査",
+ "Save measurement inspection": "測定の調査を保存",
+ "Save profile inspection": "プロファイルの調査を保存"
 }

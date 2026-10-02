@@ -1121,9 +1121,7 @@
  "ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.\n\nThe grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.": "每次读取之后 ChromIQ 都会写出一张这样的图：你的扫描件被转成灰色，只在 ArgyllCMS 取样的地方把颜色画回去，上面还写着色块名。它是一次读取的写照，不是可以再读一次的东西。\n\n网格没法对到它上面，对齐检查也会报出一个并不存在的错位。请改为载入你标板的原始扫描件——诊断图像放在它旁边的「cache」文件夹里，删掉也没关系。",
  "ChromIQ {latest} is available — you're running {current}.\n\nDownload the new version and install it over your current one; your settings and projects are kept.": "ChromIQ {latest} 已可用 — 你当前使用的是 {current}。\n\n下载新版本并覆盖安装到当前版本上；你的设置和项目都会保留。",
  "ChromIQ {version} — {title}": "ChromIQ {version} —— {title}",
- "ChromIQ — Measurement report": "ChromIQ — 测量报告",
  "ChromIQ — Printer Profiling": "ChromIQ — 打印机配置文件制作",
- "ChromIQ — Profile report": "ChromIQ — 配置文件报告",
  "ChromIQ's licence": "ChromIQ 的许可证",
  "ChromIQ's manifest: current run + run history. Please don't edit.": "ChromIQ 的清单：当前测量 + 测量历史。请勿编辑。",
  "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.": "正中间是 ChromIQ 的名字。左边有两个作用于整个程序的按钮：「打开项目」和「打开色卡文件 (.ti2)」— 在那里打开一张色卡，「创建色卡」、「打印色卡」和「测量」就都会显示它。右边是「工具」、「偏好设置」和「?」，后者会打开本窗口。测量进行期间，左边那两个按钮不可用。",
@@ -3660,7 +3658,6 @@
  "Save now?": "现在保存吗？",
  "Save output ICC profile": "保存输出ICC配置文件",
  "Save preset": "保存预设",
- "Save profile report": "保存配置文件报告",
  "Save proof as": "校样另存为",
  "Save proof as…": "校样另存为…",
  "Save report as PDF": "将报告保存为 PDF",
@@ -6410,5 +6407,9 @@
  "Calibration file found": "找到了校准文件",
  "Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.": "找到了校准文件：{name}。它已填入下面「ChromIQ 布局」部分的「打印机校准」，模式仍是「无」：请在那里选择你想用的模式。「应用并嵌入 (-K)」会让每个色块都经过校准重新打印；「仅嵌入 (-I)」只是把它记录在色卡文件里。",
  "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge.": "所用测试色卡没有提供这个限值集所限制的任何数值，所以没有可评判的内容。",
- "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "该限值集所设限的各项数值，在本页上均未作评定，因此没有可判断的内容。"
+ "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "该限值集所设限的各项数值，在本页上均未作评定，因此没有可判断的内容。",
+ "Measurement inspection": "测量检查",
+ "Profile inspection": "配置文件检查",
+ "Save measurement inspection": "保存测量检查",
+ "Save profile inspection": "保存配置文件检查"
 }

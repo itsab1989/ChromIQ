@@ -212,9 +212,7 @@
   "ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.\n\nThe grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.",
   "ChromIQ {latest} is available — you're running {current}.\n\nDownload the new version and install it over your current one; your settings and projects are kept.",
   "ChromIQ {version} — {title}",
-  "ChromIQ — Measurement report",
   "ChromIQ — Printer Profiling",
-  "ChromIQ — Profile report",
   "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.",
   "ChromIQ's own chart-layout generator — an alternative to printtarg. It records exactly where every patch sits, so scans of its charts can be read with perfect knowledge of the geometry.",
   "ChromIQ's own measuring engine could not use your instrument this time, so the measurement has been started again using ArgyllCMS's chartread. Carry on measuring exactly as you would normally — nothing you have already read is lost.\n\nOne thing changes while this is running: ChromIQ's measurement sounds are silent. ArgyllCMS makes its own beeps as it reads, and playing ChromIQ's sounds on top would double every one of them. The beeps you hear are coming from ArgyllCMS.\n\nReason: {reason}",
@@ -295,7 +293,6 @@
   "For a chart i1Profiler arranged — e.g. to drive an i1iSis or i1iO. Pick the three things below and ChromIQ reads the layout off the saved chart. New to this? Open the ⓘ for the full walkthrough.",
   "For scanning — or photographing — the printed chart to profile your scanner or camera; not needed for printer profiling.",
   "For the chart alone: load its .ti1 and build into a New run — same patches, fresh layout.",
-  "Forces chartread to accept a strip scanned in either direction.\n\nNormally chartread only auto-detects strip direction on randomised\ncharts; on a fixed-order chart it reads one direction only and\nrejects strips scanned backwards. Turn this on to force the\ndetection regardless — useful for the i1 Pro family, which reads\neither way. This is the opposite of -B; only one can apply.\n",
   "Forces inter-strip spacers to be black/white instead of\ncoloured.  Does not affect patch count or layout geometry.\n\nHas no effect when \"No Spacers\" (-n) is enabled — this option\nis greyed out and excluded from the printtarg command in that\ncase.\n",
   "Forcing bidirectional reading lets you scan each strip in either direction. To do that reliably, chartread depends on the patches being printed in a shuffled (randomised) order — that is what gives every strip a unique colour signature.<br><br>On a fixed-order chart the strips can look alike, so chartread may lock onto the <i>wrong</i> strip or the wrong direction. That usually produces no error message — just a measurement file that builds a profile with colour casts.<br><br><b>What to do:</b><br>• Safest: set Strip recognition to <b>Argyll default</b> (turn <i>Auto</i> off and pick it), then scan every strip the same way.<br>• Or regenerate this chart with randomisation enabled, then measure that copy.<br>• If you know this chart's patch order is already well mixed, it is safe to continue.",
   "Forward — output gamut (default)",
@@ -389,7 +386,6 @@
   "Load patch set.\nOpen an existing chart layout (its patch set) and lay it\nout — targen is skipped. Accepts an Argyll .ti1, or an\ni1Profiler RGB set (.pxf or CGATS .txt), which are\nconverted to .ti1 automatically.",
   "Load profile.\nReopen a printer profile you started earlier to carry on\nwith it — its chart, measurements and any profile are\nall where you left them. Pick the project's “project.json”\nfile under your ChromIQ folder.",
   "Load the bundled PhotoDisc colour test image (Adobe RGB) — good for trying the soft-proof.",
-  "Load the full New-chart setup — colour sets, instrument, paper and layout — that was saved with a preset, so you can reuse or tweak an existing design instead of setting everything by hand.\n\nOnly presets saved with such a setup show up here, so the list stays empty (just \"None\") until you save one.\n\nThe ready-made “by Pharmacist” charts are not in this list. Each of those is a finished chart that is already laid out and ready to print, so there is no setup behind it to load — pick one straight from the “Presets” list in Create Chart instead.",
   "Load your measurement data — a ChromIQ .ti3, or an i1Profiler measurement which ChromIQ converts for you: i1Profiler's own saved file (.mxf, no export step needed), or a .txt / .cxf export.\n\nThis is the file the Measure tab saved after reading your printed chart — the patch colours your instrument actually measured. ChromIQ builds the ICC profile from it. If a matching chart (.ti2) sits next to it, ChromIQ picks it up automatically.",
   "Loaded a demo scan + reference to practise on.{pages} This is a synthetic image ChromIQ drew from the target's recognition file — each patch a flat colour — NOT a real target. Place the grid and Build to see the read work end-to-end.\nFor a real profile, load your own scan (.tif) and the reference (.cie) that came with your physical target instead.",
   "Loaded for reference only — not generated.",
@@ -761,7 +757,6 @@
   "This chart has no layout recipe (.channels.json), so ChromIQ cannot redraw its pages. {pages}\n\nIf you have the printed sheets, keep them — they are the only copy. Everything is moved to the run's “old” folder rather than deleted.",
   "This chart has nowhere to go yet, so nothing was changed.\n\nCharts live inside a profile project. Type a name in “Printer profile project name” on the Create Chart tab and press “Generate Chart” to start one — or open an existing project with “Open Project” at the top left — and then use “Apply / Save…” again.",
   "This chart uses hexagonal patches, and the scanner and camera tools are set to turn those away.\n\nNot because they cannot work — they can. A hexagonal chart has been read and profiled successfully, and the two things that used to go wrong have both been dealt with: ScanIn, the Argyll program that finds the chart in your scan, is no longer asked to work out the perspective for itself once you have placed the four corners, which is what used to make it give up on a honeycomb; and the area read inside each patch is now limited automatically to what fits within the hexagon, so it cannot reach into the patches next door.\n\nWhat has not been proven is finding a honeycomb chart in a scan without your help — so the tools ask for the four corners, and the whole thing is still switched off until you say otherwise.\n\nTo try it, turn on “Allow hexagonal charts in the scanner and camera tools” in Preferences → Beta, place the four corners yourself, and check the result before you trust the profile.\n\nOtherwise, make the chart with square patches: in Create Chart, with the SpectroScan selected, set the layout to “Rectangular”.",
-  "This chart was made for the CR30, and ChromIQ reads that instrument itself. Standard ArgyllCMS chartread does not know the CR30 at all — it would refuse the chart before reading a single patch, whichever instrument you have connected.\n\nRight now, Preferences → Measurement has “Chart-reading engine” set to ArgyllCMS chartread. Switch it to ChromIQ's own reader and this chart measures normally. The setting applies to every chart, and every other chart reads the same either way.\n\nNothing is wrong with the chart, and nothing you have already measured is affected.",
   "This chart was made for the CR30, and ChromIQ reads that instrument one patch at a time — it has no strip reading to offer. So patch-by-patch is switched on for you and cannot be turned off here; the box is ticked so you can see the mode the measurement is really in.\n\nLoad a chart made for a different instrument and this option comes back exactly as you had it.",
   "This chart was saved as the run's verification chart (in the “verifications” folder). It already has your profile applied — print it exactly as it is, then measure it with the run type set to Verification.",
   "This chart wasn't made by ChromIQ (no .channels.json) — that's fine for a printer profile: pick the .cht page files printtarg wrote for it under “Chart geometry (.cht)” below.",
@@ -1151,18 +1146,6 @@
   ],
   [
    "de",
-   "5714a7c7daa957e6"
-  ],
-  [
-   "de",
-   "5baa7691f418226f"
-  ],
-  [
-   "de",
-   "5bea44e4dd0ade43"
-  ],
-  [
-   "de",
    "60901f3e0803a955"
   ],
   [
@@ -1268,10 +1251,6 @@
   [
    "de",
    "b53861ab84b95961"
-  ],
-  [
-   "de",
-   "b53a26786ea5a8f6"
   ],
   [
    "de",
@@ -1435,14 +1414,6 @@
   ],
   [
    "fr",
-   "169284b7b36a4620"
-  ],
-  [
-   "fr",
-   "194c770d7ce4eb14"
-  ],
-  [
-   "fr",
    "296be98abec62ce2"
   ],
   [
@@ -1456,10 +1427,6 @@
   [
    "fr",
    "3c4d1581597ac2f3"
-  ],
-  [
-   "fr",
-   "3faaea95aaabadaf"
   ],
   [
    "fr",
@@ -1520,10 +1487,6 @@
   [
    "fr",
    "eb01a5d3af8cdc11"
-  ],
-  [
-   "fr",
-   "fd3c7f43b457b1cc"
   ],
   [
    "it",

@@ -1121,9 +1121,7 @@
  "ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.\n\nThe grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.": "O ChromIQ escreve uma destas depois de cada leitura: a sua digitalização passada a cinzento, com a cor reposta apenas onde o ArgyllCMS a amostrou, e os nomes das amostras desenhados por cima. É uma imagem de uma leitura, não uma coisa que se possa voltar a ler.\n\nA grelha não consegue alinhar-se sobre ela, e a verificação de alinhamento comunicará um desvio que não existe. Carregue antes a digitalização original do seu alvo: as imagens de diagnóstico ficam na pasta «cache» ao lado e podem ser apagadas sem risco.",
  "ChromIQ {latest} is available — you're running {current}.\n\nDownload the new version and install it over your current one; your settings and projects are kept.": "ChromIQ {latest} está disponível — você está a usar a {current}.\n\nDescarregue a nova versão e instale-a sobre a atual; suas definições e projetos são mantidos.",
  "ChromIQ {version} — {title}": "ChromIQ {version} — {title}",
- "ChromIQ — Measurement report": "ChromIQ — Relatório de medição",
  "ChromIQ — Printer Profiling": "ChromIQ — Perfilamento de impressoras",
- "ChromIQ — Profile report": "ChromIQ — Relatório do perfil",
  "ChromIQ's licence": "Licença do ChromIQ",
  "ChromIQ's manifest: current run + run history. Please don't edit.": "O manifesto do ChromIQ: execução atual + histórico de execuções. Por favor, não edite.",
  "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.": "O nome do ChromIQ ao centro. À ESQUERDA, dois botões que atuam sobre toda a aplicação: «Abrir projeto» e «Abrir ficheiro de carta (.ti2)» — abra aí uma carta e Criar carta, Imprimir carta e Medir mostram-na todos. À DIREITA, «Ferramentas», «Preferências» e «?», que abre esta janela. Os dois da esquerda ficam indisponíveis enquanto uma medição estiver a decorrer.",
@@ -3660,7 +3658,6 @@
  "Save now?": "Guardar agora?",
  "Save output ICC profile": "Guardar perfil ICC de saída",
  "Save preset": "Guardar predefinição",
- "Save profile report": "Guardar relatório do perfil",
  "Save proof as": "Guardar prova como",
  "Save proof as…": "Guardar prova como…",
  "Save report as PDF": "Guardar relatório como PDF",
@@ -6410,5 +6407,9 @@
  "Calibration file found": "Ficheiro de calibração encontrado",
  "Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.": "Ficheiro de calibração encontrado: {name}. Foi colocado em «Calibração da impressora», na secção Disposição ChromIQ abaixo, com o modo ainda em «Nenhum»: escolha aí o modo que pretende. «Aplicar e incorporar (-K)» reimprime cada amostra através da calibração; «Só incorporar (-I)» apenas a regista no ficheiro da carta.",
  "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge.": "A carta de teste usada não forneceu nenhum dos valores a que este conjunto de limites impõe um limite, por isso não há nada para avaliar.",
- "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Nenhum dos valores a que este conjunto de limites impõe um limite foi avaliado nesta folha, por isso não há nada a julgar."
+ "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Nenhum dos valores a que este conjunto de limites impõe um limite foi avaliado nesta folha, por isso não há nada a julgar.",
+ "Measurement inspection": "Inspeção da medição",
+ "Profile inspection": "Inspeção do perfil",
+ "Save measurement inspection": "Guardar inspeção da medição",
+ "Save profile inspection": "Guardar inspeção do perfil"
 }

@@ -2053,6 +2053,52 @@ def annotate_raw_drift(runs: "list[dict]") -> None:
         prev, prev_data = r, data
 
 
+#: What a report's file name may not carry on any of the three systems.
+_UNSAFE_IN_A_NAME = re.compile(r'[/\\:*?"<>|]')
+
+
+def report_name_stamp(when: "datetime | str") -> str:
+    """The date-time a report's FILE NAME ends with: ``YYYY-MM-DD_HH-MM-SS``.
+
+    The Measurement Report's PDF name carries it (#130, Knut), taken from the
+    document's ISO creation time; *when* is that ISO text or a datetime.
+    """
+    if isinstance(when, datetime):
+        when = when.isoformat(timespec="seconds")
+    return str(when).replace("T", "_").replace(":", "-")
+
+
+def report_file_name(title: str, stamp: str, suffix: str) -> str:
+    """``"<title> - <stamp><suffix>"``, made safe for a file system.
+
+    ONE SCHEME FOR EVERY REPORT CHROMIQ NAMES (Knut, #182 5943085974, B1 and
+    B2): the Measurement Report's PDF and the two Inspect tools' text files
+    are all built here, so they cannot drift apart. *title* is everything
+    before the time, already joined with ``" - "``.
+    """
+    return _UNSAFE_IN_A_NAME.sub("_", f"{title} - {stamp}") + suffix
+
+
+def inspection_file_name(kind: str, name: str,
+                         when: "datetime | None" = None,
+                         suffix: str = ".txt") -> str:
+    """The default file name of an Inspect tool's saved text (#182, B1/B2).
+
+    Knut, 2026-10-02: *"the same naming structure as the measurement report
+    file name with time-stamp at the end (but not with the special
+    configurable title that the measurement report has)"*, and for Inspect a
+    profile *"in the same style with time stamp and unique for the 'Inspect a
+    profile' tool"*. So the configurable prefix is replaced by the tool's own
+    fixed *kind* ("Measurement inspection", "Profile inspection", in the UI's
+    language like the report's default prefix), followed by the inspected
+    file's *name*: ``"Measurement inspection - Knut-Canson -
+    2026-10-02_14-30-05.txt"``.
+    """
+    title = " - ".join(p for p in (kind.strip(), name.strip()) if p)
+    return report_file_name(title, report_name_stamp(when or datetime.now()),
+                            suffix)
+
+
 def save_report(report: dict, run_dir: str | Path) -> Path:
     """Write the report as timestamped JSON under ``<run_dir>/reports/`` and
     return the path. Timestamped so a printer's reports accrue for comparison."""

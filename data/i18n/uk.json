@@ -1121,9 +1121,7 @@
  "ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.\n\nThe grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.": "ChromIQ записує один із них після кожного читання: ваше сканування стало сірим, колір зафарбовано лише там, де ArgyllCMS відібрав його, а назви патчів намальовані зверху. Це картина прочитаного, а не те, що можна прочитати знову.\n\nСітка не може вирівнятися на ньому, і перевірка вирівнювання повідомить про неправильне розташування, яке не є справжнім. Натомість завантажте оригінальне сканування вашої мішені — діагностичні зображення живуть у папці «cache» поруч із ним, і їх безпечно видалити.",
  "ChromIQ {latest} is available — you're running {current}.\n\nDownload the new version and install it over your current one; your settings and projects are kept.": "ChromIQ {latest} доступний — ви використовуєте {current}.\n\nЗавантажте нову версію та встановіть її поверх поточної; ваші налаштування та проєкти зберігаються.",
  "ChromIQ {version} — {title}": "ChromIQ {version} — {title}",
- "ChromIQ — Measurement report": "ChromIQ — звіт про вимірювання",
  "ChromIQ — Printer Profiling": "ChromIQ — Профілювання принтера",
- "ChromIQ — Profile report": "ChromIQ — звіт про профіль",
  "ChromIQ's licence": "Ліцензія ChromIQ",
  "ChromIQ's manifest: current run + run history. Please don't edit.": "Маніфест ChromIQ: поточний запуск + історія запусків. Будь ласка, не редагуйте.",
  "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.": "Ім'я ChromIQ посередині. ЗЛІВА дві кнопки, які діють на всю програму: «Відкрити проєкт» і «Відкрити файл діаграми (.ti2)» — відкрийте там діаграму та відобразіть її «Створити діаграму», «Надрукувати діаграму» та «Виміряти». Справа «Інструменти», «Уподобання» та «?», що відкриває це вікно. Два ліворуч недоступні під час вимірювання.",
@@ -3660,7 +3658,6 @@
  "Save now?": "Зберегти зараз?",
  "Save output ICC profile": "Зберегти вихідний профіль ICC",
  "Save preset": "Зберегти пресет",
- "Save profile report": "Зберегти звіт профілю",
  "Save proof as": "Зберегти підтвердження як",
  "Save proof as…": "Зберегти підтвердження як…",
  "Save report as PDF": "Зберегти звіт як PDF",
@@ -6410,5 +6407,9 @@
  "Calibration file found": "Знайдено файл калібрування",
  "Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.": "Знайдено файл калібрування: {name}. Його підставлено в «Калібрування принтера» в розділі «Макет ChromIQ» нижче, а режим досі стоїть на «Жодного»: виберіть там потрібний режим. «Застосувати та вбудовувати (-K)» передруковує кожен патч через калібрування; «Лише вбудовувати (-I)» лише записує його у файл діаграми.",
  "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge.": "Використана тестова діаграма не надала жодного зі значень, для яких цей набір меж ставить межу, тож оцінювати нема чого.",
- "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Жодне зі значень, для яких цей набір меж ставить межу, не оцінено на цьому аркуші, тож оцінювати нема чого."
+ "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Жодне зі значень, для яких цей набір меж ставить межу, не оцінено на цьому аркуші, тож оцінювати нема чого.",
+ "Measurement inspection": "Огляд вимірювання",
+ "Profile inspection": "Огляд профілю",
+ "Save measurement inspection": "Зберегти огляд вимірювання",
+ "Save profile inspection": "Зберегти огляд профілю"
 }

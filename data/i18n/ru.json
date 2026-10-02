@@ -1121,9 +1121,7 @@
  "ChromIQ writes one of these after every read: your scan turned grey, with the colour painted back only where ArgyllCMS sampled it, and the patch names drawn on top. It is a picture of a read, not something that can be read again.\n\nThe grid cannot line up on it, and the alignment check will report a misplacement that is not real. Load the original scan of your target instead — diagnostic images live in the “cache” folder beside it and are safe to delete.": "ChromIQ пишет такое изображение после каждого чтения: ваш скан, переведённый в серое, с цветом, возвращённым только там, где ArgyllCMS брал пробы, и с именами патчей поверх. Это картинка чтения, а не то, что можно прочитать снова.\n\nСетка на неё лечь не может, и проверка выравнивания сообщит о смещении, которого на деле нет. Загрузите вместо неё исходный скан вашей мишени — диагностические изображения лежат рядом, в папке «cache», и их можно спокойно удалять.",
  "ChromIQ {latest} is available — you're running {current}.\n\nDownload the new version and install it over your current one; your settings and projects are kept.": "ChromIQ {latest} доступен — у вас {current}.\n\nСкачайте новую версию и установите её поверх текущей; ваши настройки и проекты сохранятся.",
  "ChromIQ {version} — {title}": "ChromIQ {version} — {title}",
- "ChromIQ — Measurement report": "ChromIQ — Отчёт об измерении",
  "ChromIQ — Printer Profiling": "ChromIQ — профилирование принтеров",
- "ChromIQ — Profile report": "ChromIQ — Отчёт о профиле",
  "ChromIQ's licence": "Лицензия ChromIQ",
  "ChromIQ's manifest: current run + run history. Please don't edit.": "Манифест ChromIQ: текущее измерение + история измерений. Пожалуйста, не редактируйте.",
  "ChromIQ's name in the middle. On the LEFT two buttons that act on the whole app: “Open Project” and “Open Chart File (.ti2)” — open a chart there and Create Chart, Print Chart and Measure all show it. On the RIGHT “Tools”, “Preferences” and “?”, which opens this window. The two on the left are unavailable while a measurement is running.": "Название ChromIQ посередине. СЛЕВА две кнопки, действующие на всю программу: «Открыть проект» и «Открыть файл мишени (.ti2)» — откройте там мишень, и «Создать мишень», «Печать мишени» и «Измерение» покажут её. СПРАВА — «Инструменты», «Настройки» и «?», которая открывает это окно. Две левые кнопки недоступны, пока идёт измерение.",
@@ -3660,7 +3658,6 @@
  "Save now?": "Сохранить сейчас?",
  "Save output ICC profile": "Сохранить выходной ICC-профиль",
  "Save preset": "Сохранить пресет",
- "Save profile report": "Сохранить отчёт о профиле",
  "Save proof as": "Сохранить пробу как",
  "Save proof as…": "Сохранить пробу как…",
  "Save report as PDF": "Сохранить отчёт в PDF",
@@ -6410,5 +6407,9 @@
  "Calibration file found": "Найден файл калибровки",
  "Calibration file found: {name}. It is filled into “Printer calibration” in the ChromIQ layout section below, with Mode still on “None”: choose the mode you want there. “Apply & embed (-K)” reprints every patch through the calibration; “Embed only (-I)” only records it in the chart file.": "Найден файл калибровки: {name}. Он подставлен в «Калибровка принтера» в разделе «Раскладка ChromIQ» ниже, а «Режим:» пока стоит на «Нет»: выберите там нужный режим. «Применить и встроить (-K)» перепечатывает каждый патч через калибровку; «Только встроить (-I)» лишь записывает её в файл мишени.",
  "The test chart used supplied none of the values this limit set puts a limit on, so there is nothing to judge.": "Использованная тестовая мишень не дала ни одного из значений, на которые этот набор допусков ставит допуск, поэтому оценивать нечего.",
- "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Ни одно из значений, на которые этот набор допусков ставит предел, на этом листе не оценивалось, поэтому судить не о чем."
+ "None of the values this limit set puts a limit on was graded on this sheet, so there is nothing to judge.": "Ни одно из значений, на которые этот набор допусков ставит предел, на этом листе не оценивалось, поэтому судить не о чем.",
+ "Measurement inspection": "Изучение измерения",
+ "Profile inspection": "Изучение профиля",
+ "Save measurement inspection": "Сохранить изучение измерения",
+ "Save profile inspection": "Сохранить изучение профиля"
 }

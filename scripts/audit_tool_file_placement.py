@@ -77,9 +77,11 @@ MODEL_HINTS = re.compile(
 #: first version of this audit missed exactly that and filed `average` and
 #: `merge` — which plainly write a .ti3 — under "writes nothing". A bucket that
 #: quietly absolves a tool is the failure this script exists to prevent, so
-#: these are detected explicitly and counted as writers.
+#: these are detected explicitly and counted as writers. The two Inspect tools
+#: save through `ui.inspection_save.save_inspection` (#182 B1/B2), which puts
+#: the file into the owner's reports folder.
 DELEGATED = re.compile(r"_OutputRow\(|\boutput\s*=|\bout_path\b|\bout\s*=\s*"
-                       r"[\w.]*\s*/|_initial_dir\(")
+                       r"[\w.]*\s*/|_initial_dir\(|\bsave_inspection\(")
 
 
 def tool_keys_and_classes() -> "dict[str, tuple[str, str]]":

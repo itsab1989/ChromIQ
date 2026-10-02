@@ -172,3 +172,29 @@ def test_a_worktree_touched_within_the_hour_is_kept_even_when_clean(repo_with_wo
     _repo, wt = repo_with_worktree
     os.utime(wt / "a.txt", None)            # in use right now, content unchanged
     assert S.merged_worktrees() == []
+
+
+def test_a_worktree_never_plans_its_own_removal(tmp_path, monkeypatch):
+    """Run from inside a clean worktree, HEAD is that worktree's own branch,
+    so "contained in the current branch" was always true and the worktree
+    planned to remove itself (found by the gate run in agent worktrees,
+    2026-10-02, N_impl_inspect). Another merged worktree is still listed."""
+    import subprocess
+    me = tmp_path / ".claude" / "worktrees" / "agent-me"
+    other = tmp_path / ".claude" / "worktrees" / "agent-other"
+    for d in (me, other):
+        d.mkdir(parents=True)
+        _age(d)                 # old enough that only the self rule decides
+    monkeypatch.setattr(S, "REPO", me)
+    listing = (f"worktree {me}\nHEAD 1\nbranch refs/heads/mine\n\n"
+               f"worktree {other}\nHEAD 2\nbranch refs/heads/theirs\n")
+
+    def _git(*args):
+        out = listing if args[:2] == ("worktree", "list") else ""
+        return subprocess.CompletedProcess(args, 0, out, "")
+    monkeypatch.setattr(S, "_git", _git)
+    monkeypatch.setattr(S.subprocess, "run",
+                        lambda *a, **k: subprocess.CompletedProcess(a, 0, "", ""))
+    planned = [p for p, _b in S.merged_worktrees()]
+    assert me not in planned
+    assert other in planned
