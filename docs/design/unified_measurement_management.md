@@ -449,6 +449,21 @@ waits for his confirmation:
   window is not in the §M catalogue, so the sentence was written into it
   directly. It is also shown when only a `.cht` would be removed.
 
+Knut answered the three questions on 2026-10-02 (#182 5959825756), quoted:
+*"1. Agreed, archive olde chart files to old, except the tif files, they are
+deleted and gan be regenerated if the other files are restored. They take too
+much space on the drive. 2. Yes, the cht and cie file are always a pair that
+belongs together and must always match for the chart used. 3. agreement rule
+approved."* Built for 4.3.3-beta.5, awaiting his confirmation of the result:
+
+* The chart a restore replaces is moved into the same `old/<date>/` folder as
+  the replaced `meta.json` (the run's `old/`, or `verifications/old/` for a
+  verification date), except its page images, which are deleted
+  (`_archive_replaced_chart`). The four Restore windows say so instead of
+  "The chart that is there now is not kept".
+* A `.cht` that is removed takes its `.cie` (same name) with it; a kept `.cht`
+  keeps its `.cie` (`restore_cht_plan`).
+
 **The two chart kinds are deliberately not defined the same way**, and it is worth knowing why before reusing this: a profiling chart shares its folder with the measurement, the profile and the run's own files, so it must be identified by suffix. A verification chart has a folder to itself, so everything in it *is* the chart.
 
 #### When a chart is valid for this feature

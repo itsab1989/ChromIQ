@@ -508,6 +508,13 @@ def restore_cht_plan(slot) -> ChtPlan:
         except OSError:
             same = False
         (plan.keep if same else plan.remove).append(f)
+    # A .cht and its .cie are a pair (Knut, #182 5959825756: "the cht and cie
+    # file are always a pair that belongs together and must always match for
+    # the chart used"): a removed .cht takes its .cie with it.
+    for f in list(plan.remove):
+        cie = f.with_suffix(".cie")
+        if cie.is_file() and cie not in plan.remove:
+            plan.remove.append(cie)
     return plan
 
 
@@ -562,6 +569,32 @@ def merge_restored_meta(live: dict, snapshot: dict) -> dict:
         else:
             out.pop(key, None)
     return out
+
+
+def _archive_replaced_chart(stash: Path, archive_with, existing: "Path | None"
+                            ) -> "Path | None":
+    """Keep the chart a restore replaced (Knut, #182 5959825756: *"archive
+    olde chart files to old, except the tif files, they are deleted and can
+    be regenerated if the other files are restored"*). Everything set aside in
+    *stash* except page images goes into *existing* (the archive this restore
+    already made for its side files) or a new ``old/<date>/`` made by
+    *archive_with(paths)*; page images stay in the stash, which the caller
+    then removes. Returns the archive folder, or None when nothing was kept."""
+    if not stash.is_dir():
+        return existing
+    keep = [p for p in stash.iterdir() if p.is_file() and not _is_image(p)]
+    if not keep:
+        return existing
+    if existing is not None:
+        for p in keep:
+            dest = existing / p.name
+            n = 2
+            while dest.exists():
+                dest = existing / f"{p.stem}_{n}{p.suffix}"
+                n += 1
+            shutil.move(str(p), str(dest))
+        return existing
+    return archive_with(keep)
 
 
 def restore_slot(slot) -> "RestoreResult":
@@ -711,6 +744,21 @@ def restore_slot(slot) -> "RestoreResult":
         result.error = str(exc)
         result.cht_removed = []
     finally:
+        # The replaced chart is KEPT in old/, page images apart, and only
+        # after the restore worked; a rolled-back restore has already put it
+        # back in the run.
+        if _rollback_ok and not result.rolled_back:
+            try:
+                from core.file_manager import Run as _Run2
+                result.archive = _archive_replaced_chart(
+                    stash,
+                    lambda ps: _Run2.for_dir(slot.live_dir).archive_to_old(
+                        ps, into=slot.live_dir / "old"),
+                    side_archive)
+            except OSError as exc:     # noqa: BLE001 — never lose the stash
+                log.error("could not archive the replaced chart; it is kept "
+                          "at %s: %s", stash, exc)
+                _rollback_ok = False
         # Only when nothing depends on it any more.
         if _rollback_ok:
             shutil.rmtree(stash, ignore_errors=True)
@@ -823,6 +871,9 @@ class RestoreResult:
     # not (Knut, #182 5958921500; see `restore_cht_plan`).
     cht_kept: "list[str]" = field(default_factory=list)
     cht_removed: "list[str]" = field(default_factory=list)
+    # Where the replaced chart was archived (page images apart), Knut #182
+    # 5959825756; None when nothing was replaced.
+    archive: "Path | None" = None
 
     @property
     def regeneration_message(self) -> str:
@@ -921,7 +972,20 @@ def restore_chart(verification: Verification) -> RestoreResult:
         result.rolled_back = True
         result.error = str(exc)
     finally:
-        shutil.rmtree(stash, ignore_errors=True)
+        _keep_stash = False
+        if not result.rolled_back:
+            try:
+                result.archive = _archive_replaced_chart(
+                    stash,
+                    lambda ps: run.archive_to_old(
+                        ps, into=run.verifications_old_dir),
+                    side_archive)
+            except OSError as exc:     # noqa: BLE001 — never lose the stash
+                log.error("could not archive the replaced chart; it is kept "
+                          "at %s: %s", stash, exc)
+                _keep_stash = True
+        if not _keep_stash:
+            shutil.rmtree(stash, ignore_errors=True)
 
     if result.ok:
         log.info("verification %s: restored %d chart file(s)%s",
