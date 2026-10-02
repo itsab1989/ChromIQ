@@ -316,6 +316,13 @@ if not _root_logger.handlers:
 # with the path; a child process inherits the pair, sees a pid that is not its
 # own, and makes its own.
 import tempfile as _tempfile
+
+#: The SYSTEM temp folder, fixed before :func:`_enter_the_run_temp` points
+#: ``tempfile`` at this run's own folder inside it. Kept in the environment so
+#: a worker, a child process or a re-import of this module agrees on it.
+_REAL_TEMP = pathlib.Path(os.environ.setdefault("CHROMIQ_SUITE_REAL_TMP",
+                                                _tempfile.gettempdir()))
+
 if (os.environ.get("CHROMIQ_SUITE_LOG_OWNER") == str(os.getpid())
         and os.path.isdir(os.environ.get("CHROMIQ_LOG_DIR", ""))):
     _SUITE_LOG_DIR = pathlib.Path(os.environ["CHROMIQ_LOG_DIR"])
@@ -1057,7 +1064,7 @@ def _sweep_stale_temp_dirs() -> "tuple[int, int]":
     """
     import time
 
-    root = pathlib.Path(tempfile.gettempdir())
+    root = _REAL_TEMP
     cutoff = time.time() - _STALE_AFTER_HOURS * 3600
     keep = set(_KEEP_FOREVER)
     cache = os.environ.get("CHROMIQ_DEMO_CACHE")
@@ -1215,6 +1222,8 @@ def pytest_sessionfinish(session, exitstatus):
     if _CRASHED_WORKERS:
         session.exitstatus = 1
         exitstatus = 1
+
+    _leave_the_run_temp(exitstatus == 0)
 
     factory = getattr(session.config, "_tmp_path_factory", None)
     if factory is None:
@@ -1454,9 +1463,53 @@ def _snapshot_the_modal_entry_points() -> None:
                 _PRISTINE_MODALS.append((_owner, _name, _orig))
 
 
+def _enter_the_run_temp(config) -> None:
+    """Point ``tempfile`` at one folder for this whole run (dsk2).
+
+    Measured 2026-10-02: every ``--runslow`` gate left about 1.3 GB in the
+    system temp folder, some 400 ``chromiq-*`` folders from ``mkdtemp`` in
+    tests and the app code they drive, the per-process settings sandboxes
+    among them. The sweep below only takes them an hour later, so five gates in
+    a row held 5.4 GB. Now every ``mkdtemp``/``NamedTemporaryFile`` in the
+    controller and every worker lands in ``chromiq-run-*`` and goes with the
+    run: removed at the end of a green run, kept (and named) after a red one,
+    swept by name after an hour if the run never ended. Two runs at once each
+    have their own, so neither removes the other's files.
+
+    Child processes still get the system temp folder (TMPDIR is untouched),
+    and the caches that must outlive a run (the demo projects, the release
+    demo package) are placed through :data:`_REAL_TEMP`, not ``gettempdir``.
+    """
+    import tempfile
+    run = os.environ.get("CHROMIQ_SUITE_RUN_TMP", "")
+    if not hasattr(config, "workerinput") or not os.path.isdir(run):
+        run = _tempfile.mkdtemp(prefix="chromiq-run-", dir=str(_REAL_TEMP))
+        os.environ["CHROMIQ_SUITE_RUN_TMP"] = run
+        os.environ["CHROMIQ_SUITE_RUN_TMP_OWNER"] = str(os.getpid())
+    tempfile.tempdir = run
+
+
+def _leave_the_run_temp(passed: bool) -> None:
+    """The controller's half of :func:`_enter_the_run_temp`."""
+    run = os.environ.get("CHROMIQ_SUITE_RUN_TMP", "")
+    if os.environ.get("CHROMIQ_SUITE_RUN_TMP_OWNER") != str(os.getpid()):
+        return
+    if not run or not os.path.isdir(run):
+        return
+    if not passed:
+        print(f"\n[cleanup] run did not pass, its temp folders are kept at\n"
+              f"          {run}")
+        return
+    freed = _folder_size(pathlib.Path(run))
+    shutil.rmtree(run, onerror=_force_writable)
+    if freed and not os.path.isdir(run):
+        print(f"\n[cleanup] removed this run's temp folders ({freed / 1e9:.2f} GB)")
+
+
 def pytest_configure(config):
     import tempfile
 
+    _enter_the_run_temp(config)
     _enforce_the_helper(config)
     _snapshot_the_modal_entry_points()
 
@@ -1867,7 +1920,7 @@ def _demo_cache_key() -> str:
 _DEMO_GENERATOR = Path(__file__).resolve().parents[1] / "scripts" / "make_demo_projects.py"
 _DEMO_CACHE_HOME = Path(
     os.environ.get("CHROMIQ_DEMO_CACHE",
-                   Path(tempfile.gettempdir()) / "chromiq-demo-projects-cache"))
+                   _REAL_TEMP / "chromiq-demo-projects-cache"))
 
 
 def _build_demo_projects(into: Path) -> None:

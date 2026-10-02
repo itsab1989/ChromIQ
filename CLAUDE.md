@@ -329,6 +329,12 @@ i did a fresh install of macos."* The suite already cleans up after itself
     hook to discover what a session left;
   * put scratch inside the session's scratchpad or report folder, never as new
     folders elsewhere, so it is either cleaned or visibly kept.
+* **A TEST RUN KEEPS ITS TEMP FOLDERS IN ONE PLACE.** `tests/conftest.py::
+  _enter_the_run_temp` points `tempfile` at a `chromiq-run-*` folder per run,
+  removed when the run is green and kept (and named) when it is red. Before
+  it (2026-10-02) each gate left ~1.3 GB of loose `chromiq-*` folders for an
+  hour. A cache that must outlive a run goes through `_REAL_TEMP`
+  (`CHROMIQ_SUITE_REAL_TMP`), never `tempfile.gettempdir()`.
 * `python3 scripts/disk_report.py` lists every place ChromIQ work writes to,
   with sizes and what is safe to remove; `--check` fails below 100 GB free or
   above 25 GB held. The monitor runs it every cycle (MONITOR.md step 2c).
