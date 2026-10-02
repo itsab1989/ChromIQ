@@ -6411,5 +6411,10 @@
  "Measurement inspection": "Målingsinspeksjon",
  "Profile inspection": "Profilinspeksjon",
  "Save measurement inspection": "Lagre målingsinspeksjon",
- "Save profile inspection": "Lagre profilinspeksjon"
+ "Save profile inspection": "Lagre profilinspeksjon",
+ "A CR30 is placed on one patch at a time and takes one reading each time you press its button. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "En CR30 settes på ett felt om gangen og tar én måling hver gang du trykker på knappen. Den leser ingen striper, så det er ingen lesehastighet å stille inn her, og disse verdiene kan ikke endres.",
+ "A strip is timed from the beep you hear after pressing the instrument's button, not from the press itself. In between, the instrument warms up its lamp (about 0.7 seconds on an i1Pro), and that wait is not counted.": "En stripe tidtas fra pipelyden du hører etter at du har trykket på instrumentets knapp, ikke fra selve trykket. I mellomtiden varmer instrumentet opp lampen (omtrent 0,7 sekunder på en i1Pro), og den ventetiden telles ikke.",
+ "ColorMunki / i1Studio / ColorChecker Studio": "ColorMunki / i1Studio / ColorChecker Studio",
+ "The SpectroScan is a motorised table: it moves its head onto each patch in turn and reads it there. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "SpectroScan er et motorisert bord: det flytter hodet til hvert felt etter tur og leser det der. Det leser ingen striper, så det er ingen lesehastighet å stille inn her, og disse verdiene kan ikke endres.",
+ "WHEN THE CLOCK STARTS\nA strip is timed from the beep, not from the moment you press the instrument's button. After the press the instrument first warms up its lamp, about 0.7 seconds on an i1Pro, and only then starts reading and beeps. That wait is not counted, so start sliding when you hear the beep.": "NÅR KLOKKEN STARTER\nEn stripe tidtas fra pipelyden, ikke fra øyeblikket du trykker på instrumentets knapp. Etter trykket varmer instrumentet først opp lampen, omtrent 0,7 sekunder på en i1Pro, og først da begynner det å lese og piper. Den ventetiden telles ikke, så begynn å skyve når du hører pipelyden."
 }

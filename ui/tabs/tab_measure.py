@@ -1401,6 +1401,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._manager.instrument_detected.connect(self._on_instrument_detected)
         self._manager.strip_measured.connect(self._report_strip_pace)
         self._manager.scan_started.connect(self._on_scan_started)
+        if hasattr(self._manager, "scan_ready"):
+            self._manager.scan_ready.connect(self._on_scan_ready)
         self._manager.patch_ready.connect(self._on_patch_ready)
         self._manager.patch_measured.connect(self._on_patch_measured)
         self._manager.chart_measured.connect(self._on_chart_measured)
@@ -5891,6 +5893,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # how long time I waited to click Retry").
         started = getattr(self, "_scan_started_at", None)
         self._scan_started_at = None
+        self._scan_awaiting_ready = False      # a late beep is not the next strip's
         # Reading patch by patch there is no swipe to have been too quick, so
         # none of this applies — and its advice ("check that the swipe starts
         # before the first patch…") describes something the user is not doing
@@ -13224,6 +13227,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._pace_times = {}
         self._pace_patches = 0
         self._scan_started_at = None
+        self._scan_awaiting_ready = False
         # Each measurement decides for itself whether the reading-speed window
         # is wanted: another chart may need a different pace, and that is worth
         # seeing once (Knut, #131 2026-07-26).
@@ -13350,6 +13354,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         import time
         self._scan_started_at = time.monotonic()
+        # #202: the instrument's ready beep follows for this strip, and the
+        # clock moves to it. Until it comes, the press is the start: a device
+        # that never sends one is still timed, from the button as before.
+        self._scan_awaiting_ready = True
+
+    def _on_scan_ready(self) -> None:
+        """The instrument is ready and sampling: the beep (Knut, #202
+        5943245399: "the timing should start at the beep, as this is when
+        measurement start happens").
+
+        Between the button and the beep the lamp warms up, about 0.7 s on an
+        i1Pro (200 ms + 0.5 s, i1pro_imp.c:3197), and the head is not reading
+        yet, so that time is not the user's swipe and is no longer counted.
+
+        Only the beep that belongs to the strip being read moves the clock.
+        The beep comes from a delayed thread in the engine, so one can arrive
+        after its strip has already been reported (a strip that fails at once);
+        that one is dropped, or it would start the NEXT strip's clock before
+        its button had been pressed.
+        """
+        if not getattr(self, "_scan_awaiting_ready", False):
+            return
+        import time
+        self._scan_awaiting_ready = False
+        self._scan_started_at = time.monotonic()
 
     def _report_strip_pace(self, ev: "dict | None" = None) -> None:
         """After a strip that Argyll ACCEPTED, say how fast it was read — and
@@ -13362,6 +13391,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         show. What is real is the scan's total time and the number of patches in
         the strip — the same two numbers Knut derived the thresholds from.
         """
+        # This strip is over: a beep still on its way belongs to it (#202).
+        self._scan_awaiting_ready = False
         if not self._settings.get("pace_hint_enabled", True):
             # No pace judgement wanted, so the strip simply sounds as read.
             self._play_strip_cue(too_fast=False)

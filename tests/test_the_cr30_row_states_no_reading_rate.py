@@ -93,7 +93,14 @@ def test_every_other_instrument_kept_its_editable_box(dlg):
     for key in RATE_ROWS:
         assert key in dlg._pace_hz, f"{key} lost its rate box"
         box = dlg._pace_hz[key]
-        assert box.isEnabled(), f"{key}'s rate box was disabled as collateral"
+        if key == "spectroscan":
+            # Locked by Knut's ruling (#202 5943245399): no strips, so the
+            # row shows its values and cannot be changed. On purpose, not
+            # collateral: tests/test_b202_every_offered_instrument_has_its_
+            # pace_row.py pins it.
+            assert not box.isEnabled()
+        else:
+            assert box.isEnabled(), f"{key}'s rate box was disabled as collateral"
         assert box.value() == pytest.approx(MODEL_DEFAULTS[key][0])
 
 

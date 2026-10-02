@@ -6411,5 +6411,10 @@
  "Measurement inspection": "Badanie pomiaru",
  "Profile inspection": "Badanie profilu",
  "Save measurement inspection": "Zapisz badanie pomiaru",
- "Save profile inspection": "Zapisz badanie profilu"
+ "Save profile inspection": "Zapisz badanie profilu",
+ "A CR30 is placed on one patch at a time and takes one reading each time you press its button. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "CR30 przykłada się do jednego pola naraz i wykonuje jeden pomiar przy każdym naciśnięciu przycisku. Nie odczytuje pasków, więc nie ma tu prędkości odczytu do ustawienia, a tych wartości nie można zmienić.",
+ "A strip is timed from the beep you hear after pressing the instrument's button, not from the press itself. In between, the instrument warms up its lamp (about 0.7 seconds on an i1Pro), and that wait is not counted.": "Czas paska liczy się od sygnału dźwiękowego, który słychać po naciśnięciu przycisku przyrządu, a nie od samego naciśnięcia. W międzyczasie przyrząd rozgrzewa lampę (około 0,7 sekundy w i1Pro) i ten czas oczekiwania nie jest liczony.",
+ "ColorMunki / i1Studio / ColorChecker Studio": "ColorMunki / i1Studio / ColorChecker Studio",
+ "The SpectroScan is a motorised table: it moves its head onto each patch in turn and reads it there. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "SpectroScan to zmotoryzowany stół: przesuwa głowicę kolejno nad każde pole i tam je odczytuje. Nie odczytuje pasków, więc nie ma tu prędkości odczytu do ustawienia, a tych wartości nie można zmienić.",
+ "WHEN THE CLOCK STARTS\nA strip is timed from the beep, not from the moment you press the instrument's button. After the press the instrument first warms up its lamp, about 0.7 seconds on an i1Pro, and only then starts reading and beeps. That wait is not counted, so start sliding when you hear the beep.": "KIEDY RUSZA ZEGAR\nCzas paska liczy się od sygnału dźwiękowego, a nie od chwili naciśnięcia przycisku przyrządu. Po naciśnięciu przyrząd najpierw rozgrzewa lampę, około 0,7 sekundy w i1Pro, i dopiero wtedy zaczyna odczyt i wydaje sygnał. Ten czas oczekiwania nie jest liczony, więc zacznij przesuwać, gdy usłyszysz sygnał."
 }

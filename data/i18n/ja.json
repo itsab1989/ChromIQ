@@ -6411,5 +6411,10 @@
  "Measurement inspection": "測定の調査",
  "Profile inspection": "プロファイルの調査",
  "Save measurement inspection": "測定の調査を保存",
- "Save profile inspection": "プロファイルの調査を保存"
+ "Save profile inspection": "プロファイルの調査を保存",
+ "A CR30 is placed on one patch at a time and takes one reading each time you press its button. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "CR30 はパッチに1つずつ当てて使い、ボタンを押すたびに1回測定します。ストリップは読み取らないため、ここで設定する読み取り速度はなく、これらの値は変更できません。",
+ "A strip is timed from the beep you hear after pressing the instrument's button, not from the press itself. In between, the instrument warms up its lamp (about 0.7 seconds on an i1Pro), and that wait is not counted.": "ストリップの時間は、測定器のボタンを押したときからではなく、押した後に鳴るビープ音から計られます。その間に測定器はランプを温めており（i1Pro で約0.7秒）、この待ち時間は数えられません。",
+ "ColorMunki / i1Studio / ColorChecker Studio": "ColorMunki / i1Studio / ColorChecker Studio",
+ "The SpectroScan is a motorised table: it moves its head onto each patch in turn and reads it there. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "SpectroScan はモーター駆動のテーブルで、ヘッドを各パッチへ順に動かしてその場で読み取ります。ストリップは読み取らないため、ここで設定する読み取り速度はなく、これらの値は変更できません。",
+ "WHEN THE CLOCK STARTS\nA strip is timed from the beep, not from the moment you press the instrument's button. After the press the instrument first warms up its lamp, about 0.7 seconds on an i1Pro, and only then starts reading and beeps. That wait is not counted, so start sliding when you hear the beep.": "計測が始まるとき\nストリップの時間は、測定器のボタンを押した瞬間からではなく、ビープ音から計られます。ボタンを押すと、測定器はまずランプを温め（i1Pro で約0.7秒）、それから読み取りを始めてビープ音を鳴らします。この待ち時間は数えられないので、ビープ音が聞こえたらスライドを始めてください。"
 }

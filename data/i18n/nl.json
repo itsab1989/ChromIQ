@@ -6411,5 +6411,10 @@
  "Measurement inspection": "Meetinginspectie",
  "Profile inspection": "Profielinspectie",
  "Save measurement inspection": "Meetinginspectie opslaan",
- "Save profile inspection": "Profielinspectie opslaan"
+ "Save profile inspection": "Profielinspectie opslaan",
+ "A CR30 is placed on one patch at a time and takes one reading each time you press its button. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "Een CR30 zet je op één meetveld tegelijk en hij doet één meting telkens als je op zijn knop drukt. Hij leest geen stroken, dus hier valt geen leessnelheid in te stellen, en deze waarden kunnen niet worden gewijzigd.",
+ "A strip is timed from the beep you hear after pressing the instrument's button, not from the press itself. In between, the instrument warms up its lamp (about 0.7 seconds on an i1Pro), and that wait is not counted.": "Een strook wordt getimed vanaf de pieptoon die je hoort nadat je op de knop van het instrument hebt gedrukt, niet vanaf het drukken zelf. Daartussen warmt het instrument zijn lamp op (ongeveer 0,7 seconde bij een i1Pro), en die wachttijd telt niet mee.",
+ "ColorMunki / i1Studio / ColorChecker Studio": "ColorMunki / i1Studio / ColorChecker Studio",
+ "The SpectroScan is a motorised table: it moves its head onto each patch in turn and reads it there. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "De SpectroScan is een gemotoriseerde tafel: hij brengt zijn meetkop om de beurt naar elk meetveld en leest het daar. Hij leest geen stroken, dus hier valt geen leessnelheid in te stellen, en deze waarden kunnen niet worden gewijzigd.",
+ "WHEN THE CLOCK STARTS\nA strip is timed from the beep, not from the moment you press the instrument's button. After the press the instrument first warms up its lamp, about 0.7 seconds on an i1Pro, and only then starts reading and beeps. That wait is not counted, so start sliding when you hear the beep.": "WANNEER DE KLOK START\nEen strook wordt getimed vanaf de pieptoon, niet vanaf het moment dat je op de knop van het instrument drukt. Na het drukken warmt het instrument eerst zijn lamp op, ongeveer 0,7 seconde bij een i1Pro, en pas daarna begint het te lezen en piept het. Die wachttijd telt niet mee, dus begin te schuiven als je de pieptoon hoort."
 }

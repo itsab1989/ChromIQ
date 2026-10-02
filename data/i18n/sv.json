@@ -6411,5 +6411,10 @@
  "Measurement inspection": "Mätningsinspektion",
  "Profile inspection": "Profilinspektion",
  "Save measurement inspection": "Spara mätningsinspektion",
- "Save profile inspection": "Spara profilinspektion"
+ "Save profile inspection": "Spara profilinspektion",
+ "A CR30 is placed on one patch at a time and takes one reading each time you press its button. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "En CR30 placeras på ett fält i taget och gör en mätning varje gång du trycker på dess knapp. Den läser inga remsor, så det finns ingen läshastighet att ställa in här, och de här värdena kan inte ändras.",
+ "A strip is timed from the beep you hear after pressing the instrument's button, not from the press itself. In between, the instrument warms up its lamp (about 0.7 seconds on an i1Pro), and that wait is not counted.": "En remsa tidtas från pipljudet du hör efter att du tryckt på instrumentets knapp, inte från själva trycket. Däremellan värmer instrumentet upp sin lampa (ungefär 0,7 sekunder på en i1Pro), och den väntan räknas inte.",
+ "ColorMunki / i1Studio / ColorChecker Studio": "ColorMunki / i1Studio / ColorChecker Studio",
+ "The SpectroScan is a motorised table: it moves its head onto each patch in turn and reads it there. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "SpectroScan är ett motoriserat bord: det för sitt mäthuvud till varje fält i tur och ordning och läser det där. Det läser inga remsor, så det finns ingen läshastighet att ställa in här, och de här värdena kan inte ändras.",
+ "WHEN THE CLOCK STARTS\nA strip is timed from the beep, not from the moment you press the instrument's button. After the press the instrument first warms up its lamp, about 0.7 seconds on an i1Pro, and only then starts reading and beeps. That wait is not counted, so start sliding when you hear the beep.": "NÄR KLOCKAN STARTAR\nEn remsa tidtas från pipljudet, inte från det ögonblick du trycker på instrumentets knapp. Efter trycket värmer instrumentet först upp sin lampa, ungefär 0,7 sekunder på en i1Pro, och först då börjar det läsa och piper. Den väntan räknas inte, så börja dra när du hör pipljudet."
 }

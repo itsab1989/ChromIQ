@@ -6411,5 +6411,10 @@
  "Measurement inspection": "Inspección de medición",
  "Profile inspection": "Inspección de perfil",
  "Save measurement inspection": "Guardar inspección de medición",
- "Save profile inspection": "Guardar inspección de perfil"
+ "Save profile inspection": "Guardar inspección de perfil",
+ "A CR30 is placed on one patch at a time and takes one reading each time you press its button. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "Un CR30 se coloca sobre un parche cada vez y toma una lectura cada vez que pulsas su botón. No lee tiras, así que aquí no hay ninguna velocidad de lectura que ajustar, y estos valores no se pueden cambiar.",
+ "A strip is timed from the beep you hear after pressing the instrument's button, not from the press itself. In between, the instrument warms up its lamp (about 0.7 seconds on an i1Pro), and that wait is not counted.": "Una tira se cronometra desde el pitido que oyes después de pulsar el botón del instrumento, no desde la pulsación. Entre medias, el instrumento calienta su lámpara (unos 0,7 segundos en un i1Pro), y esa espera no se cuenta.",
+ "ColorMunki / i1Studio / ColorChecker Studio": "ColorMunki / i1Studio / ColorChecker Studio",
+ "The SpectroScan is a motorised table: it moves its head onto each patch in turn and reads it there. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "El SpectroScan es una mesa motorizada: lleva su cabezal a cada parche por turno y lo lee allí. No lee tiras, así que aquí no hay ninguna velocidad de lectura que ajustar, y estos valores no se pueden cambiar.",
+ "WHEN THE CLOCK STARTS\nA strip is timed from the beep, not from the moment you press the instrument's button. After the press the instrument first warms up its lamp, about 0.7 seconds on an i1Pro, and only then starts reading and beeps. That wait is not counted, so start sliding when you hear the beep.": "CUÁNDO EMPIEZA A CONTAR EL TIEMPO\nUna tira se cronometra desde el pitido, no desde el momento en que pulsas el botón del instrumento. Tras la pulsación, el instrumento primero calienta su lámpara, unos 0,7 segundos en un i1Pro, y solo entonces empieza a leer y emite el pitido. Esa espera no se cuenta, así que empieza a deslizar cuando oigas el pitido."
 }

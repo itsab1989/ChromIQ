@@ -146,6 +146,34 @@ a sound that does not exist. The audit that produced it found two windows
 opening in silence — **Instrument in Wrong Position** and **Instrument Error
 (anything else the instrument reports)** — both fixed in beta.164.
 
+## 4a. Confirmed behaviour: the instrument's ready beep and the strip clock (#202)
+
+**Confirmed by:** Knut, 2026-10-02 (#202 5943245399 / 5943350639)
+
+After the instrument's button is pressed, the instrument warms its lamp and then
+beeps; the beep is the moment it starts measuring. Knut's rulings:
+
+- **R-202-1 · The beep stays ArgyllCMS's own.** It is not one of ChromIQ's
+  sounds and is not in the tables above (Q2: *"keep current design"*). It plays
+  at ArgyllCMS's own moment, about 0.7 s after the press on an i1Pro (200 ms
+  plus the 0.5 s lamp time), not earlier (5943350639).
+- **R-202-2 · A strip is timed from the beep** (Q3: *"the timing should start at
+  the beep, as this is when measurement start happens"*). The lamp warm-up
+  between the press and the beep is not counted. With stock ArgyllCMS chartread
+  there is no strip timing at all, as before: it reports no start.
+- **R-202-3 · The help says so.** Preferences ▸ Measurement explains that a
+  strip is timed from the beep, and mentions the lamp warm-up between the
+  button press and the beep (Q3).
+- **R-202-4 · No other message changes** (Q1: *"current wording is good
+  enough"*).
+- **R-202-5 · Every instrument in the Instrument selection is timed by its own
+  row** in Preferences ▸ Measurement ▸ Per instrument, except the SpectroScan
+  and the CR30.
+- **R-202-6 · The SpectroScan and CR30 rows are locked.** They do not read
+  strips, so their "Readings per second", "Patches per strip" and "Minimum
+  readings per patch" fields are disabled, showing their current values, to
+  show that they are not configurable.
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session

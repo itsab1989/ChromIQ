@@ -6411,5 +6411,10 @@
  "Measurement inspection": "Ispezione della misura",
  "Profile inspection": "Ispezione del profilo",
  "Save measurement inspection": "Salva ispezione della misura",
- "Save profile inspection": "Salva ispezione del profilo"
+ "Save profile inspection": "Salva ispezione del profilo",
+ "A CR30 is placed on one patch at a time and takes one reading each time you press its button. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "Un CR30 si appoggia su un tassello alla volta e fa una lettura ogni volta che premi il suo pulsante. Non legge strisce, quindi qui non c'è nessuna velocità di lettura da impostare, e questi valori non si possono modificare.",
+ "A strip is timed from the beep you hear after pressing the instrument's button, not from the press itself. In between, the instrument warms up its lamp (about 0.7 seconds on an i1Pro), and that wait is not counted.": "Una striscia viene cronometrata dal bip che senti dopo aver premuto il pulsante dello strumento, non dalla pressione stessa. Nel frattempo lo strumento scalda la sua lampada (circa 0,7 secondi su un i1Pro), e quell'attesa non viene contata.",
+ "ColorMunki / i1Studio / ColorChecker Studio": "ColorMunki / i1Studio / ColorChecker Studio",
+ "The SpectroScan is a motorised table: it moves its head onto each patch in turn and reads it there. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "Lo SpectroScan è un tavolo motorizzato: porta la sua testina su ogni tassello a turno e lo legge lì. Non legge strisce, quindi qui non c'è nessuna velocità di lettura da impostare, e questi valori non si possono modificare.",
+ "WHEN THE CLOCK STARTS\nA strip is timed from the beep, not from the moment you press the instrument's button. After the press the instrument first warms up its lamp, about 0.7 seconds on an i1Pro, and only then starts reading and beeps. That wait is not counted, so start sliding when you hear the beep.": "QUANDO PARTE IL CRONOMETRO\nUna striscia viene cronometrata dal bip, non dal momento in cui premi il pulsante dello strumento. Dopo la pressione lo strumento scalda prima la sua lampada, circa 0,7 secondi su un i1Pro, e solo allora inizia a leggere ed emette il bip. Quell'attesa non viene contata, quindi inizia a far scorrere lo strumento quando senti il bip."
 }

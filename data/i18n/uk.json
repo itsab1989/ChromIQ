@@ -6411,5 +6411,10 @@
  "Measurement inspection": "Огляд вимірювання",
  "Profile inspection": "Огляд профілю",
  "Save measurement inspection": "Зберегти огляд вимірювання",
- "Save profile inspection": "Зберегти огляд профілю"
+ "Save profile inspection": "Зберегти огляд профілю",
+ "A CR30 is placed on one patch at a time and takes one reading each time you press its button. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "CR30 ставлять на один патч за раз, і він робить одне вимірювання при кожному натисканні кнопки. Він не читає смуги, тому тут немає швидкості зчитування, яку можна налаштувати, і ці значення змінити не можна.",
+ "A strip is timed from the beep you hear after pressing the instrument's button, not from the press itself. In between, the instrument warms up its lamp (about 0.7 seconds on an i1Pro), and that wait is not counted.": "Час смуги відраховується від звукового сигналу, який ви чуєте після натискання кнопки інструменту, а не від самого натискання. У проміжку інструмент прогріває лампу (близько 0,7 секунди в i1Pro), і це очікування не враховується.",
+ "ColorMunki / i1Studio / ColorChecker Studio": "ColorMunki / i1Studio / ColorChecker Studio",
+ "The SpectroScan is a motorised table: it moves its head onto each patch in turn and reads it there. It reads no strips, so there is no reading speed to set here, and these values cannot be changed.": "SpectroScan є моторизованим столом: він по черзі підводить головку до кожного патча і зчитує його там. Він не читає смуги, тому тут немає швидкості зчитування, яку можна налаштувати, і ці значення змінити не можна.",
+ "WHEN THE CLOCK STARTS\nA strip is timed from the beep, not from the moment you press the instrument's button. After the press the instrument first warms up its lamp, about 0.7 seconds on an i1Pro, and only then starts reading and beeps. That wait is not counted, so start sliding when you hear the beep.": "КОЛИ ПОЧИНАЄТЬСЯ ВІДЛІК\nЧас смуги відраховується від звукового сигналу, а не від моменту натискання кнопки інструменту. Після натискання інструмент спершу прогріває лампу, близько 0,7 секунди в i1Pro, і лише тоді починає зчитування та подає сигнал. Це очікування не враховується, тож починайте вести інструмент, коли почуєте сигнал."
 }
