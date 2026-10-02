@@ -119,6 +119,12 @@ def _lay_out(folder: Path, chart: Path, args: "list[str]") -> Path:
 
 
 @needs_printtarg
+@pytest.mark.xfail(strict=False, reason=(
+    "KNOWN FLAKY under the full -n auto gate since 2026-10-02 (2 of 4 gates on "
+    "51093245): the two seeded builds sometimes place patch 1 at B15 and G3 "
+    "although RANDOM_START matches; green alone 6/6. Cause not found yet; "
+    "Basti chose to ship 4.3.3-beta.1 with this marked and investigate for "
+    "beta 2 (monitor to-do flk1). Remove this marker when fixed."))
 def test_two_builds_lay_a_chart_out_identically(tmp_path):
     """Two builds of the same chart with the pack's arguments: the same patch
     in the same place, byte for byte, except printtarg's clock (the CREATED
