@@ -795,10 +795,13 @@ def lay_out_with_printtarg(chart: Path, spec: dict) -> dict:
         except OSError as exc:
             return {"reason": REASON_LAYOUT_REFUSED, "detail": str(exc)}
         try:
+            # flk1: the same seed lays out the same page (core/printtarg_env)
+            from core.printtarg_env import printtarg_env
             r = subprocess.run([str(exe), *argv, "chart"], cwd=str(folder),
                                capture_output=True, text=True, encoding="utf-8",
                                errors="replace", stdin=subprocess.DEVNULL,
-                               timeout=PRINTTARG_TIMEOUT_S)
+                               timeout=PRINTTARG_TIMEOUT_S,
+                               env=printtarg_env())
         except subprocess.TimeoutExpired:
             return {"reason": REASON_LAYOUT_REFUSED,
                     "detail": f"printtarg did not finish within "

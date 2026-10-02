@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Callable
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, pyqtSignal
 
 from core.logger import get_logger
+from core.printtarg_env import is_printtarg, printtarg_env_additions
 from core.proc_text import decode_output
 from core.resource_path import argyll_binary
 
@@ -424,10 +425,11 @@ class ArgyllRunner(QObject):
         # instrument connects fast. Only touch the environment when the option
         # is on AND we have something to exclude, so nothing else changes.
         _env = QProcessEnvironment.systemEnvironment()
-        _excl = self._serial_exclusion_value(
-            _env.value("ARGYLL_EXCLUDE_SERIAL_SCAN", ""))
-        if _excl:
-            _env.insert("ARGYLL_EXCLUDE_SERIAL_SCAN", _excl)
+        _extra = self.environment_additions(
+            tool, _env.value("ARGYLL_EXCLUDE_SERIAL_SCAN", ""))
+        if _extra:
+            for _k, _v in _extra.items():
+                _env.insert(_k, _v)
             self._process.setProcessEnvironment(_env)
 
         self._run_on_finish = on_finish
@@ -705,10 +707,8 @@ class ArgyllRunner(QObject):
         log.info("Run (PTY): %s %s  [cwd=%s]", bin_path, " ".join(args), cwd)
         # Skip Argyll's slow phantom-serial-port probe (macOS) — see run().
         _env = os.environ.copy()
-        _excl = self._serial_exclusion_value(
-            _env.get("ARGYLL_EXCLUDE_SERIAL_SCAN"))
-        if _excl:
-            _env["ARGYLL_EXCLUDE_SERIAL_SCAN"] = _excl
+        _env.update(self.environment_additions(
+            tool, _env.get("ARGYLL_EXCLUDE_SERIAL_SCAN")))
         master_fd, slave_fd = pty.openpty()
         try:
             self._pty_proc = subprocess.Popen(
@@ -1141,6 +1141,22 @@ class ArgyllRunner(QObject):
             return found.is_file() and os.access(found, os.X_OK)
         import shutil
         return shutil.which(str(found)) is not None
+
+    def environment_additions(self, tool: str,
+                              current_exclusion: "str | None") -> "dict[str, str]":
+        """What `run` adds to the tool's environment, and nothing else.
+
+        The serial-probe exclusion (see `run`), and for printtarg the
+        allocator setting that makes a seeded layout the same on every run
+        (flk1, `core/printtarg_env.py`). Empty means the environment is
+        left exactly as inherited."""
+        extra: "dict[str, str]" = {}
+        excl = self._serial_exclusion_value(current_exclusion)
+        if excl:
+            extra["ARGYLL_EXCLUDE_SERIAL_SCAN"] = excl
+        if is_printtarg(tool):
+            extra.update(printtarg_env_additions())
+        return extra
 
     def _resolve(self, tool: str) -> Path:
         # Bundled helpers (chromiq-chartread) pass their absolute path —

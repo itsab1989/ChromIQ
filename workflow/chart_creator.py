@@ -2239,7 +2239,12 @@ class ChartCreator:
             with tempfile.TemporaryDirectory(prefix="chromiq_cht_") as td:
                 tdp = Path(td)
                 shutil.copy(ti1, tdp / "cap.ti1")
-                run_text(cmd, cwd=td, capture_output=True, timeout=120)
+                # flk1: printtarg in the environment Generate's run had
+                # (core/printtarg_env); the .cht is seed-independent, so this
+                # is consistency, not a fix
+                from core.printtarg_env import printtarg_env
+                run_text(cmd, cwd=td, capture_output=True, timeout=120,
+                         env=printtarg_env())
                 pages = [c.read_text(encoding="utf-8")
                          for c in sorted(tdp.glob("cap*.cht"))]
             if not pages:
