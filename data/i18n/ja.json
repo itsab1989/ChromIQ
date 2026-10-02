@@ -3512,6 +3512,7 @@
  "Report limits…": "レポートの許容値…",
  "Report not generated": "レポートを作成できませんでした",
  "Report saved: {name} (in the reports folder next to your measurement)": "レポートを保存しました: {name}（測定データの隣の reports フォルダー内）",
+  "Report saved beside your measurement: {name}": "レポートを測定データの隣に保存しました: {name}",
  "Report scope (All dates, One date, Multiple dates)": "レポートの範囲（全日付、1 日付、複数日付）",
  "Report settings": "レポートの設定",
  "Report shown": "表示するレポート",

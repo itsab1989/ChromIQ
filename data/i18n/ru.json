@@ -3512,6 +3512,7 @@
  "Report limits…": "Допуски отчёта…",
  "Report not generated": "Отчёт не создан",
  "Report saved: {name} (in the reports folder next to your measurement)": "Отчёт сохранён: {name} (в папке reports рядом с вашим измерением)",
+  "Report saved beside your measurement: {name}": "Отчёт сохранён рядом с вашим измерением: {name}",
  "Report scope (All dates, One date, Multiple dates)": "Охват отчёта (Все даты, Одна дата, Несколько дат)",
  "Report settings": "Настройки отчёта",
  "Report shown": "Показанный отчёт",

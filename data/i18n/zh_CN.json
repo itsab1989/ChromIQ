@@ -3512,6 +3512,7 @@
  "Report limits…": "报告限值…",
  "Report not generated": "报告未生成",
  "Report saved: {name} (in the reports folder next to your measurement)": "报告已保存：{name}（在测量文件旁的 reports 文件夹中）",
+  "Report saved beside your measurement: {name}": "报告已保存在测量文件旁：{name}",
  "Report scope (All dates, One date, Multiple dates)": "报告范围（所有日期、一个日期、多个日期）",
  "Report settings": "报告设置",
  "Report shown": "显示的报告",

@@ -3512,6 +3512,7 @@
  "Report limits…": "Межі звіту…",
  "Report not generated": "Звіт не створено",
  "Report saved: {name} (in the reports folder next to your measurement)": "Звіт збережено: {name} (у папці звітів поруч із вашим вимірюванням)",
+  "Report saved beside your measurement: {name}": "Звіт збережено поруч із вашим вимірюванням: {name}",
  "Report scope (All dates, One date, Multiple dates)": "Обсяг звіту («Усі дати», «Одна дата», «Кілька дат»)",
  "Report settings": "Налаштування звіту",
  "Report shown": "Показаний звіт",

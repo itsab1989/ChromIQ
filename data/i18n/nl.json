@@ -3512,6 +3512,7 @@
  "Report limits…": "Rapportlimieten…",
  "Report not generated": "Rapport niet gegenereerd",
  "Report saved: {name} (in the reports folder next to your measurement)": "Rapport opgeslagen: {name} (in de map reports naast je meting)",
+  "Report saved beside your measurement: {name}": "Rapport opgeslagen naast je meting: {name}",
  "Report scope (All dates, One date, Multiple dates)": "Rapportomvang (Alle datums, Eén datum, Meerdere datums)",
  "Report settings": "Rapportinstellingen",
  "Report shown": "Getoond rapport",

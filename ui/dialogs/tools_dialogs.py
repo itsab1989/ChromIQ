@@ -310,6 +310,20 @@ def _remember_dir(settings: "AppSettings", tool_key: str, path: Path) -> None:
 # Base dialog
 # ---------------------------------------------------------------------------
 
+
+def _report_saved_line(report: Path, measured: Path) -> str:
+    """The log line after a Verify tool wrote its report. In a project the
+    report is in the owner's ``reports/`` folder; outside one it lies straight
+    beside the measurement (Knut, #182 5944210498), and the line says so
+    (review P-INS-2: it claimed a reports folder that was never made)."""
+    from workflow.run_compliance import in_a_project
+    if in_a_project(measured):
+        return tr("Report saved: {name} (in the reports folder next to "
+                  "your measurement)").format(
+                      name=f"{report.parent.name}/{report.name}")
+    return tr("Report saved beside your measurement: {name}").format(
+        name=report.name)
+
 class _ToolDialogBase(WorkAreaClamped, QDialog):
     """Shared chrome: title, descriptive body, content area, log, Run/Close."""
 
@@ -2112,10 +2126,8 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                         "Verify_Reference", self._measured.stem,
                         summary, result.raw_log,
                         log_title="Full colverify output")
-                    self._log.appendPlainText(tr(
-                        "Report saved: {name} (in the reports folder next to "
-                        "your measurement)").format(
-                            name=f"{rp.parent.name}/{rp.name}"))
+                    self._log.appendPlainText(
+                        _report_saved_line(rp, self._measured))
                 except Exception:  # noqa: BLE001 — a report must never block the verdict
                     log.warning("could not write verification report",
                                 exc_info=True)
@@ -2379,10 +2391,8 @@ class VerifyProfileDialog(_ToolDialogBase):
                         "Verify_Profile", self._measured.stem,
                         summary, result.raw_log,
                         log_title="Full profcheck output")
-                    self._log.appendPlainText(tr(
-                        "Report saved: {name} (in the reports folder next to "
-                        "your measurement)").format(
-                            name=f"{rp.parent.name}/{rp.name}"))
+                    self._log.appendPlainText(
+                        _report_saved_line(rp, self._measured))
                 except Exception:  # noqa: BLE001 — a report must never block the verdict
                     log.warning("could not write verification report",
                                 exc_info=True)

@@ -3512,6 +3512,7 @@
  "Report limits…": "Limites do relatório…",
  "Report not generated": "Relatório não gerado",
  "Report saved: {name} (in the reports folder next to your measurement)": "Relatório guardado: {name} (na pasta reports junto à sua medição)",
+  "Report saved beside your measurement: {name}": "Relatório guardado junto à sua medição: {name}",
  "Report scope (All dates, One date, Multiple dates)": "Âmbito do relatório (Todas as datas, Uma data, Várias datas)",
  "Report settings": "Definições do relatório",
  "Report shown": "Relatório mostrado",

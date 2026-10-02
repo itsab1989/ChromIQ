@@ -3512,6 +3512,7 @@
  "Report limits…": "Rapportgrenser…",
  "Report not generated": "Rapport ble ikke laget",
  "Report saved: {name} (in the reports folder next to your measurement)": "Rapport lagret: {name} (i reports-mappen ved siden av målingen din)",
+  "Report saved beside your measurement: {name}": "Rapport lagret ved siden av målingen din: {name}",
  "Report scope (All dates, One date, Multiple dates)": "Rapportomfang (Alle datoer, Én dato, Flere datoer)",
  "Report settings": "Rapportinnstillinger",
  "Report shown": "Vist rapport",

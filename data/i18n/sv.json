@@ -3512,6 +3512,7 @@
  "Report limits…": "Rapportgränser…",
  "Report not generated": "Rapporten skapades inte",
  "Report saved: {name} (in the reports folder next to your measurement)": "Rapport sparad: {name} (i reports-mappen bredvid din mätning)",
+  "Report saved beside your measurement: {name}": "Rapport sparad bredvid din mätning: {name}",
  "Report scope (All dates, One date, Multiple dates)": "Rapportomfång (Alla datum, Ett datum, Flera datum)",
  "Report settings": "Rapportinställningar",
  "Report shown": "Visad rapport",
