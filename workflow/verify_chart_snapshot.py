@@ -78,7 +78,16 @@ def live_chart_files(run: Run) -> list[Path]:
     vdir = run.verifications_dir
     if not vdir.exists():
         return []
-    return sorted(p for p in vdir.iterdir() if p.is_file())
+    # …EXCEPT A MEASUREMENT. ``<verify stem>.ti3`` beside the chart is the
+    # reader's working file (chartread's output, or a dated verification staged
+    # there for Refine / resume), never part of the chart. A session that died
+    # leaves it behind, and counting it as chart copied one date's readings
+    # into the NEXT date's ``chart/`` snapshot, made every stored chart "differ"
+    # from the live one, and let Restore Used Chart stash and then discard it
+    # (review of f53874ca). ``<stem>-reference.ti3`` IS chart, and stays.
+    measurement = f"{run.verify_stem}.ti3".lower()
+    return sorted(p for p in vdir.iterdir()
+                  if p.is_file() and p.name.lower() != measurement)
 
 
 def has_layout_recipe(files: "list[Path]") -> bool:

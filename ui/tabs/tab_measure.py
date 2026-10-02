@@ -4194,11 +4194,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         asked = bool(getattr(self, "_overlay_asked_by_settings", False))
         self._overlay_asked_by_settings = False
         try:
+            if getattr(self, "_session_live", False) or self._runner.is_running:
+                # The session's own date; nothing to re-decide. And nothing to
+                # REMEMBER either: while a reader runs, the selected measurement
+                # is the working file beside the chart, so a key recorded now
+                # differs from the dated file the moment the session ends, and
+                # the next settle took that for "another date selected": it
+                # cleared the overlay and opened "This chart already has a
+                # measurement" after every verification read (review of
+                # f53874ca, measured on screen).
+                return
             key = self._selection_key()
             previous = getattr(self, "_settled_selection", None)
             self._settled_selection = key
-            if getattr(self, "_session_live", False) or self._runner.is_running:
-                return          # the session's own date; nothing to re-decide
             if previous is not None and key != previous:
                 # The painting described the measurement selected a moment ago.
                 # Same chart, another date: `_discard_stale_overlay` keys on
@@ -7070,6 +7078,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             old_dir = run.old_dir
         except Exception:      # noqa: BLE001 — a chart outside a project
             old_dir = ti3.parent / "old"
+        # A resumed verification works on a copy beside the shared chart, but
+        # the measurement it protects belongs to its date: §2a keeps that copy
+        # in ``verifications/<date>/old/``, not in the chart's ``old/``.
+        staged_from = getattr(self, "_staged_from", None)
+        if getattr(self, "_staged_verification_ti3", None) is not None \
+                and staged_from is not None:
+            old_dir = Path(staged_from).parent / "old"
         try:
             guard = MeasurementSession(
                 ti3, self._ti1_path.with_suffix(".ti2") if self._ti1_path else None,
@@ -10360,6 +10375,30 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             verification = (run.verification(vid) if vid else run.new_verification())
             verification.ensure_dir()
             dst = verification.measurement_ti3           # verifications/<date>/<name>-verify.ti3
+            # THE DATE'S OWN MEASUREMENT IS KEPT BEFORE IT IS REPLACED.
+            #
+            # "Measure anyway" on a measured date promises (§5,
+            # M-REPLACE-COMPLETE / -PARTIAL) that the existing measurement "is
+            # moved to the run's 'old' folder ... nothing is deleted", and §2a
+            # puts a verification's copy in ``verifications/<date>/old/``. The
+            # move below used to write over it with no copy anywhere: measured
+            # on a copy of Knut's project, the 484-patch reading of 2026-10-01
+            # was gone. A resumed read is covered by the session guard, which
+            # copied the same file there at Start, so it is not copied twice.
+            resumed_here = getattr(self, "_staged_verification_ti3", None) is not None
+            if dst.is_file() and not resumed_here:
+                try:
+                    same = dst.read_bytes() == marked.read_bytes()
+                except OSError:
+                    same = False
+                if not same:
+                    from datetime import datetime as _dt
+                    keep = (verification.dir / "old"
+                            / _dt.now().strftime("%Y-%m-%d_%H%M%S"))
+                    keep.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(dst, keep / dst.name)
+                    log.info("verification %s: previous measurement kept in %s",
+                             verification.id, keep)
             shutil.move(str(marked), str(dst))
             self._staged_verification_ti3 = None         # filed; nothing left beside the chart
         except OSError as exc:
@@ -11977,6 +12016,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # A resumed verification that read nothing: its dated measurement is
         # untouched, so the working copy beside the chart goes again.
         self._drop_unused_verification_stage()
+        # The session has ended ON the selection it began with (a "New
+        # verification" read has moved the bar to its new date at Start). That
+        # is the settled selection now, so a settle queued during the read does
+        # not mistake the session's own date for another one being picked.
+        try:
+            self._settled_selection = self._selection_key()
+        except Exception:      # noqa: BLE001 — never break a session's ending
+            log.debug("could not re-baseline the selection", exc_info=True)
 
         # #153: NOW the .ti3 on disk is the run's answer, so it can settle the
         # count. Not one line earlier.

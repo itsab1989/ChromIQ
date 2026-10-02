@@ -102,7 +102,11 @@ class ChartSlot:
         files = sorted(p for p in self.live_dir.iterdir()
                        if p.is_file() and not p.name.startswith("."))
         if self.suffixes is None:
-            return files
+            # The verification rule: every file at the root is chart, except
+            # the reader's working measurement ``<stem>.ti3`` (see
+            # `verify_chart_snapshot.live_chart_files`, the same exclusion).
+            measurement = f"{self.stem}.ti3".lower()
+            return [p for p in files if p.name.lower() != measurement]
         return [p for p in files if p.name.endswith(self.suffixes)
                 or _is_image(p)]
 
