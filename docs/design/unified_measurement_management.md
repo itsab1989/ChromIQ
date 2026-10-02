@@ -274,6 +274,14 @@ stored answer stays. (`MeasureManager._after_a_read`.)
   engines do: in strip mode the engine has already jumped to an unread strip,
   in patch mode it has already stepped to the next patch. Continue to next is
   the default button.
+* **The window plays the "Instrument error" sound** as it opens. Knut,
+  [5963044182](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963044182):
+  *"When the window appears it is supposed to get the attention of the user,
+  so the "Instrument error" sound can be also used as a "attention" sound.
+  Use this sound."*
+* **It asks on any read, first reads included.** Knut, 5963044182: *"for all
+  reads is ok, not only re-reads."*
+
 #### ⏳ Awaiting confirmation — points put to Knut in 5962715315
 
 **Confirmed by:** *nobody yet.*
@@ -281,9 +289,6 @@ stored answer stays. (`MeasureManager._after_a_read`.)
 * **Unread is counted per patch, from the file the engine resumes from**
   (`<chart>.ti3`, which a resumed verification is copied to first), and the
   fill-up squares that complete the last strip are never counted as unread.
-* **The window plays no sound.** It is a question, not a failure, and
-  `measurement_window_sounds.md` has no row for it; whether it should sound,
-  and which sound, is Knut's to name (review AR, 2026-10-02).
 * **The progress figure can disagree with the window during a resume.** The
   live count adds a re-read patch that the resumed file already held (a known
   limit, corrected when the session ends: `_refresh_progress_from_files`), so
@@ -6065,6 +6070,11 @@ below is the build of that rule and awaits confirmation as built.
   the confirmed patch did (patch by patch there is no strip, and this last
   condition is not applied). The card names the closest such patch by
   expected colour, ties by location.
+  **There is no upper bound:** a patch much further off than the confirmed
+  one still turns yellow. Knut ruled this on 2026-10-03, #182
+  [5963044182](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963044182):
+  *"Use "(a) Any error at least as large as the confirmed patch turns
+  yellow""* (the rest of 10.4 still awaits confirmation).
 * **Both directions, after every batch** (a strip, a patch, a repaint from
   the file): every flagged patch is judged again, so a range that has just
   learned turns EARLIER red patches of it yellow, and a range that loses a

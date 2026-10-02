@@ -41,6 +41,7 @@ WINDOW_ROWS = [
     (tr("Strip read interrupted"), tr("Strip reading"), tr("Strip read failed")),
     (tr("Patches still unread"), tr("Both"), tr("Strip read failed")),
     (tr("Averaging failed"), tr("Both"), tr("Strip read failed")),
+    (tr("Some patches are still not read"), tr("Both"), tr("Instrument error")),
     (tr("Calibration required"), tr("Both"), tr("Instrument error")),
     (tr("Confirm abort"), tr("Both"), tr("Instrument error")),
     (tr("Instrument disconnected"), tr("Both"), tr("Instrument error")),

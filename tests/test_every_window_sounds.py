@@ -39,6 +39,7 @@ EXPECTED_CUE = {
     "_on_strip_misaligned":                   "STRIP_FAIL",
     "_show_average_failed_dialog":            "STRIP_FAIL",
     "_on_unexpected_response":                "PATCH_OUT_OF_TOL",
+    "_unread_choice_window":                  "INSTRUMENT_ERROR",
 }
 
 

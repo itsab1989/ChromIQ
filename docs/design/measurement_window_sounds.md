@@ -33,6 +33,7 @@ identifiers.
 | Strip read interrupted | Strip reading | Strip read failed |
 | Patches still unread | Both | Strip read failed |
 | Averaging failed | Both | Strip read failed |
+| Some patches are still not read | Both | Instrument error |
 | Calibration required | Both | Instrument error |
 | Confirm abort | Both | Instrument error |
 | Instrument disconnected | Both | Instrument error |

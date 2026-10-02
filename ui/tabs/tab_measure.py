@@ -7351,6 +7351,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         Returns ``"next"``, ``"unread"``, or None when the window was closed
         without an answer (the X, Escape, or the session ending under it).
         """
+        # The "Some patches are still not read" window's sound. Knut, #182
+        # 5963044182: "When the window appears it is supposed to
+        # get the attention of the user ... Use this sound."
+        self._cue_window("INSTRUMENT_ERROR")
         from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
 
         from workflow import measurement_messages as M
