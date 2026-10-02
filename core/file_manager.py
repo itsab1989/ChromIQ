@@ -3787,6 +3787,7 @@ class Project:
                           source.id)
             self._discard_run(new_run, just_created=True)
             raise
+        self._copied_reports_name_the_new_run(source, new_run, plan)
         meta = new_run.load_meta()
         src_meta = source.load_meta()
         meta.duplicated_from = source.id
@@ -3817,6 +3818,32 @@ class Project:
         log.info("Duplicated %s into %s (%d files)", source.id, new_run.id,
                  sum(len(f) for _g, f, _s in plan))
         return new_run
+
+    def _copied_reports_name_the_new_run(self, source: Run, new_run: Run,
+                                         plan) -> None:
+        """The reports :meth:`duplicate_run` copied now name *new_run*, not
+        *source* (Knut, #182 C4: a report in a run is only related to that
+        run; `core.report_refs.duplicate_references_plan`). The copy is made
+        by then, so a failure is logged, never raised: the run is real."""
+        copied = [new_run.dir / src.relative_to(source.dir)
+                  for _g, files, _s in plan for src in files
+                  if src.suffix.lower() == ".json"
+                  and src.name.startswith("report_")]
+        if not copied:
+            return
+        try:
+            from core.report_refs import (apply_plan,
+                                          duplicate_references_plan,
+                                          project_names)
+            refs = duplicate_references_plan(
+                self.root, project_names(self.root, self.target_name),
+                copied, source.id, new_run.id)
+            if refs and not apply_plan(refs):
+                log.error("the reports copied into %s could not be pointed "
+                          "at it; they still name %s", new_run.id, source.id)
+        except Exception:                            # noqa: BLE001
+            log.warning("could not point the reports copied into %s at it",
+                        new_run.id, exc_info=True)
 
     def _discard_run(self, run: Run, *, just_created: bool = False) -> None:
         """Remove a run that was created but never became real.

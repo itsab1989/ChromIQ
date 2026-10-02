@@ -59,89 +59,6 @@ DELETED_RUN_SUFFIX = ".deleted"
 _STEM_FIELDS = ("ti3", "chart", "profile")
 
 
-#: **THE RUN A REPORT WAS SAVED IN, FROZEN (#182 (c), Knut 2026-10-01).**
-#: ``{"run": N}`` at the top of a saved report (the run its own file was saved
-#: in) and in each ``document.measurements`` entry (the run that measurement
-#: was in). Written once, when the report is saved, or by a run delete or a
-#: rename before anything moves for a report that lacks it, and never changed
-#: after: references follow the runs (§13.14), the number the report SHOWS
-#: does not (§53.1, confirmed: a saved report shows "the exact data that was
-#: saved at the time it was saved"). A calibration, or a file in no run, has
-#: none.
-SAVED_AS_KEY = "saved_as"
-
-#: The report's document block (`workflow.measurement_report.DOCUMENT_BLOCK`),
-#: spelled here because this module may not import ``workflow``.
-_DOCUMENT_BLOCK = "document"
-
-
-def run_number_in(path: "str | Path") -> "int | None":
-    """N of the last ``runs/runN`` in *path*, or None (a calibration, a file
-    in no run, a ``runN.deleted`` reference)."""
-    import re
-    parts = PurePath(str(path or "").replace("\\", "/")).parts
-    found = None
-    for a, b in zip(parts, parts[1:]):
-        if a == "runs":
-            m = re.fullmatch(r"run(\d+)", b)
-            if m:
-                found = int(m.group(1))
-    return found
-
-
-def _entry_identity(m: dict) -> "tuple[str, str]":
-    return (str(m.get("created") or ""), _nfc(str(m.get("ti3") or "")))
-
-
-def stamp_saved_as(report: dict, report_path: "str | Path",
-                   prior: "dict | None" = None) -> bool:
-    """Give *report* (to be written at *report_path*) its `SAVED_AS_KEY`
-    where it has none; True when anything was added.
-
-    THE FIRST VALUE WINS: a value the report already carries is never
-    changed, and one *prior* carries (the file this one replaces, or the
-    document an Update rewrites, matched per measurement by its creation
-    stamp and file name) is kept before anything is worked out from the
-    folders, which may have been renumbered since."""
-    if not isinstance(report, dict):
-        return False
-    changed = False
-    if SAVED_AS_KEY not in report:
-        old = prior.get(SAVED_AS_KEY) if isinstance(prior, dict) else None
-        if isinstance(old, dict) and old.get("run") is not None:
-            report[SAVED_AS_KEY] = dict(old)
-            changed = True
-        else:
-            n = run_number_in(Path(report_path).parent)
-            if n is not None:
-                report[SAVED_AS_KEY] = {"run": n}
-                changed = True
-    block = report.get(_DOCUMENT_BLOCK)
-    ms = block.get("measurements") if isinstance(block, dict) else None
-    if not isinstance(ms, list):
-        return changed
-    known: "dict[tuple[str, str], dict]" = {}
-    if isinstance(prior, dict):
-        pb = prior.get(_DOCUMENT_BLOCK, prior)
-        pms = pb.get("measurements") if isinstance(pb, dict) else None
-        for pm in (pms if isinstance(pms, list) else []):
-            if isinstance(pm, dict) and isinstance(pm.get(SAVED_AS_KEY), dict):
-                known.setdefault(_entry_identity(pm), pm[SAVED_AS_KEY])
-    for m in ms:
-        if not isinstance(m, dict) or SAVED_AS_KEY in m:
-            continue
-        hit = known.get(_entry_identity(m))
-        if hit is not None:
-            m[SAVED_AS_KEY] = dict(hit)
-            changed = True
-            continue
-        n = run_number_in(str(m.get("dir") or ""))
-        if n is not None:
-            m[SAVED_AS_KEY] = {"run": n}
-            changed = True
-    return changed
-
-
 def _nfc(s: str) -> str:
     import unicodedata
     return unicodedata.normalize("NFC", str(s))
@@ -403,8 +320,6 @@ def _rename_stems(obj, old: str, new: str) -> bool:
         for k, v in list(obj.items()):
             if k == "measurements" and isinstance(v, list):
                 continue
-            if k == SAVED_AS_KEY:
-                continue                # frozen: what the report was saved as
             if k in _STEM_FIELDS and isinstance(v, str):
                 nv = _renamed_stem(v, old, new)
                 if nv != v:
@@ -436,12 +351,6 @@ def _renumber_entry(m: dict, names: "frozenset[str]",
         new_run = mapping[run]
     else:
         return False
-    # The number it was saved under, BEFORE the reference moves (#182 (c));
-    # a value already there is the first one and stays.
-    if SAVED_AS_KEY not in m:
-        n = run_number_in(str(m.get("dir") or ""))
-        if n is not None:
-            m[SAVED_AS_KEY] = {"run": n}
     m["dir"] = _join(prefix, name, ["runs", new_run, *below[2:]])
     _rekey(m)
     return True
@@ -629,11 +538,6 @@ def rename_references_plan(project_root: "str | Path", old, new: str
                 rep, lambda m, o=o: _rename_entry(m, o, new, here))
             if inside:
                 changed |= _rename_stems(rep, o, new)
-        # A report rewritten anyway also records the run it was saved in,
-        # if it does not yet (#182 (c)); a rename moves no run, so the
-        # number read off the folder now is the one it was saved under.
-        if changed:
-            stamp_saved_as(rep, p)
         return changed
     return _plan(report_files_referring(root, outside=bool(outside_ok)), edit)
 
@@ -652,32 +556,106 @@ def run_references_plan(project_root: "str | Path", names,
     if not names or (not mapping and not deleted):
         return RefPlan()
 
-    moved = {str((root / "runs" / old).resolve()) for old in mapping}
+    def edit(p: Path, rep: dict) -> bool:
+        here = refers_here(root, p, rep)
+        return _walk_measurement_lists(
+            rep, lambda m: _renumber_entry(m, names, dict(mapping), deleted,
+                                           here))
+    return _plan(report_files_referring(root, outside=True), edit)
 
-    def _in_a_moved_run(p: Path) -> bool:
-        try:
-            rp = str(p.resolve())
-        except OSError:
-            return False
-        return any(rp.startswith(m.rstrip(os.sep) + os.sep) for m in moved)
+
+def project_names(project_root: "str | Path", target_name: str = ""
+                  ) -> "set[str]":
+    """Every name the project at *project_root* answers to in a report: its
+    folder, its target name and its former names (a report records the name
+    of the day it was written)."""
+    root = Path(project_root)
+    names = {root.name, str(target_name or "")}
+    try:
+        data = json.loads((root / "project.json").read_text(encoding="utf-8"))
+        names |= {n for n in (data.get("former_names") or [])
+                  if isinstance(n, str)}
+        if isinstance(data.get("target_name"), str):
+            names.add(data["target_name"])
+    except (OSError, ValueError, AttributeError):
+        pass
+    return {n for n in names if n}
+
+
+def duplicate_references_plan(project_root: "str | Path", names, files,
+                              source_id: str, new_id: str) -> RefPlan:
+    """What a duplicate of run *source_id* into *new_id* changes in the
+    reports it COPIED (*files*, inside the new run), and nowhere else.
+
+    **A REPORT IN A RUN IS ONLY RELATED TO THAT RUN** (Knut, #182 C4,
+    5943085974): *"Duplicating a run will make a new run, and any reports in
+    that run will then only relate to that new run, not any other runs
+    (where they originally were made first)."* A copy kept naming
+    ``runs/<source>``, so the new run's window listed it as "Multiple runs"
+    and its page was the source run's. Every measurement entry of this
+    project that names the source run (the run itself, or a date under its
+    ``verifications/``) is moved to the new run, as a run delete renumbers
+    one (`run_references_plan`).
+
+    **AND EACH COPY IS A DOCUMENT OF ITS OWN.** "Report shown" groups files
+    by their document id (`workflow.measurement_report.document_key`), so a
+    copy carrying its original's id was one entry with the original: listed
+    in the new run as "Multiple runs", its page drawn from both runs. A copy
+    gets a fresh id (`_fresh_document_id`: the same time stamp, so the list
+    keeps its order, a new salt), written wherever the file names its own
+    id. The source run's own reports are not touched."""
+    root = Path(project_root)
+    names = frozenset(_nfc(n) for n in (names or ()) if n)
+    if not names or not source_id or not new_id or source_id == new_id:
+        return RefPlan()
 
     def edit(p: Path, rep: dict) -> bool:
         here = refers_here(root, p, rep)
         changed = _walk_measurement_lists(
-            rep, lambda m: _renumber_entry(m, names, dict(mapping), deleted,
-                                           here))
-        # **AND THE RUN EACH REPORT WAS SAVED IN, BEFORE ITS FOLDER MOVES
-        # (#182 (c)).** A report inside a run that is about to be renumbered
-        # is read by its folder, so after the move it would say the new
-        # number; one with no document block (every report before B8-388)
-        # has no list for the lines above to touch. Every such file, and
-        # every file rewritten anyway, records the number now, unless it
-        # already carries one. This is planned before anything moves
-        # (`core.run_delete.delete_run`), so the path still names the old run.
-        if changed or _in_a_moved_run(p):
-            changed |= stamp_saved_as(rep, p)
+            rep, lambda m: _renumber_entry(m, names, {source_id: new_id},
+                                           "", here))
+        doc = rep.get("document")
+        old = doc.get("id") if isinstance(doc, dict) else None
+        if isinstance(old, str) and old:
+            changed |= _replace_value(rep, old, _fresh_document_id(old))
         return changed
-    return _plan(report_files_referring(root, outside=True), edit)
+    return _plan([Path(f) for f in files], edit)
+
+
+def _fresh_document_id(old: str) -> str:
+    """A new document id for a copy of the document *old*: the same
+    ``doc_<date>_<time>`` stamp (ids are time-ordered,
+    `workflow.measurement_report.new_document_id`), a new salt."""
+    import re
+    import secrets
+    m = re.fullmatch(r"(doc_\d{8}_\d{6})_[0-9a-f]+", old)
+    stem = m.group(1) if m else old
+    while True:
+        new = f"{stem}_{secrets.token_hex(3)}"
+        if new != old:
+            return new
+
+
+def _replace_value(obj, old: str, new: str) -> bool:
+    """Every string value equal to *old*, at any depth, becomes *new*."""
+    changed = False
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, str):
+                if v == old:
+                    obj[k] = new
+                    changed = True
+            else:
+                changed |= _replace_value(v, old, new)
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            if isinstance(v, str):
+                if v == old:
+                    obj[i] = new
+                    changed = True
+            else:
+                changed |= _replace_value(v, old, new)
+    return changed
 
 
 def _is_inside(p: Path, root: Path) -> bool:

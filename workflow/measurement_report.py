@@ -2053,14 +2053,9 @@ def annotate_raw_drift(runs: "list[dict]") -> None:
         prev, prev_data = r, data
 
 
-def save_report(report: dict, run_dir: str | Path, *,
-                prior: "dict | None" = None) -> Path:
+def save_report(report: dict, run_dir: str | Path) -> Path:
     """Write the report as timestamped JSON under ``<run_dir>/reports/`` and
-    return the path. Timestamped so a printer's reports accrue for comparison.
-
-    It records the run it is saved in (`core.report_refs.stamp_saved_as`,
-    #182 (c)); *prior* is the report an Update replaces, whose recorded runs
-    are kept."""
+    return the path. Timestamped so a printer's reports accrue for comparison."""
     from core.file_manager import reports_subdir
     reports = reports_subdir(run_dir)
     reports.mkdir(parents=True, exist_ok=True)
@@ -2080,8 +2075,6 @@ def save_report(report: dict, run_dir: str | Path, *,
         while (reports / f"report_{ts}_{n}.json").exists():
             n += 1
         path = reports / f"report_{ts}_{n}.json"
-    from core.report_refs import stamp_saved_as
-    stamp_saved_as(report, path, prior)
     # ATOMICALLY, BECAUSE A HALF-WRITTEN REPORT HAS A REAL REPORT'S NAME.
     # `Path.write_text` leaves exactly that when the process is killed
     # mid-write, and combined round 3 drove what the window then does with it:
@@ -3394,39 +3387,6 @@ def recorded_judgement(block: "dict | None", key: str,
             if (_named_coverage_key(m.get("dir") or ""),
                 relative_measurement_key(str(m.get("key") or ""))) == want]
     return _ok(hits[0]) if len(hits) == 1 else None
-
-
-def recorded_saved_run(block: "dict | None", key: str,
-                       origin_dir: "str | Path") -> "int | None":
-    """The run number a document recorded for one measurement when it was
-    saved (`core.report_refs.SAVED_AS_KEY`, #182 (c)), or None. Matched as
-    `recorded_judgement` matches."""
-    from core.report_refs import SAVED_AS_KEY
-    if not isinstance(block, dict):
-        return None
-    ms = [m for m in (block.get("measurements") or []) if isinstance(m, dict)]
-
-    def _run(m):
-        sa = m.get(SAVED_AS_KEY)
-        n = sa.get("run") if isinstance(sa, dict) else None
-        return n if isinstance(n, int) and not isinstance(n, bool) else None
-    for m in ms:
-        if str(m.get("key") or "") == str(key):
-            return _run(m)
-    want = (_named_coverage_key(origin_dir), relative_measurement_key(key))
-    hits = [m for m in ms
-            if (_named_coverage_key(m.get("dir") or ""),
-                relative_measurement_key(str(m.get("key") or ""))) == want]
-    return _run(hits[0]) if len(hits) == 1 else None
-
-
-def saved_run_of(report: "dict | None") -> "int | None":
-    """The run number a saved report's own file recorded at the top, or
-    None (#182 (c))."""
-    from core.report_refs import SAVED_AS_KEY
-    sa = report.get(SAVED_AS_KEY) if isinstance(report, dict) else None
-    n = sa.get("run") if isinstance(sa, dict) else None
-    return n if isinstance(n, int) and not isinstance(n, bool) else None
 
 
 def document_file(*, doc_id: str, created: str, type_id: str,
@@ -6909,18 +6869,7 @@ def rewrite_report(path: "str | Path", report: dict) -> Path:
     call :func:`save_report`, which names the file by now() and would leave two
     live reports per date. The caller archives first (``Verification.
     archive_reports``); this only rewrites.
-
-    THE RUN THE FILE WAS FIRST SAVED IN STAYS ITS RUN (#182 (c)): what the
-    file on disk records is kept (`core.report_refs.stamp_saved_as`).
     """
     path = Path(path)
-    prior = None
-    try:
-        if path.is_file():
-            prior = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        prior = None
-    from core.report_refs import stamp_saved_as
-    stamp_saved_as(report, path, prior if isinstance(prior, dict) else None)
     write_json_atomically(path, report)      # see the note in `save_report`
     return path

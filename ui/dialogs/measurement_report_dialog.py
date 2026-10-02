@@ -52,10 +52,6 @@ log = get_logger(__name__)
 #: It is deliberately NOT a `document_key`: no file can ever answer to it, so
 #: `_saved_documents`, Delete and the label rules are untouched by it.
 NEW_REPORT_KEY = "new:"
-#: A page row drawn from a SAVED report: the run that report recorded it was
-#: saved in (#182 (c)). A session key, like every "_" key of a row: it is
-#: never written into a file.
-SAVED_RUN_KEY = "_saved_run"
 
 
 # Cube-corner codes → human labels (lazy so tr() runs under the active language).
@@ -3948,7 +3944,7 @@ class MeasurementReportDialog(QDialog):
         self._view = QTextBrowser(self)
         self._view.setOpenExternalLinks(False)
         self._view.setFrameShape(QFrame.Shape.NoFrame)
-        self._view.setHtml(self._empty_html())
+        self._show_no_report(self._empty_html())
         # The report TEXT is the point of the window — guarantee it real
         # space. With the trend visible the fixed content above squeezed it
         # to a strip a few lines high (Sebastian, 2026-08-10: "hard to get
@@ -4005,7 +4001,7 @@ class MeasurementReportDialog(QDialog):
             self._opened_empty = False
             self._load(Path(initial_ti3))
         else:
-            self._view.setHtml(self._empty_html())
+            self._show_no_report(self._empty_html())
 
     # ---- Run type Calibration (#182 beta 39) ------------------------------
     def _is_calibration_window(self) -> bool:
@@ -4664,7 +4660,7 @@ class MeasurementReportDialog(QDialog):
         try:
             added = self._append_source(ti3, origin)
         except Exception as exc:  # noqa: BLE001
-            self._view.setHtml(self._error_html(str(exc)))
+            self._show_no_report(self._error_html(str(exc)))
             return
         if added:
             # The window was opened ON this measurement — with "Show all
@@ -5224,7 +5220,7 @@ class MeasurementReportDialog(QDialog):
         # A kept page is still a report on screen, and its PDF can be saved
         # with the list emptied under it (Knut, 2026-09-18: the button is
         # greyed only "if no report is loaded in the window at all").
-        self._pdf_btn.setEnabled(has or self._page_shows_a_report())
+        self._sync_pdf_button()
         self._reveal_btn.setEnabled(has)
         self._clear_btn.setEnabled(has)
         self._update_source_buttons()
@@ -5735,7 +5731,7 @@ class MeasurementReportDialog(QDialog):
             self._report = self._subject_of(self._sources[0])
             self._rebuild_from_sources()
         if failed and not added:
-            self._view.setHtml(self._error_html(
+            self._show_no_report(self._error_html(
                 tr("Could not add these measurements:") + "\n" + "\n".join(failed)))
 
     def _as_ti3(self, src: Path) -> Path:
@@ -6184,12 +6180,36 @@ class MeasurementReportDialog(QDialog):
         self._show_stale_banner()
         self._note_which_document_the_page_is()
         if not self._sources:
-            self._view.setHtml(self._empty_html())
+            self._show_no_report(self._empty_html())
             self._remember_how_it_was_built()
             return
         self._view.setHtml(
             self._report_body_html(self._runs_for_report(), for_pdf=False))
+        self._page_drawn = True
+        self._sync_pdf_button()
         self._remember_how_it_was_built()
+
+    def _show_no_report(self, page_html: str) -> None:
+        """Put a page on the view that is NOT a report (the empty page, an
+        error), and grey Save report as PDF… with it.
+
+        **NO PDF OF AN EMPTY REPORT AREA (Knut, #182 5943085974):** *"'Save
+        report as PDF' should not be allowed to be pressed if the report area
+        is empty (no report loaded)."* The page snapshot goes too, so nothing
+        can print a report that is no longer on screen."""
+        self._view.setHtml(page_html)
+        self._page_drawn = False
+        self._page_snapshot = None
+        self._sync_pdf_button()
+
+    def _sync_pdf_button(self) -> None:
+        """Save report as PDF… is live exactly while a report is on the
+        page: drawn by `_render`, or kept there (`_keeping_the_page`, Knut
+        2026-09-18: greyed only *"if no report is loaded in the window at
+        all"*)."""
+        btn = getattr(self, "_pdf_btn", None)
+        if btn is not None:
+            btn.setEnabled(bool(getattr(self, "_page_drawn", False)))
 
     @contextmanager
     def _keeping_the_page(self):
@@ -6733,6 +6753,14 @@ class MeasurementReportDialog(QDialog):
         # ruling that Generate Report always should create a new report."*
         updating = self._document_being_updated()
         loaded = str(getattr(self, "_loaded_doc_id", "") or "")
+        # **AND "NEW REPORT…" LOADED UNDER A LIST NAMING A SAVED REPORT
+        # (#182 A1, Knut 5943085974):** the window *"opened with the one and
+        # only existing report selected"* must ask, whatever the loaded id
+        # says. Driven on screen through a real verification read it does;
+        # this closes the one state the guard below still let through.
+        if (updating is None and loaded == NEW_REPORT_KEY
+                and self._saved_entry_the_list_names() is not None):
+            loaded = ""
         if updating is None and loaded != NEW_REPORT_KEY:
             # **A SAVED REPORT IN "REPORT SHOWN" IS NEVER WRITTEN OVER, OR
             # BESIDE, WITHOUT THE QUESTION (GAP 0, K4; #182 2026-10-01).**
@@ -7463,9 +7491,7 @@ class MeasurementReportDialog(QDialog):
                     # **THE SAME FILE, THE SAME NAME, THE SAME DATE** (CH-29).
                     path = rewrite_report(rewrite_here, rep)
                 else:
-                    path = save_report(
-                        rep, Path(str(one["_origin_dir"])),
-                        prior=(updating or {}).get("doc"))
+                    path = save_report(rep, Path(str(one["_origin_dir"])))
                 saved.append(path)
                 written.append((one_key, path.name))
             except Exception as exc:             # noqa: BLE001
@@ -7483,9 +7509,7 @@ class MeasurementReportDialog(QDialog):
                 if keep_doc_file and old_doc_file.exists():
                     _doc_path = rewrite_report(old_doc_file, body)
                 else:
-                    _doc_path = save_report(
-                        body, home.parent,
-                        prior=(updating or {}).get("doc"))
+                    _doc_path = save_report(body, home.parent)
                 saved.append(_doc_path)
                 log.info("wrote the report of %d measurements: %s",
                          len(members), _doc_path)
@@ -13401,24 +13425,10 @@ class MeasurementReportDialog(QDialog):
         """
         from workflow.measurement_report import (JUDGED_REPORT_KEY,
                                                  recorded_document,
-                                                 recorded_judgement,
-                                                 recorded_saved_run,
-                                                 saved_run_of)
+                                                 recorded_judgement)
         if not rows:
             return rows
         doc = self._document_settings()
-
-        def _as_saved(c: dict, n) -> dict:
-            # **THE RUN IT WAS SAVED IN (#182 (c); §53.1, confirmed).** Only
-            # a row drawn from the SAVED report carries it, so a new report
-            # (judged live, below) names the run the measurement is in now.
-            # Set on the row itself where `_as_recorded` hands the row back
-            # (callers rely on that identity); `_judged_live` drops it.
-            if n is not None:
-                c[SAVED_RUN_KEY] = n
-            else:
-                c.pop(SAVED_RUN_KEY, None)
-            return c
         doc_id = str((doc or {}).get("id") or "")
         lim = self._report_limits()
         out = []
@@ -13442,8 +13452,7 @@ class MeasurementReportDialog(QDialog):
                                   NOT_WORKED_OUT_AGAIN_KEY)})
                     c.update({k: v for k, v in j.items()
                               if k != JUDGED_REPORT_KEY})
-                    out.append(_as_saved(c, recorded_saved_run(
-                        doc, self._run_key(r), r.get("_origin_dir") or "")))
+                    out.append(c)
                     continue
                 # THE DOCUMENT'S WORDS BESIDE THE RECORD'S EXPLANATION (M1,
                 # B8-1091): what the document recorded of how the colours
@@ -13451,14 +13460,13 @@ class MeasurementReportDialog(QDialog):
                 # date's own saved report recorded.
                 c = self._as_recorded(r, j)
                 c.update(j)
-                out.append(_as_saved(c, recorded_saved_run(
-                    doc, self._run_key(r), r.get("_origin_dir") or "")))
+                out.append(c)
                 continue
             own = recorded_document(r) if doc is not None else None
             if (own is not None and doc_id
                     and str(own.get("id") or "") == doc_id):
                 # the loaded report's own file, as it was saved
-                out.append(_as_saved(self._as_recorded(r), saved_run_of(r)))
+                out.append(self._as_recorded(r))
                 continue
             if doc_id.startswith("file:"):
                 # A report written before the document record existed: its
@@ -13467,35 +13475,10 @@ class MeasurementReportDialog(QDialog):
                 if (f.name == str(r.get("_report_file") or "")
                         and str(f.parent.parent)
                         == str(r.get("_origin_dir") or "")):
-                    out.append(_as_saved(self._as_recorded(r),
-                                         saved_run_of(r)))
+                    out.append(self._as_recorded(r))
                     continue
-            # **THE PAGE OF A SAVED REPORT DRAWN FROM ANOTHER ROW (#182 (c),
-            # driven on Knut's own project).** A date with two saved reports
-            # keeps ONE row, and the window opened on the newer report drew
-            # it from the older one's row, judged here; the page is still
-            # that saved report, so it names the run the REPORT recorded.
-            # "New report…" holds no saved document, so nothing is named.
-            out.append(_as_saved(self._judged_live(r, lim),
-                                 self._saved_run_of_the_document(doc, r)))
+            out.append(self._judged_live(r, lim))
         return out
-
-    def _saved_run_of_the_document(self, doc, r: dict):
-        """The run the LOADED saved report recorded for row *r*, or None
-        (no saved report loaded, or one that recorded none)."""
-        from workflow.measurement_report import (recorded_saved_run,
-                                                 saved_run_of)
-        key = str(getattr(self, "_loaded_doc_id", "") or "")
-        if not key or key == NEW_REPORT_KEY or doc is None:
-            return None
-        n = recorded_saved_run(doc, self._run_key(r),
-                               r.get("_origin_dir") or "")
-        if n is None and key.startswith("file:"):
-            try:
-                n = saved_run_of(json.loads(read_text(Path(key[5:]))))
-            except Exception:                          # noqa: BLE001
-                n = None
-        return n
 
     @staticmethod
     def _as_recorded(r: dict, judged: "dict | None" = None) -> dict:
@@ -13689,10 +13672,6 @@ class MeasurementReportDialog(QDialog):
         base = self._worked_out_again(r)
         c = dict(base)
         c.pop(RECORD_KEY, None)
-        # A row judged now is a NEW report's row: it names the run its
-        # measurement is in now, never the run a saved report recorded
-        # (#182 (c)).
-        c.pop(SAVED_RUN_KEY, None)
         c.pop(WORKED_OUT_EARLIER_KEY, None)
         if (base is r and r.get("_origin_dir")
                 and not r.get(WORKED_OUT_NOW_KEY)):
@@ -15869,14 +15848,7 @@ class MeasurementReportDialog(QDialog):
         """
         import re as _re
 
-        # **AS SAVED FIRST (#182 (c)).** A row drawn from a saved report
-        # carries the run it was saved in (`_judged_by_the_document`); the
-        # folder is read only for a report that recorded none (every report
-        # saved before this, that no run delete has stamped since).
         for r in runs:
-            n = r.get(SAVED_RUN_KEY)
-            if isinstance(n, int) and not isinstance(n, bool):
-                return str(n)
             for key in ("_origin_dir", "ti3", "path", "source"):
                 v = r.get(key)
                 if not v:
