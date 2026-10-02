@@ -79,3 +79,79 @@ def test_remove_refuses_and_leaves_a_personal_file(tmp_path, monkeypatch):
 def test_everything_planned_passes_the_guard():
     for why, path, _size in S.plan(""):
         assert S.is_ours(path, why), (why, path)
+
+
+# ---- review K_review_beta1: worktrees ----------------------------------------
+
+def _git(*args, cwd):
+    import subprocess
+    return subprocess.run(["git", *args], cwd=cwd, capture_output=True, text=True,
+                          encoding="utf-8", check=True)
+
+
+@pytest.fixture
+def repo_with_worktree(tmp_path, monkeypatch):
+    """A throw-away repo with one merged agent worktree, made to look old."""
+    import os
+    import time
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    _git("init", "-q", "-b", "master", cwd=repo)
+    _git("config", "user.email", "t@t", cwd=repo)
+    _git("config", "user.name", "t", cwd=repo)
+    (repo / ".gitignore").write_text("ignored/\n", encoding="utf-8")
+    (repo / "a.txt").write_text("a", encoding="utf-8")
+    _git("add", ".", cwd=repo)
+    _git("commit", "-q", "-m", "a", cwd=repo)
+    wt = repo / ".claude" / "worktrees" / "agent-x"
+    _git("worktree", "add", "-q", "-b", "agent-x", str(wt), cwd=repo)
+    old = time.time() - 7200
+    for p in [wt, *wt.rglob("*")]:
+        os.utime(p, (old, old), follow_symlinks=False)
+    monkeypatch.setattr(S, "REPO", repo)
+    return repo, wt
+
+
+def _age(path):
+    import os
+    import time
+    old = time.time() - 7200
+    for p in [path, *path.rglob("*")]:
+        os.utime(p, (old, old), follow_symlinks=False)
+
+
+def test_a_clean_merged_old_worktree_is_offered(repo_with_worktree):
+    _repo, wt = repo_with_worktree
+    assert [p.name for p, _b in S.merged_worktrees()] == [wt.name]
+
+
+def test_a_worktree_with_ignored_work_is_kept(repo_with_worktree):
+    _repo, wt = repo_with_worktree
+    (wt / "ignored").mkdir()
+    (wt / "ignored" / "project.ti3").write_text("measurements", encoding="utf-8")
+    _age(wt)
+    assert S.merged_worktrees() == []
+
+
+def test_caches_alone_do_not_keep_a_worktree(repo_with_worktree):
+    _repo, wt = repo_with_worktree
+    (wt / "__pycache__").mkdir()
+    (wt / "__pycache__" / "a.cpython-314.pyc").write_bytes(b"x")
+    _age(wt)
+    assert [p.name for p, _b in S.merged_worktrees()] == [wt.name]
+
+
+def test_a_locked_or_fresh_worktree_is_kept(repo_with_worktree):
+    repo, wt = repo_with_worktree
+    _git("worktree", "lock", str(wt), cwd=repo)
+    assert S.merged_worktrees() == []
+    _git("worktree", "unlock", str(wt), cwd=repo)
+    (wt / "a.txt").write_text("touched", encoding="utf-8")   # fresh AND dirty
+    assert S.merged_worktrees() == []
+
+
+def test_a_worktree_touched_within_the_hour_is_kept_even_when_clean(repo_with_worktree):
+    import os
+    _repo, wt = repo_with_worktree
+    os.utime(wt / "a.txt", None)            # in use right now, content unchanged
+    assert S.merged_worktrees() == []

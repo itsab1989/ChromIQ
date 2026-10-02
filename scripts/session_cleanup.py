@@ -61,6 +61,8 @@ def something_running() -> list[str]:
             busy.append(cmd[:120])
         elif "ChromIQ.app/Contents/MacOS/" in cmd:
             busy.append(cmd[:120])           # the installed app, in use
+        elif any(h in cmd for h in ("chromiq-chartread", "chromiq-gammap")):
+            busy.append(cmd[:120])           # the engine, which is not Python
     return busy
 
 
@@ -84,6 +86,12 @@ def _git(*args: str) -> subprocess.CompletedProcess:
                           text=True, encoding="utf-8", errors="replace", timeout=60)
 
 
+def _is_cache(rel: str) -> bool:
+    rel = rel.strip().strip('"')
+    return any(part in ("__pycache__", ".pytest_cache") for part in Path(rel).parts) \
+        or rel.endswith((".pyc", ".pyo"))
+
+
 def merged_worktrees() -> list[tuple[Path, str]]:
     """(path, branch) of clean worktrees under .claude/worktrees whose branch
     is already contained in the current branch or in master."""
@@ -91,16 +99,28 @@ def merged_worktrees() -> list[tuple[Path, str]]:
     listing = _git("worktree", "list", "--porcelain").stdout.split("\n\n")
     targets = [t for t in ("HEAD", "master") if _git("rev-parse", "--verify", t).returncode == 0]
     for block in listing:
-        fields = dict(l.split(" ", 1) for l in block.splitlines() if " " in l)
+        lines = block.splitlines()
+        fields = dict(l.split(" ", 1) for l in lines if " " in l)
         path = Path(fields.get("worktree", ""))
         branch = fields.get("branch", "").removeprefix("refs/heads/")
         if ".claude/worktrees" not in str(path) or not branch:
             continue
-        status = subprocess.run(["git", "-C", str(path), "status", "--porcelain"],
+        if any(l == "locked" or l.startswith("locked ") for l in lines):
+            continue                     # someone holds it (review K_review_beta1)
+        if time.time() - _newest_mtime(path) < QUIET_FOR_S:
+            continue                     # touched within the hour: may be in use
+        status = subprocess.run(["git", "-C", str(path), "status", "--porcelain",
+                                 "--ignored"],
                                 capture_output=True, text=True, encoding="utf-8",
                                 errors="replace", timeout=60)
-        if status.returncode != 0 or status.stdout.strip():
-            continue                     # uncommitted work: never
+        if status.returncode != 0:
+            continue
+        # `git worktree remove` takes IGNORED files with it, and plain
+        # `--porcelain` does not list them: only caches may be lost that way.
+        leftovers = [l for l in status.stdout.splitlines() if l.strip()
+                     and not _is_cache(l[3:])]
+        if leftovers:
+            continue                     # uncommitted or ignored work: never
         if any(_git("merge-base", "--is-ancestor", branch, t).returncode == 0 for t in targets):
             out.append((path, branch))
     return out
