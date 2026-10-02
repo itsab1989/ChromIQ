@@ -268,6 +268,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # NOTHING was changed; new wording, ours.
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
                                  "M-CM-PROFCHECK-CONVERTED",
+                                 # B7 / C1, 2026-10-02 (#182 5959070209):
+                                 # Sebastian approved the behaviour; the
+                                 # wording is ours and waits here.
+                                 "M-CM-K-CHART-THROUGH", "M-CM-RAW-UNCALIBRATED",
+                                 "M-CAL-APPLIED-TWICE", "M-CAL-CALIBRATED-TWICE",
                                  # Feature B — wording agreed verbatim with
                                  # Sebastian on #133 (2026-08-02); listed for
                                  # the formal record.
@@ -667,6 +672,11 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_profile", "TabProfile", "_confirm_rebuild_over_verifications"),
     ("ui.tabs.tab_print", "TabPrint", "_show_cm_error"),
     ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_converted_measurement"),
+    # B7 / C1 (#182 5959070209): the printer calibration windows.
+    ("ui.tabs.tab_print", "TabPrint", "_confirm_raw_uncalibrated"),
+    ("ui.tabs.tab_print", "TabPrint", "_show_k_chart_refusal"),
+    ("ui.tabs.tab_profile", "TabProfile", "_confirm_not_calibrated_twice"),
+    ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_calibrated_twice"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_refusal"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done_profiling"),

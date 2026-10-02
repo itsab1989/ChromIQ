@@ -49,6 +49,33 @@ created by the first report and is not part of the calibration itself:
 `cal/reports/` where it is. What the report window does with it is recorded
 in `measurement_report_limits.md` §18.12.
 
+## Amendment, 2026-10-02 — the printer calibration a run's chart was printed with
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.* Sebastian
+approved the behaviour on #182 (5959070209, answering 5958466861). E13 below
+("Verification target while calibration options are on: Unchanged in every
+respect") stays as written for a run whose chart was printed without a
+calibration or with `-I`; for a run whose chart was printed with `-K`, what
+the verification print does is in `verification_printing_and_target.md`
+§3.1c (rows A3d-A3i).
+
+* **Decision 5 is now written.** `RunMeta.calibration_used` holds the stem of
+  the `.cal` the run's profiling chart was built with (`-K` or `-I`), empty
+  when it was built without one, taken from the chart's own build record
+  (`printer_calibration` in its `.channels.json`) when the chart is
+  generated (`tab_chart.py::_record_calibration_used`). Runs built before
+  4.3.3-beta.3 keep the empty value, which means unknown.
+* **C1.** Build Profile ▸ Apply Calibration (mode Apply) warns before
+  applying a calibration to a profile from an older layout-engine `-K` run:
+  its `.ti2` says ORIGINATOR "ChromIQ layout engine", a CAL is embedded, and
+  a `.ti3` device value of a SAMPLE_ID the `.ti1` has differs from the `.ti1`
+  by more than 0.05 (fields matched by name; no `.ti1`, no warning;
+  verification folders are skipped). That profile already describes the
+  uncalibrated printer. Check & Refine warns the same way when the profile
+  to check is such a run's `calibrated.icc`. Both windows offer Cancel
+  (default) and going ahead; neither changes a file. Texts:
+  M-CAL-APPLIED-TWICE, M-CAL-CALIBRATED-TWICE, in §M-PROPOSED.
+
 ## Verdict in one paragraph
 
 **Doable, and worth doing — but "Calibration" is not a third *run* type; it is a

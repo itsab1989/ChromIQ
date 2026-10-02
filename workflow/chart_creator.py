@@ -1606,7 +1606,8 @@ class ChartCreator:
 
         tiffs = sorted(result.tiff_paths or [])
         if tiffs and self._pending_params is not None:
-            self._write_channel_sidecar(work_dir, stem, self._pending_params)
+            self._write_channel_sidecar(work_dir, stem, self._pending_params,
+                                        engine="chromiq")
             self._embed_layout_geometry(work_dir, stem, result, params)
             self._stamp_tiff_metadata(tiffs, self._pending_params)
 
@@ -2163,11 +2164,13 @@ class ChartCreator:
         return None
 
     def _write_channel_sidecar(
-        self, work_dir: Path, stem: str, params: "ChartParams"
+        self, work_dir: Path, stem: str, params: "ChartParams",
+        engine: str = "printtarg",
     ) -> None:
         """Write <stem>.channels.json so the preview can identify inks in future sessions."""
         import json
         from ui.tiff_preview import resolve_ink_channels
+        from workflow.printer_calibration import record_for_params
         channels = resolve_ink_channels(params.device_type, params.extra_targen_args)
         sidecar = work_dir / f"{stem}.channels.json"
         extra = {}
@@ -2199,6 +2202,13 @@ class ChartCreator:
                 # targen + printtarg registry at Generate, restored when the
                 # chart is loaded again.
                 "create_chart_settings": dict(params.settings_snapshot or {}),
+                # HOW THE PRINTER CALIBRATION WAS USED (#182 5959070209).
+                # printtarg writes the same .ti2 for -K and -I (printtarg.c
+                # 3348-3352 / 3791-3795); only the pixels differ, so the
+                # choice is recorded here, by the engine that made it, or
+                # nothing can tell later whether the verification print
+                # must be calibrated too. See workflow.printer_calibration.
+                "printer_calibration": record_for_params(params, engine),
             }), encoding="utf-8")
             log.debug("Wrote channel sidecar %s: %s", sidecar.name, channels)
         except Exception as exc:
