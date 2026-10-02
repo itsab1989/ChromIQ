@@ -38,16 +38,18 @@ def test_a_flagged_patch_explains_itself_at_the_bottom(qapp):
     i = next(i for i, r in enumerate(rows) if r.startswith("─"))
     assert i > next(i for i, r in enumerate(rows) if "ΔE*ab  61.25" in r)
     tail = rows[i + 1:]
-    assert tail[0] == "Red outline: likely misread"
+    assert tail[0] == "Red outline: a large difference"
     assert tail[1] == "ΔE*ab 61.2 reached your limit 50.0"
     assert tail[2] == "and stands out from its strip"
-    assert "Flag a patch" in tail[3]
+    assert "Either a misread, or a colour" in tail
+    assert "it is real, keep it for the profile." in tail
+    assert "Flag a patch" in tail[-1]
 
 
 @pytest.mark.parametrize("mode", ["expected", "measured"])
 def test_the_reason_shows_in_every_view_mode(qapp, mode):
     rows = _rows(qapp, {"warn": True, "warn_de": 50.0, "fenced": False}, mode)
-    assert "Red outline: likely misread" in rows
+    assert "Red outline: a large difference" in rows
     assert "and stands out from its strip" not in rows
 
 
@@ -66,7 +68,8 @@ def test_the_help_explains_the_red_outline():
     from ui.tabs.tab_measure import TabMeasure
     src = inspect.getsource(TabMeasure)
     i = src.index('tr("Show patch values on hover"),\n')
-    assert "A patch outlined in red is one ChromIQ thinks" in src[i:i + 2500]
+    assert "A patch outlined in red has a large colour difference" in src[i:i + 2500]
+    assert "A red outline is a reason to look, not proof of a mistake." in src
 
 
 def test_the_card_and_the_help_name_the_tab_the_limit_is_on(qapp):
@@ -92,4 +95,4 @@ def test_the_card_and_the_help_name_the_tab_the_limit_is_on(qapp):
     rows = _rows(qapp, {"warn": True, "warn_de": 50.0})
     assert f"(Preferences ▸ {tab}, “Flag a patch…”)" in rows, rows
     help_src = inspect.getsource(TabMeasure)
-    assert f"Preferences ▸ {tab} under “Flag a patch" in help_src
+    assert f"Preferences ▸ {tab} under “Flag a" in help_src

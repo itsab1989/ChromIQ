@@ -497,12 +497,18 @@ class _PatchInfoTile(QWidget):
         # one; the ΔE is named here even when the split's own ΔE line is not.
         if info.get("warn"):
             rows.append((None, "─" * 30))
-            rows.append((None, tr("Red outline: likely misread")))
+            # Not "likely misread" alone (Knut, #182 5956210745): a large
+            # difference can be real, and then re-reading cannot remove it.
+            rows.append((None, tr("Red outline: a large difference")))
             rows.append((None, tr("ΔE*ab {de:.1f} reached your limit {limit:.1f}"
                                   ).format(de=float(info.get("de", 0.0)),
                                            limit=float(info.get("warn_de", 0.0)))))
             if info.get("fenced"):
                 rows.append((None, tr("and stands out from its strip")))
+            rows.append((None, tr("Either a misread, or a colour")))
+            rows.append((None, tr("this printer and paper cannot reach.")))
+            rows.append((None, tr("Same value after a re-read:")))
+            rows.append((None, tr("it is real, keep it for the profile.")))
             rows.append((None, tr("(Preferences ▸ Measurement, “Flag a patch…”)")))
 
         self._rows = rows

@@ -3003,7 +3003,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "You can switch between these at any time, during a measurement "
             "or after it's finished — it only changes the preview, never your "
             "readings. (Screen colours are approximate; the numbers in your "
-            "file are exact.)"),
+            "file are exact.)")
+            # Knut, #182 5956210745: both help texts cover the red outline.
+            + "\n\n" + tr(
+            "A red outline around a patch marks a large difference between "
+            "the colour the chart asked for and the colour that was measured. "
+            "It is a reason to look, not proof of a mistake: it can be a "
+            "misread, or a design colour your printer, ink and paper cannot "
+            "reach. Turn on “Show patch values on hover” and point at the "
+            "patch to see which, and its help explains what to do."),
             row))
         show_row.addStretch(1)
         v.addLayout(show_row)
@@ -3066,17 +3074,29 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "'Expected colour only' or 'Measured colour only' you get just that "
             "one. It only reads out numbers — it never changes your readings.")
             + "\n\n" + tr(
-            "A patch outlined in red is one ChromIQ thinks may have been "
-            "misread: its colour error (ΔE*ab) reached the limit set in "
-            "Preferences ▸ Measurement under “Flag a patch when its colour "
-            "error "
-            "reaches”, and when you read strips with “only flag a patch that "
-            "also stands out from its own strip” on, it also stands out from "
-            "the rest of its strip. Point at it and the bottom of the card "
-            "says so, with the patch's ΔE*ab beside your limit. If the strip "
-            "looks wrong, read it again. A vivid colour can be flagged even "
-            "when it was read correctly, because the chart's design colours "
-            "are sRGB values a printer does not reproduce exactly."),
+            # Knut, #182 5956210745: "it is not always correct to say
+            # 'likely misread'"; the help names both causes and what to do.
+            "A patch outlined in red has a large colour difference (ΔE*ab) "
+            "between what the chart asked for and what was measured: it "
+            "reached the limit set in Preferences ▸ Measurement under “Flag a "
+            "patch when its colour error reaches”, and when you read strips "
+            "with “only flag a patch that also stands out from its own strip” "
+            "on, it also stands out from the rest of its strip. Point at it "
+            "and the bottom of the card says so, with the patch's ΔE*ab beside "
+            "your limit.\n\n"
+            "A red outline is a reason to look, not proof of a mistake. It "
+            "has two possible causes:\n"
+            "  • a misread: the instrument slipped, a strip was started on the "
+            "wrong row, or there was dust or a smudge. Reading the strip again "
+            "then gives a clearly different, smaller value;\n"
+            "  • a real difference: the chart's design colours are sRGB "
+            "values, and a vivid one (a deep blue, a strong green) can lie far "
+            "outside what your printer, ink and paper can print. Reading it "
+            "again then gives about the same value.\n\n"
+            "So if a patch is still flagged with about the same value after "
+            "you read its strip again, the reading is right: keep it and build "
+            "the profile from it. The profile needs to know how far your "
+            "printer falls short of such colours."),
             row)
         om_row.add_group(tile, tile_tip)
         v.addWidget(om_row)
