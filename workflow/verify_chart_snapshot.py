@@ -160,9 +160,15 @@ def live_chart_files(run: Run) -> list[Path]:
     # into the NEXT date's ``chart/`` snapshot, made every stored chart "differ"
     # from the live one, and let Restore Used Chart stash and then discard it
     # (review of f53874ca). ``<stem>-reference.ti3`` IS chart, and stays.
-    measurement = f"{run.verify_stem}.ti3".lower()
+    # …AND ITS YELLOW MEMORY (#182 K4, review AN). ``<verify stem>.confirmed.json``
+    # is written beside that working file while a verification is read, and a
+    # session ended with "Discard and stop" (or a crash) leaves it there; it
+    # describes readings, so it is never chart either.
+    from workflow.confirmed_patches import SUFFIX as _MEMORY
+    measurement = {f"{run.verify_stem}.ti3".lower(),
+                   f"{run.verify_stem}{_MEMORY}".lower()}
     return sorted(p for p in vdir.iterdir()
-                  if p.is_file() and p.name.lower() != measurement)
+                  if p.is_file() and p.name.lower() not in measurement)
 
 
 def has_layout_recipe(files: "list[Path]") -> bool:

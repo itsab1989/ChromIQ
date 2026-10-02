@@ -117,8 +117,11 @@ class ChartSlot:
             # The verification rule: every file at the root is chart, except
             # the reader's working measurement ``<stem>.ti3`` (see
             # `verify_chart_snapshot.live_chart_files`, the same exclusion).
-            measurement = f"{self.stem}.ti3".lower()
-            return [p for p in files if p.name.lower() != measurement]
+            # Its yellow memory ``<stem>.confirmed.json`` likewise (#182 K4).
+            from workflow.confirmed_patches import SUFFIX as _MEMORY
+            measurement = {f"{self.stem}.ti3".lower(),
+                           f"{self.stem}{_MEMORY}".lower()}
+            return [p for p in files if p.name.lower() not in measurement]
         return [p for p in files if p.name.endswith(self.suffixes)
                 or _is_image(p)]
 

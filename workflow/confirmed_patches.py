@@ -64,26 +64,59 @@ def ti3_sha256(ti3_path: "str | Path") -> "str | None":
         return None
 
 
+def _clean_entry(entry: dict) -> "dict | None":
+    """One stored patch, checked; None when it is not one this code wrote.
+
+    A file is only believed when its hash matches, but its CONTENTS are still
+    whatever is on disk: a hand-edited or damaged file whose hash happens to
+    match (or a ``.ti3`` and memory edited together) must be skipped entry by
+    entry, never raise into the measurement it describes (review AN: a
+    ``"de": "abc"`` made ``load``, ``confirmed_locations`` and the verification
+    filing's ``carry`` raise ValueError)."""
+    kind = entry.get("kind")
+    if kind == KIND_LEARNED:
+        return {"kind": KIND_LEARNED, "like": str(entry.get("like", ""))}
+    if kind != KIND_CONFIRMED:
+        return None
+
+    def num(v, nd):
+        f = float(v)
+        if f != f or f in (float("inf"), float("-inf")):
+            raise ValueError("not a finite number")
+        return round(f, nd)
+
+    def lab(key):
+        v = entry.get(key, [])
+        if not isinstance(v, (list, tuple)):
+            raise TypeError(key)
+        return [num(x, 4) for x in v[:3]]
+
+    try:
+        return {
+            "kind": KIND_CONFIRMED,
+            "de": num(entry.get("de", 0.0), 2),
+            "prev_de": (None if entry.get("prev_de") is None
+                        else num(entry["prev_de"], 2)),
+            "exp_lab": lab("exp_lab"),
+            "meas_lab": lab("meas_lab"),
+            "shift": lab("shift"),
+            "standout": (None if entry.get("standout") is None
+                         else num(entry["standout"], 3)),
+        }
+    except (TypeError, ValueError):
+        return None
+
+
 def _clean_patches(patches: dict) -> dict:
     out: dict = {}
-    for loc, entry in (patches or {}).items():
+    if not isinstance(patches, dict):
+        return out
+    for loc, entry in patches.items():
         if not isinstance(entry, dict):
             continue
-        kind = entry.get("kind")
-        if kind == KIND_CONFIRMED:
-            out[str(loc)] = {
-                "kind": KIND_CONFIRMED,
-                "de": round(float(entry.get("de", 0.0)), 2),
-                "prev_de": (None if entry.get("prev_de") is None
-                            else round(float(entry["prev_de"]), 2)),
-                "exp_lab": [round(float(v), 4) for v in entry.get("exp_lab", [])[:3]],
-                "meas_lab": [round(float(v), 4) for v in entry.get("meas_lab", [])[:3]],
-                "shift": [round(float(v), 4) for v in entry.get("shift", [])[:3]],
-                "standout": (None if entry.get("standout") is None
-                             else round(float(entry["standout"]), 3)),
-            }
-        elif kind == KIND_LEARNED:
-            out[str(loc)] = {"kind": KIND_LEARNED, "like": str(entry.get("like", ""))}
+        clean = _clean_entry(entry)
+        if clean is not None:
+            out[str(loc)] = clean
     return out
 
 
