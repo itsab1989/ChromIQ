@@ -241,6 +241,7 @@ class ProfileInfoDialog(QDialog):
         ``<stem>-report.txt`` loose beside the ``.icc``."""
         if self._info is None:
             return
+        from ui.dialogs.ti3_info_dialog import _chromiq_root
         from ui.inspection_save import save_inspection
         src = self._info.path
         lines = []
@@ -255,7 +256,8 @@ class ProfileInfoDialog(QDialog):
             self, src, kind, kind, lines,
             dialog_title=tr("Save profile inspection"),
             subject_line=tr("Profile: {name}").format(name=src.name),
-            ask=save_file_dialog, not_into=icc_system_dirs())
+            ask=save_file_dialog, not_into=icc_system_dirs(),
+            fallback_dir=_chromiq_root(self._settings))
         if saved.error:
             self._show_save_error(saved.error)
         elif saved.path is not None and self._info is not None:

@@ -66,7 +66,8 @@ def save_inspection(parent, src: Path, kind: str, header_title: str,
                     body_lines: list[str], *, dialog_title: str,
                     subject_line: str,
                     ask: "Callable[..., str] | None" = None,
-                    not_into: "Sequence[Path]" = ()) -> InspectionSave:
+                    not_into: "Sequence[Path]" = (),
+                    fallback_dir: "Path | None" = None) -> InspectionSave:
     """Offer, then write, the inspection of *src*.
 
     *kind* is the tool's fixed word for its file name ("Measurement
@@ -77,8 +78,9 @@ def save_inspection(parent, src: Path, kind: str, header_title: str,
     *not_into* names folders no ``reports/`` is ever made in: the system's
     colour-profile folders, which Inspect a profile browses first. A profile
     there lies in no project, so the rule would give
-    ``~/Library/ColorSync/Profiles/reports``; the chooser opens in the ChromIQ
-    folder instead and nothing is made.
+    ``~/Library/ColorSync/Profiles/reports``; the chooser opens in
+    *fallback_dir* instead (the user's ChromIQ folder, Preferences > Paths
+    first) and nothing is made.
     """
     from core.version import APP_VERSION
     from workflow.measurement_report import inspection_file_name
@@ -98,9 +100,11 @@ def save_inspection(parent, src: Path, kind: str, header_title: str,
     reports: "Path | None" = reports_dir_for(src)
     start_dir = src.parent
     if _inside_any(reports, not_into):
-        from core.platform_paths import default_output_root
-        root = default_output_root()
-        start_dir = root if root.is_dir() else Path.home()
+        if fallback_dir is None:
+            from core.platform_paths import default_output_root
+            fallback_dir = default_output_root()
+        start_dir = (Path(fallback_dir) if Path(fallback_dir).is_dir()
+                     else Path.home())
         reports = None
     # Made for the chooser to open in (a folder that does not exist is no
     # start folder, `save_file_dialog`), and taken away again unless the file

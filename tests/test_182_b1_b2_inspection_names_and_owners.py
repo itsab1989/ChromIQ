@@ -308,14 +308,20 @@ def test_a_system_profile_never_gets_a_reports_folder(tmp_path, qapp,
     chooser opens in the ChromIQ folder instead and nothing is made."""
     import core.platform_paths as pp
     import ui.dialogs.profile_info_dialog as mod
+    from ui.dialogs.profile_info_dialog import ProfileInfoDialog
     system = tmp_path / "Library" / "ColorSync" / "Profiles"
     icc = _put(system / "Vendor" / "paper.icc", _ICC)
-    root = tmp_path / "ChromIQ"
+    root = tmp_path / "MyChromIQ"          # Preferences > Paths
     root.mkdir()
+    default = tmp_path / "ChromIQ"         # ~/ChromIQ, NOT what the user set
+    default.mkdir()
     monkeypatch.setattr(mod, "icc_system_dirs", lambda: [system])
-    monkeypatch.setattr(pp, "default_output_root", lambda: root)
+    monkeypatch.setattr(pp, "default_output_root", lambda: default)
     seen = _answer(monkeypatch, mod, lambda start: "")
-    dlg = _icc_dialog(qapp, icc)
+    settings = _Settings()
+    settings._d["custom_output_path"] = str(root)
+    dlg = ProfileInfoDialog(_runner(), settings)
+    dlg.load_profile(icc)
     try:
         dlg._on_save_report()
     finally:
