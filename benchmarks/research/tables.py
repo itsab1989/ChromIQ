@@ -104,7 +104,7 @@ def main(argv=None) -> None:
     ap.add_argument("--reader", default="argyll")
     ap.add_argument("--suite", default="baseline")
     a = ap.parse_args(argv)
-    res = json.loads((Path(a.run_dir) / "results.json").read_text())
+    res = json.loads((Path(a.run_dir) / "results.json").read_text(encoding="utf-8"))
     print(f"### Key table, readout `{a.reader}` (* = real, held-out A2B; B2A via colprof proxy)\n")
     print(key_table(res, a.reader, a.suite))
     print(f"\n### Neutral axis, black, white, separation, readout `{a.reader}`\n")

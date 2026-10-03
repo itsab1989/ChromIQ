@@ -48,7 +48,7 @@ def _spect(body: str) -> dict:
 
 
 def main(argyll_root: str) -> None:
-    src = (Path(argyll_root) / "xicc" / "xspect.c").read_text(errors="replace")
+    src = (Path(argyll_root) / "xicc" / "xspect.c").read_text(encoding="utf-8", errors="replace")
     out = {"source": "ArgyllCMS 3.5.0 xicc/xspect.c (CIE 15 standard tables)",
            "illuminants": {}, "observers": {}}
     for cname, key in WANT.items():

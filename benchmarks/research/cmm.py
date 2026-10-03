@@ -87,7 +87,7 @@ def _xicclu(path: Path, direction: str, rows: np.ndarray, n_out: int,
     exe = str(Path(argyll_bin) / "icclu") if argyll_bin else ICCLU
     inp = "\n".join(" ".join(f"{v:.7f}" for v in r) for r in rows) + "\n"
     out = subprocess.run([exe, "-v0", f"-f{direction}", "-ir", "-pl", str(path)],
-                         input=inp, capture_output=True, text=True,
+                         input=inp, capture_output=True, text=True, encoding="utf-8",
                          timeout=900, check=True).stdout
     arr = np.array([[float(x) for x in ln.split()[:n_out]]
                     for ln in out.splitlines() if ln.strip()])
@@ -186,7 +186,7 @@ def colorsync_supported(path: str) -> bool:
             "cmm._colorsync(%r, np.zeros((1, n)), True); print('OK')"
             % (str(Path(__file__).parents[2]), path, path, path))
     r = subprocess.run([sys.executable, "-c", code], capture_output=True,
-                       text=True, timeout=120)
+                       text=True, encoding="utf-8", timeout=120)
     return r.returncode == 0 and "OK" in r.stdout
 
 

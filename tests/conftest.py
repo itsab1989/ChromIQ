@@ -678,6 +678,37 @@ def _no_real_usb_device_list(monkeypatch):
                         raising=False)
 
 
+@pytest.fixture(autouse=True, scope="session")
+def _no_update_check_thread_outlives_its_refusal():
+    """research/profile-engine only (finding F-02, 2026-10-03).
+
+    The per-test refusal below is undone at each test's teardown, but
+    `UpdateChecker.check_async` runs on a daemon thread that can outlive the
+    test that started it; it then calls the REAL `_open`, and once a newer
+    release than this tree exists on GitHub (beta.6 and beta.7 exist; this
+    tree is beta.5) its answer opens an "Update available" modal inside a
+    later, unrelated test. Refused for the whole session as well, so that late
+    thread meets the refusal too. A test that wants the feed still patches
+    `_open` itself, and its monkeypatch restores this refusal afterwards."""
+    try:
+        from core import updater as U
+    except Exception:      # noqa: BLE001 - nothing to stub
+        yield
+        return
+    real = U.UpdateChecker.__dict__.get("_open")
+
+    def _refuse(url: str):
+        raise OSError("the suite never asks GitHub (late update-check thread): "
+                      + str(url))
+
+    U.UpdateChecker._open = staticmethod(_refuse)
+    try:
+        yield
+    finally:
+        if real is not None:
+            U.UpdateChecker._open = real
+
+
 @pytest.fixture(autouse=True)
 def _the_update_check_never_reaches_the_network(monkeypatch):
     """NO TEST MAY ASK GITHUB ANYTHING, and one silently did.

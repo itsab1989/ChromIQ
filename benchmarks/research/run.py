@@ -61,7 +61,7 @@ from pathlib import Path
 
 import numpy as np
 
-from benchmarks.research import cmm, datasets as dsm, metrics
+from benchmarks.research import cmm, datasets as dsm, identity, metrics
 from benchmarks.research.noise import BENCH_LEVELS
 from benchmarks.research.printers import build_printers
 
@@ -82,7 +82,7 @@ REAL_TAC = {"R-FOGRA39L": 330.0, "R-GRACoL2006": 320.0,
 
 
 def sh(cmd, **kw) -> str:
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=120,
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=120,
                           **kw).stdout.strip()
 
 
@@ -105,7 +105,7 @@ def environment(trees: dict) -> dict:
         if trees.get("upstream") else None,
         "i1profiler_data": str(dsm.xrite_root()),
         "argyll": next((ln for ln in subprocess.run(
-            [f"{ARGYLL}/colprof"], capture_output=True, text=True,
+            [f"{ARGYLL}/colprof"], capture_output=True, text=True, encoding="utf-8",
             timeout=60).stderr.splitlines() if "Version" in ln), ""),
         "gammap_helper_sha256": sha(Path(GAMMAP)) if Path(GAMMAP).exists() else None,
         "python": sys.version, "numpy": numpy.__version__,
@@ -128,7 +128,7 @@ def run_build(job: dict) -> dict:
     Path(job["out"]).parent.mkdir(parents=True, exist_ok=True)
     try:
         r = subprocess.run([sys.executable, str(HERE / "build_worker.py"),
-                            json.dumps(job)], capture_output=True, text=True,
+                            json.dumps(job)], capture_output=True, text=True, encoding="utf-8",
                            timeout=job.get("timeout", 5400), env=env)
         line = [ln for ln in r.stdout.splitlines() if ln.startswith("RESULT ")]
         res = json.loads(line[-1][7:]) if line else {
@@ -148,7 +148,7 @@ def validate(icc: Path, n_channels: int) -> dict:
     """Independent loaders: iccdump (Argyll icclib), littleCMS, ColorSync."""
     out = {}
     r = subprocess.run([f"{ARGYLL}/iccdump", "-v1", str(icc)],
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, encoding="utf-8", timeout=120)
     txt = (r.stdout + r.stderr)
     out["iccdump_ok"] = r.returncode == 0 and "Error" not in txt
     out["iccdump_version"] = next((ln.split(":")[-1].strip() for ln in txt.splitlines()
@@ -327,10 +327,11 @@ def main(argv=None) -> int:
     ap.add_argument("--no-gamut", dest="gamut", action="store_false",
                     help="skip the perceptual/saturation tables (faster; the "
                          "byte-identity check then covers only the colorimetric path)")
-    ap.add_argument("--identity-ref", default="",
+    ap.add_argument("--identity-ref", "--master-ref", dest="identity_ref",
+                    default=identity.IDENTITY_REF,
                     help="frozen commit Fast/Bit-exact must equal byte for byte "
-                         "(D-02); empty = no identity check")
-    ap.add_argument("--upstream-ref", default="origin/master",
+                         "(D-02; default identity.IDENTITY_REF); empty = no check")
+    ap.add_argument("--upstream-ref", default=identity.UPSTREAM_REF,
                     help="ref whose Fast/Bit-exact are scored as a separate "
                          "column (empty to skip)")
     ap.add_argument("--i1profiler-data", default="",
@@ -378,7 +379,7 @@ def main(argv=None) -> int:
             made.append(trees["f00"])
         env = environment(trees)
         env["args"] = vars(args)
-        (out / "env.json").write_text(json.dumps(env, indent=1, default=str))
+        (out / "env.json").write_text(json.dumps(env, indent=1, default=str), encoding="utf-8")
         printers = build_printers()
         only = [d for d in args.datasets.split(",") if d] or None
         specs = []
@@ -393,7 +394,7 @@ def main(argv=None) -> int:
               flush=True)
         builds_path = out / "builds.json"
         if args.rebuild_failed and builds_path.exists():
-            builds = json.loads(builds_path.read_text())
+            builds = json.loads(builds_path.read_text(encoding="utf-8"))
             by_out = {j["out"]: j for j in jobs}
             redo = [i for i, b in enumerate(builds) if not b.get("ok")]
             print(f"rebuilding {len(redo)} failed builds", flush=True)
@@ -408,9 +409,9 @@ def main(argv=None) -> int:
                     print(f"[{time.time() - t0:6.0f}s] rebuilt {Path(res['job']['out']).name}: "
                           f"{'ok' if res.get('ok') else 'FAILED'} "
                           f"{'' if res.get('ok') else res.get('error', '')[:200]}", flush=True)
-                    builds_path.write_text(json.dumps(builds, indent=1))
+                    builds_path.write_text(json.dumps(builds, indent=1), encoding="utf-8")
         elif args.score_only and builds_path.exists():
-            builds = json.loads(builds_path.read_text())
+            builds = json.loads(builds_path.read_text(encoding="utf-8"))
         else:
             t0 = time.time()
             builds = []
@@ -423,12 +424,13 @@ def main(argv=None) -> int:
                           f"{res.get('seconds', 0):.0f}s "
                           f"{'' if res.get('ok') else res.get('error', '')[:200]}",
                           flush=True)
-                    builds_path.write_text(json.dumps(builds, indent=1))
+                    builds_path.write_text(json.dumps(builds, indent=1), encoding="utf-8")
         # --- the two hard rules ------------------------------------------------
-        identity = check_identity(builds)
+        ident = check_identity(builds)
+        upstream = compare_upstream(builds, specs)
         gates = check_gates(builds, specs)
         # --- scoring ------------------------------------------------------------
-        results = {"env": env, "identity": identity, "gates": gates,
+        results = {"env": env, "identity": ident, "upstream": upstream, "gates": gates,
                    "datasets": [], "builds": builds}
         for i, s in enumerate(specs):
             ds = s["ds"]
@@ -480,15 +482,15 @@ def main(argv=None) -> int:
                 entry["profiles"][key] = rec
                 print(f"scored {ds.name} {s['variant']} {key}", flush=True)
             results["datasets"].append(entry)
-            (out / "results.json").write_text(json.dumps(results, indent=1, default=_js))
+            (out / "results.json").write_text(json.dumps(results, indent=1, default=_js), encoding="utf-8")
         env["loadavg_end"] = os.getloadavg()
-        (out / "results.json").write_text(json.dumps(results, indent=1, default=_js))
+        (out / "results.json").write_text(json.dumps(results, indent=1, default=_js), encoding="utf-8")
         from benchmarks.research.summary import write_summary
         write_summary(results, out / "summary.md")
         code = 0
-        if identity["failures"]:
+        if ident["failures"]:
             print("\n" + "!" * 72 + "\nFAST / BIT-EXACT ARE NOT BYTE-IDENTICAL TO THE IDENTITY REF\n"
-                  + "\n".join(identity["failures"]) + "\n" + "!" * 72)
+                  + "\n".join(ident["failures"]) + "\n" + "!" * 72)
             code = 2
         if gates["failures"]:
             print("\n" + "!" * 72 + "\nHARD GATE FAILED (CMY+N / ICC v4)\n"
@@ -527,6 +529,32 @@ def check_identity(builds: list[dict]) -> dict:
                                 "v4_identical": same_v4, "sha256": br["sha256"]})
         if not (same_v2 and same_v4):
             out["failures"].append(f"{name}: v2 identical={same_v2}, v4 identical={same_v4}")
+    return out
+
+
+def compare_upstream(builds: list[dict], specs: list[dict]) -> dict:
+    """The measured, non-gating master column (D-02): for every upstream
+    Fast / Bit-exact build, how it differs from the branch's own build of the
+    same dataset (tags, A2B dE00, B2A device units; v2 file and v4 twin)."""
+    out = {"compared": [], "errors": []}
+    for m in [b for b in builds if b["job"].get("role") == "upstream"]:
+        br_out = str(Path(m["job"]["out"]).parent.parent / Path(m["job"]["out"]).name)
+        br = next((b for b in builds if b["job"]["out"] == br_out), None)
+        name = Path(br_out).name
+        if br is None or not br.get("ok") or not m.get("ok"):
+            out["errors"].append(f"{name}: a build failed")
+            continue
+        ds = specs[m["job"]["spec_index"]]["ds"]
+        rec = {"profile": name, "dataset": ds.name, "engine": m["job"]["engine"]}
+        try:
+            rec["v2"] = identity.measure_difference(
+                br["job"]["out"], m["job"]["out"], ds.n_channels,
+                ds.color_rep == "RGB", ds.ink_limit)
+            if br.get("v4_path") and m.get("v4_path"):
+                rec["v4_tags"] = identity.differing_tags(br["v4_path"], m["v4_path"])
+        except Exception as exc:  # reported, never a gate
+            rec["error"] = f"{type(exc).__name__}: {exc}"
+        out["compared"].append(rec)
     return out
 
 
