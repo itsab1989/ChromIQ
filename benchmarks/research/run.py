@@ -339,6 +339,12 @@ def main(argv=None) -> int:
     ap.add_argument("--f00-ref", default="37357e92~1")
     ap.add_argument("--candidates", default="")
     ap.add_argument("--accurate-tree", default="")
+    ap.add_argument("--trees-dir", default="",
+                    help="where the reference worktrees go (default <out>/trees)")
+    ap.add_argument("--rebuild-failed", action="store_true",
+                    help="load <out>/builds.json, rebuild every failed build "
+                         "(fresh reference worktrees; refusals such as colprof "
+                         "on 5+ inks fail again), then score everything")
     ap.add_argument("--score-only", action="store_true",
                     help="re-score the builds recorded in <out>/builds.json")
     args = ap.parse_args(argv)
@@ -351,7 +357,11 @@ def main(argv=None) -> int:
     for d in (work, profdir):
         d.mkdir(parents=True, exist_ok=True)
     suites = [s for s in args.suite.split(",") if s]
-    scratch = Path(os.environ.get("TMPDIR", "/tmp")) / "chromiq-agent6-trees"
+    # The reference worktrees live INSIDE the run directory (v2): in v1 they
+    # sat in $TMPDIR/chromiq-agent6-trees, where another process's sweep of
+    # chromiq-* temp folders deleted them in the middle of a baseline run
+    # (2026-10-03: every identity/upstream build after X1 failed).
+    scratch = Path(args.trees_dir).resolve() if args.trees_dir else out / "trees"
     scratch.mkdir(parents=True, exist_ok=True)
     trees = {"branch": TREE,
              "accurate": Path(args.accurate_tree).resolve() if args.accurate_tree else TREE}
@@ -382,7 +392,24 @@ def main(argv=None) -> int:
         print(f"{len(specs)} datasets, {len(jobs)} builds, {args.parallel} at a time",
               flush=True)
         builds_path = out / "builds.json"
-        if args.score_only and builds_path.exists():
+        if args.rebuild_failed and builds_path.exists():
+            builds = json.loads(builds_path.read_text())
+            by_out = {j["out"]: j for j in jobs}
+            redo = [i for i, b in enumerate(builds) if not b.get("ok")]
+            print(f"rebuilding {len(redo)} failed builds", flush=True)
+            t0 = time.time()
+            def again(i):
+                j = dict(by_out.get(builds[i]["job"]["out"], builds[i]["job"]))
+                return i, run_build(j)
+            with ThreadPoolExecutor(max_workers=args.parallel) as ex:
+                for i, res in ex.map(again, redo):
+                    res["rebuilt"] = True
+                    builds[i] = res
+                    print(f"[{time.time() - t0:6.0f}s] rebuilt {Path(res['job']['out']).name}: "
+                          f"{'ok' if res.get('ok') else 'FAILED'} "
+                          f"{'' if res.get('ok') else res.get('error', '')[:200]}", flush=True)
+                    builds_path.write_text(json.dumps(builds, indent=1))
+        elif args.score_only and builds_path.exists():
             builds = json.loads(builds_path.read_text())
         else:
             t0 = time.time()
