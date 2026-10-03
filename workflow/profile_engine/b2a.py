@@ -577,9 +577,8 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
     # dense-cloud nearest seed and keep whichever lands closer.
     retry = residual > 0.5
     if retry.any():
-        rng = np.random.default_rng(1234)
-        cloud = _device_cloud(n, limit, channel_max, rng)
-        cloud_lab = gn_model.predict(cloud)
+        cloud, cloud_lab = _cloud_and_lab(gn_model, model, n, limit,
+                                          channel_max, 1234, memo=accurate)
         sub = gn_target[retry]
         seeds2 = np.empty((len(sub), n))
         cl2 = (cloud_lab ** 2).sum(1)
@@ -614,9 +613,8 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
             # Seed every out-of-gamut node from a printable colour of the
             # SAME HUE (angle-gated), then polish under the hue-weighted
             # norm; a polish that drifts in hue or gains chroma is dropped.
-            rng2 = np.random.default_rng(4321)
-            cloud2 = _device_cloud(n, limit, channel_max, rng2)
-            cloud2_lab = model.predict(cloud2)
+            cloud2, cloud2_lab = _cloud_and_lab(model, model, n, limit,
+                                                channel_max, 4321, memo=True)
             seeds_h, found = _hue_gated_seeds(target[oog], cloud2, cloud2_lab)
             sub_idx = np.flatnonzero(oog)[found]
             if len(sub_idx):
@@ -948,6 +946,47 @@ def pin_black_node(dev_clut: np.ndarray, node_lab: np.ndarray,
     out = dev_clut.copy()
     out[hit] = np.asarray(device_black, float)[None, :]
     return out
+
+
+_CLOUD_CACHE: dict = {}
+_CLOUD_LOCK = __import__("threading").Lock()
+
+
+def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
+                   channel_max: np.ndarray | None, seed: int,
+                   memo: bool = True):
+    """The retry / hue-clip device cloud and its predicted colours.
+
+    Every call rebuilt both from a fresh ``default_rng(seed)``: the same
+    numbers each time for the same model, and the prediction is the
+    expensive part (the neutral-axis walk asks for it once per step). D-06:
+    remembered per model CONTENT (nodes and curves hashed, so an in-place
+    change of the model can never hit a stale entry) and per limits; the
+    arrays returned are the ones a fresh computation gives, bit for bit."""
+    if not memo:                     # Fast / Bit-exact: the serial path
+        cloud = _device_cloud(n, limit, channel_max,
+                              np.random.default_rng(seed))
+        return cloud, view.predict(cloud)
+    import hashlib
+    h = hashlib.blake2b(digest_size=16)
+    h.update(np.ascontiguousarray(model.nodes).tobytes())
+    h.update(np.ascontiguousarray(model.curves).tobytes())
+    key = (h.hexdigest(), type(view).__name__, n, limit,
+           None if channel_max is None else tuple(np.asarray(channel_max,
+                                                             float)), seed)
+    with _CLOUD_LOCK:
+        hit = _CLOUD_CACHE.get(key)
+    if hit is not None:
+        return hit
+    cloud = _device_cloud(n, limit, channel_max, np.random.default_rng(seed))
+    val = (cloud, view.predict(cloud))
+    for a in val:                    # shared: nobody may write into them
+        a.flags.writeable = False
+    with _CLOUD_LOCK:
+        while len(_CLOUD_CACHE) >= 4:
+            _CLOUD_CACHE.pop(next(iter(_CLOUD_CACHE)))
+        _CLOUD_CACHE[key] = val
+    return val
 
 
 def _device_cloud(n: int, limit: float | None,
