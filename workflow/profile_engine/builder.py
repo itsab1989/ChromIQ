@@ -594,10 +594,18 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         except OracleUnavailable as exc:
             _emit(settings, f"Using the engine's own rendering ({exc}).")
     node_lab = codec.node_lab(b2a_grid)
+    # Maximum accuracy separates the COLORIMETRIC table with its own K
+    # policy (late GCR locus + the neutral-axis walk), not with the CMYK
+    # proxy's colprof K curve: on the battery's 6-7 ink printers that prior
+    # made the relative B2A worse on every printer (X5 median 0.958 without
+    # it vs 1.366 with it, X7 1.359 vs 1.872, X8 0.822 vs 1.349; research
+    # agent5-03 item 5). The proxy anchor still shapes the perceptual and
+    # saturation tables (build_mapped_b2a below). Costs ink: section 6.
+    k_prior_col = None if accurate else anchor
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
-        node_lab=node_lab, k_prior=anchor, accurate=accurate,
+        node_lab=node_lab, k_prior=k_prior_col, accurate=accurate,
         extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
         ucs=use_ucs, channel_max=channel_max,
         progress=lambda m: _emit(settings, m))
@@ -611,14 +619,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         axis = b2a_mod.neutral_axis(
             model, channel_letters=meas.channel_letters,
             is_additive=meas.is_additive, ink_limit=ink_limit,
-            k_prior=anchor, accurate=accurate, extra_hues=extra_hues,
+            k_prior=k_prior_col, accurate=accurate, extra_hues=extra_hues,
             black_l=black_l, k_gen=k_gen, ucs=use_ucs,
             channel_max=channel_max)
         fixed_nodes = b2a_mod.apply_neutral_axis(
             dev_clut, node_lab, axis, model,
             channel_letters=meas.channel_letters,
             is_additive=meas.is_additive, ink_limit=ink_limit,
-            k_prior=anchor, accurate=accurate, extra_hues=extra_hues,
+            k_prior=k_prior_col, accurate=accurate, extra_hues=extra_hues,
             black_l=black_l, k_gen=k_gen, ucs=use_ucs,
             channel_max=channel_max)
         if axis.get("l_black") is not None:
@@ -633,7 +641,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         from workflow.profile_engine.joint_sep import joint_separation
         prior, prior_w = b2a_mod.ink_priors(
             node_lab, n, channel_letters=meas.channel_letters,
-            k_prior=anchor, k_gen=k_gen, accurate=accurate,
+            k_prior=k_prior_col, k_gen=k_gen, accurate=accurate,
             extra_hues=extra_hues, black_l=black_l)
         gn_view = None
         if use_ucs:
@@ -651,7 +659,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             model, dev_clut, residual, b2a_grid,
             ink_limit=ink_limit, is_additive=meas.is_additive,
             channel_letters=meas.channel_letters,
-            node_lab=node_lab, lab_to01=codec.lab_to01, k_prior=anchor,
+            node_lab=node_lab, lab_to01=codec.lab_to01, k_prior=k_prior_col,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
             k_gen=k_gen, ucs=use_ucs, channel_max=channel_max,
             fixed_nodes=fixed_nodes,
