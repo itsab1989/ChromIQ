@@ -760,8 +760,15 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
 
         if progress:
             progress("Saturation table: fitting the matched rendering…")
-        out = {"B2A0": WarpMapper(train, realized("p")),
-               "B2A2": WarpMapper(train, realized("s"))}
+        if node_lab is not None:
+            # D-06 (agent 8): with exact node targets the warp only answers
+            # off-node queries (-nI); fit it on first use. Same inputs, same
+            # fit, same bytes; 2-3 s of CPU saved on every other build.
+            out = {"B2A0": _LazyWarp(train, realized("p")),
+                   "B2A2": _LazyWarp(train, realized("s"))}
+        else:
+            out = {"B2A0": WarpMapper(train, realized("p")),
+                   "B2A2": WarpMapper(train, realized("s"))}
         # Exact node targets: sample colprof's realized mapping AT the CLUT
         # nodes the profile will carry — the tables then reproduce colprof's
         # values up to quantisation, and the warp only serves smooth
@@ -796,6 +803,27 @@ def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
     if len(out) != len(lab):
         raise OracleUnavailable("node sampling failed")
     return out
+
+
+class _LazyWarp:
+    """A :class:`WarpMapper` fitted the first time it is asked anything."""
+
+    def __init__(self, train_lab: np.ndarray, target_lab: np.ndarray) -> None:
+        self._args = (train_lab, target_lab)
+        self._warp: WarpMapper | None = None
+
+    def _get(self) -> WarpMapper:
+        if self._warp is None:
+            self._warp = WarpMapper(*self._args)
+        return self._warp
+
+    def map_lab(self, lab: np.ndarray) -> np.ndarray:
+        return self._get().map_lab(lab)
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._get(), name)
 
 
 class _ExactNodeMapper:
