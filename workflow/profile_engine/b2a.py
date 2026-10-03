@@ -187,7 +187,47 @@ def _ucs_hue_weight_matrices(target_ucs: np.ndarray) -> np.ndarray:
     return w
 
 
-def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
+def _gauss_newton(model, target: np.ndarray, seed: np.ndarray,
+                  free: np.ndarray, *, iters: int, damping: float,
+                  ink_limit: float | None,
+                  prior: np.ndarray | None = None,
+                  prior_w: np.ndarray | None = None,
+                  boundary_fd: bool = False,
+                  tac_projection: bool = False,
+                  err_weights: np.ndarray | None = None,
+                  channel_max: np.ndarray | None = None,
+                  progress=None, progress_label: str = "") -> np.ndarray:
+    """Row-parallel front of :func:`_gauss_newton_rows` (D-06).
+
+    Every row of the batched Gauss-Newton is solved on its own (its own
+    Jacobian, its own k x k solve, its own clip and ink-limit projection),
+    so contiguous row chunks on pool threads give the same bytes as one
+    batch. Only the maximum-accuracy path (``boundary_fd``) is split; Fast
+    and Bit-exact keep the serial call untouched. Chunk 0 reports progress,
+    so the log carries exactly the serial run's lines."""
+    from workflow.profile_engine import parallel
+    kw = dict(iters=iters, damping=damping, ink_limit=ink_limit,
+              boundary_fd=boundary_fd, tac_projection=tac_projection,
+              channel_max=channel_max, progress_label=progress_label)
+    bounds = parallel.chunk_bounds(len(target), parallel.worker_count()) \
+        if boundary_fd else [(0, len(target))]
+    if len(bounds) <= 1:
+        return _gauss_newton_rows(model, target, seed, free, prior=prior,
+                                  prior_w=prior_w, err_weights=err_weights,
+                                  progress=progress, **kw)
+
+    def one(lo: int, hi: int) -> np.ndarray:
+        sl = slice(lo, hi)
+        return _gauss_newton_rows(
+            model, target[sl], seed[sl], free,
+            prior=None if prior is None else prior[sl],
+            prior_w=None if prior_w is None else prior_w[sl],
+            err_weights=None if err_weights is None else err_weights[sl],
+            progress=progress if lo == 0 else None, **kw)
+    return np.concatenate(parallel.run_chunks(one, bounds), axis=0)
+
+
+def _gauss_newton_rows(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
                   free: np.ndarray, *, iters: int, damping: float,
                   ink_limit: float | None,
                   prior: np.ndarray | None = None,
