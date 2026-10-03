@@ -8508,7 +8508,13 @@ class TabChart(QWidget):
             self._set_manual_value("printtarg", "-b", r.spacer_mode == "bw")
             self._set_manual_value("printtarg", "-c", r.spacer_mode == "colored")
             # Randomise / fixed seed.
-            self._set_manual_value("printtarg", "-r", not r.randomize)
+            # …except in Calibration, whose knob put -r on and which is never
+            # randomised (calibration_run_type §4.2): copying the recipe's
+            # "Randomise" here dropped it and shuffled the printtarg
+            # calibration chart (pre-existing since 68742ca1c).
+            self._set_manual_value("printtarg", "-r",
+                                   (not r.randomize)
+                                   or self._calibration_selected())
             if r.seed is not None:
                 self._set_manual_value("printtarg", "-R", int(r.seed))
             # TIFF compression (-C disables it → engine "none").
@@ -8722,7 +8728,9 @@ class TabChart(QWidget):
         if p.margin_mm != 6:
             pt_args.append(f"-m{p.margin_mm}")
         pt_args.append(f"-M{p.margin_mm}")
-        if p.no_randomise:
+        # A calibration chart is laid out in order whatever the recipe says
+        # (chart_creator._printtarg_keeps_order, calibration_run_type §4.2).
+        if p.no_randomise or self._calibration_selected():
             pt_args.append("-r")
         if p.bw_spacers:
             pt_args.append("-b")
