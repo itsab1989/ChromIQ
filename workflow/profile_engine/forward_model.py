@@ -128,8 +128,29 @@ def _grid_solve(w: np.ndarray, cols: np.ndarray, y: np.ndarray, grid: int,
             mid[ax] = lo[ax] = hi[ax] = slice(None)
         return o.reshape(ng, -1)
 
+    # D-06 (agent 8): in a Maximum accuracy build with a large lattice
+    # (5+ inks: 9^6 = 531,441 nodes, two thirds of the fit's CPU) the
+    # curvature runs one Lab column per pool thread. The operator is purely
+    # element-wise per column, so each column's numbers are the same bits
+    # as in the (grid..., 3) array; Fast and Bit-exact never take this path.
+    from workflow.profile_engine import parallel as _par
+    col_threads = (ng >= 100_000 and _par.in_accurate_scope()
+                   and _par.worker_count() > 1)
+
+    def curvature_cols(x: np.ndarray) -> np.ndarray:
+        out = np.empty_like(x)
+
+        def one(c: int):
+            def run():
+                out[:, c] = curvature(np.ascontiguousarray(x[:, c:c + 1]))[:, 0]
+            return run
+        _par.run_tasks([one(c) for c in range(x.shape[1])])
+        return out
+
+    curv = curvature_cols if col_threads else curvature
+
     def amul(x: np.ndarray) -> np.ndarray:
-        return wtmul(wmul(x)) + lam * curvature(x) + 1e-7 * x
+        return wtmul(wmul(x)) + lam * curv(x) + 1e-7 * x
 
     b = wtmul(y)
     x = np.zeros((ng, y.shape[1])) if x0 is None else x0.copy()

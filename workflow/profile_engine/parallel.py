@@ -80,6 +80,27 @@ def usable_cpus() -> int:
 _SHARE = threading.local()
 
 
+class accurate_scope:
+    """``with accurate_scope():`` marks the current thread (and every pool
+    thread this module starts from it) as running a Maximum accuracy
+    build. Speed paths that live in code Fast and Bit-exact share (the
+    forward fit) only switch on inside it, so those modes keep their serial
+    code path whatever the bytes would be."""
+
+    def __enter__(self):
+        self._prev = getattr(_SHARE, "accurate", False)
+        _SHARE.accurate = True
+        return self
+
+    def __exit__(self, *exc):
+        _SHARE.accurate = self._prev
+        return False
+
+
+def in_accurate_scope() -> bool:
+    return bool(getattr(_SHARE, "accurate", False))
+
+
 def worker_count() -> int:
     """Threads the engine may use: the override if set, else the usable
     CPUs minus two (the UI thread and one Argyll child), at most 8, at
@@ -120,9 +141,14 @@ def run_chunks(fn, bounds: list[tuple[int, int]]) -> list:
     try:
         # Threads are created on submit, so the stack size applies to them
         # and is restored for everyone else right after.
+        acc = in_accurate_scope()
+
+        def _flagged(lo, hi):
+            _SHARE.accurate = acc
+            return fn(lo, hi)
         with ThreadPoolExecutor(max_workers=len(bounds),
                                 thread_name_prefix="chromiq-engine") as ex:
-            futs = [ex.submit(fn, lo, hi) for lo, hi in bounds]
+            futs = [ex.submit(_flagged, lo, hi) for lo, hi in bounds]
             threading.stack_size(old)
             return [f.result() for f in futs]
     finally:
@@ -139,9 +165,11 @@ def run_tasks(tasks: list, workers: int | None = None) -> list:
     if workers <= 1 or len(tasks) <= 1:
         return [t() for t in tasks]
     share = max(1, total // min(workers, len(tasks)))
+    acc = in_accurate_scope()
 
     def _with_share(t):
         _SHARE.workers = share
+        _SHARE.accurate = acc
         try:
             return t()
         finally:
@@ -176,8 +204,11 @@ class Background:
         self._value = None
         self._exc: BaseException | None = None
 
+        acc = in_accurate_scope()
+
         def _run():
             _SHARE.workers = self._share
+            _SHARE.accurate = acc
             try:
                 self._value = fn()
             except BaseException as exc:            # noqa: BLE001
