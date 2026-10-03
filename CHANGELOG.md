@@ -6,7 +6,7 @@
 
 - **"Replace the stored chart" keeps the chart it replaces.** Measuring a different chart into a verification date that already had one copied the new chart over the old one in `<date>/chart/` and kept nothing, and left the old chart's extra files mixed in (a gamut chart's `-verify-reference.ti3` beside a regular chart made Restore Used Chart bring back a reference, so Print forced Raw). The old chart now goes to `<date>/old/<date-time>/chart/`, in the same folder as the date's old measurement once the new one is saved, and the new chart is stored on its own. If nothing is saved (Cancel on a later question, no instrument, a measurement that read nothing, an import the date refuses), the old chart is put back, because the date still holds the measurement made with it.
 - **Charts record their creation date in English, as ArgyllCMS does.** Under another language the `CREATED` line of a gamut chart (and of charts laid out by ChromIQ, relaid charts, i1Profiler imports and exports, and colverify reference files) used that language's day and month names, for example "Fr. Okt. 02". Charts already written that way are still read correctly in every language ChromIQ ships.
-- **Demo projects: verification dates come after the profile they verify.** They were fixed dates in early 2026, older than the profiles the generator builds.
+- **Demo projects: verification dates come after the profile they verify.** They are history (Demo-Verify-History spans a year, so its trend graph reads as a drifting printer), but the generator builds the profile now, so every date was older than its profile. The demo profile is now dated back to before its first verification (ICC header date and file time); the dates stay where they were.
 
 ## v4.3.3-beta.6
 

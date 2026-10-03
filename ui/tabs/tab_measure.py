@@ -10730,10 +10730,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             from workflow import confirmed_patches as _cp
             before = _cp.ti3_sha256(marked)
             shutil.move(str(marked), str(dst))
+            # Filed: the chart set aside at Start stays in old/ for good. Said
+            # the moment the move lands, so nothing that raises below it can
+            # make the decorator put the OLD chart back beside the NEW readings.
+            self._replaced_chart = None
             _cp.carry(marked, before, dst)
             self._staged_verification_ti3 = None         # filed; nothing left beside the chart
-            # Filed: the chart set aside at Start stays in old/ for good.
-            self._replaced_chart = None
         except OSError as exc:
             self._log.appendPlainText(f"\n[ERROR] Could not save verification file: {exc}")
             return

@@ -1,11 +1,12 @@
 """The demo projects' verification dates come after the profile they verify.
 
-`scripts/make_demo_projects.py` builds each profile NOW (colprof), but named
-its verification dates by hand, in 2026-01 to 2026-06, so every demo date was
+`scripts/make_demo_projects.py` builds each profile NOW (colprof), but its
+verification dates are history, 2026-01 to 2026-06, so every demo date was
 older than its own profile: a state no real project can reach, since a
-verification measures a profile that already exists, and one that makes every
-demo date look like a verification of an earlier profile (challenge of
-2026-10-03, §2, "Demo projects").
+verification measures a profile that already exists (challenge of
+2026-10-03, §2, "Demo projects"). The generator dates the profile back to
+before its first verification (`_backdate_profile`) instead of moving the
+dates up to the build, so Demo-Verify-History still trends over months.
 """
 from __future__ import annotations
 
@@ -45,3 +46,22 @@ def test_demo_full_rgb_verifications_follow_the_profile(demo_project):
 
 def test_demo_verify_history_follows_the_profile(demo_project):
     _dates_after_profile(demo_project("Demo-Verify-History"), "run1", 5)
+
+
+def test_demo_verify_history_still_spans_months(demo_project):
+    """The trend the demo exists for: five checks a printer drifted across,
+    not five checks a minute apart."""
+    run = Project.load(demo_project("Demo-Verify-History")).run("run1")
+    whens = sorted(datetime.strptime(v.id, "%Y-%m-%d_%H%M%S")
+                   for v in run.verifications())
+    assert (whens[-1] - whens[0]).days >= 300
+
+
+def test_the_backdated_profile_keeps_a_valid_profile_id(demo_project):
+    """A header date is part of what a v4 profile ID hashes, so moving it
+    must recompute the ID, or the profile reads as corrupt."""
+    from core.icc_text import _profile_id
+    icc = Project.load(demo_project("Demo-Verify-History")).run("run1").profile_icc
+    data = icc.read_bytes()
+    if data[84:100] != b"\0" * 16:
+        assert data[84:100] == _profile_id(data)

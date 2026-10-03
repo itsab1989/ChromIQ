@@ -18,8 +18,8 @@ Four projects are written:
                               measurement, profile, reports, exports), one with
                               two dated verifications, one with a chart only.
 ``Demo-Verify-History``       one finished run with **five** dated
-                              verifications, a minute apart and all made after
-                              its profile was built, each with its
+                              verifications, three months apart and all made
+                              after its profile was built, each with its
                               own measurement and report — for exercising the
                               verification history and the report's trend.
 ``Demo-Legacy-v1``            **the 3.13 layout**, for migration testing.
@@ -373,19 +373,38 @@ def _meta(run_dir: Path, rid: str, **extra) -> None:
     (run_dir / "meta.json").write_text(json.dumps(d, indent=2), encoding="utf-8")
 
 
-def _after_the_build(minutes: int) -> datetime:
-    """A verification date *minutes* whole minutes after the profile that was
-    just built.
+def _backdate_profile(run_dir: Path, stem: str, built: datetime) -> None:
+    """Give the profile colprof has just written the build date *built*: its
+    ICC header creation date (UTC, bytes 24-35, with the v4 profile ID
+    recomputed when it carries one) and its file time.
 
-    The profile is built NOW (`_build_icc` runs colprof), so dates written
-    into the generator by hand (they were 2026-01 to 2026-06) came out older
-    than the profile they verify, which no real project can hold: a
-    verification is always measured against a profile that already exists,
-    and every demo date read as one made with an earlier profile. Call it
-    after `_build_icc`; the seconds are dropped and a minute added, so even
-    the first date is after the profile's own timestamp."""
-    built = datetime.now().replace(second=0, microsecond=0)
-    return built + timedelta(minutes=minutes)
+    The demo's verification dates are history on purpose: months apart, so
+    Demo-Verify-History's trend graph reads as a printer drifting over half a
+    year. But colprof builds the profile NOW, which put every one of those
+    dates before the profile it verifies, a state no real project can hold
+    (a verification measures a profile that already exists). Moving the
+    dates up to the build would squeeze the trend into minutes; dating the
+    profile back to before them keeps both true. Only the demo does this.
+    """
+    import os
+    import struct
+    from datetime import timezone
+
+    from core.icc_text import _profile_id
+    icc = run_dir / f"{stem}.icc"
+    if not icc.is_file():
+        return
+    data = bytearray(icc.read_bytes())
+    if len(data) < 128 or data[36:40] != b"acsp":
+        return
+    utc = built.astimezone(timezone.utc)
+    struct.pack_into(">6H", data, 24, utc.year, utc.month, utc.day,
+                     utc.hour, utc.minute, utc.second)
+    if data[84:100] != b"\0" * 16:
+        data[84:100] = _profile_id(bytes(data))
+    icc.write_bytes(bytes(data))
+    ts = built.timestamp()
+    os.utime(icc, (ts, ts))
 
 
 def _verification(run_dir: Path, stem: str, when: datetime, de: float) -> None:
@@ -436,6 +455,8 @@ def build_full(root: Path) -> None:
     _chart_files(r1, stem, patches=240, rows=15, pages=2)
     (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     _build_icc(r1, stem)
+    # Built before its report of 2026-05-02 10:15, and before run2 below.
+    _backdate_profile(r1, stem, datetime(2026, 5, 2, 9, 30))
     (r1 / "chart").mkdir(exist_ok=True)
     _chart_files(r1 / "chart", stem, patches=240, rows=15, pages=2)
     for sub, fname, body in (
@@ -459,11 +480,13 @@ def build_full(root: Path) -> None:
     _chart_files(r2, stem, patches=240, rows=15, pages=2)
     (r2 / f"{stem}.ti3").write_text(_ti3_from_ti2(r2 / f"{stem}.ti2", drift=0.4), encoding="utf-8")
     _build_icc(r2, stem)
+    # Refined after run1, and built before the first of its two dates.
+    _backdate_profile(r2, stem, datetime(2026, 5, 19, 14, 0))
     (r2 / "preconditioning.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     shutil.copy2(r1 / f"{stem}.icc", r2 / "preconditioning.icc") if (r1 / f"{stem}.icc").exists() else None
     _chart_files(r2 / "verifications", f"{stem}-verify", patches=60, rows=10)
-    for when, de in ((_after_the_build(1), 0.9),
-                     (_after_the_build(2), 1.5)):
+    for when, de in ((datetime(2026, 5, 20, 9, 5), 0.9),
+                     (datetime(2026, 6, 24, 16, 40), 1.5)):
         _verification(r2, stem, when, de)
     _meta(r2, "run2", parent_run="run1", preconditioning_source_run="run1")
 
@@ -483,9 +506,12 @@ def build_verify_history(root: Path) -> None:
     _chart_files(r1, stem, patches=240, rows=15, pages=2)
     (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     _build_icc(r1, stem)
+    start = datetime(2026, 1, 12, 11, 0)
+    # The profile comes first: built three days before its first check.
+    _backdate_profile(r1, stem, start - timedelta(days=3))
     _chart_files(r1 / "verifications", f"{stem}-verify", patches=60, rows=10)
     for i, de in enumerate((0.8, 1.0, 1.3, 1.9, 2.6)):   # a drifting printer
-        _verification(r1, stem, _after_the_build(1 + i), de)
+        _verification(r1, stem, start + timedelta(days=90 * i), de)
     _meta(r1, "run1")
 
 
