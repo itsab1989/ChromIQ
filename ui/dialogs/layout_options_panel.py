@@ -1693,6 +1693,15 @@ class LayoutOptionsPanel(QWidget):
         self.offy = small_mm(top=300.0)
         self.strip_pat = QLineEdit(self); self.strip_pat.textChanged.connect(self._emit)
         self.patch_pat = QLineEdit(self); self.patch_pat.textChanged.connect(self._emit)
+        # CHECKED ON EVERY KEYSTROKE, AND ONLY COLOURED (forum report,
+        # 2026-10-03). A pattern ArgyllCMS cannot read makes a chart neither
+        # reader can measure, so the box turns red with the reason as its
+        # tooltip. Not through `_emit`: that is silent while a recipe loads,
+        # and a stored pattern that cannot be read must load red, as stored.
+        # The host adds what needs the chart's size (`set_pattern_problem`).
+        self._host_pattern_problem = None
+        self.strip_pat.textChanged.connect(self._refresh_pattern_marks)
+        self.patch_pat.textChanged.connect(self._refresh_pattern_marks)
         # Patch-area alignment — where the block sits within the usable area.
         self.patch_align = ElidingComboBox(self)
         for _key, _lbl in (
@@ -1791,53 +1800,60 @@ class LayoutOptionsPanel(QWidget):
         add_row(gg, 6, tr("Strip pattern:"), self.strip_pat,
                 tip=TooltipButton(
                     tr("Strip pattern"),
-                    tr("How each strip (column of patches) is labelled — the first "
-                       "part of a patch's location, e.g. the “A” in A12. ChromIQ "
-                       "reads this the way ArgyllCMS's printtarg does; in practice "
-                       "it decides whether strips are labelled with LETTERS or "
-                       "NUMBERS.\n\n"
-                       "**Valid examples:**\n"
-                       "• A-Z, A-Z — the default: letters A, B, C … Z, then AA, "
-                       "AB, AC … once past 26 strips (like spreadsheet columns).\n"
-                       "• A-Z — plain letters A, B, C … (same result while a chart "
-                       "has 26 strips or fewer).\n"
-                       "• 1-999 — numbers 1, 2, 3 …\n"
-                       "• 0-9 — also numbers 1, 2, 3 …\n\n"
-                       "**Rule:** any pattern that contains “A-Z” labels with letters; "
-                       "anything else counts in plain numbers (no zero-padding). "
-                       "This works together with the Patch pattern below — the two "
-                       "combine into each location label, strip then patch (e.g. "
-                       "strip “A” + patch “12” = A12). Leave the default unless "
-                       "you're matching a specific reading-sheet scheme."), self))
+                    # ARGYLLCMS'S RULES, AND ONLY EXAMPLES THAT WORK (forum
+                    # report, 2026-10-03). The old text called "1-999" and
+                    # "0-9" numbers 1, 2, 3 ..., which ArgyllCMS reads as one
+                    # digit that stops at 9, and a user's "0-9" chart could
+                    # not be measured. Numeric strip examples wait for Knut's
+                    # answer on #182 (must strips always be letters?).
+                    tr("How each strip (column of patches) is labelled: the first "
+                       "part of a patch's location, the “A” in A12. ChromIQ "
+                       "prints the labels, and ArgyllCMS reads them back with "
+                       "this pattern, so the two must agree.\n\n"
+                       "**How ArgyllCMS reads a pattern:**\n"
+                       "• Each part between commas is one character position, "
+                       "the rightmost position first. “A-Z, A-Z” has two: A to Z "
+                       "on the right, and a space or A to Z on the left.\n"
+                       "• A space is a symbol too. On the left it means “nothing "
+                       "here”, which is how A to Z come before AA.\n"
+                       "• Text after “;” limits which labels are used.\n\n"
+                       "**Patterns that work here:**\n"
+                       "• A-Z, A-Z: the default. A to Z, then AA, AB and so on, "
+                       "up to ZZ (702 strips).\n"
+                       "• A-Z: A to Z only, for a chart of up to 26 strips.\n\n"
+                       "ChromIQ checks the pattern as you type. If ArgyllCMS "
+                       "cannot read it, would name a strip differently from the "
+                       "label on the sheet, or runs out of labels for this "
+                       "chart, the box turns red, the reason appears under the "
+                       "preview and the chart cannot be generated. Leave the "
+                       "default unless you are matching an existing scheme."),
+                    self))
         add_row(gg, 7, tr("Patch pattern:"), self.patch_pat,
                 tip=TooltipButton(
                     tr("Patch pattern"),
-                    tr("How patches within a strip are labelled — the second part "
-                       "of a location, e.g. the “12” in A12. The patch label is "
-                       "joined to the strip label to form each patch's full "
-                       "location (strip then patch, e.g. A12).\n\n"
-                       "**The one rule that always applies:** if the pattern contains "
-                       "“A-Z” you get LETTERS, otherwise you get NUMBERS.\n\n"
-                       "**Common patterns:**\n"
-                       "• 0-9,@-9,@-9;1-999 — the default: numbers 1, 2, 3 …\n"
-                       "• 1-999 — numbers 1, 2, 3 … (simpler, same result).\n"
-                       "• A-Z, A-Z — letters A, B, C … Z, AA, AB ….\n"
-                       "• A-Z — plain letters A, B, C ….\n\n"
-                       "About the “@” and zeros (ArgyllCMS notation, used by the "
-                       "classic printtarg engine):\n"
-                       "• “@” means “this digit may be left blank”. It is what "
-                       "stops the default from writing leading zeros — you get "
-                       "1, 2, … 9, 10 rather than 001, 002 …\n"
-                       "• To start counting at 0 instead of 1, include 0 in the "
-                       "range, e.g. 0-999 → 0, 1, 2 ….\n"
-                       "• To keep every number the same width WITH leading zeros "
-                       "(01, 02, … 09, 10), use a fixed-width digit range such as "
-                       "00-99 (two digits) or 000-999 (three).\n\n"
-                       "**Note:** ChromIQ's own layout engine keeps patch numbers "
-                       "simple (1, 2, 3 …) whatever the digit details; the “@” "
-                       "and leading-zero options above take effect when a chart "
-                       "is built with the classic printtarg engine. Leave the "
-                       "default unless you're matching a specific scheme."),
+                    tr("How patches within a strip are labelled: the second "
+                       "part of a location, the “12” in A12. It is joined to "
+                       "the strip label, strip first.\n\n"
+                       "**How ArgyllCMS reads a pattern:**\n"
+                       "• Each part between commas is one digit, the rightmost "
+                       "digit first. “0-9,@-9,@-9” is three digits, each 0 to "
+                       "9.\n"
+                       "• “@” is a 0 that is left blank at the front of a "
+                       "number, so 7 is written 7 and not 007.\n"
+                       "• Text after “;” limits which numbers are used: "
+                       "“;1-999” starts the count at 1.\n\n"
+                       "**Patterns that work here:**\n"
+                       "• 0-9,@-9,@-9;1-999: the default. 1 to 999.\n"
+                       "• 0-9,@-9;1-99: 1 to 99, for strips of up to 99 "
+                       "patches.\n\n"
+                       "A pattern such as “1-999” or “0-9” does not count past "
+                       "9: to ArgyllCMS it is a single digit.\n\n"
+                       "ChromIQ checks the pattern as you type. If ArgyllCMS "
+                       "cannot read it, would number a patch differently from "
+                       "the label on the sheet, or runs out of labels for this "
+                       "chart, the box turns red, the reason appears under the "
+                       "preview and the chart cannot be generated. Leave the "
+                       "default unless you are matching an existing scheme."),
                     self))
         self._patch_align_row = add_row(gg, 8, tr("Patch area alignment:"),
                 self.patch_align,
@@ -3610,6 +3626,53 @@ class LayoutOptionsPanel(QWidget):
     # widgets); the old un-scoped "border: …" sheet wiped that rule, leaving
     # every box that ever touched conflict handling looking permanently
     # greyed-out even though it stayed enabled (Knut, beta.5).
+    # ---- strip / patch patterns (forum report, 2026-10-03) -----------------
+    def pattern_parse_problem(self):
+        """The first pattern box ArgyllCMS cannot parse, as a
+        :class:`~workflow.layout_engine.alphix.PatternProblem`, or None.
+
+        Needs no chart size, so it is answered on every keystroke. An empty box
+        is not a problem: the recipe keeps the pattern it already had."""
+        from workflow.layout_engine.alphix import parse_problem
+        for field, box in (("strip", self.strip_pat), ("patch", self.patch_pat)):
+            text = box.text()
+            if not text:
+                continue
+            problem = parse_problem(field, text)
+            if problem is not None:
+                return problem
+        return None
+
+    def set_pattern_problem(self, problem) -> None:
+        """The host's full verdict on the two patterns for the chart it would
+        lay out (capacity, labels, round trip), or None. Shown on the box it
+        names, or on both when it names neither."""
+        self._host_pattern_problem = problem
+        self._refresh_pattern_marks()
+
+    def _refresh_pattern_marks(self, *_a) -> None:
+        from workflow.layout_engine.alphix import parse_problem
+        host = getattr(self, "_host_pattern_problem", None)
+        for field, box in (("strip", self.strip_pat), ("patch", self.patch_pat)):
+            text = box.text()
+            mine = parse_problem(field, text) if text else None
+            message = mine.reason if mine is not None else None
+            if message is None and host is not None \
+                    and host.field in (field, ""):
+                message = host.reason
+            self._set_field_conflict(box, message, qss=self._line_conflict_qss())
+
+    @staticmethod
+    def _line_conflict_qss() -> str:
+        """`_conflict_qss` for a text box rather than a spin box."""
+        from ui.theme import APPEARANCE_NEUTRAL, active_mode
+        if active_mode() == APPEARANCE_NEUTRAL:
+            from ui import neutral_styles
+            return (" QLineEdit {"
+                    f" border: 2px solid {neutral_styles.NM_ACTION};"
+                    " border-radius: 3px; }")
+        return " QLineEdit { border: 1px solid #d9534f; border-radius: 3px; }"
+
     @staticmethod
     def _conflict_qss() -> str:
         """The outline a conflicting field wears.
@@ -3627,7 +3690,8 @@ class LayoutOptionsPanel(QWidget):
         return (" QSpinBox, QDoubleSpinBox {"
                 " border: 1px solid #d9534f; border-radius: 3px; }")
 
-    def _set_field_conflict(self, widget, message: "str | None") -> None:
+    def _set_field_conflict(self, widget, message: "str | None",
+                            qss: "str | None" = None) -> None:
         """Flag ``widget`` with a red outline + ``message`` tooltip, or clear the
         flag when ``message`` is None — restoring the widget's original tooltip
         AND its original stylesheet. Clearing a never-flagged widget is a no-op
@@ -3641,7 +3705,8 @@ class LayoutOptionsPanel(QWidget):
                 self._field_conflict_orig[wid] = (widget.toolTip(),
                                                   widget.styleSheet())
             _tip, orig_qss = self._field_conflict_orig[wid]
-            widget.setStyleSheet(orig_qss + self._conflict_qss())
+            widget.setStyleSheet(orig_qss + (qss if qss is not None
+                                             else self._conflict_qss()))
             widget.setToolTip(message)
         elif wid in self._field_conflict_orig:
             tip, orig_qss = self._field_conflict_orig.pop(wid)

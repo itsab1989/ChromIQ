@@ -37,6 +37,7 @@ def build_ti2_text(
     randomize: bool = True,
     strip_pattern: str = perm.DEFAULT_STRIP_PATTERN,
     patch_pattern: str = perm.DEFAULT_PATCH_PATTERN,
+    label_rule: str = perm.ARGYLL,
     paper_w_mm: float,
     paper_h_mm: float,
     media: Patch | None = None,
@@ -118,7 +119,7 @@ def build_ti2_text(
     add("BEGIN_DATA")
     for i, (dev, xyz) in enumerate(patches):
         loc = perm.location_label(slots[i], layout.steps_in_pass,
-                                  strip_pattern, patch_pattern)
+                                  strip_pattern, patch_pattern, label_rule)
         dev_s = "".join(_fmt(v) + " " for v in dev)
         add(f'{i + 1} "{loc}" {dev_s}{_fmt(xyz[0])} {_fmt(xyz[1])} {_fmt(xyz[2])} ')
     add("END_DATA")

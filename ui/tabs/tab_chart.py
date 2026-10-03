@@ -4456,6 +4456,24 @@ def _layout_panel_lays_out(instr, engine_setting) -> bool:
             or bool(engine_setting))
 
 
+def _then_refresh_the_pattern_gate(method):
+    """Run the strip/patch pattern gate after *method*, on every way out.
+
+    The gate reads the strip and step counts the "estimate" column has just
+    predicted (`_estimated_layout`), so it follows every refresh of that
+    estimate, including the early returns (forum report, 2026-10-03)."""
+    import functools
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        self._estimated_layout = None
+        try:
+            return method(self, *args, **kwargs)
+        finally:
+            self._refresh_pattern_gate()
+    return wrapper
+
+
 def _panel_lays_out_on(tab) -> bool:
     """:func:`_layout_panel_lays_out` for Manual as *tab* has it now:
     printtarg's -i and the engine setting (B8-1295, B8-1300).
@@ -6286,7 +6304,12 @@ class TabChart(QWidget):
 
         # Bottom buttons
         btn_row = QHBoxLayout()
-        self._generate_btn = QPushButton(tr("Generate Chart"), self)
+        # GATED, because a strip or patch pattern ArgyllCMS cannot read holds
+        # it off (forum report, 2026-10-03) while the build paths go on using
+        # its enabled state as the "build in flight" marker. See
+        # `ui.widgets.GatedPushButton` and `_refresh_pattern_gate`.
+        from ui.widgets import GatedPushButton
+        self._generate_btn = GatedPushButton(tr("Generate Chart"), self)
         self._generate_btn.setObjectName("primary")
         self._generate_btn.setFixedHeight(36)
         self._generate_btn.clicked.connect(self._on_generate)
@@ -6390,6 +6413,15 @@ class TabChart(QWidget):
         self._preview = TiffPreview(right)
         self._preview.set_caption(tr("CHART PREVIEW"))
         right_layout.addWidget(self._preview, stretch=1)
+        # ONE SENTENCE UNDER THE PREVIEW when the strip or patch pattern would
+        # make a chart the readers cannot measure (forum report, 2026-10-03).
+        # The text is §M's M-CHART-PATTERN-REFUSED; see _refresh_pattern_gate.
+        self._pattern_problem_lbl = QLabel("", right)
+        self._pattern_problem_lbl.setWordWrap(True)
+        self._pattern_problem_lbl.setVisible(False)
+        self._pattern_problem_lbl.setContentsMargins(16, 6, 16, 0)
+        set_ink(self._pattern_problem_lbl, "#e05252")
+        right_layout.addWidget(self._pattern_problem_lbl)
 
         # Margin inspector — measures the realised page margins of the generated
         # preview and flags ruler/jig threshold violations (Knut). Hidden when
@@ -8933,6 +8965,7 @@ class TabChart(QWidget):
         # screen so the "estimate" column tracks the current settings (#93).
         self._refresh_layout_estimate(use_engine=use_engine)
 
+    @_then_refresh_the_pattern_gate
     def _refresh_layout_estimate(self, use_engine: "bool | None" = None) -> None:
         """Recompute the Manual "estimate" column of the layout-info panel.
 
@@ -9028,8 +9061,9 @@ class TabChart(QWidget):
             if _npat:
                 _kw["area_target_count"] = int(_npat)
             geom = instruments.geom_from_build_kwargs(_kw)
-            self._predict_layout_info(geom, r.paper, pages_req, npat=_npat,
-                                      dpi=getattr(r, "dpi", None))
+            self._estimated_layout = self._predict_layout_info(
+                geom, r.paper, pages_req, npat=_npat,
+                dpi=getattr(r, "dpi", None))
         except Exception:
             self._layout_info_panel.clear_estimate()
 
@@ -9367,6 +9401,13 @@ class TabChart(QWidget):
         # restored — so the paper in the user's hand and the paper on screen
         # disagree about their own history.
         params.chart_date = getattr(self, "_restored_chart_date", "") or ""
+        # …and the labels it was printed with: a chart from before 4.3.3-
+        # beta.7 made with a pattern other than the default is drawn again
+        # with ChromIQ's old label rule, never relabelled (forum report and
+        # Knut's ruling, #182 5965589190).
+        # (`vars`, not getattr: a stand-in tab that never ran Qt's __init__
+        # raises on a missing attribute instead of returning the default.)
+        params.label_rule = vars(self).get("_restored_label_rule") or "argyll"
         return True
 
     def _layout_recipe_values(self, r) -> dict:
@@ -10842,7 +10883,7 @@ class TabChart(QWidget):
         # Generate's own state, to give back: the button is also what
         # `_chart_build_in_flight` reads, so greying it holds the live
         # preview as well.
-        q["btn_was"] = self._generate_btn.isEnabled()
+        q["btn_was"] = self._generate_btn.wanted_enabled()
         self._patch_set_q = q
         self.setCursor(Qt.CursorShape.BusyCursor)
         self._generate_btn.setEnabled(False)
@@ -11154,6 +11195,9 @@ class TabChart(QWidget):
         self._sync_gamut_pages_enabled()
         if mode == "guided":
             self._update_patch_count()
+            # Guided takes no pattern from the panel, so a refused Manual
+            # pattern must not hold Guided's Generate off.
+            self._refresh_pattern_gate()
         elif mode == "gamut":
             # The Manual layout half is on screen too, so both predictors run.
             self._refresh_manual_command_preview()
@@ -16373,6 +16417,7 @@ class TabChart(QWidget):
         # other sheet entirely).
         self._restored_exact_recipe = None
         self._restored_chart_date = ""
+        self._restored_label_rule = "argyll"
         sidecar = Path(ti2_path).with_suffix(".channels.json")
         self._restored_notes_stamp = False
         # None: the chart does not say (no sidecar, or one written before the
@@ -16455,6 +16500,13 @@ class TabChart(QWidget):
                 self._restored_chart_date = (
                     str(layout.get("date") or "")
                     or _chart_date_from_ti2(Path(ti2_path)))
+                # Which rule made its labels, read from the chart itself: the
+                # sidecar records it from 4.3.3-beta.7 on, and an older chart
+                # is recognised by its SAMPLE_LOCs.
+                from workflow.layout_engine.labels import label_rule_of_chart
+                self._restored_label_rule = (
+                    str(layout.get("label_rule") or "")
+                    or label_rule_of_chart(Path(ti2_path)))
                 # Engine on first (builds/updates the panel), then the recipe.
                 # The SETTING, not the box: on a CR30 the box shows ticked
                 # whatever the person chose (B8-1353).
@@ -17647,6 +17699,8 @@ class TabChart(QWidget):
                 return False
             if self._refuse_while_patch_set_pending():      # B8-1470
                 return False
+            if self._refuse_for_unreadable_patterns(quiet=preview):
+                return False
             self._log_chart_build("live preview" if not ask else "user", ti1_path)
             self._cancel_pending_auto_preview()
             # `preview` IS THE ONE CALLER THAT MAY NOT OPEN A WINDOW.
@@ -18816,6 +18870,8 @@ class TabChart(QWidget):
                 log.warning("A process is already running")
                 return
             if self._refuse_while_patch_set_pending():      # B8-1470
+                return
+            if self._refuse_for_unreadable_patterns():
                 return
             self._log_chart_build("Generate Chart", "targen")
             self._cancel_pending_auto_preview()
@@ -28195,6 +28251,89 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — a log line must never break a build
             log.debug("could not log the chart build", exc_info=True)
 
+    # ------------------------------------------------------------------
+    # Strip / patch patterns ArgyllCMS cannot read (forum report, 2026-10-03)
+    # ------------------------------------------------------------------
+    def _pattern_problem_now(self):
+        """Why the panel's strip/patch patterns cannot be used for a NEW
+        layout, as an `alphix.PatternProblem`, or None.
+
+        Only where the ChromIQ layout engine lays the chart out with the
+        Manual panel (Manual, and the gamut module that borrows it): printtarg
+        takes no pattern from ChromIQ, and Guided always uses the defaults.
+        The chart's size is the one the "estimate" column predicts; without
+        one only the grammar is checked. A build that starts anyway is checked
+        again with the real counts (`chart.build_chart`, rule "argyll").
+        """
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is None:
+            return None
+        manual_btn = getattr(self, "_manual_btn", None)
+        gamut_on = bool(getattr(self, "_gamut_active", False))
+        if not gamut_on and not (manual_btn is not None
+                                 and manual_btn.isChecked()):
+            return None
+        if not _panel_lays_out_on(self):
+            return None
+        from workflow.layout_engine import alphix
+        problem = panel.pattern_parse_problem()
+        if problem is not None:
+            return problem
+        r = panel.get_recipe()
+        lay = getattr(self, "_estimated_layout", None)
+        steps = int(getattr(lay, "steps_in_pass", 0) or 0) if lay else 0
+        if steps <= 0:
+            return (alphix.parse_problem("strip", r.strip_pattern)
+                    or alphix.parse_problem("patch", r.patch_pattern))
+        return alphix.check_patterns(
+            r.strip_pattern, r.patch_pattern,
+            alphix.strips_of(lay.total_patches, steps), steps)
+
+    def _refresh_pattern_gate(self) -> None:
+        """Colour the pattern box, say why under the preview, and hold
+        Generate Chart off while the patterns cannot be used. No window, and
+        nothing in the log: this runs on every keystroke."""
+        try:
+            problem = self._pattern_problem_now()
+        except Exception:      # noqa: BLE001 — a gate must never break the tab
+            log.debug("could not judge the strip/patch patterns", exc_info=True)
+            problem = None
+        self._pattern_problem = problem
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is not None:
+            panel.set_pattern_problem(problem)
+        lbl = getattr(self, "_pattern_problem_lbl", None)
+        if lbl is not None:
+            if problem is None:
+                lbl.setVisible(False)
+                lbl.setText("")
+            else:
+                from workflow import measurement_messages as M
+                _title, body = M.M_CHART_PATTERN_REFUSED.render(
+                    reason=problem.reason)
+                lbl.setText(body)
+                lbl.setVisible(True)
+        btn = getattr(self, "_generate_btn", None)
+        if btn is not None and hasattr(btn, "set_gate"):
+            btn.set_gate(problem.reason if problem is not None else None)
+
+    def _refuse_for_unreadable_patterns(self, *, quiet: bool = False) -> bool:
+        """True, with one line in the log, when a NEW layout must not start
+        because of the patterns. The button is already greyed; this is for the
+        keyboard shortcut and the live preview, which do not press it."""
+        self._refresh_pattern_gate()
+        problem = getattr(self, "_pattern_problem", None)
+        if problem is None:
+            return False
+        if quiet:
+            log.debug("live preview: not re-laid out, pattern refused: %s",
+                      problem.reason)
+            return True
+        from workflow import measurement_messages as M
+        _title, body = M.M_CHART_PATTERN_REFUSED.render(reason=problem.reason)
+        self._log.appendPlainText(body)
+        return True
+
     def _chart_build_in_flight(self) -> bool:
         """True while a chart is being built and has not come back yet.
 
@@ -28209,7 +28348,12 @@ class TabChart(QWidget):
         if self._runner.is_running:
             return True
         btn = getattr(self, "_generate_btn", None)
-        return btn is not None and not btn.isEnabled()
+        if btn is None:
+            return False
+        # What the build paths asked for, NOT what is shown: a pattern the
+        # readers cannot use greys the button too, and that is not a build.
+        wanted = getattr(btn, "wanted_enabled", None)
+        return not (wanted() if callable(wanted) else btn.isEnabled())
 
     # ------------------------------------------------------------------
     # "You changed something and did not build it" (§2.2)
@@ -28431,6 +28575,10 @@ class TabChart(QWidget):
         if not (ti1 is not None and ti1.is_file()):
             return
         if self._layout_signature() == self._last_auto_sig:
+            return
+        # A pattern half typed ("0-", "0-9,") or one the readers cannot use
+        # schedules nothing: no build, no window, no log line per keystroke.
+        if self._pattern_problem_now() is not None:
             return
         self._auto_preview_timer.start(450)
 

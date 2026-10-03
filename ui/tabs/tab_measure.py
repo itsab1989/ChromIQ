@@ -1496,6 +1496,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._on_engine_fell_back_resumed)
         self._manager.engine_fallback_refused.connect(
             self._on_engine_fallback_refused)
+        self._manager.chart_unreadable.connect(self._on_chart_unreadable)
         self._manager.calibration_retrying.connect(self._on_calibration_retrying)
         # D. Spot / XY mode defensive handlers
         self._manager.xy_place_sheet.connect(self._on_xy_place_sheet)
@@ -6781,6 +6782,52 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "have one."))
         return True
 
+    def _blocked_by_unreadable_locations(self) -> bool:
+        """True, and the reason shown, when the chart's patch locations do not
+        fit its own strip and patch patterns (forum report, 2026-10-03).
+
+        A chart laid out with the strip pattern "0-9" and 14 strips carries
+        locations like "14M", which ArgyllCMS's pattern grammar cannot parse.
+        Stock chartread and ChromIQ's engine both stop on it ("Bad location
+        field value '(null)' on patch 266"), and the engine's failure used to
+        start stock chartread, which failed identically. So the chart is
+        checked HERE, in Python, before any reader is launched, exactly as
+        chartread checks it (`alphix.chart_locations_problem`), and nothing
+        starts: no engine, no stock chartread, no fallback.
+        """
+        if not self._ti1_path:
+            return False
+        try:
+            from workflow.layout_engine.alphix import chart_locations_problem
+            detail = chart_locations_problem(self._chart_file_for(self._ti1_path))
+        except Exception:      # noqa: BLE001 — never block a read on this check
+            log.debug("could not check the chart's locations", exc_info=True)
+            return False
+        if detail is None:
+            return False
+        self._chart_unreadable_window(detail)
+        return True
+
+    def _chart_unreadable_window(self, detail: str) -> None:
+        """M-CHART-LOCATIONS-UNREADABLE, in the log and in one window."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CHART_LOCATIONS_UNREADABLE.render(detail=detail)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._say_on_screen(title, body)
+
+    def _on_chart_unreadable(self, detail: str) -> None:
+        """The engine said, in a typed event, that the chart's locations do
+        not fit its patterns; the manager has withheld every fallback.
+
+        The log and the status line, as `_on_engine_fallback_refused` does: the
+        run is ending, and its own ending is what raises any window."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CHART_LOCATIONS_UNREADABLE.render(detail=detail)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._flash_status(title, duration_ms=8000)
+
     def _blocked_by_new_run(self) -> bool:
         """True — and the explaining pop-up has been shown — when the bar's
         **Profile run** is "New run" (#130, Knut). A run has to exist before its
@@ -6810,6 +6857,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         # …and nothing to measure without the laid-out chart (Knut, 2026-08-04).
         if self._blocked_by_missing_chart_file():
+            return
+        # …and when the chart's own locations do not fit its strip and patch
+        # patterns, which no reader can measure (forum report, 2026-10-03).
+        if self._blocked_by_unreadable_locations():
             return
         # …and stop here when the chart names an instrument ArgyllCMS cannot
         # use. The CR30 check comes FIRST: "CR30" is a name ChromIQ knows, so

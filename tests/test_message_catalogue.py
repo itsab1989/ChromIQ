@@ -357,6 +357,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # so — which is half of why the sound feature
                                  # looked broken.
                                  "M-ENGINE-FELL-BACK",
+                                 # 2026-10-03, forum report: the strip pattern
+                                 # "0-9" made a chart neither reader could
+                                 # read. Create Chart refuses such a pattern
+                                 # for a new layout, and Measure says so before
+                                 # any reader starts. Our words, waiting here.
+                                 "M-CHART-PATTERN-REFUSED",
+                                 "M-CHART-LOCATIONS-UNREADABLE",
                                  # 2026-08-27, Knut: a typed project name that
                                  # already names a project on disk was adopted
                                  # in silence. No section of the model governed
@@ -705,6 +712,11 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_say_patch_set_kept_unchecked"),
     ("ui.tabs.tab_chart", "TabChart", "_project_exists_message"),
     ("ui.tabs.tab_measure", "TabMeasure", "_cr30_stock_reader_window"),
+    # Forum report, 2026-10-03: a chart whose locations its patterns cannot
+    # read, before any reader starts and from the engine's typed event.
+    ("ui.tabs.tab_measure", "TabMeasure", "_chart_unreadable_window"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_on_chart_unreadable"),
+    ("ui.tabs.tab_chart", "TabChart", "_refresh_pattern_gate"),
     # #182 5958921500: Continue to next / Jump to unread.
     ("ui.tabs.tab_measure", "TabMeasure", "_unread_choice_window"),
     # #182 5963903650 Q5: "Was a strip read twice?"

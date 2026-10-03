@@ -231,6 +231,12 @@ class MeasureManager(QObject):
     # The run ends here; this carries the reason so the tab can say the ONE
     # true thing instead of promising a rescue that cannot happen.
     engine_fallback_refused = pyqtSignal(str)
+    # Forum report, 2026-10-03: the chart's locations do not fit its own strip
+    # and patch patterns, so NO reader can measure it (stock chartread parses
+    # them exactly as the engine does). Raised from the engine's typed
+    # `{"event":"error","kind":"chart_unreadable"}`; carries the detail. Every
+    # fallback to stock chartread is withheld for this reason, and only this.
+    chart_unreadable = pyqtSignal(str)
     # A failed calibration is being retried automatically: (attempt, of_total).
     calibration_retrying   = pyqtSignal(int, int)
     calibration_done       = pyqtSignal()    # emitted when instrument calibration completes
@@ -418,6 +424,9 @@ class MeasureManager(QObject):
         self._engine_fatal: str | None = None
         self._engine_error_prose: "str | None" = None
         self._stock_reader_cannot_read: bool = False
+        #: The reason the chart's locations cannot be read by any reader, from
+        #: the engine's typed event (forum report, 2026-10-03), or None.
+        self._chart_unreadable: "str | None" = None
         self._engine_progress: bool = False
         self._engine_saw_event: bool = False
         self._engine_fallback_used: bool = False
@@ -484,6 +493,7 @@ class MeasureManager(QObject):
         #: #159: stock chartread cannot read THIS chart, so no fallback to it
         #: may happen — see :attr:`MeasureParams.stock_reader_cannot_read`.
         self._stock_reader_cannot_read = bool(params.stock_reader_cannot_read)
+        self._chart_unreadable = None
         #: The helper's own last error sentence, printed as PROSE on stderr and
         #: outside the JSON channel. Nothing captured it, which is why the log
         #: said "(unknown error)" while the helper had said exactly what was
@@ -506,6 +516,21 @@ class MeasureManager(QObject):
             self._save_partial_state = None
             was_engine = self._engine_active
             self._engine_active = False
+            if (was_engine and self._chart_unreadable is not None
+                    and code != 0 and not self._user_quit):
+                # Forum report, 2026-10-03. The engine says, in a typed event,
+                # that the chart's locations do not fit its own patterns. Stock
+                # chartread parses them with the same ArgyllCMS code, so ALL
+                # THREE fallbacks below (whole-sheet mode, the mid-run -r
+                # resume, the immediate restart) could only fail again, or file
+                # readings under the wrong patches. End here and say so once.
+                # Only on positive identification: a helper that never spoke
+                # (no exec bit, quarantine) still falls back below.
+                log.warning("the chart's locations do not fit its patterns "
+                            "(%s), not falling back", self._chart_unreadable)
+                self.chart_unreadable.emit(self._chart_unreadable)
+                on_finish(code)
+                return
             if (was_engine and self._engine_mode_fallback
                     and not self._stock_reader_cannot_read):
                 # XY/chart mode with the engine opt-in off: silently re-run on
@@ -527,7 +552,7 @@ class MeasureManager(QObject):
                     # discarding the session — after backing the file up first,
                     # so the readings survive even if the resume misbehaves.
                     self._engine_fallback_used = True
-                    reason = self._engine_fatal or "unknown error"
+                    reason = self._engine_failure_reason()
                     log.warning("engine failed mid-measurement (%s) — resuming "
                                 "on stock chartread with -r", reason)
                     self._backup_partial_ti3(partial)
@@ -562,7 +587,7 @@ class MeasureManager(QObject):
                 return
             if was_engine and self._engine_should_fall_back(code):
                 self._engine_fallback_used = True
-                reason = self._engine_fatal or "unknown error"
+                reason = self._engine_failure_reason()
                 log.warning("engine could not use the instrument (%s) — "
                             "restarting on stock chartread", reason)
                 on_line(tr(
@@ -695,6 +720,7 @@ class MeasureManager(QObject):
         and is requested in `docs/cr30_reports/09-impl-measure.md`.
         """
         return (self._engine_fatal
+                or self._chart_unreadable
                 or self._engine_error_prose
                 or "unknown error")
 
@@ -719,6 +745,8 @@ class MeasureManager(QObject):
             return False
         if self._engine_fallback_used:
             return False
+        if self._chart_unreadable is not None:
+            return False        # stock chartread reads the chart the same way
         return self._engine_fatal is not None or not self._engine_saw_event
 
     def _resumable_partial_ti3(self, ti1_path: Path) -> Path | None:
@@ -795,6 +823,8 @@ class MeasureManager(QObject):
         not something to silently retry."""
         if code == 0 or self._user_quit or self._engine_fallback_used:
             return False
+        if self._chart_unreadable is not None:
+            return False        # the resume would read the same chart
         return self._engine_fatal is not None and self._engine_progress
 
     def _backup_partial_ti3(self, ti3: Path) -> None:
@@ -2170,6 +2200,15 @@ class MeasureManager(QObject):
                 self._engine_fatal = detail or (
                     f"the chart names {instr}, which this reader refuses"
                     if instr else "chart refused")
+            elif ekind == "chart_unreadable":
+                # Forum report, 2026-10-03: the chart's SAMPLE_LOCs do not fit
+                # its own STRIP/PATCH_INDEX_PATTERN. Deliberately NOT
+                # `_engine_fatal`, which is a fallback trigger: stock chartread
+                # would read the same chart the same way. The fallbacks test
+                # this flag and stand down (`_on_finish`).
+                detail = str(ev.get("detail") or "")
+                self._chart_unreadable = detail or (
+                    "the patch locations do not fit the chart's patterns")
             elif ekind == "coms":
                 self._at_retry_prompt = True
                 self._engine_fatal = "communication problem"

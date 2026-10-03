@@ -68,7 +68,7 @@ def test_all_engine_options_roundtrip(app):
         clip_text_font="Inter", clip_image_path="/tmp/logo.png",
         clip_image_rotation=90, clip_image_scale=60.0,
         clip_image_offset_x_mm=3.0, clip_image_offset_y_mm=4.0,
-        strip_pattern="A-Z", patch_pattern="1-99", randomize=True, seed=12345)
+        strip_pattern="A-Z", patch_pattern="0-9,@-9;1-99", randomize=True, seed=12345)
     panel.set_recipe(r)
     out = panel.get_recipe()
     for f in ("instrument", "paper", "pscale", "sscale", "spacer_mode",
