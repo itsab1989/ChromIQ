@@ -56,6 +56,10 @@ def main() -> int:
 
     settings = AppSettings()
     settings.set("custom_output_path", out_root)
+    # The startup update check must not reach GitHub from a probe: when a
+    # newer release exists its modal window waits for ever (2026-10-03,
+    # research branch at beta 5 after beta 7 was out).
+    settings.set("update_notify", False)
     plain = {"light": light_styles.LM_BG_WIDGET, "dark": styles.NEUTRAL_BTN,
              "neutral": neutral_styles.NM_BG_WIDGET}
 

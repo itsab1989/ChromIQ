@@ -71,6 +71,9 @@ from ui.tabs.tab_chart import _CappedComboBox
 
 settings = AppSettings()
 settings.set("custom_output_path", sys.argv[2])      # never ~/ChromIQ
+# no startup update check: a newer release opens a modal window that waits
+# for ever in this child process (2026-10-03)
+settings.set("update_notify", False)
 
 
 def field(c):
