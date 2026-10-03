@@ -708,3 +708,57 @@ def test_real_helper_complete_chart_re_arm(tmp_path, monkeypatch):
         b.pump(m, "strip_interrupted")
         s.send(cmd="quit")
         s.finish(timeout=15)
+
+
+@real
+def test_real_helper_a_held_request_never_eats_the_move_sent_with_it(
+        tmp_path, monkeypatch):
+    """K held during a swipe is flushed at the strip_ready that ALSO carries
+    an automatic move (here guided refinement's goto to its next strip). The
+    two reach the helper together; the move must win and the calibration run
+    at the strip the move lands on.
+
+    Review 2026-10-03: the helper turned the request into 'k' before it looked
+    at the key slot, and the placement prompt then dropped the waiting goto as
+    a stale key, so the reader was re-offered the strip it had just read while
+    guided refinement believed it was on its way to the next one.
+    """
+    monkeypatch.setenv("CHROMIQ_REPLAY_CAL", "setup_ok")
+    base, replay = _chart(tmp_path)              # strips A, B, C
+    with ReplaySession(base, replay) as s:
+        b = _Bridge(s)
+        m = MeasureManager(b)
+        m._engine_active = True
+        m._spot_mode = False
+        m._guided_strips = ["A", "C"]
+        m._guided_state = "idle"
+        m._guided_idx = 0
+        b.pump(m, "strip_ready", strip="A")
+        if m._guided_state != "waiting":
+            b.pump(m, "strip_ready", strip="A")
+        assert m._guided_state == "waiting"
+        # The instrument fires, K is pressed during the swipe: held.
+        s.send(cmd="trigger", ready_ms="100")
+        b.pump(m, "scan_started")
+        assert m.request_calibration() == "held"
+        s.send(cmd="swipe")
+        b.pump(m, "strip_read", strip="A")
+        # The engine moves on to B by itself; guided refinement wants C and
+        # sends its goto, and the held request goes out right behind it.
+        b.pump(m, "strip_ready", strip="B")
+        sent = [json.loads(x) for x in b.sent]
+        assert [c["cmd"] for c in sent[-2:]] == ["goto", "calibrate"], sent
+        b.pump(m, "strip_ready", strip="C", timeout=8)
+        b.pump(m, "cal_required")
+        m.send_key("\r")
+        b.pump(m, "cal_result", result="done")
+        again = b.pump(m, "strip_ready")
+        assert again["strip"] == "C", (
+            "the move sent with the request was lost: the reader is at "
+            f"{again['strip']} while guided refinement is waiting for C")
+        assert m._guided_state == "waiting"
+        assert m._guided_strips[m._guided_idx] == "C"
+        m.send_key("q")
+        b.pump(m, "strip_interrupted")
+        s.send(cmd="quit")
+        s.finish(timeout=15)

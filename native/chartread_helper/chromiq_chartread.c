@@ -811,14 +811,22 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 	 * for the next strip or patch, and only while that loop holds the gate
 	 * open (cq_cal_gate_set). A request made during a swipe therefore waits
 	 * for the next prompt instead of being read as "retry" by whatever
-	 * question comes first, and the whole-sheet loop never sees it. */
-	if (purp == inst_armed && cq_cal_take_request()) {
-		p->cut = 'k';
-		return inst_user_abort;
-	}
-
+	 * question comes first, and the whole-sheet loop never sees it.
+	 *
+	 * A KEY THAT IS ALREADY WAITING GOES FIRST (review 2026-10-03). The GUI
+	 * sends a request it held during a swipe at the strip_ready that may also
+	 * carry an automatic move (guided refinement's goto, the move after a
+	 * read, a post-retry key). Taken first, the request opened its placement
+	 * prompt, which drops a waiting key as stale, so the move was lost and the
+	 * reader re-offered the strip it had just read. Now the key is acted on,
+	 * the loop comes back here at the strip or patch it moved to, and the
+	 * calibration runs there. */
 	if (purp == inst_negcoms || purp == inst_armed || purp == inst_measuring) {
 		int c = cq_cmd_take_key();
+		if (c == CQ_KEY_NONE && purp == inst_armed && cq_cal_take_request()) {
+			p->cut = 'k';
+			return inst_user_abort;
+		}
 		if (c == CQ_KEY_GOTO) {
 			strncpy(cq_goto_target, cq_take_goto(), sizeof(cq_goto_target) - 1);
 			cq_goto_target[sizeof(cq_goto_target) - 1] = '\0';
