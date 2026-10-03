@@ -1440,6 +1440,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self.measure_finished.connect(self._maybe_save_measurement_report)
         self._manager.calibration_prompt.connect(self._on_calibration_prompt)
         self._manager.calibration_done.connect(self._on_calibration_done)
+        # A calibration the user asked for (K, or the Calibrate button): its
+        # own placement window, its own result, and a note when it has to
+        # wait for the next strip or patch prompt.
+        self._manager.calibration_requested_prompt.connect(
+            self._on_requested_calibration_prompt)
+        self._manager.calibration_request_result.connect(
+            self._on_calibration_request_result)
+        self._manager.calibration_request_held.connect(
+            self._on_calibration_request_held)
+        # The Calibrate button follows the LIVE reader, which is known once it
+        # offers its first strip or patch (and changes after a fallback).
+        self._manager.stripe_changed.connect(self._refresh_calibrate_btn_state)
+        self._manager.patch_ready.connect(self._refresh_calibrate_btn_state)
         # The pace report FIRST: it times the failed swipe, and _on_strip_error
         # opens a modal window that blocks inside its own slot. Connected after
         # it, the timing ran only once the user had answered — so the strip's
@@ -2471,6 +2484,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._apply_stop_btn_style()
         self._stop_btn.clicked.connect(self._on_stop)
         self._stop_btn.setEnabled(False)
+        # Calibrate between strips or patches (Knut #182 5965478577, Basti
+        # 5965500670). Shown only when Preferences ▸ Measurement asks for it
+        # (off by default; K does the same at any time) and only while a
+        # session is live, standing where the disabled "Save as Defaults"
+        # stands (see _sync_calibrate_btn_visible); enabled only while
+        # ChromIQ's engine is reading strips or patches.
+        self._calibrate_btn = QPushButton(tr("Calibrate"), btn_outer)
+        self._calibrate_btn.setFixedHeight(36)
+        self._calibrate_btn.setToolTip(tr(
+            "Take a new instrument calibration before the next strip or "
+            "patch (K). The measurement carries on afterwards."))
+        self._calibrate_btn.clicked.connect(self._on_calibrate_clicked)
+        self._calibrate_btn.setEnabled(False)
+        self._sync_calibrate_btn_visible()
         self._save_defaults_btn = QPushButton(tr("Save as Defaults"), btn_outer)
         self._save_defaults_btn.setFixedHeight(36)
         self._save_defaults_btn.clicked.connect(self._on_save_defaults)
@@ -2484,6 +2511,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._import_go_btn.setVisible(False)
         btn_row.addWidget(self._start_btn)
         btn_row.addWidget(self._stop_btn)
+        btn_row.addWidget(self._calibrate_btn)
         btn_row.addWidget(self._import_go_btn)
         btn_row.addStretch()
         btn_row.addWidget(self._save_defaults_btn)
@@ -7110,6 +7138,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         #: True while a reader is waiting for keys — what makes the app-wide
         #: event filter below legitimate. Cleared in _on_measure_done.
         self._session_live = True
+        self._sync_calibrate_btn_visible()
         QApplication.instance().installEventFilter(self)
 
         if self._current_mode() == "guided":
@@ -9981,6 +10010,393 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._arm_key_watchdog()
             # Don't re-install the event filter: chartread is shutting down.
 
+    # ------------------------------------------------------------------
+    # Calibrating during a measurement (K, or the Calibrate button)
+    # Knut #182 5965478577 / 5965735823, Basti 5965500670.
+    # ------------------------------------------------------------------
+
+    #: macOS kVK_ANSI_K and Windows VK_K: the physical K key, whatever the
+    #: layout prints on it.
+    _MAC_KEYCODE_K = 0x28
+    _WIN_VK_K = 0x4B
+    #: The X11/evdev scan code of the physical K key (KEY_K 37 + 8).
+    _LINUX_SCANCODE_K = 45
+
+    def _is_calibrate_key(self, event) -> bool:
+        """K or k, and the physical K key under a non-Latin layout.
+
+        ``event.text()`` follows the printed label, which is right for every
+        Latin layout (QWERTZ, AZERTY and Dvorak all type k somewhere). Under a
+        Cyrillic layout, and ru and uk are shipped UI languages, the K key
+        types "л", so its POSITION is accepted too -- but only when the text
+        is not Latin, so on Dvorak the key that types "t" is never read as K.
+        """
+        text = event.text()
+        if text in ("k", "K"):
+            return True
+        if not text or text.isascii():
+            return False
+        try:
+            if sys.platform == "darwin":
+                return event.nativeVirtualKey() == self._MAC_KEYCODE_K
+            if sys.platform.startswith("win"):
+                return event.nativeVirtualKey() == self._WIN_VK_K
+            return event.nativeScanCode() == self._LINUX_SCANCODE_K
+        except Exception:      # noqa: BLE001 — never eat a keystroke over this
+            return False
+
+    def _sync_calibrate_btn_visible(self) -> None:
+        """Preferences ▸ Measurement ▸ "Show a Calibrate button while measuring".
+
+        ONLY WHILE A SESSION IS LIVE, AND IN THE PLACE OF "SAVE AS DEFAULTS".
+        Measured on screen: Start, Stop, Calibrate and Save as Defaults do not
+        fit the Measure tab's fixed 580 px panel even in English ("START
+        MEASUREMEN" was cut off at a 1500 px window). Save as Defaults is
+        disabled for the whole of a session (`_set_settings_enabled`), so
+        while one is live the Calibrate button stands in its place, and
+        outside a session the row is exactly what it was.
+        """
+        btn = getattr(self, "_calibrate_btn", None)
+        if btn is None:
+            return
+        importing = bool(getattr(self, "_stack", None) is not None
+                         and self._stack.currentIndex() == 2)
+        show = (bool(self._settings.get("measure_calibrate_button", False))
+                and bool(getattr(self, "_session_live", False))
+                and not importing)
+        btn.setVisible(show)
+        save = getattr(self, "_save_defaults_btn", None)
+        if save is not None:
+            save.setVisible(not importing and not show)
+        self._refresh_calibrate_btn_state()
+
+    def _refresh_calibrate_btn_state(self, *_args) -> None:
+        """Enabled only while ChromIQ's engine reads strips or patches.
+
+        Asks the LIVE reader, so the button is disabled on stock chartread,
+        after a fallback to it, for the CR30 and for whole-sheet readers.
+        """
+        btn = getattr(self, "_calibrate_btn", None)
+        if btn is None:
+            return
+        m = getattr(self, "_manager", None)
+        if m is None:
+            btn.setEnabled(False)
+            return
+        btn.setEnabled(bool(getattr(self, "_session_live", False))
+                       and m.can_calibrate_on_request()
+                       and not m.calibration_request_busy)
+
+    def _calibrate_log(self, text: str, *, flash: bool = True) -> None:
+        self._log.appendPlainText(text)
+        self._log.ensureCursorVisible()
+        if flash:
+            self._flash_status(text)
+
+    def _on_calibrate_clicked(self) -> None:
+        self._calibrate_requested_by_user()
+
+    def _calibrate_requested_by_user(self) -> None:
+        """K or the Calibrate button."""
+        if not getattr(self, "_session_live", False):
+            return
+        m = self._manager
+        can = getattr(m, "can_calibrate_on_request", None)
+        if not callable(can) or not can():
+            # Never forwarded, never a key: a log line says why.
+            if (getattr(self, "_cr30_reader", None) is not None
+                    or getattr(m, "_external_values", False)):
+                self._calibrate_log(tr(
+                    "Calibrating during a measurement is not available for "
+                    "the CR30."))
+            elif getattr(m, "engine_active", False):
+                self._calibrate_log(tr(
+                    "Calibrating during a measurement is not available for "
+                    "whole-sheet readers."))
+            else:
+                self._calibrate_log(tr(
+                    "Calibrating during a measurement needs ChromIQ's "
+                    "chart-reading engine. With ArgyllCMS chartread the K key "
+                    "does nothing."))
+            return
+        outcome = m.request_calibration()
+        if outcome == "sent":
+            self._calibrate_log(tr("Calibration requested."), flash=False)
+            self._arm_key_watchdog()
+        elif outcome == "busy":
+            self._flash_status(tr("A calibration is already under way."))
+        # "held" is announced by calibration_request_held; "ending" is
+        # dropped on purpose: the session is already being ended.
+        self._refresh_calibrate_btn_state()
+
+    def _on_calibration_request_held(self) -> None:
+        self._calibrate_log(tr(
+            "Calibration requested. It starts at the next strip or patch "
+            "prompt."))
+        self._refresh_calibrate_btn_state()
+
+    def _optional_calibration_note(self) -> str:
+        return tr(
+            "This calibration step is optional. You can skip it and carry "
+            "on measuring, but your readings may be a little less accurate "
+            "without it.")
+
+    def _on_requested_calibration_prompt(self, cond: str = "",
+                                         message: str = "",
+                                         optional: bool = False) -> None:
+        """M-CAL-REQUESTED: place the instrument for a calibration the user
+        asked for.
+
+        Not "Calibration required": readings exist, so Cancel keeps measuring
+        and sends `cal_cancel`, never Esc (which would mark the session as
+        ended by the user). And no sound: the user has just asked for this
+        (Knut, measurement_window_sounds.md).
+        """
+        from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QHBoxLayout,
+                                     QLabel, QVBoxLayout)
+        from ui.ti2_loader import (calibration_instructions_html,
+                                    instrument_family)
+        from workflow import measurement_messages as MM
+
+        title, body = MM.M_CAL_REQUESTED.render()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(520)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 20, 24, 20)
+        _outer = layout
+
+        fam = instrument_family(self._detected_instrument)
+        if fam == "colormunki":
+            from ui.dial_pictogram import dial
+            dlg.setMinimumWidth(620)
+            pic = QLabel(dlg)
+            pic.setPixmap(dial("calibrate", dlg, 150))
+            pic.setAlignment(Qt.AlignmentFlag.AlignTop)
+            row = QHBoxLayout()
+            row.setSpacing(18)
+            row.addWidget(pic, 0, Qt.AlignmentFlag.AlignTop)
+            col = QVBoxLayout()
+            col.setSpacing(16)
+            row.addLayout(col, 1)
+            layout.addLayout(row)
+            layout = col
+        intro = QLabel(body, dlg)
+        intro.setWordWrap(True)
+        layout.addWidget(intro)
+        how = QLabel(calibration_instructions_html(fam), dlg)
+        how.setTextFormat(Qt.TextFormat.RichText)
+        how.setWordWrap(True)
+        layout.addWidget(how)
+        if message.strip():
+            own = QLabel(
+                f"<b>{tr('What your instrument asked for:')}</b><br>"
+                f"{html.escape(message.strip())}", dlg)
+            own.setTextFormat(Qt.TextFormat.RichText)
+            own.setWordWrap(True)
+            layout.addWidget(own)
+        if optional:
+            note = QLabel(self._optional_calibration_note(), dlg)
+            note.setWordWrap(True)
+            layout.addWidget(note)
+
+        btn_box = QDialogButtonBox()
+        ok_btn = btn_box.addButton(tr("Start Calibration"),
+                                   QDialogButtonBox.ButtonRole.AcceptRole)
+        ok_btn.setObjectName("primary")
+        skipped = {"asked": False}
+        if optional:
+            skip_btn = btn_box.addButton(
+                tr("Skip this step"),
+                QDialogButtonBox.ButtonRole.DestructiveRole)
+
+            def _skip() -> None:
+                skipped["asked"] = True
+                dlg.done(QDialog.DialogCode.Accepted.value)
+
+            skip_btn.clicked.connect(_skip)
+        btn_box.addButton(tr("Cancel calibration"),
+                          QDialogButtonBox.ButtonRole.RejectRole)
+        btn_box.rejected.connect(dlg.reject)
+        btn_box.accepted.connect(dlg.accept)
+        _outer.addWidget(btn_box)
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        result = self._exec_measurement_window(dlg)
+        if not self._runner.is_running:
+            return                    # closed by the session ending
+        if skipped["asked"]:
+            self._manager.send_key("s")
+            self._arm_key_watchdog()
+        elif result == QDialog.DialogCode.Accepted:
+            self._manager.send_key("\r")
+            self._arm_key_watchdog()
+        else:
+            # Cancel, Esc or the title-bar X: keep measuring.
+            self._manager.cancel_requested_calibration()
+            self._arm_key_watchdog()
+
+    def _on_calibration_request_result(self, result: str, damaged: bool,
+                                       detail: str, prompted: bool) -> None:
+        """One per request: done, cancelled, failed or unavailable."""
+        self._refresh_calibrate_btn_state()
+        self._key_watchdog.stop()
+        if result == "done":
+            self._calibrate_log(tr(
+                "Calibration complete. Measuring carries on where you were."),
+                flash=not prompted)
+            if prompted:
+                self._show_requested_calibration_done()
+            return
+        if damaged:
+            reason = detail.strip() or tr("the calibration was cancelled")
+            self._calibrate_log(tr(
+                "Nothing is read until the instrument is calibrated. Press K "
+                "or Calibrate to try again, or Stop to end the measurement."),
+                flash=False)
+            self._show_requested_calibration_failed(reason)
+            return
+        if result == "cancelled":
+            self._calibrate_log(tr(
+                "Calibration cancelled. Measuring carries on with the "
+                "calibration the instrument already had."))
+        elif result == "unavailable":
+            self._calibrate_log(tr(
+                "This instrument has nothing to calibrate, so measuring "
+                "carries on as before."))
+
+    def _add_calibrate_key_note(self, layout, dlg, dim_style: str) -> None:
+        """The K line under a Calibration complete window that has no key
+        list of its own (guided refinement, manual re-measurement)."""
+        from PyQt6.QtWidgets import QLabel
+        if not self._manager.can_calibrate_on_request():
+            return
+        note = QLabel(tr("K: calibrate the instrument again before the next "
+                         "strip."), dlg)
+        note.setWordWrap(True)
+        note.setStyleSheet(dim_style)
+        layout.addWidget(note)
+
+    def _show_requested_calibration_done(self) -> None:
+        """M-CAL-REQUESTED-DONE: the short "carry on" Calibration complete."""
+        from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QFrame,
+                                     QGridLayout, QLabel, QVBoxLayout)
+        from ui.theme import APPEARANCE_NEUTRAL, accent_for, resolve_mode
+        from workflow import measurement_messages as MM
+
+        title, body = MM.M_CAL_REQUESTED_DONE.render()
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(480)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(14)
+        layout.setContentsMargins(24, 20, 24, 20)
+        msg = QLabel(body, dlg)
+        msg.setWordWrap(True)
+        layout.addWidget(msg)
+
+        mode = resolve_mode(self._settings.get("appearance", "auto"))
+        if mode == APPEARANCE_NEUTRAL:
+            from ui import neutral_styles as _n
+            frame_bg, frame_border = _n.NM_BG_SURFACE, _n.NM_BORDER
+        elif mode == "light":
+            frame_bg, frame_border = "#f7f4ef", "#d0ccc6"
+        else:
+            frame_bg, frame_border = "#181818", "#2a2a2a"
+        frame = QFrame(dlg)
+        frame.setStyleSheet(
+            f"QFrame {{ background: {frame_bg}; border: 1px solid "
+            f"{frame_border}; border-radius: 6px; }}")
+        grid = QGridLayout(frame)
+        grid.setContentsMargins(16, 12, 16, 12)
+        grid.setHorizontalSpacing(20)
+        grid.setVerticalSpacing(6)
+        grid.setColumnStretch(1, 1)
+        key_style = (f"font-family: Menlo, monospace; font-weight: 700;"
+                     f" color: {accent_for(_TAB_COLOR, mode)};"
+                     " background: transparent; border: none;")
+        plain = "background: transparent; border: none;"
+        if self._spot_session:
+            rows = [
+                ("f", tr("Move to the next patch")),
+                ("b", tr("Move back to the previous patch")),
+                ("n", tr("Jump to the next unread patch")),
+                ("K", tr("Calibrate the instrument again before the next "
+                         "patch")),
+                ("d", tr("Finish and save when all patches are done")),
+                ("Esc / q", tr("Quit without saving")),
+            ]
+        else:
+            rows = [
+                ("f", tr("Move to the next strip")),
+                ("b", tr("Move back to the previous strip")),
+                ("n", tr("Jump to the next unread strip")),
+                ("K", tr("Calibrate the instrument again before the next "
+                         "strip")),
+                ("d", tr("Finish and save when all strips are done")),
+                ("Esc / q", tr("Quit without saving")),
+            ]
+        for r, (key, desc) in enumerate(rows):
+            k = QLabel(key)
+            k.setStyleSheet(key_style)
+            d = QLabel(desc)
+            d.setStyleSheet(plain)
+            grid.addWidget(k, r, 0, Qt.AlignmentFlag.AlignLeft)
+            grid.addWidget(d, r, 1, Qt.AlignmentFlag.AlignLeft)
+        layout.addWidget(frame)
+
+        btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        btn_box.button(QDialogButtonBox.StandardButton.Ok).setObjectName(
+            "primary")
+        btn_box.accepted.connect(dlg.accept)
+        layout.addWidget(btn_box)
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        self._exec_measurement_window(dlg)
+
+    def _show_requested_calibration_failed(self, reason: str) -> None:
+        """M-CAL-REQUESTED-FAILED, "The calibration did not succeed": reading
+        is locked; Try again or Save and stop.
+
+        Save and stop runs the save chain directly, like Patch Read Failed's
+        Save Partial & Quit (measurement_exit_strategy.md note 1): the helper
+        answers the first quit with the give-up prompt and writes the .ti3 on
+        the second. Closing the window keeps the lock; K, Calibrate and Stop
+        all still work.
+        """
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import fit_message_box_buttons
+        from workflow import measurement_messages as MM
+
+        self._cue_window("INSTRUMENT_ERROR")
+        title, body = MM.M_CAL_REQUESTED_FAILED.render(reason=reason)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(title + "\n\n" + body)
+        again = box.addButton(tr("Try again"),
+                              QMessageBox.ButtonRole.AcceptRole)
+        save = box.addButton(tr("Save and stop"),
+                             QMessageBox.ButtonRole.DestructiveRole)
+        box.setDefaultButton(again)
+        fit_message_box_buttons(box)
+        self._exec_measurement_window(box)
+        clicked = box.clickedButton()
+        if not self._runner.is_running:
+            return
+        if clicked is again:
+            if self._manager.request_calibration() == "sent":
+                self._arm_key_watchdog()
+        elif clicked is save:
+            mark = getattr(self._manager, "mark_ending_answered", None)
+            if callable(mark):
+                mark()
+            self._end_session("save")
+        else:
+            self._flash_status(tr(
+                "Nothing is read until the instrument is calibrated. Press K "
+                "or Calibrate to try again, or Stop to end the measurement."))
+        self._refresh_calibrate_btn_state()
+
     def _on_calibration_done(self) -> None:
         from PyQt6.QtWidgets import (
             QDialog, QDialogButtonBox, QFrame, QGridLayout, QHBoxLayout, QLabel,
@@ -10097,6 +10513,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 *(((tr("click"),
                     tr("Click a patch in the preview to jump to it")),)
                   if self._engine_selected() else ()),
+                # K, on the engine only: stock chartread does nothing with it.
+                *((("K", tr("Calibrate the instrument again before the next "
+                            "patch")),)
+                  if self._manager.can_calibrate_on_request() else ()),
                 ("d", tr("Finish and save when all patches are done")),
                 ("Esc / q", tr("Quit without saving")),
             ]
@@ -10169,6 +10589,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             footnote.setWordWrap(True)
             footnote.setStyleSheet(_dim_style)
             layout.addWidget(footnote)
+            self._add_calibrate_key_note(layout, dlg, _dim_style)
 
         elif self._resume_active:
             dlg.setWindowTitle(tr("Calibration Complete — Manual Re-measurement"))
@@ -10213,6 +10634,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             footnote.setWordWrap(True)
             footnote.setStyleSheet(_dim_style)
             layout.addWidget(footnote)
+            self._add_calibrate_key_note(layout, dlg, _dim_style)
 
         else:
             dlg.setWindowTitle(tr("Calibration Complete — How to Measure"))
@@ -10238,6 +10660,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 ("f", tr("Move to the next strip")),
                 ("b", tr("Move back to the previous strip")),
                 ("n", tr("Jump to the next unread strip")),
+                *((("K", tr("Calibrate the instrument again before the next "
+                            "strip")),)
+                  if self._manager.can_calibrate_on_request() else ()),
                 ("d", tr("Finish and save when all strips are done")),
                 ("Esc / q", tr("Quit without saving")),
             ]
@@ -11216,6 +11641,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         for w in (self._start_btn, self._stop_btn, self._save_defaults_btn):
             w.setVisible(not importing)
         self._import_go_btn.setVisible(importing)
+        self._sync_calibrate_btn_visible()
         if importing:
             self._sound_cb.setVisible(False)
             self._sound_tip.setVisible(False)
@@ -12447,6 +12873,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._set_settings_enabled(True)
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
+        self._calibrate_btn.setEnabled(False)
 
         # A session that recorded nothing leaves an empty measurement file
         # behind, and that file then makes ChromIQ claim this run HAS a
@@ -12475,6 +12902,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # END of this method, by which point the resume checkbox had already
         # refreshed itself from the file that was about to be replaced.
         self._session_live = False
+        self._sync_calibrate_btn_visible()
         self._finish_session_guard()
         # Superseded by the guard for any run it protects; still the only
         # handler for a session that never got one.
@@ -13494,6 +13922,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                 Qt.Key.Key_Enter)):
                 self._cr30_reading_from_the_keyboard()
                 return True
+            # K: CALIBRATE BETWEEN STRIPS OR PATCHES (Knut #182 5965478577).
+            #
+            # Routed here, never forwarded: on ChromIQ's engine it is its own
+            # command, and on stock chartread it does NOTHING (Basti,
+            # 5965500670) -- stock strip mode reads an unknown key as "start
+            # reading", and stock patch mode's own 'k' ends the program on a
+            # Cancel with no .ti3 written. Not a QShortcut: those bypass the
+            # modal and popup gate above, which is what keeps K for a window
+            # that is open.
+            # Called through the class, so the stand-in tabs of older tests
+            # that borrow this filter need nothing new.
+            if TabMeasure._is_calibrate_key(self, event):
+                TabMeasure._calibrate_requested_by_user(self)
+                return True
+            # A REQUESTED CALIBRATION FAILED, so nothing is read until one
+            # succeeds. Esc and q still end the session, through the one
+            # ending window; every other key is held back with a word on why.
+            if getattr(self._manager, "calibration_locked", False):
+                if key == Qt.Key.Key_Escape or event.text() in ("q", "Q"):
+                    self._on_stop()
+                else:
+                    self._flash_status(tr(
+                        "Nothing is read until the instrument is calibrated. "
+                        "Press K or Calibrate to try again, or Stop to end the "
+                        "measurement."))
+                return True
             sent = True
             if key == Qt.Key.Key_Escape:
                 self._manager.send_key("\x1b")
@@ -13593,6 +14047,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         engine itself is already chosen live at the start of each measurement, so
         this only syncs the visible chrome (the "Live preview" view groups)."""
         on = self._engine_selected()
+        self._sync_calibrate_btn_visible()
         for grp in (getattr(self, "_g_view_grp", None),
                     getattr(self, "_m_view_grp", None)):
             if grp is not None:

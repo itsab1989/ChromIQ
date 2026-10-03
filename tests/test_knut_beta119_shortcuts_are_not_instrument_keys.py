@@ -125,11 +125,19 @@ def test_the_arrows_navigate_with_the_keys_chartread_documents(tab):
 
 
 def test_a_plain_letter_still_reaches_chartread(tab):
-    """chartread's own menu keys — f, b, n, d, k — must still get through."""
-    for letter in "fbndk":
+    """chartread's own menu keys — f, b, n, d — must still get through.
+
+    k used to be in this list. Since 2026-10-03 it is ChromIQ's calibrate
+    key (Knut #182 5965478577, Basti 5965500670): on the engine it is its own
+    command, and on stock chartread it is never forwarded, because stock
+    patch-mode 'k' ends the program on a Cancel without writing the .ti3.
+    """
+    for letter in "fbnd":
         tab.eventFilter(tab, _key(getattr(Qt.Key, f"Key_{letter.upper()}"),
                                   letter))
-    assert tab._manager.sent == list("fbndk")
+    assert tab._manager.sent == list("fbnd")
+    tab.eventFilter(tab, _key(Qt.Key.Key_K, "k"))
+    assert tab._manager.sent == list("fbnd"), "k reached stock chartread"
 
 
 def test_shift_alone_does_not_block_a_letter(tab):

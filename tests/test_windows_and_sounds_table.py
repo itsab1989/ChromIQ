@@ -83,6 +83,10 @@ def test_every_sound_name_is_one_the_user_can_find_in_preferences():
 
     for _w, _m, sound in WINDOW_ROWS + EVENT_ROWS:
         first = sound.split(",")[0].split("—")[0].strip()
+        # The one row that is silent on purpose: a calibration the user
+        # asked for (Knut, #182 5965735823). Not a sound, so not a label.
+        if first == "No sound":
+            continue
         assert first in labels, f"{first!r} is not a name from Preferences"
 
 

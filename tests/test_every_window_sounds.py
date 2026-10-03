@@ -43,6 +43,8 @@ EXPECTED_CUE = {
     # #182: "Was a strip read twice?" interrupts a read to ask, so it takes
     # the attention sound (Knut, 5963044182).
     "_strip_read_twice_window":               "INSTRUMENT_ERROR",
+    # A calibration the user asked for that did not succeed (K, Calibrate).
+    "_show_requested_calibration_failed":     "INSTRUMENT_ERROR",
 }
 
 
@@ -118,6 +120,9 @@ def test_every_row_names_a_sound_the_preferences_tab_offers():
         "Patch read OK", "Patch reading looks off", "Strip read OK",
         "Strip read failed", "Instrument error", "Slow down",
         "Measurement finished", "Profile build finished",
+        # A window the table says is silent, on purpose: the calibration the
+        # user asked for (Knut, #182 5965735823).
+        "No sound",
     }
     for label, _mode, sound in WINDOW_ROWS + EVENT_ROWS:
         # One row deliberately names two sounds and explains the choice.
@@ -145,3 +150,11 @@ def test_the_specification_tables_match_the_app():
     missing = [row[0] for row in WINDOW_ROWS + EVENT_ROWS
                if row[0].replace("|", "\\|") not in text]
     assert not missing, f"rows in the app but not in the specification: {missing}"
+
+
+def test_a_calibration_the_user_asked_for_is_silent():
+    """Knut, #182 5965735823: the placement window of a calibration the user
+    asked for (K, or the Calibrate button) plays nothing. "Calibration
+    required" keeps Instrument error: that one interrupts the user."""
+    assert not _cues(_method("_on_requested_calibration_prompt"))
+    assert "INSTRUMENT_ERROR" in _cues(_method("_on_calibration_prompt"))

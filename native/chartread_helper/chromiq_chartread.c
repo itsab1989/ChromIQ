@@ -806,8 +806,27 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 		return inst_ok;
 	}
 
+	/* CHROMIQ_EXT: a calibration the user asked for becomes the 'k' command
+	 * HERE and nowhere else: only while the instrument is armed and waiting
+	 * for the next strip or patch, and only while that loop holds the gate
+	 * open (cq_cal_gate_set). A request made during a swipe therefore waits
+	 * for the next prompt instead of being read as "retry" by whatever
+	 * question comes first, and the whole-sheet loop never sees it.
+	 *
+	 * A KEY THAT IS ALREADY WAITING GOES FIRST (review 2026-10-03). The GUI
+	 * sends a request it held during a swipe at the strip_ready that may also
+	 * carry an automatic move (guided refinement's goto, the move after a
+	 * read, a post-retry key). Taken first, the request opened its placement
+	 * prompt, which drops a waiting key as stale, so the move was lost and the
+	 * reader re-offered the strip it had just read. Now the key is acted on,
+	 * the loop comes back here at the strip or patch it moved to, and the
+	 * calibration runs there. */
 	if (purp == inst_negcoms || purp == inst_armed || purp == inst_measuring) {
 		int c = cq_cmd_take_key();
+		if (c == CQ_KEY_NONE && purp == inst_armed && cq_cal_take_request()) {
+			p->cut = 'k';
+			return inst_user_abort;
+		}
 		if (c == CQ_KEY_GOTO) {
 			strncpy(cq_goto_target, cq_take_goto(), sizeof(cq_goto_target) - 1);
 			cq_goto_target[sizeof(cq_goto_target) - 1] = '\0';
@@ -883,6 +902,88 @@ static int ierror(inst *it, inst_code ic) {
 	if (ch == 0x03 || ch == 0x1b || ch == 'q' || ch == 'Q')	/* ^C, Escape or Q */
 		return 1;
 	return 0;
+}
+
+/* CHROMIQ_EXT: the calibration the user asked for (K, or the Calibrate
+ * button), from the strip or the patch loop. JSON mode only.
+ *
+ * Exactly one {"event":"cal_result"} per attempt: done, cancelled, failed or
+ * unavailable. A cancel or "nothing to calibrate" leaves the session as it
+ * was. A FAILURE locks reading: the instrument may now hold a calibration
+ * measured off its tile (an i1Pro writes it into cal_factor[] before it
+ * checks it), so nothing is read until a calibration succeeds. In the lock
+ * the reader waits for one of two things: another {"cmd":"calibrate"}
+ * (Try again), or the save chain -- quit, the give-up prompt
+ * (strip_interrupted), quit -- which writes the .ti3 and ends the session.
+ *
+ * Returns 0 to carry on reading, 1 when the user stopped (the .ti3 is written
+ * and "aborted" emitted; the caller frees and returns -1). */
+static int cq_requested_calibration(inst *it) {
+	int damaged = 0;
+
+	for (;;) {
+		int prompted = 0, r, ch;
+		char detail[256], esc[512];
+
+		printf("\nCalibrating the instrument at your request\n");
+		do_fflush();
+		cq_cal_request_scope(1);
+		r = cq_run_requested_calibration(it, &prompted, detail, sizeof(detail));
+		cq_cal_request_scope(0);
+
+		if (r == CQ_CALREQ_DONE) {
+			printf("Calibration complete\n");
+			do_fflush();
+			cq_emit_raw("{\"event\":\"cal_result\",\"result\":\"done\","
+			            "\"prompted\":%s}", prompted ? "true" : "false");
+			return 0;
+		}
+		if (!damaged && r == CQ_CALREQ_UNAVAILABLE) {
+			printf("This instrument has nothing to calibrate\n");
+			do_fflush();
+			cq_emit_raw("{\"event\":\"cal_result\",\"result\":\"unavailable\"}");
+			return 0;
+		}
+		if (!damaged && r == CQ_CALREQ_CANCELLED) {
+			printf("Calibration cancelled, the previous calibration is kept\n");
+			do_fflush();
+			cq_emit_raw("{\"event\":\"cal_result\",\"result\":\"cancelled\","
+			            "\"damaged\":false}");
+			return 0;
+		}
+		damaged = 1;
+		cq_json_escape(esc, sizeof(esc), detail);
+		printf("Calibration failed%s%s. Nothing is read until a calibration "
+		       "succeeds.\n", detail[0] ? ": " : "", detail);
+		do_fflush();
+		cq_emit_raw("{\"event\":\"cal_result\",\"result\":\"%s\","
+		            "\"damaged\":true,\"detail\":\"%s\"}",
+		            r == CQ_CALREQ_CANCELLED ? "cancelled" : "failed", esc);
+
+		/* The lock. */
+		for (;;) {
+			if (cq_cal_take_request_ungated())
+				break;                          /* Try again */
+			ch = cq_poll_char();
+			if (ch == CQ_KEY_NONE) {
+				cq_sleep_poll();
+				continue;
+			}
+			if (ch == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
+				printf("\nStopped at user request!\n");
+				printf("Hit Esc or 'q' to save and give up, any other key to stay:\n");
+				do_fflush();
+				cq_emit_simple("strip_interrupted");
+				ch = cq_wait_char();
+				if (ch == 0x1b || ch == 0x3 || ch == 'q' || ch == 'Q') {
+					cq_write_ti3_atomic();	/* never lose readings */
+					cq_emit_simple("aborted");
+					return 1;
+				}
+			}
+			/* any other key: still locked */
+		}
+	}
 }
 
 /* Read all the strips, and return nonzero on abort/error */
@@ -2005,6 +2106,15 @@ a1log *log			/* verb, debug & error log */
 		inst_set_uih('Q', 'Q',   DUIH_ABORT);
 		inst_set_uih(0x03, 0x03, DUIH_ABORT);		/* ^c */
 		inst_set_uih(0x1b, 0x1b, DUIH_ABORT);		/* Esc */
+		/* CHROMIQ_EXT: 'k'/'K' calibrate, on the engine only. Stock strip mode
+		 * has no calibrate key -- an unregistered key there is a TRIGGER and
+		 * starts a read -- so this stays out of it and stock stays
+		 * byte-identical. Registered as CMND so it is never read as a
+		 * trigger and never falls into the 'd' branch below. */
+		if (cq_json) {
+			inst_set_uih('k', 'k', DUIH_CMND);
+			inst_set_uih('K', 'K', DUIH_CMND);
+		}
 
 		/* Allocate space for values from a pass/strip */
 		if ((vals = (ipatch *)calloc(sizeof(ipatch), (stipa+nextrap))) == NULL)
@@ -2088,6 +2198,8 @@ a1log *log			/* verb, debug & error log */
 				printf("\nReady to read strip pass %s%s\n",nn, done ? " (!! ALL ROWS READ !!)" : scols[oroi * stipa]->rr ? " (This row has been read)" : "" );
 				printf("Press 'f' to move forward, 'b' to move back, 'n' for next unread,\n");
 				printf(" 'd' when done, Esc or 'q' to quit without saving.\n");
+				if (cq_json)	/* CHROMIQ_EXT: the engine's calibrate key */
+					printf(" 'k' to calibrate the instrument before the next strip.\n");
 				/* CHROMIQ_EXT: typed counterpart of the menu prompt */
 				cq_emit_raw("{\"event\":\"strip_ready\",\"strip\":\"%s\","
 				            "\"read\":%s,\"all_done\":%s}",
@@ -2102,7 +2214,14 @@ a1log *log			/* verb, debug & error log */
 					printf("Press any other key to start:%s",fl_end);
 				}
 				do_fflush();
-				if ((rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals)) != inst_ok
+				/* CHROMIQ_EXT: a requested calibration may start only while
+				 * the instrument waits here for the next strip. */
+				if (cq_json)
+					cq_cal_gate_set(1);
+				rv = it->read_strip(it, "STRIP", stipa+nextrap, nn, guide, plen, glen, tlen, vals);
+				if (cq_json)
+					cq_cal_gate_set(0);
+				if (rv != inst_ok
 				 && (rv & inst_mask) != inst_user_trig) {
 
 #ifdef DEBUG
@@ -2165,6 +2284,19 @@ a1log *log			/* verb, debug & error log */
 									incflag = 0;
 								}
 								break;
+							} else if (cq_json && (ch == 'k' || ch == 'K')) {
+								/* CHROMIQ_EXT: calibrate between strips, then
+								 * the SAME strip is offered again. Ahead of
+								 * the 'd' branch, or it would ask "Done?". */
+								if (cq_requested_calibration(it) != 0) {
+									if (nn != NULL) free(nn);
+									free(vals);
+									it->del(it);
+									if (pfname != NULL)
+										free(pfname);
+									return -1;
+								}
+								continue;
 							} else {	/* Assume 'd' or 'D' */
 
 								/* See if there are any unread patches */
@@ -2710,6 +2842,8 @@ a1log *log			/* verb, debug & error log */
 			inst_set_uih('d', 'd', DUIH_CMND);
 			inst_set_uih('D', 'D', DUIH_CMND);
 			inst_set_uih('k', 'k',   DUIH_CMND);
+			if (cq_json)	/* CHROMIQ_EXT: K too (Caps Lock, Shift) */
+				inst_set_uih('K', 'K', DUIH_CMND);
 			inst_set_uih('q', 'q', DUIH_ABORT);
 			inst_set_uih('Q', 'Q', DUIH_ABORT);
 			/* CHROMIQ_EXT: in JSON mode {"cmd":"quit"} arrives as Esc; the
@@ -2925,7 +3059,13 @@ a1log *log			/* verb, debug & error log */
 				if (cq_replay_active())
 					cq_replay_arm_spot(scols[pix]->eXYZ);
 
+				/* CHROMIQ_EXT: a requested calibration may start only while
+				 * the instrument waits here for the next patch. */
+				if (cq_json)
+					cq_cal_gate_set(1);
 				rv = it->read_sample(it, "SPOT", &val, 1);
+				if (cq_json)
+					cq_cal_gate_set(0);
 
 				/* Deal with reading */
 				if (rv == inst_ok) {
@@ -3102,6 +3242,25 @@ a1log *log			/* verb, debug & error log */
 					return -1;
 				}
 				printf("\n");
+				continue;
+			} else if (cq_json && (ch == 'k' || ch == 'K')) {
+				/* CHROMIQ_EXT: the engine's calibrate. Stock's branch below
+				 * ends the program on ANY non-ok, a Cancel included, and with
+				 * no .ti3 written (challenge 1e); here a cancel carries on,
+				 * a failure locks reading until a calibration succeeds, and
+				 * stopping writes the file first.
+				 *
+				 * Never under -x: no instrument is open there (`it` is NULL)
+				 * and a 'k' line from the external-values channel used to
+				 * reach the stock branch and dereference it. */
+				if (xtern != 0 || it == NULL)
+					continue;
+				if (cq_requested_calibration(it) != 0) {
+					it->del(it);
+					if (pfname != NULL)
+						free(pfname);
+					return -1;
+				}
 				continue;
 			} else if (ch == 'k') {
 				inst_code ev;

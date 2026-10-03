@@ -219,6 +219,11 @@ DEFAULTS: dict[str, Any] = {
     # is the proven path for them. Not yet verified on that hardware, so it's
     # opt-in for the adventurous (and for us to test). See --xychart.
     "engine_all_modes":          False,
+    #: A "Calibrate" button beside Stop on the Measure tab, for a calibration
+    #: between strips or patches (Knut #182 5965478577, Basti 5965500670).
+    #: Off by default: the K key does the same at any time, and the button row
+    #: is crowded in some languages. ChromIQ engine only.
+    "measure_calibrate_button":  False,
     #: Let the scanner / camera tools accept a SpectroScan hexagonal chart.
     #: Off = the long-proven behaviour, which refuses them. The chart itself
     #: profiles correctly — measured end to end — but scanin's chart FINDER can

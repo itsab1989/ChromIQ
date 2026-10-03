@@ -109,6 +109,12 @@ whether the handler works.**
 | **Abort?** (Esc pressed) | Yes | `n` to chartread, then the ending | chartread leaves its own question; ours runs | ✅ *(beta.156; **unreachable until beta.160** — see note 4)* |
 | | No | `n` | keep measuring | ✅ |
 | **Calibration required** | OK / Skip / Cancel | `\r` / `s` / `\x1b` | the instrument's own calibration prompt | ⚠️ **see note 3** |
+| **Calibrate the Instrument** (M-CAL-REQUESTED; K or the Calibrate button, ⏳ awaiting confirmation, note 9) | Start Calibration | `\r` → `{"cmd":"ok"}` | the instrument calibrates; the same strip or patch is offered again | ✅ not an exit |
+| | Skip this step (optional steps only) | `s` → `{"cmd":"skip"}` | as in "Calibration required" | ✅ not an exit |
+| | Cancel calibration, Esc, the X | `{"cmd":"cal_cancel"}` | the calibration is dropped and measuring carries on with the old one; **never** Esc or `quit`, so the session is never marked as ended by the user | ✅ not an exit |
+| **The Calibration Did Not Succeed** (M-CAL-REQUESTED-FAILED, ⏳ note 9) | Try again | `{"cmd":"calibrate"}` | another attempt; reading stays locked until one succeeds | ✅ not an exit |
+| | Save and stop | `send_save_partial_and_quit()` | the two-`q` chain: the locked helper answers the first with the give-up prompt and writes the `.ti3` on the second | ⚠️ a direct save, like note 1 |
+| | *dismissed* | — | reading stays locked; K, Calibrate and Stop still work | ✅ not an exit |
 | **Calibrate your CR30 before measuring** (M-CR30-CALIBRATE) | Calibrate now | ChromIQ triggers the instrument's calibration | not an exit — the session has not begun | ✅ *(see note 5)* |
 | | Cancel | a bare `return` from `_on_start` | the measurement never starts | ✅ *(see note 5)* |
 | **The instrument stopped answering** (M-CR30-INSTRUMENT-GONE) | (three buttons) | `_end_session(choice)` | the ending | ✅ *(see note 6)* |
@@ -135,6 +141,7 @@ Same windows, same buttons; three differences, all in what the key means.
 | **Keep what you have measured so far?** | Save and stop | the strip-menu route: retry → `d` → `y` | the two-`q` chain would **throw the readings away** here: stock `q` at a misread prompt is "give up" and never writes |
 | **Patch Read Failed** | Save Partial & Quit | same | same reason |
 | **Instrument Error / Wrong Strip / Interrupted** | Give Up | `\x1b` written to stdin | on the engine it is `{"cmd":"quit"}`; the meaning is the same |
+| **K** (no window) | — | **nothing**: a log line says calibrating during a measurement needs ChromIQ's engine. Not forwarded: stock strip mode reads an unknown key as "start reading", and stock patch mode's own `k` ends the program on a Cancel with no `.ti3` written (note 9) | on the engine K opens "Calibrate the Instrument" |
 | everything else | | identical | |
 
 ### Strip mode vs patch-by-patch — where they genuinely differ
@@ -342,3 +349,37 @@ Nothing was changed on the four windows that were already right, and no window
 text was touched: the wording of these windows is §M's and says nothing about
 closing them. **Whether the windows should SAY what closing them does is a §M
 question and is not decided here.**
+
+## Note 9 — calibrating during a measurement is not an exit, and its failure locks reading
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+The behaviour was approved by Knut (#182 5965478577, 5965735823) and Basti
+(5965500670); the rows above are how it was built, and this note is what has
+not been put to them as rows.
+
+* **Cancel keeps the session.** "Calibration required" sends `\x1b` for Cancel
+  (note 3, ruled fine because no reading exists yet). The calibration the user
+  asks for comes after readings, so its Cancel is a command of its own,
+  `{"cmd":"cal_cancel"}`, which the helper honours only inside that
+  calibration. It never sets `_user_quit`, never sends `aborted`, never sets
+  `_engine_fatal`, and a session in which the user asked for a calibration is
+  never restarted on stock chartread by either fallback.
+* **K pressed during a swipe or at a question is held** and sent at the next
+  strip or patch prompt; the status line says so. The helper holds it too: the
+  request is a flag that only the waiting strip or patch loop acts on, so no
+  prompt can read it as an answer (at "Wrong Strip Read" an "any other key"
+  would have thrown the reading away).
+* **A failure locks reading** until a calibration succeeds, because the
+  instrument may now hold a calibration measured off its tile. The window
+  offers Try again and Save and stop. Save and stop calls the save chain
+  directly, like note 1, rather than raising "Keep what you have measured so
+  far?": the user has just been told what is at stake and chose to keep it.
+  Stop and Esc still raise the one ending window from the lock.
+* **On stock chartread K does nothing** (Basti, 5965500670): a log line, nothing
+  forwarded, in both reading modes. This changes what a typed `k` did in stock
+  patch-by-patch, where it was Argyll's own calibrate; that one ended the
+  program on any non-ok answer, a Cancel included, without writing the `.ti3`.
+* **Not for the CR30 and not for whole-sheet readers** (Knut, 5965735823): a log
+  line, and the helper ignores the request on those paths too.
+

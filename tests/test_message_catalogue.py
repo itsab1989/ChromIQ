@@ -600,6 +600,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-CR-STRIPS",
                                  "M-CR-START-OVER",
                                  "M-CR-PRECONDITIONING",
+                                 # Calibrate during a measurement (K, the
+                                 # Calibrate button): Knut #182 5965478577 /
+                                 # 5965735823, Basti 5965500670 approved the
+                                 # behaviour; the wording is ours.
+                                 "M-CAL-REQUESTED",
+                                 "M-CAL-REQUESTED-DONE",
+                                 "M-CAL-REQUESTED-FAILED",
                                  # #182, UMM §6f (Knut 5964384250,
                                  # 5965626117): the behaviour is his, the
                                  # wording ours. M-PROFILE-VERIFY is a

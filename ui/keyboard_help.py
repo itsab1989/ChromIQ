@@ -232,6 +232,14 @@ def _measurement_keys() -> list[tuple[str, str, str]]:
          tr("Skip the strip or patch that just failed and carry on with the "
             "next one."),
          BOTH),
+        # Knut #182 5965478577, Basti 5965500670: K calibrates between reads
+        # on ChromIQ's engine, and does nothing at all on ArgyllCMS chartread.
+        ("K",
+         tr("Take a new instrument calibration before the next strip or "
+            "patch, without ending the measurement. ChromIQ engine only, and "
+            "not for instruments that read whole sheets or the CR30; with "
+            "ArgyllCMS chartread the key does nothing."),
+         CHROMIQ),
         (tr("Click a strip in the preview"),
          tr("Jump straight to that strip — handy for measuring one again. "
             "Needs the ChromIQ engine, which can be told where to go."),

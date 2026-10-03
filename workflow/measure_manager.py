@@ -234,6 +234,18 @@ class MeasureManager(QObject):
     # A failed calibration is being retried automatically: (attempt, of_total).
     calibration_retrying   = pyqtSignal(int, int)
     calibration_done       = pyqtSignal()    # emitted when instrument calibration completes
+    # A calibration the USER asked for (K or the Calibrate button), engine
+    # only: the instrument asks to be placed, carrying the same three values
+    # as calibration_prompt. A separate signal, because its window differs in
+    # what Cancel does (it keeps measuring), and in its sound (none).
+    calibration_requested_prompt = pyqtSignal(str, str, bool)
+    # …and how it ended, once per request: (result, damaged, detail,
+    # prompted). result is "done", "cancelled", "failed" or "unavailable";
+    # damaged means reading is locked until a calibration succeeds.
+    calibration_request_result = pyqtSignal(str, bool, str, bool)
+    # The request could not go out yet (a swipe or a question was in
+    # progress); it runs at the next strip or patch prompt.
+    calibration_request_held = pyqtSignal()
     strip_error            = pyqtSignal(str) # emitted on strip read failure; carries the reason string
     instrument_disconnected = pyqtSignal()   # emitted on USB communication failure
     device_busy             = pyqtSignal()   # emitted when instrument is held by another process
@@ -425,6 +437,35 @@ class MeasureManager(QObject):
         self._user_quit: bool = False
         self._cal_auto_retries: int = CAL_AUTO_RETRIES
         self._cal_retries_left: int = CAL_AUTO_RETRIES
+        self._reset_requested_calibration()
+
+    def _reset_requested_calibration(self) -> None:
+        """Per-session state of the calibration the user asks for (K)."""
+        #: The instrument fired and the strip has not come back yet.
+        self._scan_in_progress: bool = False
+        #: K was pressed while it could not go out; sent at the next prompt.
+        self._cal_request_held: bool = False
+        #: A calibrate command is out and its cal_result has not come back.
+        self._cal_request_pending: bool = False
+        #: A requested calibration FAILED: the helper reads nothing until one
+        #: succeeds (the instrument may hold a calibration measured off its
+        #: tile). Cleared by a successful one.
+        self._cal_locked: bool = False
+        #: Any request this session. Both stock fallbacks stand down for it:
+        #: a session in which the user calibrated is never silently restarted
+        #: on stock chartread (the brief: "never falls back to stock").
+        self._cal_request_used: bool = False
+        #: The next strip_ready is the same strip re-offered after a
+        #: calibration, not news (see the strip_ready branch).
+        self._rearmed_after_calibration: bool = False
+        #: The reader has offered a strip or a patch this session, so its read
+        #: loop (the only place a request is acted on) is running.
+        self._saw_reader_prompt: bool = False
+        #: XY / chart mode: the whole-sheet loop, which a requested
+        #: calibration must never reach (challenge 1g). Learned from the
+        #: reader's own events, NOT from --xychart, which a strip reader is
+        #: given too when "Also drive XY tables" is on.
+        self._whole_sheet: bool = False
 
     # ------------------------------------------------------------------
 
@@ -498,6 +539,7 @@ class MeasureManager(QObject):
         #: must not change behaviour for any other instrument.
         self._engine_error_prose = None
         self._user_quit = False
+        self._reset_requested_calibration()
         # The user can raise this for an ageing instrument (Settings → Beta);
         # clamp so a bad value can't disable retries or loop for ever.
         want = params.cal_auto_retries
@@ -758,7 +800,7 @@ class MeasureManager(QObject):
         never put us in a restart loop."""
         if code == 0 or self._engine_progress or self._user_quit:
             return False
-        if self._engine_fallback_used:
+        if self._engine_fallback_used or self._cal_request_used:
             return False
         return self._engine_fatal is not None or not self._engine_saw_event
 
@@ -835,6 +877,8 @@ class MeasureManager(QObject):
         an ordinary non-zero exit after normal reading is the run's own business,
         not something to silently retry."""
         if code == 0 or self._user_quit or self._engine_fallback_used:
+            return False
+        if self._cal_request_used:
             return False
         return self._engine_fatal is not None and self._engine_progress
 
@@ -1385,6 +1429,110 @@ class MeasureManager(QObject):
     def engine_active(self) -> bool:
         return self._engine_active
 
+    # ------------------------------------------------------------------
+    # A calibration the user asks for during a measurement (K, Calibrate)
+    # Knut #182 5965478577 / 5965735823, Basti 5965500670.
+    # ------------------------------------------------------------------
+
+    def can_calibrate_on_request(self) -> bool:
+        """True when the LIVE reader can take a calibration between reads.
+
+        The live reader, not the preference (challenge 2): after a fallback
+        the reader is stock chartread while Preferences still says ChromIQ.
+        Never on stock chartread (its patch-mode 'k' ends the program on a
+        Cancel, with no .ti3 written), never under -x (the CR30, read by
+        ChromIQ itself), never in the whole-sheet loop.
+        """
+        return (bool(self._engine_active)
+                and not self._external_values
+                and not self._whole_sheet
+                and not self._engine_mode_fallback)
+
+    @property
+    def calibration_locked(self) -> bool:
+        """A requested calibration failed and nothing is read until one
+        succeeds."""
+        return bool(self._cal_locked)
+
+    @property
+    def calibration_request_busy(self) -> bool:
+        """A request is out (or held) and has not been answered yet."""
+        return bool(self._cal_request_pending or self._cal_request_held)
+
+    def _an_ending_is_under_way(self) -> bool:
+        return bool(getattr(self, "_stop_requested", False)
+                    or self._save_partial_state is not None
+                    or getattr(self, "_ending_already_answered", False))
+
+    def _calibration_must_wait(self) -> bool:
+        """A swipe or a question is in progress, so the request is held.
+
+        The helper would hold it too (it acts only at the next strip or patch
+        prompt), but holding it here is what lets the status line say so.
+        """
+        return bool(not self._saw_reader_prompt
+                    or self._scan_in_progress
+                    or self._at_retry_prompt
+                    or self._at_unread_prompt
+                    or getattr(self, "_sensor_warning_open", False))
+
+    def request_calibration(self) -> str:
+        """Ask for a calibration between reads. Returns what happened:
+
+        ``"sent"``, ``"held"`` (it runs at the next strip or patch prompt),
+        ``"busy"`` (one is already under way), ``"ending"`` (the session is
+        ending; dropped) or ``"unsupported"`` (see can_calibrate_on_request).
+        Never touches ``_user_quit`` or ``_engine_fatal``, and never sends a
+        key: it is its own command, so no prompt can read it as an answer.
+        """
+        if not self.can_calibrate_on_request():
+            return "unsupported"
+        if self._an_ending_is_under_way():
+            return "ending"
+        if self._cal_locked:
+            if self._cal_request_pending:
+                return "busy"
+            self._send_calibrate()
+            return "sent"
+        if self._cal_request_pending or self._cal_request_held:
+            return "busy"
+        self._cal_request_used = True
+        if self._calibration_must_wait():
+            self._cal_request_held = True
+            log.info("calibration requested during a read or a question; it "
+                     "runs at the next strip or patch prompt")
+            self.calibration_request_held.emit()
+            return "held"
+        self._send_calibrate()
+        return "sent"
+
+    def _send_calibrate(self) -> None:
+        self._cal_request_used = True
+        self._cal_request_held = False
+        self._cal_request_pending = True
+        log.info("calibration requested by the user")
+        self.send_command({"cmd": "calibrate"})
+
+    def _flush_held_calibration(self) -> None:
+        """Send a held request now that the reader is at a prompt again."""
+        if not self._cal_request_held:
+            return
+        if self._an_ending_is_under_way() or not self.can_calibrate_on_request():
+            self._cal_request_held = False
+            log.info("held calibration dropped: the session is ending")
+            return
+        self._send_calibrate()
+
+    def cancel_requested_calibration(self) -> None:
+        """The placement window's "Cancel calibration": keep measuring.
+
+        Its own command, honoured by the helper only inside that calibration,
+        so a late one can never become a strip abort. NOT Esc and NOT quit:
+        either would mark the session as ended by the user (`_user_quit`).
+        """
+        if self._engine_active:
+            self.send_command({"cmd": "cal_cancel"})
+
     def send_post_retry_key(self, key: str) -> None:
         """Acknowledge a misread and queue *key* for the strip menu that follows.
 
@@ -1881,6 +2029,8 @@ class MeasureManager(QObject):
 
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
+            self._scan_in_progress = False
+            self._saw_reader_prompt = True
             self._at_retry_prompt = False        # back at the menu
             self._wrong_strip_warned = False
             # …and the dial warning may be raised again next time. Its one-per-
@@ -1891,7 +2041,9 @@ class MeasureManager(QObject):
             # come! Missing."* — with only the log line to show for it.
             self._sensor_warning_open = False
             self.stripe_changed.emit(strip)
-            news = bool(ev.get("all_done")) and self._all_done_is_news()
+            # A strip re-offered after a calibration completes nothing.
+            news = (bool(ev.get("all_done")) and self._all_done_is_news()
+                    and not self._rearmed_after_calibration)
             if news:
                 self.all_stripes_done.emit()
             # On a complete chart the engine re-arms the strip it has just
@@ -1904,8 +2056,19 @@ class MeasureManager(QObject):
                 key = self._pending_post_retry_key
                 self._pending_post_retry_key = None
                 self.send_key(key)
+            elif self._rearmed_after_calibration:
+                # THE SAME STRIP, OFFERED AGAIN after a calibration the user
+                # asked for. Nothing was read and nothing moved, so guided
+                # refinement must not take it as "the menu is up after a
+                # read" (`_guided_menu_pending`), which would make the next
+                # read jump on before the reader's own announcement.
+                pass
             elif self._guided_state not in ("idle_done", "disabled"):
                 self._guided_step(strip, on_line)
+            self._rearmed_after_calibration = False
+            # K pressed during the swipe or at a question: the menu is
+            # listening again, so it goes out now (challenge 1e).
+            self._flush_held_calibration()
 
         elif kind == "scan_started":
             # The instrument has fired: the swipe starts NOW (#131). In strip
@@ -1915,6 +2078,7 @@ class MeasureManager(QObject):
             # move held behind a question window is no longer wanted.
             self._held_after_read = None
             self._wrong_strip_warned = False
+            self._scan_in_progress = True
             self.scan_started.emit()
 
         elif kind == "scan_ready":
@@ -1924,6 +2088,7 @@ class MeasureManager(QObject):
             self.scan_ready.emit()
 
         elif kind == "strip_read":
+            self._scan_in_progress = False
             self._engine_progress = True
             self._read_something = True
             _s = str(ev.get("strip", "")).strip()
@@ -1972,6 +2137,10 @@ class MeasureManager(QObject):
             # Reaching the patch menu also means any failure prompt is closed.
             self._at_retry_prompt = False
             self._sensor_warning_open = False
+            self._scan_in_progress = False
+            self._saw_reader_prompt = True
+            rearmed = self._rearmed_after_calibration
+            self._rearmed_after_calibration = False
             # WAS THE CHART ALREADY COMPLETE? In patch-by-patch the strip flags
             # in `session_start` are too coarse to say: a strip whose last
             # patch is unread still comes back read=true, so a chart with ONE
@@ -2008,8 +2177,10 @@ class MeasureManager(QObject):
             # completed by opening it, so re-reading a patch of a finished
             # measurement must not raise the completion window (Knut, #131
             # 2026-07-28 — the patch-mode half of the fault fixed in beta.69).
-            if ev.get("all_done") and self._all_done_is_news():
+            if (ev.get("all_done") and self._all_done_is_news()
+                    and not rearmed):
                 self.all_stripes_done.emit()
+            self._flush_held_calibration()
 
         elif kind == "instrument":
             # The engine opened the device and reports what it actually is.
@@ -2031,6 +2202,7 @@ class MeasureManager(QObject):
             # Engine opt-in for XY/chart is off — the run will re-launch on
             # stock chartread when the helper exits (handled in _on_finish).
             self._engine_mode_fallback = True
+            self._whole_sheet = True
 
         elif kind == "abort_confirm":
             # ESC HAD NO WINDOW ON THE ENGINE, AND THAT IS WHY IT LOOKED DEAD.
@@ -2053,6 +2225,7 @@ class MeasureManager(QObject):
             self.abort_confirm.emit()
 
         elif kind == "chart_reading":
+            self._whole_sheet = True
             self.chart_reading.emit()
 
         elif kind in ("chart_read", "xy_sheet_read"):
@@ -2060,6 +2233,7 @@ class MeasureManager(QObject):
             self.chart_measured.emit(ev)
 
         elif kind == "xy_place_sheet":
+            self._whole_sheet = True
             self.xy_place_sheet.emit(int(ev.get("sheet", 1)),
                                      int(ev.get("total", 1)))
 
@@ -2101,6 +2275,7 @@ class MeasureManager(QObject):
             # other key" and the reader never moves (Knut, #130 A2: Skip Patch
             # does nothing "when the reading is inconsistent").
             self._at_retry_prompt = True
+            self._scan_in_progress = False
             if ev.get("kind") == "wrong_strip":
                 # chartread's own test already asked about this read: the
                 # read-twice question must not ask a second time.
@@ -2174,6 +2349,7 @@ class MeasureManager(QObject):
                 f"{ev.get('best_de', 0):.1f}")
 
         elif kind == "error":
+            self._scan_in_progress = False
             ekind = ev.get("kind", "")
             if ekind == "misread":
                 # The helper is now blocked on "…any other key to retry".
@@ -2241,9 +2417,38 @@ class MeasureManager(QObject):
                 self._handle_cal_failed(detail, on_line)
 
         elif kind == "cal_required":
+            if ev.get("requested"):
+                # The user's own calibration: its window keeps the session on
+                # Cancel. Never the needs-calibration window.
+                self.calibration_requested_prompt.emit(
+                    str(ev.get("cond", "")), _instrument_text(ev.get("id")),
+                    bool(ev.get("optional", False)))
+                return
             self.calibration_prompt.emit(str(ev.get("cond", "")),
                                          _instrument_text(ev.get("id")),
                                          bool(ev.get("optional", False)))
+
+        elif kind == "cal_result":
+            # ONE per request, whatever happened (challenge 1d). Nothing here
+            # touches `_user_quit` or `_engine_fatal`: a cancelled or failed
+            # calibration the user asked for is neither a quit nor an engine
+            # failure, and must not hand the session to stock chartread.
+            result = str(ev.get("result") or "")
+            damaged = bool(ev.get("damaged", False))
+            self._cal_request_pending = False
+            self._cal_request_held = False
+            # The reader re-offers the strip or patch it was on next.
+            self._rearmed_after_calibration = not damaged
+            if result == "done":
+                self._cal_locked = False
+                self._cal_retries_left = self._cal_auto_retries
+            elif damaged:
+                self._cal_locked = True
+            log.info("requested calibration: %s%s", result,
+                     " (reading locked until one succeeds)" if damaged else "")
+            self.calibration_request_result.emit(
+                result, damaged, str(ev.get("detail") or ""),
+                bool(ev.get("prompted", False)))
 
         elif kind == "aborted":
             # The user stopped the run themselves — never treat that as an
