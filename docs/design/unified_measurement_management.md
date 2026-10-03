@@ -6396,8 +6396,7 @@ Built in `workflow/refine_plan.py`; proved by
   which you already measured. Did you read strip C again?"* with
   **Re-read strip D** and **Keep, it is strip D** (M-STRIP-READ-TWICE).
 * `-S` stays on: the comparison is with what was measured on the same sheet,
-  never with the chart's expected colours, so it cannot misfire on low-quality
-  paper.
+  never with the chart's expected colours.
 * A window that interrupts the read to get the user's attention plays
   **Instrument error** (5963044182; `measurement_window_sounds.md` row
   "Strip read twice").
@@ -6412,11 +6411,25 @@ replay instrument) and on screen.
 
 * **The figure**: the median ΔE76 between the new strip and an already
   measured one, trying the strip one patch out either way and in either
-  direction, is below **3**, over at least 4 patch pairs. Measured: different
-  strips at least 26 apart on Knut's run2 and run3 (median, with the shift) and
-  the same strip read twice under 0.5 (Knut's re-reads); Basti's real misread of
-  2026-08-08 (`~/ChromIQ/printer-test`, strip D holding strip C's readings)
-  at 0.08 to 0.18 in all eight archived copies.
+  direction, over at least 4 patch pairs, is below **1**, and below **a tenth
+  of the new strip's own patch-to-patch variation** (the median ΔE76 between
+  neighbouring patches of the strip as read). Measured: different strips at
+  least 26 apart on Knut's run2 and run3 (median, with the shift) and the same
+  strip read twice under 0.5 (Knut's re-reads); Basti's real misread of
+  2026-08-08 (`~/ChromIQ/printer-test`, strip D holding strip C's readings) at
+  0.08 to 0.18 in all eight archived copies, which is 0.002 to 0.004 of that
+  strip's variation.
+* **Comparing with what was measured does not make it immune to the paper.**
+  Beta 7's first build used a bar of 3 and no variation test. Simulated on the
+  bundled charts (printtarg, ArgyllCMS fakeread through a real profile, a gloss
+  and a very-low-chroma matte response, instrument noise): randomised charts
+  never asked (0 of 70), but FIXED-ORDER charts (`printtarg -r`, "Preserve
+  Patch Order") asked about correctly read strips in 27 of 70 cases, 4 of them
+  on gloss, because neighbouring strips of an ordered chart can measure 0.7 to
+  3 apart. A bar of 1 alone left 2; with the variation test 0 of 140, while all
+  eight real misreads are still caught (review of 6de015eb, 2026-10-03). The
+  price: on a smooth fixed-order strip (neighbours about 3.5 apart) a real
+  misread is asked about only below 0.35.
 * **Never compared with itself.** A strip read again where the reader is (C
   read again with the reader on C) is a legitimate re-read and never asks; only
   a reading the engine filed as D that matches C does.
@@ -6435,3 +6448,8 @@ replay instrument) and on screen.
   whose new reading replaces this one; **Keep** (or closing the window) keeps
   the reading and lets the move go on. A measurement that ends first takes the
   question with it.
+* **One question at a time, about the pair it shows.** A strip read while the
+  window is open (the instrument does not wait for it) never changes that
+  window's question: a second alarm waits and is asked when the first is
+  answered, and a waiting one is replaced only by a newer alarm about the same
+  strip.

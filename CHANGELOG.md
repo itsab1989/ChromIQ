@@ -6,7 +6,7 @@
 
 ### New
 
-- **"Was a strip read twice?"** (#182, ChromIQ's measuring engine, strip mode): each strip you read is compared with the strips already measured. When it looks very like one of them, ChromIQ asks, for example "Strip D looks very like strip C, which you already measured. Did you read strip C again?", with **Re-read strip D** and **Keep, it is strip D**. It compares only what you measured, never the chart's expected colours, so low-quality paper cannot set it off, and reading a strip again where the reader is never asks. The window plays the Instrument error sound. ArgyllCMS's own strip test stays off (-S) as before.
+- **"Was a strip read twice?"** (#182, ChromIQ's measuring engine, strip mode): each strip you read is compared with the strips already measured. When it looks very like one of them, ChromIQ asks, for example "Strip D looks very like strip C, which you already measured. Did you read strip C again?", with **Re-read strip D** and **Keep, it is strip D**. It compares only what you measured, never the chart's expected colours, and it asks only when the two readings match far more closely than the strip's own patches differ from each other, so strips of an ordered chart that merely look alike on matte paper do not set it off. Reading a strip again where the reader is never asks. The window plays the Instrument error sound. ArgyllCMS's own strip test stays off (-S) as before.
 
 ### Changed
 

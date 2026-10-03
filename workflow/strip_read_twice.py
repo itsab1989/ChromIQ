@@ -11,8 +11,11 @@ those are far from what the paper can print, which is why ChromIQ runs it with
 ``-S``. This check never looks at expected colours: it compares the new strip
 with the strips already measured on the same sheet, which are the paper's own
 colours. Measured on Knut's chart, two different strips are at least ΔE76 36
-apart and the same strip read twice is under 1 (#182 5960926048), so a bar of
-3 is far from both.
+apart and the same strip read twice is under 1 (#182 5960926048). Comparing
+only with what was measured does NOT make it immune to paper, though: on a
+fixed-order chart neighbouring strips can measure close together on a
+low-chroma paper. So the bar is 1 and, besides, a tenth of the strip's own
+patch-to-patch variation (see :data:`THRESHOLD_DE76`, :data:`WITHIN_SHARE`).
 
 WHAT IT NEVER DOES:
 
@@ -35,8 +38,22 @@ from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
 
 #: Median ΔE76 under which two strips count as the same strip read twice.
-#: Knut's chart: different strips >= 36, the same strip twice < 1.
-THRESHOLD_DE76 = 3.0
+#: Knut's chart: different strips >= 36, the same strip twice < 1. Real misreads
+#: on file measure 0.08 to 0.18 (Basti's 2026-08-08 chart, eight copies); a
+#: strip re-read in another session 0.24 median, 0.65 at the 95th percentile.
+#: 3.0 (6de015eb) raised false alarms on FIXED-ORDER charts (printtarg -r),
+#: whose neighbouring strips can measure 0.7 to 3 apart on a low-chroma paper:
+#: 27 of 70 simulated cases, 4 of them on gloss (review of 6de015eb).
+THRESHOLD_DE76 = 1.0
+
+#: ...and below this share of the new strip's own patch-to-patch variation
+#: (the median ΔE76 between neighbouring patches of the strip as read). A
+#: strip read twice repeats itself far more closely than its patches differ
+#: from each other: 0.002 to 0.004 of it on the real misreads. Two smooth
+#: strips of a fixed-order chart that merely look alike come out at 0.2 and
+#: above, so they are left alone. A strip with no variation at all (every
+#: patch the same) cannot be told from another one like it, and never asks.
+WITHIN_SHARE = 0.1
 
 #: At least this many patch pairs must be compared before anything is said.
 MIN_PATCHES = 4
@@ -115,13 +132,15 @@ def looks_read_twice(
     """
     if len(labs) < MIN_PATCHES:
         return None
+    steps = [_dist(labs[i], labs[i + 1]) for i in range(len(labs) - 1)]
+    bar = min(THRESHOLD_DE76, WITHIN_SHARE * _median(steps))
     found: "ReadTwice | None" = None
     mine = device(strip) if device is not None else None
     for other, values in measured.items():
         if other == strip or not values:
             continue
         d = strip_distance(labs, values)
-        if d is None or d >= THRESHOLD_DE76:
+        if d is None or d >= bar:
             continue
         if mine:
             theirs = device(other) if device is not None else None
