@@ -16601,6 +16601,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                                      stamp_verdict)
             if ti3.suffix.lower() != ".ti3" or not ti3.exists():
                 return
+            # A CMYK OR MULTI-INK MEASUREMENT IS NOT REPORTED ON YET (beta 7).
+            # `build_report` reads RGB only and raised in here, which left one
+            # technical warning in the log. M-VIEW-RGB-ONLY says it in words.
+            from workflow.ti3_analysis import non_rgb_note
+            _note = non_rgb_note(ti3)
+            if _note is not None:
+                self._log.appendPlainText("\n[INFO] " + _note[0] + ". " + _note[1])
+                self._log.ensureCursorVisible()
+                return
             report = build_report(
                 ti3, argyll_bin=str(self._settings.get("argyll_bin_path", "") or ""))
             # #182, Knut 2026-09-04: *"Verdict should be saved for each dated

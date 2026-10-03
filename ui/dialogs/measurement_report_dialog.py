@@ -4657,6 +4657,11 @@ class MeasurementReportDialog(QDialog):
     def _add_source(self, ti3: Path, origin: "Path | None" = None) -> None:
         """Add a single measurement and repaint (used when opening the report on
         one file)."""
+        # A CMYK OR MULTI-INK MEASUREMENT (beta 7): the report reads RGB only,
+        # and said "Could not read this measurement: No device RGB columns".
+        # The same one line every RGB-only view shows, not an error.
+        if self._show_rgb_only_note(ti3):
+            return
         try:
             added = self._append_source(ti3, origin)
         except Exception as exc:  # noqa: BLE001
@@ -5687,9 +5692,17 @@ class MeasurementReportDialog(QDialog):
         # like any other add, and only Generate draws a new page.
         had_sources = bool(self._sources) or self._page_shows_a_report()
         before = {self._run_key(r) for s in self._sources for r in s["runs"]}
+        from workflow.ti3_analysis import non_rgb_note
         for path in paths:
             try:
-                if self._append_source(self._as_ti3(Path(path)), origin=Path(path)):
+                _ti3 = self._as_ti3(Path(path))
+                # A CMYK or multi-ink one is named with M-VIEW-RGB-ONLY's
+                # headline rather than the parser's "No device RGB columns".
+                _note = non_rgb_note(_ti3)
+                if _note is not None:
+                    failed.append(f"{Path(path).name}: {_note[0]}")
+                    continue
+                if self._append_source(_ti3, origin=Path(path)):
                     added += 1
             except Exception as exc:  # noqa: BLE001
                 failed.append(f"{Path(path).name} — {exc}")
@@ -16772,6 +16785,20 @@ class MeasurementReportDialog(QDialog):
                           "tab, or add measurements with “Add Profile's "
                           "Measurements…”.")
         return tr("Open a measurement file to see its report.")
+
+    def _show_rgb_only_note(self, ti3) -> bool:
+        """Show M-VIEW-RGB-ONLY on the page for a CMYK or multi-ink
+        measurement and answer True; False (nothing shown) for any other."""
+        from workflow.ti3_analysis import non_rgb_note
+        note = non_rgb_note(ti3)
+        if note is None:
+            return False
+        self._use_theme_palette()
+        title, body = note
+        self._show_no_report(
+            "<div style='padding:24px'><p><b>" + html.escape(title)
+            + "</b></p><p>" + html.escape(body) + "</p></div>")
+        return True
 
     def _error_html(self, msg: str) -> str:
         self._use_theme_palette()

@@ -340,7 +340,7 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
     two PARALLEL, index-aligned object lists; we pair them by order, convert the
     reflectance to XYZ under D50 / CIE 1931 2° (matching the report's colorimetry),
     rescale device RGB to Argyll's 0..100, and stamp the instrument + measurement
-    date. RGB only (raises for CMYK/other, like the .txt import).
+    date. RGB or CMYK (beta 7); extended inks raise.
     """
     import numpy as np
     import xml.etree.ElementTree as ET
@@ -355,14 +355,29 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
     objs = root.findall(".//cc:Object", _CXF_NS)
 
     targets = [o for o in objs if o.get("ObjectType") == "Target"]
+    # RGB OR CMYK, AND ONE OF THE TWO FOR EVERY PATCH (beta 7, the CMYK/CR30
+    # forum report: "allow importing cmyk into a cmyk run"). i1Profiler writes
+    # `ColorRGB` on its 0..255 scale and `ColorCMYK` in percent (its own
+    # ColorSpaceCMYK/Measurements files: Magenta 100 for a solid), which is
+    # already Argyll's 0..100. Extended inks (`ColorCMYKPlusN`) are refused as
+    # before: their channel names cannot be told from the file.
     rgb = []
+    space = None
     for o in targets:
         c = o.find("cc:DeviceColorValues/cc:ColorRGB", _CXF_NS)
-        if c is None:
+        k = o.find("cc:DeviceColorValues/cc:ColorCMYK", _CXF_NS)
+        this = "RGB" if c is not None else "CMYK" if k is not None else None
+        if this is None or (space is not None and this != space):
             raise ReferenceConvertError(
-                f"{cxf_path.name}: no RGB device values — only RGB i1Profiler "
-                "measurements can be imported (CMYK/other isn't supported).")
-        rgb.append([float(c.find(f"cc:{k}", _CXF_NS).text) for k in "RGB"])
+                f"{cxf_path.name}: no RGB or CMYK device values. Only RGB and "
+                "CMYK i1Profiler measurements can be imported.")
+        space = this
+        if this == "RGB":
+            rgb.append([float(c.find(f"cc:{ch}", _CXF_NS).text)
+                        for ch in "RGB"])
+        else:
+            rgb.append([float(k.find(f"cc:{ch}", _CXF_NS).text)
+                        for ch in ("Cyan", "Magenta", "Yellow", "Black")])
     if not rgb:
         raise ReferenceConvertError(
             f"{cxf_path.name}: no measurement patches found.")
@@ -389,7 +404,8 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
 
     lam = start_wl + 10.0 * np.arange(bands)           # i1Pro: 10 nm intervals
     xyz = spectra_to_xyz(np.asarray(refl), lam, illuminant="D50")   # Y=100, D50
-    rgb100 = np.asarray(rgb) * (100.0 / 255.0)         # CxF ColorRGB is 0..255
+    # CxF ColorRGB is 0..255; ColorCMYK is already percent.
+    rgb100 = np.asarray(rgb) * ((100.0 / 255.0) if space == "RGB" else 1.0)
 
     instrument = _cxf_instrument(root)
     date = _cxf_measured_date(root, meas)
@@ -398,12 +414,18 @@ def cxf_measurement_to_ti3(cxf_path: str | Path, out_ti3: str | Path) -> Path:
              'KEYWORD "TARGET_INSTRUMENT"', f'TARGET_INSTRUMENT "{instrument}"']
     if date:
         lines += ['KEYWORD "CHROMIQ_MEASURED"', f'CHROMIQ_MEASURED "{date}"']
-    lines += ['DEVICE_CLASS "OUTPUT"', 'COLOR_REP "iRGB_XYZ"', "",
-              "NUMBER_OF_FIELDS 8", "BEGIN_DATA_FORMAT",
-              "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z",
+    if space == "RGB":
+        dev_fields, rep = "RGB_R RGB_G RGB_B", "iRGB_XYZ"
+    else:
+        dev_fields, rep = "CMYK_C CMYK_M CMYK_Y CMYK_K", "CMYK_XYZ"
+    lines += ['DEVICE_CLASS "OUTPUT"', f'COLOR_REP "{rep}"', "",
+              f"NUMBER_OF_FIELDS {5 + len(dev_fields.split())}",
+              "BEGIN_DATA_FORMAT",
+              f"SAMPLE_ID SAMPLE_LOC {dev_fields} XYZ_X XYZ_Y XYZ_Z",
               "END_DATA_FORMAT", "", f"NUMBER_OF_SETS {len(rgb100)}", "BEGIN_DATA"]
-    for i, ((r, g, b), (x, y, z)) in enumerate(zip(rgb100, xyz), 1):
-        lines.append(f'{i} "{i}" {r:.4f} {g:.4f} {b:.4f} {x:.4f} {y:.4f} {z:.4f}')
+    for i, (dev, (x, y, z)) in enumerate(zip(rgb100, xyz), 1):
+        d = " ".join(f"{v:.4f}" for v in dev)
+        lines.append(f'{i} "{i}" {d} {x:.4f} {y:.4f} {z:.4f}')
     lines += ["END_DATA", ""]
     out_ti3 = Path(out_ti3)
     if not out_ti3.name.lower().endswith(".ti3"):

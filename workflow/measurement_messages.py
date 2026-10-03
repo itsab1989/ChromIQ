@@ -1568,6 +1568,45 @@ M_CAL_TABLE_DAMAGED = _m(
     approved=False)
 
 
+# --- PROPOSED: a bound patch set the printer calibration does not fit ------
+#: Beta 7, the CMYK/CR30 forum report (2026-10-03). A preset or loaded patch
+#: set carries its own inks (every built-in is RGB), and a calibration for
+#: other inks cannot be applied to or embedded in it. The older refusal told
+#: the person to "set Device Type", which the preset's locked targen panel
+#: does not allow; the way there is the override box. Asked before anything
+#: is built, so nothing has moved. {source} is the preset's name or the
+#: patch-set file's, {chart_space} and {cal_space} colour_space_name()s.
+M_PATCHSET_CAL_INKS = _m(
+    "M-PATCHSET-CAL-INKS",
+    "This patch set does not fit the printer calibration",
+    "The patch set of “{source}” is {chart_space}, but the printer "
+    "calibration was made for a {cal_space} chart. A calibration can only be "
+    "applied to (-K) or embedded in (-I) a chart with the same inks, so the "
+    "chart was not built.\n\n"
+    "To build a {cal_space} chart with this layout, tick “Edit patch recipe "
+    "(override preset)”, set “Device Type” to {cal_space} and press Generate "
+    "Chart. ChromIQ then makes a new {cal_space} patch set with targen.\n\n"
+    "To use the {chart_space} patch set of “{source}” as it is, set the "
+    "printer calibration to “None”.",
+    approved=False)
+
+
+# --- PROPOSED: a view that reads RGB measurements only -------------------------
+#: Beta 7, the CMYK/CR30 forum report (2026-10-03). CMYK and multi-ink charts
+#: are measured, imported and profiled, but the Measurement Report, its
+#: patch-identity check and the measurement details read RGB device values
+#: only. They said "No device RGB columns", "carries no device values" or
+#: nothing at all; this is the one line every such view shows instead.
+#: {space} is colour_space_name() of the measurement's COLOR_REP.
+M_VIEW_RGB_ONLY = _m(
+    "M-VIEW-RGB-ONLY",
+    "This view supports RGB charts only for now",
+    "This is a {space} measurement. ChromIQ measures, imports and builds "
+    "profiles from {space} and other multi-ink charts, but this view supports "
+    "RGB charts only for now. Nothing is wrong with the measurement.",
+    approved=False)
+
+
 # --- PROPOSED: the colour range on a flagged patch's card (#182 k10) --------
 #: The rule was approved (Knut 5961180259, Sebastian, on 5961078418): a red
 #: patch may only turn yellow from confirmed patches of its own colour range,
@@ -4121,6 +4160,7 @@ CATALOGUE = {m.id: m for m in (
     M_CM_K_CHART_THROUGH, M_CM_RAW_UNCALIBRATED,
     M_CAL_APPLIED_TWICE, M_CAL_CALIBRATED_TWICE,
     M_CAL_TABLE_REPAIRED, M_CAL_TABLE_DAMAGED,
+    M_PATCHSET_CAL_INKS, M_VIEW_RGB_ONLY,
     M_PATCH_COLOUR_RANGE,
     M_PATCH_EXPECTED_PREDICTED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,

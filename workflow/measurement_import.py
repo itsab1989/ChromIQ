@@ -147,6 +147,24 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
     if looks_like_a_chart(ti3):
         return ImportVerdict(False, tr(CHART_NOT_A_MEASUREMENT))
 
+    # A CMYK OR MULTI-INK MEASUREMENT HAS ITS OWN BRANCH (beta 7, Basti
+    # 2026-10-03: "yes, allow importing cmyk into a cmyk run"). `parse_ti3`
+    # refuses it and is left refusing it: thirty readers rely on that, and
+    # `Ti3Data.has_device` would call a CMYK file device-less if the parser
+    # returned one with `rgb` empty, which would send it down the §I.11 NAME
+    # pairing below and write the chart's values over its own. So it is
+    # judged here with the N-channel tools, by the same rules.
+    from workflow.ti3_analysis import device_space_of
+    m_space = device_space_of(ti3)
+    if m_space and m_space != "RGB":
+        return _assess_non_rgb(ti3, chart_ti2, m_space)
+    # …AND AN RGB MEASUREMENT IS NOT A MEASUREMENT OF A CMYK CHART. Before,
+    # `verify_patch_identity` could not read such a chart, answered
+    # "unchecked", and the import went on.
+    c_space = device_space_of(chart_ti2) if chart_ti2 is not None else None
+    if m_space == "RGB" and c_space and c_space != "RGB":
+        return ImportVerdict(False, _device_type_reason("RGB", c_space))
+
     try:
         measured = parse_ti3(ti3)
     except (Ti3ParseError, OSError) as exc:
@@ -247,6 +265,90 @@ def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
                  "the import continues", identity.get("reason", ""))
     return ImportVerdict(True, "", partial=partial,
                          n_chart=n_chart or 0, n_measured=n_got)
+
+
+def _device_type_reason(measured_space: str, chart_space: str) -> str:
+    """The refusal for a measurement made for other inks than the chart."""
+    from workflow.layout_engine.calibration import colour_space_name
+    return tr(
+        "this measurement is {measured}, but the chart is {chart}, so it is "
+        "a measurement of a different chart"
+    ).format(measured=colour_space_name(measured_space),
+             chart=colour_space_name(chart_space))
+
+
+def _assess_non_rgb(ti3: Path, chart_ti2: "Path | None",
+                    m_space: str) -> ImportVerdict:
+    """`assess` for a CMYK or multi-ink measurement (beta 7).
+
+    The same questions in the same order as the RGB branch, asked with the
+    N-channel readers (`printer_calibration.read_table`,
+    `ti3_analysis.device_columns`), so nothing here is CMYK-specific: any ink
+    set targen writes is judged alike.
+
+    1. it carries colour (XYZ or L*a*b*), or it is no measurement;
+    2. its inks are the chart's, compared by colorant letter as
+       `calibration.check_matches` compares a calibration with a chart;
+    3. the count rules of §I.10/§I.12: more readings than the sheet carries
+       is a different chart, fewer than the design is a partial;
+    4. identity per SAMPLE_ID: every device value the chart has must be the
+       measurement's within `PATCH_IDENTITY_TOL`
+       (`printer_calibration.device_values_differ`). No re-pairing, §I.9.
+
+    It never takes the chart's device values (`device_from_chart` stays
+    False): the file has its own, and they are what was checked.
+    """
+    from workflow.printer_calibration import device_values_differ, read_table
+    from workflow.ti3_analysis import device_inks_of, device_space_of
+    try:
+        fields, rows, _kw = read_table(ti3)
+    except (OSError, ValueError) as exc:
+        return ImportVerdict(False, tr(
+            "the file could not be read as a measurement ({error})").format(
+                error=exc))
+    has_xyz = all(f"XYZ_{c}" in fields for c in "XYZ")
+    has_lab = all(f"LAB_{c}" in fields for c in "LAB")
+    if not (has_xyz or has_lab):
+        return ImportVerdict(False, tr(
+            "the file could not be read as a measurement ({error})").format(
+                error="No XYZ or Lab columns"))
+    n_got = len(rows)
+    if chart_ti2 is None:
+        # As for an RGB file with no chart beside it: it carries its own
+        # device values, so it can be used; there is nothing to judge it by.
+        return ImportVerdict(True, "", n_measured=n_got)
+
+    c_space = device_space_of(chart_ti2)
+    if c_space is not None and (c_space == "" or c_space == "RGB"
+                                or device_inks_of(chart_ti2)
+                                != device_inks_of(ti3)):
+        return ImportVerdict(False, _device_type_reason(
+            m_space, c_space or "?"), n_measured=n_got)
+
+    n_chart = _chart_patch_count(chart_ti2)
+    n_sheet = _chart_sheet_count(chart_ti2) or n_chart
+    partial = False
+    if n_chart:
+        if n_got > n_sheet:
+            return ImportVerdict(False, tr(
+                "the chart carries {chart} patches on the sheet, but this file "
+                "holds {got} measurements, so it is a measurement of a "
+                "different chart"
+            ).format(chart=n_sheet, got=n_got), n_chart=n_chart, n_measured=n_got)
+        partial = n_got < n_chart
+
+    from workflow.measurement_report import PATCH_IDENTITY_TOL
+    differs = device_values_differ(chart_ti2, ti3, tol=PATCH_IDENTITY_TOL)
+    if differs:
+        return ImportVerdict(False, tr(
+            "the measured device values do not agree with the chart's patches, "
+            "so the readings do not line up with this chart"),
+            n_chart=n_chart or 0, n_measured=n_got)
+    if differs is None:
+        log.info("import: the device values of %s could not be compared with "
+                 "%s; the import continues", Path(ti3).name, Path(chart_ti2).name)
+    return ImportVerdict(True, "", partial=partial, n_chart=n_chart or 0,
+                         n_measured=n_got)
 
 
 def _name_verdict(ti3: Path, chart_ti2: Path, n_chart: int, n_got: int,

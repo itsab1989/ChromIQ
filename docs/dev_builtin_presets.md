@@ -782,6 +782,16 @@ be used for verification".
   the `analyze_randomisation` gate.
 - Don't let a user `.json` preset share a built-in's key or label;
   `_populate_preset_combo` already filters those out, but keep new keys unique.
+- **Device Type follows the bundled patch set (beta 7).** Every apply path calls
+  `_sync_device_type_to_bound_set(ti1)` right before its `*_targen_sig`
+  snapshot: it sets targen `-d` from the `.ti1`'s `COLOR_REP` (table generated
+  by `scripts/make_targen_device_types.py`, i.e. `-d 2` for every bundled iRGB
+  set) and clears the `-D` colorant rows. A new apply path must do the same;
+  `tests/test_device_type_follows_the_patch_set.py` checks every snapshot
+  site. A preset whose patch set does not fit the printer calibration is
+  refused BEFORE it is built (`_refuse_cal_inks_for_patch_set`,
+  M-PATCHSET-CAL-INKS) and stays applied, so "Edit patch recipe (override
+  preset)" is there to tick.
 
 ---
 

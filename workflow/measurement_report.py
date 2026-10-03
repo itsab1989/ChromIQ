@@ -889,6 +889,14 @@ def verify_patch_identity(measured, ti2_path: "Path | None") -> dict:
     if ti2_path is None or not Path(ti2_path).is_file():
         out["reason"] = "there is no chart file to compare against"
         return out
+    # A CMYK or multi-ink chart (beta 7): not "could not be read (No device
+    # RGB columns ...)", which reads like a damaged file. M-VIEW-RGB-ONLY's
+    # headline, the one line every RGB-only view gives.
+    from workflow.ti3_analysis import non_rgb_note
+    _note = non_rgb_note(ti2_path)
+    if _note is not None:
+        out["reason"] = _note[0]
+        return out
     try:
         design = parse_ti3(Path(ti2_path))
     except (Ti3ParseError, OSError) as exc:

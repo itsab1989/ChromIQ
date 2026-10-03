@@ -388,6 +388,21 @@ class Ti3InfoDialog(QDialog):
 
     def load_measurement(self, path: Path) -> None:
         self._path_edit.setText(str(path))
+        # A CMYK OR MULTI-INK MEASUREMENT (beta 7) is not a read error: this
+        # view reads RGB device values only, and says so in M-VIEW-RGB-ONLY's
+        # words instead of "Could not read this measurement: No device RGB
+        # columns".
+        from workflow.ti3_analysis import non_rgb_note
+        _note = non_rgb_note(path)
+        if _note is not None:
+            self._analysis = None
+            self._clear_grid()
+            self._banner.setText(_note[0] + "\n\n" + _note[1])
+            self._banner.setStyleSheet(
+                banner_qss("#3b82f6", "rgba(59,130,246,0.10)", kind="warn"))
+            self._banner.setVisible(True)
+            self._save_btn.setEnabled(False)
+            return
         try:
             data = parse_ti3(path)
             self._analysis = analyse_ti3(data)
