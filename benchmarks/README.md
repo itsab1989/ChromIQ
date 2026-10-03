@@ -74,3 +74,29 @@ from them. The synthetic battery decides ties. The owner's own
 measurements are benchmark smoke tests only; **no constant, threshold or
 curve may ever be tuned against them.** The battery definitions in
 `synthetic.py` are fixed referees — do not tune them against a candidate.
+
+## benchmarks/research (v2, 2026-10-03)
+
+The research benchmark (`python -m benchmarks.research.run`) scores every
+profile through the real CMMs. Each column reads with the kernel that CMM
+itself picks, measured by `benchmarks/research/kernels.py` and pinned by
+`tests/test_benchmarks_research_v2.py`:
+
+| column | A2B 3 inks | A2B 4 inks | A2B 5-8 inks | B2A (Lab PCS) |
+|---|---|---|---|---|
+| `argyll` (`icclu`) | simplex | simplex | N-linear for `nCLR` (the engine's signature), simplex for `MCH6` | N-linear |
+| `lcms` | tetrahedral | linear in ink 1 over tetrahedral | linear over inks 1..n-3, tetrahedral in the last 3 | trilinear |
+| `colorsync` | multilinear | multilinear | multilinear when Quartz loads the profile | multilinear |
+| `multilinear` | multilinear | multilinear | multilinear | multilinear |
+
+So the September reader's multilinear kernel differs from Argyll and
+littleCMS only for 3 and 4 inks; for 6 and 7 inks it is Argyll's kernel.
+
+Measurement simulation (v2): one noisy 1 nm reflectance per patch feeds both
+the XYZ and the SPEC fields, so spectral and colorimetric builds see the same
+noise; the benchmark levels are `typical` and `pessimistic` (calibrated on 45
+real re-read pairs, the latter with whole-strip misreads); a printer's own
+`noise_scale` and `misread_prob` are honoured (S4 = 3x S3's noise). Real
+held-out sets are split by device value so no held-out patch has a duplicate
+in training. The i1Profiler sample data are read from `~/develop/i1Profiler`
+(override: `CHROMIQ_I1PROFILER_DATA`).
