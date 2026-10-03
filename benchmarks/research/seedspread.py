@@ -18,7 +18,10 @@ from pathlib import Path
 import numpy as np
 
 ENDPOINTS = {"a2b.median": ("a2b", "all", "median"), "a2b.p95": ("a2b", "all", "p95"),
-             "b2a.median": ("b2a", "all", "median"), "b2a.p95": ("b2a", "all", "p95")}
+             "b2a.median": ("b2a", "all", "median"), "b2a.p95": ("b2a", "all", "p95"),
+             # protocol v2.1: the ramps (E5, E6), scored in light mode since 6b
+             "neutral_de.median": ("neutral", "de", "median"),
+             "neutral_hi.mean": ("neutral", "highlight", "de", "mean")}
 
 
 def main(argv=None) -> None:
