@@ -96,7 +96,6 @@ def fit_forward_model_accurate(
     npts = len(device)
     lam = base_lam
     lab_orig = lab
-    init = ramp_positioning_curves(device, lab) if positioning else None
     space = None
     if ucs:
         from workflow.profile_engine.ucs import print_ucs
@@ -129,8 +128,49 @@ def fit_forward_model_accurate(
     scan = fit_forward_model(device, lab, grid=grid,
                              lam=4.0 * base_lam,
                              curve_rounds=min(curve_rounds, 1),
-                             cg_iters=350, cg_rtol=_CG_RTOL, init_curves=init, weights=rw)
+                             cg_iters=350, cg_rtol=_CG_RTOL, weights=rw)
     res_scan = dist(scan.predict(device), lab)
+    init = None
+    if positioning:
+        # The ramp curves read the single-ink patches directly, so ONE
+        # misread strip across a ramp bends a whole channel's curve
+        # (measured on the v2 battery's pessimistic noise, a strip shifted
+        # by one patch over the C and M ramps: 0.15 of full scale, neutral
+        # highlights 3.4 -> 8.5 dE00 on X3m). Each ramp patch is checked
+        # against a stiff fit that has NOT seen the ramps (the mixtures
+        # around the axis predict it); one it disagrees with by more than
+        # 3 robust sigmas (and at least 2 dE00) is replaced by that
+        # prediction for the curves only.
+        inked = device > 1e-6
+        ramp = inked.sum(1) <= 1
+        lab_for_curves = np.array(lab_orig, float, copy=True)
+        replaced = np.zeros(len(device), bool)
+        if (~ramp).sum() >= 4 * device.shape[1] and ramp.any():
+            lo = fit_forward_model(device[~ramp], lab[~ramp], grid=grid,
+                                   lam=4.0 * base_lam,
+                                   curve_rounds=min(curve_rounds, 1),
+                                   cg_iters=350, cg_rtol=_CG_RTOL,
+                                   weights=None if rw is None else rw[~ramp])
+            pred = lo.predict(device[ramp])
+            if space is not None:
+                pred = space.ucs_to_lab(pred)
+            r = delta_e_2000(pred, lab_orig[ramp])
+            mad_s = 1.4826 * float(np.median(np.abs(r - np.median(r))))
+            bad = r > max(2.0, float(np.median(r)) + 3.0 * mad_s)
+            idx = np.flatnonzero(ramp)[bad]
+            lab_for_curves[idx] = pred[bad]
+            replaced[idx] = True
+        # An isolated misread on a ramp (one patch, the mixtures around it
+        # fine) is what the stiff scan of ALL patches sees best.
+        pred_all = scan.predict(device)
+        if space is not None:
+            pred_all = space.ucs_to_lab(pred_all)
+        r_all = delta_e_2000(pred_all, lab_orig)
+        mad_a = 1.4826 * float(np.median(np.abs(r_all - np.median(r_all))))
+        bad_all = ramp & ~replaced & (r_all > max(2.0, float(np.median(r_all))
+                                      + 3.0 * mad_a))
+        lab_for_curves[bad_all] = pred_all[bad_all]
+        init = ramp_positioning_curves(device, lab_for_curves)
 
     if sigma is not None:
         # Whitening by measurement noise alone is wrong statistics where
