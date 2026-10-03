@@ -539,6 +539,8 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-10-02, W review of 4.3.3-beta.3: Verify a profile never makes a 3D map (that is Check & Refine's profcheck -w), so its output cell is now the bare path "reports/Verify_Profile_N_{name}.txt", the same in every language like "reports/Verify_Reference_N_{name}.txt" beside it: +1 per language, all thirteen, on purpose (uk had translated the folder name, which is "reports" on disk). COUNTED off the tree, BOTH ledgers.
+    # RE-MEASURED 2026-10-02, #202 (Knut 5943245399): the Preferences row label "ColorMunki / i1Studio / ColorChecker Studio" names every instrument the Instrument selection offers under that entry. It is three product names, the same in every language, so it is an echo everywhere: +1 per language, all thirteen, on purpose; the same +1 as in test_i18n's ledger. The four other #202 strings are translated in every catalogue. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-28, the 4.3.0 translation pass (every language translated, reviewed a second time and checked on screen; German's eight long help texts translated): the ceilings came DOWN from the hundreds to what is left identical on purpose (names, units, symbols, the verdict words), so a new untranslated string is noticed again. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1592 (Knut #182 5859248797): with every measurement unticked the red line says one must be ticked, 1 key in. German by hand, does not move; the twelve others carry the English under the beta rule: +1 per language. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1500 and B8-1503 (Knut #182 5857473253): M-REPORT-NOT-WORKED-OUT (§M-PROPOSED, a title and a singular and a plural body, 3 keys in) says a new report's date whose measurement is gone carries an earlier report's figures; the Report Limits note on the Custom columns takes Knut's accepted wording (1 key out, 2 in: with and without the pointer to note ⁴). German by hand, does not move; the twelve others carried the old note in English and carry the new English under the beta rule, so each rises by exactly 4, here and in the other ledger. COUNTED off the tree, BOTH ledgers.
@@ -1095,19 +1097,24 @@ _BUDGET = {
     # Dictionary entry, the presets button's tooltip). German by hand; each of
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
-    "de": 5,
-    "es": 5,
-    "fr": 6,
-    "it": 5,
-    "ja": 3,
-    "nl": 6,
-    "no": 5,
-    "pl": 5,
-    "pt": 5,
-    "ru": 4,
-    "sv": 5,
-    "zh_CN": 4,
-    "uk": 1,
+    "de": 7,
+    "es": 7,
+    "fr": 8,
+    "it": 7,
+    "ja": 5,
+    "nl": 8,
+    "no": 7,
+    "pl": 7,
+    "pt": 7,
+    "ru": 6,
+    "sv": 7,
+    "zh_CN": 6,
+    # +2 on 2026-10-02 (b740e16e): "reports/Quality_Check_N_{name}.txt,
+    # reports/Refine_Strips_N_{name}.txt" and "reports/Verify_Reference_N_
+    # {name}.txt" are file paths, wrongly translated as "звіти/" (a folder that
+    # does not exist), and now equal their key as in every other language. The
+    # same two that test_i18n's _IDENTICAL_TO_KEY["uk"] already counts.
+    "uk": 5,
 }
 
 

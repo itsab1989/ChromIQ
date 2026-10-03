@@ -80,6 +80,20 @@ if TYPE_CHECKING:
 # performs: "pick the second usage scenario". A note is why that action is
 # right, what it sets, and what happens if it is skipped. If a sentence cannot
 # be carried out, it is not a step.
+def _beep_note() -> "tuple[str, str]":
+    """When to start sliding, a note on every card step that measures (Knut,
+    #202 5952802491: "the help cards that detail steps on how to perform
+    measurement should mention when to start sliding the instrument, after
+    the beep (not at click of button)")."""
+    return (tr("When to start sliding"),
+            tr("With an instrument that reads strips (i1Pro, i1Pro 2, i1Pro 3, "
+               "i1Pro 3 Plus or ColorMunki), press and hold its button and "
+               "start sliding when you hear the beep, not at the press: the "
+               "instrument needs a moment before it starts reading, and "
+               "ChromIQ times each strip from the beep. A CR30 and a "
+               "SpectroScan read no strips, so this does not apply to them."))
+
+
 WORKFLOWS: list[dict] = [
     {
         "key": "first_profile",
@@ -153,7 +167,8 @@ WORKFLOWS: list[dict] = [
                   "fixed-order chart can latch onto the wrong strip and "
                   "quietly build a profile with colour casts. Nothing warns "
                   "you afterwards, because every patch was read "
-                  "successfully; they were simply the wrong patches.")))),
+                  "successfully; they were simply the wrong patches.")),
+              _beep_note())),
             (4, tr("On the Build Profile tab the new .ti3 measurement is "
                 "already loaded. Click “Build Profile”."),
              False,
@@ -388,7 +403,8 @@ WORKFLOWS: list[dict] = [
                   "ChromIQ warns you before that choice can go wrong: on a "
                   "fixed-order chart the wrong mode can latch onto the wrong "
                   "strip and build a profile with colour casts, and every "
-                  "patch will have been read successfully.")),)),
+                  "patch will have been read successfully.")),
+              _beep_note())),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
                 "Click “Build Profile”, then install the .icc from the "
                 "result popup or check it first on the Check & Refine tab."),
@@ -457,7 +473,8 @@ WORKFLOWS: list[dict] = [
                tr("The .ti3 is the measurement, and it is what the Build "
                   "Profile tab turns into an .icc. It is written when the "
                   "reading ends cleanly, so let the run finish rather than "
-                  "closing the window part-way through.")),)),
+                  "closing the window part-way through.")),
+              _beep_note())),
             (3, tr("Optional: tick “Play sounds during measurement” for "
                 "audible feedback as you read."),
                 True,

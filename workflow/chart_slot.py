@@ -26,6 +26,7 @@ comparing and restoring can be written once.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -37,9 +38,20 @@ _IMAGE_SUFFIXES = (".tif", ".tiff")
 _RECIPE_SUFFIX = ".channels.json"
 
 #: The chart files a profiling run keeps a copy of. A named list rather than
-#: "everything except images": see the module docstring. ``.cht`` belongs to the
-#: chart (it describes where the patches are); ``.cie`` does not — it is derived
-#: from a measurement (Knut, D8).
+#: "everything except images": see the module docstring. ``.cie`` is not on it:
+#: it is derived from a measurement (Knut, D8).
+#:
+#: NOR IS ``.cht`` (Knut, #182 5958921500, 4.3.3-beta.3): *"Why is the .cht
+#: file backed up into chart/ folder? The cht file is only created at the end
+#: of a completed measurement, so it should never actually be backed up to
+#: chart/ folder (which happens at the start of a measurement)."* A run's
+#: ``<stem>.cht`` (``<stem>_NN.cht`` on a multi-page chart) is written only by
+#: the scanner-recognition target (``workflow/scanin_target.py``) from the
+#: run's ``.ti3``; Create Chart keeps its printtarg ``-s`` geometry inside
+#: ``.channels.json``, never as a file. Restore Used Chart decides about a
+#: run's ``.cht`` on its own: :meth:`ChartSlot.scanner_cht_files` and
+#: :func:`workflow.verify_chart_snapshot.restore_cht_plan`. A ``.cht`` already
+#: in an older snapshot stays on disk and is ignored.
 #:
 #: ``.control-strip.json`` is on the list because a declaration is tied to the
 #: CHART, not to the run (Knut, 2026-09-19): *"The control strip declaration is
@@ -56,7 +68,7 @@ _RECIPE_SUFFIX = ".channels.json"
 #: chart" forbids. The suffix is read from the report rather than spelled again
 #: here, for the reason :func:`workflow.control_strip.declaration_path` gives.
 PROFILING_CHART_SUFFIXES = (
-    ".ti1", ".ti2", ".cht", ".channels.json", ".strips.json",
+    ".ti1", ".ti2", ".channels.json", ".strips.json",
     CONTROL_STRIP_SIDECAR,
 )
 
@@ -102,9 +114,36 @@ class ChartSlot:
         files = sorted(p for p in self.live_dir.iterdir()
                        if p.is_file() and not p.name.startswith("."))
         if self.suffixes is None:
-            return files
+            # The verification rule: every file at the root is chart, except
+            # the reader's working measurement ``<stem>.ti3`` (see
+            # `verify_chart_snapshot.live_chart_files`, the same exclusion).
+            # Its yellow memory ``<stem>.confirmed.json`` likewise (#182 K4).
+            from workflow.confirmed_patches import SUFFIX as _MEMORY
+            measurement = {f"{self.stem}.ti3".lower(),
+                           f"{self.stem}{_MEMORY}".lower()}
+            return [p for p in files if p.name.lower() not in measurement]
         return [p for p in files if p.name.endswith(self.suffixes)
                 or _is_image(p)]
+
+    @property
+    def holds_measurement_cht(self) -> bool:
+        """Whether this slot's folder can hold a ``.cht`` made from the
+        measurement: a profiling run's and the calibration's (both
+        suffix-filtered), never the verification chart's folder, where every
+        file is chart and Knut's ``.cht`` rule does not apply ("not applicable
+        for a verification run", #182 5958921500)."""
+        return self.suffixes is not None
+
+    def scanner_cht_files(self) -> "list[Path]":
+        """The scanner-recognition ``.cht`` page(s) made from this slot's
+        measurement: ``<stem>.cht``, or ``<stem>_NN.cht`` per page. Nothing
+        else that ends in ``.cht`` (a user's own file, scanin's working copies)
+        is matched. Empty for a verification slot."""
+        if not self.holds_measurement_cht or not self.live_dir.is_dir():
+            return []
+        pat = re.compile(re.escape(self.stem) + r"(?:_\d{2,})?\.cht")
+        return sorted(p for p in self.live_dir.iterdir()
+                      if p.is_file() and pat.fullmatch(p.name))
 
     def side_files(self) -> "list[Path]":
         """Files that belong WITH the chart but are not the chart.

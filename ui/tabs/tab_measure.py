@@ -212,14 +212,16 @@ _ALL_DONE_SOUND_GAP_MS = 500
 
 # Absolute FLOOR ΔE for the split-patch warning outline: a patch is never
 # flagged below this, whatever its strip looks like. It is only half the test —
-# see _strip_outlier_fence(). The design "expected" is the chart's sRGB values,
-# and a printer does NOT reproduce sRGB, so vivid patches legitimately sit at
-# 30-40+ ΔE with a perfect print (verified on a real i1Pro read). An absolute
-# threshold alone therefore flags most saturated patches on a good chart, which
-# is just noise — so we ALSO require the patch to be an outlier within its own
-# strip (a real misread stands out from its neighbours; uniform sRGB deviation
-# does not).
-_PATCH_WARN_DE = 50.0
+# see _strip_outlier_fence(). An absolute threshold alone flags most saturated
+# patches on a good chart, which is just noise — so we ALSO require the patch to
+# be an outlier within its own strip (a real misread stands out from its
+# neighbours; a uniform difference does not).
+#
+# THE FLOOR IS TWO NUMBERS SINCE #182 (Sebastian 5956560815, Knut 5956552085):
+# one for a chart whose expected colours are ArgyllCMS's estimate (default 95)
+# and one for a chart made from a profile, ACCURATE_EXPECTED_VALUES (default
+# 30). The chart's own file decides which; see workflow/patch_flags.py and
+# TabMeasure._patch_warn_limit.
 
 #: The dark-reference threshold moved with the window that reads it, to
 #: ``ui/cr30_calibration.py``. One constant, wherever the calibration runs
@@ -1247,6 +1249,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # _detected_disable_bidir).
         self._detected_force_bidir: bool = False
         self._detected_instrument: str | None = None
+        #: What the INSTRUMENT said it is in this measurement session, and
+        #: nothing else. `_detected_instrument` is also set from the chart's
+        #: TARGET_INSTRUMENT whenever the chart is (re)read, which put
+        #: "GretagMacbeth i1 Pro" back over a reported "X-Rite i1 Pro 2" and
+        #: timed the strips against the wrong row (#202).
+        self._reported_instrument: str | None = None
         # Whether the loaded chart was laid out in randomised patch order.
         # Forcing bidirectional reading (-b) on a non-randomised chart can make
         # chartread misrecognise strips, so _on_start warns when both are true.
@@ -1363,6 +1371,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._connect_instrument_error_cues()
         self._manager.stripe_changed.connect(self._on_stripe_changed)
         self._manager.all_stripes_done.connect(self._on_all_stripes_done)
+        # After a read the reader moves on to the next strip by itself, but not
+        # while a window is asking whether to read that strip again (Knut,
+        # #182 5956210745). A bound method, never a lambda.
+        if hasattr(self._manager, "set_question_probe"):
+            self._manager.set_question_probe(self._a_question_is_open)
         # Opt-in scanner target: (re)build .cht + .cie from every finalised
         # measurement when the chart is flagged for it (#97). measure_finished
         # carries the final .ti3 in every proceed-to-build case (normal, cal/
@@ -1395,6 +1408,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._manager.instrument_detected.connect(self._on_instrument_detected)
         self._manager.strip_measured.connect(self._report_strip_pace)
         self._manager.scan_started.connect(self._on_scan_started)
+        if hasattr(self._manager, "scan_ready"):
+            self._manager.scan_ready.connect(self._on_scan_ready)
         self._manager.patch_ready.connect(self._on_patch_ready)
         self._manager.patch_measured.connect(self._on_patch_measured)
         self._manager.chart_measured.connect(self._on_chart_measured)
@@ -1593,6 +1608,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # A BOUND METHOD, never a self-capturing lambda on a signal
         # (CLAUDE.md, the fade-scroll SIGSEGV).
         controller.changed.connect(self._queue_verification_preflight)
+        # …AND THE MEASUREMENT OPTIONS FOLLOW THE SELECTION, not only the chart.
+        # Every dated verification shares one chart, so picking another date
+        # hands this tab no new chart and nothing re-decided "Refine / resume"
+        # or "Show overlay" (Knut, #182 5951427228). A bound method, as above.
+        controller.changed.connect(self._queue_selection_settle)
         self._refresh_import_visibility()
 
     # ------------------------------------------------------------------
@@ -2450,8 +2470,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # all other settings are remembered for a run."*
         #
         # ONE CONTROL, ON THE SHARED ROW. Guided, Manual and Import all end in
-        # `measure_finished`, which is what writes the report, so a copy per
-        # module would be three widgets answering one question. It rides the
+        # `_maybe_save_measurement_report`, which is what writes the report: a
+        # profiling measurement through `measure_finished`, a verification
+        # (which never emits it) by a direct call at the end of
+        # `_finalize_verification` and `_import_into_verification` (#182). A
+        # copy per module would be three widgets answering one question. It rides the
         # sound row rather than a row of its own because this tab's buttons are
         # levelled against every other tab's and a new row moves them (Basti,
         # 2026-08-07).
@@ -2723,8 +2746,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Patch-by-Patch Mode (-p)"),
             tr("Switches from strip reading to single-patch measurement mode.\n\n"
             "Instead of scanning entire strips, chartread guides you patch\n"
-            "by patch across the chart. This is significantly slower — one\n"
-            "reading per patch — but more reliable on heavily textured\n"
+            "by patch across the chart. This is significantly slower (one\n"
+            "reading per patch) but more reliable on heavily textured\n"
             "surfaces or when strip reading consistently fails on a\n"
             "particular chart layout.\n\n"
             "RED OUTLINES WORK DIFFERENTLY HERE\n"
@@ -2733,22 +2756,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "deliberately so.\n\n"
             "Reading a STRIP, the whole strip arrives at once, so ChromIQ can "
             "ask two questions: is this patch past your colour-error limit "
-            "(Preferences → Beta), AND does it stand out from the other patches "
+            "(Preferences → Measurement), AND does it stand out from the other patches "
             "of its own strip? Both must be true. That second question matters "
             "because a chart's expected colours are design values and a printer "
-            "does not reproduce them — on a good print, vivid patches sit far "
+            "does not reproduce them: on a good print, vivid patches sit far "
             "from their design colour quite legitimately, and without the "
             "comparison half a normal chart would light up red.\n\n"
-            "Reading PATCH BY PATCH, there is no strip to compare against — the "
+            "Reading PATCH BY PATCH, there is no strip to compare against: the "
             "patch you have just read is the only one that has arrived. So this "
             "mode asks the plainer question on its own: is this patch past your "
             "limit?\n\n"
             "**What that means in practice:** patch by patch flags MORE patches "
             "than strip reading does on the same chart, and vivid colours are "
             "among them. That is the honest consequence of having no "
-            "neighbours to compare with — not a fault, and not something to "
+            "neighbours to compare with, not a fault, and not something to "
             "read as \u201cyour printer is worse than the strips suggested\u201d. If it "
-            "flags more than you want, raise the limit in Preferences → Beta."),
+            "flags more than you want, raise the limit in Preferences → Measurement."),
         )
         # SHOWN IN GUIDED (#160). It used to be hidden here while
         # `_collect_guided` still read it, so a stored preference put `-p` on
@@ -2816,7 +2839,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._overlay_cb.setChecked(
             bool(self._settings.get("measure_show_overlay", False)))
         self._overlay_cb.setVisible(False)
-        self._overlay_cb.toggled.connect(self._on_overlay_toggled)
+        self._overlay_cb.toggled.connect(self._on_guided_overlay_box_toggled)
         overlay_row.addWidget(self._overlay_cb)
         overlay_row.addStretch()
         self._overlay_tip = TooltipButton(
@@ -2987,7 +3010,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "You can switch between these at any time, during a measurement "
             "or after it's finished — it only changes the preview, never your "
             "readings. (Screen colours are approximate; the numbers in your "
-            "file are exact.)"),
+            "file are exact.)")
+            # Knut, #182 5956210745: both help texts cover the red outline.
+            + "\n\n" + tr(
+            "A red outline around a patch marks a large difference between "
+            "the colour the chart asked for and the colour that was measured. "
+            "It is a reason to look, not proof of a mistake: it can be a "
+            "misread, or a design colour your printer, ink and paper cannot "
+            "reach. Turn on “Show patch values on hover” and point at the "
+            "patch to see which, and its help explains what to do."),
             row))
         show_row.addStretch(1)
         v.addLayout(show_row)
@@ -3048,7 +3079,44 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "The card follows the 'Each patch shows' setting above: with "
             "'Expected & measured (split)' you get both colours and the ΔE; with "
             "'Expected colour only' or 'Measured colour only' you get just that "
-            "one. It only reads out numbers — it never changes your readings."),
+            "one. It only reads out numbers — it never changes your readings.")
+            + "\n\n" + tr(
+            # Knut, #182 5956210745: "it is not always correct to say
+            # 'likely misread'"; the help names both causes and what to do.
+            "A patch outlined in red has a large colour difference (ΔE*ab) "
+            "between what the chart asked for and what was measured: it "
+            "reached the limit set in Preferences ▸ Measurement under “Flag a "
+            "patch when its colour error reaches”, and when you read strips "
+            "with “only flag a patch that also stands out from its own strip” "
+            "on, it also stands out from the rest of its strip. Point at it "
+            "and the bottom of the card says so, with the patch's ΔE*ab beside "
+            "your limit.\n\n"
+            "A red outline is a reason to look, not proof of a mistake. It "
+            "has two possible causes:\n"
+            "  • a misread: the instrument slipped, a strip was started on the "
+            "wrong row, or there was dust or a smudge. Reading the strip again "
+            "then gives a clearly different, smaller value;\n"
+            "  • a real difference: the chart's design colours are sRGB "
+            "values, and a vivid one (a deep blue, a strong green) can lie far "
+            "outside what your printer, ink and paper can print. Reading it "
+            "again then gives about the same value.\n\n"
+            "So if a patch is still flagged with about the same value after "
+            "you read its strip again, the reading is right: keep it and build "
+            "the profile from it. The profile needs to know how far your "
+            "printer falls short of such colours.")
+            # #182 B/B2 (Sebastian 5956560815, Knut 5956831467): the yellow
+            # outline, in its own paragraph so the one above keeps its
+            # translations.
+            + "\n\n" + tr(
+            "A yellow outline means the large difference is known to be real. "
+            "Either the patch was read again and gave the same colour (within "
+            "ΔE 3), or it has a similar colour and a difference of the same "
+            "kind, as large or larger, as a patch that was. It is not a "
+            "misread and does not need reading again; the card says which of "
+            "the two it is. Which patches were confirmed is kept with the "
+            "measurement, so they stay yellow after it ends and when you "
+            "resume it; a completely new read starts without yellow "
+            "patches."),
             row)
         om_row.add_group(tile, tile_tip)
         v.addWidget(om_row)
@@ -3271,8 +3339,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             tr("Patch-by-Patch Mode (-p)"),
             tr("Switches from strip reading to single-patch measurement mode.\n\n"
             "Instead of scanning entire strips, chartread guides you patch\n"
-            "by patch across the chart. This is significantly slower — one\n"
-            "reading per patch — but more reliable on heavily textured\n"
+            "by patch across the chart. This is significantly slower (one\n"
+            "reading per patch) but more reliable on heavily textured\n"
             "surfaces or when strip reading consistently fails on a\n"
             "particular chart layout.\n\n"
             "RED OUTLINES WORK DIFFERENTLY HERE\n"
@@ -3281,22 +3349,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "deliberately so.\n\n"
             "Reading a STRIP, the whole strip arrives at once, so ChromIQ can "
             "ask two questions: is this patch past your colour-error limit "
-            "(Preferences → Beta), AND does it stand out from the other patches "
+            "(Preferences → Measurement), AND does it stand out from the other patches "
             "of its own strip? Both must be true. That second question matters "
             "because a chart's expected colours are design values and a printer "
-            "does not reproduce them — on a good print, vivid patches sit far "
+            "does not reproduce them: on a good print, vivid patches sit far "
             "from their design colour quite legitimately, and without the "
             "comparison half a normal chart would light up red.\n\n"
-            "Reading PATCH BY PATCH, there is no strip to compare against — the "
+            "Reading PATCH BY PATCH, there is no strip to compare against: the "
             "patch you have just read is the only one that has arrived. So this "
             "mode asks the plainer question on its own: is this patch past your "
             "limit?\n\n"
             "**What that means in practice:** patch by patch flags MORE patches "
             "than strip reading does on the same chart, and vivid colours are "
             "among them. That is the honest consequence of having no "
-            "neighbours to compare with — not a fault, and not something to "
+            "neighbours to compare with, not a fault, and not something to "
             "read as \u201cyour printer is worse than the strips suggested\u201d. If it "
-            "flags more than you want, raise the limit in Preferences → Beta."),
+            "flags more than you want, raise the limit in Preferences → Measurement."),
         )
 
         m_resume_row = QHBoxLayout()
@@ -3361,7 +3429,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._m_overlay_cb.setChecked(
             bool(self._settings.get("measure_show_overlay", False)))
         self._m_overlay_cb.setVisible(False)
-        self._m_overlay_cb.toggled.connect(self._on_overlay_toggled)
+        self._m_overlay_cb.toggled.connect(self._on_manual_overlay_box_toggled)
         m_overlay_row.addWidget(self._m_overlay_cb)
         m_overlay_row.addStretch()
         self._m_overlay_tip = TooltipButton(
@@ -4120,6 +4188,93 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._offer_queued = True
         from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, self._offer_existing_overlay_now)
+
+    def _queue_selection_settle(self) -> None:
+        """Re-decide the measurement options once the bar's change has landed.
+
+        On the next turn of the event loop, because one selection change
+        reaches this tab by several routes in an order nobody controls: the
+        stored settings of the new target, the new chart from Create Chart,
+        and the bar's own `changed`. Deciding inside any one of them is
+        deciding with half the facts, which is exactly Knut's stale "This chart
+        has not been measured yet" (#182 5951427228).
+        """
+        if getattr(self, "_settle_queued", False):
+            return
+        self._settle_queued = True
+        QTimer.singleShot(0, self._settle_after_selection_change)
+
+    def _selection_key(self) -> tuple:
+        """The chart on screen and the measurement the bar selects with it."""
+        ti3 = self._selected_measurement_ti3()
+        return (str(getattr(self, "_ti1_path", None) or ""),
+                str(ti3) if ti3 is not None else "")
+
+    def _selection_names_a_measurement(self) -> bool:
+        """Does the bar name something that could hold a measurement?
+
+        A profiling run that exists, or a dated verification. "New run" and
+        "New verification" name nothing yet, so there is nothing to say about
+        their measurement (Knut, #182 5951427228: with "New verification"
+        selected the options shown are correct).
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or getattr(self, "_ti1_path", None) is None:
+            return False
+        try:
+            if ctl.target.is_verification():
+                return bool(ctl.target.verification_id)
+            return not ctl.target.is_new_run()
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _settle_after_selection_change(self) -> None:
+        """Decide "Refine / resume" and "Show overlay" for what is now selected,
+        and answer a stored overlay tick about THAT measurement."""
+        self._settle_queued = False
+        asked = bool(getattr(self, "_overlay_asked_by_settings", False))
+        self._overlay_asked_by_settings = False
+        try:
+            if getattr(self, "_session_live", False) or self._runner.is_running:
+                # The session's own date; nothing to re-decide. And nothing to
+                # REMEMBER either: while a reader runs, the selected measurement
+                # is the working file beside the chart, so a key recorded now
+                # differs from the dated file the moment the session ends, and
+                # the next settle took that for "another date selected": it
+                # cleared the overlay and opened "This chart already has a
+                # measurement" after every verification read (review of
+                # f53874ca, measured on screen).
+                return
+            key = self._selection_key()
+            previous = getattr(self, "_settled_selection", None)
+            self._settled_selection = key
+            if previous is not None and key != previous:
+                # The painting described the measurement selected a moment ago.
+                # Same chart, another date: `_discard_stale_overlay` keys on
+                # the chart and cannot see that.
+                self._clear_overlay()
+                self._reset_progress()   # the count belongs to that one too
+            self._update_resume_availability()
+            if previous is not None and key[0] == previous[0] \
+                    and key[1] != previous[1] and self.isVisible():
+                # Another dated verification of the same chart: the arrival
+                # Knut ruled the existing-measurement window is right for
+                # (#131 scenario 4), by the bar's third selector.
+                self._queue_overlay_offer()
+            if not asked or not self.isVisible() or not self._engine_selected():
+                return
+            cb = (self._overlay_cb if self._current_mode() == "guided"
+                  else self._m_overlay_cb)
+            if cb is not None and not cb.isHidden():
+                return          # a measurement is there; the box shows it
+            if not self._selection_names_a_measurement():
+                return
+            # The overlay is asked for and what is selected has never been
+            # measured: M-OVERLAY-NO-MEASUREMENT, about the right chart now.
+            self._on_overlay_toggled(True)
+        except Exception:      # noqa: BLE001 — never break a selection change
+            log.warning("Could not settle the Measure options after a "
+                        "selection change", exc_info=True)
 
     def _offer_existing_overlay_now(self) -> None:
         """Make the held offer, once the tab has actually painted."""
@@ -4903,7 +5058,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._refine_strips_path = None
             self._strip_list = []
             return
-        ti3 = self._ti1_path.with_suffix(".ti3")
+        # The SELECTED measurement: beside the chart for a profiling run, in its
+        # dated folder for a verification (Knut, #182 5951427228).
+        ti3 = self._selected_measurement_ti3()
         # A measurement file with NO READINGS must not offer "Refine / resume":
         # chartread is then asked to resume FROM that file and rejects it with
         # "Field SAMPLE_LOC is wrong type - corrupted file ?" — an error no user
@@ -4911,7 +5068,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # file keeps its BEGIN_DATA_FORMAT naming SAMPLE_LOC but has no rows, and
         # unticking resume made the error disappear because the file was replaced.
         # The overlay is hidden for the same reason: there is nothing to draw.
-        has_ti3 = ti3.exists() and not _cgats_has_no_readings(ti3)
+        has_ti3 = False
+        if ti3 is not None:
+            has_ti3 = ti3.exists() and not _cgats_has_no_readings(ti3)
         for cb, tip in [
             (self._resume_cb,   self._resume_tip),
             (self._m_resume_cb, self._m_resume_tip),
@@ -5003,8 +5162,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         One decision now, for both modes: the row is on screen when there is a
         measurement to refine AND the resume option it belongs to is ticked.
         """
-        ti3 = (self._ti1_path.with_suffix(".ti3")
-               if self._ti1_path is not None else None)
+        ti3 = self._selected_measurement_ti3()
         has_ti3 = bool(ti3 and ti3.exists() and not _cgats_has_no_readings(ti3))
         for row, resume, cb in ((self._refine_row, self._resume_cb,
                                  self._refine_cb),
@@ -5370,7 +5528,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # distinguishes down to the i1Pro generation. Falls back to the chart's
         # instrument family, and finally to the slowest i1Pro rate — never to a
         # faster one, which would let a too-quick swipe pass unremarked (Knut).
-        key = model_key(getattr(self, "_detected_instrument", None))
+        key = (model_key(getattr(self, "_reported_instrument", None))
+               or model_key(getattr(self, "_detected_instrument", None)))
         if key is None:
             from ui.ti2_loader import read_target_instrument
             try:
@@ -5430,8 +5589,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """Remember the model the instrument reported when it was opened (#131).
         A chart records only the family it was laid out for, so this is the only
         place the actual generation — i1Pro vs i1Pro 2 vs i1Pro 3 — is known."""
-        self._detected_instrument = model or ""
+        from core.measure_pace import model_key, refines
+        # In engine mode the same device is reported twice, Argyll's verbose
+        # header first and the helper's JSON event after it (#202). Everything
+        # with a side the user sees (the log line, the mismatch WINDOW) happens
+        # once per device, not once per report.
+        prev = self._reported_instrument
+        new_k, prev_k = model_key(model), model_key(prev)
+        repeat = bool(model and prev) and (
+            model == prev
+            or (new_k is not None and new_k == prev_k)
+            or {new_k, prev_k} == {"i1pro3", "i1pro3plus"})
+        if model and refines(new_k, prev_k):
+            self._reported_instrument = model
+        self._detected_instrument = self._reported_instrument or model or ""
         self._pace = None            # rebuild the tracker with that model's rate
+        if repeat:
+            return
         if model:
             log.info("measurement: instrument reported as %s", model)
             # The device has answered: the startup wait is over.
@@ -5835,11 +6009,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         preview). ΔE is only present with the ChromIQ reading engine."""
         import core.sound as _snd
         de = payload.get("de")
-        try:
-            warn = float(self._settings.get("patch_read_warn_de", 50.0))
-        except (TypeError, ValueError):
-            warn = 50.0
-        if de is not None and de > warn:
+        warn = self._patch_warn_limit()
+        # A patch the preview has just drawn YELLOW (#182, B/B2) does not look
+        # off: it is a known, real difference. This slot is connected after
+        # _on_patch_measured, so the verdict for this very patch is in.
+        from workflow.patch_flags import is_yellow
+        last = getattr(self, "_last_patch_flag", None)
+        yellow = (last is not None and last[0] == str(payload.get("loc", ""))
+                  and is_yellow(last[1]))
+        if de is not None and de > warn and not yellow:
             self._sound.play(_snd.PATCH_OUT_OF_TOL)
         else:
             self._sound.play(_snd.PATCH_OK)
@@ -5866,6 +6044,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # how long time I waited to click Retry").
         started = getattr(self, "_scan_started_at", None)
         self._scan_started_at = None
+        self._scan_awaiting_ready = False      # a late beep is not the next strip's
         # Reading patch by patch there is no swipe to have been too quick, so
         # none of this applies — and its advice ("check that the swipe starts
         # before the first patch…") describes something the user is not doing
@@ -5933,9 +6112,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # the panel under the preview still shows the verdict — only the
             # window is held back.
             return
-        ms = int(pace.mean_seconds * 1000)
-        target_ms = int(config.target_seconds * 1000)
-        good_secs = (target_ms * pace.patches) / 1000.0
+        # THE SAME NUMBERS AS THE LINE UNDER THE PREVIEW (Knut, #202
+        # 5951426710): the strip time is the limit times the patches, rounded
+        # UP to a tenth, so 27 x 120 ms reads "3.3 s" here too. It said "3 s",
+        # rounded to the nearest second, which is below the 3.24 s limit.
+        from core.measure_pace import _ms, _tenths
+        ms = _ms(pace.mean_seconds, up=False)
+        target_ms = _ms(config.target_seconds, up=True)
+        good_secs = config.strip_target_seconds(pace.patches) or 0.0
 
         QApplication.instance().removeEventFilter(self)
         dlg = QDialog(self)
@@ -5952,7 +6136,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "<b>{target} ms</b>. Reading the whole strip in about "
             "<b>{good} s</b> would sit comfortably above that."
         ).format(name=strip, secs=f"{pace.elapsed:.1f}", n=pace.patches, ms=ms,
-                 target=target_ms, good=f"{good_secs:.0f}")
+                 target=target_ms, good=_tenths(good_secs, up=True))
         if pace.est_samples is not None:
             detail += "<br><br>" + tr(
                 "At this speed each patch received roughly <b>{n} readings</b> "
@@ -6227,6 +6411,85 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.warning("Could not snapshot the verification chart",
                         exc_info=True)
         return True
+
+    def _stage_verification_for_resume(self) -> "Path | None":
+        """Put the selected dated verification's readings beside the chart,
+        so "Refine / resume" continues them. Returns the staged file, or None.
+
+        chartread resumes from ``<chart>.ti3`` (``-r``), and a verification's
+        readings live in ``verifications/<date>/``, so a ticked resume on a
+        measured date used to have nothing to resume from. The copy is the
+        reader's working file and nothing else: `_finalize_verification` files
+        the result back into the same dated folder, and a session that writes
+        nothing leaves the dated file exactly as it was and the copy is
+        removed again (`_drop_unused_verification_stage`).
+
+        Only when the read builds on what is there (resume or refine ticked
+        and offered) and the date really holds readings. A stray measurement
+        already beside the chart is moved to ``old/`` first, never overwritten.
+        """
+        self._staged_verification_ti3 = None
+        try:
+            ctl = getattr(self, "_target_ctl", None)
+            if ctl is None or not ctl.target.is_verification():
+                return None
+            if not ctl.target.verification_id or self._ti1_path is None:
+                return None
+            if not self._read_builds_on_existing():
+                return None
+            dated = self._selected_measurement_ti3()
+            if dated is None or not dated.is_file() \
+                    or _cgats_has_no_readings(dated):
+                return None
+            beside = Path(self._ti1_path).with_suffix(".ti3")
+            if beside == dated:
+                return None
+            import shutil
+            if beside.exists():
+                from core.file_manager import Run
+                Run.for_dir(beside.parent).archive_to_old([beside])
+            shutil.copy2(dated, beside)
+            self._staged_verification_ti3 = beside
+            self._staged_from = dated
+            log.info("verification %s staged for resume: %s -> %s",
+                     ctl.target.verification_id, dated, beside.name)
+            return beside
+        except Exception:      # noqa: BLE001 — never block a measurement
+            log.warning("Could not stage the verification for resume",
+                        exc_info=True)
+            return None
+
+    def _drop_unused_verification_stage(self) -> None:
+        """Remove the staged copy when the session wrote nothing into it.
+
+        The dated folder still holds the original, so the copy is only a
+        duplicate, and a duplicate beside the shared chart would be resumed
+        from by the next verification of ANOTHER date.
+        """
+        staged = getattr(self, "_staged_verification_ti3", None)
+        if staged is None:
+            return
+        try:
+            if not staged.is_file():
+                self._staged_verification_ti3 = None
+                return
+            dated = getattr(self, "_staged_from", None)
+            st = staged.stat()
+            if dated is not None and dated.is_file():
+                d = dated.stat()
+                unchanged = (st.st_size == d.st_size
+                             and st.st_mtime == d.st_mtime)
+            else:
+                before = getattr(self, "_ti3_mtime_before", None)
+                unchanged = before is not None and st.st_mtime <= before
+            if unchanged:
+                staged.unlink()
+                self._staged_verification_ti3 = None
+                log.info("verification resume wrote nothing; staged copy "
+                         "removed, the dated measurement is unchanged")
+        except OSError:
+            log.warning("could not remove the staged verification copy",
+                        exc_info=True)
 
     def _snapshot_profiling_chart(self, ctl) -> bool:
         """Copy the run's chart into ``runs/runN/chart/`` before measuring.
@@ -6539,10 +6802,21 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # readings saved", ticked Refine/resume, emitted `measure_finished` and
         # minted a dated measurement report that was a byte-for-byte copy of the
         # previous session's. The owner hit exactly that on 2026-09-03.
+        #
+        # A VERIFICATION THAT RESUMES needs its readings where the reader looks
+        # for them, beside the chart, and not in its dated folder (Knut, #182
+        # 5951427228). Staged HERE, after every question that can still cancel
+        # the start, so a cancelled start can never leave the copy behind; and
+        # the resume flag is decided again now that there is a file to resume.
+        if self._stage_verification_for_resume() is not None:
+            params.resume = self._resume_has_anything_to_resume(True)
         _ti3_pre = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
         self._ti3_mtime_before = (
             _ti3_pre.stat().st_mtime if (_ti3_pre and _ti3_pre.exists()) else None
         )
+        # Whether this read builds on the measurement there (#182 K4): decides
+        # whether the session starts with that measurement's yellow memory.
+        self._session_resumes = self._read_builds_on_existing()
         self._archive_measurement_before_replacing()
         # A FRESH READ STARTS WITH A CLEAN SHEET.
         #
@@ -6601,6 +6875,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Remember whether this is a patch-by-patch (spot) session, so the
         # completion dialog can speak of "patches" instead of "strips".
         self._spot_session = self._is_pbp_checked()
+        # Set when the instrument reads the whole chart or sheet at once (XY /
+        # chart mode): judged patch by patch, without a strip (#182 K3/K4).
+        self._session_whole_chart = False
         # Capture the verification-measurement choice now, so toggling the box
         # mid-read can't change how the finished .ti3 is handled.
         self._verify_run = self._is_verification_run()
@@ -6751,6 +7028,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # A fresh session: nothing detected yet, and no window pending from the
         # last one.
         self._saw_instrument = False
+        self._reported_instrument = None
         self._no_instrument = False
         # …AND THE WINDOW IS ALLOWED TO APPEAR AGAIN.
         #
@@ -6851,6 +7129,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             old_dir = run.old_dir
         except Exception:      # noqa: BLE001 — a chart outside a project
             old_dir = ti3.parent / "old"
+        # A resumed verification works on a copy beside the shared chart, but
+        # the measurement it protects belongs to its date: §2a keeps that copy
+        # in ``verifications/<date>/old/``, not in the chart's ``old/``.
+        staged_from = getattr(self, "_staged_from", None)
+        if getattr(self, "_staged_verification_ti3", None) is not None \
+                and staged_from is not None:
+            old_dir = Path(staged_from).parent / "old"
         try:
             guard = MeasurementSession(
                 ti3, self._ti1_path.with_suffix(".ti2") if self._ti1_path else None,
@@ -7004,6 +7289,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 self._live_measure_windows.remove(dlg)
             except ValueError:
                 pass
+            # A move to the next strip may have waited for this answer. It is
+            # released AFTER the caller has acted on the answer: "read it
+            # again" sends its goto first, and that cancels the move.
+            QTimer.singleShot(0, self._release_held_strip_move)
+
+    def _a_question_is_open(self) -> bool:
+        """Whether a modal window is up, which may answer "read it again"."""
+        return QApplication.activeModalWidget() is not None
+
+    def _release_held_strip_move(self) -> None:
+        """Make the move to the next strip a closed window held back."""
+        release = getattr(self._manager, "release_held_strip_move", None)
+        if release is not None:
+            release()
 
     def _close_measurement_windows(self) -> None:
         """Close every window that belongs to the measurement that just ended.
@@ -10141,7 +10440,40 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             verification = (run.verification(vid) if vid else run.new_verification())
             verification.ensure_dir()
             dst = verification.measurement_ti3           # verifications/<date>/<name>-verify.ti3
+            # THE DATE'S OWN MEASUREMENT IS KEPT BEFORE IT IS REPLACED.
+            #
+            # "Measure anyway" on a measured date promises (§5,
+            # M-REPLACE-COMPLETE / -PARTIAL) that the existing measurement "is
+            # moved to the run's 'old' folder ... nothing is deleted", and §2a
+            # puts a verification's copy in ``verifications/<date>/old/``. The
+            # move below used to write over it with no copy anywhere: measured
+            # on a copy of Knut's project, the 484-patch reading of 2026-10-01
+            # was gone. A resumed read is covered by the session guard, which
+            # copied the same file there at Start, so it is not copied twice.
+            resumed_here = getattr(self, "_staged_verification_ti3", None) is not None
+            if dst.is_file() and not resumed_here:
+                try:
+                    same = dst.read_bytes() == marked.read_bytes()
+                except OSError:
+                    same = False
+                if not same:
+                    from datetime import datetime as _dt
+                    keep = (verification.dir / "old"
+                            / _dt.now().strftime("%Y-%m-%d_%H%M%S"))
+                    keep.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(dst, keep / dst.name)
+                    from workflow.confirmed_patches import confirmed_path
+                    if confirmed_path(dst).is_file():
+                        shutil.copy2(confirmed_path(dst),
+                                     confirmed_path(keep / dst.name))
+                    log.info("verification %s: previous measurement kept in %s",
+                             verification.id, keep)
+            # The yellow memory travels with the readings (#182 K4).
+            from workflow import confirmed_patches as _cp
+            before = _cp.ti3_sha256(marked)
             shutil.move(str(marked), str(dst))
+            _cp.carry(marked, before, dst)
+            self._staged_verification_ti3 = None         # filed; nothing left beside the chart
         except OSError as exc:
             self._log.appendPlainText(f"\n[ERROR] Could not save verification file: {exc}")
             return
@@ -10151,8 +10483,26 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             + tr("→ This file is for verification only — do not build a profile "
                  "from it. Open it in Tools ▸ Inspect a measurement to check the "
                  "profile."))
+        # The date now holds readings, so "Refine / resume" and "Show overlay"
+        # are offered for it, as they are for a profiling run that has just
+        # been measured (Knut, #182 5951427228).
+        try:
+            self._update_resume_availability()
+            self._adopt_overlay_after_first_measurement()
+        except Exception:      # noqa: BLE001 — never break filing a result
+            log.warning("could not refresh the options after filing the "
+                        "verification", exc_info=True)
 
         self._ask_how_printed(dst)
+        # **THE AUTOMATIC REPORT FOLLOWS A VERIFICATION TOO (#182 K13, §13.10,
+        # confirmed by Knut 2026-09-23).** A verification never emits
+        # `measure_finished` (that would advance to Build Profile), and that
+        # signal was the only thing that wrote the report, so the tick box
+        # "Save measurement report" did nothing here and the Measurement
+        # Report window opened on "New report…". Written AFTER the how-printed
+        # answer, because the report's yardstick reads the print record, and
+        # BEFORE the saved window, so "Open measurement report" lands on it.
+        self._maybe_save_measurement_report(dst)
         self._show_verification_saved(dst)
 
     def _ask_how_printed(self, ti3: Path) -> None:
@@ -11030,6 +11380,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # An imported sheet was by definition printed outside ChromIQ — ask
         # how, unless a record already travelled with the chart snapshot.
         self._ask_how_printed(dst)
+        # The automatic report, exactly as a guided verification writes it
+        # (#182 K13): this ending emits no `measure_finished` either.
+        self._maybe_save_measurement_report(dst)
         self._show_import_done(verification, dst)
 
     def _import_into_profiling_run(self, ctl, run, path: Path) -> None:
@@ -11529,6 +11882,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if empty_ti3.is_file():
                 empty_ti3.unlink()
             shutil.move(str(saved), str(empty_ti3))
+            # …and its yellow memory, archived with it (#182 K4).
+            from workflow.confirmed_patches import confirmed_path
+            mem = confirmed_path(saved)
+            if mem.is_file():
+                shutil.move(str(mem), str(confirmed_path(empty_ti3)))
             # Only if we emptied it — never remove a folder holding other files.
             if not any(displaced.iterdir()):
                 displaced.rmdir()
@@ -11733,6 +12091,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Superseded by the guard for any run it protects; still the only
         # handler for a session that never got one.
         self._archive_empty_measurement()
+        # A resumed verification that read nothing: its dated measurement is
+        # untouched, so the working copy beside the chart goes again.
+        self._drop_unused_verification_stage()
+        # THE YELLOW MEMORY, STAMPED FOR THE FINAL FILE (#182 K4). Now, before
+        # anything paints from the file, and only for a .ti3 this session
+        # actually wrote: a measurement put back from old/ (nothing was read)
+        # keeps the memory that came back with it.
+        self._save_confirmed_memory_at_end()
+        # The session has ended ON the selection it began with (a "New
+        # verification" read has moved the bar to its new date at Start). That
+        # is the settled selection now, so a settle queued during the read does
+        # not mistake the session's own date for another one being picked.
+        try:
+            self._settled_selection = self._selection_key()
+        except Exception:      # noqa: BLE001 — never break a session's ending
+            log.debug("could not re-baseline the selection", exc_info=True)
 
         # #153: NOW the .ti3 on disk is the run's answer, so it can settle the
         # count. Not one line earlier.
@@ -11766,6 +12140,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # not only the interrupted one.
         self._update_resume_availability()
         self._adopt_overlay_after_first_measurement()
+        # Once more after the repaint, which has judged every patch of the
+        # finished file: a patch read before the reference it is like was
+        # confirmed is only now learned, and the file says so (#182 K4).
+        self._save_confirmed_memory_at_end()
 
         if self._usb_claimed_by_vm:
             self._cue_window("INSTRUMENT_ERROR")   # as the window opens
@@ -12173,6 +12551,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # lists — carrying `"chart": "read2"`, `sheet_kind: "standalone"` and no
         # verdict set at all, while the log said "Measurement report saved".
         current = self._keep_the_read_as_the_runs_measurement(ti3, current)
+        # The kept read may be a copy from reads/ (#182 K4): stamp the memory
+        # for the file the run now holds. No memory for a file in reads/.
+        if Path(current).parent.name != "reads":
+            self._save_confirmed_memory(current)
         self.measure_finished.emit(current)
         if action == "close":
             # Knut (#131): keep the measurement, go nowhere. The profile can be
@@ -12496,6 +12878,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                             read=kept.name))
                     # …and the tab the window sends them to is armed with it,
                     # exactly as every other ending arms it.
+                    self._save_confirmed_memory(out)     # #182 K4
                     self.measure_finished.emit(out)
                 self._show_average_failed_dialog(detail)
                 return
@@ -12503,6 +12886,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 tr("[OK] Averaged measurement saved: {name}").format(name=result.name)
                 + "\n" + tr("→ Next step: go to the '4. Build Profile' tab to create your ICC profile.")
             )
+            # The averaged file is the run's measurement now: its yellow
+            # memory is this session's, stamped for it (#182 K4). Patches are
+            # keyed by location, which averaging (by SAMPLE_ID) never changes.
+            self._save_confirmed_memory(result)
             self.measure_finished.emit(result)
             self.proceed_to_profile.emit()
 
@@ -12921,6 +13308,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # immediately re-drawn from the file, and this session's strips add to
         # it as they are read.
         self._preview.clear_patch_overlay()
+        # A FRESH READ LEARNS AFRESH, A RESUMED ONE REMEMBERS (#182 B2 and K4,
+        # Knut 5956831467 and 5959352118, Sebastian 5959447807). A fresh read
+        # replaces the readings the yellow references were confirmed against,
+        # so it starts with none. A read that resumes or refines a measurement
+        # builds on those readings, so it takes their stored memory back (for
+        # a resumed verification, from the dated file it was staged from).
+        # The repaint below then seeds every patch's previous reading from the
+        # file, judged as it was judged live, so re-reading a strip measured
+        # in an earlier session can still confirm it.
+        src = None
+        if getattr(self, "_session_resumes", False) and self._ti1_path is not None:
+            staged = getattr(self, "_staged_verification_ti3", None)
+            src = (getattr(self, "_staged_from", None) if staged is not None
+                   else None) or Path(self._ti1_path).with_suffix(".ti3")
+        self._memory_mode = self._load_confirmed_memory(src)
+        if self._ti1_path is not None:
+            # From here on the memory is the session's, for the file it writes.
+            self._memory_for = Path(self._ti1_path).with_suffix(".ti3")
         # …AND THE PATCHES THE OVERLAY IS MADE OF (B8-385). The set is what
         # decides which strips a whole-chart or spot read has finished, so it
         # is cleared with the overlay and re-filled by the same repaint: the
@@ -13186,6 +13591,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._pace_times = {}
         self._pace_patches = 0
         self._scan_started_at = None
+        self._scan_awaiting_ready = False
         # Each measurement decides for itself whether the reading-speed window
         # is wanted: another chart may need a different pace, and that is worth
         # seeing once (Knut, #131 2026-07-26).
@@ -13312,6 +13718,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         import time
         self._scan_started_at = time.monotonic()
+        # #202: the instrument's ready beep follows for this strip, and the
+        # clock moves to it. Until it comes, the press is the start: a device
+        # that never sends one is still timed, from the button as before.
+        self._scan_awaiting_ready = True
+
+    def _on_scan_ready(self) -> None:
+        """The instrument is ready and sampling: the beep (Knut, #202
+        5943245399: "the timing should start at the beep, as this is when
+        measurement start happens").
+
+        Between the button and the beep the lamp warms up, about 0.7 s on an
+        i1Pro (200 ms + 0.5 s, i1pro_imp.c:3197), and the head is not reading
+        yet, so that time is not the user's swipe and is no longer counted.
+
+        Only the beep that belongs to the strip being read moves the clock.
+        The beep comes from a delayed thread in the engine, so one can arrive
+        after its strip has already been reported (a strip that fails at once);
+        that one is dropped, or it would start the NEXT strip's clock before
+        its button had been pressed.
+        """
+        if not getattr(self, "_scan_awaiting_ready", False):
+            return
+        import time
+        self._scan_awaiting_ready = False
+        self._scan_started_at = time.monotonic()
 
     def _report_strip_pace(self, ev: "dict | None" = None) -> None:
         """After a strip that Argyll ACCEPTED, say how fast it was read — and
@@ -13324,6 +13755,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         show. What is real is the scan's total time and the number of patches in
         the strip — the same two numbers Knut derived the thresholds from.
         """
+        # This strip is over: a beep still on its way belongs to it (#202).
+        self._scan_awaiting_ready = False
         if not self._settings.get("pace_hint_enabled", True):
             # No pace judgement wanted, so the strip simply sounds as read.
             self._play_strip_cue(too_fast=False)
@@ -13481,7 +13914,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         ti1 = getattr(self, "_ti1_path", None)
         if ti1 is None:
             return None, None
-        return ti1.with_suffix(".ti3"), ti1.with_suffix(".ti2")
+        return self._selected_measurement_ti3(), ti1.with_suffix(".ti2")
 
     def _refresh_progress(self) -> None:
         """Push the current figure at the preview header."""
@@ -13532,8 +13965,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         from PyQt6.QtGui import QColor as _QC
         # The ΔE at which a patch gets the red warning outline is user-settable
-        # (Preferences → Beta), defaulting to _PATCH_WARN_DE (Knut).
-        warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
+        # (Preferences ▸ Measurement), one limit per kind of chart (#182).
+        warn_de = self._patch_warn_limit()
         # A patch is flagged only if it is BOTH above the absolute floor AND an
         # outlier within this strip (Tukey fence). Vivid patches that all sit
         # high against sRGB stay unflagged (they're the strip's norm, not an
@@ -13541,8 +13974,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # its neighbours and is caught. This can only REDUCE flags versus the
         # floor alone, so it never adds false alarms (Nelson/pharmacist: a good
         # print was flagged almost everywhere against sRGB).
-        fence = (_strip_outlier_fence([float(p.get("de", 0)) for p in patches])
+        _des = [float(p.get("de", 0)) for p in patches]
+        fence = (_strip_outlier_fence(_des)
                  if self._use_outlier_fence() else 0.0)
+        # How far each patch stands above its strip's middle, for the yellow
+        # learning rule's third condition (workflow/patch_flags.py).
+        import statistics as _stats
+        _median = _stats.median(_des) if _des else 0.0
         from workflow.icc_info import xyz_to_lab
         items = []
         info_items = []
@@ -13556,7 +13994,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             mxyz = p.get("xyz", [0, 0, 0])
             exp_rgb = _xyz_d50_to_srgb8(exyz)
             meas_rgb = _xyz_d50_to_srgb8(mxyz)
-            items.append((box, _QC(*exp_rgb), _QC(*meas_rgb), warn))
+            exp_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3]))
+            meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
+            flag, extra = self._judge_patch(
+                str(p.get("loc", "")), exp_lab, meas_lab, de_p, warn,
+                standout=de_p - _median, live=True)
+            items.append((box, _QC(*exp_rgb), _QC(*meas_rgb), flag))
             # Numbers behind the split, for the "values on hover" tile. The tile
             # shows the SAME sRGB as the swatch (so card and patch always agree)
             # plus the exact D50 L*a*b* and the engine's own ΔE for the patch.
@@ -13564,14 +14007,200 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "loc": str(p.get("loc", "")),
                 "exp_rgb": exp_rgb,
                 "meas_rgb": meas_rgb,
-                "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
-                "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
+                "exp_lab": exp_lab,
+                "meas_lab": meas_lab,
                 "de": de_p,
+                # Why a red outline, for the card (Knut, #202 5951426710).
+                "warn": warn, "warn_de": warn_de, "fenced": fence > 0.0,
+                **extra,
             }))
         if items:
             self._preview.set_patch_overlay(page, items)
             self._preview.set_patch_info(page, info_items)
         self._update_engine_read_map()
+
+    def _flag_judge(self):
+        """This tab's yellow-outline memory (#182 B/B2), made on first use."""
+        judge = getattr(self, "_patch_flag_judge", None)
+        if judge is None:
+            from workflow.patch_flags import FlagJudge
+            judge = self._patch_flag_judge = FlagJudge()
+        return judge
+
+    def _chart_expected_is_accurate(self) -> bool:
+        """Does the chart on screen carry ACCURATE_EXPECTED_VALUES? (#182 A)
+
+        Read ONCE PER CHART: the answer is kept against the chart's identity
+        (path and the moment it was written), so a chart generated again into
+        the same run is asked again. A different chart also starts the yellow
+        memory afresh, since its patches are not the ones it remembers.
+        """
+        try:
+            key = self._chart_identity()
+        except Exception:          # noqa: BLE001
+            key = None
+        cached = getattr(self, "_warn_kind_cache", None)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        accurate = False
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is not None:
+            try:
+                from workflow.patch_flags import chart_has_accurate_expected_values
+                accurate = chart_has_accurate_expected_values(
+                    self._chart_file_for(ti1))
+            except Exception:      # noqa: BLE001 — a preview is never worth a crash
+                log.debug("could not read the chart's keywords", exc_info=True)
+        if cached is not None:
+            self._flag_judge().reset()
+        self._warn_kind_cache = (key, accurate)
+        return accurate
+
+    def _patch_warn_limit(self) -> float:
+        """The red-outline limit for the chart on screen (#182 A): the user's
+        limit for a chart with estimated expected colours, or for a chart made
+        from a profile, as the chart's own file says."""
+        from workflow.patch_flags import warn_limit
+        return warn_limit(self._settings, self._chart_expected_is_accurate())
+
+    def _judge_patch(self, loc, exp_lab, meas_lab, de, flagged, *,
+                     standout=None, live=True) -> "tuple[object, dict]":
+        """The outline for one patch and the hover card's extra facts.
+
+        Returns ``(flag, extra)``: *flag* is what the preview draws (no
+        outline, red, or one of the two yellows of workflow/patch_flags.py),
+        *extra* goes into the patch's hover info.
+        """
+        from workflow.patch_flags import FLAG_CONFIRMED, FLAG_LEARNED, is_yellow
+        accurate = self._chart_expected_is_accurate()
+        extra = {"accurate": accurate}
+        try:
+            v = self._flag_judge().judge(loc, exp_lab, meas_lab, de,
+                                         bool(flagged), standout=standout,
+                                         live=live)
+        except Exception:          # noqa: BLE001 — never lose the red outline
+            log.debug("could not judge patch %s", loc, exc_info=True)
+            return bool(flagged), extra
+        if is_yellow(v.flag) and v.flag == FLAG_CONFIRMED:
+            extra.update(flag="confirmed", prev_de=v.prev_de)
+        elif is_yellow(v.flag) and v.flag == FLAG_LEARNED:
+            extra.update(flag="learned", like_loc=v.like_loc)
+        if live:
+            self._save_confirmed_memory_if_changed()
+        return v.flag, extra
+
+    # ---- #182 K4: the confirmed patches, kept with the measurement ---------
+    #
+    # Knut 5959352118, approved by Sebastian 5959447807: which patches a
+    # re-read confirmed (yellow) is remembered after the measurement, in
+    # `<stem>.confirmed.json` beside the .ti3 (workflow/confirmed_patches.py).
+    # Written after every change during a session and once more at its end,
+    # when the .ti3 is final and the file can be stamped with its hash; read
+    # back whenever that measurement is painted outside a session, and at the
+    # start of a session that resumes or refines it. A fresh read starts empty
+    # and moves the old file to old/ with the measurement it described.
+
+    def _session_memory_mode(self) -> str:
+        """How the session on hand judged its patches: ``"strip"`` (against
+        their strip, reading strips) or ``"patch"`` (each on its own: patch by
+        patch, and a whole chart or sheet read at once, whose live painter
+        has no strip test either)."""
+        if getattr(self, "_spot_session", False) or getattr(
+                self, "_session_whole_chart", False):
+            return "patch"
+        return "strip"
+
+    def _selected_memory_mode(self) -> str:
+        """How a read started now would read (the patch-by-patch switch)."""
+        try:
+            return "patch" if self._is_pbp_checked() else "strip"
+        except Exception:      # noqa: BLE001 — a mode is never worth a crash
+            return "strip"
+
+    def _load_confirmed_memory(self, ti3) -> "str | None":
+        """Start the yellow memory again from *ti3*'s stored file.
+
+        Returns the reading mode the file records, or None when there is no
+        valid file (none, or written for another version of the .ti3).
+        """
+        # A different chart resets the memory the first time the chart is
+        # asked about (_chart_expected_is_accurate). Asked FIRST, so that reset
+        # cannot come after the load and throw it away.
+        try:
+            self._chart_expected_is_accurate()
+        except Exception:      # noqa: BLE001
+            pass
+        judge = self._flag_judge()
+        judge.reset()
+        self._memory_written = None
+        #: Which measurement the memory now describes.
+        self._memory_for = Path(ti3) if ti3 is not None else None
+        if ti3 is None:
+            return None
+        try:
+            from workflow import confirmed_patches as cp
+            data = cp.load(ti3)
+        except Exception:      # noqa: BLE001 — a preview is never worth a crash
+            log.debug("could not read the confirmed patches of %s", ti3,
+                      exc_info=True)
+            return None
+        if not data:
+            return None
+        judge.load(data.get("patches") or {})
+        self._memory_written = judge.export()
+        return data.get("mode")
+
+    def _save_confirmed_memory(self, ti3, mode: "str | None" = None) -> None:
+        """Write this session's yellow memory beside *ti3*, stamped with the
+        hash it has now."""
+        if ti3 is None:
+            return
+        try:
+            from workflow import confirmed_patches as cp
+            exported = self._flag_judge().export()
+            cp.write(ti3, exported, mode or self._session_memory_mode())
+            self._memory_written = exported
+        except Exception:      # noqa: BLE001 — never break a measurement
+            log.warning("could not save the confirmed patches beside %s", ti3,
+                        exc_info=True)
+
+    def _session_wrote(self, ti3) -> bool:
+        """Did the session that just ended write *ti3* (with readings)?"""
+        try:
+            if ti3 is None or not Path(ti3).is_file():
+                return False
+            before = getattr(self, "_ti3_mtime_before", None)
+            if before is not None and Path(ti3).stat().st_mtime <= before:
+                return False
+            return not _cgats_has_no_readings(Path(ti3))
+        except OSError:
+            return False
+
+    def _save_confirmed_memory_at_end(self) -> None:
+        """The session's last word on its yellow memory, for the file it wrote."""
+        if self._ti1_path is None:
+            return
+        ti3 = Path(self._ti1_path).with_suffix(".ti3")
+        # Only while the memory on hand is this file's: a repaint of ANOTHER
+        # measurement (a dated verification on the bar) loads that one's.
+        mine = getattr(self, "_memory_for", None)
+        if mine is not None and Path(mine) != ti3:
+            return
+        if self._session_wrote(ti3):
+            self._save_confirmed_memory(ti3)
+
+    def _save_confirmed_memory_if_changed(self) -> None:
+        """During a session: write the memory when a patch has just been
+        confirmed (or learned, or lost either), for the file being read."""
+        if not getattr(self, "_session_live", False) or self._ti1_path is None:
+            return
+        try:
+            exported = self._flag_judge().export()
+        except Exception:      # noqa: BLE001
+            return
+        if exported == (getattr(self, "_memory_written", None) or {}):
+            return
+        self._save_confirmed_memory(Path(self._ti1_path).with_suffix(".ti3"))
 
     def _locate_patch(self, loc: str) -> "tuple[int, QRect | None]":
         """(page, image-px box) of patch `loc` across the chart's pages, or
@@ -13656,7 +14285,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         from PyQt6.QtGui import QColor as _QC
         from workflow.icc_info import xyz_to_lab
-        warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
+        warn_de = self._patch_warn_limit()
         de_p = float(ev.get("de", 0))
         exyz = ev.get("exyz", [0, 0, 0])
         mxyz = ev.get("xyz", [0, 0, 0])
@@ -13673,14 +14302,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # The two modes therefore behave differently ON PURPOSE, and both help
         # texts say so — see the "Patch-reading error limit" and the
         # patch-by-patch explanations.
-        item = (box, _QC(*exp_rgb), _QC(*meas_rgb), de_p >= warn_de)
+        exp_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3]))
+        meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
+        # No strip here, so no stand-out figure: the learning rule's first two
+        # conditions are the whole rule patch by patch (workflow/patch_flags.py).
+        flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de_p,
+                                        de_p >= warn_de, standout=None, live=True)
+        self._last_patch_flag = (loc, flag)
+        item = (box, _QC(*exp_rgb), _QC(*meas_rgb), flag)
         info = (box, {
             "loc": loc,
             "exp_rgb": exp_rgb,
             "meas_rgb": meas_rgb,
-            "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
-            "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
+            "exp_lab": exp_lab,
+            "meas_lab": meas_lab,
             "de": de_p,
+            "warn": de_p >= warn_de, "warn_de": warn_de, "fenced": False,
+            **extra,
         })
         # Accumulate: each patch adds its own split + numbers (dedup by box, so
         # re-reading a patch refreshes it rather than stacking).
@@ -13694,18 +14332,47 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _on_chart_reading(self) -> None:
         """XY/chart mode (engine opt-in): an autonomous whole-chart read began."""
+        self._session_whole_chart = True
         self._log.appendPlainText(
             tr("[Engine] Reading the whole chart — this may take a moment…"))
 
-    def _on_chart_measured(self, ev: dict) -> None:
+    def _on_chart_measured(self, ev: dict, *, live: bool = True,
+                           strip_fence: bool = False) -> None:
         """XY/chart mode: fill the expected/measured split + hover values for
-        every patch that was read at once (a whole chart, or one XY sheet)."""
+        every patch that was read at once (a whole chart, or one XY sheet).
+
+        Also the painter for a measurement already on disk, which passes
+        *live* False: those readings are remembered as the previous reading of
+        each patch, but cannot confirm one (#182 B, workflow/patch_flags.py).
+
+        *strip_fence* judges every patch against ITS OWN STRIP, exactly as
+        :meth:`_on_strip_measured` does while strips are read: the strip test
+        (when switched on) and the stand-out figure for the yellow rule. The
+        painter from disk passes it for a measurement read in strips (#182 K3),
+        so the outlines after a measurement are the outlines during it.
+        Patch-by-patch reading has no strip test, deliberately (see
+        :meth:`_on_patch_measured`), so it is not passed for one."""
         patches = ev.get("patches", [])
         if not patches or not any(self._patch_boxes):
             return
         from PyQt6.QtGui import QColor as _QC
         from workflow.icc_info import xyz_to_lab
-        warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
+        warn_de = self._patch_warn_limit()
+        # THE STRIP TEST, PER STRIP, AS LIVE (#182 K3). Every patch of the
+        # strip is in the group, placed on the preview or not, because the
+        # live strip event carries them all too.
+        fences: "dict[str, float]" = {}
+        medians: "dict[str, float]" = {}
+        if strip_fence:
+            import statistics as _stats
+            groups: "dict[str, list]" = {}
+            for p in patches:
+                groups.setdefault(self._strip_of(str(p.get("loc", ""))),
+                                  []).append(float(p.get("de", 0)))
+            use_fence = self._use_outlier_fence()
+            for letter, des in groups.items():
+                fences[letter] = _strip_outlier_fence(des) if use_fence else 0.0
+                medians[letter] = _stats.median(des) if des else 0.0
         items: dict[int, list] = {}
         infos: dict[int, list] = {}
         placed: list = []
@@ -13720,15 +14387,29 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             mxyz = p.get("xyz", [0, 0, 0])
             exp_rgb = _xyz_d50_to_srgb8(exyz)
             meas_rgb = _xyz_d50_to_srgb8(mxyz)
+            exp_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3]))
+            meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
+            if strip_fence:
+                letter = self._strip_of(loc)
+                fence = fences.get(letter, 0.0)
+                standout = de_p - medians.get(letter, 0.0)
+            else:
+                fence, standout = 0.0, None
+            warn = de_p >= warn_de and de_p >= fence
+            flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de_p,
+                                            warn, standout=standout,
+                                            live=live)
             items.setdefault(page, []).append(
-                (box, _QC(*exp_rgb), _QC(*meas_rgb), de_p >= warn_de))
+                (box, _QC(*exp_rgb), _QC(*meas_rgb), flag))
             infos.setdefault(page, []).append((box, {
                 "loc": loc,
                 "exp_rgb": exp_rgb,
                 "meas_rgb": meas_rgb,
-                "exp_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3])),
-                "meas_lab": xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3])),
+                "exp_lab": exp_lab,
+                "meas_lab": meas_lab,
                 "de": de_p,
+                "warn": warn, "warn_de": warn_de, "fenced": fence > 0.0,
+                **extra,
             }))
         for page, its in items.items():
             self._preview.set_patch_overlay(page, its)
@@ -13953,7 +14634,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # straight back — see _restore_displaced_measurement.
         try:
             from core.file_manager import Run
-            dest = Run.for_dir(ti3.parent).archive_to_old([ti3])
+            from workflow.confirmed_patches import confirmed_path
+            # The yellow memory goes WITH the readings it describes (#182 K4).
+            dest = Run.for_dir(ti3.parent).archive_to_old(
+                [ti3, confirmed_path(ti3)])
         except OSError as exc:
             log.warning("could not archive %s before replacing it: %s", ti3, exc)
             return
@@ -14085,7 +14769,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # verification. Asking only one of them left a hole a guard walked
         # straight into. Neither defines validity for itself: both are
         # `_cgats_has_no_readings`, the tab's one test for "empty or invalid".
-        if self._existing_ti3_for_chart() is not None:
+        if self._ti3_beside_chart() is not None:
             return False
         ti3 = self._measurement_at_risk()
         if ti3 is not None and not _cgats_has_no_readings(ti3):
@@ -14492,12 +15176,75 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         cand = Path(path).with_suffix(".ti3")
         return cand if cand.is_file() else None
 
+    def _selected_measurement_ti3(self) -> "Path | None":
+        """Where the measurement of what the bar SELECTS lives, or None.
+
+        Not necessarily on disk; the callers ask. For a profiling run (and any
+        chart outside a project) that is the ``.ti3`` beside the chart. For a
+        verification it is NOT: every dated verification shares the one
+        verification chart in ``verifications/``, and each keeps its readings
+        in its own dated folder. Asking beside the chart answered "never
+        measured" for every date, so a measured date offered neither "Refine /
+        resume" nor "Show overlay" (Knut, #182 5951427228, 4.3.3-beta.2):
+        *"It seems selecting an existing dated verification is not
+        recognised."* "New verification" has no measurement, so None.
+
+        While a session runs, the reader works on the file beside the chart
+        (a resumed verification is staged there, see
+        :meth:`_stage_verification_for_resume`), so that is the answer then.
+        """
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None:
+            return None
+        beside = Path(ti1).with_suffix(".ti3")
+        if getattr(self, "_session_live", False) or bool(
+                getattr(getattr(self, "_runner", None), "is_running", False)):
+            return beside
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None or not ctl.target.is_verification():
+            return beside
+        from core.file_manager import VERIFICATIONS_DIRNAME
+        if Path(ti1).parent.name != VERIFICATIONS_DIRNAME:
+            # The bar says Verification but the tab still holds another chart
+            # (the moment between a Run-type change and the chart arriving).
+            return beside
+        try:
+            proj = ctl.project_or_none()
+            run_id = ctl.target.profile_run
+            if proj is None or not run_id or not proj.has_run(run_id):
+                return beside
+            vid = ctl.target.verification_id
+            if not vid:
+                return None                     # "New verification"
+            return proj.run(run_id).verification(vid).measurement_ti3
+        except Exception:      # noqa: BLE001 — a lookup must never break the tab
+            log.warning("could not resolve the selected verification",
+                        exc_info=True)
+            return None
+
+    def _ti3_beside_chart(self) -> "Path | None":
+        """A ``.ti3`` with readings right beside the loaded chart, or None,
+        whatever the bar selects. The pre-flight asks this as well as the
+        selected date, so a measurement left beside a verification chart still
+        counts there."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None:
+            return None
+        ti3 = Path(ti1).with_suffix(".ti3")
+        if not ti3.is_file() or _cgats_has_no_readings(ti3):
+            return None
+        return ti3
+
     def _existing_ti3_for_chart(self) -> "Path | None":
-        """The measured .ti3 sitting next to the loaded chart (#134), or None."""
+        """The measured .ti3 of what the bar selects (#134), or None.
+
+        Beside the loaded chart for a profiling run; in the selected dated
+        folder for a verification (:meth:`_selected_measurement_ti3`).
+        """
         if self._ti1_path is None:
             return None
-        ti3 = self._ti1_path.with_suffix(".ti3")
-        if not ti3.is_file():
+        ti3 = self._selected_measurement_ti3()
+        if ti3 is None or not ti3.is_file():
             return None
         # A file with no readings is not a measurement, and treating it as one
         # is what made ChromIQ warn about a measurement that was never taken —
@@ -14561,7 +15308,22 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.info("overlay: none of the %d measured patches match this "
                      "chart's geometry", len(patches))
             return False
-        self._on_chart_measured({"patches": patches})
+        # THE YELLOW MEMORY OF THIS MEASUREMENT (#182 K4). Outside a session
+        # the painting describes the file alone, so the memory is the file's
+        # own: read back from `<stem>.confirmed.json`, or none. Inside one
+        # (the repaint at its start) the session has already taken what it
+        # resumes from, see _on_session_map.
+        if getattr(self, "_session_live", False):
+            mode = getattr(self, "_memory_mode", None) or self._session_memory_mode()
+        else:
+            mode = self._load_confirmed_memory(ti3) or self._selected_memory_mode()
+            self._memory_mode = mode
+        # THE SAME JUDGEMENT AS DURING THE MEASUREMENT (#182 K3): the engine's
+        # ΔE*ab (per_patch_overlay), and in strips the strip test per strip.
+        # The .ti3 does not say how it was read; the memory file does, and
+        # without one the mode set on the panel is the best answer there is.
+        self._on_chart_measured({"patches": patches}, live=False,
+                                strip_fence=(mode != "patch"))
         return True
 
     def _clear_overlay(self) -> None:
@@ -14780,7 +15542,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.warning("Could not restore the overlay after the measurement",
                         exc_info=True)
 
-    def _on_overlay_toggled(self, checked: bool) -> None:
+    # THE BOX THAT CHANGED IS NAMED, NOT ASKED FOR WITH `self.sender()`.
+    # `_on_overlay_toggled` is also called directly (the settle after a
+    # selection change runs from a timer, the overlay window applies its
+    # choice), and `sender()` there is whatever emitted the signal now on the
+    # stack, which can already be deleted: the 4.3.3-beta.3 gate crashed a
+    # worker with SIGSEGV inside `sip convertSubClass` from `QObject.sender`
+    # at exactly that line. Bound methods, never lambdas (CLAUDE.md).
+    def _on_guided_overlay_box_toggled(self, checked: bool) -> None:
+        self._on_overlay_toggled(checked, box=self._overlay_cb)
+
+    def _on_manual_overlay_box_toggled(self, checked: bool) -> None:
+        self._on_overlay_toggled(checked, box=self._m_overlay_cb)
+
+    def _on_overlay_toggled(self, checked: bool, box=None) -> None:
         """Show/hide the from-.ti3 overlay (#134). If the chart's measurement
         can't be placed (foreign / geometry-less .ti3), inform the user and
         untick — the numbers are still available in Tools ▸ Inspect a
@@ -14788,6 +15563,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._sync_overlay_checkboxes(checked)
         if not checked:
             self._clear_overlay()
+            return
+        # A TICK NOBODY CLICKED IS NOT A QUESTION ABOUT THE CHART ON SCREEN.
+        #
+        # Knut, #182 5951427228 (4.3.3-beta.2): he switched Run type from
+        # Verification to Profiling and was told "This chart has not been
+        # measured yet", about the run he was LEAVING. The run he went to was
+        # measured. The tick came from that run's stored Measure settings,
+        # which are put on screen the moment the bar changes — before the new
+        # chart reaches this tab — so this handler judged the verification
+        # chart still loaded, found nothing beside it, and said so. A box that
+        # is hidden cannot have been clicked either.
+        #
+        # Both are answered once the selection has settled, about the chart
+        # and measurement it ends on: see `_settle_after_selection_change`.
+        if getattr(self, "_loading_measure_settings", False) or (
+                box is not None and box.isHidden()):
+            self._overlay_asked_by_settings = True
+            self._queue_selection_settle()
             return
         if self._show_overlay_from_existing_ti3():
             self._log.appendPlainText(tr(
@@ -14913,7 +15706,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         #
         # This is the same shape as the empty-file fault he found in #130. That
         # fix taught the code to recognise EMPTY; ABSENT was left behind it.
-        if not self._ti1_path.with_suffix(".ti3").is_file():
+        _selected = self._selected_measurement_ti3()
+        if _selected is None or not _selected.is_file():
             return "absent"
         ti3 = self._existing_ti3_for_chart()
         if ti3 is None:
@@ -14946,8 +15740,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         if self._ti1_path is None:
             return False
-        ti3 = self._ti1_path.with_suffix(".ti3")
-        if not ti3.is_file():
+        ti3 = self._selected_measurement_ti3()
+        if ti3 is None or not ti3.is_file():
             return False
         return _cgats_has_no_readings(ti3)
 
@@ -15300,6 +16094,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 set_report_type(report, tid)
             when = _dt.now()
             created = str(report.get("created") or "")
+            # **THE REPORT SCOPE'S COUNT, AS IT IS TODAY (Q-C5; Knut, #182
+            # 5950006399: "Yes, Show numbers as they were saved. An update
+            # will renew the numbers.").** The same decision the report
+            # window makes (`scope_counts`), for the one measurement this
+            # report covers, read off the disk now and stored with the report.
+            from workflow.measurement_report import scope_counts
+            row = {k: v for k, v in report.items() if not k.startswith("_")}
+            row["_origin_dir"] = str(ti3.parent)
+            row["ti3"] = str(ti3)
+            scope_count = scope_counts([row])
             stamp_document(
                 report, doc_id=new_document_id(when),
                 created=when.isoformat(timespec="seconds"),
@@ -15319,7 +16123,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     "ti3": str(ti3.name),
                     "key": document_measurement_key(ti3.parent, created,
                                                     str(ti3.name)),
-                }])
+                }],
+                scope_count=scope_count)
         except Exception as exc:                     # noqa: BLE001
             log.warning("could not record the report's document block: %s", exc)
 

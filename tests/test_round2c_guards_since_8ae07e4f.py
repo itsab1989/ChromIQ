@@ -448,7 +448,7 @@ def test_an_l_only_record_is_rounded_like_every_other_number(tmp_path, qapp):
     the L*-only fallback (A-17). 95.4 reads the same either way, which is all
     the existing guard used; 95.43 does not."""
     html = _paper_white_page(tmp_path, qapp, {"L": 95.43})
-    assert "- L* 95.4</div>" in html
+    assert "- L* 95.4</td>" in html          # a two-cell row since #182 (d)
     assert "95.43" not in html
 
 

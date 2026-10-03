@@ -170,8 +170,12 @@ FAMILIES: dict[str, Family] = {
     "i175": Family(
         key="i175", label="i1Pro (7.5 mm)", prefix="i1Pro-",
         slug_prefix="i1_w75_", instrument="i1", dest=ASSETS / "i1pro75",
+        # helper_marker_per_patch since 4.3.3-beta.1: Knut's "Uniform 6x6x6 -
+        # Full Page" chart (#182 5943544919) marks every second patch on the
+        # ruler (2) where the rest of the family marks every fifth (5).
         varying=frozenset({"paper", "area_cols", "area_rows",
-                           "margin_right", "margin_bottom"}),
+                           "margin_right", "margin_bottom",
+                           "helper_marker_per_patch"}),
         helper="_i1_75_preset",
     ),
     # THE 7.5 mm "MAXIMISED - NO CLIP-BORDER" CUT ON A4 AND LETTER (Knut,
@@ -528,6 +532,15 @@ def _takes(recipe: dict, ov: Overlay) -> bool:
     return got == ov.when if ov.when is not None else bool(got)
 
 
+#: The recipe fields a row can spell out as keyword arguments.
+_EMITTED_FIELDS = ("margin_left", "margin_top", "margin_right",
+                   "margin_bottom", "clip_border_width_mm",
+                   "clip_border", "clip_content_mode",
+                   "text_edge_top_mm", "area_min_patch_mm", "hflag",
+                   "hex_flat_top", "indicator_size_mm",
+                   "helper_marker_per_patch")
+
+
 def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
     """The ``_Ti1Preset`` rows, ready to paste into tab_chart.py.
 
@@ -538,6 +551,14 @@ def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
     """
     out = []
     pad = " " * (len(fam.helper) + 5)
+    # EVERY field a family lets a chart own must be one this emitter can write,
+    # or the validator accepts a difference that the printed row then drops:
+    # helper_marker_per_patch was exactly that (Knut, #182 5943544919).
+    writable = set(_EMITTED_FIELDS) | {"paper", "area_cols", "area_rows", "clip_text"}
+    unwritable = set(fam.varying) - writable
+    if unwritable:
+        raise SystemExit(f"family {fam.key}: varying field(s) the row emitter "
+                         f"cannot write: {sorted(unwritable)}")
     # The helper takes these positionally, so they are never keyword arguments.
     positional = {"paper", "area_cols", "area_rows"}
     for r in rows:
@@ -553,11 +574,7 @@ def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
             effective.update(ov.delta)
         if taken:
             extra += f", {taken[-1].keyword}=True"
-        for field in ("margin_left", "margin_top", "margin_right",
-                      "margin_bottom", "clip_border_width_mm",
-                      "clip_border", "clip_content_mode",
-                      "text_edge_top_mm", "area_min_patch_mm", "hflag",
-                      "hex_flat_top", "indicator_size_mm"):
+        for field in _EMITTED_FIELDS:
             if field not in fam.varying or field in positional:
                 continue
             # `always` fields are stated on every row — see Family.always.

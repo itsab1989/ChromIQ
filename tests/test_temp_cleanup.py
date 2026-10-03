@@ -35,6 +35,12 @@ def _aged(path: Path, hours: float) -> Path:
 def fake_temp(tmp_path, monkeypatch):
     """Point the sweeper at a temp folder of our own, never the real one."""
     monkeypatch.setattr("tempfile.gettempdir", lambda: str(tmp_path))
+    # Since dsk2 (6e6014aa) the sweep takes the SYSTEM temp folder from
+    # `_REAL_TEMP`, not gettempdir (which now names this run's own folder).
+    # Patching only gettempdir pointed these tests at the real temp folder:
+    # six red in the review gate, and a sweep of the real one (T_review_beta2).
+    import tests.conftest as _cf
+    monkeypatch.setattr(_cf, "_REAL_TEMP", tmp_path)
     return tmp_path
 
 
@@ -188,6 +194,18 @@ def test_it_never_touches_pytest_current(fake_temp):
 
 
 # ---- the run cleans up after ITSELF, which beats guessing from age --------
+@pytest.fixture(autouse=True)
+def _keep_this_run_s_temp(monkeypatch):
+    """The tests below call the REAL ``pytest_sessionfinish``, which since dsk2
+    (6e6014aa) also removes this run's ``chromiq-run-*`` folder when called
+    with 0 in the process that owns it. Under xdist that is never a worker, so
+    the gate stayed green; in a serial run (``-n 0``) it deleted the folder the
+    run was still using, and the next test's ``tmp_path`` was gone
+    (T_review_beta2)."""
+    import tests.conftest as _cf
+    monkeypatch.setattr(_cf, "_leave_the_run_temp", lambda passed: None)
+
+
 def test_the_session_hook_removes_a_passing_run_s_tree(tmp_path, capsys):
     """A green run must leave nothing behind. Driven through the real hook."""
     from tests.conftest import pytest_sessionfinish

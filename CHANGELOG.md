@@ -1,5 +1,100 @@
 # Changelog
 
+## v4.3.3-beta.5
+
+**Two flag limits and a yellow outline for patches confirmed by a re-read; outlines that stay after the measurement; and printer calibration with Apply & Embed (-K) done the way ArgyllCMS does it.**
+
+### New
+
+- **Two limits for flagging a patch**, in Preferences ▸ Measurement: one for charts whose expected colours are estimated (default ΔE 95, the limit ArgyllCMS's own chartread uses) and one for charts made from a profile (default ΔE 30). The chart decides which applies. A limit you had changed yourself is kept (#182).
+- **Yellow outline:** a red patch that you read again and that gives the same colour is outlined in yellow: a real difference your printer and paper cannot reach, not a misread. Later patches of a similar colour with the same kind of difference turn yellow by themselves. The hover card says which (#182).
+- **The confirmed patches are remembered** with the measurement and come back when you continue or refine it (#182).
+
+### Changed
+
+- **Restore Used Chart keeps the chart it replaces** in the run's `old/` folder (page images apart, which are made again when needed); before, it was discarded. The run's `.cht` is no longer stored with the chart, is kept on restore when it matches the restored chart and otherwise moves to `old/` together with its `.cie`. The window says what happens (#182).
+- **A calibration must be for the chart's inks** for both Apply & Embed (-K) and Embed (-I), as in printtarg; a mismatch now opens a window that says how to fix it (for example, set Device Type to CMYK) instead of a line in the log (#182).
+- The hover card leaves a blank line between its sentences (#182).
+
+### Fixed
+
+- **Apply & Embed (-K) with ChromIQ's layout engine applied the calibration twice.** The engine wrote the calibrated values into the chart file as well as onto the printed page; the profile then described the printer without the calibration, and Apply Calibration added it a second time (about ΔE 21–27 off in a model printer). The chart file now keeps the uncalibrated values, as printtarg does. A run made with an earlier version is detected, and Apply Calibration and Check & Refine warn before using it (#182).
+- **Verification printing of a run printed with -K** now goes through the profile and the run's own calibration (in a model printer from ΔE 33 to 1.5). A verification chart that was itself made with -K is not printed through the profile, and printing raw without the calibration asks first. Every chart now records how its calibration was used (#182).
+- **The red and yellow outlines no longer disappear when a measurement ends.** The redrawn preview used a different colour-difference formula (ΔE2000) than the live one (ΔE*ab), so a patch at 103 became 16 (#182).
+- **Restore Used Chart never loses a file** when something fails halfway, and on a calibration the replaced chart goes into `cal/old/<date>/chart/`.
+
+## v4.3.3-beta.4
+
+**A fix for a crash when building a profile with ChromIQ's own profile engine on Apple Silicon.**
+
+### Fixed
+
+- **Build Profile no longer crashes** with ChromIQ's own profile engine when the perceptual and saturation tables are built from a gamut source (#182). Since beta 1 the Apple Silicon download uses a maths library (OpenBLAS) that needs more working memory on a background thread than macOS gives one by default; every background thread now gets enough.
+- **"Stored chart differs" no longer appears for a chart that did not change** (#182). With "Save scanner files" on, every quality check rewrites the measured values inside the chart's `.cht`, and the comparison counted them as a change to the chart. The comparison, the Restore Used Chart button and the verification check now ignore those measured values; patch positions still count.
+- **After reading a strip of a chart that was already complete, the reader moves on to the next strip** (#182), and the arrows above and below the preview follow. It stayed on the strip just read, the way ArgyllCMS's chartread does. A question window that asks to read the strip again still keeps it there.
+- **A red outline on a patch is called "a large difference"**: either a misread, or a colour your printer and paper cannot reach. If reading the strip again gives the same value, it is real and belongs in the profile. Both help texts in Live preview explain this (#182).
+
+## v4.3.3-beta.3
+
+**Everything Knut found in beta 2: dated verifications offer their own measurement again, a saved report keeps the numbers it was saved with, and the measuring windows explain the beep and the red outlines.**
+
+### Changed
+
+- **A saved Measurement Report shows its "covers n of the total measurements" sentence as it was saved** (Knut, #182). Deleting or duplicating runs no longer changes it; pressing Update counts again. A report saved by an earlier version keeps counting live until it is updated once.
+- **"Where are my files?"** names the files that Inspect a measurement and Inspect a profile save, and where they go, and says that outside a ChromIQ project Check & Refine and the two Verify tools save beside the measurement.
+
+### Fixed
+
+- **Choosing a dated verification that has a measurement** shows "Refine / resume" and "Show overlay" again, and refining it works: the new readings go back into that date. Switching Run type to Profiling no longer shows "The chart has not been measured yet" about the verification you just left (#182).
+- **"Measure anyway" on a measured dated verification keeps the earlier measurement** in that date's `old/` folder, as the window promises. It was overwritten.
+- **Verify against reference no longer leaves a reference file beside a run's measurement.** That file has the name ChromIQ reads as the chart's own colour reference, so the run's Measurement Report then judged against the typed-in values.
+- **Start sliding at the beep, said everywhere it matters** (#202): the Calibration Complete window for the i1Pro family and the ColorMunki, Preferences ▸ Measurement (which now names every strip reader), and the measuring steps of the Welcome cards and the Getting Started tour. Every strip reader is timed from its beep.
+- **Strip Read Quickly** names the same strip time as the line under the preview: 27 patches at 120 ms read "3.3 s" in both (#202).
+- **A patch outlined in red says why** on the hover card, with its ΔE*ab beside your limit from Preferences ▸ Measurement, and the help for "Show patch values on hover" explains the outline (#202).
+- **Report Results**: each date heading sits centred over its PASS, FAIL or INFO (#182).
+- Ukrainian file paths keep the real folder name `reports/`.
+
+## v4.3.3-beta.2
+
+**A chart built twice from the same seed now comes out the same on a Mac, and a handful of smaller fixes from the review of beta 1.**
+
+### Fixed
+
+- **The same chart every time on macOS.** ArgyllCMS's printtarg reads a value it never sets when it lays out patches for a strip-reading instrument (ColorMunki, i1Pro and others), so two builds with the same seed could place the patches differently, depending on what happened to be in memory. On a Mac, ChromIQ now starts printtarg so that this memory is always empty, which gives Argyll's intended layout every time: in Create Chart, in the presets window and in the demo projects. Windows and Linux are unchanged.
+- **Inspect a measurement and Inspect a profile** never offer a folder you cannot save into, such as a profile inside a printer driver or a project on a read-only disk: the save window opens in your ChromIQ folder instead. Their button now reads "Save inspection…".
+- **The Verify tools** say "Report saved beside your measurement" for a measurement outside a ChromIQ project, where the report really goes, instead of naming a reports folder.
+- **A question closed without an answer never prints or builds.** "Stuck Print Jobs Detected" and the two "Scan doesn't match the chart" questions took a window closed without a click as "go ahead". Your Escape key was always safe; now every other way a window can close is too.
+- **Preferences ▸ Measurement** no longer changes the stored values of the locked SpectroScan and CR30 rows when you click OK.
+- **A long message from the ChromIQ chart-reading engine** that arrived in two pieces was lost; it is now put back together.
+- Clearer German in Preferences ▸ Measurement and for "Untersuchung der Messung".
+
+## v4.3.3-beta.1
+
+**The i1Pro 2, 3 and 3 Plus are judged by their own reading speed, timed from the beep; reports and inspections are saved where they belong; and ChromIQ runs again on older Macs.**
+
+### New
+
+- **A new i1Pro preset: "A4-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page"**, made by Knut: the same 324 patches spread over the whole A4 page, so a small i1Pro chart can answer every row of "Which presets can be used for verification?". ChromIQ now has 189 built-in chart presets.
+
+### Changed
+
+- **Seven of Knut's presets use the near-neutral offset he set for them**: i1Pro A4-572p and Letter-572p (Uniform 7x7x7-Edge Emphasis), i1Pro Letter-162p, and i1Pro 3 Plus A4-462p, Letter-429p and A3-336p now have the offset 7 he chose for one ring of near-neutral greys, so their patch sets change; the i1Pro Letter-648p preset now opens its own design in the patch-set editor. A chart you already made from one of them keeps its patches.
+- Two i1Pro presets have new names: "A4-162p-1page-Portrait-w7.5mm-Uniform 5x5x5-Quarter Page" and "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page". Whether you chose to show or hide them is kept.
+
+### Fixed
+
+- **Reading speed for the i1Pro 2, i1Pro 3 and i1Pro 3 Plus** (#202). These instruments were judged with the first-generation i1Pro's limit, so an i1Pro 2 was told to slow down to 240 ms per patch when 120 ms is enough. ChromIQ now recognises the name each instrument reports and uses its own row in Preferences ▸ Measurement. An i1Pro 3 Plus is also recognised as a Plus when the ChromIQ chart-reading engine is used.
+- **A strip is timed from the beep** (#202), the moment the instrument starts reading, instead of from the button press: the lamp's warm-up of about 0.7 s before the beep no longer counts against your reading speed. The beep itself is unchanged. Preferences ▸ Measurement explains this, and the SpectroScan and CR30 rows there are locked, because these instruments do not read strips.
+- **The speed hint never contradicts itself.** It could say "Too fast · 165 ms per patch ... Aim for 165 ms or more"; the numbers are now rounded so they always sit on the right side of the limit.
+- **A verification measurement writes its automatic report** into its dated `reports` folder, as a profiling measurement already did, when "Save measurement report" is ticked. The Measurement Report window then opens on that saved report.
+- **Generate report always asks** whether to update the report you selected or create a new one, also in the cases where it could write without asking.
+- **"Save report as PDF…" is greyed** while the report area shows no report.
+- **Duplicating a run** gives the new run its own copies of the run's reports. The copies used to point at the run they came from, so the new run listed them under "Reports including multiple runs".
+- **Inspect a measurement and Inspect a profile** save as "Measurement inspection - <name> - <date and time>.txt" and "Profile inspection - …", named like the Measurement Report's files, into the `reports` folder of the run, dated verification, calibration or project the file belongs to. A file of the same name is kept in `reports/old/`, never overwritten. A file outside any ChromIQ project is saved directly beside it, and nothing else is created there. Check & Refine and the two Verify tools follow the same rule. A failed save no longer replaces the inspection with "Could not read this measurement".
+- **The colour swatches in reports** have equal grey bars on both sides and the colour is twice as wide, so asked-for and measured colours are easier to compare, on screen and in the PDF.
+- **Older Macs.** ChromIQ declares macOS 13 as its minimum, but 17 of its built-in programs needed macOS 14, among them the chart-reading engine. Every part now runs on macOS 13. Intel Macs from before 2010 (for example a 2009 Mac running Ventura through OpenCore Legacy Patcher) can run the universal and Intel downloads again: they keep numpy below version 2.4, which needs a newer processor. Thanks to RobFor for finding the cause (discussion #201).
+- **A precaution for macOS 27.** On a Mac set to German, macOS 27.0 can close a program the moment it shows a system message window (an Apple bug). ChromIQ was not affected in testing, and now sets its number format so that it cannot be.
+
 ## v4.3.2
 
 **A small fix release: two texts now say exactly what they should.**

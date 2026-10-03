@@ -36,6 +36,15 @@ _CAL = "__calibration__"
 _HINT_STRETCH = 1000
 
 
+
+def _restore_archive_sentence() -> str:
+    """What happens to the chart that is replaced (Knut, #182 5959825756):
+    archived into "old", except its page images, which are made again from
+    the other chart files."""
+    return tr("The chart that is there now is moved to an “old” folder, so "
+              "you can go back to it. Its page images are not kept: they are "
+              "made again from the chart's other files when needed.")
+
 class MeasurementTargetController(QObject):
     """Holds the shared :class:`MeasurementTarget` and answers the questions the
     bar needs about the loaded project (its runs and each run's verification
@@ -440,11 +449,29 @@ class MeasurementTargetController(QObject):
 
     def restore_needs_confirmation(self) -> bool:
         """Whether the live chart differs from the snapshot, so the user should
-        be warned before it is replaced."""
+        be warned before it is replaced, or the restore would remove the run's
+        ``.cht`` (Knut, #182 5958921500: the window says what happens to it)."""
         from workflow.chart_slot import slot_for
         from workflow.verify_chart_snapshot import slot_live_differs
         target = self.restore_target()
-        return target is not None and slot_live_differs(slot_for(target))
+        if target is None:
+            return False
+        return slot_live_differs(slot_for(target)) or \
+            bool(self.restore_cht_plan().remove)
+
+    def restore_cht_plan(self):
+        """What Restore Used Chart would do with the run's scanner ``.cht``
+        file(s): a :class:`~workflow.verify_chart_snapshot.ChtPlan`, empty for
+        a verification date or a run without one."""
+        from workflow.verify_chart_snapshot import ChtPlan, restore_cht_plan
+        slot = self.restore_slot_or_none()
+        if slot is None:
+            return ChtPlan()
+        try:
+            return restore_cht_plan(slot)
+        except Exception:      # noqa: BLE001 — wording, never a crash
+            log.warning("could not work out the .cht's fate", exc_info=True)
+            return ChtPlan()
 
     def restore_used_chart(self):
         """Put the selected verification's snapshotted chart back. Returns the
@@ -1725,6 +1752,43 @@ class MeasurementTargetBar(QWidget):
         box.exec()
         return box.clickedButton() is go
 
+    def _restore_cht_sentence(self) -> str:
+        """What the restore does with the run's ``.cht``, for the confirmation
+        window, or "" when the run has none (or a verification date is
+        selected).
+
+        Knut, #182 5958921500: *"The popup window (after clicking Restore Used
+        Chart), which lists what will happen should specify if the cht file in
+        the run folder is removed or kept."*
+        """
+        try:
+            plan = self._ctl.restore_cht_plan()
+        except Exception:      # noqa: BLE001 — wording, never a lost restore
+            log.warning("could not word the .cht's fate", exc_info=True)
+            return ""
+        parts = []
+        if plan.keep:
+            names = ", ".join(p.name for p in plan.keep)
+            parts.append((tr(
+                "The scanner recognition file {names} in this run matches the "
+                "chart being restored, so it is kept in the run.")
+                if len(plan.keep) == 1 else tr(
+                "The scanner recognition files {names} in this run match the "
+                "chart being restored, so they are kept in the run.")
+            ).format(names=names))
+        if plan.remove:
+            names = ", ".join(p.name for p in plan.remove)
+            parts.append((tr(
+                "The scanner recognition file {names} in this run was not "
+                "made from the chart being restored. It is moved to the run's "
+                "“old” folder and removed from the run.")
+                if len(plan.remove) == 1 else tr(
+                "The scanner recognition files {names} in this run were not "
+                "made from the chart being restored. They are moved to the "
+                "run's “old” folder and removed from the run.")
+            ).format(names=names))
+        return "\n\n".join(parts)
+
     def _on_restore_clicked(self) -> None:
         """Restore the selected verification's used chart, warning first when
         the chart currently in place is a different one (#130)."""
@@ -1746,42 +1810,45 @@ class MeasurementTargetBar(QWidget):
             # used chart, although no measurement currently exist."*
             has_measurement = self._ctl.selection_has_measurement()
             if verif and has_measurement:
-                body = tr(
+                body = (tr(
                     "The verification chart currently in this run will be "
                     "replaced by the one this verification date was measured "
                     "with.\n\n"
-                    "Your measurements are not affected — only the chart files "
-                    "are replaced. The chart that is there now is not kept, so "
-                    "if you still need it, cancel and save a copy first.")
+                    "Your measurements are not affected: only the chart files "
+                    "are replaced.")
+                    + " " + _restore_archive_sentence())
             elif verif:
-                body = tr(
+                body = (tr(
                     "The verification chart currently in this run will be "
                     "replaced by the stored copy kept for this verification "
                     "date.\n\n"
                     "There is no measurement in this run at the moment, so "
-                    "nothing is at risk — this simply puts the earlier chart "
-                    "back. The chart that is there now is not kept, so if you "
-                    "still need it, cancel and save a copy first.")
+                    "nothing is at risk: this simply puts the earlier chart "
+                    "back.")
+                    + " " + _restore_archive_sentence())
             elif has_measurement:
-                body = tr(
+                body = (tr(
                     "The chart currently in this profile run will be replaced "
                     "by the one this run was measured with.\n\n"
-                    "Your measurements are not affected — only the chart files "
-                    "are replaced. The chart that is there now is not kept, so "
-                    "if you still need it, cancel and save a copy first.")
+                    "Your measurements are not affected: only the chart files "
+                    "are replaced.")
+                    + " " + _restore_archive_sentence())
             else:
-                body = tr(
+                body = (tr(
                     "The chart currently in this profile run will be replaced "
                     "by the stored copy kept when a measurement was last "
                     "started here.\n\n"
                     "There is no measurement in this run at the moment, so "
-                    "nothing is at risk — this simply puts that earlier chart "
-                    "back. The chart that is there now is not kept, so if you "
-                    "still need it, cancel and save a copy first.")
+                    "nothing is at risk: this simply puts that earlier chart "
+                    "back.")
+                    + " " + _restore_archive_sentence())
+            cht_note = self._restore_cht_sentence()
+            if cht_note:
+                body += "\n\n" + cht_note
             box.setText(body)
             restore = box.addButton(tr("Restore Chart"),
                                     QMessageBox.ButtonRole.AcceptRole)
-            # K44 (beta 43): destructive (the current chart is not kept), so
+            # K44 (beta 43): destructive (it replaces the current chart), so
             # never drawn filled.
             from ui.default_button import mark_destructive
             mark_destructive(restore)

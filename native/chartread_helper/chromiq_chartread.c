@@ -564,6 +564,7 @@ static void cq_emit_strip_read(chcol **scb, int stipa, const char *label,
 	if (!cq_json)
 		return;
 
+	cq_out_lock();		/* #202: one whole line, see cq_emit_raw */
 	fprintf(stdout,
 	        "\n{\"event\":\"strip_read\",\"strip\":\"%s\",\"reversed\":%s,"
 	        "\"corr\":%.3f,\"expected_corr\":%.3f,\"worst_de\":%.3f,"
@@ -590,6 +591,7 @@ static void cq_emit_strip_read(chcol **scb, int stipa, const char *label,
 	}
 	fprintf(stdout, "]}\n");
 	fflush(stdout);
+	cq_out_unlock();
 }
 
 /* CHROMIQ_EXT: per-patch events for engine-driven patch-by-patch (spot) mode.
@@ -634,6 +636,7 @@ static void cq_emit_chart_read(const char *event, chcol **scols, int npat) {
 	int i, j, first = 1;
 	if (!cq_json)
 		return;
+	cq_out_lock();		/* #202: one whole line, see cq_emit_raw */
 	fprintf(stdout, "\n{\"event\":\"%s\",\"patches\":[", event);
 	for (i = 0; i < npat; i++) {
 		double lab_m[3], lab_e[3], xyz[3], de;
@@ -656,6 +659,7 @@ static void cq_emit_chart_read(const char *event, chcol **scols, int npat) {
 	}
 	fprintf(stdout, "]}\n");
 	fflush(stdout);
+	cq_out_unlock();
 }
 
 /* CHROMIQ_EXT: misalignment safety net (opt-in, #50). After a strip is read,
@@ -823,6 +827,33 @@ inst_code cq_uicallback(void *cntx, inst_ui_purp purp) {
 /* ========================================================= */
 
 
+/* CHROMIQ_EXT (#202): the instrument's ready-to-scan moment, in JSON mode.
+ *
+ * Argyll calls this from the delayed_scan_ready helper THREAD (inst.c:1122),
+ * about 0.7 s after the button on an i1Pro (200 ms + 0.5 s lamp time), which
+ * is when the instrument starts sampling and the user may start to slide.
+ *
+ * The beep is EXACTLY the one the driver plays when no callback is registered,
+ * msec_beep(<delay>, 1000, 200) with the delay already spent: Knut keeps
+ * Argyll's sound (Q2) at Argyll's moment (5943350639). It is called directly,
+ * not through normal_beep(), which this file redirects.
+ *
+ * The event line goes out through cq_emit_raw, which holds stdout's lock for
+ * the whole line, so it cannot split a strip_read the main thread is writing.
+ * Every other event (switch, mconf) is ignored, as it was with no callback. */
+void cq_event_callback(void *cntx, inst_event_type event) {
+	(void)cntx;
+	if (event != inst_event_scan_ready)
+		return;
+	/* EMIT FIRST, THEN BEEP. On Windows msec_beep(0, ...) is Beep(), which
+	 * returns only after the 200 ms tone: beeping first delivered scan_ready
+	 * 0.2 s late and timed every strip 0.2 s short, so a strip within the
+	 * limit could read "Too fast" (review P_review2_beta1, P-202-1). macOS and
+	 * Linux beep asynchronously, so the order changes nothing there. */
+	cq_emit_raw("{\"event\":\"scan_ready\"}");
+	msec_beep(0, 1000, 200);
+}
+
 #ifdef TEST_EVENT_CALLBACK
 void test_event_callback(void *cntx, inst_event_type event) {
 	a1logd(g_log,0,"Got event_callback with 0x%x\n",event);
@@ -946,6 +977,14 @@ a1log *log			/* verb, debug & error log */
 
 #ifdef TEST_EVENT_CALLBACK
 		it->set_event_callback(it, test_event_callback, (void *)it);
+#else
+		/* CHROMIQ_EXT (#202): in JSON mode take the ready-to-scan moment
+		 * ourselves, so ChromIQ can time a strip from the beep (Knut,
+		 * 5943245399). Registering a callback stops the driver beeping by
+		 * itself (i1pro_imp.c:3198-3203), so cq_event_callback plays that
+		 * same beep. Console mode is untouched. */
+		if (cq_json)
+			it->set_event_callback(it, cq_event_callback, (void *)it);
 #endif
 
 		/* Establish communications */
@@ -4259,6 +4298,7 @@ int main(int argc, char *argv[]) {
 		char cesc[6 * (MAXNAMEL + 16) + 8];
 		cq_compute_row_eligibility(scols, stipa, totpa);
 		cq_json_escape(cesc, sizeof(cesc), inname);
+		cq_out_lock();		/* #202: one whole line, see cq_emit_raw */
 		fprintf(stdout,
 		        "\n{\"event\":\"session_start\",\"chart\":\"%s\",\"randomised\":%s,"
 		        "\"patches\":%d,\"steps_per_pass\":%d,\"strips\":[",
@@ -4280,6 +4320,7 @@ int main(int argc, char *argv[]) {
 		}
 		fprintf(stdout, "]}\n");
 		fflush(stdout);
+		cq_out_unlock();
 	}
 
 	/* Read all of the strips in */

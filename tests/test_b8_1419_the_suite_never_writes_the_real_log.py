@@ -62,7 +62,8 @@ def test_the_session_log_is_a_sandbox_the_sweep_recognises(monkeypatch):
     assert pp.log_dir() == sandbox
     # A folder the sweep may take by NAME (`_sweep_stale_temp_dirs` globs
     # chromiq[-_]* in the system temp folder), never one it has to judge.
-    assert sandbox.parent == Path(tempfile.gettempdir())
+    assert sandbox.parent == Path(os.environ.get("CHROMIQ_SUITE_REAL_TMP")
+                                  or tempfile.gettempdir())
     assert fnmatch.fnmatch(sandbox.name, "chromiq[-_]*"), sandbox.name
     assert sandbox.is_dir()
     assert _real_log_path(monkeypatch).parent != sandbox

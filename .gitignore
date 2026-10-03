@@ -111,3 +111,5 @@ scripts/offscreen_font_probe/_results/
 # The zip is shipped as a release asset instead.
 demo-projects/
 .claude/issue-watermarks/
+.claude/monitor_seen.json
+.claude/disk_baseline.json

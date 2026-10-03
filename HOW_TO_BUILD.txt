@@ -159,6 +159,13 @@ Notes
   binary (runs on both), both architectures need to be available in the same
   Python installation — this is complex and not necessary for most use cases.
 
+- Old Intel Macs (Core 2, before 2010, e.g. running a newer macOS through
+  OpenCore Legacy Patcher): numpy 2.4 and newer need a CPU with SSE4.2 and
+  refuse to load on these machines. requirements.txt already keeps Intel Macs
+  below numpy 2.4, so a normal build works; if you installed numpy yourself,
+  run  pip install "numpy>=1.24.0,<2.4.0"  before building.  Thanks to RobFor
+  (discussion #201).
+
 - dist/ChromIQ.app is about 89 MB.  This is normal — it bundles Python, PyQt6,
   and all dependencies so recipients need nothing else installed.
 

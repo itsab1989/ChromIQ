@@ -90,6 +90,11 @@ def test_a_block_short_of_patches_keeps_the_rows_level(a_run, qapp):
     dlg, run = a_run
     two = dlg._swatch_table_html(
         [{"name": str(i), "hex": "#112233"} for i in range(9)], columns=2)
+    # Each swatch is a small table of its own (#182 (d)); its cells are not
+    # cells of this table, so it counts as the content of the cell it is in.
+    import re
+    two = re.sub(r"<table cellspacing='0' cellpadding='0'><tr><td width='\d+'"
+                 r".*?</table>", "[swatch]", two)
     assert two.count("<tr>") == 1 + 5, "one heading row and five patch rows"
     assert two.count(">Asked for<") == 2
     # The LAST row is the one with a hole in it. Every row of the table must

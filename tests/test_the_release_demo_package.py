@@ -190,7 +190,8 @@ def built_package(tmp_path_factory):
             os.environ.get("CHROMIQ_ARGYLL_BIN"):
         pytest.skip("ArgyllCMS is needed to build the demo package")
     cache = Path(os.environ.get("CHROMIQ_RELEASE_DEMO_CACHE",
-                                Path(tempfile.gettempdir()) / _CACHE_NAME))
+                                Path(os.environ.get("CHROMIQ_SUITE_REAL_TMP")
+                                     or tempfile.gettempdir()) / _CACHE_NAME))
     here = cache / _source_key()
     root = here / pkg.root_name()
     if not (root / "coverage-matrix.json").is_file():

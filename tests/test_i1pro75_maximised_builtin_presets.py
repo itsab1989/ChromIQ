@@ -111,7 +111,8 @@ def test_the_standard_75mm_family_did_not_grow():
     the 7.5 mm family by ``i1_w75_`` and pins its 24-column grid, and these
     charts are neither."""
     assert not any(p.slug.startswith("i1_w75_") for p in MAX)
-    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w75_")) == 19
+    # 20 since the "Full Page" chart of 4.3.3-beta.1 (#182 5943544919)
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w75_")) == 20
 
 
 def test_they_are_i1pro_charts_under_the_i1pro_heading():

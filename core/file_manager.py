@@ -1377,6 +1377,8 @@ class Calibration:
 
     @property
     def dir(self) -> Path:                    return self._root / "cal"
+    @property
+    def reports_dir(self) -> Path:            return self.dir / REPORTS_DIRNAME
 
     def artefact(self, ext: str) -> Path:
         """``cal/<stem><ext>`` as the volume spells it — see
@@ -2335,7 +2337,9 @@ class Run:
 
     def archive_to_old(self, paths: "list[Path]",
                        when: "datetime | None" = None,
-                       *, into: "Path | None" = None) -> "Path | None":
+                       *, into: "Path | None" = None,
+                       moved: "dict[Path, Path] | None" = None
+                       ) -> "Path | None":
         """Move existing *paths* (files or folders) into a timestamped
         ``runs/runN/old/<date>/`` folder before an overwrite, so "start fresh"
         never silently destroys the previous measurement / profile / reports
@@ -2344,7 +2348,12 @@ class Run:
 
         *into* overrides the base folder — used by a verification Replace, which
         archives into ``verifications/old/`` instead (see
-        :attr:`verifications_old_dir`)."""
+        :attr:`verifications_old_dir`).
+
+        *moved*, when given, is filled with ``{source: archived path}`` as each
+        move succeeds, so a caller that must undo the archive can find every
+        file under the name it really got, even when this raises part way or a
+        clash renamed it (two archives in the same second share a folder)."""
         existing = [p for p in paths if p.exists()]
         if not existing:
             return None
@@ -2358,6 +2367,8 @@ class Run:
                 target = dest / f"{p.stem}_{n}{p.suffix}"
                 n += 1
             shutil.move(str(p), str(target))
+            if moved is not None:
+                moved[p] = target
             log.info("archived %s -> old/%s/", p.name, dest.name)
         return dest
 
@@ -3678,7 +3689,10 @@ class Project:
                    "{stem}.strips.json", "{stem}.print.json",
                    "{stem}_*.tif", "{stem}.tif",
                    "chart/**/*")),
-        ("measurement", ("{stem}.ti3", "reads/**/*")),
+        # `.confirmed.json` is the measurement's yellow memory (#182 K4): which
+        # patches a re-read confirmed. It is only believed while the .ti3 it
+        # names by hash is unchanged, and the copy is byte for byte.
+        ("measurement", ("{stem}.ti3", "{stem}.confirmed.json", "reads/**/*")),
         ("profile", ("{stem}.icc", "{stem}.icm", "merged.ti3", "merged.icc",
                      "merged.icm", "calibrated.icc", "calibrated.icm",
                      "*.x3d.html", "x3dom.css", "x3dom.js")),
@@ -3785,6 +3799,7 @@ class Project:
                           source.id)
             self._discard_run(new_run, just_created=True)
             raise
+        self._copied_reports_name_the_new_run(source, new_run, plan)
         meta = new_run.load_meta()
         src_meta = source.load_meta()
         meta.duplicated_from = source.id
@@ -3815,6 +3830,32 @@ class Project:
         log.info("Duplicated %s into %s (%d files)", source.id, new_run.id,
                  sum(len(f) for _g, f, _s in plan))
         return new_run
+
+    def _copied_reports_name_the_new_run(self, source: Run, new_run: Run,
+                                         plan) -> None:
+        """The reports :meth:`duplicate_run` copied now name *new_run*, not
+        *source* (Knut, #182 C4: a report in a run is only related to that
+        run; `core.report_refs.duplicate_references_plan`). The copy is made
+        by then, so a failure is logged, never raised: the run is real."""
+        copied = [new_run.dir / src.relative_to(source.dir)
+                  for _g, files, _s in plan for src in files
+                  if src.suffix.lower() == ".json"
+                  and src.name.startswith("report_")]
+        if not copied:
+            return
+        try:
+            from core.report_refs import (apply_plan,
+                                          duplicate_references_plan,
+                                          project_names)
+            refs = duplicate_references_plan(
+                self.root, project_names(self.root, self.target_name),
+                copied, source.id, new_run.id)
+            if refs and not apply_plan(refs):
+                log.error("the reports copied into %s could not be pointed "
+                          "at it; they still name %s", new_run.id, source.id)
+        except Exception:                            # noqa: BLE001
+            log.warning("could not point the reports copied into %s at it",
+                        new_run.id, exc_info=True)
 
     def _discard_run(self, run: Run, *, just_created: bool = False) -> None:
         """Remove a run that was created but never became real.

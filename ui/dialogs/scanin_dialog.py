@@ -6843,11 +6843,14 @@ class ScannerProfileDialog(_ToolDialogBase):
         box.setText(title)
         box.setInformativeText("\n\n".join(entries))
         stop = box.addButton(tr("Stop"), QMessageBox.ButtonRole.RejectRole)
-        box.addButton(tr("Build anyway"), QMessageBox.ButtonRole.AcceptRole)
+        build = box.addButton(tr("Build anyway"),
+                              QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(stop)
         fit_message_box_buttons(box)
         box.exec()
-        if box.clickedButton() is stop:
+        # Only "Build anyway" builds; a box closed without an answer stops
+        # (review P_review2_beta1 W-1).
+        if box.clickedButton() is not build:
             self._stop_before_colprof()
             return False
         return True
@@ -6867,11 +6870,14 @@ class ScannerProfileDialog(_ToolDialogBase):
                 "the grid on its scan and build again. A profile built from "
                 "this read will be wrong."))
         stop = box.addButton(tr("Stop"), QMessageBox.ButtonRole.RejectRole)
-        box.addButton(tr("Build anyway"), QMessageBox.ButtonRole.AcceptRole)
+        build = box.addButton(tr("Build anyway"),
+                              QMessageBox.ButtonRole.AcceptRole)
         box.setDefaultButton(stop)
         fit_message_box_buttons(box)
         box.exec()
-        if box.clickedButton() is stop:
+        # Only "Build anyway" builds; a box closed without an answer stops
+        # (review P_review2_beta1 W-1).
+        if box.clickedButton() is not build:
             self._stop_before_colprof()
             return False
         return True

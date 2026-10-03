@@ -1746,7 +1746,8 @@ _I1_75_BASE: dict = dict(_I1_BASE, sscale=0.75, margin_right=4.0)
 def _i1_75_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                   patches: int, pages: int, white: int, black: int,
                   margin_right: float | None = None,
-                  margin_bottom: float | None = None) -> "_Ti1Preset":
+                  margin_bottom: float | None = None,
+                  helper_marker_per_patch: int | None = None) -> "_Ti1Preset":
     """One chart of Knut's 7.5 mm i1Pro family (see :data:`_I1_75_BASE`).
 
     The same shape as :func:`_i1_preset`; only the base recipe and the asset
@@ -1765,6 +1766,8 @@ def _i1_75_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                               if margin_right is not None else {}),
                            **({"margin_bottom": margin_bottom}
                               if margin_bottom is not None else {}),
+                           **({"helper_marker_per_patch": helper_marker_per_patch}
+                              if helper_marker_per_patch is not None else {}),
                            area_rows=rows),
     )
 
@@ -2355,12 +2358,21 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     # out 7.41 mm against the 7.49 these actually print — inside the ±0.5 mm
     # check meant to catch exactly this. See `_I1_75_BASE`.
 
+    # Renamed by Knut (#182 5943544919, 4.3.3-beta.1); the keys stay, so a
+    # person's shown/hidden choice and every run made from them stay too.
     _i1_75_preset("i1_w75_a4_162p_1page_portrait_w7_5mm",
-                  "A4-162p-1page-Portrait-w7.5mm",
+                  "A4-162p-1page-Portrait-w7.5mm-Uniform 5x5x5-Quarter Page",
                   "A4", 24, 27, 162, 1, 1, 1),
     _i1_75_preset("i1_w75_a4_324p_1page_portrait_w7_5mm",
-                  "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6",
+                  "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page",
                   "A4", 24, 27, 324, 1, 1, 1),
+    # NEW in 4.3.3-beta.1 (Knut, #182 5943544919): the same 324 patches spread
+    # over the full page, so a small i1Pro chart can answer every metric in
+    # "Which presets can be used for verification?". Its ruler marks every
+    # second patch where the rest of the family marks every fifth.
+    _i1_75_preset("i1_w75_a4_324p_1page_portrait_w15_0mm_uniform_6x6x6_full_page",
+                  "A4-324p-1page-Portrait-w15.0mm-Uniform 6x6x6-Full Page",
+                  "A4", 12, 27, 324, 1, 1, 1, helper_marker_per_patch=2),
     _i1_75_preset("i1_w75_a4_648p_1page_portrait_w7_5mm",
                   "A4-648p-1page-Portrait-w7.5mm-Uniform 6x6x6-Edge Emphasis",
                   "A4", 24, 27, 648, 1, 1, 1),
@@ -23817,6 +23829,9 @@ class TabChart(QWidget):
             if deferred is not None:
                 self._declare_after_rebuild = None
                 self._declare_control_strip(deferred)
+            # #137 decision 5: which calibration this run's chart was made
+            # with, read from the FINAL sidecar (after the guard above).
+            self._record_calibration_used(ti2)
             # Remember the .ti1 backing this chart so the Save Preset dialog can
             # offer to attach it.
             ti1 = tiffs[0].parent / f"{stem}.ti1"
@@ -23879,6 +23894,8 @@ class TabChart(QWidget):
                     title = (
                         "Chart Generation Failed (targen)"
                         if tool == "targen"
+                        else tr("The chart could not be built")
+                        if tool == "engine"
                         else "Chart Layout Failed (printtarg)"
                     )
                     InfoDialog(title, friendly, self, min_width=520).exec()
@@ -28660,6 +28677,44 @@ class TabChart(QWidget):
         except Exception as exc:  # noqa: BLE001
             log.warning("auto-tag randomised check failed for %s: %s",
                         ti2.name, exc)
+
+    def _record_calibration_used(self, ti2: Path) -> None:
+        """Fill ``RunMeta.calibration_used`` for a run's profiling chart.
+
+        Approved as decision 5 of ``calibration_run_type.md`` (2026-08-05)
+        and declared since, but never written, so every reader of it
+        (`_runs_built_on_calibration`, the profile description) only ever saw
+        "unknown". The value is the calibration's stem, as those readers
+        compare it; empty when the chart was built without one. Read from the
+        chart's own record (``printer_calibration`` in its sidecar), so it says
+        what this sheet was made with, not what the panel shows now. Runs only:
+        a calibration chart lives in ``cal/`` and a verification chart in
+        ``verifications/``, neither of which is the run's profiling chart.
+        """
+        try:
+            run_dir = Path(ti2).parent
+            if run_dir.parent.name != "runs":
+                return
+            side = Path(ti2).with_name(
+                Path(ti2).name[:-4] + ".channels.json")
+            rec = {}
+            if side.is_file():
+                rec = (json.loads(read_text(side)) or {}).get(
+                    "printer_calibration") or {}
+            if not isinstance(rec, dict) or "mode" not in rec:
+                return          # nothing recorded: leave "unknown" alone
+            name = str(rec.get("cal_name") or "")
+            stem = ""
+            if rec.get("mode") in ("apply", "include") and name:
+                stem = name[:-4] if name.lower().endswith(".cal") else name
+            from core.file_manager import Run
+            run = Run.for_dir(run_dir)
+            meta = run.load_meta()
+            if getattr(meta, "calibration_used", "") != stem:
+                meta.calibration_used = stem
+                run.save_meta(meta)
+        except Exception:  # noqa: BLE001 — metadata is non-essential
+            log.debug("could not record calibration_used", exc_info=True)
 
     def _stamp_chart_meta(self, ti2: Path) -> None:
         """Record instrument / paper AND the printtarg layout knobs in the run's

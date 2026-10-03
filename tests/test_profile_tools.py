@@ -523,11 +523,12 @@ def test_quality_report_still_uses_shared_writer(tmp_path):
 
 def test_verify_dialogs_route_reports():
     """Source tripwires: both Verify tools write via write_named_report into
-    reports_subdir next to the measurement."""
+    the reports folder of what owns the measurement (Knut, #182 B2; the
+    behaviour is proved in tests/test_182_b1_b2_inspection_names_and_owners.py)."""
     from pathlib import Path
     src = Path("ui/dialogs/tools_dialogs.py").read_text(encoding="utf-8")
     assert src.count("write_named_report") >= 2
-    assert src.count("reports_subdir(self._measured.parent)") == 2
+    assert src.count("ensure_subdir(reports_dir_for(self._measured))") == 2
     assert '"Verify_Profile"' in src and '"Verify_Reference"' in src
 
 

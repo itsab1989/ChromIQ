@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-10-02, #202 (Knut 5943245399): the Preferences row for the ColorMunki names every instrument the Instrument selection offers under it, "ColorMunki / i1Studio / ColorChecker Studio", which is three product names and the same in every language, so it is identical to its key everywhere: +1 per language, all thirteen, on purpose. The four other new #202 strings are translated in every catalogue. COUNTED off the tree with this file's own expression.
     # RE-MEASURED 2026-09-29, research/profile-engine (master merged into the engine-accuracy branch; NEVER on master): the quit-during-build question lost its em dash as a whole sentence, 1 key replaced by 1, translated by hand in every language (the branch's own translation, split where the English splits), so no count moves; the branch's -v4.icc row in the File guide is held back (it cost US Letter a sixteenth sheet). `uk` was added on master after the branch forked and never had the branch's 17 engine strings; translated by hand here, so the count stays at 77. COUNTED off the tree.
     # RE-MEASURED 2026-09-28, the 4.3.0 translation pass (every language translated, reviewed a second time and checked on screen; German's eight long help texts translated): the ceilings came DOWN from the hundreds to what is left identical on purpose (names, units, symbols, the verdict words), so a new untranslated string is noticed again. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-27, B8-1592 (Knut #182 5859248797): with every measurement unticked the red line says one must be ticked, 1 key in. German by hand, does not move; the twelve others carry the English under the beta rule: +1 per language. COUNTED off the tree, BOTH ledgers.
@@ -1503,18 +1504,19 @@ _IDENTICAL_TO_KEY = {
     # Dictionary entry, the presets button's tooltip). German by hand; each of
     # the twelve others keeps the English under the beta rule, so every count
     # is unchanged. COUNTED off the tree, BOTH ledgers in the same commit.
-    "de": 134,
-    "es": 116,
-    "fr": 138,
-    "it": 123,
-    "ja": 94,
-    "nl": 141,
-    "no": 123,
-    "pl": 118,
-    "pt": 116,
-    "ru": 89,
-    "sv": 127,
-    "zh_CN": 90,
+    # RE-MEASURED 2026-10-02, W review of 4.3.3-beta.3: "reports/Verify_Profile_N_{name}.txt" (Verify a profile makes no 3D map) is a bare path, identical to its key in every language, +1 each, all thirteen. COUNTED off the tree, BOTH ledgers.
+    "de": 136,
+    "es": 118,
+    "fr": 140,
+    "it": 125,
+    "ja": 96,
+    "nl": 143,
+    "no": 125,
+    "pl": 120,
+    "pt": 118,
+    "ru": 91,
+    "sv": 129,
+    "zh_CN": 92,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1543,7 +1545,12 @@ _IDENTICAL_TO_KEY = {
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
     # +3 on 2026-09-26 for beta 44 challenge 8, as every other language.
-    "uk": 77,
+    # +2 on 2026-10-02: "reports/Quality_Check_N_{name}.txt, reports/Refine_
+    # Strips_N_{name}.txt" and "reports/Verify_Reference_N_{name}.txt" are
+    # file paths and were wrongly translated as "звіти/", a folder that does
+    # not exist on disk (review W_review_beta3); they now equal their key, as
+    # they already did in every other language.
+    "uk": 81,
 }
 
 

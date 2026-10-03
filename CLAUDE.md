@@ -26,8 +26,14 @@ QT_QPA_PLATFORM=offscreen pytest --runslow -n auto  # THE RELEASE GATE, ~10,380 
 
 The suite is two-tiered: ~20 heavy end-to-end profile-build tests carry
 `@pytest.mark.slow` and are skipped by a plain `pytest` run; `--runslow`
-includes them. **Any merge/release decision requires a green `--runslow`
-run** — the everyday tier alone is not a gate.
+includes them. **Any merge decision requires a green `--runslow` run** — the
+everyday tier alone is not a gate. **A RELEASE (beta or stable) requires THREE
+CONSECUTIVE green `--runslow` gates on the final, version-bumped tree**, each
+`N passed` with no `failed`, exit 0 read from pytest itself (not through a
+pipe), and no source edit in between. This was the practice for months ("and
+then the three gates") but the text above said one; Basti asked on 2026-10-02
+whether it still held. One green run can hide an intermittent worker crash;
+three in a row is what this project has trusted.
 
 **THE SUITE PAINTS THROUGH FUSION, BECAUSE THE APP DOES.** `main.py:147` runs
 `app.setStyle(WinButtonLayoutStyle("Fusion"))` before it builds a window, on
@@ -296,6 +302,54 @@ projects get built twice per run. Tests copy what they use, because
 suite has alive — two tests that took 0.2 s alone cost 29 s inside a full run.
 Style the widget under test instead; it measures the same thing.
 
+## DISK HYGIENE: CHROMIQ WORK MUST NOT FILL THE DISK
+
+Basti, 2026-10-01: *"my hard drive used to be filling up significantly from
+working on this project and i was not able to completely free it up again. So
+i did a fresh install of macos."* The suite already cleans up after itself
+(see the sweep in `tests/conftest.py`); everything around it is on us:
+
+* **EVERY SESSION LEAVES THE DISK AS IT FOUND IT, EXCEPT FOR WHAT BASTI KEEPS.**
+  Basti, 2026-10-02: *"make sure to leave no unneccessary files on my hard
+  drive ... when i asked you to clean up after a session you never managed to
+  free up all the space you filled"*, and: *"never delete any personal data -
+  only what you added in a session that is considered not needed"*. So:
+  * the SessionStart hook (`.claude/settings.local.json`) saves a disk
+    baseline; the SessionEnd hook runs `scripts/session_cleanup.py --yes`,
+    which deletes ONLY our own tooling's leftovers (chromiq-* and pytest temp,
+    driver sandboxes, merged clean agent worktrees, the ending session's own
+    scratch) and reports the change since the baseline;
+  * its guard `is_ours` refuses any path outside those roots and names, even
+    if a bug listed it (`tests/test_session_cleanup_never_touches_personal_
+    data.py`). Never widen it to build/, dist/, /cores, the Desktop, ~/ChromIQ,
+    the Trash or snapshots: those can be Basti's, and are only REPORTED;
+  * before telling Basti a session is finished, run
+    `python3 scripts/session_cleanup.py` (dry run) and then `--yes`, and give
+    him the `--since-baseline` line in the final report. Do not wait for the
+    hook to discover what a session left;
+  * put scratch inside the session's scratchpad or report folder, never as new
+    folders elsewhere, so it is either cleaned or visibly kept.
+* **A TEST RUN KEEPS ITS TEMP FOLDERS IN ONE PLACE.** `tests/conftest.py::
+  _enter_the_run_temp` points `tempfile` at a `chromiq-run-*` folder per run,
+  removed when the run is green and kept (and named) when it is red. Before
+  it (2026-10-02) each gate left ~1.3 GB of loose `chromiq-*` folders for an
+  hour. A cache that must outlive a run goes through `_REAL_TEMP`
+  (`CHROMIQ_SUITE_REAL_TMP`), never `tempfile.gettempdir()`.
+* `python3 scripts/disk_report.py` lists every place ChromIQ work writes to,
+  with sizes and what is safe to remove; `--check` fails below 100 GB free or
+  above 25 GB held. The monitor runs it every cycle (MONITOR.md step 2c).
+* Drivers and agents put sandboxes, copied projects and screenshots INSIDE the
+  session's report folder on the Desktop (or the session scratchpad), never as
+  loose folders in `/tmp` or `$TMPDIR`, and delete their copied projects when
+  the round is over. Screenshots are evidence and stay.
+* A worktree is removed (`git worktree remove`) as soon as its branch is
+  merged; old PyInstaller `build/` and `dist/` output is not kept beyond the
+  last release.
+* Deleted files can stay on disk in APFS local snapshots until macOS purges
+  them, which is the likely reason freed space did not come back.
+  `disk_report.py` shows them; `tmutil thinlocalsnapshots / 999999999999 4`
+  asks macOS to purge.
+
 ## ON SCREEN IS THE DEFAULT. OFFSCREEN IS A FAILURE TO BE REPORTED.
 
 **Every check for a regression, and every piece of proof, is produced by driving
@@ -366,6 +420,43 @@ it again. It applies to this file's reader and to every agent briefed from it.
     makes this stick: a driver that aims `screencapture -R` or `-l` at a window
     itself fails the suite, and so does a helper that reaches for the screen
     before the window or reports a lock before waking it.
+
+* **A DRIVER BUILDS ITS QAPPLICATION LIKE THE APP DOES, OR MACOS 27 KILLS IT
+  AT THE FIRST QUESTION.** Measured 2026-10-02 on macOS 27.0.1: under a German
+  number locale a native `QMessageBox` aborts the process (SIGTRAP, CoreUI
+  `targetSizeInPoints` assertion), 5 of 5. The app is protected twice: its
+  stylesheet keeps Qt off the native box, and `core/numeric_locale.py` pins
+  `LC_NUMERIC` to "C" right after `QApplication()`. A bare driver has neither.
+  Use `scripts/capture_screens.build_app`, or call `pin_c_numeric_locale()`
+  right after constructing the QApplication. And start a `PopupWatchdog`
+  (`scripts/onscreen_capture.py`) so an unscripted question never hangs the
+  run.
+* **BASTI'S DISPLAY GOES TO SLEEP AFTER A WHILE (2026-10-02).** A sleeping
+  display is not a locked session, but a window on it can photograph as an
+  empty buffer. `capture_window` wakes it first (`wake_the_display`,
+  `caffeinate -u`) and every driver holds `keep_display_awake()` (built into
+  `capture_screens.build_app`): `caffeinate -d -w <driver pid>`, which ends by
+  itself with the driver, so his sleep setting works the rest of the time.
+  Never leave a display or system assertion running after a run.
+* **A DRIVER NEVER TAKES THE KEYBOARD FROM BASTI.** Basti, 2026-10-02:
+  *"when i am typing here and you bring the chromiq windows to the front i am
+  sometimes still typing while you make another window get focus"*. His
+  keystrokes landed in a window under test. `capture_window` no longer raises
+  or activates anything for the window-id capture (it works behind other
+  windows), so do not call `raise_()`/`activateWindow()` before photographing.
+  And use `onscreen_capture.FocusGiveBack` (built into
+  `capture_screens.build_app`): `remember()` before the QApplication,
+  `install(app)` after it, `give_back()` after showing the main window.
+  Measured 3/3 on screen (J_focus): the terminal keeps the keyboard except
+  for a 100 ms blink when the app raises itself. What did NOT work, so nobody
+  retries it: `WA_ShowWithoutActivating`, `AA_PluginApplication`, the
+  Accessory policy (all still took focus), the Prohibited policy (the window
+  is then never on screen), and handing focus back from a background thread
+  (refused; macOS gave it to Finder).
+* **A SCRATCH FILE NAMED LIKE A STDLIB MODULE BREAKS EVERY SCRIPT BESIDE IT.**
+  A probe called `bisect.py` in a report folder shadowed Python's `bisect`, so
+  the app failed to import next to it and a batch of runs measured nothing.
+  Name scratch files after what they test, and log every run you count.
 
 The sandbox rules in the next section are how you do this SAFELY. They are not
 an alternative to doing it.
@@ -441,6 +532,7 @@ Every project is a folder under `~/ChromIQ/<target-name>/` owned by the
   runs/run1/, run2/, …     # one folder per profile build
     <target-name>.*        # chart.ti1/.ti2/.cht/.ps/.channels.json + _NN.tif
     <target-name>.ti3      # the measurement (chartread output; averaged result reuses this stem)
+    <target-name>.confirmed.json  # #182 K4: patches a re-read confirmed (yellow), valid only for the .ti3 whose sha256 it holds; -verify.confirmed.json beside a dated verification
     <target-name>.icc      # the profile (colprof output)
     reads/readN.ti3        # role-named, only when averaging is used
     reports/               # #127: Quality_Check_N/Refine_Strips + report_*.json

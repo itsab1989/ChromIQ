@@ -273,6 +273,11 @@ class MeasureManager(QObject):
     #: instrument hands back the whole strip at once, so this and strip_measured
     #: are the only two moments from which reading pace can be judged at all.
     scan_started               = pyqtSignal()
+    #: the instrument is ready and sampling: the moment Argyll beeps, about
+    #: 0.7 s after the button on an i1Pro (200 ms + 0.5 s lamp warm-up). A
+    #: strip is timed from here (Knut, #202 5943245399); scan_started stays
+    #: the fallback for a device that never sends it.
+    scan_ready                 = pyqtSignal()
     #: the model the instrument reported when it was opened, e.g.
     #: "X-Rite i1 Pro2" — Argyll distinguishes the i1Pro generations, which a
     #: chart's TARGET_INSTRUMENT does not (#131 Phase 2)
@@ -318,6 +323,17 @@ class MeasureManager(QObject):
         # Queued key dispatched once chartread returns to the strip menu after
         # a misread retry — see send_post_retry_key().
         self._pending_post_retry_key: str | None = None
+        #: The strip the engine has just reported read, until its menu comes
+        #: back — see _move_on_after_a_read. Any command sent in between (a
+        #: window's "read it again", a click on another strip, guided
+        #: refinement) clears it, because then the next strip has been chosen.
+        self._just_read_strip: str | None = None
+        #: The move to the next strip, held while a question window is open.
+        self._held_next_strip: str | None = None
+        #: Asked before moving on by itself: True while a window is asking the
+        #: user something (Strip Read Quickly, Strip may be misaligned …), whose
+        #: answer may be "read this strip again". Set by the Measure tab.
+        self._question_open: "Callable[[], bool] | None" = None
         #: True while the wrong-dial-position window is on screen, so the
         #: two lines chartread prints for it raise one window, not two.
         self._sensor_warning_open: bool = False
@@ -398,6 +414,8 @@ class MeasureManager(QObject):
         #: chartread has re-announced the strip we are waiting on, so its
         #: menu is already up and no further event is coming.
         self._guided_menu_pending = False
+        self._just_read_strip = None
+        self._held_next_strip = None
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
         self._engine_active = params.engine_helper is not None
@@ -809,7 +827,99 @@ class MeasureManager(QObject):
         # on. Clearing here (and in send_key, which routes through this on the
         # engine) means the flag can never outlive the prompt it describes.
         self._at_unread_prompt = False
+        # Whatever is sent now decides where the reader goes next, so the
+        # automatic move after a read (see _move_on_after_a_read) stands down.
+        self._just_read_strip = None
+        self._held_next_strip = None
         self._runner.write_stdin(_json.dumps(cmd) + "\n")
+
+    # ------------------------------------------------------------------
+    # Moving on after a read (Knut, #182 5956210745)
+    # ------------------------------------------------------------------
+
+    def set_question_probe(self, probe: "Callable[[], bool] | None") -> None:
+        """Tell the manager how to ask whether a question window is open."""
+        self._question_open = probe
+
+    def _next_strip_after(self, strip: str) -> "str | None":
+        """The chart's strip after *strip*, or None when it is the last."""
+        labels = [str(s.get("strip", "")).strip()
+                  for s in (self._session_strips or [])]
+        labels = [x for x in labels if x]
+        try:
+            i = labels.index(strip)
+        except ValueError:
+            return None
+        return labels[i + 1] if i + 1 < len(labels) else None
+
+    def _move_on_after_a_read(self, strip: str, all_done_news: bool) -> None:
+        """After a strip is read, put the reader on the strip after it.
+
+        THE ENGINE STAYS PUT ON A CHART THAT IS ALREADY COMPLETE, AND THAT IS
+        CHARTREAD'S OWN RULE, NOT OURS. After a good read it "skips to the next
+        unread" (`incflag = 2`, chromiq_chartread.c, the end of the strip loop,
+        exactly as in ArgyllCMS's chartread.c), and that search goes once round
+        the chart and stops where it started when nothing is unread. So on a
+        resumed or re-read chart every strip that is read comes straight back
+        as `strip_ready` for the SAME strip, and the preview arrows, which
+        follow `strip_ready`, never moved. Knut, #182 5956210745: *"When
+        measurement of a strip is completed, the focus should jump to the next
+        strip after the one I completed … unless warning messages pop up where
+        I am asked if I want to retry."* Measured with the real helper on its
+        replay instrument: fresh reads go A→B→C, re-reads of A, B and C on the
+        complete chart each re-arm the strip just read.
+
+        Only that case is acted on. Where the engine moved by itself (a chart
+        with strips still unread) it already chose, and that is left alone.
+        Not on the last strip (there is no strip after it), not when the
+        completion window is about to open, not under guided refinement, which
+        steers on its own, and not once anything else has been sent since the
+        read: a window's "read it again" and a click on another strip both
+        arrive as commands and clear `_just_read_strip`. While a question
+        window is still open the move is held, and the tab releases it when
+        the window closes (see :meth:`release_held_strip_move`).
+        """
+        just_read = self._just_read_strip
+        self._just_read_strip = None
+        strip = str(strip or "").strip()
+        if not just_read or not self._engine_active or self._spot_mode:
+            return
+        if strip != just_read or all_done_news:
+            return
+        if self._guided_state not in ("idle_done", "disabled"):
+            return
+        if self._pending_post_retry_key is not None:
+            return
+        target = self._next_strip_after(strip)
+        if target is None:
+            return
+        probe = self._question_open
+        if probe is not None and probe():
+            self._held_next_strip = target
+            return
+        log.info("strip %s read; moving the reader on to strip %s",
+                 strip, target)
+        self.goto_strip(target)
+
+    def release_held_strip_move(self) -> None:
+        """Make the move to the next strip that a question window held back.
+
+        Called by the tab once its last measurement window has closed. If the
+        answer was "read it again", that answer was sent as a command and has
+        already cleared the held move, so nothing happens here.
+        """
+        target = self._held_next_strip
+        if target is None:
+            return
+        probe = self._question_open
+        if probe is not None and probe():
+            return                      # another window is still asking
+        self._held_next_strip = None
+        if not self._engine_active or not getattr(self._runner, "is_running",
+                                                   True):
+            return
+        log.info("question answered; moving the reader on to strip %s", target)
+        self.goto_strip(target)
 
     def goto_strip(self, strip: str) -> None:
         """Jump the engine directly to `strip` (engine mode only)."""
@@ -1225,6 +1335,15 @@ class MeasureManager(QObject):
                 # and they have to raise their window here too — this parser is
                 # the only one that runs in engine mode (Knut, beta.141).
                 self._check_startup_failures(line)
+                # Argyll's verbose header, which the helper prints as prose
+                # BEFORE its JSON "instrument" event. Only this line says
+                # "Plus" for an i1Pro 3 Plus (i1pro3_imp.c:927); the event
+                # carries inst_name() without it, so without reading this the
+                # engine timed a 3 Plus against the plain 3 (#202). The tab
+                # keeps the more specific of the two reports.
+                m = _INST_TYPE_RE.search(line)
+                if m:
+                    self.instrument_detected.emit(m.group(1).strip())
                 # …and the notes it prints about settings the instrument
                 # dropped, for the same reason: the user is told either way.
                 self._check_informational(line)
@@ -1319,8 +1438,12 @@ class MeasureManager(QObject):
             # come! Missing."* — with only the log line to show for it.
             self._sensor_warning_open = False
             self.stripe_changed.emit(strip)
-            if ev.get("all_done") and self._all_done_is_news():
+            news = bool(ev.get("all_done")) and self._all_done_is_news()
+            if news:
                 self.all_stripes_done.emit()
+            # On a complete chart the engine re-arms the strip it has just
+            # read; move on to the next one (Knut, #182 5956210745).
+            self._move_on_after_a_read(strip, news)
             # Save-Partial no longer routes through the strip menu: it is two
             # 'q' commands (see send_save_partial_and_quit), which is the
             # sequence Knut verified by hand. Only the post-retry key is left.
@@ -1335,7 +1458,16 @@ class MeasureManager(QObject):
             # The instrument has fired: the swipe starts NOW (#131). In strip
             # mode this is the only true start time — `strip_ready` arrives
             # while the user is still lining the head up.
+            # A swipe already under way is on the strip the user chose, so a
+            # move held behind a question window is no longer wanted.
+            self._held_next_strip = None
             self.scan_started.emit()
+
+        elif kind == "scan_ready":
+            # The driver's ready-to-scan moment, the beep (#202). Emitted by
+            # the engine's event callback on Argyll's helper thread, after the
+            # lamp has warmed up: this is when sampling starts.
+            self.scan_ready.emit()
 
         elif kind == "strip_read":
             self._engine_progress = True
@@ -1360,6 +1492,11 @@ class MeasureManager(QObject):
             _patches = ev.get("patches")
             self._readings_count += (len(_patches) if isinstance(_patches, list)
                                      else int(_patches or 1))
+            # Before the emit: the tab answers it with modal windows whose
+            # nested event loop can deliver the following strip_ready first.
+            # A strip read under guided refinement is steered by that instead.
+            self._just_read_strip = (
+                _s if self._guided_state in ("idle_done", "disabled") else None)
             self.strip_measured.emit(ev)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")

@@ -846,3 +846,88 @@ def test_window_id_for_asks_again_until_the_server_has_placed_the_popup(
     calls.update(n=0, placed_on=1)
     assert mod.window_id_for(box) == 22
     assert calls["n"] == 1
+
+
+# ---- Basti, 2026-10-02: a driver must not take the keyboard from him ----------
+
+def test_the_window_id_capture_does_not_bring_the_window_to_the_front():
+    """raise_()/activateWindow() pulled his typing into ChromIQ. Only the
+    rectangle fallback needs the window on top, so only it may raise it."""
+    import inspect
+
+    from scripts import onscreen_capture as oc
+    src = inspect.getsource(oc.capture_window)
+    first_id_capture = src.index("wid = window_id_for(win)")
+    assert "win.raise_()" not in src[:first_id_capture]
+    assert "win.activateWindow()" not in src[:first_id_capture]
+    assert "win.raise_()" in src[src.index("g = win.frameGeometry()") - 400:], \
+        "the rectangle fallback still needs the window on top"
+
+
+def test_focus_give_back_never_acts_without_a_previous_app():
+    from scripts.onscreen_capture import FocusGiveBack
+    f = FocusGiveBack()
+    assert f.give_back() is False
+
+
+def test_capture_screens_remembers_the_frontmost_app_before_the_qapplication():
+    import ast
+    from pathlib import Path
+    tree = ast.parse((Path(__file__).resolve().parent.parent / "scripts" /
+                      "capture_screens.py").read_text(encoding="utf-8"))
+    fn = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "build_app")
+    calls = sorted((n for n in ast.walk(fn) if isinstance(n, ast.Call)),
+                   key=lambda n: (n.lineno, n.col_offset))
+    names = [c.func.attr if isinstance(c.func, ast.Attribute) else getattr(c.func, "id", "")
+             for c in calls]
+    assert names.index("remember") < names.index("QApplication") < names.index("install")
+
+
+# ---- Basti, 2026-10-02: his display now sleeps after a while ------------------
+
+def test_a_sleeping_display_is_woken_before_a_capture(monkeypatch, tmp_path):
+    from scripts import onscreen_capture as oc
+    calls = []
+    monkeypatch.setattr(oc, "session_is_locked", lambda: False)
+    monkeypatch.setattr(oc, "keep_display_awake", lambda: calls.append("keep"))
+    monkeypatch.setattr(oc, "display_is_asleep", lambda: True)
+    monkeypatch.setattr(oc, "wake_the_display", lambda: (calls.append("wake") or (False, "test")))
+
+    class _Win:                       # never reached: the wake fails first
+        pass
+    ok, why = oc.capture_window(_Win(), tmp_path / "x.png")
+    assert not ok and "asleep" in why
+    assert calls == ["keep", "wake"]
+
+
+import sys as _sys  # noqa: E402
+
+
+@pytest.mark.skipif(_sys.platform != "darwin", reason="caffeinate is macOS")
+def test_the_keep_awake_assertion_ends_with_the_driver():
+    """It must never outlive the run, or Basti's display would never sleep."""
+    import subprocess
+    import time
+    from pathlib import Path
+    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    child = subprocess.run(
+        [_sys.executable, "-c",
+         f"import sys,os,time; sys.path.insert(0, {str(scripts)!r}); "
+         "import onscreen_capture as oc; p = oc.keep_display_awake(); "
+         "assert p is oc.keep_display_awake(); print(p.pid); time.sleep(0.3)"],
+        capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert child.returncode == 0, child.stderr
+    import os
+    caffeinate = int(child.stdout.strip())     # the assertion's own process
+    deadline = time.time() + 10
+    alive = True
+    while time.time() < deadline:
+        try:
+            os.kill(caffeinate, 0)
+        except ProcessLookupError:
+            alive = False
+            break
+        time.sleep(0.25)
+    if alive:
+        os.kill(caffeinate, 15)                 # never leave it behind
+    assert not alive, "caffeinate -d outlived the driver"

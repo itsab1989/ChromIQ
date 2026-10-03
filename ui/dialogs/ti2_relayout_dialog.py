@@ -686,6 +686,10 @@ class _RegenWorker(QThread):
                  *, options=None, basename="chart", with_twin=True,
                  dpi_override=None):
         super().__init__()
+        # numpy's OpenBLAS needs more than a QThread's 512 KiB (Knut #182
+        # 5956290893: Bus error in numpy.linalg.solve). core/thread_stack.py
+        from core.thread_stack import roomy
+        roomy(self)
         self._args = (spec, program, out_dir, bin_dir, palette, options,
                       basename, with_twin, dpi_override)
 

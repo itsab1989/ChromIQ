@@ -4,8 +4,12 @@ A ``.cal`` is a CGATS ``CAL`` table: a shared input axis (``RGB_I``, 0–1) plus
 one calibrated-output column per device channel (e.g. ``RGB_R RGB_G RGB_B``),
 typically 256 rows.  printtarg can:
 
-* ``-K`` **apply** the curves to each patch's device values *and* embed the
-  table in the ``.ti2``;
+* ``-K`` **apply** the curves to the colour each patch is PRINTED with (the
+  page TIFF / PostScript) *and* embed the table in the ``.ti2``. The ``.ti2``'s
+  own device values stay uncalibrated: printtarg writes them from
+  ``cols[i].dev`` and calibrates only a local ``cdev`` in ``tiff_setcolor`` /
+  ``ps_setcolor``. chartread copies them into the ``.ti3``, so the profile is
+  of the calibrated device and ``applycal`` folds the curves in exactly once;
 * ``-I`` **embed** the table without applying it.
 
 This module reads the table, applies it (per-channel linear interpolation,
@@ -37,10 +41,9 @@ class Calibration:
     def apply(self, device: tuple[float, ...]) -> tuple[float, ...]:
         """Map device values (0–100) through the per-channel curves (0–100).
 
-        Per-channel linear interpolation of the LUT.  This is **self-consistent**
-        (the TIFF and ``.ti2`` are calibrated identically, so the measured chart
-        is valid), and for an identity ``.cal`` it matches ``printtarg -K``
-        exactly.  It is *not* bit-identical to printtarg for non-trivial cals
+        Per-channel linear interpolation of the LUT, used for the printed
+        pixels only (never the ``.ti2``). For an identity ``.cal`` it matches
+        ``printtarg -K`` exactly.  It is *not* bit-identical to printtarg for non-trivial cals
         across every colorspace (Argyll applies cals in the native device space
         with its own interpolation); for printtarg-exact ``-K`` output, delegate
         to ArgyllCMS.  Used for additive-RGB printers (ChromIQ's target).
@@ -86,16 +89,99 @@ def cal_table_text(cal: Calibration) -> str:
     return cal.raw_text.strip() + "\n"
 
 
+def colour_space_name(color_rep: str) -> str:
+    """A person's name for a CGATS ``COLOR_REP``: ``iRGB`` and ``RGB`` are
+    both "RGB" (the ``i`` is Argyll's print-RGB flag, not another set of
+    inks), a one-channel grey is "grey", everything else is its own letters
+    (``CMYK``, ``CMY``, ``CMYKOG`` …)."""
+    rep = (color_rep or "").split("_")[0].strip()
+    if rep.startswith("i") and len(rep) > 1:
+        rep = rep[1:]
+    if rep.upper() in ("W", "K", "GRAY", "GREY"):
+        from core.i18n import tr
+        return tr("grey")
+    return rep or "?"
+
+
+class CalibrationMismatch(ValueError):
+    """The calibration is for other inks than the chart (#182 5956560815).
+
+    ``printtarg`` refuses this for ``-K`` AND ``-I`` alike ("Calibration
+    colorspace CMYK doesn't match .ti1 iRGB", measured against 3.5.0), and
+    the engine does the same, so a CMYK calibration can never be printed
+    into, or recorded in, an RGB chart. ``str()`` stays the short technical
+    line for the log; :meth:`friendly` is what a person is shown.
+    """
+
+    def __init__(self, cal_rep: str, chart_rep: str,
+                 cal_fields: list[str], chart_fields: list[str]):
+        self.cal_rep, self.chart_rep = cal_rep, chart_rep
+        self.cal_fields, self.chart_fields = list(cal_fields), list(chart_fields)
+        super().__init__(
+            f"the calibration is {cal_rep} ({' '.join(cal_fields)}), the "
+            f"chart is {chart_rep} ({' '.join(chart_fields)})")
+
+    def friendly(self) -> str:
+        return calibration_mismatch_message(self.cal_rep, self.chart_rep)
+
+
+def calibration_mismatch_message(cal_rep: str, chart_rep: str) -> str:
+    """What the window says when a calibration and a chart do not match.
+
+    One text for both layout routes: the engine raises
+    :class:`CalibrationMismatch`, and printtarg's own refusal is recognised
+    in ``chart_creator`` and reworded with this.
+    """
+    from core.i18n import tr
+    return tr(
+        "The calibration file was made for a {cal_space} chart, but the patch "
+        "set you are building is {chart_space}. A calibration can only be "
+        "applied to (-K) or embedded in (-I) a chart with the same inks, so "
+        "the chart was not built.\n\n"
+        "To use this calibration, set “Device Type” in the targen settings to "
+        "{cal_space} and press Generate Chart again. A new profiling run starts "
+        "on the default Device Type, not on the one the calibration chart was "
+        "made with, so check it there.\n\n"
+        "To build this {chart_space} chart without the calibration, set the "
+        "printer calibration to “None”."
+    ).format(cal_space=colour_space_name(cal_rep),
+             chart_space=colour_space_name(chart_rep))
+
+
+def check_matches(target, cal: Calibration) -> None:
+    """Raise :class:`CalibrationMismatch` unless *cal* is for *target*'s inks.
+
+    The test is the device columns themselves (``CMYK_C CMYK_M CMYK_Y
+    CMYK_K`` against the ``.ti1``'s), in order: they are what
+    :meth:`Calibration.apply` pairs up, and they are named the same way in
+    both files by Argyll. Argyll's own test is the ``COLOR_REP``, which also
+    tells print RGB (``iRGB``) from video RGB (``RGB``); the engine has always
+    accepted an RGB calibration on either, and keeps doing so, because the
+    numbers mean the same channels.
+
+    Only the colorant after the ``_`` is compared. The prefix is the file's
+    own colour-space word and Argyll does not spell it the same way in both
+    files for every device: a grey ``.ti1`` names its channel ``GRAY_K``
+    (``GRAY_W`` for video grey) while the ``.cal`` printcal / synthcal write
+    for it names the same channel ``K_K`` (``W_W``). printtarg accepts that
+    pair; comparing whole field names refused every grey calibration.
+    """
+    def _inks(fields) -> list[str]:
+        return [str(f).rsplit("_", 1)[-1] for f in fields]
+
+    if _inks(cal.out_fields) != _inks(target.device_fields):
+        raise CalibrationMismatch(cal.color_rep, target.color_rep,
+                                  cal.out_fields, target.device_fields)
+
+
 def apply_to_target(target, cal: Calibration):
     """Return a copy of a :class:`ColorTarget` with device values calibrated.
 
-    Used for ``-K`` (apply): the TIFF and ``.ti2`` are calibrated identically,
-    keeping the printed chart and its measurement file self-consistent.
+    Used for ``-K`` (apply), for what is PRINTED only: the page raster. The
+    ``.ti2`` is written from the uncalibrated target, as printtarg does, or
+    the profile describes the raw printer and ``applycal`` calibrates twice.
     """
     from dataclasses import replace
-    if cal.n_channels != len(target.device_fields):
-        raise ValueError(
-            f"calibration has {cal.n_channels} channels, target has "
-            f"{len(target.device_fields)}")
+    check_matches(target, cal)
     new_patches = [(cal.apply(dev), xyz) for dev, xyz in target.patches]
     return replace(target, patches=new_patches)

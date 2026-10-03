@@ -252,6 +252,19 @@ def calibration_instructions_html(family: "str | None") -> str:
         "strips.")
 
 
+def _WAIT_FOR_THE_BEEP() -> str:
+    """When to start sliding (Knut, #202 5951426710: the Calibration Complete
+    window of an i1Pro 2 "does not mention to start sliding after the beep is
+    heard"). The i1Pro, i1Pro 3 and ColorMunki drivers announce the moment the
+    strip reading starts with the beep (``issue_scan_ready`` in ArgyllCMS
+    3.5.0), and ChromIQ times each strip from it (Preferences > Measurement,
+    "When the clock starts")."""
+    return tr("<b>Start sliding when you hear the beep.</b> After the press the "
+              "instrument needs a moment before it starts reading (an i1Pro "
+              "first warms up its lamp), and the reading starts with the beep, "
+              "so a strip is timed from the beep, not from the press.")
+
+
 def measurement_instructions_html(family: "str | None") -> str:
     """The measurement-position instruction for an instrument *family* — how to
     physically place and read a strip. Generic for SpectroScan / unknown."""
@@ -261,7 +274,7 @@ def measurement_instructions_html(family: "str | None") -> str:
             "aperture icon). Rest the device flat on the paper with the lens at "
             "the <b>start of the strip</b>, then <b>press and hold the side "
             "button</b> and slide the whole device smoothly along the strip at "
-            "a steady pace.")
+            "a steady pace.") + "<br><br>" + _WAIT_FOR_THE_BEEP()
     if family == "cr30":
         return tr(
             "<b>Take the magnetic cap off first.</b> With the cap (or any "
@@ -277,7 +290,7 @@ def measurement_instructions_html(family: "str | None") -> str:
             "Take the i1Pro off its base. Place it flat at the <b>start of the "
             "strip</b> (on the lead-in, just before the first patch), press and "
             "<b>hold the button</b>, and slide it smoothly along the whole strip "
-            "at an even speed.")
+            "at an even speed.") + "<br><br>" + _WAIT_FOR_THE_BEEP()
     return tr(
         "Place your instrument at the <b>start of the strip</b> and scan it as "
         "described in its manual.")

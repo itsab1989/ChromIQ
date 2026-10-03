@@ -7,7 +7,7 @@ marked  << EDIT >>  and leave the rest as-is.
 
 ------------------------------------------------------------------------
 << EDIT >>  ISSUES TO WATCH  (repo itsab1989/ChromIQ):
-    #130, #131, #133
+    #182, #202   (Basti, 2026-10-01: only these two; earlier #130/#131/#133 retired)
 
 << EDIT >>  USERS TO LISTEN TO  (GitHub usernames):
     - soul-traveller   (Knut)          -> always act on their comments
@@ -57,8 +57,12 @@ WHAT I WANT YOU TO DO
        /hooks to approve it for THIS session; otherwise it becomes
        active from the next session." Then continue with step 1.
 
-1. Kick off a recurring check: set up a repeating ~15-minute monitor (and
-   run the first check immediately). The monitor is session-only, so if
+1. Kick off a recurring check: start the 90-second comment watcher
+   (Basti, 2026-10-02: "check for comments more often like every 1,5
+   minutes") with the Monitor tool running
+   `python3 .claude/hooks/watch_comments.py` (re-arm it whenever it
+   expires), keep the ~15-minute cron as the fallback that re-arms it, and
+   run the first check immediately. The monitor is session-only, so if
    the session restarts, re-arm it, run BOOTSTRAP step 0, and load state
    from .claude/monitor_state.json (primary). Use memory
    project_resume_instructions only as fallback if the file is missing.
@@ -85,6 +89,15 @@ WHAT I WANT YOU TO DO
        i18n placeholders, refactors, known bugs) and every item you could
        not finish in an earlier cycle.
 
+2c. DISK SCAN (Basti, 2026-10-01: the disk filled up during this work
+       and ended in a fresh macOS install). Run
+           python3 scripts/disk_report.py --check
+       If it fails, free the DELETABLE leftovers it lists BEFORE starting a
+       gate or a driver, and say so in the cycle report. Rows marked (kept)
+       are not an agent's to delete (evidence, transcripts, the running
+       session's scratch, Time Machine snapshots: Basti decides), and nothing
+       in the user's own folders or projects is ever touched.
+
 3. WORK THE TO-DO LIST FIRST. If the TO-DO SCAN found any open item, finish
    it in this cycle — all of them, not just the top one — using the phased
    engineering method below, including tests and the full suite. Only mark
@@ -105,7 +118,7 @@ WHAT I WANT YOU TO DO
 
 4. If NO watched issue has a new qualifying comment AND the OPEN TO-DO LIST
    is empty, reply exactly ONE line:
-       "#130 + #131 + #133: no new comments, no open to-dos as of <UTC time>"
+       "#182 + #202: no new comments, no open to-dos as of <UTC time>"
    (list your actual watched issues) and STOP for that check.
 
 5. If a NEW qualifying comment appears: READ it in full — including anything
@@ -142,8 +155,9 @@ HOW TO WORK  (standing rules)
   confirmation from Knut or me.
 - Add unit tests for code changes. Keep i18n English placeholders during
   beta; do the full 12-language translation before a final/GA release.
-- Run the FULL suite (QT_QPA_PLATFORM=offscreen pytest --runslow) green
-  before any release.
+- Run the FULL suite (QT_QPA_PLATFORM=offscreen pytest --runslow -n auto)
+  green THREE TIMES IN A ROW on the final, version-bumped tree before any
+  release (CLAUDE.md, Basti 2026-10-02).
 - Frame every GitHub issue comment you post as an automated AI update;
   never imply a human authorised it.
 - You have standing permission to run the app on screen when that helps you

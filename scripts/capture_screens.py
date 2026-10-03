@@ -167,11 +167,29 @@ def patch_loaders() -> None:
 
 
 def build_app():
+    # Remember who has the keyboard BEFORE the app exists, and hand it back
+    # whenever the app takes it (onscreen_capture.FocusGiveBack): a driver must
+    # never pull Basti's typing into a ChromIQ window.
+    try:
+        from onscreen_capture import FocusGiveBack
+    except ImportError:            # imported as scripts.capture_screens
+        from scripts.onscreen_capture import FocusGiveBack
+    focus = FocusGiveBack().remember()
     app = QApplication(sys.argv)
+    app._chromiq_focus_give_back = focus.install(app)
+    # Basti's display sleeps after a while: keep it awake for THIS run only.
+    try:
+        from onscreen_capture import keep_display_awake
+    except ImportError:
+        from scripts.onscreen_capture import keep_display_awake
+    keep_display_awake()
     app.setApplicationName("ChromIQ")
     # as main() does (B8-1392): the collector runs from the event loop
     from core.gc_guard import install_gui_thread_collector
     install_gui_thread_collector(app)
+    # as main() does: macOS 27 native message boxes abort under de_DE numbers
+    from core.numeric_locale import pin_c_numeric_locale
+    pin_c_numeric_locale()
     for fp in resource_path("assets/fonts").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(fp))
     app.setStyle(WinButtonLayoutStyle("Fusion"))

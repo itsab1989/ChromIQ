@@ -50,6 +50,11 @@ BETA47_PHARMACIST = json.loads(
 V431_PHARMACIST = json.loads(
     (ROOT / "tests/data/b8_1590_pharmacist_geometry_431.json").read_text(
         encoding="utf-8"))
+#: Knut's 7.5 mm "Full Page" chart (#182 5943544919), from the 4.3.3-beta.1 code
+#: that first ships it.
+V433_FULL_PAGE = json.loads(
+    (ROOT / "tests/data/b8_1590_geometry_433_beta1.json").read_text(
+        encoding="utf-8"))
 
 #: The presets Knut's ruling moves away from beta 44, named one by one so a
 #: preset cannot join or leave the list without this file changing.
@@ -97,8 +102,10 @@ def _laid_out(p) -> dict:
 def test_every_built_in_engine_preset_is_in_the_snapshot(qapp):
     assert set(_presets()) == (set(BETA44["presets"])
                                | set(BETA47_PHARMACIST["presets"])
-                               | set(V431_PHARMACIST["presets"]))
+                               | set(V431_PHARMACIST["presets"])
+                               | set(V433_FULL_PAGE["presets"]))
     assert len(BETA44["presets"]) >= 170
+    assert len(V433_FULL_PAGE["presets"]) == 1
     assert len(BETA47_PHARMACIST["presets"]) == 9
     assert len(V431_PHARMACIST["presets"]) == 5
     assert not set(BETA44["presets"]) & set(BETA47_PHARMACIST["presets"])
@@ -118,6 +125,13 @@ def test_the_431_pharmacist_charts_lay_out_as_in_4_3_1(qapp):
     wrong = sorted(k for k, want in V431_PHARMACIST["presets"].items()
                    if _laid_out(presets[k]) != want)
     assert not wrong, wrong[:5]
+
+
+def test_the_433_full_page_chart_lays_out_as_in_4_3_3_beta_1(qapp):
+    presets = _presets()
+    wrong = sorted(k for k, want in V433_FULL_PAGE["presets"].items()
+                   if _laid_out(presets[k]) != want)
+    assert not wrong, wrong
 
 
 def test_the_photo_card_snapshot_holds_exactly_the_named_presets():

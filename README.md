@@ -35,7 +35,7 @@ so you never have to memorise a single flag.
 > **What is new in 4.3**: the
 > [Measurement Report](#measurement-report-new-in-43) with six report types,
 > limit sets that include the published values of ISO 12647-7 and ISO 12647-8,
-> evenness across the sheet, trend graphs and PDF reports; 188 built-in chart
+> evenness across the sheet, trend graphs and PDF reports; 189 built-in chart
 > presets (154 in 4.2) with a gear button to choose which are listed; and
 > ChromIQ complete in 14 languages, Ukrainian among them. The full list is in
 > the [release notes](https://github.com/itsab1989/ChromIQ/releases/latest).
@@ -209,7 +209,7 @@ Choose Guided or Manual, name your target, and click **Generate Chart**. The
 patch grid appears in the preview on the right. Optionally tick **Refinement
 profile** to base a second, improved pass on an existing `.icc`/`.icm`.
 
-Or start from one of **188 ready-made chart presets** (154 in 4.2), grouped by
+Or start from one of **189 ready-made chart presets** (154 in 4.2), grouped by
 instrument: ColorMunki / i1Studio / ColorChecker Studio, i1Pro / i1Pro 2 /
 i1Pro 3, i1Pro 3 Plus, CR30, scanner, and Red River Paper.
 

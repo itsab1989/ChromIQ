@@ -3,7 +3,10 @@ it is BOTH above the absolute floor AND an outlier within its own strip (Tukey
 fence). This stops a good print being flagged almost everywhere against sRGB
 (vivid patches legitimately sit at 30-40+ ΔE), while still catching a genuine
 single-patch misread. See #49 (Nelson/pharmacist)."""
-from ui.tabs.tab_measure import _strip_outlier_fence, _PATCH_WARN_DE
+from ui.tabs.tab_measure import _strip_outlier_fence
+# #182: the floor is two numbers now; the lower (a chart made from a profile)
+# is the one these fence cases were written around.
+from workflow.patch_flags import ACCURATE_DEFAULT_DE as _PATCH_WARN_DE
 
 
 def _flags(des, floor=_PATCH_WARN_DE):

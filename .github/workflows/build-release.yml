@@ -81,6 +81,33 @@ jobs:
         if: matrix.arch == 'universal2'
         run: pip3 install --quiet 'imagecodecs==2025.11.11'
 
+      # numpy 2.4 raised its x86 baseline to x86-64-v2 (SSE4.2, POPCNT), so the
+      # x86_64 half of a 2.4+ build dies at `import numpy` on a pre-2010 Intel Mac
+      # (Core 2, discussion #201). The lipo step below fetches the x86_64 wheel
+      # of whatever version is installed here, so pin it before that step. The
+      # arm64 DMG and the Windows and Linux builds keep the newest numpy.
+      - name: Pin numpy below 2.4 for old Intel Macs (universal2 only)
+        if: matrix.arch == 'universal2'
+        run: pip3 install --quiet 'numpy>=1.24.0,<2.4.0'
+
+      # The app declares LSMinimumSystemVersion 13.0 (ChromIQ.spec), but pip on
+      # this macOS 14 runner picks numpy's macosx_14_0 arm64 wheel (the
+      # Accelerate build), so numpy's arm64 half required macOS 14: measured on
+      # the v4.3.2 DMG with scripts/check_bundle_min_macos.py. Reinstall the
+      # SAME version from its macosx_11_0 arm64 wheel, which carries its own
+      # OpenBLAS (collected by ChromIQ.spec). Both jobs ship an arm64 numpy.
+      - name: Use numpy's macOS 11 arm64 wheel (min macOS 13.0)
+        run: |
+          set -euo pipefail
+          VER=$(python3 -c "import importlib.metadata as m; print(m.version('numpy'))")
+          rm -rf /tmp/np_arm64_macos11
+          pip3 download --no-deps --only-binary=:all: --platform macosx_13_0_arm64 \
+            --python-version "$(python3 -c 'import sys; print("%d.%d" % sys.version_info[:2])')" \
+            "numpy==${VER}" -d /tmp/np_arm64_macos11
+          ls /tmp/np_arm64_macos11
+          pip3 install --force-reinstall --no-deps /tmp/np_arm64_macos11/numpy-*.whl
+          python3 -c "import numpy; print('numpy', numpy.__version__, numpy.__file__)"
+
       # Diagnostic: numpy 2.4+ vendored OpenBLAS lives in different places
       # depending on platform/version (numpy/.dylibs/, numpy.libs/ sibling, or
       # an external scipy_openblas64 package). Print where it actually is so
@@ -116,16 +143,25 @@ jobs:
       #   ver_filter must appear in the wheel filename to select the right Python
       #   version. Use "cp313" for cpython-tagged wheels, "abi3" for stable-ABI
       #   wheels, "py3-none" for pure-tag arch-specific wheels (PyQt6-Qt6 etc).
+      # Rosetta, so the Intel half can be run on this arm64 runner (next steps).
+      - name: Install Rosetta (universal2 only)
+        if: matrix.arch == 'universal2'
+        run: /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null || softwareupdate --install-rosetta --agree-to-license
+
       - name: Make C extensions universal2 via lipo (universal2 only)
         if: matrix.arch == 'universal2'
         run: |
           SITELIB=$(python3 -c "import site; print(site.getsitepackages()[0])")
+          # The x86_64 wheel with the LOWEST macOS tag, never the first one
+          # PyPI lists: numpy ships both macosx_10_13 and macosx_14_0 x86_64
+          # wheels, and the 14_0 one would make the Intel half need macOS 14
+          # (scripts/check_bundle_min_macos.py fails the build if it did).
           lipo_pkg() {
             local pypi_name="$1" pkg_dir="$2" ver_filter="$3"
             local VER X86_URL TMPDIR safe x86_root arm_root rel arm_file merged=0
             VER=$(python3 -c "import importlib.metadata; print(importlib.metadata.version('${pypi_name}'))")
             X86_URL=$(curl -fsSL "https://pypi.org/pypi/${pypi_name}/${VER}/json" | \
-              python3 -c "import json,sys; vf='${ver_filter}'; d=json.load(sys.stdin); w=[f['url'] for f in d['urls'] if 'macosx' in f['filename'] and 'x86_64' in f['filename'] and vf in f['filename'] and f['filename'].endswith('.whl')]; print(w[0] if w else '')")
+              python3 -c "import json,re,sys; vf='${ver_filter}'; d=json.load(sys.stdin); w=[f for f in d['urls'] if 'macosx' in f['filename'] and 'x86_64' in f['filename'] and vf in f['filename'] and f['filename'].endswith('.whl')]; key=lambda f: tuple(int(x) for x in (re.search(r'macosx_(\\d+)_(\\d+)', f['filename']) or re.match('()()', '')).groups() if x); w.sort(key=key); print(w[0]['url'] if w else '')")
             if [ -z "$X86_URL" ]; then
               echo "No x86_64 wheel for ${pypi_name} ${VER} — skipping lipo"
               return 0
@@ -168,6 +204,35 @@ jobs:
           # bundle has a fat libscipy_openblas64_.dylib.
           lipo_pkg scipy-openblas64     scipy_openblas64  py3-none
 
+          # numpy's Intel OpenBLAS (numpy/.dylibs) loads libgfortran, libquadmath
+          # and libgcc_s from its OWN folder (@loader_path). The macOS-11 arm64
+          # wheel has no such files, so lipo_pkg above (which merges only files
+          # with an arm64 twin) left the Intel half without them: review
+          # K_review_beta1, CI-1. Build fat copies there from the Intel ones in
+          # numpy's own x86_64 wheel and the arm64 ones scipy-openblas64 ships.
+          NP_DYLIBS="$SITELIB/numpy/.dylibs"
+          for lib in libgfortran.5.dylib libquadmath.0.dylib libgcc_s.1.1.dylib; do
+            x86="/tmp/numpy_x86/numpy/.dylibs/$lib"
+            arm="$SITELIB/scipy_openblas64/.dylibs/$lib"
+            if [ -f "$x86" ] && [ -d "$NP_DYLIBS" ] && [ ! -f "$NP_DYLIBS/$lib" ]; then
+              if [ ! -f "$arm" ]; then
+                echo "ERROR: no arm64 $lib in scipy_openblas64 to pair with numpy's Intel one"
+                exit 1
+              fi
+              lipo -thin arm64 "$arm" -output "/tmp/arm64_$lib" 2>/dev/null || cp "$arm" "/tmp/arm64_$lib"
+              lipo -create "/tmp/arm64_$lib" "$x86" -output "$NP_DYLIBS/$lib"
+              echo "numpy/.dylibs/$lib: $(lipo -archs "$NP_DYLIBS/$lib")"
+            fi
+          done
+
+      # Import numpy AS INTEL and use its OpenBLAS, from the merged site-packages
+      # the app is built from. Fails loudly if the Intel half misses a library.
+      - name: Import numpy as x86_64 under Rosetta (universal2 only)
+        if: matrix.arch == 'universal2'
+        run: |
+          set -euo pipefail
+          arch -x86_64 python3 -c "import numpy, numpy.linalg as L; print('x86_64 numpy', numpy.__version__, L.inv(numpy.eye(3)*2)[0,0])"
+
       # Bit-exact gamut-mapping helper — ArgyllCMS's real gamut mapper compiled
       # from the vendored subset (native/argyll). Built universal2 so it passes
       # the fat-Mach-O check below and runs on both Intel and Apple Silicon.
@@ -177,7 +242,8 @@ jobs:
           set -euo pipefail
           cmake -S native/gammap_helper -B build/gammap \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
           cmake --build build/gammap -j3
           cp build/gammap/chromiq-gammap native/chromiq-gammap
           echo "helper archs: $(lipo -archs native/chromiq-gammap)"
@@ -191,7 +257,8 @@ jobs:
           set -euo pipefail
           cmake -S native/chartread_helper -B build/chartread \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+            -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0
           cmake --build build/chartread -j3
           cp build/chartread/chromiq-chartread native/chromiq-chartread
           echo "engine archs: $(lipo -archs native/chromiq-chartread)"
@@ -200,6 +267,33 @@ jobs:
         env:
           PYINSTALLER_TARGET_ARCH: ${{ matrix.target_arch_env }}
         run: python3 -m PyInstaller ChromIQ.spec
+
+      # Every binary must run on the macOS the app declares. v4.3.2 shipped 17
+      # slices that needed macOS 14 (the two native helpers, numpy's arm64
+      # half) in an app that says 13.0; macOS refuses to launch an executable
+      # built for a newer system. Fails the build instead.
+      - name: Check every binary runs on the declared minimum macOS
+        run: python3 scripts/check_bundle_min_macos.py dist/ChromIQ.app
+
+      # Every library every binary loads must be in the app (or the system),
+      # for EACH architecture: a fat file whose Intel half loads a library the
+      # app lacks passes every "is it fat" check and still dies on an Intel Mac
+      # (K_review_beta1, CI-1).
+      # The BUILT app, both halves: numpy (with its BLAS) and Qt load and do
+      # one inversion. Under arch -x86_64 this is the Intel half, through
+      # Rosetta; the step before the build only proved the runner's python.
+      - name: Start the built app's self-test on every architecture it carries
+        run: |
+          set -euo pipefail
+          EXE=dist/ChromIQ.app/Contents/MacOS/ChromIQ
+          for a in $(lipo -archs "$EXE"); do
+            out=$(CHROMIQ_SELFTEST=1 arch -"$a" "$EXE")
+            echo "$a: $out"
+            echo "$out" | grep -q "chromiq-selftest ok machine=$a " || { echo "self-test did not run as $a"; exit 1; }
+          done
+
+      - name: Check every binary finds every library it loads
+        run: python3 scripts/check_bundle_load_paths.py dist/ChromIQ.app
 
       # Safety net for Intel-Mac regressions: walk every Mach-O file in the bundle
       # and assert it contains both x86_64 and arm64 slices. Catches anything the

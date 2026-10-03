@@ -100,8 +100,9 @@ def test_registry_shape():
     # issue #182 — see test_i1pro75_maximised_builtin_presets.py), and the
     # nine "by Pharmacist" charts with a page layout (#182 5860041950, beta 47)
     # and five more in 4.3.1 (#182 5875467209).
-    assert len(KNUT_PRESETS) == 188      # 121 + 26 CR30 + 19 photo + 8 max + 14
-    assert len(KNUT_PRESET_KEYS) == 188  # all keys unique
+    # +1 in 4.3.3-beta.1: the 7.5 mm "Full Page" chart (#182 5943544919)
+    assert len(KNUT_PRESETS) == 189      # 122 + 26 CR30 + 19 photo + 8 max + 14
+    assert len(KNUT_PRESET_KEYS) == 189  # all keys unique
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("pharm_")) == 14
     # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
     # Knut's request (#164, 2026-08-23).

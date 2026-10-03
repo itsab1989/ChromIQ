@@ -210,7 +210,7 @@ def test_the_card_uses_the_words_the_rest_of_the_app_uses(qapp):
     h = keyboard_shortcuts_html().replace("chart-reading", "")
     assert "reader" not in h.lower(), "the card invented a word for 'engine'"
     # …and it points at the tab by its real name.
-    assert "Preferences → Beta." in h
+    assert "Preferences → Beta." in h   # the engine setting, still on the Beta tab
 
 
 def test_keyboard_help_icon_paints(qapp):

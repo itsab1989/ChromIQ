@@ -142,6 +142,28 @@ _PREVIEW_BY_MODE = {
 }
 
 # ---------------------------------------------------------------------------
+# The outline of a flagged patch: red, or yellow once it is known to be real
+# ---------------------------------------------------------------------------
+
+#: A patch past the limit: a reason to look (#126, Knut).
+_RING_RED = "#ff2b2b"
+#: A patch confirmed by a second reading, or judged like one (#182 B/B2,
+#: Knut 5956831467). It sits on a DARK halo where red sits on a white one: a
+#: yellow line on white is all but invisible on the light patches, which is
+#: where most of the gamut's real differences are.
+_RING_YELLOW = "#ffd400"
+
+
+def _ring_colours(warn) -> "tuple[QColor, QColor]":
+    """(ring, halo) for an overlay item's *warn* value: ``True`` red, one of
+    workflow.patch_flags' two yellow values yellow."""
+    from workflow.patch_flags import is_yellow
+    if is_yellow(warn):
+        return QColor(_RING_YELLOW), QColor(30, 30, 30, 215)
+    return QColor(_RING_RED), QColor(255, 255, 255, 235)
+
+
+# ---------------------------------------------------------------------------
 # Ink channel tables
 # ---------------------------------------------------------------------------
 
@@ -491,6 +513,62 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("ΔE*ab  {de:.2f}").format(
                 de=float(info.get("de", 0.0)))))
             rows.append((None, tr("  (CIE76, L*a*b* D50)")))
+        # WHY THE RED OUTLINE, at the bottom and set apart from the numbers
+        # (Knut, #202 5951426710): the outline was never explained where it
+        # is seen. In every view mode, because the outline is drawn in every
+        # one; the ΔE is named here even when the split's own ΔE line is not.
+        flag = str(info.get("flag", "") or "")
+        if info.get("warn") and flag == "confirmed":
+            # YELLOW, CONFIRMED (#182 B, Sebastian 5956560815): read twice,
+            # the same colour twice. Set apart at the bottom like the red text.
+            rows.append((None, "─" * 30))
+            rows.append((None, tr("Yellow outline: confirmed by a re-read")))
+            rows.append((None, tr("ΔE*ab {de:.1f}, the reading before {prev:.1f}"
+                                  ).format(de=float(info.get("de", 0.0)),
+                                           prev=float(info.get("prev_de") or 0.0))))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
+            rows.append((None, tr("A real difference this printer and")))
+            rows.append((None, tr("paper cannot reach, not a misread.")))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
+            rows.append((None, tr("Keep it for the profile.")))
+        elif info.get("warn") and flag == "learned":
+            # YELLOW, JUDGED LIKE A CONFIRMED PATCH (#182 B2, Knut 5956831467).
+            rows.append((None, "─" * 30))
+            rows.append((None, tr("Yellow outline: judged like patch {loc}"
+                                  ).format(loc=str(info.get("like_loc", "")))))
+            rows.append((None, tr("ΔE*ab {de:.1f} reached your limit {limit:.1f}"
+                                  ).format(de=float(info.get("de", 0.0)),
+                                           limit=float(info.get("warn_de", 0.0)))))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
+            rows.append((None, tr("{loc} was confirmed by a re-read.").format(
+                loc=str(info.get("like_loc", "")))))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
+            rows.append((None, tr("This one has a similar colour and")))
+            rows.append((None, tr("a similar or larger difference,")))
+            rows.append((None, tr("so it is taken as real too.")))
+        elif info.get("warn"):
+            rows.append((None, "─" * 30))
+            # Not "likely misread" alone (Knut, #182 5956210745): a large
+            # difference can be real, and then re-reading cannot remove it.
+            rows.append((None, tr("Red outline: a large difference")))
+            rows.append((None, tr("ΔE*ab {de:.1f} reached your limit {limit:.1f}"
+                                  ).format(de=float(info.get("de", 0.0)),
+                                           limit=float(info.get("warn_de", 0.0)))))
+            if "accurate" in info:
+                # WHICH of the two limits (#182 A): the chart decides.
+                rows.append((None, tr("(limit for a chart made from a profile)")
+                             if info.get("accurate") else
+                             tr("(limit for a chart with estimated colours)")))
+            if info.get("fenced"):
+                rows.append((None, tr("and stands out from its strip")))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
+            rows.append((None, tr("Either a misread, or a colour")))
+            rows.append((None, tr("this printer and paper cannot reach.")))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
+            rows.append((None, tr("Same value after a re-read:")))
+            rows.append((None, tr("it is real, keep it for the profile.")))
+            rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
+            rows.append((None, tr("(Preferences ▸ Measurement, “Flag a patch…”)")))
 
         self._rows = rows
 
@@ -1608,7 +1686,8 @@ class TiffPreview(QWidget):
         """Add split-patch results for `page`: each item is (image-px rect,
         expected colour, measured colour, warn). Drawn as an i1Profiler-style
         corner-to-corner split — expected upper-left, measured lower-right —
-        with a red outline when warn is set."""
+        with a red outline when warn is set, and a yellow one when warn is one
+        of the two yellow values of workflow.patch_flags (#182)."""
         if replace_page or page not in self._patch_overlay:
             self._patch_overlay[page] = list(items)
         else:
@@ -3817,7 +3896,7 @@ class TiffPreview(QWidget):
                     # ring loses either way round, so no ordering saves it.
                     # Basti found it on a printed-looking report: "red overlays
                     # for flagged patches are partly covered by other patches".
-                    _warn_hexes.append(hexp)
+                    _warn_hexes.append((hexp, warn))
                 continue
             # EDGES ARE ROUNDED TO WHOLE DEVICE PIXELS, AND WHICH WAY
             # DEPENDS ON WHAT IS BEYOND THE EDGE.
@@ -4055,12 +4134,13 @@ class TiffPreview(QWidget):
                 else:                       # tiny patch: hug the box itself
                     wr = QRectF(x0 + 0.5, y0 + 0.5, w - 1, h - 1)
                 painter.setBrush(Qt.BrushStyle.NoBrush)
-                halo = QPen(QColor(255, 255, 255, 235))
+                _ring_c, _halo_c = _ring_colours(warn)
+                halo = QPen(_halo_c)
                 halo.setWidthF(hw)
                 halo.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
                 painter.setPen(halo)
                 painter.drawRect(wr)
-                red = QPen(QColor("#ff2b2b"))
+                red = QPen(_ring_c)
                 red.setWidthF(rw)
                 red.setJoinStyle(Qt.PenJoinStyle.MiterJoin)
                 painter.setPen(red)
@@ -4085,16 +4165,16 @@ class TiffPreview(QWidget):
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             rw = max(1.8, s * 2.2)
-            halo = QPen(QColor(255, 255, 255, 235))
-            halo.setWidthF(rw + 2.6)
-            halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-            red = QPen(QColor("#ff2b2b"))
-            red.setWidthF(rw)
-            red.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-            for hexp in _warn_hexes:
+            for hexp, _w in _warn_hexes:
+                halo = QPen(_ring_colours(_w)[1])
+                halo.setWidthF(rw + 2.6)
+                halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
                 painter.setPen(halo)
                 painter.drawPath(hexp)
-            for hexp in _warn_hexes:
+            for hexp, _w in _warn_hexes:
+                red = QPen(_ring_colours(_w)[0])
+                red.setWidthF(rw)
+                red.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
                 painter.setPen(red)
                 painter.drawPath(hexp)
 

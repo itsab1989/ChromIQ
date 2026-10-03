@@ -43,7 +43,7 @@ class _Settings:
 def _make_tab():
     from core.argyll_runner import ArgyllRunner
     from ui.tabs.tab_measure import TabMeasure
-    s = _Settings({"sound_enabled": True, "patch_read_warn_de": 10.0})
+    s = _Settings({"sound_enabled": True, "patch_read_warn_de_estimated": 10.0})
     tab = TabMeasure(ArgyllRunner(s), s)
     played: list = []
     # Record BOTH entry points. A window's cue goes through play_window(),

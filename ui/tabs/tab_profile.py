@@ -1651,9 +1651,11 @@ class TabProfile(QWidget):
             in_path = Path(in_icc)
             out_icc = str(Run.for_dir(in_path.parent).calibrated_icc)
 
+        mode = self._ac_mode_combo.currentData() or "apply"
+        if mode == "apply" and not self._confirm_not_calibrated_twice(in_icc):
+            return
         self._ac_log.clear()
         self._ac_run_btn.setEnabled(False)
-        mode = self._ac_mode_combo.currentData() or "apply"
         self._ac_progress.set_label(tr("Applying calibration…"), "applycal")
         self._ac_progress.set_value(None)
         self._ac_progress.start()
@@ -1690,6 +1692,39 @@ class TabProfile(QWidget):
             on_line=_on_line,
             on_finish=_on_finish,
         )
+
+    def _confirm_not_calibrated_twice(self, in_icc: "str | Path") -> bool:
+        """C1 (#182 5958466861, approved 5959070209): a profile built from an
+        older layout-engine -K chart already describes the UNcalibrated
+        printer, because that engine wrote the calibrated values into the
+        chart file too. Applying the calibration to it applies it twice.
+        Warn first; the person may still go ahead. Returns True to proceed.
+        Nothing is changed by the warning itself."""
+        try:
+            from workflow import printer_calibration as pc
+            run = pc.run_for_profile(in_icc)
+            if run is None or not pc.run_is_old_engine_apply(run):
+                return True
+        except Exception:      # noqa: BLE001 — a warning must never block
+            log.debug("calibrated-twice check skipped", exc_info=True)
+            return True
+        log.warning("Apply Calibration: %s comes from an older engine -K "
+                    "chart; asking before calibrating it twice", in_icc)
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.warning_sign import set_warning_icon
+        from workflow import measurement_messages as M
+        title, body = M.M_CAL_APPLIED_TWICE.render()
+        dlg = QMessageBox(self)
+        set_warning_icon(dlg)
+        dlg.setWindowTitle(title)
+        dlg.setText(title)
+        dlg.setInformativeText(body)
+        anyway = dlg.addButton(tr("Apply Anyway"),
+                               QMessageBox.ButtonRole.DestructiveRole)
+        cancel = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(cancel)
+        dlg.exec()
+        return dlg.clickedButton() is anyway
 
     def _show_applycal_result_dialog(self, icc_path: Path) -> None:
         dlg = QDialog(self)

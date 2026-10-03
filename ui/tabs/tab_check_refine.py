@@ -1490,6 +1490,8 @@ class TabCheckRefine(QWidget):
             return
         if not self._warn_converted_measurement():
             return
+        if not self._warn_calibrated_twice():
+            return
 
         params = self._collect_params()
         self._log.clear()
@@ -1501,6 +1503,37 @@ class TabCheckRefine(QWidget):
             on_line=self._on_log_line,
             on_finish=self._on_done,
         )
+
+    def _warn_calibrated_twice(self) -> bool:
+        """C1 (#182 5959070209), the Check & Refine half: a run's
+        ``calibrated.icc`` made from an older layout-engine -K profile
+        applies the calibration twice. Warn before checking it; Cancel is the
+        default. Returns True when the check may proceed."""
+        try:
+            icc = Path(self._icc_path) if self._icc_path else None
+            if icc is None or icc.name != "calibrated.icc":
+                return True
+            from workflow import printer_calibration as pc
+            run = pc.run_for_profile(icc)
+            if run is None or not pc.run_is_old_engine_apply(run):
+                return True
+        except Exception:      # noqa: BLE001 — the guard must never block a check
+            log.debug("calibrated-twice check skipped", exc_info=True)
+            return True
+        from PyQt6.QtWidgets import QMessageBox
+        from workflow import measurement_messages as M
+        title, body = M.M_CAL_CALIBRATED_TWICE.render()
+        dlg = QMessageBox(self)
+        set_warning_icon(dlg)
+        dlg.setWindowTitle(title)
+        dlg.setText(title)
+        dlg.setInformativeText(body)
+        anyway = dlg.addButton(tr("Run the check anyway"),
+                               QMessageBox.ButtonRole.DestructiveRole)
+        cancel = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(cancel)
+        dlg.exec()
+        return dlg.clickedButton() is anyway
 
     def _warn_converted_measurement(self) -> bool:
         """The §2b trap of verification_printing_and_target.md (test T13).
@@ -1582,17 +1615,26 @@ class TabCheckRefine(QWidget):
                 # Quality reports + refine lists live in reports/ next to the
                 # measurement (#127) — works for run folders and for a browsed
                 # external .ti3 alike.
-                from core.file_manager import ensure_subdir, reports_subdir
+                from core.file_manager import ensure_subdir
                 # BESIDE THE FILE WHEN THERE IS NO PROJECT. `reports_subdir`
                 # answers with a `reports/` folder, which is right inside a run
                 # and wrong in somebody's Downloads folder: a check they asked
                 # to run IN PLACE must not quietly build ChromIQ's folder
                 # structure around their file. Basti's ruling, 2026-09-01: the
                 # results are saved where the measurement is.
+                #
+                # IN THE OWNER'S REPORTS FOLDER, NOT `<the file's folder>/
+                # reports` (Knut, #182 5943085974, B2: *"'Check & Refine'
+                # shall also use the reports folder, unless the checked file
+                # is outside the project"*). A read in `reads/`, a file in
+                # `cache/` or an archived one in `old/<stamp>/` belongs to the
+                # run above it, and `reads/reports/` is a folder nothing in
+                # ChromIQ lists. `reports_dir_for` is the rule Inspect uses.
                 if getattr(self, "_checking_in_place", False):
                     folder = self._ti3_path.parent
                 else:
-                    folder = ensure_subdir(reports_subdir(self._ti3_path.parent))
+                    from workflow.run_compliance import reports_dir_for
+                    folder = ensure_subdir(reports_dir_for(self._ti3_path))
                 grade = quality_grade(result.avg_de, result.peak_de)
                 explanation = quality_explanation(result.avg_de, result.peak_de)
                 summary_text = tr("Profile Quality Assessment: {grade}").format(

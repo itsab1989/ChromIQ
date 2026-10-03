@@ -94,7 +94,8 @@ RENAMED = [
      'A4-3240p-5pages-Portrait-w7.5mm-13x13x13-Skintones-Edge Emphasis-Plus', False),
     ('i1_w75_a4_324p_1page_portrait_w7_5mm',
      'A4-324p-1page-Portrait-w7.5mm',
-     'A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6', False),
+     # renamed again in 4.3.3-beta.1 (#182 5943544919); the key still holds
+     'A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page', False),
     ('i1_w8_a4_3432p_6pages_portrait_w8_0mm',
      'A4-3432p-6pages-Portrait-w8.0mm',
      'A4-3432p-6pages-Portrait-w8.0mm-14x14x14-Skintones-Corner Emphasis-Plus', False),

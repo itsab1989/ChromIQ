@@ -245,6 +245,48 @@ def build_scanin_target_from_paths(channels_json: str | Path, ti3_path: str | Pa
                               n_patches=len(geom_locs), n_pages=len(pages))
 
 
+def scanner_cht_pages(channels_json: str | Path,
+                      stem: str) -> "dict[str, str] | None":
+    """``{file name: .cht text}`` that :func:`build_scanin_target_from_paths`
+    would write for the chart whose layout sidecar is *channels_json*, under
+    the stem *stem*, or None when that chart carries no scanner geometry.
+
+    The EXPECTED rows are zeros: they are the measurement's, not the chart's,
+    and a caller asking "was this ``.cht`` made from that chart?" compares the
+    rest (Knut, #182 5958921500: a restore keeps a run's ``.cht`` only when it
+    is in agreement with the chart being restored). The names and the page
+    texts come from the very code that writes the files, so the answer cannot
+    drift from what "Save scanner files" produces. Never raises.
+    """
+    try:
+        layout = _load_scanner_layout(channels_json)
+    except ScaninTargetError:
+        return None
+    try:
+        if layout.get("engine") == "printtarg":
+            texts = [str(t) for t in layout["cht_pages"]]
+        else:
+            patches = layout["patches"]
+            dpi = int(layout["dpi"])
+            paper_h_mm = float(layout["paper_mm"][1])
+            pages = sorted({int(p.get("page", 0)) for p in patches})
+            texts = []
+            for pg in pages:
+                boxes = cht_writer.boxes_from_patch_rects(
+                    patches, paper_h_mm, dpi, page=pg)
+                texts.append(cht_writer.build_cht_text(
+                    boxes, [(b["loc"], 0.0, 0.0, 0.0) for b in boxes]))
+    except (KeyError, TypeError, ValueError) as exc:
+        log.warning("could not rebuild the scanner geometry of %s: %s",
+                    Path(channels_json).name, exc)
+        return None
+    if not texts:
+        return None
+    if len(texts) == 1:
+        return {f"{stem}.cht": texts[0]}
+    return {f"{stem}_{i + 1:02d}.cht": t for i, t in enumerate(texts)}
+
+
 def _build_from_printtarg(layout: dict, data: Ti3Data,
                           out_base: Path) -> ScaninTargetResult:
     """Write the stored printtarg ``.cht`` page(s) verbatim (exact geometry +

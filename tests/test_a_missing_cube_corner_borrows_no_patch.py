@@ -118,6 +118,12 @@ def _dialog(tmp_path, qapp):
 
 def _corner_rows(detail: str) -> "dict[str, str]":
     """``{corner label: that row's HTML}`` out of the cube-corners table."""
+    # Each swatch is a small table of three cells since #182 (d); it is read
+    # as its colour, so the first "</table>" below is the corners table's.
+    import re
+    detail = re.sub(r"<table cellspacing='0' cellpadding='0'><tr><td width='\d+'"
+                    r"[^>]*></td><td width='\d+' height='\d+' bgcolor='([^']*)'"
+                    r".*?</table>", r"[swatch \1]", detail)
     i = detail.find("Cube corners (ΔE00)")
     assert i > 0, "the cube-corners table is not in this report"
     body = detail[i:]

@@ -19,8 +19,9 @@ from core.argyll_runner import ArgyllRunner  # noqa: E402
 from core.file_manager import FileManager  # noqa: E402
 from core.settings import AppSettings  # noqa: E402
 
-KNUTS_EXAMPLE = "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6"
-KNUTS_LINE = "Chart layout i1Pro-A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6"
+# Knut renamed his example in 4.3.3-beta.1 (#182 5943544919): "-Half Page" added.
+KNUTS_EXAMPLE = "A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page"
+KNUTS_LINE = "Chart layout i1Pro-A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page"
 THE_OLD_LINE = "Chart layout i1Pro-A4-324p-1page-Portrait-Uniform 6x6x6-w7.5mm"
 
 
@@ -39,7 +40,7 @@ def test_every_builtin_is_stamped_with_its_name_unchanged():
 def test_knuts_example_keeps_the_width_where_he_wrote_it():
     p = _the_example()
     assert p.default_target_name == \
-        "i1Pro-A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6"
+        "i1Pro-A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page"
 
 
 def test_a_suffix_stays_in_its_written_place():
@@ -64,7 +65,7 @@ def test_a_suffix_stays_in_its_written_place():
 def test_the_list_row_and_the_key_are_unchanged():
     p = _the_example()
     assert p.combo_label == (
-        "★  i1Pro · A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6"
+        "★  i1Pro · A4-324p-1page-Portrait-w7.5mm-Uniform 6x6x6-Half Page"
         " · Full layout setup  ·  built-in")
     assert p.key.startswith("__chromiq_knut_") and p.key.endswith("__")
 

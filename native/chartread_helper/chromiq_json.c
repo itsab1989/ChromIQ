@@ -29,13 +29,17 @@ void cq_emit_raw(const char *fmt, ...) {
 	if (!cq_json)
 		return;
 	/* chartread's prompts often end without a newline — start every JSON
-	 * object at column 0 so the GUI's line decoder always sees it clean. */
+	 * object at column 0 so the GUI's line decoder always sees it clean.
+	 * #202: held under stdout's lock so a line from another thread (the
+	 * driver's scan_ready) can never be written into the middle of it. */
+	cq_out_lock();
 	fputc('\n', stdout);
 	va_start(args, fmt);
 	vfprintf(stdout, fmt, args);
 	va_end(args);
 	fputc('\n', stdout);
 	fflush(stdout);
+	cq_out_unlock();
 }
 
 void cq_emit_simple(const char *event) {
@@ -194,6 +198,20 @@ static void cq_handle_line(const char *line) {
 		return;
 	}
 
+	if (strcmp(cmd, "trigger") == 0) {
+		/* #202, replay only: the instrument's button was pressed. Optional
+		 * "ready_ms":"<n>" sets the delay to the ready-to-scan moment.
+		 * Ignored (harmless) with a real instrument. */
+		char ms[16] = "";
+		cq_lock_take();
+		cq_trigger_ready_ms = 700;
+		if (cq_json_get(line, "ready_ms", ms, sizeof(ms)) && atoi(ms) >= 0)
+			cq_trigger_ready_ms = atoi(ms);
+		cq_trigger_pending = 1;
+		cq_lock_give();
+		return;
+	}
+
 	/* "goto" carries a target label: "strip" in strip mode, "patch" in
 	 * spot mode. Both feed the same CQ_KEY_GOTO / cq_goto_label channel —
 	 * the read loop matches the label against its own units. */
@@ -317,6 +335,8 @@ int cq_cmd_take_key(void) {
 
 /* Swipe descriptor lives here so the command thread and the replay
  * instrument share one definition. */
+volatile int cq_trigger_pending = 0;
+int cq_trigger_ready_ms = 700;
 volatile int cq_swipe_pending = 0;
 char cq_swipe_as[8]      = "";
 int  cq_swipe_reversed   = 0;

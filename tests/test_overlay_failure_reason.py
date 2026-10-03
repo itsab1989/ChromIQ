@@ -36,6 +36,7 @@ class _Stub:
     _ti1_path = None
     _overlay_failure_reason = TabMeasure._overlay_failure_reason
     _measurement_is_empty = TabMeasure._measurement_is_empty
+    _selected_measurement_ti3 = TabMeasure._selected_measurement_ti3
     # _overlay_failure_reason resolves the chart to its .ti2 before naming
     # patches: from a .ti1 per_patch_overlay can only answer SAMPLE_IDs.
     # Borrowed like the rest — without it the AttributeError is swallowed

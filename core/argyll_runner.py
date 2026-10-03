@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Callable
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, pyqtSignal
 
 from core.logger import get_logger
+from core.printtarg_env import is_printtarg, printtarg_env_additions
 from core.proc_text import decode_output
 from core.resource_path import argyll_binary
 
@@ -424,16 +425,18 @@ class ArgyllRunner(QObject):
         # instrument connects fast. Only touch the environment when the option
         # is on AND we have something to exclude, so nothing else changes.
         _env = QProcessEnvironment.systemEnvironment()
-        _excl = self._serial_exclusion_value(
-            _env.value("ARGYLL_EXCLUDE_SERIAL_SCAN", ""))
-        if _excl:
-            _env.insert("ARGYLL_EXCLUDE_SERIAL_SCAN", _excl)
+        _extra = self.environment_additions(
+            tool, _env.value("ARGYLL_EXCLUDE_SERIAL_SCAN", ""))
+        if _extra:
+            for _k, _v in _extra.items():
+                _env.insert(_k, _v)
             self._process.setProcessEnvironment(_env)
 
         self._run_on_finish = on_finish
         self._run_on_line   = on_line
         self._run_tool      = tool      # for the failed-to-start message
 
+        self._partial_json = b""
         self._process.readyReadStandardOutput.connect(self._on_ready_read)
         self._process.finished.connect(self._on_finished)
         # A PROCESS THAT NEVER STARTS MUST STILL REPORT BACK.
@@ -704,10 +707,8 @@ class ArgyllRunner(QObject):
         log.info("Run (PTY): %s %s  [cwd=%s]", bin_path, " ".join(args), cwd)
         # Skip Argyll's slow phantom-serial-port probe (macOS) — see run().
         _env = os.environ.copy()
-        _excl = self._serial_exclusion_value(
-            _env.get("ARGYLL_EXCLUDE_SERIAL_SCAN"))
-        if _excl:
-            _env["ARGYLL_EXCLUDE_SERIAL_SCAN"] = _excl
+        _env.update(self.environment_additions(
+            tool, _env.get("ARGYLL_EXCLUDE_SERIAL_SCAN")))
         master_fd, slave_fd = pty.openpty()
         try:
             self._pty_proc = subprocess.Popen(
@@ -1006,10 +1007,36 @@ class ArgyllRunner(QObject):
     # Internal slots
     # ------------------------------------------------------------------
 
+    #: A held-back fragment longer than this is emitted anyway: a tool that
+    #: prints an endless line must not make the log go silent.
+    _PARTIAL_JSON_LIMIT = 1 << 20
+
+    def _take_complete(self, raw: bytes) -> bytes:
+        """*raw* plus any fragment held back from the previous read, minus a
+        new trailing fragment that is the START OF AN ENGINE EVENT.
+
+        One read ends wherever the pipe buffer did, so a long JSON event line
+        from the chart-reading engine (a chart-mode ``chart_read``) arrived in
+        two pieces, each emitted as a "line" and neither parsing: the event
+        was lost (review P_review2_beta1, P-202-2). Only a fragment that
+        begins like an event (``{``, after an optional BEL) waits for its
+        newline. Anything else is emitted at once as before, because Argyll's
+        own prompts ("hit any key to continue") end WITHOUT a newline and the
+        user has to see them now."""
+        buf = getattr(self, "_partial_json", b"") + raw
+        self._partial_json = b""
+        cut = max(buf.rfind(b"\n"), buf.rfind(b"\r")) + 1
+        tail = buf[cut:]
+        if (tail.lstrip(b"\x07 \t").startswith(b"{")
+                and len(tail) < self._PARTIAL_JSON_LIMIT):
+            self._partial_json = tail
+            return buf[:cut]
+        return buf
+
     def _on_ready_read(self) -> None:
         if not self._process:
             return
-        raw = self._process.readAllStandardOutput().data()
+        raw = self._take_complete(self._process.readAllStandardOutput().data())
         text = decode_output(raw, what="argyll")
         for line in text.splitlines():
             log.debug("[argyll] %s", line)
@@ -1057,7 +1084,9 @@ class ArgyllRunner(QObject):
         # finished(), so the last chunk of output (e.g. profcheck per-patch lines)
         # can be silently lost without this flush.
         if self._process:
-            remaining = self._process.readAllStandardOutput().data()
+            remaining = (getattr(self, "_partial_json", b"")
+                         + self._process.readAllStandardOutput().data())
+            self._partial_json = b""
             if remaining:
                 text = decode_output(remaining, what="argyll")
                 for line in text.splitlines():
@@ -1112,6 +1141,22 @@ class ArgyllRunner(QObject):
             return found.is_file() and os.access(found, os.X_OK)
         import shutil
         return shutil.which(str(found)) is not None
+
+    def environment_additions(self, tool: str,
+                              current_exclusion: "str | None") -> "dict[str, str]":
+        """What `run` adds to the tool's environment, and nothing else.
+
+        The serial-probe exclusion (see `run`), and for printtarg the
+        allocator setting that makes a seeded layout the same on every run
+        (flk1, `core/printtarg_env.py`). Empty means the environment is
+        left exactly as inherited."""
+        extra: "dict[str, str]" = {}
+        excl = self._serial_exclusion_value(current_exclusion)
+        if excl:
+            extra["ARGYLL_EXCLUDE_SERIAL_SCAN"] = excl
+        if is_printtarg(tool):
+            extra.update(printtarg_env_additions())
+        return extra
 
     def _resolve(self, tool: str) -> Path:
         # Bundled helpers (chromiq-chartread) pass their absolute path —

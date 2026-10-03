@@ -1418,6 +1418,70 @@ M_CM_CONVERT_FAILED = _m(
     approved=False)
 
 # ---------------------------------------------------------------------------
+#: B7 / C1 (#182 5958466861, behaviour approved by Sebastian in 5959070209):
+#: the printer calibration a chart was printed with. PROPOSED wording.
+M_CM_K_CHART_THROUGH = _m(
+    "M-CM-K-CHART-THROUGH",
+    "This chart cannot be printed through the profile",
+    "This verification chart was made with the printer calibration applied "
+    "(-K), so its pages already hold calibrated ink amounts instead of the "
+    "colours the chart describes. Printing it through the profile would read "
+    "those ink amounts as colours and calibrate them a second time, and the "
+    "measurement would not describe your profile. Nothing has been printed."
+    "\n\n"
+    "To check the profile: make the verification chart again with the "
+    "printer calibration set to None or to embed only (-I), and print it "
+    "through the profile. When the run's own chart was printed with the "
+    "calibration applied, ChromIQ applies that calibration itself as it "
+    "prints through the profile.\n\n"
+    "To check the printer instead: choose “Raw” in the Colour row above and "
+    "print this chart as it is.",
+    approved=False)
+
+M_CM_RAW_UNCALIBRATED = _m(
+    "M-CM-RAW-UNCALIBRATED",
+    "This sheet will print without the printer calibration",
+    "This run's chart was printed with the printer calibration applied (-K), "
+    "so its profile describes your printer with that calibration in front of "
+    "it. Printed raw, this verification chart goes to the printer without the "
+    "calibration, and its measurement describes a printer the profile was not "
+    "made for.\n\n"
+    "To check the profile, choose “Through the profile” in the Colour row "
+    "above: ChromIQ then applies the profile and the run's calibration. To "
+    "check the printer exactly as the run's chart was printed, make the "
+    "verification chart again with the calibration applied (-K) and print "
+    "that raw.",
+    approved=False)
+
+M_CAL_APPLIED_TWICE = _m(
+    "M-CAL-APPLIED-TWICE",
+    "The calibration would be applied twice",
+    "This profile was built from a chart that an earlier version of "
+    "ChromIQ's layout engine made with the printer calibration applied (-K). "
+    "That version also wrote the calibrated values into the chart file, so "
+    "the profile already describes your printer without the calibration. "
+    "Applying the calibration to it now would apply it a second time, and "
+    "prints made with the result would be wrong. Nothing has been changed "
+    "yet.\n\n"
+    "Use this profile as it is, without the calibration. To work with the "
+    "calibration, build the chart again with this version of ChromIQ, then "
+    "print and measure it again.",
+    approved=False)
+
+M_CAL_CALIBRATED_TWICE = _m(
+    "M-CAL-CALIBRATED-TWICE",
+    "This calibrated profile applies the calibration twice",
+    "This calibrated profile was made from a profile whose chart an earlier "
+    "version of ChromIQ's layout engine built with the printer calibration "
+    "applied (-K). That profile already describes your printer without the "
+    "calibration, so this file applies the calibration a second time, and "
+    "checking it measures that mistake rather than your profile.\n\n"
+    "Check the run's own profile instead, without the calibration. To work "
+    "with the calibration, build the chart again with this version of "
+    "ChromIQ, then print and measure it again.",
+    approved=False)
+
+# ---------------------------------------------------------------------------
 #: Knut wrote this text himself (beta.150) to replace the original "No
 #: Instrument Found" bullet list, and asked for the window I had added at ten
 #: seconds to go: *"I prefer your more detailed message, but the original 'No
@@ -3731,6 +3795,8 @@ CATALOGUE = {m.id: m for m in (
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
     M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART, M_BUILD_ELSEWHERE,
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
+    M_CM_K_CHART_THROUGH, M_CM_RAW_UNCALIBRATED,
+    M_CAL_APPLIED_TWICE, M_CAL_CALIBRATED_TWICE,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_DONE_PROFILING,

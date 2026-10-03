@@ -564,6 +564,100 @@ def run_references_plan(project_root: "str | Path", names,
     return _plan(report_files_referring(root, outside=True), edit)
 
 
+def project_names(project_root: "str | Path", target_name: str = ""
+                  ) -> "set[str]":
+    """Every name the project at *project_root* answers to in a report: its
+    folder, its target name and its former names (a report records the name
+    of the day it was written)."""
+    root = Path(project_root)
+    names = {root.name, str(target_name or "")}
+    try:
+        data = json.loads((root / "project.json").read_text(encoding="utf-8"))
+        names |= {n for n in (data.get("former_names") or [])
+                  if isinstance(n, str)}
+        if isinstance(data.get("target_name"), str):
+            names.add(data["target_name"])
+    except (OSError, ValueError, AttributeError):
+        pass
+    return {n for n in names if n}
+
+
+def duplicate_references_plan(project_root: "str | Path", names, files,
+                              source_id: str, new_id: str) -> RefPlan:
+    """What a duplicate of run *source_id* into *new_id* changes in the
+    reports it COPIED (*files*, inside the new run), and nowhere else.
+
+    **A REPORT IN A RUN IS ONLY RELATED TO THAT RUN** (Knut, #182 C4,
+    5943085974): *"Duplicating a run will make a new run, and any reports in
+    that run will then only relate to that new run, not any other runs
+    (where they originally were made first)."* A copy kept naming
+    ``runs/<source>``, so the new run's window listed it as "Multiple runs"
+    and its page was the source run's. Every measurement entry of this
+    project that names the source run (the run itself, or a date under its
+    ``verifications/``) is moved to the new run, as a run delete renumbers
+    one (`run_references_plan`).
+
+    **AND EACH COPY IS A DOCUMENT OF ITS OWN.** "Report shown" groups files
+    by their document id (`workflow.measurement_report.document_key`), so a
+    copy carrying its original's id was one entry with the original: listed
+    in the new run as "Multiple runs", its page drawn from both runs. A copy
+    gets a fresh id (`_fresh_document_id`: the same time stamp, so the list
+    keeps its order, a new salt), written wherever the file names its own
+    id. The source run's own reports are not touched."""
+    root = Path(project_root)
+    names = frozenset(_nfc(n) for n in (names or ()) if n)
+    if not names or not source_id or not new_id or source_id == new_id:
+        return RefPlan()
+
+    def edit(p: Path, rep: dict) -> bool:
+        here = refers_here(root, p, rep)
+        changed = _walk_measurement_lists(
+            rep, lambda m: _renumber_entry(m, names, {source_id: new_id},
+                                           "", here))
+        doc = rep.get("document")
+        old = doc.get("id") if isinstance(doc, dict) else None
+        if isinstance(old, str) and old:
+            changed |= _replace_value(rep, old, _fresh_document_id(old))
+        return changed
+    return _plan([Path(f) for f in files], edit)
+
+
+def _fresh_document_id(old: str) -> str:
+    """A new document id for a copy of the document *old*: the same
+    ``doc_<date>_<time>`` stamp (ids are time-ordered,
+    `workflow.measurement_report.new_document_id`), a new salt."""
+    import re
+    import secrets
+    m = re.fullmatch(r"(doc_\d{8}_\d{6})_[0-9a-f]+", old)
+    stem = m.group(1) if m else old
+    while True:
+        new = f"{stem}_{secrets.token_hex(3)}"
+        if new != old:
+            return new
+
+
+def _replace_value(obj, old: str, new: str) -> bool:
+    """Every string value equal to *old*, at any depth, becomes *new*."""
+    changed = False
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if isinstance(v, str):
+                if v == old:
+                    obj[k] = new
+                    changed = True
+            else:
+                changed |= _replace_value(v, old, new)
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj):
+            if isinstance(v, str):
+                if v == old:
+                    obj[i] = new
+                    changed = True
+            else:
+                changed |= _replace_value(v, old, new)
+    return changed
+
+
 def _is_inside(p: Path, root: Path) -> bool:
     try:
         p.relative_to(root)

@@ -1085,14 +1085,36 @@ class TabPrint(QWidget):
         colour = self._cm_selected_colour()
         route = self._cm_selected_route()
         converted_dir = None
+        chart_dir = (Path(self._current_ti2).parent
+                     if self._current_ti2 is not None
+                     else Path(pages[0][0]).parent)
+        out_dir = chart_dir / "cache"
+
+        # B7 (#182 5959070209): the printer calibration. A profile built from
+        # a chart printed with -K describes the printer BEHIND the
+        # calibration, so a sheet printed through it must be calibrated too;
+        # a verification chart built with -K cannot go through the profile at
+        # all. Verification targets only: nothing else shows the Colour row.
+        cal_plan = None
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None and ctl.target.is_verification():
+            cal_plan = vp.plan_calibration(
+                self._cm_run(),
+                Path(self._current_ti2) if self._current_ti2 is not None
+                else None,
+                colour, out_dir)
+            if cal_plan.log:
+                log.info("%s", cal_plan.log)
+            if cal_plan.refuse:
+                self._show_k_chart_refusal()
+                self._set_status("")
+                return None
+            if cal_plan.warn_raw and not self._confirm_raw_uncalibrated():
+                return None
 
         if colour == vp.COLOUR_THROUGH:
             run = self._cm_run()
             profile = run.built_profile_icc() if run is not None else None
-            chart_dir = (Path(self._current_ti2).parent
-                         if self._current_ti2 is not None
-                         else Path(pages[0][0]).parent)
-            out_dir = chart_dir / "cache"
             bin_dir = self._settings.get("argyll_bin_path",
                                          "/Applications/Argyll/bin")
             unique = list(dict.fromkeys(p for p, _f in pages))
@@ -1107,7 +1129,9 @@ class TabPrint(QWidget):
                 mapping = vp.convert_pages_through_profile(
                     unique, profile if profile is not None else Path(""),
                     self._cm_selected_intent(), out_dir,
-                    bin_dir=bin_dir, on_page=_progress)
+                    bin_dir=bin_dir, on_page=_progress,
+                    calibration=(cal_plan.cal if cal_plan is not None
+                                 else None))
             except vp.VerificationPrintError as err:
                 self._set_status("")
                 self._show_cm_error(err)
@@ -1116,8 +1140,13 @@ class TabPrint(QWidget):
                 QApplication.restoreOverrideCursor()
             pages = [(mapping.get(p, p), f) for p, f in pages]
             converted_dir = out_dir
-            self._set_status(tr(
-                "The sheets have been prepared through this run's profile."))
+            if cal_plan is not None and cal_plan.cal is not None:
+                self._set_status(tr(
+                    "The sheets have been prepared through this run's profile "
+                    "and the printer calibration its chart was printed with."))
+            else:
+                self._set_status(tr(
+                    "The sheets have been prepared through this run's profile."))
 
         # A RECORD OF A PRINT IS WRITTEN WHEN THERE HAS BEEN ONE (R6 F5).
         #
@@ -1159,7 +1188,9 @@ class TabPrint(QWidget):
                 source_profile=(vp.source_profile_path(
                     self._settings.get("argyll_bin_path",
                                        "/Applications/Argyll/bin"))
-                    if colour == vp.COLOUR_THROUGH else ""))
+                    if colour == vp.COLOUR_THROUGH else ""),
+                calibration=(cal_plan.record if cal_plan is not None
+                             else None))
             if route == vp.ROUTE_EXTERNAL:
                 vp.write_print_record(Path(self._current_ti2), **pending)
             else:
@@ -1184,6 +1215,42 @@ class TabPrint(QWidget):
                     "of any kind, and at 100% size."))
             return None
         return pages
+
+    def _show_k_chart_refusal(self) -> None:
+        """B7: a verification chart built with -K cannot go through the
+        profile (M-CM-K-CHART-THROUGH). Nothing is printed."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CM_K_CHART_THROUGH.render()
+        dlg = QMessageBox(self)
+        dlg.setIcon(QMessageBox.Icon.Critical)
+        dlg.setWindowTitle(title)
+        dlg.setText(title)
+        dlg.setInformativeText(body)
+        dlg.addButton(QMessageBox.StandardButton.Ok)
+        dlg.exec()
+
+    def _confirm_raw_uncalibrated(self) -> bool:
+        """B7: the raw route on a run whose profiling chart was printed with
+        the printer calibration applied (-K), for a verification chart that
+        was not. Returns True to print anyway. Cancel is the default."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CM_RAW_UNCALIBRATED.render()
+        dlg = QMessageBox(self)
+        dlg.setWindowTitle(title)
+        set_warning_icon(dlg)
+        # House pattern: the headline as the bold text, the body under it
+        # (a macOS message box shows no window title).
+        dlg.setText(title)
+        dlg.setInformativeText(body)
+        anyway_btn = dlg.addButton(tr("Print Raw Anyway"),
+                                   QMessageBox.ButtonRole.DestructiveRole)
+        cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
+        dlg.setDefaultButton(cancel_btn)
+        dlg.exec()
+        if dlg.clickedButton() is anyway_btn:
+            log.warning("raw verification print of a -K run confirmed by user")
+            return True
+        return False
 
     def _show_cm_error(self, err) -> None:
         """Render the §M message a failed conversion names (S9 / S10)."""
@@ -1794,7 +1861,8 @@ class TabPrint(QWidget):
         # filled.
         from ui.default_button import mark_destructive
         mark_destructive(clear_btn)
-        dlg.addButton(tr("Print Anyway"), QMessageBox.ButtonRole.DestructiveRole)
+        anyway_btn = dlg.addButton(tr("Print Anyway"),
+                                   QMessageBox.ButtonRole.DestructiveRole)
         cancel_btn = dlg.addButton(QMessageBox.StandardButton.Cancel)
         # Knut, #182 5835722977 (beta 43): "I think Cancel as the default is
         # the safest." Return presses Cancel; the destructive action stays
@@ -1802,7 +1870,10 @@ class TabPrint(QWidget):
         dlg.setDefaultButton(cancel_btn)
         dlg.exec()
         clicked = dlg.clickedButton()
-        if clicked is cancel_btn:
+        # Only an answer that says "print" prints. A box closed without one
+        # (reject() from code, the window torn down) is a Cancel, never a
+        # print (review P_review2_beta1 W-1).
+        if clicked not in (clear_btn, anyway_btn):
             return False
         if clicked is clear_btn:
             cleared = self._module.cancel_all_jobs(printer)

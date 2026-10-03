@@ -120,6 +120,10 @@ class _NChannelWorker(QThread):
 
     def __init__(self, params: "ProfcheckParams", bin_dir: Path, parent=None):
         super().__init__(parent)
+        # numpy's OpenBLAS needs more than a QThread's 512 KiB (Knut #182
+        # 5956290893: Bus error in numpy.linalg.solve). core/thread_stack.py
+        from core.thread_stack import roomy
+        roomy(self)
         self._params = params
         self._bin_dir = bin_dir
 

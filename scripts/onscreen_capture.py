@@ -97,6 +97,67 @@ def wake_the_screen(timeout: float = 6.0) -> tuple[bool, str]:
                    "session wants a password; unlock it by hand")
 
 
+def display_is_asleep() -> bool:
+    """Whether the main display is asleep, per CoreGraphics.
+
+    Basti, 2026-10-02: *"from now on i will make it so my display goes to sleep
+    automatically after a while"*. A sleeping display is not a locked session
+    (no password here), but the window server may hand back an empty buffer
+    for a window on it, which `capture_window` would then refuse as flat."""
+    try:
+        cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework"
+                         "/CoreGraphics")
+        cg.CGMainDisplayID.restype = ctypes.c_uint32
+        cg.CGDisplayIsAsleep.argtypes = [ctypes.c_uint32]
+        cg.CGDisplayIsAsleep.restype = ctypes.c_bool
+        return bool(cg.CGDisplayIsAsleep(cg.CGMainDisplayID()))
+    except Exception:                                      # noqa: BLE001
+        return False
+
+
+def wake_the_display(timeout: float = 6.0) -> tuple[bool, str]:
+    """Wake a sleeping display (``caffeinate -u``: asserts user activity, types
+    nothing, moves no focus) and wait until CoreGraphics says it is awake."""
+    if not display_is_asleep():
+        return True, "the display was awake"
+    try:
+        subprocess.run(["caffeinate", "-u", "-t", "1"], timeout=10,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:                                      # noqa: BLE001
+        return False, "caffeinate could not be run"
+    end = time.time() + timeout
+    while time.time() < end:
+        if not display_is_asleep():
+            time.sleep(0.5)            # let it draw a frame before we look
+            return True, "the display was asleep and a wake cleared it"
+        time.sleep(0.25)
+    return False, "the display is asleep and a wake did not wake it"
+
+
+_KEEP_AWAKE = None
+
+
+def keep_display_awake():
+    """Hold macOS's keep-the-display-awake assertion for as long as THIS process
+    lives (``caffeinate -d -w <pid>`` ends by itself when the driver exits), so
+    Basti's display-sleep setting cannot blank the screen in the middle of a
+    driver run, and works as he set it the rest of the time. Idempotent."""
+    global _KEEP_AWAKE
+    import os as _os
+    import sys as _sys
+    if _sys.platform != "darwin":
+        return None
+    if _KEEP_AWAKE is not None and _KEEP_AWAKE.poll() is None:
+        return _KEEP_AWAKE
+    try:
+        _KEEP_AWAKE = subprocess.Popen(["caffeinate", "-d", "-w", str(_os.getpid())],
+                                       stdout=subprocess.DEVNULL,
+                                       stderr=subprocess.DEVNULL)
+    except Exception:                                      # noqa: BLE001
+        _KEEP_AWAKE = None
+    return _KEEP_AWAKE
+
+
 def _by_geometry(win, cands: list, slack: float = 24.0):
     """The candidate whose bounds are where *win* says it is, or None.
 
@@ -356,7 +417,8 @@ def _difference(a: Path, b: Path) -> float:
 
 
 def capture_window(win, path: Path, settle: float = 0.6,
-                   min_difference: float = 0.25) -> tuple[bool, str]:
+                   min_difference: float = 0.25,
+                   allow_hide: bool = True) -> tuple[bool, str]:
     """Photograph *win* into *path*. Returns (ok, why-not).
 
     The caller is expected to REPORT a False at the top of its result. The file
@@ -374,9 +436,20 @@ def capture_window(win, path: Path, settle: float = 0.6,
                            f"did not clear it ({why}), so the window server "
                            "hands every capture the desktop picture instead "
                            "of the window; unlock the screen and run again")
+    # …AND A SLEEPING DISPLAY IS WOKEN TOO (Basti lets it sleep after a while),
+    # and kept awake for the rest of this driver run.
+    keep_display_awake()
+    if display_is_asleep():
+        woke, why = wake_the_display()
+        if not woke:
+            return False, f"the display is asleep and could not be woken ({why})"
     path.parent.mkdir(parents=True, exist_ok=True)
-    win.raise_()
-    win.activateWindow()
+    # NO raise_() / activateWindow() HERE ANY MORE. Basti, 2026-10-02: *"when
+    # i am typing here and you bring the chromiq windows to the front i am
+    # sometimes still typing while you make another window get focus"*. The
+    # window-id capture below reads the window's own buffer and does not care
+    # what is in front of it; only the rectangle fallback needs the window on
+    # top, so only that path raises it.
     QApplication.processEvents()
     time.sleep(settle)
 
@@ -413,6 +486,17 @@ def capture_window(win, path: Path, settle: float = 0.6,
                 return True, ""
             path.unlink(missing_ok=True)
 
+    if not allow_hide:
+        # The rectangle fallback proves itself by HIDING the window, and hiding
+        # a dialog that is inside exec() ends that exec() as Rejected: the
+        # photograph would answer the question. A caller photographing a
+        # pop-up (PopupWatchdog) says no.
+        return False, ("the window could not be captured by its id, and the "
+                       "rectangle fallback would have to hide it")
+    win.raise_()                    # the rectangle needs the window on top
+    win.activateWindow()
+    QApplication.processEvents()
+    time.sleep(settle)
     g = win.frameGeometry()
     rect = f"{g.x()},{g.y()},{g.width()},{g.height()}"
     if not _grab_region(rect, path):
@@ -439,3 +523,396 @@ def capture_window(win, path: Path, settle: float = 0.6,
                        "rectangle with the window HIDDEN, so it is a picture "
                        "of what is behind the window, not of the window")
     return True, ""
+
+
+class FocusGiveBack:
+    """Hand the keyboard back to whoever had it before the driver started.
+
+    Basti, 2026-10-02: while he typed in the terminal, a driver brought a
+    ChromIQ window to the front and his keystrokes went into the app. Measured
+    the same night on macOS 27.0.1 (J_focus/ in that session's reports):
+
+    * a Qt app started from a terminal becomes the active application as soon
+      as its first window shows, whatever the flags: WA_ShowWithoutActivating,
+      AA_PluginApplication and the Accessory policy all still took focus;
+    * the Prohibited policy keeps focus but the window is then never put on
+      screen at all, which breaks the on-screen rule;
+    * re-activating the previous app from a background THREAD is refused, and
+      macOS handed focus to Finder instead;
+    * what works is the cooperative hand-over on the MAIN thread while this
+      process is the active one: ``yieldActivationToApplication_`` and then
+      ``activateWithOptions_`` on the previous app, back within about 0.3 s.
+
+    Call :meth:`remember` BEFORE the QApplication exists (afterwards the
+    frontmost app may already be the driver itself), :meth:`install` once it
+    does, and :meth:`give_back` right after showing a window. Every later
+    activation (application state goes Active) is handed back too, so a click
+    by the user INTO a driven window is bounced as well, which is the point:
+    nobody should type into a window a driver is using. Does nothing off
+    macOS or without pyobjc.
+    """
+
+    def __init__(self):
+        self.previous = None
+        self.handed_back = 0
+
+    def remember(self) -> "FocusGiveBack":
+        try:
+            import AppKit
+            import os as _os
+            front = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
+            if front is not None and int(front.processIdentifier()) != _os.getpid():
+                self.previous = front
+        except Exception:          # noqa: BLE001 - no pyobjc / not macOS
+            self.previous = None
+        return self
+
+    def install(self, app) -> "FocusGiveBack":
+        if self.previous is not None:
+            from PyQt6.QtCore import QTimer
+            app.applicationStateChanged.connect(self._state_changed)
+            # …AND A POLL, because Qt does not always say so: macOS can make
+            # the app active a second or two after its window shows, while
+            # Qt's own state already reads Active, so no signal comes. Measured:
+            # focus stayed with ChromIQ for 2 s with only the signal. The poll
+            # runs on the main thread (the hand-over only works there) and does
+            # nothing while another app is in front.
+            self._poll = QTimer(app)
+            self._poll.setInterval(50)
+            self._poll.timeout.connect(self.give_back)
+            self._poll.start()
+        return self
+
+    def _state_changed(self, state) -> None:
+        from PyQt6.QtCore import Qt
+        if state == Qt.ApplicationState.ApplicationActive:
+            self.give_back()
+
+    def give_back(self) -> bool:
+        if self.previous is None:
+            return False
+        try:
+            import AppKit
+            import os as _os
+            front = AppKit.NSWorkspace.sharedWorkspace().frontmostApplication()
+            if front is None or int(front.processIdentifier()) != _os.getpid():
+                return False             # not ours to hand over
+            try:
+                AppKit.NSApp.yieldActivationToApplication_(self.previous)
+            except Exception:      # noqa: BLE001 - before macOS 14
+                pass
+            ok = bool(self.previous.activateWithOptions_(0))
+            self.handed_back += ok
+            return ok
+        except Exception:          # noqa: BLE001
+            return False
+
+
+class PopupWatchdog:
+    """Notice every pop-up a driver runs into, record it, and keep the run moving.
+
+    Basti, 2026-10-02: *"the drivers that either you or your agents are
+    creating get stuck at some pop ups. would be nice if they could recognize
+    this"*. A driver clicks something, the app answers with a question nobody
+    scripted (a confirmation, a warning, a file dialog), and ``exec()`` sits
+    there for ever with the driver's own code waiting behind it.
+
+    A timer in the driver's process looks every ``interval_ms`` for a MODAL
+    window: ``QApplication.activeModalWidget()`` plus any visible top-level
+    ``QMessageBox``. Qt keeps delivering timer events inside a dialog's
+    ``exec()``, so this runs even while the driver is blocked.
+
+    **ONLY QUESTIONS ARE ANSWERED BY DEFAULT.** A message box, an input box
+    and a file dialog are questions; any other modal window (the Measurement
+    Report window, Preferences, the patch-set editor) is a working window the
+    driver opened on purpose. Those are logged once as ``window`` events and
+    never closed unless ``dismiss_windows=True``. The first version closed the
+    Measurement Report window two seconds after a driver opened it (challenge
+    of 2026-10-02, F_challenge_182).
+
+    For each pop-up it writes title, text and buttons to ``popups.log`` in
+    ``report_dir`` and, with ``photograph=True``, a picture of it. Then:
+
+    * a matching ``expect(pattern, button)`` rule answers it at once, which is
+      how a driver says "this question is part of the scenario";
+    * otherwise, after ``grace_s`` seconds, the policy decides: ``"dismiss"``
+      (the default) presses the dialog's own Escape/Cancel answer, ``"report"``
+      leaves it open and logs ``STUCK`` every 10 s, ``"fail"`` dismisses it
+      and sets :attr:`unexpected`, so the driver can refuse to call its run a
+      pass.
+
+    Dismissing is never the same as passing: every unscripted pop-up is in
+    :attr:`events` with ``"unexpected": True`` and belongs in the round's
+    report. A native file dialog on macOS is a ``QFileDialog`` to Qt, so it is
+    caught and rejected the same way.
+
+    Usage::
+
+        dog = PopupWatchdog(report_dir, photograph=True)
+        dog.expect(r"Create a new report or update", "Create new")
+        dog.start()
+        ... drive the app ...
+        dog.stop()
+        if dog.unexpected_events(): report them at the top of REPORT.md
+    """
+
+    def __init__(self, report_dir: "Path | None" = None, *,
+                 policy: str = "dismiss", grace_s: float = 1.5,
+                 interval_ms: int = 400, photograph: bool = False,
+                 dismiss_windows: bool = False, log=print):
+        if policy not in ("dismiss", "report", "fail"):
+            raise ValueError(f"unknown policy {policy!r}")
+        self.report_dir = Path(report_dir) if report_dir else None
+        self.policy, self.grace_s = policy, grace_s
+        self.interval_ms, self.photograph, self._log = interval_ms, photograph, log
+        self.dismiss_windows = dismiss_windows
+        self.rules: list[tuple] = []
+        self.events: list[dict] = []
+        self.unexpected = False
+        #: id(widget) -> (widget, first seen). Holding the widget keeps its id
+        #: from being reused by a NEW box while this one is remembered.
+        self._first_seen: dict[int, tuple] = {}
+        self._last_stuck_note: dict[int, float] = {}
+        self._event_for: dict[int, dict] = {}
+        self._rule_for: dict[int, tuple] = {}
+        self._answered: set[int] = set()
+        #: Pop-ups a dismissal is already scheduled for. Once is enough: while
+        #: the dismissal's own handler runs (it may ask a second question) the
+        #: first pop-up is still visible, and dismissing it again every tick
+        #: pressed Cancel over and over, each press asking again.
+        self._dismissed: set[int] = set()
+        self._timer = None
+
+    # -- the driver's side ----------------------------------------------------
+    def expect(self, pattern: str, button: str) -> "PopupWatchdog":
+        """Answer a pop-up whose title or text matches *pattern* (a regular
+        expression, case-insensitive) by pressing the button labelled
+        *button* (ampersands ignored, case-insensitive)."""
+        import re
+        self.rules.append((re.compile(pattern, re.I | re.S), button))
+        return self
+
+    def start(self) -> "PopupWatchdog":
+        from PyQt6.QtCore import QTimer
+        self._timer = QTimer()
+        self._timer.setInterval(self.interval_ms)
+        self._timer.timeout.connect(self._tick)       # a bound method, never a lambda
+        self._timer.start()
+        return self
+
+    def stop(self) -> None:
+        if self._timer is not None:
+            self._timer.stop()
+            self._timer.deleteLater()
+            self._timer = None
+
+    def __enter__(self):
+        return self.start()
+
+    def __exit__(self, *exc):
+        self.stop()
+        return False
+
+    def unexpected_events(self) -> list[dict]:
+        return [e for e in self.events if e["unexpected"]]
+
+    # -- what it looks at -----------------------------------------------------
+    @staticmethod
+    def _popups() -> list:
+        from PyQt6.QtWidgets import QApplication, QMessageBox
+        found = []
+        modal = QApplication.activeModalWidget()
+        if modal is not None and modal.isVisible():
+            found.append(modal)
+        for w in QApplication.topLevelWidgets():
+            if isinstance(w, QMessageBox) and w.isVisible() and w not in found:
+                found.append(w)
+        return found
+
+    @staticmethod
+    def _buttons(w) -> list:
+        from PyQt6.QtWidgets import QAbstractButton
+        return [b for b in w.findChildren(QAbstractButton)
+                if b.isVisible() and b.text().strip()]
+
+    @classmethod
+    def describe(cls, w) -> dict:
+        from PyQt6.QtWidgets import QLabel, QMessageBox
+        if isinstance(w, QMessageBox):
+            text = "\n".join(t for t in (w.text(), w.informativeText()) if t)
+        else:
+            text = "\n".join(l.text() for l in w.findChildren(QLabel)
+                             if l.isVisible() and l.text().strip())
+        return {"class": type(w).__name__, "title": w.windowTitle(),
+                "text": text[:1200],
+                "buttons": [b.text().replace("&", "") for b in cls._buttons(w)]}
+
+    #: Widgets that make a dialog a WORKING window rather than a question.
+    _WORKING_WIDGETS = ("QTabWidget", "QAbstractItemView", "QComboBox",
+                        "QLineEdit", "QAbstractSpinBox", "QTextEdit",
+                        "QPlainTextEdit", "QWebEngineView", "QGraphicsView")
+
+    @classmethod
+    def is_question(cls, w) -> bool:
+        """A pop-up that asks something, as opposed to a working window.
+
+        Message, input and file dialogs always are. A plain modal QDialog is
+        one too when it holds nothing to work with (no tabs, lists, tables,
+        combo boxes, input fields, editors or web views) and at most four
+        buttons: ChromIQ's own "Strip Read Quickly" is a QDialog, and the first
+        watchdog left it hanging (review K_review_beta1). The Measurement Report
+        window, Preferences and the patch-set editor all hold working widgets."""
+        from PyQt6.QtWidgets import (QDialog, QFileDialog, QInputDialog,
+                                     QMessageBox, QPushButton, QWidget)
+        if isinstance(w, (QMessageBox, QInputDialog, QFileDialog)):
+            return True
+        if not isinstance(w, QDialog):
+            return False
+        for child in w.findChildren(QWidget):
+            if not child.isVisible():
+                continue
+            names = {k.__name__ for k in type(child).__mro__}
+            if names & set(cls._WORKING_WIDGETS):
+                return False
+        buttons = [b for b in w.findChildren(QPushButton) if b.isVisible()]
+        return 0 < len(buttons) <= 4
+
+    # -- what it does ---------------------------------------------------------
+    def _find_button(self, w, label: str):
+        want = label.replace("&", "").strip().lower()
+        for b in self._buttons(w):
+            if b.text().replace("&", "").strip().lower() == want:
+                return b
+        return None
+
+    @staticmethod
+    def _dismiss(w) -> str:
+        """Dismiss *w* from a ZERO-DELAY timer, never inside this tick: a
+        dismissal that opens another question would otherwise run that
+        question's exec() inside the watchdog's own timer slot, and nothing
+        could look at it until it closed (review K_review_beta1)."""
+        from PyQt6.QtCore import QEvent, Qt, QTimer
+        from PyQt6.QtGui import QKeyEvent
+        from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
+        if isinstance(w, QMessageBox) and w.escapeButton() is not None:
+            label = w.escapeButton().text().replace("&", "")
+            QTimer.singleShot(0, w.escapeButton().click)
+            return f"pressed its Escape answer '{label}'"
+        if isinstance(w, QDialog):
+            # A REAL Escape key, never reject(): a QMessageBox finds its own
+            # Escape answer (Cancel, Stop) only when the key arrives, and
+            # reject() from code leaves it with no answer at all, which
+            # "Stuck Print Jobs" once read as "print" (review P_review2_beta1
+            # W-1). A plain QDialog's Escape is its reject(), as for a user.
+            #
+            # A QMessageBox with NO Escape answer (only Accept/Destructive
+            # buttons, say "Save" + "Discard") ignores the key and stays open,
+            # and the watchdog dismisses a pop-up only once, so the driver
+            # hung behind it (review T_review_beta2). Such a box is closed
+            # with reject() after a grace period: no answer, which every
+            # question in the app reads as "do nothing".
+            def _fallback(w=w):
+                from PyQt6 import sip
+                if not sip.isdeleted(w) and w.isVisible():
+                    w.reject()
+
+            def _press(w=w):
+                for kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+                    QApplication.sendEvent(w, QKeyEvent(
+                        kind, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+                if isinstance(w, QMessageBox):
+                    QTimer.singleShot(1000, _fallback)
+            QTimer.singleShot(0, _press)
+            return "pressed Escape"
+        QTimer.singleShot(0, w.close)
+        return "closed it"
+
+    def _note(self, line: str) -> None:
+        self._log(f"[popup] {line}")
+        if self.report_dir is not None:
+            self.report_dir.mkdir(parents=True, exist_ok=True)
+            with open(self.report_dir / "popups.log", "a", encoding="utf-8") as f:
+                f.write(time.strftime("%H:%M:%S ") + line + "\n")
+
+    def _tick(self) -> None:
+        now = time.monotonic()
+        live = self._popups()
+        alive_ids = {id(w) for w in live}
+        for gone in [k for k, (held, _t) in self._first_seen.items()
+                     if k not in alive_ids or not any(w is held for w in live)]:
+            self._first_seen.pop(gone, None)
+            self._last_stuck_note.pop(gone, None)
+            self._event_for.pop(gone, None)
+            self._rule_for.pop(gone, None)
+            self._answered.discard(gone)
+            self._dismissed.discard(gone)
+        for w in live:
+            try:
+                self._look_at(w, now)
+            except RuntimeError as exc:     # deleted under us between ticks
+                self._note(f"  a pop-up went away while being looked at ({exc})")
+
+    def _look_at(self, w, now: float) -> None:
+        from PyQt6.QtCore import QTimer
+        key = id(w)
+        if key not in self._first_seen:
+            self._first_sight(w, key, now)
+        event = self._event_for[key]
+        age = now - self._first_seen[key][1]
+        rule = self._rule_for.get(key)
+        if rule is not None and key not in self._answered:
+            button = self._find_button(w, rule[1])
+            if button is not None:
+                # DEFERRED, not clicked inside this tick: an answer that opens
+                # a second question would otherwise run that question's exec()
+                # inside this timer slot, and the watchdog could not look at
+                # it until it closed (challenge G, 2026-10-02).
+                self._answered.add(key)
+                QTimer.singleShot(0, button.click)
+                event["action"] = f"answered '{rule[1]}'"
+                self._note(f"  {event['action']}")
+                return
+            if age < self.grace_s:
+                return            # a button may still be added; look again
+            self._answered.add(key)
+            event["action"] = f"EXPECTED BUTTON '{rule[1]}' NOT FOUND"
+            event["unexpected"] = True
+            self._note(f"  {event['action']}")
+        if key in self._answered and rule is not None and event["action"].startswith("answered"):
+            return
+        if age < self.grace_s:
+            return
+        if not self.is_question(w) and not self.dismiss_windows:
+            return                              # a working window: leave it be
+        if self.policy == "report":
+            if now - self._last_stuck_note.get(key, 0) >= 10:
+                self._last_stuck_note[key] = now
+                self._note(f"STUCK on '{w.windowTitle()}' for {age:.0f} s")
+            return
+        if key in self._dismissed:
+            return
+        self._dismissed.add(key)
+        action = self._dismiss(w)
+        event["action"] = "; ".join(a for a in (event["action"], action) if a)
+        if self.policy == "fail":
+            self.unexpected = True
+        self._note(f"  unscripted, {action}")
+
+    def _first_sight(self, w, key: int, now: float) -> None:
+        info = self.describe(w)
+        haystack = f"{info['title']}\n{info['text']}"
+        self._first_seen[key] = (w, now)
+        rule = next(((p, b) for p, b in self.rules if p.search(haystack)), None)
+        if rule is not None:
+            self._rule_for[key] = rule
+        question = self.is_question(w)
+        event = dict(info, kind="question" if question else "window",
+                     unexpected=rule is None and question, action="")
+        self.events.append(event)
+        self._event_for[key] = event
+        self._note(f"SEEN {info['class']} '{info['title']}' "
+                   f"buttons={info['buttons']} text={info['text'][:300]!r}")
+        if self.photograph and self.report_dir is not None:
+            shot = self.report_dir / f"popup_{len(self.events):03d}.png"
+            ok, why = capture_window(w, shot, allow_hide=False)
+            self._note(f"  photo {shot.name}" if ok else f"  NO PHOTO: {why}")

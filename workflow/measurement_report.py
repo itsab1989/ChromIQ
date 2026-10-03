@@ -938,24 +938,58 @@ def verify_patch_identity(measured, ti2_path: "Path | None") -> dict:
     return out
 
 
+#: ArgyllCMS's ``icmD50`` (icc/icc_util.c), the white the ChromIQ engine's
+#: ``icmXYZ2Lab(&icmD50, …)`` uses for every live patch ΔE. Four decimals, as
+#: Argyll has it, not the five of ``workflow.icc_info``: the overlay after a
+#: measurement must give the same number the engine gave during it.
+_ICM_D50 = (0.9642, 1.0, 0.8249)
+
+
+def _engine_lab(xyz100) -> "tuple[float, float, float]":
+    """L*a*b* exactly as the engine computes it: XYZ / 100 against icmD50."""
+    return xyz_to_lab(tuple(float(v) / 100.0 for v in xyz100[:3]), _ICM_D50)
+
+
+def engine_patch_de(exyz100, xyz100) -> float:
+    """The engine's per-patch ΔE: ΔE*ab (CIE76) between expected and measured.
+
+    ``native/chartread_helper/chromiq_chartread.c`` (``cq_emit_strip_read``)
+    converts both XYZ with ``icmXYZ2Lab(&icmD50, …)`` after dividing by 100
+    and takes ``icmLabDE``, the plain Euclidean distance.
+    """
+    a, b = _engine_lab(exyz100), _engine_lab(xyz100)
+    return math.sqrt(sum((x - y) ** 2 for x, y in zip(a, b)))
+
+
 def per_patch_overlay(ti3_path: "str | Path",
                       ti2_path: "str | Path | None" = None) -> "list[dict]":
     """Per-patch expected-vs-measured data for the split-patch overlay (#134).
 
-    Returns ``[{loc, exyz, xyz, de}, …]`` — one entry per patch that matches
+    Returns ``[{loc, exyz, xyz, de}, …]``, one entry per patch that matches
     between the measured ``.ti3`` and its chart ``.ti2`` (by ``SAMPLE_ID``):
 
-      * ``loc``  — the patch location (``SAMPLE_LOC``, e.g. ``"A1"``) used to
+      * ``loc``  - the patch location (``SAMPLE_LOC``, e.g. ``"A1"``) used to
         place it on the chart page.
-      * ``exyz`` — the chart's EXPECTED XYZ (D50-adapted, Y≈100), the same
-        colour-correct reference the Measurement Report uses.
-      * ``xyz``  — the MEASURED XYZ from the ``.ti3`` (Y≈100).
-      * ``de``   — ΔE00 between them.
+      * ``exyz`` - the chart's EXPECTED XYZ exactly as the ``.ti2`` holds it:
+        no rescale, no white-point adaptation. That is what the ChromIQ engine
+        compares against while measuring (``chromiq_chartread.c`` reads the
+        ``.ti2`` XYZ into ``eXYZ`` unchanged).
+      * ``xyz``  - the MEASURED XYZ from the ``.ti3`` (Y≈100).
+      * ``de``   - ΔE*ab (CIE76) between them, computed as the engine does
+        (:func:`engine_patch_de`).
+
+    THE SAME NUMBERS AS DURING THE MEASUREMENT (#182 K3, Knut 5959352118).
+    This used to return the Measurement Report's figures instead: expected
+    values rescaled and adapted D65 -> D50, and ΔE2000. On Knut's patch A23
+    that is 16.1 where the engine said 103.2 ΔE*ab, so every red outline
+    vanished the moment a measurement ended, and the hover card went on
+    calling the smaller number ΔE*ab. The report keeps its own colour-correct
+    comparison (:func:`_reference_labs`); the preview shows the engine's.
 
     This is exactly the shape ``TabMeasure._on_chart_measured`` renders, so a
     measurement already on disk can be shown as the overlay without re-reading.
     Returns ``[]`` when the reference ``.ti2`` is missing/unreadable or nothing
-    matches (e.g. a foreign ``.ti3`` from a different chart) — the caller then
+    matches (e.g. a foreign ``.ti3`` from a different chart); the caller then
     falls back to the tabular "Inspect a measurement" view."""
     ti3_path = Path(ti3_path)
     ti2 = Path(ti2_path) if ti2_path else _find_reference_ti2(ti3_path)
@@ -964,24 +998,18 @@ def per_patch_overlay(ti3_path: "str | Path",
         design = parse_ti3(ti2)
     except (Ti3ParseError, OSError):
         return []
-    dxyz = _design_xyz_to_100(np.asarray(design.xyz, dtype=float))
-    adapt = _design_xyz_is_d65(design.keywords)
+    dxyz = np.asarray(design.xyz, dtype=float)
     ref: "dict[str, tuple]" = {}
     for i, sid in enumerate(design.sample_ids):
-        x, y, z = (float(v) for v in dxyz[i])
-        if adapt:
-            x, y, z = _bradford_d65_to_d50(x, y, z)
         loc = design.sample_locs[i] if i < len(design.sample_locs) else sid
-        ref[sid] = (loc, (x, y, z))
+        ref[sid] = (loc, tuple(float(v) for v in dxyz[i]))
     out: "list[dict]" = []
     for i, sid in enumerate(measured.sample_ids):
         if sid not in ref:
             continue
         loc, exyz = ref[sid]
         mxyz = tuple(float(v) for v in measured.xyz[i])
-        de = ciede2000(
-            xyz_to_lab(tuple(v / 100.0 for v in mxyz)),
-            xyz_to_lab(tuple(v / 100.0 for v in exyz)))
+        de = engine_patch_de(exyz, mxyz)
         out.append({"loc": loc, "exyz": list(exyz),
                     "xyz": list(mxyz), "de": round(float(de), 2)})
     return out
@@ -2053,6 +2081,52 @@ def annotate_raw_drift(runs: "list[dict]") -> None:
         prev, prev_data = r, data
 
 
+#: What a report's file name may not carry on any of the three systems.
+_UNSAFE_IN_A_NAME = re.compile(r'[/\\:*?"<>|]')
+
+
+def report_name_stamp(when: "datetime | str") -> str:
+    """The date-time a report's FILE NAME ends with: ``YYYY-MM-DD_HH-MM-SS``.
+
+    The Measurement Report's PDF name carries it (#130, Knut), taken from the
+    document's ISO creation time; *when* is that ISO text or a datetime.
+    """
+    if isinstance(when, datetime):
+        when = when.isoformat(timespec="seconds")
+    return str(when).replace("T", "_").replace(":", "-")
+
+
+def report_file_name(title: str, stamp: str, suffix: str) -> str:
+    """``"<title> - <stamp><suffix>"``, made safe for a file system.
+
+    ONE SCHEME FOR EVERY REPORT CHROMIQ NAMES (Knut, #182 5943085974, B1 and
+    B2): the Measurement Report's PDF and the two Inspect tools' text files
+    are all built here, so they cannot drift apart. *title* is everything
+    before the time, already joined with ``" - "``.
+    """
+    return _UNSAFE_IN_A_NAME.sub("_", f"{title} - {stamp}") + suffix
+
+
+def inspection_file_name(kind: str, name: str,
+                         when: "datetime | None" = None,
+                         suffix: str = ".txt") -> str:
+    """The default file name of an Inspect tool's saved text (#182, B1/B2).
+
+    Knut, 2026-10-02: *"the same naming structure as the measurement report
+    file name with time-stamp at the end (but not with the special
+    configurable title that the measurement report has)"*, and for Inspect a
+    profile *"in the same style with time stamp and unique for the 'Inspect a
+    profile' tool"*. So the configurable prefix is replaced by the tool's own
+    fixed *kind* ("Measurement inspection", "Profile inspection", in the UI's
+    language like the report's default prefix), followed by the inspected
+    file's *name*: ``"Measurement inspection - Knut-Canson -
+    2026-10-02_14-30-05.txt"``.
+    """
+    title = " - ".join(p for p in (kind.strip(), name.strip()) if p)
+    return report_file_name(title, report_name_stamp(when or datetime.now()),
+                            suffix)
+
+
 def save_report(report: dict, run_dir: str | Path) -> Path:
     """Write the report as timestamped JSON under ``<run_dir>/reports/`` and
     return the path. Timestamped so a printer's reports accrue for comparison."""
@@ -2221,6 +2295,228 @@ def is_verdict_record(report_or_block: "dict | None") -> bool:
 NAME_SHOWS_EVERY_UPDATE = False
 
 
+#: The Report Scope's count, recorded in the document block (Q-C5).
+SCOPE_COUNT_KEY = "scope_count"
+#: No sentence: the report covers every measurement recorded.
+SCOPE_COUNT_NONE = "none"
+#: "This report covers {n} of the {total} measurements recorded for ..."
+SCOPE_COUNT_COVERS = "covers"
+#: "This report does not cover every measurement recorded for ...": a
+#: project's folder could not be read, so there was no total to give.
+SCOPE_COUNT_UNKNOWN = "unknown"
+SCOPE_COUNT_VARIANTS = (SCOPE_COUNT_NONE, SCOPE_COUNT_COVERS,
+                        SCOPE_COUNT_UNKNOWN)
+#: The kind a document is counted against (K14); "" is a document mixing
+#: the two, counted against everything.
+SCOPE_COUNT_KINDS = ("profiling", "verification", "")
+
+
+def scope_count_of(raw) -> "dict | None":
+    """*raw* as a Report Scope count this build writes, or None.
+
+    Only the DECISION is kept: a variant id, a kind id and four whole
+    numbers. No text, so `tr()` runs when the report is SHOWN, and a report
+    saved in English and opened in German says the saved numbers in German.
+    """
+    if not isinstance(raw, dict):
+        return None
+    variant = raw.get("variant")
+    kind = raw.get("kind")
+    kind = "" if kind is None else kind
+    if variant not in SCOPE_COUNT_VARIANTS or kind not in SCOPE_COUNT_KINDS:
+        return None
+    out = {"variant": variant}
+    for k in ("n", "total"):
+        v = raw.get(k, 0)
+        if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+            return None
+        out[k] = v
+    out["kind"] = kind
+    for k in ("projects", "runs"):
+        v = raw.get(k, 0)
+        if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+            return None
+        out[k] = v
+    return out
+
+
+def measurements_recorded_in(project_dir: str, kind: "str | None" = None,
+                             run_names: "set[str] | None" = None) -> int:
+    """How many measurements a project's folder holds, read from the disk.
+
+    Every run's own measurement plus every dated verification of every run.
+
+    **OF THE REPORT'S OWN KIND, AND FOR A VERIFICATION OF ITS OWN RUNS (K14,
+    Knut on beta 34).** *"This report covers 1 of the 18 measurements
+    recorded for this project" ... is wrong, as this demo project has 3
+    runs (profile runs, when run type is Profiling) ... it should only show
+    relating to run type is Profiling.* So ``kind="profiling"`` counts only
+    the runs' own sheets, and ``kind="verification"`` only the dated
+    verifications, of the runs in ``run_names`` when it is given. ``None``
+    is the old count of both.
+    Role-named files (`preconditioning.ti3`, `merged.ti3`, the
+    `reads/readN.ti3` snapshots that are averaged back into the run's own)
+    are not measurements in this sense and are not counted: what is counted
+    is what the window would show as a row.
+
+    **READ WHEN A REPORT IS MADE OR UPDATED (Q-C5).** Its answer goes into
+    `scope_counts`, whose decision the report stores; a saved report shows
+    that decision, not what the folder holds the day it is opened.
+
+    Never raises: the count decorates a sentence and a missing folder or an
+    unreadable manifest must not cost the reader the report.
+    """
+    try:
+        from core.file_manager import VERIFICATIONS_DIRNAME
+        root = Path(project_dir) / "runs"
+        if not root.is_dir():
+            return 0
+        # ROLE-NAMED, SO NOT A MEASUREMENT. `preconditioning.ti3` is
+        # inherited from the parent run and `merged.ti3` is the average of
+        # two; neither is a sheet anybody read, and `reads/readN.ti3` lives
+        # in its own folder and is averaged back into the run's own.
+        roles = {"preconditioning.ti3", "merged.ti3"}
+        n = 0
+        for d in sorted(root.iterdir()):
+            if not (d.is_dir() and d.name.startswith("run")):
+                continue
+            if run_names is not None and d.name not in run_names:
+                continue
+            if kind != "verification":
+                n += len([f for f in d.glob("*.ti3")
+                          if f.name not in roles])
+            if kind == "profiling":
+                continue
+            # A DATED VERIFICATION IS FOUND BY ITS FOLDER, NOT BY ITS NAME.
+            # `Verification.measurement_ti3` resolves `<the run's stem>.ti3`,
+            # so a verification measured from a different chart is invisible
+            # to it: measured on a two-date fixture holding `Alpha.ti3` and
+            # `Bravo.ti3`, it found one of the two.
+            for v in sorted((d / VERIFICATIONS_DIRNAME).glob("*")):
+                if v.is_dir() and any(v.glob("*.ti3")):
+                    n += 1
+        return n
+    except Exception:      # noqa: BLE001 — a count is never a blocker
+        return 0
+
+
+def _scope_project_of(row) -> str:
+    """The project a report row belongs to, as a resolved folder, or
+    ``external:<origin>`` for a row in none (see `scope_counts`).
+
+    RESOLVED, because `/tmp` and `/private/tmp` are one folder and were
+    counted twice (R14-F4); and a folder RENAMED since it was read is still a
+    project, whose path's shape says which (R14-F5)."""
+    from workflow.run_compliance import run_context_for
+    _o = str(row.get("_origin_dir") or row.get("ti3") or "")
+    try:
+        _c = run_context_for(_o)
+        if _c:
+            _d = _c.run.dir.parent.parent
+            try:
+                return str(_d.resolve())
+            except OSError:    # the folder has gone since it was read
+                return str(_d)
+        try:
+            _pp = Path(_o).resolve()
+        except OSError:
+            _pp = Path(_o)
+        _parts = list(_pp.parts)
+        if "runs" in _parts:
+            _i = len(_parts) - 1 - _parts[::-1].index("runs")
+            if _i > 0:
+                return str(Path(*_parts[:_i]))
+        return f"external:{_o}"
+    except Exception:      # noqa: BLE001 — a count is never a blocker
+        return f"external:{_o}"
+
+
+def _scope_ident(path: str) -> str:
+    """THE DISK'S OWN IDENTITY, NOT THE SPELLING (R16-F1): device and inode
+    agree across `/tmp` and `/private/tmp`, a symlink, a firmlink and another
+    capitalisation on a case-insensitive volume. A folder that has gone has
+    neither, and then the resolved path is the best identity there is."""
+    try:
+        st = os.stat(path)
+        return f"{st.st_dev}:{st.st_ino}"
+    except OSError:
+        return path
+
+
+def scope_counts(runs, history=None) -> dict:
+    """The Report Scope's count of one report: which sentence, with which
+    numbers. ONE DECISION for the page, Generate, Update and the report
+    written automatically after a measurement (Q-C5).
+
+    *runs* are the rows the report covers, *history* every row the window
+    holds (None: the same rows, which is the automatic report's case).
+    Returns ``{"variant", "n", "total", "kind", "projects", "runs"}`` (see
+    `scope_count_of`). A report STORES this and shows it when it is opened
+    again; only an Update counts it anew. Knut, #182 5950006399: *"Yes,
+    Show numbers as they were saved. An update will renew the numbers."*
+
+    The rules, each from the round that found it (the long account is
+    beside the sentence in `MeasurementReportDialog._scope_html`):
+
+    * COUNTED OFF THE DISK, NOT OUT OF THE WINDOW (B8-346 F5); a file that
+      belongs to no project is in neither number (B8-346 F6);
+    * a project is grouped by the disk's identity (R14-F4, R16-F1);
+    * a number only when every folder can be read (R17-F2, R18-F3); else
+      the sentence without numbers, when the window holds more of those
+      projects' rows than the report covers ("unknown");
+    * the report's own kind, and a verification's own runs (K14);
+    * the total is never smaller than what is covered.
+
+    Never raises: a count decorates a sentence.
+    """
+    runs = list(runs or [])
+    history = list(runs if history is None else history)
+    try:
+        mine: "dict[str, str]" = {}
+        for p in (_scope_project_of(r) for r in runs):
+            if not p.startswith("external:"):
+                mine.setdefault(_scope_ident(p), p)
+        covered = len([r for r in runs
+                       if _scope_ident(_scope_project_of(r)) in mine])
+        # THE REPORT'S OWN KIND (K14). A document mixing the two keeps the
+        # old count of everything.
+        kinds = {bool(r.get("is_verification")) for r in runs}
+        kind = ("verification" if kinds == {True} else
+                "profiling" if kinds == {False} else None)
+        # THE RUNS OF EVERY ROW IN THE "INCLUDED MEASUREMENTS" LIST, not
+        # only of the rows the document kept (Knut's own scope).
+        run_names: "set[str] | None" = None
+        if kind == "verification":
+            from workflow.run_compliance import run_context_for
+            run_names = set()
+            for r in runs + history:
+                if not r.get("is_verification"):
+                    continue
+                c = run_context_for(str(r.get("_origin_dir") or ""))
+                if c is not None:
+                    run_names.add(c.run.dir.name)
+            run_names = run_names or None
+        counts = [measurements_recorded_in(p, kind, run_names)
+                  for p in mine.values()]
+        all_known = bool(counts) and all(n > 0 for n in counts)
+        out = {"variant": SCOPE_COUNT_NONE, "n": covered,
+               "total": max(sum(counts), covered), "kind": kind or "",
+               "projects": len(mine), "runs": len(run_names or ())}
+        if not all_known:
+            held = len([r for r in history
+                        if _scope_ident(_scope_project_of(r)) in mine])
+            out["total"] = 0
+            if covered < held:
+                out["variant"] = SCOPE_COUNT_UNKNOWN
+        elif covered < out["total"]:
+            out["variant"] = SCOPE_COUNT_COVERS
+        return out
+    except Exception as exc:                     # noqa: BLE001
+        log.debug("the report scope could not be counted: %s", exc)
+        return {"variant": SCOPE_COUNT_NONE, "n": len(runs), "total": 0,
+                "kind": "", "projects": 0, "runs": 0}
+
+
 def document_updated_stamps(doc: "dict | None") -> "list[str]":
     """Every "updated" stamp a document block carries, oldest first.
 
@@ -2242,9 +2538,15 @@ def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
                    measurements: "list[dict]", scope: str = "",
                    all_runs: bool = False,
                    updated: "list[str] | None" = None,
-                   role: str = "") -> dict:
+                   role: str = "",
+                   scope_count: "dict | None" = None) -> dict:
     """Record, on one file, which DOCUMENT it belongs to and how that document
     was made. Returns *report*, stamped in place.
+
+    *scope_count* is the Report Scope's count as it was decided when this
+    report was made or updated (`scope_counts`; Knut, #182 5950006399). It is
+    stored as the decision, never as text, and is left out only by a caller
+    that has none, so such a block reads exactly as one written before it.
 
     §13.4 names the fields and this writes exactly them: the type, the limit
     set with its label and the thresholds copy it was judged against, both tick
@@ -2293,6 +2595,11 @@ def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
     # see `ROLE_RECORD`.
     if role in DOCUMENT_ROLES:
         report[DOCUMENT_BLOCK]["role"] = role
+    # **THE NUMBERS AS THEY WERE SAVED (Q-C5; Knut, #182 5950006399: "Yes,
+    # Show numbers as they were saved. An update will renew the numbers.").**
+    sc = scope_count_of(scope_count)
+    if sc is not None:
+        report[DOCUMENT_BLOCK][SCOPE_COUNT_KEY] = sc
     return report
 
 
@@ -2362,6 +2669,14 @@ def recorded_document(report: "dict | None") -> "dict | None":
         out["role"] = role
     else:
         out.pop("role", None)
+    # The saved Report Scope count (Q-C5), read as the fields this build
+    # writes (R27-F2): a value of any other shape is dropped, and the report
+    # is then counted live, as one written before the count was recorded.
+    sc = scope_count_of(d.get(SCOPE_COUNT_KEY))
+    if sc is not None:
+        out[SCOPE_COUNT_KEY] = sc
+    else:
+        out.pop(SCOPE_COUNT_KEY, None)
     return out
 
 
@@ -3392,7 +3707,8 @@ def recorded_judgement(block: "dict | None", key: str,
 def document_file(*, doc_id: str, created: str, type_id: str,
                   compliance: "dict | None", detail: bool,
                   measurements: "list[dict]", scope: str = "",
-                  updated: "list[str] | None" = None) -> dict:
+                  updated: "list[str] | None" = None,
+                  scope_count: "dict | None" = None) -> dict:
     """The DOCUMENT FILE of a document of several measurements (K23).
 
     It carries what the document is (its block, `stamp_document`, with
@@ -3409,7 +3725,8 @@ def document_file(*, doc_id: str, created: str, type_id: str,
     return stamp_document(body, doc_id=doc_id, created=created,
                           type_id=type_id, compliance=compliance,
                           detail=detail, measurements=measurements,
-                          scope=scope, updated=updated, role=ROLE_DOCUMENT)
+                          scope=scope, updated=updated, role=ROLE_DOCUMENT,
+                          scope_count=scope_count)
 
 
 def generated_report_types(run, kind: "str | None" = None,

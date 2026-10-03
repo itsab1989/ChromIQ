@@ -310,6 +310,20 @@ def _remember_dir(settings: "AppSettings", tool_key: str, path: Path) -> None:
 # Base dialog
 # ---------------------------------------------------------------------------
 
+
+def _report_saved_line(report: Path, measured: Path) -> str:
+    """The log line after a Verify tool wrote its report. In a project the
+    report is in the owner's ``reports/`` folder; outside one it lies straight
+    beside the measurement (Knut, #182 5944210498), and the line says so
+    (review P-INS-2: it claimed a reports folder that was never made)."""
+    from workflow.run_compliance import in_a_project
+    if in_a_project(measured):
+        return tr("Report saved: {name} (in the reports folder next to "
+                  "your measurement)").format(
+                      name=f"{report.parent.name}/{report.name}")
+    return tr("Report saved beside your measurement: {name}").format(
+        name=report.name)
+
 class _ToolDialogBase(WorkAreaClamped, QDialog):
     """Shared chrome: title, descriptive body, content area, log, Run/Close."""
 
@@ -2035,11 +2049,22 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
 
         # For the 3D map, colverify writes the .x3d.html (plus sibling x3dom.js/
         # css) next to the measured file. Stage that run in a temp dir so the run
-        # folder isn't littered; the normal run writes only the reference beside
-        # the measurement, as before.
+        # folder isn't littered.
+        #
+        # **AND THE REFERENCE IS ALWAYS STAGED, NEVER WRITTEN BESIDE THE
+        # MEASUREMENT (W review, beta 3).** `<stem>-reference.ti3` beside a
+        # run's `<stem>.ti3` is exactly `colorimetric_reference_for(<stem>.ti2)`,
+        # the FROM PROFILE GAMUT marker: once this tool had written it, the
+        # run's Measurement Report judged the run against the values typed
+        # here (measured on Demo-Full-RGB run1: 240 patches at avg dE00 21.3
+        # became 24 patches at 43.4, reference "colorimetric"), and the chart
+        # counted as already converted. The values typed here are this
+        # check's input, nothing else's, so they live in the staging folder
+        # and go with it when the window closes.
+        work = Path(tempfile.mkdtemp(prefix="chromiq_drift_"))
+        self._temp_dirs.append(work)
+        ref_path = work / f"{self._measured.stem}-reference.ti3"
         if want_plot:
-            work = Path(tempfile.mkdtemp(prefix="chromiq_drift_"))
-            self._temp_dirs.append(work)
             measured_path = work / self._measured.name
             try:
                 shutil.copyfile(self._measured, measured_path)
@@ -2047,10 +2072,8 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                 self._log.appendPlainText(f"[ERROR] Could not stage the measurement: {exc}")
                 self._finish(False)
                 return
-            ref_path = work / f"{self._measured.stem}-reference.ti3"
         else:
             measured_path = self._measured
-            ref_path = self._measured.parent / f"{self._measured.stem}-reference.ti3"
 
         try:
             write_reference_ti3(ref_path, rows, space=space)
@@ -2091,8 +2114,12 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                 # measurement (the 3D-map run verifies a staged temp copy),
                 # like the quality check does (Knut, beta.5). Best-effort.
                 try:
-                    from core.file_manager import ensure_subdir, reports_subdir
+                    # The OWNER's reports folder (Knut, #182 B2): a
+                    # measurement in reads/, cache/ or old/<stamp>/ files
+                    # its report with the run, not in reads/reports/.
+                    from core.file_manager import ensure_subdir
                     from workflow.profcheck_runner import write_named_report
+                    from workflow.run_compliance import reports_dir_for
                     summary = "\n".join([
                         tr("Verification against reference values"),
                         datetime.now().isoformat(timespec="seconds"),
@@ -2104,14 +2131,12 @@ class VerifyAgainstReferenceDialog(_ToolDialogBase):
                         interpret(result),
                     ])
                     rp = write_named_report(
-                        ensure_subdir(reports_subdir(self._measured.parent)),
+                        ensure_subdir(reports_dir_for(self._measured)),
                         "Verify_Reference", self._measured.stem,
                         summary, result.raw_log,
                         log_title="Full colverify output")
-                    self._log.appendPlainText(tr(
-                        "Report saved: {name} (in the reports folder next to "
-                        "your measurement)").format(
-                            name=f"{rp.parent.name}/{rp.name}"))
+                    self._log.appendPlainText(
+                        _report_saved_line(rp, self._measured))
                 except Exception:  # noqa: BLE001 — a report must never block the verdict
                     log.warning("could not write verification report",
                                 exc_info=True)
@@ -2350,8 +2375,12 @@ class VerifyProfileDialog(_ToolDialogBase):
                 # Leave a readable report in reports/ next to the measurement,
                 # like the quality check does (Knut, beta.5). Best-effort.
                 try:
-                    from core.file_manager import ensure_subdir, reports_subdir
+                    # The OWNER's reports folder (Knut, #182 B2): a
+                    # measurement in reads/, cache/ or old/<stamp>/ files
+                    # its report with the run, not in reads/reports/.
+                    from core.file_manager import ensure_subdir
                     from workflow.profcheck_runner import write_named_report
+                    from workflow.run_compliance import reports_dir_for
                     summary = "\n".join([
                         tr("Profile verification (independent check)"),
                         datetime.now().isoformat(timespec="seconds"),
@@ -2367,14 +2396,12 @@ class VerifyProfileDialog(_ToolDialogBase):
                         quality_explanation(result.avg_de, result.peak_de),
                     ])
                     rp = write_named_report(
-                        ensure_subdir(reports_subdir(self._measured.parent)),
+                        ensure_subdir(reports_dir_for(self._measured)),
                         "Verify_Profile", self._measured.stem,
                         summary, result.raw_log,
                         log_title="Full profcheck output")
-                    self._log.appendPlainText(tr(
-                        "Report saved: {name} (in the reports folder next to "
-                        "your measurement)").format(
-                            name=f"{rp.parent.name}/{rp.name}"))
+                    self._log.appendPlainText(
+                        _report_saved_line(rp, self._measured))
                 except Exception:  # noqa: BLE001 — a report must never block the verdict
                     log.warning("could not write verification report",
                                 exc_info=True)

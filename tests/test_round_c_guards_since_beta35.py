@@ -329,7 +329,8 @@ def test_a_record_holding_only_l_still_prints_its_l(tmp_path, qapp):
     dlg = _pw_window(s, vs[-1].measurement_ti3, qapp)
     try:
         html = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
-        assert "- L* 95.4</div>" in html, (
+        # the line is a two-cell row since #182 (d): its text ends a cell
+        assert "- L* 95.4</td>" in html, (
             "the L*-only paper white printed no number")
         assert "L* 6.2, a* 0.2, b* -1.4" in html, "the control line is gone"
     finally:

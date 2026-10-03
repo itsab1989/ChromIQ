@@ -161,6 +161,14 @@ _PRINTTARG_ERROR_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
 ]
 
 
+# printtarg.c, -K and -I alike: a calibration for other inks than the .ti1's.
+# Kept out of the table above because its text is translated (tr() at the
+# moment it is shown) and the table's are not; the engine refuses the same
+# case with `calibration.CalibrationMismatch` and the same words.
+_PRINTTARG_CAL_MISMATCH = re.compile(
+    r"Calibration colorspace (\S+) doesn't match \.ti1 (\S+)")
+
+
 # Instruments the ChromIQ layout engine can lay out itself (issue #93).
 ENGINE_INSTRUMENTS = {"i1", "p3", "CM", "SS", "CR30"}
 
@@ -1195,6 +1203,13 @@ class ChartCreator:
                 if m:
                     self._matched_warnings.append((tool, key, fmt.format(*m.groups())))
         elif tool == "printtarg":
+            m = _PRINTTARG_CAL_MISMATCH.search(line)
+            if m:
+                from workflow.layout_engine.calibration import (
+                    calibration_mismatch_message)
+                self._matched_errors.append(
+                    (tool, "cal_colorspace_mismatch",
+                     calibration_mismatch_message(m.group(1), m.group(2))))
             for pattern, key, fmt in _PRINTTARG_ERROR_PATTERNS:
                 m = pattern.search(line)
                 if m:
@@ -1557,6 +1572,14 @@ class ChartCreator:
         except Exception as exc:  # noqa: BLE001 — surface any engine failure
             log.exception("ChromIQ layout engine failed")
             on_line(f"[ERROR] ChromIQ layout engine: {exc}")
+            # A calibration for other inks is the user's to fix, so it gets
+            # the window a recognised printtarg error gets, in their words
+            # rather than the engine's (#182 5956560815: the log line alone
+            # said "calibration has 4 channels, target has 3").
+            from workflow.layout_engine.calibration import CalibrationMismatch
+            if isinstance(exc, CalibrationMismatch):
+                self._matched_errors.append(
+                    ("engine", "cal_colorspace_mismatch", exc.friendly()))
             self._finish([])
             return
 
@@ -1583,7 +1606,8 @@ class ChartCreator:
 
         tiffs = sorted(result.tiff_paths or [])
         if tiffs and self._pending_params is not None:
-            self._write_channel_sidecar(work_dir, stem, self._pending_params)
+            self._write_channel_sidecar(work_dir, stem, self._pending_params,
+                                        engine="chromiq")
             self._embed_layout_geometry(work_dir, stem, result, params)
             self._stamp_tiff_metadata(tiffs, self._pending_params)
 
@@ -2140,11 +2164,13 @@ class ChartCreator:
         return None
 
     def _write_channel_sidecar(
-        self, work_dir: Path, stem: str, params: "ChartParams"
+        self, work_dir: Path, stem: str, params: "ChartParams",
+        engine: str = "printtarg",
     ) -> None:
         """Write <stem>.channels.json so the preview can identify inks in future sessions."""
         import json
         from ui.tiff_preview import resolve_ink_channels
+        from workflow.printer_calibration import record_for_params
         channels = resolve_ink_channels(params.device_type, params.extra_targen_args)
         sidecar = work_dir / f"{stem}.channels.json"
         extra = {}
@@ -2176,6 +2202,13 @@ class ChartCreator:
                 # targen + printtarg registry at Generate, restored when the
                 # chart is loaded again.
                 "create_chart_settings": dict(params.settings_snapshot or {}),
+                # HOW THE PRINTER CALIBRATION WAS USED (#182 5959070209).
+                # printtarg writes the same .ti2 for -K and -I (printtarg.c
+                # 3348-3352 / 3791-3795); only the pixels differ, so the
+                # choice is recorded here, by the engine that made it, or
+                # nothing can tell later whether the verification print
+                # must be calibrated too. See workflow.printer_calibration.
+                "printer_calibration": record_for_params(params, engine),
             }), encoding="utf-8")
             log.debug("Wrote channel sidecar %s: %s", sidecar.name, channels)
         except Exception as exc:
@@ -2239,7 +2272,12 @@ class ChartCreator:
             with tempfile.TemporaryDirectory(prefix="chromiq_cht_") as td:
                 tdp = Path(td)
                 shutil.copy(ti1, tdp / "cap.ti1")
-                run_text(cmd, cwd=td, capture_output=True, timeout=120)
+                # flk1: printtarg in the environment Generate's run had
+                # (core/printtarg_env); the .cht is seed-independent, so this
+                # is consistency, not a fix
+                from core.printtarg_env import printtarg_env
+                run_text(cmd, cwd=td, capture_output=True, timeout=120,
+                         env=printtarg_env())
                 pages = [c.read_text(encoding="utf-8")
                          for c in sorted(tdp.glob("cap*.cht"))]
             if not pages:

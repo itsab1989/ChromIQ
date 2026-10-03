@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import subprocess
 import sys
 from pathlib import Path
 
@@ -110,11 +109,12 @@ def test_the_presets_window_lays_a_seeded_preset_out_with_its_seed():
 
 
 def _lay_out(folder: Path, chart: Path, args: "list[str]") -> Path:
+    """Lay *chart* out the way the pack does: through the pack's own `run`,
+    which gives printtarg the environment that keeps a seeded layout the same
+    (flk1, `core/printtarg_env.py`)."""
     folder.mkdir(parents=True)
     shutil.copy2(chart, folder / "chart.ti1")
-    subprocess.run([str(ARGYLL / "printtarg"), *args, "chart"], cwd=folder,
-                   capture_output=True, text=True, encoding="utf-8",
-                   timeout=120, check=True)
+    LIMITS.run([ARGYLL / "printtarg", *args, "chart"], folder, 120)
     return folder
 
 
@@ -126,7 +126,13 @@ def test_two_builds_lay_a_chart_out_identically(tmp_path):
 
     MUTATION, proven red: drop the ``-R`` from `printtarg_args` (the
     RANDOM_START and every patch location differ between the two builds,
-    printtarg taking its random start from the clock)."""
+    printtarg taking its random start from the clock).
+
+    flk1: this was intermittently red in the full gate (patch 1 on B15 in
+    one build and G3 in the other, same RANDOM_START) because printtarg reads
+    uninitialised heap memory; see `core/printtarg_env.py`. The many-build
+    proof of that fix is
+    `test_flk1_printtarg_lays_out_the_same_every_time.py`."""
     from PIL import Image
     chart = tmp_path / "src.ti1"
     PRESETS.write_ti1(chart, PRESETS.chart_page(120))
