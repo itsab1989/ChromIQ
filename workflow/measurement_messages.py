@@ -1561,7 +1561,8 @@ M_CAL_TABLE_DAMAGED = _m(
     "file are fine.\n\n"
     "ChromIQ puts that copy back from the chart before it builds, but it could "
     "not find the chart this measurement was made with: a .ti2 with the same "
-    "patches and the same calibration, in the run folder. Put that chart back "
+    "patches and the same device values, and a calibration table of the same "
+    "size, in the run folder. Put that chart back "
     "into the run folder and build again, or print and measure the chart "
     "again with this version of ChromIQ.",
     approved=False)

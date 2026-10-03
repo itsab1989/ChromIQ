@@ -2256,12 +2256,28 @@ class MainWindow(QMainWindow):
         if len(self._cal_repairs_pending) == 1:
             QTimer.singleShot(0, self._show_cal_tables_repaired)
 
+    #: How often a held M-CAL-TABLE-REPAIRED looks again for its moment.
+    CAL_REPAIRED_RETRY_MS = 400
+
     def _show_cal_tables_repaired(self) -> None:
         """M-CAL-TABLE-REPAIRED. Information only: nothing to decide, no
-        sound (it is not a measurement window)."""
-        reps, self._cal_repairs_pending = self._cal_repairs_pending, []
-        if not reps:
+        sound (it is not a measurement window).
+
+        Never over a measurement and never on top of another window: a
+        resumed measurement repairs its .ti3 just before the reader starts,
+        and the window used to come up beside the engine's own questions
+        (review of aad896d8, on screen). It is held while a measurement is
+        starting or running, or while any other modal window is up, and
+        shown once that has ended; repairs made meanwhile join it."""
+        if not self._cal_repairs_pending:
             return
+        from PyQt6.QtWidgets import QApplication
+        if (getattr(self, "_measuring", False)
+                or QApplication.activeModalWidget() is not None):
+            QTimer.singleShot(self.CAL_REPAIRED_RETRY_MS,
+                              self._show_cal_tables_repaired)
+            return
+        reps, self._cal_repairs_pending = self._cal_repairs_pending, []
         from PyQt6.QtWidgets import QMessageBox
         from ui.warning_sign import set_information_icon
         from workflow import measurement_messages as M

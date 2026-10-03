@@ -64,6 +64,10 @@ def _cal_block(rep: str, fields: "list[str]", how: str = "good",
             vals = ["nan"] * len(fields)
         elif how == "garbage":
             vals = ["0.250000"] * len(fields)
+        elif how == "range":                 # numbers, but not 0..1
+            vals = [f"{37.0 * x + k:.6f}" for k in range(len(fields))]
+        elif how == "zigzag":                # numbers, but not monotonic
+            vals = [f"{(0.9 if j % 2 else 0.1):.6f}" for _ in fields]
         else:
             g = 0.8 if how == "good" else 1.3
             vals = [f"{x ** (g + 0.05 * k):.6f}" for k in range(len(fields))]
@@ -169,12 +173,43 @@ def test_a_nan_table_is_replaced_by_the_charts_own(tmp_path, kind):
     assert cal_repair.cal_table_damaged(ti3) is False
 
 
+@pytest.mark.parametrize("how", ["garbage", "range", "zigzag"])
 @pytest.mark.parametrize("kind", sorted(REPS))
-def test_numeric_garbage_is_repaired_too(tmp_path, kind):
-    """On another compiler the fault may leave numbers, not nan."""
-    ti3, ti2 = _project(tmp_path, kind, cal="garbage")
+def test_numeric_garbage_is_repaired_too(tmp_path, kind, how):
+    """On another compiler the fault may leave numbers, not nan: a channel
+    that is constant, outside 0..1 or not monotonic is no calibration."""
+    ti3, ti2 = _project(tmp_path, kind, cal=how)
     assert cal_repair.repair_embedded_cal(ti3, when=WHEN) is not None
     assert _first_cal(ti3) == _first_cal(ti2)
+
+
+@pytest.mark.parametrize("kind", sorted(REPS))
+def test_a_plausible_calibration_that_differs_is_left_alone(tmp_path, kind, caplog):
+    """Data safety first (Basti, review of aad896d8): a measurement printed
+    with ANOTHER real calibration over the same patches carries exactly that
+    calibration; it is never overwritten with the chart's, only logged."""
+    import logging
+    ti3, _ti2 = _project(tmp_path, kind, cal="other")
+    before = ti3.read_bytes()
+    with caplog.at_level(logging.INFO, logger="workflow.cal_repair"):
+        assert cal_repair.repair_embedded_cal(ti3, when=WHEN) is None
+    assert ti3.read_bytes() == before
+    assert not (ti3.parent / "old").exists()
+    assert any("plausible calibration" in r.getMessage() for r in caplog.records)
+
+
+def test_a_table_a_hair_outside_0_1_is_still_plausible():
+    t = cal_repair._Table(["RGB_I", "RGB_R"],
+                          [["0.0", "-0.0004"], ["0.5", "0.6"], ["1.0", "1.0005"]])
+    assert cal_repair._plausible(t)
+    t.rows[2][1] = "1.01"
+    assert not cal_repair._plausible(t)
+
+
+def test_a_falling_curve_is_still_monotonic():
+    t = cal_repair._Table(["RGB_I", "RGB_R"],
+                          [["0.0", "1.0"], ["0.5", "0.4"], ["1.0", "0.0"]])
+    assert cal_repair._plausible(t)
 
 
 def test_the_original_is_kept_in_the_runs_old_folder(tmp_path):
@@ -383,6 +418,53 @@ def test_a_failed_archive_changes_nothing(tmp_path, monkeypatch):
     assert ti3.read_bytes() == before
 
 
+def test_a_resume_keeps_the_original_once(tmp_path):
+    """The session guard archives the .ti3 at Start; the repair the reader
+    asks for a moment later reuses that copy instead of keeping a second."""
+    ti3, _ti2 = _project(tmp_path)
+    original = ti3.read_bytes()
+    guard = ti3.parent / "old" / "2026-10-03_120000"
+    guard.mkdir(parents=True)
+    (guard / ti3.name).write_bytes(original)
+    cp.write(ti3, {"A3": {"kind": "confirmed", "de": 3.0}}, cp.MODE_STRIP)
+    rep = cal_repair.repair_embedded_cal(ti3, when=WHEN)
+    assert rep is not None and rep.archive == guard / ti3.name
+    assert sorted(p.name for p in guard.glob("*.ti3")) == [ti3.name]
+    assert cp.confirmed_path(rep.archive).is_file()
+
+
+def test_an_older_different_copy_is_not_taken_for_the_original(tmp_path):
+    ti3, _ti2 = _project(tmp_path)
+    guard = ti3.parent / "old" / "2026-10-01_090000"
+    guard.mkdir(parents=True)
+    (guard / ti3.name).write_bytes(b"CTI3\nsomething else\n")
+    rep = cal_repair.repair_embedded_cal(ti3, when=WHEN)
+    assert rep.archive == ti3.parent / "old" / "2026-10-03_120000" / ti3.name
+
+
+def test_outside_a_project_the_original_is_kept_beside_it(tmp_path):
+    folder = tmp_path / "Desktop"
+    ti2 = _write_ti2(folder / "x.ti2", "CMYK")
+    ti3 = _write_ti3(folder / "x.ti3", "CMYK")
+    rep = cal_repair.repair_embedded_cal(ti3, when=WHEN)
+    assert rep is not None
+    assert rep.archive == folder / "old" / "2026-10-03_120000" / "x.ti3"
+    assert _first_cal(ti3) == _first_cal(ti2)
+
+
+def test_outside_a_project_an_unwritable_folder_means_no_repair(tmp_path, monkeypatch):
+    folder = tmp_path / "Desktop"
+    _write_ti2(folder / "x.ti2", "CMYK")
+    ti3 = _write_ti3(folder / "x.ti3", "CMYK")
+    before = ti3.read_bytes()
+    real = os.access
+    monkeypatch.setattr(cal_repair.os, "access",
+                        lambda p, m: False if Path(p) == folder else real(p, m))
+    assert cal_repair.repair_embedded_cal(ti3, when=WHEN) is None
+    assert ti3.read_bytes() == before
+    assert not (folder / "old").exists()
+
+
 def test_the_notifier_hears_each_repair_once(tmp_path):
     ti3, _ti2 = _project(tmp_path)
     heard = []
@@ -581,3 +663,69 @@ def test_a_resumed_measurement_asks_and_a_fresh_one_does_not(tmp_path, asked,
     mgr.start(MeasureParams(ti1_path=ti1, resume=False),
               lambda _l: None, lambda _c: None)
     assert asked == [tmp_path / "Test_01.ti3"]
+
+
+# ---------------------------------------------------------------------------
+# When the window may appear (review of aad896d8, on screen: a resume showed
+# it beside the engine's own question, after the reader had started)
+# ---------------------------------------------------------------------------
+
+def _window_stub(monkeypatch, *, measuring, modal=None):
+    from types import SimpleNamespace
+    import PyQt6.QtWidgets as W
+    import ui.main_window as mw
+    import ui.warning_sign as ws
+    shown, timers = [], []
+
+    class Box:
+        class StandardButton:
+            Ok = 1
+
+        def __init__(self, parent):
+            self.texts = []
+
+        def setWindowTitle(self, t):
+            self.texts.append(t)
+
+        setText = setInformativeText = setWindowTitle
+
+        def setStandardButtons(self, _b):
+            pass
+
+        def exec(self):
+            shown.append(self.texts)
+
+    monkeypatch.setattr(W, "QMessageBox", Box)
+    monkeypatch.setattr(ws, "set_information_icon", lambda _b: None)
+    monkeypatch.setattr(W.QApplication, "activeModalWidget",
+                        staticmethod(lambda: modal))
+    monkeypatch.setattr(mw.QTimer, "singleShot",
+                        staticmethod(lambda ms, fn: timers.append(ms)))
+    stub = SimpleNamespace(_measuring=measuring, _cal_repairs_pending=[],
+                           CAL_REPAIRED_RETRY_MS=400)
+    stub._show_cal_tables_repaired = lambda: \
+        mw.MainWindow._show_cal_tables_repaired(stub)
+    return mw, stub, shown, timers
+
+
+def test_the_window_waits_while_a_measurement_runs(tmp_path, monkeypatch):
+    ti3, _ti2 = _project(tmp_path)
+    rep = cal_repair.repair_embedded_cal(ti3, when=WHEN)
+    mw, stub, shown, timers = _window_stub(monkeypatch, measuring=True)
+    stub._cal_repairs_pending = [rep]
+    mw.MainWindow._show_cal_tables_repaired(stub)
+    assert shown == [] and timers == [400], "shown over a running measurement"
+    assert stub._cal_repairs_pending == [rep], "the repair was dropped"
+    stub._measuring = False                     # the measurement has ended
+    mw.MainWindow._show_cal_tables_repaired(stub)
+    assert len(shown) == 1 and stub._cal_repairs_pending == []
+
+
+def test_the_window_waits_for_another_window(tmp_path, monkeypatch):
+    ti3, _ti2 = _project(tmp_path)
+    rep = cal_repair.repair_embedded_cal(ti3, when=WHEN)
+    mw, stub, shown, timers = _window_stub(monkeypatch, measuring=False,
+                                           modal=object())
+    stub._cal_repairs_pending = [rep]
+    mw.MainWindow._show_cal_tables_repaired(stub)
+    assert shown == [] and timers == [400]

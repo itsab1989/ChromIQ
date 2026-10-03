@@ -15,7 +15,9 @@ Basti ruled on 2026-10-03: repair the measurement IN PLACE, keep the original
 in ``old/``, keep the yellow confirmed marks. So :func:`repair_embedded_cal`:
 
 * acts only when the ``.ti3`` carries a calibration table that DIFFERS from the
-  chart's (not only ``nan``), AND the ``.ti2`` is provably the chart that was
+  chart's AND is not a plausible calibration (not finite, outside 0..1,
+  constant or non-monotonic in a channel; a plausible one that merely differs
+  is logged and left alone), AND the ``.ti2`` is provably the chart that was
   measured: the same table shape and input column, the same device columns,
   and the same device values for every ``SAMPLE_ID`` the measurement holds;
 * copies the original ``.ti3`` (and its ``.confirmed.json``) to the run's
@@ -182,6 +184,40 @@ def _same_input_column(a: _Table, b: _Table) -> bool:
     return True
 
 
+#: A calibration curve maps 0..1 to 0..1; Argyll prints six digits, so a
+#: value a hair outside still counts as inside.
+RANGE_EPSILON = 1e-3
+#: A curve may wobble by this much against its direction and still count as
+#: monotonic (rounding of a flat stretch).
+MONOTONIC_EPSILON = 1e-4
+
+
+def _plausible(t: _Table) -> bool:
+    """Whether a numeric table can be a real printer calibration: every
+    channel finite, inside 0..1, not constant, and monotonic (either way).
+
+    A table that passes is NEVER replaced, even when it differs from the
+    chart's: a measurement printed with another calibration carries exactly
+    that, and only an implausible table is the engine fault (Basti's ruling
+    after the review of aad896d8: data safety first)."""
+    if not _numeric(t):
+        return False
+    chans = [i for i, f in enumerate(t.fields) if not f.endswith("_I")]
+    if not chans:
+        return False
+    for i in chans:
+        col = [_num(r[i]) for r in t.rows]
+        if any(v < -RANGE_EPSILON or v > 1.0 + RANGE_EPSILON for v in col):
+            return False
+        if max(col) - min(col) <= 1e-6:
+            return False
+        steps = [b - a for a, b in zip(col, col[1:])]
+        if not (all(s >= -MONOTONIC_EPSILON for s in steps)
+                or all(s <= MONOTONIC_EPSILON for s in steps)):
+            return False
+    return True
+
+
 def cal_table_damaged(ti3: "Path | str") -> bool:
     """Whether *ti3* carries a calibration table that is not all numbers.
 
@@ -289,9 +325,57 @@ def _home_of(ti3: Path) -> Path:
     return ti3.parent
 
 
+def _in_a_project(ti3: Path) -> bool:
+    return any((d / "project.json").is_file() for d in ti3.parents)
+
+
+def _just_archived(home: Path, ti3: Path) -> "Path | None":
+    """The copy of exactly these bytes the session guard put in the newest
+    ``old/<date-time>/`` (a resumed measurement is archived at Start, just
+    before the reader asks for the repair), so the original is kept once."""
+    old = home / "old"
+    try:
+        stamps = sorted((x for x in old.iterdir() if x.is_dir()), reverse=True)
+    except OSError:
+        return None
+    if not stamps:
+        return None
+    try:
+        data = ti3.read_bytes()
+        me = ti3.resolve()
+        for p in sorted(stamps[0].glob(ti3.stem + "*" + ti3.suffix)):
+            # never the file itself: a copy under old/ being repaired
+            # ("Build anyway") must still get an original of its own
+            if p.resolve() == me:
+                continue
+            if p.is_file() and p.stat().st_size == len(data) \
+                    and p.read_bytes() == data:
+                return p
+    except OSError:
+        return None
+    return None
+
+
 def _archive(ti3: Path, when: datetime) -> "Path | None":
     from workflow.confirmed_patches import confirmed_path
-    dest = _home_of(ti3) / "old" / when.strftime("%Y-%m-%d_%H%M%S")
+    home = _home_of(ti3)
+    if not _in_a_project(ti3) and not os.access(home, os.W_OK):
+        log.warning("%s is outside any project and its folder cannot be "
+                    "written, so no copy can be kept beside it; its "
+                    "calibration table is left as it is", ti3.name)
+        return None
+    same = _just_archived(home, ti3)
+    if same is not None:
+        try:
+            mem, kept = confirmed_path(ti3), confirmed_path(same)
+            if mem.is_file() and not kept.is_file():
+                shutil.copy2(mem, kept)
+        except OSError:
+            pass
+        log.info("%s was archived just now as %s; that copy is the original",
+                 ti3.name, same)
+        return same
+    dest = home / "old" / when.strftime("%Y-%m-%d_%H%M%S")
     try:
         dest.mkdir(parents=True, exist_ok=True)
         target = dest / ti3.name
@@ -375,6 +459,15 @@ def _repair(ti3: Path, ti2: "Path | None",
                 ", ".join(str(c) for c in cands if c is not None) or "none")
         return None
 
+    if _plausible(mine):
+        # It differs from the chart's, but it is a calibration a printer can
+        # have: the measurement may well have been printed with it. Left as
+        # it is; a person can decide.
+        log.info(
+            "%s carries a printer-calibration table that differs from the "
+            "chart %s but is a plausible calibration (finite, 0..1, monotonic); "
+            "it is left as it is", ti3.name, proved[0][0].name)
+        return None
     chart, block, _theirs = proved[0]
     from workflow import confirmed_patches as cp
     before_sha = cp.ti3_sha256(ti3)
