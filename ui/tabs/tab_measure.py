@@ -4330,6 +4330,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 return          # a measurement is there; the box shows it
             if not self._selection_names_a_measurement():
                 return
+            # NOT OVER ANOTHER WINDOW EITHER (review of #182 §6f): this is the
+            # third window a selection change can open from here, queued on
+            # the same turn as the pre-flight and the offer, so it waits the
+            # same way and is asked again when that window closes.
+            if self._another_window_is_open("settle"):
+                self._overlay_asked_by_settings = True
+                return
             # The overlay is asked for and what is selected has never been
             # measured: M-OVERLAY-NO-MEASUREMENT, about the right chart now.
             self._on_overlay_toggled(True)
@@ -15754,7 +15761,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
     def _another_window_is_open(self, which: str) -> bool:
         """True when a modal window is open, and then *which* arrival window
-        ("preflight" or "offer") is asked again once it has closed.
+        ("preflight", "offer", or "settle" for the overlay question a stored
+        tick raises) is asked again once it has closed.
 
         Polled, not hooked: the open window can be anybody's (the main
         window's question about an earlier profile, a loader's notice), and
@@ -15788,6 +15796,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._queue_verification_preflight()
         if "offer" in owed:
             self._queue_overlay_offer()
+        if "settle" in owed:
+            self._queue_selection_settle()
 
     def _preflight_key(self) -> tuple:
         """Which run and chart a pre-flight is about: the profile run's scope

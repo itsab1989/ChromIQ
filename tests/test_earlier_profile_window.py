@@ -422,3 +422,99 @@ def test_the_main_window_opens_create_chart_on_the_gamut_module(
     finally:
         w.close()
         w.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# review of the §6f build (2026-10-03)
+# ---------------------------------------------------------------------------
+def test_text_b_without_a_chart_says_nothing_about_a_chart(env):
+    """Old dates and no verification chart at all: B's "the chart itself can
+    still be used" and "the chart stays" would be untrue."""
+    from workflow import measurement_messages as M
+    env.date(env.p - timedelta(days=2))
+    env.date(env.p - timedelta(days=1))
+    env.answer = "keep"
+    env.choose_verification()
+    body = env.box.informativeText()
+    title, expected = M.M_VERIFY_EARLIER_PROFILE_NO_CHART.render(
+        n=2, date=vid(env.p - timedelta(days=2))[:10],
+        profile_when=env.p.strftime("%Y-%m-%d %H:%M"))
+    assert body == expected
+    assert "chart" not in body.replace("Create Chart", "").lower()
+    assert env.box.defaultButton().text() == M.M_EARLIER_ARCHIVE
+
+
+def test_text_b_with_a_chart_still_names_it(env):
+    env.date(env.p - timedelta(days=1))
+    env.ordinary_chart()
+    env.answer = "keep"
+    env.choose_verification()
+    assert "can still be used" in env.box.informativeText()
+
+
+def test_the_settle_overlay_window_waits_for_an_open_window():
+    """The third window a selection change can raise from the Measure tab
+    (M-OVERLAY-NO-MEASUREMENT through a stored overlay tick) yields too."""
+    from ui.tabs.tab_measure import TabMeasure
+    src = inspect.getsource(TabMeasure._settle_after_selection_change)
+    assert src.index('_another_window_is_open("settle")') < src.index(
+        "self._on_overlay_toggled(True)")
+    assert '"settle" in owed' in inspect.getsource(
+        TabMeasure._after_other_window_closed)
+
+
+@pytest.mark.parametrize("chart, module", [
+    ("ordinary", "manual"),
+    ("gamut-current", "gamut"),
+])
+def test_text_b_opens_the_kept_chart_in_its_own_module(
+        qapp, tmp_path, monkeypatch, chart, module):
+    """Knut 5965626117: Create Chart opens on the kept chart "so that the user
+    can confirm if this is the chart he wants to use, and then move to
+    printing". An ordinary chart is shown in Manual, not under FROM PROFILE
+    GAMUT (whose Generate would replace it); a gamut chart from the current
+    profile stays on its module."""
+    from ui.main_window import MainWindow
+
+    s = AppSettings()
+    s.set("custom_output_path", str(tmp_path / "projects"))
+    s.set("session_project", "")
+    s.set("restore_last_session", False)
+    proj = Project.create(tmp_path / "projects" / "P", "P")
+    run = proj.current_run()
+    run.ensure_dir()
+    run.verifications_dir.mkdir(parents=True)
+    write_icc(run.profile_icc, HEADER_UTC)
+    p = profile_created(run.profile_icc)
+    v = run.verification(vid(p - timedelta(days=1)))
+    v.ensure_dir()
+    v.measurement_ti3.write_text("CTI3\nBEGIN_DATA\nEND_DATA\n",
+                                 encoding="utf-8")
+    run.verify_chart_ti2.write_text("CTI2\n", encoding="utf-8")
+    if chart == "gamut-current":
+        reference(run.verifications_dir / f"{run.verify_stem}-reference.ti3",
+                  created_stamp(p + timedelta(hours=1)))
+    asked: list = []
+
+    def _exec(offer, box):
+        asked.append(box.text())
+        box.defaultButton().click()
+    monkeypatch.setattr(EPO.EarlierProfileOffer, "_exec", _exec)
+
+    w = MainWindow(s)
+    try:
+        w._tabs.setCurrentWidget(w._tab_measure)
+        w._file_mgr.set_target_name("P")
+        w._target_ctl.set_profile_run("run1")
+        w._target_ctl.set_run_type(RUN_TYPE_VERIFICATION)
+        QTest.qWait(150)
+        assert len(asked) == 1
+        assert w._tabs.currentWidget() is w._tab_chart
+        assert w._tab_chart._mode_name() == module
+        assert not getattr(w._tab_chart, "_user_chose_module", False), \
+            "not a choice by hand: the 2026-08-10 default is left alone"
+        assert run.verify_chart_ti2.exists()
+        assert not v.exists()
+    finally:
+        w.close()
+        w.deleteLater()

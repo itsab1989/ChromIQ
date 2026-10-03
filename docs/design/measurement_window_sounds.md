@@ -193,7 +193,7 @@ is never opened (the measurement ended first) plays nothing.
 
 The window that opens when Verification is chosen for a run whose profile was
 replaced (M-VERIFY-EARLIER-PROFILE, M-VERIFY-EARLIER-PROFILE-KEEP-CHART,
-M-VERIFY-CHART-EARLIER-PROFILE; unified measurement management §6f) is not a
+M-VERIFY-EARLIER-PROFILE-NO-CHART, M-VERIFY-CHART-EARLIER-PROFILE; unified measurement management §6f) is not a
 measurement window and plays no sound (`ui/earlier_profile_offer.py`).
 
 ## 5. Related documents

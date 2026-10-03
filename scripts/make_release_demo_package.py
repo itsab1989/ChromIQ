@@ -603,6 +603,9 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-VERIFY-EARLIER-PROFILE": [
         "not reachable from a built project without a rebuild: a run whose FROM PROFILE GAMUT chart and dated measurements predate its profile (Knut's run2 on #182 is one); rebuild a run that has both, then choose Verification",
     ],
+    "M-VERIFY-EARLIER-PROFILE-NO-CHART": [
+        "not reachable from a built project without a rebuild: a run with dated verification measurements and no verification chart (delete or move the chart by hand); rebuild it, then choose Verification",
+    ],
     "M-VERIFY-CHART-EARLIER-PROFILE": [
         "not reachable from a built project without a rebuild: a run whose FROM PROFILE GAMUT chart predates its profile and has no dated measurement; rebuild such a run, then choose Verification",
     ],

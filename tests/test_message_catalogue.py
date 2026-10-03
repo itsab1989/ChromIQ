@@ -601,6 +601,7 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-PROFILE-VERIFY",
                                  "M-VERIFY-EARLIER-PROFILE",
                                  "M-VERIFY-EARLIER-PROFILE-KEEP-CHART",
+                                 "M-VERIFY-EARLIER-PROFILE-NO-CHART",
                                  "M-VERIFY-CHART-EARLIER-PROFILE",
                                  "M-VERIFY-EARLIER-ARCHIVED-HERE",
                                  }

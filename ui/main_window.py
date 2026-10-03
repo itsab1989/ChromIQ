@@ -1329,6 +1329,12 @@ class MainWindow(QMainWindow):
         self._tabs.setCurrentWidget(self._tab_chart)
         if gamut:
             QTimer.singleShot(0, self._tab_chart.open_gamut_for_new_verification)
+        else:
+            # Text B: the kept chart in ITS OWN module, so the user can confirm
+            # it and go on to printing (Knut 5965626117), not under FROM
+            # PROFILE GAMUT, whose Generate would replace it.
+            QTimer.singleShot(
+                0, self._tab_chart.open_verification_chart_in_its_own_module)
 
     def _write_create_chart_log(self, line: str) -> None:
         try:

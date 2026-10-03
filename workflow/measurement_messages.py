@@ -884,6 +884,38 @@ M_VERIFY_EARLIER_PROFILE_KEEP_CHART = _m(
     "•  Keep it: changes nothing. You can look at it, move it or delete it "
     "yourself. ChromIQ asks again the next time you start it.")
 
+#: B without a chart: old measurements, and no verification chart at all (it
+#: was deleted or moved by hand). Text B's "The verification chart itself can
+#: still be used" and "the chart stays. Create Chart then opens on this chart"
+#: would be untrue, so they are left out; nothing else differs.
+M_VERIFY_EARLIER_PROFILE_NO_CHART = _m(
+    "M-VERIFY-EARLIER-PROFILE-NO-CHART",
+    "The verification measurements in this run were made with an earlier "
+    "profile",
+    "This run's profile was replaced on {profile_when}. The {n} dated "
+    "verification measurements going back to {date} were made with the "
+    "earlier profile.\n\n"
+    "What each button does:\n\n"
+    "•  Archive them (recommended): moves the {n} measurements and their "
+    "reports to the “old” folder inside “verifications”. Nothing is deleted. "
+    "Create Chart then opens.\n\n"
+    "•  Keep them: changes nothing. You can look at them, move them or delete "
+    "them yourself. ChromIQ asks again the next time you start it.",
+    approved=False,
+    count_key="n",
+    title_one="The verification measurement in this run was made with an "
+    "earlier profile",
+    body_one=
+    "This run's profile was replaced on {profile_when}. The dated "
+    "verification measurement from {date} was made with the earlier "
+    "profile.\n\n"
+    "What each button does:\n\n"
+    "•  Archive it (recommended): moves the measurement and its reports to "
+    "the “old” folder inside “verifications”. Nothing is deleted. Create "
+    "Chart then opens.\n\n"
+    "•  Keep it: changes nothing. You can look at it, move it or delete it "
+    "yourself. ChromIQ asks again the next time you start it.")
+
 #: C: only the FROM PROFILE GAMUT chart is from the earlier profile.
 M_VERIFY_CHART_EARLIER_PROFILE = _m(
     "M-VERIFY-CHART-EARLIER-PROFILE",
@@ -4164,6 +4196,7 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
     M_VERIFY_EARLIER_PROFILE, M_VERIFY_EARLIER_PROFILE_KEEP_CHART,
+    M_VERIFY_EARLIER_PROFILE_NO_CHART,
     M_VERIFY_CHART_EARLIER_PROFILE, M_VERIFY_EARLIER_ARCHIVED_HERE,
     M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART, M_BUILD_ELSEWHERE,
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,

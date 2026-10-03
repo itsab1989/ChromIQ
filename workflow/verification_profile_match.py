@@ -66,6 +66,9 @@ class EarlierItems:
     #: ``verifications/reports`` documents none of whose dates stays at the top
     #: level once ``dates`` move.
     documents: "tuple[Path, ...]" = field(default_factory=tuple)
+    #: The run has a verification chart at all. Text B's sentence "the chart
+    #: itself can still be used" is only true when it has one.
+    has_chart: bool = True
 
     @property
     def variant(self) -> str:
@@ -196,10 +199,11 @@ def earlier_profile_items(run) -> EarlierItems:
             return EarlierItems()
         dates = tuple(v.id for v in run.verifications()
                       if v.exists() and _date_is_earlier(v, p))
-        chart_stale, chart_when = False, None
+        chart_stale, chart_when, has_chart = False, None, True
         try:
             ti2 = run.verify_chart_ti2
-            if ti2.exists():
+            has_chart = ti2.exists()
+            if has_chart:
                 from workflow.verification_print import (
                     colorimetric_reference_for)
                 ref = colorimetric_reference_for(ti2)
@@ -210,7 +214,8 @@ def earlier_profile_items(run) -> EarlierItems:
         except Exception:      # noqa: BLE001
             chart_stale, chart_when = False, None
         docs = _documents_leaving(run, set(dates)) if dates else ()
-        return EarlierItems(p, dates, chart_stale, chart_when, docs)
+        return EarlierItems(p, dates, chart_stale, chart_when, docs,
+                            has_chart)
     except Exception:      # noqa: BLE001 — a question never worth a crash
         log.warning("could not tell what belongs to an earlier profile",
                     exc_info=True)

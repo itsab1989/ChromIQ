@@ -161,8 +161,13 @@ class EarlierProfileOffer(QObject):
             title, body = M.M_VERIFY_CHART_EARLIER_PROFILE.render(
                 profile_when=when)
             return title, body, tr(M.M_EARLIER_NEW_CHART), tr(M.M_EARLIER_KEEP_ONE)
-        msg = (M.M_VERIFY_EARLIER_PROFILE if items.variant == "A"
-               else M.M_VERIFY_EARLIER_PROFILE_KEEP_CHART)
+        if items.variant == "A":
+            msg = M.M_VERIFY_EARLIER_PROFILE
+        elif items.has_chart:
+            msg = M.M_VERIFY_EARLIER_PROFILE_KEEP_CHART
+        else:
+            # No chart at all: B's "the chart can still be used" is untrue.
+            msg = M.M_VERIFY_EARLIER_PROFILE_NO_CHART
         title, body = msg.render(n=n, date=readable_date(items.dates[0]),
                                  profile_when=when)
         if items.variant == "A":
