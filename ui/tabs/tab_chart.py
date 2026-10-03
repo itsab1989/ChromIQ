@@ -10481,6 +10481,17 @@ class TabChart(QWidget):
             _cancel = getattr(self, "_cancel_patch_set_question", None)
             if _cancel is not None:
                 _cancel()
+        # NOTHING IS BOUND IN CALIBRATION (#182). A calibration chart is always
+        # made by targen into cal/ (calibration_run_type §4.2), and Generate
+        # there ignores every binding. Showing an older calibration chart still
+        # asked targen about its patch set (B8-1460) and bound it, so the
+        # targen panel came up locked behind "Edit patch recipe (override
+        # preset)" for a set Generate would never lay out (review of 62f8ea5d,
+        # Demo-Full-RGB on screen). Asked through getattr like `_cancel` above:
+        # tests drive this method on lightweight stand-ins for the tab.
+        _in_cal = getattr(self, "_calibration_selected", None)
+        if _in_cal is not None and _in_cal():
+            return
         try:
             if ti1 is None or not Path(ti1).is_file():
                 return
@@ -10496,6 +10507,17 @@ class TabChart(QWidget):
             # A chart older than that record is recognised by its file.
             if (m and "targen" in m.group(1).lower() and not given
                     and not _is_a_bundled_targen_patch_set(ti1)):
+                # THIS CHART CAME FROM TARGEN, SO NO PATCH SET IS ITS OWN, and
+                # one still bound came from the target shown before it. It used
+                # to stay: run1 (a loaded set) -> run2 (a targen chart) left
+                # run1's patches bound, and Generate on run2 laid them out
+                # (#182). §2.2: the chart wins on a run change. Not reached
+                # for a New run or a target with no chart, which keep it.
+                if sig is None and (self._ti1_preset_active()
+                                    or self._prebuilt_active
+                                    or self._applied_active):
+                    self._drop_preset_bindings(
+                        "the chart shown was made by targen")
                 if given is not None:
                     return          # its record says: not a given set
                 # …AND AN OLDER RECORD SAYS NOTHING (B8-1460). A patch set
@@ -13860,6 +13882,14 @@ class TabChart(QWidget):
                     log.warning("Built-in preset: a process is already running")
                     self._revert_preset_combo()
                     return
+                # A BUILT-IN IS A PROFILING CHART, BUILT THE MOMENT IT IS PICKED,
+                # into the bar's run. In Calibration that was the project's
+                # current profiling run (#182). Refused before anything is torn
+                # down, so the dropdown goes back to what it showed and nothing
+                # else has changed.
+                if self._refuse_in_calibration(f"built-in preset {data!r}"):
+                    self._revert_preset_combo()
+                    return
                 name = None
                 # EVERYTHING BELOW IS UNDOABLE FROM HERE (#175). Taken before the
                 # first tear-down, because those run whether or not the build is
@@ -14130,7 +14160,15 @@ class TabChart(QWidget):
                 # the normal targen path.
                 self._preset_ti1_path = None
                 self._preset_ti1_targen_sig = None
-                if isinstance(pdata, dict) and pdata.get("attached_ti1"):
+                if isinstance(pdata, dict) and pdata.get("attached_ti1") \
+                        and self._calibration_selected():
+                    # Its settings load like any preset's, but its patch set is
+                    # not bound: a calibration chart is targen's ramp into
+                    # cal/, and a bound set greyed the targen panel there and
+                    # was what Generate then built into a profiling run (#182).
+                    log.info("preset '%s': its attached patch set is not used, "
+                             "Run type is Calibration", name)
+                elif isinstance(pdata, dict) and pdata.get("attached_ti1"):
                     p = _find_preset_sidecar("create_chart", str(name), ".ti1")
                     if p.is_file():
                         self._preset_ti1_path = p
@@ -15789,6 +15827,110 @@ class TabChart(QWidget):
         # A newly selected preset starts fully branded again.
         self._vendor_debranded = False
 
+    def _drop_preset_bindings(self, why: str) -> None:
+        """Forget every preset / patch-set binding and open the panels locked.
+
+        A binding says "Generate lays out THESE patches". It belongs to the
+        chart it was made for, not to the tab, and carried to another target it
+        decided that target's build: Run type Calibration rebuilt the profiling
+        run from it, and a run whose chart came from targen laid out the
+        previous run's patches (#182, Knut 5964478612). Called only on a real
+        change of target (`_scope_bindings_to_target`) and when the incoming
+        chart was made by targen (`_rebind_patch_set_from_run`); the incoming
+        chart re-attaches its own set, locked and unticked (§2.2: the chart
+        wins on a run change).
+
+        The preset box goes back to its neutral entry too. It is global (§1.1),
+        but naming a preset whose binding is gone says something untrue.
+        """
+        bound = (self._ti1_preset_active() or self._prebuilt_active
+                 or self._applied_active)
+        self._tc918_active = False
+        self._tc918_targen_sig = None
+        self._knut_active = False
+        self._knut_targen_sig = None
+        self._knut_active_key = None
+        self._preset_ti1_path = None
+        self._preset_ti1_targen_sig = None
+        self._builtin_ti1_path = None
+        if self._prebuilt_active:
+            self._leave_prebuilt()
+        if self._applied_active:
+            self._leave_applied()
+        if self._reflected_active:
+            self._leave_reflected()
+        self._reset_override_checks()
+        self._update_preset_locks()
+        combo = getattr(self, "_preset_combo", None)
+        if bound and combo is not None and combo.currentIndex() != 0:
+            self._revert_preset_combo(to_none=True)
+        if bound:
+            log.info("Create Chart: the preset / patch-set binding was "
+                     "dropped (%s)", why)
+
+    def _binding_scope_key(self) -> "tuple | None":
+        """What makes the target THIS target: project, run type, run and
+        dated verification. Typing a name changes none of them."""
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            proj = ctl.project_or_none()
+        except Exception:      # noqa: BLE001 — a key is never fatal
+            proj = None
+        root = str(getattr(proj, "root", "") or "") if proj is not None else ""
+        t = ctl.target
+        return (root, str(t.run_type), str(t.profile_run),
+                str(t.verification_id))
+
+    def _scope_bindings_to_target(self) -> bool:
+        """Drop the bindings when, and only when, the target really changed.
+
+        `_on_target_changed` is not "the target changed". It also runs on every
+        keystroke in the project-name box (`set_pending_project_name`), on the
+        build's own landing on its New run (`_align_current_run_to_target`),
+        and on refreshes that change nothing (a cancelled load, Restore Used
+        Chart, `project_replaced_on_disk`). Dropping there would leave a chart
+        built from a preset or a loaded patch set UNBOUND in its own run, and
+        the next Generate after a layout tweak would make different patches:
+        #147, "cost him thirteen printed pages", and B8-1363.
+
+        So: compare the target with the last one seen; never while a build
+        owns the layout (read before `_on_target_changed` lowers that flag);
+        every real change opens the override boxes unticked; entering or
+        leaving Calibration, another run type, or another project drops the
+        bindings outright; between two runs (or two dated verifications) of
+        one run type the incoming chart decides, in `_rebind_patch_set_from_run`.
+        A New run has no chart and keeps the binding: the run it is made from
+        is what it copies (per_target_settings §4a).
+
+        Returns True when the bindings were dropped.
+        """
+        key = self._binding_scope_key()
+        last = getattr(self, "_binding_scope_last", None)
+        self._binding_scope_last = key
+        if key is None or last is None or key == last:
+            return False
+        if self._layout_owned_by_build or self._chart_build_in_flight():
+            log.debug("target %s -> %s during a build: its binding stays",
+                      last, key)
+            return False
+        from core.measurement_target import RUN_TYPE_CALIBRATION
+        cal_edge = ((last[1] == RUN_TYPE_CALIBRATION)
+                    != (key[1] == RUN_TYPE_CALIBRATION))
+        same_kind = key[0] == last[0] and key[1] == last[1]
+        if same_kind and not cal_edge:
+            # Another run of the same kind: every target opens locked, and its
+            # own chart says whether a patch set is bound.
+            self._reset_override_checks()
+            self._update_preset_locks()
+            return False
+        self._drop_preset_bindings(
+            "Run type Calibration" if cal_edge
+            else "another run type" if key[0] == last[0]
+            else "another project")
+        return True
+
     def _on_override_clicked(self, tool: str, checked: bool) -> None:
         """User ticked/unticked an override box — warn (once) when unlocking.
 
@@ -16920,9 +17062,14 @@ class TabChart(QWidget):
         can't be overwritten by accident — the override boxes let the user opt
         back in, exactly like a prebuilt preset.
 
-        Returns True (applied).
+        Returns True (applied), False when refused.
         """
         src_dir = Path(src_dir)
+        # The editor's patch set is laid out into a profiling run; while the
+        # bar says Calibration it would have gone into the project's current
+        # one (#182). Refused before any binding is touched.
+        if self._refuse_in_calibration("an editor patch set"):
+            return False
         # Applied charts always land in the manual module (the override boxes and
         # locked panels only exist there).
         self._switch_mode("manual")
@@ -17017,6 +17164,9 @@ class TabChart(QWidget):
         import shutil
         if self._runner.is_running:
             log.warning("Applied chart: a process is already running")
+            return
+        # Copied into a profiling run; never while the bar says Calibration.
+        if self._refuse_in_calibration("an applied editor chart"):
             return
         if self._applied_src_dir is None or self._applied_stem is None:
             return
@@ -17254,6 +17404,11 @@ class TabChart(QWidget):
         import shutil
         if self._runner.is_running:
             log.warning("Prebuilt preset: a process is already running")
+            return False
+        # Copied into a profiling run; never while the bar says Calibration.
+        # The preset pick refuses first, so this is the backstop.
+        if self._refuse_in_calibration(f"prebuilt preset {key!r}"):
+            self._abandon_prebuilt_attempt()
             return False
         stem_rel, default_name = PREBUILT_PRESETS[key]
         src_ti1 = resource_path(f"{stem_rel}.ti1")
@@ -17647,7 +17802,22 @@ class TabChart(QWidget):
                 return False
             if self._refuse_while_patch_set_pending():      # B8-1470
                 return False
-            self._log_chart_build("live preview" if not ask else "user", ti1_path)
+            # NOT INTO A PROFILING RUN WHILE THE BAR SAYS CALIBRATION (#182,
+            # Knut 5964478612). This lays a .ti1 out into the bar's run and
+            # knows nothing of cal/, so in Calibration it rebuilt the profiling
+            # run's chart. Asked BEFORE `target_started` so nothing has moved:
+            # a preview simply does not render, a person is told why.
+            if self._calibration_selected():
+                if preview:
+                    log.debug("live preview: not rendered, Run type is "
+                              "Calibration")
+                    return False
+                self._refuse_in_calibration("a .ti1 build")
+                return False
+            # THE LABEL SAYS WHO ASKED. It was keyed on `ask`, which the preset
+            # routes pass as False too, so Generate on a bound patch set was
+            # logged as "live preview" (Knut's log, 02:27:01) and read as one.
+            self._log_chart_build("live preview" if preview else "user", ti1_path)
             self._cancel_pending_auto_preview()
             # `preview` IS THE ONE CALLER THAT MAY NOT OPEN A WINDOW.
             # The live auto-update preview re-renders on every turn of a knob, so a
@@ -18885,13 +19055,30 @@ class TabChart(QWidget):
                     ).exec()
                     return
                 self._leave_reflected()
+            # CALIBRATION IS DECIDED HERE, BEFORE ANY PRESET BRANCH (#182 Knut
+            # 5964478612). Every branch below, the applied editor chart, the
+            # prebuilt copy, an attached or loaded patch set, TC9.18 and the
+            # Spyderprint presets, builds into the run the bar's Profile run
+            # names, and they all returned before Run type was ever asked. With
+            # a profiling patch set still bound, Generate in Calibration rebuilt
+            # the profiling run and archived its .ti3 and .icc, with no window
+            # (cal/ was empty, so §4 had nothing to ask about). In Calibration
+            # the chart is always targen's ramp into cal/ (calibration_run_type
+            # §4.2), so all of them are skipped and the build falls to targen.
+            _cal_now = self._calibration_selected()
+            if _cal_now and (self._applied_active or self._prebuilt_active
+                             or self._ti1_preset_active()):
+                log.info("Generate Chart: Run type is Calibration, so the "
+                         "bound preset / patch set is not used; targen builds "
+                         "the calibration chart into cal/")
             # Chart applied from the TI2 layout editor. Mirrors the prebuilt-files
             # logic, but the source is the editor's staging folder rather than a
             # bundled asset:
             #   • targen changed   → fresh targen run (different patches): fall through
             #   • else printtarg changed → re-lay-out the staged .ti1 (same patches)
             #   • else                   → re-import the staged files verbatim
-            if self._applied_active and self._applied_src_dir is not None \
+            if not _cal_now and self._applied_active \
+                    and self._applied_src_dir is not None \
                     and self._current_mode() == "manual":
                 targen_changed = (self._applied_targen_sig is not None
                                   and self._targen_signature() != self._applied_targen_sig)
@@ -18914,7 +19101,8 @@ class TabChart(QWidget):
             #   • targen changed   → fresh targen run (different patches): fall through
             #   • else printtarg changed → re-lay-out the bundled .ti1 (same patches)
             #   • else                   → copy the bundled files (exact original)
-            if self._prebuilt_active and self._prebuilt_key is not None \
+            if not _cal_now and self._prebuilt_active \
+                    and self._prebuilt_key is not None \
                     and self._current_mode() == "manual":
                 targen_changed = (self._prebuilt_targen_sig is not None
                                   and self._targen_signature() != self._prebuilt_targen_sig)
@@ -18963,7 +19151,7 @@ class TabChart(QWidget):
             # fresh targen run: the user's own patches were replaced, silently, and
             # `_preset_ti1_path` was not even cleared. Driven: load in Manual →
             # from_ti1; switch to Guided, same state → fresh targen.
-            if self._preset_ti1_path is not None:
+            if not _cal_now and self._preset_ti1_path is not None:
                 # A LOCKED PANEL CANNOT HAVE BEEN EDITED. The signature comparison
                 # exists so a user who UNLOCKS the targen panel and changes a knob
                 # gets the fresh chart they asked for. Without the override box
@@ -19011,7 +19199,8 @@ class TabChart(QWidget):
             # The OFPS patch set can't be recreated reliably by re-running targen, so
             # this is the only way to guarantee an identical target. Once a targen
             # setting changes the user has opted into a fresh chart, so fall through.
-            if self._tc918_active and self._current_mode() == "manual":
+            if not _cal_now and self._tc918_active \
+                    and self._current_mode() == "manual":
                 if self._targen_signature() == self._tc918_targen_sig:
                     self._generate_from_ti1(self._tc918_ti1_path(), ask=False)
                     return
@@ -19020,7 +19209,8 @@ class TabChart(QWidget):
             # Same for Knut's TC9.18+Spyderprint presets: while active and the targen
             # settings are untouched, re-lay-out the bundled 1168-patch .ti1 (printtarg
             # only). Changing a targen setting opts into a fresh targen chart.
-            if self._knut_active and self._current_mode() == "manual":
+            if not _cal_now and self._knut_active \
+                    and self._current_mode() == "manual":
                 if self._targen_signature() == self._knut_targen_sig:
                     # Reuse THIS preset's own .ti1 (Full-layout-setup presets each bundle a
                     # different one); never the shared TC9.18 set (#58).
@@ -19101,16 +19291,9 @@ class TabChart(QWidget):
             # type (#137); the old "Create chart for calibration" checkbox is kept
             # only as a fallback for a window with no bar attached, so a build can
             # never silently lose its calibration routing.
-            _ctl_cal = getattr(self, "_target_ctl", None)
-            if _ctl_cal is not None:
-                cal_target_active = bool(
-                    getattr(_ctl_cal.target, "is_calibration", bool)())
-            else:
-                cal_target_active = (
-                    hasattr(self, "_cal_target_check")
-                    and self._cal_target_check.isChecked()
-                    and self._cal_target_grp.isVisible()
-                )
+            # The same answer `_cal_now` gave above every preset branch, asked
+            # again here because the name and rename windows sit in between.
+            cal_target_active = self._calibration_selected()
             params.cal_target = cal_target_active
             params.target_name = base_name
             self._last_target_name = base_name
@@ -19477,6 +19660,11 @@ class TabChart(QWidget):
         return bool(run_id) and proj is not None and proj.has_run(run_id)
 
     def _on_load_ti1(self) -> None:
+        # A loaded patch set is laid out into a profiling run; in Calibration
+        # it used to go into the project's current run (#182). Refused before
+        # the file is even asked for, so nothing is chosen in vain.
+        if self._refuse_in_calibration("Load patch set"):
+            return
         path = open_file_dialog(
             self, "Load patch set",
             "Patch sets (*.ti1 *.pxf *.cgats *.txt)",
@@ -21608,6 +21796,52 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — never lose the tab over a write
             log.warning("Could not save the run's description", exc_info=True)
 
+    def _calibration_selected(self) -> bool:
+        """True while the bar's Run type is Calibration (#137).
+
+        The one answer to "does a build go into ``cal/``?". `_on_generate`
+        worked it out only AFTER its preset and patch-set branches had already
+        returned, so with a profiling patch set still bound, Generate Chart in
+        Calibration rebuilt the PROFILING run's chart and moved its measurement
+        and profile into ``old/`` (Knut #182 5964478612, his run4 at 02:27:01).
+        calibration_run_type §4.2: Run type = Calibration sets ``cal_target``;
+        §4.4: ``cal/`` gets a run's protection, and a run gets it from ``cal/``.
+        The old checkbox is the fallback for a window with no bar attached.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is not None:
+            return bool(getattr(ctl.target, "is_calibration", bool)())
+        return bool(hasattr(self, "_cal_target_check")
+                    and self._cal_target_check.isChecked()
+                    and self._cal_target_grp.isVisible())
+
+    def _refuse_in_calibration(self, what: str) -> bool:
+        """Say no to a build that can only go into a profiling run.
+
+        A patch set, a preset chart and an editor chart are all laid out into
+        the run the bar's Profile run names; none of them knows ``cal/``. In
+        Calibration the bar names no run, so the build used to land in the
+        project's current run. Refusing BEFORE anything moves keeps that run's
+        files byte for byte (calibration_run_type §4.4). *what* is for the log.
+        Returns True when the caller must stop.
+        """
+        if not self._calibration_selected():
+            return False
+        log.info("Create Chart: %s refused, Run type is Calibration (a "
+                 "calibration chart is made by targen into cal/)", what)
+        InfoDialog(
+            tr("Not available for a calibration chart"),
+            tr("“Run type” is set to “Calibration”. A calibration chart is "
+               "made by targen from “Single Channel Steps” and goes into the "
+               "project's “cal” folder, so a patch set or a preset chart "
+               "cannot be used for it, and your profile runs are not "
+               "touched.\n\n"
+               "To use it for a profile run, set “Run type” to “Profiling” "
+               "first."),
+            self, min_width=520,
+        ).exec()
+        return True
+
     def _target_run(self):
         """The run the BAR points at, without creating anything.
 
@@ -23428,6 +23662,10 @@ class TabChart(QWidget):
             # over run1's loaded chart (challenge round before 4.3.0). Opening
             # a project clears it for the same reason (#70).
             self._pending_editor_recipe = None
+            # …AND ITS PATCH SET, IF THE TARGET REALLY CHANGED (#182, Knut
+            # 5964478612). Asked before the line below lowers the build's
+            # shield: a build landing on its own New run keeps its binding.
+            _dropped_bindings = self._scope_bindings_to_target()
             # RUN TYPE = CALIBRATION SETS THE CHART UP (#137) — BEFORE the load,
             # so the incoming target's own values always have the last word (F3,
             # Knut/Sebastian 2026-08-11: a setting's owner is the SELECTED
@@ -23519,7 +23757,14 @@ class TabChart(QWidget):
             ti2, tiffs, ti1 = resolved
             stamp = self._chart_stamp(ti2)
             if stamp is not None and stamp == self._shown_chart_stamp:
-                return                               # already showing this exact chart
+                # Already showing this exact chart. If the bindings were just
+                # dropped (Open Project lands the bar on the run it has already
+                # shown), this chart's own patch set goes straight back on.
+                if _dropped_bindings:
+                    self._rebind_patch_set_from_run(
+                        ti1, given=getattr(self, "_restored_patch_set_given",
+                                           False))
+                return
             self._shown_chart_ti2 = ti2              # set first so the dedup is robust
             self._shown_chart_stamp = stamp
             kind = (tr("verification chart") if ctl.target.is_verification()
@@ -28440,6 +28685,11 @@ class TabChart(QWidget):
         if (self._chart_build_in_flight()
                 or self._current_mode() != "manual"
                 or not bool(self._settings.get("auto_update_preview", False))):
+            return
+        # NOT IN CALIBRATION. The re-layout goes through `_generate_from_ti1`,
+        # which builds into the bar's PROFILING run: with the calibration chart
+        # on screen it laid the calibration patches out into that run (#182).
+        if self._calibration_selected():
             return
         # …nor while targen is still being asked whether this chart's patch
         # set is its own (B8-1470): the binding decides what is laid out.

@@ -671,7 +671,15 @@ WORKFLOWS: list[dict] = [
                   "of steps rather than by filling a number of pages, so the "
                   "page-filling controls switch off. More steps measure the "
                   "printer's response more finely and take longer to "
-                  "read.")),)),
+                  "read.")),
+              # #182 (Knut 5964478612): the card said "a plain ramp" while a
+              # profiling preset could still build the chart, and into a
+              # profile run. Both are fixed; this says what now holds.
+              (tr("How the calibration chart is made"),
+               tr("The chart is made by targen from “Single Channel Steps”, "
+                  "so the Patch Set Editor is not needed. Generate Chart "
+                  "here writes only into the project's “cal” folder; your "
+                  "profile runs are not touched.")))),
             (2, tr("Print it from the Print Chart tab with the driver's "
                 "colour management OFF, exactly as you print any chart."),
              False,

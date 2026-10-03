@@ -141,7 +141,9 @@ def test_the_run_type_decides_where_the_build_goes():
     raising, which is how the older doubles in this suite keep working.
     """
     src = inspect.getsource(TabChart._on_generate)
-    assert 'is_calibration"' in src and "cal_target_active" in src
+    assert "_calibration_selected()" in src and "cal_target_active" in src
+    # One answer for every build path (#182, Knut 5964478612), still duck-typed.
+    assert 'is_calibration"' in inspect.getsource(TabChart._calibration_selected)
 
 
 # ---- E17: calibration is manual-only ------------------------------------
