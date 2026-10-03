@@ -177,3 +177,37 @@ def test_no_oracle_is_started_without_argyll(tmp_path):
     meas = SimpleNamespace(device_rep="CMYK", path=tmp_path / "x.ti3")
     assert gm.start_colprof_oracle(meas, "src.icm", SimpleNamespace(),
                                    tmp_path / "no-argyll", None) is None
+
+
+def test_column_parallel_curvature_is_bit_identical(monkeypatch):
+    """A 6-ink lattice (9^6 nodes) in a Maximum accuracy scope runs the
+    curvature one Lab column per thread: same bits as the serial solve."""
+    monkeypatch.setenv("CHROMIQ_ENGINE_THREADS", "4")
+    rng = np.random.default_rng(8)
+    n, grid = 6, 9
+    dev = rng.random((400, n))
+    lab = np.column_stack([100 - 70 * dev.mean(1), 40 * (dev[:, 1] - dev[:, 0]),
+                           40 * (dev[:, 2] - dev[:, 4])])
+    w, cols = _interp_weights(dev, grid, n)
+    serial = _grid_solve(w, cols, lab, grid, n, 0.03, 6)
+    calls = []
+    real = parallel.run_tasks
+
+    def spy(tasks, workers=None):
+        calls.append(len(tasks))
+        return real(tasks, workers)
+    monkeypatch.setattr(parallel, "run_tasks", spy)
+    with parallel.accurate_scope():
+        threaded = _grid_solve(w, cols, lab, grid, n, 0.03, 6)
+    assert calls and set(calls) == {3}
+    assert np.array_equal(_bits(serial), _bits(threaded))
+
+
+def test_fast_mode_fit_never_uses_threads(monkeypatch):
+    monkeypatch.setenv("CHROMIQ_ENGINE_THREADS", "4")
+    monkeypatch.setattr(parallel, "run_tasks",
+                        lambda *a, **k: pytest.fail("threads outside accurate"))
+    rng = np.random.default_rng(9)
+    dev = rng.random((300, 6))
+    w, cols = _interp_weights(dev, 9, 6)
+    _grid_solve(w, cols, rng.random((300, 3)), 9, 6, 0.03, 2)
