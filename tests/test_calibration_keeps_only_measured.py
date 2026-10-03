@@ -891,3 +891,22 @@ def test_the_two_help_texts_no_longer_read_as_the_chart():
     hello = _joined(wd)
     assert "never deletes a calibration you have measured" in hello, (
         "the welcome card still says \u201cthe old one\u201d")
+
+
+def test_the_runs_built_on_the_calibration_are_found_on_disk(tmp_path):
+    """`_runs_built_on_calibration` read `run.meta`, which `Run` does not
+    have: the AttributeError was swallowed, so the list was ALWAYS empty and
+    M-CAL-REPLACE-MEASURED never named a run (found in the review of
+    aad896d8). Driven unbound against a real project on disk."""
+    from core.file_manager import Project
+    from ui.tabs.tab_chart import TabChart
+
+    proj = Project.create(tmp_path / "MyProj", "MyProj")
+    stem = proj.calibration.stem
+    runs = [proj.new_run() for _ in range(3)]
+    for run, used in zip(runs, (stem, "", stem)):
+        meta = run.load_meta()
+        meta.calibration_used = used
+        run.save_meta(meta)
+    got = TabChart._runs_built_on_calibration(object(), Project.load(proj.root))
+    assert got == [runs[0].id, runs[2].id]

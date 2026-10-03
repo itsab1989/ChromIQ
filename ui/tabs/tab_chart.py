@@ -22853,7 +22853,11 @@ class TabChart(QWidget):
         try:
             stem = proj.calibration.stem
             for run in proj.all_runs():
-                if getattr(run.meta, "calibration_used", "") == stem:
+                # `Run` has no `meta` attribute: the record is read from disk
+                # (`load_meta`). Reading `run.meta` raised AttributeError
+                # inside this try, so the list was always empty and the
+                # replace-calibration window never named a run.
+                if getattr(run.load_meta(), "calibration_used", "") == stem:
                     out.append(run.id)
         except Exception:      # noqa: BLE001 — never block a build on this
             log.debug("could not list runs built on the calibration",
