@@ -140,7 +140,7 @@ def _write_ti3(path, dev, xyz):
         lines.append(" ".join([str(i + 1)] + [f"{v * 100:.4f}" for v in d]
                               + [f"{v:.4f}" for v in x]))
     lines.append("END_DATA")
-    Path(path).write_text("\n".join(lines) + "\n")
+    Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def test_a_held_out_patch_never_has_a_duplicate_in_training(tmp_path, printers):
@@ -156,11 +156,11 @@ def test_a_held_out_patch_never_has_a_duplicate_in_training(tmp_path, printers):
     assert d.info["holdout_leak"] == 0
     assert d.info["duplicate_groups"] == 120
     import re
-    body = d.ti3.read_text().split("BEGIN_DATA\n")[1].split("\nEND_DATA")[0]
+    body = d.ti3.read_text(encoding="utf-8").split("BEGIN_DATA\n")[1].split("\nEND_DATA")[0]
     train = np.array([[float(v) for v in ln.split()[1:4]] for ln in body.splitlines()]) / 100
     assert dsm.holdout_leak(train, d.holdout_device) == 0
     assert len(train) + d.info["held_out_rows"] == len(dev)
-    n_sets = int(re.search(r"NUMBER_OF_SETS (\d+)", d.ti3.read_text()).group(1))
+    n_sets = int(re.search(r"NUMBER_OF_SETS (\d+)", d.ti3.read_text(encoding="utf-8")).group(1))
     assert n_sets == len(train)
 
 
