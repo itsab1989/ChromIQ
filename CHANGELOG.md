@@ -14,6 +14,7 @@
 
 - **Re-reading patches no longer raises the measurement progress** (#182). A resumed measurement counted a re-read patch a second time, so the header could show 100 % while patches were still unread; progress now counts each patch of the chart once.
 - **Check & Refine: the start-over verdict is translated and reaches the saved report** (#182). The reason sentence is translated, and the saved Quality_Check report now carries the start-over verdict and its reason, the worst patches, and translated headings, as the window does. The grade text keeps "Re-measuring the flagged strips can help" (Knut).
+- **The Check & Refine result window shows every line** (#182): the strip and patch lists are no longer cut off after two lines, the flagged strips wrap into rows instead of running off the right edge, the last sentence is no longer clipped, and in German the buttons no longer overlap when the window is made narrow. This was already so in earlier versions.
 - **Guided refinement says the order it really uses**: the strips are visited in chart order, not "worst ΔE first" (#182).
 - **The log tells the truth about resuming a dated verification** (#182): it no longer says there is nothing to resume from just before the verification is resumed.
 - **A profile build is now in the log** (#182): the ChromIQ engine writes every build setting and the result (fit, grid sizes, time taken), and a colprof build says how it ended.

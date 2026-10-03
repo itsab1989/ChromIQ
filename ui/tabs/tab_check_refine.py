@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
@@ -99,6 +100,86 @@ def _plain(html: str) -> str:
     """The same verdict for the plain-text report: line breaks kept, tags gone."""
     import re
     return re.sub(r"<[^>]+>", "", re.sub(r"<br\s*/?>", "\n", html))
+
+
+#: The result window's lists are plain monospace text, never rich text in a
+#: ``<pre>``. A word-wrapped QLabel holding a ``<pre>`` block reported a height
+#: for one width and was laid out at another, so the strip and patch lists were
+#: cut off after two lines, and the flagged-strip row (one ``<pre>`` line that
+#: cannot wrap) ran off the window's right edge (Basti, 2026-10-03, on Knut's
+#: run2 at threshold 3.0; the same on 4.3.3-beta.5).
+_MONO_STYLE = "font-family: Menlo, Consolas, 'Courier New', monospace;"
+
+#: Flagged strips per row in the result window: four fit the window's 640 px
+#: minimum width with room to spare, in every language (the items themselves
+#: are not translated).
+_REFINE_COLUMNS = 4
+
+
+def _mono_label(text: str, parent) -> QLabel:
+    """Plain, unwrapped, monospace text: its size hint is its real size."""
+    lbl = QLabel(text, parent)
+    lbl.setTextFormat(Qt.TextFormat.PlainText)
+    lbl.setWordWrap(False)
+    lbl.setStyleSheet(_MONO_STYLE)
+    lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+    return lbl
+
+
+class _FitsItsText(QObject):
+    """Keep a window wide enough for its widgets and tall enough for its text.
+
+    Two things Qt does not do for a top-level window on its own:
+
+    * HEIGHT. A window gets the minimum height of its layout, and that minimum
+      does not follow word-wrapped labels (height-for-width). At the result
+      window's 640 px minimum width the explanation, the headings and the lists
+      were each squeezed below the height their text needs, and the last line
+      of each was cut off.
+    * WIDTH. ``setMinimumWidth(640)`` on the window REPLACES its layout's
+      minimum width rather than adding a floor to it, so in German, where the
+      four buttons need more than 640 px, the window could be made narrower
+      than its button row and the buttons drew over each other.
+
+    Asked again whenever the window is shown, resized or re-laid out, so a
+    narrower window grows taller instead of hiding text.
+    """
+
+    def __init__(self, window, min_width: int = 0) -> None:
+        super().__init__(window)
+        self._window = window
+        self._min_width = min_width
+        self._busy = False
+        window.installEventFilter(self)
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802 — Qt override
+        if obj is self._window and not self._busy and event.type() in (
+                QEvent.Type.Show, QEvent.Type.Resize,
+                QEvent.Type.LayoutRequest):
+            self._busy = True
+            try:
+                self._fit()
+            finally:
+                self._busy = False
+        return False
+
+    def _fit(self) -> None:
+        win = self._window
+        lay = win.layout()
+        if lay is None:
+            return
+        need_w = max(self._min_width, lay.minimumSize().width())
+        if need_w != win.minimumWidth():
+            win.setMinimumWidth(need_w)
+        if win.width() < need_w:
+            win.resize(need_w, win.height())
+        if lay.hasHeightForWidth():
+            need_h = lay.totalHeightForWidth(win.width())
+            if need_h > 0 and need_h != win.minimumHeight():
+                win.setMinimumHeight(need_h)
+            if win.height() < need_h:
+                win.resize(win.width(), need_h)
+
 
 _ILLUMINANTS = [
     ("D50 (default)", "D50"),
@@ -1746,11 +1827,11 @@ class TabCheckRefine(QWidget):
 
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Profile Quality Assessment"))
-        dlg.setMinimumWidth(640)
 
         layout = QVBoxLayout(dlg)
         layout.setSpacing(14)
         layout.setContentsMargins(24, 20, 24, 20)
+        _FitsItsText(dlg, min_width=640)   # never narrower than 640 px
 
         # Grade headline
         grade_lbl = QLabel(tr("Profile Quality: <b>{grade}</b>").format(
@@ -1774,13 +1855,16 @@ class TabCheckRefine(QWidget):
                     f"  • Strip {s}  (avg ΔE: {de:.2f})"
                     for s, de in all_strips_display[:5]
                 )
-                strip_lbl = QLabel(
-                    tr("<b>Strips with the highest error</b><br>(worst first, avg ΔE):<pre>{strip_lines}</pre>").format(strip_lines=strip_lines),
-                    dlg,
-                )
-                strip_lbl.setWordWrap(True)
-                strip_lbl.setAlignment(Qt.AlignmentFlag.AlignTop)
-                cols.addWidget(strip_lbl, 1)
+                strip_box = QVBoxLayout()
+                strip_box.setSpacing(6)
+                strip_head = QLabel(tr(
+                    "<b>Strips with the highest error</b><br>"
+                    "(worst first, avg ΔE):"), dlg)
+                strip_head.setWordWrap(True)
+                strip_box.addWidget(strip_head)
+                strip_box.addWidget(_mono_label(strip_lines, dlg))
+                strip_box.addStretch()
+                cols.addLayout(strip_box, 1)
 
             if result.patch_errors:
                 worst_patches = sorted(
@@ -1789,13 +1873,16 @@ class TabCheckRefine(QWidget):
                 patch_lines = "\n".join(
                     f"  • Patch {p}  (ΔE: {de:.2f})" for p, de in worst_patches
                 )
-                patch_lbl = QLabel(
-                    tr("<b>Patches with the highest error</b><br>(worst first, ΔE):<pre>{patch_lines}</pre>").format(patch_lines=patch_lines),
-                    dlg,
-                )
-                patch_lbl.setWordWrap(True)
-                patch_lbl.setAlignment(Qt.AlignmentFlag.AlignTop)
-                cols.addWidget(patch_lbl, 1)
+                patch_box = QVBoxLayout()
+                patch_box.setSpacing(6)
+                patch_head = QLabel(tr(
+                    "<b>Patches with the highest error</b><br>"
+                    "(worst first, ΔE):"), dlg)
+                patch_head.setWordWrap(True)
+                patch_box.addWidget(patch_head)
+                patch_box.addWidget(_mono_label(patch_lines, dlg))
+                patch_box.addStretch()
+                cols.addLayout(patch_box, 1)
 
             layout.addLayout(cols)
 
@@ -1808,9 +1895,6 @@ class TabCheckRefine(QWidget):
             action_lbl.setWordWrap(True)
             layout.addWidget(action_lbl)
         elif refine_strips:
-            refine_lines = "  " + "   ".join(
-                f"{s} (max ΔE: {de:.2f})" for s, de in refine_strips
-            )
             n_refine = len(refine_strips)
             if n_refine == 1:
                 head = tr("<b>1 strip has at least one patch above "
@@ -1820,15 +1904,25 @@ class TabCheckRefine(QWidget):
                 head = tr("<b>{n} strips have at least one patch above "
                           "ΔE {limit:.1f} and should be re-measured:</b>").format(
                     n=n_refine, limit=self._threshold_spin.value())
-            action_lbl = QLabel(
-                head
-                + "<br><pre>" + refine_lines + "</pre>"
-                + tr("Listed in measurement order — the app will navigate to each "
-                     "one automatically."),
-                dlg,
-            )
-            action_lbl.setWordWrap(True)
-            layout.addWidget(action_lbl)
+            head_lbl = QLabel(head, dlg)
+            head_lbl.setWordWrap(True)
+            layout.addWidget(head_lbl)
+            # A GRID, ROW AFTER ROW, so every flagged strip is on screen however
+            # many there are; in measurement order, read left to right.
+            grid = QGridLayout()
+            grid.setHorizontalSpacing(24)
+            grid.setVerticalSpacing(2)
+            grid.setContentsMargins(12, 0, 0, 0)
+            for i, (s, de) in enumerate(refine_strips):
+                grid.addWidget(_mono_label(f"{s} (max ΔE: {de:.2f})", dlg),
+                               i // _REFINE_COLUMNS, i % _REFINE_COLUMNS)
+            grid.setColumnStretch(_REFINE_COLUMNS, 1)
+            layout.addLayout(grid)
+            order_lbl = QLabel(tr(
+                "Listed in measurement order: the app will navigate to each "
+                "one automatically."), dlg)
+            order_lbl.setWordWrap(True)
+            layout.addWidget(order_lbl)
 
         # Description for the "Use as pre-conditioning" path
         if self._icc_path:
