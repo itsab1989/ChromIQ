@@ -4621,8 +4621,13 @@ class TabProfile(QWidget):
             self._log.appendPlainText(f"[ERROR] {exc}")
             self._show_txt_import_error(str(exc))
             return
-        from workflow.ti3_analysis import parse_ti3
-        kw = parse_ti3(out).keywords
+        # The header, not `parse_ti3`: a CMYK CxF converts too (beta 7), and
+        # the parser refuses every non-RGB file.
+        from workflow.printer_calibration import read_table
+        try:
+            kw = read_table(out)[2]
+        except (OSError, ValueError):
+            kw = {}
         self._log.appendPlainText(
             f"[OK] Converted to {out.name}  ·  {kw.get('TARGET_INSTRUMENT', '')}"
             + (f" · measured {kw['CHROMIQ_MEASURED']}" if kw.get("CHROMIQ_MEASURED") else ""))

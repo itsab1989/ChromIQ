@@ -1584,8 +1584,12 @@ class I1ProfilerToTi3Dialog(_ToolDialogBase):
                 self._log.appendPlainText(f"[ERROR] {exc}")
                 self._finish(False)
                 return
-            from workflow.ti3_analysis import parse_ti3
-            kw = parse_ti3(out).keywords
+            # The header, not `parse_ti3`: a CMYK CxF converts too (beta 7).
+            from workflow.printer_calibration import read_table
+            try:
+                kw = read_table(out)[2]
+            except (OSError, ValueError):
+                kw = {}
             if kw.get("TARGET_INSTRUMENT"):
                 self._log.appendPlainText(
                     tr("Instrument: {name}").format(name=kw["TARGET_INSTRUMENT"]))

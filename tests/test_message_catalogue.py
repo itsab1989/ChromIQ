@@ -280,6 +280,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # chart. The behaviour is his; the wording is
                                  # ours and waits here.
                                  "M-CAL-TABLE-REPAIRED", "M-CAL-TABLE-DAMAGED",
+                                 # Beta 7, the same report: a bound patch set
+                                 # the printer calibration does not fit names
+                                 # the override box, and every RGB-only view
+                                 # says so in one line for a CMYK/multi-ink
+                                 # measurement. Basti approved the behaviour;
+                                 # the wording is ours and waits here.
+                                 "M-PATCHSET-CAL-INKS", "M-VIEW-RGB-ONLY",
                                  # #182 k10, 2026-10-02: the colour-range rule
                                  # was approved (Knut 5961180259, Sebastian);
                                  # the card lines beyond the post's one are

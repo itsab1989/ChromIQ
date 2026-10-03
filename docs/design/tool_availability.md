@@ -240,6 +240,15 @@ source was re-read on 2026-09-11 before this paragraph was written.*
 about ChromIQ, but the `chartread` half has still never been run against an
 instrument, so it stays here rather than in a Confirmed section.
 
+**Beta 7 (2026-10-03, the CMYK/CR30 forum report).** Two of the gaps above are
+closed, neither by changing `parse_ti3`: a CMYK or multi-ink measurement is
+IMPORTED into a run whose chart has the same inks (Basti's approval;
+`unified_measurement_management.md` §I.13, awaiting confirmation), and every
+reader that still needs RGB (the Measurement Report, its patch-identity line,
+the automatic report, the measurement details) says so in one line,
+M-VIEW-RGB-ONLY, instead of a parse error. Reporting on a CMYK chart remains
+the open item. **Confirmed by:** *nobody yet.*
+
 **Options**, none of them taken here:
 
 1. **Restrict the choice** to what the app can carry through, and say why in the

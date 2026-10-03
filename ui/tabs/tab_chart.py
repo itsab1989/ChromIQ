@@ -10549,6 +10549,23 @@ class TabChart(QWidget):
                 self._ask_patch_set_origin(ti1)
                 return
             self._preset_ti1_path = Path(ti1)
+            # THE PANEL SAYS WHAT THE SET IS. A run built before beta 7 may
+            # store -d 4 beside an RGB .ti1 (forum, CMYK+CR30); L3 loads that
+            # value, and binding the RGB set under it was the same trap.
+            # Asked through getattr: tests drive this on stand-ins.
+            _sync = getattr(self, "_sync_device_type_to_bound_set", None)
+            if _sync is not None:
+                _sync(ti1)
+                # …AND A SIGNATURE TAKEN BEFORE THE SYNC LEARNS WHAT IT SET.
+                # The B8-1470 answer binds with the signature the panels had
+                # when targen was asked; the sync then moved -d (an older
+                # i1Profiler import says "RGB", a pre-beta-7 run stored -d 4)
+                # and the -D rows. Left as it was, that difference read as a
+                # targen edit: ticking the override box and pressing Generate
+                # with nothing changed made a fresh set (#147), and the sheet
+                # lost its "Chart layout" name.
+                if sig is not None:
+                    sig = self._sig_with_synced_device_type(sig)
             self._preset_ti1_targen_sig = (
                 sig if sig is not None else self._targen_signature())
             # SHOW the lock, don't just hold it. `_ti1_preset_active` is true
@@ -14232,6 +14249,9 @@ class TabChart(QWidget):
                     p = _find_preset_sidecar("create_chart", str(name), ".ti1")
                     if p.is_file():
                         self._preset_ti1_path = p
+                        # Device Type says what the attached set is (forum,
+                        # CMYK+CR30), before the snapshot is taken.
+                        self._sync_device_type_to_bound_set(p)
                         # Snapshot targen so the override box can opt into a fresh
                         # targen run (changed → different patches), like the built-ins.
                         self._preset_ti1_targen_sig = self._targen_signature()
@@ -15782,6 +15802,74 @@ class TabChart(QWidget):
             sig.append(("pages", int(self._manual_pages_spin.value())))
         return sig
 
+    def _sync_device_type_to_bound_set(self, ti1) -> None:
+        """Make "Device Type" say what the bound patch set IS (forum, CMYK+CR30).
+
+        Called right before every ``*_targen_sig`` snapshot of a bound patch
+        set and in the run rebind. A patch set ChromIQ did not just make with
+        targen on screen (a built-in preset's bundled ``.ti1``, a loaded or
+        attached one, an editor chart, a run's own set bound again) carries its
+        inks in ``COLOR_REP``; the panel kept whatever Device Type was left on
+        it. A user who had chosen CMYK and then picked the CR30 preset saw
+        CMYK beside 450 RGB patches, the snapshot was taken WITH that CMYK in
+        it, so his Generate saw "nothing changed", laid the RGB set out again,
+        and the CMYK calibration refused it with an instruction he had already
+        followed (ajaytanna, 2026-10-03). A run built that way also stored
+        ``-d 4`` beside its RGB ``.ti1``, so re-selecting it set the same trap.
+
+        Sets ``-d`` from the table targen itself generated
+        (:mod:`workflow.targen_device_types`) and clears the -D add/remove
+        colorant rows, which describe a targen recipe this set did not come
+        from. A ``COLOR_REP`` with no ``-d`` that makes it is left alone and
+        logged; guessing would put a recipe on screen that does not exist.
+        per_target_settings L6/L7: a preset and a loaded file decide what the
+        panels show; D-2 guards a hand-chosen value against DEFAULTS, not
+        against a patch set the person has just chosen.
+        """
+        if ti1 is None or not Path(ti1).is_file():
+            return
+        from workflow.targen_device_types import color_rep_of, device_type_for
+        rep = color_rep_of(ti1)
+        d = device_type_for(rep)
+        if d is None:
+            log.info("Device Type left as it is: the patch set %s declares "
+                     "COLOR_REP %r, which no targen -d value writes",
+                     Path(ti1).name, rep)
+            return
+        if str(self._manual_value("targen", "-d")) != d:
+            log.info("Device Type set to -d %s: the patch set %s is %s",
+                     d, Path(ti1).name, rep)
+        self._set_manual_value("targen", "-d", d)
+        for pw in getattr(self, "_d_cascade_widgets", []):
+            pw.reset_to_default()
+            pw.set_user_enabled(False)
+        if getattr(self, "_d_cascade_widgets", None):
+            self._rebuild_d_cascade_visibility()
+
+    def _sig_with_synced_device_type(self, sig: list) -> list:
+        """*sig* with the rows `_sync_device_type_to_bound_set` writes (-d and
+        the -D colorant rows) replaced by their values now; every other entry,
+        a change the person made while targen was asked included, is kept.
+        Positional, because the -D rows share one flag: the first entries of
+        a signature are the targen widgets in panel order."""
+        widgets = self._manual_widgets.get("targen", [])
+        synced = {id(pw) for pw in getattr(self, "_d_cascade_widgets", [])}
+        out = list(sig)
+        for i, pw in enumerate(widgets):
+            if i >= len(out) or not isinstance(out[i], tuple) \
+                    or len(out[i]) != 3 or out[i][0] != pw.flag:
+                return list(sig)       # not the shape this panel writes
+            if pw.flag == "-d" or id(pw) in synced:
+                out[i] = (pw.flag, pw.get_raw_value(), pw.is_enabled_by_user)
+        return out
+
+    def _manual_value(self, tool: str, flag: str):
+        """The raw value of one manual row, or None when there is none."""
+        for pw in self._manual_widgets.get(tool, []):
+            if pw.flag == flag:
+                return pw.get_raw_value()
+        return None
+
     def _printtarg_signature(self) -> list:
         """Snapshot of every printtarg (layout) control.
 
@@ -16091,9 +16179,16 @@ class TabChart(QWidget):
         self._seed_preset_name(target_name)
 
         self._tc918_active = True
+        self._sync_device_type_to_bound_set(ti1)
         self._tc918_targen_sig = self._targen_signature()
         self._update_preset_locks()      # grey targen (printtarg stays editable)
         self._refresh_manual_command_preview()
+        # THE PRESET STAYS APPLIED WHEN ITS PATCH SET DOES NOT FIT THE
+        # CALIBRATION, so the box M-PATCHSET-CAL-INKS names is on screen to
+        # tick. Refused inside `_generate_from_ti1` it would come back False
+        # and #175 would put the whole tab back, preset and all.
+        if self._refuse_cal_inks_for_patch_set(ti1):
+            return True
         return self._generate_from_ti1(ti1)
 
     def _apply_colormunki_td_preset(
@@ -16379,9 +16474,18 @@ class TabChart(QWidget):
         # fresh targen chart (the user changed a targen setting) — mirrors the
         # TC9.18 mechanism in _on_generate. The .ti1 is the fixed OFPS patch set,
         # so it can't be recreated by re-running targen.
+        # Device Type first: every bundled set is iRGB, and a CMYK left on the
+        # panel was snapshotted as "unchanged" (forum, CMYK+CR30).
+        self._sync_device_type_to_bound_set(ti1)
         self._knut_targen_sig = self._targen_signature()
         self._update_preset_locks()      # grey targen (printtarg stays editable)
         self._refresh_manual_command_preview()
+        # THE PRESET STAYS APPLIED WHEN ITS PATCH SET DOES NOT FIT THE
+        # CALIBRATION, so the box M-PATCHSET-CAL-INKS names is on screen to
+        # tick. Refused inside `_generate_from_ti1` it would come back False
+        # and #175 would put the whole tab back, preset and all.
+        if self._refuse_cal_inks_for_patch_set(ti1):
+            return True
         return self._generate_from_ti1(ti1)
 
     def _reset_knut_overrides(self) -> None:
@@ -17182,6 +17286,7 @@ class TabChart(QWidget):
             log.warning("Could not stage the edited patch set: %s", exc)
             return False
         self._preset_ti1_path = dest
+        self._sync_device_type_to_bound_set(dest)
         self._preset_ti1_targen_sig = self._targen_signature()
         # Never overwrite the user's profile name — only seed it when empty.
         self._ensure_profile_name(name)
@@ -17421,6 +17526,8 @@ class TabChart(QWidget):
         # and no longer named after the preset — see `_seed_preset_name`.
         self._seed_preset_name(target_name)
         # Baselines for the Generate-time change detection, taken after seeding.
+        self._sync_device_type_to_bound_set(
+            getattr(self, "_builtin_ti1_path", None))
         self._prebuilt_targen_sig = self._targen_signature()
         self._prebuilt_printtarg_sig = self._printtarg_signature()
         self._update_preset_locks()      # grey both panels
@@ -17873,6 +17980,13 @@ class TabChart(QWidget):
                               "Calibration")
                     return False
                 self._refuse_in_calibration("a .ti1 build")
+                return False
+            # A PATCH SET THE PRINTER CALIBRATION DOES NOT FIT is refused
+            # here, before anything moves, in words that name the way out
+            # (forum, CMYK+CR30): printtarg's and the engine's own refusal
+            # came after the project had moved and said "set Device Type",
+            # which a bound set's locked panel does not allow.
+            if self._refuse_cal_inks_for_patch_set(ti1_path, preview=preview):
                 return False
             # THE LABEL SAYS WHO ASKED. It was keyed on `ask`, which the preset
             # routes pass as False too, so Generate on a bound patch set was
@@ -19824,6 +19938,7 @@ class TabChart(QWidget):
         # `_apply_knut_preset` already raise this flag and say why; the load
         # path was the third family, and was missed.
         self._layout_owned_by_build = True
+        self._sync_device_type_to_bound_set(ti1)
         self._preset_ti1_targen_sig = self._targen_signature()
         # Grey the targen panel (printtarg stays editable) so the loaded patch
         # set can't be silently overwritten by a stray targen run, and so
@@ -21900,6 +22015,105 @@ class TabChart(QWidget):
                "first."),
             self, min_width=520,
         ).exec()
+        return True
+
+    def _printer_cal_for_build(self) -> "Path | None":
+        """The printer calibration the next build would apply or embed, or
+        None. The engine takes it from the layout panel's own "Printer
+        calibration" group (B8-1655), printtarg from an enabled -K / -I row:
+        the same two sources `_collect_manual` hands the creator.
+
+        NONE IN GUIDED. `_collect_guided` hands the creator no calibration at
+        all, so a .cal left on Manual's hidden panel is not part of a Guided
+        build and must not refuse one (review of 036e28a2)."""
+        _mode = getattr(self, "_current_mode", None)
+        if _mode is not None and _mode() == "guided":
+            return None
+        panel = getattr(self, "_manual_layout_panel", None)
+        try:
+            if panel is not None and self._manual_panel_lays_out():
+                path, _apply = panel.cal_settings()
+                return Path(path) if path else None
+        except Exception:      # noqa: BLE001 — a pre-check is never fatal
+            log.debug("printer calibration: engine panel unreadable",
+                      exc_info=True)
+            return None
+        for pw in (getattr(self, "_manual_cal_k_pw", None),
+                   getattr(self, "_manual_cal_i_pw", None)):
+            if pw is None or not pw.is_enabled_by_user:
+                continue
+            value = str(pw.get_raw_value() or "").strip()
+            if value:
+                return Path(value)
+        return None
+
+    def _bound_set_source_name(self, ti1: Path) -> str:
+        """What M-PATCHSET-CAL-INKS calls the patch set: the preset's name
+        when a preset brought it, else the file's."""
+        combo = getattr(self, "_preset_combo", None)
+        # A built-in's own name, not the dropdown row ("★ CR30 · … · Full
+        # layout setup · built-in" read badly inside a sentence).
+        kp = KNUT_PRESETS_BY_KEY.get(getattr(self, "_knut_active_key", "") or "")
+        if self._knut_active and kp is not None:
+            return kp.name
+        from_preset = (self._tc918_active or self._knut_active
+                       or self._prebuilt_active)
+        if not from_preset and combo is not None and combo.currentIndex() > 0:
+            # A user preset's attached set is its sidecar (see the
+            # attached_ti1 branch of `_on_preset_selected`).
+            data = combo.currentData()
+            try:
+                from_preset = isinstance(data, str) and Path(ti1) == \
+                    _find_preset_sidecar("create_chart", data, ".ti1")
+            except Exception:      # noqa: BLE001 — a name is never fatal
+                from_preset = False
+        if from_preset and combo is not None and combo.currentText().strip():
+            return combo.currentText().strip()
+        return Path(ti1).name
+
+    def _refuse_cal_inks_for_patch_set(self, ti1: Path, *,
+                                       preview: bool = False) -> bool:
+        """Say no BEFORE laying out a bound patch set the printer calibration
+        does not fit (forum, CMYK+CR30, 2026-10-03).
+
+        A preset or loaded patch set carries its own inks (every built-in is
+        RGB); a CMYK calibration cannot be applied to or embedded in it, and
+        printtarg and the engine both refuse. Their refusal said "set Device
+        Type to CMYK", which a person cannot do while the preset's patch set
+        holds the targen panel: the way there is "Edit patch recipe (override
+        preset)", which builds a fresh targen set. M-PATCHSET-CAL-INKS
+        (PROPOSED) says so. True when the caller must stop; the preview path
+        says nothing and only stops.
+        """
+        cal_path = self._printer_cal_for_build()
+        if cal_path is None or not Path(cal_path).is_file():
+            return False
+        try:
+            from workflow.layout_engine.calibration import (colour_space_name,
+                                                            read_cal)
+            from workflow.printer_calibration import (device_fields_of,
+                                                      read_table)
+            from workflow.targen_device_types import color_rep_of
+            cal = read_cal(cal_path)
+            fields, _rows, _kw = read_table(ti1)
+        except Exception:      # noqa: BLE001 — the build itself will say
+            log.debug("calibration pre-check skipped", exc_info=True)
+            return False
+        inks = [str(f).rsplit("_", 1)[-1] for f in device_fields_of(fields)]
+        if [str(f).rsplit("_", 1)[-1] for f in cal.out_fields] == inks:
+            return False
+        chart_rep = color_rep_of(ti1) or "?"
+        log.info("Create Chart: the patch set %s (%s) does not fit the printer "
+                 "calibration %s (%s); not built", Path(ti1).name, chart_rep,
+                 Path(cal_path).name, cal.color_rep)
+        if preview:
+            return True
+        from workflow.measurement_messages import M_PATCHSET_CAL_INKS
+        title, body = M_PATCHSET_CAL_INKS.render(
+            source=self._bound_set_source_name(Path(ti1)),
+            chart_space=colour_space_name(chart_rep),
+            cal_space=colour_space_name(cal.color_rep))
+        InfoDialog(title, body, self, min_width=560).exec()
         return True
 
     def _target_run(self):

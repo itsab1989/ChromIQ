@@ -6582,5 +6582,11 @@
  "[WARNING] Not everything made with the earlier profile could be moved: {error}. What did move is in: {folder}": "[WARNING] 以前のプロファイルで作られたものを、すべては移動できませんでした: {error}。移動できたものは次の場所にあります: {folder}",
  "1 paper-white patch": "1 個の紙白パッチ",
  "{n} paper-white patches": "{n} 個の紙白パッチ",
- "Each ink's ramp starts its own strip with its own paper white: {whites} added. printcal averages every paper white.": "各インクのランプは、それぞれ専用の紙白から始まる専用のストリップに配置されます。{whites}を追加しました。printcal はすべての紙白を平均します。"
+ "Each ink's ramp starts its own strip with its own paper white: {whites} added. printcal averages every paper white.": "各インクのランプは、それぞれ専用の紙白から始まる専用のストリップに配置されます。{whites}を追加しました。printcal はすべての紙白を平均します。",
+ "This patch set does not fit the printer calibration": "このパッチセットはプリンターキャリブレーションに合いません",
+ "The patch set of “{source}” is {chart_space}, but the printer calibration was made for a {cal_space} chart. A calibration can only be applied to (-K) or embedded in (-I) a chart with the same inks, so the chart was not built.\n\nTo build a {cal_space} chart with this layout, tick “Edit patch recipe (override preset)”, set “Device Type” to {cal_space} and press Generate Chart. ChromIQ then makes a new {cal_space} patch set with targen.\n\nTo use the {chart_space} patch set of “{source}” as it is, set the printer calibration to “None”.": "「{source}」のパッチセットは {chart_space} ですが、プリンターキャリブレーションは {cal_space} のチャート用に作成されています。キャリブレーションは同じインクのチャートにしか適用 (-K) も埋め込み (-I) もできないため、チャートは作成されませんでした。\n\nこのレイアウトで {cal_space} のチャートを作成するには、「パッチレシピを編集（プリセットを上書き）」にチェックを入れ、「デバイスタイプ」を {cal_space} にして「生成」を押してください。ChromIQ が targen で新しい {cal_space} のパッチセットを作成します。\n\n「{source}」の {chart_space} パッチセットをそのまま使うには、プリンターキャリブレーションを「なし」にしてください。",
+ "This view supports RGB charts only for now": "この表示は現在 RGB チャートのみに対応しています",
+ "This is a {space} measurement. ChromIQ measures, imports and builds profiles from {space} and other multi-ink charts, but this view supports RGB charts only for now. Nothing is wrong with the measurement.": "これは {space} の測定です。ChromIQ は {space} やその他のマルチインクのチャートを測定、インポートし、プロファイルを作成できますが、この表示は現在 RGB チャートのみに対応しています。測定に問題はありません。",
+ "the measured device values do not agree with the chart's patches, so the readings do not line up with this chart": "測定されたデバイス値がチャートのパッチと一致しないため、この測定値はこのチャートに対応していません",
+ "this measurement is {measured}, but the chart is {chart}, so it is a measurement of a different chart": "これは {measured} の測定ですが、チャートは {chart} なので、別のチャートの測定です"
 }

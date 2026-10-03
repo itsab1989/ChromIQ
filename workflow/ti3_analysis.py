@@ -147,6 +147,80 @@ def _has_device_columns(fields: "list[str]") -> bool:
                for f in fields)
 
 
+def device_columns(fields: "list[str]") -> "list[str]":
+    """The device colorant columns of a CGATS table, in file order, by the
+    same rule :func:`parse_ti3` uses to tell RGB, non-RGB and device-less
+    files apart (:func:`_has_device_columns`)."""
+    return [f for f in fields
+            if f not in _NOT_DEVICE_NAMES
+            and not f.startswith(_NOT_DEVICE_PREFIXES)]
+
+
+def device_space_of(path: "str | Path") -> "str | None":
+    """What inks a chart or measurement is for: ``"RGB"``, ``"CMYK"``,
+    ``"CMYKOG"`` …, ``""`` for a file with no device columns at all, or None
+    when it cannot be read.
+
+    The beta 7 CMYK work (forum, CMYK+CR30) needs this asked WITHOUT
+    :func:`parse_ti3`, which refuses every non-RGB file and is left that way
+    on purpose: some thirty readers rely on its refusal, and
+    :attr:`Ti3Data.has_device` would call a CMYK file device-less if the
+    parser started returning one with ``rgb`` empty. The device half of
+    ``COLOR_REP`` is used when the file declares one (``iRGB`` and video
+    ``RGB`` both answer ``"RGB"``); otherwise the columns' own prefix.
+    """
+    try:
+        from workflow.printer_calibration import read_table
+        fields, _rows, kw = read_table(path)
+    except (OSError, ValueError):
+        return None
+    dev = device_columns(fields)
+    if not dev:
+        return ""
+    if all(f"RGB_{c}" in fields for c in "RGB"):
+        return "RGB"
+    rep = (kw.get("COLOR_REP", "").strip().strip('"').split("_", 1)[0])
+    if rep.startswith("i") and len(rep) > 1:
+        rep = rep[1:]
+    if not rep:
+        rep = dev[0].rsplit("_", 1)[0] if "_" in dev[0] else dev[0]
+    return rep
+
+
+def device_inks_of(path: "str | Path") -> "list[str] | None":
+    """The ink letter of each device column, in order (``C M Y K``), the way
+    ``layout_engine.calibration.check_matches`` compares a calibration with a
+    chart: only the colorant after the ``_``. None when unreadable."""
+    try:
+        from workflow.printer_calibration import read_table
+        fields, _rows, _kw = read_table(path)
+    except (OSError, ValueError):
+        return None
+    return [f.rsplit("_", 1)[-1] for f in device_columns(fields)]
+
+
+def is_non_rgb_measurement(path: "str | Path") -> bool:
+    """True for a CMYK or multi-ink file: it has device columns, and they are
+    not RGB. Exactly the files :func:`parse_ti3` refuses with "No device RGB
+    columns"."""
+    space = device_space_of(path)
+    return bool(space) and space != "RGB"
+
+
+def non_rgb_note(path: "str | Path | None") -> "tuple[str, str] | None":
+    """M-VIEW-RGB-ONLY for a view that reads RGB measurements only, or None
+    when *path* is RGB, device-less, missing or unreadable (the view then
+    goes on as before). One helper so every such view says the same."""
+    if path is None or not Path(path).is_file():
+        return None
+    if not is_non_rgb_measurement(path):
+        return None
+    from workflow.layout_engine.calibration import colour_space_name
+    from workflow.measurement_messages import M_VIEW_RGB_ONLY
+    return M_VIEW_RGB_ONLY.render(
+        space=colour_space_name(device_space_of(path) or "?"))
+
+
 def parse_ti3(path: str | Path) -> Ti3Data:
     """Parse a ``.ti3`` (CGATS) file. Raises :class:`Ti3ParseError` on anything
     that isn't a readable measurement table with device + XYZ/Lab data."""
