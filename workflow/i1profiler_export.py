@@ -29,6 +29,8 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
+
+from core.cgats_date import long_english_date
 from pathlib import Path
 from xml.sax.saxutils import escape
 
@@ -232,7 +234,7 @@ def _txt_header(descriptor: str, fields: str, n_fields: int, n_sets: int) -> lis
         "",
         'ORIGINATOR "ChromIQ"',
         f'DESCRIPTOR "{descriptor}"',
-        f'CREATED "{datetime.now().strftime("%B %d, %Y")}"',
+        f'CREATED "{long_english_date()}"',   # English, as i1Profiler writes it
         'INSTRUMENTATION "Not specified"',
         'MEASUREMENT_SOURCE "Not specified"',
         'PRINT_CONDITIONS "Not specified"',

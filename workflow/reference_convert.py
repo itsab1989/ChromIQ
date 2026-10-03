@@ -238,7 +238,11 @@ def read_measurement_date(txt_path: str | Path) -> "str | None":
     yr = re.search(r"\b(\d{4})\b", raw)
     if mn and yr and mn.group(1).lower() in _MONTHS:
         return f"{yr.group(1)}-{_MONTHS[mn.group(1).lower()]:02d}-{int(mn.group(2)):02d}"
-    return None
+    # A month in another language: ChromIQ's own exports wrote their CREATED
+    # in the user's locale until beta 7 ("Oktober 02, 2026").
+    from core.cgats_date import parse_created_date
+    day = parse_created_date(raw)
+    return day.isoformat() if day is not None else None
 
 
 def stamp_measurement_date_from_source(ti3_path: str | Path,

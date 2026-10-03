@@ -5536,7 +5536,6 @@ def _chart_date_from_ti2(ti2: Path) -> str:
     today: a guess would be worse than the honest current date.
     """
     import re as _re
-    from datetime import datetime
     try:
         head = read_text(Path(ti2), lenient=True)[:4000]
     except OSError:
@@ -5545,24 +5544,12 @@ def _chart_date_from_ti2(ti2: Path) -> str:
     if not m:
         return ""
     raw = m.group(1).strip()
-    # ArgyllCMS and the engine both write C's asctime format. The weekday and
-    # month names are locale-dependent when written (a German run produces
-    # "Sa Aug 01 …"), so parse the numbers and ignore the words.
-    m2 = _re.search(r"([A-Za-z]{3})\w*\s+(\d{1,2})\s+[\d:]+\s+(\d{4})", raw)
-    if m2:
-        months = {"jan": 1, "feb": 2, "mar": 3, "mär": 3, "apr": 4, "may": 5,
-                  "mai": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9, "oct": 10,
-                  "okt": 10, "nov": 11, "dec": 12, "dez": 12}
-        mon = months.get(m2.group(1).lower())
-        if mon:
-            try:
-                return datetime(int(m2.group(3)), mon,
-                                int(m2.group(2))).strftime("%Y-%m-%d")
-            except ValueError:
-                return ""
-    # Some writers use an ISO date directly.
-    m3 = _re.match(r"(\d{4}-\d{2}-\d{2})", raw)
-    return m3.group(1) if m3 else ""
+    # ArgyllCMS writes C's asctime format in English; ChromIQ wrote it in the
+    # user's language until beta 7 ("Fr. Okt. 02 …", "金 10月 02 …"), so the
+    # month is read in every shipped language (core/cgats_date.py).
+    from core.cgats_date import parse_created_date
+    day = parse_created_date(raw)
+    return day.strftime("%Y-%m-%d") if day is not None else ""
 
 
 class _ChartRebuildGuard:
