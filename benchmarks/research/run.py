@@ -24,11 +24,19 @@ Suites (``--suite``, comma-separated):
 
 Hard rules enforced here, not by convention:
 
-1. **Fast and Bit-exact must be byte-identical to master.** For every
-   dataset the fast and argyll builds are repeated from a detached checkout
-   of ``--master-ref`` (default origin/master) with the same inputs and a
-   fixed timestamp; the v2 file and the v4 twin are hash-compared. Any
-   difference prints a banner and the process exits 2.
+1. **Fast and Bit-exact must be byte-identical to the identity reference.**
+   Decision D-02 (2026-10-03): the reference is the branch's own Fast /
+   Bit-exact frozen at a commit, ``identity.IDENTITY_REF`` (the merge of
+   origin/master fdcdd76f), selectable with ``--identity-ref <commit>``
+   (``--master-ref`` is the old name). For every dataset the fast and argyll
+   builds are repeated from a detached checkout of that commit with the same
+   inputs and a fixed timestamp; the v2 file and the v4 twin are
+   hash-compared. Any difference prints a banner and the process exits 2.
+   Master's own Fast / Bit-exact (``--upstream-ref``, default origin/master;
+   empty to skip) is built as a separate, NON-gating column (``fast@upstream``,
+   ``argyll@upstream``): scored like every engine, and its difference from
+   the branch (tags, A2B dE00, B2A device units) measured in
+   ``results.json["upstream"]``, never hidden.
 2. **CMY+N and ICC v4 must build.** Every accurate build writes a v2 file
    and a v4 twin (``icc_version="both"``); both must exist and pass iccdump,
    littleCMS and ColorSync loading. A failure is a hard-gate failure (exit 3).
@@ -54,7 +62,7 @@ from pathlib import Path
 
 import numpy as np
 
-from benchmarks.research import cmm, datasets as dsm, metrics
+from benchmarks.research import cmm, datasets as dsm, identity, metrics
 from benchmarks.research.printers import build_printers
 
 HERE = Path(__file__).resolve().parent
@@ -82,7 +90,7 @@ def sha(p: Path) -> str:
     return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 
-def environment(master_tree: Path | None) -> dict:
+def environment(master_tree: Path | None, upstream_tree: Path | None = None) -> dict:
     import numpy
     from benchmarks.research.cmm import _lcms
     heavy = [ln for ln in sh(["ps", "-Ao", "pcpu,command", "-r"]).splitlines()[1:8]]
@@ -93,6 +101,8 @@ def environment(master_tree: Path | None) -> dict:
         "branch": sh(["git", "-C", str(TREE), "rev-parse", "--abbrev-ref", "HEAD"]),
         "master_tree_commit": sh(["git", "-C", str(master_tree), "rev-parse", "HEAD"])
         if master_tree else None,
+        "upstream_tree_commit": sh(["git", "-C", str(upstream_tree), "rev-parse", "HEAD"])
+        if upstream_tree else None,
         "argyll": next((ln for ln in subprocess.run(
             [f"{ARGYLL}/colprof"], capture_output=True, text=True, encoding="utf-8",
             timeout=60).stderr.splitlines() if "Version" in ln), ""),
@@ -276,6 +286,12 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
                 jobs.append(dict(base, engine=e, tree=str(trees["master"]),
                                  out=str(profdir / "master" / f"{tag}-{e}.icc"),
                                  role="master"))
+    if suite == "baseline" and trees.get("upstream"):
+        for e in ("fast", "argyll"):
+            if e in args.engines:
+                jobs.append(dict(base, engine=e, tree=str(trees["upstream"]),
+                                 out=str(profdir / "upstream" / f"{tag}-{e}.icc"),
+                                 role="upstream"))
     if suite == "physics":
         jobs.append(dict(base, engine="accurate", tree=str(trees["accurate"]),
                          spectral_physics=True,
@@ -311,7 +327,13 @@ def main(argv=None) -> int:
     ap.add_argument("--no-gamut", dest="gamut", action="store_false",
                     help="skip the perceptual/saturation tables (faster; the "
                          "byte-identity check then covers only the colorimetric path)")
-    ap.add_argument("--master-ref", default="origin/master")
+    ap.add_argument("--identity-ref", "--master-ref", dest="identity_ref",
+                    default=identity.IDENTITY_REF,
+                    help="commit whose Fast / Bit-exact are the byte-identity "
+                         "reference (D-02; default identity.IDENTITY_REF)")
+    ap.add_argument("--upstream-ref", default=identity.UPSTREAM_REF,
+                    help="ref built as the measured, non-gating master column "
+                         "('' to skip)")
     ap.add_argument("--no-master-check", dest="master_check", action="store_false")
     ap.add_argument("--f00-ref", default="37357e92~1")
     ap.add_argument("--candidates", default="")
@@ -333,12 +355,15 @@ def main(argv=None) -> int:
     made = []
     try:
         if "baseline" in suites and args.master_check:
-            trees["master"] = worktree(args.master_ref, scratch / "master")
+            trees["master"] = worktree(args.identity_ref, scratch / "master")
             made.append(trees["master"])
+            if args.upstream_ref:
+                trees["upstream"] = worktree(args.upstream_ref, scratch / "upstream")
+                made.append(trees["upstream"])
         if "f00" in suites:
             trees["f00"] = worktree(args.f00_ref, scratch / "f00parent")
             made.append(trees["f00"])
-        env = environment(trees.get("master"))
+        env = environment(trees.get("master"), trees.get("upstream"))
         env["args"] = vars(args)
         (out / "env.json").write_text(json.dumps(env, indent=1, default=str), encoding="utf-8")
         printers = build_printers()
@@ -370,10 +395,11 @@ def main(argv=None) -> int:
                           flush=True)
                     builds_path.write_text(json.dumps(builds, indent=1), encoding="utf-8")
         # --- the two hard rules ------------------------------------------------
-        identity = check_identity(builds)
+        ident = check_identity(builds)
+        upstream = compare_upstream(builds, specs)
         gates = check_gates(builds, specs)
         # --- scoring ------------------------------------------------------------
-        results = {"env": env, "identity": identity, "gates": gates,
+        results = {"env": env, "identity": ident, "upstream": upstream, "gates": gates,
                    "datasets": [], "builds": builds}
         for i, s in enumerate(specs):
             ds = s["ds"]
@@ -428,9 +454,10 @@ def main(argv=None) -> int:
         from benchmarks.research.summary import write_summary
         write_summary(results, out / "summary.md")
         code = 0
-        if identity["failures"]:
-            print("\n" + "!" * 72 + "\nFAST / BIT-EXACT ARE NOT BYTE-IDENTICAL TO MASTER\n"
-                  + "\n".join(identity["failures"]) + "\n" + "!" * 72)
+        if ident["failures"]:
+            print("\n" + "!" * 72 + "\nFAST / BIT-EXACT ARE NOT BYTE-IDENTICAL TO THE "
+                  f"IDENTITY REFERENCE {args.identity_ref}\n"
+                  + "\n".join(ident["failures"]) + "\n" + "!" * 72)
             code = 2
         if gates["failures"]:
             print("\n" + "!" * 72 + "\nHARD GATE FAILED (CMY+N / ICC v4)\n"
@@ -469,6 +496,32 @@ def check_identity(builds: list[dict]) -> dict:
                                 "v4_identical": same_v4, "sha256": br["sha256"]})
         if not (same_v2 and same_v4):
             out["failures"].append(f"{name}: v2 identical={same_v2}, v4 identical={same_v4}")
+    return out
+
+
+def compare_upstream(builds: list[dict], specs: list[dict]) -> dict:
+    """The measured, non-gating master column (D-02): for every upstream
+    Fast / Bit-exact build, how it differs from the branch's own build of the
+    same dataset (tags, A2B dE00, B2A device units; v2 file and v4 twin)."""
+    out = {"compared": [], "errors": []}
+    for m in [b for b in builds if b["job"].get("role") == "upstream"]:
+        br_out = str(Path(m["job"]["out"]).parent.parent / Path(m["job"]["out"]).name)
+        br = next((b for b in builds if b["job"]["out"] == br_out), None)
+        name = Path(br_out).name
+        if br is None or not br.get("ok") or not m.get("ok"):
+            out["errors"].append(f"{name}: a build failed")
+            continue
+        ds = specs[m["job"]["spec_index"]]["ds"]
+        rec = {"profile": name, "dataset": ds.name, "engine": m["job"]["engine"]}
+        try:
+            rec["v2"] = identity.measure_difference(
+                br["job"]["out"], m["job"]["out"], ds.n_channels,
+                ds.color_rep == "RGB", ds.ink_limit)
+            if br.get("v4_path") and m.get("v4_path"):
+                rec["v4_tags"] = identity.differing_tags(br["v4_path"], m["v4_path"])
+        except Exception as exc:  # reported, never a gate
+            rec["error"] = f"{type(exc).__name__}: {exc}"
+        out["compared"].append(rec)
     return out
 
 

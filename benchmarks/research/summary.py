@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-ENGINE_ORDER = ["colprof", "fast", "argyll", "accurate", "accurate@f00-parent"]
+ENGINE_ORDER = ["colprof", "fast", "argyll", "fast@upstream", "argyll@upstream",
+                "accurate", "accurate@f00-parent"]
 
 
 def _g(d, *keys, fmt="{:.3f}"):
@@ -20,12 +21,13 @@ def write_summary(results: dict, path: Path) -> None:
     env = results["env"]
     L = [f"# Research benchmark run, {env['time']}", "",
          f"Commit `{env['commit']}` ({env['branch']}), dirty: {'yes' if env['dirty'] else 'no'}; "
-         f"master tree `{env.get('master_tree_commit')}`; Argyll {env['argyll']}; "
+         f"identity reference `{env.get('master_tree_commit')}`; "
+         f"upstream (master) column `{env.get('upstream_tree_commit')}`; Argyll {env['argyll']}; "
          f"lcms {env['lcms']}; numpy {env['numpy']}; {env['cpu']}; "
          f"load average at start {tuple(round(x, 1) for x in env['loadavg_start'])}.",
          "Timings are NOT controlled measurements (two builds ran in parallel).", ""]
     idn = results["identity"]
-    L.append("## Hard rule 1: Fast and Bit-exact byte-identical to master")
+    L.append("## Hard rule 1: Fast and Bit-exact byte-identical to the identity reference (D-02)")
     if not idn["compared"] and not idn["failures"]:
         L.append("Not checked in this run.")
     else:
@@ -34,6 +36,26 @@ def write_summary(results: dict, path: Path) -> None:
                     "**DIFFERENCES FOUND**"))
         L += [f"* FAIL: {f}" for f in idn["failures"]]
     L.append("")
+    up = results.get("upstream") or {}
+    if up.get("compared") or up.get("errors"):
+        L.append("## Master's Fast / Bit-exact, measured (not a gate)")
+        L.append("")
+        L.append("| profile | tags that differ (v2) | v4 twin tags | A2B dE00 med / p95 / max | "
+                 "B2A device max-channel med / p95 / max | paper white branch / master |")
+        L.append("|---|---|---|---|---|---|")
+        for r in up.get("compared", []):
+            v2 = r.get("v2") or {}
+            if not v2:
+                L.append(f"| {r['profile']} | error: {r.get('error', '')[:80]} | | | | |")
+                continue
+            a, d = v2["a2b_de00"], v2["b2a_device_maxch"]
+            L.append(f"| {r['profile']} | {' '.join(v2['tags']) or 'none'} | "
+                     f"{' '.join((r.get('v4_tags') or {}).get('tags', [])) or 'none'} | "
+                     f"{a['median']:.4f} / {a['p95']:.4f} / {a['max']:.3f} | "
+                     f"{d['median']:.4f} / {d['p95']:.4f} / {d['max']:.3f} | "
+                     f"{v2['white_a']} / {v2['white_b']} |")
+        L += [f"* {e}" for e in up.get("errors", [])]
+        L.append("")
     gt = results["gates"]
     L.append("## Hard rule 2: accurate builds CMY+N and ICC v4")
     L.append(f"{len(gt['checked'])} accurate builds checked (v2 + v4 twin, iccdump, "
