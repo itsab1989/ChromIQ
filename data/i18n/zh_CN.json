@@ -6532,5 +6532,8 @@
  "The measurement {file} carries a copy of the printer calibration its chart was made with. An earlier version of ChromIQ wrote that copy damaged, so ArgyllCMS could not read the file.\n\nChromIQ has put the calibration back from the chart, which holds it intact. The readings themselves were not changed, and patches you confirmed stay confirmed. You do not need to measure again.\n\nThe file as it was is kept in:\n{folder}": "测量 {file} 中带有其色卡制作时所用打印机校准的副本。早期版本的 ChromIQ 将该副本写坏了，因此 ArgyllCMS 无法读取该文件。\n\nChromIQ 已从完好保存该校准的色卡中将其恢复。测量读数本身未被更改，你确认过的色块仍保持确认。无需重新测量。\n\n原样文件保存在：\n{folder}",
  "The measurement's copy of the calibration is damaged": "测量中的校准副本已损坏",
  "These measurements carry a copy of the printer calibration their chart was made with. An earlier version of ChromIQ wrote that copy damaged, so ArgyllCMS could not read them:\n\n{files}\n\nChromIQ has put the calibration back from the chart, which holds it intact. The readings themselves were not changed, and patches you confirmed stay confirmed. You do not need to measure again.": "以下测量中带有其色卡制作时所用打印机校准的副本。早期版本的 ChromIQ 将该副本写坏了，因此 ArgyllCMS 无法读取它们：\n\n{files}\n\nChromIQ 已从完好保存该校准的色卡中将其恢复。测量读数本身未被更改，你确认过的色块仍保持确认。无需重新测量。",
- "•  {file}  (as it was: {folder})": "•  {file}（原样：{folder}）"
+ "•  {file}  (as it was: {folder})": "•  {file}（原样：{folder}）",
+ "1 paper-white patch": "1 个纸白色块",
+ "{n} paper-white patches": "{n} 个纸白色块",
+ "Each ink's ramp starts its own strip with its own paper white: {whites} added. printcal averages every paper white.": "每种墨水的渐变都从自己的色条开始，并带有自己的纸白色块：已添加 {whites}。printcal 会对所有纸白取平均值。"
 }

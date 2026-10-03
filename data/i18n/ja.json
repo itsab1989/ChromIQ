@@ -6532,5 +6532,8 @@
  "The measurement {file} carries a copy of the printer calibration its chart was made with. An earlier version of ChromIQ wrote that copy damaged, so ArgyllCMS could not read the file.\n\nChromIQ has put the calibration back from the chart, which holds it intact. The readings themselves were not changed, and patches you confirmed stay confirmed. You do not need to measure again.\n\nThe file as it was is kept in:\n{folder}": "測定 {file} には、そのチャートの作成に使われたプリンターキャリブレーションのコピーが含まれています。以前のバージョンの ChromIQ がそのコピーを壊れた状態で書き込んだため、ArgyllCMS はファイルを読み込めませんでした。\n\nChromIQ は、キャリブレーションを損なわずに保持しているチャートからそれを復元しました。測定値そのものは変更されておらず、確認済みのパッチも確認済みのままです。測定し直す必要はありません。\n\n元の状態のファイルは次の場所に保管されています:\n{folder}",
  "The measurement's copy of the calibration is damaged": "測定内のキャリブレーションのコピーが壊れています",
  "These measurements carry a copy of the printer calibration their chart was made with. An earlier version of ChromIQ wrote that copy damaged, so ArgyllCMS could not read them:\n\n{files}\n\nChromIQ has put the calibration back from the chart, which holds it intact. The readings themselves were not changed, and patches you confirmed stay confirmed. You do not need to measure again.": "これらの測定には、そのチャートの作成に使われたプリンターキャリブレーションのコピーが含まれています。以前のバージョンの ChromIQ がそのコピーを壊れた状態で書き込んだため、ArgyllCMS は読み込めませんでした:\n\n{files}\n\nChromIQ は、キャリブレーションを損なわずに保持しているチャートからそれを復元しました。測定値そのものは変更されておらず、確認済みのパッチも確認済みのままです。測定し直す必要はありません。",
- "•  {file}  (as it was: {folder})": "•  {file}  (元の状態: {folder})"
+ "•  {file}  (as it was: {folder})": "•  {file}  (元の状態: {folder})",
+ "1 paper-white patch": "1 個の紙白パッチ",
+ "{n} paper-white patches": "{n} 個の紙白パッチ",
+ "Each ink's ramp starts its own strip with its own paper white: {whites} added. printcal averages every paper white.": "各インクのランプは、それぞれ専用の紙白から始まる専用のストリップに配置されます。{whites}を追加しました。printcal はすべての紙白を平均します。"
 }

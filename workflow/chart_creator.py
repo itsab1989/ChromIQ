@@ -252,6 +252,21 @@ def _engine_padding_log_line(total: int, padding: int) -> str:
             f"fill-up patches are measured like any others.")
 
 
+def _ramp_whites_log_line(added: int,
+                          tool: str = "[ChromIQ layout engine]") -> str:
+    """The log line for a calibration chart whose ramps were put on strips of
+    their own, or "" when nothing was added (#182, Knut 5965186237)."""
+    if added <= 0:
+        return ""
+    from core.i18n import count_phrase, tr
+    whites = count_phrase(added, tr("1 paper-white patch"),
+                          tr("{n} paper-white patches"))
+    return tool + " " + tr(
+        "Each ink's ramp starts its own strip with its own paper white: "
+        "{whites} added. printcal averages every paper white.").format(
+            whites=whites)
+
+
 def _chromiq_clip_active(p: "ChartParams") -> bool:
     """True when ChromIQ-style clipping border applies to this chart.
 
@@ -1273,16 +1288,66 @@ class ChartCreator:
             self._scan_line("printtarg", line)
             on_line(line)
 
+        stem = self._file_mgr.chart_stem(cal_target=params.cal_target)
+        # A CALIBRATION CHART'S RAMPS GO ON STRIPS OF THEIR OWN HERE TOO
+        # (#182, Knut 5965186237). Only printtarg knows its strip length, and
+        # it writes it into the .ti2 (STEPS_IN_PASS), so the first run is
+        # asked and, when the .ti1 is targen's pure ramp set laid out in
+        # order (-r), the .ti1 is rearranged and printtarg run once more on
+        # it. printtarg's pass length comes from the paper and the instrument,
+        # never from the patch count, so the second run uses the same one.
+        second = {"done": False}
+
+        def _after_printtarg(code: int) -> None:
+            if (not second["done"] and code == 0 and not self._cancelling
+                    and params.cal_target and params.no_randomise):
+                added = self._arrange_ramps_for_printtarg(work_dir, stem)
+                if added:
+                    second["done"] = True
+                    # The first run's pages go: the second may make fewer,
+                    # and a stale `_02.tif` would be shown and printed.
+                    from core.file_manager import stem_files
+                    for f in set(stem_files(work_dir, stem, "*.tif", "*.TIF",
+                                            "*.tiff")):
+                        try:
+                            f.unlink()
+                        except OSError:
+                            pass
+                    on_line(_ramp_whites_log_line(added, "[printtarg]"))
+                    self._runner.run(
+                        "printtarg", pt_args, work_dir,
+                        on_line=_printtarg_scan,
+                        on_finish=_after_printtarg)
+                    return
+            self._printtarg_done(code, work_dir, self._finish, stem)
+
         self._runner.run(
             "printtarg",
             pt_args,
             work_dir,
             on_line=_printtarg_scan,
-            on_finish=lambda code: self._printtarg_done(
-                code, work_dir, self._finish,
-                self._file_mgr.chart_stem(cal_target=params.cal_target),
-            ),
+            on_finish=_after_printtarg,
         )
+
+    @staticmethod
+    def _arrange_ramps_for_printtarg(work_dir: Path, stem: str) -> int:
+        """Rearrange ``<stem>.ti1`` for the strip length printtarg just wrote
+        into ``<stem>.ti2``; the number of paper whites added, 0 when nothing
+        changed (not a pure ramp set, or no strip length to read)."""
+        from workflow.layout_engine import calibration_ramps
+        try:
+            ti2 = (work_dir / f"{stem}.ti2").read_text(encoding="latin-1")
+            m = re.search(r'^STEPS_IN_PASS\s+"?(\d+)"?', ti2, re.M)
+            if not m:
+                return 0
+            ti1 = work_dir / f"{stem}.ti1"
+            before = ChartCreator._count_patches_in_ti1(ti1) or 0
+            after = calibration_ramps.arrange_ti1(ti1, int(m.group(1)))
+            return max(0, (after or before) - before)
+        except (OSError, ValueError) as exc:
+            log.warning("calibration ramps not arranged for printtarg: %s",
+                        exc)
+            return 0
 
     # ------------------------------------------------------------------
     # ChromIQ layout engine path (issue #93)
@@ -1581,8 +1646,14 @@ class ChartCreator:
             on_line(_t("[ChromIQ layout engine] Drawing the pages. This part "
                        "runs in one go and cannot be stopped, so the window "
                        "will not respond until it is finished."))
+            # EACH INK'S RAMP ON ITS OWN STRIP, for a calibration chart only
+            # (#182, Knut 5965186237). The engine knows the strip length, so it
+            # rearranges targen's ramps itself; a .ti1 that is not targen's
+            # pure ramp set is laid out as it is.
             result = le_chart.build_chart(
-                ti1, work_dir / stem, **engine_kwargs)
+                ti1, work_dir / stem,
+                ramps_per_strip=bool(getattr(params, "cal_target", False)),
+                **engine_kwargs)
         except Exception as exc:  # noqa: BLE001 — surface any engine failure
             log.exception("ChromIQ layout engine failed")
             on_line(f"[ERROR] ChromIQ layout engine: {exc}")
@@ -1608,6 +1679,10 @@ class ChartCreator:
         # whole strips (printtarg behaviour, mirrored by the engine). Knut
         # missed this on the ENGINE build path (#124 follow-up) — the note was
         # only on the editor-save and applied-chart copy paths before.
+        _ramp_line = _ramp_whites_log_line(
+            int(getattr(result, "ramp_whites_added", 0) or 0))
+        if _ramp_line:
+            on_line(_ramp_line)
         pad_line = _engine_padding_log_line(result.layout.total_patches,
                                             getattr(result.layout, "padding", 0))
         if pad_line:
