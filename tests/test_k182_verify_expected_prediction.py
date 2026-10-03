@@ -674,11 +674,12 @@ def test_the_card_says_expected_is_the_profile_prediction(qapp, tmp_path):
     assert "Expected" in rows and "Expected: profile prediction" not in rows
 
 
-def test_the_card_line_is_proposed_and_translated():
+def test_the_card_line_is_approved_and_translated():
     from core.i18n import set_language, tr
     from workflow import measurement_messages as mm
     msg = mm.CATALOGUE["M-PATCH-EXPECTED-PREDICTED"]
-    assert not msg.approved and msg.title == mm._CARD_EXPECTED_PREDICTED
+    # Approved by Knut, #182 5965408335.
+    assert msg.approved and msg.title == mm._CARD_EXPECTED_PREDICTED
     root = Path(__file__).resolve().parent.parent / "data" / "i18n"
     for f in sorted(root.glob("*.json")):
         assert mm._CARD_EXPECTED_PREDICTED in json.loads(f.read_text(encoding="utf-8")), f.name
@@ -757,3 +758,13 @@ def test_a_failed_prediction_is_remembered_like_a_success():
     import workflow.verify_expected as ve
     src = inspect.getsource(ve._decide)
     assert src.index("_predict(") < src.index("_CACHE[key] = result")
+
+
+def test_a_predicted_card_names_its_limit_for_what_the_chart_is():
+    """Knut, #182 5965408335: on a verification chart judged against its
+    profile the red card says so, not "made from a profile"."""
+    import inspect
+    import ui.tiff_preview as tp
+    src = inspect.getsource(tp)
+    i = src.index('"(limit for a chart judged against "')
+    assert 'info.get("expected_source") == "prediction"' in src[i - 400:i]

@@ -282,7 +282,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # "expected: profile prediction" on the card
                                  # (5964173774, answer 4); the exact words
                                  # wait here.
-                                 "M-PATCH-EXPECTED-PREDICTED",
                                  # Feature B — wording agreed verbatim with
                                  # Sebastian on #133 (2026-08-02); listed for
                                  # the formal record.

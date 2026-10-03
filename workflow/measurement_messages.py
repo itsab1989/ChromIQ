@@ -1554,7 +1554,7 @@ M_PATCH_EXPECTED_PREDICTED = _m(
     "M-PATCH-EXPECTED-PREDICTED",
     _CARD_EXPECTED_PREDICTED,
     _CARD_EXPECTED_PREDICTED,
-    approved=False)
+    approved=True)
 
 # ---------------------------------------------------------------------------
 #: Knut wrote this text himself (beta.150) to replace the original "No

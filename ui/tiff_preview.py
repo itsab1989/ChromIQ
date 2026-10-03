@@ -590,9 +590,16 @@ class _PatchInfoTile(QWidget):
                                            limit=float(info.get("warn_de", 0.0)))))
             if "accurate" in info:
                 # WHICH of the two limits (#182 A): the chart decides.
-                rows.append((None, tr("(limit for a chart made from a profile)")
-                             if info.get("accurate") else
-                             tr("(limit for a chart with estimated colours)")))
+                # On a verification chart judged against its profile's
+                # prediction the limit is the same one, named for what the
+                # chart is (Knut, #182 5965408335).
+                if info.get("expected_source") == "prediction":
+                    rows.append((None, tr("(limit for a chart judged against "
+                                          "its profile)")))
+                else:
+                    rows.append((None, tr("(limit for a chart made from a profile)")
+                                 if info.get("accurate") else
+                                 tr("(limit for a chart with estimated colours)")))
             if info.get("fenced"):
                 rows.append((None, tr("and stands out from its strip")))
             if rng in _mm.RANGE_NAMES:
