@@ -9,6 +9,14 @@ on:
       tag:
         description: 'Release tag to build (e.g. v2.0.2)'
         required: true
+      # A CI check, not a release: build the dispatched branch's own commit
+      # and publish nothing (no release created, no asset uploaded). `tag`
+      # then only names the files. Off by default, and absent on a tag push,
+      # so a real release build behaves exactly as before.
+      dry_run:
+        description: 'Dry run: build the dispatched branch, create no release, upload nothing'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -33,15 +41,15 @@ jobs:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag || github.ref_name }}
+          ref: ${{ inputs.dry_run && github.sha || inputs.tag || github.ref_name }}
           fetch-depth: 0  # need full history + tags for the release-notes fallback
 
       # arm64 job: GitHub-hosted Python 3.13 (stable, arm64)
       - name: Set up Python (arm64)
         if: matrix.arch == 'arm64'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.13'
 
@@ -557,7 +565,12 @@ jobs:
           rm -f /tmp/rw_x86.dmg
           codesign --sign - "$X86_DMG"
 
+      - name: Dry run, nothing published
+        if: ${{ inputs.dry_run }}
+        run: ls -lh ChromIQ-macOS-*.dmg
+
       - name: Create GitHub Release (if not exists)
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -623,6 +636,7 @@ jobs:
           fi
 
       - name: Upload DMG(s) to release
+        if: ${{ !inputs.dry_run }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
