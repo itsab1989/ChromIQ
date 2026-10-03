@@ -10497,8 +10497,10 @@ class TabChart(QWidget):
         # asked targen about its patch set (B8-1460) and bound it, so the
         # targen panel came up locked behind "Edit patch recipe (override
         # preset)" for a set Generate would never lay out (review of 62f8ea5d,
-        # Demo-Full-RGB on screen).
-        if self._calibration_selected():
+        # Demo-Full-RGB on screen). Asked through getattr like `_cancel` above:
+        # tests drive this method on lightweight stand-ins for the tab.
+        _in_cal = getattr(self, "_calibration_selected", None)
+        if _in_cal is not None and _in_cal():
             return
         try:
             if ti1 is None or not Path(ti1).is_file():
