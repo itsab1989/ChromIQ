@@ -47,7 +47,24 @@ class ForwardModel:
         return out
 
     def predict(self, dev: np.ndarray) -> np.ndarray:
-        """(N, n) device 0..1 → (N, 3) Lab."""
+        """(N, n) device 0..1 → (N, 3) Lab.
+
+        Every row is interpolated on its own, so in a Maximum accuracy
+        build a large batch is split into row blocks on pool threads with
+        the same bits (D-06); elsewhere it is one serial call."""
+        from workflow.profile_engine import parallel
+        if len(dev) >= 16384 and parallel.in_accurate_scope() \
+                and parallel.worker_count() > 1:
+            out = np.empty((len(dev), 3))
+
+            def block(lo: int, hi: int) -> None:
+                out[lo:hi] = self._predict_rows(dev[lo:hi])
+            parallel.run_chunks(block, parallel.chunk_bounds(
+                len(dev), parallel.worker_count(), min_rows=8192))
+            return out
+        return self._predict_rows(dev)
+
+    def _predict_rows(self, dev: np.ndarray) -> np.ndarray:
         w, cols = _interp_weights(self.shape_device(dev), self.grid,
                                   self.n_channels)
         return (w[:, :, None] * self.nodes[cols]).sum(1)
