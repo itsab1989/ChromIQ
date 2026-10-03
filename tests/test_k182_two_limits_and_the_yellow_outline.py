@@ -266,7 +266,10 @@ def test_the_card_names_the_limit_it_used(qapp, tmp_path):
     tab._on_strip_measured(_strip("A"))
     rows = _card(qapp, _info(tab, "A17"))
     assert "(limit for a chart made from a profile)" in rows
-    tab2 = _tab(tmp_path / "..", accurate=False)
+    # Its own folder inside tmp_path, never tmp_path / "..": that is the
+    # worker's shared basetemp, which later tests' files sit one level under.
+    (tmp_path / "estimated").mkdir()
+    tab2 = _tab(tmp_path / "estimated", accurate=False)
     tab2._on_strip_measured(_strip("A"))
     assert "(limit for a chart with estimated colours)" in _card(qapp, _info(tab2, "A17"))
 

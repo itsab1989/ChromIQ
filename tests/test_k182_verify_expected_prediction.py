@@ -550,8 +550,13 @@ def test_the_fence_still_rules_every_other_chart(qapp, tmp_path):
     assert tab._patch_warn_limit() == 95.0
     tab._live_expected = ve.estimate("no print record")
     assert tab._use_outlier_fence() is True
-    tab2 = _tab(tmp_path / "..", {"chartread_engine": "chromiq",
-                                  "patch_warn_outlier_fence": False})
+    # A second tab in a folder of its OWN inside tmp_path. Never `tmp_path /
+    # ".."`: that is the worker's shared basetemp, and the c.ti2 written there
+    # became the design reference of every later test's c.ti3 one folder down
+    # (test_measurement_report.py read "design" for "device", 2026-10-03).
+    (tmp_path / "second").mkdir()
+    tab2 = _tab(tmp_path / "second", {"chartread_engine": "chromiq",
+                                      "patch_warn_outlier_fence": False})
     assert tab2._use_outlier_fence() is False                  # the user's own choice
     # The same evenly-off strip on a targen -c chart (accurate, NOT a
     # prediction): the user's fence still hides the strip there.
@@ -667,7 +672,8 @@ def test_the_card_says_expected_is_the_profile_prediction(qapp, tmp_path):
     tile.set_content(info, "both")
     rows = [t for _s, t in tile._rows]
     assert "Expected: profile prediction" in rows and "Expected" not in rows
-    other = _tab(tmp_path / "..")
+    (tmp_path / "other").mkdir()          # never tmp_path / "..": see above
+    other = _tab(tmp_path / "other")
     other._on_strip_measured(_shifted_strip("A"))
     tile.set_content(_info(other, "A2"), "both")
     rows = [t for _s, t in tile._rows]

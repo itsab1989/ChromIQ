@@ -203,24 +203,40 @@ def test_the_highlight_takes_the_patch_shape_on_a_hex_chart(qapp):
     assert abs(br.left() - box.left()) <= 1
 
 
-def test_one_patch_per_column_is_not_mistaken_for_a_legacy_chart(qapp, tmp_path):
+def test_one_patch_per_column_is_not_mistaken_for_a_legacy_chart(
+        qapp, tmp_path, monkeypatch):
     """The legacy fingerprint is a column of two or more patches sharing one x.
     Counting distinct x alone called a MODERN chart legacy whenever a column
     held a single patch — real on short or roll media with a big hexagon — and
-    shifted every box on it."""
+    shifted every box on it.
+
+    THE HEX PATH IS FORCED WITH monkeypatch, NEVER BY RELOADING
+    ``ui.tabs.tab_measure`` (2026-10-03). This test used to set
+    ``tab_measure.chart_is_hexagonal`` and then ``importlib.reload`` the module
+    to undo it. That did two wrong things. `_apply_hex_stagger` imports
+    ``chart_is_hexagonal`` from ``workflow.hex_support`` at call time, so the
+    attribute it set was never read and the hex path was never taken: the test
+    passed without exercising anything. And the reload REPLACED the
+    ``TabMeasure`` class for every file the worker ran afterwards, while files
+    that had imported it at collection still held the old one, so a later
+    ``monkeypatch.setattr(TabMeasure, ...)`` patched a class their tabs were
+    not instances of. That is what turned all three Measure-tab tests of
+    ``test_replacing_a_stored_chart_keeps_the_old_one.py`` red together, only
+    when ``--dist loadfile`` put this file before it on the same worker.
+    """
     from PyQt6.QtCore import QRect
+    import workflow.hex_support as hs
     from ui.tabs.tab_measure import _apply_hex_stagger
-    import ui.tabs.tab_measure as tm
 
     w = 40
     pages = [{f"{chr(65+i)}1": QRect(100 + i * w, 50, w, 34) for i in range(6)}]
     before = {k: QRect(v) for k, v in pages[0].items()}
-    tm.chart_is_hexagonal = lambda *_a, **_k: True          # force the hex path
-    try:
-        _apply_hex_stagger(tmp_path / "chart.ti2", pages)
-    finally:
-        import importlib
-        importlib.reload(tm)
+    asked: list = []
+    monkeypatch.setattr(hs, "chart_is_hexagonal",
+                        lambda *_a, **_k: asked.append(1) or True)
+    monkeypatch.setattr(hs, "chart_is_flat_top", lambda *_a, **_k: False)
+    _apply_hex_stagger(tmp_path / "chart.ti2", pages)
+    assert asked, "the hex path was never taken, so this proves nothing"
     assert pages[0] == before, "a one-patch column was treated as unstaggered"
 
 

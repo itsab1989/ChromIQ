@@ -187,19 +187,31 @@ def test_it_fades_rather_than_blinking(preview, qtbot):
     Proven by catching the chip PART WAY: an instant switch is never partly
     drawn, so a sample strictly between the two states can only come from an
     animation. Sampled through the real animation, not by reading a constant.
+
+    ON THE ANIMATION'S OWN CLOCK, NOT THE WALL CLOCK (2026-10-03). This used
+    to poll every 5 ms while the 110 ms fade ran in real time. On a gate with
+    every core busy one pump of the event loop took longer than the whole
+    fade, and the samples came back ``[1.0, 1.0, 0.04]``: a real fade, never
+    caught part way, reported as a blink. The fade's own animation is now
+    stepped to a tenth, a quarter and two fifths of its duration, and what
+    reaches the chip at each step is read. An instant switch has no animation
+    to step, and a "fade" whose steps are not in between is still red.
     """
-    seen = []
     assert preview._legend_opacity == 1.0
     preview._apply_legend_pointer(preview._legend_rect.center())
-    from PyQt6.QtWidgets import QApplication
-    import time
-    end = time.monotonic() + 2.0
-    while time.monotonic() < end and preview._legend_opacity > 0.02:
-        seen.append(preview._legend_opacity)
-        QApplication.processEvents()
-        time.sleep(0.005)
+    anim = preview._legend_fade
+    assert anim is not None, "the chip switched rather than faded: no animation"
+    assert anim.duration() > 0
+    if anim.state() == anim.State.Running:
+        anim.pause()                  # the wall clock no longer moves it
+    seen = []
+    for frac in (0.1, 0.25, 0.4):       # OutCubic: most of it is early
+        anim.setCurrentTime(int(anim.duration() * frac))
+        seen.append(preview._legend_opacity)       # what the chip is drawn at
     partial = [v for v in seen if 0.05 < v < 0.95]
-    assert partial, f"the chip switched rather than faded; samples: {seen[:8]}"
+    assert len(partial) == 3, f"the chip switched rather than faded; samples: {seen}"
+    assert seen == sorted(seen, reverse=True), f"the fade does not fall: {seen}"
+    anim.setCurrentTime(anim.duration())
     assert preview._legend_opacity < 0.02, "the fade never finished"
 
 

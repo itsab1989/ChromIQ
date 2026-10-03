@@ -79,14 +79,15 @@ class _Heavy:
     """A stand-in for `chart_row_values` that costs what a chart with page
     images costs, and notes which thread paid for it."""
 
-    def __init__(self) -> None:
+    def __init__(self, cost: float = HEAVY_S) -> None:
         self.threads: "list[str]" = []
         self.charts: "list[str]" = []
+        self.cost = cost
 
     def __call__(self, chart, recipe=None, *, lay_out=False):
         self.threads.append(threading.current_thread().name)
         self.charts.append(Path(chart).name)
-        time.sleep(HEAVY_S)
+        time.sleep(self.cost)
         key = PE._values_key(Path(chart), recipe)
         PE._CACHE[key] = {}
         return {}
@@ -134,26 +135,43 @@ def _spin(qapp, seconds: float) -> None:
 def test_the_warming_never_works_a_chart_out_on_the_windows_thread(
         qapp, tmp_path, monkeypatch):
     """A heartbeat of 50 ms on the event loop while the warming runs over
-    four charts that cost 0.6 s each: it never stalls past 0.25 s, and every
-    chart is worked out on the background thread.
+    three charts that cost 1.2 s each: it never stalls for half of one
+    chart's cost, and every chart is worked out on the background thread.
 
     MUTATION, proved red: `_warm_one_preset_batch` calling
     ``_pe.chart_row_values(c, recipe)`` itself, as it did before B8-1161
-    (the heartbeat stalls 0.6 s; the work is on MainThread)."""
-    heavy = _Heavy()
+    (the heartbeat stalls the whole 1.2 s; the work is on MainThread).
+
+    THE BOUND IS HALF A CHART, AND THE HEAP IS FROZEN (2026-10-03). It was a
+    fixed 0.25 s against 0.6 s charts, and went red under a fully loaded gate
+    at 0.54 s with every chart correctly on the background thread. Two things
+    the warming does not do can stall this loop that long late in a worker:
+    the suite's garbage collector runs on this very thread from a timer
+    (`core.gc_guard`), and a full collection walks every object the worker's
+    earlier tests left behind; and a machine at a load of 50+ hands a woken
+    thread its core late. The heap is frozen for the measurement, so a
+    collection walks only what this test makes, and the charts cost 1.2 s so
+    the mutation's stall (at least 1.2 s, it is a sleep) and the bound
+    (0.6 s) are far apart in both directions."""
+    import gc
+    heavy = _Heavy(cost=1.2)
     monkeypatch.setattr(PE, "chart_row_values", heavy)
-    charts = _charts(tmp_path, 4)
-    beat = _Beat()
-    warm = _Warmer(charts)
+    charts = _charts(tmp_path, 3)
+    gc.freeze()
     try:
-        beat.last = time.monotonic()
-        _spin(qapp, HEAVY_S * 4 + 1.0)
+        beat = _Beat()
+        warm = _Warmer(charts)
+        try:
+            beat.last = time.monotonic()
+            _spin(qapp, heavy.cost * 3 + 1.0)
+        finally:
+            warm.t.stop()
+            beat.t.stop()
     finally:
-        warm.t.stop()
-        beat.t.stop()
+        gc.unfreeze()
     assert heavy.threads, "the warming worked nothing out at all"
     assert set(heavy.threads) == {"chromiq-preset-layout"}, heavy.threads
-    assert beat.longest < 0.25, (
+    assert beat.longest < heavy.cost / 2, (
         f"the event loop stalled {beat.longest:.2f} s while the warming ran")
     _drain()
     assert sorted(heavy.charts) == sorted(c.name for c in charts)

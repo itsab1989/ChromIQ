@@ -656,6 +656,92 @@ def _report_preferences_start_default():
 
 
 @pytest.fixture(autouse=True)
+def _no_main_window_hears_another_tests_repair():
+    """Start every test with nobody registered to hear a calibration-table
+    repair (`workflow.cal_repair.set_notifier`).
+
+    THE CAL-REPAIR TEARDOWN ERROR (2026-10-03). `MainWindow.__init__` registers
+    its `_on_cal_table_repaired` in a module global. It is held weakly, but a
+    window a test merely closed is not gone: automatic collection is off in
+    the suite (`core.gc_guard`), so a window in a reference cycle lives until
+    the collector's timer reaches it. Every repair `tests/test_cal_repair.py`
+    made in the meantime was reported to that window, which queued
+    M-CAL-TABLE-REPAIRED with `QTimer.singleShot(0, ...)`; the next test that
+    pumped events opened the real box, and the modal watchdog failed that test
+    with "a modal dialog was left open". When the window was collected first,
+    nothing happened, which is the whole of the intermittency. Reproduced
+    deterministically as
+
+        pytest tests/test_log_font_follows_the_theme.py tests/test_cal_repair.py
+
+    (31 errors). A test that builds a MainWindow registers it again itself, in
+    its own body, after this has run.
+    """
+    import sys as _sys
+    mod = _sys.modules.get("workflow.cal_repair")
+    if mod is not None:
+        mod.set_notifier(None)
+
+
+_REAL_SCANDIR = os.scandir
+
+
+@pytest.fixture(autouse=True)
+def _nothing_is_written_beside_the_tests_own_folders(tmp_path_factory):
+    """Fail the test that leaves a FILE directly in the worker's basetemp
+    (`.../pytest-N/popen-gwM/`), the folder every `tmp_path` of that worker
+    sits in, and remove it so the next test does not inherit it.
+
+    THE "design" FOR "device" FLAKE (2026-10-03).
+    `test_measurement_report.py::test_report_without_reference_uses_device_values`
+    writes a lone ``c.ti3`` into its tmp_path and expects no reference chart.
+    The report looks for one beside the measurement AND one and two folders
+    up (a dated verification's shared chart, the run's own), so a ``c.ti2``
+    in the basetemp is that measurement's design reference. Two #182 test
+    files built a second tab in ``tmp_path / ".."``, which wrote exactly that
+    file there. Red only when `--dist loadfile` put one of them before the
+    report tests on the same worker; reproduced as
+
+        pytest tests/test_k182_verify_expected_prediction.py \\
+               tests/test_measurement_report.py
+
+    The basetemp is shared by every test of the worker, so nothing may be
+    written there except the per-test folders pytest makes itself.
+    """
+    try:
+        base = tmp_path_factory.getbasetemp()
+    except Exception:      # noqa: BLE001 — no basetemp, nothing to guard
+        yield
+        return
+
+    def _loose() -> set:
+        try:
+            # The real one, held since import: this teardown runs while a
+            # test's own monkeypatch of os.scandir can still be in place.
+            with _REAL_SCANDIR(base) as it:
+                return {e.name for e in it
+                        if not e.is_dir(follow_symlinks=False)
+                        and not e.is_symlink()}
+        except OSError:
+            return set()
+
+    before = _loose()
+    yield
+    new = sorted(_loose() - before)
+    if new:
+        for name in new:
+            try:
+                (base / name).unlink()
+            except OSError:
+                pass
+        raise AssertionError(
+            f"this test wrote {new} directly into the worker's shared "
+            f"basetemp {base}, which every later test's tmp_path sits in. "
+            "Write inside tmp_path (a subfolder of it for a second set of "
+            "files), never tmp_path / '..' or tmp_path.parent.")
+
+
+@pytest.fixture(autouse=True)
 def _no_real_usb_device_list(monkeypatch):
     """NO TEST MAY DEPEND ON WHAT IS PLUGGED INTO THE MACHINE RUNNING IT.
 
