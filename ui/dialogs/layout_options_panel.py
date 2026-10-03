@@ -1800,58 +1800,65 @@ class LayoutOptionsPanel(QWidget):
         add_row(gg, 6, tr("Strip pattern:"), self.strip_pat,
                 tip=TooltipButton(
                     tr("Strip pattern"),
-                    # ARGYLLCMS'S RULES, AND ONLY EXAMPLES THAT WORK (forum
-                    # report, 2026-10-03). The old text called "1-999" and
-                    # "0-9" numbers 1, 2, 3 ..., which ArgyllCMS reads as one
-                    # digit that stops at 9, and a user's "0-9" chart could
-                    # not be measured. Numeric strip examples wait for Knut's
-                    # answer on #182 (must strips always be letters?).
-                    tr("How each strip (column of patches) is labelled: the first "
-                       "part of a patch's location, the “A” in A12. ChromIQ "
-                       "prints the labels, and ArgyllCMS reads them back with "
-                       "this pattern, so the two must agree.\n\n"
-                       "**How ArgyllCMS reads a pattern:**\n"
+                    # ARGYLLCMS'S RULES, AND EXAMPLES THAT WORK (forum report
+                    # and Knut's ruling, #182 5965589190). The old text called
+                    # "1-999" and "0-9" numbers 1, 2, 3 ..., which ArgyllCMS
+                    # reads as one digit that stops at 9. Every example below
+                    # is one of the 22 pairs in tests/test_pattern_variants_
+                    # read_by_both_readers.py, built by ChromIQ and read by
+                    # both stock chartread and ChromIQ's engine.
+                    tr("How each strip (column of patches) is labelled: the "
+                       "first part of a patch's location, the “A” in A12. "
+                       "ChromIQ labels the chart exactly as ArgyllCMS does, so "
+                       "the sheet, the chart file and both chart readers "
+                       "agree.\n\n"
+                       "**How a pattern is written (ArgyllCMS's rules):**\n"
                        "• Each part between commas is one character position, "
-                       "the rightmost position first. “A-Z, A-Z” has two: A to Z "
-                       "on the right, and a space or A to Z on the left.\n"
-                       "• A space is a symbol too. On the left it means “nothing "
-                       "here”, which is how A to Z come before AA.\n"
-                       "• Text after “;” limits which labels are used.\n\n"
-                       "**Patterns that work here:**\n"
-                       "• A-Z, A-Z: the default. A to Z, then AA, AB and so on, "
-                       "up to ZZ (702 strips).\n"
-                       "• A-Z: A to Z only, for a chart of up to 26 strips.\n\n"
-                       "ChromIQ checks the pattern as you type. If ArgyllCMS "
-                       "cannot read it, would name a strip differently from the "
-                       "label on the sheet, or runs out of labels for this "
-                       "chart, the box turns red, the reason appears under the "
-                       "preview and the chart cannot be generated. Leave the "
-                       "default unless you are matching an existing scheme."),
+                       "the rightmost first. “A-Z, A-Z” has two: A to Z on the "
+                       "right, and a space or A to Z on the left.\n"
+                       "• A range such as A-Z or 0-9 gives every character in "
+                       "between, and one position can hold several: "
+                       "A-HJ-NP-Z skips I and O.\n"
+                       "• A space, or “@” in place of 0, is left out at the "
+                       "front: “0-9,@-9” counts 0 to 99 and not 00 to 99.\n"
+                       "• Text after “;” keeps only some labels: “0-9,@-9;1-99” "
+                       "counts from 1.\n\n"
+                       "**Examples that work:**\n"
+                       "• A-Z, A-Z: the default. A to Z, then AA to ZZ (702 "
+                       "strips).\n"
+                       "• A-Z: A to Z (26 strips).\n"
+                       "• 0-9,@-9;1-99: strips numbered 1 to 99. Give the "
+                       "patches letters then, for example A-Z.\n"
+                       "• 0-9,@-9: 0 to 99.\n"
+                       "• A-HJ-NP-Z, A-HJ-NP-Z: letters without I and O.\n"
+                       "• A-Z, 2-9;A-X,2A-9Z: the ECI2002R scheme, A to X and "
+                       "then 2A.\n\n"
+                       "One of the two patterns must give letters and the "
+                       "other numbers, or ArgyllCMS cannot tell where the strip "
+                       "label ends. If the pattern cannot be read, has too few "
+                       "labels for this chart, or runs into the patch labels, "
+                       "the box turns red, the reason appears under the "
+                       "preview and the chart cannot be generated."),
                     self))
         add_row(gg, 7, tr("Patch pattern:"), self.patch_pat,
                 tip=TooltipButton(
                     tr("Patch pattern"),
                     tr("How patches within a strip are labelled: the second "
                        "part of a location, the “12” in A12. It is joined to "
-                       "the strip label, strip first.\n\n"
-                       "**How ArgyllCMS reads a pattern:**\n"
-                       "• Each part between commas is one digit, the rightmost "
-                       "digit first. “0-9,@-9,@-9” is three digits, each 0 to "
-                       "9.\n"
-                       "• “@” is a 0 that is left blank at the front of a "
-                       "number, so 7 is written 7 and not 007.\n"
-                       "• Text after “;” limits which numbers are used: "
-                       "“;1-999” starts the count at 1.\n\n"
-                       "**Patterns that work here:**\n"
+                       "the strip label, strip first. The rules are the same "
+                       "as for the strip pattern.\n\n"
+                       "**Examples that work:**\n"
                        "• 0-9,@-9,@-9;1-999: the default. 1 to 999.\n"
-                       "• 0-9,@-9;1-99: 1 to 99, for strips of up to 99 "
-                       "patches.\n\n"
+                       "• 0-9,@-9;1-99: 1 to 99.\n"
+                       "• 0-9,0-9;01-99: 01 to 99, always two digits.\n"
+                       "• 0-9, 1-9;1-19,30-39: 1 to 19, then 30 to 39.\n"
+                       "• A-Z: letters A to Z, for numbered strips.\n"
+                       "• A-Z, A-Z: letters A to Z, then AA, AB and so on.\n\n"
                        "A pattern such as “1-999” or “0-9” does not count past "
                        "9: to ArgyllCMS it is a single digit.\n\n"
-                       "ChromIQ checks the pattern as you type. If ArgyllCMS "
-                       "cannot read it, would number a patch differently from "
-                       "the label on the sheet, or runs out of labels for this "
-                       "chart, the box turns red, the reason appears under the "
+                       "If the pattern cannot be read, has too few labels for "
+                       "the patches in a strip, or runs into the strip labels, "
+                       "the box turns red, the reason appears under the "
                        "preview and the chart cannot be generated. Leave the "
                        "default unless you are matching an existing scheme."),
                     self))
