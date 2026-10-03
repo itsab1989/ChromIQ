@@ -423,7 +423,15 @@ static int set_rspl(
 
 		/* Compute grid pointer and input sample values */
 		iv[0] = s->gl + n * s->gw;			/* Input sample values */
-		*((int *)&iv[-1-1]) = n;	/* Trick to supply grid index in iv[] */
+		/* CHROMIQ PATCH, needed for ChromIQ's use of rspl1: its engine links */
+		/* xcal.c against this 1-D rspl, a path stock Argyll never reaches */
+		/* (it uses the full rspl). The contract above, rspl.h and rspl.c put */
+		/* the index at iv[-e-1], i.e. iv[-0-1] here, and xcal.c reads it at */
+		/* in[-0-1]; upstream 3.5.0 writes iv[-1-1]. Unpatched, every curve */
+		/* came from an uninitialised index: an all-nan CAL table in the .ti3 */
+		/* of any -K/-I chart. scripts/vendor_instlib.py re-applies this; */
+		/* tests/test_engine_embeds_a_numeric_calibration.py pins it. */
+		*((int *)&iv[-0-1]) = n;	/* Trick to supply grid index in iv[] */
 
 		/* Apply incolor -> outcolor function we want to represent */
 		func(cbctx, ov, iv);

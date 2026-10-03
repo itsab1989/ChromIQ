@@ -3,7 +3,11 @@
 # A fork of ArgyllCMS chartread.c (AGPL-3.0, Graeme W. Gill) linked against
 # the vendored standalone instrument library under ../instlib (GPLv2+, the
 # file set of Graeme's own instlib.ksh packaging). Library sources are
-# compiled byte-identical to upstream — every ChromIQ change lives in
+# compiled byte-identical to upstream except two recorded patches: rspl1.c's
+# set_rspl grid index (iv[-0-1], not upstream's iv[-1-1]; without it every
+# -K/-I chart's .ti3 got an all-nan CAL table) and conv.c's #148 beep. Both
+# are listed in ../instlib/PROVENANCE.md and re-applied by
+# scripts/vendor_instlib.py. Every other ChromIQ change lives in
 # chromiq_chartread.c / chromiq_json.c behind CHROMIQ_EXT, so a new Argyll
 # release rebases by re-vendoring + re-applying a small diff.
 cmake_minimum_required(VERSION 3.15)
@@ -48,7 +52,7 @@ if(WIN32)
   # Force-include the UTF compat shim so usbio_w0/hidio see icmUTF16.
   # -Wno-implicit-function-declaration: same as the mac/Linux branches —
   # Argyll 3.5.0 SALONEINSTLIB misses a few prototypes (sa_Clamp3); upstream
-  # warns, modern clang errors. Sources stay byte-identical.
+  # warns, modern clang errors. No source patch for it.
   target_compile_options(instlib PRIVATE
     -Wno-implicit-function-declaration
     -include "${CMAKE_CURRENT_SOURCE_DIR}/chromiq_utf_compat.h")
@@ -69,7 +73,7 @@ elseif(APPLE)
   target_compile_definitions(instlib PUBLIC UNIX CHROMIQ_APPLE_BEEP)
   # -Wno-implicit-function-declaration: Argyll 3.5.0's SALONEINSTLIB mode
   # misses a few prototypes (e.g. sa_Clamp3); upstream builds treat that as
-  # a warning, modern clang as an error. Sources stay byte-identical.
+  # a warning, modern clang as an error. No source patch for it.
   target_compile_options(instlib PRIVATE -fpascal-strings -Wno-sign-compare
     -Wno-implicit-function-declaration)
 else()
