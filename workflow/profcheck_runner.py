@@ -76,6 +76,51 @@ REFINE_START_OVER_RATIO      = 0.5   # recommend start-over if patch ratio excee
 REFINE_START_OVER_STRIP_RATIO = 0.75  # recommend start-over if strip ratio exceeds this
 
 
+def recommends_start_over(n_patches_above: int, n_total_patches: int,
+                          n_flagged: int, n_total_strips: int) -> bool:
+    """The Check & Refine start-over rule, unchanged, in one place.
+
+    Moved here from ``tab_check_refine._on_done`` so the result window and the
+    saved .txt report cannot disagree about it. The rule itself is not touched
+    (its redesign is k5, awaiting Knut).
+    """
+    n_total_patches = n_total_patches or 1
+    n_total_strips = n_total_strips or 1
+    return (n_patches_above / n_total_patches > REFINE_START_OVER_RATIO
+            or n_flagged / n_total_strips > REFINE_START_OVER_STRIP_RATIO)
+
+
+def start_over_reason(n_patches_above: int, n_total_patches: int,
+                      n_flagged: int, n_total_strips: int,
+                      threshold: float) -> str:
+    """Why the check recommends starting over: one translated sentence.
+
+    It was an f-string outside ``tr()`` with two em dashes in it, so this one
+    sentence stayed English in the middle of a translated window (#182, Knut's
+    beta 5 runs). The counted cases each get a real singular: more than half of
+    a one-patch file, or three-quarters of a one-strip chart, is that one.
+    """
+    n_total_patches = n_total_patches or 1
+    n_total_strips = n_total_strips or 1
+    if n_patches_above / n_total_patches > REFINE_START_OVER_RATIO:
+        if n_total_patches == 1:
+            return tr("Your only patch exceeds \u0394E {limit:.1f}.").format(
+                limit=threshold)
+        return tr(
+            "{n} out of {total} patches ({pct}%) exceed \u0394E {limit:.1f}: "
+            "more than half of your measurement data."
+        ).format(n=n_patches_above, total=n_total_patches,
+                 pct=round(100 * n_patches_above / n_total_patches),
+                 limit=threshold)
+    if n_total_strips == 1:
+        return tr("Your chart's only strip needs re-measuring.")
+    return tr(
+        "{n} out of {total} strips ({pct}%) need re-measuring: more than "
+        "three-quarters of your chart."
+    ).format(n=n_flagged, total=n_total_strips,
+             pct=round(100 * n_flagged / n_total_strips))
+
+
 
 @dataclass
 class ProfcheckParams:

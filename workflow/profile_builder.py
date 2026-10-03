@@ -486,8 +486,15 @@ class ProfileBuilder:
             on_line(line)
 
         def _finished(code: int) -> None:
+            # The result into chromiq.log too, not only the command line: the
+            # Build Profile tab's own box is gone with the session.
             if code == 0:
                 self._restore_accents(params)
+                log.info("colprof finished: %s",
+                         self.expected_icc_path(params))
+            else:
+                log.warning("colprof failed with exit code %d: %s", code,
+                            " | ".join(self.last_output(4).splitlines()))
             on_finish(code)
 
         self._runner.run(

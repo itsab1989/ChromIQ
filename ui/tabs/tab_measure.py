@@ -6442,20 +6442,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         self._staged_verification_ti3 = None
         try:
-            ctl = getattr(self, "_target_ctl", None)
-            if ctl is None or not ctl.target.is_verification():
+            dated = self._verification_to_stage()
+            if dated is None:
                 return None
-            if not ctl.target.verification_id or self._ti1_path is None:
-                return None
-            if not self._read_builds_on_existing():
-                return None
-            dated = self._selected_measurement_ti3()
-            if dated is None or not dated.is_file() \
-                    or _cgats_has_no_readings(dated):
-                return None
+            ctl = self._target_ctl
             beside = Path(self._ti1_path).with_suffix(".ti3")
-            if beside == dated:
-                return None
             import shutil
             if beside.exists():
                 from core.file_manager import Run
@@ -6469,6 +6460,35 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — never block a measurement
             log.warning("Could not stage the verification for resume",
                         exc_info=True)
+            return None
+
+    def _verification_to_stage(self) -> "Path | None":
+        """The dated verification `_stage_verification_for_resume` WILL put
+        beside the chart, or None. Asks only; moves nothing.
+
+        Separate so the resume check can ask it too: the parameters are
+        collected before the staging happens, and without this the check
+        logged *"this run has no measurement to resume from"* a moment before
+        the dated readings were staged and resumed (Knut's beta 5 log, 01:04:42).
+        """
+        try:
+            ctl = getattr(self, "_target_ctl", None)
+            if ctl is None or not ctl.target.is_verification():
+                return None
+            if not ctl.target.verification_id or self._ti1_path is None:
+                return None
+            if not self._read_builds_on_existing():
+                return None
+            dated = self._selected_measurement_ti3()
+            if dated is None or not dated.is_file() \
+                    or _cgats_has_no_readings(dated):
+                return None
+            if Path(self._ti1_path).with_suffix(".ti3") == dated:
+                return None
+            return dated
+        except Exception:      # noqa: BLE001 — a question, never a blocker
+            log.debug("could not tell whether a verification will be staged",
+                      exc_info=True)
             return None
 
     def _drop_unused_verification_stage(self) -> None:
@@ -16523,8 +16543,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         ti1 = Path(ti1)
         ok = can_resume(ti1.with_suffix(".ti3"), ti1.with_suffix(".ti2"))
         if not ok:
-            log.info("Refine / resume is ticked, but this run has no measurement "
-                     "to resume from — measuring from the start instead.")
+            # Not yet true for a dated verification that `_on_start` is about
+            # to stage beside the chart: it asks again once the file is there.
+            if self._verification_to_stage() is not None:
+                log.debug("Refine / resume: the dated verification is staged "
+                          "beside the chart before measuring, and resumed")
+            else:
+                log.info("Refine / resume is ticked, but this run has no "
+                         "measurement to resume from, so measuring from the "
+                         "start instead.")
         return ok
 
     def _collect_guided(self) -> MeasureParams:

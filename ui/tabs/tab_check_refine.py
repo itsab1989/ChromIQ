@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QInputDialog,
@@ -53,8 +54,6 @@ from ui.styles import SPEC_VIOLET, TAB_COLORS
 from workflow.scanin_target import has_scanner_geometry
 from workflow.profcheck_runner import (
     REFINE_DE_THRESHOLD,
-    REFINE_START_OVER_RATIO,
-    REFINE_START_OVER_STRIP_RATIO,
     ProfcheckParams,
     ProfcheckRunner,
     group_by_strip,
@@ -62,6 +61,8 @@ from workflow.profcheck_runner import (
     grade_display,
     quality_explanation,
     quality_grade,
+    recommends_start_over,
+    start_over_reason,
     strips_to_refine,
     total_strip_count,
     write_quality_report,
@@ -88,6 +89,97 @@ if TYPE_CHECKING:
     from core.settings import AppSettings
 
 log = get_logger(__name__)
+
+
+def _start_over_advice_html(reason: str) -> str:
+    """The start-over verdict as the result window shows it (rich text)."""
+    return tr("<b>{reason}</b><br><br>Re-measuring individual strips is unlikely to reliably fix this. <b>Starting over with a freshly printed and measured chart is strongly recommended.</b>").format(reason=reason)
+
+
+def _plain(html: str) -> str:
+    """The same verdict for the plain-text report: line breaks kept, tags gone."""
+    import re
+    return re.sub(r"<[^>]+>", "", re.sub(r"<br\s*/?>", "\n", html))
+
+
+#: The result window's lists are plain monospace text, never rich text in a
+#: ``<pre>``. A word-wrapped QLabel holding a ``<pre>`` block reported a height
+#: for one width and was laid out at another, so the strip and patch lists were
+#: cut off after two lines, and the flagged-strip row (one ``<pre>`` line that
+#: cannot wrap) ran off the window's right edge (Basti, 2026-10-03, on Knut's
+#: run2 at threshold 3.0; the same on 4.3.3-beta.5).
+_MONO_STYLE = "font-family: Menlo, Consolas, 'Courier New', monospace;"
+
+#: Flagged strips per row in the result window: four fit the window's 640 px
+#: minimum width with room to spare, in every language (the items themselves
+#: are not translated).
+_REFINE_COLUMNS = 4
+
+
+def _mono_label(text: str, parent) -> QLabel:
+    """Plain, unwrapped, monospace text: its size hint is its real size."""
+    lbl = QLabel(text, parent)
+    lbl.setTextFormat(Qt.TextFormat.PlainText)
+    lbl.setWordWrap(False)
+    lbl.setStyleSheet(_MONO_STYLE)
+    lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+    return lbl
+
+
+class _FitsItsText(QObject):
+    """Keep a window wide enough for its widgets and tall enough for its text.
+
+    Two things Qt does not do for a top-level window on its own:
+
+    * HEIGHT. A window gets the minimum height of its layout, and that minimum
+      does not follow word-wrapped labels (height-for-width). At the result
+      window's 640 px minimum width the explanation, the headings and the lists
+      were each squeezed below the height their text needs, and the last line
+      of each was cut off.
+    * WIDTH. ``setMinimumWidth(640)`` on the window REPLACES its layout's
+      minimum width rather than adding a floor to it, so in German, where the
+      four buttons need more than 640 px, the window could be made narrower
+      than its button row and the buttons drew over each other.
+
+    Asked again whenever the window is shown, resized or re-laid out, so a
+    narrower window grows taller instead of hiding text.
+    """
+
+    def __init__(self, window, min_width: int = 0) -> None:
+        super().__init__(window)
+        self._window = window
+        self._min_width = min_width
+        self._busy = False
+        window.installEventFilter(self)
+
+    def eventFilter(self, obj, event) -> bool:  # noqa: N802 — Qt override
+        if obj is self._window and not self._busy and event.type() in (
+                QEvent.Type.Show, QEvent.Type.Resize,
+                QEvent.Type.LayoutRequest):
+            self._busy = True
+            try:
+                self._fit()
+            finally:
+                self._busy = False
+        return False
+
+    def _fit(self) -> None:
+        win = self._window
+        lay = win.layout()
+        if lay is None:
+            return
+        need_w = max(self._min_width, lay.minimumSize().width())
+        if need_w != win.minimumWidth():
+            win.setMinimumWidth(need_w)
+        if win.width() < need_w:
+            win.resize(need_w, win.height())
+        if lay.hasHeightForWidth():
+            need_h = lay.totalHeightForWidth(win.width())
+            if need_h > 0 and need_h != win.minimumHeight():
+                win.setMinimumHeight(need_h)
+            if win.height() < need_h:
+                win.resize(win.width(), need_h)
+
 
 _ILLUMINANTS = [
     ("D50 (default)", "D50"),
@@ -1602,10 +1694,11 @@ class TabCheckRefine(QWidget):
         n_flagged          = len(refine_strips)
         n_patches_above    = sum(1 for _, de in result.patch_errors if de > threshold)
         n_total_patches    = len(result.patch_errors) if result.patch_errors else 1
-        recommend_start_over = (
-            n_patches_above / n_total_patches > REFINE_START_OVER_RATIO        # >50% of patches bad
-            or n_flagged / n_total_strips   > REFINE_START_OVER_STRIP_RATIO    # >75% of strips flagged
-        )
+        # >50% of patches bad, or >75% of strips flagged. Only when there is
+        # something flagged at all, which is also the only case the result
+        # window shows the verdict in: the report and the window must agree.
+        recommend_start_over = bool(refine_strips) and recommends_start_over(
+            n_patches_above, n_total_patches, n_flagged, n_total_strips)
 
         # Write output files (best-effort — a failure must not prevent the dialog)
         strips_file: Path | None = None
@@ -1635,23 +1728,11 @@ class TabCheckRefine(QWidget):
                 else:
                     from workflow.run_compliance import reports_dir_for
                     folder = ensure_subdir(reports_dir_for(self._ti3_path))
-                grade = quality_grade(result.avg_de, result.peak_de)
-                explanation = quality_explanation(result.avg_de, result.peak_de)
-                summary_text = tr("Profile Quality Assessment: {grade}").format(
-                    grade=grade_display(grade)) + f"\n\n{explanation}"
-                if all_strips_display:
-                    strip_lines = "\n".join(
-                        f"  {s:4s}  avg ΔE: {de:.2f}" for s, de in all_strips_display[:10]
-                    )
-                    summary_text += f"\n\nStrips with highest error (worst first, avg ΔE):\n{strip_lines}"
-                if refine_strips and not recommend_start_over:
-                    refine_lines = "\n".join(
-                        f"  {s:4s}  max ΔE: {de:.2f}" for s, de in refine_strips
-                    )
-                    summary_text += (
-                        f"\n\nStrips flagged for re-measurement (in measurement order, "
-                        f"threshold ΔE > {threshold:.1f}):\n{refine_lines}"
-                    )
+                summary_text = self._report_summary_text(
+                    result, all_strips_display, refine_strips,
+                    recommend_start_over, threshold,
+                    n_flagged, n_total_strips, n_patches_above,
+                    n_total_patches)
 
                 report_path = write_quality_report(folder, stem, summary_text, result.raw_log)
                 self._log.appendPlainText(
@@ -1671,6 +1752,59 @@ class TabCheckRefine(QWidget):
             recommend_start_over,
             n_flagged, n_total_strips, n_patches_above, n_total_patches,
         )
+
+    @staticmethod
+    def _report_summary_text(
+        result,
+        all_strips_display: list[tuple[str, float]],
+        refine_strips: list[tuple[str, float]],
+        recommend_start_over: bool,
+        threshold: float,
+        n_flagged: int,
+        n_total_strips: int,
+        n_patches_above: int,
+        n_total_patches: int,
+    ) -> str:
+        """The readable top of the saved Quality_Check .txt report.
+
+        SAYS WHAT THE WINDOW SAYS. Knut's run2 report (#182, beta 5) carried
+        the grade text *"Re-measuring the flagged strips can help"*, no strip
+        list and no verdict, while the window beside it recommended starting
+        over. The report now carries the same explanation, the same worst
+        patches, and the start-over verdict with its reason, translated.
+        """
+        grade = quality_grade(result.avg_de, result.peak_de)
+        explanation = quality_explanation(result.avg_de, result.peak_de)
+        text = tr("Profile Quality Assessment: {grade}").format(
+            grade=grade_display(grade)) + f"\n\n{explanation}"
+        if all_strips_display:
+            strip_lines = "\n".join(
+                f"  {s:4s}  avg ΔE: {de:.2f}" for s, de in all_strips_display[:10]
+            )
+            text += "\n\n" + tr(
+                "Strips with highest error (worst first, avg ΔE):") \
+                + "\n" + strip_lines
+        if result.patch_errors:
+            worst = sorted(result.patch_errors, key=lambda pe: pe[1],
+                           reverse=True)[:5]
+            patch_lines = "\n".join(
+                f"  {p:4s}  ΔE: {de:.2f}" for p, de in worst)
+            text += "\n\n" + tr(
+                "Patches with highest error (worst first, ΔE):") \
+                + "\n" + patch_lines
+        if recommend_start_over:
+            reason = start_over_reason(n_patches_above, n_total_patches,
+                                       n_flagged, n_total_strips, threshold)
+            text += "\n\n" + _plain(_start_over_advice_html(reason))
+        elif refine_strips:
+            refine_lines = "\n".join(
+                f"  {s:4s}  max ΔE: {de:.2f}" for s, de in refine_strips
+            )
+            text += "\n\n" + tr(
+                "Strips flagged for re-measurement (in measurement order, "
+                "threshold ΔE > {limit:.1f}):").format(limit=threshold) \
+                + "\n" + refine_lines
+        return text
 
     # ------------------------------------------------------------------
     # Result dialog
@@ -1693,11 +1827,11 @@ class TabCheckRefine(QWidget):
 
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Profile Quality Assessment"))
-        dlg.setMinimumWidth(640)
 
         layout = QVBoxLayout(dlg)
         layout.setSpacing(14)
         layout.setContentsMargins(24, 20, 24, 20)
+        _FitsItsText(dlg, min_width=640)   # never narrower than 640 px
 
         # Grade headline
         grade_lbl = QLabel(tr("Profile Quality: <b>{grade}</b>").format(
@@ -1721,13 +1855,16 @@ class TabCheckRefine(QWidget):
                     f"  • Strip {s}  (avg ΔE: {de:.2f})"
                     for s, de in all_strips_display[:5]
                 )
-                strip_lbl = QLabel(
-                    tr("<b>Strips with the highest error</b><br>(worst first, avg ΔE):<pre>{strip_lines}</pre>").format(strip_lines=strip_lines),
-                    dlg,
-                )
-                strip_lbl.setWordWrap(True)
-                strip_lbl.setAlignment(Qt.AlignmentFlag.AlignTop)
-                cols.addWidget(strip_lbl, 1)
+                strip_box = QVBoxLayout()
+                strip_box.setSpacing(6)
+                strip_head = QLabel(tr(
+                    "<b>Strips with the highest error</b><br>"
+                    "(worst first, avg ΔE):"), dlg)
+                strip_head.setWordWrap(True)
+                strip_box.addWidget(strip_head)
+                strip_box.addWidget(_mono_label(strip_lines, dlg))
+                strip_box.addStretch()
+                cols.addLayout(strip_box, 1)
 
             if result.patch_errors:
                 worst_patches = sorted(
@@ -1736,41 +1873,28 @@ class TabCheckRefine(QWidget):
                 patch_lines = "\n".join(
                     f"  • Patch {p}  (ΔE: {de:.2f})" for p, de in worst_patches
                 )
-                patch_lbl = QLabel(
-                    tr("<b>Patches with the highest error</b><br>(worst first, ΔE):<pre>{patch_lines}</pre>").format(patch_lines=patch_lines),
-                    dlg,
-                )
-                patch_lbl.setWordWrap(True)
-                patch_lbl.setAlignment(Qt.AlignmentFlag.AlignTop)
-                cols.addWidget(patch_lbl, 1)
+                patch_box = QVBoxLayout()
+                patch_box.setSpacing(6)
+                patch_head = QLabel(tr(
+                    "<b>Patches with the highest error</b><br>"
+                    "(worst first, ΔE):"), dlg)
+                patch_head.setWordWrap(True)
+                patch_box.addWidget(patch_head)
+                patch_box.addWidget(_mono_label(patch_lines, dlg))
+                patch_box.addStretch()
+                cols.addLayout(patch_box, 1)
 
             layout.addLayout(cols)
 
         # Action recommendation
         if recommend_start_over and refine_strips:
-            thr = self._threshold_spin.value()
-            patch_pct = round(100 * n_patches_above / n_total_patches)
-            strip_pct = round(100 * n_flagged / n_total_strips)
-            if n_patches_above / n_total_patches > REFINE_START_OVER_RATIO:
-                reason = (
-                    f"{n_patches_above} out of {n_total_patches} patches ({patch_pct}%) "
-                    f"exceed ΔE {thr:.1f} — more than half of your measurement data."
-                )
-            else:
-                reason = (
-                    f"{n_flagged} out of {n_total_strips} strips ({strip_pct}%) need "
-                    f"re-measuring — more than three-quarters of your chart."
-                )
-            action_lbl = QLabel(
-                tr("<b>{reason}</b><br><br>Re-measuring individual strips is unlikely to reliably fix this. <b>Starting over with a freshly printed and measured chart is strongly recommended.</b>").format(reason=reason),
-                dlg,
-            )
+            reason = start_over_reason(
+                n_patches_above, n_total_patches, n_flagged, n_total_strips,
+                self._threshold_spin.value())
+            action_lbl = QLabel(_start_over_advice_html(reason), dlg)
             action_lbl.setWordWrap(True)
             layout.addWidget(action_lbl)
         elif refine_strips:
-            refine_lines = "  " + "   ".join(
-                f"{s} (max ΔE: {de:.2f})" for s, de in refine_strips
-            )
             n_refine = len(refine_strips)
             if n_refine == 1:
                 head = tr("<b>1 strip has at least one patch above "
@@ -1780,15 +1904,25 @@ class TabCheckRefine(QWidget):
                 head = tr("<b>{n} strips have at least one patch above "
                           "ΔE {limit:.1f} and should be re-measured:</b>").format(
                     n=n_refine, limit=self._threshold_spin.value())
-            action_lbl = QLabel(
-                head
-                + "<br><pre>" + refine_lines + "</pre>"
-                + tr("Listed in measurement order — the app will navigate to each "
-                     "one automatically."),
-                dlg,
-            )
-            action_lbl.setWordWrap(True)
-            layout.addWidget(action_lbl)
+            head_lbl = QLabel(head, dlg)
+            head_lbl.setWordWrap(True)
+            layout.addWidget(head_lbl)
+            # A GRID, ROW AFTER ROW, so every flagged strip is on screen however
+            # many there are; in measurement order, read left to right.
+            grid = QGridLayout()
+            grid.setHorizontalSpacing(24)
+            grid.setVerticalSpacing(2)
+            grid.setContentsMargins(12, 0, 0, 0)
+            for i, (s, de) in enumerate(refine_strips):
+                grid.addWidget(_mono_label(f"{s} (max ΔE: {de:.2f})", dlg),
+                               i // _REFINE_COLUMNS, i % _REFINE_COLUMNS)
+            grid.setColumnStretch(_REFINE_COLUMNS, 1)
+            layout.addLayout(grid)
+            order_lbl = QLabel(tr(
+                "Listed in measurement order: the app will navigate to each "
+                "one automatically."), dlg)
+            order_lbl.setWordWrap(True)
+            layout.addWidget(order_lbl)
 
         # Description for the "Use as pre-conditioning" path
         if self._icc_path:

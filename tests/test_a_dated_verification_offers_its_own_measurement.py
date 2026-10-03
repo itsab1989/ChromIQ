@@ -204,3 +204,53 @@ def test_the_overlay_handler_never_asks_qt_for_its_sender():
     assert "sender()" not in src.split('"""', 2)[2]
     for name in ("_on_guided_overlay_box_toggled", "_on_manual_overlay_box_toggled"):
         assert "box=self." in inspect.getsource(getattr(TabMeasure, name))
+
+
+def _resume_log(caplog):
+    import logging
+    from ui.tabs import tab_measure
+    return [r.getMessage() for r in caplog.records
+            if r.name == tab_measure.log.name and r.levelno >= logging.INFO
+            and "no measurement to resume from" in r.getMessage()]
+
+
+def test_a_resume_that_will_be_staged_is_not_logged_as_impossible(
+        qapp, tmp_path, popups, caplog, monkeypatch):
+    """Knut's beta 5 log, 01:04:42: *"Refine / resume is ticked, but this run
+    has no measurement to resume from"*, then the dated verification was
+    staged beside the chart and resumed. The check ran before the staging; it
+    now knows the staging is coming and does not log the untrue line."""
+    import logging
+    from ui.tabs import tab_measure
+    monkeypatch.setattr(tab_measure.log, "propagate", True)
+    caplog.set_level(logging.DEBUG, logger=tab_measure.log.name)
+    run, ctl, tab, measured, empty = _env(tmp_path)
+    tab.show()
+    ctl.set_verification_id(measured.id)
+    _pump()
+    tab._resume_cb.setChecked(True)
+    assert tab._verification_to_stage() == measured.measurement_ti3
+    caplog.clear()
+    tab._resume_has_anything_to_resume(True)     # what _collect_* calls
+    tab.hide()
+    assert _resume_log(caplog) == [], \
+        "logged 'no measurement to resume from' for a resume about to happen"
+    assert not run.verify_chart_ti2.with_suffix(".ti3").exists(), \
+        "the question must not stage anything itself"
+
+
+def test_a_resume_with_nothing_behind_it_is_still_logged(
+        qapp, tmp_path, popups, caplog, monkeypatch):
+    import logging
+    from ui.tabs import tab_measure
+    monkeypatch.setattr(tab_measure.log, "propagate", True)
+    caplog.set_level(logging.DEBUG, logger=tab_measure.log.name)
+    run, ctl, tab, measured, empty = _env(tmp_path)
+    tab.show()
+    ctl.set_verification_id(empty.id)
+    _pump()
+    assert tab._verification_to_stage() is None
+    caplog.clear()
+    assert tab._resume_has_anything_to_resume(True) is False
+    tab.hide()
+    assert len(_resume_log(caplog)) == 1

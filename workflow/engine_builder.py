@@ -267,6 +267,45 @@ def engine_support(params: "ProfileParams") -> tuple[bool, str]:
     return True, ""
 
 
+#: BuildSettings fields that are not build parameters: a callback and the
+#: header timestamp.
+_NOT_PARAMETERS = frozenset({"progress", "timestamp"})
+
+
+def build_settings_summary(settings) -> str:
+    """Every parameter of an engine build, as one log line's worth of text.
+
+    THE PROFILE BUILD WROTE NOTHING TO chromiq.log. Knut's beta 5 log shows
+    two builds as nothing but *"archived test.icc"* and, two and a half
+    minutes later, the applause sound (#182, 2026-10-03), so the question
+    "which settings built this profile?" had no answer in the log at all. A
+    colprof build logs its whole command line; the engine now logs its whole
+    settings object, every field, defaults included, so nothing has to be
+    inferred from what is missing.
+    """
+    from dataclasses import fields
+    parts = []
+    for f in fields(settings):
+        if f.name in _NOT_PARAMETERS:
+            continue
+        parts.append(f"{f.name}={getattr(settings, f.name)!r}")
+    return " ".join(parts)
+
+
+def build_result_summary(res, seconds: float) -> str:
+    """The finished engine build, as one log line."""
+    return (
+        f"engine build finished in {seconds:.1f} s: {res.icc_path} "
+        f"({res.n_channels} channels, {res.color_rep}, A2B grid {res.a2b_grid}, "
+        f"B2A grid {res.b2a_grid}); fit at the measured patches "
+        f"median {res.fit_median_de:.2f} / 95% {res.fit_p95_de:.2f} \u0394E76, "
+        f"median {res.fit_median_de00:.2f} / 95% {res.fit_p95_de00:.2f} \u0394E00; "
+        f"B2A in-gamut median {res.b2a_ingamut_median_de:.2f} \u0394E; "
+        f"out of gamut {100 * res.oog_fraction:.1f}%; "
+        f"likely misreads {len(res.outlier_rows)}; "
+        f"perceptual/saturation from a gamut source: {res.perceptual_distinct}")
+
+
 class _EngineThread(QThread):
     line = pyqtSignal(str)
     done = pyqtSignal(int, str)
@@ -282,14 +321,25 @@ class _EngineThread(QThread):
         self._settings = settings
 
     def run(self) -> None:  # noqa: D102 — QThread worker
+        import time
         from workflow.profile_engine import build_profile
-        self._settings.progress = self.line.emit   # queued across threads
+
+        def _progress(msg: str) -> None:
+            # Into chromiq.log as well as the tab's box, the way every Argyll
+            # tool's output reaches it ("[argyll] ..." at DEBUG).
+            log.debug("[engine] %s", msg)
+            self.line.emit(msg)                # queued across threads
+
+        self._settings.progress = _progress
+        t0 = time.monotonic()
         try:
             res = build_profile(self._ti3, self._out, self._settings)
         except Exception as exc:            # noqa: BLE001 — surfaced to UI
-            log.exception("engine build failed")
+            log.exception("engine build failed after %.1f s",
+                          time.monotonic() - t0)
             self.done.emit(1, str(exc))
             return
+        log.info(build_result_summary(res, time.monotonic() - t0))
         self.line.emit(tr(
             "Model fit at the measured patches: median {med:.2f} ΔE, "
             "95% {p95:.2f} ΔE.").format(med=res.fit_median_de,
@@ -350,6 +400,8 @@ class EngineProfileBuilder:
             on_finish(1)
             return
         out = self.expected_icc_path(params)
+        log.info("engine build: %s -> %s  [%s]", params.ti3_path, out,
+                 build_settings_summary(settings))
         self._last_error = ""
         self._thread = t = _EngineThread(params.ti3_path, out, settings)
         t.line.connect(on_line)
