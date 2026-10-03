@@ -137,6 +137,10 @@ class YnsnTruth(TruthPrinter):
         self.id = sp.id
         self.device_rep = sp.device_rep
         self.tac = sp.tac
+        # measurement settings of the September printer (S4: noise_scale 3),
+        # honoured by noise.measure since v2 (v1 ignored them: S4 == S3)
+        self.noise_scale = float(sp.noise_scale)
+        self.misread_prob = float(sp.misread_prob)
 
     def _ink(self, letter, lam):
         for light, frac in self.sp.light_inks:

@@ -2,19 +2,44 @@
 
 There is no single "real CMM" (agent 1, Findings/agent1-04; agent 2,
 Reports/agent2-04). Every profile is therefore scored through each readout
-separately, and each gets its own column:
+separately, and each gets its own column. The argyll, lcms and colorsync
+columns ARE the real CMMs (the profile bytes go through their code), so each
+reads with whatever kernel that CMM picks for that profile; ``KERNELS``
+records what that is, measured by :mod:`kernels` and pinned by
+``tests/test_benchmarks_research_kernels.py`` (v2, flaw 7):
 
-* ``argyll``     ArgyllCMS icclib via ``icclu`` (A2B simplex, B2A multilinear)
+| reader | A2B, 3 inks (RGB/CMY) | A2B, 4 inks (CMYK) | A2B, 5-8 inks (nCLR) | B2A (Lab PCS) |
+|---|---|---|---|---|
+| ``argyll`` (icclu) | simplex | simplex | N-linear (multilinear) | N-linear (trilinear) |
+| ``lcms`` (2.x) | tetrahedral (= 3-D simplex) | linear in ink 1 over tetrahedral | linear over the first n-3 inks, tetrahedral in the last 3 | trilinear |
+| ``colorsync`` | multilinear | multilinear | multilinear, when it loads | multilinear |
+| ``multilinear`` | multilinear | multilinear | multilinear | multilinear |
+
+ColorSync crashes the process (segfault in Quartz) on some multi-ink
+profiles; v1 saw it on every engine 6- and 7-ink build, the v2 probe sees it
+on ``MCH6`` and ``5CLR`` random tables but not on ``6CLR``/``7CLR`` ones, so
+it is decided per profile in a child process (``colorsync_supported``).
+Argyll's choice is ``icmPeClut_choose_alg`` (icc/icc_xf.c:1373): simplex for
+RGB/CMY/CMYK/MCH6 input signatures; the engine writes 5-8 inks as ``nCLR``,
+for which Argyll falls back to N-linear (agent 7 T6, re-measured here). A
+profile labelled ``MCH6`` would be read simplex. So "the battery reads
+multilinearly while CMMs read simplex" is true only for 3 and 4 inks in
+Argyll and lcms; for 6 and 7 inks the multilinear column IS Argyll's kernel.
+
+* ``argyll``     ArgyllCMS icclib via ``icclu``
 * ``lcms``       littleCMS 2 (the copy bundled with Pillow), float formats,
                  cmsFLAGS_NOOPTIMIZE so the tables are read as written
-                 (A2B tetrahedral for 3 inputs, linear-over-tetrahedral for 4+,
-                 B2A trilinear)
 * ``colorsync``  Apple ColorSync through Quartz ``CGColorCreateCopyByMatchingTo
-                 ColorSpace`` (relative colorimetric, D50 Lab space); agent 1
-                 measured it reads lut16 Lab with the v4 encoding. Slow (one
-                 call per colour), so it runs on a subsample.
+                 ColorSpace`` (relative colorimetric, D50 Lab space). Slow
+                 (one call per colour), so it runs on a subsample. The Quartz
+                 Lab space is built with the a*/b* range [-127.5, 127.5]
+                 (v2, flaw 4): v1 used [-128, 127], which reads every colour
+                 0.5 low in a* and b* (orchestrator O1: sRGB white -> a* = b*
+                 = -0.500; exactly 0 with a symmetric range). ColorSync does
+                 scale lut16 Lab L* by about 0.39 % (v4-style L*; agent 7 T4).
 * ``multilinear`` the September battery's own reader (benchmarks/iccread.py),
-                 kept only as a continuity column.
+                 a continuity column; it is also the kernel of ColorSync and
+                 of Argyll for nCLR profiles.
 
 All functions: ``a2b(path, device01) -> Lab`` and ``b2a(path, lab) -> device01``,
 relative colorimetric (A2B1 / B2A1).
@@ -30,6 +55,28 @@ import numpy as np
 
 ICCLU = "/Applications/Argyll/bin/icclu"
 READERS = ("argyll", "lcms", "colorsync", "multilinear")
+# Quartz Lab colour space a*/b* range. Symmetric, or white reads a*=b*=-0.5.
+QUARTZ_LAB_RANGE = [-127.5, 127.5, -127.5, 127.5]
+QUARTZ_LAB_RANGE_V1 = [-128, 127, -128, 127]       # v1, wrong; re-derivation only
+
+KERNELS = {
+    "argyll": {"a2b3": "simplex", "a2b4": "simplex", "a2bN": "multilinear",
+               "b2a": "multilinear"},
+    "lcms": {"a2b3": "simplex", "a2b4": "lcms-linear-over-tetrahedral",
+             "a2bN": "lcms-linear-over-tetrahedral", "b2a": "multilinear"},
+    "colorsync": {"a2b3": "multilinear", "a2b4": "multilinear", "a2bN": "multilinear",
+                  "b2a": "multilinear"},
+    "multilinear": {"a2b3": "multilinear", "a2b4": "multilinear",
+                    "a2bN": "multilinear", "b2a": "multilinear"},
+}
+
+
+def kernel_of(reader: str, n_inks: int, direction: str = "a2b") -> str | None:
+    """The interpolation kernel ``reader`` uses on an engine profile with
+    ``n_inks`` device channels (nCLR signature for 5+)."""
+    if direction == "b2a":
+        return KERNELS[reader]["b2a"]
+    return KERNELS[reader]["a2b3" if n_inks == 3 else "a2b4" if n_inks == 4 else "a2bN"]
 
 
 # --- Argyll -----------------------------------------------------------------
@@ -95,6 +142,8 @@ def _profile_n(path: Path) -> tuple[int, bool]:
     table = {b"RGB ": (3, True), b"CMY ": (3, False), b"CMYK": (4, False)}
     if data in table:
         return table[data]
+    if data[:3] == b"MCH":                       # MCH5..MCHF
+        return int(data[3:4], 16), False
     return int(data[:1], 16) if data[1:] == b"CLR" else int(data[:1]), False
 
 
@@ -145,14 +194,15 @@ class ColorSyncUnsupported(RuntimeError):
     pass
 
 
-def _colorsync(path: Path, rows: np.ndarray, forward: bool) -> np.ndarray:
+def _colorsync(path: Path, rows: np.ndarray, forward: bool,
+               lab_range: list | None = None) -> np.ndarray:
     import Quartz as Q
     data = Path(path).read_bytes()
     prof = Q.CGColorSpaceCreateWithICCData(Q.CFDataCreate(None, data, len(data)))
     if prof is None:
         raise RuntimeError("ColorSync refused the profile")
     lab = Q.CGColorSpaceCreateLab([0.9642, 1.0, 0.8249], [0, 0, 0],
-                                  [-128, 127, -128, 127])
+                                  list(lab_range or QUARTZ_LAB_RANGE))
     n = Q.CGColorSpaceGetNumberOfComponents(prof)
     src, dst, n_out = (prof, lab, 3) if forward else (lab, prof, n)
     out = np.empty((len(rows), n_out))
