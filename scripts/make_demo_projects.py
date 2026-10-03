@@ -18,7 +18,8 @@ Four projects are written:
                               measurement, profile, reports, exports), one with
                               two dated verifications, one with a chart only.
 ``Demo-Verify-History``       one finished run with **five** dated
-                              verifications, three months apart, each with its
+                              verifications, a minute apart and all made after
+                              its profile was built, each with its
                               own measurement and report — for exercising the
                               verification history and the report's trend.
 ``Demo-Legacy-v1``            **the 3.13 layout**, for migration testing.
@@ -53,6 +54,8 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent))
 
+from core.cgats_date import created_stamp   # noqa: E402 — needs the path above
+
 CHART_EXTS = (".ti1", ".ti2", ".cht", ".ps", ".channels.json", ".strips.json")
 
 
@@ -64,7 +67,7 @@ def _ti2(stem: str, patches: int, rows: int) -> str:
     head = [
         "CTI2", "", 'DESCRIPTOR "Argyll Calibration Target chart information 2"',
         'ORIGINATOR "Argyll printtarg"',
-        f'CREATED "{datetime.now():%a %b %d %H:%M:%S %Y}"',
+        f'CREATED "{created_stamp()}"',
         'KEYWORD "APPROX_WHITE_POINT"', 'APPROX_WHITE_POINT "95.1 100.0 108.9"',
         f'NUMBER_OF_FIELDS 7', "BEGIN_DATA_FORMAT",
         "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y", "END_DATA_FORMAT",
@@ -119,7 +122,7 @@ def _ti3_from_ti2(ti2: Path, *, drift: float = 0.0) -> str:
     out = [
         "CTI3", "", 'DESCRIPTOR "Argyll Calibration Target chart information 3"',
         'ORIGINATOR "Argyll chartread"',
-        f'CREATED "{datetime.now():%a %b %d %H:%M:%S %Y}"',
+        f'CREATED "{created_stamp()}"',
         'KEYWORD "DEVICE_CLASS"', 'DEVICE_CLASS "OUTPUT"',
         'KEYWORD "COLOR_REP"', 'COLOR_REP "RGB_XYZ"',
         f"NUMBER_OF_FIELDS {8 if has_loc else 7}", "BEGIN_DATA_FORMAT",
@@ -149,7 +152,7 @@ def _ti3(stem: str, patches: int, *, drift: float = 0.0) -> str:
     head = [
         "CTI3", "", 'DESCRIPTOR "Argyll Calibration Target chart information 3"',
         'ORIGINATOR "Argyll chartread"',
-        f'CREATED "{datetime.now():%a %b %d %H:%M:%S %Y}"',
+        f'CREATED "{created_stamp()}"',
         'KEYWORD "DEVICE_CLASS"', 'DEVICE_CLASS "OUTPUT"',
         'KEYWORD "COLOR_REP"', 'COLOR_REP "RGB_XYZ"',
         "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
@@ -370,6 +373,21 @@ def _meta(run_dir: Path, rid: str, **extra) -> None:
     (run_dir / "meta.json").write_text(json.dumps(d, indent=2), encoding="utf-8")
 
 
+def _after_the_build(minutes: int) -> datetime:
+    """A verification date *minutes* whole minutes after the profile that was
+    just built.
+
+    The profile is built NOW (`_build_icc` runs colprof), so dates written
+    into the generator by hand (they were 2026-01 to 2026-06) came out older
+    than the profile they verify, which no real project can hold: a
+    verification is always measured against a profile that already exists,
+    and every demo date read as one made with an earlier profile. Call it
+    after `_build_icc`; the seconds are dropped and a minute added, so even
+    the first date is after the profile's own timestamp."""
+    built = datetime.now().replace(second=0, microsecond=0)
+    return built + timedelta(minutes=minutes)
+
+
 def _verification(run_dir: Path, stem: str, when: datetime, de: float) -> None:
     vdir = run_dir / "verifications" / when.strftime("%Y-%m-%d_%H%M%S")
     (vdir / "chart").mkdir(parents=True, exist_ok=True)
@@ -444,8 +462,8 @@ def build_full(root: Path) -> None:
     (r2 / "preconditioning.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     shutil.copy2(r1 / f"{stem}.icc", r2 / "preconditioning.icc") if (r1 / f"{stem}.icc").exists() else None
     _chart_files(r2 / "verifications", f"{stem}-verify", patches=60, rows=10)
-    for when, de in ((datetime(2026, 5, 20, 9, 5), 0.9),
-                     (datetime(2026, 6, 24, 16, 40), 1.5)):
+    for when, de in ((_after_the_build(1), 0.9),
+                     (_after_the_build(2), 1.5)):
         _verification(r2, stem, when, de)
     _meta(r2, "run2", parent_run="run1", preconditioning_source_run="run1")
 
@@ -466,9 +484,8 @@ def build_verify_history(root: Path) -> None:
     (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     _build_icc(r1, stem)
     _chart_files(r1 / "verifications", f"{stem}-verify", patches=60, rows=10)
-    start = datetime(2026, 1, 12, 11, 0)
     for i, de in enumerate((0.8, 1.0, 1.3, 1.9, 2.6)):   # a drifting printer
-        _verification(r1, stem, start + timedelta(days=90 * i), de)
+        _verification(r1, stem, _after_the_build(1 + i), de)
     _meta(r1, "run1")
 
 
