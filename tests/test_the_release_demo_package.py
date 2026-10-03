@@ -24,6 +24,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -183,6 +184,167 @@ def _source_key() -> str:
     return h.hexdigest()[:16]
 
 
+# THE CACHE IS SHARED BY EVERY RUN ON THE MACHINE, SO NO RUN MAY DELETE WHAT
+# ANOTHER IS USING (2026-10-03). This fixture used to keep "one build" by
+# emptying the whole cache folder before building into the key folder itself.
+# A second session's gate, running at the same time on another branch (another
+# key), was building into its own key folder at that moment; the first run
+# deleted it from under printtarg, and that gate came out with five setup
+# errors, "printtarg: Unable to open file 'chart.ti2' for writing".
+#
+# So now:
+# * a build goes into a PRIVATE folder (``chromiq-build-<pid>-*``) and is published
+#   onto the key path with one rename, so nobody ever sees, or deletes, a
+#   half-built package under a key;
+# * a run that uses a key holds a lease on it (``.in-use/<key>.<pid>``) until
+#   its module is done, and touches the key folder;
+# * pruning removes only an entry that is BOTH older than
+#   :data:`_STALE_AFTER_S` AND held by no live process (a key with no live
+#   lease, a build folder whose pid is gone). The speed benefit is the same:
+#   a warm key is used as it is.
+_STALE_AFTER_S = 6 * 3600
+_LEASES = ".in-use"
+_BUILD_PREFIX = "chromiq-build-"   # spelled out at the mkdtemp too (sweep test)
+_READY = "coverage-matrix.json"
+
+
+def _pid_alive(pid: int) -> bool:
+    """Is process *pid* running? True when that cannot be told: a lease is
+    only ever ignored on proof that its holder is gone."""
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        # os.kill(pid, 0) TERMINATES the process on Windows; ask instead.
+        try:
+            import ctypes
+            k32 = ctypes.windll.kernel32
+            h = k32.OpenProcess(0x1000, False, pid)  # QUERY_LIMITED_INFORMATION
+            if not h:
+                return False
+            code = ctypes.c_ulong()
+            try:
+                if not k32.GetExitCodeProcess(h, ctypes.byref(code)):
+                    return True
+                return code.value == 259             # STILL_ACTIVE
+            finally:
+                k32.CloseHandle(h)
+        except Exception:                            # noqa: BLE001
+            return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True                                  # someone else's, alive
+    except OSError:
+        return True
+    return True
+
+
+def _take_lease(cache: Path, key: str, pid: "int | None" = None) -> Path:
+    leases = cache / _LEASES
+    leases.mkdir(parents=True, exist_ok=True)
+    lease = leases / f"{key}.{pid or os.getpid()}"
+    lease.write_text(str(pid or os.getpid()), encoding="utf-8")
+    return lease
+
+
+def _holders(cache: Path, name: str) -> "list[int]":
+    """The live processes holding *name* (a key folder or a build folder)."""
+    if name.startswith(_BUILD_PREFIX):
+        try:
+            pid = int(name[len(_BUILD_PREFIX):].split("-", 1)[0])
+        except ValueError:
+            return []
+        return [pid] if _pid_alive(pid) else []
+    live = []
+    for lease in (cache / _LEASES).glob(f"{name}.*"):
+        try:
+            pid = int(lease.name.rsplit(".", 1)[1])
+        except ValueError:
+            continue
+        if _pid_alive(pid):
+            live.append(pid)
+    return live
+
+
+def _prune(cache: Path, keep: str, now: "float | None" = None) -> "list[str]":
+    """Remove every entry that is stale by age AND held by nobody alive.
+    Returns the names removed. Never touches *keep*."""
+    now = time.time() if now is None else now
+    removed = []
+    if not cache.is_dir():
+        return removed
+    for lease in list((cache / _LEASES).glob("*")):
+        try:
+            if not _pid_alive(int(lease.name.rsplit(".", 1)[1])):
+                lease.unlink()
+        except (ValueError, OSError):
+            pass
+    for entry in list(cache.iterdir()):
+        if entry.name in (keep, _LEASES) or not entry.is_dir():
+            continue
+        try:
+            if now - entry.stat().st_mtime < _STALE_AFTER_S:
+                continue                             # young: maybe in use
+        except OSError:
+            continue                                 # vanished meanwhile
+        if _holders(cache, entry.name):
+            continue                                 # a live run holds it
+        shutil.rmtree(entry, ignore_errors=True)
+        removed.append(entry.name)
+    return removed
+
+
+def _ensure_package(cache: Path, key: str, root_name: str,
+                    build) -> "tuple[Path, Path | None]":
+    """The package for *key*: (its root, a private folder to delete after use,
+    or None). *build(folder)* builds ``folder / root_name``.
+
+    Call with the lease on *key* already taken. Builds privately and
+    publishes with a rename; a complete package another run published first
+    wins and ours is dropped."""
+    here = cache / key
+    root = here / root_name
+    if (root / _READY).is_file():
+        return root, None
+    cache.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f"chromiq-build-{os.getpid()}-",
+                                    dir=str(cache)))
+    try:
+        build(staging)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    if not (staging / root_name / _READY).is_file():
+        return staging / root_name, staging          # let the caller report it
+    for attempt in range(3):
+        try:
+            os.replace(staging, here)                # POSIX: onto an empty dir too
+            return root, None
+        except OSError:
+            if (root / _READY).is_file():
+                shutil.rmtree(staging, ignore_errors=True)
+                return root, None                    # theirs is as good as ours
+            # An incomplete folder on the key path: an interrupted build of
+            # the old code, or an old-code run building there NOW (new runs
+            # never build on a key path). Only an old one is moved aside;
+            # otherwise ours stays private and is deleted after use.
+            try:
+                old = time.time() - here.stat().st_mtime >= _STALE_AFTER_S
+            except OSError:
+                continue                             # it just went; retry
+            if not old:
+                break
+            aside = cache / f"{_BUILD_PREFIX}0-stale-{os.getpid()}-{attempt}"
+            try:
+                os.replace(here, aside)
+            except OSError:
+                continue
+            shutil.rmtree(aside, ignore_errors=True)
+    return staging / root_name, staging
+
+
 @pytest.fixture(scope="module")
 def built_package(tmp_path_factory):
     pkg = _pkg()
@@ -192,14 +354,10 @@ def built_package(tmp_path_factory):
     cache = Path(os.environ.get("CHROMIQ_RELEASE_DEMO_CACHE",
                                 Path(os.environ.get("CHROMIQ_SUITE_REAL_TMP")
                                      or tempfile.gettempdir()) / _CACHE_NAME))
-    here = cache / _source_key()
-    root = here / pkg.root_name()
-    if not (root / "coverage-matrix.json").is_file():
-        # ONE BUILD KEPT: an older key is a stale package, not a spare.
-        if cache.is_dir():
-            for old in cache.iterdir():
-                shutil.rmtree(old, ignore_errors=True)
-        here.mkdir(parents=True, exist_ok=True)
+    key = _source_key()
+    outcome: dict = {}
+
+    def build(into: Path) -> None:
         sandbox = tmp_path_factory.mktemp("demo-build-sandbox")
         env = dict(os.environ,
                    CHROMIQ_SETTINGS_FILE=str(sandbox / "settings.ini"),
@@ -207,15 +365,140 @@ def built_package(tmp_path_factory):
                    CHROMIQ_COMPLIANCE_ISO_FILE=str(
                        ROOT / "data" / "compliance_sets" / "iso12647.json"),
                    QT_QPA_PLATFORM="offscreen")
-        r = subprocess.run([sys.executable,
-                            str(ROOT / "scripts" / "make_release_demo_package.py"),
-                            str(here)],
-                           cwd=ROOT, env=env, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=3600)
-        assert (root / "coverage-matrix.json").is_file(), (
+        outcome["r"] = subprocess.run(
+            [sys.executable,
+             str(ROOT / "scripts" / "make_release_demo_package.py"), str(into)],
+            cwd=ROOT, env=env, capture_output=True, text=True,
+            encoding="utf-8", errors="replace", timeout=3600)
+
+    lease = _take_lease(cache, key)
+    private = None
+    try:
+        root, private = _ensure_package(cache, key, pkg.root_name(), build)
+        if private is None:
+            try:
+                os.utime(cache / key)                # last used: now
+            except OSError:
+                pass
+        _prune(cache, keep=key)
+        r = outcome.get("r")
+        assert (root / _READY).is_file(), (
             f"the package did not finish building (exit {r.returncode}):\n"
-            f"{r.stdout[-4000:]}\n{r.stderr[-4000:]}")
-    return root
+            f"{r.stdout[-4000:]}\n{r.stderr[-4000:]}" if r else
+            "the package did not finish building")
+        yield root
+    finally:
+        if private is not None:
+            shutil.rmtree(private, ignore_errors=True)
+        try:
+            lease.unlink()
+        except OSError:
+            pass
+
+
+# fast: the cache is safe to share --------------------------------------------
+def _dead_pid() -> int:
+    p = subprocess.Popen([sys.executable, "-c", "pass"])
+    p.wait(timeout=60)
+    return p.pid
+
+
+def _age(path: Path, seconds: float) -> None:
+    t = time.time() - seconds
+    os.utime(path, (t, t))
+
+
+def test_pruning_spares_what_another_run_holds_and_drops_the_abandoned(tmp_path):
+    """Only an entry that is old AND held by no live process goes.
+
+    MUTATION: make `_holders` return [] (the old "empty the cache" rule) and
+    the other run's package and build folder are deleted."""
+    cache = tmp_path
+    other, dead = os.getppid(), _dead_pid()
+    old = 2 * _STALE_AFTER_S
+    for name in ("theirs", "abandoned", "young", "mine",
+                 f"{_BUILD_PREFIX}{other}-x", f"{_BUILD_PREFIX}{dead}-y"):
+        (cache / name / "pkg").mkdir(parents=True)
+    _take_lease(cache, "theirs", pid=other)
+    _take_lease(cache, "abandoned", pid=dead)
+    for name in ("theirs", "abandoned", "mine",
+                 f"{_BUILD_PREFIX}{other}-x", f"{_BUILD_PREFIX}{dead}-y"):
+        _age(cache / name, old)
+    removed = _prune(cache, keep="mine")
+    assert sorted(removed) == sorted(["abandoned", f"{_BUILD_PREFIX}{dead}-y"])
+    left = {p.name for p in cache.iterdir()}
+    assert {"theirs", "young", "mine", f"{_BUILD_PREFIX}{other}-x"} <= left
+    assert not (cache / _LEASES / f"abandoned.{dead}").exists()
+    assert (cache / _LEASES / f"theirs.{other}").exists()
+
+
+def test_two_runs_building_at_once_do_not_break_each_other(tmp_path, monkeypatch):
+    """Three runs at once, two keys, one cache, and age protecting nothing
+    (`_STALE_AFTER_S` = 0): every run gets a complete package, each key is
+    published once, nothing half-built is left on a key path.
+
+    This is the 2026-10-03 failure simulated: each "build" writes its chart,
+    pauses while the others prune, then finishes. Under the old fixture the
+    second run's pruning deleted the first run's folder mid-build."""
+    import threading
+    monkeypatch.setattr(sys.modules[__name__], "_STALE_AFTER_S", 0)
+    cache = tmp_path / "cache"
+    gate = threading.Barrier(3, timeout=30)
+    results: dict = {}
+    errors: list = []
+
+    def build(into: Path) -> None:
+        root = into / "Pkg"
+        root.mkdir(parents=True)
+        (root / "chart.ti2").write_text("ti2", encoding="utf-8")
+        gate.wait()                       # everyone is mid-build now
+        time.sleep(0.2)                   # …while the others prune
+        assert (root / "chart.ti2").is_file(), "deleted under a build"
+        (root / _READY).write_text("{}", encoding="utf-8")
+
+    def one_run(tag: str, key: str) -> None:
+        lease = _take_lease(cache, key)
+        try:
+            root, private = _ensure_package(cache, key, "Pkg", build)
+            _prune(cache, keep=key)
+            results[tag] = (root, private, (root / _READY).is_file(),
+                            (root / "chart.ti2").is_file())
+        except BaseException as e:        # noqa: BLE001 — reported below
+            errors.append((tag, repr(e)))
+
+    cache.mkdir()
+    threads = [threading.Thread(target=one_run, args=a)
+               for a in (("a", "key1"), ("b", "key2"), ("c", "key1"))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=60)
+    assert not errors, errors
+    assert all(ok and chart for _r, _p, ok, chart in results.values()), results
+    assert all(p is None for _r, p, _o, _c in results.values()), results
+    assert results["a"][0] == results["c"][0] == cache / "key1" / "Pkg"
+    assert (cache / "key2" / "Pkg" / _READY).is_file()
+    assert not [p.name for p in cache.iterdir()
+                if p.name.startswith(_BUILD_PREFIX)]
+
+
+def test_a_warm_key_is_used_without_building(tmp_path):
+    (tmp_path / "k" / "Pkg").mkdir(parents=True)
+    (tmp_path / "k" / "Pkg" / _READY).write_text("{}", encoding="utf-8")
+
+    def build(_into):
+        raise AssertionError("a warm cache must not rebuild")
+    assert _ensure_package(tmp_path, "k", "Pkg", build) == \
+        (tmp_path / "k" / "Pkg", None)
+
+
+def test_the_fixture_never_empties_the_shared_cache():
+    """MUTATION: put back `for old in cache.iterdir(): shutil.rmtree(old)`."""
+    text = Path(__file__).read_text(encoding="utf-8")
+    src = text[text.index("def built_package("):
+               text.index("# fast: the cache is safe to share")]
+    assert "rmtree(old" not in src and "iterdir()" not in src
+    assert "_ensure_package(" in src and "_take_lease(" in src
 
 
 @pytest.mark.slow

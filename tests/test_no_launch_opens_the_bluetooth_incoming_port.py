@@ -253,6 +253,63 @@ def test_the_runner_is_the_last_door(qapp, tmp_path, darwin, monkeypatch):
     assert not r.is_running
 
 
+def test_the_runner_refusal_reads_as_no_instrument(qapp, tmp_path, darwin,
+                                                   monkeypatch, caplog):
+    """A refusal at the last door is not a bare failure code: it writes a log
+    line naming the tool and the port, hands the caller's ``on_line`` stock
+    Argyll's "No instrument detected" sentence, emits the runner's
+    ``no_instrument`` and only then ``on_finish(1)``, all after ``run`` has
+    returned.
+
+    MUTATION: put back the bare ``QTimer.singleShot(0, lambda: on_finish(1))``
+    and the log, the line and the signal are all missing."""
+    import logging
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    monkeypatch.setattr(IP, "runner_refuses",
+                        lambda _r, tool, args: IP.refused_port(tool, args))
+    _machine(monkeypatch, 0, [BT])
+    r = ArgyllRunner(AppSettings())
+    order = []
+    r.no_instrument.connect(lambda port: order.append(("signal", port)))
+    with caplog.at_level(logging.WARNING):
+        r.run("spotread", ["-v", "-c", "1"], tmp_path,
+              on_line=lambda line: order.append(("line", line)),
+              on_finish=lambda code: order.append(("finish", code)),
+              use_pty=True)
+        assert order == []             # after run has returned, not inside it
+        _pump(qapp)
+    assert [k for k, _ in order] == ["line", "signal", "finish"], order
+    line = order[0][1]
+    assert line.startswith("No instrument detected") and BT in line
+    assert "spotread" in line and "—" not in line
+    assert order[1:] == [("signal", BT), ("finish", 1)]
+    assert any("refused spotread" in rec.getMessage() and BT in rec.getMessage()
+               for rec in caplog.records), caplog.text
+    assert r._pty_proc is None and not r.is_running
+
+
+def test_a_runner_refusal_ends_read_single_patches_as_no_instrument(
+        qapp, darwin, monkeypatch):
+    """A path past the manager's own check (here the manager's check is made
+    to say "go ahead") still ends as "No instrument detected": the runner's
+    line reaches the manager's parser, which raises its ``no_instrument``,
+    then the session ends with 1. MUTATION: drop the ``on_line(line)`` from
+    ``ArgyllRunner._refuse_launch``."""
+    from core.argyll_runner import ArgyllRunner
+    from core.settings import AppSettings
+    from workflow.spot_read_manager import SpotReadManager, SpotReadParams
+    monkeypatch.setattr(IP, "refused_port", lambda tool, args: None)
+    monkeypatch.setattr(IP, "runner_refuses", lambda _r, tool, args: BT)
+    m = SpotReadManager(ArgyllRunner(AppSettings()))
+    order = []
+    m.no_instrument.connect(lambda: order.append("no_instrument"))
+    m.session_ended.connect(lambda code: order.append(("ended", code)))
+    m.start(SpotReadParams(), lambda _l: None)
+    _pump(qapp)
+    assert order == ["no_instrument", ("ended", 1)], order
+
+
 # ---------------------------------------------------------------------------
 # every launch path asks
 # ---------------------------------------------------------------------------

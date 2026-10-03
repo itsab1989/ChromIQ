@@ -984,7 +984,8 @@ _STALE_AFTER_HOURS = 1
 #: gate, which is the whole reason it exists.
 _KEEP_FOREVER = ("chromiq-demo-projects-cache",
                  # the release demo package (#182 K29), about four minutes to
-                 # build; `test_the_release_demo_package` keeps ONE key in it
+                 # build; `test_the_release_demo_package` prunes its own keys
+                 # (old AND unheld only, so concurrent runs are safe)
                  "chromiq-release-demo-cache")
 
 

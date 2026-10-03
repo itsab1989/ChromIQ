@@ -179,6 +179,10 @@ class ArgyllRunner(QObject):
     finished        = pyqtSignal(int)   # exit code
     keypress_failed = pyqtSignal(str, str)  # (key_label, reason) — Windows injection failed
     _pty_done       = pyqtSignal(int, int)   # internal: PTY reader → main thread (exit code, run generation)
+    #: A launch the last door refused because its instrument port is a system
+    #: port that is never an instrument (the port's path). Emitted before the
+    #: refused run's ``on_finish(1)``, the order the managers use.
+    no_instrument   = pyqtSignal(str)
 
     # Map control bytes to human labels for logs and UI warnings.
     _KEY_LABELS = {
@@ -255,6 +259,39 @@ class ArgyllRunner(QObject):
         if on_line is not None:
             on_line(line)
 
+    #: What a refused launch says, in its log and to its own ``on_line``. It
+    #: starts with stock Argyll's own "No instrument detected" so every parser
+    #: that already recognises a reader finding no instrument (the spot-read
+    #: manager's, for one) ends the session the way it ends that one.
+    REFUSED_LAUNCH_LINE = ("No instrument detected: {tool} was not started, "
+                           "because its instrument port is {port}, which is "
+                           "never a measuring instrument.")
+
+    def _refuse_launch(self, tool: str, args: "list[str]", port: str,
+                       on_line: "Callable[[str], None] | None",
+                       on_finish: "Callable[[int], None] | None") -> None:
+        """End a launch the last door refused the way a reader that found no
+        instrument ends: a log line, the line to the caller's own ``on_line``,
+        :attr:`no_instrument`, then ``on_finish(1)``.
+
+        All on the next turn of the event loop, never inside :meth:`run`: a
+        caller (the Measure tab) clears its "no instrument" flag once its
+        start has returned, and an emit inside the call was wiped (measured on
+        screen for the managers' own refusal)."""
+        name = Path(str(tool)).name
+        line = self.REFUSED_LAUNCH_LINE.format(tool=name, port=port)
+        log.warning("ArgyllRunner: refused %s %s: %s", name,
+                    " ".join(map(str, args)), line)
+        from PyQt6.QtCore import QTimer
+
+        def _report() -> None:
+            if on_line is not None:
+                on_line(line)
+            self.no_instrument.emit(str(port))
+            if on_finish is not None:
+                on_finish(1)
+        QTimer.singleShot(0, _report)
+
     def _serial_exclusion_value(self, existing: "str | None") -> "str | None":
         """The ARGYLL_EXCLUDE_SERIAL_SCAN value to use for the next launch, or
         ``None`` to leave the environment untouched. The "Faster instrument
@@ -303,11 +340,10 @@ class ArgyllRunner(QObject):
         # killed. The measuring and spot-read managers refuse first and say
         # so; this catches any path that does not.
         from core import instrument_port
-        if instrument_port.runner_refuses(self, tool, args) is not None:
+        refused = instrument_port.runner_refuses(self, tool, args)
+        if refused is not None:
             self.last_failed_to_start = None
-            if on_finish is not None:
-                from PyQt6.QtCore import QTimer
-                QTimer.singleShot(0, lambda: on_finish(1))
+            self._refuse_launch(tool, args, refused, on_line, on_finish)
             return
 
         if use_pty:
