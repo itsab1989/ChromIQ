@@ -740,3 +740,28 @@ def test_the_arranged_calibration_chart_is_not_bound(qapp, tmp_path):
                 assert targen_panel_enabled(tc)
     finally:
         w.close()
+
+
+def test_a_refused_pattern_never_rewrites_the_calibration_ti1(tmp_path):
+    """The pattern check and the ramp arrangement met in one merge
+    (review of fix/4.3.3-beta3-strip-patterns, 2026-10-03). The arrangement
+    rewrites the .ti1 on disk, so a pattern the readers cannot read back must
+    be refused BEFORE it: otherwise the refused build leaves a .ti1 that is no
+    longer targen's order, and the next build lays it out as it is.
+
+    MUTATION: drop the first `_refuse_unreadable_patterns(layout)` call in
+    `chart.build_chart` (keep only the one after the ramps)."""
+    from workflow.layout_engine import alphix, chart
+    rows = _targen_rows(3, 21, True)
+    ti1 = tmp_path / "Test-cal.ti1"
+    ti1.write_text(_ti1_text(rows, True), encoding="latin-1")
+    before = ti1.read_bytes()
+    kw = dict(ramps_per_strip=True, instrument="i1", paper="A4", dpi=72)
+    with pytest.raises(alphix.PatternRefused):
+        chart.build_chart(ti1, tmp_path / "Test-cal", strip_pattern="A-B",
+                          **kw)
+    assert ti1.read_bytes() == before, "a refused build rewrote the .ti1"
+    assert not (tmp_path / "Test-cal.ti2").exists()
+    # the control: with a pattern that fits, the same build does rearrange
+    res = chart.build_chart(ti1, tmp_path / "Test-cal", **kw)
+    assert res.ramp_whites_added and ti1.read_bytes() != before
