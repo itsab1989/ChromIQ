@@ -14198,35 +14198,46 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # Asking for the chart's facts first can itself make the judge
             # (a chart change resets it, through _reset_flag_judge).
             white = self._chart_white()
+            device_ranges = self._chart_device_ranges()
             judge = getattr(self, "_patch_flag_judge", None)
             if judge is None:
                 from workflow.patch_flags import FlagJudge
-                judge = self._patch_flag_judge = FlagJudge(white=white)
+                judge = self._patch_flag_judge = FlagJudge(
+                    white=white, device_ranges=device_ranges)
         return judge
 
-    def _reset_flag_judge(self, white=None):
+    def _reset_flag_judge(self, white=None, device_ranges=None):
         """THE ONE WAY this tab starts the yellow memory afresh (#182 k10).
 
-        Always with the chart's white, so the colour ranges are classified
-        against the chart's own white and never fall back to D50 because a
-        caller forgot it (tests/test_k182_k10_colour_ranges.py checks that
-        every reset of the judge in this file comes through here)."""
+        Always with the chart's white and its device-RGB ranges, so the colour
+        ranges are classified as the chart says and never fall back to D50 or
+        to the expected colours because a caller forgot them
+        (tests/test_k182_k10_colour_ranges.py checks that every reset of the
+        judge in this file comes through here)."""
         if white is None:
             white = self._chart_white()
+            device_ranges = self._chart_device_ranges()
+        elif device_ranges is None:
+            device_ranges = self._chart_device_ranges()
         judge = getattr(self, "_patch_flag_judge", None)
         if judge is None:
             from workflow.patch_flags import FlagJudge
-            judge = self._patch_flag_judge = FlagJudge(white=white)
+            judge = self._patch_flag_judge = FlagJudge(
+                white=white, device_ranges=device_ranges)
         else:
-            judge.reset(white=white)
+            judge.reset(white=white, device_ranges=device_ranges)
         return judge
 
-    def _chart_flag_facts(self) -> "tuple[bool, tuple]":
-        """``(accurate, white)`` for the chart on screen (#182 A, k10).
+    def _chart_flag_facts(self) -> "tuple[bool, tuple, dict | None]":
+        """``(accurate, white, device_ranges)`` for the chart on screen
+        (#182 A, k10).
 
         *accurate*: does the chart carry ACCURATE_EXPECTED_VALUES? *white*: its
         APPROX_WHITE_POINT on a 0..1 scale (D50 when it has none), which the
-        colour ranges of the yellow rule are classified against.
+        colour ranges of the yellow rule are classified against on a chart
+        that is not RGB. *device_ranges*: an RGB chart's ``{loc: range}`` from
+        its device RGB read as sRGB (Knut 5963411325), None for any other
+        chart (``workflow.patch_flags.chart_device_ranges``).
 
         Read ONCE PER CHART: the answers are kept against the chart's identity
         (path and the moment it was written), so a chart generated again into
@@ -14238,28 +14249,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:          # noqa: BLE001
             key = None
         cached = getattr(self, "_warn_kind_cache", None)
-        if cached is not None and len(cached) == 3 and cached[0] == key:
-            return cached[1], cached[2]
+        if cached is not None and len(cached) == 4 and cached[0] == key:
+            return cached[1], cached[2], cached[3]
         from workflow.patch_flags import D50_WHITE
-        accurate, white = False, D50_WHITE
+        accurate, white, device_ranges = False, D50_WHITE, None
         ti1 = getattr(self, "_ti1_path", None)
         if ti1 is not None:
             try:
-                from workflow.patch_flags import (chart_has_accurate_expected_values,
+                from workflow.patch_flags import (chart_device_ranges,
+                                                  chart_has_accurate_expected_values,
                                                   chart_white)
                 chart = self._chart_file_for(ti1)
                 accurate = chart_has_accurate_expected_values(chart)
                 white = chart_white(chart)
+                device_ranges = chart_device_ranges(chart)
             except Exception:      # noqa: BLE001 — a preview is never worth a crash
                 log.debug("could not read the chart's keywords", exc_info=True)
-        self._warn_kind_cache = (key, accurate, white)
+        self._warn_kind_cache = (key, accurate, white, device_ranges)
         if cached is not None:
-            self._reset_flag_judge(white)
+            self._reset_flag_judge(white, device_ranges)
         else:
             judge = getattr(self, "_patch_flag_judge", None)
             if judge is not None:
                 judge.set_white(white)
-        return accurate, white
+                judge.set_device_ranges(device_ranges)
+        return accurate, white, device_ranges
 
     def _chart_expected_is_accurate(self) -> bool:
         """Does the chart on screen carry ACCURATE_EXPECTED_VALUES? (#182 A)"""
@@ -14268,6 +14282,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _chart_white(self) -> tuple:
         """The chart's own white, XYZ with Y = 1 (#182 k10)."""
         return self._chart_flag_facts()[1]
+
+    def _chart_device_ranges(self) -> "dict | None":
+        """An RGB chart's ``{loc: colour range}`` from its device RGB, or None
+        for a chart that keeps the expected-colour rule (#182 k10)."""
+        return self._chart_flag_facts()[2]
 
     def _patch_warn_limit(self) -> float:
         """The red-outline limit for the chart on screen (#182 A): the user's

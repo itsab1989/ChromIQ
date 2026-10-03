@@ -2,7 +2,8 @@
 
 The rule, posted in 5961078418 and confirmed by Knut (5961180259) and by
 Sebastian: 13 colour ranges (greys split by lightness, then hue sectors),
-classified from each patch's EXPECTED colour against the chart's own white; a
+classified from each patch's EXPECTED colour against the chart's own white
+(on an RGB chart from its RGB numbers read as sRGB, Knut 5963411325); a
 range learns once three of its confirmed patches lie pairwise at least ΔE 6
 apart; then a red patch of that range that is off the same way turns yellow.
 
@@ -20,6 +21,20 @@ Each part has a test that fails without it:
 * the preview flips in place:     test_the_preview_flips_an_earlier_patch_both_ways
 * the one reset helper:           test_every_reset_of_the_judge_goes_through_one_helper
 * stored learned entries:         test_a_learned_patch_is_stored_like_its_range
+
+Knut 5963411325 ("do the recommended for all three", on 5963152271):
+
+* targen's own estimate:          test_the_estimate_is_targens_own
+* an RGB chart, by its RGB:       test_an_rgb_chart_is_classified_by_its_device_rgb,
+                                  test_one_device_patch_is_one_range_whatever_its_expected_colour
+* the 315 edge:                   test_the_thirteen_ranges_and_their_edges,
+                                  test_50_0_100_is_blue
+* other charts, per chart:        test_a_chart_without_rgb_keeps_the_expected_colour_rule
+* the 0..255 guard:               test_a_chart_on_the_255_scale_is_read_on_100
+* a calibrated chart:             test_a_calibrated_chart_reads_its_ti1
+* the map is sticky like white:   test_the_device_ranges_survive_a_reset
+* the tab, per chart:             test_the_tab_reads_the_ranges_once_per_chart,
+                                  test_stored_memories_are_classified_again
 """
 from __future__ import annotations
 
@@ -69,8 +84,10 @@ def _lch(L, C, h):
     (_lch(50, 40, 165.001), "cyan"),
     (_lch(50, 40, 239.999), "cyan"),
     (_lch(50, 40, 240.001), "blue"),
-    (_lch(50, 40, 309.999), "blue"),
-    (_lch(50, 40, 310.001), "purple"),        # the approved edge, unchanged
+    (_lch(50, 40, 310.001), "blue"),          # 310 was the edge before 5963411325
+    (_lch(50, 40, 314.999), "blue"),
+    (_lch(50, 40, 315.001), "purple"),        # Knut 5963411325: the edge is 315
+    (_lch(50, 40, 324.999), "purple"),
     (_lch(50, 40, 325.001), "magenta"),
     (_lch(50, 40, 345.001), "pink"),
     ((50.0, 40.0, -1e-15), "pink"),           # -1e-17 % 360 == 360.0
@@ -324,11 +341,12 @@ def test_every_reset_of_the_judge_goes_through_one_helper():
         resets = re.findall(r"judge(?:\(\))?\.reset\(", body)
         makes = re.findall(r"FlagJudge\(", body)
         if name == "_reset_flag_judge":
-            assert "judge.reset(white=white)" in body
-            assert "FlagJudge(white=white)" in body
+            assert "judge.reset(white=white, device_ranges=device_ranges)" in body
+            assert "white=white, device_ranges=device_ranges)" in body
             continue
         if name == "_flag_judge":
-            assert resets == [] and "FlagJudge(white=white)" in body
+            assert resets == [] and "FlagJudge(" in body
+            assert "white=white, device_ranges=device_ranges)" in body
             continue
         assert not resets, f"{name} resets the judge itself"
         assert not makes, f"{name} makes a judge itself"
@@ -350,3 +368,214 @@ def test_the_card_lines_are_the_proposed_messages():
         assert len(line) <= 38, line
         assert "—" not in line
     assert set(mm.RANGE_NAMES) == set(pf.RANGES)
+
+
+# ---- Knut 5963411325: an RGB chart's ranges from its RGB numbers, as sRGB -------
+DATA = os.path.join(os.path.dirname(__file__), "data")
+
+
+def _rgb_ti2(path, rows, *, fields="RGB_R RGB_G RGB_B", xyz=None, cal=False,
+             white="95.050000 100.000000 108.900000"):
+    """A .ti2 with SAMPLE_ID, SAMPLE_LOC, the device *fields* and XYZ.
+    *rows*: (loc, device values). The XYZ is deliberately NOT the estimate of
+    the device values (a profile's prediction, say): *xyz*, or a green."""
+    nf = len(fields.split())
+    lines = []
+    for n, (loc, dev) in enumerate(rows, 1):
+        x = xyz or (20.0, 40.0, 10.0)
+        lines.append(f'{n} "{loc}" ' + " ".join(f"{v:.5f}" for v in dev)
+                     + " " + " ".join(f"{v:.5f}" for v in x))
+    text = ("CTI2\n\n" f'APPROX_WHITE_POINT "{white}"\n'
+            f"NUMBER_OF_FIELDS {nf + 5}\nBEGIN_DATA_FORMAT\n"
+            f"SAMPLE_ID SAMPLE_LOC {fields} XYZ_X XYZ_Y XYZ_Z\n"
+            f"END_DATA_FORMAT\nNUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n"
+            + "\n".join(lines) + "\nEND_DATA\n")
+    if cal:
+        text += ("CAL\n\nDESCRIPTOR \"Argyll Device Calibration State\"\n"
+                 "NUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n"
+                 "RGB_I RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n"
+                 "NUMBER_OF_SETS 2\nBEGIN_DATA\n0 0 0 0\n1 1 1 1\nEND_DATA\n")
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def _ti1(path, rows):
+    lines = [f"{n} " + " ".join(f"{v:.5f}" for v in dev)
+             for n, (_loc, dev) in enumerate(rows, 1)]
+    path.write_text("CTI1\n\nNUMBER_OF_FIELDS 4\nBEGIN_DATA_FORMAT\n"
+                    "SAMPLE_ID RGB_R RGB_G RGB_B\nEND_DATA_FORMAT\n"
+                    f"NUMBER_OF_SETS {len(rows)}\nBEGIN_DATA\n"
+                    + "\n".join(lines) + "\nEND_DATA\n", encoding="utf-8")
+    return path
+
+
+def test_the_estimate_is_targens_own():
+    """ArgyllCMS 3.5.0 targen, run with no profile (-d3 -s5 -g5 -f100): its
+    XYZ for every patch, and its white, are what the classification reads the
+    RGB numbers as (a flat 0.01 flare, the model's own white, not D65)."""
+    from workflow import printer_calibration as pc
+    fields, rows, kw = pc.read_table(os.path.join(DATA, "targen350_rgb.ti1"))
+    assert kw["ORIGINATOR"] == "Argyll targen" and len(rows) == 100
+    white = tuple(float(v) / 100 for v in kw["APPROX_WHITE_POINT"].split())
+    assert pf.TARGEN_WHITE == pytest.approx(white, abs=1e-6)
+    worst = 0.0
+    for r in rows.values():
+        est = pf.targen_estimate_xyz([float(r[f]) for f in pf.RGB_FIELDS])
+        got = [float(r[f]) / 100 for f in ("XYZ_X", "XYZ_Y", "XYZ_Z")]
+        worst = max(worst, max(abs(a - b) for a, b in zip(est, got)))
+    assert worst < 1e-6, worst
+
+
+@pytest.mark.parametrize("rgb,want", [
+    ((50, 0, 100), "blue"),          # hue 311.3°: purple at the old 310° edge
+    ((0, 0, 100), "blue"),           # hue 305.6°
+    ((100, 0, 100), "magenta"),      # hue 328.2°
+    ((0, 100, 0), "green"),          # hue 136.2°: 130° stays the edge
+    ((100, 0, 0), "red"),
+    ((100, 100, 0), "yellow"),
+    ((0, 100, 100), "cyan"),
+    ((0, 0, 0), "grey_dark"),
+    ((50, 50, 50), "grey_mid"),
+    ((100, 100, 100), "grey_light"),
+])
+def test_50_0_100_is_blue(rgb, want):
+    assert pf.colour_range_of_rgb(rgb) == want
+
+
+def test_an_rgb_chart_is_classified_by_its_device_rgb(tmp_path):
+    """The chart's XYZ says green for every patch (a profile's prediction);
+    the ranges follow the RGB numbers, by SAMPLE_LOC, from .ti2 or .ti1 path."""
+    rows = [("A1", (50, 0, 100)), ("A2", (0, 100, 0)), ("B1", (50, 50, 50))]
+    p = _rgb_ti2(tmp_path / "c.ti2", rows)
+    want = {"A1": "blue", "A2": "green", "B1": "grey_mid"}
+    assert pf.chart_device_ranges(p) == want
+    assert pf.chart_device_ranges(p.with_suffix(".ti1")) == want
+    assert pf.chart_device_ranges(tmp_path / "missing.ti2") is None
+    assert pf.chart_device_ranges(None) is None
+
+
+def test_one_device_patch_is_one_range_whatever_its_expected_colour():
+    """While the chart's map is set, the expected colour never decides the
+    range: a patch is its device range whatever expected colour it carries,
+    and a location the chart does not hold has no range (never learns)."""
+    j = pf.FlagJudge(white=D65, device_ranges={"P1": "blue", "X1": "blue",
+                                               "X2": "blue", "X3": "blue"})
+    green, purple = _lch(60, 50, 150), _lch(40, 60, 318)
+    for e in (green, purple, BLUES[0]):
+        assert j.judge("P1", e, _m(e), 32.4, True).colour_range == "blue"
+    v = j.judge("Z9", BLUES[0], _m(BLUES[0]), 32.4, True)
+    assert v.colour_range == "" and v.range_k == 0
+    for n, e in enumerate(BLUES, 1):
+        _confirm(j, f"X{n}", e)
+    # a purple expected colour of a device-blue patch learns from the blues
+    assert j.judge("P1", purple, _m(purple), 32.4, True).flag == pf.FLAG_LEARNED
+    # the location the chart does not hold stays red, with no range
+    _confirm(j, "Z9", BLUES[0])
+    assert j.range_status("") == (0, ())
+    assert j.judge("Z8", BLUES[1], _m(BLUES[1]), 32.4, True).flag is pf.FLAG_RED
+
+
+def test_a_chart_without_rgb_keeps_the_expected_colour_rule(tmp_path):
+    """Per chart, never per patch: CMYK, N-channel, no device columns, or one
+    row that does not parse, and the whole chart keeps today's rule."""
+    cmyk = _rgb_ti2(tmp_path / "k.ti2", [("A1", (100, 0, 0, 0))],
+                    fields="CMYK_C CMYK_M CMYK_Y CMYK_K")
+    assert pf.chart_device_ranges(cmyk) is None
+    six = _rgb_ti2(tmp_path / "n.ti2", [("A1", (0, 0, 100, 0, 0, 0))],
+                   fields="RGB_R RGB_G RGB_B CMYK_C CMYK_M CMYK_Y")
+    assert pf.chart_device_ranges(six) is None
+    assert pf.chart_device_ranges(_ti2(tmp_path, "")) is None
+    bad = _rgb_ti2(tmp_path / "b.ti2", [("A1", (0, 0, 100)), ("A2", (0, 0, 100))])
+    bad.write_text(bad.read_text(encoding="utf-8").replace(
+        '2 "A2" 0.00000', '2 "A2" nan'), encoding="utf-8")
+    assert pf.chart_device_ranges(bad) is None
+    # and the judge with no map is the expected-colour rule, against the white
+    j = pf.FlagJudge(white=D65, device_ranges=None)
+    assert j.judge("A1", BLUES[0], _m(BLUES[0]), 32.4, True).colour_range == \
+        pf.colour_range(BLUES[0], D65)
+
+
+def test_a_chart_on_the_255_scale_is_read_on_100(tmp_path):
+    rows = [("A1", (127.5, 0, 255)), ("A2", (0, 255, 0)), ("A3", (100, 100, 100))]
+    got = pf.chart_device_ranges(_rgb_ti2(tmp_path / "c.ti2", rows))
+    # 100 100 100 on a 0..255 chart is a mid grey, not white
+    assert got == {"A1": "blue", "A2": "green", "A3": "grey_mid"}
+    assert pf.colour_range_of_rgb((100, 100, 100)) == "grey_light"
+
+
+def test_a_calibrated_chart_reads_its_ti1(tmp_path):
+    """A layout-engine chart printed with -K before beta 5 holds CALIBRATED
+    values in its .ti2: a chart carrying a calibration reads the .ti1's."""
+    ti1_rows = [("A1", (50, 0, 100)), ("A2", (0, 0, 0))]
+    ti2_rows = [("A1", (80, 0, 70)), ("A2", (0, 0, 0))]      # calibrated
+    _ti1(tmp_path / "c.ti1", ti1_rows)
+    p = _rgb_ti2(tmp_path / "c.ti2", ti2_rows, cal=True)
+    assert pf.colour_range_of_rgb((80, 0, 70)) != "blue"
+    assert pf.chart_device_ranges(p)["A1"] == "blue"
+    # without a calibration the .ti2 is the chart, whatever the .ti1 says
+    q = _rgb_ti2(tmp_path / "c.ti2", ti2_rows, cal=False)
+    assert pf.chart_device_ranges(q)["A1"] == pf.colour_range_of_rgb((80, 0, 70))
+
+
+def test_the_device_ranges_survive_a_reset():
+    m = {"A1": "blue"}
+    j = pf.FlagJudge(white=D65, device_ranges=m)
+    j.reset()
+    assert j.device_ranges == m and j.white == D65
+    j.reset(white=D65, device_ranges=None)
+    assert j.device_ranges is None
+    j.set_device_ranges({"A1": "green"})
+    assert j.range_of("A1", BLUES[0]) == "green"
+
+
+def _rgb_tab(tmp_path, rows):
+    tab = _small_tab(tmp_path)
+    tab._ti1_path = _rgb_ti2(tmp_path / "rgb.ti2", rows,
+                             white="96.422000 100.000000 82.521000")
+    tab._warn_kind_cache = None
+    tab._patch_flag_judge = None
+    return tab
+
+
+def test_the_tab_reads_the_ranges_once_per_chart(qapp, tmp_path):
+    """F1's expected colour is purple; its RGB numbers are blue, so on an RGB
+    chart it learns from the confirmed blues. Another chart (no RGB) clears
+    the map and the expected-colour rule is back."""
+    rows = [("A1", (0, 0, 100)), ("A2", (10, 0, 100)), ("A3", (20, 0, 100)),
+            ("F1", (50, 0, 100))]
+    tab = _rgb_tab(tmp_path, rows)
+    assert tab._chart_device_ranges()["F1"] == "blue"
+    purple = _lch(40, 60, 318)
+    tab._on_strip_measured(_event("F", [("F1", purple, _m(purple))]))
+    assert _info(tab, "F1")["colour_range"] == "blue"
+    blues = [(f"A{i}", e, _m(e)) for i, e in enumerate(BLUES, 1)]
+    tab._on_strip_measured(_event("A", blues))
+    tab._on_strip_measured(_event("A", blues))    # the re-read: confirmed
+    assert _flags(tab)["F1"] == pf.FLAG_LEARNED
+    assert "Colour range: blue" in _card(qapp, _info(tab, "F1"))
+    # a reset of the memory keeps the chart's map
+    tab._reset_flag_judge()
+    assert tab._flag_judge().device_ranges["F1"] == "blue"
+    # another chart: not RGB, so no map, and the judge starts again
+    other = _ti2(tmp_path, 'APPROX_WHITE_POINT "96.422 100 82.521"\n')
+    tab._ti1_path = other
+    assert tab._chart_device_ranges() is None
+    judge = tab._flag_judge()
+    assert judge.device_ranges is None and judge.confirmed == []
+    assert judge.range_of("F1", purple) == "purple"
+
+
+def test_stored_memories_are_classified_again(tmp_path):
+    """No schema change: a stored confirmed patch carries its expected colour
+    only, and is classified by the chart it is loaded under."""
+    stored = {"X1": {"kind": "confirmed", "de": 32.4, "prev_de": 32.0,
+                     "exp_lab": list(_lch(40, 60, 318)),
+                     "meas_lab": list(_m(_lch(40, 60, 318))),
+                     "shift": list(SHORT), "standout": None}}
+    old = pf.FlagJudge(white=pf.D50_WHITE)
+    old.load(stored)
+    assert old.range_status("purple")[1] == ("X1",)
+    new = pf.FlagJudge(white=pf.D50_WHITE, device_ranges={"X1": "blue"})
+    new.load(stored)
+    assert new.range_status("blue")[1] == ("X1",)
+    assert new.range_status("purple")[1] == ()
