@@ -735,3 +735,25 @@ def test_real_argyll_predicts_a_324_patch_sheet_quickly(tmp_path, colour):
     # A1 is device black: sRGB's black, absolute, is dark.
     assert le.expected_for("A1")[1] < 5.0
     assert took < 30.0, f"{took:.1f} s for 324 patches"
+
+
+def test_tool_calls_are_capped_for_the_gui_thread():
+    """Review AQ2: the prediction runs while the window waits, so no tool call
+    may wait the module's 120 s."""
+    import workflow.verify_expected as ve
+    seen = {}
+
+    def runner(*a, **kw):
+        seen["timeout"] = kw.get("timeout")
+        return "ok"
+    assert ve._capped(runner)("x", timeout=120) == "ok"
+    assert seen["timeout"] == ve._GUI_TIMEOUT_S <= 20
+    ve._capped(runner)("x")
+    assert seen["timeout"] == ve._GUI_TIMEOUT_S
+
+
+def test_a_failed_prediction_is_remembered_like_a_success():
+    import inspect
+    import workflow.verify_expected as ve
+    src = inspect.getsource(ve._decide)
+    assert src.index("_predict(") < src.index("_CACHE[key] = result")

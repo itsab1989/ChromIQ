@@ -72,6 +72,8 @@ SOURCE_ESTIMATE = "estimate"
 #: minutes says "did not finish", never "slow" (CLAUDE.md: budget for the
 #: loaded machine).
 _TIMEOUT_S = 120
+#: Cap for the calls made while the window waits (session start, repaint).
+_GUI_TIMEOUT_S = 20
 
 #: Build Profile settings that make the forward table predict colour under
 #: another light (Knut, #182 5964173774, answer 2). Manual and Guided keep
@@ -405,8 +407,7 @@ def live_expected(ti2: "str | Path", record_ti3: "str | Path", run, *,
 def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
             use_cache: bool) -> LiveExpected:
     from workflow.verification_print import (COLOUR_RAW, COLOUR_THROUGH,
-                                             ROUTE_CHROMIQ, read_print_record,
-                                             source_profile_path)
+                                             ROUTE_CHROMIQ, read_print_record)
     if not ti2.is_file():
         return estimate("the verification chart is missing")
     rec = read_print_record(record_ti3)
@@ -464,6 +465,31 @@ def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
     if use_cache and runner is subprocess.run and key in _CACHE:
         return _CACHE[key]
 
+    # Both tools run on the GUI thread (session start, repaint), so a wedged
+    # Argyll must not freeze the window for long, and a failure is remembered
+    # like a success so it is not retried on every repaint (review AQ2,
+    # 2026-10-03). The fallback it gives is the same either way.
+    result = _predict(ti2, rows, rec, profile, kind, cal_src, why, bin_dir=bin_dir,
+                      runner=_capped(runner))
+    if use_cache and runner is subprocess.run:
+        if len(_CACHE) >= _CACHE_MAX:
+            _CACHE.clear()
+        _CACHE[key] = result
+    return result
+
+
+def _capped(runner):
+    """*runner* with every ``timeout=`` capped at :data:`_GUI_TIMEOUT_S`."""
+    def run(*args, **kw):
+        t = kw.get("timeout")
+        kw["timeout"] = _GUI_TIMEOUT_S if t is None else min(t, _GUI_TIMEOUT_S)
+        return runner(*args, **kw)
+    return run
+
+
+def _predict(ti2, rows, rec, profile, kind, cal_src, why, *, bin_dir,
+             runner) -> LiveExpected:
+    from workflow.verification_print import source_profile_path
     rgb = [r for _loc, r in rows]
     if kind == "through":
         src = str(rec.get("source_profile") or "") or source_profile_path(bin_dir)
@@ -495,13 +521,8 @@ def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
         return estimate("xicclu returned a different number of patches")
     by_loc = {loc: tuple(float(v) for v in x[:3])
               for (loc, _rgb), x in zip(rows, xyz)}
-    result = LiveExpected(SOURCE_PREDICTION, f"{why}; profile {profile.name}",
-                          by_loc, route=str(rec.get("colour")))
-    if use_cache and runner is subprocess.run:
-        if len(_CACHE) >= _CACHE_MAX:
-            _CACHE.clear()
-        _CACHE[key] = result
-    return result
+    return LiveExpected(SOURCE_PREDICTION, f"{why}; profile {profile.name}",
+                        by_loc, route=str(rec.get("colour")))
 
 
 def _sha1_of(path: "Path | None") -> str:
