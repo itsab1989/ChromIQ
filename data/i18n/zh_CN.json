@@ -6544,13 +6544,13 @@
  "This chart's patch locations do not fit its strip and patch patterns: {detail}.\n\nThe labels were printed by an earlier version of ChromIQ, and ArgyllCMS chartread reads them differently from the sheet, so it would refuse the chart or file the readings under the wrong patches. ChromIQ's own measuring engine reads the labels as they are printed.\n\nRight now, “ChromIQ chart-reading engine” in Preferences → Measurement is switched off, so ArgyllCMS chartread reads your charts. Switch it on and this chart measures normally. Nothing has been started or changed.": "这张色卡的色块位置与它的色条模式和色块模式不符：{detail}。\n\n这些标签是早期版本的 ChromIQ 打印的，ArgyllCMS chartread 的读法与纸上不同，所以它会拒绝这张色卡，或把读数记到错误的色块下。ChromIQ 自己的测量引擎按标签的印刷内容读取。\n\n此刻，偏好设置 → 测量 里的「ChromIQ 色卡读取引擎」没有勾选，所以由 ArgyllCMS chartread 读取你的色卡。勾选它，这张色卡就能正常测量。没有启动或改动任何东西。",
  "This strip or patch pattern cannot be used": "这个色条或色块模式无法使用",
  "[Engine] This chart's labels were printed by an earlier version of ChromIQ. ChromIQ's measuring engine reads them as printed; ArgyllCMS chartread cannot, so it will not be used for this chart.": "[Engine] 这张色卡的标签是早期版本的 ChromIQ 打印的。ChromIQ 的测量引擎按印刷内容读取；ArgyllCMS chartread 读不了，所以这张色卡不会使用它。",
- "the location “{loc}” does not fit its strip and patch patterns": "位置「{loc}」与它的色条模式和色块模式不符",
- "the location “{loc}” printed on the sheet is not where its strip and patch patterns put it": "纸上印的位置「{loc}」不在色条模式和色块模式所指的地方",
- "the locations “{a}” and “{b}” would be read as the same patch": "位置「{a}」和「{b}」会被读成同一个色块",
  "{n} labels": "{n} 个标签",
  "{reason} Generate Chart stays unavailable until the pattern is changed.": "{reason} 生成色卡按钮在模式更改之前一直不可用。",
  "“{field}” contains a character ArgyllCMS cannot read. Use only letters, digits and the symbols on a standard keyboard, and no quotation marks.": "「{field}」含有 ArgyllCMS 读不了的字符。只使用字母、数字和标准键盘上的符号，不要用引号。",
  "“{pattern}” in “{field}” gives one label no characters at all, so that location could not be read.": "「{field}」中的「{pattern}」让某个标签一个字符都没有，所以那个位置没能读取。",
  "“{pattern}” in “{field}” makes only {labels}, and each strip of this chart holds {needed}.": "「{field}」中的「{pattern}」只能生成 {labels}，而这张色卡的每个色条有 {needed}。",
- "“{pattern}” in “{field}” makes only {labels}, and this chart has {needed}.": "「{field}」中的「{pattern}」只能生成 {labels}，而这张色卡有 {needed}。"
+ "“{pattern}” in “{field}” makes only {labels}, and this chart has {needed}.": "「{field}」中的「{pattern}」只能生成 {labels}，而这张色卡有 {needed}。",
+ "“{loc}”, the first location, is not a label they make": "「{loc}」是第一个位置，却不是它们会生成的标签",
+ "“{loc}” is printed where they would place another patch": "「{loc}」印在它们本应放置另一个色块的地方",
+ "“{a}” and “{b}” would be read as the same patch": "「{a}」和「{b}」会被读成同一个色块"
 }

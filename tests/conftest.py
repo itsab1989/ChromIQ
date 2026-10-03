@@ -1864,7 +1864,7 @@ def _enforce_the_helper(config):
     raise pytest.UsageError(
         "--runslow is the release gate, and the chromiq-chartread helper is "
         "not here.\n"
-        "Nine files would skip WHOLESALE in silence and five more in part "
+        "Nine files would skip WHOLESALE in silence and seven more in part "
         "(85 tests when\n"
         "this was last measured), and a chart-reading engine deleted outright "
         "would pass.\n"

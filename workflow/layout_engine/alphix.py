@@ -497,14 +497,13 @@ def chart_locations_problem(ti2: "str | Path") -> "str | None":
         bad = [loc for loc, o in zip(locs, orders) if o < 0]
         if bad:
             if randomised:
-                return tr("the location “{loc}” does not fit its strip and "
-                          "patch patterns").format(loc=bad[0])
+                return tr("“{loc}”, the first location, is not a label they "
+                          "make").format(loc=bad[0])
             return None                 # read in the order of the file
         seen: dict = {}
         for loc, o in zip(locs, orders):
             if o in seen:
-                return tr("the locations “{a}” and “{b}” would be read as the "
-                          "same patch").format(a=seen[o], b=loc)
+                return tr("“{a}” and “{b}” would be read as the same patch").format(a=seen[o], b=loc)
             seen[o] = loc
         return None
 
@@ -522,15 +521,14 @@ def chart_locations_problem(ti2: "str | Path") -> "str | None":
     seen = {}
     for loc, o in zip(locs, orders):
         if o < 0:
-            return tr("the location “{loc}” does not fit its strip and patch "
-                      "patterns").format(loc=loc)
+            return tr("“{loc}”, the first location, is not a label they "
+                      "make").format(loc=loc)
         s, p = divmod(o, pa.cmct)
         if (steps and p >= steps) or (n_strips and s >= n_strips) \
                 or patch_location(sa, pa, ixord, s, p) != loc:
-            return tr("the location “{loc}” printed on the sheet is not where "
-                      "its strip and patch patterns put it").format(loc=loc)
+            return tr("“{loc}” is printed where they would place another "
+                      "patch").format(loc=loc)
         if o in seen:
-            return tr("the locations “{a}” and “{b}” would be read as the "
-                      "same patch").format(a=seen[o], b=loc)
+            return tr("“{a}” and “{b}” would be read as the same patch").format(a=seen[o], b=loc)
         seen[o] = loc
     return None

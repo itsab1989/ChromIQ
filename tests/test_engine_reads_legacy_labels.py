@@ -286,7 +286,7 @@ def test_ambiguous_old_labels_are_refused_as_a_typed_event(tmp_path):
 # ---- (e) the capability is announced ----------------------------------------
 def test_caps_lists_legacy_labels():
     out = subprocess.run([str(HELPER), "--caps"], capture_output=True,
-                         text=True, timeout=30)
+                         text=True, encoding="utf-8", timeout=30)
     assert out.returncode == 0
     caps = json.loads(out.stdout.strip().splitlines()[-1])
     assert "legacy_labels" in caps["caps"]

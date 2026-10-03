@@ -17,8 +17,15 @@ For every pair:
    check;
 2. stock ArgyllCMS ``printtarg -x/-y`` accepts the same pair and labels its
    own chart with the same strip and patch labels ChromIQ uses;
-3. stock ArgyllCMS ``chartread`` gets past the chart's locations (it stops at
-   the instrument, which no test has) instead of "Bad location field value";
+3. stock ArgyllCMS ``chartread``'s own location code accepts the chart: the
+   labels and ``patch_location_order`` come from ArgyllCMS's ``alphix.c``
+   compiled into a small harness (``tests/data/alphix_harness``), and the
+   chart passes exactly the checks ``spectro/chartread.c`` makes before it
+   reads (every location ordered, none twice, sorted into the printed
+   strip-and-patch order). Stock chartread itself is NOT launched: with no
+   instrument it opens serial port 1, and on a Mac whose Bluetooth serial port
+   is stuck that open never returns and the process cannot be killed
+   (2026-10-03, 36 of them left behind by an earlier version of this test);
 4. ChromIQ's engine reads the whole chart through its replay instrument,
    announces the strips with the chart's own labels, and every reading lands
    on the location it was given for.
@@ -127,47 +134,50 @@ def _rows(ti2: Path):
     return kw, rows
 
 
-def _run_on_a_terminal(cmd, cwd: Path, timeout: float = 90.0) -> str:
-    """Run *cmd* with a pseudo-terminal for its output, as ChromIQ runs stock
-    chartread, so its lines arrive as they are printed (a pipe holds them
-    until exit), and stop it once it is past the chart: with no instrument it
-    says so, or waits for one."""
-    import os
-    import pty
-    import select
-    import time
-    master, slave = pty.openpty()
-    proc = subprocess.Popen(cmd, cwd=cwd, stdin=slave, stdout=slave,
-                            stderr=slave, close_fds=True)
-    os.close(slave)
-    buf = b""
-    end = time.monotonic() + timeout
-    try:
-        while time.monotonic() < end:
-            r, _w, _x = select.select([master], [], [], 0.5)
-            if r:
-                try:
-                    chunk = os.read(master, 4096)
-                except OSError:
-                    break
-                if not chunk:
-                    break
-                buf += chunk
-                text = buf.decode("latin-1", "replace")
-                if "Error" in text or "instrument" in text.lower():
-                    break
-                # Past the chart it goes quiet, looking for an instrument;
-                # a location it cannot read is reported straight after.
-                if "Passes in each Strip" in text:
-                    end = min(end, time.monotonic() + 3.0)
-            elif proc.poll() is not None:
-                break
-    finally:
-        if proc.poll() is None:
-            proc.kill()
-        proc.wait(timeout=10)
-        os.close(master)
-    return buf.decode("latin-1", "replace")
+@pytest.fixture(scope="module")
+def argyll_alphix(tmp_path_factory):
+    """ArgyllCMS's alphix.c compiled with the test harness, or a skip."""
+    cc = shutil.which("cc") or shutil.which("clang") or shutil.which("gcc")
+    if cc is None:
+        pytest.skip("no C compiler to build ArgyllCMS's alphix")
+    repo = Path(__file__).resolve().parents[1]
+    src = repo / "tests" / "data" / "alphix_harness"
+    work = tmp_path_factory.mktemp("alphix")
+    # alphix.c includes "numsup.h" from its OWN folder first, so it is
+    # compiled beside the stub rather than in native/instlib.
+    for f in (src / "harness.c", src / "numsup.h",
+              repo / "native" / "instlib" / "alphix.c",
+              repo / "native" / "instlib" / "alphix.h"):
+        shutil.copy2(f, work / f.name)
+    out = work / "harness"
+    res = subprocess.run(
+        [cc, "-O1", f"-I{work}", "-o", str(out), str(work / "harness.c"),
+         str(work / "alphix.c")],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        timeout=120)
+    if res.returncode != 0:
+        pytest.skip("could not build ArgyllCMS's alphix: " + res.stderr[-300:])
+    return out
+
+
+def _argyll_labels(harness: Path, pattern: str) -> "list[str]":
+    out = subprocess.run([str(harness), "a", pattern], capture_output=True,
+                         text=True, encoding="utf-8", timeout=60).stdout
+    lines = out.splitlines()
+    assert lines and not lines[0].startswith("ERR"), (pattern, lines[:1])
+    return [ln.split("|")[1] for ln in lines[1:]]
+
+
+def _argyll_orders(harness: Path, strip: str, patch: str,
+                   locs: "list[str]") -> "dict[str, int]":
+    out = subprocess.run([str(harness), "o", strip, patch, "0"],
+                         input="\n".join(locs) + "\n", capture_output=True,
+                         text=True, encoding="utf-8", timeout=60).stdout
+    got = {}
+    for ln in out.splitlines():
+        loc, o = ln.rsplit("|", 1)
+        got[loc] = int(o)
+    return got
 
 
 def test_there_are_at_least_twenty_and_each_is_different():
@@ -211,7 +221,7 @@ def test_stock_printtarg_accepts_it_and_labels_the_same_way(variant, tmp_path):
     res = subprocess.run([printtarg, "-v0", "-ii1", f"-p{paper}", "-s", "-t72",
                           "-x", strip, "-y", patch, "pt"],
                          cwd=tmp_path, capture_output=True, text=True,
-                         timeout=120)
+                         encoding="utf-8", errors="replace", timeout=120)
     assert res.returncode == 0, res.stderr[-800:]
     kw, rows = _rows(tmp_path / "pt.ti2")
     assert kw["STRIP_INDEX_PATTERN"] == strip
@@ -225,16 +235,46 @@ def test_stock_printtarg_accepts_it_and_labels_the_same_way(variant, tmp_path):
 
 
 @pytest.mark.parametrize("variant", VARIANTS, ids=_ids)
-def test_stock_chartread_gets_past_the_locations(variant, tmp_path):
-    chartread = shutil.which("chartread") or str(ARGYLL / "chartread")
-    if not Path(chartread).exists():
-        pytest.skip("ArgyllCMS chartread not available")
+def test_stock_chartreads_own_location_code_accepts_it(variant, tmp_path,
+                                                       argyll_alphix):
+    """spectro/chartread.c, before it reads: new_alphix() on both patterns
+    (an error ends the run), patch_location_order() on every SAMPLE_LOC (a -1
+    on a randomised chart is "Bad location field value"), then a sort by that
+    order, which must give the strips and patches as printed."""
     strip, patch, n, max_strip, _why = variant
     base = _build(tmp_path, strip, patch, n, max_strip)
-    out = _run_on_a_terminal([chartread, "-v", base.name], tmp_path)
-    assert "Passes in each Strip" in out, out[:600]
-    assert "Bad location" not in out and "doesn't parse" not in out, out[:600]
-    assert "alphix" not in out, out[:600]
+    kw, rows = _rows(base.with_suffix(".ti2"))
+    assert "RANDOM_START" in kw, "randomised, so chartread must sort"
+    n_strips = sum(int(x) for x in kw["PASSES_IN_STRIPS2"].split(","))
+    steps = int(kw["STEPS_IN_PASS"])
+    slabels = _argyll_labels(argyll_alphix, strip)
+    plabels = _argyll_labels(argyll_alphix, patch)
+    locs = [r["SAMPLE_LOC"] for r in rows]
+    orders = _argyll_orders(argyll_alphix, strip, patch, locs)
+    assert all(orders[loc] >= 0 for loc in locs), \
+        [loc for loc in locs if orders[loc] < 0][:5]
+    assert len(set(orders.values())) == len(locs), "two locations sort as one"
+    printed = [slabels[s_] + plabels[p] for s_ in range(n_strips)
+               for p in range(steps)]
+    in_sort_order = sorted(locs, key=lambda loc: orders[loc])
+    assert in_sort_order == [x for x in printed if x in set(locs)]
+
+
+def test_the_control_argylls_location_code_refuses_the_forum_chart(
+        tmp_path, argyll_alphix):
+    """Without this, the check above could pass on a harness that refuses
+    nothing. The forum report's chart, printed with ChromIQ's old labels,
+    makes ArgyllCMS's own patch_location_order answer -1, which on a
+    randomised chart is chartread's "Bad location field value"."""
+    from workflow.layout_engine.chart import build_chart
+    build_chart(_ti1(tmp_path, 400), tmp_path / "chart", instrument="i1",
+                paper="A4", dpi=72, seed=1, strip_pattern="0-9",
+                patch_pattern="A-Z", label_rule="legacy")
+    kw, rows = _rows(tmp_path / "chart.ti2")
+    locs = [r["SAMPLE_LOC"] for r in rows]
+    orders = _argyll_orders(argyll_alphix, "0-9", "A-Z", locs)
+    assert "RANDOM_START" in kw
+    assert any(o < 0 for o in orders.values())
 
 
 @pytest.mark.skipif(not HELPER.exists(), reason="chromiq-chartread not built")
@@ -285,19 +325,3 @@ def test_chromiq_engine_reads_the_whole_chart_onto_the_right_patches(
                     zip(("XYZ_X", "XYZ_Y", "XYZ_Z"), want[r["SAMPLE_LOC"]]))
              > 0.01]
     assert not wrong, f"{len(wrong)} readings on the wrong patch: {wrong[:5]}"
-
-
-def test_the_control_stock_chartread_does_refuse_the_forum_chart(tmp_path):
-    """Without this, "gets past the locations" could pass on a runner that
-    never sees chartread's error at all. The forum report's chart, printed
-    with ChromIQ's old labels, is refused exactly as the user saw."""
-    chartread = shutil.which("chartread") or str(ARGYLL / "chartread")
-    if not Path(chartread).exists():
-        pytest.skip("ArgyllCMS chartread not available")
-    from workflow.layout_engine.chart import build_chart
-    tmp_path.mkdir(parents=True, exist_ok=True)
-    build_chart(_ti1(tmp_path, 400), tmp_path / "chart", instrument="i1",
-                paper="A4", dpi=72, seed=1, strip_pattern="0-9",
-                patch_pattern="A-Z", label_rule="legacy")
-    out = _run_on_a_terminal([chartread, "-v", "chart"], tmp_path)
-    assert "Bad location field value" in out, out[:600]
