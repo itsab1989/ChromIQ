@@ -584,7 +584,27 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # Multi-ink: anchor the neutral rendering + K separation in colprof's
     # behaviour via a synthetic CMYK proxy (colprof can build THAT).
     anchor = None
-    if n >= 5 and settings.argyll_bin is not None:
+    # Research D-08 item (a), agent9-01 section 2: Maximum accuracy can
+    # replace the colprof proxy with the engine's own N-ink rule (tokens
+    # "a9-locus": no anchor, the 4-ink accurate rule for every ink count;
+    # "a9-kcurve": colprof's K target curve computed by the engine).
+    own_rule = accurate and n >= 5 and (
+        "a9-locus" in candidates or "a9-kcurve" in candidates)
+    if own_rule and "a9-kcurve" in candidates:
+        ls = np.linspace(0.0, 100.0, 201)
+        params = (settings.k_curve_params if settings.k_rule == "p"
+                  and settings.k_curve_params else
+                  b2a_mod.K_RULE_PARAMS.get(settings.k_rule or "r",
+                                            b2a_mod.K_RULE_PARAMS["r"]))
+        anchor = {"l_axis": ls, "k_curve": b2a_mod.argyll_k_curve(
+            ls, params=params,
+            l_min=max(float(black_l), 2.0) if black_l is not None else 5.0)}
+        _emit(settings, "Black generation: the engine's own N-ink rule "
+                        "(no colprof proxy).")
+    elif own_rule:
+        _emit(settings, "Black generation: the engine's own N-ink rule "
+                        "(no colprof proxy).")
+    if n >= 5 and settings.argyll_bin is not None and not own_rule:
         from workflow.profile_engine.gamut_map import (OracleUnavailable,
                                                        fit_multiink_anchor)
         try:

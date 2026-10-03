@@ -995,7 +995,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         elif mapper is None:
             src = source_surface_from_profile(source_gamut, intent=s_int)
             mapper = _mapper_for(intent, default_kw, src, dst, settings)
-            if anchor is not None and isinstance(mapper, GamutMapper):
+            if anchor is not None and isinstance(mapper, GamutMapper) \
+                    and "neutral_lab" in anchor:
                 # +N: colprof-anchored neutral rendering (CMYK proxy).
                 mapper.neutral_table = anchor
         if mapper is None:
