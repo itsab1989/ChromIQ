@@ -177,3 +177,43 @@ def test_identical_engines_tie_with_p_one():
     a = np.random.default_rng(1).gamma(2.0, 0.2, 3000)
     r = S.paired_bootstrap(a, a.copy(), "median", n_boot=200)
     assert r["diff"] == 0.0 and r["p"] == 1.0 and r["ci95"] == [0.0, 0.0]
+
+
+def _row(ds, var, rd, ep, diff, p=1e-12, a=1.0):
+    return {"p": p, "ci95": sorted([diff * 0.9, diff * 1.1]) if diff else [-1, 1],
+            "diff": diff, "a": a, "dataset": ds, "variant": var, "reader": rd,
+            "endpoint": ep}
+
+
+def test_the_no_regression_test_reads_the_per_printer_x_endpoint_column():
+    """D-03 / D-09: a loss that the whole-comparison Holm would hide (p 0.02
+    among 304 rows) still fails the no-regression test, because a larger
+    family must not shield a candidate."""
+    rows = [_row(f"D{i}", "typical", "argyll", "a2b.median", -0.001, p=0.5) for i in range(300)]
+    rows += [_row("X3", v, rd, "a2b.p95", +0.5, p=0.003)
+             for v in ("typical", "pessimistic") for rd in ("argyll", "lcms")]
+    S.decide(rows)
+    loss = rows[-1]
+    assert loss["verdict"] == "TIE" and loss["verdict_per_printer_endpoint"] == "WORSE"
+    nr = S.no_regression({"rows": rows, "ramp_seeds": []})
+    assert not nr["pass"] and len(nr["worse"]) == 4
+
+
+def test_a_single_build_ramp_loss_stays_open_until_seeds_clear_it():
+    rows = [_row("X3", "typical", "argyll", "neutral_hi.mean", +0.5)]
+    S.decide(rows)
+    assert rows[0]["verdict"] == "WORSE*"
+    nr = S.no_regression({"rows": rows, "ramp_seeds": []})
+    assert not nr["pass"] and nr["open_ramp_rows"]
+    seeds = [{"dataset": "X3", "reader": "argyll", "endpoint": "neutral_hi.mean",
+              "verdict": "TIE"}]
+    assert S.no_regression({"rows": rows}, seeds)["pass"]
+    seeds[0]["verdict"] = "WORSE"
+    assert not S.no_regression({"rows": rows}, seeds)["pass"]
+
+
+def test_no_regression_passes_when_nothing_is_worse():
+    rows = [_row("X3", "typical", "argyll", "a2b.median", -0.5),
+            _row("X3", "typical", "argyll", "neutral_de.median", +0.001)]
+    S.decide(rows)
+    assert S.no_regression({"rows": rows, "ramp_seeds": []})["pass"]

@@ -332,6 +332,36 @@ def ramp_seed_verdicts(rows: list[dict], alpha: float = 0.05) -> list[dict]:
     return out
 
 
+def no_regression(res: dict, ramp_seeds: list[dict] | None = None) -> dict:
+    """The D-03 / D-09 no-regression test of B (the candidate) against A.
+
+    Reads the per printer x endpoint column (Holm over the 4 rows of one
+    dataset x endpoint: both noise levels, both readers). FAILS on:
+    * any point-cloud row WORSE there (significant AND >= minimum effect);
+    * any ramp row WORSE* (single build, >= minimum effect) that a seeds
+      comparison (``ramp_seed_verdicts`` of the same A and B) has not
+      cleared; a confirmed ramp WORSE fails outright.
+    Development rows count: a regression anywhere is a regression."""
+    seeds = {(g["dataset"], g["reader"], g["endpoint"]): g
+             for g in (ramp_seeds if ramp_seeds is not None else res.get("ramp_seeds", []))}
+    worse, open_, cleared = [], [], []
+    for r in res["rows"]:
+        v = r.get("verdict_per_printer_endpoint", r["verdict"])
+        tag = f"{r['dataset']} {r['variant']} {r['reader']} {r['endpoint']}"
+        if v == "WORSE":
+            worse.append(tag)
+        elif v == "WORSE*":
+            g = seeds.get((r["dataset"], r["reader"], r["endpoint"]))
+            if g is None:
+                open_.append(tag)
+            elif g["verdict"] == "WORSE":
+                worse.append(tag + " (confirmed over seeds)")
+            else:
+                cleared.append(tag)
+    return {"pass": not worse and not open_, "worse": worse,
+            "open_ramp_rows": open_, "cleared_ramp_rows": cleared}
+
+
 def compare(dir_a: Path, dir_b: Path, engine_a: str, engine_b: str,
             readers: list[str], min_rel: float = 0.05, min_abs: float = 0.02,
             alpha: float = 0.05, seed_sd: dict | None = None,
@@ -401,6 +431,11 @@ def main(argv=None) -> None:
     ap.add_argument("--engine-b", default="accurate")
     ap.add_argument("--reader", nargs="+", default=["argyll", "lcms"])
     ap.add_argument("--out", default="")
+    ap.add_argument("--no-regression", nargs="?", const="", default=None,
+                    metavar="SEEDS_A,SEEDS_B",
+                    help="D-03/D-09 no-regression test of B against A; exit 1 on a "
+                         "regression or an open ramp row. Optional value: the seeds "
+                         "run dirs of A and B that confirm or clear ramp rows")
     ap.add_argument("--seed-sd", default="",
                     help="JSON file {family|endpoint: sd} from the seeds suite")
     args = ap.parse_args(argv)
@@ -419,8 +454,26 @@ def main(argv=None) -> None:
         print(f"{g['dataset']:>22} {g['seeds']} seeds {g['reader']:>9} {g['endpoint']:>18}: "
               f"mean diff {g['mean_diff']:+.3f}, sign-flip p {g['p']:.3f} "
               f"(smallest possible {g['p_min_possible']:.3f}) {g['verdict']}")
+    nr = None
+    if args.no_regression is not None:
+        seeds = None
+        if args.no_regression:
+            sa, sb = args.no_regression.split(",")
+            seeds = compare(Path(sa), Path(sb), args.engine_a, args.engine_b,
+                            args.reader, seed_sd=sd)["ramp_seeds"]
+        nr = no_regression(res, seeds)
+        res["no_regression"] = nr
+        print(f"\nNO-REGRESSION (per printer x endpoint): {'PASS' if nr['pass'] else 'FAIL'}; "
+              f"{len(nr['worse'])} WORSE, {len(nr['open_ramp_rows'])} open ramp rows, "
+              f"{len(nr['cleared_ramp_rows'])} cleared over seeds")
+        for t in nr["worse"]:
+            print("  WORSE", t)
+        for t in nr["open_ramp_rows"]:
+            print("  OPEN (needs >= 10 seeds)", t)
     if args.out:
         Path(args.out).write_text(json.dumps(res, indent=1), encoding="utf-8")
+    if nr is not None and not nr["pass"]:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
