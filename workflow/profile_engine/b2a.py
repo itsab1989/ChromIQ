@@ -237,8 +237,15 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
             # other channels. Drop the outward-pointing pinned columns and
             # re-solve; channels wanting to move inward stay free (that is
             # the stall fix).
+            # A channel is pinned at ITS OWN ceiling, not at 1.0: under a
+            # black ink limit (-L) the K channel sits at e.g. 0.70 and an
+            # outward step there must leave the face constraint too, or
+            # the KKT step hands K ink the clip then removes and C/M/Y
+            # never receive the total-ink budget (research agent5-02 E6:
+            # S3 -L70 black L* 21.3 -> 14.3, X3 a green 18.0 -> 9.6).
             eps = 1e-9
-            bad = (((d[:, free] >= 1.0 - eps) & (step > 0))
+            top = 1.0 if channel_max is None else channel_max[free]
+            bad = (((d[:, free] >= top - eps) & (step > 0))
                    | ((d[:, free] <= eps) & (step < 0)))
             if bad.any():
                 jac_m = jac * (~bad)[:, None, :]
