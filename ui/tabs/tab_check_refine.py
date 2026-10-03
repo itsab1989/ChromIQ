@@ -1,6 +1,7 @@
 """Tab 5: Check & Refine — profcheck quality assessment and guided re-measurement."""
 from __future__ import annotations
 
+import html as _html
 import json
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,6 +23,8 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QRadioButton,
+    QButtonGroup,
     QScrollArea,
     QSizePolicy,
     QSplitter,
@@ -56,17 +59,18 @@ from workflow.profcheck_runner import (
     REFINE_DE_THRESHOLD,
     ProfcheckParams,
     ProfcheckRunner,
-    group_by_strip,
-    parse_refine_strips,
     grade_display,
-    quality_explanation,
+    quality_explanation_body,
     quality_grade,
-    recommends_start_over,
-    start_over_reason,
-    strips_to_refine,
-    total_strip_count,
     write_quality_report,
     write_refine_strips,
+)
+from workflow.refine_plan import (
+    RefinePlan,
+    build_plan,
+    de_name_for,
+    parse_patches,
+    plan_text,
 )
 from core.i18n import tr
 from core.platform_paths import default_output_root
@@ -89,11 +93,6 @@ if TYPE_CHECKING:
     from core.settings import AppSettings
 
 log = get_logger(__name__)
-
-
-def _start_over_advice_html(reason: str) -> str:
-    """The start-over verdict as the result window shows it (rich text)."""
-    return tr("<b>{reason}</b><br><br>Re-measuring individual strips is unlikely to reliably fix this. <b>Starting over with a freshly printed and measured chart is strongly recommended.</b>").format(reason=reason)
 
 
 def _plain(html: str) -> str:
@@ -1586,6 +1585,8 @@ class TabCheckRefine(QWidget):
             return
 
         params = self._collect_params()
+        # The window names every number after the formula the check used.
+        self._last_de_formula = params.de_formula
         self._log.clear()
         self._last_result = None
         self._run_btn.setEnabled(False)
@@ -1687,18 +1688,9 @@ class TabCheckRefine(QWidget):
         if code != 0:
             self._log.appendPlainText(f"\n[WARNING] profcheck exited with code {code}.")
 
-        threshold          = self._threshold_spin.value()
-        all_strips_display = group_by_strip(result.patch_errors) if result.patch_errors else []
-        refine_strips      = strips_to_refine(result.patch_errors, threshold=threshold) if result.patch_errors else []
-        n_total_strips     = total_strip_count(result.patch_errors) if result.patch_errors else 1
-        n_flagged          = len(refine_strips)
-        n_patches_above    = sum(1 for _, de in result.patch_errors if de > threshold)
-        n_total_patches    = len(result.patch_errors) if result.patch_errors else 1
-        # >50% of patches bad, or >75% of strips flagged. Only when there is
-        # something flagged at all, which is also the only case the result
-        # window shows the verdict in: the report and the window must agree.
-        recommend_start_over = bool(refine_strips) and recommends_start_over(
-            n_patches_above, n_total_patches, n_flagged, n_total_strips)
+        threshold = self._limit()
+        plan = self._plan_for(result, threshold)
+        self._last_plan = plan
 
         # Write output files (best-effort — a failure must not prevent the dialog)
         strips_file: Path | None = None
@@ -1728,18 +1720,18 @@ class TabCheckRefine(QWidget):
                 else:
                     from workflow.run_compliance import reports_dir_for
                     folder = ensure_subdir(reports_dir_for(self._ti3_path))
-                summary_text = self._report_summary_text(
-                    result, all_strips_display, refine_strips,
-                    recommend_start_over, threshold,
-                    n_flagged, n_total_strips, n_patches_above,
-                    n_total_patches)
+                summary_text = self._report_summary_text(result, plan)
 
                 report_path = write_quality_report(folder, stem, summary_text, result.raw_log)
                 self._log.appendPlainText(
                     f"\n[OK] Quality report saved: {folder.name}/{report_path.name}")
 
-                if refine_strips and not recommend_start_over:
-                    strips_file = write_refine_strips(folder, stem, refine_strips)
+                # Refinement is ALWAYS offered when a patch is above the limit,
+                # start over advised or not (Knut, #182 5963903650 Q2). The
+                # file holds the default choice, the strips listed first; the
+                # window rewrites it if "all strips" is picked instead.
+                if plan.offered:
+                    strips_file = write_refine_strips(folder, stem, plan.chosen())
                     self._log.appendPlainText(
                         f"[OK] Refinement strips file saved: {folder.name}/{strips_file.name}")
             except Exception as exc:
@@ -1747,83 +1739,91 @@ class TabCheckRefine(QWidget):
                 self._log.appendPlainText(f"[WARNING] Could not write output files: {exc}")
 
         # Always show the assessment dialog if we have results
-        self._show_result_dialog(
-            result, all_strips_display, refine_strips, strips_file,
-            recommend_start_over,
-            n_flagged, n_total_strips, n_patches_above, n_total_patches,
-        )
+        self._show_result_dialog(result, plan, strips_file)
+
+    def _limit(self) -> float:
+        """The user's limit, from the panel the check ran from.
+
+        Manual mode has a limit of its own; reading the guided one there made
+        the manual setting do nothing.
+        """
+        if self._current_mode() == "guided":
+            return self._threshold_spin.value()
+        return self._m_threshold_spin.value()
+
+    def _plan_for(self, result, threshold: float) -> RefinePlan:
+        """What the result window offers (workflow/refine_plan.py).
+
+        A patch a re-read already CONFIRMED (the yellow ones) is not offered
+        again (Knut, #182 5963903650): the memory is believed only for the
+        exact .ti3 it was written for.
+        """
+        confirmed: "set[str]" = set()
+        if self._ti3_path is not None:
+            try:
+                from workflow.confirmed_patches import confirmed_locations
+                confirmed = confirmed_locations(self._ti3_path)
+            except Exception:      # noqa: BLE001 — a hint, never a blocker
+                log.debug("no confirmed patches for %s", self._ti3_path,
+                          exc_info=True)
+        de = de_name_for(result.raw_log,
+                         getattr(self, "_last_de_formula", "-k"))
+        return build_plan(parse_patches(result.raw_log, result.patch_errors),
+                          threshold, confirmed, de)
 
     @staticmethod
-    def _report_summary_text(
-        result,
-        all_strips_display: list[tuple[str, float]],
-        refine_strips: list[tuple[str, float]],
-        recommend_start_over: bool,
-        threshold: float,
-        n_flagged: int,
-        n_total_strips: int,
-        n_patches_above: int,
-        n_total_patches: int,
-    ) -> str:
+    def _report_summary_text(result, plan: RefinePlan) -> str:
         """The readable top of the saved Quality_Check .txt report.
 
-        SAYS WHAT THE WINDOW SAYS. Knut's run2 report (#182, beta 5) carried
-        the grade text *"Re-measuring the flagged strips can help"*, no strip
-        list and no verdict, while the window beside it recommended starting
-        over. The report now carries the same explanation, the same worst
-        patches, and the start-over verdict with its reason, translated.
+        SAYS WHAT THE WINDOW SAYS (Knut, #182 5963903650, item 7): the same
+        lines from the same `plan_text`, in the same order, as plain text. The
+        start-over note and the strip lists are both written, because the
+        window shows both.
         """
         grade = quality_grade(result.avg_de, result.peak_de)
-        explanation = quality_explanation(result.avg_de, result.peak_de)
-        text = tr("Profile Quality Assessment: {grade}").format(
-            grade=grade_display(grade)) + f"\n\n{explanation}"
-        if all_strips_display:
-            strip_lines = "\n".join(
-                f"  {s:4s}  avg ΔE: {de:.2f}" for s, de in all_strips_display[:10]
-            )
-            text += "\n\n" + tr(
-                "Strips with highest error (worst first, avg ΔE):") \
-                + "\n" + strip_lines
-        if result.patch_errors:
-            worst = sorted(result.patch_errors, key=lambda pe: pe[1],
-                           reverse=True)[:5]
-            patch_lines = "\n".join(
-                f"  {p:4s}  ΔE: {de:.2f}" for p, de in worst)
-            text += "\n\n" + tr(
-                "Patches with highest error (worst first, ΔE):") \
-                + "\n" + patch_lines
-        if recommend_start_over:
-            reason = start_over_reason(n_patches_above, n_total_patches,
-                                       n_flagged, n_total_strips, threshold)
-            text += "\n\n" + _plain(_start_over_advice_html(reason))
-        elif refine_strips:
-            refine_lines = "\n".join(
-                f"  {s:4s}  max ΔE: {de:.2f}" for s, de in refine_strips
-            )
-            text += "\n\n" + tr(
-                "Strips flagged for re-measurement (in measurement order, "
-                "threshold ΔE > {limit:.1f}):").format(limit=threshold) \
-                + "\n" + refine_lines
-        return text
+        t = plan_text(plan, result.avg_de, result.peak_de)
+        parts = [tr("Profile Quality Assessment: {grade}").format(
+            grade=grade_display(grade))]
+        parts.append("\n".join(x for x in (t.numbers, t.over) if x))
+        parts.append(quality_explanation_body(result.avg_de, result.peak_de,
+                                              plan.de_name))
+        if t.start_over:
+            parts.append(_plain(t.start_over))
+        if t.first_rows:
+            width = max(len(label) for label, _why in t.first_rows)
+            parts.append(_plain(t.first_head) + "\n" + "\n".join(
+                f"  {label:<{width}}  {why}" for label, why in t.first_rows))
+        if t.rest_items:
+            rows = ["  " + "   ".join(t.rest_items[i:i + _REFINE_COLUMNS])
+                    for i in range(0, len(t.rest_items), _REFINE_COLUMNS)]
+            parts.append(_plain(t.rest_head) + "\n" + "\n".join(rows))
+        if t.confirmed:
+            parts.append(t.confirmed)
+        if t.choice_first:
+            parts.append(f"(•) {t.choice_first}\n( ) {t.choice_all}")
+        if t.order:
+            parts.append(t.order)
+        return "\n\n".join(p for p in parts if p)
 
     # ------------------------------------------------------------------
     # Result dialog
     # ------------------------------------------------------------------
 
-    def _show_result_dialog(
-        self,
-        result,
-        all_strips_display: list[tuple[str, float]],
-        refine_strips: list[tuple[str, float]],
-        strips_file: Path | None,
-        recommend_start_over: bool,
-        n_flagged: int = 0,
-        n_total_strips: int = 1,
-        n_patches_above: int = 0,
-        n_total_patches: int = 1,
-    ) -> None:
-        grade       = quality_grade(result.avg_de, result.peak_de)
-        explanation = quality_explanation(result.avg_de, result.peak_de)
+    def _show_result_dialog(self, result, plan: RefinePlan,
+                            strips_file: "Path | None") -> None:
+        """The Profile Quality Assessment window (#182, the redesign Knut
+        approved on the pictures, 5963903650).
+
+        Every number carries the name of the one formula the check used; no
+        strip averages. Two lists, worst first, a reason for each strip listed
+        first; the choice "strips listed first" (default) / "all strips above
+        your limit"; refinement offered whenever a patch is above the limit,
+        start over advised only above half of all patches. The words are
+        M-CR-STRIPS / M-CR-START-OVER / M-CR-PRECONDITIONING, built by
+        `plan_text`, which the saved report uses too.
+        """
+        grade = quality_grade(result.avg_de, result.peak_de)
+        t = plan_text(plan, result.avg_de, result.peak_de)
 
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Profile Quality Assessment"))
@@ -1839,103 +1839,93 @@ class TabCheckRefine(QWidget):
         grade_lbl.setStyleSheet("font-size: 15px;")
         layout.addWidget(grade_lbl)
 
-        # Explanation
-        exp_lbl = QLabel(explanation, dlg)
+        # One line of numbers, every value under the formula's name.
+        nums = "<br>".join(_html.escape(x) for x in (t.numbers, t.over) if x)
+        if nums:
+            nums_lbl = QLabel(nums, dlg)
+            nums_lbl.setWordWrap(True)
+            layout.addWidget(nums_lbl)
+
+        # The grade's sentence; "Re-measuring the flagged strips can help"
+        # stays (Knut, 5963360295).
+        exp_lbl = QLabel(quality_explanation_body(
+            result.avg_de, result.peak_de, plan.de_name), dlg)
+        exp_lbl.setTextFormat(Qt.TextFormat.PlainText)
         exp_lbl.setWordWrap(True)
         layout.addWidget(exp_lbl)
 
-        # Worst strips (left) and worst individual patches (right), side by side
-        # so both fit without making the dialog tall.
-        if all_strips_display or result.patch_errors:
-            cols = QHBoxLayout()
-            cols.setSpacing(24)
+        if t.start_over:
+            so = QLabel(t.start_over, dlg)
+            so.setObjectName("start_over_note")
+            so.setWordWrap(True)
+            so.setStyleSheet("QLabel#start_over_note { border: 1px solid "
+                             "#c98a2b; border-radius: 6px; padding: 8px; }")
+            layout.addWidget(so)
 
-            if all_strips_display:
-                strip_lines = "\n".join(
-                    f"  • Strip {s}  (avg ΔE: {de:.2f})"
-                    for s, de in all_strips_display[:5]
-                )
-                strip_box = QVBoxLayout()
-                strip_box.setSpacing(6)
-                strip_head = QLabel(tr(
-                    "<b>Strips with the highest error</b><br>"
-                    "(worst first, avg ΔE):"), dlg)
-                strip_head.setWordWrap(True)
-                strip_box.addWidget(strip_head)
-                strip_box.addWidget(_mono_label(strip_lines, dlg))
-                strip_box.addStretch()
-                cols.addLayout(strip_box, 1)
+        if t.first_rows:
+            head = QLabel(t.first_head, dlg)
+            head.setWordWrap(True)
+            layout.addWidget(head)
+            g = QGridLayout()
+            g.setHorizontalSpacing(14)
+            g.setVerticalSpacing(8)
+            g.setContentsMargins(12, 0, 0, 0)
+            for i, (label, why) in enumerate(t.first_rows):
+                g.addWidget(_mono_label(label, dlg), i, 0)
+                r = QLabel(why, dlg)
+                r.setTextFormat(Qt.TextFormat.PlainText)
+                r.setWordWrap(True)
+                g.addWidget(r, i, 1)
+            g.setColumnStretch(1, 1)
+            layout.addLayout(g)
 
-            if result.patch_errors:
-                worst_patches = sorted(
-                    result.patch_errors, key=lambda pe: pe[1], reverse=True
-                )[:5]
-                patch_lines = "\n".join(
-                    f"  • Patch {p}  (ΔE: {de:.2f})" for p, de in worst_patches
-                )
-                patch_box = QVBoxLayout()
-                patch_box.setSpacing(6)
-                patch_head = QLabel(tr(
-                    "<b>Patches with the highest error</b><br>"
-                    "(worst first, ΔE):"), dlg)
-                patch_head.setWordWrap(True)
-                patch_box.addWidget(patch_head)
-                patch_box.addWidget(_mono_label(patch_lines, dlg))
-                patch_box.addStretch()
-                cols.addLayout(patch_box, 1)
-
-            layout.addLayout(cols)
-
-        # Action recommendation
-        if recommend_start_over and refine_strips:
-            reason = start_over_reason(
-                n_patches_above, n_total_patches, n_flagged, n_total_strips,
-                self._threshold_spin.value())
-            action_lbl = QLabel(_start_over_advice_html(reason), dlg)
-            action_lbl.setWordWrap(True)
-            layout.addWidget(action_lbl)
-        elif refine_strips:
-            n_refine = len(refine_strips)
-            if n_refine == 1:
-                head = tr("<b>1 strip has at least one patch above "
-                          "ΔE {limit:.1f} and should be re-measured:</b>").format(
-                    limit=self._threshold_spin.value())
-            else:
-                head = tr("<b>{n} strips have at least one patch above "
-                          "ΔE {limit:.1f} and should be re-measured:</b>").format(
-                    n=n_refine, limit=self._threshold_spin.value())
-            head_lbl = QLabel(head, dlg)
-            head_lbl.setWordWrap(True)
-            layout.addWidget(head_lbl)
-            # A GRID, ROW AFTER ROW, so every flagged strip is on screen however
-            # many there are; in measurement order, read left to right.
+        if t.rest_items:
+            rest_head = QLabel(t.rest_head, dlg)
+            rest_head.setWordWrap(True)
+            layout.addWidget(rest_head)
+            # A GRID, ROW AFTER ROW, so every strip is on screen however many
+            # there are (Basti, 2026-10-03: a one-line row ran off the edge).
             grid = QGridLayout()
             grid.setHorizontalSpacing(24)
             grid.setVerticalSpacing(2)
             grid.setContentsMargins(12, 0, 0, 0)
-            for i, (s, de) in enumerate(refine_strips):
-                grid.addWidget(_mono_label(f"{s} (max ΔE: {de:.2f})", dlg),
+            for i, item in enumerate(t.rest_items):
+                grid.addWidget(_mono_label(item, dlg),
                                i // _REFINE_COLUMNS, i % _REFINE_COLUMNS)
             grid.setColumnStretch(_REFINE_COLUMNS, 1)
             layout.addLayout(grid)
-            order_lbl = QLabel(tr(
-                "Listed in measurement order: the app will navigate to each "
-                "one automatically."), dlg)
+
+        if t.confirmed:
+            cs = QLabel(t.confirmed, dlg)
+            cs.setTextFormat(Qt.TextFormat.PlainText)
+            cs.setWordWrap(True)
+            layout.addWidget(cs)
+
+        first_rb = None
+        if t.choice_first:
+            first_rb = QRadioButton(t.choice_first, dlg)
+            first_rb.setObjectName("refine_choice_first")
+            all_rb = QRadioButton(t.choice_all, dlg)
+            all_rb.setObjectName("refine_choice_all")
+            first_rb.setChecked(True)          # Knut, 5963903650 Q3
+            grp = QButtonGroup(dlg)
+            grp.addButton(first_rb)
+            grp.addButton(all_rb)
+            layout.addWidget(first_rb)
+            layout.addWidget(all_rb)
+        self._refine_choice_first = first_rb
+
+        if t.order:
+            order_lbl = QLabel(t.order, dlg)
+            order_lbl.setTextFormat(Qt.TextFormat.PlainText)
             order_lbl.setWordWrap(True)
             layout.addWidget(order_lbl)
 
-        # Description for the "Use as pre-conditioning" path
+        # Pre-conditioning, as what targen -c does: patches spread evenly by
+        # how colours look, not aimed at the colours that measured badly.
         if self._icc_path:
-            precond_desc = QLabel(
-                tr("<b>Use as pre-conditioning profile</b> — start a second profiling pass "
-                "that uses this profile to place the new test patches more intelligently. "
-                "The next chart will sample more in the colour regions your printer "
-                "reproduces least accurately, producing a noticeably better profile on "
-                "the second round. This profile and its measurements are kept intact "
-                "in their own run folder so nothing is lost. Recommended once "
-                "you've confirmed a working profile for this paper."),
-                dlg,
-            )
+            from workflow import measurement_messages as mm
+            precond_desc = QLabel(tr(mm._CR_PRECOND), dlg)
             precond_desc.setWordWrap(True)
             precond_desc.setStyleSheet("color: #b0b0b0; font-size: 11px;")
             layout.addWidget(precond_desc)
@@ -2020,10 +2010,11 @@ class TabCheckRefine(QWidget):
         precond_btn: QPushButton | None = None
         if self._icc_path:
             precond_btn = QPushButton(tr("← Use as Pre-conditioning"), dlg)
-            precond_btn.setObjectName("primary")
 
         guide_btn: QPushButton | None = None
-        if strips_file and refine_strips and not recommend_start_over and self._ti3_path:
+        # Offered whenever a patch is above the limit, start over advised or
+        # not (Knut, #182 5963903650 Q2).
+        if strips_file and plan.offered and self._ti3_path:
             # The ← matches "← Use as Pre-conditioning" beside it: both leave
             # this tab leftwards (Measure and Create Chart), and the arrow
             # rule puts it on the side the button points (Sebastian,
@@ -2032,6 +2023,11 @@ class TabCheckRefine(QWidget):
             guide_btn.setObjectName("primary")
         elif install_btn and grade == "Excellent":
             install_btn.setObjectName("primary")
+        # Pre-conditioning is not a fix for what this check found, so it is
+        # never the highlighted button while refinement is offered (Knut,
+        # 5963903650 Q6, on the pictures).
+        if precond_btn is not None and guide_btn is None:
+            precond_btn.setObjectName("primary")
 
         # Action buttons left-to-right: Guide → Pre-conditioning → Install;
         # Close is pinned to the far right after a stretch.
@@ -2053,8 +2049,19 @@ class TabCheckRefine(QWidget):
 
             def _on_guide():
                 _persist_and_build_scanner()
+                chosen = strips_file
+                rb = self._refine_choice_first
+                if rb is not None and not rb.isChecked():
+                    # "All strips above your limit": this check's own file,
+                    # rewritten with every offered strip, in chart order.
+                    try:
+                        chosen = write_refine_strips(
+                            strips_file.parent, ti3.stem,
+                            plan.chosen(first_only=False), target=strips_file)
+                    except OSError as exc:
+                        log.warning("could not rewrite %s: %s", strips_file, exc)
                 dlg.accept()
-                self.guide_refinement_requested.emit(ti3, strips_file)
+                self.guide_refinement_requested.emit(ti3, chosen)
 
             guide_btn.clicked.connect(_on_guide)
 
@@ -2111,6 +2118,13 @@ class TabCheckRefine(QWidget):
             precond_btn.clicked.connect(_on_precond)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
+        # The tint sets the primary button in bold AFTER the layout measured
+        # it, so the row's minimum was a bold label short. The window's lists
+        # are narrower than they were, so the button row is now what decides
+        # its width, and the guide button was squeezed by a few pixels.
+        for b in buttons:
+            b.ensurePolished()
+            b.setMinimumWidth(max(b.minimumWidth(), b.minimumSizeHint().width()))
         dlg.exec()
 
     def _build_scanner_target(self, run: Run, ti3: Path | None) -> None:

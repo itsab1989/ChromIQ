@@ -1594,6 +1594,112 @@ M_OVERLAY_NO_MEASUREMENT = _m(
     "go, showing what you measured against the colour each patch was meant to "
     "be.")
 
+# --- PROPOSED: was a strip read twice? (#182, the live check while measuring)
+#: Knut, #182 5963903650, question 5, answered "Yes." to the check and to its
+#: question as written in 5963737221: *"Strip D looks very like strip C, which
+#: you already measured. Did you read strip C again?"* with the buttons
+#: *Re-read strip D* / *Keep, it is strip D*. Those words are his approval's;
+#: the two lines saying what each button does are ours, so the message waits
+#: in §M-PROPOSED. The check: workflow/strip_read_twice.py.
+_READ_TWICE_REREAD = "Re-read strip {strip}"
+_READ_TWICE_KEEP = "Keep, it is strip {strip}"
+M_STRIP_READ_TWICE = _m(
+    "M-STRIP-READ-TWICE",
+    "Was a strip read twice?",
+    "Strip {strip} looks very like strip {like}, which you already measured. "
+    "Did you read strip {like} again?\n\n"
+    "•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it "
+    "again and the new reading replaces this one.\n\n"
+    "•  Keep, it is strip {strip}: this reading stays as strip {strip}, and "
+    "measuring goes on.",
+    approved=False)
+
+# --- PROPOSED: the Check & Refine result window (#182, the redesign) -------
+#: Knut approved the design on the pictures (#182 5963903650 on 5963737221):
+#: two lists, worst first, a reason for each strip listed first, the choice
+#: "strips listed first" (the default) / "all strips above your limit"; start
+#: over advised only above half of all patches, refinement still offered. The
+#: sentences below are the ones the pictures showed, word for word, and a few
+#: the pictures needed but did not show (the singulars, a single list, no
+#: patch above the limit). Shown is not approved, so they wait in §M-PROPOSED.
+#: workflow/refine_plan.py decides; ui/tabs/tab_check_refine.py renders both
+#: the window and the saved report from these, so the two say one thing.
+_CR_NUMBERS = "Average {de} {avg:.2f}  |  Largest {de} {peak:.2f}"
+_CR_OVER_ONE = "1 of {total} patches is above your limit of {de} {limit:.1f}."
+_CR_OVER_MANY = ("{n} of {total} patches ({pct}%) are above your limit of "
+                 "{de} {limit:.1f}.")
+_CR_OVER_NONE = ("No patch is above your limit of {de} {limit:.1f}. Nothing "
+                 "needs re-measuring.")
+_CR_START_OVER = (
+    "<b>More than half of your patches are above your limit ({n} of {total}, "
+    "{pct}%).</b> Re-measuring strips is unlikely to fix all of this: printing "
+    "and measuring a fresh chart is recommended. You can still re-measure the "
+    "strips below first, to rule out reading mistakes. If your limit is very "
+    "strict, a higher one may suit this printer better.")
+_CR_FIRST_HEAD = (
+    "<b>Re-measure these strips first</b> (worst first). Each has a patch that "
+    "may have been misread, and a re-read shows whether it was:")
+_CR_STRIP = "Strip {strip}"
+_CR_WHY_OUTLIER = ("Patch {patch} ({de} {value:.2f}) stands out clearly from "
+                   "the rest of this check.")
+_CR_WHY_BLEND = (
+    "Patch {patch} ({de} {value:.2f}) looks partly like its neighbour "
+    "{neighbour}, as if the instrument was moved unevenly. Move it steadily "
+    "over strip {strip}.")
+_CR_N_IN_STRIP = "{n} patches in this strip are above your limit."
+_CR_REST_HEAD_MORE_ONE = (
+    "<b>1 more strip has at least one patch above {de} {limit:.1f}</b> "
+    "(worst patch, and how many are above):")
+_CR_REST_HEAD_MORE_MANY = (
+    "<b>{n} more strips have patches above {de} {limit:.1f}</b> "
+    "(worst first; worst patch, and how many are above):")
+_CR_REST_HEAD_ONE = (
+    "<b>1 strip has at least one patch above {de} {limit:.1f}</b> "
+    "(worst patch, and how many are above):")
+_CR_REST_HEAD_MANY = (
+    "<b>{n} strips have patches above {de} {limit:.1f}</b> "
+    "(worst first; worst patch, and how many are above):")
+_CR_CONFIRMED_ONE = ("Not offered again, because a re-read already confirmed "
+                     "it: {patches}.")
+_CR_CONFIRMED_MANY = ("Not offered again, because a re-read already confirmed "
+                      "them: {patches}.")
+_CR_CHOICE_FIRST_ONE = "Re-measure the strip listed first"
+_CR_CHOICE_FIRST_MANY = "Re-measure the {n} strips listed first"
+_CR_CHOICE_ALL = "Re-measure all {n} strips above your limit"
+_CR_ORDER = ("The guide takes you through the chosen strips in chart order "
+             "(A, B, C ...), the order the instrument reads them in.")
+M_CR_STRIPS = _m(
+    "M-CR-STRIPS",
+    "Re-measure these strips first",
+    "\n".join((_CR_NUMBERS, _CR_OVER_ONE, _CR_OVER_MANY, _CR_OVER_NONE,
+               _CR_FIRST_HEAD, _CR_STRIP, _CR_WHY_OUTLIER, _CR_WHY_BLEND,
+               _CR_N_IN_STRIP, _CR_REST_HEAD_MORE_ONE, _CR_REST_HEAD_MORE_MANY,
+               _CR_REST_HEAD_ONE, _CR_REST_HEAD_MANY, _CR_CONFIRMED_ONE,
+               _CR_CONFIRMED_MANY, _CR_CHOICE_FIRST_ONE, _CR_CHOICE_FIRST_MANY,
+               _CR_CHOICE_ALL, _CR_ORDER)),
+    approved=False)
+M_CR_START_OVER = _m(
+    "M-CR-START-OVER",
+    "More than half of your patches are above your limit",
+    _CR_START_OVER,
+    approved=False)
+#: Knut, 5963903650 Q6, "OK" to this text as the pictures showed it. It
+#: describes what ArgyllCMS targen -c does (patches spread evenly by how
+#: colours look, not aimed at the colours that measured badly), so it is never
+#: "recommended" as a fix. Used by Check & Refine and by Profile Built.
+_CR_PRECOND = (
+    "<b>Use as pre-conditioning profile</b>: start a new chart whose patches "
+    "are spread evenly by how colours look on this printer and paper, using "
+    "this profile as a guide, instead of evenly by RGB numbers. This often "
+    "gives a better second profile. It does not aim the new patches at the "
+    "colours that measured badly here, so it does not replace re-measuring. "
+    "This profile and its measurements stay in their own run folder.")
+M_CR_PRECONDITIONING = _m(
+    "M-CR-PRECONDITIONING",
+    "Use as pre-conditioning profile",
+    _CR_PRECOND,
+    approved=False)
+
 # --- PROPOSED: after a read, the next strip/patch is not the unread one ---
 #: Knut, #182 5958921500, Q2, and the text is his: *"If strips still unread,
 #: then re-reading a read strip should not jump to next unread, but instead ask
@@ -3930,6 +4036,8 @@ CATALOGUE = {m.id: m for m in (
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
     M_UNREAD_NEXT_OR_JUMP_STRIP, M_UNREAD_NEXT_OR_JUMP_PATCH,
+    M_STRIP_READ_TWICE,
+    M_CR_STRIPS, M_CR_START_OVER, M_CR_PRECONDITIONING,
     M_ENGINE_FELL_BACK,
     M_PATCHSET_MISSING,
     M_PATCHSET_KEPT_UNCHECKED,

@@ -579,6 +579,16 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # Generate now stops and says so and moves no
                                  # tick. The BEHAVIOUR is his ruling; the
                                  # WORDING is new and waits here.
+                                 # #182, 2026-10-03: the Check & Refine
+                                 # redesign and the live "strip read twice"
+                                 # check. Knut approved the DESIGN on the
+                                 # pictures (5963903650); the words the
+                                 # pictures showed, and the few they did not,
+                                 # wait here for his word on the wording.
+                                 "M-STRIP-READ-TWICE",
+                                 "M-CR-STRIPS",
+                                 "M-CR-START-OVER",
+                                 "M-CR-PRECONDITIONING",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
@@ -693,6 +703,8 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_cr30_stock_reader_window"),
     # #182 5958921500: Continue to next / Jump to unread.
     ("ui.tabs.tab_measure", "TabMeasure", "_unread_choice_window"),
+    # #182 5963903650 Q5: "Was a strip read twice?"
+    ("ui.tabs.tab_measure", "TabMeasure", "_strip_read_twice_window"),
     # The verification pre-flight (#182, Knut, 2026-09-21). Its frame is
     # M-VERIFY-PREFLIGHT; the metric list under it is the presets window's own
     # `summary_lines`, which is not prose this method writes.

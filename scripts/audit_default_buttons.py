@@ -307,10 +307,12 @@ def main() -> int:
             (tdmod.open_file_dialog, tdmod.rt.read_rows,
              tdmod.rt.apply_rows) = real
         tdlg.deleteLater()
+        from workflow.refine_plan import OVER, RefinePlan, StripAdvice
+        plan = RefinePlan(2.0, 27, 1, 9.9, False, "\u0394E00",
+                          rest=[StripAdvice("A", OVER, "A5", 3.0, 1)])
         take_modal("Profile Quality Assessment (Good, refine offered)",
                    lambda: chk._show_result_dialog(
-                       res, [("A", 1.0)], [("A", 3.0)],
-                       Path(out_root) / "strips.txt", False))
+                       res, plan, Path(out_root) / "strips.txt"))
         from ui.dialogs.thresholds_dialog import ThresholdsDialog
         try:
             take("Report limits", ThresholdsDialog(settings, rep))

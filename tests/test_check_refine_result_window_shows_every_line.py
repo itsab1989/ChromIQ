@@ -14,6 +14,7 @@ least as large as the label says it needs, and lies inside the window.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -23,38 +24,54 @@ from core import i18n                                       # noqa: E402
 from workflow.profcheck_runner import ProfcheckResult       # noqa: E402
 
 
-def _result(n_strips: int = 24) -> ProfcheckResult:
-    letters = [chr(ord("A") + i) for i in range(n_strips)]
-    errs = []
-    for k, s in enumerate(letters):
-        for row in range(1, 28):
-            errs.append((f"{s}{row}", 3.0 + 0.1 * (k % 9) if row == 5 else 0.9))
-    return ProfcheckResult(avg_de=1.09, peak_de=5.32, patch_errors=errs,
-                           raw_log="profcheck output")
+DATA = Path(__file__).parent / "data" / "check_refine"
 
 
-def _window(qapp, tmp_path, monkeypatch, *, start_over: bool, n_flag: int):
+def _knut(name: str, thr: float):
+    """Knut's own check output, and the plan the window shows for it."""
+    from workflow.profcheck_runner import _SUMMARY_RE
+    from workflow.refine_plan import build_plan, de_name_for, parse_patches
+    text = (DATA / name).read_text(encoding="utf-8")
+    m = _SUMMARY_RE.search(text)
+    res = ProfcheckResult(avg_de=float(m.group(2)), peak_de=float(m.group(1)),
+                          raw_log=text)
+    return res, build_plan(parse_patches(text), thr, frozenset(),
+                           de_name_for(text, "-k"))
+
+
+def _one_strip():
+    from workflow.refine_plan import OVER, RefinePlan, StripAdvice
+    res = ProfcheckResult(avg_de=1.09, peak_de=3.4, raw_log="")
+    return res, RefinePlan(3.0, 648, 1, 9.0, False, "\u0394E00",
+                           rest=[StripAdvice("H", OVER, "H9", 3.4, 1)])
+
+
+CASES = {
+    "run2-3.0": lambda: _knut("knut_run2_profcheck_qc6.txt", 3.0),
+    "run2-0.5-start-over": lambda: _knut("knut_run2_profcheck_qc6.txt", 0.5),
+    "run3-2.0": lambda: _knut("knut_run3_profcheck.txt", 2.0),
+    "one-strip": _one_strip,
+}
+
+
+def _window(qapp, tmp_path, monkeypatch, case: str):
     from PyQt6.QtWidgets import QDialog
     from core.argyll_runner import ArgyllRunner
     from core.settings import AppSettings
     from ui.tabs.tab_check_refine import TabCheckRefine
-    from workflow.profcheck_runner import group_by_strip, strips_to_refine
     s = AppSettings()
     s.set("custom_output_path", str(tmp_path / "work"))
     tab = TabCheckRefine(ArgyllRunner(s), s)
     tab._icc_path = tmp_path / "test.icc"          # the pre-conditioning text too
-    tab._threshold_spin.setValue(3.0)
-    res = _result()
-    refine = strips_to_refine(res.patch_errors, threshold=3.0)[:n_flag]
+    tab._ti3_path = tmp_path / "test.ti3"
+    res, plan = CASES[case]()
     seen = []
 
     def _exec(dlg):
         seen.append(dlg)
         return 0
     monkeypatch.setattr(QDialog, "exec", _exec)
-    tab._show_result_dialog(res, group_by_strip(res.patch_errors), refine,
-                            tmp_path / "Refine_Strips_1_test.txt", start_over,
-                            len(refine), 24, len(refine), 648)
+    tab._show_result_dialog(res, plan, tmp_path / "Refine_Strips_1_test.txt")
     return tab, seen[0]
 
 
@@ -108,15 +125,10 @@ def language(request):
         i18n.set_language("en")
 
 
-@pytest.mark.parametrize("start_over, n_flag", [
-    (False, 17),    # Knut's run2 at 3.0: the refine list
-    (False, 1),     # one flagged strip
-    (True, 24),     # run2 at 2.0: start over
-])
+@pytest.mark.parametrize("case", sorted(CASES))
 def test_every_label_is_whole_at_default_and_minimum_size(
-        qapp, tmp_path, monkeypatch, language, start_over, n_flag):
-    _tab, dlg = _window(qapp, tmp_path, monkeypatch,
-                        start_over=start_over, n_flag=n_flag)
+        qapp, tmp_path, monkeypatch, language, case):
+    _tab, dlg = _window(qapp, tmp_path, monkeypatch, case)
     try:
         dlg.show()
         assert _clipped(dlg) == [], "default size"
@@ -129,9 +141,8 @@ def test_every_label_is_whole_at_default_and_minimum_size(
 
 def test_the_window_is_not_stretched_by_one_long_line(qapp, tmp_path,
                                                       monkeypatch):
-    """The flagged strips wrap into rows instead of widening the window."""
-    _tab, dlg = _window(qapp, tmp_path, monkeypatch,
-                        start_over=False, n_flag=17)
+    """The strips wrap into rows instead of widening the window."""
+    _tab, dlg = _window(qapp, tmp_path, monkeypatch, "run2-0.5-start-over")
     try:
         dlg.show()
         assert dlg.minimumSizeHint().width() < 1000
@@ -140,22 +151,20 @@ def test_the_window_is_not_stretched_by_one_long_line(qapp, tmp_path,
         dlg.deleteLater()
 
 
-def test_the_refine_heading_and_order_sentence_are_german(
+def test_the_lists_and_the_order_sentence_are_german(
         qapp, tmp_path, monkeypatch):
-    """The heading's key carries a narrow no-break space (U+202F) before the
-    limit; a rewrite with a plain space left the heading English."""
     from PyQt6.QtWidgets import QLabel
     i18n.set_language("de")
     try:
-        _tab, dlg = _window(qapp, tmp_path, monkeypatch,
-                            start_over=False, n_flag=17)
+        _tab, dlg = _window(qapp, tmp_path, monkeypatch, "run3-2.0")
         text = "\n".join(lbl.text() for lbl in dlg.findChildren(QLabel))
         dlg.deleteLater()
     finally:
         i18n.set_language("en")
-    assert "17 Streifen haben mindestens ein Messfeld" in text
-    assert "In Messreihenfolge aufgelistet: Die App" in text
-    assert "strips have at least one patch" not in text
+    assert "Re-measure these strips first" not in text
+    assert "stands out clearly" not in text
+    assert "in chart order" not in text
+    assert "\u0394E00" in text
 
 
 def test_the_lists_are_never_rich_text_in_a_pre_again():

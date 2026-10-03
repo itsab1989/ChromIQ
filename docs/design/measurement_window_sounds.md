@@ -34,6 +34,7 @@ identifiers.
 | Patches still unread | Both | Strip read failed |
 | Averaging failed | Both | Strip read failed |
 | Some patches are still not read | Both | Instrument error |
+| Strip read twice | Strip reading | Instrument error |
 | Calibration required | Both | Instrument error |
 | Confirm abort | Both | Instrument error |
 | Instrument disconnected | Both | Instrument error |
@@ -174,6 +175,17 @@ beeps; the beep is the moment it starts measuring. Knut's rulings:
   strips, so their "Readings per second", "Patches per strip" and "Minimum
   readings per patch" fields are disabled, showing their current values, to
   show that they are not configurable.
+
+## 4b. "Strip read twice" plays Instrument error
+
+**Confirmed by:** Knut, 2026-10-03 (#182 [5963903650](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963903650) Q5 approved the window; [5963044182](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963044182) ruled its sound for the first such window: *"When the window appears it is supposed to get the attention of the user, so the 'Instrument error' sound can be also used as a 'attention' sound. Use this sound."*)
+
+The window *"Was a strip read twice?"* (M-STRIP-READ-TWICE, unified
+measurement management §11b) interrupts a read to ask the user something, like
+*"Some patches are still not read"*, so it plays **Instrument error** as it
+opens (`TabMeasure._strip_read_twice_window`, row "Strip read twice" in §1).
+Rules W-1 and W-2 apply: the cue is at the top of the slot, and a question that
+is never opened (the measurement ended first) plays nothing.
 
 ## 5. Related documents
 

@@ -5788,16 +5788,13 @@ class TabProfile(QWidget):
         check_desc.setStyleSheet("color: #b0b0b0; font-size: 11px;")
         layout.addWidget(check_desc)
 
-        precond_desc = QLabel(
-            tr("<b>Use as pre-conditioning profile</b> — start a second profiling pass that "
-            "uses this profile to place the new test patches more intelligently. "
-            "The next chart will sample more in the colour regions your printer "
-            "reproduces least accurately, producing a noticeably better profile on "
-            "the second round. Your existing chart files are preserved (renamed "
-            "with a <code>pre_</code> prefix) so nothing is lost. "
-            "Recommended once you've already built a working profile for this paper."),
-            dlg,
-        )
+        # What ArgyllCMS targen -c does, the same text as Check & Refine's
+        # (M-CR-PRECONDITIONING; Knut, #182 5963903650 Q6). The old one
+        # promised a chart sampled more where the printer is least accurate,
+        # which targen -c does not do, and named a pre_ prefix the run
+        # folders made obsolete.
+        from workflow import measurement_messages as _mm
+        precond_desc = QLabel(tr(_mm._CR_PRECOND), dlg)
         precond_desc.setWordWrap(True)
         precond_desc.setStyleSheet("color: #b0b0b0; font-size: 11px;")
         layout.addWidget(precond_desc)

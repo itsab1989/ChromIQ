@@ -1,5 +1,27 @@
 # Changelog
 
+## v4.3.3-beta.7 (unreleased)
+
+**Check & Refine offers refinement whenever a patch is above your limit and says which strips to re-measure first and why; and ChromIQ asks while you measure when a strip looks read twice.**
+
+### New
+
+- **"Was a strip read twice?"** (#182, ChromIQ's measuring engine, strip mode): each strip you read is compared with the strips already measured. When it looks very like one of them, ChromIQ asks, for example "Strip D looks very like strip C, which you already measured. Did you read strip C again?", with **Re-read strip D** and **Keep, it is strip D**. It compares only what you measured, never the chart's expected colours, so low-quality paper cannot set it off, and reading a strip again where the reader is never asks. The window plays the Instrument error sound. ArgyllCMS's own strip test stays off (-S) as before.
+
+### Changed
+
+- **Check & Refine: refinement is always offered** when at least one patch is above your limit (#182, Knut). The rule "more than three quarters of the strips, so start over", which told good 648-patch profiles to start over with no way to refine, is gone. Starting over is advised only when more than half of all patches are above your limit, and refinement stays available then too.
+- **Check & Refine: two lists, worst first** (#182, Knut). "Re-measure these strips first" lists the strips with a patch that stands out clearly from the rest of the check (measured against that check's own spread, so it adapts to every printer) or that looks partly read as its neighbour, each with one sentence saying why; then the other strips above your limit, with their worst patch and how many patches are above. You choose "the strips listed first" (the default) or "all strips above your limit", and the guide goes through them in chart order.
+- **One ΔE formula, named on every number** in the Check & Refine window and its report (ΔE00 by default), and no more strip averages. "Re-measuring the flagged strips can help" stays.
+- **Patches a re-read already confirmed (yellow) are not offered again** by Check & Refine, and the window names them.
+- **The saved Quality_Check report says what the window says**, the start-over note and the strip lists included.
+- **"Use as pre-conditioning profile" is described as what it does**: it spreads the new chart's patches evenly by how colours look on your printer and paper; it does not aim them at the colours that measured badly. It is no longer the highlighted button when refinement is offered, and the same correction is in the Profile Built window and the help of Create Chart's refinement profile.
+
+### Fixed
+
+- **Check & Refine no longer loses a patch when a line of profcheck's output arrives in two pieces** (#182; Knut's run2 lost patch B26 that way).
+- **Check & Refine in Manual mode uses the Manual panel's own limit**; it used the Guided panel's.
+
 ## v4.3.3-beta.6
 
 **Continue to next or jump to unread; yellow outlines learned per colour range; progress that counts each patch once; and a Check & Refine window that shows every line.**

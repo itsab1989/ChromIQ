@@ -1381,6 +1381,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if hasattr(self._manager, "unread_choice_wanted"):
             self._manager.unread_choice_wanted.connect(
                 self._on_unread_choice_wanted)
+        # …and when a strip's readings match a strip already measured, it asks
+        # whether that strip was read twice (#182, Knut 5963903650 Q5).
+        if hasattr(self._manager, "strip_read_twice"):
+            self._manager.strip_read_twice.connect(self._on_strip_read_twice)
         if hasattr(self._manager, "set_before_goto_patch"):
             self._manager.set_before_goto_patch(self._note_patch_goto)
         # Opt-in scanner target: (re)build .cht + .cie from every finalised
@@ -7433,10 +7437,106 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return QApplication.activeModalWidget() is not None
 
     def _release_held_strip_move(self) -> None:
-        """Make the move to the next strip a closed window held back."""
+        """Make the move to the next strip a closed window held back.
+
+        "Was a strip read twice?" goes first when it is waiting: its answer
+        "Re-read" chooses the next strip itself, so the move after the read
+        (and the unread question it may raise) waits for it.
+        """
+        pending = getattr(self._manager, "read_twice_pending", None)
+        if pending is not None and pending():
+            QTimer.singleShot(0, self._ask_read_twice)
+            return
         release = getattr(self._manager, "release_held_strip_move", None)
         if release is not None:
             release()
+
+    # ------------------------------------------------------------------
+    # Was a strip read twice? (#182, Knut 5963903650 Q5)
+    # ------------------------------------------------------------------
+
+    def _on_strip_read_twice(self, strip: str, like: str) -> None:
+        """A strip's readings match a strip already measured: ask shortly.
+
+        Never inside the signal, for the reason `_on_unread_choice_wanted`
+        gives: the read's own windows (Strip Read Quickly …) may be opening
+        from the same event. If one is up then, its release asks this.
+        """
+        QTimer.singleShot(0, self._ask_read_twice)
+
+    def _ask_read_twice(self) -> None:
+        mgr = self._manager
+        pending = getattr(mgr, "read_twice_pending", None)
+        args = pending() if pending is not None else None
+        if not args:
+            return              # answered already
+        if getattr(self, "_session_live", True) is False:
+            # The measurement ended first; its windows end with it.
+            mgr.answer_read_twice(None)
+            return
+        if self._a_question_is_open():
+            return              # that window's release asks again
+        mgr.answer_read_twice(self._strip_read_twice_window(*args))
+
+    def _strip_read_twice_window(self, strip: str, like: str) -> "str | None":
+        """§M's M-STRIP-READ-TWICE, in the measurement frame.
+
+        Returns ``"reread"``, ``"keep"``, or None when the window was closed
+        without an answer (the X, Escape, or the session ending under it),
+        which keeps the reading as "Keep" does.
+        """
+        # The attention sound: Knut, #182 5963044182, for a window that
+        # interrupts a read to ask something, "Use this sound."
+        self._cue_window("INSTRUMENT_ERROR")
+        from PyQt6.QtWidgets import QDialog, QLabel, QVBoxLayout
+
+        from workflow import measurement_messages as M
+        title, body = M.M_STRIP_READ_TWICE.render(strip=strip, like=like)
+
+        dlg = QDialog(self)
+        dlg.setObjectName("strip_read_twice_window")
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(500)
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(16)
+        layout.setContentsMargins(24, 20, 24, 20)
+        head = QLabel(f"<b>{html.escape(title)}</b>", dlg)
+        head.setWordWrap(True)
+        layout.addWidget(head)
+        text = QLabel(body, dlg)
+        text.setTextFormat(Qt.TextFormat.PlainText)
+        text.setWordWrap(True)
+        layout.addWidget(text)
+
+        chosen: "list[str | None]" = [None]
+        reread_btn = QPushButton(
+            tr(M._READ_TWICE_REREAD).format(strip=strip), dlg)
+        keep_btn = QPushButton(tr(M._READ_TWICE_KEEP).format(strip=strip), dlg)
+        reread_btn.setObjectName("primary")
+        reread_btn.setDefault(True)
+        for b in (reread_btn, keep_btn):
+            b.setFixedHeight(32)
+
+        def _reread():
+            chosen[0] = "reread"
+            dlg.accept()
+
+        def _keep():
+            chosen[0] = "keep"
+            dlg.accept()
+
+        reread_btn.clicked.connect(_reread)
+        keep_btn.clicked.connect(_keep)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        row.addWidget(reread_btn)
+        row.addWidget(keep_btn)
+        row.addStretch()
+        layout.addLayout(row)
+
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        self._exec_measurement_window(dlg)
+        return chosen[0]
 
     def _close_measurement_windows(self) -> None:
         """Close every window that belongs to the measurement that just ended.

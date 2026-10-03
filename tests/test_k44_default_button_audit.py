@@ -37,6 +37,13 @@ ROOT = Path(__file__).resolve().parents[1]
 MODES = ("light", "dark", "neutral")
 BEFORE = json.loads((ROOT / "tests" / "data" /
                      "k44_already_coloured_before.json").read_text("utf-8"))
+# One ruling since that baseline: "Use as Pre-conditioning" is no longer a
+# filled button while refinement is offered (Knut, #182 5963903650 Q6, the
+# Check & Refine redesign). The frozen file stays as recorded.
+for _mode in BEFORE.values():
+    _rows = _mode.get("Profile Quality Assessment (Good, refine offered)")
+    if _rows is not None:
+        _rows[:] = [r for r in _rows if r[0] != "\u2190 Use as Pre-conditioning"]
 
 #: Rule 2: no coloured button before K44; now the button Return presses is
 #: filled (a tool's main action once its inputs are chosen, as it is greyed

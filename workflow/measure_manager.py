@@ -295,6 +295,10 @@ class MeasureManager(QObject):
     #: nearest unread one differ and nobody has said which to take yet.
     #: (patches still unread, "strip" | "patch"). See _after_a_read.
     unread_choice_wanted       = pyqtSignal(int, str)
+    #: #182 (Knut 5963903650 Q5): the strip just read (as the engine filed
+    #: it) looks like a strip already measured — (strip, like). See
+    #: workflow/strip_read_twice.py and _check_read_twice.
+    strip_read_twice           = pyqtSignal(str, str)
 
     def __init__(self, runner: "ArgyllRunner", parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -343,6 +347,15 @@ class MeasureManager(QObject):
         #: 5958921500: "the behaviour chosen by the user is continued until
         #: the measurement is stopped") and reset only by start().
         self._unread_policy: str | None = None
+        #: The live "strip read twice" check (#182, Knut 5963903650 Q5): every
+        #: strip measured so far as L*a*b* in strip order, the chart's design
+        #: (device) values per strip, the question waiting to be asked as
+        #: (strip, like), and whether the engine's own wrong-strip prompt
+        #: already asked about the read in progress.
+        self._measured_strips: dict = {}
+        self._design_strips: dict = {}
+        self._read_twice_pending: "tuple[str, str] | None" = None
+        self._wrong_strip_warned: bool = False
         #: Every chart location in reading order (strip, then place in the
         #: strip), the strip each one is on, the fill-up squares, and the
         #: locations that still have no reading. Built at session_start.
@@ -447,6 +460,10 @@ class MeasureManager(QObject):
         self._loc_strip = {}
         self._padding_locs = set()
         self._unread_locs = set()
+        self._measured_strips = {}
+        self._design_strips = {}
+        self._read_twice_pending = None
+        self._wrong_strip_warned = False
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
         self._engine_active = params.engine_helper is not None
@@ -1070,7 +1087,9 @@ class MeasureManager(QObject):
             return
         ctx = {"mode": mode, "read": just_read, "at": at}
         probe = self._question_open
-        if probe is not None and probe():
+        if (probe is not None and probe()) or self._read_twice_pending:
+            # A window is asking, or "Was a strip read twice?" is about to:
+            # its "Re-read" answer chooses the next strip itself.
             self._held_after_read = ctx
             return
         self._decide_after_read(ctx)
@@ -1166,6 +1185,8 @@ class MeasureManager(QObject):
         ctx = self._held_after_read
         if ctx is None:
             return
+        if self._read_twice_pending:
+            return                      # "Was a strip read twice?" asks first
         probe = self._question_open
         if probe is not None and probe():
             return                      # another window is still asking
@@ -1174,6 +1195,128 @@ class MeasureManager(QObject):
                                                    True):
             return
         self._decide_after_read(ctx)
+
+    # ------------------------------------------------------------------
+    # Was a strip read twice? (#182, Knut 5963903650 Q5)
+    # ------------------------------------------------------------------
+
+    def _learn_measured_strips(self, chart: "str | None") -> None:
+        """What the read-twice check compares with, at session_start.
+
+        The strips the file being resumed already holds (``<chart>.ti3``, the
+        same file `_build_read_map` asks, ``-r`` only), and the chart's design
+        values per strip so strips designed alike are never compared. Anything
+        unreadable leaves the check with less to compare, never with a guess.
+        """
+        self._measured_strips = {}
+        self._design_strips = {}
+        self._read_twice_pending = None
+        if not chart or not self._loc_strip:
+            return
+        from pathlib import Path as _P
+
+        from workflow.strip_read_twice import xyz_to_lab
+        from workflow.ti3_analysis import parse_ti3
+        ti2 = _P(chart)
+        try:
+            design = parse_ti3(ti2)
+            if len(design.rgb):
+                self._design_strips = self._by_strip(
+                    {loc: tuple(float(v) for v in dev)
+                     for loc, dev in zip(design.sample_locs, design.rgb)})
+        except Exception:      # noqa: BLE001 — never block a measurement
+            log.warning("read-twice check: no design values from %s", chart,
+                        exc_info=True)
+        ti3 = ti2.with_suffix(".ti3")
+        if not (self._is_resume and ti3.is_file()):
+            return
+        try:
+            data = parse_ti3(ti3)
+            self._measured_strips = self._by_strip(
+                {loc: xyz_to_lab(xyz)
+                 for loc, xyz in zip(data.sample_locs, data.xyz)})
+        except Exception:      # noqa: BLE001 — never block a measurement
+            log.warning("read-twice check: could not read what %s already "
+                        "holds", ti3, exc_info=True)
+
+    def _by_strip(self, values: dict) -> dict:
+        """{strip: [value, ...]} in place order, from {loc: value}."""
+        out: dict = {}
+        for loc, strip in self._loc_strip.items():
+            if not strip or loc not in values:
+                continue
+            rest = loc[len(strip):]
+            pos = int(rest) if rest.isdigit() else 0
+            out.setdefault(strip, []).append((pos, values[loc]))
+        return {k: [v for _p, v in sorted(vs, key=lambda t: t[0])]
+                for k, vs in out.items()}
+
+    def _check_read_twice(self, strip: str, patches) -> "object | None":
+        """Compare the strip just read with the strips already measured.
+
+        Only the ChromIQ engine's strip mode reports a strip with its
+        readings; patch by patch and the whole-sheet modes never get here.
+        Not under guided refinement, whose own navigation answers what is read
+        next, and not when chartread's own wrong-strip prompt has already
+        asked about this read. A strip is never compared with itself, so a
+        strip read again where the reader is (C re-read on C) is never asked
+        about. The reading is remembered either way, as the strip the engine
+        filed it under.
+        """
+        if not strip or not isinstance(patches, list):
+            return None
+        try:
+            from workflow.strip_read_twice import looks_read_twice, xyz_to_lab
+            vals = {}
+            for p in patches:
+                if not isinstance(p, dict):
+                    continue
+                loc, xyz = str(p.get("loc") or "").strip(), p.get("xyz")
+                if loc and isinstance(xyz, (list, tuple)) and len(xyz) == 3:
+                    vals[loc] = xyz_to_lab(xyz)
+            labs = self._by_strip(vals).get(strip) or [
+                v for _l, v in sorted(vals.items(), key=lambda kv: (
+                    len(kv[0]), kv[0]))]
+            found = None
+            if (self._engine_active and not self._spot_mode
+                    and self._guided_state in ("idle_done", "disabled")
+                    and not self._wrong_strip_warned):
+                found = looks_read_twice(strip, labs, self._measured_strips,
+                                         self._design_strips.get)
+            self._measured_strips[strip] = labs
+        except Exception:      # noqa: BLE001 — never block a measurement
+            log.warning("read-twice check failed for strip %s", strip,
+                        exc_info=True)
+            return None
+        if found is not None:
+            log.info("strip %s looks like strip %s read again (median "
+                     "dE76 %.2f); asking", found.strip, found.like,
+                     found.median_de76)
+            self._read_twice_pending = (found.strip, found.like)
+        return found
+
+    def read_twice_pending(self) -> "tuple[str, str] | None":
+        """(strip, like) while "Was a strip read twice?" waits for an answer."""
+        return self._read_twice_pending
+
+    def answer_read_twice(self, choice: "str | None") -> None:
+        """Record the answer to M-STRIP-READ-TWICE.
+
+        ``"reread"`` sends the reader back to the strip, which also cancels
+        the held move after the read (any command does). ``"keep"`` and a
+        dismissal (None) keep the reading; the held move is then made when the
+        window's release comes, which may ask the unread question next.
+        """
+        pending = self._read_twice_pending
+        self._read_twice_pending = None
+        if pending is None:
+            return
+        if choice == "reread":
+            log.info("read twice: re-reading strip %s", pending[0])
+            self.goto_strip(pending[0])
+        else:
+            log.info("read twice: strip %s kept as read (%s)", pending[0],
+                     choice or "dismissed")
 
     def goto_strip(self, strip: str) -> None:
         """Jump the engine directly to `strip` (engine mode only)."""
@@ -1680,11 +1823,13 @@ class MeasureManager(QObject):
                 ev.get("chart"), strips)
             self._session_strips = list(strips or [])
             self._build_read_map(ev.get("chart"), self._session_strips)
+            self._learn_measured_strips(ev.get("chart"))
             self.session_map.emit(strips)
 
         elif kind == "strip_ready":
             strip = ev.get("strip", "")
             self._at_retry_prompt = False        # back at the menu
+            self._wrong_strip_warned = False
             # …and the dial warning may be raised again next time. Its one-per-
             # prompt flag was cleared only on chartread's printed menu line,
             # which engine mode never produces — so after the first wrong-dial
@@ -1716,6 +1861,7 @@ class MeasureManager(QObject):
             # A swipe already under way is on the strip the user chose, so a
             # move held behind a question window is no longer wanted.
             self._held_after_read = None
+            self._wrong_strip_warned = False
             self.scan_started.emit()
 
         elif kind == "scan_ready":
@@ -1758,7 +1904,10 @@ class MeasureManager(QObject):
             if not any(_locs):
                 _locs = [loc for loc, st in self._loc_strip.items() if st == _s]
             self._mark_read(_locs)
+            _twice = self._check_read_twice(_s, _patches)
             self.strip_measured.emit(ev)
+            if _twice is not None:
+                self.strip_read_twice.emit(_twice.strip, _twice.like)
             on_line(f" Strip read OK — {ev.get('strip', '?')} "
                     f"(worst patch ΔE {ev.get('worst_de', 0):.1f})")
             if self._guided_state == "waiting":
@@ -1900,6 +2049,9 @@ class MeasureManager(QObject):
             # does nothing "when the reading is inconsistent").
             self._at_retry_prompt = True
             if ev.get("kind") == "wrong_strip":
+                # chartread's own test already asked about this read: the
+                # read-twice question must not ask a second time.
+                self._wrong_strip_warned = True
                 self.wrong_strip.emit(str(ev.get("read", "?")).upper(),
                                       str(ev.get("expected", "?")).upper())
             else:

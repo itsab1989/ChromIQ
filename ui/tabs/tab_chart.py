@@ -6987,27 +6987,30 @@ class TabChart(QWidget):
 
         precond_row.addWidget(TooltipButton(
             tr("Refinement Profile (Pre-conditioning)"),
-            tr("Use this to make a second, noticeably better profile after you have "
-            "already built and confirmed a working one for the same printer + paper.\n\n"
+            # What ArgyllCMS targen -c really does (#182, Knut 5963903650 Q6,
+            # the same correction as M-CR-PRECONDITIONING): it spreads the
+            # patches evenly by how colours look, using the profile as a
+            # guide. It does NOT aim them at the colours that measured badly,
+            # which is what this help used to promise.
+            tr("Use this to make a second profile for a printer and paper you "
+            "have already built a profile for.\n\n"
             "**How it helps:**\n"
-            "Your first profile tells ChromIQ which colours your printer gets right "
-            "and which it struggles with. When you turn this option on, ChromIQ uses "
-            "that knowledge to place the new test patches more cleverly — sampling "
-            "more in the regions your printer reproduces least accurately, and fewer "
-            "in the regions it already nails. The end result is a profile that is "
-            "more accurate where it matters, without needing more patches overall.\n\n"
+            "ChromIQ gives your first profile to ArgyllCMS (targen -c), which "
+            "uses it as a guide to spread the new chart's patches evenly by how "
+            "colours look on this printer and paper, instead of evenly by RGB "
+            "numbers. This often gives a better second profile without needing "
+            "more patches.\n\n"
+            "**What it does not do:**\n"
+            "It does not aim the new patches at the colours that measured badly "
+            "in your first profile, so it does not replace re-measuring strips "
+            "that were misread. Check & Refine tells you which ones to re-measure.\n\n"
             "**When to use it:**\n"
             "• You already have a first ICC profile (.icc or .icm) built from this "
             "same printer + paper combination.\n"
-            "• You want to invest one more round of printing and measuring to get a "
-            "noticeably better profile, especially for tricky papers (matte, baryta, "
-            "fine-art).\n\n"
+            "• You want to invest one more round of printing and measuring.\n\n"
             "**When NOT to use it:**\n"
-            "• On a first-ever profile for this paper — leave this off and just "
-            "build the normal way.\n"
-            "• If you don't have a working profile yet for this exact paper/printer.\n\n"
-            "**Tip:** the more pages you print on the refinement pass, the more benefit "
-            "the cleverer patch placement gives you."),
+            "• On a first-ever profile for this paper: leave this off and build "
+            "the normal way."),
             inner,
             min_width=580,
         ))
