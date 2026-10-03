@@ -350,18 +350,7 @@ def grade_display(grade: str) -> str:
     }.get(grade, grade)
 
 
-def quality_explanation(avg_de: float | None, peak_de: float | None,
-                        *, start_over: bool = False) -> str:
-    """The grade's explanation, as the result window and the .txt report say it.
-
-    ``start_over`` is True when the check also recommends starting over with a
-    fresh chart (:func:`recommends_start_over`). The window then offers no
-    re-measuring at all, so the explanation must not advise it either: Knut's
-    run2 check (#182, 2026-10-03) read *"Re-measuring the flagged strips can
-    help"* directly above *"Re-measuring individual strips is unlikely to
-    reliably fix this"*, with no strip list anywhere. In that case the advice
-    sentence is left out and the start-over verdict below gives the advice.
-    """
+def quality_explanation(avg_de: float | None, peak_de: float | None) -> str:
     if avg_de is None:
         return tr(
             "profcheck did not return summary statistics. "
@@ -397,31 +386,6 @@ def quality_explanation(avg_de: float | None, peak_de: float | None,
             lines.append(tr(
                 "Your profile is good. Most colours will reproduce accurately. "
                 "Small errors may be visible only in critical colour-matching situations."
-            ))
-    elif overall_rank == 2 and start_over:
-        if limiting == "peak":
-            lines.append(tr(
-                "Your profile's average accuracy is reasonable (\u0394E {avg:.2f}), but "
-                "there are individual patches with significant errors (peak \u0394E {peak:.2f}). "
-                "These outliers will likely cause noticeable colour shifts in specific areas."
-            ).format(avg=avg_de, peak=peak_de))
-        else:
-            lines.append(tr(
-                "Your profile is acceptable but has room for improvement. "
-                "Some colours may look slightly off in prints."
-            ))
-    elif overall_rank >= 3 and start_over:
-        if limiting == "peak":
-            avg_label = grade_display(_GRADE_LABELS[avg_rank]).lower()
-            lines.append(tr(
-                "Your average colour accuracy is {avg_label} (\u0394E {avg:.2f}), but "
-                "one or more individual patches have very high errors (peak \u0394E {peak:.2f}). "
-                "These outliers will cause clearly visible colour shifts in specific areas."
-            ).format(avg_label=avg_label, avg=avg_de, peak=peak_de))
-        else:
-            lines.append(tr(
-                "Your profile needs work. Colour accuracy is low and prints "
-                "will likely show noticeable colour shifts."
             ))
     elif overall_rank == 2:
         if limiting == "peak":

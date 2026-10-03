@@ -6504,9 +6504,5 @@
  "Strips with highest error (worst first, avg ΔE):": "誤差が最も大きいストリップ（悪い順、平均ΔE）:",
  "Patches with highest error (worst first, ΔE):": "誤差が最も大きいパッチ（悪い順、ΔE）:",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "再測定用にフラグの付いたストリップ（測定順、しきい値 ΔE > {limit:.1f}）:",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[ガイド付き改良] {strips}への自動ナビゲーションを開始します：{names}（チャートの順）。",
- "Your profile's average accuracy is reasonable (ΔE {avg:.2f}), but there are individual patches with significant errors (peak ΔE {peak:.2f}). These outliers will likely cause noticeable colour shifts in specific areas.": "プロファイルの平均精度は妥当です（ΔE {avg:.2f}）が、大きな誤差を持つ個別パッチがあります（最大ΔE {peak:.2f}）。これらの外れ値は特定の領域で目立つ色ずれを起こす可能性が高いです。",
- "Your profile is acceptable but has room for improvement. Some colours may look slightly off in prints.": "プロファイルは許容範囲ですが、改善の余地があります。プリントで一部の色がわずかにずれて見えるかもしれません。",
- "Your average colour accuracy is {avg_label} (ΔE {avg:.2f}), but one or more individual patches have very high errors (peak ΔE {peak:.2f}). These outliers will cause clearly visible colour shifts in specific areas.": "平均の色精度は{avg_label}（ΔE {avg:.2f}）ですが、1つ以上の個別パッチに非常に高い誤差があります（最大ΔE {peak:.2f}）。これらの外れ値は特定の領域で明らかに見える色ずれを引き起こします。",
- "Your profile needs work. Colour accuracy is low and prints will likely show noticeable colour shifts.": "プロファイルには手直しが必要です。色精度が低く、プリントには目立つ色ずれが出る可能性が高いです。"
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[ガイド付き改良] {strips}への自動ナビゲーションを開始します：{names}（チャートの順）。"
 }

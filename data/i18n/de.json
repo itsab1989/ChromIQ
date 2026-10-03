@@ -6504,9 +6504,5 @@
  "Strips with highest error (worst first, avg ΔE):": "Streifen mit dem größten Fehler (schlechteste zuerst, Ø ΔE):",
  "Patches with highest error (worst first, ΔE):": "Messfelder mit dem größten Fehler (schlechteste zuerst, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Zum Nachmessen markierte Streifen (in Messreihenfolge, Schwelle ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Geführte Verfeinerung] Automatische Navigation zu {strips}: {names}, in Chart-Reihenfolge.",
- "Your profile's average accuracy is reasonable (ΔE {avg:.2f}), but there are individual patches with significant errors (peak ΔE {peak:.2f}). These outliers will likely cause noticeable colour shifts in specific areas.": "Die durchschnittliche Genauigkeit deines Profils ist ordentlich (ΔE {avg:.2f}), aber es gibt einzelne Messfelder mit erheblichen Fehlern (Spitzen-ΔE {peak:.2f}). Diese Ausreißer verursachen voraussichtlich sichtbare Farbverschiebungen in bestimmten Bereichen.",
- "Your profile is acceptable but has room for improvement. Some colours may look slightly off in prints.": "Dein Profil ist akzeptabel, hat aber Luft nach oben. Manche Farben können im Druck leicht daneben wirken.",
- "Your average colour accuracy is {avg_label} (ΔE {avg:.2f}), but one or more individual patches have very high errors (peak ΔE {peak:.2f}). These outliers will cause clearly visible colour shifts in specific areas.": "Deine durchschnittliche Farbgenauigkeit ist {avg_label} (ΔE {avg:.2f}), aber einzelne Messfelder haben sehr hohe Fehler (Spitzen-ΔE {peak:.2f}). Diese Ausreißer verursachen deutlich sichtbare Farbverschiebungen in bestimmten Bereichen.",
- "Your profile needs work. Colour accuracy is low and prints will likely show noticeable colour shifts.": "Dein Profil braucht Nacharbeit. Die Farbgenauigkeit ist niedrig, Drucke zeigen voraussichtlich deutliche Farbverschiebungen."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Geführte Verfeinerung] Automatische Navigation zu {strips}: {names}, in Chart-Reihenfolge."
 }

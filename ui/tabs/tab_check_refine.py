@@ -1693,8 +1693,7 @@ class TabCheckRefine(QWidget):
         patches, and the start-over verdict with its reason, translated.
         """
         grade = quality_grade(result.avg_de, result.peak_de)
-        explanation = quality_explanation(result.avg_de, result.peak_de,
-                                          start_over=recommend_start_over)
+        explanation = quality_explanation(result.avg_de, result.peak_de)
         text = tr("Profile Quality Assessment: {grade}").format(
             grade=grade_display(grade)) + f"\n\n{explanation}"
         if all_strips_display:
@@ -1743,9 +1742,7 @@ class TabCheckRefine(QWidget):
         n_total_patches: int = 1,
     ) -> None:
         grade       = quality_grade(result.avg_de, result.peak_de)
-        explanation = quality_explanation(
-            result.avg_de, result.peak_de,
-            start_over=bool(recommend_start_over and refine_strips))
+        explanation = quality_explanation(result.avg_de, result.peak_de)
 
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("Profile Quality Assessment"))

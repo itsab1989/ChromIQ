@@ -6504,9 +6504,5 @@
  "Strips with highest error (worst first, avg ΔE):": "Полосы с наибольшей ошибкой (худшие первыми, средн. ΔE):",
  "Patches with highest error (worst first, ΔE):": "Патчи с наибольшей ошибкой (худшие первыми, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Полосы, отмеченные для перемера (в порядке измерения, порог ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Доводка с подсказками] Автонавигация ({strips}): {names}, в порядке мишени.",
- "Your profile's average accuracy is reasonable (ΔE {avg:.2f}), but there are individual patches with significant errors (peak ΔE {peak:.2f}). These outliers will likely cause noticeable colour shifts in specific areas.": "Средняя точность профиля разумная (ΔE {avg:.2f}), но есть отдельные патчи со значительными ошибками (пиковый ΔE {peak:.2f}). Эти выбросы, скорее всего, дадут заметные цветовые сдвиги в отдельных областях.",
- "Your profile is acceptable but has room for improvement. Some colours may look slightly off in prints.": "Ваш профиль приемлем, но есть куда улучшать. Некоторые цвета в печати могут выглядеть чуть неточно.",
- "Your average colour accuracy is {avg_label} (ΔE {avg:.2f}), but one or more individual patches have very high errors (peak ΔE {peak:.2f}). These outliers will cause clearly visible colour shifts in specific areas.": "Средняя точность цвета: {avg_label} (ΔE {avg:.2f}), но один или несколько отдельных патчей имеют очень высокие ошибки (пиковый ΔE {peak:.2f}). Эти выбросы дадут явно видимые цветовые сдвиги в отдельных областях.",
- "Your profile needs work. Colour accuracy is low and prints will likely show noticeable colour shifts.": "Профиль требует доработки. Точность цвета низкая, и отпечатки, скорее всего, покажут заметные цветовые сдвиги."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Доводка с подсказками] Автонавигация ({strips}): {names}, в порядке мишени."
 }

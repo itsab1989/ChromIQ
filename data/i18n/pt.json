@@ -6504,9 +6504,5 @@
  "Strips with highest error (worst first, avg ΔE):": "Tiras com o maior erro (piores primeiro, ΔE médio):",
  "Patches with highest error (worst first, ΔE):": "Amostras com o maior erro (piores primeiro, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Tiras marcadas para nova medição (por ordem de medição, limiar ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Refinamento guiado] A iniciar a navegação automática para {strips}: {names}, pela ordem da carta.",
- "Your profile's average accuracy is reasonable (ΔE {avg:.2f}), but there are individual patches with significant errors (peak ΔE {peak:.2f}). These outliers will likely cause noticeable colour shifts in specific areas.": "A precisão média do seu perfil é razoável (ΔE {avg:.2f}), mas há amostras individuais com erros significativos (ΔE máx. {peak:.2f}). Estes desvios causarão provavelmente mudanças de cor visíveis em zonas específicas.",
- "Your profile is acceptable but has room for improvement. Some colours may look slightly off in prints.": "O seu perfil é aceitável, mas tem margem para melhorar. Algumas cores podem parecer ligeiramente desviadas nas impressões.",
- "Your average colour accuracy is {avg_label} (ΔE {avg:.2f}), but one or more individual patches have very high errors (peak ΔE {peak:.2f}). These outliers will cause clearly visible colour shifts in specific areas.": "A sua precisão média de cor é {avg_label} (ΔE {avg:.2f}), mas uma ou mais amostras individuais têm erros muito altos (ΔE máx. {peak:.2f}). Estes desvios causarão mudanças de cor claramente visíveis em zonas específicas.",
- "Your profile needs work. Colour accuracy is low and prints will likely show noticeable colour shifts.": "O seu perfil precisa de trabalho. A precisão das cores é baixa e as impressões mostrarão provavelmente mudanças de cor visíveis."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Refinamento guiado] A iniciar a navegação automática para {strips}: {names}, pela ordem da carta."
 }

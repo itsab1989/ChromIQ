@@ -6504,9 +6504,5 @@
  "Strips with highest error (worst first, avg ΔE):": "Remsor med högst fel (värst först, medel-ΔE):",
  "Patches with highest error (worst first, ΔE):": "Fält med högst fel (värst först, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Remsor flaggade för ommätning (i mätordning, tröskel ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Guidad förbättring] Startar automatisk navigering till {strips}: {names}, i diagrammets ordning.",
- "Your profile's average accuracy is reasonable (ΔE {avg:.2f}), but there are individual patches with significant errors (peak ΔE {peak:.2f}). These outliers will likely cause noticeable colour shifts in specific areas.": "Profilens genomsnittliga noggrannhet är rimlig (ΔE {avg:.2f}), men det finns enskilda fält med betydande fel (topp-ΔE {peak:.2f}). Dessa avvikare orsakar sannolikt märkbara färgskiftningar i specifika områden.",
- "Your profile is acceptable but has room for improvement. Some colours may look slightly off in prints.": "Din profil är godtagbar men har utrymme för förbättring. Vissa färger kan se något fel ut i utskrifter.",
- "Your average colour accuracy is {avg_label} (ΔE {avg:.2f}), but one or more individual patches have very high errors (peak ΔE {peak:.2f}). These outliers will cause clearly visible colour shifts in specific areas.": "Din genomsnittliga färgnoggrannhet är {avg_label} (ΔE {avg:.2f}), men ett eller flera enskilda fält har mycket höga fel (topp-ΔE {peak:.2f}). Dessa avvikare orsakar tydligt synliga färgskiftningar i specifika områden.",
- "Your profile needs work. Colour accuracy is low and prints will likely show noticeable colour shifts.": "Din profil behöver arbete. Färgnoggrannheten är låg och utskrifter visar sannolikt märkbara färgskiftningar."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Guidad förbättring] Startar automatisk navigering till {strips}: {names}, i diagrammets ordning."
 }

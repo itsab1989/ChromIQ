@@ -6504,9 +6504,5 @@
  "Strips with highest error (worst first, avg ΔE):": "Tiras con mayor error (peores primero, ΔE medio):",
  "Patches with highest error (worst first, ΔE):": "Parches con mayor error (peores primero, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Tiras marcadas para volver a medir (en orden de medición, umbral ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Refinado guiado] Iniciando la navegación automática a {strips}: {names}, en el orden de la carta.",
- "Your profile's average accuracy is reasonable (ΔE {avg:.2f}), but there are individual patches with significant errors (peak ΔE {peak:.2f}). These outliers will likely cause noticeable colour shifts in specific areas.": "La precisión media de tu perfil es razonable (ΔE {avg:.2f}), pero hay parches individuales con errores significativos (ΔE máximo {peak:.2f}). Estos valores atípicos probablemente causarán desvíos de color apreciables en zonas concretas.",
- "Your profile is acceptable but has room for improvement. Some colours may look slightly off in prints.": "Tu perfil es aceptable pero tiene margen de mejora. Algunos colores pueden verse ligeramente desviados en las impresiones.",
- "Your average colour accuracy is {avg_label} (ΔE {avg:.2f}), but one or more individual patches have very high errors (peak ΔE {peak:.2f}). These outliers will cause clearly visible colour shifts in specific areas.": "Tu precisión de color media es {avg_label} (ΔE {avg:.2f}), pero uno o más parches individuales tienen errores muy altos (ΔE máximo {peak:.2f}). Estos valores atípicos causarán desvíos de color claramente visibles en zonas concretas.",
- "Your profile needs work. Colour accuracy is low and prints will likely show noticeable colour shifts.": "Tu perfil necesita trabajo. La precisión de color es baja y las impresiones probablemente mostrarán desvíos de color apreciables."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Refinado guiado] Iniciando la navegación automática a {strips}: {names}, en el orden de la carta."
 }

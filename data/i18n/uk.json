@@ -6504,9 +6504,5 @@
  "Strips with highest error (worst first, avg ΔE):": "Смуги з найбільшою похибкою (спочатку найгірші, середнє ΔE):",
  "Patches with highest error (worst first, ΔE):": "Патчі з найбільшою похибкою (спочатку найгірші, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Смуги, позначені для повторного вимірювання (у порядку вимірювання, поріг ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Кероване уточнення] Автонавігація ({strips}): {names}, у порядку діаграми.",
- "Your profile's average accuracy is reasonable (ΔE {avg:.2f}), but there are individual patches with significant errors (peak ΔE {peak:.2f}). These outliers will likely cause noticeable colour shifts in specific areas.": "Середня точність вашого профілю прийнятна (ΔE {avg:.2f}), але є окремі патчі зі значними помилками (пік ΔE {peak:.2f}). Ці викиди, ймовірно, спричинять помітні зміни кольору в певних областях.",
- "Your profile is acceptable but has room for improvement. Some colours may look slightly off in prints.": "Ваш профіль прийнятний, але його можна покращити. Деякі кольори на принтах можуть дещо відрізнятися.",
- "Your average colour accuracy is {avg_label} (ΔE {avg:.2f}), but one or more individual patches have very high errors (peak ΔE {peak:.2f}). These outliers will cause clearly visible colour shifts in specific areas.": "Ваша середня точність кольору – {avg_label} (ΔE {avg:.2f}), але один або кілька окремих патчів мають дуже високі похибки (пік ΔE {peak:.2f}). Ці викиди призведуть до чітко помітних змін кольору в певних областях.",
- "Your profile needs work. Colour accuracy is low and prints will likely show noticeable colour shifts.": "Ваш профіль потребує доопрацювання. Точність кольору низька, і на відбитках, імовірно, відображатимуться помітні зміни кольору."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Кероване уточнення] Автонавігація ({strips}): {names}, у порядку діаграми."
 }

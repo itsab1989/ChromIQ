@@ -6504,9 +6504,5 @@
  "Strips with highest error (worst first, avg ΔE):": "Paski z największym błędem (najgorsze najpierw, śr. ΔE):",
  "Patches with highest error (worst first, ΔE):": "Pola z największym błędem (najgorsze najpierw, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Paski oznaczone do ponownego pomiaru (w kolejności pomiaru, próg ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Prowadzone dopracowanie] Automatyczna nawigacja ({strips}): {names}, w kolejności na wzorcu.",
- "Your profile's average accuracy is reasonable (ΔE {avg:.2f}), but there are individual patches with significant errors (peak ΔE {peak:.2f}). These outliers will likely cause noticeable colour shifts in specific areas.": "Średnia dokładność twojego profilu jest przyzwoita (ΔE {avg:.2f}), ale są pola ze znacznymi błędami (maks. ΔE {peak:.2f}). Te odchylenia prawdopodobnie spowodują zauważalne przesunięcia kolorów w określonych obszarach.",
- "Your profile is acceptable but has room for improvement. Some colours may look slightly off in prints.": "Twój profil jest akceptowalny, ale ma pole do poprawy. Niektóre kolory mogą wyglądać na wydrukach lekko przekłamane.",
- "Your average colour accuracy is {avg_label} (ΔE {avg:.2f}), but one or more individual patches have very high errors (peak ΔE {peak:.2f}). These outliers will cause clearly visible colour shifts in specific areas.": "Twoja średnia dokładność kolorów jest {avg_label} (ΔE {avg:.2f}), ale jedno lub więcej pól ma bardzo wysokie błędy (maks. ΔE {peak:.2f}). Te odchylenia spowodują wyraźnie widoczne przesunięcia kolorów w określonych obszarach.",
- "Your profile needs work. Colour accuracy is low and prints will likely show noticeable colour shifts.": "Twój profil wymaga pracy. Dokładność kolorów jest niska i wydruki prawdopodobnie pokażą zauważalne przesunięcia kolorów."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Prowadzone dopracowanie] Automatyczna nawigacja ({strips}): {names}, w kolejności na wzorcu."
 }

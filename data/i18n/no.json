@@ -6504,9 +6504,5 @@
  "Strips with highest error (worst first, avg ΔE):": "Striper med høyest feil (verst først, snitt-ΔE):",
  "Patches with highest error (worst first, ΔE):": "Felt med høyest feil (verst først, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Striper markert for ny måling (i målerekkefølge, terskel ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Veiledet forbedring] Starter automatisk navigering til {strips}: {names}, i kartets rekkefølge.",
- "Your profile's average accuracy is reasonable (ΔE {avg:.2f}), but there are individual patches with significant errors (peak ΔE {peak:.2f}). These outliers will likely cause noticeable colour shifts in specific areas.": "Profilens gjennomsnittlige nøyaktighet er rimelig (ΔE {avg:.2f}), men det finnes enkeltfelt med betydelige feil (topp-ΔE {peak:.2f}). Disse avvikene vil trolig gi merkbare fargeforskyvninger i bestemte områder.",
- "Your profile is acceptable but has room for improvement. Some colours may look slightly off in prints.": "Profilen din er akseptabel, men har rom for forbedring. Noen farger kan se litt feil ut på utskrifter.",
- "Your average colour accuracy is {avg_label} (ΔE {avg:.2f}), but one or more individual patches have very high errors (peak ΔE {peak:.2f}). These outliers will cause clearly visible colour shifts in specific areas.": "Den gjennomsnittlige fargenøyaktigheten din er {avg_label} (ΔE {avg:.2f}), men ett eller flere enkeltfelt har svært høye feil (topp-ΔE {peak:.2f}). Disse avvikene gir tydelig synlige fargeforskyvninger i bestemte områder.",
- "Your profile needs work. Colour accuracy is low and prints will likely show noticeable colour shifts.": "Profilen din trenger arbeid. Fargenøyaktigheten er lav, og utskrifter vil sannsynligvis vise merkbare fargeforskyvninger."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Veiledet forbedring] Starter automatisk navigering til {strips}: {names}, i kartets rekkefølge."
 }

@@ -6,9 +6,8 @@ Refine decision rule itself; that is k5, awaiting Knut.
 
 1. The start-over reason sentence was an f-string outside ``tr()`` with two em
    dashes in it; the .txt report's two headings were untranslated.
-2. A start-over window explained the grade with *"Re-measuring the flagged
-   strips can help"* directly above *"Re-measuring individual strips is
-   unlikely to reliably fix this"*, and offered no strips.
+2. (Reverted on Knut's ruling, #182 5963360295: the grade's *"Re-measuring
+   the flagged strips can help"* stays in a start-over window too.)
 3. The saved Quality_Check .txt left out the start-over verdict the window
    showed.
 4. Guided refinement announced *"worst ΔE first"* and then visited the strips
@@ -88,7 +87,7 @@ def test_the_rule_itself_is_unchanged():
     assert not recommends_start_over(0, 324, 9, 12)   # Knut's run3 QC1: 75 %
 
 
-# ---- 2. the grade text agrees with the verdict -----------------------------
+# ---- 2. the grade text keeps its refine advice (Knut, 5963360295) ----------
 
 @pytest.mark.parametrize("avg, peak", [
     (1.5, 6.0),     # rank 2, peak-limited
@@ -96,19 +95,12 @@ def test_the_rule_itself_is_unchanged():
     (1.0, 9.0),     # rank 3, peak-limited (avg good)
     (6.0, 7.0),     # rank 3, average-limited
 ])
-def test_a_start_over_explanation_advises_no_re_measuring(avg, peak):
-    plain = quality_explanation(avg, peak)
-    over = quality_explanation(avg, peak, start_over=True)
-    assert "Re-measuring" in plain, "precondition: the refine advice exists"
-    assert "Re-measuring" not in over and "re-measuring" not in over
-    # the description of the grade itself is kept, word for word
-    assert plain.startswith(over)
-
-
-def test_a_start_over_explanation_is_translated(german):
-    over = quality_explanation(1.5, 6.0, start_over=True)
-    assert "Nachmessen" not in over
-    assert over.endswith("in bestimmten Bereichen.")
+def test_the_explanation_keeps_its_re_measuring_advice(avg, peak):
+    """Knut, #182 5963360295: *"Re-measuring the flagged strips can help"*
+    stays, start-over or not: on a first run nobody knows that re-measuring
+    would not help. The explanation has no start-over variant."""
+    assert "Re-measuring" in quality_explanation(avg, peak)
+    assert "start_over" not in inspect.signature(quality_explanation).parameters
 
 
 # ---- 1/2/3 the window and the report agree ------------------------------------
@@ -144,7 +136,7 @@ def test_the_start_over_window_says_one_thing(qapp, tmp_path, monkeypatch):
     _tab_, _res, _refine, text = _window_text(qapp, tmp_path, monkeypatch)
     assert "Starting over with a freshly printed" in text
     assert "24 out of 24 strips (100%) need re-measuring" in text
-    assert "can help" not in text
+    assert quality_explanation(1.03, 4.87) in text   # unchanged (Knut, 5963360295)
     assert "— more than" not in text
 
 
@@ -161,7 +153,7 @@ def test_the_report_carries_the_verdict_the_window_shows(qapp, tmp_path,
     assert "Starting over with a freshly printed and measured chart is " \
            "strongly recommended." in text
     assert "<b>" not in text and "<br>" not in text
-    assert "can help" not in text
+    assert quality_explanation(1.03, 4.87) in text   # unchanged (Knut, 5963360295)
     assert "Patches with highest error" in text
     # no flagged-strip list: the window offers none either
     assert "Strips flagged for re-measurement" not in text
@@ -209,7 +201,7 @@ def test_the_saved_report_is_the_summary(qapp, tmp_path, monkeypatch):
     body = report.read_text(encoding="utf-8")
     assert "24 out of 24 strips (100%) need re-measuring" in body
     assert "Starting over with a freshly printed" in body
-    assert "can help" not in body
+    assert quality_explanation(1.03, 4.87) in body   # unchanged (Knut, 5963360295)
     assert not list(ti3.parent.glob("Refine_Strips_*"))
 
 
