@@ -55,16 +55,16 @@ def write_summary(results: dict, path: Path) -> None:
         L.append(f"## dE00 by engine, read through `{reader}`")
         L.append("")
         L.append("| dataset | variant | engine | A2B med | A2B p95 | A2B max | B2A med | "
-                 "B2A p95 | RT med | neutral med | neutral C*max | shadow B2A med | "
+                 "B2A p95 | RT med | neutral med | neutral C*max | neutral L*>=85 mean | L*93.75 prints | shadow B2A med | "
                  "hi-light B2A med (L*>85 sample) | white ink % | black L* | build s |")
-        L.append("|" + "---|" * 16)
+        L.append("|" + "---|" * 18)
         for d in results["datasets"]:
             for eng in sorted(d["profiles"], key=lambda e: ENGINE_ORDER.index(e)
                               if e in ENGINE_ORDER else 99):
                 p = d["profiles"][eng]
                 if not p.get("ok"):
                     L.append(f"| {d['name']} | {d['variant']} | {eng} | build failed: "
-                             f"{(p.get('error') or '')[:80].replace('|', '/')} |" + " |" * 12)
+                             f"{(p.get('error') or '')[:80].replace('|', '/')} |" + " |" * 14)
                     continue
                 s = p.get("scores", {}).get(reader, {})
                 a2b = s.get("a2b") or s.get("a2b_heldout") or {}
@@ -76,6 +76,8 @@ def write_summary(results: dict, path: Path) -> None:
                     _g(s, "b2a", "all", "median"), _g(s, "b2a", "all", "p95"),
                     _g(s, "roundtrip", "median"),
                     _g(s, "neutral", "de", "median"), _g(s, "neutral", "chroma_max", fmt="{:.2f}"),
+                    _g(s, "neutral", "highlight", "de", "mean"),
+                    _g(s, "neutral", "highlight", "printed_L_at_93_75", fmt="{:.1f}"),
                     _g(s, "b2a", "shadow_L<20", "median"),
                     _g(s, "b2a", "highlight_sample", "median"),
                     _g(s, "white", "max_ink_pct", fmt="{:.2f}"),
