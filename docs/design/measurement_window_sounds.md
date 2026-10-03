@@ -36,6 +36,8 @@ identifiers.
 | Some patches are still not read | Both | Instrument error |
 | Strip read twice | Strip reading | Instrument error |
 | Calibration required | Both | Instrument error |
+| Calibrate the instrument (K or Calibrate) | Both | No sound |
+| The calibration did not succeed (K or Calibrate) | Both | Instrument error |
 | Confirm abort | Both | Instrument error |
 | Instrument disconnected | Both | Instrument error |
 | No instrument found | Both | Instrument error |
@@ -48,6 +50,22 @@ identifiers.
 | Instrument Mode Rejected | Both | Instrument error |
 | Instrument Error (anything else the instrument reports) | Both | Instrument error |
 | All strips read / All patches read | Both | Measurement finished |
+
+### 1a. The calibration the user asks for (#182, 2026-10-03)
+
+**Confirmed by:** Knut, 2026-10-03 (#182 5965735823), for the first of the two
+rows: a calibration the user asked for during a measurement, with K or the
+optional Calibrate button, is not an error, so its placement window
+(M-CAL-REQUESTED) plays **no sound**. "Calibration required" keeps Instrument
+error, because that one interrupts the user. `tests/test_every_window_sounds.py`
+holds both.
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.* The second row,
+the window for such a calibration that did not succeed
+(M-CAL-REQUESTED-FAILED), plays **Instrument error**: reading is locked until
+a calibration succeeds, so it is a failure the user has to act on. Knut's
+ruling covered the request, not its failure, so this value is ours until he
+names one.
 
 ## 2. Sounds that mark an event rather than a window
 

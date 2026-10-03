@@ -2825,6 +2825,36 @@ class SettingsDialog(QDialog):
         _xy_row.addWidget(engine_all_modes_tip)
         _meas.addLayout(_xy_row)
 
+        # A Calibrate button beside Stop (Knut #182 5965478577, Basti
+        # 5965500670). Off by default: K does the same at any time. The
+        # tooltip claims nothing about drift that ArgyllCMS does not say
+        # itself (challenge 2026-10-03, section 5): Argyll asks for a
+        # calibration only when a measurement starts, and never forces one
+        # mid-chart.
+        self._calibrate_button_check = QCheckBox(
+            tr("Show a Calibrate button while measuring"), self)
+        calibrate_button_tip = TooltipButton(
+            tr("Calibrate button"),
+            tr("Takes a new instrument calibration without ending the "
+               "measurement. ArgyllCMS asks for one only when a measurement "
+               "starts; on a long session, or if the room or the instrument "
+               "has warmed up, you can take one between strips or patches.\n\n"
+               "The button sits beside Stop on the Measure tab. The K key "
+               "does the same at any time, with or without the button.\n\n"
+               "ChromIQ chart-reading engine only, and not for whole-sheet "
+               "readers or the CR30.\n\n**Default:** off"),
+            self,
+            min_width=520,
+        )
+        _cal_row = QHBoxLayout()
+        _cal_row.addWidget(self._calibrate_button_check)
+        _cal_row.addStretch()
+        _cal_row.addWidget(calibrate_button_tip)
+        _meas.addLayout(_cal_row)
+        # Needs the engine: stock chartread has no calibrate between strips.
+        self._chartread_engine_check.toggled.connect(
+            self._calibrate_button_check.setEnabled)
+
 
         # Patch-reading error limits (#126, Knut; two of them since #182,
         # Sebastian 5956560815 + Knut 5956552085): the ΔE at which a
@@ -5175,6 +5205,11 @@ class SettingsDialog(QDialog):
         self._splash_classic_check.setChecked(bool(s.get("splash_classic", False)))
         self._engine_all_modes_check.setChecked(
             bool(s.get("engine_all_modes", False)))
+        self._calibrate_button_check.setChecked(
+            bool(s.get("measure_calibrate_button", False)))
+        # A no-change setChecked above may not emit toggled, so sync here.
+        self._calibrate_button_check.setEnabled(
+            self._chartread_engine_check.isChecked())
         self._save_report_check.setChecked(
             bool(s.get("save_measurement_report", True)))
         # #182: the limit-set edits are buffered here and written on Save
@@ -6357,6 +6392,8 @@ class SettingsDialog(QDialog):
         s.set("chartread_engine",
               "chromiq" if self._chartread_engine_check.isChecked() else "argyll")
         s.set("engine_all_modes", self._engine_all_modes_check.isChecked())
+        s.set("measure_calibrate_button",
+              self._calibrate_button_check.isChecked())
         s.set("scanner_hex_charts", self._scanner_hex_check.isChecked())
         s.set("splash_classic", self._splash_classic_check.isChecked())
         s.set("save_measurement_report", self._save_report_check.isChecked())

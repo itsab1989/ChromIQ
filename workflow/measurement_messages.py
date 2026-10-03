@@ -194,6 +194,61 @@ M_CR30_MAGNET = _m(
 
 
 
+# --- PROPOSED: a calibration the user asks for during a measurement -------
+#: Knut #182 5965478577 / 5965735823, Basti 5965500670: K, or the optional
+#: Calibrate button, takes a new instrument calibration between strips or
+#: patches on ChromIQ's own engine. The placement window is not the
+#: "Calibration required" one: readings exist, so its Cancel keeps measuring
+#: (it sends cal_cancel, never Esc) and it plays no sound (Knut). The
+#: instruction for the instrument itself is the existing
+#: calibration_instructions_html, shown under this text.
+M_CAL_REQUESTED = _m(
+    "M-CAL-REQUESTED",
+    "Calibrate the Instrument",
+    "You asked for a new calibration. Everything you have measured so far "
+    "is already saved.\n\n"
+    "Place the instrument as described below, then press \u201cStart "
+    "Calibration\u201d. When it is done, you carry on with the strip or "
+    "patch you were on.\n\n"
+    "If you change your mind, press \u201cCancel calibration\u201d: nothing "
+    "is measured, and you keep measuring with the calibration the instrument "
+    "already has.",
+    approved=False)
+
+#: The short "carry on" variant of Calibration complete, after a calibration
+#: the user asked for. The long variants explain how to start measuring, which
+#: the user is already doing.
+M_CAL_REQUESTED_DONE = _m(
+    "M-CAL-REQUESTED-DONE",
+    "Calibration Complete",
+    "The instrument has a new calibration. Carry on measuring from where you "
+    "were: the reader is waiting for the same strip or patch as before.",
+    approved=False)
+
+#: A calibration the user asked for did not succeed. Reading is LOCKED until
+#: one does: an i1Pro measures its white straight into its calibration and
+#: checks it afterwards, so after a failure it would read on without an error
+#: against a wrong reference (i1pro_imp.c:2230, 2429-2433). {reason} is the
+#: instrument's own sentence, or "the calibration was cancelled" when a retry
+#: was cancelled at its placement prompt.
+M_CAL_REQUESTED_FAILED = _m(
+    "M-CAL-REQUESTED-FAILED",
+    "The Calibration Did Not Succeed",
+    "The instrument could not be calibrated.\n\n"
+    "Everything you measured before this is saved. Nothing more is read "
+    "until a calibration succeeds, because a calibration that went wrong part "
+    "of the way through can leave the instrument holding values that would "
+    "make every following reading wrong, without any error to show for "
+    "it.\n\n"
+    "\u2022  Try again: place the instrument as asked and calibrate once "
+    "more.\n\n"
+    "\u2022  Save and stop: end the measurement with what you have measured. "
+    "You can carry on later with \u201cRefine / resume existing measurement "
+    "(-r)\u201d.\n\n"
+    "What the instrument reported: {reason}",
+    approved=False)
+
+
 # --- PROPOSED: a reading that did not come through --------------------------
 #: #159. The owner, 2026-08-30, with a screenshot of it in the log panel:
 #: *"a message like this would be better in a pop up so the user is aware of it
@@ -4149,6 +4204,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR30_HOW_TO_MEASURE, M_CR30_READ_FAILED,
     M_CR30_LEARN_TILE, M_CR30_TRIGGER_NOT_ARMED,
     M_INSTRUMENT_BUSY,
+    M_CAL_REQUESTED, M_CAL_REQUESTED_DONE, M_CAL_REQUESTED_FAILED,
     M_REPORT_NOT_SAVED,
     M_CAL_REPLACE_CHART, M_CAL_REPLACE_MEASURED, M_CAL_ARCHIVED_HERE,
     M_SPOT_CLEAR, M_SPOT_UNSAVED,

@@ -1639,7 +1639,8 @@ def pytest_addoption(parser):
 #
 # * `tests/test_chartread_engine.py` and seven other files carry a MODULE-LEVEL
 #   `skipif` on a GITIGNORED build artefact, and an eighth skips part of itself
-#   on the same thing. Absent, 85 tests skip. A worktree,
+#   on the same thing (9 wholesale and 7 in part since 2026-10-03, counted by
+#   `test_a_run_says_what_it_cannot_prove.py`). Absent, 85 tests skip. A worktree,
 #   a fresh clone and any CI runner are the normal case for that artefact, and
 #   the only trace in the log is the total - so "the helper was present so
 #   nothing was silently skipped" was an inference from a remembered number,

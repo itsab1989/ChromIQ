@@ -44,6 +44,13 @@ WINDOW_ROWS = [
     (tr("Some patches are still not read"), tr("Both"), tr("Instrument error")),
     (tr("Strip read twice"), tr("Strip reading"), tr("Instrument error")),
     (tr("Calibration required"), tr("Both"), tr("Instrument error")),
+    # Knut approved this one (#182 5965735823): a calibration the user asked
+    # for (K, or the Calibrate button) is not an error, so its window is
+    # silent. Its failure window IS one, and takes the instrument sound.
+    (tr("Calibrate the instrument (K or Calibrate)"), tr("Both"),
+     tr("No sound")),
+    (tr("The calibration did not succeed (K or Calibrate)"), tr("Both"),
+     tr("Instrument error")),
     (tr("Confirm abort"), tr("Both"), tr("Instrument error")),
     (tr("Instrument disconnected"), tr("Both"), tr("Instrument error")),
     (tr("No instrument found"), tr("Both"), tr("Instrument error")),
