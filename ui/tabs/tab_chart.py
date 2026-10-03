@@ -10544,6 +10544,16 @@ class TabChart(QWidget):
             _sync = getattr(self, "_sync_device_type_to_bound_set", None)
             if _sync is not None:
                 _sync(ti1)
+                # …AND A SIGNATURE TAKEN BEFORE THE SYNC LEARNS WHAT IT SET.
+                # The B8-1470 answer binds with the signature the panels had
+                # when targen was asked; the sync then moved -d (an older
+                # i1Profiler import says "RGB", a pre-beta-7 run stored -d 4)
+                # and the -D rows. Left as it was, that difference read as a
+                # targen edit: ticking the override box and pressing Generate
+                # with nothing changed made a fresh set (#147), and the sheet
+                # lost its "Chart layout" name.
+                if sig is not None:
+                    sig = self._sig_with_synced_device_type(sig)
             self._preset_ti1_targen_sig = (
                 sig if sig is not None else self._targen_signature())
             # SHOW the lock, don't just hold it. `_ti1_preset_active` is true
@@ -15823,6 +15833,23 @@ class TabChart(QWidget):
             pw.set_user_enabled(False)
         if getattr(self, "_d_cascade_widgets", None):
             self._rebuild_d_cascade_visibility()
+
+    def _sig_with_synced_device_type(self, sig: list) -> list:
+        """*sig* with the rows `_sync_device_type_to_bound_set` writes (-d and
+        the -D colorant rows) replaced by their values now; every other entry,
+        a change the person made while targen was asked included, is kept.
+        Positional, because the -D rows share one flag: the first entries of
+        a signature are the targen widgets in panel order."""
+        widgets = self._manual_widgets.get("targen", [])
+        synced = {id(pw) for pw in getattr(self, "_d_cascade_widgets", [])}
+        out = list(sig)
+        for i, pw in enumerate(widgets):
+            if i >= len(out) or not isinstance(out[i], tuple) \
+                    or len(out[i]) != 3 or out[i][0] != pw.flag:
+                return list(sig)       # not the shape this panel writes
+            if pw.flag == "-d" or id(pw) in synced:
+                out[i] = (pw.flag, pw.get_raw_value(), pw.is_enabled_by_user)
+        return out
 
     def _manual_value(self, tool: str, flag: str):
         """The raw value of one manual row, or None when there is none."""
@@ -21982,7 +22009,14 @@ class TabChart(QWidget):
         """The printer calibration the next build would apply or embed, or
         None. The engine takes it from the layout panel's own "Printer
         calibration" group (B8-1655), printtarg from an enabled -K / -I row:
-        the same two sources `_collect_manual` hands the creator."""
+        the same two sources `_collect_manual` hands the creator.
+
+        NONE IN GUIDED. `_collect_guided` hands the creator no calibration at
+        all, so a .cal left on Manual's hidden panel is not part of a Guided
+        build and must not refuse one (review of 036e28a2)."""
+        _mode = getattr(self, "_current_mode", None)
+        if _mode is not None and _mode() == "guided":
+            return None
         panel = getattr(self, "_manual_layout_panel", None)
         try:
             if panel is not None and self._manual_panel_lays_out():

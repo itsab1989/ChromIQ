@@ -410,3 +410,64 @@ def test_repick_then_generate_unchanged_lays_out_the_rgb_set(tab,
     tab._apply_knut_preset(preset.key, "Probe")
     assert tab._targen_signature() == tab._knut_targen_sig
     assert tab._manual_value("targen", "-d") == "2"
+
+
+def test_the_targen_answer_binds_with_a_signature_that_knows_the_sync(
+        tab, tmp_path):
+    """Review of 036e28a2. The B8-1470 answer binds an older chart with the
+    signature the panels had WHEN targen was asked, and the sync then moves
+    -d. An i1Profiler import from before its iRGB fix says COLOR_REP "RGB"
+    (-d 3) beside an RGB user's -d 2: the stale signature read as a targen
+    edit, so ticking the override box and pressing Generate with nothing
+    changed made a fresh patch set (#147). A change the person made while
+    targen was asked must still count."""
+    src = resource_path(_every_bundled_patch_set()[0].relative_to(
+        resource_path("")).as_posix())
+    ti1 = tmp_path / "run1" / "Old.ti1"
+    ti1.parent.mkdir()
+    ti1.write_text(Path(src).read_text(encoding="utf-8").replace(
+        'COLOR_REP "iRGB"', 'COLOR_REP "RGB"'), encoding="utf-8")
+    assert color_rep_of(ti1) == "RGB"
+    assert tab._manual_value("targen", "-d") == "2"
+    sig_asked = tab._targen_signature()
+    tab._patch_set_question_answered(ti1, False, sig_asked)
+    assert tab._preset_ti1_path == ti1
+    assert tab._manual_value("targen", "-d") == "3"
+    assert tab._targen_signature() == tab._preset_ti1_targen_sig, (
+        "the bound set's snapshot disagrees with the panel the sync left")
+
+    # A real edit made while targen was being asked is not washed out.
+    tab._preset_ti1_path = None
+    tab._set_manual_value("targen", "-d", "2")
+    sig_asked = tab._targen_signature()
+    for pw in tab._manual_widgets["targen"]:
+        if pw.flag == "-f":
+            pw.set_value(int(pw.get_raw_value() or 0) + 7)
+            pw.set_user_enabled(True)
+            break
+    else:
+        pytest.skip("no -f row on this panel")
+    tab._patch_set_question_answered(ti1, False, sig_asked)
+    assert tab._targen_signature() != tab._preset_ti1_targen_sig
+
+
+def test_guided_lays_out_without_a_calibration_so_nothing_is_refused(
+        tab, tmp_path, monkeypatch):
+    """Review of 036e28a2. Guided hands the creator no printer calibration at
+    all (`_collect_guided`), so a CMYK .cal left on Manual's hidden panel
+    must not refuse an RGB patch set laid out in Guided, with a window that
+    names a box Guided does not show."""
+    shown = _capture_info(monkeypatch)
+    _set_cal(tab, _cal(tmp_path / "printer.cal"))
+    ti1 = resource_path(_a_printtarg_preset().ti1_asset)
+    tab._switch_mode("guided")
+    assert tab._current_mode() == "guided"
+    p = tab._collect_params()
+    assert not p.engine_cal_path
+    assert not any(a.startswith(("-K", "-I"))
+                   for a in (p.extra_printtarg_args or "").split())
+    assert tab._printer_cal_for_build() is None
+    assert not tab._refuse_cal_inks_for_patch_set(ti1)
+    assert shown == []
+    tab._switch_mode("manual")
+    assert tab._printer_cal_for_build() is not None
