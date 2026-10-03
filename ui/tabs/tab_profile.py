@@ -5239,40 +5239,35 @@ class TabProfile(QWidget):
         return True
 
     def _archive_superseded_profile(self, run) -> None:
-        """“Build here anyway”: move the profile being replaced and the dated
-        verification measurements that describe it out of the way (§6).
+        """“Build here anyway”: move the profile being replaced out of the way
+        (§6), into ``runs/runN/old/``. **Only the profile.**
 
-        Two destinations, the same rule the rest of the app already follows: a
-        run's own files go to ``runs/runN/old/``, and anything that lives inside
-        ``verifications/`` archives inside ``verifications/old/`` so a
-        verification's history never lands in the run's. Both get the same
-        timestamp, so it is visible that they were archived together.
+        The dated verification measurements, their reports and the
+        verification chart stay where they are. Knut, #182 5964384250 Q1:
+        *"verification runs shall not be automatically archived when the
+        profile is re-built from new measurements. Only after selecting run
+        type = verification and this window pops up"* (UMM §6f, and
+        ``ui/earlier_profile_offer.py``). A silenced warning behaves the same,
+        because a silenced warning never reaches this method and
+        ``_archive_the_profile_being_replaced`` moves the profile for every
+        build.
 
-        Nothing is deleted, and a failure here never stops the build — the
+        Nothing is deleted, and a failure here never stops the build: the
         profile is about to be overwritten by colprof either way, and saying so
         in the log beats refusing to work.
         """
         from datetime import datetime
 
-        when = datetime.now()
         try:
-            dest = run.archive_to_old([run.built_profile_icc()], when)
-            dated = [v.dir for v in run.verifications() if v.exists()]
-            vdest = run.archive_to_old(
-                dated, when, into=run.verifications_old_dir) if dated else None
+            dest = run.archive_to_old([run.built_profile_icc()], datetime.now())
         except Exception as exc:      # noqa: BLE001
             self._log.appendPlainText(tr(
-                "[WARNING] Could not move the previous profile and its "
-                "verification measurements out of the way: {error}"
-            ).format(error=exc))
+                "[WARNING] Could not move the previous profile out of the way: "
+                "{error}").format(error=exc))
             return
         if dest is not None:
             self._log.appendPlainText(tr(
                 "The previous profile was moved to: {folder}").format(folder=dest))
-        if vdest is not None:
-            self._log.appendPlainText(tr(
-                "The verification measurements made against it were moved to: "
-                "{folder}").format(folder=vdest))
 
     def _archive_the_profile_being_replaced(self, params) -> None:
         """Move the profile this build is about to overwrite into ``old/``.

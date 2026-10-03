@@ -116,3 +116,32 @@ def test_no_writer_asks_the_locale_for_day_or_month_names():
     hits += [f"make_demo_projects: {ln.strip()}" for ln in demo.splitlines()
              if pat.search(ln)]
     assert not hits, "\n".join(hits)
+
+
+# ---------------------------------------------------------------------------
+# The moment, not only the day (#182, verifications from an earlier profile)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("lang", sorted(LOCALIZED))
+def test_the_moment_is_read_in_every_shipped_language(lang):
+    """A FROM PROFILE GAMUT chart is told from one made from the current
+    profile by its CREATED moment, and charts written before the English stamp
+    carry the localized form."""
+    from core.cgats_date import parse_created_datetime
+    for raw in LOCALIZED[lang]:
+        got = parse_created_datetime(raw)
+        if ":" not in raw:
+            assert got is None, f"{raw!r} has no time, so no moment: {got}"
+            continue
+        d = _expected(raw)
+        assert got == datetime(d.year, d.month, d.day, 13, 4, 5), (raw, got)
+
+
+def test_the_moment_reads_iso_and_refuses_garbage():
+    from core.cgats_date import parse_created_datetime
+    assert parse_created_datetime("2026-10-02T21:27:02") == \
+        datetime(2026, 10, 2, 21, 27, 2)
+    assert parse_created_datetime(created_stamp(
+        datetime(2026, 10, 2, 21, 27, 2))) == datetime(2026, 10, 2, 21, 27, 2)
+    for raw in ("", "garbage", "Fri Oct 02 2026", "Fri Oct 02 25:61:00 2026"):
+        assert parse_created_datetime(raw) is None, raw

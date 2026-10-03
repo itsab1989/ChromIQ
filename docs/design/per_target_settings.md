@@ -131,6 +131,19 @@ Run type, so it is L4. Listing it separately would invite a second code path,
 and a second code path is how the two sets of Chart Notes came to overwrite each
 other in beta.150.
 
+> **⏳ Awaiting confirmation: Create Chart opened by the earlier-profile window (#182, UMM §6f).**
+>
+> **Confirmed by:** *nobody yet.*
+>
+> When the window that opens on choosing Verification after the profile was
+> replaced is answered with its main button, ChromIQ switches to Create Chart.
+> That is an ordinary tab activation: W6 writes the tab being left, L1 loads
+> the run's stored verification settings (`verifications/meta.json`, which the
+> archive never moves). For text A and C the module is then set to FROM
+> PROFILE GAMUT one turn of the event loop later, after that load, and it is
+> not recorded as a choice by hand; nothing is generated. The module the user
+> then leaves Create Chart on is written by W6, as for any visit.
+
 ### 2.0 The scope of every load and every write
 
 Knut, tightening the general rule (edit of 2026-08-06):

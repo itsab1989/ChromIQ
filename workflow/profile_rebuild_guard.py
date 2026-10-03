@@ -4,13 +4,19 @@ Specification §6 — ``docs/design/unified_measurement_management.md``. The
 decision half only: it answers "should this warn, and with what numbers", so
 every row of §6e is testable without a window.
 
-**Why this warning exists.** A verification chart is printed *through* the
-profile in its run, so a dated verification measurement records how *that
-profile* behaved on that day. Replace the profile and the measurements do not
-become wrong — Knut was right to correct that, and the report's metrics are
-built to compare across charts and runs of the same printer — but they lose
-their **origin**: nothing on disk then says which profile a given date was
-measured against.
+**Why this warning exists.** A dated verification measurement was checked
+against the profile its run had at the time. That is true whether its sheet
+was printed through the profile, printed raw, or printed from a FROM PROFILE
+GAMUT chart whose colours the profile chose, and "printed *through* the
+profile", which this used to say, was not (Knut, #182 5964076758 Q4). Replace
+the profile and the measurements do not become wrong — Knut was right to
+correct that, and the report's metrics are built to compare across charts and
+runs of the same printer — but they then belong to an earlier profile.
+
+**What a rebuild moves: the profile only** (Knut, #182 5964384250 Q1). The
+dated measurements, their reports and the verification chart stay; choosing
+Verification for the run afterwards offers to archive what belongs to the
+earlier profile (``workflow/verification_profile_match.py``, UMM §6f).
 
 **What this deliberately does not do.** An earlier draft proposed recording a
 build signature so an identical rebuild could stay silent. Knut dropped it

@@ -11078,6 +11078,54 @@ class TabChart(QWidget):
             log.error("Cannot load parameters.yaml: %s", exc)
             return {}
 
+    def open_gamut_for_new_verification(self) -> None:
+        """Show FROM PROFILE GAMUT for a new chart from the current profile
+        (#182, UMM §6f): the answer to "Archive them and make a new chart from
+        the current profile" and "Make a new chart from the current profile".
+
+        Nothing is generated; the run's stored verification settings are
+        already on screen, because the main window switched to this tab first
+        and the tab loaded them. Not a choice by hand, so
+        ``_user_chose_module`` is left as it is."""
+        if not self._is_verification_target():
+            return
+        if self._mode_name() != "gamut":
+            self._switch_mode("gamut")
+
+    def open_verification_chart_in_its_own_module(self) -> None:
+        """Show the run's ORDINARY verification chart in the module it belongs
+        to (#182, UMM §6f text B): the answer to "Archive them" when the chart
+        is kept.
+
+        Knut, 5965626117: *"opening Create Chart should be done anyway, so that
+        the user can confirm if this is the chart he wants to use, and then
+        move to printing the chart if desired"*. The 2026-08-10 default puts a
+        verification run with a profile on FROM PROFILE GAMUT, and that is
+        right for every other way in; here it would show a TC9.18 or a Manual
+        chart under the module that would REPLACE it at Generate Chart. A chart
+        without a colorimetric reference was made in Manual (its recipe is
+        restored there), so Manual is its module. A FROM PROFILE GAMUT chart
+        from the current profile stays on that module, and with no chart at
+        all nothing changes. Not a choice by hand: ``_user_chose_module`` is
+        left alone, so the default still applies to the next entry."""
+        if not self._is_verification_target():
+            return
+        if self._mode_name() != "gamut":
+            return          # already on Guided or Manual: the stored choice
+        try:
+            ctl = self._target_ctl
+            from core.measurement_target import resolve_run
+            from workflow.verification_print import colorimetric_reference_for
+            run = resolve_run(ctl.project_or_none(), ctl.target)
+            ti2 = run.verify_chart_ti2
+            if not ti2.exists() or colorimetric_reference_for(ti2).is_file():
+                return
+        except Exception:      # noqa: BLE001 — never break opening the tab
+            log.debug("could not tell the verification chart's module",
+                      exc_info=True)
+            return
+        self._switch_mode("manual")
+
     def _user_switch_mode(self, mode: str) -> None:
         """A module chosen BY HAND: from now on this session, the user's pick
         wins — the verification default below never overrides it."""
