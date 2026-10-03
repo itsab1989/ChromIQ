@@ -328,18 +328,33 @@ def _gauss_newton_rows(model: ForwardModel, target: np.ndarray, seed: np.ndarray
 
 
 def _seed_nearest(model: ForwardModel, target: np.ndarray, seed_res: int,
-                  channel_max: np.ndarray | None = None) -> np.ndarray:
-    """Seed each target with the nearest point of a coarse device mesh."""
+                  channel_max: np.ndarray | None = None,
+                  threads: bool = False) -> np.ndarray:
+    """Seed each target with the nearest point of a coarse device mesh.
+
+    ``threads`` (Maximum accuracy, D-06): the rows are searched in parallel
+    blocks. Each row's distances are element-wise and summed over the
+    three Lab axes only, so a row's answer does not depend on which other
+    rows share its block."""
     n = model.n_channels
     top = np.ones(n) if channel_max is None else np.asarray(channel_max)
     axes = [np.linspace(0.0, float(top[c]), seed_res) for c in range(n)]
     mesh = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, n)
     mesh_lab = model.predict(mesh)
     out = np.empty((len(target), n))
-    for lo in range(0, len(target), 4096):      # chunked distance search
-        chunk = target[lo:lo + 4096]
-        d2 = ((mesh_lab[None, :, :] - chunk[:, None, :]) ** 2).sum(2)
-        out[lo:lo + 4096] = mesh[np.argmin(d2, 1)]
+
+    def block(a: int, b: int) -> None:
+        for lo in range(a, b, 4096):            # chunked distance search
+            hi = min(lo + 4096, b)
+            chunk = target[lo:hi]
+            d2 = ((mesh_lab[None, :, :] - chunk[:, None, :]) ** 2).sum(2)
+            out[lo:hi] = mesh[np.argmin(d2, 1)]
+    if threads:
+        from workflow.profile_engine import parallel
+        parallel.run_chunks(block, parallel.chunk_bounds(
+            len(target), parallel.worker_count()))
+    else:
+        block(0, len(target))
     return out
 
 
@@ -533,7 +548,7 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         gn_target = _space.lab_to_ucs(target)
     if seed is None:
         seed = _seed_nearest(gn_model, gn_target, seed_res if n <= 4 else 5,
-                             channel_max=channel_max)
+                             channel_max=channel_max, threads=accurate)
     d = seed.copy()
     if channel_max is not None:
         d = np.minimum(d, channel_max[None, :])
@@ -966,7 +981,23 @@ def _hue_gated_seeds(target: np.ndarray, cloud: np.ndarray,
     c_h = np.degrees(np.arctan2(cloud_lab[:, 2], cloud_lab[:, 1]))
     t_l, t_c = target[:, 0], np.hypot(target[:, 1], target[:, 2])
     t_h = np.degrees(np.arctan2(target[:, 2], target[:, 1]))
-    for lo in range(0, n_t, 256):
+    # D-06: every row is scored and chosen on its own (element-wise maths,
+    # argmin along the cloud), so 256-row blocks run on pool threads with
+    # the same bits. Only the Maximum accuracy path calls this.
+    from workflow.profile_engine import parallel
+    blocks = list(range(0, n_t, 256))
+    groups = parallel.chunk_bounds(len(blocks), parallel.worker_count(),
+                                   min_rows=4)
+    parallel.run_chunks(
+        lambda a, b: _hue_gated_block(blocks[a:b], out, found, cloud,
+                                      c_l, c_c, c_h, t_l, t_c, t_h),
+        groups)
+    return out, found
+
+
+def _hue_gated_block(starts, out, found, cloud, c_l, c_c, c_h, t_l, t_c,
+                     t_h) -> None:
+    for lo in starts:
         sl = slice(lo, lo + 256)
         dh = np.abs((c_h[None, :] - t_h[sl, None] + 180.0) % 360.0 - 180.0)
         # Lightness is worth keeping more than chroma: score = (2·ΔL)² + ΔC²
@@ -986,7 +1017,6 @@ def _hue_gated_seeds(target: np.ndarray, cloud: np.ndarray,
         idx = np.flatnonzero(got) + lo
         out[idx] = cloud[chosen[got]]
         found[idx] = True
-    return out, found
 
 
 def inverse_curves(curves: np.ndarray, knots: int = 256) -> np.ndarray:
