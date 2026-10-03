@@ -649,6 +649,28 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # agent5-03 item 5). The proxy anchor still shapes the perceptual and
     # saturation tables (build_mapped_b2a below). Costs ink: section 6.
     k_prior_col = None if accurate else anchor
+    mono_axis = None
+    if (accurate and not meas.is_additive and n >= 4
+            and "a9-monok" in candidates and "K" in meas.channel_letters):
+        # Research agent9-01 6.2: walk the neutral axis first (forward to
+        # the neutral black, then back up with no ink allowed to rise and
+        # fall), and let its K curve steer the NEUTRAL part of every
+        # inversion so the column and its neighbours agree.
+        _emit(settings, "Inverting the model: a monotone neutral axis…")
+        _ax_kw = dict(channel_letters=meas.channel_letters,
+                      is_additive=meas.is_additive, ink_limit=ink_limit,
+                      accurate=accurate, extra_hues=extra_hues,
+                      black_l=black_l, k_gen=k_gen, ucs=use_ucs,
+                      channel_max=channel_max)
+        _fwd = b2a_mod.neutral_axis(model, **_ax_kw)
+        mono_axis = b2a_mod.monotone_neutral_axis(model, _fwd, **_ax_kw)
+        if mono_axis.get("black") is not None:
+            ki = meas.channel_letters.index("K")
+            _l = np.asarray(mono_axis["l"])[::-1]
+            _k = np.asarray(mono_axis["dev"])[::-1, ki].copy()
+            _k[_l < mono_axis["l_black"]] = mono_axis["black"][ki]
+            k_prior_col = {"l_axis": _l, "k_curve": _k,
+                           "neutral_only": True}
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
@@ -664,12 +686,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         # neutral black clipped along the axis (research agent5-03 item 5:
         # a neutral black, monotone neutral ramp, for any channel count).
         _emit(settings, "Inverting the model: following the neutral axis…")
-        axis = b2a_mod.neutral_axis(
+        axis = mono_axis if mono_axis is not None else b2a_mod.neutral_axis(
             model, channel_letters=meas.channel_letters,
             is_additive=meas.is_additive, ink_limit=ink_limit,
             k_prior=k_prior_col, accurate=accurate, extra_hues=extra_hues,
             black_l=black_l, k_gen=k_gen, ucs=use_ucs,
             channel_max=channel_max)
+        if "a9-monoblack" in candidates:
+            axis = b2a_mod.monotone_black(model, axis)
         fixed_nodes = b2a_mod.apply_neutral_axis(
             dev_clut, node_lab, axis, model,
             channel_letters=meas.channel_letters,
@@ -811,7 +835,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             entries=entries_b2a, codec=codec, settings=settings,
             a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor,
             channel_max=channel_max,
-            neutral_black_dev=(axis or {}).get("black"))
+            neutral_black_dev=(axis or {}).get("black"),
+            black_dev_shaped=model.shape_device(device_black[None, :])[0])
         luts.update(mapped)
         perceptual_distinct = "B2A0" in mapped
     if "B2A0" not in luts:

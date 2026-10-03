@@ -895,7 +895,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      a2b_entries: int | None = None,
                      anchor: dict | None = None,
                      channel_max: np.ndarray | None = None,
-                     neutral_black_dev: np.ndarray | None = None) -> dict:
+                     neutral_black_dev: np.ndarray | None = None,
+                     black_dev_shaped: np.ndarray | None = None) -> dict:
     """Mapped tables per intent → dict of mft2 tags/aliases for the writer.
 
     Returns entries for ``B2A0``/``B2A2`` (bytes or the alias string
@@ -1080,6 +1081,16 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         # (source white → destination white); the inversion of the mapped
         # target lands a fitted value there, so pin it (b2a.pin_white_node).
         shaped = b2a_mod.pin_white_node(shaped, node_lab, is_additive)
+        if ownmap and black_dev_shaped is not None and "a9-blackpin" in \
+                getattr(settings, "engine_candidates", frozenset()):
+            # Research agent9-01 6.3: source black -> the SAME device black
+            # as the colorimetric table (the neutral black under the limits),
+            # as B2A1's pin_black_node does; the gamut map's own black lands
+            # 0.1-0.5 L* lighter (mapres interpolation of the black point).
+            dev_b = np.asarray(black_dev_shaped, float)
+            if no_out_shaper:
+                dev_b = model.unshape_device(dev_b[None, :])[0]
+            shaped = b2a_mod.pin_black_node(shaped, node_lab, dev_b)
         out[tag] = icw.make_mft2(
             3, model.n_channels, grid, icw.device_to_u16(shaped),
             in_tables=codec.b2a_in_tables(entries),
