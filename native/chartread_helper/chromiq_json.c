@@ -86,6 +86,13 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src) {
 static volatile int   cq_pending_key = CQ_KEY_NONE;
 static char           cq_goto_label[16];
 
+/* CHROMIQ_EXT: the calibration the user asked for -- see the "calibrate"
+ * command in cq_handle_line for why these are not the key slot. */
+static volatile int   cq_cal_requested = 0;  /* {"cmd":"calibrate"} arrived  */
+static volatile int   cq_cal_gate = 0;       /* strip/patch loop is waiting  */
+static volatile int   cq_cal_in_request = 0; /* a requested cal is prompting */
+static volatile int   cq_cal_cancel = 0;     /* {"cmd":"cal_cancel"} for it  */
+
 /* CHROMIQ_EXT #159: the external-values line channel.
  *
  * -x mode reads a whole LINE from stdin (a measurement, or a one-letter
@@ -227,6 +234,34 @@ static void cq_handle_line(const char *line) {
 			return;                    /* no payload -> ignore, never queue */
 		cq_lock_take();
 		cq_line_push(v);
+		cq_lock_give();
+		return;
+	}
+
+	/* CHROMIQ_EXT: a calibration the USER asked for (K, or the Calibrate
+	 * button). It is NOT a key, on purpose (challenge 1a):
+	 *  * the single key slot is consumed by whatever reads next, and a
+	 *    prompt opened by a strip that was still being swiped would take
+	 *    it -- at the wrong-strip warning "any other key = retry" throws a
+	 *    good reading away;
+	 *  * a key is mirrored onto the -x line queue, and a 'k' line reaching
+	 *    the patch loop under -x dereferences a NULL instrument.
+	 * So it is a flag of its own, turned into a 'k' command only by
+	 * cq_uicallback, only at inst_armed, and only while the strip or patch
+	 * loop has opened the gate (cq_cal_gate_set). Nothing else reads it. */
+	if (strcmp(cmd, "calibrate") == 0) {
+		cq_lock_take();
+		cq_cal_requested = 1;
+		cq_lock_give();
+		return;
+	}
+	/* ...and its Cancel, honoured only while such a calibration is asking
+	 * for the instrument to be placed. Anywhere else it is ignored, so a
+	 * late cancel can never become a strip abort. */
+	if (strcmp(cmd, "cal_cancel") == 0) {
+		cq_lock_take();
+		if (cq_cal_in_request)
+			cq_cal_cancel = 1;
 		cq_lock_give();
 		return;
 	}
@@ -401,4 +436,65 @@ int cq_line_overflow_count(void) {
 
 const char *cq_take_goto(void) {
 	return cq_goto_label;
+}
+
+/* ------------------------------------------------------------------ */
+/* CHROMIQ_EXT: the calibration the user asks for during a measurement. */
+
+void cq_cal_gate_set(int on) {
+	cq_lock_take();
+	cq_cal_gate = on ? 1 : 0;
+	cq_lock_give();
+}
+
+/* 1 when a request is waiting AND the gate is open; the request is taken. */
+int cq_cal_take_request(void) {
+	int r = 0;
+	cq_lock_take();
+	if (cq_cal_gate && cq_cal_requested) {
+		cq_cal_requested = 0;
+		r = 1;
+	}
+	cq_lock_give();
+	return r;
+}
+
+/* 1 when a request is waiting, regardless of the gate; the request is taken.
+ * Used only inside the "calibration damaged" wait, which is itself a place
+ * the user is asked to calibrate. */
+int cq_cal_take_request_ungated(void) {
+	int r;
+	cq_lock_take();
+	r = cq_cal_requested;
+	cq_cal_requested = 0;
+	cq_lock_give();
+	return r;
+}
+
+void cq_cal_request_scope(int on) {
+	cq_lock_take();
+	cq_cal_in_request = on ? 1 : 0;
+	cq_cal_cancel = 0;
+	if (!on)
+		cq_cal_requested = 0;   /* a second press during it is spent by it */
+	cq_lock_give();
+}
+
+int cq_cal_take_cancel(void) {
+	int r;
+	cq_lock_take();
+	r = cq_cal_cancel;
+	cq_cal_cancel = 0;
+	cq_lock_give();
+	return r;
+}
+
+/* Non-blocking: the next waiting key, or CQ_KEY_NONE. A goto is dropped. */
+int cq_poll_char(void) {
+	int k = cq_cmd_take_key();
+	return k == CQ_KEY_GOTO ? CQ_KEY_NONE : k;
+}
+
+void cq_sleep_poll(void) {
+	cq_sleep_ms(20);
 }

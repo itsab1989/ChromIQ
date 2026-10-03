@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-02 scan-ready-event"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-03 calibrate-on-request"
 const char *cq_helper_build_string(void);
 
 
@@ -80,6 +80,27 @@ int cq_wait_char(void);
  * reader, so -x's own con_fgets can never succeed. */
 int cq_wait_line(char *buf, int size);
 int cq_line_overflow_count(void);  /* lines refused: queue full (protocol abuse) */
+
+/* ---- a calibration the user asks for during a measurement -------------
+ * {"cmd":"calibrate"} raises a flag of its own (never the key slot, never
+ * the -x line queue). cq_uicallback turns it into a 'k' command only at
+ * inst_armed and only while the strip or patch loop holds the gate open, so
+ * it is acted on while the reader waits for the next strip or patch and
+ * nowhere else -- not in a prompt, not in the whole-sheet (XY) loop.
+ * {"cmd":"cal_cancel"} is honoured only inside that calibration. */
+void cq_cal_gate_set(int on);
+int  cq_cal_take_request(void);          /* gated */
+int  cq_cal_take_request_ungated(void);  /* the "calibration damaged" wait */
+void cq_cal_request_scope(int on);
+int  cq_cal_take_cancel(void);
+int  cq_poll_char(void);                 /* non-blocking key, or CQ_KEY_NONE */
+void cq_sleep_poll(void);                /* the 20 ms poll interval */
+
+/* Outcome of one requested calibration (cq_run_requested_calibration). */
+#define CQ_CALREQ_DONE        0
+#define CQ_CALREQ_CANCELLED   1
+#define CQ_CALREQ_FAILED      2
+#define CQ_CALREQ_UNAVAILABLE 3
 
 /* ---- replay instrument -------------------------------------------------
  * cq_replay_path != NULL enables replay mode: no USB, readings come from a
@@ -117,6 +138,12 @@ inst *cq_new_replay_inst(a1log *log,
  * commands. Never reads the console. */
 inst_code cq_handle_calibrate(inst *p, inst_cal_type calt, inst_cal_cond calc,
 	int doimmediately);
+/* A calibration the user asked for: inst_calt_available, with prompts that
+ * carry "requested":true and a Cancel (cal_cancel) that keeps the session.
+ * Emits no terminal event itself -- the caller emits one cal_result. Fills
+ * *prompted (a placement prompt was shown) and detail (the failure). */
+int cq_run_requested_calibration(inst *p, int *prompted, char *detail,
+	size_t detail_len);
 /* The JSON-mode uicallback: identical classification to instappsup's
  * def_uicallback, with the command queue as the key source. */
 inst_code cq_uicallback(void *cntx, inst_ui_purp purp);

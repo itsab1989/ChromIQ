@@ -236,6 +236,29 @@ static inst_code cq_set_mode(inst *p, inst_mode m) {
 static int cq_needcal_armed = 0;
 static int cq_cal_step = 0;
 
+/* A calibration the USER asks for (CHROMIQ_REPLAY_CAL), tests only:
+ *   setup_ok    one placement prompt, then success
+ *   fail_once   one placement prompt, then a failure; the next request
+ *               succeeds after its prompt
+ *   fail        one placement prompt, then a failure, every time
+ *   unavailable the instrument reports nothing to calibrate
+ * Unset, the replay reports nothing available, as it always has. The
+ * failure is inst_hardware_fail, which the interp below names, so the GUI
+ * receives a real sentence for its window. */
+#define CQ_CALMODE_NONE      0
+#define CQ_CALMODE_SETUP_OK  1
+#define CQ_CALMODE_FAIL_ONCE 2
+#define CQ_CALMODE_FAIL      3
+#define CQ_CALMODE_UNAVAIL   4
+static int cq_calmode = CQ_CALMODE_NONE;
+static int cq_req_step = 0;
+static int cq_req_fails_left = 0;
+
+static int cq_calmode_offers(void) {
+	return cq_calmode == CQ_CALMODE_SETUP_OK || cq_calmode == CQ_CALMODE_FAIL_ONCE
+	    || cq_calmode == CQ_CALMODE_FAIL;
+}
+
 static inst_cal_type cq_needs_calibration(inst *p) {
 	(void)p;
 	return cq_needcal_armed ? inst_calt_ref_white : inst_calt_none;
@@ -247,13 +270,41 @@ static inst_code cq_get_n_a_cals(inst *p, inst_cal_type *needed,
 	if (needed != NULL)
 		*needed = inst_calt_none;
 	if (available != NULL)
-		*available = inst_calt_none;
+		*available = cq_calmode_offers() ? inst_calt_ref_white : inst_calt_none;
 	return inst_ok;
 }
 
 static inst_code cq_calibrate(inst *p, inst_cal_type *calt, inst_cal_cond *calc,
 	inst_calc_id_type *idtype, char id[CALIDLEN]) {
 	(void)p; (void)idtype; (void)id;
+	/* The requested calibration (CHROMIQ_REPLAY_CAL). Recognised by the
+	 * inst_calt_available a request starts with, then by its own step. */
+	if (!cq_needcal_armed && calt != NULL
+	 && (*calt == inst_calt_available || cq_req_step == 1)) {
+		if (*calt == inst_calt_available) {
+			if (!cq_calmode_offers()) {
+				*calt = inst_calt_none;
+				return inst_ok;			/* nothing to do, as a driver says */
+			}
+			*calt = inst_calt_ref_white;
+			cq_req_step = 0;		/* a cancelled request starts over */
+		}
+		if (cq_req_step == 0) {
+			cq_req_step = 1;
+			if (calc != NULL)
+				*calc = inst_calc_man_ref_white;
+			return inst_cal_setup;
+		}
+		cq_req_step = 0;
+		if (cq_calmode == CQ_CALMODE_FAIL)
+			return inst_hardware_fail;
+		if (cq_calmode == CQ_CALMODE_FAIL_ONCE && cq_req_fails_left > 0) {
+			cq_req_fails_left--;
+			return inst_hardware_fail;
+		}
+		*calt = inst_calt_none;
+		return inst_ok;
+	}
 	if (cq_needcal_armed && cq_cal_step == 0) {
 		/* First round: ask the user to set the sensor to the white tile. */
 		cq_cal_step = 1;
@@ -288,6 +339,7 @@ static char *cq_inst_interp_error(inst *p, inst_code ec) {
 		case inst_coms_fail:    return "Communications failure (replay)";
 		case inst_needs_cal:    return "Instrument needs calibration (replay)";
 		case inst_wrong_config: return "Sensor in wrong position (replay)";
+		case inst_hardware_fail: return "White calibration failed (replay)";
 		default:                return "Replay instrument error";
 	}
 }
@@ -472,6 +524,25 @@ inst *cq_new_replay_inst(a1log *log,
 	/* Arm the calibration simulation from the environment (tests only). */
 	cq_needcal_armed = (getenv("CHROMIQ_REPLAY_NEEDCAL") != NULL);
 	cq_cal_step = 0;
+
+	/* The requested-calibration simulation (tests only). */
+	{
+		const char *cm = getenv("CHROMIQ_REPLAY_CAL");
+		cq_calmode = CQ_CALMODE_NONE;
+		cq_req_step = 0;
+		cq_req_fails_left = 0;
+		if (cm != NULL) {
+			if (strcmp(cm, "setup_ok") == 0)
+				cq_calmode = CQ_CALMODE_SETUP_OK;
+			else if (strcmp(cm, "fail_once") == 0) {
+				cq_calmode = CQ_CALMODE_FAIL_ONCE;
+				cq_req_fails_left = 1;
+			} else if (strcmp(cm, "fail") == 0)
+				cq_calmode = CQ_CALMODE_FAIL;
+			else if (strcmp(cm, "unavailable") == 0)
+				cq_calmode = CQ_CALMODE_UNAVAIL;
+		}
+	}
 
 	/* Which read mode to advertise (tests only): xy / chart / default. */
 	{
