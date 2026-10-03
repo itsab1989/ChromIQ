@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
 from core.logger import get_logger
 
@@ -107,6 +107,15 @@ class SpotReadManager(QObject):
         log.info("spotread: %s  [cwd=%s]", " ".join(args), cwd)
         self._calib_announced = False
 
+        # A PORT THAT IS NOT AN INSTRUMENT IS NEVER OPENED (core/instrument_port):
+        # with nothing plugged in, port 1 is macOS's Bluetooth incoming port,
+        # whose open could block for ever. Reported as spotread reports "No
+        # instrument detected", once this start has returned.
+        from core.instrument_port import refused_port
+        if refused_port("spotread", args) is not None:
+            QTimer.singleShot(0, self._finish_refused_start)
+            return
+
         self._runner.run(
             "spotread",
             args,
@@ -115,6 +124,11 @@ class SpotReadManager(QObject):
             on_finish=lambda code: self.session_ended.emit(code),
             use_pty=True,
         )
+
+    def _finish_refused_start(self) -> None:
+        """The ending of a start that would have opened a system port."""
+        self.no_instrument.emit()
+        self.session_ended.emit(1)
 
     def take_reading(self) -> None:
         """Take one reading — any key at the menu prompt does this."""

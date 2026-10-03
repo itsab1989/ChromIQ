@@ -150,6 +150,12 @@ def main() -> int:
     # process; pin it back before anything can show one (core/numeric_locale).
     from core.numeric_locale import pin_c_numeric_locale
     pin_c_numeric_locale()
+    # Every Argyll tool and the chart-reading helper this process starts skips
+    # the serial port whose open can hang for ever (macOS Bluetooth incoming
+    # port, 2026-10-03), including a plain `subprocess.run` with no `env=`.
+    # See `core/argyll_env.py`.
+    from core.argyll_env import install_in_process_environment
+    install_in_process_environment()
     # The display name is set LATER, once the catalogue is loaded — see the
     # `setApplicationDisplayName` call below `set_language`.
 

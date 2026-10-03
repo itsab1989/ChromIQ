@@ -6,12 +6,15 @@
 
 Suites (``--suite``, comma-separated):
 
-* ``baseline``  every dataset (synthetic S1-S7 + X1..X8 at the calibrated
-                ``reread`` noise, and the real held-out sets), engines
-                colprof / fast / argyll / accurate, every CMM readout.
-* ``seeds``     S1, S3, X1, X3 at five noise+chart seeds: the between-seed
-                spread the protocol's minimum effect size is taken from.
-* ``noise``     S3, X3, X1, X5 at noise none / battery / reread / reread2x.
+* ``baseline``  every dataset: synthetic S1-S7 + X1..X8 at BOTH benchmark
+                noise levels (``typical`` and ``pessimistic``, protocol v2),
+                and the real held-out sets; engines colprof / fast / argyll /
+                accurate, every CMM readout; Fast and Bit-exact also from
+                ``--upstream-ref`` (scored as ``fast@upstream`` etc.).
+* ``seeds``     S1, S3, X1, X3 at five noise+chart seeds (``typical``): the
+                between-seed spread the protocol's minimum effect size uses.
+* ``noise``     S3, X3, X1, X5 at noise none / battery / reread (v1) /
+                typical / pessimistic.
 * ``b2agrid``   accurate with -bh (B2A grid 33) and colprof -bh vs default.
 * ``spectral``  S3, X3, X1 built with -i F8 from the SPEC data; truth under F8
                 at 1 nm (agent 2's E4).
@@ -24,19 +27,15 @@ Suites (``--suite``, comma-separated):
 
 Hard rules enforced here, not by convention:
 
-1. **Fast and Bit-exact must be byte-identical to the identity reference.**
-   Decision D-02 (2026-10-03): the reference is the branch's own Fast /
-   Bit-exact frozen at a commit, ``identity.IDENTITY_REF`` (the merge of
-   origin/master fdcdd76f), selectable with ``--identity-ref <commit>``
-   (``--master-ref`` is the old name). For every dataset the fast and argyll
-   builds are repeated from a detached checkout of that commit with the same
+1. **Fast and Bit-exact must be byte-identical to the identity reference**
+   (D-02: the branch's own Fast/Bit-exact frozen at a commit,
+   ``--identity-ref``). For every typical-noise dataset the fast and argyll
+   builds are repeated from a detached checkout of that ref with the same
    inputs and a fixed timestamp; the v2 file and the v4 twin are
    hash-compared. Any difference prints a banner and the process exits 2.
-   Master's own Fast / Bit-exact (``--upstream-ref``, default origin/master;
-   empty to skip) is built as a separate, NON-gating column (``fast@upstream``,
-   ``argyll@upstream``): scored like every engine, and its difference from
-   the branch (tags, A2B dE00, B2A device units) measured in
-   ``results.json["upstream"]``, never hidden.
+   Master's Fast/Bit-exact (``--upstream-ref``, default origin/master) is
+   built from its own checkout and SCORED as a separate column; it is not a
+   gate (it differs by the September paper-white fix, agent 7 T7).
 2. **CMY+N and ICC v4 must build.** Every accurate build writes a v2 file
    and a v4 twin (``icc_version="both"``); both must exist and pass iccdump,
    littleCMS and ColorSync loading. A failure is a hard-gate failure (exit 3).
@@ -63,6 +62,7 @@ from pathlib import Path
 import numpy as np
 
 from benchmarks.research import cmm, datasets as dsm, identity, metrics
+from benchmarks.research.noise import BENCH_LEVELS
 from benchmarks.research.printers import build_printers
 
 HERE = Path(__file__).resolve().parent
@@ -90,7 +90,7 @@ def sha(p: Path) -> str:
     return hashlib.sha256(Path(p).read_bytes()).hexdigest()
 
 
-def environment(master_tree: Path | None, upstream_tree: Path | None = None) -> dict:
+def environment(trees: dict) -> dict:
     import numpy
     from benchmarks.research.cmm import _lcms
     heavy = [ln for ln in sh(["ps", "-Ao", "pcpu,command", "-r"]).splitlines()[1:8]]
@@ -99,10 +99,11 @@ def environment(master_tree: Path | None, upstream_tree: Path | None = None) -> 
         "dirty": sh(["git", "-C", str(TREE), "status", "--porcelain",
                      "--untracked-files=no"]),
         "branch": sh(["git", "-C", str(TREE), "rev-parse", "--abbrev-ref", "HEAD"]),
-        "master_tree_commit": sh(["git", "-C", str(master_tree), "rev-parse", "HEAD"])
-        if master_tree else None,
-        "upstream_tree_commit": sh(["git", "-C", str(upstream_tree), "rev-parse", "HEAD"])
-        if upstream_tree else None,
+        "identity_tree_commit": sh(["git", "-C", str(trees["identity"]), "rev-parse", "HEAD"])
+        if trees.get("identity") else None,
+        "upstream_tree_commit": sh(["git", "-C", str(trees["upstream"]), "rev-parse", "HEAD"])
+        if trees.get("upstream") else None,
+        "i1profiler_data": str(dsm.xrite_root()),
         "argyll": next((ln for ln in subprocess.run(
             [f"{ARGYLL}/colprof"], capture_output=True, text=True, encoding="utf-8",
             timeout=60).stderr.splitlines() if "Version" in ln), ""),
@@ -190,10 +191,12 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
     def keep(name):
         return not only or name in only
     if suite == "baseline":
-        for pid in SYNTH_BASE:
-            if keep(pid):
-                specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers),
-                              "variant": "base"})
+        for lvl in BENCH_LEVELS:
+            for pid in SYNTH_BASE:
+                if keep(pid):
+                    specs.append({"ds": dsm.synthetic(pid, work, n_patches, level=lvl,
+                                                      printers=printers),
+                                  "variant": lvl})
         for name in REAL_BASE:
             if keep(name):
                 d = dsm.real(name, work / name)
@@ -209,7 +212,7 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
                                   "variant": f"seed{k}"})
     elif suite == "noise":
         for pid in ["S3", "X3", "X1", "X5"]:
-            for lvl in ["none", "battery", "reread", "reread2x"]:
+            for lvl in ["none", "battery", "reread", "typical", "pessimistic"]:
                 if keep(pid):
                     specs.append({"ds": dsm.synthetic(pid, work, n_patches, level=lvl,
                                                       printers=printers),
@@ -280,18 +283,15 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         jobs.append(j)
         if suite == "repeat":
             jobs.append(dict(j, out=str(profdir / f"{tag}-{e}-again.icc"), role="repeat"))
-    if suite == "baseline" and trees.get("master"):
-        for e in ("fast", "argyll"):
-            if e in args.engines:
-                jobs.append(dict(base, engine=e, tree=str(trees["master"]),
-                                 out=str(profdir / "master" / f"{tag}-{e}.icc"),
-                                 role="master"))
-    if suite == "baseline" and trees.get("upstream"):
-        for e in ("fast", "argyll"):
-            if e in args.engines:
-                jobs.append(dict(base, engine=e, tree=str(trees["upstream"]),
-                                 out=str(profdir / "upstream" / f"{tag}-{e}.icc"),
-                                 role="upstream"))
+    if suite == "baseline" and spec["variant"] in ("typical", "base"):
+        for role in ("identity", "upstream"):
+            if not trees.get(role):
+                continue
+            for e in ("fast", "argyll"):
+                if e in args.engines:
+                    jobs.append(dict(base, engine=e, tree=str(trees[role]),
+                                     out=str(profdir / role / f"{tag}-{e}.icc"),
+                                     role=role))
     if suite == "physics":
         jobs.append(dict(base, engine="accurate", tree=str(trees["accurate"]),
                          spectral_physics=True,
@@ -329,18 +329,28 @@ def main(argv=None) -> int:
                          "byte-identity check then covers only the colorimetric path)")
     ap.add_argument("--identity-ref", "--master-ref", dest="identity_ref",
                     default=identity.IDENTITY_REF,
-                    help="commit whose Fast / Bit-exact are the byte-identity "
-                         "reference (D-02; default identity.IDENTITY_REF)")
+                    help="frozen commit Fast/Bit-exact must equal byte for byte "
+                         "(D-02; default identity.IDENTITY_REF); empty = no check")
     ap.add_argument("--upstream-ref", default=identity.UPSTREAM_REF,
-                    help="ref built as the measured, non-gating master column "
-                         "('' to skip)")
-    ap.add_argument("--no-master-check", dest="master_check", action="store_false")
+                    help="ref whose Fast/Bit-exact are scored as a separate "
+                         "column (empty to skip)")
+    ap.add_argument("--i1profiler-data", default="",
+                    help=f"i1Profiler data root (default {dsm.XRITE_DEFAULT}, "
+                         f"or ${dsm.XRITE_ENV})")
     ap.add_argument("--f00-ref", default="37357e92~1")
     ap.add_argument("--candidates", default="")
     ap.add_argument("--accurate-tree", default="")
+    ap.add_argument("--trees-dir", default="",
+                    help="where the reference worktrees go (default <out>/trees)")
+    ap.add_argument("--rebuild-failed", action="store_true",
+                    help="load <out>/builds.json, rebuild every failed build "
+                         "(fresh reference worktrees; refusals such as colprof "
+                         "on 5+ inks fail again), then score everything")
     ap.add_argument("--score-only", action="store_true",
                     help="re-score the builds recorded in <out>/builds.json")
     args = ap.parse_args(argv)
+    if args.i1profiler_data:
+        os.environ[dsm.XRITE_ENV] = str(Path(args.i1profiler_data).expanduser())
     args.engines = [e for e in args.engines.split(",") if e]
     readers = [r for r in args.readers.split(",") if r]
     out = Path(args.out).resolve()
@@ -348,22 +358,26 @@ def main(argv=None) -> int:
     for d in (work, profdir):
         d.mkdir(parents=True, exist_ok=True)
     suites = [s for s in args.suite.split(",") if s]
-    scratch = Path(os.environ.get("TMPDIR", "/tmp")) / "chromiq-agent6-trees"
+    # The reference worktrees live INSIDE the run directory (v2): in v1 they
+    # sat in $TMPDIR/chromiq-agent6-trees, where another process's sweep of
+    # chromiq-* temp folders deleted them in the middle of a baseline run
+    # (2026-10-03: every identity/upstream build after X1 failed).
+    scratch = Path(args.trees_dir).resolve() if args.trees_dir else out / "trees"
     scratch.mkdir(parents=True, exist_ok=True)
     trees = {"branch": TREE,
              "accurate": Path(args.accurate_tree).resolve() if args.accurate_tree else TREE}
     made = []
     try:
-        if "baseline" in suites and args.master_check:
-            trees["master"] = worktree(args.identity_ref, scratch / "master")
-            made.append(trees["master"])
-            if args.upstream_ref:
-                trees["upstream"] = worktree(args.upstream_ref, scratch / "upstream")
-                made.append(trees["upstream"])
+        if "baseline" in suites:
+            for role, ref in (("identity", args.identity_ref),
+                              ("upstream", args.upstream_ref)):
+                if ref:
+                    trees[role] = worktree(ref, scratch / role)
+                    made.append(trees[role])
         if "f00" in suites:
             trees["f00"] = worktree(args.f00_ref, scratch / "f00parent")
             made.append(trees["f00"])
-        env = environment(trees.get("master"), trees.get("upstream"))
+        env = environment(trees)
         env["args"] = vars(args)
         (out / "env.json").write_text(json.dumps(env, indent=1, default=str), encoding="utf-8")
         printers = build_printers()
@@ -379,7 +393,24 @@ def main(argv=None) -> int:
         print(f"{len(specs)} datasets, {len(jobs)} builds, {args.parallel} at a time",
               flush=True)
         builds_path = out / "builds.json"
-        if args.score_only and builds_path.exists():
+        if args.rebuild_failed and builds_path.exists():
+            builds = json.loads(builds_path.read_text(encoding="utf-8"))
+            by_out = {j["out"]: j for j in jobs}
+            redo = [i for i, b in enumerate(builds) if not b.get("ok")]
+            print(f"rebuilding {len(redo)} failed builds", flush=True)
+            t0 = time.time()
+            def again(i):
+                j = dict(by_out.get(builds[i]["job"]["out"], builds[i]["job"]))
+                return i, run_build(j)
+            with ThreadPoolExecutor(max_workers=args.parallel) as ex:
+                for i, res in ex.map(again, redo):
+                    res["rebuilt"] = True
+                    builds[i] = res
+                    print(f"[{time.time() - t0:6.0f}s] rebuilt {Path(res['job']['out']).name}: "
+                          f"{'ok' if res.get('ok') else 'FAILED'} "
+                          f"{'' if res.get('ok') else res.get('error', '')[:200]}", flush=True)
+                    builds_path.write_text(json.dumps(builds, indent=1), encoding="utf-8")
+        elif args.score_only and builds_path.exists():
             builds = json.loads(builds_path.read_text(encoding="utf-8"))
         else:
             t0 = time.time()
@@ -404,6 +435,7 @@ def main(argv=None) -> int:
         for i, s in enumerate(specs):
             ds = s["ds"]
             entry = {"name": ds.name, "suite": s["suite"], "variant": s["variant"],
+                     "role": dsm.role_of(ds.name),
                      "kind": ds.kind, "n_channels": ds.n_channels,
                      "color_rep": ds.color_rep, "ink_limit": ds.ink_limit,
                      "info": ds.info, "profiles": {}}
@@ -415,9 +447,11 @@ def main(argv=None) -> int:
                 truth = metrics.Truth(printer=ds.printer, illuminant=ds.illuminant or "D50")
             for b in mine:
                 j = b["job"]
-                if j["role"] in ("proxy", "master", "repeat"):
+                if j["role"] in ("proxy", "identity", "repeat"):
                     continue
                 key = j["engine"] if j["role"] == "branch" else f"{j['engine']}@{j['role']}"
+                stem = Path(j["out"]).stem if j["role"] == "branch" else \
+                    f"{Path(j['out']).stem}@{j['role']}"
                 rec = {k: b.get(k) for k in ("ok", "seconds", "sha256", "v4_sha256",
                                                "error", "outlier_rows", "fit_median_de00")}
                 if b.get("ok") and truth is not None:
@@ -434,7 +468,7 @@ def main(argv=None) -> int:
                         if sink:
                             (out / "points").mkdir(exist_ok=True)
                             np.savez_compressed(
-                                out / "points" / f"{Path(j['out']).stem}-{r}.npz",
+                                out / "points" / f"{stem}-{r}.npz",
                                 **{k: np.asarray(v) for k, v in sink.items()})
                     if ds.kind == "synthetic" and j["engine"] != "colprof":
                         flagged = set(b.get("outlier_rows") or [])
@@ -455,8 +489,7 @@ def main(argv=None) -> int:
         write_summary(results, out / "summary.md")
         code = 0
         if ident["failures"]:
-            print("\n" + "!" * 72 + "\nFAST / BIT-EXACT ARE NOT BYTE-IDENTICAL TO THE "
-                  f"IDENTITY REFERENCE {args.identity_ref}\n"
+            print("\n" + "!" * 72 + "\nFAST / BIT-EXACT ARE NOT BYTE-IDENTICAL TO THE IDENTITY REF\n"
                   + "\n".join(ident["failures"]) + "\n" + "!" * 72)
             code = 2
         if gates["failures"]:
@@ -482,13 +515,13 @@ def _js(o):
 
 def check_identity(builds: list[dict]) -> dict:
     out = {"compared": [], "failures": []}
-    for m in [b for b in builds if b["job"].get("role") == "master"]:
+    for m in [b for b in builds if b["job"].get("role") == "identity"]:
         br_out = str(Path(m["job"]["out"]).parent.parent / Path(m["job"]["out"]).name)
         br = next((b for b in builds if b["job"]["out"] == br_out), None)
         name = Path(br_out).name
         if br is None or not br.get("ok") or not m.get("ok"):
             out["failures"].append(f"{name}: a build failed (branch ok="
-                                   f"{br and br.get('ok')}, master ok={m.get('ok')})")
+                                   f"{br and br.get('ok')}, identity ok={m.get('ok')})")
             continue
         same_v2 = br["sha256"] == m["sha256"]
         same_v4 = br.get("v4_sha256") == m.get("v4_sha256")

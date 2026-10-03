@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-ENGINE_ORDER = ["colprof", "fast", "argyll", "fast@upstream", "argyll@upstream",
-                "accurate", "accurate@f00-parent"]
+ENGINE_ORDER = ["colprof", "fast", "argyll", "accurate", "fast@upstream",
+                "argyll@upstream", "accurate@f00-parent"]
 
 
 def _g(d, *keys, fmt="{:.3f}"):
@@ -21,8 +21,8 @@ def write_summary(results: dict, path: Path) -> None:
     env = results["env"]
     L = [f"# Research benchmark run, {env['time']}", "",
          f"Commit `{env['commit']}` ({env['branch']}), dirty: {'yes' if env['dirty'] else 'no'}; "
-         f"identity reference `{env.get('master_tree_commit')}`; "
-         f"upstream (master) column `{env.get('upstream_tree_commit')}`; Argyll {env['argyll']}; "
+         f"identity ref `{env.get('identity_tree_commit')}`; upstream (master) "
+         f"`{env.get('upstream_tree_commit')}`; Argyll {env['argyll']}; "
          f"lcms {env['lcms']}; numpy {env['numpy']}; {env['cpu']}; "
          f"load average at start {tuple(round(x, 1) for x in env['loadavg_start'])}.",
          "Timings are NOT controlled measurements (two builds ran in parallel).", ""]
@@ -63,30 +63,41 @@ def write_summary(results: dict, path: Path) -> None:
                                           else "**FAILURES**"))
     L += [f"* FAIL: {f}" for f in gt["failures"]]
     L.append("")
-    for reader in ("argyll", "lcms", "colorsync", "multilinear"):
+    L.append("Datasets marked (dev) are DEVELOPMENT sets (protocol v2 section 1a): "
+             "the engine was tuned on them; a claim of 'better' rests on the "
+             "confirmatory sets only.")
+    L.append("")
+    readers = []
+    for d in results["datasets"]:
+        for p in d["profiles"].values():
+            readers += [r for r in (p.get("scores") or {}) if r not in readers]
+    for reader in readers or ("argyll", "lcms", "colorsync", "multilinear"):
         L.append(f"## dE00 by engine, read through `{reader}`")
         L.append("")
         L.append("| dataset | variant | engine | A2B med | A2B p95 | A2B max | B2A med | "
-                 "B2A p95 | RT med | neutral med | neutral C*max | shadow B2A med | "
+                 "B2A p95 | RT med | neutral med | neutral C*max | neutral L*>=85 mean | L*93.75 prints | shadow B2A med | "
                  "hi-light B2A med (L*>85 sample) | white ink % | black L* | build s |")
-        L.append("|" + "---|" * 16)
+        L.append("|" + "---|" * 18)
         for d in results["datasets"]:
             for eng in sorted(d["profiles"], key=lambda e: ENGINE_ORDER.index(e)
                               if e in ENGINE_ORDER else 99):
                 p = d["profiles"][eng]
                 if not p.get("ok"):
                     L.append(f"| {d['name']} | {d['variant']} | {eng} | build failed: "
-                             f"{(p.get('error') or '')[:80].replace('|', '/')} |" + " |" * 12)
+                             f"{(p.get('error') or '')[:80].replace('|', '/')} |" + " |" * 14)
                     continue
                 s = p.get("scores", {}).get(reader, {})
                 a2b = s.get("a2b") or s.get("a2b_heldout") or {}
                 L.append("| " + " | ".join([
-                    d["name"] + (" (held-out)" if d["kind"] == "real" else ""),
+                    d["name"] + (" (held-out)" if d["kind"] == "real" else "")
+                    + (" (dev)" if d.get("role") == "development" else ""),
                     d["variant"], eng,
                     _g(a2b, "all", "median"), _g(a2b, "all", "p95"), _g(a2b, "all", "max", fmt="{:.2f}"),
                     _g(s, "b2a", "all", "median"), _g(s, "b2a", "all", "p95"),
                     _g(s, "roundtrip", "median"),
                     _g(s, "neutral", "de", "median"), _g(s, "neutral", "chroma_max", fmt="{:.2f}"),
+                    _g(s, "neutral", "highlight", "de", "mean"),
+                    _g(s, "neutral", "highlight", "printed_L_at_93_75", fmt="{:.1f}"),
                     _g(s, "b2a", "shadow_L<20", "median"),
                     _g(s, "b2a", "highlight_sample", "median"),
                     _g(s, "white", "max_ink_pct", fmt="{:.2f}"),

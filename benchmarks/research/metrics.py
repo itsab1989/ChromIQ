@@ -150,6 +150,12 @@ def neutral_axis(prof, reader: str, truth: Truth, black_l: float, n_ch: int,
            # steady: any device movement there is wasted variation
            "below_black_device_tv": float(np.abs(np.diff(dev[~pr], axis=0)).sum())
            if (~pr).sum() > 1 else 0.0}
+    hi = ls >= 85.0
+    # protocol v2 E6: the highlight neutral ramp (agent 7 T2c: the L* 93.75
+    # node printed L* 59-88 on n > 3 / matte printers)
+    out["highlight"] = {"de": stats(de[hi]),
+                        "printed_L_at_93_75": float(printed[np.argmin(np.abs(ls - 93.75)), 0]),
+                        "chroma_max": float(np.hypot(printed[hi, 1], printed[hi, 2]).max())}
     sh = Lp < 30
     if sh.sum() > 3:
         out["shadow"] = {"de": stats(E[sh]),
