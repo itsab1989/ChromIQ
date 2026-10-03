@@ -17,6 +17,7 @@ standing in for the profile that doesn't exist yet.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import struct
 import subprocess
@@ -206,10 +207,31 @@ class ArgyllHelperMapper:
 
     def map_lab(self, lab: np.ndarray) -> np.ndarray:
         jab = self._ap_src.lab_to_jab(np.atleast_2d(np.asarray(lab, float)))
-        out = run_gammap(jab, src_gam=self._src_gam, intent=self._intent,
-                         mapres=self._mapres, wp_jab=self._wp_jab,
-                         bp_jab=self._bp_jab, dst_gam=self._dst_gam,
-                         dst_cloud_jab=self._dst_cloud)
+        try:
+            out = run_gammap(jab, src_gam=self._src_gam, intent=self._intent,
+                             mapres=self._mapres, wp_jab=self._wp_jab,
+                             bp_jab=self._bp_jab, dst_gam=self._dst_gam,
+                             dst_cloud_jab=self._dst_cloud)
+        except HelperUnavailable as exc:
+            # F-03 (research agent9-01 section 4.1): Argyll's new_gammap
+            # aborts with "vector_isect failed" when the white-to-black line
+            # it aligns the grey axis to misses the destination shell (the
+            # black handed to it lies outside the shell). Retried ONLY on
+            # that failure, with the darkest near-neutral point OF the shell
+            # as the black: a call that succeeded never gets here, so every
+            # table that built before keeps its bytes.
+            if ("vector_isect" not in str(exc) or self._dst_cloud is None
+                    or self._wp_jab is None
+                    or not os.environ.get("CHROMIQ_F03_RETRY")):
+                raise
+            cloud = np.asarray(self._dst_cloud, float)
+            c = np.hypot(cloud[:, 1], cloud[:, 2])
+            near = c < max(3.0, float(np.percentile(c, 1)))
+            bp = cloud[near][np.argmin(cloud[near][:, 0])]
+            out = run_gammap(jab, src_gam=self._src_gam, intent=self._intent,
+                             mapres=self._mapres, wp_jab=self._wp_jab,
+                             bp_jab=bp, dst_gam=self._dst_gam,
+                             dst_cloud_jab=self._dst_cloud)
         return self._ap_dst.jab_to_lab(out)
 
 
