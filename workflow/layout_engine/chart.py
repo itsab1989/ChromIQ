@@ -32,6 +32,9 @@ class ChartResult:
     #: The date drawn on the record strip (``YYYY-MM-DD``). Saved with the chart
     #: so a rebuild can reproduce it instead of stamping the day it ran.
     chart_date: str = ""
+    #: Paper whites added so each calibration ramp starts its own strip
+    #: (``ramps_per_strip``); 0 when nothing was rearranged.
+    ramp_whites_added: int = 0
 
 
 def build_ti2_from_ti1(
@@ -282,6 +285,10 @@ def build_chart(
     apply_cal: bool = False,
     emit_cht: bool = False,
     label_rule: str = permutation.ARGYLL,
+    #: A calibration chart: lay each ink's ramp out on its own strip (see
+    #: `calibration_ramps`). Rewrites the .ti1 in place when it is targen's
+    #: pure ramp set; any other .ti1 is laid out exactly as it is.
+    ramps_per_strip: bool = False,
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
 
@@ -321,13 +328,14 @@ def build_chart(
         # inks, and an RGB chart carrying a CMYK calibration is no use to
         # anything downstream (#182 5956560815).
         calibration.check_matches(target, cal)
-        if apply_cal:
-            printed = calibration.apply_to_target(target, cal)
     spacer_on = spacer_on and spacer_mode != "none"   # "none" ⇒ no gap
     # Build the Geom through the one chokepoint so area-first patch sizing and the
     # furniture reservations (label band, bottom sheet text / stamp) match every
-    # capacity estimate exactly (#93).
-    geom = instruments.geom_from_build_kwargs({
+    # capacity estimate exactly (#93). A function of the patch count, because
+    # area-first sizes the patches from it and the calibration ramps below
+    # change it.
+    def _geom_for(npat: int):
+        return instruments.geom_from_build_kwargs({
         "instrument": instrument, "paper": paper, "hflag": hflag,
         "hex_flat_top": hex_flat_top,
         "density": density, "cm_stagger": cm_stagger,
@@ -388,7 +396,7 @@ def build_chart(
         # The chart's actual patch count, so area-first sizes the patches to FILL
         # the box with exactly this many (a fixed patch set still fills the area,
         # not just packs at the minimum) (Knut). Ignored by patch-first.
-        "area_target_count": len(target.patches),
+        "area_target_count": npat,
         "area_default_w": area_default_w, "area_default_h": area_default_h,
         "dpi": dpi, "draw_indicators": draw_indicators,
         "indicator_font": indicator_font, "indicator_size_mm": indicator_size_mm,
@@ -407,8 +415,12 @@ def build_chart(
         "chart_text_size_mm": chart_text_size_mm,
         "text_edge": text_edge})
     w_mm, h_mm = papers.dimensions_mm(paper)
+    geom = _geom_for(len(target.patches))
     layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
-    if label_rule != permutation.LEGACY:
+
+    def _refuse_unreadable_patterns(layout_now) -> None:
+        if label_rule == permutation.LEGACY:
+            return
         # ArgyllCMS'S LABELS, SO ARGYLLCMS'S LIMITS (forum report, 2026-10-03;
         # Knut, #182 5965589190). A pattern pair the readers could not read
         # back (too few labels, halves that run together) is refused before
@@ -417,10 +429,54 @@ def build_chart(
         from . import alphix
         problem = alphix.check_patterns(
             strip_pattern, patch_pattern,
-            alphix.strips_of(layout.total_patches, layout.steps_in_pass),
-            layout.steps_in_pass)
+            alphix.strips_of(layout_now.total_patches,
+                             layout_now.steps_in_pass),
+            layout_now.steps_in_pass)
         if problem is not None:
             raise alphix.PatternRefused(problem)
+
+    # Refused BEFORE a calibration's ramps rewrite the .ti1 on disk, and again
+    # on the layout those ramps settle on (it can have a different strip count).
+    _refuse_unreadable_patterns(layout)
+
+    # EACH INK'S RAMP ON ITS OWN STRIP (#182, Knut 5965186237). Only for a
+    # calibration build, and only when the .ti1 is targen's pure ramp set:
+    # anything else keeps its rows. The .ti1 is rewritten on disk as well, so
+    # the patch set, the .ti2 and the sheet all say the same thing.
+    ramps_arranged = 0
+    if ramps_per_strip:
+        from . import calibration_ramps as _cr
+        _ramps = _cr.ramps_in_ti1(ti1_path)
+        if _ramps is not None and _ramps.is_targen_order:
+            def _steps(n: int) -> int:
+                return geometry.compute(_geom_for(n), w_mm, h_mm,
+                                        n).steps_in_pass
+
+            def _count(steps: int) -> int:
+                return len(_cr.arranged_order(_ramps, steps) or [])
+
+            # None when no strip length agrees with its own count: targen's
+            # order is then kept, rather than ramps arranged for one strip
+            # length and laid out on another.
+            _fit = _cr.settle(_count, _steps, len(target.patches))
+            _new = (_cr.arrange_ti1(ti1_path, _fit[1], total=_fit[0])
+                    if _fit is not None else None)
+            if _fit is None:
+                import logging
+                logging.getLogger(__name__).info(
+                    "calibration ramps left in targen's order: no strip "
+                    "length agrees with the count it lays out (area-first)")
+            if _new is not None:
+                ramps_arranged = _new - len(target.patches)
+                target = ti1_reader.read_ti1(ti1_path)
+                printed = target
+                geom = _geom_for(len(target.patches))
+                layout = geometry.compute(geom, w_mm, h_mm,
+                                          len(target.patches))
+                _refuse_unreadable_patterns(layout)
+    if cal is not None and apply_cal:
+        from . import calibration
+        printed = calibration.apply_to_target(target, cal)
     if seed is None:
         seed = permutation.pick_seed()
 
@@ -579,6 +635,7 @@ def build_chart(
         # The date actually drawn, so it can be saved with the chart and handed
         # back to a later rebuild.
         chart_date=_ctx["date"],
+        ramp_whites_added=ramps_arranged,
     )
 
 

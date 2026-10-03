@@ -4,8 +4,7 @@ B8-22 asks for a regression sweep that can be re-run before every beta instead
 of improvised. A script nobody can invoke, or one whose checks can only say
 PASS, is not that. These run in a second and need no app window:
 
-    QT_QPA_PLATFORM=offscreen CHROMIQ_SETTINGS_FILE=/tmp/x.ini \
-        pytest script/test_the_sweep_is_runnable.py -q
+    QT_QPA_PLATFORM=offscreen pytest tests/test_the_sweep_is_runnable.py -q
 
 They deliberately do NOT drive the window — that is what `run-sweep.sh` is for.
 They prove the harness around it is sound.
@@ -20,7 +19,16 @@ from pathlib import Path
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("CHROMIQ_SETTINGS_FILE", "/tmp/chromiq-sweep-selftest.ini")
+# NOT `os.environ.setdefault("CHROMIQ_SETTINGS_FILE", ...)` here. A module-level
+# line runs at COLLECTION, and under xdist every worker collects every file, so
+# it set the variable in every worker for the whole run: every `AppSettings()`
+# in every other file then logged "Settings SANDBOXED", and every child process
+# a test started shared one fixed `/tmp` ini across all twelve workers and
+# across runs (2026-10-03, seen as `test_replacing_a_stored_chart_keeps_the_
+# old_one.py` failing only under a loaded run). The sweep needs it only while
+# THIS file's tests run, so `_sweep_settings_sandbox` sets it for this module
+# and puts back what was there. `tests/test_no_test_file_sets_the_settings_
+# file_at_import.py` keeps it that way.
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "scanner_sweep" / "scanner_window_sweep.py"
@@ -33,8 +41,20 @@ HERE = SCRIPT.parent
 REPO = Path(os.environ.get("CHROMIQ_TREE", str(REPO_ROOT)))
 
 
+@pytest.fixture(scope="module", autouse=True)
+def _sweep_settings_sandbox(tmp_path_factory):
+    """The sweep script refuses to import without a sandboxed settings file
+    (and `record` names it). Set for this module only, then undone."""
+    mp = pytest.MonkeyPatch()
+    if not os.environ.get("CHROMIQ_SETTINGS_FILE"):
+        mp.setenv("CHROMIQ_SETTINGS_FILE",
+                  str(tmp_path_factory.mktemp("sweep-selftest") / "settings.ini"))
+    yield
+    mp.undo()
+
+
 @pytest.fixture(scope="module")
-def sweep():
+def sweep(_sweep_settings_sandbox):
     if not REPO.is_dir():
         pytest.skip(f"{REPO} is not on this machine")
     sys.path.insert(0, str(REPO))

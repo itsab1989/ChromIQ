@@ -62,8 +62,11 @@ def printtarg_env_additions(platform: "str | None" = None) -> "dict[str, str]":
 
 def printtarg_env(base: "Mapping[str, str] | None" = None) -> "dict[str, str]":
     """A full environment for a printtarg subprocess: *base* (this process's
-    own environment by default) with :func:`printtarg_env_additions` on top."""
-    env = dict(os.environ if base is None else base)
+    own environment by default) with the serial-scan exclusion every Argyll
+    tool gets (:func:`core.argyll_env.argyll_env`) and
+    :func:`printtarg_env_additions` on top."""
+    from core.argyll_env import argyll_env
+    env = argyll_env(base, phantoms=False)
     env.update(printtarg_env_additions())
     return env
 

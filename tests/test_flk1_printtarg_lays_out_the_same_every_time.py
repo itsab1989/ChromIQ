@@ -45,7 +45,11 @@ def test_the_environment_keeps_what_it_was_given(monkeypatch):
     monkeypatch.setattr(sys, "platform", "darwin")
     env = PE.printtarg_env({"PATH": "/x", "LANG": "de_DE.UTF-8"})
     assert env == {"PATH": "/x", "LANG": "de_DE.UTF-8",
-                   "MallocLargeCache": "0"}
+                   "MallocLargeCache": "0",
+                   # every Argyll tool skips the port that can hang it
+                   # (core/argyll_env.py), printtarg included
+                   "ARGYLL_EXCLUDE_SERIAL_SCAN":
+                       "/dev/cu.Bluetooth-Incoming-Port"}
 
 
 def test_printtarg_is_recognised_by_name_or_path():
@@ -71,10 +75,17 @@ def test_the_runner_gives_printtarg_and_only_printtarg_the_setting(
     from core.argyll_runner import ArgyllRunner
     monkeypatch.setattr(sys, "platform", "darwin")
     runner = ArgyllRunner(_Settings())
-    assert runner.environment_additions("printtarg", None) == {
-        "MallocLargeCache": "0"}
-    assert runner.environment_additions("targen", None) == {}
-    assert runner.environment_additions("chartread", None) == {}
+
+    def additions(tool):
+        # the serial-scan exclusion goes to every tool (core/argyll_env.py,
+        # its own tests); this test is about the printtarg setting only
+        extra = runner.environment_additions(tool, None)
+        extra.pop("ARGYLL_EXCLUDE_SERIAL_SCAN", None)
+        return extra
+
+    assert additions("printtarg") == {"MallocLargeCache": "0"}
+    assert additions("targen") == {}
+    assert additions("chartread") == {}
 
 
 def test_the_presets_window_runs_printtarg_with_it(tmp_path, monkeypatch):

@@ -115,3 +115,31 @@ def parse_created_date(raw: str) -> "date | None":
     except ValueError:
         return None
     return None
+
+
+_CLOCK = re.compile(r"(?<!\d)(\d{1,2}):(\d{2}):(\d{2})(?!\d)")
+
+
+def parse_created_datetime(raw: str) -> "datetime | None":
+    """The moment in a ``CREATED`` value, or None when it cannot be read.
+
+    The day comes from :func:`parse_created_date`, so every language it
+    reads is read here too; the time is the ``HH:MM:SS`` token, which is
+    written the same way in every locale (``"Fri Oct 02 21:27:02 2026"``,
+    ``"Fr. Okt. 02 21:27:02 2026"``, ``"2026-10-02T21:27:02"``). A value
+    with a day and no time is None, not midnight: a caller comparing
+    moments must not be handed one that was guessed (#182, verifications
+    from an earlier profile). Local time, as ChromIQ and ArgyllCMS write
+    it. Never raises.
+    """
+    day = parse_created_date(raw)
+    if day is None:
+        return None
+    clock = _CLOCK.search(raw or "")
+    if clock is None:
+        return None
+    try:
+        return datetime(day.year, day.month, day.day, int(clock.group(1)),
+                        int(clock.group(2)), int(clock.group(3)))
+    except ValueError:
+        return None

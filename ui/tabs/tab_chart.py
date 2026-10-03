@@ -9059,6 +9059,10 @@ class TabChart(QWidget):
             # already injects the same key for the same reason.
             _kw = r.build_kwargs()
             if _npat:
+                # A calibration chart's ramps each start a strip of their own,
+                # with the whites that takes (#182, Knut 5965186237), so the
+                # estimate counts them the way the build will.
+                _npat = self._calibration_ramp_total(int(_npat), _kw)
                 _kw["area_target_count"] = int(_npat)
             geom = instruments.geom_from_build_kwargs(_kw)
             self._estimated_layout = self._predict_layout_info(
@@ -11111,6 +11115,54 @@ class TabChart(QWidget):
         except Exception as exc:
             log.error("Cannot load parameters.yaml: %s", exc)
             return {}
+
+    def open_gamut_for_new_verification(self) -> None:
+        """Show FROM PROFILE GAMUT for a new chart from the current profile
+        (#182, UMM §6f): the answer to "Archive them and make a new chart from
+        the current profile" and "Make a new chart from the current profile".
+
+        Nothing is generated; the run's stored verification settings are
+        already on screen, because the main window switched to this tab first
+        and the tab loaded them. Not a choice by hand, so
+        ``_user_chose_module`` is left as it is."""
+        if not self._is_verification_target():
+            return
+        if self._mode_name() != "gamut":
+            self._switch_mode("gamut")
+
+    def open_verification_chart_in_its_own_module(self) -> None:
+        """Show the run's ORDINARY verification chart in the module it belongs
+        to (#182, UMM §6f text B): the answer to "Archive them" when the chart
+        is kept.
+
+        Knut, 5965626117: *"opening Create Chart should be done anyway, so that
+        the user can confirm if this is the chart he wants to use, and then
+        move to printing the chart if desired"*. The 2026-08-10 default puts a
+        verification run with a profile on FROM PROFILE GAMUT, and that is
+        right for every other way in; here it would show a TC9.18 or a Manual
+        chart under the module that would REPLACE it at Generate Chart. A chart
+        without a colorimetric reference was made in Manual (its recipe is
+        restored there), so Manual is its module. A FROM PROFILE GAMUT chart
+        from the current profile stays on that module, and with no chart at
+        all nothing changes. Not a choice by hand: ``_user_chose_module`` is
+        left alone, so the default still applies to the next entry."""
+        if not self._is_verification_target():
+            return
+        if self._mode_name() != "gamut":
+            return          # already on Guided or Manual: the stored choice
+        try:
+            ctl = self._target_ctl
+            from core.measurement_target import resolve_run
+            from workflow.verification_print import colorimetric_reference_for
+            run = resolve_run(ctl.project_or_none(), ctl.target)
+            ti2 = run.verify_chart_ti2
+            if not ti2.exists() or colorimetric_reference_for(ti2).is_file():
+                return
+        except Exception:      # noqa: BLE001 — never break opening the tab
+            log.debug("could not tell the verification chart's module",
+                      exc_info=True)
+            return
+        self._switch_mode("manual")
 
     def _user_switch_mode(self, mode: str) -> None:
         """A module chosen BY HAND: from now on this session, the user's pick
@@ -24372,6 +24424,51 @@ class TabChart(QWidget):
             return n
         return self._onscreen_patch_total()
 
+    def _calibration_ramp_total(self, npat: int, kw: dict) -> int:
+        """The patch count a calibration build lays out for targen's *npat*.
+
+        In Calibration the engine starts each ink's ramp on a strip of its
+        own, with its own paper white, and fills the rest of a ramp's last
+        strip with paper white (`workflow.layout_engine.calibration_ramps`,
+        Knut #182 5965186237). This is the same arithmetic on the count
+        targen will write, so the "estimate" column agrees with the sheet.
+        Only for targen's pure ramp set (-s N with -f, -e, -B and -g all 0,
+        which is what the calibration knobs set); *npat* unchanged otherwise.
+        Never raises: an estimate is never a blocker.
+        """
+        try:
+            _in_cal = getattr(self, "_calibration_selected", None)
+            if _in_cal is None or not _in_cal():
+                return npat
+            p = self._collect_manual()
+            steps = int(p.single_channel_steps or 0)
+            # -e 1 is the same chart as -e 0: targen makes ONE white either
+            # way (it shares the ramps' own), and the build arranges it.
+            if (steps < 2 or int(p.white_patches or 0) > 1
+                    or p.black_patches or p.grey_steps or p.patches):
+                return npat
+            if npat < steps or (npat - 1) % (steps - 1):
+                return npat
+            channels = (npat - 1) // (steps - 1)
+            from workflow.layout_engine import (
+                calibration_ramps, geometry, instruments, papers,
+            )
+            w_mm, h_mm = papers.dimensions_mm(kw.get("paper", "A4"))
+
+            def _steps_for(n: int) -> int:
+                g = instruments.geom_from_build_kwargs(
+                    {**kw, "area_target_count": n})
+                return geometry.compute(g, w_mm, h_mm, n).steps_in_pass
+
+            fit = calibration_ramps.settle(
+                lambda s: calibration_ramps.arranged_count(
+                    [steps - 1] * channels, s),
+                _steps_for, npat)
+            # None: the build keeps targen's order, so the count is targen's
+            return int(fit[0]) if fit is not None else npat
+        except Exception:      # noqa: BLE001 — an estimate, never a blocker
+            return npat
+
     def _fixed_patches_only_count(self) -> "int | None":
         """How many patches targen makes for the next Generate when "Auto
         patch count" is off and -f is 0: the fixed patches alone. None in any
@@ -29048,8 +29145,10 @@ class TabChart(QWidget):
         default (already RANDOM_START → skipped here); a chart carries CHART_ID
         only when "Preserve Patch Order" (-r) is in effect — e.g. when a
         pre-shuffled generate-colour-sets / editor-recipe layout is generated.
-        A structured chart (a deliberate ramp, a calibration ramp) fails the
-        gate and is left untouched. Best-effort: never blocks chart creation.
+        A structured chart (a deliberate ramp) usually fails the gate; a
+        calibration chart, or any chart of single-channel ramps, is never
+        tagged at all, because ramps of different inks can pass it. Best-effort:
+        never blocks chart creation.
         """
         try:
             if not ti2.is_file():
@@ -29059,6 +29158,21 @@ class TabChart(QWidget):
             # analysis for it.
             text = ti2.read_text(encoding="utf-8", errors="ignore")
             if "CHART_ID" not in text or "RANDOM_START" in text:
+                return
+            # A CALIBRATION CHART IS IN ORDER BY DESIGN, AND THE GATE CANNOT
+            # SAY SO. calibration_run_type §4.2 lays it out with -r, and each
+            # ink's ramp has a strip of its own (Knut, #182 5965186237). The
+            # gate only asks whether the strips can be told apart, and ramps
+            # of four different inks can: the CMYK calibration chart passed
+            # it, was tagged RANDOM_START, and chartread was told a sheet in
+            # order was shuffled (review of the ramps change, 2026-10-03). So
+            # a chart built in Calibration, or any chart that is nothing but
+            # single-channel ramps, keeps its CHART_ID.
+            _in_cal = getattr(self, "_calibration_selected", None)
+            if _in_cal is not None and _in_cal():
+                return
+            from workflow.layout_engine.calibration_ramps import ramps_in_ti1
+            if ramps_in_ti1(ti2.with_name(ti2.name[:-4] + ".ti1")) is not None:
                 return
             from workflow.ti2_relayout import (
                 analyze_randomisation, tag_ti2_randomised,

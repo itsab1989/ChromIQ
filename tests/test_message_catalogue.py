@@ -611,6 +611,17 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-CR-STRIPS",
                                  "M-CR-START-OVER",
                                  "M-CR-PRECONDITIONING",
+                                 # #182, UMM §6f (Knut 5964384250,
+                                 # 5965626117): the behaviour is his, the
+                                 # wording ours. M-PROFILE-VERIFY is a
+                                 # revision: a rebuild archives the profile
+                                 # only, and "printed through" was untrue.
+                                 "M-PROFILE-VERIFY",
+                                 "M-VERIFY-EARLIER-PROFILE",
+                                 "M-VERIFY-EARLIER-PROFILE-KEEP-CHART",
+                                 "M-VERIFY-EARLIER-PROFILE-NO-CHART",
+                                 "M-VERIFY-CHART-EARLIER-PROFILE",
+                                 "M-VERIFY-EARLIER-ARCHIVED-HERE",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
@@ -755,6 +766,10 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_measure", "TabMeasure", "_say_report_not_saved"),
     # Beta 7: a measurement's damaged calibration table was put back.
     ("ui.main_window", "MainWindow", "_show_cal_tables_repaired"),
+    # #182, UMM §6f: verifications from an earlier profile. The window's
+    # text, and the log lines after its answer.
+    ("ui.earlier_profile_offer", "EarlierProfileOffer", "_message"),
+    ("ui.earlier_profile_offer", "EarlierProfileOffer", "_carry_out"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.
@@ -830,6 +845,19 @@ def test_no_message_reaches_the_screen_with_a_placeholder_left():
         M.M_CHART_CORRUPT.render(),
         M.M_PREVIEW_PAUSED.render(),
         M.M_PROFILE_VERIFY.render(n=4, date="2026-03-14", blocked=""),
+        M.M_PROFILE_VERIFY.render(n=1, date="2026-03-14", blocked=""),
+        M.M_VERIFY_EARLIER_PROFILE.render(n=3, date="2026-03-14",
+                                          profile_when="2026-10-03 00:39"),
+        M.M_VERIFY_EARLIER_PROFILE.render(n=1, date="2026-03-14",
+                                          profile_when="2026-10-03 00:39"),
+        M.M_VERIFY_EARLIER_PROFILE_KEEP_CHART.render(
+            n=3, date="2026-03-14", profile_when="2026-10-03 00:39"),
+        M.M_VERIFY_EARLIER_PROFILE_KEEP_CHART.render(
+            n=1, date="2026-03-14", profile_when="2026-10-03 00:39"),
+        M.M_VERIFY_CHART_EARLIER_PROFILE.render(
+            profile_when="2026-10-03 00:39"),
+        M.M_VERIFY_EARLIER_ARCHIVED_HERE.render(
+            n=2, folder="/x/verifications/old/2026-10-03_120000"),
         M.M_CM_NO_CCTIFF.render(),
         M.M_CM_CONVERT_FAILED.render(n=2, total=3, reason="…"),
         M.M_CAL_REPLACE_CHART.render(),
