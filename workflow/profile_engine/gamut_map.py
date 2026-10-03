@@ -843,6 +843,32 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
         return {"l_axis": ls, "neutral_lab": neutral, "k_curve": k_curve}
 
 
+def _neutral_black_lab(model: ForwardModel, *, is_additive: bool,
+                       ink_limit: float | None, channel_letters,
+                       channel_max, neutral_black_dev, meas) -> np.ndarray:
+    """The destination black for gamut mapping: the darkest colour the
+    printer can make NEUTRAL under its limits (Argyll's colprof uses its
+    profile's black point the same way). Additive devices: device black."""
+    n = model.n_channels
+    if is_additive:
+        return model.predict(np.zeros((1, n)))[0]
+    if neutral_black_dev is None:
+        black_l = None
+        if meas is not None and hasattr(meas, "lab_relative"):
+            black_l = float(meas.lab_relative[meas.black_index, 0])
+        axis = b2a_mod.neutral_axis(
+            model, channel_letters=channel_letters, is_additive=False,
+            ink_limit=ink_limit, accurate=True, black_l=black_l,
+            channel_max=channel_max)
+        neutral_black_dev = axis.get("black")
+    if neutral_black_dev is None:
+        dev = np.ones((1, n))
+        if ink_limit is not None:
+            dev *= min(1.0, ink_limit / 100.0 / n)
+        return model.predict(dev)[0]
+    return model.predict(np.asarray(neutral_black_dev, float)[None, :])[0]
+
+
 def invert_mapping(mapper, mapped_lab: np.ndarray, iters: int = 20
                    ) -> np.ndarray:
     """Numeric inverse of a gamut map (colprof -nI: the perceptual A2B gets
@@ -868,7 +894,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      a2b_grid: int | None = None,
                      a2b_entries: int | None = None,
                      anchor: dict | None = None,
-                     channel_max: np.ndarray | None = None) -> dict:
+                     channel_max: np.ndarray | None = None,
+                     neutral_black_dev: np.ndarray | None = None) -> dict:
     """Mapped tables per intent → dict of mft2 tags/aliases for the writer.
 
     Returns entries for ``B2A0``/``B2A2`` (bytes or the alias string
@@ -927,6 +954,20 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
     _n = getattr(model, "n_channels", 0) if model is not None else 0
     _bitexact_le4 = (getattr(settings, "gammap_mode", "fast")
                      in ("argyll", "accurate") and 0 < _n <= 4)
+    # Research D-08 items (b)/(c), agent9-01 section 3: "a9-ownmap" maps
+    # every ink count with the compiled Argyll mapper on the engine's own
+    # destination (no background colprof build), with the destination black
+    # = the model's NEUTRAL black under the limits instead of all inks at
+    # 100 % (an extrapolation that tilts the grey axis and causes F-03).
+    ownmap = accurate and "a9-ownmap" in getattr(
+        settings, "engine_candidates", frozenset())
+    dst_black_lab = None
+    if ownmap:
+        _bitexact_le4 = False
+        dst_black_lab = _neutral_black_lab(
+            model, is_additive=is_additive, ink_limit=ink_limit,
+            channel_letters=channel_letters, channel_max=channel_max,
+            neutral_black_dev=neutral_black_dev, meas=meas)
     # #123 W5 (candidate "render2"): the bijective CAM16-UCS radial
     # mapper replaces the Argyll-matched rendering for the DEFAULT
     # perceptual/saturation intents — explicit -t/-T selections keep the
@@ -950,7 +991,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             oracle = fit_gammap_port_mappers(
                 model, meas, source_gamut, settings,
                 getattr(settings, "argyll_bin", None), progress,
-                is_additive=is_additive, ink_limit=ink_limit)
+                is_additive=is_additive, ink_limit=ink_limit,
+                **({"dst_black_lab": dst_black_lab} if ownmap else {}))
         except Exception as exc:                      # noqa: BLE001
             if progress:
                 progress(f"Ported gammap unavailable ({exc}) — "

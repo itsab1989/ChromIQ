@@ -622,6 +622,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         ucs=use_ucs, channel_max=channel_max,
         progress=lambda m: _emit(settings, m))
     fixed_nodes = None
+    axis = None
     if accurate and not meas.is_additive and n >= 4:
         # The neutral axis solved once by continuation from paper white,
         # put on the B2A neutral column, with everything darker than the
@@ -769,7 +770,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             is_additive=meas.is_additive, ink_limit=ink_limit,
             entries=entries_b2a, codec=codec, settings=settings,
             a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor,
-            channel_max=channel_max)
+            channel_max=channel_max,
+            neutral_black_dev=(axis or {}).get("black"))
         luts.update(mapped)
         perceptual_distinct = "B2A0" in mapped
     if "B2A0" not in luts:

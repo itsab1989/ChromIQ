@@ -235,8 +235,13 @@ def _iccgamut_to(path: Path, work_icc: Path, bin_dir: Path,
 def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
                               settings, bin_dir: Path, progress=None, *,
                               is_additive: bool = True,
-                              ink_limit: float | None = None) -> dict:
+                              ink_limit: float | None = None,
+                              dst_black_lab: np.ndarray | None = None
+                              ) -> dict:
     """Bit-exact B2A0/B2A2 mappers backed by Argyll's real gamut mapper.
+
+    ``dst_black_lab`` (research a9-ownmap): the destination black point to
+    align the grey axis to; None = the model at full ink (shipped).
 
     <=4-ink: destination is the iccgamut ``.gam`` colprof itself would map
     (byte-identical). CMY+N: destination is Argyll's own ``expand`` of the
@@ -274,6 +279,8 @@ def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
     black_lab = model.predict(np.zeros((1, model.n_channels))
                               if is_additive
                               else np.ones((1, model.n_channels)))[0]
+    if dst_black_lab is not None:
+        black_lab = np.asarray(dst_black_lab, float)
     paper_xyz = lab_to_xyz(white_lab[None, :])[0]
     ap_dst = Appearance(paper_xyz)
     wp_jab = ap_dst.lab_to_jab(white_lab[None, :])[0]
@@ -330,8 +337,8 @@ def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
     # For a .gam destination the iccgamut file already carries the profile's
     # white/black (exactly colprof's), so leave it untouched; only the cloud
     # path needs explicit wp/bp.
-    map_wp = None if dst_gam is not None else wp_jab
-    map_bp = None if dst_gam is not None else bp_jab
+    map_wp = None if dst_gam is not None and dst_black_lab is None else wp_jab
+    map_bp = None if dst_gam is not None and dst_black_lab is None else bp_jab
 
     def _mk(intent: str) -> ArgyllHelperMapper:
         return ArgyllHelperMapper(
@@ -345,7 +352,8 @@ def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
 def fit_gammap_port_mappers(model, meas, source_gamut: Path | str,
                             settings, argyll_bin: Path | str | None,
                             progress=None, *, is_additive: bool = True,
-                            ink_limit: float | None = None) -> dict:
+                            ink_limit: float | None = None,
+                            dst_black_lab: np.ndarray | None = None) -> dict:
     """The shipping mapper: ported gammap on Jab gamuts (B2A0).
 
     Currently covers the default perceptual intent (colprof "p" — the
@@ -372,7 +380,8 @@ def fit_gammap_port_mappers(model, meas, source_gamut: Path | str,
         try:
             return fit_gammap_argyll_mappers(
                 model, meas, source_gamut, settings, bin_dir, progress,
-                is_additive=is_additive, ink_limit=ink_limit)
+                is_additive=is_additive, ink_limit=ink_limit,
+                dst_black_lab=dst_black_lab)
         except HelperUnavailable as exc:
             if progress:
                 progress(f"Bit-exact Argyll helper unavailable ({exc}); "
