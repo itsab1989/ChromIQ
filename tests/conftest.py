@@ -710,6 +710,52 @@ def _no_update_check_thread_outlives_its_refusal():
 
 
 @pytest.fixture(autouse=True)
+def _no_test_opens_a_real_instrument_port(monkeypatch):
+    """NO TEST STARTS A READER AGAINST THIS MACHINE'S PORTS.
+
+    On the owner's Mac `/dev/cu.Bluetooth-Incoming-Port` is stuck in the
+    kernel: any process that opens it hangs in state U and cannot be killed
+    (2026-10-03). With nothing plugged in it is Argyll's port 1, so a test that
+    let `chartread`, `spotread` or `chromiq-chartread` start without the replay
+    instrument or external values (`-xx`) left an unkillable process behind
+    for every run; the review of b3591886 counted 22 `(chartread)` in one gate.
+
+    So `ArgyllRunner.run`'s own last door (`instrument_port.runner_refuses`)
+    refuses EVERY such launch inside the suite, whatever port it names, and
+    the test FAILS, naming it. A binary that does not exist opens nothing and
+    is let through (the launch-failure tests need it). A test about a real
+    reader uses the replay instrument or a fake runner. And
+    `core.instrument_port.probe` answers "cannot tell", so no test depends on
+    what is plugged into the machine running it; a test about the port guard
+    sets it itself.
+    """
+    from core import instrument_port
+    monkeypatch.setattr(instrument_port, "probe", lambda: (None, None))
+    offenders: "list[str]" = []
+
+    def runner_refuses(runner, tool, args):
+        name = pathlib.Path(str(tool)).name.lower().removesuffix(".exe")
+        if (name not in instrument_port.INSTRUMENT_TOOLS
+                or instrument_port.opens_no_port(name, list(args))):
+            return None
+        try:
+            exists = runner._resolve(tool).is_file()
+        except Exception:      # noqa: BLE001 — unresolvable: nothing to open
+            exists = False
+        if not exists:
+            return None
+        offenders.append(f"{name} {' '.join(map(str, args))}")
+        return "(a real port, refused inside the suite)"
+
+    monkeypatch.setattr(instrument_port, "runner_refuses", runner_refuses)
+    yield
+    if offenders:
+        pytest.fail("a test started a real instrument reader (no replay, no "
+                    "-xx); it would open this machine's port 1:\n  "
+                    + "\n  ".join(offenders), pytrace=False)
+
+
+@pytest.fixture(autouse=True)
 def _the_update_check_never_reaches_the_network(monkeypatch):
     """NO TEST MAY ASK GITHUB ANYTHING, and one silently did.
 

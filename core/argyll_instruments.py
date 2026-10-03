@@ -165,6 +165,63 @@ def _parse_ioreg(text: str) -> "tuple[UsbDevice, ...]":
     return tuple(dict.fromkeys(devices))
 
 
+def _count_ioreg_instruments(text: str) -> int:
+    """How many ArgyllCMS instruments an ``ioreg -l`` listing holds, counting
+    two identical ones twice (by ``locationID``, the USB port they sit on).
+
+    :func:`_parse_ioreg` answers "which kinds", and folds two i1Pros into one;
+    the instrument PORT number needs "how many", because Argyll gives each its
+    own number ahead of the serial ports (`core.instrument_port`). Pure text.
+    """
+    seen: "set[object]" = set()
+    vid = pid = loc = None
+    block = 0
+
+    def flush() -> None:
+        if vid is not None and pid is not None and match(vid, pid):
+            seen.add(("loc", loc) if loc is not None else ("block", block))
+
+    for line in text.splitlines():
+        if "+-o " in line:
+            flush()
+            vid = pid = loc = None
+            block += 1
+            continue
+        m = re.search(r'"idVendor"\s*=\s*(\d+)', line)
+        if m:
+            vid = int(m.group(1))
+            continue
+        m = re.search(r'"idProduct"\s*=\s*(\d+)', line)
+        if m:
+            pid = int(m.group(1))
+            continue
+        m = re.search(r'"locationID"\s*=\s*(\d+)', line)
+        if m:
+            loc = int(m.group(1))
+    flush()
+    return len(seen)
+
+
+def attached_instrument_count() -> "int | None":
+    """How many ArgyllCMS USB instruments are attached now (macOS), or None
+    when that cannot be read. Nothing is opened: the IORegistry, as above."""
+    if sys.platform != "darwin":
+        return None
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["/usr/sbin/ioreg", "-p", "IOUSB", "-l", "-w", "0"],
+            capture_output=True, text=True, encoding="utf-8",
+            errors="replace", timeout=10, check=False,
+            stdin=subprocess.DEVNULL).stdout
+    except Exception:          # noqa: BLE001 — an unreadable list is "unknown"
+        log.debug("ioreg failed", exc_info=True)
+        return None
+    if "+-o " not in out:
+        return None
+    return _count_ioreg_instruments(out)
+
+
 def _linux_usb_devices(root: str = "/sys/bus/usb/devices") -> "tuple[UsbDevice, ...] | None":
     """Linux: sysfs, which lists only what is plugged in now."""
     from pathlib import Path
