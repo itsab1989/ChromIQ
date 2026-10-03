@@ -143,8 +143,11 @@ def run_chunks(fn, bounds: list[tuple[int, int]]) -> list:
         # and is restored for everyone else right after.
         acc = in_accurate_scope()
 
+        share = max(1, worker_count() // len(bounds))
+
         def _flagged(lo, hi):
             _SHARE.accurate = acc
+            _SHARE.workers = share          # nested pools stay in budget
             return fn(lo, hi)
         with ThreadPoolExecutor(max_workers=len(bounds),
                                 thread_name_prefix="chromiq-engine") as ex:
