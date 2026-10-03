@@ -24,6 +24,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+
+from core.cgats_date import created_stamp
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -314,7 +316,7 @@ def _table(header_keywords: list[str], id_field: str,
         'DESCRIPTOR "Argyll Calibration Target chart information 1"',
         'ORIGINATOR "ChromIQ"',
         *header_keywords,
-        f'CREATED "{datetime.now().strftime("%a %b %d %H:%M:%S %Y")}"',
+        f'CREATED "{created_stamp()}"',   # English, as ArgyllCMS writes it
         "",
         "NUMBER_OF_FIELDS 7",
         "BEGIN_DATA_FORMAT",

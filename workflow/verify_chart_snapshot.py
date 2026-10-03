@@ -841,6 +841,84 @@ def snapshot_chart(verification: Verification) -> "Path | None":
     return dest
 
 
+def set_aside_stored_chart(verification: Verification,
+                           when: str) -> "Path | None":
+    """Move a dated verification's stored chart to ``<date>/old/<when>/chart/``
+    before a DIFFERENT chart is snapshotted in its place ("Replace the stored
+    chart"). Returns where it went, or None when there was nothing to keep.
+
+    :func:`snapshot_chart` copies over the top, so a replace used to lose the
+    chart the date's measurement was made with, and left that chart's files
+    mixed into the new one: a gamut chart's ``-verify-reference.ti3`` stayed
+    behind a regular chart, and Restore Used Chart then put a colorimetric
+    reference back beside it. Moving the folder away first keeps the old chart
+    (nothing is deleted) and lets the snapshot start from an empty folder.
+
+    *when* is the same ``%Y-%m-%d_%H%M%S`` stamp the date's previous
+    measurement is kept under when the new one is filed, so the old chart and
+    the old measurement it belongs to end up side by side. Raises OSError when
+    the move fails; nothing has moved then.
+    """
+    src = snapshot_dir(verification)
+    if not src.is_dir() or not any(src.iterdir()):
+        return None
+    keep = verification.dir / "old" / when
+    keep.mkdir(parents=True, exist_ok=True)
+    dest = keep / CHART_SUBDIR
+    n = 2
+    while dest.exists():
+        dest = keep / f"{CHART_SUBDIR}_{n}"
+        n += 1
+    shutil.move(str(src), str(dest))
+    log.info("verification %s: the stored chart it replaces is kept in %s",
+             verification.id, dest)
+    return dest
+
+
+def put_back_stored_chart(verification: Verification,
+                          set_aside: Path) -> bool:
+    """Undo :func:`set_aside_stored_chart` for a session that filed nothing:
+    the chart copied in for it goes, and the chart the date's measurement was
+    made with is its stored chart again. Returns True when that is so.
+
+    The copy that goes is a copy of the live verification chart, which is
+    still there; the chart that comes back is the only copy of itself, so it
+    is moved back before anything is removed, and a failure leaves it in
+    ``old/`` (where it is safe) rather than nowhere.
+    """
+    if set_aside is None or not set_aside.is_dir():
+        return False
+    live = snapshot_dir(verification)
+    stash = None
+    try:
+        if live.exists():
+            stash = _fresh_stash(verification.dir / f".unused-{CHART_SUBDIR}")
+            shutil.move(str(live), str(stash))
+        try:
+            shutil.move(str(set_aside), str(live))
+        except OSError:
+            if stash is not None and not live.exists():
+                shutil.move(str(stash), str(live))
+            raise
+    except OSError as exc:
+        log.warning("verification %s: could not put the stored chart back; "
+                    "it is kept in %s: %s", verification.id, set_aside, exc)
+        return False
+    if stash is not None:
+        shutil.rmtree(stash, ignore_errors=True)
+    # The dated folder the set-aside made, and old/ itself, when nothing else
+    # has been kept there since.
+    for d in (set_aside.parent, set_aside.parent.parent):
+        try:
+            if d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
+        except OSError:
+            pass
+    log.info("verification %s: nothing was filed, so the stored chart it "
+             "was measured with is back in %s", verification.id, live)
+    return True
+
+
 def snapshot_files(verification: Verification) -> list[Path]:
     """The files held in a verification's chart snapshot (empty when none)."""
     d = snapshot_dir(verification)

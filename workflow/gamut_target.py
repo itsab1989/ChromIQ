@@ -58,6 +58,8 @@ import struct
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
+
+from core.cgats_date import created_stamp
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -604,7 +606,7 @@ def write_colorimetric_reference(selection: GamutSelection, out_path: Path) -> P
         "",
         'DESCRIPTOR "ChromIQ colorimetric verification reference"',
         'ORIGINATOR "ChromIQ"',
-        f'CREATED "{datetime.now().strftime("%a %b %d %H:%M:%S %Y")}"',
+        f'CREATED "{created_stamp()}"',   # English, as ArgyllCMS writes it
         'DEVICE_CLASS "OUTPUT"',
         'COLOR_REP "RGB_XYZ"',
         f'CHROMIQ_SET_VERSION "{selection.master_version}"',

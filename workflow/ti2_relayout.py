@@ -30,6 +30,8 @@ import tempfile
 from collections import deque
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
+
+from core.cgats_date import created_stamp
 from pathlib import Path
 
 import numpy as np
@@ -963,7 +965,7 @@ def write_ti1_nchannel(
         f'APPROX_WHITE_POINT "{wx:.6f} {wy:.6f} {wz:.6f}"',
         f'COLOR_REP "{color_rep}"',
         *([f'TOTAL_INK_LIMIT "{ink_limit:.1f}"'] if ink_limit is not None else []),
-        f'CREATED "{datetime.now().strftime("%a %b %d %H:%M:%S %Y")}"',
+        f'CREATED "{created_stamp()}"',   # English, as ArgyllCMS writes it
         "",
         f"NUMBER_OF_FIELDS {1 + n + 3}",
         "BEGIN_DATA_FORMAT",

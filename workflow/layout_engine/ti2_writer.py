@@ -10,7 +10,6 @@ as media so the final pass is full.
 """
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 from . import permutation as perm
@@ -66,7 +65,9 @@ def build_ti2_text(
     total = len(patches)
     slots = perm.location_permutation(total, seed, randomize)
 
-    created = created or time.strftime("%a %b %d %H:%M:%S %Y", time.localtime())
+    # English whatever the locale, as ArgyllCMS writes it (core/cgats_date.py).
+    from core.cgats_date import created_stamp
+    created = created or created_stamp()
     seed_kw = ("RANDOM_START" if randomize else "CHART_ID", str(seed))
     n_fields = 2 + ndev + 3  # SAMPLE_ID SAMPLE_LOC <device…> XYZ_X XYZ_Y XYZ_Z
 

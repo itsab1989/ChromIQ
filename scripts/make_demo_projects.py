@@ -18,7 +18,8 @@ Four projects are written:
                               measurement, profile, reports, exports), one with
                               two dated verifications, one with a chart only.
 ``Demo-Verify-History``       one finished run with **five** dated
-                              verifications, three months apart, each with its
+                              verifications, three months apart and all made
+                              after its profile was built, each with its
                               own measurement and report — for exercising the
                               verification history and the report's trend.
 ``Demo-Legacy-v1``            **the 3.13 layout**, for migration testing.
@@ -53,6 +54,8 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HERE.parent))
 
+from core.cgats_date import created_stamp   # noqa: E402 — needs the path above
+
 CHART_EXTS = (".ti1", ".ti2", ".cht", ".ps", ".channels.json", ".strips.json")
 
 
@@ -64,7 +67,7 @@ def _ti2(stem: str, patches: int, rows: int) -> str:
     head = [
         "CTI2", "", 'DESCRIPTOR "Argyll Calibration Target chart information 2"',
         'ORIGINATOR "Argyll printtarg"',
-        f'CREATED "{datetime.now():%a %b %d %H:%M:%S %Y}"',
+        f'CREATED "{created_stamp()}"',
         'KEYWORD "APPROX_WHITE_POINT"', 'APPROX_WHITE_POINT "95.1 100.0 108.9"',
         f'NUMBER_OF_FIELDS 7', "BEGIN_DATA_FORMAT",
         "SAMPLE_ID SAMPLE_LOC RGB_R RGB_G RGB_B XYZ_X XYZ_Y", "END_DATA_FORMAT",
@@ -119,7 +122,7 @@ def _ti3_from_ti2(ti2: Path, *, drift: float = 0.0) -> str:
     out = [
         "CTI3", "", 'DESCRIPTOR "Argyll Calibration Target chart information 3"',
         'ORIGINATOR "Argyll chartread"',
-        f'CREATED "{datetime.now():%a %b %d %H:%M:%S %Y}"',
+        f'CREATED "{created_stamp()}"',
         'KEYWORD "DEVICE_CLASS"', 'DEVICE_CLASS "OUTPUT"',
         'KEYWORD "COLOR_REP"', 'COLOR_REP "RGB_XYZ"',
         f"NUMBER_OF_FIELDS {8 if has_loc else 7}", "BEGIN_DATA_FORMAT",
@@ -149,7 +152,7 @@ def _ti3(stem: str, patches: int, *, drift: float = 0.0) -> str:
     head = [
         "CTI3", "", 'DESCRIPTOR "Argyll Calibration Target chart information 3"',
         'ORIGINATOR "Argyll chartread"',
-        f'CREATED "{datetime.now():%a %b %d %H:%M:%S %Y}"',
+        f'CREATED "{created_stamp()}"',
         'KEYWORD "DEVICE_CLASS"', 'DEVICE_CLASS "OUTPUT"',
         'KEYWORD "COLOR_REP"', 'COLOR_REP "RGB_XYZ"',
         "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
@@ -370,6 +373,40 @@ def _meta(run_dir: Path, rid: str, **extra) -> None:
     (run_dir / "meta.json").write_text(json.dumps(d, indent=2), encoding="utf-8")
 
 
+def _backdate_profile(run_dir: Path, stem: str, built: datetime) -> None:
+    """Give the profile colprof has just written the build date *built*: its
+    ICC header creation date (UTC, bytes 24-35, with the v4 profile ID
+    recomputed when it carries one) and its file time.
+
+    The demo's verification dates are history on purpose: months apart, so
+    Demo-Verify-History's trend graph reads as a printer drifting over half a
+    year. But colprof builds the profile NOW, which put every one of those
+    dates before the profile it verifies, a state no real project can hold
+    (a verification measures a profile that already exists). Moving the
+    dates up to the build would squeeze the trend into minutes; dating the
+    profile back to before them keeps both true. Only the demo does this.
+    """
+    import os
+    import struct
+    from datetime import timezone
+
+    from core.icc_text import _profile_id
+    icc = run_dir / f"{stem}.icc"
+    if not icc.is_file():
+        return
+    data = bytearray(icc.read_bytes())
+    if len(data) < 128 or data[36:40] != b"acsp":
+        return
+    utc = built.astimezone(timezone.utc)
+    struct.pack_into(">6H", data, 24, utc.year, utc.month, utc.day,
+                     utc.hour, utc.minute, utc.second)
+    if data[84:100] != b"\0" * 16:
+        data[84:100] = _profile_id(bytes(data))
+    icc.write_bytes(bytes(data))
+    ts = built.timestamp()
+    os.utime(icc, (ts, ts))
+
+
 def _verification(run_dir: Path, stem: str, when: datetime, de: float) -> None:
     vdir = run_dir / "verifications" / when.strftime("%Y-%m-%d_%H%M%S")
     (vdir / "chart").mkdir(parents=True, exist_ok=True)
@@ -418,6 +455,8 @@ def build_full(root: Path) -> None:
     _chart_files(r1, stem, patches=240, rows=15, pages=2)
     (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     _build_icc(r1, stem)
+    # Built before its report of 2026-05-02 10:15, and before run2 below.
+    _backdate_profile(r1, stem, datetime(2026, 5, 2, 9, 30))
     (r1 / "chart").mkdir(exist_ok=True)
     _chart_files(r1 / "chart", stem, patches=240, rows=15, pages=2)
     for sub, fname, body in (
@@ -441,6 +480,8 @@ def build_full(root: Path) -> None:
     _chart_files(r2, stem, patches=240, rows=15, pages=2)
     (r2 / f"{stem}.ti3").write_text(_ti3_from_ti2(r2 / f"{stem}.ti2", drift=0.4), encoding="utf-8")
     _build_icc(r2, stem)
+    # Refined after run1, and built before the first of its two dates.
+    _backdate_profile(r2, stem, datetime(2026, 5, 19, 14, 0))
     (r2 / "preconditioning.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     shutil.copy2(r1 / f"{stem}.icc", r2 / "preconditioning.icc") if (r1 / f"{stem}.icc").exists() else None
     _chart_files(r2 / "verifications", f"{stem}-verify", patches=60, rows=10)
@@ -465,8 +506,10 @@ def build_verify_history(root: Path) -> None:
     _chart_files(r1, stem, patches=240, rows=15, pages=2)
     (r1 / f"{stem}.ti3").write_text(_ti3_from_ti2(r1 / f"{stem}.ti2"), encoding="utf-8")
     _build_icc(r1, stem)
-    _chart_files(r1 / "verifications", f"{stem}-verify", patches=60, rows=10)
     start = datetime(2026, 1, 12, 11, 0)
+    # The profile comes first: built three days before its first check.
+    _backdate_profile(r1, stem, start - timedelta(days=3))
+    _chart_files(r1 / "verifications", f"{stem}-verify", patches=60, rows=10)
     for i, de in enumerate((0.8, 1.0, 1.3, 1.9, 2.6)):   # a drifting printer
         _verification(r1, stem, start + timedelta(days=90 * i), de)
     _meta(r1, "run1")

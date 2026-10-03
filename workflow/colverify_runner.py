@@ -33,6 +33,8 @@ import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
+
+from core.cgats_date import created_stamp
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
@@ -194,7 +196,7 @@ def write_reference_ti3(
         "",
         'DESCRIPTOR "Argyll Calibration Target chart information 3"',
         'ORIGINATOR "ChromIQ"',
-        f'CREATED "{datetime.now().strftime("%a %b %d %H:%M:%S %Y")}"',
+        f'CREATED "{created_stamp()}"',   # English, as ArgyllCMS writes it
         'DEVICE_CLASS "OUTPUT"',
         f'COLOR_REP "{color_rep}"',
         "",
