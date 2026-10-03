@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-ENGINE_ORDER = ["colprof", "fast", "argyll", "accurate", "accurate@f00-parent"]
+ENGINE_ORDER = ["colprof", "fast", "argyll", "accurate", "fast@upstream",
+                "argyll@upstream", "accurate@f00-parent"]
 
 
 def _g(d, *keys, fmt="{:.3f}"):
@@ -20,12 +21,13 @@ def write_summary(results: dict, path: Path) -> None:
     env = results["env"]
     L = [f"# Research benchmark run, {env['time']}", "",
          f"Commit `{env['commit']}` ({env['branch']}), dirty: {'yes' if env['dirty'] else 'no'}; "
-         f"master tree `{env.get('master_tree_commit')}`; Argyll {env['argyll']}; "
+         f"identity ref `{env.get('identity_tree_commit')}`; upstream (master) "
+         f"`{env.get('upstream_tree_commit')}`; Argyll {env['argyll']}; "
          f"lcms {env['lcms']}; numpy {env['numpy']}; {env['cpu']}; "
          f"load average at start {tuple(round(x, 1) for x in env['loadavg_start'])}.",
          "Timings are NOT controlled measurements (two builds ran in parallel).", ""]
     idn = results["identity"]
-    L.append("## Hard rule 1: Fast and Bit-exact byte-identical to master")
+    L.append("## Hard rule 1: Fast and Bit-exact byte-identical to the identity reference (D-02)")
     if not idn["compared"] and not idn["failures"]:
         L.append("Not checked in this run.")
     else:
@@ -41,7 +43,15 @@ def write_summary(results: dict, path: Path) -> None:
                                           else "**FAILURES**"))
     L += [f"* FAIL: {f}" for f in gt["failures"]]
     L.append("")
-    for reader in ("argyll", "lcms", "colorsync", "multilinear"):
+    L.append("Datasets marked (dev) are DEVELOPMENT sets (protocol v2 section 1a): "
+             "the engine was tuned on them; a claim of 'better' rests on the "
+             "confirmatory sets only.")
+    L.append("")
+    readers = []
+    for d in results["datasets"]:
+        for p in d["profiles"].values():
+            readers += [r for r in (p.get("scores") or {}) if r not in readers]
+    for reader in readers or ("argyll", "lcms", "colorsync", "multilinear"):
         L.append(f"## dE00 by engine, read through `{reader}`")
         L.append("")
         L.append("| dataset | variant | engine | A2B med | A2B p95 | A2B max | B2A med | "
@@ -59,7 +69,8 @@ def write_summary(results: dict, path: Path) -> None:
                 s = p.get("scores", {}).get(reader, {})
                 a2b = s.get("a2b") or s.get("a2b_heldout") or {}
                 L.append("| " + " | ".join([
-                    d["name"] + (" (held-out)" if d["kind"] == "real" else ""),
+                    d["name"] + (" (held-out)" if d["kind"] == "real" else "")
+                    + (" (dev)" if d.get("role") == "development" else ""),
                     d["variant"], eng,
                     _g(a2b, "all", "median"), _g(a2b, "all", "p95"), _g(a2b, "all", "max", fmt="{:.2f}"),
                     _g(s, "b2a", "all", "median"), _g(s, "b2a", "all", "p95"),

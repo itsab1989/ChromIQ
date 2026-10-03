@@ -215,6 +215,12 @@ def _colorsync(path: Path, rows: np.ndarray, forward: bool,
     return out
 
 
+def _cs_range(reader: str) -> list:
+    # "colorsync-v1range" re-derives what v1 published (wrong range); never
+    # a column of a new benchmark.
+    return QUARTZ_LAB_RANGE_V1 if reader == "colorsync-v1range" else QUARTZ_LAB_RANGE
+
+
 # --- public -------------------------------------------------------------------
 def a2b(path: Path | str, device01: np.ndarray, reader: str) -> np.ndarray:
     path = Path(path)
@@ -223,10 +229,10 @@ def a2b(path: Path | str, device01: np.ndarray, reader: str) -> np.ndarray:
         return _xicclu(path, "f", device01, 3)
     if reader == "lcms":
         return _lcms_run(path, device01, True)
-    if reader == "colorsync":
+    if reader in ("colorsync", "colorsync-v1range"):
         if not colorsync_supported(str(path)):
             raise ColorSyncUnsupported("ColorSync crashes on this profile (process fault)")
-        return _colorsync(path, device01, True)
+        return _colorsync(path, device01, True, _cs_range(reader))
     if reader == "multilinear":
         from benchmarks.iccread import IccProfile
         return IccProfile(path).a2b_lab(device01)
@@ -241,10 +247,10 @@ def b2a(path: Path | str, lab: np.ndarray, reader: str) -> np.ndarray:
         return np.clip(_xicclu(path, "b", lab, n), 0.0, 1.0)
     if reader == "lcms":
         return np.clip(_lcms_run(path, lab, False), 0.0, 1.0)
-    if reader == "colorsync":
+    if reader in ("colorsync", "colorsync-v1range"):
         if not colorsync_supported(str(path)):
             raise ColorSyncUnsupported("ColorSync crashes on this profile (process fault)")
-        return np.clip(_colorsync(path, lab, False), 0.0, 1.0)
+        return np.clip(_colorsync(path, lab, False, _cs_range(reader)), 0.0, 1.0)
     if reader == "multilinear":
         from benchmarks.iccread import IccProfile
         return IccProfile(path).b2a_device(lab)
