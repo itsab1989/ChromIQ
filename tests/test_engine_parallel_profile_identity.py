@@ -48,9 +48,13 @@ def test_threaded_accurate_build_is_byte_identical(pid, tmp_path, monkeypatch):
     ds = dsm.synthetic(pid, tmp_path, 400)
     argyll = _argyll_bin()
     gamut_map._ORACLE_CACHE.clear()
-    serial = _build(ds.ti3, tmp_path / "serial.icc", "1", argyll, monkeypatch)
+    # Same file name in two folders: the description tag is the file stem.
+    (tmp_path / "serial").mkdir()
+    (tmp_path / "threaded").mkdir()
+    serial = _build(ds.ti3, tmp_path / "serial" / "p.icc", "1", argyll,
+                    monkeypatch)
     gamut_map._ORACLE_CACHE.clear()          # the threaded build runs colprof too
-    threaded = _build(ds.ti3, tmp_path / "threaded.icc", "4", argyll,
+    threaded = _build(ds.ti3, tmp_path / "threaded" / "p.icc", "4", argyll,
                       monkeypatch)
     assert serial[0] == threaded[0]
     assert serial[1] == threaded[1]
