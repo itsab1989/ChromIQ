@@ -827,11 +827,19 @@ def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
     # still runs for exactly the vintage it was written for.
     if chart_is_flat_top(ti2_path):
         return
+    # The chart's own labels say which strip and row a location is (#182
+    # 5965589190); the letters-then-digits reading below is the fallback.
+    from workflow.layout_engine.labels import labels_for_chart
+    cl = labels_for_chart(ti2_path)
     for page in pages:
         if not page:
             continue
         columns: "dict[str, list[int]]" = {}
         for loc, r in page.items():
+            sp = cl.split(loc)
+            if sp is not None:
+                columns.setdefault(str(sp[0]), []).append(r.x())
+                continue
             m = re.match(r"([A-Za-z]+)", loc)
             columns.setdefault(m.group(1) if m else "", []).append(r.x())
         # A column of TWO OR MORE patches that all share one x is the fingerprint
@@ -843,10 +851,14 @@ def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
         if not legacy:
             continue
         for loc, r in list(page.items()):
-            m = re.search(r"(\d+)\s*$", loc)
-            if not m:
-                continue                # the old code skipped these, and was wrong to
-            j = int(m.group(1)) - 1                    # 0-based row in the strip
+            sp = cl.split(loc)
+            if sp is not None:
+                j = sp[1]                              # 0-based row in the strip
+            else:
+                m = re.search(r"(\d+)\s*$", loc)
+                if not m:
+                    continue            # the old code skipped these, and was wrong to
+                j = int(m.group(1)) - 1
             dx = round(-r.width() / 4) if (j % 2 == 0) else round(r.width() / 4)
             page[loc] = QRect(r.x() + dx, r.y(), r.width(), r.height())
 
@@ -13566,7 +13578,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _on_stripe_changed(self, strip_id: str) -> None:
         self._log.appendPlainText(f"[→ strip {strip_id}]")
         self._log.ensureCursorVisible()
-        letter = "".join(c for c in strip_id if c.isalpha()).upper()
+        # The strip's own LABEL, which may be a number (#182 5965589190):
+        # keeping only its letters dropped every numbered strip on the floor.
+        letter = self._strip_name(strip_id)
         if not letter:
             return
         # A failed strip reports no data, so this is the only way to name it in
@@ -13574,7 +13588,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._current_strip_letter = letter
         if not self._page_stripe_rects:
             return
-        global_idx = letter_to_idx(letter)
+        global_idx = self._strip_index(letter)
+        if global_idx < 0:
+            return
         n_pages    = max(1, len(self._tiff_pages))
 
         # Map the absolute strip index → (page, local index). Prefer the
@@ -13676,10 +13692,46 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             except Exception:      # noqa: BLE001 — visibility, never a crash
                 pass
 
+    # ---- the chart's labels (forum report; Knut, #182 5965589190) ----------
+    def _chart_labels(self):
+        """The strip and patch labels of the chart on screen: ArgyllCMS's
+        grammar for both, letters or numbers on either side, or ChromIQ's old
+        rule on a chart printed with it (`workflow.layout_engine.labels`)."""
+        from workflow.layout_engine.labels import labels_for_chart
+        try:
+            return labels_for_chart(
+                self._chart_file_for(getattr(self, "_ti1_path", None)))
+        except Exception:      # noqa: BLE001 — labels never block the tab
+            from workflow.layout_engine.labels import ChartLabels
+            return ChartLabels()
+
+    def _strip_index(self, label: str) -> int:
+        """0-based strip of a strip label, or -1."""
+        i = self._chart_labels().strip_index(str(label or "").strip())
+        if i >= 0:
+            return i
+        letters = "".join(c for c in str(label or "") if c.isalpha())
+        return letter_to_idx(letters) if letters else -1
+
+    def _strip_name(self, text: str) -> str:
+        """The strip a reader's word names, as the chart labels it: a strip
+        label stands for itself and a location for its strip."""
+        text = str(text or "").strip()
+        cl = self._chart_labels()
+        i = cl.strip_index(text)
+        if i >= 0:
+            return cl.strip(i) or text
+        sp = cl.split(text)
+        if sp is not None:
+            return cl.strip(sp[0]) or ""
+        return "".join(c for c in text if c.isalpha()).upper()
+
     def _locate_strip(self, letter: str) -> "tuple[int, int, QRect | None]":
-        """(page, local index, image-px rect) for a strip letter — the same
+        """(page, local index, image-px rect) for a strip label — the same
         mapping _on_stripe_changed uses for the measure arrow."""
-        global_idx = letter_to_idx(letter)
+        global_idx = self._strip_index(letter)
+        if global_idx < 0:
+            return 0, -1, None
         page, local_idx = 0, global_idx
         if self._strips_per_page:
             for count in self._strips_per_page:
@@ -13707,6 +13759,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         else:
             base = 0
         global_idx = base + local_idx
+        label = self._chart_labels().strip(global_idx)
+        if label:
+            return label
         # idx → letters (A..Z, AA..): inverse of letter_to_idx
         letters = ""
         n = global_idx
@@ -16435,9 +16490,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._log.appendPlainText(
             tr("[Engine] Jumping to patch {loc}…").format(loc=loc))
 
-    @staticmethod
-    def _strip_of(loc: str) -> str:
-        """The strip letter of a patch location: "A12" -> "A", "AB3" -> "AB"."""
+    def _strip_of(self, loc: str) -> str:
+        """The strip label of a patch location: "A12" -> "A", "AB3" -> "AB",
+        and "12C" -> "12" on a chart numbered by strip (#182 5965589190)."""
+        sp = self._chart_labels().split(str(loc or ""))
+        if sp is not None:
+            return self._chart_labels().strip(sp[0]) or ""
         return "".join(c for c in str(loc) if c.isalpha()).upper()
 
     def _note_patches_read(self, locs) -> None:
@@ -16540,7 +16598,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         "Show only measured patches" on blanked a sheet whose every patch had
         been measured.
         """
-        letters = {self._strip_of(s.get("strip", ""))
+        letters = {self._strip_name(s.get("strip", ""))
                    for s in self._engine_strips}
         letters |= {self._strip_of(loc)
                     for boxes in self._patch_boxes for loc in boxes}
@@ -16561,7 +16619,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         done = self._letters_fully_read()
         # NORMALISED, because the engine's keys are whatever the session map
         # and `strip_measured` called the strip and these are the chart's own.
-        eng = {self._strip_of(k): v for k, v in self._engine_read.items()}
+        eng = {self._strip_name(k): v for k, v in self._engine_read.items()}
         read_map = {}
         for letter in self._strip_letters():
             pg, li, _r = self._locate_strip(letter)

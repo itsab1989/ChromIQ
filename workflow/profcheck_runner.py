@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 _SUMMARY_RE   = re.compile(r"max\.\s*=\s*([\d.]+).*?avg\.\s*=\s*([\d.]+)", re.IGNORECASE)
-_PATCH_RE     = re.compile(r"^\s*\[([\d.]+)\]\s+\d+\s+@\s+([A-Za-z0-9]+):", re.MULTILINE)
+_PATCH_RE     = re.compile(r"^\s*\[([\d.]+)\]\s+\d+\s+@\s+([^\s:]+):", re.MULTILINE)
 _STRIP_LETTER = re.compile(r"^([A-Za-z]+)")
 
 

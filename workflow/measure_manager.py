@@ -27,6 +27,11 @@ log = get_logger(__name__)
 _STRIP_RE = re.compile(
     r"[Ss]trip\s+(?:pass\s+|ID:\s*'?|'?)([A-Za-z]{1,3}\d*)(?:')?(?![A-Za-z0-9])"
 )
+# chartread's own announcement, "Ready to read strip pass %s" (chartread.c
+# 1539), names the strip with ITS label, which follows the chart's strip
+# pattern: "12" on a chart numbered by strip is as valid as "AB" (Knut, #182
+# 5965589190). _STRIP_RE above only sees letters, so this one is asked first.
+_STRIP_PASS_RE = re.compile(r"[Ss]trip\s+pass\s+'?([^\s'(]+)'?")
 
 # The strip menu's own line — "Ready to read strip pass A". Distinct from
 # _STRIP_RE, which also matches "Scanning strip" and other progress chatter:
@@ -208,6 +213,39 @@ class MeasureParams:
     #: produces XYZ and `-xl` would make the helper run icmLab2XYZ over a
     #: conversion ChromIQ had already done.
     external_values: bool = False
+
+
+def _labels_or_default(cl):
+    if cl is None:
+        from workflow.layout_engine.labels import ChartLabels
+        cl = ChartLabels()
+    return cl
+
+
+def _strip_name_of(cl, text: str) -> str:
+    """The strip a reader's announcement names, as the chart labels it.
+
+    A strip label stands for itself; a whole location ("A12", "12C") stands
+    for its strip (#182 5965589190: strips may be numbered). Anything else
+    falls back to the letters in it, which is what this read before."""
+    text = str(text or "").strip()
+    cl = _labels_or_default(cl)
+    i = cl.strip_index(text)
+    if i >= 0:
+        return cl.strip(i) or text
+    sp = cl.split(text)
+    if sp is not None:
+        return cl.strip(sp[0]) or ""
+    return "".join(c for c in text if c.isalpha()).upper()
+
+
+def _strip_order_of(cl, label: str) -> int:
+    """Where a strip label sits on the chart, for "forward or back"."""
+    i = _labels_or_default(cl).strip_index(str(label or "").strip())
+    if i >= 0:
+        return i
+    letters = "".join(c for c in str(label or "") if c.isalpha())
+    return letter_to_idx(letters) if letters else -1
 
 
 class MeasureManager(QObject):
@@ -437,6 +475,18 @@ class MeasureManager(QObject):
 
     # ------------------------------------------------------------------
 
+    def _chart_labels(self):
+        """The strip and patch labels of the chart being read (see
+        `workflow.layout_engine.labels`): letters or numbers on either side,
+        as ArgyllCMS allows, or ChromIQ's old rule on a chart printed with it."""
+        return _labels_or_default(getattr(self, "_labels", None))
+
+    def _strip_name(self, text: str) -> str:
+        return _strip_name_of(getattr(self, "_labels", None), text)
+
+    def _strip_order(self, label: str) -> int:
+        return _strip_order_of(getattr(self, "_labels", None), label)
+
     def start(
         self,
         params: MeasureParams,
@@ -444,6 +494,13 @@ class MeasureManager(QObject):
         on_finish: Callable[[int], None],
     ) -> None:
         args = self._build_args(params)
+        try:
+            from workflow.layout_engine.labels import labels_for_chart
+            _t = Path(params.ti1_path)
+            self._labels = labels_for_chart(
+                _t if _t.suffix.lower() == ".ti2" else _t.with_suffix(".ti2"))
+        except Exception:      # noqa: BLE001 — labels never block a read
+            self._labels = None
         cwd  = params.ti1_path.parent
         self._is_resume      = params.resume
         self._read_something = False
@@ -962,8 +1019,20 @@ class MeasureManager(QObject):
                 return
             labels = [str(s.get("strip", "")).strip() for s in (strips or [])]
             labels = [x for x in labels if x]
+            # THE CHART'S OWN LABELS FIRST (forum report and Knut's ruling,
+            # #182 5965589190): "12C" is strip 12 patch C on a chart numbered
+            # by strip, which no prefix test can tell. The prefix test below
+            # stays for a chart whose locations its labels do not explain.
+            from workflow.layout_engine.labels import labels_for_chart
+            cl = labels_for_chart(ti2)
             placed = []
             for row, loc in enumerate(locs):
+                sp = cl.split(loc)
+                if sp is not None and cl.location(*sp) == loc:
+                    slab = cl.strip(sp[0]) or ""
+                    si = labels.index(slab) if slab in labels else len(labels)
+                    placed.append(((si, sp[1], row), loc, slab))
+                    continue
                 best = None
                 for si, lab in enumerate(labels):
                     if not loc.startswith(lab) or len(loc) <= len(lab):
@@ -2364,7 +2433,7 @@ class MeasureManager(QObject):
             self.instrument_detected.emit(m.group(1).strip())
             return
 
-        matches = _STRIP_RE.findall(line)
+        matches = _STRIP_PASS_RE.findall(line) or _STRIP_RE.findall(line)
         if matches:
             current = matches[-1]
             self.stripe_changed.emit(current)
@@ -2577,7 +2646,7 @@ class MeasureManager(QObject):
                 self._navigate_toward(target, next_target)
 
     def _guided_step(self, current: str, on_line: Callable[[str], None]) -> None:
-        letter = "".join(c for c in current if c.isalpha()).upper()
+        letter = _strip_name_of(getattr(self, "_labels", None), current)
         if not letter or not self._guided_strips:
             return
 
@@ -2652,7 +2721,7 @@ class MeasureManager(QObject):
         if self._engine_active:
             self.goto_strip(target)
             return
-        ci = letter_to_idx(current)
-        ti = letter_to_idx(target)
+        ci = _strip_order_of(getattr(self, "_labels", None), current)
+        ti = _strip_order_of(getattr(self, "_labels", None), target)
         key = "f" if ti > ci else "b"
         self._runner.write_stdin(key)

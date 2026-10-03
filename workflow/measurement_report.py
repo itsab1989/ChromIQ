@@ -6004,10 +6004,6 @@ def evenness_bands(n: int) -> "list[int]":
     return [b, int(n) - 2 * b, b]
 
 
-_LOC_ALPHA_NUM = re.compile(r"^([A-Za-z]+)(\d+)$")
-_LOC_NUM_ALPHA = re.compile(r"^(\d+)([A-Za-z]+)$")
-
-
 def _kw(keywords: dict, key: str, default: str = "") -> str:
     return str(keywords.get(key, default) or default).strip().strip('"').strip()
 
@@ -6041,13 +6037,14 @@ def chart_grid(ti2_path: "str | Path | None") -> dict:
         rows = 0
     if not pages or rows < 1 or not d.sample_locs:
         return {"reason": REASON_EVENNESS_NO_LAYOUT}
-    strip_alpha = "A-Z" in _kw(kw, "STRIP_INDEX_PATTERN", "A-Z, A-Z").upper()
-    patch_alpha = "A-Z" in _kw(kw, "PATCH_INDEX_PATTERN", "0-9").upper()
-    if strip_alpha == patch_alpha:
-        # both parts letters or both digits: "12" cannot be split into a
-        # strip and a row, so no position is known
-        return {"reason": REASON_EVENNESS_NO_POSITIONS}
-    from core.strip_utils import letter_to_idx
+    # THE CHART'S OWN LABELS (#182 5965589190): the strip and the row of a
+    # location are read with ArgyllCMS's grammar for the chart's patterns, or
+    # with ChromIQ's old rule on a chart printed with it, so a chart numbered
+    # by strip and lettered by row is placed as surely as the default one. A
+    # location the labels cannot place (both halves digits, say) places
+    # nothing.
+    from workflow.layout_engine.labels import labels_for_chart, location_key
+    cl = labels_for_chart(ti2_path)
     starts = np.cumsum([0] + pages)
     n_strips = int(starts[-1])
     slot: "dict[str, tuple[int, int, int]]" = {}
@@ -6060,14 +6057,11 @@ def chart_grid(ti2_path: "str | Path | None") -> dict:
         if _is_padding_id(sid):
             continue
         loc = str(loc).strip().strip('"')
-        m = _LOC_ALPHA_NUM.match(loc) or _LOC_NUM_ALPHA.match(loc)
-        if not m:
+        key = location_key(cl, loc)
+        if key is None:
             return {"reason": REASON_EVENNESS_NO_POSITIONS}
-        a, b = m.group(1), m.group(2)
-        letters, digits = (a, b) if a.isalpha() else (b, a)
-        s_txt, r_txt = (letters, digits) if strip_alpha else (digits, letters)
-        s = letter_to_idx(s_txt) if strip_alpha else int(s_txt) - 1
-        r = int(r_txt) - 1 if strip_alpha else letter_to_idx(r_txt)
+        s, r = key
+        s_txt, r_txt = cl.strip(s) or "", cl.patch(r) or ""
         if not (0 <= s < n_strips and 0 <= r < rows):
             return {"reason": REASON_EVENNESS_NO_POSITIONS}
         page = int(np.searchsorted(starts, s, side="right") - 1)

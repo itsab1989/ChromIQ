@@ -208,12 +208,14 @@ class ChartLabels:
             if s < 0 or p < 0:
                 return None
             return s, p
-        # Both halves the same kind: only the grid can tell them apart.
+        # Both halves the same kind: only the grid can tell them apart, and a
+        # label the grid makes twice ("1" + "11" and "11" + "1") is nobody's.
         if self._legacy_grid is None:
             grid: dict = {}
             for s in range(self.n_strips):
                 for p in range(self.steps):
-                    grid.setdefault(self.location(s, p), (s, p))
+                    loc_sp = self.location(s, p)
+                    grid[loc_sp] = None if loc_sp in grid else (s, p)
             self._legacy_grid = grid
         return self._legacy_grid.get(loc)
 
@@ -323,6 +325,33 @@ def labels_for_chart(ti2: "str | Path | None") -> ChartLabels:
         return _labels_cached(str(p), st.st_mtime_ns, st.st_size)
     except Exception:          # noqa: BLE001 — labels never block a caller
         return ChartLabels()
+
+
+def labels_for_measurement(ti3: "str | Path | None") -> ChartLabels:
+    """The labels of the chart a measurement was read from: the ``.ti2`` with
+    the same stem beside it, else the only ``.ti2`` in its folder. A ``.ti3``
+    carries locations but not the patterns that made them."""
+    try:
+        p = Path(ti3) if ti3 else None
+        if p is None:
+            return ChartLabels()
+        same = p.with_suffix(".ti2")
+        if same.is_file():
+            return labels_for_chart(same)
+        found = sorted(p.parent.glob("*.ti2")) if p.parent.is_dir() else []
+        if len(found) == 1:
+            return labels_for_chart(found[0])
+    except Exception:          # noqa: BLE001
+        pass
+    return ChartLabels()
+
+
+def location_key(cl: ChartLabels, loc: str) -> "tuple[int, int] | None":
+    """(strip, patch) of *loc* when *cl* explains it exactly, else None."""
+    sp = cl.split(loc)
+    if sp is None or cl.location(*sp) != (loc or "").strip():
+        return None
+    return sp
 
 
 def label_rule_of_chart(ti2: "str | Path | None") -> str:

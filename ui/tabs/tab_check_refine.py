@@ -1768,8 +1768,13 @@ class TabCheckRefine(QWidget):
                           exc_info=True)
         de = de_name_for(result.raw_log,
                          getattr(self, "_last_de_formula", "-k"))
-        return build_plan(parse_patches(result.raw_log, result.patch_errors),
-                          threshold, confirmed, de)
+        # The chart's own labels (#182 5965589190): a chart numbered by strip
+        # is grouped and ordered by ITS strips, not by the letters in "12C".
+        from workflow.layout_engine.labels import labels_for_measurement
+        labels = labels_for_measurement(self._ti3_path)
+        return build_plan(parse_patches(result.raw_log, result.patch_errors,
+                                        labels),
+                          threshold, confirmed, de, labels)
 
     @staticmethod
     def _report_summary_text(result, plan: RefinePlan) -> str:
