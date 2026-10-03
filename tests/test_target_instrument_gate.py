@@ -77,10 +77,24 @@ def _chart(tmp_path: Path, instrument: str | None) -> Path:
 
 def _run(binary: Path, base: Path) -> str:
     """First line of output. No instrument is connected, so every run stops
-    early — which is the point: we are testing the file gate, not a read."""
-    r = subprocess.run([str(binary), str(base)], capture_output=True,
-                       text=True, timeout=60, encoding="utf-8")
-    return ((r.stdout or "") + (r.stderr or "")).strip().splitlines()[0]
+    early — which is the point: we are testing the file gate, not a read.
+
+    Both readers stop on the chart file before they look for a port. Should
+    one ever get further, it would open port 1, which on a Mac with nothing
+    plugged in is the Bluetooth incoming port, whose open can block in the
+    kernel for ever (core/instrument_port.py). Such a process cannot be
+    killed, so this never waits for it after a timeout: `subprocess.run`
+    would, after its kill, and hang the test with it."""
+    proc = subprocess.Popen([str(binary), str(base)], stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True,
+                            encoding="utf-8", stdin=subprocess.DEVNULL)
+    try:
+        so, se = proc.communicate(timeout=120)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        pytest.fail(f"{binary.name} did not stop on the chart within 120 s; "
+                    "it may be waiting on a serial port", pytrace=False)
+    return ((so or "") + (se or "")).strip().splitlines()[0]
 
 
 # "CR30" was in this list until #159. It is deliberately no longer an unknown

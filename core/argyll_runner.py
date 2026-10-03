@@ -297,6 +297,19 @@ class ArgyllRunner(QObject):
                 QTimer.singleShot(0, lambda: on_finish(-1))
             return
 
+        # THE LAST DOOR: an instrument tool aimed at a port that is never an
+        # instrument is not started (core/instrument_port.py). Its open can
+        # block in the kernel for ever, and a process stuck there cannot be
+        # killed. The measuring and spot-read managers refuse first and say
+        # so; this catches any path that does not.
+        from core import instrument_port
+        if instrument_port.runner_refuses(self, tool, args) is not None:
+            self.last_failed_to_start = None
+            if on_finish is not None:
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(0, lambda: on_finish(1))
+            return
+
         if use_pty:
             self._run_pty(tool, args, cwd, on_line, on_finish)
             return
