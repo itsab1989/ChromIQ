@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
 import shlex
 from pathlib import Path
@@ -114,9 +115,8 @@ def read_table(path: "Path | str") -> "tuple[list[str], dict[str, dict[str, str]
     return fields, rows, kw
 
 
-def embedded_cal_text(path: "Path | str | None") -> str:
-    """The CAL table embedded in a .ti2 / .ti3 (``-K`` and ``-I`` both embed
-    it, and chartread copies it into the .ti3), or '' when there is none."""
+def _raw_cal_text(path: "Path | str | None") -> str:
+    """The CAL table text of a .ti2 / .ti3 as written, numeric or not."""
     if path is None or not Path(path).is_file():
         return ""
     try:
@@ -126,6 +126,42 @@ def embedded_cal_text(path: "Path | str | None") -> str:
     if "BEGIN_DATA" not in cal:
         return ""
     return cal.strip() + "\n"
+
+
+def cal_table_is_numeric(cal_text: str) -> bool:
+    """Whether every value in a CAL table's data block is a finite number.
+
+    ChromIQ's measuring engine wrote an all-``nan`` table into the .ti3 of
+    every ``-K``/``-I`` chart before 4.3.3-beta.7 (a one-line fault in the
+    vendored ``rspl1.c``, see ``native/instlib/PROVENANCE.md``). colprof,
+    cctiff and every other Argyll reader refuse such a table."""
+    m = re.search(r"BEGIN_DATA\s*\n(.*?)\n\s*END_DATA\b", cal_text, re.S)
+    if not m:
+        return False
+    seen = False
+    for tok in m.group(1).split():
+        try:
+            if not math.isfinite(float(tok)):
+                return False
+        except ValueError:
+            return False
+        seen = True
+    return seen
+
+
+def embedded_cal_text(path: "Path | str | None") -> str:
+    """The CAL table embedded in a .ti2 / .ti3 (``-K`` and ``-I`` both embed
+    it, and chartread copies it into the .ti3), or '' when there is none.
+
+    A table that is not all numbers counts as none (:func:`cal_table_is_numeric`):
+    no caller can use it, and :func:`run_cal_source` then falls back to the
+    chart's own .ti2, which carries the same table intact."""
+    text = _raw_cal_text(path)
+    if text and not cal_table_is_numeric(text):
+        log.debug("%s: embedded calibration table is not numeric; treated as absent",
+                  Path(path).name)
+        return ""
+    return text
 
 
 def has_embedded_cal(path: "Path | str | None") -> bool:
@@ -484,10 +520,24 @@ def run_calibration_mode(run) -> str:
 def run_cal_source(run) -> "Path | None":
     """The file that carries the calibration the run's chart was PRINTED
     with: the measurement (.ti3, chartread copies the CAL into it) first,
-    then the chart's .ti2. None when neither carries one."""
-    for cand in (getattr(run, "measurement_ti3", None), getattr(run, "chart_ti2", None)):
-        if cand is not None and has_embedded_cal(cand):
+    then the chart's .ti2. None when neither carries one.
+
+    A .ti3 whose table is not numeric (the engine fault before
+    4.3.3-beta.7) is skipped with a log line, so the .ti2's table is used.
+    Nothing is written to either file."""
+    ti3 = getattr(run, "measurement_ti3", None)
+    ti2 = getattr(run, "chart_ti2", None)
+    for cand in (ti3, ti2):
+        if cand is None:
+            continue
+        if has_embedded_cal(cand):
             return Path(cand)
+        if cand is ti3 and _raw_cal_text(cand):
+            log.warning(
+                "%s carries a calibration table that is not numbers (nan), "
+                "written by the measuring engine before 4.3.3-beta.7; using "
+                "the calibration table of the chart %s instead",
+                Path(cand).name, Path(ti2).name if ti2 is not None else "(none)")
     return None
 
 

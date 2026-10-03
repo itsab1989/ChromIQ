@@ -167,6 +167,12 @@ class MainWindow(QMainWindow):
         bind_log_settings(settings)
         self._runner    = ArgyllRunner(settings, self)
         self._file_mgr  = FileManager(settings)
+        # A measurement whose copy of the printer calibration an earlier
+        # engine wrote damaged is repaired before any Argyll tool loads it
+        # (workflow/cal_repair.py); this window says so, once per action.
+        self._cal_repairs_pending: list = []
+        from workflow import cal_repair
+        cal_repair.set_notifier(self._on_cal_table_repaired)
 
         self.setWindowTitle(tr("ChromIQ — Printer Profiling"))
         self.setMinimumSize(900, 650)
@@ -2242,6 +2248,49 @@ class MainWindow(QMainWindow):
         self._tabs.setCurrentWidget(self._tab_chart)
         applied = self._tab_chart.apply_external_chart(src_dir, name)
         return applied
+
+    def _on_cal_table_repaired(self, rep) -> None:
+        """Collect a repair; the window follows once the action that caused
+        it has started, so three averaged reads give one window, not three."""
+        self._cal_repairs_pending.append(rep)
+        if len(self._cal_repairs_pending) == 1:
+            QTimer.singleShot(0, self._show_cal_tables_repaired)
+
+    #: How often a held M-CAL-TABLE-REPAIRED looks again for its moment.
+    CAL_REPAIRED_RETRY_MS = 400
+
+    def _show_cal_tables_repaired(self) -> None:
+        """M-CAL-TABLE-REPAIRED. Information only: nothing to decide, no
+        sound (it is not a measurement window).
+
+        Never over a measurement and never on top of another window: a
+        resumed measurement repairs its .ti3 just before the reader starts,
+        and the window used to come up beside the engine's own questions
+        (review of aad896d8, on screen). It is held while a measurement is
+        starting or running, or while any other modal window is up, and
+        shown once that has ended; repairs made meanwhile join it."""
+        if not self._cal_repairs_pending:
+            return
+        from PyQt6.QtWidgets import QApplication
+        if (getattr(self, "_measuring", False)
+                or QApplication.activeModalWidget() is not None):
+            QTimer.singleShot(self.CAL_REPAIRED_RETRY_MS,
+                              self._show_cal_tables_repaired)
+            return
+        reps, self._cal_repairs_pending = self._cal_repairs_pending, []
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.warning_sign import set_information_icon
+        from workflow import measurement_messages as M
+        title, body = M.cal_table_repaired_texts(reps)
+        # The headline as the box's text, as every §M window does: a macOS
+        # message box shows no window title, so `inform(title, body)` lost it.
+        box = QMessageBox(self)
+        set_information_icon(box)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
 
     def _show_patch_cube(self) -> None:
         """Open the 3D RGB-cube view of the chart currently loaded in the app.

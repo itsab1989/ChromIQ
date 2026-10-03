@@ -1,20 +1,47 @@
 # Vendored ArgyllCMS standalone instrument library
 
-These files are an **unmodified** subset of ArgyllCMS 3.5.0 by Graeme
-W. Gill, copied byte-identical from the official source distribution,
-following the file list of Graeme's own standalone packaging script
+These files are a subset of ArgyllCMS 3.5.0 by Graeme W. Gill, copied
+byte-identical from the official source distribution (except the two
+patched files listed below), following the file list of Graeme's own
+standalone packaging script
 `spectro/instlib.ksh` (the "instlib" distribution, GPLv2-or-later —
 see License2.txt; `chartread.c.orig` is from the main tree, AGPLv3 —
 see License.txt). `sa_config.h` is `h/aconfig.h` renamed, exactly as
 instlib.ksh does.
 
-No source changes — ChromIQ's fork lives in `../chartread_helper/` and
-diffs against `chartread.c.orig`. To bump Argyll: re-run
-`scripts/vendor_instlib.py` against the new source tree and rebuild.
+ChromIQ's fork lives in `../chartread_helper/` and diffs against
+`chartread.c.orig`. To bump Argyll: re-run `scripts/vendor_instlib.py`
+against the new source tree and rebuild.
+
+## ChromIQ patches
+
+Two library files depart from upstream. `scripts/vendor_instlib.py`
+re-applies both patches on every re-vendor (its `PATCHES` table), and
+stops if one no longer applies.
+
+- **`rspl1.c`, `set_rspl`**: upstream writes the grid index at
+  `iv[-1-1]`. The function's own comment, `rspl.h` and the full `rspl.c`
+  put it at `iv[-e-1]`, which for this 1-D spline is `iv[-0-1]`, and
+  `xcal.c` reads it there. Unpatched, every calibration curve the engine
+  resamples comes from an uninitialised index, so the `.ti3` of any chart
+  carrying a printer calibration (`-K`/`-I`) got an all-`nan` CAL table
+  that colprof refuses. The fix is needed for ChromIQ's use of rspl1:
+  stock Argyll links the full rspl and never reaches this line.
+- **`conv.c`, `msec_beep`/`normal_beep`** (#148): under
+  `CHROMIQ_APPLE_BEEP` the beep plays through AudioToolbox instead of
+  writing a BEL to stdout, which is the engine's JSON channel. The macOS
+  build is deliberately not `UNIX_APPLE` (see `CMakeLists.txt`).
+
+| patched file | upstream sha256 (first 16) | shipped sha256 (first 16) |
+|---|---|---|
+| `rspl1.c` | `5c7b0509abf97f44…` | `d53a8d37b30b6e14…` |
+| `conv.c` | `c6b04014888cb6f4…` | `1b88327ee6e6d9df…` |
+
+## Files
 
 - Upstream: https://www.argyllcms.com/ (Argyll_V3.5.0)
 
-| vendored file | upstream path | sha256 (first 16) |
+| vendored file | upstream path | upstream sha256 (first 16) |
 |---|---|---|
 | `sort.h` | `h/sort.h` | `fa7c1dc3df402cd0…` |
 | `numsup.h` | `numlib/numsup.h` | `c74dcb83472eb941…` |

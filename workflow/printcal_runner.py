@@ -144,6 +144,10 @@ class PrintcalRunner:
         self._on_finish_cb = on_finish
         self._matched_errors = []
         self._matched_warnings = []
+        # A calibration chart printed through an earlier calibration carries
+        # it too, and printcal loads the .ti3 the same way colprof does.
+        from workflow.cal_repair import repair_embedded_cal
+        repair_embedded_cal(params.ti3_path)
 
         stem = params.ti3_path.stem  # base name without extension
         work_dir = params.ti3_path.parent

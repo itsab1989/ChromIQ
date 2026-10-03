@@ -165,6 +165,8 @@ class ProfcheckRunner:
         self._last_log = ""
         self._matched_errors = []
         self._matched_warnings = []
+        from workflow.cal_repair import repair_embedded_cal
+        repair_embedded_cal(params.ti3_path)
 
         def _accumulate(line: str) -> None:
             self._last_log += line + "\n"

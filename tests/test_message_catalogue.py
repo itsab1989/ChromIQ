@@ -273,6 +273,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # wording is ours and waits here.
                                  "M-CM-K-CHART-THROUGH", "M-CM-RAW-UNCALIBRATED",
                                  "M-CAL-APPLIED-TWICE", "M-CAL-CALIBRATED-TWICE",
+                                 # Beta 7, 2026-10-03 (the CMYK/CR30 forum
+                                 # report): Basti ruled that a measurement
+                                 # whose calibration table the earlier engine
+                                 # wrote damaged is repaired in place from its
+                                 # chart. The behaviour is his; the wording is
+                                 # ours and waits here.
+                                 "M-CAL-TABLE-REPAIRED", "M-CAL-TABLE-DAMAGED",
                                  # #182 k10, 2026-10-02: the colour-range rule
                                  # was approved (Knut 5961180259, Sebastian);
                                  # the card lines beyond the post's one are
@@ -728,6 +735,8 @@ WINDOW_SOURCES = [
     # operation is already announced. Same two rules: the catalogue's text, and
     # no prose of its own.
     ("ui.tabs.tab_measure", "TabMeasure", "_say_report_not_saved"),
+    # Beta 7: a measurement's damaged calibration table was put back.
+    ("ui.main_window", "MainWindow", "_show_cal_tables_repaired"),
 ]
 
 #: Measurement windows that are NOT yet in §M, listed so the gap is visible.

@@ -319,6 +319,8 @@ class ColverifyRunner:
         on_line: Callable[[str], None],
         on_finish: Callable[[int], None],
     ) -> None:
+        from workflow.cal_repair import repair_all
+        repair_all([params.ref_ti3, params.measured_ti3])
         args = self._build_args(params)
         cwd = params.measured_ti3.parent
         log.info("colverify: %s  [cwd=%s]", " ".join(args), cwd)
