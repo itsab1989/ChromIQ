@@ -98,6 +98,15 @@ built has not been confirmed by him or Sebastian.
   `chart.build_chart(ramps_per_strip=True)` on the engine path and by
   `ChartCreator._arrange_ramps_for_printtarg` on the printtarg path (printtarg
   is run once to learn `STEPS_IN_PASS`, then again on the arranged `.ti1`).
+* Area-first by patch width (the layout Create Chart opens with) sizes the
+  patches from the count, so the strip length moves with the whites added.
+  The ramps are arranged only for a strip length the layout of the arranged
+  count really has (the last strip may be filled further with paper white to
+  get there); where no strip length agrees, the chart keeps targen's order,
+  as before this amendment. Measured over 504 by-width layouts: 73 keep
+  targen's order; allowing one more strip of paper white would bring that to
+  31. **Open question for Knut**, not built: is a whole extra strip of paper
+  white acceptable to keep each ramp on its own strip? (review of 7386afd8)
 * printcal takes every all-white patch as white and averages them
   (`printcal.c` 1293-1325, 1386-1395, 1487). Measured with fakeread and
   `printcal -i`: the `.cal` is identical when the sheet carries as many whites
