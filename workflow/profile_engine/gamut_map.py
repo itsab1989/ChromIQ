@@ -1051,6 +1051,14 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      f"({'1' if tag == 'B2A0' else '2'}/2, Argyll's "
                      f"mapper)…")
         mapped = mapper.map_lab(node_lab)
+        if ownmap and "a9-warp" in getattr(settings, "engine_candidates",
+                                           frozenset()):
+            # Research a9-warp: colprof's realized map is smooth because it
+            # passes through colprof's own smooth B2A table; the raw node map
+            # of Argyll's mapper is not. A smooth displacement field fitted
+            # to it (the same warp that reproduces colprof's map to 0.23 dE)
+            # gives the inversion a smooth target field.
+            mapped = WarpMapper(node_lab, mapped).map_lab(node_lab)
         mapped_by_tag[tag] = mapped
         # Mapped targets land inside (or at) the gamut surface, so per-node
         # inversion converges everywhere — the boundary-cell kink that makes
