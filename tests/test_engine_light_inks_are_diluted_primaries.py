@@ -163,7 +163,11 @@ def test_light_first_metric_means_what_the_readme_says():
 #   .venv/bin/python -c "import tests.test_engine_light_inks_are_diluted_primaries as t; t.print_hashes()"
 _FAST_QL_SHA256 = {
     "S3": "44a051ab5757b25b2adbad85e7bc05394f97ff5f292da8d49c50f59bcb4cb692",
-    "S5": "8fa70ddf680987ff3e553834cd78ff87cf74b319981c9a3adbf7e40bf6e36346",
+    # Re-pinned 2026-10-03 with NO code change (research finding F-01): the
+    # pre-merge head 4c871b22 writes these bytes too on the freshly installed
+    # Mac (macOS 27.0.1, venv rebuilt, numpy 2.4.4 on Accelerate); the old
+    # pin 8fa70ddf... was written before that reinstall.
+    "S5": "bc0d2036191606541279c49b611247fd4842cccb3b0302b05c77ada467a8cc5c",
 }
 
 

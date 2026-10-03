@@ -79,7 +79,7 @@ def compare(dir_a: Path, dir_b: Path, engine_a: str, engine_b: str,
     (protocol section 6); the minimum effect is max(min_rel*base, min_abs,
     2*sd). Missing entries fall back to the protocol placeholders."""
     seed_sd = seed_sd or {}
-    ra = json.loads((Path(dir_a) / "results.json").read_text())
+    ra = json.loads((Path(dir_a) / "results.json").read_text(encoding="utf-8"))
     rows = []
     for d in ra["datasets"]:
         for reader in readers:
@@ -136,7 +136,7 @@ def main(argv=None) -> None:
     ap.add_argument("--seed-sd", default="",
                     help="JSON file {family|endpoint: sd} from the seeds suite")
     args = ap.parse_args(argv)
-    sd = json.loads(Path(args.seed_sd).read_text()) if args.seed_sd else None
+    sd = json.loads(Path(args.seed_sd).read_text(encoding="utf-8")) if args.seed_sd else None
     res = compare(Path(args.dir_a), Path(args.dir_b), args.engine_a,
                   args.engine_b, args.reader, seed_sd=sd)
     for r in res["rows"]:
@@ -145,7 +145,7 @@ def main(argv=None) -> None:
               f"({r['rel'] * 100:+.1f} %, CI [{r['ci95'][0]:+.3f}, {r['ci95'][1]:+.3f}]) "
               f"{r['verdict']}")
     if args.out:
-        Path(args.out).write_text(json.dumps(res, indent=1))
+        Path(args.out).write_text(json.dumps(res, indent=1), encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -74,7 +74,7 @@ REAL_TAC = {"R-FOGRA39L": 330.0, "R-GRACoL2006": 320.0,
 
 
 def sh(cmd, **kw) -> str:
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=120,
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", timeout=120,
                           **kw).stdout.strip()
 
 
@@ -94,7 +94,7 @@ def environment(master_tree: Path | None) -> dict:
         "master_tree_commit": sh(["git", "-C", str(master_tree), "rev-parse", "HEAD"])
         if master_tree else None,
         "argyll": next((ln for ln in subprocess.run(
-            [f"{ARGYLL}/colprof"], capture_output=True, text=True,
+            [f"{ARGYLL}/colprof"], capture_output=True, text=True, encoding="utf-8",
             timeout=60).stderr.splitlines() if "Version" in ln), ""),
         "gammap_helper_sha256": sha(Path(GAMMAP)) if Path(GAMMAP).exists() else None,
         "python": sys.version, "numpy": numpy.__version__,
@@ -117,7 +117,7 @@ def run_build(job: dict) -> dict:
     Path(job["out"]).parent.mkdir(parents=True, exist_ok=True)
     try:
         r = subprocess.run([sys.executable, str(HERE / "build_worker.py"),
-                            json.dumps(job)], capture_output=True, text=True,
+                            json.dumps(job)], capture_output=True, text=True, encoding="utf-8",
                            timeout=job.get("timeout", 5400), env=env)
         line = [ln for ln in r.stdout.splitlines() if ln.startswith("RESULT ")]
         res = json.loads(line[-1][7:]) if line else {
@@ -137,7 +137,7 @@ def validate(icc: Path, n_channels: int) -> dict:
     """Independent loaders: iccdump (Argyll icclib), littleCMS, ColorSync."""
     out = {}
     r = subprocess.run([f"{ARGYLL}/iccdump", "-v1", str(icc)],
-                       capture_output=True, text=True, timeout=120)
+                       capture_output=True, text=True, encoding="utf-8", timeout=120)
     txt = (r.stdout + r.stderr)
     out["iccdump_ok"] = r.returncode == 0 and "Error" not in txt
     out["iccdump_version"] = next((ln.split(":")[-1].strip() for ln in txt.splitlines()
@@ -340,7 +340,7 @@ def main(argv=None) -> int:
             made.append(trees["f00"])
         env = environment(trees.get("master"))
         env["args"] = vars(args)
-        (out / "env.json").write_text(json.dumps(env, indent=1, default=str))
+        (out / "env.json").write_text(json.dumps(env, indent=1, default=str), encoding="utf-8")
         printers = build_printers()
         only = [d for d in args.datasets.split(",") if d] or None
         specs = []
@@ -355,7 +355,7 @@ def main(argv=None) -> int:
               flush=True)
         builds_path = out / "builds.json"
         if args.score_only and builds_path.exists():
-            builds = json.loads(builds_path.read_text())
+            builds = json.loads(builds_path.read_text(encoding="utf-8"))
         else:
             t0 = time.time()
             builds = []
@@ -368,7 +368,7 @@ def main(argv=None) -> int:
                           f"{res.get('seconds', 0):.0f}s "
                           f"{'' if res.get('ok') else res.get('error', '')[:200]}",
                           flush=True)
-                    builds_path.write_text(json.dumps(builds, indent=1))
+                    builds_path.write_text(json.dumps(builds, indent=1), encoding="utf-8")
         # --- the two hard rules ------------------------------------------------
         identity = check_identity(builds)
         gates = check_gates(builds, specs)
@@ -422,9 +422,9 @@ def main(argv=None) -> int:
                 entry["profiles"][key] = rec
                 print(f"scored {ds.name} {s['variant']} {key}", flush=True)
             results["datasets"].append(entry)
-            (out / "results.json").write_text(json.dumps(results, indent=1, default=_js))
+            (out / "results.json").write_text(json.dumps(results, indent=1, default=_js), encoding="utf-8")
         env["loadavg_end"] = os.getloadavg()
-        (out / "results.json").write_text(json.dumps(results, indent=1, default=_js))
+        (out / "results.json").write_text(json.dumps(results, indent=1, default=_js), encoding="utf-8")
         from benchmarks.research.summary import write_summary
         write_summary(results, out / "summary.md")
         code = 0

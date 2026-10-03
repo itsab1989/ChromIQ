@@ -27,7 +27,7 @@ def main(argv=None) -> None:
     ap.add_argument("--engine", default="accurate")
     ap.add_argument("--readers", nargs="+", default=["argyll", "lcms"])
     args = ap.parse_args(argv)
-    res = json.loads((Path(args.run_dir) / "results.json").read_text())
+    res = json.loads((Path(args.run_dir) / "results.json").read_text(encoding="utf-8"))
     vals = defaultdict(list)                  # (printer, reader, endpoint) -> [v]
     for d in res["datasets"]:
         if d["suite"] != "seeds":
@@ -48,8 +48,8 @@ def main(argv=None) -> None:
         per_printer[f"{pr}|{r}|{ep}"] = {"values": v, "mean": float(np.mean(v)), "sd": sd}
         pooled[f"{'X' if pr.startswith('X') else 'S'}|{ep}"].append(sd)
     out = {k: float(np.sqrt(np.mean(np.square(v)))) for k, v in pooled.items()}
-    Path(args.run_dir, "seed_sd.json").write_text(json.dumps(out, indent=1))
-    Path(args.run_dir, "seed_spread_detail.json").write_text(json.dumps(per_printer, indent=1))
+    Path(args.run_dir, "seed_sd.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
+    Path(args.run_dir, "seed_spread_detail.json").write_text(json.dumps(per_printer, indent=1), encoding="utf-8")
     print("| printer | reader | endpoint | mean | sd | cv % |")
     print("|---|---|---|---|---|---|")
     for k, v in per_printer.items():

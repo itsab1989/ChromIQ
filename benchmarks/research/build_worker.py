@@ -101,7 +101,7 @@ def build_colprof(job: dict) -> dict:
         args += ["-o", job["observer"]]
     args.append(str(base))
     t0 = time.perf_counter()
-    r = subprocess.run(args, capture_output=True, text=True,
+    r = subprocess.run(args, capture_output=True, text=True, encoding="utf-8",
                        timeout=float(job.get("timeout", 1800)))
     secs = time.perf_counter() - t0
     icc = Path(str(base) + ".icc")
