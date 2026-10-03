@@ -18,7 +18,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent / "helpers"))
-from replay_tools import HELPER, ReplaySession, parse_ti2_rows, write_replay_script  # noqa: E402
+from replay_tools import (HELPER, ReplaySession, helper_env,  # noqa: E402
+                          parse_ti2_rows, write_replay_script)
 
 ARGYLL = Path("/Applications/Argyll/bin")
 
@@ -37,11 +38,12 @@ def _make_chart(tmp: Path, name: str = "chart", *, randomised: bool,
     base = tmp / name
     ta = targen_args or ["-d2", "-G", "-e4", "-B4", "-f42"]
     subprocess.run([targen, "-v0", *ta, str(base)], check=True,
-                   capture_output=True, cwd=tmp)
+                   capture_output=True, cwd=tmp, env=helper_env())
     pa = [printtarg, "-v0", "-ii1", "-pA4"]
     if not randomised:
         pa.append("-r")
-    subprocess.run([*pa, str(base)], check=True, capture_output=True, cwd=tmp)
+    subprocess.run([*pa, str(base)], check=True, capture_output=True, cwd=tmp,
+                   env=helper_env())
     return base
 
 
@@ -294,8 +296,12 @@ def test_passthrough_usage_is_stock_chartread():
     # under a loaded gate a close() on a macOS serial port (Bluetooth
     # incoming port) blocked in the kernel for minutes (2026-10-03). Such a
     # process cannot even be killed, so never wait() for it after a timeout.
+    # It runs in the app's own environment (core/argyll_env.py), which tells
+    # Argyll's scan to leave that port alone: with it, the usage came back at
+    # once while the port was stuck; without it, it hung.
     proc = subprocess.Popen([str(HELPER)], stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True, encoding="utf-8")
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8",
+                            env=helper_env())
     try:
         so, se = proc.communicate(timeout=120)
     except subprocess.TimeoutExpired:

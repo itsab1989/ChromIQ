@@ -52,6 +52,15 @@ def _helper() -> Path:
 HELPER = _helper()
 
 
+def helper_env() -> "dict[str, str]":
+    """The environment the APP starts the helper and Argyll tools in
+    (`core/argyll_env.py`): this process's own, plus the serial-scan exclusion
+    that keeps a stuck macOS Bluetooth port from hanging the launch for ever
+    (2026-10-03). A test that starts the helper or an Argyll tool passes it."""
+    from core.argyll_env import argyll_env
+    return argyll_env()
+
+
 def parse_ti2_rows(ti2_path: Path) -> tuple[int, dict[str, list[tuple[float, float, float]]]]:
     """Return (steps_per_pass, {pass_letter: [(X,Y,Z), …]}) from a .ti2.
 
@@ -175,7 +184,8 @@ class ReplaySession:
         self.proc = subprocess.Popen(
             cmd, cwd=chart_base.parent,
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT, text=True, bufsize=1, encoding="utf-8")
+            stderr=subprocess.STDOUT, text=True, bufsize=1, encoding="utf-8",
+            env=helper_env())
         self.events: list[dict] = []
         self.raw_lines: list[str] = []
         self._lock = threading.Lock()
