@@ -24338,8 +24338,10 @@ class TabChart(QWidget):
                 return npat
             p = self._collect_manual()
             steps = int(p.single_channel_steps or 0)
-            if (steps < 2 or p.white_patches or p.black_patches
-                    or p.grey_steps or p.patches):
+            # -e 1 is the same chart as -e 0: targen makes ONE white either
+            # way (it shares the ramps' own), and the build arranges it.
+            if (steps < 2 or int(p.white_patches or 0) > 1
+                    or p.black_patches or p.grey_steps or p.patches):
                 return npat
             if npat < steps or (npat - 1) % (steps - 1):
                 return npat
@@ -24354,11 +24356,12 @@ class TabChart(QWidget):
                     {**kw, "area_target_count": n})
                 return geometry.compute(g, w_mm, h_mm, n).steps_in_pass
 
-            count, _sip = calibration_ramps.settle(
+            fit = calibration_ramps.settle(
                 lambda s: calibration_ramps.arranged_count(
                     [steps - 1] * channels, s),
                 _steps_for, npat)
-            return int(count)
+            # None: the build keeps targen's order, so the count is targen's
+            return int(fit[0]) if fit is not None else npat
         except Exception:      # noqa: BLE001 — an estimate, never a blocker
             return npat
 

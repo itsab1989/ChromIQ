@@ -106,7 +106,8 @@ def find_ramps(rows: "list[tuple[float, ...]]") -> "RampSet | None":
                    n_rows=len(rows))
 
 
-def arranged_order(ramps: RampSet, steps_in_pass: int) -> "list[int] | None":
+def arranged_order(ramps: RampSet, steps_in_pass: int,
+                   total: "int | None" = None) -> "list[int] | None":
     """Row indices of the arranged chart, a white's index repeated where a
     white is placed; None when *ramps* must be left as it is.
 
@@ -115,6 +116,10 @@ def arranged_order(ramps: RampSet, steps_in_pass: int) -> "list[int] | None":
     strip. The LAST ramp is not padded here: the layout fills the last strip
     with paper white as it always has (printtarg's ``padlrow``, mirrored by the
     engine), and that fill-up is reported as such.
+
+    *total*, when given, is the row count `settle` found the layout agrees
+    with: the last ramp's last strip is then filled with paper white up to it
+    (never past the end of that strip).
     """
     if not ramps.is_targen_order or steps_in_pass < 1:
         return None
@@ -127,6 +132,8 @@ def arranged_order(ramps: RampSet, steps_in_pass: int) -> "list[int] | None":
             if rem:
                 block += [white] * (steps_in_pass - rem)
         order += block
+    if total is not None and total > len(order):
+        order += [white] * (total - len(order))
     return order
 
 
@@ -145,24 +152,42 @@ def arranged_count(ramp_lengths: "list[int]", steps_in_pass: int) -> int:
 
 
 def settle(count_for_steps, steps_for_count, first_count: int,
-           *, tries: int = 6) -> "tuple[int, int]":
-    """``(count, steps_in_pass)`` that agree with each other.
+           *, tries: int = 8) -> "tuple[int, int] | None":
+    """``(count, steps_in_pass)`` that agree with each other, or None.
 
     The strip length can depend on the patch count (area-first sizes the
     patches to FILL the box with exactly that many), and the count depends on
-    the strip length. Starting from the chart as targen wrote it, alternate
-    until the two stop moving; in the rare case that they oscillate, the last
-    pair asked is used, which is still a consistent layout of that count.
+    the strip length. "Agree" means the layout of *count* patches really has
+    strips of *steps_in_pass*: ``steps_for_count(count) == steps_in_pass``.
+    Arranged for one strip length and laid out with another, every ramp after
+    the first starts part-way down a strip and the whites added to separate
+    them land in the middle of the next ink (review of 7386afd8, 2026-10-03:
+    the default i1Pro A4 calibration chart, 20 steps, arranged for 9 and laid
+    out on 10).
+
+    For each strip length tried, the count is the arranged count or, failing
+    that, the arranged count with the LAST strip filled further with paper
+    white, which is what the layout itself would print there. Starting from the
+    chart as targen wrote it, the strip length the layout gives that count is
+    tried next. None when no strip length agrees: the caller then leaves
+    targen's own order, which is the chart as it was before.
     """
-    steps = steps_for_count(first_count)
-    count = count_for_steps(steps)
+    seen: set[int] = set()
+    try:
+        steps = int(steps_for_count(first_count))
+    except Exception:          # noqa: BLE001 — no layout, nothing to arrange
+        return None
     for _ in range(tries):
-        s2 = steps_for_count(count)
-        if s2 == steps:
+        if steps < 1 or steps in seen:
             break
-        steps = s2
-        count = count_for_steps(steps)
-    return count, steps
+        seen.add(steps)
+        count = int(count_for_steps(steps))
+        full = -(-count // steps) * steps        # the end of the last strip
+        for n in (count, full, *range(count + 1, full)):
+            if steps_for_count(n) == steps:
+                return n, steps
+        steps = int(steps_for_count(count))
+    return None
 
 
 # --------------------------------------------------------------------------
@@ -246,16 +271,19 @@ def rewrite_ti1_text(text: str, order: "list[int]") -> str:
     return new
 
 
-def arrange_ti1(path: "str | Path", steps_in_pass: int) -> "int | None":
+def arrange_ti1(path: "str | Path", steps_in_pass: int,
+                total: "int | None" = None) -> "int | None":
     """Rewrite the .ti1 at *path* so each ramp starts a strip of
-    *steps_in_pass* patches. Returns the new row count, or None when the file
-    is not a pure targen ramp set (and is then left untouched)."""
+    *steps_in_pass* patches (and, with *total*, the last strip is filled with
+    paper white up to that count, see `arranged_order`). Returns the new row
+    count, or None when the file is not a pure targen ramp set (and is then
+    left untouched)."""
     p = Path(path)
     text = p.read_text(encoding="latin-1")
     ramps = ramps_in_ti1_text(text)
     if ramps is None:
         return None
-    order = arranged_order(ramps, steps_in_pass)
+    order = arranged_order(ramps, steps_in_pass, total)
     if order is None:
         return None
     if order == list(range(ramps.n_rows)):

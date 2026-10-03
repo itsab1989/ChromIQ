@@ -425,8 +425,17 @@ def build_chart(
             def _count(steps: int) -> int:
                 return len(_cr.arranged_order(_ramps, steps) or [])
 
-            _n, _sip = _cr.settle(_count, _steps, len(target.patches))
-            _new = _cr.arrange_ti1(ti1_path, _sip)
+            # None when no strip length agrees with its own count: targen's
+            # order is then kept, rather than ramps arranged for one strip
+            # length and laid out on another.
+            _fit = _cr.settle(_count, _steps, len(target.patches))
+            _new = (_cr.arrange_ti1(ti1_path, _fit[1], total=_fit[0])
+                    if _fit is not None else None)
+            if _fit is None:
+                import logging
+                logging.getLogger(__name__).info(
+                    "calibration ramps left in targen's order: no strip "
+                    "length agrees with the count it lays out (area-first)")
             if _new is not None:
                 ramps_arranged = _new - len(target.patches)
                 target = ti1_reader.read_ti1(ti1_path)

@@ -216,6 +216,84 @@ def test_settle_finds_a_count_and_strip_length_that_agree():
     assert steps_for(n) == s        # a consistent pair
 
 
+def test_settle_never_hands_back_a_pair_the_layout_disagrees_with():
+    """Review of 7386afd8: area-first can make the strip length and the
+    count chase each other for ever (count 74 wants strips of 10, strips of
+    10 make a count that wants 9, and back). The last pair asked was used,
+    the ramps were arranged for 9 and the sheet laid out on 10. A pair is
+    only returned when the layout of that count really has that strip
+    length, padding the LAST strip with paper white if that is what it
+    takes; otherwise None, and targen's order is kept."""
+    lens = [19, 19, 19]
+
+    def flip(n):                 # no fixed point at all
+        return 9 if n >= 70 else 10
+
+    got = cr.settle(lambda s: cr.arranged_count(lens, s), flip, 58)
+    assert got is None or flip(got[0]) == got[1]
+
+    def wants_full_strips(n):    # agrees only once the last strip is full
+        return 10 if n % 10 == 0 else 9
+
+    got = cr.settle(lambda s: cr.arranged_count(lens, s), wants_full_strips,
+                    58)
+    assert got is not None and wants_full_strips(got[0]) == got[1]
+    n, sip = got
+    base = cr.arranged_count(lens, sip)
+    assert base <= n < -(-base // sip) * sip + 1   # never past that strip
+    rows = _targen_rows(3, 20, True)
+    order = cr.arranged_order(cr.find_ramps(rows), sip, n)
+    assert len(order) == n
+    _check_arrangement([_kind(rows[i], True) for i in order], 3, 20, sip)
+
+
+def _by_width_kwargs(instrument="i1", paper="A4", ratio=1.0) -> dict:
+    """The Create Chart panel as it opens: area-first, by patch width, 100 %,
+    minimum width auto."""
+    from workflow.layout_engine.presets import LayoutRecipe
+    kw = LayoutRecipe(instrument=instrument, paper=paper,
+                      area_ratio=ratio).build_kwargs()
+    kw.update(instrument=instrument, paper=paper, dpi=36, randomize=False)
+    return kw
+
+
+@pytest.mark.parametrize("channels,additive,steps,instrument,paper", [
+    (3, True, 20, "i1", "A4"),       # the calibration default, as it opens
+    (3, True, 21, "i1", "A4"),
+    (3, True, 27, "i1", "A4"),
+    (3, True, 20, "p3", "A4"),
+    (3, True, 5, "i1", "Letter"),
+    (4, False, 11, "i1", "A4"),
+    (4, False, 27, "i1", "A4"),
+    (4, False, 33, "i1", "A4"),
+    (4, False, 27, "i1", "Letter"),
+    (4, False, 11, "p3", "A4")])
+def test_area_first_by_width_lays_each_ramp_on_its_own_strip(
+        tmp_path, channels, additive, steps, instrument, paper):
+    """Every one of these came out with the ramps arranged for one strip
+    length and laid out on another (G started 8 patches down strip C on the
+    default i1Pro A4 chart, driven on screen 2026-10-03), and the log said
+    each ramp started its own strip. Now the ramps either really do start
+    their strips, or, where no strip length agrees with the count it lays
+    out, the chart is targen's own, exactly as before the change."""
+    from workflow.layout_engine import chart
+    ti1 = tmp_path / "Test-cal.ti1"
+    ti1.write_text(_ti1_text(_targen_rows(channels, steps, additive),
+                             additive), encoding="latin-1")
+    before = ti1.read_bytes()
+    res = chart.build_chart(ti1, tmp_path / "Test-cal", ramps_per_strip=True,
+                            **_by_width_kwargs(instrument, paper))
+    sip, seq, _text = _ti2_sequence(tmp_path / "Test-cal.ti2", additive)
+    if res.ramp_whites_added:
+        _check_arrangement(seq, channels, steps, sip)
+    else:
+        assert ti1.read_bytes() == before
+        n = channels * (steps - 1) + 1
+        assert seq[:n] == ["W"] + [ch for ch in range(channels)
+                                   for _ in range(steps - 1)]
+        assert set(seq[n:]) <= {"W"}
+
+
 # ---------------------------------------------------------------------------
 # the .ti1 rewrite
 # ---------------------------------------------------------------------------
@@ -552,6 +630,21 @@ def test_the_estimate_is_unchanged_outside_a_pure_calibration():
     assert _stand_in(True, g=5)(58, kw) == 58
     assert _stand_in(True, steps=0)(58, kw) == 58
     assert _stand_in(True)(57, kw) == 57     # not 1 + C*(N-1)
+
+
+def test_one_white_patch_is_targens_own_white_and_counted(tmp_path):
+    """targen -e 1 makes the very chart -e 0 does (one white, the ramps'
+    own), so the build arranges it; the estimate has to count it too."""
+    targen = argyll_tool("targen")
+    if not targen:
+        pytest.skip("ArgyllCMS not installed")
+    for e in (0, 1):
+        subprocess.run([targen, "-v0", "-d2", "-s20", "-f0", f"-e{e}",
+                        "-B0", "-g0", str(tmp_path / f"e{e}")], check=True,
+                       timeout=60, capture_output=True)
+        assert cr.ramps_in_ti1(tmp_path / f"e{e}.ti1").is_targen_order
+    kw = _grid_kwargs(20)
+    assert _stand_in(True, e=1)(58, kw) == _stand_in(True, e=0)(58, kw) == 60
 
 
 def _cmyk_ramp_chart(folder: Path, sip: int = 20):
