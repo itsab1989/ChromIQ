@@ -76,6 +76,44 @@ the verification print does is in `verification_printing_and_target.md`
   (default) and going ahead; neither changes a file. Texts:
   M-CAL-APPLIED-TWICE, M-CAL-CALIBRATED-TWICE, in §M-PROPOSED.
 
+## Amendment, 2026-10-03 — each ink's ramp starts its own strip
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.* Knut approved
+the layout on #182 (5965186237, "yes" to Q3 of 5964724199); the behaviour as
+built has not been confirmed by him or Sebastian.
+
+* `targen -s N` with the calibration knobs writes one paper white and then
+  each ink's N-1 steps, ink after ink (3N-2 patches for RGB, 4N-3 for CMYK).
+  A calibration chart now lays each ink's ramp out from the start of a strip,
+  with its own paper white first; a ramp longer than a strip carries on to the
+  next strip and the next ramp still starts a fresh one; the rest of a ramp's
+  last strip is paper white, and the chart's last strip is filled up as every
+  chart's is. With N patches per strip that is 3N (4N) patches and no fill-up.
+* Only a `.ti1` that is targen's pure ramp set (one white first, then one
+  contiguous block of single-ink steps per ink) is rearranged, and only for a
+  build with `cal_target`. The `.ti1` is rewritten in place, so the `.ti1`,
+  `.ti2` and sheet agree; `SINGLE_DIM_STEPS` and targen's extra tables are
+  kept. The chart's sidecar records `patch_set_given: false`.
+  Code: `workflow/layout_engine/calibration_ramps.py`, applied by
+  `chart.build_chart(ramps_per_strip=True)` on the engine path and by
+  `ChartCreator._arrange_ramps_for_printtarg` on the printtarg path (printtarg
+  is run once to learn `STEPS_IN_PASS`, then again on the arranged `.ti1`).
+* Area-first by patch width (the layout Create Chart opens with) sizes the
+  patches from the count, so the strip length moves with the whites added.
+  The ramps are arranged only for a strip length the layout of the arranged
+  count really has (the last strip may be filled further with paper white to
+  get there); where no strip length agrees, the chart keeps targen's order,
+  as before this amendment. Measured over 504 by-width layouts: 73 keep
+  targen's order; allowing one more strip of paper white would bring that to
+  31. **Open question for Knut**, not built: is a whole extra strip of paper
+  white acceptable to keep each ramp on its own strip? (review of 7386afd8)
+* printcal takes every all-white patch as white and averages them
+  (`printcal.c` 1293-1325, 1386-1395, 1487). Measured with fakeread and
+  `printcal -i`: the `.cal` is identical when the sheet carries as many whites
+  as before, and within 0.0008 when it carries more.
+* A calibration chart, and any chart of single-ink ramps, is never
+  auto-tagged `RANDOM_START`.
+
 ## Verdict in one paragraph
 
 **Doable, and worth doing — but "Calibration" is not a third *run* type; it is a
