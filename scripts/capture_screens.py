@@ -197,6 +197,9 @@ def build_app():
     # as main() does: macOS 27 native message boxes abort under de_DE numbers
     from core.numeric_locale import pin_c_numeric_locale
     pin_c_numeric_locale()
+    # as main() does: no Argyll tool may hang on a stuck serial port
+    from core.argyll_env import install_in_process_environment
+    install_in_process_environment()
     for fp in resource_path("assets/fonts").glob("*.ttf"):
         QFontDatabase.addApplicationFont(str(fp))
     app.setStyle(WinButtonLayoutStyle("Fusion"))
