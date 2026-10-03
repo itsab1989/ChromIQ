@@ -20,6 +20,7 @@ def test_phantom_filter_keeps_real_usb_serial_adapters():
         "/dev/cu.wlan-debug",                # phantom → exclude
         "/dev/cu.usbserial-1420",            # REAL adapter (e.g. SpectroScan) → keep
         "/dev/cu.usbmodem14201",             # REAL adapter → keep
+        "/dev/cu.JETI-specbos",              # a JETI port Argyll talks to → keep
     ]
     excl = _phantom_serial_ports(cands)
     assert "/dev/cu.Bluetooth-Incoming-Port" in excl
@@ -28,6 +29,7 @@ def test_phantom_filter_keeps_real_usb_serial_adapters():
     # A real USB-serial adapter is NEVER excluded → serial instruments still work.
     assert "/dev/cu.usbserial-1420" not in excl
     assert "/dev/cu.usbmodem14201" not in excl
+    assert "/dev/cu.JETI-specbos" not in excl
     assert excl == sorted(excl)                       # stable order
 
 
@@ -79,7 +81,7 @@ def test_windows_excludes_only_bluetooth_com_ports():
 def test_windows_enumeration_delegates_to_registry(monkeypatch):
     """On win32, argyll_serial_exclusion_ports() reads SERIALCOMM and returns
     exactly the Bluetooth COM ports found there."""
-    import core.argyll_runner as ar
+    import core.argyll_env as ar          # where the enumeration lives now
     monkeypatch.setattr(sys, "platform", "win32")
     monkeypatch.setattr(ar, "_read_serialcomm",
                         lambda: [(r"\Device\BthModem0", "COM47"),
@@ -96,14 +98,26 @@ class _StubSettings:
         return self._on if key == "fast_instrument_connect" else default
 
 
-def test_setting_gates_the_exclusion(qapp):
-    """The Beta 'Faster instrument connection' switch turns the whole feature on
-    and off: off ⇒ the environment is never touched, whatever ports exist."""
+def test_setting_gates_the_exclusion(qapp, monkeypatch):
+    """The Beta 'Faster instrument connection' switch turns the phantom-port
+    list on and off. Off ⇒ the user's value is passed on as it is, plus only
+    the ports whose open can hang for ever (core/argyll_env.py: the macOS
+    Bluetooth incoming port, 2026-10-03), which no preference may put back."""
+    import core.argyll_env as AE
     from core.argyll_runner import ArgyllRunner
+    monkeypatch.setattr(AE, "argyll_serial_exclusion_ports",
+                        lambda: ["/dev/cu.debug-console"])
     off = ArgyllRunner(_StubSettings(False))
+    monkeypatch.setattr(sys, "platform", "linux")
     assert off._serial_exclusion_value(None) is None
-    assert off._serial_exclusion_value("COM9") is None      # user value untouched too
+    assert off._serial_exclusion_value("COM9") == "COM9"    # user value untouched
+    monkeypatch.setattr(sys, "platform", "darwin")
+    assert off._serial_exclusion_value(None) == "/dev/cu.Bluetooth-Incoming-Port"
+    assert off._serial_exclusion_value("COM9") == \
+        "COM9;/dev/cu.Bluetooth-Incoming-Port"
     on = ArgyllRunner(_StubSettings(True))
+    assert on._serial_exclusion_value(None) == \
+        "/dev/cu.Bluetooth-Incoming-Port;/dev/cu.debug-console"
     # On: a user-set value is always preserved (ours is merged onto it).
     assert on._serial_exclusion_value("COM9") is not None
     assert "COM9" in on._serial_exclusion_value("COM9")

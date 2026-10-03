@@ -27,127 +27,13 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
-# ---------------------------------------------------------------------------
-# Fast instrument connection: skip Argyll's slow serial-port probe (#macOS)
-#
-# Before opening a USB spectro, Argyll probes every serial port it can see at
-# several baud rates (~2 s each). On macOS a phantom port like
-# /dev/cu.Bluetooth-Incoming-Port is almost always present, adding ~10 s to
-# every measurement start. Argyll's ARGYLL_EXCLUDE_SERIAL_SCAN env var takes a
-# ';'-separated exact-match list of port paths to skip — we fill it with the
-# phantom ports so a USB instrument is reached immediately, while KEEPING real
-# USB-serial adapters (a serial SpectroScan, etc.) so nothing breaks.
-# ---------------------------------------------------------------------------
-
-#: Substrings of a macOS /dev/cu.* name that mark a REAL serial adapter — never
-#: excluded, so serial instruments still work.
-_REAL_SERIAL_HINTS = ("usbserial", "usbmodem")
-
-#: Windows SERIALCOMM value-name prefixes that mark a Bluetooth serial port —
-#: never a ChromIQ measurement instrument, so safe to skip (the direct analog of
-#: excluding /dev/cu.Bluetooth-* on macOS). USB-serial adapters (VCP/USBSER, e.g.
-#: a SpectroScan bridge) are deliberately NOT matched, so real serial instruments
-#: still work. These are exactly the prefixes Argyll itself tags as ``btserial``
-#: (see spectro/icoms_nt.c), so our exclusion can never disagree with its scan.
-_WIN_BLUETOOTH_PREFIXES = ("BtPort", "BthModem")
-
-
-def _phantom_serial_ports(candidates: list[str]) -> list[str]:
-    """From /dev/cu.* candidates, the phantom ports that are never a measurement
-    instrument (Bluetooth, debug consoles, paired devices) — everything that is
-    NOT a real USB-serial adapter. Pure/side-effect-free for testing."""
-    return sorted(
-        p for p in candidates
-        if not any(h in os.path.basename(p).lower() for h in _REAL_SERIAL_HINTS))
-
-
-def _windows_bluetooth_com_ports(entries: "list[tuple[str, str]]") -> list[str]:
-    """From ``(value_name, com_port)`` rows of HKLM\\...\\SERIALCOMM, the COM
-    ports that are Bluetooth serial ports (never an instrument). Argyll keys a
-    port's type off the leaf of its registry value name; we apply the identical
-    rule (``BtPort*`` / ``BthModem*``), keeping every USB-serial adapter
-    (``VCP*`` / ``USBSER*``) and native port. Pure/side-effect-free for
-    testing."""
-    ports: list[str] = []
-    for name, com in entries:
-        leaf = name.rsplit("\\", 1)[-1]
-        if com and any(leaf.startswith(pfx) for pfx in _WIN_BLUETOOTH_PREFIXES):
-            if com not in ports:
-                ports.append(com)
-    return sorted(ports)
-
-
-def _read_serialcomm() -> "list[tuple[str, str]]":
-    """Enumerate ``HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM`` as ``(value_name,
-    com_port)`` rows — the exact key Argyll reads. Empty when the key is absent
-    (the common case: no serial ports) or unreadable. Windows-only; never
-    raises."""
-    try:
-        import winreg
-    except ImportError:  # pragma: no cover — non-Windows
-        return []
-    rows: list[tuple[str, str]] = []
-    try:
-        with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                            r"HARDWARE\DEVICEMAP\SERIALCOMM") as key:
-            i = 0
-            while True:
-                try:
-                    name, value, _ = winreg.EnumValue(key, i)
-                except OSError:  # ERROR_NO_MORE_ITEMS — end of the value list
-                    break
-                rows.append((name, str(value)))
-                i += 1
-    except OSError:  # key absent / unreadable — nothing to exclude
-        return []
-    return rows
-
-
-def argyll_serial_exclusion_ports() -> list[str]:
-    """The phantom serial ports to exclude from Argyll's scan on this machine.
-
-    macOS: modern Macs have NO built-in serial port — every real serial
-    instrument is on a USB-serial adapter (usbserial/usbmodem) — so excluding
-    every OTHER /dev/cu.* (Bluetooth, debug consoles, paired devices) is both
-    safe and complete.
-
-    Linux: conservative. Only the Bluetooth ``/dev/rfcomm*`` ports are certainly
-    not instruments. Native ``/dev/ttyS*`` ports (and USB adapters ttyUSB/ttyACM)
-    are left completely untouched, so a real serial instrument can never be
-    excluded.
-
-    Windows: only Bluetooth COM ports. Argyll lists serial ports from
-    ``HKLM\\HARDWARE\\DEVICEMAP\\SERIALCOMM`` and probes each fast/virtual one for
-    ~2 s; a paired Bluetooth device (``BthModem*`` / ``BtPort*``) is never an
-    instrument, so its COM port is skipped. USB-serial adapters (``VCP*`` /
-    ``USBSER*``, e.g. a SpectroScan) and native ports are always kept. A machine
-    with no serial ports (the common case) excludes nothing."""
-    import glob
-    try:
-        if sys.platform == "darwin":
-            return _phantom_serial_ports(glob.glob("/dev/cu.*"))
-        if sys.platform.startswith("linux"):
-            return sorted(glob.glob("/dev/rfcomm*"))
-        if sys.platform == "win32":
-            return _windows_bluetooth_com_ports(_read_serialcomm())
-    except OSError:  # pragma: no cover — enumeration must never block a launch
-        return []
-    return []
-
-
-def merged_serial_exclusion(existing: "str | None",
-                            ports: "list[str] | None" = None) -> "str | None":
-    """The value for ARGYLL_EXCLUDE_SERIAL_SCAN: our phantom ports merged with
-    (and never dropping) anything the user already set. ``None`` when there is
-    nothing to exclude. *ports* defaults to :func:`argyll_serial_exclusion_ports`
-    (injectable for tests)."""
-    if ports is None:
-        ports = argyll_serial_exclusion_ports()
-    items = [x for x in (existing or "").replace(",", ";").split(";") if x]
-    for p in ports:
-        if p not in items:
-            items.append(p)
-    return ";".join(items) if items else None
+# The serial-port exclusion (ARGYLL_EXCLUDE_SERIAL_SCAN) lives in
+# core/argyll_env.py, so that every launch path shares it; these names are
+# re-exported here for the callers and tests that have always imported them.
+from core.argyll_env import (  # noqa: E402,F401
+    _phantom_serial_ports, _read_serialcomm, _windows_bluetooth_com_ports,
+    argyll_env, argyll_serial_exclusion_ports, merged_serial_exclusion,
+    serial_exclusion_value)
 
 _CREATE_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
@@ -371,15 +257,17 @@ class ArgyllRunner(QObject):
 
     def _serial_exclusion_value(self, existing: "str | None") -> "str | None":
         """The ARGYLL_EXCLUDE_SERIAL_SCAN value to use for the next launch, or
-        ``None`` to leave the environment untouched. Honours the user's
-        "Faster instrument connection" preference (default on); returns None the
-        moment it's off, so the feature can be fully disabled."""
+        ``None`` to leave the environment untouched. The "Faster instrument
+        connection" preference (default on) decides whether every phantom port
+        is skipped; the ports whose open can hang for ever
+        (``core/argyll_env.py``, the macOS Bluetooth incoming port) are
+        skipped either way, and the user's own value is always kept."""
+        phantoms = True
         try:
-            if not self._settings.get("fast_instrument_connect", True):
-                return None
+            phantoms = bool(self._settings.get("fast_instrument_connect", True))
         except Exception:  # noqa: BLE001 — a settings hiccup must not block a run
             pass
-        return merged_serial_exclusion(existing)
+        return serial_exclusion_value(existing, phantoms=phantoms)
 
     # ------------------------------------------------------------------
     # Public API
@@ -763,6 +651,9 @@ class ArgyllRunner(QObject):
         si.wShowWindow = 0   # SW_HIDE
 
         CREATE_NEW_CONSOLE = 0x10
+        _env = os.environ.copy()
+        _env.update(self.environment_additions(
+            str(bin_path), _env.get("ARGYLL_EXCLUDE_SERIAL_SCAN")))
         try:
             self._pty_proc = subprocess.Popen(
                 cmd,
@@ -771,6 +662,7 @@ class ArgyllRunner(QObject):
                 creationflags=CREATE_NEW_CONSOLE,
                 startupinfo=si,
                 cwd=str(cwd),
+                env=_env,
             )
         except OSError as exc:
             self._the_tool_never_started(bin_path, on_finish, exc, on_line)
@@ -796,6 +688,9 @@ class ArgyllRunner(QObject):
         on_finish: Callable[[int], None] | None,
     ) -> None:
         log.info("Run (pipe): %s %s  [cwd=%s]", bin_path, " ".join(args), cwd)
+        _env = os.environ.copy()
+        _env.update(self.environment_additions(
+            str(bin_path), _env.get("ARGYLL_EXCLUDE_SERIAL_SCAN")))
         try:
             self._pty_proc = subprocess.Popen(
                 [str(bin_path)] + args,
@@ -804,6 +699,7 @@ class ArgyllRunner(QObject):
                 stderr=subprocess.STDOUT,
                 cwd=str(cwd),
                 creationflags=_CREATE_NO_WINDOW,
+                env=_env,
             )
         except OSError as exc:
             self._the_tool_never_started(bin_path, on_finish, exc, on_line)

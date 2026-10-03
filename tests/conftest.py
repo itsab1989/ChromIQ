@@ -1511,6 +1511,10 @@ def pytest_configure(config):
 
     _enter_the_run_temp(config)
     _enforce_the_helper(config)
+    # as main() does: every Argyll tool and helper a test starts skips the
+    # serial port whose open can hang for ever (core/argyll_env.py)
+    from core.argyll_env import install_in_process_environment
+    install_in_process_environment()
     _snapshot_the_modal_entry_points()
 
     from PyQt6.QtCore import QSettings
@@ -1864,7 +1868,7 @@ def _enforce_the_helper(config):
     raise pytest.UsageError(
         "--runslow is the release gate, and the chromiq-chartread helper is "
         "not here.\n"
-        "Eight files would skip WHOLESALE in silence and six more in part "
+        "Eight files would skip WHOLESALE in silence and seven more in part "
         "(85 tests when\n"
         "this was last measured), and a chart-reading engine deleted outright "
         "would pass.\n"
