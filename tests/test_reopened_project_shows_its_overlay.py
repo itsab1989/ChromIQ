@@ -51,7 +51,7 @@ def test_the_reference_chart_is_always_the_ti2(tab, tmp_path, monkeypatch, given
 
     seen: list[Path] = []
 
-    def _fake(ti3_path, ref):
+    def _fake(ti3_path, ref, **_kw):
         seen.append(Path(ref))
         return [{"loc": "A1", "exyz": [50, 50, 50],
                  "xyz": [50, 50, 50], "de": 0.0}]
@@ -80,7 +80,7 @@ def test_it_does_not_claim_success_when_nothing_was_painted(tab, tmp_path,
     import workflow.measurement_report as mr
     # Every patch names a location this chart does not have, so every one is
     # dropped by the page<0 guard and nothing can be drawn.
-    monkeypatch.setattr(mr, "per_patch_overlay", lambda *_a: [
+    monkeypatch.setattr(mr, "per_patch_overlay", lambda *_a, **_kw: [
         {"loc": "ZZ99", "exyz": [50, 50, 50], "xyz": [50, 50, 50], "de": 0.0}])
 
     assert tab._show_overlay_from_existing_ti3() is False, (

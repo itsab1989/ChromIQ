@@ -498,7 +498,14 @@ class _PatchInfoTile(QWidget):
         show_exp = view_mode in ("both", "expected")
         show_meas = view_mode in ("both", "measured")
         if show_exp:
-            add_colour(tr("Expected"), info.get("exp_rgb", (0, 0, 0)),
+            # On a verification chart judged against the run profile's
+            # prediction, the card says so (Knut, #182 5964173774, answer 4;
+            # wording M-PATCH-EXPECTED-PREDICTED, §M-PROPOSED).
+            from workflow import measurement_messages as _mmx
+            exp_label = (tr(_mmx._CARD_EXPECTED_PREDICTED)
+                         if info.get("expected_source") == "prediction"
+                         else tr("Expected"))
+            add_colour(exp_label, info.get("exp_rgb", (0, 0, 0)),
                        info.get("exp_lab", (0, 0, 0)))
         if show_meas:
             add_colour(tr("Measured"), info.get("meas_rgb", (0, 0, 0)),

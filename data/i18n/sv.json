@@ -1671,6 +1671,7 @@
  "Excellent": "Utmärkt",
  "Existing:  {old}\nNew name:  {new}": "Befintligt:  {old}\nNytt namn:  {new}",
  "Expected": "Förväntad",
+ "Expected: profile prediction": "Förväntad: profilens förutsägelse",
  "Expected & measured (split)": "Förväntat och uppmätt (delat)",
  "Expected colour only": "Endast förväntad färg",
  "Expected values:": "Förväntade värden:",

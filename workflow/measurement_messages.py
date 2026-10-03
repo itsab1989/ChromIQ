@@ -1542,6 +1542,20 @@ M_PATCH_COLOUR_RANGE = _m(
                _CARD_RANGE_CONFIRMED_LEARNED)),
     approved=False)
 
+# --- PROPOSED: the expected colour is the profile's prediction --------------
+#: #182, 2026-10-03. Knut approved the idea in 5964173774 (answer 4: Show
+#: "expected: profile prediction" on the patch hover card for these charts?
+#: "Yes."); the exact words wait here. The card's "Expected" label becomes
+#: this line on a verification chart judged against the run profile's
+#: prediction (workflow/verify_expected.py). One line, so the body is the
+#: headline itself.
+_CARD_EXPECTED_PREDICTED = "Expected: profile prediction"
+M_PATCH_EXPECTED_PREDICTED = _m(
+    "M-PATCH-EXPECTED-PREDICTED",
+    _CARD_EXPECTED_PREDICTED,
+    _CARD_EXPECTED_PREDICTED,
+    approved=False)
+
 # ---------------------------------------------------------------------------
 #: Knut wrote this text himself (beta.150) to replace the original "No
 #: Instrument Found" bullet list, and asked for the window I had added at ten
@@ -3922,6 +3936,7 @@ CATALOGUE = {m.id: m for m in (
     M_CM_K_CHART_THROUGH, M_CM_RAW_UNCALIBRATED,
     M_CAL_APPLIED_TWICE, M_CAL_CALIBRATED_TWICE,
     M_PATCH_COLOUR_RANGE,
+    M_PATCH_EXPECTED_PREDICTED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_DONE_PROFILING,

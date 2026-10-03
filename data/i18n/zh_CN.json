@@ -1671,6 +1671,7 @@
  "Excellent": "优秀",
  "Existing:  {old}\nNew name:  {new}": "现有:  {old}\n新名:  {new}",
  "Expected": "预期",
+ "Expected: profile prediction": "预期：配置文件预测",
  "Expected & measured (split)": "期望值与测量值（分割）",
  "Expected colour only": "仅期望颜色",
  "Expected values:": "期望值:",

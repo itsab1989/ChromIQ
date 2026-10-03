@@ -962,7 +962,8 @@ def engine_patch_de(exyz100, xyz100) -> float:
 
 
 def per_patch_overlay(ti3_path: "str | Path",
-                      ti2_path: "str | Path | None" = None) -> "list[dict]":
+                      ti2_path: "str | Path | None" = None, *,
+                      expected=None) -> "list[dict]":
     """Per-patch expected-vs-measured data for the split-patch overlay (#134).
 
     Returns ``[{loc, exyz, xyz, de}, …]``, one entry per patch that matches
@@ -990,7 +991,14 @@ def per_patch_overlay(ti3_path: "str | Path",
     measurement already on disk can be shown as the overlay without re-reading.
     Returns ``[]`` when the reference ``.ti2`` is missing/unreadable or nothing
     matches (e.g. a foreign ``.ti3`` from a different chart); the caller then
-    falls back to the tabular "Inspect a measurement" view."""
+    falls back to the tabular "Inspect a measurement" view.
+
+    *expected*, a :class:`workflow.verify_expected.LiveExpected`, replaces the
+    chart's expected colour with the run profile's prediction on a
+    verification chart ChromIQ printed (#182, Knut 5964173774). It goes
+    through :func:`workflow.verify_expected.apply_expected`, the function the
+    live strip, patch and chart events go through, so the repaint keeps the
+    outlines of the read (UMM 10.6)."""
     ti3_path = Path(ti3_path)
     ti2 = Path(ti2_path) if ti2_path else _find_reference_ti2(ti3_path)
     try:
@@ -1012,6 +1020,9 @@ def per_patch_overlay(ti3_path: "str | Path",
         de = engine_patch_de(exyz, mxyz)
         out.append({"loc": loc, "exyz": list(exyz),
                     "xyz": list(mxyz), "de": round(float(de), 2)})
+    if expected is not None:
+        from workflow.verify_expected import apply_expected
+        out = apply_expected(out, expected)
     return out
 
 
