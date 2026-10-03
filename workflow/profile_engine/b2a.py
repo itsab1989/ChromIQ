@@ -675,6 +675,15 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         # Sample *reachable* Lab targets instead and invert them through the
         # same policy the per-node pass used; those pairs are consistent.
         probe_dev = rng.uniform(0.0, 1.0, (samples // 3, n))
+        if accurate:
+            # Uniform device points almost never print light: on a CMYK
+            # Clapper-Yule printer 3 of 10,000 landed above L* 80, on six
+            # inks none, so the highlight nodes were extrapolated from the
+            # midtones and the L* 93.75 neutral printed L* 58-88 (research
+            # agent5-03, item 1 cause A). Half the probes are scaled toward
+            # paper (coverage s², s ~ U(0, 1)) so light Lab is sampled too.
+            half = len(probe_dev) // 2
+            probe_dev[:half] *= rng.uniform(0.0, 1.0, (half, 1)) ** 2
         if channel_max is not None:
             probe_dev *= channel_max[None, :]
         if limit is not None:

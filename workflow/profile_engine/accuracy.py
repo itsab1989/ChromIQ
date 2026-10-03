@@ -31,7 +31,8 @@ from typing import Callable
 import numpy as np
 
 from workflow.profile_engine.forward_model import (ForwardModel,
-                                                   fit_forward_model)
+                                                   fit_forward_model,
+                                                   ramp_positioning_curves)
 from workflow.profile_engine.metrics import delta_e_2000
 
 # λ search ladder, as factors on the parity table's value (settings -r
@@ -63,8 +64,13 @@ def fit_forward_model_accurate(
         ucs: bool = False,
         gp: bool = False,
         row_weights: np.ndarray | None = None,
+        positioning: bool = False,
         ) -> tuple[ForwardModel, np.ndarray, float]:
     """Cross-validated, outlier-robust forward fit.
+
+    ``positioning`` (ink devices): every fit starts from shaper curves
+    placed by the chart's single-ink ramps
+    (:func:`forward_model.ramp_positioning_curves`) instead of the identity.
 
     ``row_weights``: per-row multiplicity (an averaged duplicate group
     stands for k readings) — multiplied into every least-squares weight so
@@ -90,6 +96,7 @@ def fit_forward_model_accurate(
     npts = len(device)
     lam = base_lam
     lab_orig = lab
+    init = ramp_positioning_curves(device, lab) if positioning else None
     space = None
     if ucs:
         from workflow.profile_engine.ucs import print_ucs
@@ -122,7 +129,7 @@ def fit_forward_model_accurate(
     scan = fit_forward_model(device, lab, grid=grid,
                              lam=4.0 * base_lam,
                              curve_rounds=min(curve_rounds, 1),
-                             cg_iters=350, cg_rtol=_CG_RTOL, weights=rw)
+                             cg_iters=350, cg_rtol=_CG_RTOL, init_curves=init, weights=rw)
     res_scan = dist(scan.predict(device), lab)
 
     if sigma is not None:
@@ -174,7 +181,7 @@ def fit_forward_model_accurate(
             m = fit_forward_model(device[trn], lab[trn], grid=grid,
                                   lam=lam_try, cg_iters=350,
                                   curve_rounds=min(curve_rounds, 1),
-                                  cg_rtol=_CG_RTOL,
+                                  cg_rtol=_CG_RTOL, init_curves=init,
                                   weights=None if rw is None else rw[trn])
             r = dist(m.predict(device[ho]), lab[ho])
             if sigma is not None:
@@ -278,7 +285,7 @@ def fit_forward_model_accurate(
                               weights=w if ((w < 0.999).any()
                                             or w_noise is not None
                                             or rw is not None) else None,
-                              cg_rtol=_CG_RTOL)
+                              cg_rtol=_CG_RTOL, init_curves=init)
     res = dist(model.predict(device), lab)
     res_w = res / sigma if sigma is not None else res
     # One tightening pass against the final fit (never loosening).
@@ -291,7 +298,7 @@ def fit_forward_model_accurate(
         model = fit_forward_model(device, lab, grid=grid, lam=lam,
                                   curve_rounds=curve_rounds,
                                   weights=_total(w2_rob),
-                                  cg_rtol=_CG_RTOL)
+                                  cg_rtol=_CG_RTOL, init_curves=init)
         res = dist(model.predict(device), lab)
         res_w = res / sigma if sigma is not None else res
         w_rob = w2_rob
@@ -340,6 +347,7 @@ def fit_forward_model_accurate_challenged(
         curve_rounds: int = 2, ucs: bool = False,
         progress: Callable[[str], None] | None = None,
         row_weights: np.ndarray | None = None,
+        positioning: bool = False,
         ) -> tuple[ForwardModel, np.ndarray, float, str]:
     """Noise-aware fitting behind a noise DETECTOR (issue #123).
 
@@ -377,5 +385,5 @@ def fit_forward_model_accurate_challenged(
     model, outliers, lam = fit_forward_model_accurate(
         device, lab, grid=grid, base_lam=base_lam,
         curve_rounds=curve_rounds, ucs=ucs, gp=win, progress=progress,
-        row_weights=row_weights)
+        row_weights=row_weights, positioning=positioning)
     return model, outliers, lam, ("noise" if win else "standard")

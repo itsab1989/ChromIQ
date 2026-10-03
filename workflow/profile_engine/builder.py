@@ -487,7 +487,8 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 meas.device, meas.lab_relative, grid=a2b_grid,
                 base_lam=lam, curve_rounds=curve_rounds, ucs=use_ucs,
                 progress=lambda m: _emit(settings, m),
-                row_weights=meas.row_weights)
+                row_weights=meas.row_weights,
+                positioning=not meas.is_additive and curve_rounds > 0)
     elif accurate:
         from workflow.profile_engine.accuracy import fit_forward_model_accurate
         model, outliers, _lam_used = fit_forward_model_accurate(
@@ -495,7 +496,10 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             curve_rounds=curve_rounds, ucs=use_ucs,
             gp="gp" in candidates,
             progress=lambda m: _emit(settings, m),
-            row_weights=meas.row_weights)
+            row_weights=meas.row_weights,
+            # Ink devices: shaper curves start from the chart's own
+            # single-ink ramps (research agent5-03, item 1 cause D).
+            positioning=not meas.is_additive and curve_rounds > 0)
         if len(outliers):
             # Name the patches the way the SHEET names them (SAMPLE_LOC):
             # "rows 757, 811" only coincided with the printed IDs on a
