@@ -23,12 +23,25 @@ then one should assume that these errors are not a misread and automatically
 flag these patches with yellow"*; the ranges and the count of three, #182 k10:
 posted in 5961078418, confirmed by Knut 5961180259 and by Sebastian).
 
-1. **The colour range.** Every patch belongs to one of 13 ranges, from its
-   EXPECTED colour classified against the chart's own white (the ``.ti2``'s
-   ``APPROX_WHITE_POINT``, D50 without one), so a chart's greys come out as
-   greys: a grey when its chroma is under 8 (dark under L* 35, mid to under
-   70, light from 70), otherwise its hue sector (``HUE_SECTORS``), with
-   pink/rose as what is left over.
+1. **The colour range.** Every patch belongs to one of 13 ranges: a grey
+   when its chroma is under 8 (dark under L* 35, mid to under 70, light from
+   70), otherwise its hue sector (``HUE_SECTORS``), with pink/rose as what is
+   left over. WHICH colour is classified is decided per chart (Knut
+   5963411325, approving questions 1 to 3 of 5963152271):
+
+   * an RGB chart (its ``.ti2`` device columns are RGB, charts made from a
+     profile included): the patch's DEVICE RGB read as sRGB through ArgyllCMS
+     targen's own no-profile estimate (:func:`targen_estimate_xyz`), against
+     that estimate's own white, so a range means the same on every printer
+     (:func:`chart_device_ranges`; 0..255 values are brought to 0..100, and a
+     chart carrying a calibration reads its ``.ti1``);
+   * any other chart: its EXPECTED colour against the chart's own white (the
+     ``.ti2``'s ``APPROX_WHITE_POINT``, D50 without one), so a chart's greys
+     come out as greys.
+
+   The blue/purple edge is 315° (it was 310°: pure sRGB blue sits at 306°,
+   and its most saturated tints were split between blue and purple); the
+   yellow-green/green edge stays 130°.
 2. **A range learns** once three of its CONFIRMED patches lie pairwise at
    least ``RANGE_SPACING_DE`` (ΔE*ab 6, expected colours, D50) apart; the
    largest such set is counted exactly (:func:`spaced_count`). Learned
@@ -64,18 +77,18 @@ back when that measurement is shown again or resumed; a FRESH read starts with
 none, because it replaces the readings they were confirmed against.
 
 MEASURED ON KNUT'S REAL CHART (beta 3 run1, 648 patches, i1Pro 2, estimated
-expected colours, chart white D65), ``AP_colour_ranges/knut_colour_ranges_measure.py``
-of that session's report (the earlier thresholds: ``AF_impl_flag_limits/
-flag_rule_knut_data.py``):
+expected colours), replayed with every red patch re-read in reading order
+(``2026-10-03_srgb_ranges/knut_srgb_ranges_replay.py`` of that session's
+report; the earlier thresholds: ``AF_impl_flag_limits/flag_rule_knut_data.py``):
 
-* at the default 95, 10 patches are flagged: nine blue and O9 (hue 311°)
-  purple. Re-reading every red patch in reading order, the blue range has
-  three confirmations ΔE 6 apart only once U16, the last of them, is confirmed
-  (every spaced triple among the blues includes U16), so all ten are re-read
-  and none is learned. With a 315° blue/purple edge O9 would be blue and U16
-  learned; the edge stays at the approved 310°;
-* at the old limit 50 (61 flagged with the strip test), 19 are re-read and 42
-  are learned;
+* at the default 95, 10 patches are flagged, all ten blue by their RGB
+  numbers. O9 (RGB hue 311°) was purple under the 310° edge; now the triple
+  A23, O9, U4 teaches the blue range before U16 is reached, so 9 are re-read
+  and U16 is learned (before: 10 re-read, none learned);
+* at the old limit 50 (61 flagged with the strip test), 18 are re-read and 43
+  are learned (before: 19 and 42);
+* 18 of the chart's 648 patches change range against the old rule, most of
+  them purple to blue at the moved edge;
 * the shift and stand-out conditions are the ones measured against simulated
   misreads before the ranges (0 of 430 flagged reached yellow at 95, 4 of
   1,449 at 50, against 32 without the stand-out condition).
@@ -117,8 +130,8 @@ HUE_SECTORS = (
     (110.0, 130.0, "yellow_green"),
     (130.0, 165.0, "green"),
     (165.0, 240.0, "cyan"),
-    (240.0, 310.0, "blue"),
-    (310.0, 325.0, "purple"),
+    (240.0, 315.0, "blue"),
+    (315.0, 325.0, "purple"),
     (325.0, 345.0, "magenta"),
 )
 RANGES = ("grey_dark", "grey_mid", "grey_light", "pink") + tuple(
@@ -258,6 +271,102 @@ def colour_range(exp_lab_d50, white=None) -> str:
     return colour_range_of_lab(xyz_to_lab(_lab_d50_to_xyz(exp_lab_d50), white))
 
 
+# ---- an RGB chart: the range from the patch's own RGB numbers (#182 k10) ------
+#
+# Knut 5963411325 approving 5963152271 (question 1). ArgyllCMS targen's own
+# estimate for an RGB device with no profile, xicc/xcolorants.c
+# icxColorantLu_to_XYZ (additive branch), 3.5.0: each channel decoded with the
+# sRGB curve, summed over the sRGB primaries, normalised to Y = 1, then a flat
+# black flare of 0.01 in X, Y and Z. Its white is the model's own (targen
+# writes it as APPROX_WHITE_POINT 95.106486 100 108.844025), which is what the
+# L*a*b* is taken against. Checked against a real targen 3.5.0 run
+# (tests/data/targen350_rgb.ti1).
+_TARGEN_PRIMARIES = ((0.412414, 0.212642, 0.019325),
+                     (0.357618, 0.715136, 0.119207),
+                     (0.180511, 0.072193, 0.950770))
+_TARGEN_YNORM = 1.0 / (0.212642 + 0.715136 + 0.072193)
+_TARGEN_FLARE = 0.01
+RGB_FIELDS = ("RGB_R", "RGB_G", "RGB_B")
+
+
+def _srgb_decode(v: float) -> float:
+    """The sRGB curve as targen applies it (threshold 0.03928)."""
+    v = min(max(float(v), 0.0), 1.0)
+    return v / 12.92 if v <= 0.03928 else ((0.055 + v) / 1.055) ** 2.4
+
+
+def targen_estimate_xyz(rgb100) -> tuple:
+    """targen's no-profile estimate of device RGB 0..100, XYZ with Y = 1."""
+    xyz = [0.0, 0.0, 0.0]
+    for prim, v in zip(_TARGEN_PRIMARIES, rgb100[:3]):
+        lin = _srgb_decode(float(v) / 100.0)
+        for j in range(3):
+            xyz[j] += lin * prim[j]
+    return tuple(x * _TARGEN_YNORM * (1.0 - _TARGEN_FLARE) + _TARGEN_FLARE
+                 for x in xyz)
+
+
+#: The model's own white: the estimate of RGB 100 100 100.
+TARGEN_WHITE = targen_estimate_xyz((100.0, 100.0, 100.0))
+
+
+def colour_range_of_rgb(rgb100) -> str:
+    """The colour range of device RGB 0..100, read as sRGB through targen's
+    estimate and classified against that estimate's own white."""
+    return colour_range_of_lab(xyz_to_lab(targen_estimate_xyz(rgb100),
+                                          TARGEN_WHITE))
+
+
+def chart_device_ranges(chart: "str | Path | None") -> "dict[str, str] | None":
+    """``{loc: range}`` from the chart's device RGB, or None when the chart is
+    not an RGB chart and its patches keep the expected-colour rule.
+
+    Decided for the WHOLE chart, never patch by patch: the ``.ti2``'s device
+    columns must be exactly RGB_R, RGB_G and RGB_B, and every row must parse,
+    or the answer is None. Values on a 0..255 scale (any above 101) are
+    brought to 0..100 for the whole chart. A chart that carries a printer
+    calibration takes its device values from the ``.ti1`` beside it where it
+    has the same SAMPLE_ID: a layout-engine chart printed with ``-K`` before
+    4.3.3-beta.5 (62e26e4e) wrote CALIBRATED values into the ``.ti2``, every
+    other chart has the ``.ti1``'s own values there anyway.
+    """
+    if not chart:
+        return None
+    from workflow import printer_calibration as pc
+    p = Path(chart)
+    ti2 = p if p.suffix.lower() == ".ti2" else p.with_suffix(".ti2")
+    try:
+        fields, rows, _kw = pc.read_table(ti2)
+    except (OSError, ValueError):
+        return None
+    if tuple(sorted(pc.device_fields_of(fields))) != tuple(sorted(RGB_FIELDS)):
+        return None
+    ti1_rows: dict = {}
+    if pc.has_embedded_cal(ti2):
+        try:
+            f1, r1, _ = pc.read_table(pc._ti1_for(ti2))
+            if all(f in f1 for f in RGB_FIELDS):
+                ti1_rows = r1
+        except (OSError, ValueError):
+            ti1_rows = {}
+    loc_field = "SAMPLE_LOC" if "SAMPLE_LOC" in fields else "SAMPLE_ID"
+    values: "list[tuple[str, tuple]]" = []
+    for sid, row in rows.items():
+        src = ti1_rows.get(sid) or row
+        try:
+            rgb = tuple(float(src[f]) for f in RGB_FIELDS)
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not all(math.isfinite(v) for v in rgb):
+            return None
+        values.append((str(row.get(loc_field, sid)), rgb))
+    if not values:
+        return None
+    scale = (100.0 / 255.0) if max(max(v) for _l, v in values) > 101.0 else 1.0
+    return {loc: colour_range_of_rgb(tuple(c * scale for c in rgb))
+            for loc, rgb in values}
+
+
 def _loc_key(loc: str):
     """A natural sort key for a chart location: A9 before A10, Z before AA."""
     m = re.match(r"^([A-Za-z]*)(\d*)(.*)$", str(loc))
@@ -336,6 +445,10 @@ def spaced_count(exp_labs, cap: int = RANGE_CONFIRMATIONS,
     return grow([], 0)
 
 
+#: :meth:`FlagJudge.reset`'s "keep what you have".
+_KEEP = object()
+
+
 class FlagJudge:
     """Remembers one measurement session's readings and decides each outline.
 
@@ -346,15 +459,27 @@ class FlagJudge:
     *white* is the chart's own white (XYZ, Y = 1) that the colour ranges are
     classified against. It is sticky: :meth:`reset` without a white keeps the
     one it has, so a reset can never fall back to D50 behind the caller's back.
+
+    *device_ranges* is an RGB chart's ``{loc: range}`` from its device RGB
+    (:func:`chart_device_ranges`), or None for a chart that keeps the
+    expected-colour rule. Sticky like the white: :meth:`reset` keeps it
+    unless it is given. While it is set every patch's range comes from it, and
+    a location it does not hold has no range at all (it never learns and never
+    teaches), so one judge never mixes the two classifications.
     """
 
-    def __init__(self, white=None) -> None:
+    def __init__(self, white=None, device_ranges=None) -> None:
         self._white = D50_WHITE
-        self.reset(white)
+        self._device_ranges: "dict[str, str] | None" = None
+        self.reset(white, device_ranges=device_ranges)
 
     @property
     def white(self) -> tuple:
         return self._white
+
+    @property
+    def device_ranges(self) -> "dict[str, str] | None":
+        return self._device_ranges
 
     def set_white(self, white) -> None:
         """Take the chart's white without forgetting anything."""
@@ -363,9 +488,22 @@ class FlagJudge:
             self._ranges = {}
             self._refs_changed()
 
-    def reset(self, white=None) -> None:
+    def set_device_ranges(self, device_ranges) -> None:
+        """Take the chart's device-RGB ranges (None: the expected-colour rule)
+        without forgetting anything; every patch is classified again."""
+        self._device_ranges = (None if device_ranges is None
+                               else {str(k): str(v)
+                                     for k, v in device_ranges.items()})
+        self._ranges = {}
+        self._refs_changed()
+
+    def reset(self, white=None, device_ranges=_KEEP) -> None:
         if white:
             self._white = tuple(float(v) for v in white[:3])
+        if device_ranges is not _KEEP:
+            self._device_ranges = (None if device_ranges is None
+                                   else {str(k): str(v)
+                                         for k, v in device_ranges.items()})
         self._last: "dict[str, _Reading]" = {}
         self._refs: "dict[str, _Reference]" = {}
         #: loc -> the last verdict given for it (flagged readings only).
@@ -380,7 +518,12 @@ class FlagJudge:
 
     # ---- the colour ranges ---------------------------------------------------
     def range_of(self, loc: str, exp_lab) -> str:
+        """The colour range of *loc*: from the chart's device RGB on an RGB
+        chart ("" when the chart does not hold *loc*), otherwise from its
+        expected colour against the chart's white."""
         loc = str(loc)
+        if self._device_ranges is not None:
+            return self._device_ranges.get(loc, "")
         r = self._ranges.get(loc)
         if r is None:
             r = self._ranges[loc] = colour_range(exp_lab, self._white)
@@ -393,6 +536,8 @@ class FlagJudge:
         """``(k, locs)`` for colour range *rng*: the largest number of its
         confirmed patches spaced at least ΔE 6 apart (0..3), and every
         confirmed patch in it, in reading order."""
+        if not rng:
+            return 0, ()                  # no range: never learns, never teaches
         hit = self._status_cache.get(rng)
         if hit is None:
             refs = sorted((r for r in self._refs.values()

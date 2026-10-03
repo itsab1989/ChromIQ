@@ -6050,15 +6050,19 @@ and confirmed by Knut
 *"Sounds ok... Confirm with Sebastian too."*) and by Sebastian. The behaviour
 below is the build of that rule and awaits confirmation as built.
 
-* **Thirteen colour ranges**, from each patch's EXPECTED colour classified
-  against the chart's own white (`APPROX_WHITE_POINT` of the `.ti2`, read once
-  per chart with the accurate flag; D50 when it is missing, unparsable or has
-  no positive Y): a grey when its chroma C\* is under 8 (dark under L\* 35,
-  mid from 35 to under 70, light from 70); otherwise by hue angle: red 15° to
-  50°, orange/brown 50° to 75°, yellow 75° to 110°, yellow-green 110° to 130°,
-  green 130° to 165°, cyan/turquoise 165° to 240°, blue 240° to 310°,
-  purple/violet 310° to 325°, magenta 325° to 345°, and pink/rose everything
-  else (345° to 15°). Each lower edge belongs to its range.
+* **Thirteen colour ranges.** On an RGB chart (every chart whose `.ti2`
+  device columns are RGB, charts made from a profile included) from each
+  patch's RGB numbers read as sRGB, as the confirmed block below states. On
+  any other chart (CMYK, grey, N-channel, or a `.ti2` without RGB columns)
+  from each patch's EXPECTED colour classified against the chart's own white
+  (`APPROX_WHITE_POINT` of the `.ti2`, read once per chart with the accurate
+  flag; D50 when it is missing, unparsable or has no positive Y). Then: a grey
+  when its chroma C\* is under 8 (dark under L\* 35, mid from 35 to under 70,
+  light from 70); otherwise by hue angle: red 15° to 50°, orange/brown 50° to
+  75°, yellow 75° to 110°, yellow-green 110° to 130°, green 130° to 165°,
+  cyan/turquoise 165° to 240°, blue 240° to 315°, purple/violet 315° to 325°,
+  magenta 325° to 345°, and pink/rose everything else (345° to 15°). Each
+  lower edge belongs to its range.
 * **A range learns** once it holds three CONFIRMED patches (10.3) whose
   expected colours lie pairwise at least ΔE\*ab 6 apart (D50 L\*a\*b\*; the
   largest such set is counted exactly). Learned patches never count; a
@@ -6091,6 +6095,30 @@ refines a measurement, and the preview of a measurement on disk, take that
 measurement's stored references back (10.7). Loading another chart starts
 from that chart's own.
 
+#### Confirmed behaviour — the colour ranges of an RGB chart, and the blue/purple edge (k10)
+
+**Confirmed by:** Knut, 2026-10-03, #182 [5963411325](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963411325) (*"do the recommended for all three"*, answering the three questions of [5963152271](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963152271)). Only these three points; the rest of 10.4 still awaits confirmation.
+
+1. **An RGB chart's ranges come from its RGB numbers read as sRGB**, for every
+   RGB chart including charts made from a profile; CMYK and other charts keep
+   the expected-colour rule. As built: the device RGB of the `.ti2` goes
+   through ArgyllCMS targen's own no-profile estimate (3.5.0,
+   `xicc/xcolorants.c`: sRGB curve and primaries, normalised to Y = 1, a flat
+   flare of 0.01 added to X, Y and Z), and the L\*a\*b\* is taken against
+   that estimate's own white (95.106 / 100 / 108.844); then the grey and hue
+   rules above. The choice is made per chart, never per patch. Values on a
+   0..255 scale are brought to 0..100. A chart carrying a printer calibration
+   takes its device values from its `.ti1` (a layout-engine chart printed
+   with `-K` before 4.3.3-beta.5 holds calibrated values in its `.ti2`).
+   Stored confirmed patches are classified again when they are loaded.
+2. **The blue/purple edge moves from 310° to 315°**: blue 240° to 315°,
+   purple/violet 315° to 325°.
+3. **The yellow-green/green edge stays at 130°.**
+
+Unchanged, as Knut's question stated: three confirmations ΔE 6 apart and the
+"closest" patch are measured on the EXPECTED colours (D50), the shift and
+stand-out conditions, the 13 range names, and the greys.
+
 **10.5 · No longer suggested for re-reading.** The only place the app itself
 suggests re-reading a flagged patch is the per-patch "Patch reading looks off"
 sound (patch-by-patch mode); a yellow patch plays the ordinary patch sound.
@@ -6098,15 +6126,20 @@ Check & Refine's strips come from the profile check, not from these outlines,
 and are unchanged.
 
 **Measured on Knut's beta-3 run1** (648 patches, estimated colours, chart
-white D65; scripts in the session reports `AF_impl_flag_limits/` and
-`AP_colour_ranges/knut_colour_ranges_measure.py`): ΔE ≥ 50 flags 72 patches,
-ΔE ≥ 95 flags 10. At 95 with the colour ranges, nine of the ten are blue and
-O9 (hue 311°) is purple. Re-reading every red patch in reading order, the blue
-range only has three confirmations spaced ΔE 6 apart once U16, the last of
-them, is confirmed (the spaced triples among the blues all include U16), so
-all ten are re-read and none is learned. Under a 315° edge O9 would be blue,
-the triple A23, O9, U4 would teach the range before U16, and U16 would be
-learned. At 50: 61 red, 19 re-read and 42 learned.
+white D65; scripts in the session reports `AF_impl_flag_limits/`,
+`AP_colour_ranges/knut_colour_ranges_measure.py` and
+`2026-10-03_srgb_ranges/knut_srgb_ranges_replay.py`): ΔE ≥ 50 flags 72
+patches, ΔE ≥ 95 flags 10. Re-reading every red patch in reading order:
+
+| rule | at ΔE 95 | at ΔE 50 (61 red) |
+|---|---|---|
+| expected colour, edge 310° (before 5963411325) | 10 re-read, 0 learned: O9 (RGB 50 0 100, hue 311°) is purple | 19 re-read, 42 learned |
+| RGB numbers as sRGB, edge 315° (as built) | 9 re-read, 1 learned: all ten are blue, the triple A23, O9, U4 teaches the range and U16 is learned | 18 re-read, 43 learned |
+
+18 of the chart's 648 patches change range between the two rules: 8 purple
+to blue at the moved edge, and the rest near-greys and edges where targen's
+flat flare differs slightly from the 1 % D65 flare ChromIQ's own `.ti2`
+writer uses.
 
 **Open questions for Knut:** whether the layout engine should write
 `ACCURATE_EXPECTED_VALUES` into the `.ti2` as printtarg does (that would also

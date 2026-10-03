@@ -450,14 +450,15 @@ def test_two_close_confirmations_do_not_teach_knuts_blues(qapp, tmp_path):
     rows = _card(qapp, info)
     assert "Colour range: blue" in rows
     assert "1 of 3 spaced confirmations so far" in rows
-    # O9 is purple at the approved 310° edge: a range with no confirmation.
+    # O9 (hue 311°) is blue at the 315° edge (Knut 5963411325; it was purple
+    # at 310°): the same range, still one spaced confirmation of three.
     tab._on_strip_measured(_strip("O"))
     assert _flags(tab)["O9"] is True
     o9 = _info(tab, "O9")
-    assert o9["colour_range"] == "purple" and o9["range_k"] == 0
+    assert o9["colour_range"] == "blue" and o9["range_k"] == 1
     rows = _card(qapp, o9)
-    assert "Colour range: purple/violet" in rows
-    assert not any("of 3" in r for r in rows)
+    assert "Colour range: blue" in rows
+    assert "1 of 3 spaced confirmations so far" in rows
 
 
 def test_nothing_is_learned_before_a_confirmation(tmp_path):
