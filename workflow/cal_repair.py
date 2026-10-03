@@ -19,7 +19,8 @@ in ``old/``, keep the yellow confirmed marks. So :func:`repair_embedded_cal`:
   measured: the same table shape and input column, the same device columns,
   and the same device values for every ``SAMPLE_ID`` the measurement holds;
 * copies the original ``.ti3`` (and its ``.confirmed.json``) to the run's
-  ``old/<date-time>/`` first, and does nothing at all if that copy fails;
+  ``old/<date-time>/`` first (a verification's to its date's ``old/``, as the
+  session guard does), and does nothing at all if that copy fails;
 * replaces ONLY the first ``CAL`` table, byte for byte from the chart, and
   leaves every reading, keyword and the file's time stamp as they were;
 * re-stamps ``<stem>.confirmed.json`` (``-verify.confirmed.json`` for a
@@ -269,8 +270,16 @@ def _chart_candidates(ti3: Path) -> "list[Path]":
 def _home_of(ti3: Path) -> Path:
     """The folder whose ``old/`` keeps the original: the run (``runs/runN``)
     or the calibration folder (``cal``) the measurement belongs to, wherever
-    under it the file sits; else the measurement's own folder."""
+    under it the file sits; else the measurement's own folder.
+
+    A verification's history stays inside ``verifications/``, as the session
+    guard keeps it (§2a: ``runs/runN/verifications/<date>/old/``): a dated
+    measurement's original goes to its date's ``old/``, a file in the
+    ``verifications/`` root to ``verifications/old/``."""
     for d in ti3.parents:
+        if d.name == "verifications" and d.parent.parent.name == "runs":
+            rel = ti3.relative_to(d).parts
+            return d / rel[0] if len(rel) > 1 else d
         if d.parent.name == "runs":
             return d
         if d.name == "cal" and (d.parent / "project.json").is_file():
@@ -375,10 +384,14 @@ def _repair(ti3: Path, ti2: "Path | None",
         return None
 
     new_text = text[:span[0]] + block + text[span[1]:]
-    tmp = ti3.with_name(ti3.name + ".cal-repair")
+    # A link is followed, not replaced by a file of its own; and the file
+    # keeps its permissions (a read-only measurement stays read-only).
+    dest = ti3.resolve() if ti3.is_symlink() else ti3
+    tmp = dest.with_name(dest.name + ".cal-repair")
     try:
         tmp.write_bytes(new_text.encode("latin-1"))
-        os.replace(tmp, ti3)
+        shutil.copymode(dest, tmp)
+        os.replace(tmp, dest)
     except OSError:
         log.warning("could not write the repaired %s; the original is "
                     "unchanged and kept in %s", ti3.name, archive.parent,
@@ -391,7 +404,7 @@ def _repair(ti3: Path, ti2: "Path | None",
     try:
         # The readings did not change, so neither does the file's date: a
         # report or a list that orders by it must not see a new measurement.
-        os.utime(ti3, ns=(st.st_atime_ns, st.st_mtime_ns))
+        os.utime(dest, ns=(st.st_atime_ns, st.st_mtime_ns))
     except OSError:
         pass
     kept = cp.carry(ti3, before_sha, ti3) is not None

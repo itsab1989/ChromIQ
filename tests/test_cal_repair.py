@@ -317,7 +317,45 @@ def test_a_verification_keeps_its_verify_marks(tmp_path):
     assert rep is not None and rep.chart == vti2
     assert cp.confirmed_path(vti3).name == "Test_01-verify.confirmed.json"
     assert cp.confirmed_locations(vti3) == {"A2"}
-    assert rep.archive.parent == run / "old" / "2026-10-03_120000"
+    # §2a: a verification's history stays inside verifications/, in its
+    # date's old/, as the session guard keeps it.
+    assert rep.archive.parent == (vroot / "2026-10-01" / "old"
+                                  / "2026-10-03_120000")
+    assert not (run / "old").exists()
+
+
+def test_a_file_in_the_verifications_root_is_kept_in_verifications_old(tmp_path):
+    root = tmp_path / "Test_01"
+    root.mkdir()
+    (root / "project.json").write_text("{}", encoding="utf-8")
+    vroot = root / "runs" / "run1" / "verifications"
+    _write_ti2(vroot / "Test_01-verify.ti2", "CMYK")
+    staged = _write_ti3(vroot / "Test_01-verify.ti3", "CMYK")
+    rep = cal_repair.repair_embedded_cal(staged, when=WHEN)
+    assert rep is not None
+    assert rep.archive.parent == vroot / "old" / "2026-10-03_120000"
+
+
+def test_a_read_only_measurement_stays_read_only(tmp_path):
+    ti3, ti2 = _project(tmp_path)
+    os.chmod(ti3, 0o444)
+    try:
+        assert cal_repair.repair_embedded_cal(ti3, when=WHEN) is not None
+        assert _first_cal(ti3) == _first_cal(ti2)
+        assert (ti3.stat().st_mode & 0o777) == 0o444
+    finally:
+        os.chmod(ti3, 0o644)
+
+
+def test_a_linked_measurement_is_repaired_through_the_link(tmp_path):
+    ti3, ti2 = _project(tmp_path)
+    real = ti3.with_name("elsewhere.ti3")
+    ti3.rename(real)
+    ti3.symlink_to(real)
+    assert cal_repair.repair_embedded_cal(ti3, when=WHEN) is not None
+    assert ti3.is_symlink(), "the link was replaced by a file of its own"
+    assert _first_cal(real) == _first_cal(ti2)
+    assert not list(ti3.parent.glob("*.cal-repair"))
 
 
 def test_a_replaced_chart_is_found_under_old_chart(tmp_path):
