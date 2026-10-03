@@ -25,6 +25,7 @@ builds:
 """
 from __future__ import annotations
 
+import contextlib
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -378,8 +379,12 @@ def build_profile(ti3_path: Path | str, out_path: Path | str,
     orig_progress = settings.progress
     settings.progress = _PercentProgress(orig_progress)
     started: list = []          # Argyll runs started ahead of need (D-06)
+    from workflow.profile_engine import parallel
+    scope = parallel.accurate_scope() if settings.gammap_mode == "accurate" \
+        else contextlib.nullcontext()
     try:
-        return _build_profile_impl(ti3_path, out_path, settings, started)
+        with scope:
+            return _build_profile_impl(ti3_path, out_path, settings, started)
     finally:
         settings.progress = orig_progress
         for run in started:
