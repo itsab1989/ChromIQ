@@ -69,6 +69,51 @@ def is_available() -> bool:
         return False
 
 
+_CAPS_CACHE: "dict[tuple[str, int], frozenset]" = {}
+
+
+def helper_caps(helper: "Path | None" = None) -> frozenset:
+    """What this build of the helper can do, from ``--caps`` (cached per
+    binary). An older helper has no such flag and answers with nothing."""
+    try:
+        p = Path(helper) if helper is not None else helper_path()
+        key = (str(p), p.stat().st_mtime_ns)
+    except (EngineUnavailable, OSError):
+        return frozenset()
+    if key in _CAPS_CACHE:
+        return _CAPS_CACHE[key]
+    caps: frozenset = frozenset()
+    try:
+        from core.proc_text import run_text
+        # A fraction of a second when the helper knows the flag. One that does
+        # not (built before 4.3.3-beta.7) takes "--caps" for a chart and waits
+        # for an instrument, so it is cut short: asked only for a sheet printed
+        # with the old labels, on Start, and remembered per binary.
+        import subprocess as _sp
+        res = run_text([str(p), "--caps"], capture_output=True,
+                       stdin=_sp.DEVNULL, timeout=8)
+        if res.returncode == 0:
+            for line in (res.stdout or "").splitlines():
+                line = line.strip()
+                if line.startswith("{"):
+                    try:
+                        doc = json.loads(line)
+                    except ValueError:
+                        continue
+                    caps = frozenset(str(c) for c in doc.get("caps", ()))
+                    break
+    except Exception as exc:   # noqa: BLE001 — no answer is "cannot"
+        log.debug("could not ask the helper what it can do: %s", exc)
+    _CAPS_CACHE[key] = caps
+    return caps
+
+
+def reads_legacy_labels(helper: "Path | None" = None) -> bool:
+    """True when the helper reads a sheet printed with ChromIQ's labels from
+    before 4.3.3-beta.7 as printed (Knut, #182 5965589190)."""
+    return "legacy_labels" in helper_caps(helper)
+
+
 def parse_engine_line(line: str) -> dict | None:
     """Decode one stdout line into an event dict, or None for prose.
 

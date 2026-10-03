@@ -7743,6 +7743,9 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
             # Render from a .ti1 derived from the CURRENT grid, so reordering /
             # recolouring / adding patches updates the engine preview live (#93).
             ti1 = self._engine_grid_ti1(stem.with_suffix(".ti1"))
+            # A new layout, labelled as ArgyllCMS labels it: a pattern pair the
+            # readers could not read back is refused here too (forum report,
+            # 2026-10-03), and the reason goes to the status line below.
             result = le_chart.build_chart(str(ti1), stem, **kw)
             tiffs = result.tiff_paths or []
             if tiffs:
@@ -7773,6 +7776,11 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
                                              s=result.seed))
         except Exception as exc:  # noqa: BLE001 — preview is best-effort
             log.warning("engine preview failed: %s", exc)
+            from workflow.layout_engine.alphix import PatternRefused
+            if isinstance(exc, PatternRefused):
+                # The panel's box is already red; say why where the preview
+                # status is read, instead of leaving the old picture unexplained.
+                self._status.setText(str(exc))
 
     def _show_image(self, path: Path) -> None:
         pm = QPixmap(str(path))

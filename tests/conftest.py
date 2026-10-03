@@ -1690,7 +1690,7 @@ def pytest_addoption(parser):
 #
 # * `tests/test_chartread_engine.py` and seven other files carry a MODULE-LEVEL
 #   `skipif` on a GITIGNORED build artefact, and an eighth skips part of itself
-#   on the same thing (9 wholesale and 7 in part since 2026-10-03, counted by
+#   on the same thing (10 wholesale and 9 in part since 2026-10-03, counted by
 #   `test_a_run_says_what_it_cannot_prove.py`). Absent, 85 tests skip. A worktree,
 #   a fresh clone and any CI runner are the normal case for that artefact, and
 #   the only trace in the log is the total - so "the helper was present so
@@ -1849,8 +1849,8 @@ def pytest_report_header(config):
     if helper is not None:
         out.append(f"  chart-reading engine: helper PRESENT at {helper}")
     else:
-        out.append("  chart-reading engine: helper ABSENT - 8 files SKIP "
-                   "WHOLESALE and 3 more skip in")
+        out.append("  chart-reading engine: helper ABSENT - 10 files SKIP "
+                   "WHOLESALE and 9 more skip in")
         out.append("      part (85 tests when this was last measured, "
                    "2026-09-03), and a chart-reading")
         out.append("      engine deleted outright would still pass. The "
@@ -1916,7 +1916,7 @@ def _enforce_the_helper(config):
     raise pytest.UsageError(
         "--runslow is the release gate, and the chromiq-chartread helper is "
         "not here.\n"
-        "Nine files would skip WHOLESALE in silence and eight more in part "
+        "Ten files would skip WHOLESALE in silence and nine more in part "
         "(85 tests when\n"
         "this was last measured), and a chart-reading engine deleted outright "
         "would pass.\n"

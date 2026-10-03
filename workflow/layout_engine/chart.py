@@ -284,12 +284,21 @@ def build_chart(
     cal_path: str | Path | None = None,
     apply_cal: bool = False,
     emit_cht: bool = False,
+    label_rule: str = permutation.ARGYLL,
     #: A calibration chart: lay each ink's ramp out on its own strip (see
     #: `calibration_ramps`). Rewrites the .ti1 in place when it is targen's
     #: pure ramp set; any other .ti1 is laid out exactly as it is.
     ramps_per_strip: bool = False,
 ) -> ChartResult:
     """Full chart build: write ``out_base.ti2`` + page TIFF(s) + strip geometry.
+
+    *label_rule* is how the strip and patch labels are made. ``"argyll"``
+    (every new chart) labels exactly as ArgyllCMS does, and a pattern pair the
+    readers could not read back is refused with
+    :class:`~workflow.layout_engine.alphix.PatternRefused` before any file is
+    written. ``"legacy"`` is ChromIQ's rule before 4.3.3-beta.7, for a redraw
+    of a chart printed with it (Restore Used Chart): that chart is already on
+    paper, so it is drawn again exactly as it was and never refused.
 
     ``out_base`` is a path stem; outputs are ``<stem>.ti2``, ``<stem>.tif``
     (or ``<stem>_NN.tif`` for multi-page) and ``<stem>.strips.json`` (exact
@@ -409,6 +418,27 @@ def build_chart(
     geom = _geom_for(len(target.patches))
     layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))
 
+    def _refuse_unreadable_patterns(layout_now) -> None:
+        if label_rule == permutation.LEGACY:
+            return
+        # ArgyllCMS'S LABELS, SO ARGYLLCMS'S LIMITS (forum report, 2026-10-03;
+        # Knut, #182 5965589190). A pattern pair the readers could not read
+        # back (too few labels, halves that run together) is refused before
+        # anything is written. A redraw of a chart printed with the old rule
+        # passes "legacy" and is drawn exactly as it was printed.
+        from . import alphix
+        problem = alphix.check_patterns(
+            strip_pattern, patch_pattern,
+            alphix.strips_of(layout_now.total_patches,
+                             layout_now.steps_in_pass),
+            layout_now.steps_in_pass)
+        if problem is not None:
+            raise alphix.PatternRefused(problem)
+
+    # Refused BEFORE a calibration's ramps rewrite the .ti1 on disk, and again
+    # on the layout those ramps settle on (it can have a different strip count).
+    _refuse_unreadable_patterns(layout)
+
     # EACH INK'S RAMP ON ITS OWN STRIP (#182, Knut 5965186237). Only for a
     # calibration build, and only when the .ti1 is targen's pure ramp set:
     # anything else keeps its rows. The .ti1 is rewritten on disk as well, so
@@ -443,6 +473,7 @@ def build_chart(
                 geom = _geom_for(len(target.patches))
                 layout = geometry.compute(geom, w_mm, h_mm,
                                           len(target.patches))
+                _refuse_unreadable_patterns(layout)
     if cal is not None and apply_cal:
         from . import calibration
         printed = calibration.apply_to_target(target, cal)
@@ -467,7 +498,7 @@ def build_chart(
         color_rep=target.color_rep, seed=seed, randomize=randomize,
         strip_pattern=strip_pattern, patch_pattern=patch_pattern,
         paper_w_mm=w_mm, paper_h_mm=h_mm, media=media, white_point=white_point,
-        ink_limit=target.ink_limit,
+        ink_limit=target.ink_limit, label_rule=label_rule,
     )
     if cal is not None:  # embed the calibration table (-K and -I both embed)
         from . import calibration
@@ -496,7 +527,7 @@ def build_chart(
     render = raster.render_pages(
         printed, layout, geom, seed=seed, randomize=randomize,
         paper_w_mm=w_mm, paper_h_mm=h_mm, dpi=dpi, strip_pattern=strip_pattern,
-        patch_pattern=patch_pattern,
+        patch_pattern=patch_pattern, label_rule=label_rule,
         spacer_mode=spacer_mode, spacer_palette=_palette,
         spacer_overrides=_overrides, edge_spacers=edge_spacers,
         draw_indicators=draw_indicators,
@@ -551,7 +582,8 @@ def build_chart(
 
     rects = geometry.strip_rects_px(geom, w_mm, h_mm, layout, dpi)
     patch_rects = geometry.patch_rects_px(geom, w_mm, h_mm, layout, dpi,
-                                          strip_pattern, patch_pattern)
+                                          strip_pattern, patch_pattern,
+                                          label_rule=label_rule)
     strips_path = artefact(stem, ".strips.json")
     strips_path.write_text(json.dumps({
         "dpi": dpi, "paper_mm": [w_mm, h_mm],
@@ -562,6 +594,9 @@ def build_chart(
         # chart's patch pattern (K8), that is the difference between a sheet
         # whose labels match its .ti2 and one whose labels are a guess.
         "patch_pattern": patch_pattern,
+        # Which rule made the labels: "argyll" for every chart from 4.3.3-
+        # beta.7 on, "legacy" for a redraw of one printed before it.
+        "label_rule": label_rule,
         "label_band_bottom_px": render.label_band_bottom_px,
         "patch_ink_top_px": render.patch_ink_top_px,
         "strips": rects, "patches": patch_rects,

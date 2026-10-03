@@ -204,7 +204,10 @@ typedef struct {
 /* ============ ChromIQ extensions (issue #126) ============ */
 /* All fork additions live between CHROMIQ_EXT markers or in cq_* helpers;
  * with neither --json nor --replay nor --autosave given, behaviour is
- * identical to stock chartread. */
+ * identical to stock chartread, except for one thing stock chartread cannot
+ * do at all: a chart ChromIQ's layout engine printed with its pre-4.3.3-beta.7
+ * labels is read as printed (cq_legacy_pattern). --caps prints what this
+ * build can do as one JSON line and exits. */
 #define CHROMIQ_EXT 1
 #include "chromiq_ext.h"
 
@@ -3504,6 +3507,195 @@ usage() {
 	exit(1);
 }
 
+/* CHROMIQ_EXT: CHARTS PRINTED WITH CHROMIQ'S OLD LABELS (#182 5965589190).
+ *
+ * Before 4.3.3-beta.7 ChromIQ's layout engine printed strip and patch labels
+ * with its own rule (letters A..Z, AA.. when the pattern contains "A-Z",
+ * otherwise 1, 2, 3 .. without limit) while writing the user's patterns into
+ * the .ti2 verbatim. Where the two disagree, chartread either refuses the
+ * chart ("Bad location field value") or, worse, sorts the patches into the
+ * wrong order and files every reading on the wrong patch, with no error.
+ *
+ * That old rule IS Argyll's rule for its two default patterns: letters equal
+ * "A-Z, A-Z" (up to 702), numbers equal "0-9,@-9,@-9;1-999" (up to 999). So
+ * such a sheet is read as printed by swapping, IN MEMORY ONLY, each pattern
+ * for its legacy equivalent, after proving that the chart's SAMPLE_LOCs are
+ * exactly the grid the replacement produces. The chart file is never changed,
+ * and a chart whose locations already fit its stated patterns (every default
+ * pattern chart, every printtarg chart) never reaches the replacement. */
+#define CQ_LEGACY_ALPHA   "A-Z, A-Z"
+#define CQ_LEGACY_NUMERIC "0-9,@-9,@-9;1-999"
+#define CQ_ORIGINATOR_ENGINE "ChromIQ layout engine"
+
+static char *cq_legacy_pattern(const char *pat) {
+	const char *p;
+	if (pat != NULL) {
+		for (p = pat; p[0] != '\000' && p[1] != '\000' && p[2] != '\000'; p++) {
+			if (toupper((unsigned char)p[0]) == 'A' && p[1] == '-'
+			 && toupper((unsigned char)p[2]) == 'Z')
+				return CQ_LEGACY_ALPHA;
+		}
+	}
+	return CQ_LEGACY_NUMERIC;
+}
+
+typedef struct { int o; int i; } cq_loc_ord;
+
+static int cq_loc_ord_cmp(const void *a, const void *b) {
+	const cq_loc_ord *x = (const cq_loc_ord *)a, *y = (const cq_loc_ord *)b;
+	if (x->o != y->o)
+		return x->o < y->o ? -1 : 1;
+	return x->i < y->i ? -1 : (x->i > y->i);
+}
+
+/* 1 when every SAMPLE_LOC is the label patch_location() gives some strip
+ * (< nstrips) and patch (< stipa) under these patterns, and no two name the
+ * same patch. Otherwise 0, with a short reason naming the first bad location. */
+static int cq_locs_fit_grid(cgats *icg, int li, alphix *paix, alphix *saix,
+                            int ixord, int nstrips, int stipa,
+                            char *why, size_t whylen) {
+	int i, n = icg->t[0].nsets;
+	cq_loc_ord *ords;
+
+	if (paix == NULL || saix == NULL || saix->cmct <= 0) {
+		snprintf(why, whylen, "the strip or patch pattern does not parse");
+		return 0;
+	}
+	if ((ords = (cq_loc_ord *)malloc(sizeof(cq_loc_ord) * (n > 0 ? n : 1))) == NULL)
+		error("Malloc failed!");
+	for (i = 0; i < n; i++) {
+		char *loc = (char *)icg->t[0].fdata[i][li];
+		char *back;
+		int o, six, pix, same;
+
+		if ((o = patch_location_order(paix, saix, ixord, loc)) < 0) {
+			snprintf(why, whylen, "location '%s' (patch %d) does not parse", loc, i + 1);
+			free(ords);
+			return 0;
+		}
+		six = o / saix->cmct;
+		pix = o % saix->cmct;
+		if (six >= nstrips || pix >= stipa) {
+			snprintf(why, whylen, "location '%s' (patch %d) is outside the chart's "
+			         "%d strips of %d patches", loc, i + 1, nstrips, stipa);
+			free(ords);
+			return 0;
+		}
+		back = patch_location(paix, saix, ixord, six, pix);
+		same = back != NULL && strcmp(back, loc) == 0;
+		if (back != NULL)
+			free(back);
+		if (!same) {
+			snprintf(why, whylen, "location '%s' (patch %d) is not the label of "
+			         "the patch it is read as", loc, i + 1);
+			free(ords);
+			return 0;
+		}
+		ords[i].o = o;
+		ords[i].i = i;
+	}
+	qsort(ords, n, sizeof(cq_loc_ord), cq_loc_ord_cmp);
+	for (i = 1; i < n; i++) {
+		if (ords[i].o == ords[i-1].o) {
+			snprintf(why, whylen, "locations '%s' and '%s' name the same patch",
+			         (char *)icg->t[0].fdata[ords[i-1].i][li],
+			         (char *)icg->t[0].fdata[ords[i].i][li]);
+			free(ords);
+			return 0;
+		}
+	}
+	free(ords);
+	return 1;
+}
+
+/* CHROMIQ_EXT: when both halves of the old labels are the same kind (both
+ * letters, or both numbers), Argyll's parser cannot split a location at all
+ * ("AAA" is strip A patch AA, or strip AA patch A), however the patterns are
+ * written. The chart's own grid can: the old labels of every strip
+ * (< nstrips) and patch (< stipa) are made with the legacy patterns, and each
+ * SAMPLE_LOC must be exactly ONE of them. Then *loci receives a sort key per
+ * row (strip * 256 + patch, the key chartread's chcol.loci documents, which its
+ * "extra on end" rows also assume). Otherwise 0, with a reason naming the
+ * first location that is missing or could be either of two patches. */
+typedef struct { char *lab; int six, pix; } cq_grid_cell;
+
+static int cq_grid_cell_cmp(const void *a, const void *b) {
+	const cq_grid_cell *x = (const cq_grid_cell *)a, *y = (const cq_grid_cell *)b;
+	return strcmp(x->lab, y->lab);
+}
+
+static int cq_locs_fit_legacy_grid(cgats *icg, int li, alphix *paix, alphix *saix,
+                                   int ixord, int nstrips, int stipa, int *loci,
+                                   char *why, size_t whylen) {
+	int n = icg->t[0].nsets, ncell = nstrips * stipa;
+	int i, ok = 1;
+	cq_grid_cell *cells;
+	char *used;
+
+	if (paix == NULL || saix == NULL || nstrips <= 0 || stipa <= 0 || stipa >= 256) {
+		snprintf(why, whylen, "the chart's strips and patches cannot be counted");
+		return 0;
+	}
+	if ((cells = (cq_grid_cell *)calloc(ncell, sizeof(cq_grid_cell))) == NULL
+	 || (used = (char *)calloc(ncell, 1)) == NULL)
+		error("Malloc failed!");
+	for (i = 0; i < ncell && ok; i++) {
+		cells[i].six = i / stipa;
+		cells[i].pix = i % stipa;
+		if ((cells[i].lab = patch_location(paix, saix, ixord,
+		                                   cells[i].six, cells[i].pix)) == NULL) {
+			snprintf(why, whylen, "strip %d patch %d has no label of its own",
+			         cells[i].six + 1, cells[i].pix + 1);
+			ok = 0;
+		}
+	}
+	if (ok)
+		qsort(cells, ncell, sizeof(cq_grid_cell), cq_grid_cell_cmp);
+	for (i = 0; i < n && ok; i++) {
+		char *loc = (char *)icg->t[0].fdata[i][li];
+		int lo = 0, hi = ncell - 1, k = -1;
+
+		while (lo <= hi) {
+			int mid = (lo + hi) / 2, c = strcmp(loc, cells[mid].lab);
+			if (c == 0) { k = mid; break; }
+			if (c < 0) hi = mid - 1; else lo = mid + 1;
+		}
+		if (k < 0) {
+			snprintf(why, whylen, "location '%s' (patch %d) is not on the "
+			         "chart's %d strips of %d patches", loc, i + 1, nstrips, stipa);
+			ok = 0;
+			break;
+		}
+		if ((k > 0 && strcmp(cells[k-1].lab, loc) == 0)
+		 || (k + 1 < ncell && strcmp(cells[k+1].lab, loc) == 0)) {
+			int k2 = (k > 0 && strcmp(cells[k-1].lab, loc) == 0) ? k - 1 : k + 1;
+			snprintf(why, whylen, "location '%s' (patch %d) could be strip %d "
+			         "patch %d or strip %d patch %d", loc, i + 1,
+			         cells[k].six + 1, cells[k].pix + 1,
+			         cells[k2].six + 1, cells[k2].pix + 1);
+			ok = 0;
+			break;
+		}
+		{
+			int cell = cells[k].six * stipa + cells[k].pix;
+			if (used[cell]) {
+				snprintf(why, whylen, "location '%s' (patch %d) names a patch "
+				         "another location already names", loc, i + 1);
+				ok = 0;
+				break;
+			}
+			used[cell] = 1;
+			loci[i] = cells[k].six * 256 + cells[k].pix;
+		}
+	}
+	for (i = 0; i < ncell; i++)
+		if (cells[i].lab != NULL)
+			free(cells[i].lab);
+	free(cells);
+	free(used);
+	return ok;
+}
+
 int main(int argc, char *argv[]) {
 	int i, j;
 	int fa, nfa, mfa;				/* current argument we're looking at */
@@ -3549,6 +3741,7 @@ int main(int argc, char *argv[]) {
 	char *pixpat = "A-Z, A-Z";			/* Pass index pattern */		
 	char *sixpat = "0-9,@-9,@-9;1-999";	/* Step index pattern */		
 	alphix *paix, *saix;		/* Pass and Step index generators */
+	int *cq_legacy_loci = NULL;	/* CHROMIQ_EXT: sort keys from the old labels' grid */
 	int ixord = 0;				/* Index order, 0 = pass then step */
 	int rstart = 0;				/* Random start/chart id */
 	int rand = 0;				/* Random patch order, - can use auto strip ID and Bi-Di */
@@ -3594,6 +3787,15 @@ int main(int argc, char *argv[]) {
 			} else if (strcmp(argv[ai], "--xychart") == 0) {
 				cq_xychart = 1;
 				eat = 1;
+			} else if (strcmp(argv[ai], "--caps") == 0) {
+				/* CHROMIQ_EXT: what this build can do, so the GUI can ask
+				 * before it relies on it. One JSON line, then exit 0.
+				 * "legacy_labels": reads sheets ChromIQ's layout engine
+				 * printed with its pre-4.3.3-beta.7 labels as printed. */
+				printf("{\"caps\":[\"legacy_labels\"],\"build\":\"%s\"}\n",
+				       cq_helper_build_string());
+				fflush(stdout);
+				return 0;
 			} else if (strcmp(argv[ai], "--replay") == 0 && ai + 1 < argc) {
 				cq_replay_path = argv[ai + 1];
 				eat = 2;
@@ -4041,10 +4243,78 @@ int main(int argc, char *argv[]) {
 	if ((ti = icg->find_kword(icg, 0, "HEXAGON_PATCHES")) >= 0)
 		hex = 1;
 
-	if ((paix = new_alphix(pixpat)) == NULL)
+	paix = new_alphix(pixpat);
+	saix = new_alphix(sixpat);
+
+	/* CHROMIQ_EXT #182 5965589190: a sheet ChromIQ's layout engine printed
+	 * with its old labels is read as printed (see cq_legacy_pattern above).
+	 * Only when the chart's locations do NOT fit its stated patterns; every
+	 * chart that fits takes exactly the stock path below. */
+	if ((ti = icg->find_kword(icg, 0, "ORIGINATOR")) >= 0
+	 && strcmp(icg->t[0].kdata[ti], CQ_ORIGINATOR_ENGINE) == 0
+	 && (li = icg->find_field(icg, 0, "SAMPLE_LOC")) >= 0
+	 && icg->t[0].ftype[li] == cs_t) {
+		int nstrips = 0;
+		char why[300], lwhy[300];
+
+		for (i = 0; pis[i] != 0; i++)
+			nstrips += pis[i];
+		if (!cq_locs_fit_grid(icg, li, paix, saix, ixord, nstrips, stipa,
+		                      why, sizeof(why))) {
+			char *lpix = cq_legacy_pattern(pixpat);
+			char *lsix = cq_legacy_pattern(sixpat);
+			alphix *lpaix = new_alphix(lpix);
+			alphix *lsaix = new_alphix(lsix);
+
+			int fits = cq_locs_fit_grid(icg, li, lpaix, lsaix, ixord, nstrips,
+			                            stipa, lwhy, sizeof(lwhy));
+
+			/* Both halves the same kind: Argyll's parser cannot split the
+			 * old labels, but the chart's own grid may (one strip and patch
+			 * per location). The sort keys then come from the grid; every
+			 * label the reader shows still comes from the legacy patterns. */
+			if (!fits) {
+				if ((cq_legacy_loci = (int *)calloc(icg->t[0].nsets > 0
+				                       ? icg->t[0].nsets : 1, sizeof(int))) == NULL)
+					error("Malloc failed!");
+				fits = cq_locs_fit_legacy_grid(icg, li, lpaix, lsaix, ixord,
+				                               nstrips, stipa, cq_legacy_loci,
+				                               lwhy, sizeof(lwhy));
+				if (!fits) {
+					free(cq_legacy_loci);
+					cq_legacy_loci = NULL;
+				}
+			}
+			if (fits) {
+				if (verb)
+					printf("Chart printed with ChromIQ's earlier labels (%s): "
+					       "reading it with strip pattern '%s' and patch "
+					       "pattern '%s'%s\n", why, lpix, lsix,
+					       cq_legacy_loci != NULL ? ", in the chart's own grid" : "");
+				if (paix != NULL)
+					paix->del(paix);
+				if (saix != NULL)
+					saix->del(saix);
+				paix = lpaix;
+				saix = lsaix;
+				pixpat = lpix;
+				sixpat = lsix;
+			} else {
+				char detail[700];
+				snprintf(detail, sizeof(detail),
+				         "the patch locations fit neither the chart's patterns "
+				         "('%s', '%s') nor ChromIQ's earlier labels: %s",
+				         pixpat, sixpat, lwhy);
+				cq_emit_error("chart_unreadable", detail);
+				error("This chart cannot be read: %s", detail);
+			}
+		}
+	}
+
+	if (paix == NULL)
 		error("Strip indexing pattern '%s' doesn't parse",pixpat);
 
-	if ((saix = new_alphix(sixpat)) == NULL)
+	if (saix == NULL)
 		error("Patch in strip indexing pattern '%s' doesn't parse",sixpat);
 
 	if ((ti = icg->find_kword(icg, 0, "TOTAL_INK_LIMIT")) >= 0)
@@ -4251,11 +4521,17 @@ int main(int argc, char *argv[]) {
 	/* the location identifiers take - i.e. they can be arbitrary. */
 	{
 		int badloc = 0;
+		int badi = -1;			/* CHROMIQ_EXT: first patch whose location fails */
 
 		for (i = 0; i < npat; i++) {
 			scols[i] = &cols[i];
-			if ((cols[i].loci = patch_location_order(paix, saix, ixord, cols[i].loc)) < 0)
+			if (cq_legacy_loci != NULL)		/* CHROMIQ_EXT: proven unique above */
+				cols[i].loci = cq_legacy_loci[i];
+			else if ((cols[i].loci = patch_location_order(paix, saix, ixord, cols[i].loc)) < 0) {
 				badloc = 1;
+				if (badi < 0)
+					badi = i;
+			}
 		}
 		for (; i < runpat; i++) {	/* Extra on end */
 			scols[i] = &cols[i];
@@ -4272,8 +4548,19 @@ int main(int argc, char *argv[]) {
 			cols[i].sp.spec_n = 0;
 		}
 
-		if (rand && badloc)
-			error ("Bad location field value '%s' on patch %d", cols[i].loc, i);
+		/* CHROMIQ_EXT: stock chartread printed cols[i] here AFTER the loop,
+		 * i.e. the slot one past the last patch ("'(null)' on patch 266"),
+		 * never the location that failed. Name the first bad one, and say it
+		 * on the event stream: stock chartread fails on it the same way, so
+		 * ChromIQ must not fall back to it. */
+		if (rand && badloc) {
+			char detail[300];
+			snprintf(detail, sizeof(detail), "location '%s' (patch %d) does not "
+			         "fit the chart's strip and patch patterns",
+			         cols[badi].loc, badi + 1);
+			cq_emit_error("chart_unreadable", detail);
+			error ("Bad location field value '%s' on patch %d", cols[badi].loc, badi + 1);
+		}
 
 		if (!badloc) {
 #define HEAP_COMPARE(A,B) (A->loci < B->loci)
@@ -4502,6 +4789,8 @@ int main(int argc, char *argv[]) {
 	free(pis);
 	saix->del(saix);
 	paix->del(paix);
+	if (cq_legacy_loci != NULL)
+		free(cq_legacy_loci);
 	free(cols);
 	ocg->del(ocg);		/* Clean up */
 	icg->del(icg);		/* Clean up */

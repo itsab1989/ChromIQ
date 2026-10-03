@@ -41,6 +41,9 @@ NOT_A_SETTING = {
                                  "read from TARGET_INSTRUMENT at Start (#159)"),
     "external_values": ("a property of the chart, not a preference — ChromIQ "
                         "reads a CR30 itself and supplies the values (#159)"),
+    "stock_cannot_read_chart": ("a property of the chart, not a preference: "
+                                "set at Start from its labels (#182 "
+                                "5965589190)"),
 }
 
 #: setting key -> the manual-mode attribute on the tab that holds it.

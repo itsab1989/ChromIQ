@@ -122,7 +122,7 @@ def test_the_row_label_band_is_measured_once_per_question(monkeypatch):
 #: cannot tell a cache that ignores the style from one that honours it.
 _ROW_CASES = list(itertools.product(
     (8, 19, 40), ("Inter", "Instrument Serif"), (False, True), (False, True),
-    ("", "0-9;A-Z"), (0, 24, 200)))
+    ("", "A-Z"), (0, 24, 200)))
 _PROBE_CASES = list(itertools.product(
     (19, 40), ("Inter",), (False, True), (False, True), (0, 90), (1, 3)))
 
@@ -168,10 +168,10 @@ def test_every_argument_of_a_label_probe_really_changes_its_answer():
     assert raster._widest_row_label_px(40, "Instrument Serif", False, True, "", 24) \
         != raster._widest_row_label_px(40, "Instrument Serif", False, False, "", 24), \
         "italic does not change the row label"
-    # A pattern whose ROW half is alphabetic, not just any string: the row
-    # labeller reads the part after the ";", so "1" and "A" and "" all give the
-    # same digits and would prove nothing.
-    assert row(patch_pattern="0-9;A-Z") != row(), \
+    # An alphabetic pattern, not just any string: "1" and "A" and "" all give
+    # the same digits and would prove nothing. ("A-Z", not the "0-9;A-Z" this
+    # used to be, which ArgyllCMS refuses outright: forum report, 2026-10-03.)
+    assert row(patch_pattern="A-Z") != row(), \
         "the patch pattern does not change the row label"
     # 200, not 24: with 0 the band is measured from 1, 9 and 99, which is two
     # digits wide, and so is every label from 1 to 24. Three digits is the

@@ -34,9 +34,17 @@ def _page(patch_pattern):
     return np.asarray(res.images[0].convert("L"))
 
 
+# "A-Z;1-999" was the pattern of the K8 report, and ArgyllCMS refuses it
+# outright ("range start definition error on '1'"): a chart made with it could
+# never be measured. A new layout now refuses it (forum report, 2026-10-03), so
+# the letters these tests need come from "A-Z", which ArgyllCMS reads as the
+# same A, B, C the band prints.
+_LETTERS = "A-Z"
+
+
 def test_a_different_patch_pattern_prints_different_row_labels():
     default = _page(permutation.DEFAULT_PATCH_PATTERN)
-    letters = _page("A-Z;1-999")
+    letters = _page(_LETTERS)
     if default.shape != letters.shape:
         pytest.fail("the two pages are not comparable")
     assert not np.array_equal(default, letters), (
@@ -62,9 +70,10 @@ def test_the_default_pattern_still_prints_exactly_what_it_did():
 
 def test_the_label_the_sheet_prints_is_the_one_the_ti2_writes():
     """Same pattern in, same names out — the whole point of the band."""
-    for pattern in (permutation.DEFAULT_PATCH_PATTERN, "A-Z;1-999", "1-999"):
+    for pattern in (permutation.DEFAULT_PATCH_PATTERN, _LETTERS,
+                    "0-9,@-9;1-99"):
         on_paper = permutation.make_labeller(pattern)
-        in_file = permutation.location_label(0, 10, "1-999", pattern)
+        in_file = permutation.location_label(0, 10, "A-Z, A-Z", pattern)
         assert on_paper(1) in in_file, (
             f"pattern {pattern!r}: the sheet would print {on_paper(1)!r} "
             f"while the file says {in_file!r}")
