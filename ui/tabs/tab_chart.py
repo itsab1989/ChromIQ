@@ -10491,6 +10491,15 @@ class TabChart(QWidget):
             _cancel = getattr(self, "_cancel_patch_set_question", None)
             if _cancel is not None:
                 _cancel()
+        # NOTHING IS BOUND IN CALIBRATION (#182). A calibration chart is always
+        # made by targen into cal/ (calibration_run_type §4.2), and Generate
+        # there ignores every binding. Showing an older calibration chart still
+        # asked targen about its patch set (B8-1460) and bound it, so the
+        # targen panel came up locked behind "Edit patch recipe (override
+        # preset)" for a set Generate would never lay out (review of 62f8ea5d,
+        # Demo-Full-RGB on screen).
+        if self._calibration_selected():
+            return
         try:
             if ti1 is None or not Path(ti1).is_file():
                 return
