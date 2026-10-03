@@ -593,6 +593,19 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-VERIFY-SOLIDS-REASON": [
         "Report-Limits-Strip-And-Gamut/run4: the line under the two solid colour metrics in the pre-flight's list (its chart is not built with FROM PROFILE GAMUT)",
     ],
+    # #182 UMM §6f: Verification chosen after the profile was replaced.
+    "M-VERIFY-EARLIER-PROFILE-KEEP-CHART": [
+        "Demo-06-Verification-History/run1: Build Profile, Build here anyway, then Run type Verification (an ordinary chart)",
+    ],
+    "M-VERIFY-EARLIER-ARCHIVED-HERE": [
+        "Demo-06-Verification-History/run1: the Create Chart log after Archive them in the window above",
+    ],
+    "M-VERIFY-EARLIER-PROFILE": [
+        "not reachable from a built project without a rebuild: a run whose FROM PROFILE GAMUT chart and dated measurements predate its profile (Knut's run2 on #182 is one); rebuild a run that has both, then choose Verification",
+    ],
+    "M-VERIFY-CHART-EARLIER-PROFILE": [
+        "not reachable from a built project without a rebuild: a run whose FROM PROFILE GAMUT chart predates its profile and has no dated measurement; rebuild such a run, then choose Verification",
+    ],
     "M-VERIFY-NO-CONTROL-STRIP": [
         "not reachable from a built project: raised when Create Chart files a verification chart that cannot carry a strip (Report-Limits-Strip-And-Gamut/run4 is such a chart, already filed)",
     ],

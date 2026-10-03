@@ -4341,6 +4341,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """Make the held offer, once the tab has actually painted."""
         self._offer_queued = False
         try:
+            # Never on top of another window; asked again when it closes
+            # (see `_another_window_is_open`).
+            if self.isVisible() and not getattr(self, "_offer_open", False) \
+                    and self._another_window_is_open("offer"):
+                return
             if self.isVisible():
                 # An empty measurement is dealt with before anything else looks
                 # at it. Knut set this sequence himself (#130, 2026-07-30):
@@ -15653,6 +15658,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # request is remembered and made again when the window closes.
             self._preflight_missed = True
             return
+        # …NOR OVER ANY OTHER WINDOW (#182, the challenge of UMM §6f). The
+        # main window's question about an earlier profile is queued on the same
+        # turn as this one, and neither used to look past its own two windows,
+        # so this one opened ON TOP of it. Asked again when that window closes.
+        if self._another_window_is_open("preflight"):
+            return
         try:
             if not self._verification_preflight_due():
                 return
@@ -15740,6 +15751,43 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._preflight_silenced.add(scope)
             log.info("Verification pre-flight silenced for %s (this session)",
                      scope)
+
+    def _another_window_is_open(self, which: str) -> bool:
+        """True when a modal window is open, and then *which* arrival window
+        ("preflight" or "offer") is asked again once it has closed.
+
+        Polled, not hooked: the open window can be anybody's (the main
+        window's question about an earlier profile, a loader's notice), and
+        none of them says when it closes. Only the latest request of each kind
+        is kept, and each is asked through its own queue, so the usual guards
+        (visible, due, silenced) are applied afresh."""
+        if QApplication.activeModalWidget() is None:
+            return False
+        owed = getattr(self, "_owed_after_window", None)
+        if owed is None:
+            owed = self._owed_after_window = set()
+        owed.add(which)
+        timer = getattr(self, "_window_wait_timer", None)
+        if timer is None:
+            timer = self._window_wait_timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(250)
+            # A BOUND METHOD, never a self-capturing lambda (CLAUDE.md).
+            timer.timeout.connect(self._after_other_window_closed)
+        if not timer.isActive():
+            timer.start()
+        return True
+
+    def _after_other_window_closed(self) -> None:
+        if QApplication.activeModalWidget() is not None:
+            self._window_wait_timer.start()
+            return
+        owed = getattr(self, "_owed_after_window", set())
+        self._owed_after_window = set()
+        if "preflight" in owed:
+            self._queue_verification_preflight()
+        if "offer" in owed:
+            self._queue_overlay_offer()
 
     def _preflight_key(self) -> tuple:
         """Which run and chart a pre-flight is about: the profile run's scope

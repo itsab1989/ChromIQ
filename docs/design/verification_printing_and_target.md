@@ -928,7 +928,7 @@ The hover card says when the expected colour is the profile's prediction
 | A24 | `colour` raw | predict the `.ti2` RGB | `workflow/verify_expected.py::_sent_values_plan` |
 | A25 | `colour` through-profile | predict cctiff's output for the `.ti2` RGB through the recorded `source_profile` and `intent` and the run profile (A7's chain), at the page images' bit depth, never the `.ti2` RGB | `verify_expected.convert_like_the_print` |
 | A26 | `printer_calibration` with `applied_at_print` and the run's own `cal_sha1` (A3d) | predict before the `.cal`; a recorded calibration with another SHA-1 that can still be read: with it | `verify_expected._sent_values_plan` |
-| A27 | A17 `profile` / `profile_mtime` (through) differ from the run's profile now; or (raw, which records no profile) the profile is newer than `printed_at` | the sRGB estimate at 95, and the log says why. Knut's earlier Q4 ruling asks before measuring; that window is not built yet | `verify_expected._decide` |
+| A27 | A17 `profile` / `profile_mtime` (through) differ from the run's profile now; or (raw, which records no profile) the profile is newer than `printed_at` | the sRGB estimate at 95, and the log says why. Knut's earlier Q4 ruling asked before measuring; that window is replaced by the one asked when Verification is chosen after the profile was replaced (UMM §6f, Knut 5964384250), never at Start | `verify_expected._decide` |
 | A28 | no record, `route` not `chromiq`, or no `printed_at` (a `recorded` answer to M-HOW-PRINTED is not a print) | the sRGB estimate at 95 | same |
 
 Nothing is written at print time; the record is read as it is.
@@ -1170,6 +1170,10 @@ proposed there; §4 and `cm_5_reconciled.png` are what would actually be built.
 - **A profile rebuilt after the sheet was printed** — the comparison is against
   a profile that no longer exists. A17 records the file and its modification
   time so the report can say so.
+  Since #182 5964384250 a rebuild moves the profile only; choosing
+  Verification afterwards offers to archive the measurements and reports of
+  the earlier profile, and to make a new FROM PROFILE GAMUT chart from the
+  current one (UMM §6f).
 - **An existing project with verification history** — see A3.1 and Q3. The
   trend's meaning changes; the report must mark where.
 - **A chart with no pages generated** — row hidden, handled by the tab's

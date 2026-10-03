@@ -11049,6 +11049,20 @@ class TabChart(QWidget):
             log.error("Cannot load parameters.yaml: %s", exc)
             return {}
 
+    def open_gamut_for_new_verification(self) -> None:
+        """Show FROM PROFILE GAMUT for a new chart from the current profile
+        (#182, UMM §6f): the answer to "Archive them and make a new chart from
+        the current profile" and "Make a new chart from the current profile".
+
+        Nothing is generated; the run's stored verification settings are
+        already on screen, because the main window switched to this tab first
+        and the tab loaded them. Not a choice by hand, so
+        ``_user_chose_module`` is left as it is."""
+        if not self._is_verification_target():
+            return
+        if self._mode_name() != "gamut":
+            self._switch_mode("gamut")
+
     def _user_switch_mode(self, mode: str) -> None:
         """A module chosen BY HAND: from now on this session, the user's pick
         wins — the verification default below never overrides it."""

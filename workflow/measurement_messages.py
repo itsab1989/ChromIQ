@@ -756,49 +756,175 @@ M_PREVIEW_PAUSED = _m(
 # ---------------------------------------------------------------------------
 # §6 — rebuilding the profile under existing verification measurements
 # ---------------------------------------------------------------------------
+# PROPOSED revision (#182, Knut 5964076758 Q4 and 5964384250 Q1): a rebuild
+# now archives the profile ONLY, so "Build here anyway" no longer moves the
+# dated verifications, and "Each was printed through the profile" was untrue
+# for raw and FROM PROFILE GAMUT sheets. "Each was checked against the profile
+# this run had at the time" is true for all three, and after a "Keep them".
 M_PROFILE_VERIFY = _m(
     "M-PROFILE-VERIFY",
-    "The verification measurements in this run were made against the profile "
-    "you are about to replace",
+    "This run already has verification measurements",
     "This run holds {n} dated verification measurements, going back to "
-    "{date}. Each was printed through the profile in this run and measured "
-    "against it, so each records how that profile behaved on that day.\n\n"
-    "Building a new profile here does not make those measurements wrong, and "
-    "it deletes nothing — but they will no longer say which profile they "
-    "belong to, and comparing them with verification measurements made "
-    "afterwards means comparing against two different profiles.\n\n"
+    "{date}. Each was checked against the profile this run had at the time.\n\n"
+    "Building a new profile here deletes nothing, and the measurements stay "
+    "correct readings of their sheets. But they would then belong to an "
+    "earlier profile, and comparing them with verification measurements made "
+    "afterwards would mean comparing two different profiles.\n\n"
     "What each button does:\n\n"
-    "•  Duplicate the run and build there (recommended) — copies this run's "
+    "•  Duplicate the run and build there (recommended): copies this run's "
     "chart, measurement and profile into a new run and builds there. This run "
-    "keeps its profile and its verification measurements exactly as they are, "
-    "and the copy starts fresh. This is the clean way to try a different "
-    "profile from the same readings.\n\n"
-    "•  Build here anyway — replaces this run's profile. The current profile "
-    "is moved to the run's “old” folder, and the {n} dated verification "
-    "measurements are moved to the “old” folder inside “verifications” with "
-    "it, because they describe the profile being replaced. Nothing is "
-    "deleted.\n\n"
-    "•  Cancel — changes nothing.{blocked}",
+    "keeps its profile, its verification measurements and their reports "
+    "exactly as they are.\n\n"
+    "•  Build here anyway: replaces this run's profile. The current profile "
+    "is moved to the run's “old” folder. The verification measurements, their "
+    "reports and the verification chart stay where they are. When you next "
+    "choose Verification, ChromIQ offers to move the measurements to the "
+    "“old” folder inside “verifications”. Nothing is deleted.\n\n"
+    "•  Cancel: changes nothing.{blocked}",
+    approved=False,
     count_key="n",
+    title_one="This run already has a verification measurement",
     body_one=
     "This run holds one dated verification measurement, made on {date}. It "
-    "was printed through the profile in this run and measured against it, so "
-    "it records how that profile behaved on that day.\n\n"
-    "Building a new profile here does not make that measurement wrong, and it "
-    "deletes nothing — but it will no longer say which profile it belongs to, "
-    "and comparing it with verification measurements made afterwards means "
-    "comparing against two different profiles.\n\n"
+    "was checked against the profile this run had at the time.\n\n"
+    "Building a new profile here deletes nothing, and the measurement stays a "
+    "correct reading of its sheet. But it would then belong to an earlier "
+    "profile, and comparing it with verification measurements made afterwards "
+    "would mean comparing two different profiles.\n\n"
     "What each button does:\n\n"
-    "•  Duplicate the run and build there (recommended) — copies this run's "
+    "•  Duplicate the run and build there (recommended): copies this run's "
     "chart, measurement and profile into a new run and builds there. This run "
-    "keeps its profile and its verification measurement exactly as they are, "
-    "and the copy starts fresh. This is the clean way to try a different "
-    "profile from the same readings.\n\n"
-    "•  Build here anyway — replaces this run's profile. The current profile "
-    "is moved to the run's “old” folder, and the dated verification "
-    "measurement is moved to the “old” folder inside “verifications” with it, "
-    "because it describes the profile being replaced. Nothing is deleted.\n\n"
-    "•  Cancel — changes nothing.{blocked}")
+    "keeps its profile, its verification measurement and its reports exactly "
+    "as they are.\n\n"
+    "•  Build here anyway: replaces this run's profile. The current profile "
+    "is moved to the run's “old” folder. The verification measurement, its "
+    "reports and the verification chart stay where they are. When you next "
+    "choose Verification, ChromIQ offers to move the measurement to the "
+    "“old” folder inside “verifications”. Nothing is deleted.\n\n"
+    "•  Cancel: changes nothing.{blocked}")
+
+
+# ---------------------------------------------------------------------------
+# §6f — choosing Verification for a run whose profile was replaced
+# ---------------------------------------------------------------------------
+# PROPOSED (#182). The behaviour is Knut's: 5964076758, 5964384250 Q1/Q2 and
+# 5965626117 (an ordinary chart opens Create Chart too; "Keep" asks again
+# after a restart). The wording is ours. One window, three texts, no sound.
+# {profile_when} is the current profile's header time, {date} the oldest
+# measurement it names (YYYY-MM-DD).
+
+#: A: old measurements, and a FROM PROFILE GAMUT chart from the earlier profile.
+M_VERIFY_EARLIER_PROFILE = _m(
+    "M-VERIFY-EARLIER-PROFILE",
+    "The verification measurements in this run were made with an earlier "
+    "profile",
+    "This run's profile was replaced on {profile_when}. The {n} dated "
+    "verification measurements going back to {date} were made with the "
+    "earlier profile, and so was the FROM PROFILE GAMUT verification chart. A "
+    "sheet printed from that chart would test the earlier profile, not the "
+    "current one.\n\n"
+    "What each button does:\n\n"
+    "•  Archive them and make a new chart from the current profile "
+    "(recommended): moves the {n} measurements and their reports to the "
+    "“old” folder inside “verifications”. Nothing is deleted. Create Chart "
+    "then opens on FROM PROFILE GAMUT with this run's last settings. When you "
+    "press Generate Chart, the old chart is moved to “old” too. Then print the "
+    "new chart and measure it.\n\n"
+    "•  Keep them: changes nothing. You can look at them, move them or delete "
+    "them yourself. ChromIQ asks again the next time you start it.",
+    approved=False,
+    count_key="n",
+    title_one="The verification measurement in this run was made with an "
+    "earlier profile",
+    body_one=
+    "This run's profile was replaced on {profile_when}. The dated "
+    "verification measurement from {date} was made with the earlier profile, "
+    "and so was the FROM PROFILE GAMUT verification chart. A sheet printed "
+    "from that chart would test the earlier profile, not the current one.\n\n"
+    "What each button does:\n\n"
+    "•  Archive it and make a new chart from the current profile "
+    "(recommended): moves the measurement and its reports to the “old” folder "
+    "inside “verifications”. Nothing is deleted. Create Chart then opens on "
+    "FROM PROFILE GAMUT with this run's last settings. When you press "
+    "Generate Chart, the old chart is moved to “old” too. Then print the new "
+    "chart and measure it.\n\n"
+    "•  Keep it: changes nothing. You can look at it, move it or delete it "
+    "yourself. ChromIQ asks again the next time you start it.")
+
+#: B: old measurements, and a chart that can be used as it is.
+M_VERIFY_EARLIER_PROFILE_KEEP_CHART = _m(
+    "M-VERIFY-EARLIER-PROFILE-KEEP-CHART",
+    "The verification measurements in this run were made with an earlier "
+    "profile",
+    "This run's profile was replaced on {profile_when}. The {n} dated "
+    "verification measurements going back to {date} were made with the "
+    "earlier profile. The verification chart itself can still be used: print "
+    "it again and measure the new sheet.\n\n"
+    "What each button does:\n\n"
+    "•  Archive them (recommended): moves the {n} measurements and their "
+    "reports to the “old” folder inside “verifications”. Nothing is deleted, "
+    "and the chart stays. Create Chart then opens on this chart, so you can "
+    "check that it is the one you want before you print it.\n\n"
+    "•  Keep them: changes nothing. You can look at them, move them or delete "
+    "them yourself. ChromIQ asks again the next time you start it.",
+    approved=False,
+    count_key="n",
+    title_one="The verification measurement in this run was made with an "
+    "earlier profile",
+    body_one=
+    "This run's profile was replaced on {profile_when}. The dated "
+    "verification measurement from {date} was made with the earlier profile. "
+    "The verification chart itself can still be used: print it again and "
+    "measure the new sheet.\n\n"
+    "What each button does:\n\n"
+    "•  Archive it (recommended): moves the measurement and its reports to "
+    "the “old” folder inside “verifications”. Nothing is deleted, and the "
+    "chart stays. Create Chart then opens on this chart, so you can check "
+    "that it is the one you want before you print it.\n\n"
+    "•  Keep it: changes nothing. You can look at it, move it or delete it "
+    "yourself. ChromIQ asks again the next time you start it.")
+
+#: C: only the FROM PROFILE GAMUT chart is from the earlier profile.
+M_VERIFY_CHART_EARLIER_PROFILE = _m(
+    "M-VERIFY-CHART-EARLIER-PROFILE",
+    "The verification chart in this run was made from an earlier profile",
+    "This run's profile was replaced on {profile_when}, after this FROM "
+    "PROFILE GAMUT chart was made from the earlier profile. A sheet printed "
+    "from it would test the earlier profile, not the current one.\n\n"
+    "What each button does:\n\n"
+    "•  Make a new chart from the current profile (recommended): Create Chart "
+    "opens on FROM PROFILE GAMUT with this run's last settings. Nothing "
+    "changes until you press Generate Chart, which moves the old chart to the "
+    "“old” folder inside “verifications”.\n\n"
+    "•  Keep it: changes nothing. ChromIQ asks again the next time you start "
+    "it.",
+    approved=False)
+
+#: The log line after A or B, in the manner of M-CAL-ARCHIVED-HERE.
+M_VERIFY_EARLIER_ARCHIVED_HERE = _m(
+    "M-VERIFY-EARLIER-ARCHIVED-HERE",
+    "The verification measurements made with the earlier profile have moved "
+    "to this folder, and nothing in them was deleted:",
+    "{folder}",
+    approved=False,
+    count_key="n",
+    title_one="The verification measurement made with the earlier profile "
+    "has moved to this folder, and nothing in it was deleted:")
+
+#: The window's buttons. The first is the default; Escape is "Keep".
+M_EARLIER_ARCHIVE_NEW_CHART = \
+    "Archive them and make a new chart from the current profile"
+M_EARLIER_ARCHIVE_NEW_CHART_ONE = \
+    "Archive it and make a new chart from the current profile"
+M_EARLIER_ARCHIVE = "Archive them"
+M_EARLIER_ARCHIVE_ONE = "Archive it"
+M_EARLIER_NEW_CHART = "Make a new chart from the current profile"
+M_EARLIER_KEEP = "Keep them"
+M_EARLIER_KEEP_ONE = "Keep it"
+#: The log line when not everything could be moved.
+M_EARLIER_NOT_ALL_MOVED = (
+    "[WARNING] Not everything made with the earlier profile could be moved: "
+    "{error}. What did move is in: {folder}")
 
 # --- PROPOSED revisions: the two verification guards, §S1.2 and §S1.3 ------
 # The wording Knut approved on 2026-08-04 instructed "(with colour management
@@ -4037,6 +4163,8 @@ CATALOGUE = {m.id: m for m in (
     M_CHART_PROFILING, M_CHART_W4, M_CHART_VERIFY, M_CHART_NOPAGES,
     M_CHART_CORRUPT,
     M_PREVIEW_PAUSED, M_PROFILE_VERIFY,
+    M_VERIFY_EARLIER_PROFILE, M_VERIFY_EARLIER_PROFILE_KEEP_CHART,
+    M_VERIFY_CHART_EARLIER_PROFILE, M_VERIFY_EARLIER_ARCHIVED_HERE,
     M_VERIFY_NO_PROFILE, M_VERIFY_NO_CHART, M_BUILD_ELSEWHERE,
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_CM_K_CHART_THROUGH, M_CM_RAW_UNCALIBRATED,

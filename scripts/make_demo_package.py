@@ -517,7 +517,8 @@ def build_unreadable(root: Path) -> None:
 
 
 @case(name="Demo-06-Verification-History",
-      messages=['M-PROFILE-VERIFY', 'M-CHART-W4', 'M-CHART-VERIFY'],
+      messages=['M-PROFILE-VERIFY', 'M-VERIFY-EARLIER-PROFILE-KEEP-CHART',
+                'M-CHART-W4', 'M-CHART-VERIFY'],
       layout="ChromIQ layout engine (run chart) + printtarg (verification chart)",
       covers=["§6e rows 5 and 6 — M-PROFILE-VERIFY",
               "§4 W4 — regenerating the chart of a run with a history",
@@ -525,9 +526,9 @@ def build_unreadable(root: Path) -> None:
               "§6d — the “don't show this again for this run” checkbox"],
       steps=["Set Profile run = **run 1**, Run type = Profiling.",
              "Go to Build Profile and press **Build Profile**. *Expected:* "
-             "“The verification measurements in this run were made against the "
-             "profile you are about to replace”, saying **4 dated verification "
-             "measurements, going back to 2026-02-14**, with three buttons. "
+             "“This run already has verification measurements”, saying **4 "
+             "dated verification measurements, going back to 2026-02-14**, "
+             "with three buttons. "
              "Press Cancel. [[M-PROFILE-VERIFY]]",
              "Press Build Profile again, tick **Don't show this again for this "
              "run**, then press Cancel. *Expected:* Cancel never silences the "
@@ -535,10 +536,17 @@ def build_unreadable(root: Path) -> None:
              "[[M-PROFILE-VERIFY]]",
              "Press Build Profile, tick the box and press **Build here "
              "anyway**. *Expected:* the build runs; afterwards `runs/run1/old/` "
-             "holds the previous profile and "
-             "`runs/run1/verifications/old/` holds the four dated folders, "
-             "both under the same timestamp. Nothing is deleted. "
+             "holds the previous profile, and the four dated folders, their "
+             "reports and the verification chart are still where they were "
+             "(#182: a rebuild moves the profile only). Nothing is deleted. "
              "[[M-PROFILE-VERIFY]]",
+             "Set Run type = **Verification**. *Expected:* “The verification "
+             "measurements in this run were made with an earlier profile”, "
+             "naming the 4 measurements, with **Archive them** (the default) "
+             "and **Keep them**. Press Archive them: the four dated folders "
+             "and their reports move to `runs/run1/verifications/old/` under "
+             "one timestamp, the chart stays, and Create Chart opens on it. "
+             "[[M-VERIFY-EARLIER-PROFILE-KEEP-CHART]]",
              "**Undo by re-copying the project from the zip**, then try the "
              "other branch: press Build Profile and choose **Duplicate the run "
              "and build there**. *Expected:* the bar's own Duplicate "
