@@ -1,8 +1,12 @@
 # Changelog
 
-## v4.3.3-beta.7 (unreleased)
+## v4.3.3-beta.7
 
-**Check & Refine offers refinement whenever a patch is above your limit and says which strips to re-measure first and why; and ChromIQ asks while you measure when a strip looks read twice.**
+**Check & Refine always offers refinement and says which strips to re-measure first and why; ChromIQ notices a strip read twice; press K to calibrate again during a measurement; verification sheets are judged against what your profile predicts; and fixes for CMYK charts with a printer calibration, for strip and patch patterns, and for Run type Calibration.**
+
+**For ajaytanna (CMYK, CR30 and PrintFab, printerknowledge.com):** thank you for the report and the screenshots. All three problems are fixed. Picking the CR30 preset now sets Device Type to what its patches really are (RGB), and if your CMYK calibration does not fit that, a window tells you how to get a CMYK chart ("Edit patch recipe", then Device Type CMYK). The profile build failed because ChromIQ's measuring engine wrote the printer calibration into the measurement as "nan" for every chart made with a calibration; that is fixed, and a measurement you already took is repaired automatically from its chart the next time you build (the original is kept in the "old" folder), so you do not need to measure the 450 patches again. And a CMYK measurement can now be imported into a CMYK run.
+
+**For jctay (strip and patch patterns, printerknowledge.com):** thank you for finding this. The cause was in ChromIQ, not in your instrument or in ArgyllCMS: with strip pattern "0-9", ChromIQ printed labels like "10", "11" … that "0-9" cannot express. ChromIQ now follows ArgyllCMS's pattern rules exactly, and a pattern that cannot label your chart turns red before anything is built. The sheet you already printed can be read with ChromIQ's own measuring engine (Preferences ▸ Measurement, ChromIQ engine) without reprinting; ArgyllCMS's own chartread cannot read it, and ChromIQ now says so plainly instead of failing.
 
 ### New
 
