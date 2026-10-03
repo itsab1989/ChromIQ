@@ -1,8 +1,9 @@
 """B8-221 — "Nothing was changed in your project", said after the archive.
 
 `_on_build` -> `_confirm_rebuild_over_verifications` -> `_archive_superseded_profile`
-MOVES the run's built profile into `runs/runN/old/<date>/` and EVERY dated
-verification measurement into `verifications/old/<date>/`, and only then is
+MOVES the run's built profile into `runs/runN/old/<date>/` (and, until Knut's
+#182 5964384250 Q1 made a rebuild archive the profile only, EVERY dated
+verification measurement into `verifications/old/<date>/`), and only then is
 colprof launched. With the ArgyllCMS folder pointing somewhere wrong, colprof
 never starts, `_on_build_done(-1)` runs, and `_report_if_the_tool_could_not_start`
 shows a window that ends with the words **"Nothing was changed in your project."**

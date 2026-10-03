@@ -9260,7 +9260,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - proved after: `H-result.json` - both lines stand at the top of the on-screen
   log, above the profiler's output.
 - evidence: test_the_archive_really_names_its_folders_in_the_tabs_log,
-  test_the_archive_really_moves_the_profile_and_the_verifications,
+  test_the_archive_really_moves_the_profile,
   test_the_question_that_archives_is_asked_from_on_build,
   test_the_log_is_cleared_before_the_question_that_archives,
   test_the_log_is_cleared_before_every_step_that_writes_into_it,
