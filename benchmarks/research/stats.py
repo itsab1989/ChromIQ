@@ -23,7 +23,11 @@ import numpy as np
 
 # Primary endpoints: (array key, statistic)
 ENDPOINTS = [("a2b", "median"), ("a2b", "p95"), ("b2a", "median"),
-             ("b2a", "p95"), ("neutral_de", "median")]
+             ("b2a", "p95"), ("neutral_de", "median"),
+             # protocol v2 E6 (agent 7 T2c): the highlight neutral ramp,
+             # L* >= 85, where the engine's worst defect lives and which the
+             # device-uniform endpoints cannot see
+             ("neutral_hi", "mean")]
 
 
 def _stat(x: np.ndarray, name: str) -> np.ndarray:
@@ -90,16 +94,21 @@ def compare(dir_a: Path, dir_b: Path, engine_a: str, engine_b: str,
             for key, st in ENDPOINTS:
                 if d["kind"] == "real" and key != "a2b":
                     continue        # real B2A/neutral use a colprof proxy: biased
-                if key not in fa or key not in fb or fa[key].shape != fb[key].shape:
+                src = "neutral_de" if key == "neutral_hi" else key
+                if src not in fa or src not in fb or fa[src].shape != fb[src].shape:
                     continue
-                xa, xb = fa[key], fb[key]
+                xa, xb = fa[src], fb[src]
+                if key == "neutral_hi":
+                    m = fa["neutral_L"] >= 85.0
+                    xa, xb = xa[m], xb[m]
                 if key == "neutral_de":
                     lo = max(float(fa["neutral_black_L"]), float(fb["neutral_black_L"])) + 1
                     m = fa["neutral_L"] >= lo
                     xa, xb = xa[m], xb[m]
                 r = paired_bootstrap(xa, xb, st)
                 r.update(dataset=d["name"], variant=d["variant"], reader=reader,
-                         endpoint=f"{key}.{st}")
+                         endpoint=f"{key}.{st}",
+                         role=d.get("role") or _role(d["name"]))
                 rows.append(r)
     rej = holm([r["p"] for r in rows], alpha)
     for r, sig in zip(rows, rej):
@@ -116,6 +125,11 @@ def compare(dir_a: Path, dir_b: Path, engine_a: str, engine_b: str,
         r["holm_significant"] = bool(sig)
     return {"a": str(dir_a), "b": str(dir_b), "engine_a": engine_a,
             "engine_b": engine_b, "rows": rows}
+
+
+def _role(name: str) -> str:
+    from benchmarks.research.datasets import role_of
+    return role_of(name)
 
 
 def _points(run_dir: Path, d: dict, engine: str, reader: str):
@@ -143,7 +157,7 @@ def main(argv=None) -> None:
         print(f"{r['dataset']:>22} {r['variant']:>8} {r['reader']:>9} "
               f"{r['endpoint']:>18}: {r['a']:.3f} -> {r['b']:.3f} "
               f"({r['rel'] * 100:+.1f} %, CI [{r['ci95'][0]:+.3f}, {r['ci95'][1]:+.3f}]) "
-              f"{r['verdict']}")
+              f"{r['verdict']}{'' if r['role'] == 'confirmatory' else ' (development set)'}")
     if args.out:
         Path(args.out).write_text(json.dumps(res, indent=1), encoding="utf-8")
 
