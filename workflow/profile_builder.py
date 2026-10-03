@@ -464,6 +464,7 @@ class ProfileBuilder:
         # Captured (key, friendly_text) pairs as the tool runs.
         self._matched_errors: list[tuple[str, str]] = []
         self._matched_warnings: list[tuple[str, str]] = []
+        self._ti3_path: "Path | None" = None
 
     # ------------------------------------------------------------------
 
@@ -473,6 +474,11 @@ class ProfileBuilder:
         on_line: Callable[[str], None],
         on_finish: Callable[[int], None],
     ) -> None:
+        # A measurement whose copy of the printer calibration an earlier
+        # engine wrote damaged is put right first (workflow/cal_repair.py).
+        from workflow.cal_repair import repair_embedded_cal
+        repair_embedded_cal(params.ti3_path)
+        self._ti3_path = params.ti3_path
         args = self._build_args(params)
         cwd  = params.ti3_path.parent
         log.info("colprof: %s  [cwd=%s]", " ".join(args), cwd)
@@ -597,8 +603,24 @@ class ProfileBuilder:
     def primary_failure(self) -> tuple[str, str] | None:
         """Return (key, friendly_message) of the first structured error, or
         None if no known error pattern was matched. The UI can pick a bespoke
-        dialog by key (e.g. "fwa_no_uv") or fall back to a generic dialog."""
-        return self._matched_errors[0] if self._matched_errors else None
+        dialog by key (e.g. "fwa_no_uv") or fall back to a generic dialog.
+
+        "The file could not be read" told the user to check that they had not
+        edited it by hand. When what colprof refused is the measurement's copy
+        of the printer calibration, ChromIQ wrote that file, so the window says
+        so instead (M-CAL-TABLE-DAMAGED); every other read error keeps its
+        text."""
+        if not self._matched_errors:
+            return None
+        first = self._matched_errors[0]
+        if first[0] == "ti3_read" and self._ti3_path is not None:
+            from workflow.cal_repair import cal_table_damaged
+            if cal_table_damaged(self._ti3_path):
+                from workflow import measurement_messages as M
+                _title, body = M.M_CAL_TABLE_DAMAGED.render(
+                    file=Path(self._ti3_path).name)
+                return ("cal_table_damaged", body)
+        return first
 
     def last_output(self, n: int = 12) -> str:
         """The last *n* non-blank, non-progress lines colprof printed — shown when

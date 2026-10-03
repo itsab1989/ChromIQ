@@ -1489,6 +1489,85 @@ M_CAL_CALIBRATED_TWICE = _m(
     approved=False)
 
 
+# --- PROPOSED: a measurement's damaged calibration table, put back ---------
+#: Beta 7, the CMYK/CR30 forum report (2026-10-03). ChromIQ's measuring engine
+#: wrote the printer calibration into every -K/-I measurement as nan, so
+#: colprof refused the file. Basti ruled that existing measurements are
+#: repaired in place from their chart, the original kept in old/ and the
+#: yellow confirmed marks kept (workflow/cal_repair.py). Shown once per
+#: action, however many files it repaired. {folder} is the old/<date-time>
+#: folder, {files} one CAL_REPAIRED_LINE per file.
+M_CAL_TABLE_REPAIRED = _m(
+    "M-CAL-TABLE-REPAIRED",
+    "ChromIQ repaired these measurement files",
+    "These measurements carry a copy of the printer calibration their chart "
+    "was made with. An earlier version of ChromIQ wrote that copy damaged, so "
+    "ArgyllCMS could not read them:\n\n{files}\n\n"
+    "ChromIQ has put the calibration back from the chart, which holds it "
+    "intact. The readings themselves were not changed, and patches you "
+    "confirmed stay confirmed. You do not need to measure again.",
+    body_one=(
+        "The measurement {file} carries a copy of the printer calibration its "
+        "chart was made with. An earlier version of ChromIQ wrote that copy "
+        "damaged, so ArgyllCMS could not read the file.\n\n"
+        "ChromIQ has put the calibration back from the chart, which holds it "
+        "intact. The readings themselves were not changed, and patches you "
+        "confirmed stay confirmed. You do not need to measure again.\n\n"
+        "The file as it was is kept in:\n{folder}"),
+    count_key="count",
+    title_one="ChromIQ repaired a measurement file",
+    approved=False)
+
+#: One line of M-CAL-TABLE-REPAIRED's {files}.
+CAL_REPAIRED_LINE = "•  {file}  (as it was: {folder})"
+
+
+def cal_table_repaired_texts(repairs) -> "tuple[str, str]":
+    """(title, body) of M-CAL-TABLE-REPAIRED for one or more
+    :class:`workflow.cal_repair.CalRepair`. Paths are shown from the project
+    folder down when the file is in a project, else in full."""
+    def shown(p) -> str:
+        from pathlib import Path as _P
+        p = _P(p)
+        for d in p.parents:
+            if (d / "project.json").is_file():
+                return str(p.relative_to(d.parent))
+        return str(p)
+
+    reps = list(repairs)
+    if len(reps) == 1:
+        r = reps[0]
+        return M_CAL_TABLE_REPAIRED.render(
+            count=1, file=shown(r.ti3), folder=shown(r.archive.parent),
+            files="")
+    files = "\n".join(
+        tr(CAL_REPAIRED_LINE).format(file=shown(r.ti3),
+                                     folder=shown(r.archive.parent))
+        for r in reps)
+    return M_CAL_TABLE_REPAIRED.render(count=len(reps), files=files,
+                                       file="", folder="")
+
+
+#: The build-failed window, when what colprof could not read is that table
+#: and no chart could be proved to be the one measured, so nothing was
+#: repaired. It replaces "Make sure the file isn't open in another app,
+#: hasn't been edited by hand" for this one cause: ChromIQ wrote the file.
+M_CAL_TABLE_DAMAGED = _m(
+    "M-CAL-TABLE-DAMAGED",
+    "The measurement's copy of the calibration is damaged",
+    "ArgyllCMS could not read {file}: the copy of the printer calibration "
+    "inside it is damaged. An earlier version of ChromIQ's measuring engine "
+    "wrote it that way. Nothing you did caused it, and the readings in the "
+    "file are fine.\n\n"
+    "ChromIQ puts that copy back from the chart before it builds, but it could "
+    "not find the chart this measurement was made with: a .ti2 with the same "
+    "patches and the same device values, and a calibration table of the same "
+    "size, in the run folder. Put that chart back "
+    "into the run folder and build again, or print and measure the chart "
+    "again with this version of ChromIQ.",
+    approved=False)
+
+
 # --- PROPOSED: the colour range on a flagged patch's card (#182 k10) --------
 #: The rule was approved (Knut 5961180259, Sebastian, on 5961078418): a red
 #: patch may only turn yellow from confirmed patches of its own colour range,
@@ -4108,6 +4187,7 @@ CATALOGUE = {m.id: m for m in (
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_CM_K_CHART_THROUGH, M_CM_RAW_UNCALIBRATED,
     M_CAL_APPLIED_TWICE, M_CAL_CALIBRATED_TWICE,
+    M_CAL_TABLE_REPAIRED, M_CAL_TABLE_DAMAGED,
     M_PATCH_COLOUR_RANGE,
     M_PATCH_EXPECTED_PREDICTED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,

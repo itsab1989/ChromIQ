@@ -85,9 +85,13 @@ def helper_caps(helper: "Path | None" = None) -> frozenset:
     caps: frozenset = frozenset()
     try:
         from core.proc_text import run_text
-        # Budgeted for a loaded machine: the call is a fraction of a second
-        # idle, and a helper that does not know the flag exits at once.
-        res = run_text([str(p), "--caps"], capture_output=True, timeout=20)
+        # A fraction of a second when the helper knows the flag. One that does
+        # not (built before 4.3.3-beta.7) takes "--caps" for a chart and waits
+        # for an instrument, so it is cut short: asked only for a sheet printed
+        # with the old labels, on Start, and remembered per binary.
+        import subprocess as _sp
+        res = run_text([str(p), "--caps"], capture_output=True,
+                       stdin=_sp.DEVNULL, timeout=8)
         if res.returncode == 0:
             for line in (res.stdout or "").splitlines():
                 line = line.strip()

@@ -377,6 +377,10 @@ class EngineProfileBuilder:
     def build(self, params: "ProfileParams",
               on_line: Callable[[str], None],
               on_finish: Callable[[int], None]) -> None:
+        # The engine copies the measurement to colprof for its gamut-mapping
+        # oracle, so a damaged calibration table is put right here as well.
+        from workflow.cal_repair import repair_embedded_cal
+        repair_embedded_cal(params.ti3_path)
         try:
             settings = settings_from_params(params)
             if self._app_settings is not None:

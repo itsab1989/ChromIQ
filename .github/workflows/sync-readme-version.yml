@@ -40,7 +40,7 @@ jobs:
 
       - name: Checkout default branch
         if: steps.ver.outputs.skip == 'false'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: master
           fetch-depth: 0

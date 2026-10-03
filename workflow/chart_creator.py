@@ -1478,7 +1478,16 @@ class ChartCreator:
         With a recipe (Manual/editor LayoutOptionsPanel) every layout option
         takes effect; instrument/paper come from the ChartParams, and a printer
         calibration (-K/-I) is attached when chosen.
+
+        A CALIBRATION CHART IS PRINTED IN ORDER, on both branches.
+        calibration_run_type §4.2 has the calibration knobs switch printtarg's
+        ``-r`` (no randomising) on, but with a layout recipe the engine takes
+        ``randomize`` from the recipe, not from ``-r``, so the ramps came out
+        scattered over the sheet (patch 77 at D8, 78 at C2, 79 at B8; #182
+        diagnosis 2026-10-03), and the help card's "a plain ramp of one ink
+        channel at a time" was false.
         """
+        _in_order = bool(getattr(params, "cal_target", False))
         if params.layout_recipe is not None and hasattr(params.layout_recipe, "build_kwargs"):
             kw = params.layout_recipe.build_kwargs()
             kw["instrument"] = params.instrument
@@ -1511,6 +1520,8 @@ class ChartCreator:
             # going below an instrument minimum is allowed and merely flagged as a
             # violation in the Measured-from-Preview panel. So no build-time clamp.
             self._threshold_notes = []
+            if _in_order:
+                kw["randomize"] = False
             return kw
         # Guided mode has no editable margin boxes and no "Use instrument
         # margins" toggle, so the jig-safety threshold clamp is intentionally
@@ -1520,7 +1531,10 @@ class ChartCreator:
         # feature. Mirrors the Guided capacity estimate in
         # tab_chart._engine_geom (thresholds=None) so count and chart agree.
         self._threshold_notes = []
-        return self._engine_build_kwargs(params)
+        kw = self._engine_build_kwargs(params)
+        if _in_order:
+            kw["randomize"] = False
+        return kw
 
     def _apply_margin_thresholds(self, kw: dict) -> dict:
         """Raise the layout's margins so the patch area meets the user's margin

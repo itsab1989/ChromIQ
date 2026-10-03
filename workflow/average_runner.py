@@ -89,6 +89,8 @@ class AverageRunner:
             on_finish(None)
             return
 
+        from workflow.cal_repair import repair_all
+        repair_all(params.inputs)
         cwd = params.output.parent
         args = self._build_args(params)
         log.info("average args: %s  [cwd=%s]", args, cwd)
