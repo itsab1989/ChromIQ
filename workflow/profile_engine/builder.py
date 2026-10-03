@@ -290,7 +290,11 @@ class _PercentProgress:
     _FRACTION = re.compile(r"(\d+)\s*/\s*(\d+)")
 
     def __init__(self, inner, clock=None) -> None:
+        import threading
         import time
+        # Engine stages may report from pool threads (D-06): one line at a
+        # time, so the percentage and the deadline stay consistent.
+        self._lock = threading.Lock()
         self._inner = inner
         self._pct = 0.0
         self._clock = clock or time.monotonic
@@ -338,6 +342,10 @@ class _PercentProgress:
         return f"~{int(np.ceil(secs / 60.0))} min left"
 
     def __call__(self, msg: str) -> None:
+        with self._lock:
+            self._call(msg)
+
+    def _call(self, msg: str) -> None:
         for i, (prefix, pct) in enumerate(_STAGE_PCT):
             if not msg.startswith(prefix):
                 continue
@@ -369,14 +377,40 @@ def build_profile(ti3_path: Path | str, out_path: Path | str,
     settings = settings or BuildSettings()
     orig_progress = settings.progress
     settings.progress = _PercentProgress(orig_progress)
+    started: list = []          # Argyll runs started ahead of need (D-06)
     try:
-        return _build_profile_impl(ti3_path, out_path, settings)
+        return _build_profile_impl(ti3_path, out_path, settings, started)
     finally:
         settings.progress = orig_progress
+        for run in started:
+            run.close()
+
+
+def _will_use_colprof_oracle(meas: Ti3Measurement,
+                             settings: BuildSettings) -> bool:
+    """True when build_mapped_b2a will ask fit_colprof_mappers for the
+    perceptual/saturation rendering: Maximum accuracy, a gamut source, a
+    device colprof can build (<= 4 channels), Argyll's rendering (not the
+    bijective one), and at least one intent that is gamut mapped."""
+    from workflow.profile_engine.gamut_map import _COLORIMETRIC_INTENTS
+    if settings.gammap_mode != "accurate" or settings.source_gamut is None:
+        return False
+    if not 0 < meas.n_channels <= 4 or settings.argyll_bin is None:
+        return False
+    render2 = (("render2" in settings.engine_candidates
+                or settings.render_style == "bijective")
+               and not settings.perc_intent and not settings.sat_intent)
+    if render2:
+        return False
+    mapped = [settings.perc_intent] + ([settings.sat_intent]
+                                       if settings.sat_gamut else [])
+    return any(i not in _COLORIMETRIC_INTENTS for i in mapped)
 
 
 def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
-                        settings: BuildSettings) -> BuildResult:
+                        settings: BuildSettings,
+                        started: list | None = None) -> BuildResult:
+    started = [] if started is None else started
     if settings.quality not in _QUALITY_INDEX:
         raise EngineError(f"Unknown quality {settings.quality!r} "
                           "(expected one of l, m, h, u).")
@@ -425,6 +459,17 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
 
     _sanity_gates(meas, settings)
     accurate = settings.gammap_mode == "accurate"
+    oracle_run = None
+    if _will_use_colprof_oracle(meas, settings):
+        # D-06: colprof reads only the .ti3 and the settings, so the oracle
+        # starts NOW and runs beside the fit and the inversion instead of
+        # after them; build_mapped_b2a collects it. Same bytes either way.
+        from workflow.profile_engine.gamut_map import start_colprof_oracle
+        oracle_run = start_colprof_oracle(
+            meas, settings.source_gamut, settings, settings.argyll_bin,
+            codec.node_lab(_B2A_GRID[qb]))
+        if oracle_run is not None:
+            started.append(oracle_run)
     if accurate and settings.average_duplicates and not settings.noise_model:
         groups, removed = meas.collapse_duplicates()
         if groups:
@@ -583,6 +628,48 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         _emit(settings, f"Black ink limited to {k_pct:g}%.")
     # Multi-ink: anchor the neutral rendering + K separation in colprof's
     # behaviour via a synthetic CMYK proxy (colprof can build THAT).
+    # D-06 (agent 8): the perceptual/saturation tables need the final model
+    # (fixed from here on), the gamut source and the oracle, but neither the
+    # colorimetric inversion nor (on the helper / port / oracle paths) the
+    # multi-ink anchor. They are built on a background thread beside the
+    # anchor and the colorimetric inversion; the anchor reaches the one
+    # fallback mapper that reads it through a callable that waits for it.
+    # Every table is the same computation as before, so the same bytes.
+    mapped_bg = None
+    anchor_box: dict = {}
+    if accurate and settings.source_gamut is not None:
+        import threading
+        from workflow.profile_engine import parallel
+        if parallel.worker_count() > 1:
+            anchor_ready = threading.Event()
+
+            def _anchor_value():
+                anchor_ready.wait()
+                return anchor_box.get("anchor")
+
+            def _mapped():
+                from workflow.profile_engine.gamut_map import build_mapped_b2a
+                _emit(settings, "Building the perceptual and saturation "
+                                "tables…")
+                return build_mapped_b2a(
+                    model, meas, b2a_grid, Path(settings.source_gamut),
+                    channel_letters=meas.channel_letters,
+                    is_additive=meas.is_additive, ink_limit=ink_limit,
+                    entries=_B2A_ENTRIES[qb], codec=codec, settings=settings,
+                    a2b_grid=a2b_grid, a2b_entries=_A2B_ENTRIES[q],
+                    anchor=_anchor_value, channel_max=channel_max,
+                    oracle_run=oracle_run)
+
+            mapped_bg = parallel.Background(_mapped)
+
+            class _Release:
+                """Build ending early: free the waiting anchor, then join,
+                so no engine thread outlives build_profile."""
+                def close(self) -> None:
+                    anchor_ready.set()
+                    mapped_bg.join()
+            started.append(_Release())
+            anchor_box["ready"] = anchor_ready
     anchor = None
     if n >= 5 and settings.argyll_bin is not None:
         from workflow.profile_engine.gamut_map import (OracleUnavailable,
@@ -593,6 +680,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
                 settings.argyll_bin, settings.progress)
         except OracleUnavailable as exc:
             _emit(settings, f"Using the engine's own rendering ({exc}).")
+    if mapped_bg is not None:
+        anchor_box["anchor"] = anchor
+        anchor_box["ready"].set()
     node_lab = codec.node_lab(b2a_grid)
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
@@ -740,7 +830,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         "B2A1": b2a_col, "gamt": gamt,
     }
     perceptual_distinct = False
-    if settings.source_gamut is not None:
+    if mapped_bg is not None:
+        mapped = mapped_bg.result()
+        luts.update(mapped)
+        perceptual_distinct = "B2A0" in mapped
+    elif settings.source_gamut is not None:
         from workflow.profile_engine.gamut_map import build_mapped_b2a
         _emit(settings, "Building the perceptual and saturation tables…")
         mapped = build_mapped_b2a(
@@ -749,7 +843,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             is_additive=meas.is_additive, ink_limit=ink_limit,
             entries=entries_b2a, codec=codec, settings=settings,
             a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor,
-            channel_max=channel_max)
+            channel_max=channel_max, oracle_run=oracle_run)
         luts.update(mapped)
         perceptual_distinct = "B2A0" in mapped
     if "B2A0" not in luts:
