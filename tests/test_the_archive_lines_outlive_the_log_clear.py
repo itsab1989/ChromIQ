@@ -7,9 +7,11 @@ looked at.
 
 "Build here anyway" on M-PROFILE-VERIFY runs `_archive_superseded_profile`,
 which MOVES the run's built profile into ``runs/runN/old/<timestamp>/`` and
-EVERY dated verification measurement into ``verifications/old/<timestamp>/``,
-and writes the two lines that name those exact folders into the Build Profile
-tab's log. `_on_build` then called ``self._log.clear()`` seven lines later.
+writes the line that names that folder into the Build Profile tab's log. (Until
+#182 5964384250 it also moved every dated verification measurement into
+``verifications/old/<timestamp>/`` and wrote a second line; a rebuild now
+archives the profile only.) `_on_build` then called ``self._log.clear()`` seven
+lines later.
 
 WHAT A PERSON SAW, driven on screen in a real window on a real project holding a
 real profile and two real dated verification measurements (combined round 7,
@@ -69,16 +71,16 @@ def test_the_archive_really_names_its_folders_in_the_tabs_log():
     src = inspect.getsource(TabProfile._archive_superseded_profile)
     assert "self._log.appendPlainText" in src
     assert "The previous profile was moved to" in src
-    assert "The verification measurements made against it were moved to" in src
 
 
-def test_the_archive_really_moves_the_profile_and_the_verifications():
-    """A record is only worth keeping because something really moved."""
+def test_the_archive_really_moves_the_profile():
+    """A record is only worth keeping because something really moved. Since
+    Knut's #182 5964384250 Q1 that is the profile only: the verifications stay
+    until the user chooses Verification and answers UMM §6f's window."""
     from ui.tabs.tab_profile import TabProfile
     src = inspect.getsource(TabProfile._archive_superseded_profile)
     assert "archive_to_old" in src
-    assert "run.verifications()" in src
-    assert "verifications_old_dir" in src
+    assert "built_profile_icc()" in src
 
 
 def test_the_question_that_archives_is_asked_from_on_build():

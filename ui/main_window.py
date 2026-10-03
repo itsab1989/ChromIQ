@@ -309,6 +309,18 @@ class MainWindow(QMainWindow):
         # Knut, 2026-08-11: "All tabs must save-on-change-from /
         # reload-on-change-to a tab … same principle, same method."
         self._target_ctl.changed.connect(self._load_settings_of_visible_tab)
+        # #182 (Knut 5964384250, 5965626117, UMM §6f): choosing Verification
+        # for a run whose profile was replaced asks, once, about what the
+        # earlier profile left there. The Measure tab's arrival windows wait
+        # while its check is pending (`EarlierProfileOffer.pending`) or any
+        # window is open, so it is asked first; it waits for any open window.
+        from ui.earlier_profile_offer import EarlierProfileOffer
+        self._earlier_profile_offer = EarlierProfileOffer(
+            self._target_ctl, self,
+            busy=self._earlier_profile_offer_must_wait,
+            open_create_chart=self._open_create_chart_for_verification,
+            log_line=self._write_create_chart_log,
+            refresh=self._refresh_target_bar)
         # "Delete the whole project" has to leave the app as it starts — every
         # tab empty, nothing loaded, and no project silently made again (#130,
         # Knut 2026-07-29).
@@ -1304,6 +1316,41 @@ class MainWindow(QMainWindow):
             self._tab_chart._refresh_project_exists_line()
         except Exception:      # noqa: BLE001
             log.debug("could not refresh the project hint", exc_info=True)
+
+    # ---- #182, UMM §6f: verifications from an earlier profile -------------
+    def _earlier_profile_offer_must_wait(self) -> bool:
+        """Never while a measurement or a profile build is running."""
+        if getattr(self, "_measuring", False) or \
+                getattr(self, "_profile_building", False):
+            return True
+        try:
+            return bool(self._tab_measure.a_measurement_is_running())
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _open_create_chart_for_verification(self, gamut: bool) -> None:
+        """Create Chart, with the run's stored verification settings (loaded
+        by the tab switch), and on FROM PROFILE GAMUT when *gamut*. One tick
+        later for the module, so it lands after the settings reload."""
+        self._tabs.setCurrentWidget(self._tab_chart)
+        if gamut:
+            QTimer.singleShot(0, self._tab_chart.open_gamut_for_new_verification)
+        else:
+            # Text B: the kept chart in ITS OWN module, so the user can confirm
+            # it and go on to printing (Knut 5965626117), not under FROM
+            # PROFILE GAMUT, whose Generate would replace it.
+            QTimer.singleShot(
+                0, self._tab_chart.open_verification_chart_in_its_own_module)
+
+    def _write_create_chart_log(self, line: str) -> None:
+        try:
+            self._tab_chart._log.appendPlainText(line)
+        except Exception:      # noqa: BLE001
+            log.info("%s", line)
+
+    def _refresh_target_bar(self) -> None:
+        if getattr(self, "_target_bar", None) is not None:
+            self._target_bar.refresh()
 
     def _on_verify_chart_restored(self) -> None:
         """React to Restore Used Chart having put an older verification chart

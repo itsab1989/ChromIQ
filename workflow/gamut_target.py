@@ -744,6 +744,10 @@ def read_colorimetric_reference(path: Path) -> "dict | None":
         #: #182 A11: None in a file written before beta 42.
         "profile_white_lab": profile_white,
         "profile": keywords.get("CHROMIQ_PROFILE", ""),
+        #: The file's own CREATED, as written: when this chart's colours were
+        #: chosen, which is how a chart made from an earlier profile is told
+        #: from one made from the current profile (#182, Knut 5964384250).
+        "created": keywords.get("CREATED", ""),
     }
 
 

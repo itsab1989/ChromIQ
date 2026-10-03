@@ -4358,6 +4358,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 return          # a measurement is there; the box shows it
             if not self._selection_names_a_measurement():
                 return
+            # NOT OVER ANOTHER WINDOW EITHER (review of #182 §6f): this is the
+            # third window a selection change can open from here, queued on
+            # the same turn as the pre-flight and the offer, so it waits the
+            # same way and is asked again when that window closes.
+            if self._another_window_is_open("settle"):
+                self._overlay_asked_by_settings = True
+                return
             # The overlay is asked for and what is selected has never been
             # measured: M-OVERLAY-NO-MEASUREMENT, about the right chart now.
             self._on_overlay_toggled(True)
@@ -4369,6 +4376,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """Make the held offer, once the tab has actually painted."""
         self._offer_queued = False
         try:
+            # Never on top of another window; asked again when it closes
+            # (see `_another_window_is_open`).
+            if self.isVisible() and not getattr(self, "_offer_open", False) \
+                    and self._another_window_is_open("offer"):
+                return
             if self.isVisible():
                 # An empty measurement is dealt with before anything else looks
                 # at it. Knut set this sequence himself (#130, 2026-07-30):
@@ -16108,6 +16120,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # request is remembered and made again when the window closes.
             self._preflight_missed = True
             return
+        # …NOR OVER ANY OTHER WINDOW (#182, the challenge of UMM §6f). The
+        # main window's question about an earlier profile is queued on the same
+        # turn as this one, and neither used to look past its own two windows,
+        # so this one opened ON TOP of it. Asked again when that window closes.
+        if self._another_window_is_open("preflight"):
+            return
         try:
             if not self._verification_preflight_due():
                 return
@@ -16195,6 +16213,63 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._preflight_silenced.add(scope)
             log.info("Verification pre-flight silenced for %s (this session)",
                      scope)
+
+    def _another_window_is_open(self, which: str) -> bool:
+        """True when a modal window is open, and then *which* arrival window
+        ("preflight", "offer", or "settle" for the overlay question a stored
+        tick raises) is asked again once it has closed.
+
+        Polled, not hooked: the open window can be anybody's (the main
+        window's question about an earlier profile, a loader's notice), and
+        none of them says when it closes. Only the latest request of each kind
+        is kept, and each is asked through its own queue, so the usual guards
+        (visible, due, silenced) are applied afresh.
+
+        …AND WHILE THE MAIN WINDOW'S QUESTION ABOUT AN EARLIER PROFILE IS
+        STILL TO BE ASKED (review of #182 §6f). That question goes first on
+        purpose: "Archive" changes what these windows would say (it moves the
+        very measurement the offer is about). Being connected first did not
+        make it first: its check runs from a QTimer, and a zero-delay
+        ``QTimer.singleShot`` is a posted call that Qt delivers before timer
+        events, so on screen the offer opened ahead of it 3 times in 3."""
+        if not self._a_window_is_open_or_owed():
+            return False
+        owed = getattr(self, "_owed_after_window", None)
+        if owed is None:
+            owed = self._owed_after_window = set()
+        owed.add(which)
+        timer = getattr(self, "_window_wait_timer", None)
+        if timer is None:
+            timer = self._window_wait_timer = QTimer(self)
+            timer.setSingleShot(True)
+            timer.setInterval(250)
+            # A BOUND METHOD, never a self-capturing lambda (CLAUDE.md).
+            timer.timeout.connect(self._after_other_window_closed)
+        if not timer.isActive():
+            timer.start()
+        return True
+
+    def _a_window_is_open_or_owed(self) -> bool:
+        if QApplication.activeModalWidget() is not None:
+            return True
+        try:
+            offer = getattr(self.window(), "_earlier_profile_offer", None)
+            return bool(offer is not None and offer.pending())
+        except Exception:      # noqa: BLE001 — never block the tab on this
+            return False
+
+    def _after_other_window_closed(self) -> None:
+        if self._a_window_is_open_or_owed():
+            self._window_wait_timer.start()
+            return
+        owed = getattr(self, "_owed_after_window", set())
+        self._owed_after_window = set()
+        if "preflight" in owed:
+            self._queue_verification_preflight()
+        if "offer" in owed:
+            self._queue_overlay_offer()
+        if "settle" in owed:
+            self._queue_selection_settle()
 
     def _preflight_key(self) -> tuple:
         """Which run and chart a pre-flight is about: the profile run's scope

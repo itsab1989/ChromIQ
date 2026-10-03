@@ -2528,6 +2528,39 @@ What was built:
   `~/Desktop/ChromIQ-beta36-proof/round-A-report-fixes/`.
 * **Status:** agreed; the built result is confirmed. **Confirmed by:** Knut, 2026-09-23 (#182 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
 
+**Record (the reports of an earlier profile, #182 UMM §6f).**
+* **Rule:** when the user answers "Archive them" in the window that opens on
+  choosing Verification after the profile was replaced, the reports of the
+  earlier profile's measurements are archived with them: *"Earlier reports
+  belonging to old profile is archived with other files"*. The run's own
+  Quality_Check reports stay: *"yes"* to *"Should the earlier ones stay in the
+  run's reports folder when the profile is rebuilt?"*. A rebuild itself moves
+  no report.
+* **Ruling:** Knut, [5964076758](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5964076758)
+  Q6 and [5964384250](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5964384250) Q3.
+* **Status:** the rule is confirmed. **Confirmed by:** Knut, 2026-10-03 (#182
+  5964076758, 5964384250).
+
+#### ⏳ Awaiting confirmation: which report files go with the earlier profile's measurements
+
+**Confirmed by:** *nobody yet.*
+
+* A date's own `reports/` (its single-date reports and verdict records)
+  travels inside its dated folder, which moves whole.
+* A document in `runs/runN/verifications/reports/` moves when it covers a
+  moving date and none of the dates it covers stays at the top level of
+  `verifications/`. A date archived earlier does not hold it back.
+* A document in the project's `reports/` (a report across runs) stays: it
+  also covers another run, and §13.11's "shown whole" already copes with a
+  member it cannot find.
+* Everything moved by one answer lands in one
+  `verifications/old/<timestamp>/` folder; the report files keep their
+  `report_<stamp>.json` names, which cannot clash with a date folder's name.
+* Built: `workflow/verification_profile_match.py::_documents_leaving`,
+  `ui/earlier_profile_offer.py::_carry_out`. Verified by:
+  `tests/test_verification_profile_match.py` (the four document cases) and
+  `tests/test_earlier_profile_window.py::test_archive_a_moves_the_dates_and_their_reports_and_opens_gamut`.
+
 ### 13.12 "Report shown" is grouped; the names stay (K25, Knut 2026-09-23)
 
 **✅ CONFIRMED.** **Ruled by:** Knut, #182 comments 5789263863

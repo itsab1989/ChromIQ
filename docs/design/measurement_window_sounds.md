@@ -205,6 +205,15 @@ opens (`TabMeasure._strip_read_twice_window`, row "Strip read twice" in §1).
 Rules W-1 and W-2 apply: the cue is at the top of the slot, and a question that
 is never opened (the measurement ended first) plays nothing.
 
+## 4c. The earlier-profile window plays nothing
+
+**Confirmed by:** Knut, 2026-10-03 (#182 [5964076758](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5964076758) Q5, *"OK"* to "No sound").
+
+The window that opens when Verification is chosen for a run whose profile was
+replaced (M-VERIFY-EARLIER-PROFILE, M-VERIFY-EARLIER-PROFILE-KEEP-CHART,
+M-VERIFY-EARLIER-PROFILE-NO-CHART, M-VERIFY-CHART-EARLIER-PROFILE; unified measurement management §6f) is not a
+measurement window and plays no sound (`ui/earlier_profile_offer.py`).
+
 ## 5. Related documents
 
 - [`measurement_exit_strategy.md`](measurement_exit_strategy.md) — the same windows, from the point of view of how each one ends a session

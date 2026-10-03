@@ -98,12 +98,23 @@ def test_no_message_uses_a_bracketed_plural():
 
 
 def test_the_message_does_not_call_the_old_measurements_wrong():
-    """Knut's correction: replacing the profile does not invalidate them; it
-    removes the record of which profile they belong to."""
+    """Knut's correction: replacing the profile does not invalidate them. And
+    his 5964076758 Q4: "printed through the profile" was untrue for raw and
+    FROM PROFILE GAMUT sheets, so it is gone from both forms."""
     from workflow.measurement_messages import M_PROFILE_VERIFY
-    body = M_PROFILE_VERIFY.body
-    assert "does not make those measurements wrong" in body
-    assert "no longer say which profile they belong to" in body
+    for body in (M_PROFILE_VERIFY.body, M_PROFILE_VERIFY.body_one):
+        assert "deletes nothing" in body
+        assert "correct reading" in body
+        assert "printed through" not in body
+        assert "checked against the profile this run had at the time" in body
+
+
+def test_the_message_says_the_verifications_stay():
+    """Knut, #182 5964384250 Q1: a rebuild archives the profile only."""
+    from workflow.measurement_messages import M_PROFILE_VERIFY
+    assert "stay where they are" in M_PROFILE_VERIFY.body
+    assert "stay where they are" in M_PROFILE_VERIFY.body_one
+    assert "When you next choose Verification" in M_PROFILE_VERIFY.body
 
 
 def test_the_message_promises_nothing_is_deleted():
@@ -136,38 +147,69 @@ def test_cancel_never_silences_the_question():
     assert "clicked in (dup, go)" in src
 
 
-def test_build_here_anyway_archives_both_the_profile_and_its_verifications():
+def test_build_here_anyway_archives_the_profile_only():
+    """Knut, #182 5964384250 Q1: *"verification runs shall not be
+    automatically archived when the profile is re-built"*."""
     src = inspect.getsource(TabProfile._archive_superseded_profile)
-    assert "built_profile_icc()" in src
-    assert "run.verifications()" in src and "v.exists()" in src
-    assert "archive_to_old" in src
+    code = "\n".join(ln for ln in src.splitlines()
+                     if not ln.lstrip().startswith("#"))
+    code = code.split('"""', 2)[2]          # past the docstring
+    assert "built_profile_icc()" in code
+    assert "archive_to_old" in code
+    assert "verifications" not in code
 
 
-def test_the_archive_really_moves_the_files(tmp_path):
-    """Not "it calls the right function" — the files are where the message
-    said they would be, and still readable."""
+def _tree(root):
+    """Every file under *root* with its bytes, for a before/after compare."""
+    return {str(p.relative_to(root)): p.read_bytes()
+            for p in sorted(root.rglob("*")) if p.is_file()}
+
+
+def _run_with_history(tmp_path):
     from core.file_manager import Run
 
     run_dir = tmp_path / "proj" / "runs" / "run1"
     (run_dir / "verifications").mkdir(parents=True)
     run = Run.for_dir(run_dir)
     run.built_profile_icc().write_bytes(b"icc")
+    (run.verifications_dir / f"{run.verify_stem}.ti2").write_text(
+        "CTI2\n", encoding="utf-8")
     for vid in ("2026-01-01_100000", "2026-02-01_100000"):
         v = run.verification(vid)
         v.ensure_dir()
         v.measurement_ti3.write_text("BEGIN_DATA\nEND_DATA\n", encoding="utf-8")
+        (v.reports_dir).mkdir()
+        (v.reports_dir / "report_2026-01-01_10-00-00.json").write_text(
+            "{}", encoding="utf-8")
+    return run
 
-    TabProfile._archive_superseded_profile(
-        _Silent(), run)
+
+def test_the_archive_moves_the_profile_and_nothing_under_verifications(tmp_path):
+    """Not "it calls the right function": the profile is where the message
+    said, and ``verifications/`` is byte for byte what it was."""
+    run = _run_with_history(tmp_path)
+    before = _tree(run.verifications_dir)
+    silent = _Silent()
+
+    TabProfile._archive_superseded_profile(silent, run)
 
     assert not run.built_profile_icc().exists(), "moved, not copied"
     archived = list(run.old_dir.rglob("*.icc"))
     assert len(archived) == 1 and archived[0].read_bytes() == b"icc"
+    assert _tree(run.verifications_dir) == before
+    assert not run.verifications_old_dir.exists()
+    assert not any("verification" in ln for ln in silent._log.lines)
 
-    moved = list(run.verifications_old_dir.rglob("*.ti3"))
-    assert len(moved) == 2, "both dated measurements travelled with it"
-    assert run.verifications() == [] or all(
-        not v.exists() for v in run.verifications())
+
+def test_a_silenced_warning_moves_nothing_under_verifications_either(tmp_path):
+    """Knut asked for the silenced warning to behave the same. A silenced
+    warning never reaches `_archive_superseded_profile`; the profile still
+    moves through `_archive_the_profile_being_replaced`, which is handed the
+    profile's own path and nothing else."""
+    src = inspect.getsource(TabProfile._archive_the_profile_being_replaced)
+    code = src.split('"""', 2)[2]
+    assert "verification" not in code
+    assert "archive_to_old([icc]" in code
 
 
 def test_the_verifications_do_not_land_in_the_runs_own_old_folder(tmp_path):
