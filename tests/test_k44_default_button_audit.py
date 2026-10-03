@@ -37,6 +37,11 @@ ROOT = Path(__file__).resolve().parents[1]
 MODES = ("light", "dark", "neutral")
 BEFORE = json.loads((ROOT / "tests" / "data" /
                      "k44_already_coloured_before.json").read_text("utf-8"))
+# The Check & Refine redesign (6de015eb) took the accent off "Use as
+# Pre-conditioning" while refinement is offered and carved it out of this
+# baseline. Sebastian, 2026-10-03: it keeps the violet whenever it is shown,
+# beside "Guide me" too, as in beta 5 and 6. So the frozen file pins it again,
+# unchanged: both buttons coloured, and Return still presses what it pressed.
 
 #: Rule 2: no coloured button before K44; now the button Return presses is
 #: filled (a tool's main action once its inputs are chosen, as it is greyed

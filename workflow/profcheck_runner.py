@@ -72,54 +72,11 @@ _PROFCHECK_WARNING_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
 ]
 
 REFINE_DE_THRESHOLD          = 2.0   # flag a strip if any single patch exceeds this ΔE
-REFINE_START_OVER_RATIO      = 0.5   # recommend start-over if patch ratio exceeds this
-REFINE_START_OVER_STRIP_RATIO = 0.75  # recommend start-over if strip ratio exceeds this
 
-
-def recommends_start_over(n_patches_above: int, n_total_patches: int,
-                          n_flagged: int, n_total_strips: int) -> bool:
-    """The Check & Refine start-over rule, unchanged, in one place.
-
-    Moved here from ``tab_check_refine._on_done`` so the result window and the
-    saved .txt report cannot disagree about it. The rule itself is not touched
-    (its redesign is k5, awaiting Knut).
-    """
-    n_total_patches = n_total_patches or 1
-    n_total_strips = n_total_strips or 1
-    return (n_patches_above / n_total_patches > REFINE_START_OVER_RATIO
-            or n_flagged / n_total_strips > REFINE_START_OVER_STRIP_RATIO)
-
-
-def start_over_reason(n_patches_above: int, n_total_patches: int,
-                      n_flagged: int, n_total_strips: int,
-                      threshold: float) -> str:
-    """Why the check recommends starting over: one translated sentence.
-
-    It was an f-string outside ``tr()`` with two em dashes in it, so this one
-    sentence stayed English in the middle of a translated window (#182, Knut's
-    beta 5 runs). The counted cases each get a real singular: more than half of
-    a one-patch file, or three-quarters of a one-strip chart, is that one.
-    """
-    n_total_patches = n_total_patches or 1
-    n_total_strips = n_total_strips or 1
-    if n_patches_above / n_total_patches > REFINE_START_OVER_RATIO:
-        if n_total_patches == 1:
-            return tr("Your only patch exceeds \u0394E {limit:.1f}.").format(
-                limit=threshold)
-        return tr(
-            "{n} out of {total} patches ({pct}%) exceed \u0394E {limit:.1f}: "
-            "more than half of your measurement data."
-        ).format(n=n_patches_above, total=n_total_patches,
-                 pct=round(100 * n_patches_above / n_total_patches),
-                 limit=threshold)
-    if n_total_strips == 1:
-        return tr("Your chart's only strip needs re-measuring.")
-    return tr(
-        "{n} out of {total} strips ({pct}%) need re-measuring: more than "
-        "three-quarters of your chart."
-    ).format(n=n_flagged, total=n_total_strips,
-             pct=round(100 * n_flagged / n_total_strips))
-
+# The start-over rule and the choice of strips moved to workflow/refine_plan.py
+# with the Check & Refine redesign Knut approved (#182 5963903650): start over
+# is advised only above half of ALL patches, and the strip-count rule ("more
+# than three quarters of the strips") is gone.
 
 
 @dataclass
@@ -269,8 +226,12 @@ class ProfcheckRunner:
         return self._last_log
 
     def parse_results(self, log_text: str = "") -> ProfcheckResult:
+        from workflow.refine_plan import mend_split_lines
         text = log_text or self._last_log
         result = ProfcheckResult(raw_log=text)
+        # A line the capture cut in two is put back first, or its patch is
+        # lost to every figure below (Knut's run2, B26; see mend_split_lines).
+        text = mend_split_lines(text)
 
         m = _SUMMARY_RE.search(text)
         if m:
@@ -421,22 +382,20 @@ def quality_explanation(avg_de: float | None, peak_de: float | None) -> str:
 
     return "\n\n".join(lines)
 
-def group_by_strip(
-    patch_errors: list[tuple[str, float]],
-) -> list[tuple[str, float]]:
-    """Return (strip_letter, avg_dE) sorted worst-first. Used for display / reports."""
-    strip_totals: dict[str, list[float]] = {}
-    for patch_id, de in patch_errors:
-        m = _STRIP_LETTER.match(patch_id)
-        letter = m.group(1).upper() if m else patch_id.upper()
-        strip_totals.setdefault(letter, []).append(de)
-    averages = [
-        (letter, sum(vals) / len(vals))
-        for letter, vals in strip_totals.items()
-    ]
-    averages.sort(key=lambda x: x[1], reverse=True)
-    return averages
 
+def quality_explanation_body(avg_de: float | None, peak_de: float | None,
+                             de_name: str = "\u0394E") -> str:
+    """The grade's sentence without its first line of numbers, every "ΔE" in
+    it named after the formula the check used (ΔE00 by default).
+
+    The Check & Refine window shows the numbers on a line of its own, under
+    the same name (Knut, #182 5963903650: one formula, named on every number).
+    "Re-measuring the flagged strips can help" stays (Knut, 5963360295).
+    """
+    text = quality_explanation(avg_de, peak_de)
+    parts = text.split("\n\n")
+    body = "\n\n".join(parts[1:]) if len(parts) > 1 else text
+    return body.replace("\u0394E", de_name)
 
 def strips_to_refine(
     patch_errors: list[tuple[str, float]],
@@ -506,6 +465,7 @@ def write_refine_strips(
     folder: Path,
     stem: str,
     strips: list[tuple[str, float]],
+    target: "Path | None" = None,
 ) -> Path:
     """Write Refine_Strips_<n>_<stem>.txt, incrementing n until the name is free.
 
@@ -521,10 +481,14 @@ def write_refine_strips(
     is. It is the user's, and renaming it would be the same fault wearing a
     politer face.
     """
-    n = 1
-    while (folder / f"Refine_Strips_{n}_{stem}.txt").exists():
-        n += 1
-    target = folder / f"Refine_Strips_{n}_{stem}.txt"
+    # *target* rewrites the file THIS check wrote a moment ago, when the user
+    # picks "all strips above your limit" instead of the default in its result
+    # window: the same check, the same file, never an older one.
+    if target is None:
+        n = 1
+        while (folder / f"Refine_Strips_{n}_{stem}.txt").exists():
+            n += 1
+        target = folder / f"Refine_Strips_{n}_{stem}.txt"
     lines = [
         "# CHROMIQ_REFINE_STRIPS_V1",
         "# Strip\tMaxDE",

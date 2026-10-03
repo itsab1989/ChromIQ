@@ -183,6 +183,13 @@ def build_app():
     except ImportError:
         from scripts.onscreen_capture import keep_display_awake
     keep_display_awake()
+    # Drivers end with os._exit; make it stop the chart-reading helper (and
+    # any other child) first, or it stays behind as an orphan.
+    try:
+        from onscreen_capture import stop_children_at_exit
+    except ImportError:
+        from scripts.onscreen_capture import stop_children_at_exit
+    stop_children_at_exit()
     app.setApplicationName("ChromIQ")
     # as main() does (B8-1392): the collector runs from the event loop
     from core.gc_guard import install_gui_thread_collector

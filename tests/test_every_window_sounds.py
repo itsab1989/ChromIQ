@@ -40,6 +40,9 @@ EXPECTED_CUE = {
     "_show_average_failed_dialog":            "STRIP_FAIL",
     "_on_unexpected_response":                "PATCH_OUT_OF_TOL",
     "_unread_choice_window":                  "INSTRUMENT_ERROR",
+    # #182: "Was a strip read twice?" interrupts a read to ask, so it takes
+    # the attention sound (Knut, 5963044182).
+    "_strip_read_twice_window":               "INSTRUMENT_ERROR",
 }
 
 

@@ -2,15 +2,30 @@
 
 ## v4.3.3-beta.7 (unreleased)
 
+**Check & Refine offers refinement whenever a patch is above your limit and says which strips to re-measure first and why; and ChromIQ asks while you measure when a strip looks read twice.**
+
 ### New
 
 - **A verification sheet is checked against what your profile predicts (#182).** While a verification chart ChromIQ printed is measured, each patch is now compared with the run profile's prediction of the ink values that really went to the printer: the chart's own RGB for a raw print, the converted values for a print through the profile (any intent). The red outline then uses the limit for a chart made from a profile (ΔE 30 by default) and ignores the strip outlier setting, so a shifted or wrong strip is outlined even when the whole strip is off; the hover card says "Expected: profile prediction". The painting after a measurement uses the same values. On Knut's gamut sheet the pure-blue corner went from ΔE 105 to 2.2, and on a second printer's sheets the typical patch from about 28 to 4. ChromIQ keeps the old comparison (the sRGB estimate at ΔE 95) when it cannot know what was printed: a sheet printed outside ChromIQ, a run without a profile, a profile changed since the sheet was printed, a profile built under another light (an illuminant other than D50, another observer or FWA compensation), or a conversion that fails. chromiq.log says which was used and why. Approved by Knut (5964173774, 5964384250).
+- **"Was a strip read twice?"** (#182, ChromIQ's measuring engine, strip mode): each strip you read is compared with the strips already measured. When it looks very like one of them, ChromIQ asks, for example "Strip D looks very like strip C, which you already measured. Did you read strip C again?", with **Re-read strip D** and **Keep, it is strip D**. It compares only what you measured, never the chart's expected colours, and it asks only when the two readings match far more closely than the strip's own patches differ from each other, so strips of an ordered chart that merely look alike on matte paper do not set it off. Reading a strip again where the reader is never asks. The window plays the Instrument error sound. ArgyllCMS's own strip test stays off (-S) as before.
+
+### Changed
+
+- **Check & Refine: refinement is always offered** when at least one patch is above your limit (#182, Knut). The rule "more than three quarters of the strips, so start over", which told good 648-patch profiles to start over with no way to refine, is gone. Starting over is advised only when more than half of all patches are above your limit, and refinement stays available then too.
+- **Check & Refine: two lists, worst first** (#182, Knut). "Re-measure these strips first" lists the strips with a patch that stands out clearly from the rest of the check (measured against that check's own spread, so it adapts to every printer) or that looks partly read as its neighbour, each with one sentence saying why; then the other strips above your limit, with their worst patch and how many patches are above. You choose "the strips listed first" (the default) or "all strips above your limit", and the guide goes through them in chart order.
+- **One ΔE formula, named on every number** in the Check & Refine window and its report (ΔE00 by default), and no more strip averages. "Re-measuring the flagged strips can help" stays.
+- **Patches a re-read already confirmed (yellow) are not offered again** by Check & Refine, and the window names them.
+- **The saved Quality_Check report says what the window says**, the start-over note and the strip lists included.
+- **"Use as pre-conditioning profile" is described as what it does**: it spreads the new chart's patches evenly by how colours look on your printer and paper; it does not aim them at the colours that measured badly. The button keeps its violet colour, and the same correction is in the Profile Built window and the help of Create Chart's refinement profile.
 
 ### Fixed
 
 - **"Replace the stored chart" keeps the chart it replaces.** Measuring a different chart into a verification date that already had one copied the new chart over the old one in `<date>/chart/` and kept nothing, and left the old chart's extra files mixed in (a gamut chart's `-verify-reference.ti3` beside a regular chart made Restore Used Chart bring back a reference, so Print forced Raw). The old chart now goes to `<date>/old/<date-time>/chart/`, in the same folder as the date's old measurement once the new one is saved, and the new chart is stored on its own. If nothing is saved (Cancel on a later question, no instrument, a measurement that read nothing, an import the date refuses), the old chart is put back, because the date still holds the measurement made with it.
 - **Charts record their creation date in English, as ArgyllCMS does.** Under another language the `CREATED` line of a gamut chart (and of charts laid out by ChromIQ, relaid charts, i1Profiler imports and exports, and colverify reference files) used that language's day and month names, for example "Fr. Okt. 02". Charts already written that way are still read correctly in every language ChromIQ ships.
 - **Demo projects: verification dates come after the profile they verify.** They are history (Demo-Verify-History spans a year, so its trend graph reads as a drifting printer), but the generator builds the profile now, so every date was older than its profile. The demo profile is now dated back to before its first verification (ICC header date and file time); the dates stay where they were.
+- **Check & Refine no longer loses a patch when a line of profcheck's output arrives in two pieces** (#182; Knut's run2 lost patch B26 that way).
+- **Check & Refine in Manual mode uses the Manual panel's own limit**; it used the Guided panel's.
+
 
 ## v4.3.3-beta.6
 

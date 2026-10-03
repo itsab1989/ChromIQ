@@ -137,6 +137,47 @@ def wake_the_display(timeout: float = 6.0) -> tuple[bool, str]:
 _KEEP_AWAKE = None
 
 
+def stop_children() -> None:
+    """End every process this one started and is still running.
+
+    A driver's real MainWindow starts ``chromiq-chartread`` (on the replay
+    instrument, it waits on stdin for the next "swipe" for good). Drivers end
+    with ``os._exit`` so a hung event loop cannot keep them alive, and that
+    skips every Qt and Python clean-up: the helper was left behind as an
+    orphan. Found 2026-10-03, eleven of them alive from five driver runs.
+    """
+    import os as _os
+    me = str(_os.getpid())
+    for sig in ("-TERM", "-KILL"):
+        try:
+            subprocess.run(["pkill", sig, "-P", me], timeout=5,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:                                  # noqa: BLE001
+            return
+        if sig == "-TERM":
+            time.sleep(0.3)
+
+
+def stop_children_at_exit() -> None:
+    """Make this process's ``os._exit`` stop its children first (idempotent).
+
+    Installed by ``capture_screens.build_app``, so every driver that builds its
+    app there leaves no helper running, however it ends."""
+    import os as _os
+    real = _os._exit
+    if getattr(real, "_chromiq_stops_children", False):
+        return
+
+    def _exit(code=0):
+        try:
+            stop_children()
+        finally:
+            real(code)
+
+    _exit._chromiq_stops_children = True
+    _os._exit = _exit
+
+
 def keep_display_awake():
     """Hold macOS's keep-the-display-awake assertion for as long as THIS process
     lives (``caffeinate -d -w <pid>`` ends by itself when the driver exits), so
