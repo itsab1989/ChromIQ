@@ -378,7 +378,7 @@ def test_the_window_shows_the_pictured_lines(qapp, tmp_path, monkeypatch):
             "this check. 3 patches in this strip are above your limit.",
             "<b>2 more strips have patches above ΔE00 2.0</b> (worst "
             "first; worst patch, and how many are above):",
-            "J  2.26 (2)", "K  2.23 (2)",
+            "J  ΔE00 2.26 (2)", "K  ΔE00 2.23 (2)",
             "Re-measure the 7 strips listed first",
             "Re-measure all 9 strips above your limit",
             "The guide takes you through the chosen strips in chart order "

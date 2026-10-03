@@ -368,9 +368,11 @@ class PlanText:
     order: str = ""
 
 
-def rest_item(a: StripAdvice) -> str:
-    """"H  4.98 (20)": the strip, its worst patch's error, how many above."""
-    return f"{a.strip:<2} {a.de:4.2f} ({a.n_over})"
+def rest_item(a: StripAdvice, de: str = "") -> str:
+    """"H  ΔE00 4.98 (20)": the strip, its worst patch's error under the
+    formula's name (one formula, named on every number), how many above."""
+    name = f"{de} " if de else ""
+    return f"{a.strip:<2} {name}{a.de:4.2f} ({a.n_over})"
 
 
 def plan_text(plan: RefinePlan, avg: "float | None",
@@ -415,7 +417,7 @@ def plan_text(plan: RefinePlan, avg: "float | None",
         else:
             head = mm._CR_REST_HEAD_ONE if n == 1 else mm._CR_REST_HEAD_MANY
         t.rest_head = tr(head).format(n=n, de=de, limit=limit)
-        t.rest_items = [rest_item(a) for a in plan.rest]
+        t.rest_items = [rest_item(a, de) for a in plan.rest]
     if plan.confirmed_skipped:
         key = (mm._CR_CONFIRMED_ONE if len(plan.confirmed_skipped) == 1
                else mm._CR_CONFIRMED_MANY)
