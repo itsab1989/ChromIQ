@@ -1300,7 +1300,7 @@ class ChartCreator:
 
         def _after_printtarg(code: int) -> None:
             if (not second["done"] and code == 0 and not self._cancelling
-                    and params.cal_target and params.no_randomise):
+                    and params.cal_target and _printtarg_keeps_order(params)):
                 added = self._arrange_ramps_for_printtarg(work_dir, stem)
                 if added:
                     second["done"] = True
@@ -2531,7 +2531,7 @@ class ChartCreator:
         if p.margin_mm != 6:
             args += [f"-m{p.margin_mm}"]
         args.append(f"-M{p.margin_mm}")
-        if p.no_randomise:
+        if _printtarg_keeps_order(p):
             args.append("-r")
         if p.bw_spacers:
             args.append("-b")
@@ -2724,6 +2724,21 @@ class ChartCreator:
                 f.unlink()
             except OSError:
                 pass
+
+
+def _printtarg_keeps_order(p: "ChartParams") -> bool:
+    """Whether printtarg gets ``-r`` (lay the patches out in ``.ti1`` order).
+
+    **A CALIBRATION CHART ALWAYS DOES** (calibration_run_type §4.2: the
+    calibration knobs switch ``-r`` on), whatever the layout recipe says.
+    Unticking "Use the ChromIQ layout engine" copies the recipe's
+    "Randomise" onto printtarg's ``-r`` (68742ca1c), which dropped the knob's
+    ``-r``: the printtarg calibration chart came out shuffled, and the
+    one-ramp-per-strip arrangement was (correctly) skipped for it. The engine
+    branch already forces ``randomize=False`` (``_engine_kwargs``); this is
+    the same rule for printtarg. Profiling charts keep the user's choice.
+    """
+    return bool(p.no_randomise or getattr(p, "cal_target", False))
 
 
 # ---------------------------------------------------------------------------
