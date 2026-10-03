@@ -1509,6 +1509,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._manager.engine_fallback_refused.connect(
             self._on_engine_fallback_refused)
         self._manager.chart_unreadable.connect(self._on_chart_unreadable)
+        self._manager.legacy_chart_read_ended.connect(
+            self._on_legacy_chart_read_ended)
         self._manager.calibration_retrying.connect(self._on_calibration_retrying)
         # D. Spot / XY mode defensive handlers
         self._manager.xy_place_sheet.connect(self._on_xy_place_sheet)
@@ -6807,18 +6809,63 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         chartread checks it (`alphix.chart_locations_problem`), and nothing
         starts: no engine, no stock chartread, no fallback.
         """
+        self._engine_only_chart = ""
         if not self._ti1_path:
             return False
+        chart = self._chart_file_for(self._ti1_path)
         try:
             from workflow.layout_engine.alphix import chart_locations_problem
-            detail = chart_locations_problem(self._chart_file_for(self._ti1_path))
+            detail = chart_locations_problem(chart)
         except Exception:      # noqa: BLE001 — never block a read on this check
             log.debug("could not check the chart's locations", exc_info=True)
             return False
         if detail is None:
             return False
+        # A SHEET PRINTED WITH CHROMIQ'S OLD LABELS (Knut, #182 5965589190
+        # Q2): ChromIQ's engine reads it as printed, without touching the
+        # chart file; ArgyllCMS chartread cannot, and its user is told so.
+        from workflow import chartread_engine
+        from workflow.layout_engine.labels import legacy_reading
+        engine_reads_it = False
+        if legacy_reading(chart) is not None:
+            try:
+                engine_reads_it = (chartread_engine.is_available()
+                                   and chartread_engine.reads_legacy_labels())
+            except Exception:      # noqa: BLE001
+                engine_reads_it = False
+        if engine_reads_it and self._engine_selected():
+            self._engine_only_chart = detail
+            self._log.appendPlainText(tr(
+                "[Engine] This chart's labels were printed by an earlier "
+                "version of ChromIQ. ChromIQ's measuring engine reads them as "
+                "printed; ArgyllCMS chartread cannot, so it will not be used "
+                "for this chart."))
+            self._log.ensureCursorVisible()
+            return False
+        if engine_reads_it:
+            self._chart_legacy_stock_window(detail)
+            return True
         self._chart_unreadable_window(detail)
         return True
+
+    def _chart_legacy_stock_window(self, detail: str) -> None:
+        """M-CHART-LEGACY-STOCK: only ChromIQ's engine can read this sheet,
+        and Preferences selects ArgyllCMS chartread."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CHART_LEGACY_STOCK.render(detail=detail)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._say_on_screen(title, body)
+
+    def _on_legacy_chart_read_ended(self, reason: str) -> None:
+        """M-CHART-LEGACY-ENDED: the engine run on a sheet only it can read
+        ended, and no fallback was made. The log and the status line, as
+        `_on_engine_fallback_refused` does."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CHART_LEGACY_ENDED.render(reason=reason)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._flash_status(title, duration_ms=8000)
 
     def _chart_unreadable_window(self, detail: str) -> None:
         """M-CHART-LOCATIONS-UNREADABLE, in the log and in one window."""
@@ -16977,6 +17024,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Set BEFORE every early return: this is a property of the chart, not
         # of the engine, and the manager needs it whichever reader runs (#159).
         p.stock_reader_cannot_read = p.external_values = self._chart_is_cr30()
+        # …and whether stock chartread can read this chart's labels at all
+        # (`_blocked_by_unreadable_locations`, #182 5965589190 Q2).
+        p.stock_cannot_read_chart = str(
+            vars(self).get("_engine_only_chart") or "")
         if not self._engine_selected():
             return p
         from workflow import chartread_engine

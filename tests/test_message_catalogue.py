@@ -364,6 +364,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # any reader starts. Our words, waiting here.
                                  "M-CHART-PATTERN-REFUSED",
                                  "M-CHART-LOCATIONS-UNREADABLE",
+                                 # …and Knut's Q2 (#182 5965589190): a sheet
+                                 # printed with ChromIQ's old labels is read by
+                                 # the engine; stock chartread users are told.
+                                 "M-CHART-LEGACY-STOCK", "M-CHART-LEGACY-ENDED",
                                  # 2026-08-27, Knut: a typed project name that
                                  # already names a project on disk was adopted
                                  # in silence. No section of the model governed
@@ -716,6 +720,8 @@ WINDOW_SOURCES = [
     # read, before any reader starts and from the engine's typed event.
     ("ui.tabs.tab_measure", "TabMeasure", "_chart_unreadable_window"),
     ("ui.tabs.tab_measure", "TabMeasure", "_on_chart_unreadable"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_chart_legacy_stock_window"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_on_legacy_chart_read_ended"),
     ("ui.tabs.tab_chart", "TabChart", "_refresh_pattern_gate"),
     # #182 5958921500: Continue to next / Jump to unread.
     ("ui.tabs.tab_measure", "TabMeasure", "_unread_choice_window"),

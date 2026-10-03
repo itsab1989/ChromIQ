@@ -1874,6 +1874,38 @@ M_CHART_LOCATIONS_UNREADABLE = _m(
     "strips and 0-9,@-9,@-9;1-999 for patches) and print it again.",
     approved=False)
 
+# --- PROPOSED: a sheet only ChromIQ's engine can read, on stock chartread ----
+#: Knut, #182 5965589190 Q2: a sheet printed with ChromIQ's labels from
+#: before 4.3.3-beta.7 is read by ChromIQ's own engine as printed, and a user
+#: of ArgyllCMS chartread is told plainly that chartread cannot read it.
+M_CHART_LEGACY_STOCK = _m(
+    "M-CHART-LEGACY-STOCK",
+    "ArgyllCMS chartread cannot read this chart",
+    "This chart's patch locations do not fit its strip and patch patterns: "
+    "{detail}.\n\n"
+    "The labels were printed by an earlier version of ChromIQ, and ArgyllCMS "
+    "chartread reads them differently from the sheet, so it would refuse the "
+    "chart or file the readings under the wrong patches. ChromIQ's own "
+    "measuring engine reads the labels as they are printed.\n\n"
+    "Right now, “ChromIQ chart-reading engine” in Preferences → Measurement "
+    "is switched off, so ArgyllCMS chartread reads your charts. Switch it on "
+    "and this chart measures normally. Nothing has been started or changed.",
+    approved=False)
+
+# --- PROPOSED: that sheet's engine run ended, and there is no second reader ---
+M_CHART_LEGACY_ENDED = _m(
+    "M-CHART-LEGACY-ENDED",
+    "The measurement stopped",
+    "Reading this chart has stopped before it finished.\n\n"
+    "This chart's labels were printed by an earlier version of ChromIQ in a "
+    "way ArgyllCMS chartread cannot read, so there is no second reader to "
+    "try, and ChromIQ has not started it.\n\n"
+    "Nothing you have already measured is lost: every patch that was read is "
+    "on disk, and you can carry on from it by ticking “Refine / resume "
+    "existing measurement (-r)” before you press Start again.\n\n"
+    "What went wrong: {reason}",
+    approved=False)
+
 M_NO_INSTRUMENT_FAST = _m(
     "M-NO-INSTRUMENT-FAST",
     "No Instrument Found",
@@ -4090,6 +4122,7 @@ CATALOGUE = {m.id: m for m in (
     M_CR_STRIPS, M_CR_START_OVER, M_CR_PRECONDITIONING,
     M_ENGINE_FELL_BACK,
     M_CHART_PATTERN_REFUSED, M_CHART_LOCATIONS_UNREADABLE,
+    M_CHART_LEGACY_STOCK, M_CHART_LEGACY_ENDED,
     M_PATCHSET_MISSING,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,

@@ -354,6 +354,30 @@ def location_key(cl: ChartLabels, loc: str) -> "tuple[int, int] | None":
     return sp
 
 
+def legacy_reading(ti2: "str | Path | None") -> "ChartLabels | None":
+    """The old rule's labels for a chart ChromIQ printed with them, when they
+    explain every location of the chart exactly; else None.
+
+    That is the reading ChromIQ's engine applies to such a sheet, so a None
+    here means no reader at all can measure it."""
+    try:
+        from core.text_io import read_text
+        kw, locs = read_chart_text(read_text(Path(ti2), lenient=True))
+    except Exception:          # noqa: BLE001
+        return None
+    if not locs or not str(kw.get("ORIGINATOR", "")).startswith("ChromIQ"):
+        return None
+    n_strips, steps = _chart_counts(kw, len(locs))
+    cl = ChartLabels(kw.get("STRIP_INDEX_PATTERN") or DEFAULT_STRIP_PATTERN,
+                     kw.get("PATCH_INDEX_PATTERN") or DEFAULT_PATCH_PATTERN,
+                     rule=LEGACY,
+                     ixord=1 if kw.get("INDEX_ORDER") == "PATCH_THEN_STRIP" else 0,
+                     n_strips=n_strips, steps=steps)
+    if not _fits(cl, locs) or len({cl.split(x) for x in locs}) != len(locs):
+        return None
+    return cl
+
+
 def label_rule_of_chart(ti2: "str | Path | None") -> str:
     """``"legacy"`` for a chart printed with ChromIQ's old rule, else
     ``"argyll"``. A redraw of a stored chart passes this to the build, so the

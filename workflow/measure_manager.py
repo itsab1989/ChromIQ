@@ -213,6 +213,11 @@ class MeasureParams:
     #: produces XYZ and `-xl` would make the helper run icmLab2XYZ over a
     #: conversion ChromIQ had already done.
     external_values: bool = False
+    #: Why stock ArgyllCMS chartread cannot read THIS chart, when ChromIQ's
+    #: engine can: a sheet printed with ChromIQ's labels from before
+    #: 4.3.3-beta.7 (Knut, #182 5965589190 Q2). Set by the tab from its
+    #: pre-check; every fallback to stock chartread is withheld.
+    stock_cannot_read_chart: str = ""
 
 
 def _labels_or_default(cl):
@@ -275,6 +280,9 @@ class MeasureManager(QObject):
     # `{"event":"error","kind":"chart_unreadable"}`; carries the detail. Every
     # fallback to stock chartread is withheld for this reason, and only this.
     chart_unreadable = pyqtSignal(str)
+    # A sheet only the engine can read (stock_cannot_read_chart) ended its
+    # engine run with an error; there is no second reader. Carries the reason.
+    legacy_chart_read_ended = pyqtSignal(str)
     # A failed calibration is being retried automatically: (attempt, of_total).
     calibration_retrying   = pyqtSignal(int, int)
     calibration_done       = pyqtSignal()    # emitted when instrument calibration completes
@@ -465,6 +473,7 @@ class MeasureManager(QObject):
         #: The reason the chart's locations cannot be read by any reader, from
         #: the engine's typed event (forum report, 2026-10-03), or None.
         self._chart_unreadable: "str | None" = None
+        self._stock_cannot_read_chart: str = ""
         self._engine_progress: bool = False
         self._engine_saw_event: bool = False
         self._engine_fallback_used: bool = False
@@ -551,6 +560,8 @@ class MeasureManager(QObject):
         #: may happen — see :attr:`MeasureParams.stock_reader_cannot_read`.
         self._stock_reader_cannot_read = bool(params.stock_reader_cannot_read)
         self._chart_unreadable = None
+        self._stock_cannot_read_chart = str(
+            getattr(params, "stock_cannot_read_chart", "") or "")
         #: The helper's own last error sentence, printed as PROSE on stderr and
         #: outside the JSON channel. Nothing captured it, which is why the log
         #: said "(unknown error)" while the helper had said exactly what was
@@ -588,8 +599,21 @@ class MeasureManager(QObject):
                 self.chart_unreadable.emit(self._chart_unreadable)
                 on_finish(code)
                 return
+            if (was_engine and self._stock_cannot_read_chart
+                    and code != 0 and not self._user_quit):
+                # Knut, #182 5965589190 Q2: a sheet printed with ChromIQ's
+                # old labels is read by the engine; stock chartread would
+                # refuse it or misfile the readings, so none of the three
+                # fallbacks below may run, whatever made the engine stop.
+                reason = self._engine_failure_reason()
+                log.warning("engine run on a sheet stock chartread cannot "
+                            "read ended (%s), not falling back", reason)
+                self.legacy_chart_read_ended.emit(reason)
+                on_finish(code)
+                return
             if (was_engine and self._engine_mode_fallback
-                    and not self._stock_reader_cannot_read):
+                    and not self._stock_reader_cannot_read
+                    and not self._stock_cannot_read_chart):
                 # XY/chart mode with the engine opt-in off: silently re-run on
                 # stock chartread (over a PTY, where those modes' console
                 # prompts work). Not an error — no scary wording.
@@ -802,7 +826,7 @@ class MeasureManager(QObject):
             return False
         if self._engine_fallback_used:
             return False
-        if self._chart_unreadable is not None:
+        if self._chart_unreadable is not None or self._stock_cannot_read_chart:
             return False        # stock chartread reads the chart the same way
         return self._engine_fatal is not None or not self._engine_saw_event
 
@@ -880,7 +904,7 @@ class MeasureManager(QObject):
         not something to silently retry."""
         if code == 0 or self._user_quit or self._engine_fallback_used:
             return False
-        if self._chart_unreadable is not None:
+        if self._chart_unreadable is not None or self._stock_cannot_read_chart:
             return False        # the resume would read the same chart
         return self._engine_fatal is not None and self._engine_progress
 
