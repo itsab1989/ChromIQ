@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "Смуги з найбільшою похибкою (спочатку найгірші, середнє ΔE):",
  "Patches with highest error (worst first, ΔE):": "Патчі з найбільшою похибкою (спочатку найгірші, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Смуги, позначені для повторного вимірювання (у порядку вимірювання, поріг ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Кероване уточнення] Автонавігація ({strips}): {names}, у порядку діаграми."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Кероване уточнення] Автонавігація ({strips}): {names}, у порядку діаграми.",
+ "How the calibration chart is made": "Як створюється діаграма калібрування",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "Діаграму створює targen з «Одноканальних кроків», тому редактор набору патчів не потрібен. «Створити діаграму» тут записує лише в папку проєкту «cal»; ваші запуски профілю не зачіпаються.",
+ "Not available for a calibration chart": "Недоступно для діаграми калібрування",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "«Тип запуску» встановлено на «Калібрування». Діаграму калібрування створює targen з «Одноканальних кроків», і вона потрапляє в папку проєкту «cal», тож набір патчів чи діаграму пресета для неї використати не можна, а ваші запуски профілю не зачіпаються.\n\nЩоб використати його для запуску профілю, спершу встановіть «Тип запуску» на «Профілювання»."
 }

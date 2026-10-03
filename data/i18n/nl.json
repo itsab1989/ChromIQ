@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "Stroken met de grootste fout (slechtste eerst, gem. ΔE):",
  "Patches with highest error (worst first, ΔE):": "Meetvelden met de grootste fout (slechtste eerst, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Stroken gemarkeerd om opnieuw te meten (in meetvolgorde, drempel ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Begeleide verfijning] Automatische navigatie naar {strips} gestart: {names}, in de volgorde van de kaart."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Begeleide verfijning] Automatische navigatie naar {strips} gestart: {names}, in de volgorde van de kaart.",
+ "How the calibration chart is made": "Hoe de kalibratiekaart wordt gemaakt",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "De kaart wordt door targen gemaakt uit “Enkelkanaal-stappen”, dus de meetveldset-editor is niet nodig. “Genereren” schrijft hier alleen in de map “cal” van het project; je profielruns blijven onaangeroerd.",
+ "Not available for a calibration chart": "Niet beschikbaar voor een kalibratiekaart",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "“Runtype” staat op “Kalibratie”. Een kalibratiekaart wordt door targen gemaakt uit “Enkelkanaal-stappen” en komt in de map “cal” van het project, dus een meetveldset of de kaart van een preset kan er niet voor worden gebruikt, en je profielruns blijven onaangeroerd.\n\nOm het voor een profielrun te gebruiken, zet je eerst “Runtype” op “Profilering”."
 }

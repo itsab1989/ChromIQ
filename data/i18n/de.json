@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "Streifen mit dem größten Fehler (schlechteste zuerst, Ø ΔE):",
  "Patches with highest error (worst first, ΔE):": "Messfelder mit dem größten Fehler (schlechteste zuerst, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Zum Nachmessen markierte Streifen (in Messreihenfolge, Schwelle ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Geführte Verfeinerung] Automatische Navigation zu {strips}: {names}, in Chart-Reihenfolge."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Geführte Verfeinerung] Automatische Navigation zu {strips}: {names}, in Chart-Reihenfolge.",
+ "How the calibration chart is made": "Wie das Kalibrierungs-Chart entsteht",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "Das Chart erzeugt targen aus den „Einzelkanal-Stufen“, der Messfeldsatz-Editor wird also nicht gebraucht. „Erzeugen“ schreibt hier nur in den Ordner „cal“ des Projekts; deine Profilläufe bleiben unberührt.",
+ "Not available for a calibration chart": "Für ein Kalibrierungs-Chart nicht verfügbar",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "„Lauftyp“ steht auf „Kalibrierung“. Ein Kalibrierungs-Chart erzeugt targen aus den „Einzelkanal-Stufen“, und es landet im Ordner „cal“ des Projekts. Ein Messfeldsatz oder ein Preset-Chart lässt sich dafür nicht verwenden, und deine Profilläufe bleiben unberührt.\n\nUm es für einen Profillauf zu nutzen, stelle „Lauftyp“ zuerst auf „Profilierung“."
 }

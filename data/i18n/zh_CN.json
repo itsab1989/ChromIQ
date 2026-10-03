@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "误差最大的色条（最差在前，平均ΔE）：",
  "Patches with highest error (worst first, ΔE):": "误差最大的色块（最差在前，ΔE）：",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "标记为需重新测量的色条（按测量顺序，阈值 ΔE > {limit:.1f}）：",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[引导优化] 开始自动导航到 {strips}：{names}，按色卡顺序。"
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[引导优化] 开始自动导航到 {strips}：{names}，按色卡顺序。",
+ "How the calibration chart is made": "校准色卡是怎样生成的",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "色卡由 targen 根据「单通道级数」生成，所以不需要色块集编辑器。在这里点「生成色卡」只会写入项目的 cal 文件夹；你的配置文件运行不会被改动。",
+ "Not available for a calibration chart": "校准色卡不可用",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "「运行类型」设为「校准」。校准色卡由 targen 根据「单通道级数」生成，并放在项目的 cal 文件夹里，所以不能使用色块集或预设的色卡，你的配置文件运行也不会被改动。\n\n要把它用于配置文件运行，请先把「运行类型」设为「特性化」。"
 }

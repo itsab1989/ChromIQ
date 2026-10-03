@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.3.3-beta.7 (unreleased)
+
+### Fixed
+
+- **Run type Calibration no longer builds into a profile run** (#182, Knut). With a run whose chart came from a preset or a loaded patch set, Generate Chart in Calibration rebuilt that run's chart and moved its measurement and profile into the run's `old/` folder, without a window. In Calibration, Generate Chart now always makes the calibration chart with targen into the project's `cal` folder. Picking a built-in preset, "Load patch set" and applying a patch set from the editor say that they are not available for a calibration chart and change nothing, and the live preview does not re-lay a chart out while Calibration is selected.
+- **A preset or patch set no longer follows you to another target** (#182, Knut). Switching to or from Calibration, to another run type or to another project drops it, and the "Edit patch recipe" and "Edit page layout" boxes start unticked on every target. Back on a run whose chart came from a patch set, that patch set is attached again and locked. A run whose chart was made by targen no longer keeps the previous run's patch set. A chart built from a preset or a loaded patch set into a New run or a new project keeps its patch set, and typing in the project name box changes nothing.
+- **A calibration chart is printed in order** (#182): with the ChromIQ layout engine its ramps were shuffled over the sheet although "do not randomise" was on; they now run strip by strip in order.
+- **The "Calibrate my printer" help card** says how the calibration chart is made (by targen, from "Single Channel Steps", so the Patch Set Editor is not needed) and that Generate Chart there writes only into the project's "cal" folder.
+- **The log no longer calls a Generate on a loaded patch set a "live preview"**.
+
 ## v4.3.3-beta.6
 
 **Continue to next or jump to unread; yellow outlines learned per colour range; progress that counts each patch once; and a Check & Refine window that shows every line.**

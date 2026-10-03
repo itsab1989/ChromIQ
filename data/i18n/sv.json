@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "Remsor med högst fel (värst först, medel-ΔE):",
  "Patches with highest error (worst first, ΔE):": "Fält med högst fel (värst först, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Remsor flaggade för ommätning (i mätordning, tröskel ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Guidad förbättring] Startar automatisk navigering till {strips}: {names}, i diagrammets ordning."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Guidad förbättring] Startar automatisk navigering till {strips}: {names}, i diagrammets ordning.",
+ "How the calibration chart is made": "Så görs kalibreringsdiagrammet",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "Diagrammet görs av targen från ”Enkanalssteg”, så fältset-redigeraren behövs inte. ”Generera” skriver här bara till projektets mapp ”cal”; dina profilkörningar rörs inte.",
+ "Not available for a calibration chart": "Inte tillgängligt för ett kalibreringsdiagram",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "”Körningstyp” står på ”Kalibrering”. Ett kalibreringsdiagram görs av targen från ”Enkanalssteg” och hamnar i projektets mapp ”cal”, så ett fältset eller en förinställnings diagram kan inte användas till det, och dina profilkörningar rörs inte.\n\nFör att använda det i en profilkörning ställer du först ”Körningstyp” på ”Profilering”."
 }

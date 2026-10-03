@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "Strisce con l'errore più alto (peggiori per prime, ΔE medio):",
  "Patches with highest error (worst first, ΔE):": "Tasselli con l'errore più alto (peggiori per primi, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Strisce segnalate da rimisurare (in ordine di misura, soglia ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Affinamento guidato] Avvio della navigazione automatica verso {strips}: {names}, nell'ordine del grafico."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Affinamento guidato] Avvio della navigazione automatica verso {strips}: {names}, nell'ordine del grafico.",
+ "How the calibration chart is made": "Come viene creato il grafico di calibrazione",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "Il grafico viene creato da targen a partire da «Passi a canale singolo», quindi l'editor del set di tasselli non serve. «Genera» qui scrive solo nella cartella «cal» del progetto; le tue esecuzioni profilo non vengono toccate.",
+ "Not available for a calibration chart": "Non disponibile per un grafico di calibrazione",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "«Tipo di esecuzione» è impostato su «Calibrazione». Un grafico di calibrazione viene creato da targen a partire da «Passi a canale singolo» e va nella cartella «cal» del progetto, quindi non si può usare un set di tasselli né il grafico di un preset, e le tue esecuzioni profilo non vengono toccate.\n\nPer usarlo in un'esecuzione profilo, imposta prima «Tipo di esecuzione» su «Profilazione»."
 }

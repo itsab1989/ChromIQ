@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "Bandes avec l'erreur la plus élevée (pires en premier, ΔE moyen) :",
  "Patches with highest error (worst first, ΔE):": "Plages avec l'erreur la plus élevée (pires en premier, ΔE) :",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Bandes signalées pour une nouvelle mesure (dans l'ordre de mesure, seuil ΔE > {limit:.1f}) :",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Affinage guidé] Démarrage de la navigation automatique vers {strips} : {names}, dans l'ordre de la mire."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Affinage guidé] Démarrage de la navigation automatique vers {strips} : {names}, dans l'ordre de la mire.",
+ "How the calibration chart is made": "Comment la mire de calibration est créée",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "La mire est créée par targen à partir de « Pas par canal unique », l'éditeur de jeu de plages n'est donc pas nécessaire. « Générer » n'écrit ici que dans le dossier « cal » du projet ; tes exécutions de profil ne sont pas touchées.",
+ "Not available for a calibration chart": "Indisponible pour une mire de calibration",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "« Type d'exécution » est réglé sur « Calibration ». Une mire de calibration est créée par targen à partir de « Pas par canal unique » et va dans le dossier « cal » du projet : un jeu de plages ou la mire d'un préréglage ne peut donc pas servir, et tes exécutions de profil ne sont pas touchées.\n\nPour l'utiliser dans une exécution de profil, règle d'abord « Type d'exécution » sur « Profilage »."
 }

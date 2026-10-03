@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "誤差が最も大きいストリップ（悪い順、平均ΔE）:",
  "Patches with highest error (worst first, ΔE):": "誤差が最も大きいパッチ（悪い順、ΔE）:",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "再測定用にフラグの付いたストリップ（測定順、しきい値 ΔE > {limit:.1f}）:",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[ガイド付き改良] {strips}への自動ナビゲーションを開始します：{names}（チャートの順）。"
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[ガイド付き改良] {strips}への自動ナビゲーションを開始します：{names}（チャートの順）。",
+ "How the calibration chart is made": "キャリブレーションチャートの作られ方",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "チャートは targen が「単一チャンネルステップ」から作るので、パッチセットエディターは必要ありません。ここでの「生成」はプロジェクトの「cal」フォルダにだけ書き込み、プロファイル実行には触れません。",
+ "Not available for a calibration chart": "キャリブレーションチャートでは使えません",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "「実行タイプ」が「キャリブレーション」になっています。キャリブレーションチャートは targen が「単一チャンネルステップ」から作り、プロジェクトの「cal」フォルダに入るため、パッチセットやプリセットのチャートは使えません。プロファイル実行には触れません。\n\nプロファイル実行で使うには、先に「実行タイプ」を「プロファイリング」にしてください。"
 }

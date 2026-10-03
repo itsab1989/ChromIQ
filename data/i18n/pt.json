@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "Tiras com o maior erro (piores primeiro, ΔE médio):",
  "Patches with highest error (worst first, ΔE):": "Amostras com o maior erro (piores primeiro, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Tiras marcadas para nova medição (por ordem de medição, limiar ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Refinamento guiado] A iniciar a navegação automática para {strips}: {names}, pela ordem da carta."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Refinamento guiado] A iniciar a navegação automática para {strips}: {names}, pela ordem da carta.",
+ "How the calibration chart is made": "Como é criada a carta de calibração",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "A carta é criada pelo targen a partir de «Passos de canal único», por isso o editor do conjunto de amostras não é necessário. Aqui, «Gerar» escreve apenas na pasta «cal» do projeto; as suas execuções de perfil não são tocadas.",
+ "Not available for a calibration chart": "Indisponível para uma carta de calibração",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "«Tipo de execução» está definido como «Calibração». Uma carta de calibração é criada pelo targen a partir de «Passos de canal único» e vai para a pasta «cal» do projeto, por isso não é possível usar um conjunto de amostras nem a carta de um preset, e as suas execuções de perfil não são tocadas.\n\nPara o usar numa execução de perfil, defina primeiro «Tipo de execução» como «Perfilagem»."
 }

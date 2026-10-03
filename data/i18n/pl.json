@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "Paski z największym błędem (najgorsze najpierw, śr. ΔE):",
  "Patches with highest error (worst first, ΔE):": "Pola z największym błędem (najgorsze najpierw, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Paski oznaczone do ponownego pomiaru (w kolejności pomiaru, próg ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Prowadzone dopracowanie] Automatyczna nawigacja ({strips}): {names}, w kolejności na wzorcu."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Prowadzone dopracowanie] Automatyczna nawigacja ({strips}): {names}, w kolejności na wzorcu.",
+ "How the calibration chart is made": "Jak powstaje wzorzec kalibracji",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "Wzorzec tworzy targen z „Kroków pojedynczego kanału”, więc edytor zestawu pól nie jest potrzebny. „Generuj” zapisuje tu tylko do folderu „cal” projektu; Twoje przebiegi profilu pozostają nietknięte.",
+ "Not available for a calibration chart": "Niedostępne dla wzorca kalibracji",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "„Typ przebiegu” jest ustawiony na „Kalibracja”. Wzorzec kalibracji tworzy targen z „Kroków pojedynczego kanału” i trafia on do folderu „cal” projektu, więc nie można do niego użyć zestawu pól ani wzorca z presetu, a Twoje przebiegi profilu pozostają nietknięte.\n\nAby użyć go w przebiegu profilu, najpierw ustaw „Typ przebiegu” na „Profilowanie”."
 }

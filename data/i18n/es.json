@@ -6504,5 +6504,9 @@
  "Strips with highest error (worst first, avg ΔE):": "Tiras con mayor error (peores primero, ΔE medio):",
  "Patches with highest error (worst first, ΔE):": "Parches con mayor error (peores primero, ΔE):",
  "Strips flagged for re-measurement (in measurement order, threshold ΔE > {limit:.1f}):": "Tiras marcadas para volver a medir (en orden de medición, umbral ΔE > {limit:.1f}):",
- "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Refinado guiado] Iniciando la navegación automática a {strips}: {names}, en el orden de la carta."
+ "[Guided Refinement] Starting auto-navigation to {strips}: {names}, in chart order.": "[Refinado guiado] Iniciando la navegación automática a {strips}: {names}, en el orden de la carta.",
+ "How the calibration chart is made": "Cómo se crea la carta de calibración",
+ "The chart is made by targen from “Single Channel Steps”, so the Patch Set Editor is not needed. Generate Chart here writes only into the project's “cal” folder; your profile runs are not touched.": "La carta la crea targen a partir de «Pasos de canal único», así que no hace falta el editor de conjuntos de parches. «Generar» escribe aquí solo en la carpeta «cal» del proyecto; tus ejecuciones de perfil no se tocan.",
+ "Not available for a calibration chart": "No disponible para una carta de calibración",
+ "“Run type” is set to “Calibration”. A calibration chart is made by targen from “Single Channel Steps” and goes into the project's “cal” folder, so a patch set or a preset chart cannot be used for it, and your profile runs are not touched.\n\nTo use it for a profile run, set “Run type” to “Profiling” first.": "«Tipo de ejecución» está en «Calibración». Una carta de calibración la crea targen a partir de «Pasos de canal único» y va a la carpeta «cal» del proyecto, así que no se puede usar un conjunto de parches ni la carta de un preajuste, y tus ejecuciones de perfil no se tocan.\n\nPara usarlo en una ejecución de perfil, pon antes «Tipo de ejecución» en «Perfilado»."
 }
