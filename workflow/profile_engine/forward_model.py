@@ -94,10 +94,14 @@ def _grid_solve(w: np.ndarray, cols: np.ndarray, y: np.ndarray, grid: int,
         return (w[:, :, None] * x[cols]).sum(1)
 
     def wtmul(r: np.ndarray) -> np.ndarray:
-        o = np.zeros((ng, r.shape[1]))
-        np.add.at(o, cols.reshape(-1),
-                  (w[:, :, None] * r[:, None, :]).reshape(-1, r.shape[1]))
-        return o
+        # np.bincount accumulates in input order exactly like np.add.at
+        # (same products, same sequence of additions from 0.0, so the same
+        # bits; Experiments/agent8 addat_vs_bincount.py and
+        # tests/test_engine_parallel_identity.py) at a fraction of the cost.
+        fc = cols.reshape(-1)
+        return np.stack([np.bincount(fc, (w * r[:, c:c + 1]).reshape(-1),
+                                     minlength=ng)
+                         for c in range(r.shape[1])], 1)
 
     def curvature(x: np.ndarray) -> np.ndarray:
         """Σ_axis D₂ᵀD₂ x — second-difference penalty, interior rows only.
