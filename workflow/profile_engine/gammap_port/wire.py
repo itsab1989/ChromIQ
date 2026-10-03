@@ -17,7 +17,6 @@ standing in for the profile that doesn't exist yet.
 """
 from __future__ import annotations
 
-import os
 import shutil
 import struct
 import subprocess
@@ -221,8 +220,7 @@ class ArgyllHelperMapper:
             # as the black: a call that succeeded never gets here, so every
             # table that built before keeps its bytes.
             if ("vector_isect" not in str(exc) or self._dst_cloud is None
-                    or self._wp_jab is None
-                    or not os.environ.get("CHROMIQ_F03_RETRY")):
+                    or self._wp_jab is None):
                 raise
             cloud = np.asarray(self._dst_cloud, float)
             c = np.hypot(cloud[:, 1], cloud[:, 2])
