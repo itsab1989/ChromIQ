@@ -34,7 +34,7 @@ def test_os_exit_stops_the_children(tmp_path):
         f"open({str(pidfile)!r}, 'w').write(str(p.pid))\n"
         "os._exit(0)\n")
     subprocess.run([sys.executable, "-c", code], timeout=60, check=True)
-    pid = int(pidfile.read_text())
+    pid = int(pidfile.read_text(encoding="utf-8"))
     deadline = time.time() + 10
     while time.time() < deadline:
         try:
@@ -43,7 +43,8 @@ def test_os_exit_stops_the_children(tmp_path):
             return
         # A zombie of an already-dead parent is reaped by init; ask ps.
         st = subprocess.run(["ps", "-o", "stat=", "-p", str(pid)],
-                            capture_output=True, text=True).stdout.strip()
+                            capture_output=True, text=True,
+                            encoding="utf-8").stdout.strip()
         if not st or st.startswith("Z"):
             return
         time.sleep(0.2)
