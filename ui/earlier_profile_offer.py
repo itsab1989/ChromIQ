@@ -104,6 +104,12 @@ class EarlierProfileOffer(QObject):
             return
         self._queue()
 
+    def pending(self) -> bool:
+        """A check is queued or waiting for another window to close: the
+        Measure tab's arrival windows hold back until it has been made, so
+        this question is always asked first (Archive changes what they say)."""
+        return self._queued or self._wait.isActive()
+
     def _queue(self) -> None:
         if self._queued:
             return

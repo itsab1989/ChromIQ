@@ -305,9 +305,9 @@ class MainWindow(QMainWindow):
         self._target_ctl.changed.connect(self._load_settings_of_visible_tab)
         # #182 (Knut 5964384250, 5965626117, UMM §6f): choosing Verification
         # for a run whose profile was replaced asks, once, about what the
-        # earlier profile left there. Built HERE, before the tabs get the
-        # controller, so its check is queued ahead of the Measure tab's
-        # arrival windows; each side also waits while another window is open.
+        # earlier profile left there. The Measure tab's arrival windows wait
+        # while its check is pending (`EarlierProfileOffer.pending`) or any
+        # window is open, so it is asked first; it waits for any open window.
         from ui.earlier_profile_offer import EarlierProfileOffer
         self._earlier_profile_offer = EarlierProfileOffer(
             self._target_ctl, self,

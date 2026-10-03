@@ -15768,8 +15768,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         window's question about an earlier profile, a loader's notice), and
         none of them says when it closes. Only the latest request of each kind
         is kept, and each is asked through its own queue, so the usual guards
-        (visible, due, silenced) are applied afresh."""
-        if QApplication.activeModalWidget() is None:
+        (visible, due, silenced) are applied afresh.
+
+        …AND WHILE THE MAIN WINDOW'S QUESTION ABOUT AN EARLIER PROFILE IS
+        STILL TO BE ASKED (review of #182 §6f). That question goes first on
+        purpose: "Archive" changes what these windows would say (it moves the
+        very measurement the offer is about). Being connected first did not
+        make it first: its check runs from a QTimer, and a zero-delay
+        ``QTimer.singleShot`` is a posted call that Qt delivers before timer
+        events, so on screen the offer opened ahead of it 3 times in 3."""
+        if not self._a_window_is_open_or_owed():
             return False
         owed = getattr(self, "_owed_after_window", None)
         if owed is None:
@@ -15786,8 +15794,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             timer.start()
         return True
 
-    def _after_other_window_closed(self) -> None:
+    def _a_window_is_open_or_owed(self) -> bool:
         if QApplication.activeModalWidget() is not None:
+            return True
+        try:
+            offer = getattr(self.window(), "_earlier_profile_offer", None)
+            return bool(offer is not None and offer.pending())
+        except Exception:      # noqa: BLE001 — never block the tab on this
+            return False
+
+    def _after_other_window_closed(self) -> None:
+        if self._a_window_is_open_or_owed():
             self._window_wait_timer.start()
             return
         owed = getattr(self, "_owed_after_window", set())

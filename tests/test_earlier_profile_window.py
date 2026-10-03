@@ -508,6 +508,10 @@ def test_text_b_opens_the_kept_chart_in_its_own_module(
         w._target_ctl.set_profile_run("run1")
         w._target_ctl.set_run_type(RUN_TYPE_VERIFICATION)
         QTest.qWait(150)
+        for _ in range(40):          # the module switch is one tick later
+            if w._tab_chart._mode_name() == module:
+                break
+            QTest.qWait(50)
         assert len(asked) == 1
         assert w._tabs.currentWidget() is w._tab_chart
         assert w._tab_chart._mode_name() == module
@@ -518,3 +522,46 @@ def test_text_b_opens_the_kept_chart_in_its_own_module(
     finally:
         w.close()
         w.deleteLater()
+
+
+def test_the_measure_tab_waits_while_the_earlier_profile_check_is_pending(
+        qapp, tmp_path, monkeypatch):
+    """Ours is asked FIRST (Archive changes what the offer would say). Being
+    connected first was not enough: a zero-delay QTimer.singleShot is a posted
+    call, delivered before the offer's QTimer, and on screen the existing-
+    measurement offer opened ahead of it 3 times in 3."""
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs import tab_measure as TM
+
+    class Pending:
+        busy = True
+
+        def pending(self):
+            return self.busy
+
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    host = QWidget()
+    host._earlier_profile_offer = Pending()
+    tab = TM.TabMeasure(ArgyllRunner(s), s)
+    tab.setParent(host)
+    calls: list = []
+    monkeypatch.setattr(TM.TabMeasure, "_queue_overlay_offer",
+                        lambda self: calls.append("offer"))
+    monkeypatch.setattr(TM.QApplication, "activeModalWidget",
+                        staticmethod(lambda: None))
+    assert tab._another_window_is_open("offer")
+    QTest.qWait(600)
+    assert calls == []
+    host._earlier_profile_offer.busy = False
+    QTest.qWait(600)
+    assert calls == ["offer"]
+
+
+def test_pending_covers_queued_and_waiting(env, monkeypatch):
+    env.date(env.p - timedelta(days=1))
+    assert not env.offer.pending()
+    env.offer._queue()
+    assert env.offer.pending()
+    QTest.qWait(30)
+    assert not env.offer.pending()
