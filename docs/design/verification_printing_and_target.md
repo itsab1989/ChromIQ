@@ -898,6 +898,41 @@ this chain, which needs no Apply Calibration step and cannot be stale.
 just add an option; it makes the report's existing reference correct for the
 first time.
 
+### 3.5 The live expected colour while a verification sheet is measured (#182, 2026-10-03)
+
+The print record of §3.3 is what makes this possible: it says what was sent to
+the printer. The full rule and how it was built are in
+`unified_measurement_management.md` §10.8; the rows below are the part that
+belongs to this document.
+
+#### Confirmed behaviour — the live check of a sheet ChromIQ printed
+
+**Confirmed by:** Knut, 2026-10-03, #182 [5964173774](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5964173774) / [5964384250](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5964384250) (questions 1 to 4 of [5963902307](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963902307)). Only these points:
+
+| # | Sheet | Live expected colour while measuring | Limit |
+|---|---|---|---|
+| A21 | printed by ChromIQ raw, or through the profile with any intent, with a profile | the run profile's prediction of the ink values really printed | ΔE 30 (the limit for a chart made from a profile); the strip outlier setting is ignored |
+| A22 | printed outside ChromIQ, or a run with no profile | the chart's sRGB estimate, as before | ΔE 95, as before |
+| A23 | the profile was built with an illuminant other than D50, another observer, or FWA | the chart's sRGB estimate | ΔE 95 |
+
+The hover card says when the expected colour is the profile's prediction
+(M-PATCH-EXPECTED-PREDICTED, §M-PROPOSED). The Measurement Report's references
+(§3.4) are not changed by this.
+
+#### ⏳ Awaiting confirmation — the record fields the live check reads (phase 1)
+
+**Confirmed by:** *nobody yet.*
+
+| # | Condition | Action | Where |
+|---|---|---|---|
+| A24 | `colour` raw | predict the `.ti2` RGB | `workflow/verify_expected.py::_sent_values_plan` |
+| A25 | `colour` through-profile | predict cctiff's output for the `.ti2` RGB through the recorded `source_profile` and `intent` and the run profile (A7's chain), at the page images' bit depth, never the `.ti2` RGB | `verify_expected.convert_like_the_print` |
+| A26 | `printer_calibration` with `applied_at_print` and the run's own `cal_sha1` (A3d) | predict before the `.cal`; a recorded calibration with another SHA-1 that can still be read: with it | `verify_expected._sent_values_plan` |
+| A27 | A17 `profile` / `profile_mtime` (through) differ from the run's profile now; or (raw, which records no profile) the profile is newer than `printed_at` | the sRGB estimate at 95, and the log says why. Knut's earlier Q4 ruling asks before measuring; that window is not built yet | `verify_expected._decide` |
+| A28 | no record, `route` not `chromiq`, or no `printed_at` (a `recorded` answer to M-HOW-PRINTED is not a print) | the sRGB estimate at 95 | same |
+
+Nothing is written at print time; the record is read as it is.
+
 ---
 
 ## 4. The Print Chart tab, reconciled

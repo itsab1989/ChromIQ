@@ -1671,6 +1671,7 @@
  "Excellent": "Excelente",
  "Existing:  {old}\nNew name:  {new}": "Existente:  {old}\nNovo nome:  {new}",
  "Expected": "Esperado",
+ "Expected: profile prediction": "Esperado: previsão do perfil",
  "Expected & measured (split)": "Esperado e medido (dividido)",
  "Expected colour only": "Só cor esperada",
  "Expected values:": "Valores esperados:",

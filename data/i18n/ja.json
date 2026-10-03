@@ -1671,6 +1671,7 @@
  "Excellent": "優秀",
  "Existing:  {old}\nNew name:  {new}": "既存:  {old}\n新しい名前:  {new}",
  "Expected": "期待値",
+ "Expected: profile prediction": "期待値: プロファイルの予測",
  "Expected & measured (split)": "期待値と測定値（分割）",
  "Expected colour only": "期待される色のみ",
  "Expected values:": "期待値:",

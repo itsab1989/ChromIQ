@@ -2,6 +2,10 @@
 
 ## v4.3.3-beta.7 (unreleased)
 
+### New
+
+- **A verification sheet is checked against what your profile predicts (#182).** While a verification chart ChromIQ printed is measured, each patch is now compared with the run profile's prediction of the ink values that really went to the printer: the chart's own RGB for a raw print, the converted values for a print through the profile (any intent). The red outline then uses the limit for a chart made from a profile (ΔE 30 by default) and ignores the strip outlier setting, so a shifted or wrong strip is outlined even when the whole strip is off; the hover card says "Expected: profile prediction". The painting after a measurement uses the same values. On Knut's gamut sheet the pure-blue corner went from ΔE 105 to 2.2, and on a second printer's sheets the typical patch from about 28 to 4. ChromIQ keeps the old comparison (the sRGB estimate at ΔE 95) when it cannot know what was printed: a sheet printed outside ChromIQ, a run without a profile, a profile changed since the sheet was printed, a profile built under another light (an illuminant other than D50, another observer or FWA compensation), or a conversion that fails. chromiq.log says which was used and why. Approved by Knut (5964173774, 5964384250).
+
 ### Fixed
 
 - **"Replace the stored chart" keeps the chart it replaces.** Measuring a different chart into a verification date that already had one copied the new chart over the old one in `<date>/chart/` and kept nothing, and left the old chart's extra files mixed in (a gamut chart's `-verify-reference.ti3` beside a regular chart made Restore Used Chart bring back a reference, so Print forced Raw). The old chart now goes to `<date>/old/<date-time>/chart/`, in the same folder as the date's old measurement once the new one is saved, and the new chart is stored on its own. If nothing is saved (Cancel on a later question, no instrument, a measurement that read nothing, an import the date refuses), the old chart is put back, because the date still holds the measurement made with it.

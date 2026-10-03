@@ -1671,6 +1671,7 @@
  "Excellent": "Чудово",
  "Existing:  {old}\nNew name:  {new}": "Existing:  {old}\nНова назва: {new}",
  "Expected": "Очікуваний",
+ "Expected: profile prediction": "Очікуваний: прогноз профілю",
  "Expected & measured (split)": "Очікуваний і виміряний (розділено)",
  "Expected colour only": "Лише очікуваний колір",
  "Expected values:": "Очікувані значення:",

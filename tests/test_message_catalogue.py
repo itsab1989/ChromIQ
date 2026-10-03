@@ -278,6 +278,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # the card lines beyond the post's one are
                                  # ours and wait here.
                                  "M-PATCH-COLOUR-RANGE",
+                                 # #182, 2026-10-03: Knut approved showing
+                                 # "expected: profile prediction" on the card
+                                 # (5964173774, answer 4); the exact words
+                                 # wait here.
+                                 "M-PATCH-EXPECTED-PREDICTED",
                                  # Feature B — wording agreed verbatim with
                                  # Sebastian on #133 (2026-08-02); listed for
                                  # the formal record.

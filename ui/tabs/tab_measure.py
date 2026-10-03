@@ -6066,6 +6066,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         preview). ΔE is only present with the ChromIQ reading engine."""
         import core.sound as _snd
         de = payload.get("de")
+        if de is not None and self._expected_is_predicted():
+            # Judged against the profile's prediction, like its outline.
+            de = self._with_expected([payload])[0].get("de", de)
         warn = self._patch_warn_limit()
         # A patch the preview has just drawn YELLOW (#182, B/B2) does not look
         # off: it is a known, real difference. This slot is connected after
@@ -6964,6 +6967,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # whether the session starts with that measurement's yellow memory.
         self._session_resumes = self._read_builds_on_existing()
         self._archive_measurement_before_replacing()
+        # THE EXPECTED COLOURS OF THIS READ (#182, Knut 5964173774): on a
+        # verification sheet ChromIQ printed, the run profile's prediction of
+        # what was sent, worked out once here, before the overlay is seeded,
+        # so every strip of the session and the repaint use the same values.
+        self._begin_live_expected()
         # A FRESH READ STARTS WITH A CLEAN SHEET.
         #
         # Knut, #130 2026-08-01: *"the strip that has been read is shown as
@@ -13932,7 +13940,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         keeps a good print from being flagged almost everywhere (the chart's
         "expected" values are design values, and a printer does not reproduce
         them). With it off, the threshold means exactly what it says.
+
+        **Never on a verification chart judged against the profile's
+        prediction** (Knut, #182 5964384250: *"should ChromIQ ignore this
+        setting and outline every patch above 30, even if the whole strip is
+        off? yes."*). With expected values that good the fence adds no
+        protection and hides a shifted or wrong strip. The setting is left
+        as the user set it, and keeps ruling every other chart.
         """
+        if self._expected_is_predicted():
+            return False
         try:
             return bool(self._settings.get("patch_warn_outlier_fence", True))
         except Exception:      # noqa: BLE001
@@ -14242,7 +14259,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._skip_next_all_done = False       # the re-read has happened
         self._engine_read[letter] = True
         page, local_idx, rect = self._locate_strip(letter)
-        patches = ev.get("patches", [])
+        # The expected colour this read is judged against: on a verification
+        # sheet ChromIQ printed, the profile's prediction (#182 5964173774).
+        patches = self._with_expected(ev.get("patches", []))
         if not patches:
             return
 
@@ -14425,7 +14444,89 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         limit for a chart with estimated expected colours, or for a chart made
         from a profile, as the chart's own file says."""
         from workflow.patch_flags import warn_limit
-        return warn_limit(self._settings, self._chart_expected_is_accurate())
+        # A verification chart judged against the profile's prediction takes
+        # the limit for accurate expected colours (Knut, #182 5964384250:
+        # "outline every patch above 30").
+        return warn_limit(self._settings, self._chart_expected_is_accurate()
+                          or self._expected_is_predicted())
+
+    # ------------------------------------------------------------------
+    # The expected colour of a verification patch (#182, Knut 5964173774)
+    # ------------------------------------------------------------------
+    def _expected_is_predicted(self) -> bool:
+        """True while the preview judges patches against the run profile's
+        prediction (``workflow/verify_expected.py``)."""
+        exp = getattr(self, "_live_expected", None)
+        return exp is not None and bool(getattr(exp, "is_prediction", False))
+
+    def _record_ti3_for(self, ti3: "Path | None") -> "Path | None":
+        """The measurement whose print record describes *ti3*'s sheet: a
+        dated verification staged beside the chart for a resume is described
+        by its own dated folder's record, everything else by its own walk."""
+        staged = getattr(self, "_staged_verification_ti3", None)
+        dated = getattr(self, "_staged_from", None)
+        if (ti3 is not None and staged is not None and dated is not None
+                and Path(ti3) == Path(staged)):
+            return Path(dated)
+        return ti3
+
+    def _verification_run_obj(self):
+        """The profiling run the loaded verification chart belongs to."""
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            proj = ctl.project_or_none() if ctl is not None else None
+            run_id = ctl.target.profile_run if ctl is not None else None
+            if proj is not None and run_id and proj.has_run(run_id):
+                return proj.run(run_id)
+        except Exception:      # noqa: BLE001
+            log.debug("could not find the verification's run", exc_info=True)
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is not None:
+            from core.file_manager import VERIFICATIONS_DIRNAME, Run
+            if Path(ti1).parent.name == VERIFICATIONS_DIRNAME:
+                return Run.for_dir(Path(ti1).parent.parent)
+        return None
+
+    def _expected_source_for(self, ti3: "Path | None"):
+        """Where the expected colours of the loaded chart come from when it is
+        measured or painted as *ti3* (``workflow.verify_expected``): the
+        profile's prediction on a verification sheet ChromIQ printed, or None
+        (the chart's own estimate) for everything else. Never raises."""
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None or ti3 is None or not self._is_verification_run():
+            return None
+        from core.file_manager import VERIFICATIONS_DIRNAME
+        if Path(ti1).parent.name != VERIFICATIONS_DIRNAME:
+            return None
+        try:
+            from workflow.verify_expected import live_expected
+            chart = Path(self._chart_file_for(ti1))
+            bin_dir = str(self._settings.get("argyll_bin_path",
+                                             "/Applications/Argyll/bin") or "")
+            return live_expected(chart, Path(self._record_ti3_for(ti3)),
+                                 self._verification_run_obj(), bin_dir=bin_dir)
+        except Exception:      # noqa: BLE001 — never lose the preview over this
+            log.warning("could not work out the verification's expected "
+                        "colours; the chart's own are used", exc_info=True)
+            return None
+
+    def _begin_live_expected(self) -> None:
+        """Settle the expected colours for the read about to start."""
+        self._live_expected = None
+        ti1 = getattr(self, "_ti1_path", None)
+        if ti1 is None:
+            return
+        self._live_expected = self._expected_source_for(
+            Path(ti1).with_suffix(".ti3"))
+
+    def _with_expected(self, patches) -> list:
+        """Engine patch events with the expected colour this read is judged
+        against (``verify_expected.apply_expected``; unchanged when the
+        chart's own estimate applies). Copies: other slots of the same signal
+        see the engine's event as it was sent."""
+        from workflow.verify_expected import apply_expected
+        return apply_expected(list(patches or []),
+                              getattr(self, "_live_expected", None))
 
     def _judge_patch(self, loc, exp_lab, meas_lab, de, flagged, *,
                      standout=None, live=True) -> "tuple[object, dict]":
@@ -14435,8 +14536,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         outline, red, or one of the two yellows of workflow/patch_flags.py),
         *extra* goes into the patch's hover info.
         """
-        accurate = self._chart_expected_is_accurate()
+        predicted = self._expected_is_predicted()
+        accurate = self._chart_expected_is_accurate() or predicted
         extra = {"accurate": accurate}
+        if predicted:
+            # The card says where "Expected" came from (Knut, #182
+            # 5964173774, answer 4).
+            extra["expected_source"] = "prediction"
         try:
             v = self._flag_judge().judge(loc, exp_lab, meas_lab, de,
                                          bool(flagged), standout=standout,
@@ -14685,6 +14791,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         from PyQt6.QtGui import QColor as _QC
         from workflow.icc_info import xyz_to_lab
         warn_de = self._patch_warn_limit()
+        # The same substitution as a strip (#182 5964173774).
+        ev = self._with_expected([ev])[0]
         de_p = float(ev.get("de", 0))
         exyz = ev.get("exyz", [0, 0, 0])
         mxyz = ev.get("xyz", [0, 0, 0])
@@ -14753,7 +14861,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         so the outlines after a measurement are the outlines during it.
         Patch-by-patch reading has no strip test, deliberately (see
         :meth:`_on_patch_measured`), so it is not passed for one."""
-        patches = ev.get("patches", [])
+        # A whole chart read live, or a measurement painted from disk (which
+        # per_patch_overlay has already given the same expected colours: the
+        # substitution changes nothing the second time).
+        patches = self._with_expected(ev.get("patches", []))
         if not patches or not any(self._patch_boxes):
             return
         from PyQt6.QtGui import QColor as _QC
@@ -15689,9 +15800,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # ever failed on a REOPENED project and never on one measured in the
         # same sitting. _chart_file_for exists for this and says so.
         chart = self._chart_file_for(self._ti1_path)
+        # THE SAME EXPECTED COLOURS AS DURING THE READ (#182 5964173774,
+        # UMM 10.6): a verification sheet ChromIQ printed is painted against
+        # the profile's prediction, worked out for THIS measurement's own
+        # print record; anything else against the chart, as before.
+        self._live_expected = self._expected_source_for(ti3)
         try:
             from workflow.measurement_report import per_patch_overlay
-            patches = per_patch_overlay(ti3, chart)
+            patches = per_patch_overlay(ti3, chart,
+                                        expected=self._live_expected)
         except Exception:          # noqa: BLE001 — never break on a bad file
             patches = []
         if not patches or not any(self._patch_boxes):
@@ -15769,6 +15886,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if now == getattr(self, "_painted_chart", None):
             return
         self._painted_chart = now
+        # The expected colours belonged to the chart we are leaving (#182
+        # 5964173774); the next read or painting works them out again.
+        self._live_expected = None
         try:
             self._clear_overlay()
             # The strip reading times belong to the chart that was measured,
