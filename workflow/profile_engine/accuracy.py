@@ -119,53 +119,10 @@ def fit_forward_model_accurate(
         progress("Fitting the printer model: scanning for misread "
                  "patches…")
     rw = None if row_weights is None else np.asarray(row_weights, float)
-
-    def _scan_fit():
-        return fit_forward_model(device, lab, grid=grid,
-                                 lam=4.0 * base_lam,
-                                 curve_rounds=min(curve_rounds, 1),
-                                 cg_iters=350, cg_rtol=_CG_RTOL, weights=rw)
-
-    def _splits():
-        nho = max(30, npts // 10)
-        folds = _CV_FOLDS if grid ** device.shape[1] <= _CV_FOLD_MAX_NODES \
-            else 1
-        out = []
-        for k in range(folds):
-            idx = np.random.default_rng(4242 + k).permutation(npts)
-            out.append((idx[:nho], idx[nho:]))
-        return out
-
-    def _cv_fit_err(lam_try, ho, trn, sig):
-        m = fit_forward_model(device[trn], lab[trn], grid=grid,
-                              lam=lam_try, cg_iters=350,
-                              curve_rounds=min(curve_rounds, 1),
-                              cg_rtol=_CG_RTOL,
-                              weights=None if rw is None else rw[trn])
-        r = dist(m.predict(device[ho]), lab[ho])
-        if sig is not None:
-            r = r / sig[ho]        # whitened: a true z-score criterion
-        return float(np.median(r))
-
-    # D-06 (agent 8): the stiff scan and every smoothing-search fit are
-    # independent fits of the same rows; run them side by side on pool
-    # threads and read the results in the serial order. Each fit is the
-    # same computation as before, so the numbers are the same bits. Only
-    # without the noise model: there the search's whitening depends on the
-    # scan's residuals.
-    from workflow.profile_engine import parallel
-    pre_errs: dict | None = None
-    if sigma is None and npts >= _HOLDOUT_MIN_PATCHES \
-            and parallel.worker_count() > 1:
-        sp = _splits()
-        keys = [(f, k) for f in _LAMBDA_FACTORS for k in range(len(sp))]
-        outs = parallel.run_tasks(
-            [_scan_fit] + [(lambda f=f, k=k: _cv_fit_err(
-                base_lam * f, sp[k][0], sp[k][1], None)) for f, k in keys])
-        scan = outs[0]
-        pre_errs = dict(zip(keys, outs[1:]))
-    else:
-        scan = _scan_fit()
+    scan = fit_forward_model(device, lab, grid=grid,
+                             lam=4.0 * base_lam,
+                             curve_rounds=min(curve_rounds, 1),
+                             cg_iters=350, cg_rtol=_CG_RTOL, weights=rw)
     res_scan = dist(scan.predict(device), lab)
 
     if sigma is not None:
@@ -224,13 +181,28 @@ def fit_forward_model_accurate(
                 r = r / sigma[ho]      # whitened: a true z-score criterion
             return float(np.median(r))
 
+        # D-06 (agent 8): every (factor, split) of the search is its own
+        # fit through cv_err, which reads only inputs fixed by now; in a
+        # Maximum accuracy build they run side by side on pool threads and
+        # are read back in the serial order. Whatever cv_err does (a
+        # candidate may change it), each call is the same computation, so
+        # the same bits. The noise-model hill-climb below stays serial.
+        from workflow.profile_engine import parallel
+        pre = None
+        if parallel.worker_count() > 1:
+            keys = [(f, k) for f in _LAMBDA_FACTORS
+                    for k in range(len(splits))]
+            vals = parallel.run_tasks(
+                [(lambda f=f, k=k: cv_err(base_lam * f, *splits[k]))
+                 for f, k in keys])
+            pre = dict(zip(keys, vals))
         errs: dict[float, list[float]] = {}
         for ci, f in enumerate(_LAMBDA_FACTORS):
             if progress is not None:
                 progress(f"Fitting the printer model: smoothing search "
                          f"{ci + 1}/{len(_LAMBDA_FACTORS)}…")
-            if pre_errs is not None:
-                errs[f] = [pre_errs[(f, k)] for k in range(len(splits))]
+            if pre is not None:
+                errs[f] = [pre[(f, k)] for k in range(len(splits))]
             else:
                 errs[f] = [cv_err(base_lam * f, ho, trn)
                            for ho, trn in splits]
