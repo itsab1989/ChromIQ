@@ -167,6 +167,12 @@ class MainWindow(QMainWindow):
         bind_log_settings(settings)
         self._runner    = ArgyllRunner(settings, self)
         self._file_mgr  = FileManager(settings)
+        # A measurement whose copy of the printer calibration an earlier
+        # engine wrote damaged is repaired before any Argyll tool loads it
+        # (workflow/cal_repair.py); this window says so, once per action.
+        self._cal_repairs_pending: list = []
+        from workflow import cal_repair
+        cal_repair.set_notifier(self._on_cal_table_repaired)
 
         self.setWindowTitle(tr("ChromIQ — Printer Profiling"))
         self.setMinimumSize(900, 650)
@@ -2242,6 +2248,33 @@ class MainWindow(QMainWindow):
         self._tabs.setCurrentWidget(self._tab_chart)
         applied = self._tab_chart.apply_external_chart(src_dir, name)
         return applied
+
+    def _on_cal_table_repaired(self, rep) -> None:
+        """Collect a repair; the window follows once the action that caused
+        it has started, so three averaged reads give one window, not three."""
+        self._cal_repairs_pending.append(rep)
+        if len(self._cal_repairs_pending) == 1:
+            QTimer.singleShot(0, self._show_cal_tables_repaired)
+
+    def _show_cal_tables_repaired(self) -> None:
+        """M-CAL-TABLE-REPAIRED. Information only: nothing to decide, no
+        sound (it is not a measurement window)."""
+        reps, self._cal_repairs_pending = self._cal_repairs_pending, []
+        if not reps:
+            return
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.warning_sign import set_information_icon
+        from workflow import measurement_messages as M
+        title, body = M.cal_table_repaired_texts(reps)
+        # The headline as the box's text, as every §M window does: a macOS
+        # message box shows no window title, so `inform(title, body)` lost it.
+        box = QMessageBox(self)
+        set_information_icon(box)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        box.setStandardButtons(QMessageBox.StandardButton.Ok)
+        box.exec()
 
     def _show_patch_cube(self) -> None:
         """Open the 3D RGB-cube view of the chart currently loaded in the app.

@@ -125,6 +125,8 @@ def merge_preconditioning(
     DATA_FORMAT — colprof needs a single, consistent column layout — or when the
     ``average`` tool fails.
     """
+    from workflow.cal_repair import repair_all
+    repair_all([fresh_ti3, pre_data])
     fresh = _parse(fresh_ti3)
     pre = _parse(pre_data)
 
@@ -189,6 +191,8 @@ def merge_measurements(
     if len(inputs) < 2:
         raise Ti3MergeError("Merging needs at least two measurement files.")
 
+    from workflow.cal_repair import repair_all
+    repair_all(inputs)
     primary = _parse(inputs[0])
     total = primary.n_sets
     for extra_path in inputs[1:]:

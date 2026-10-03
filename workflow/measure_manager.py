@@ -419,6 +419,12 @@ class MeasureManager(QObject):
     ) -> None:
         args = self._build_args(params)
         cwd  = params.ti1_path.parent
+        if params.resume:
+            # chartread -r (stock and the engine alike) loads the .ti3 it
+            # resumes, so a damaged calibration table is put right first.
+            from workflow.cal_repair import repair_embedded_cal
+            repair_embedded_cal(params.ti1_path.with_suffix(".ti3"),
+                                params.ti1_path.with_suffix(".ti2"))
         self._is_resume      = params.resume
         self._read_something = False
         self._readings_count = 0
