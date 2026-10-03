@@ -232,3 +232,17 @@ def test_cloud_memo_returns_fresh_bits_and_sees_model_changes(cmyk_model):
         b2a._CLOUD_CACHE.clear()
     with pytest.raises(ValueError):
         l1[0, 0] = 0.0                                # read-only
+
+
+def test_row_parallel_predict_is_bit_identical(cmyk_model, monkeypatch):
+    monkeypatch.setenv("CHROMIQ_ENGINE_THREADS", "4")
+    dev = np.random.default_rng(4).random((40000, 4))
+    serial = cmyk_model.predict(dev)
+    calls = []
+    real = parallel.run_chunks
+    monkeypatch.setattr(parallel, "run_chunks",
+                        lambda fn, b: (calls.append(len(b)), real(fn, b))[1])
+    with parallel.accurate_scope():
+        threaded = cmyk_model.predict(dev)
+    assert calls and calls[0] == 4
+    assert np.array_equal(_bits(serial), _bits(threaded))
