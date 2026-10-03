@@ -182,6 +182,51 @@ if TYPE_CHECKING:
 log = get_logger(__name__)
 
 
+@dataclass
+class _ReplacedStoredChart:
+    """A dated verification's stored chart, set aside at Start because the
+    session is about to measure a DIFFERENT chart into that date ("Replace the
+    stored chart"). Kept in ``<date>/old/<when>/chart/`` for good once the
+    session files a measurement; put back as ``<date>/chart/`` when it does
+    not, because the date then still holds the measurement made with it."""
+    verification: object
+    set_aside: Path
+    when: "object"            # datetime: one stamp for the old chart AND the old .ti3
+
+    @property
+    def stamp(self) -> str:
+        return self.when.strftime("%Y-%m-%d_%H%M%S")
+
+
+def _settles_the_replaced_chart(fn):
+    """Run *fn*, then put a set-aside stored chart back unless the session it
+    was set aside for has filed its measurement (which clears the record) or
+    is still running.
+
+    One decorator on every method that can END a verification attempt after
+    its chart was snapshotted — Start (each refusal after the snapshot: the
+    bidirectional question, M-REPLACE, the CR30 calibration), the end of the
+    read (no instrument, an empty or discarded session, a resume that read
+    nothing, any error window), and the import — instead of a call before
+    each of their many returns, which the next return added would miss.
+
+    The arguments are cut to what *fn* takes: Qt passes ``clicked``'s
+    ``checked`` to a slot that accepts ``*args``.
+    """
+    import functools
+    n = fn.__code__.co_argcount - 1
+
+    @functools.wraps(fn)
+    def settled(self, *args):
+        try:
+            return fn(self, *args[:n])
+        finally:
+            settle = getattr(self, "_settle_the_replaced_chart", None)
+            if settle is not None:
+                settle()
+    return settled
+
+
 def _REREAD_TOOLTIP() -> str:
     """What "Re-read Individual Strips" actually does — spelled out, because
     nothing said it (Knut, #131 2026-07-27: "the descriptions of the buttons do
@@ -6414,15 +6459,83 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 verification = run.verification(vid)
                 if self._chart_overwrite_choice(verification) == "cancel":
                     return False
+                if not self._set_aside_the_replaced_chart(verification):
+                    # The stored chart could not be kept, so it is not written
+                    # over either: losing it is the one thing this must not do.
+                    return True
             if verification is None:
                 verification = run.new_verification()
                 verification.ensure_dir()
                 ctl.set_verification_id(verification.id)
-            snapshot_chart(verification)
+            if snapshot_chart(verification) is None:
+                self._settle_the_replaced_chart()   # nothing replaced it
         except Exception:      # noqa: BLE001 — never block a measurement
             log.warning("Could not snapshot the verification chart",
                         exc_info=True)
+            self._settle_the_replaced_chart()
         return True
+
+    def _set_aside_the_replaced_chart(self, verification) -> bool:
+        """Before a different chart is snapshotted into a measured date, move
+        the date's stored chart to ``<date>/old/<stamp>/chart/`` and remember
+        it (:class:`_ReplacedStoredChart`). Returns False only when it had to
+        be replaced and could not be kept.
+
+        Nothing to do when the date has no stored chart, or when it is the
+        chart that is loaded (the snapshot then rewrites identical files).
+        """
+        from datetime import datetime
+        from workflow.verify_chart_snapshot import (has_snapshot,
+                                                    live_differs_from_snapshot,
+                                                    set_aside_stored_chart)
+        self._replaced_chart = None
+        if not has_snapshot(verification) \
+                or not live_differs_from_snapshot(verification):
+            return True
+        when = datetime.now()
+        try:
+            kept = set_aside_stored_chart(
+                verification, when.strftime("%Y-%m-%d_%H%M%S"))
+        except OSError:
+            log.warning("verification %s: could not keep the stored chart "
+                        "before replacing it, so it is left as it is",
+                        verification.id, exc_info=True)
+            return False
+        if kept is not None:
+            self._replaced_chart = _ReplacedStoredChart(verification, kept, when)
+        return True
+
+    def _replaced_chart_for(self, verification) -> "_ReplacedStoredChart | None":
+        """The chart set aside at Start, when it was set aside from
+        *verification*'s date."""
+        rec = getattr(self, "_replaced_chart", None)
+        if rec is None or verification is None:
+            return None
+        try:
+            return rec if Path(rec.verification.dir) == Path(verification.dir) \
+                else None
+        except Exception:      # noqa: BLE001 — a question, never a blocker
+            return None
+
+    def _settle_the_replaced_chart(self) -> None:
+        """Put the stored chart set aside at Start back when the attempt it was
+        set aside for ended without filing a measurement into that date (see
+        `_settles_the_replaced_chart`). The date then still holds the
+        measurement made with that chart, and the two must stay a pair.
+
+        A session still reading keeps the record: its own ending settles it.
+        `_finalize_verification` and the import clear it once they have filed.
+        """
+        rec = getattr(self, "_replaced_chart", None)
+        if rec is None or getattr(self, "_session_live", False):
+            return
+        self._replaced_chart = None
+        try:
+            from workflow.verify_chart_snapshot import put_back_stored_chart
+            put_back_stored_chart(rec.verification, rec.set_aside)
+        except Exception:      # noqa: BLE001 — it stays safe in old/
+            log.warning("could not put the stored chart back from %s",
+                        rec.set_aside, exc_info=True)
 
     def _stage_verification_for_resume(self) -> "Path | None":
         """Put the selected dated verification's readings beside the chart,
@@ -6676,6 +6789,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                 new_run_guard_message("measure"))
         return True
 
+    @_settles_the_replaced_chart
     def _on_start(self) -> None:
         if not self._ti1_path:
             self._log.appendPlainText("[ERROR] No .ti2 file selected.")
@@ -7172,7 +7286,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             guard = MeasurementSession(
                 ti3, self._ti1_path.with_suffix(".ti2") if self._ti1_path else None,
                 old_dir)
-            guard.begin()
+            # A resumed date whose chart Start set aside keeps its readings in
+            # the same old/<stamp>/ as that chart.
+            _rec = getattr(self, "_replaced_chart", None)
+            guard.begin(when=_rec.when if (
+                _rec is not None and staged_from is not None
+                and Path(staged_from).parent == Path(_rec.verification.dir))
+                else None)
             self._session_guard = guard
         except Exception:      # noqa: BLE001 — never block a measurement
             log.warning("could not start the measurement guard", exc_info=True)
@@ -10592,8 +10712,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     same = False
                 if not same:
                     from datetime import datetime as _dt
+                    # Beside the chart it was measured with, when Start set
+                    # that chart aside for a different one: one folder, one pair.
+                    _rec = self._replaced_chart_for(verification)
                     keep = (verification.dir / "old"
-                            / _dt.now().strftime("%Y-%m-%d_%H%M%S"))
+                            / (_rec.stamp if _rec is not None
+                               else _dt.now().strftime("%Y-%m-%d_%H%M%S")))
                     keep.mkdir(parents=True, exist_ok=True)
                     shutil.copy2(dst, keep / dst.name)
                     from workflow.confirmed_patches import confirmed_path
@@ -10608,6 +10732,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             shutil.move(str(marked), str(dst))
             _cp.carry(marked, before, dst)
             self._staged_verification_ti3 = None         # filed; nothing left beside the chart
+            # Filed: the chart set aside at Start stays in old/ for good.
+            self._replaced_chart = None
         except OSError as exc:
             self._log.appendPlainText(f"\n[ERROR] Could not save verification file: {exc}")
             return
@@ -11406,6 +11532,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         self._import_into_verification(ctl, run, Path(path))
 
+    @_settles_the_replaced_chart
     def _import_into_verification(self, ctl, run, path: Path) -> None:
         """§I.1-§I.8 for a verification run, exactly as it shipped in #133.
 
@@ -11505,6 +11632,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._log.appendPlainText(
                 f"\n[ERROR] Could not save the imported measurement: {exc}")
             return
+        # Filed: a stored chart set aside for this one stays in old/.
+        self._replaced_chart = None
         self._log.appendPlainText(
             "\n" + tr("[OK] Measurement imported.") + f"\nSaved: {dst}\n\n"
             + tr("→ This file is for verification only — do not build a "
@@ -12161,6 +12290,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         self._reset_progress()
 
+    @_settles_the_replaced_chart
     def _on_measure_done(self, code: int) -> None:
         # EVERYTHING THAT BELONGS TO THE MEASUREMENT GOES WITH IT (Knut,
         # beta.139). First, before any of the tidying below, so a window that
