@@ -37,13 +37,11 @@ ROOT = Path(__file__).resolve().parents[1]
 MODES = ("light", "dark", "neutral")
 BEFORE = json.loads((ROOT / "tests" / "data" /
                      "k44_already_coloured_before.json").read_text("utf-8"))
-# One ruling since that baseline: "Use as Pre-conditioning" is no longer a
-# filled button while refinement is offered (Knut, #182 5963903650 Q6, the
-# Check & Refine redesign). The frozen file stays as recorded.
-for _mode in BEFORE.values():
-    _rows = _mode.get("Profile Quality Assessment (Good, refine offered)")
-    if _rows is not None:
-        _rows[:] = [r for r in _rows if r[0] != "\u2190 Use as Pre-conditioning"]
+# The Check & Refine redesign (6de015eb) took the accent off "Use as
+# Pre-conditioning" while refinement is offered and carved it out of this
+# baseline. Sebastian, 2026-10-03: it keeps the violet whenever it is shown,
+# beside "Guide me" too, as in beta 5 and 6. So the frozen file pins it again,
+# unchanged: both buttons coloured, and Return still presses what it pressed.
 
 #: Rule 2: no coloured button before K44; now the button Return presses is
 #: filled (a tool's main action once its inputs are chosen, as it is greyed

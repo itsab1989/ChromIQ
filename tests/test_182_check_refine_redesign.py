@@ -429,12 +429,16 @@ def test_refinement_is_offered_when_start_over_is_advised(qapp, tmp_path,
     dlg.deleteLater()
 
 
-def test_preconditioning_is_not_highlighted_while_refinement_is_offered(
+def test_preconditioning_keeps_its_accent_while_refinement_is_offered(
         qapp, tmp_path, monkeypatch):
+    """Sebastian, 2026-10-03: "Use as pre-conditioning" keeps the violet
+    accent whenever it is shown, beside "Guide me" too, as in beta 5 and 6.
+    The redesign had taken it off; only the colour comes back, the text still
+    describes what targen -c does."""
     _t, _p, dlg, _f = _open(qapp, tmp_path, monkeypatch, RUN3, 2.0)
     b = _buttons(dlg)
     assert b["← Guide Me Through Refinement"].objectName() == "primary"
-    assert b["← Use as Pre-conditioning"].objectName() != "primary"
+    assert b["← Use as Pre-conditioning"].objectName() == "primary"
     text = "\n".join(_texts(dlg))
     assert "spread evenly by how colours look" in text
     assert "least accurately" not in text and "Recommended" not in text

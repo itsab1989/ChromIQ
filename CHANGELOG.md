@@ -15,7 +15,7 @@
 - **One ΔE formula, named on every number** in the Check & Refine window and its report (ΔE00 by default), and no more strip averages. "Re-measuring the flagged strips can help" stays.
 - **Patches a re-read already confirmed (yellow) are not offered again** by Check & Refine, and the window names them.
 - **The saved Quality_Check report says what the window says**, the start-over note and the strip lists included.
-- **"Use as pre-conditioning profile" is described as what it does**: it spreads the new chart's patches evenly by how colours look on your printer and paper; it does not aim them at the colours that measured badly. It is no longer the highlighted button when refinement is offered, and the same correction is in the Profile Built window and the help of Create Chart's refinement profile.
+- **"Use as pre-conditioning profile" is described as what it does**: it spreads the new chart's patches evenly by how colours look on your printer and paper; it does not aim them at the colours that measured badly. The button keeps its violet colour, and the same correction is in the Profile Built window and the help of Create Chart's refinement profile.
 
 ### Fixed
 

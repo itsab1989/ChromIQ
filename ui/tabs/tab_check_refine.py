@@ -2023,10 +2023,11 @@ class TabCheckRefine(QWidget):
             guide_btn.setObjectName("primary")
         elif install_btn and grade == "Excellent":
             install_btn.setObjectName("primary")
-        # Pre-conditioning is not a fix for what this check found, so it is
-        # never the highlighted button while refinement is offered (Knut,
-        # 5963903650 Q6, on the pictures).
-        if precond_btn is not None and guide_btn is None:
+        # "Use as Pre-conditioning" keeps the violet accent whenever it is
+        # shown, beside "Guide me" too, as in beta 5 and 6 (Sebastian,
+        # 2026-10-03). Only the colour: which button Return presses is not
+        # changed by it (ui/default_button.py).
+        if precond_btn is not None:
             precond_btn.setObjectName("primary")
 
         # Action buttons left-to-right: Guide → Pre-conditioning → Install;

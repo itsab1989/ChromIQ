@@ -6329,8 +6329,11 @@ asked to see the redesign, and approved it on the pictures
   patch.
 * **CR-8 · Pre-conditioning described as what it does** (`targen -c` spreads
   the new chart's patches evenly by how colours look on this printer and
-  paper); it is never "recommended" as a fix and is not the highlighted button
-  while refinement is offered, in Check & Refine and in Profile Built. *"OK"*.
+  paper); it is never "recommended" as a fix, in Check & Refine and in
+  Profile Built. *"OK"*. **The "Use as Pre-conditioning" button keeps the
+  violet accent whenever it is shown**, beside "Guide Me Through Refinement"
+  too, as in beta 5 and 6; only its colour, not which button Return presses
+  (ruling: Sebastian, 2026-10-03, reversing the redesign's removal of it).
 * **CR-9 · Patches a re-read already confirmed (yellow) are not offered
   again**, and the window names them. The memory is `<stem>.confirmed.json`
   (10.7), believed only for the exact `.ti3` it was written for.
