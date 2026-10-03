@@ -586,6 +586,15 @@ class MeasureManager(QObject):
                 return
             on_finish(code)
 
+        # A PORT THAT IS NOT AN INSTRUMENT IS NEVER OPENED (core/instrument_port).
+        # With nothing plugged in, port 1 is macOS's Bluetooth incoming port,
+        # and opening it could block in the kernel for ever: the scan exclusion
+        # does not cover the open that -c asks for. Ended exactly as a reader
+        # that found no instrument ends, so the tab shows its own window.
+        if params.engine_replay is None and self._refuse_system_port(
+                params.engine_helper or "chartread", args, on_finish):
+            return
+
         if self._engine_active:
             eargs = ["--json"]
             if params.engine_safenet:
@@ -607,6 +616,32 @@ class MeasureManager(QObject):
             return
 
         self._launch_stock(args, cwd, on_line, _on_finish)
+
+    def _refuse_system_port(self, tool: "str | Path", args: list[str],
+                            on_finish: Callable[[int], None]) -> bool:
+        """True (and nothing launched) when *args* would open a system port.
+
+        Reported the way stock chartread reports "No instrument detected":
+        `no_instrument`, then the session's finish with a failure code. Both
+        on the next turn of the event loop, never inside this call: the
+        Measure tab clears its "no instrument" flag once `start` has returned
+        (measured on screen: an emit here was wiped and no window came).
+        """
+        from core.instrument_port import refused_port
+        if refused_port(str(tool), args) is None:
+            return False
+        self._engine_active = False
+        self._refused_finish = on_finish
+        QTimer.singleShot(0, self._finish_refused_start)
+        return True
+
+    def _finish_refused_start(self) -> None:
+        """The finish of a start :meth:`_refuse_system_port` refused."""
+        finish = getattr(self, "_refused_finish", None)
+        self._refused_finish = None
+        self.no_instrument.emit()
+        if finish is not None:
+            finish(1)
 
     def _launch_stock(self, args: list[str], cwd: Path,
                       on_line: Callable[[str], None],
