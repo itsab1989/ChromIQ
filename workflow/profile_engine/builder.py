@@ -601,6 +601,29 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         extra_hues=extra_hues, black_l=black_l, k_gen=k_gen,
         ucs=use_ucs, channel_max=channel_max,
         progress=lambda m: _emit(settings, m))
+    fixed_nodes = None
+    if accurate and not meas.is_additive and n >= 4:
+        # The neutral axis solved once by continuation from paper white,
+        # put on the B2A neutral column, with everything darker than the
+        # neutral black clipped along the axis (research agent5-03 item 5:
+        # a neutral black, monotone neutral ramp, for any channel count).
+        _emit(settings, "Inverting the model: following the neutral axis…")
+        axis = b2a_mod.neutral_axis(
+            model, channel_letters=meas.channel_letters,
+            is_additive=meas.is_additive, ink_limit=ink_limit,
+            k_prior=anchor, accurate=accurate, extra_hues=extra_hues,
+            black_l=black_l, k_gen=k_gen, ucs=use_ucs,
+            channel_max=channel_max)
+        fixed_nodes = b2a_mod.apply_neutral_axis(
+            dev_clut, node_lab, axis, model,
+            channel_letters=meas.channel_letters,
+            is_additive=meas.is_additive, ink_limit=ink_limit,
+            k_prior=anchor, accurate=accurate, extra_hues=extra_hues,
+            black_l=black_l, k_gen=k_gen, ucs=use_ucs,
+            channel_max=channel_max)
+        if axis.get("l_black") is not None:
+            _emit(settings, f"Neutral black under the ink limits: "
+                            f"L* {axis['l_black']:.1f}.")
     # refine_b2a_clut returns *curve-space* values — written straight into
     # the CLUT, with the inverse shaper curves as B2A output tables.
     if n > 3 and "joint-sep" in candidates:
@@ -631,6 +654,7 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             node_lab=node_lab, lab_to01=codec.lab_to01, k_prior=anchor,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
             k_gen=k_gen, ucs=use_ucs, channel_max=channel_max,
+            fixed_nodes=fixed_nodes,
             progress=lambda m: _emit(settings, m))
     if channel_max is not None:
         # The smooth refit is a least-squares field over samples that all
