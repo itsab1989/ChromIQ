@@ -7471,8 +7471,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not args:
             return              # answered already
         if getattr(self, "_session_live", True) is False:
-            # The measurement ended first; its windows end with it.
-            mgr.answer_read_twice(None)
+            # The measurement ended first; its windows end with it, every
+            # question still waiting included.
+            while pending():
+                mgr.answer_read_twice(None)
             return
         if self._a_question_is_open():
             return              # that window's release asks again

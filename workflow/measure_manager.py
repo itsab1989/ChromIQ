@@ -354,7 +354,11 @@ class MeasureManager(QObject):
         #: already asked about the read in progress.
         self._measured_strips: dict = {}
         self._design_strips: dict = {}
-        self._read_twice_pending: "tuple[str, str] | None" = None
+        #: The questions waiting, oldest first: [(strip, like), ...]. The one
+        #: on screen is always the first, and a later read never replaces it
+        #: (review of 6de015eb): an instrument reads while a window is open,
+        #: so a second alarm waits its turn instead of taking over the answer.
+        self._read_twice_pending: "list[tuple[str, str]]" = []
         self._wrong_strip_warned: bool = False
         #: Every chart location in reading order (strip, then place in the
         #: strip), the strip each one is on, the fill-up squares, and the
@@ -462,7 +466,7 @@ class MeasureManager(QObject):
         self._unread_locs = set()
         self._measured_strips = {}
         self._design_strips = {}
-        self._read_twice_pending = None
+        self._read_twice_pending = []
         self._wrong_strip_warned = False
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
@@ -1210,7 +1214,7 @@ class MeasureManager(QObject):
         """
         self._measured_strips = {}
         self._design_strips = {}
-        self._read_twice_pending = None
+        self._read_twice_pending = []
         if not chart or not self._loc_strip:
             return
         from pathlib import Path as _P
@@ -1292,12 +1296,19 @@ class MeasureManager(QObject):
             log.info("strip %s looks like strip %s read again (median "
                      "dE76 %.2f); asking", found.strip, found.like,
                      found.median_de76)
-            self._read_twice_pending = (found.strip, found.like)
+            pair = (found.strip, found.like)
+            q = self._read_twice_pending
+            # The question on screen (the first) stays as it is; a newer
+            # alarm about a strip already WAITING replaces that waiting one,
+            # since only the strip's latest reading is still in question.
+            rest = [x for x in q[1:] if x[0] != found.strip]
+            self._read_twice_pending = q[:1] + rest + [pair] \
+                if (not q or q[0] != pair) else q[:1] + rest
         return found
 
     def read_twice_pending(self) -> "tuple[str, str] | None":
-        """(strip, like) while "Was a strip read twice?" waits for an answer."""
-        return self._read_twice_pending
+        """(strip, like) of the question to ask (the oldest waiting), or None."""
+        return self._read_twice_pending[0] if self._read_twice_pending else None
 
     def answer_read_twice(self, choice: "str | None") -> None:
         """Record the answer to M-STRIP-READ-TWICE.
@@ -1307,10 +1318,11 @@ class MeasureManager(QObject):
         dismissal (None) keep the reading; the held move is then made when the
         window's release comes, which may ask the unread question next.
         """
-        pending = self._read_twice_pending
-        self._read_twice_pending = None
-        if pending is None:
+        if not self._read_twice_pending:
             return
+        # Always the pair that was SHOWN: the oldest. Any later one waits and
+        # is asked when this window's release comes.
+        pending = self._read_twice_pending.pop(0)
         if choice == "reread":
             log.info("read twice: re-reading strip %s", pending[0])
             self.goto_strip(pending[0])

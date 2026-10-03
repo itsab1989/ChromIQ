@@ -310,6 +310,31 @@ def test_reread_sends_the_reader_back_and_drops_the_held_move(tmp_path):
     assert m.read_twice_pending() is None
 
 
+def test_a_later_read_never_replaces_the_question_on_screen(tmp_path):
+    """Review of 6de015eb: the instrument reads while the window is open. A
+    second alarm used to overwrite the pending pair, so "Re-read strip D"
+    pressed in the window about D sent the reader to the NEWER strip. Now the
+    answer applies to the pair shown, and the newer one is asked after it."""
+    m, r, asked, _u = _mgr(tmp_path, read=("A", "B", "C"))
+    _feed(m, _sread("D", like="C"))                  # the window: D like C
+    assert m.read_twice_pending() == ("D", "C")
+    _feed(m, _sready("A"), _sread("A", like="B"))    # read while it is open
+    assert asked == [("D", "C"), ("A", "B")]
+    assert m.read_twice_pending() == ("D", "C"), "the shown pair was replaced"
+    m.answer_read_twice("reread")
+    assert _gotos(r) == ["D"], "the answer went to another strip"
+    assert m.read_twice_pending() == ("A", "B"), "the newer one is asked next"
+    m.answer_read_twice("keep")
+    assert m.read_twice_pending() is None and _gotos(r) == ["D"]
+
+
+def test_a_waiting_question_about_the_same_strip_is_not_asked_twice(tmp_path):
+    m, _r, _a, _u = _mgr(tmp_path, read=("A", "B", "C"))
+    _feed(m, _sread("D", like="C"), _sready("A"), _sread("A", like="B"),
+          _sready("A"), _sread("A", like="C"))
+    assert m._read_twice_pending == [("D", "C"), ("A", "C")]
+
+
 def test_keep_lets_the_held_move_go_on(tmp_path):
     """Keep on a chart now complete: the beta-4 rule moves on after D."""
     m, r, _a, unread = _mgr(tmp_path, read=("A", "B", "C"))
