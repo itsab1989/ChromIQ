@@ -211,3 +211,24 @@ def test_fast_mode_fit_never_uses_threads(monkeypatch):
     dev = rng.random((300, 6))
     w, cols = _interp_weights(dev, 9, 6)
     _grid_solve(w, cols, rng.random((300, 3)), 9, 6, 0.03, 2)
+
+
+def test_cloud_memo_returns_fresh_bits_and_sees_model_changes(cmyk_model):
+    from workflow.profile_engine.b2a import _cloud_and_lab, _device_cloud
+    b2a._CLOUD_CACHE.clear()
+    c1, l1 = _cloud_and_lab(cmyk_model, cmyk_model, 4, 2.8, None, 1234)
+    fresh = _device_cloud(4, 2.8, None, np.random.default_rng(1234))
+    assert np.array_equal(_bits(c1), _bits(fresh))
+    assert np.array_equal(_bits(l1), _bits(cmyk_model.predict(fresh)))
+    c2, l2 = _cloud_and_lab(cmyk_model, cmyk_model, 4, 2.8, None, 1234)
+    assert l2 is l1                                   # remembered
+    old = cmyk_model.nodes[0].copy()
+    try:
+        cmyk_model.nodes[0] += 1.0                    # in-place change
+        _, l3 = _cloud_and_lab(cmyk_model, cmyk_model, 4, 2.8, None, 1234)
+        assert l3 is not l1
+    finally:
+        cmyk_model.nodes[0] = old
+        b2a._CLOUD_CACHE.clear()
+    with pytest.raises(ValueError):
+        l1[0, 0] = 0.0                                # read-only
