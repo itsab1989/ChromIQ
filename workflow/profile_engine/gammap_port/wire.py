@@ -320,9 +320,14 @@ def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
         dst_lab = destination_surface_lab(model, mesh=33, ink_limit=ink_limit,
                                           is_additive=is_additive,
                                           dense=dense)
-        if dense and meas is not None and hasattr(meas, "lab_relative"):
+        if dense and meas is not None and hasattr(meas, "lab_relative") \
+                and not ("a9-reach" in getattr(settings, "engine_candidates",
+                                               frozenset())):
             # Measured patches are ground truth — Argyll's expand() keeps
             # whichever points lie outermost.
+            # (research a9-reach leaves them out: a patch outside the
+            # model's own reach makes the mapper aim where the inversion
+            # must clamp.)
             dst_lab = np.vstack([dst_lab, meas.lab_relative])
         return ap_dst.lab_to_jab(dst_lab)
 
