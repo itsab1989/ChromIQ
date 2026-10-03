@@ -2042,6 +2042,46 @@ class NoScrollDoubleSpinBox(QDoubleSpinBox):
             event.ignore()
 
 
+class GatedPushButton(QPushButton):
+    """A button that a standing reason can hold greyed, whatever its callers ask.
+
+    Create Chart's Generate button is two things at once: a control, and THE
+    marker every chart build reads to know whether a build is in flight
+    (`TabChart._chart_build_in_flight`): about ten build paths disable it on the
+    way in and enable it on the way out. A strip or patch pattern ArgyllCMS
+    cannot read (forum report, 2026-10-03) must grey it too, and must not be
+    undone by the next build that finishes, nor be mistaken for a build.
+
+    So the two are kept apart. ``setEnabled`` records what the build paths want
+    (:meth:`wanted_enabled`), :meth:`set_gate` records a reason to hold it off,
+    and the widget shows ``wanted and not gated``.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._wanted = True
+        self._gate: "str | None" = None
+
+    def setEnabled(self, on: bool) -> None:      # noqa: N802 — Qt's name
+        self._wanted = bool(on)
+        super().setEnabled(self._wanted and not self._gate)
+
+    def setDisabled(self, off: bool) -> None:    # noqa: N802 — Qt's name
+        self.setEnabled(not off)
+
+    def wanted_enabled(self) -> bool:
+        """What the callers last asked for, ignoring the gate."""
+        return self._wanted
+
+    def gate(self) -> "str | None":
+        return self._gate
+
+    def set_gate(self, reason: "str | None") -> None:
+        """Hold the button off for *reason*, or release it with None."""
+        self._gate = reason or None
+        super().setEnabled(self._wanted and not self._gate)
+
+
 class WrappingCheckBox(QCheckBox):
     """A check box whose label wraps instead of setting a floor for the panel.
 

@@ -27,6 +27,11 @@ log = get_logger(__name__)
 _STRIP_RE = re.compile(
     r"[Ss]trip\s+(?:pass\s+|ID:\s*'?|'?)([A-Za-z]{1,3}\d*)(?:')?(?![A-Za-z0-9])"
 )
+# chartread's own announcement, "Ready to read strip pass %s" (chartread.c
+# 1539), names the strip with ITS label, which follows the chart's strip
+# pattern: "12" on a chart numbered by strip is as valid as "AB" (Knut, #182
+# 5965589190). _STRIP_RE above only sees letters, so this one is asked first.
+_STRIP_PASS_RE = re.compile(r"[Ss]trip\s+pass\s+'?([^\s'(]+)'?")
 
 # The strip menu's own line — "Ready to read strip pass A". Distinct from
 # _STRIP_RE, which also matches "Scanning strip" and other progress chatter:
@@ -208,6 +213,44 @@ class MeasureParams:
     #: produces XYZ and `-xl` would make the helper run icmLab2XYZ over a
     #: conversion ChromIQ had already done.
     external_values: bool = False
+    #: Why stock ArgyllCMS chartread cannot read THIS chart, when ChromIQ's
+    #: engine can: a sheet printed with ChromIQ's labels from before
+    #: 4.3.3-beta.7 (Knut, #182 5965589190 Q2). Set by the tab from its
+    #: pre-check; every fallback to stock chartread is withheld.
+    stock_cannot_read_chart: str = ""
+
+
+def _labels_or_default(cl):
+    if cl is None:
+        from workflow.layout_engine.labels import ChartLabels
+        cl = ChartLabels()
+    return cl
+
+
+def _strip_name_of(cl, text: str) -> str:
+    """The strip a reader's announcement names, as the chart labels it.
+
+    A strip label stands for itself; a whole location ("A12", "12C") stands
+    for its strip (#182 5965589190: strips may be numbered). Anything else
+    falls back to the letters in it, which is what this read before."""
+    text = str(text or "").strip()
+    cl = _labels_or_default(cl)
+    i = cl.strip_index(text)
+    if i >= 0:
+        return cl.strip(i) or text
+    sp = cl.split(text)
+    if sp is not None:
+        return cl.strip(sp[0]) or ""
+    return "".join(c for c in text if c.isalpha()).upper()
+
+
+def _strip_order_of(cl, label: str) -> int:
+    """Where a strip label sits on the chart, for "forward or back"."""
+    i = _labels_or_default(cl).strip_index(str(label or "").strip())
+    if i >= 0:
+        return i
+    letters = "".join(c for c in str(label or "") if c.isalpha())
+    return letter_to_idx(letters) if letters else -1
 
 
 class MeasureManager(QObject):
@@ -231,6 +274,15 @@ class MeasureManager(QObject):
     # The run ends here; this carries the reason so the tab can say the ONE
     # true thing instead of promising a rescue that cannot happen.
     engine_fallback_refused = pyqtSignal(str)
+    # Forum report, 2026-10-03: the chart's locations do not fit its own strip
+    # and patch patterns, so NO reader can measure it (stock chartread parses
+    # them exactly as the engine does). Raised from the engine's typed
+    # `{"event":"error","kind":"chart_unreadable"}`; carries the detail. Every
+    # fallback to stock chartread is withheld for this reason, and only this.
+    chart_unreadable = pyqtSignal(str)
+    # A sheet only the engine can read (stock_cannot_read_chart) ended its
+    # engine run with an error; there is no second reader. Carries the reason.
+    legacy_chart_read_ended = pyqtSignal(str)
     # A failed calibration is being retried automatically: (attempt, of_total).
     calibration_retrying   = pyqtSignal(int, int)
     calibration_done       = pyqtSignal()    # emitted when instrument calibration completes
@@ -430,6 +482,10 @@ class MeasureManager(QObject):
         self._engine_fatal: str | None = None
         self._engine_error_prose: "str | None" = None
         self._stock_reader_cannot_read: bool = False
+        #: The reason the chart's locations cannot be read by any reader, from
+        #: the engine's typed event (forum report, 2026-10-03), or None.
+        self._chart_unreadable: "str | None" = None
+        self._stock_cannot_read_chart: str = ""
         self._engine_progress: bool = False
         self._engine_saw_event: bool = False
         self._engine_fallback_used: bool = False
@@ -469,6 +525,18 @@ class MeasureManager(QObject):
 
     # ------------------------------------------------------------------
 
+    def _chart_labels(self):
+        """The strip and patch labels of the chart being read (see
+        `workflow.layout_engine.labels`): letters or numbers on either side,
+        as ArgyllCMS allows, or ChromIQ's old rule on a chart printed with it."""
+        return _labels_or_default(getattr(self, "_labels", None))
+
+    def _strip_name(self, text: str) -> str:
+        return _strip_name_of(getattr(self, "_labels", None), text)
+
+    def _strip_order(self, label: str) -> int:
+        return _strip_order_of(getattr(self, "_labels", None), label)
+
     def start(
         self,
         params: MeasureParams,
@@ -476,6 +544,13 @@ class MeasureManager(QObject):
         on_finish: Callable[[int], None],
     ) -> None:
         args = self._build_args(params)
+        try:
+            from workflow.layout_engine.labels import labels_for_chart
+            _t = Path(params.ti1_path)
+            self._labels = labels_for_chart(
+                _t if _t.suffix.lower() == ".ti2" else _t.with_suffix(".ti2"))
+        except Exception:      # noqa: BLE001 — labels never block a read
+            self._labels = None
         cwd  = params.ti1_path.parent
         if params.resume:
             # chartread -r (stock and the engine alike) loads the .ti3 it
@@ -531,6 +606,9 @@ class MeasureManager(QObject):
         #: #159: stock chartread cannot read THIS chart, so no fallback to it
         #: may happen — see :attr:`MeasureParams.stock_reader_cannot_read`.
         self._stock_reader_cannot_read = bool(params.stock_reader_cannot_read)
+        self._chart_unreadable = None
+        self._stock_cannot_read_chart = str(
+            getattr(params, "stock_cannot_read_chart", "") or "")
         #: The helper's own last error sentence, printed as PROSE on stderr and
         #: outside the JSON channel. Nothing captured it, which is why the log
         #: said "(unknown error)" while the helper had said exactly what was
@@ -554,8 +632,36 @@ class MeasureManager(QObject):
             self._save_partial_state = None
             was_engine = self._engine_active
             self._engine_active = False
+            if (was_engine and self._chart_unreadable is not None
+                    and code != 0 and not self._user_quit):
+                # Forum report, 2026-10-03. The engine says, in a typed event,
+                # that the chart's locations do not fit its own patterns. Stock
+                # chartread parses them with the same ArgyllCMS code, so ALL
+                # THREE fallbacks below (whole-sheet mode, the mid-run -r
+                # resume, the immediate restart) could only fail again, or file
+                # readings under the wrong patches. End here and say so once.
+                # Only on positive identification: a helper that never spoke
+                # (no exec bit, quarantine) still falls back below.
+                log.warning("the chart's locations do not fit its patterns "
+                            "(%s), not falling back", self._chart_unreadable)
+                self.chart_unreadable.emit(self._chart_unreadable)
+                on_finish(code)
+                return
+            if (was_engine and self._stock_cannot_read_chart
+                    and code != 0 and not self._user_quit):
+                # Knut, #182 5965589190 Q2: a sheet printed with ChromIQ's
+                # old labels is read by the engine; stock chartread would
+                # refuse it or misfile the readings, so none of the three
+                # fallbacks below may run, whatever made the engine stop.
+                reason = self._engine_failure_reason()
+                log.warning("engine run on a sheet stock chartread cannot "
+                            "read ended (%s), not falling back", reason)
+                self.legacy_chart_read_ended.emit(reason)
+                on_finish(code)
+                return
             if (was_engine and self._engine_mode_fallback
-                    and not self._stock_reader_cannot_read):
+                    and not self._stock_reader_cannot_read
+                    and not self._stock_cannot_read_chart):
                 # XY/chart mode with the engine opt-in off: silently re-run on
                 # stock chartread (over a PTY, where those modes' console
                 # prompts work). Not an error — no scary wording.
@@ -575,7 +681,7 @@ class MeasureManager(QObject):
                     # discarding the session — after backing the file up first,
                     # so the readings survive even if the resume misbehaves.
                     self._engine_fallback_used = True
-                    reason = self._engine_fatal or "unknown error"
+                    reason = self._engine_failure_reason()
                     log.warning("engine failed mid-measurement (%s) — resuming "
                                 "on stock chartread with -r", reason)
                     self._backup_partial_ti3(partial)
@@ -610,7 +716,7 @@ class MeasureManager(QObject):
                 return
             if was_engine and self._engine_should_fall_back(code):
                 self._engine_fallback_used = True
-                reason = self._engine_fatal or "unknown error"
+                reason = self._engine_failure_reason()
                 log.warning("engine could not use the instrument (%s) — "
                             "restarting on stock chartread", reason)
                 on_line(tr(
@@ -778,6 +884,7 @@ class MeasureManager(QObject):
         and is requested in `docs/cr30_reports/09-impl-measure.md`.
         """
         return (self._engine_fatal
+                or self._chart_unreadable
                 or self._engine_error_prose
                 or "unknown error")
 
@@ -802,6 +909,8 @@ class MeasureManager(QObject):
             return False
         if self._engine_fallback_used or self._cal_request_used:
             return False
+        if self._chart_unreadable is not None or self._stock_cannot_read_chart:
+            return False        # stock chartread reads the chart the same way
         return self._engine_fatal is not None or not self._engine_saw_event
 
     def _resumable_partial_ti3(self, ti1_path: Path) -> Path | None:
@@ -880,6 +989,8 @@ class MeasureManager(QObject):
             return False
         if self._cal_request_used:
             return False
+        if self._chart_unreadable is not None or self._stock_cannot_read_chart:
+            return False        # the resume would read the same chart
         return self._engine_fatal is not None and self._engine_progress
 
     def _backup_partial_ti3(self, ti3: Path) -> None:
@@ -1017,8 +1128,20 @@ class MeasureManager(QObject):
                 return
             labels = [str(s.get("strip", "")).strip() for s in (strips or [])]
             labels = [x for x in labels if x]
+            # THE CHART'S OWN LABELS FIRST (forum report and Knut's ruling,
+            # #182 5965589190): "12C" is strip 12 patch C on a chart numbered
+            # by strip, which no prefix test can tell. The prefix test below
+            # stays for a chart whose locations its labels do not explain.
+            from workflow.layout_engine.labels import labels_for_chart
+            cl = labels_for_chart(ti2)
             placed = []
             for row, loc in enumerate(locs):
+                sp = cl.split(loc)
+                if sp is not None and cl.location(*sp) == loc:
+                    slab = cl.strip(sp[0]) or ""
+                    si = labels.index(slab) if slab in labels else len(labels)
+                    placed.append(((si, sp[1], row), loc, slab))
+                    continue
                 best = None
                 for si, lab in enumerate(labels):
                     if not loc.startswith(lab) or len(loc) <= len(lab):
@@ -2387,6 +2510,15 @@ class MeasureManager(QObject):
                 self._engine_fatal = detail or (
                     f"the chart names {instr}, which this reader refuses"
                     if instr else "chart refused")
+            elif ekind == "chart_unreadable":
+                # Forum report, 2026-10-03: the chart's SAMPLE_LOCs do not fit
+                # its own STRIP/PATCH_INDEX_PATTERN. Deliberately NOT
+                # `_engine_fatal`, which is a fallback trigger: stock chartread
+                # would read the same chart the same way. The fallbacks test
+                # this flag and stand down (`_on_finish`).
+                detail = str(ev.get("detail") or "")
+                self._chart_unreadable = detail or (
+                    "the patch locations do not fit the chart's patterns")
             elif ekind == "coms":
                 self._at_retry_prompt = True
                 self._engine_fatal = "communication problem"
@@ -2571,7 +2703,7 @@ class MeasureManager(QObject):
             self.instrument_detected.emit(m.group(1).strip())
             return
 
-        matches = _STRIP_RE.findall(line)
+        matches = _STRIP_PASS_RE.findall(line) or _STRIP_RE.findall(line)
         if matches:
             current = matches[-1]
             self.stripe_changed.emit(current)
@@ -2784,7 +2916,7 @@ class MeasureManager(QObject):
                 self._navigate_toward(target, next_target)
 
     def _guided_step(self, current: str, on_line: Callable[[str], None]) -> None:
-        letter = "".join(c for c in current if c.isalpha()).upper()
+        letter = _strip_name_of(getattr(self, "_labels", None), current)
         if not letter or not self._guided_strips:
             return
 
@@ -2859,7 +2991,7 @@ class MeasureManager(QObject):
         if self._engine_active:
             self.goto_strip(target)
             return
-        ci = letter_to_idx(current)
-        ti = letter_to_idx(target)
+        ci = _strip_order_of(getattr(self, "_labels", None), current)
+        ti = _strip_order_of(getattr(self, "_labels", None), target)
         key = "f" if ti > ci else "b"
         self._runner.write_stdin(key)

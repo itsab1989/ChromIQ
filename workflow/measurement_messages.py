@@ -2170,6 +2170,73 @@ M_ENGINE_FELL_BACK = _m(
     "coming from ArgyllCMS.\n\n"
     "Reason: {reason}", approved=False)
 
+# --- PROPOSED: a strip or patch pattern the readers cannot use -----------
+#: Forum report, 2026-10-03: the strip pattern "0-9" made a 14-strip chart
+#: that neither ArgyllCMS chartread nor ChromIQ's engine could read, because
+#: ChromIQ printed "10", "11" ... while Argyll's "0-9" stops at 9. Create Chart
+#: now refuses such a pair for a NEW layout: the box turns red, this sentence
+#: stands under the preview, and Generate Chart is unavailable. {reason} is
+#: one sentence from `workflow.layout_engine.alphix.check_patterns`. Not a
+#: window: it changes on every keystroke.
+M_CHART_PATTERN_REFUSED = _m(
+    "M-CHART-PATTERN-REFUSED",
+    "This strip or patch pattern cannot be used",
+    "{reason} Generate Chart stays unavailable until the pattern is changed.",
+    approved=False)
+
+# --- PROPOSED: a printed chart whose locations its patterns cannot read ----
+#: The same fault seen from the Measure tab, on a sheet already printed with
+#: such a pair. Checked before any reader starts
+#: (`alphix.chart_locations_problem`), because both readers parse the
+#: locations the same way and the fallback to stock chartread could only fail
+#: a second time. {detail} names the first location that does not fit.
+M_CHART_LOCATIONS_UNREADABLE = _m(
+    "M-CHART-LOCATIONS-UNREADABLE",
+    "This chart cannot be measured",
+    "This chart's patch locations do not fit its strip and patch patterns: "
+    "{detail}.\n\n"
+    "ArgyllCMS chartread would refuse the chart before the first patch, or "
+    "file the readings under the wrong patches, and ChromIQ's own measuring "
+    "engine reads it the same way. So ChromIQ has not started a measurement, "
+    "and nothing has been changed.\n\n"
+    "The chart was laid out with a strip or patch pattern that ArgyllCMS "
+    "reads differently from the labels printed on the sheet. To measure, "
+    "generate the chart again with the default patterns (A-Z, A-Z for "
+    "strips and 0-9,@-9,@-9;1-999 for patches) and print it again.",
+    approved=False)
+
+# --- PROPOSED: a sheet only ChromIQ's engine can read, on stock chartread ----
+#: Knut, #182 5965589190 Q2: a sheet printed with ChromIQ's labels from
+#: before 4.3.3-beta.7 is read by ChromIQ's own engine as printed, and a user
+#: of ArgyllCMS chartread is told plainly that chartread cannot read it.
+M_CHART_LEGACY_STOCK = _m(
+    "M-CHART-LEGACY-STOCK",
+    "ArgyllCMS chartread cannot read this chart",
+    "This chart's patch locations do not fit its strip and patch patterns: "
+    "{detail}.\n\n"
+    "The labels were printed by an earlier version of ChromIQ, and ArgyllCMS "
+    "chartread reads them differently from the sheet, so it would refuse the "
+    "chart or file the readings under the wrong patches. ChromIQ's own "
+    "measuring engine reads the labels as they are printed.\n\n"
+    "Right now, “ChromIQ chart-reading engine” in Preferences → Measurement "
+    "is switched off, so ArgyllCMS chartread reads your charts. Switch it on "
+    "and this chart measures normally. Nothing has been started or changed.",
+    approved=False)
+
+# --- PROPOSED: that sheet's engine run ended, and there is no second reader ---
+M_CHART_LEGACY_ENDED = _m(
+    "M-CHART-LEGACY-ENDED",
+    "The measurement stopped",
+    "Reading this chart has stopped before it finished.\n\n"
+    "This chart's labels were printed by an earlier version of ChromIQ in a "
+    "way ArgyllCMS chartread cannot read, so there is no second reader to "
+    "try, and ChromIQ has not started it.\n\n"
+    "Nothing you have already measured is lost: every patch that was read is "
+    "on disk, and you can carry on from it by ticking “Refine / resume "
+    "existing measurement (-r)” before you press Start again.\n\n"
+    "What went wrong: {reason}",
+    approved=False)
+
 M_NO_INSTRUMENT_FAST = _m(
     "M-NO-INSTRUMENT-FAST",
     "No Instrument Found",
@@ -4390,6 +4457,8 @@ CATALOGUE = {m.id: m for m in (
     M_STRIP_READ_TWICE,
     M_CR_STRIPS, M_CR_START_OVER, M_CR_PRECONDITIONING,
     M_ENGINE_FELL_BACK,
+    M_CHART_PATTERN_REFUSED, M_CHART_LOCATIONS_UNREADABLE,
+    M_CHART_LEGACY_STOCK, M_CHART_LEGACY_ENDED,
     M_PATCHSET_MISSING,
     M_PATCHSET_KEPT_UNCHECKED,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,

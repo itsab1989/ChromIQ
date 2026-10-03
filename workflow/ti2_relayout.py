@@ -301,7 +301,11 @@ class ChartSpec:
         # arbitrary. SAMPLE_LOC carries the spatial truth, so we sort by it
         # whenever it's populated.
         if any(p.loc for p in patches):
-            patches.sort(key=_loc_sort_key)
+            # The chart's own labels decide the order (#182 5965589190: a
+            # chart may number its strips and letter its patches).
+            from workflow.layout_engine.labels import labels_from_text
+            _cl = labels_from_text(text)
+            patches.sort(key=lambda p: _loc_sort_key(p, _cl))
 
         limit_s = _kw("TOTAL_INK_LIMIT")
         try:
@@ -380,9 +384,15 @@ def _split_cgats(line: str) -> list[str]:
 _LOC_RE = re.compile(r"^([A-Z]+)(\d+)$")
 
 
-def _loc_sort_key(p: "Patch") -> tuple[int, int]:
+def _loc_sort_key(p: "Patch", labels=None) -> tuple[int, int]:
     """Sort key turning a SAMPLE_LOC ("A12") into (strip-index, step) for
-    visual ordering. Patches with no/unparseable LOC sort last."""
+    visual ordering. Patches with no/unparseable LOC sort last. With the
+    chart's *labels* any pattern ArgyllCMS allows is read ("12C")."""
+    if labels is not None and p.loc:
+        from workflow.layout_engine.labels import location_key
+        key = location_key(labels, p.loc.strip())
+        if key is not None:
+            return key
     loc = (p.loc or "").upper().strip()
     m = _LOC_RE.match(loc)
     if not m:
@@ -1249,16 +1259,25 @@ def _read_ti2_strips(ti2_path: Path) -> list["np.ndarray"]:
     strips: dict[str, list[tuple[int, tuple[float, ...]]]] = {}
     order: list[str] = []
     max_ix = max(loc_ix, *dev_ix)
+    # The chart's own labels first (#182 5965589190); "A12" by letters and
+    # digits is the fallback for a location they do not explain.
+    from workflow.layout_engine.labels import labels_from_text, location_key
+    cl = labels_from_text(text)
     for l in lines[data_i + 1:]:
         if l.strip() == "END_DATA":
             break
         p = l.split()
         if len(p) <= max_ix:
             continue
-        m = _LOC_RE.match(p[loc_ix].strip('"'))
-        if not m:
-            continue
-        letter, num = m.group(1), int(m.group(2))
+        loc_txt = p[loc_ix].strip('"')
+        key = location_key(cl, loc_txt)
+        if key is not None:
+            letter, num = str(key[0]), key[1] + 1
+        else:
+            m = _LOC_RE.match(loc_txt)
+            if not m:
+                continue
+            letter, num = m.group(1), int(m.group(2))
         try:
             dev = tuple(float(p[i]) for i in dev_ix)
         except ValueError:
@@ -1912,6 +1931,8 @@ def patch_geometry_for_page(
     Returns an empty dict if anything can't be resolved (no ``bw_tif_path``,
     no SAMPLE_LOC, diff shape mismatch, …) — callers fall back gracefully.
     """
+    from workflow.layout_engine.labels import labels_for_chart, location_key
+    _cl = labels_for_chart(ti2_path)     # the chart's own labels (#182)
     if bw_tif_path is None:
         return {}
     try:
@@ -2124,11 +2145,15 @@ def patch_geometry_for_page(
         if sid <= 0:
             continue
         loc = toks[loc_i].strip('"')
-        m = _LOC_RE.match(loc)
-        if not m:
-            continue
-        strip_idx = letter_to_idx(m.group(1))
-        step_idx = int(m.group(2)) - 1
+        key = location_key(_cl, loc)
+        if key is not None:
+            strip_idx, step_idx = key
+        else:
+            m = _LOC_RE.match(loc)
+            if not m:
+                continue
+            strip_idx = letter_to_idx(m.group(1))
+            step_idx = int(m.group(2)) - 1
         if not (strips_before <= strip_idx < strips_before + n_strips):
             continue
         within_strip = strip_idx - strips_before

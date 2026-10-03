@@ -182,9 +182,10 @@ def test_eight_files_skip_wholesale_without_it():
         head = text.split("def test_", 1)[0]
         (whole if re.search(r"^pytestmark\s*=", head, re.M) and "HELPER" in head
          else partial).append(p.name)
-    # 9 and 8 since the calibrate-during-a-measurement tests and the
-    # Bluetooth-port guard (2026-10-03).
-    assert len(whole) == 9 and len(partial) == 8, (
+    # 10 and 9 since the strip-pattern merge (2026-10-03): the calibrate-
+    # during-a-measurement tests and the Bluetooth-port guard on one side, the
+    # legacy-label replay tests and the 22 pattern variants on the other.
+    assert len(whole) == 10 and len(partial) == 9, (
         "the number of files gated on the chart-reading helper has changed "
         f"({len(whole)} wholesale, {len(partial)} in part) -> update the "
         f"header in tests/conftest.py. wholesale={whole} partial={partial}")

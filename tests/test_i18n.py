@@ -1509,7 +1509,10 @@ _IDENTICAL_TO_KEY = {
     "fr": 140,
     "it": 125,
     "ja": 96,
-    "nl": 143,
+    # +2 on 2026-10-03 (strip/patch patterns, #182 5965589190): "1 label" and
+    # "{n} labels" are "1 label" and "{n} labels" in Dutch too. Identities,
+    # not missing translations; the other 21 new keys are translated.
+    "nl": 145,
     "no": 125,
     "pl": 120,
     "pt": 118,

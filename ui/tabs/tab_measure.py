@@ -827,11 +827,19 @@ def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
     # still runs for exactly the vintage it was written for.
     if chart_is_flat_top(ti2_path):
         return
+    # The chart's own labels say which strip and row a location is (#182
+    # 5965589190); the letters-then-digits reading below is the fallback.
+    from workflow.layout_engine.labels import labels_for_chart
+    cl = labels_for_chart(ti2_path)
     for page in pages:
         if not page:
             continue
         columns: "dict[str, list[int]]" = {}
         for loc, r in page.items():
+            sp = cl.split(loc)
+            if sp is not None:
+                columns.setdefault(str(sp[0]), []).append(r.x())
+                continue
             m = re.match(r"([A-Za-z]+)", loc)
             columns.setdefault(m.group(1) if m else "", []).append(r.x())
         # A column of TWO OR MORE patches that all share one x is the fingerprint
@@ -843,10 +851,14 @@ def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
         if not legacy:
             continue
         for loc, r in list(page.items()):
-            m = re.search(r"(\d+)\s*$", loc)
-            if not m:
-                continue                # the old code skipped these, and was wrong to
-            j = int(m.group(1)) - 1                    # 0-based row in the strip
+            sp = cl.split(loc)
+            if sp is not None:
+                j = sp[1]                              # 0-based row in the strip
+            else:
+                m = re.search(r"(\d+)\s*$", loc)
+                if not m:
+                    continue            # the old code skipped these, and was wrong to
+                j = int(m.group(1)) - 1
             dx = round(-r.width() / 4) if (j % 2 == 0) else round(r.width() / 4)
             page[loc] = QRect(r.x() + dx, r.y(), r.width(), r.height())
 
@@ -1509,6 +1521,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._on_engine_fell_back_resumed)
         self._manager.engine_fallback_refused.connect(
             self._on_engine_fallback_refused)
+        self._manager.chart_unreadable.connect(self._on_chart_unreadable)
+        self._manager.legacy_chart_read_ended.connect(
+            self._on_legacy_chart_read_ended)
         self._manager.calibration_retrying.connect(self._on_calibration_retrying)
         # D. Spot / XY mode defensive handlers
         self._manager.xy_place_sheet.connect(self._on_xy_place_sheet)
@@ -6821,6 +6836,97 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "have one."))
         return True
 
+    def _blocked_by_unreadable_locations(self) -> bool:
+        """True, and the reason shown, when the chart's patch locations do not
+        fit its own strip and patch patterns (forum report, 2026-10-03).
+
+        A chart laid out with the strip pattern "0-9" and 14 strips carries
+        locations like "14M", which ArgyllCMS's pattern grammar cannot parse.
+        Stock chartread and ChromIQ's engine both stop on it ("Bad location
+        field value '(null)' on patch 266"), and the engine's failure used to
+        start stock chartread, which failed identically. So the chart is
+        checked HERE, in Python, before any reader is launched, exactly as
+        chartread checks it (`alphix.chart_locations_problem`), and nothing
+        starts: no engine, no stock chartread, no fallback.
+        """
+        self._engine_only_chart = ""
+        if not self._ti1_path:
+            return False
+        chart = self._chart_file_for(self._ti1_path)
+        try:
+            from workflow.layout_engine.alphix import chart_locations_problem
+            detail = chart_locations_problem(chart)
+        except Exception:      # noqa: BLE001 — never block a read on this check
+            log.debug("could not check the chart's locations", exc_info=True)
+            return False
+        if detail is None:
+            return False
+        # A SHEET PRINTED WITH CHROMIQ'S OLD LABELS (Knut, #182 5965589190
+        # Q2): ChromIQ's engine reads it as printed, without touching the
+        # chart file; ArgyllCMS chartread cannot, and its user is told so.
+        from workflow import chartread_engine
+        from workflow.layout_engine.labels import legacy_reading
+        engine_reads_it = False
+        if legacy_reading(chart) is not None:
+            try:
+                engine_reads_it = (chartread_engine.is_available()
+                                   and chartread_engine.reads_legacy_labels())
+            except Exception:      # noqa: BLE001
+                engine_reads_it = False
+        if engine_reads_it and self._engine_selected():
+            self._engine_only_chart = detail
+            self._log.appendPlainText(tr(
+                "[Engine] This chart's labels were printed by an earlier "
+                "version of ChromIQ. ChromIQ's measuring engine reads them as "
+                "printed; ArgyllCMS chartread cannot, so it will not be used "
+                "for this chart."))
+            self._log.ensureCursorVisible()
+            return False
+        if engine_reads_it:
+            self._chart_legacy_stock_window(detail)
+            return True
+        self._chart_unreadable_window(detail)
+        return True
+
+    def _chart_legacy_stock_window(self, detail: str) -> None:
+        """M-CHART-LEGACY-STOCK: only ChromIQ's engine can read this sheet,
+        and Preferences selects ArgyllCMS chartread."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CHART_LEGACY_STOCK.render(detail=detail)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._say_on_screen(title, body)
+
+    def _on_legacy_chart_read_ended(self, reason: str) -> None:
+        """M-CHART-LEGACY-ENDED: the engine run on a sheet only it can read
+        ended, and no fallback was made. The log and the status line, as
+        `_on_engine_fallback_refused` does."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CHART_LEGACY_ENDED.render(reason=reason)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._flash_status(title, duration_ms=8000)
+
+    def _chart_unreadable_window(self, detail: str) -> None:
+        """M-CHART-LOCATIONS-UNREADABLE, in the log and in one window."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CHART_LOCATIONS_UNREADABLE.render(detail=detail)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._say_on_screen(title, body)
+
+    def _on_chart_unreadable(self, detail: str) -> None:
+        """The engine said, in a typed event, that the chart's locations do
+        not fit its patterns; the manager has withheld every fallback.
+
+        The log and the status line, as `_on_engine_fallback_refused` does: the
+        run is ending, and its own ending is what raises any window."""
+        from workflow import measurement_messages as M
+        title, body = M.M_CHART_LOCATIONS_UNREADABLE.render(detail=detail)
+        self._log.appendPlainText(f"[{title}]\n{body}")
+        self._log.ensureCursorVisible()
+        self._flash_status(title, duration_ms=8000)
+
     def _blocked_by_new_run(self) -> bool:
         """True — and the explaining pop-up has been shown — when the bar's
         **Profile run** is "New run" (#130, Knut). A run has to exist before its
@@ -6850,6 +6956,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         # …and nothing to measure without the laid-out chart (Knut, 2026-08-04).
         if self._blocked_by_missing_chart_file():
+            return
+        # …and when the chart's own locations do not fit its strip and patch
+        # patterns, which no reader can measure (forum report, 2026-10-03).
+        if self._blocked_by_unreadable_locations():
             return
         # …and stop here when the chart names an instrument ArgyllCMS cannot
         # use. The CR30 check comes FIRST: "CR30" is a name ChromIQ knows, so
@@ -13981,7 +14091,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _on_stripe_changed(self, strip_id: str) -> None:
         self._log.appendPlainText(f"[→ strip {strip_id}]")
         self._log.ensureCursorVisible()
-        letter = "".join(c for c in strip_id if c.isalpha()).upper()
+        # The strip's own LABEL, which may be a number (#182 5965589190):
+        # keeping only its letters dropped every numbered strip on the floor.
+        letter = self._strip_name(strip_id)
         if not letter:
             return
         # A failed strip reports no data, so this is the only way to name it in
@@ -13989,7 +14101,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._current_strip_letter = letter
         if not self._page_stripe_rects:
             return
-        global_idx = letter_to_idx(letter)
+        global_idx = self._strip_index(letter)
+        if global_idx < 0:
+            return
         n_pages    = max(1, len(self._tiff_pages))
 
         # Map the absolute strip index → (page, local index). Prefer the
@@ -14092,10 +14206,46 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             except Exception:      # noqa: BLE001 — visibility, never a crash
                 pass
 
+    # ---- the chart's labels (forum report; Knut, #182 5965589190) ----------
+    def _chart_labels(self):
+        """The strip and patch labels of the chart on screen: ArgyllCMS's
+        grammar for both, letters or numbers on either side, or ChromIQ's old
+        rule on a chart printed with it (`workflow.layout_engine.labels`)."""
+        from workflow.layout_engine.labels import labels_for_chart
+        try:
+            return labels_for_chart(
+                self._chart_file_for(getattr(self, "_ti1_path", None)))
+        except Exception:      # noqa: BLE001 — labels never block the tab
+            from workflow.layout_engine.labels import ChartLabels
+            return ChartLabels()
+
+    def _strip_index(self, label: str) -> int:
+        """0-based strip of a strip label, or -1."""
+        i = self._chart_labels().strip_index(str(label or "").strip())
+        if i >= 0:
+            return i
+        letters = "".join(c for c in str(label or "") if c.isalpha())
+        return letter_to_idx(letters) if letters else -1
+
+    def _strip_name(self, text: str) -> str:
+        """The strip a reader's word names, as the chart labels it: a strip
+        label stands for itself and a location for its strip."""
+        text = str(text or "").strip()
+        cl = self._chart_labels()
+        i = cl.strip_index(text)
+        if i >= 0:
+            return cl.strip(i) or text
+        sp = cl.split(text)
+        if sp is not None:
+            return cl.strip(sp[0]) or ""
+        return "".join(c for c in text if c.isalpha()).upper()
+
     def _locate_strip(self, letter: str) -> "tuple[int, int, QRect | None]":
-        """(page, local index, image-px rect) for a strip letter — the same
+        """(page, local index, image-px rect) for a strip label — the same
         mapping _on_stripe_changed uses for the measure arrow."""
-        global_idx = letter_to_idx(letter)
+        global_idx = self._strip_index(letter)
+        if global_idx < 0:
+            return 0, -1, None
         page, local_idx = 0, global_idx
         if self._strips_per_page:
             for count in self._strips_per_page:
@@ -14123,6 +14273,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         else:
             base = 0
         global_idx = base + local_idx
+        label = self._chart_labels().strip(global_idx)
+        if label:
+            return label
         # idx → letters (A..Z, AA..): inverse of letter_to_idx
         letters = ""
         n = global_idx
@@ -16914,9 +17067,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._log.appendPlainText(
             tr("[Engine] Jumping to patch {loc}…").format(loc=loc))
 
-    @staticmethod
-    def _strip_of(loc: str) -> str:
-        """The strip letter of a patch location: "A12" -> "A", "AB3" -> "AB"."""
+    def _strip_of(self, loc: str) -> str:
+        """The strip label of a patch location: "A12" -> "A", "AB3" -> "AB",
+        and "12C" -> "12" on a chart numbered by strip (#182 5965589190)."""
+        sp = self._chart_labels().split(str(loc or ""))
+        if sp is not None:
+            return self._chart_labels().strip(sp[0]) or ""
         return "".join(c for c in str(loc) if c.isalpha()).upper()
 
     def _note_patches_read(self, locs) -> None:
@@ -17019,7 +17175,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         "Show only measured patches" on blanked a sheet whose every patch had
         been measured.
         """
-        letters = {self._strip_of(s.get("strip", ""))
+        letters = {self._strip_name(s.get("strip", ""))
                    for s in self._engine_strips}
         letters |= {self._strip_of(loc)
                     for boxes in self._patch_boxes for loc in boxes}
@@ -17040,7 +17196,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         done = self._letters_fully_read()
         # NORMALISED, because the engine's keys are whatever the session map
         # and `strip_measured` called the strip and these are the chart's own.
-        eng = {self._strip_of(k): v for k, v in self._engine_read.items()}
+        eng = {self._strip_name(k): v for k, v in self._engine_read.items()}
         read_map = {}
         for letter in self._strip_letters():
             pg, li, _r = self._locate_strip(letter)
@@ -17407,6 +17563,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Set BEFORE every early return: this is a property of the chart, not
         # of the engine, and the manager needs it whichever reader runs (#159).
         p.stock_reader_cannot_read = p.external_values = self._chart_is_cr30()
+        # …and whether stock chartread can read this chart's labels at all
+        # (`_blocked_by_unreadable_locations`, #182 5965589190 Q2).
+        p.stock_cannot_read_chart = str(
+            vars(self).get("_engine_only_chart") or "")
         if not self._engine_selected():
             return p
         from workflow import chartread_engine

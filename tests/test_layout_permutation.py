@@ -14,8 +14,20 @@ def test_alpha_label_odometer():
 
 def test_make_labeller():
     assert perm.make_labeller("A-Z, A-Z")(2) == "B"
-    assert perm.make_labeller("1-999")(5) == "5"
+    assert perm.make_labeller("0-9,@-9;1-99")(5) == "5"
     assert perm.make_labeller("0-9,@-9,@-9;1-999")(12) == "12"
+
+
+def test_labels_follow_argylls_grammar_and_the_old_rule_survives():
+    """"1-999" is not a numeric pattern to ArgyllCMS: it is ONE digit, 1 to 9
+    and then 9 twice more. This file used to say it gave 1, 2, 3 ...; ChromIQ
+    now labels as ArgyllCMS does (forum report and Knut's ruling, #182
+    5965589190), so the tenth label is "9", and a new layout with more than
+    eleven strips is refused. The old rule is kept for charts printed with it."""
+    from workflow.layout_engine import alphix
+    assert perm.make_labeller("1-999")(10) == "9"
+    assert perm.make_labeller("1-999", "legacy")(10) == "10"
+    assert alphix.check_patterns("A-Z, A-Z", "1-999", 2, 12) is not None
 
 
 def test_location_label_grid():
@@ -23,8 +35,10 @@ def test_location_label_grid():
     assert perm.location_label(0, 21) == "A1"
     assert perm.location_label(20, 21) == "A21"
     assert perm.location_label(21, 21) == "B1"
-    # custom numeric strip + alpha patch
-    assert perm.location_label(0, 21, strip_pattern="1-999", patch_pattern="A-Z") == "1A"
+    # custom numeric strip + alpha patch, in a pattern ArgyllCMS reads the
+    # same way ("1-999" is one digit to Argyll, see the test above)
+    assert perm.location_label(0, 21, strip_pattern="0-9,@-9;1-99",
+                               patch_pattern="A-Z") == "1A"
 
 
 def test_permutation_reproducible():

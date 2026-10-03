@@ -654,6 +654,13 @@ class ChartParams:
     # stored copy sets this to the date it was originally made, so the sheet
     # that comes back matches the one that was measured (Knut, #130).
     chart_date: str = ""
+    #: How the ChromIQ layout engine makes the strip and patch labels.
+    #: "argyll" (every new layout) labels exactly as ArgyllCMS does and refuses
+    #: a pattern pair the readers could not read back (forum report and Knut's
+    #: ruling, #182 5965589190, 2026-10-03). "legacy" is ChromIQ's rule before
+    #: 4.3.3-beta.7, set ONLY by Restore Used Chart for a chart printed with it,
+    #: so the redrawn sheet carries the labels it was measured with.
+    label_rule: str = "argyll"
     # When True, this run targets the calibration chart (writes to ``cal/``
     # with stem ``calibration``). When False, writes to the project's current
     # run folder with stem ``chart``. See ``FileManager.cwd_for_chart``.
@@ -1652,6 +1659,8 @@ class ChartCreator:
             # pure ramp set is laid out as it is.
             result = le_chart.build_chart(
                 ti1, work_dir / stem,
+                label_rule=str(getattr(params, "label_rule", "argyll")
+                               or "argyll"),
                 ramps_per_strip=bool(getattr(params, "cal_target", False)),
                 **engine_kwargs)
         except Exception as exc:  # noqa: BLE001 — surface any engine failure

@@ -119,6 +119,19 @@ load .ti2 button may have several paths" is two in the source and one in the
 app. It is recorded rather than removed, because a helper nobody calls may be a
 dropped branch rather than dead code, and that is not a sweep's decision.
 
+## Strip and patch patterns (forum report and Knut's ruling, 2026-10-03)
+
+> **⏳ Awaiting confirmation. Confirmed by:** *nobody yet.* Measured in the real
+> app and by the suite; the rule itself is Knut's (#182 5965589190, "use the
+> rules defined for the strip and patch patterns defined by ArgyllCMS"), the
+> rows below are how it was built and wait for his or Sebastian's word.
+
+| Path | Labels | Pattern check |
+|---|---|---|
+| Generate Chart, a preset, a patch set (.ti1) loaded or applied from the Editor, the live preview | ArgyllCMS's, from the two patterns | Refused before anything is written when the readers could not read the chart back; the box is red, the reason is under the preview, Generate is unavailable, the live preview does not re-draw |
+| Restore Used Chart, the pages half; the verification page rebuild | The labels the stored chart was printed with (ArgyllCMS's, or ChromIQ's old rule for a chart from before 4.3.3-beta.7, recognised from its own locations) | None: the chart is already on paper |
+| A stored or preset pattern that cannot be used | Loads unchanged and shows red | Generate stays unavailable until it is changed |
+
 ## Answered, and so not built
 
 Whether importing a chart file should also offer "replace only the chart",

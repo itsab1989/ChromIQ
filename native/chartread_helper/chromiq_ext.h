@@ -53,7 +53,7 @@ void cq_json_escape(char *dst, size_t dstlen, const char *src);
  *
  * ⚠ BUMP THIS IN THE SAME COMMIT AS ANY CHANGE TO THE HELPER, and rebuild and
  * commit native/chromiq-chartread. The test tells you the expected value. */
-#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-03 calibrate-on-request-keys-first"
+#define CQ_HELPER_BUILD "chromiq-chartread 2026-10-03 legacy-labels+calibrate-on-request"
 const char *cq_helper_build_string(void);
 
 

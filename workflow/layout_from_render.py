@@ -213,14 +213,23 @@ def parse_ti2_strips(ti2_path: str | Path):
     data = parse_ti3(ti2_path)
     if not data.sample_locs or data.rgb is None or not len(data.rgb):
         raise RenderGeometryError("the .ti2 has no SAMPLE_LOC / RGB data")
-    strips: dict[str, list[tuple[int, str, np.ndarray]]] = {}
+    strips: dict = {}
+    # The chart's own labels place each location (#182 5965589190): a chart
+    # numbered by strip and lettered by patch is read as surely as "A12".
+    from workflow.layout_engine.labels import labels_for_chart, location_key
+    cl = labels_for_chart(ti2_path)
     for loc, rgb in zip(data.sample_locs, data.rgb):
+        key = location_key(cl, loc)
+        if key is not None:
+            strips.setdefault((0, key[0]), []).append((key[1], loc, rgb))
+            continue
         m = _LOC_RE.match(loc)
         if not m:
             raise RenderGeometryError(f"unparseable patch location {loc!r}")
-        strips.setdefault(m.group(1), []).append((int(m.group(2)), loc, rgb))
+        strips.setdefault((1, _strip_index(m.group(1))), []).append(
+            (int(m.group(2)), loc, rgb))
     per_strip = []
-    for key in sorted(strips, key=_strip_index):
+    for key in sorted(strips):
         rows = sorted(strips[key])
         per_strip.append(([loc for _, loc, _ in rows],
                           [rgb for _, _, rgb in rows]))

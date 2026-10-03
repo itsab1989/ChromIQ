@@ -117,7 +117,9 @@ def test_the_probe_text_is_the_labellers_own_output():
     label = permutation.make_labeller(permutation.DEFAULT_STRIP_PATTERN)
     assert big == "".join(label(n) for n in range(1, len(big) + 1))
     # A numeric pattern prints digits, none of which descend.
-    numeric = _probe(20, "1-999")
+    # ("0-9,@-9;1-99", not "1-999": ArgyllCMS reads "1-999" as one digit
+    # that stops at 9, and a new layout refuses it, forum report 2026-10-03.)
+    numeric = _probe(20, "0-9,@-9;1-99")
     assert set(numeric) <= set("0123456789"), numeric
 
 

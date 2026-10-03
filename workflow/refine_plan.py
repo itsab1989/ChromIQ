@@ -63,7 +63,7 @@ BLEND_MAX_OFF = 0.25
 
 #: profcheck -v2: "[de] n @ LOC: <device> -> <profile Lab> should be <measured Lab>"
 _PATCH_LINE = re.compile(
-    r"^\s*\[([\d.]+)\]\s+\d+\s+@\s+([A-Za-z0-9]+):\s+[^>]*->\s+"
+    r"^\s*\[([\d.]+)\]\s+\d+\s+@\s+([^\s:]+):\s+[^>]*->\s+"
     r"(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s+should be\s+"
     r"(-?[\d.]+)\s+(-?[\d.]+)\s+(-?[\d.]+)\s*$")
 _LOC = re.compile(r"^([A-Za-z]+)(\d+)$")
@@ -130,9 +130,18 @@ class Patch:
     pos: "int | None" = None
     pred: "tuple[float, float, float] | None" = None   # what the profile predicts
     meas: "tuple[float, float, float] | None" = None   # what was measured
+    sidx: "int | None" = None  # 0-based strip, when the chart's labels say
 
 
-def _split_loc(loc: str) -> "tuple[str, int | None]":
+def _split_loc(loc: str, labels=None) -> "tuple[str, int | None]":
+    """(strip label, 1-based place in the strip). With the chart's *labels*
+    any pattern ArgyllCMS allows is read: "12C" is strip "12", place 3 on a
+    chart numbered by strip (#182 5965589190)."""
+    if labels is not None:
+        from workflow.layout_engine.labels import location_key
+        key = location_key(labels, loc)
+        if key is not None:
+            return (labels.strip(key[0]) or loc), key[1] + 1
     m = _LOC.match(loc)
     if m:
         return m.group(1).upper(), int(m.group(2))
@@ -141,8 +150,8 @@ def _split_loc(loc: str) -> "tuple[str, int | None]":
 
 
 def parse_patches(log_text: str,
-                  patch_errors: "list[tuple[str, float]] | None" = None
-                  ) -> "list[Patch]":
+                  patch_errors: "list[tuple[str, float]] | None" = None,
+                  labels=None) -> "list[Patch]":
     """Every patch of a profcheck -v2 output, split lines mended first.
 
     *patch_errors* (``ProfcheckResult.patch_errors``) is the fallback for a
@@ -155,15 +164,26 @@ def parse_patches(log_text: str,
         if not m:
             continue
         loc = m.group(2)
-        strip, pos = _split_loc(loc)
+        strip, pos = _split_loc(loc, labels)
         v = [float(x) for x in m.groups()[2:]]
         out[loc] = Patch(loc, float(m.group(1)), strip, pos,
-                         (v[0], v[1], v[2]), (v[3], v[4], v[5]))
+                         (v[0], v[1], v[2]), (v[3], v[4], v[5]),
+                         _strip_number(strip, labels))
     for loc, de in patch_errors or ():
         if loc not in out:
-            strip, pos = _split_loc(loc)
-            out[loc] = Patch(loc, float(de), strip, pos)
+            strip, pos = _split_loc(loc, labels)
+            out[loc] = Patch(loc, float(de), strip, pos,
+                             sidx=_strip_number(strip, labels))
     return list(out.values())
+
+
+def _strip_number(strip: str, labels=None) -> int:
+    """Where a strip sits on the chart (0-based), for chart order."""
+    if labels is not None:
+        i = labels.strip_index(strip)
+        if i >= 0:
+            return i
+    return letter_to_idx(strip) if strip.isalpha() else 10 ** 9
 
 
 def _median(xs: "list[float]") -> float:
@@ -192,7 +212,16 @@ def outlier_limit(des: "list[float]") -> float:
     return med + OUTLIER_K * spread
 
 
-def blend_partner(p: Patch, by_loc: "dict[str, Patch]") -> str:
+def _neighbour_loc(p: Patch, npos: int, labels=None) -> str:
+    """The location of place *npos* (1-based) in *p*'s strip."""
+    if labels is not None and p.sidx is not None and npos >= 1:
+        loc = labels.location(p.sidx, npos - 1)
+        if loc:
+            return loc
+    return f"{p.strip}{npos}"
+
+
+def blend_partner(p: Patch, by_loc: "dict[str, Patch]", labels=None) -> str:
     """The neighbour *p* looks partly read as, or "".
 
     Its measured colour lies on the line from what the profile predicts for it
@@ -207,7 +236,7 @@ def blend_partner(p: Patch, by_loc: "dict[str, Patch]") -> str:
         return ""
     best = ("", math.inf)
     for npos in (p.pos - 1, p.pos + 1):
-        n = by_loc.get(f"{p.strip}{npos}")
+        n = by_loc.get(_neighbour_loc(p, npos, labels))
         if n is None or n.meas is None:
             continue
         d = [m - q for m, q in zip(n.meas, p.pred)]
@@ -248,6 +277,8 @@ class RefinePlan:
     first: "list[StripAdvice]" = field(default_factory=list)
     rest: "list[StripAdvice]" = field(default_factory=list)
     confirmed_skipped: "list[str]" = field(default_factory=list)
+    #: The chart's labels, for chart order (None: letters A, B ... AA).
+    labels: object = None
 
     @property
     def offered(self) -> "list[StripAdvice]":
@@ -270,7 +301,7 @@ class RefinePlan:
         """
         picked = self.first if (first_only and self.first) else self.offered
         return sorted(((a.strip, a.de) for a in picked),
-                      key=lambda x: letter_to_idx(x[0]))
+                      key=lambda x: _strip_number(x[0], self.labels))
 
 
 def recommends_start_over(n_above: int, n_total: int) -> bool:
@@ -280,13 +311,14 @@ def recommends_start_over(n_above: int, n_total: int) -> bool:
 
 def build_plan(patches: "list[Patch]", threshold: float,
                confirmed: "set[str] | frozenset[str]" = frozenset(),
-               de_name: str = "ΔE") -> RefinePlan:
+               de_name: str = "ΔE", labels=None) -> RefinePlan:
     """Decide what the result window offers. See the module docstring."""
     des = [p.de for p in patches]
     limit = outlier_limit(des)
     n_over = sum(1 for p in patches if p.de > threshold)
     plan = RefinePlan(threshold, len(patches), n_over, limit,
-                      recommends_start_over(n_over, len(patches)), de_name)
+                      recommends_start_over(n_over, len(patches)), de_name,
+                      labels=labels)
     by_loc = {p.loc: p for p in patches}
     strips: "dict[str, list[Patch]]" = {}
     for p in patches:
@@ -301,7 +333,7 @@ def build_plan(patches: "list[Patch]", threshold: float,
         worst = over[0]
         advice = None
         for p in over:                          # worst first within the strip
-            partner = blend_partner(p, by_loc)
+            partner = blend_partner(p, by_loc, labels)
             if partner:
                 advice = StripAdvice(strip, BLEND, p.loc, p.de, len(over),
                                      partner)
@@ -313,11 +345,11 @@ def build_plan(patches: "list[Patch]", threshold: float,
         if advice is None:
             advice = StripAdvice(strip, OVER, worst.loc, worst.de, len(over))
         (plan.rest if advice.kind == OVER else plan.first).append(advice)
-    plan.first.sort(key=lambda a: (-a.de, letter_to_idx(a.strip)))
-    plan.rest.sort(key=lambda a: (-a.de, letter_to_idx(a.strip)))
+    plan.first.sort(key=lambda a: (-a.de, _strip_number(a.strip, labels)))
+    plan.rest.sort(key=lambda a: (-a.de, _strip_number(a.strip, labels)))
     plan.confirmed_skipped.sort(
-        key=lambda loc: (letter_to_idx(_split_loc(loc)[0]),
-                         _split_loc(loc)[1] or 0))
+        key=lambda loc: (_strip_number(_split_loc(loc, labels)[0], labels),
+                         _split_loc(loc, labels)[1] or 0))
     return plan
 
 

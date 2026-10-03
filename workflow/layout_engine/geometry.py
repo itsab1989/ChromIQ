@@ -899,7 +899,8 @@ def strip_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
 def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
                    layout: Layout, dpi: int,
                    strip_pattern: str = "A-Z, A-Z",
-                   patch_pattern: str = "0-9,@-9,@-9;1-999") -> list[dict]:
+                   patch_pattern: str = "0-9,@-9,@-9;1-999",
+                   label_rule: str = "argyll") -> list[dict]:
     """Exact pixel rectangle of **every** patch slot, with its ``SAMPLE_LOC``.
 
     Because the engine generates the layout, the position of each patch is known
@@ -935,7 +936,8 @@ def patch_rects_px(geom: Geom, paper_w_mm: float, paper_h_mm: float,
             # rects line up with the drawn patches (#93, Knut).
             _stag = (px(geom.row_stagger_mm)
                      if (((first // steps) + p) & 1) else 0)
-            loc = permutation.location_label(gslot, steps, strip_pattern, patch_pattern)
+            loc = permutation.location_label(gslot, steps, strip_pattern,
+                                             patch_pattern, label_rule)
             # RECORD THE BOX THE RASTER ACTUALLY PAINTS. It derives each patch's
             # far edge from the SUM — `px(x_of(p) + pwid)` — while this used to
             # round the SIZE on its own, so the recorded box came out up to a
