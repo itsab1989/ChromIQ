@@ -1,6 +1,8 @@
 # Changelog
 
-## v4.3.3-beta.6 (unreleased)
+## v4.3.3-beta.6
+
+**Continue to next or jump to unread; yellow outlines learned per colour range; progress that counts each patch once; and a Check & Refine window that shows every line.**
 
 ### New
 
