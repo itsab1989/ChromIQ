@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-import sys
 import threading
 import time
 import os
@@ -257,12 +256,6 @@ class ReplaySession:
             # timeout says "did not finish", not a crash).
             with self._lock:
                 tail = self.raw_lines[-15:]
-            if sys.platform.startswith("linux"):
-                import pytest
-                pytest.xfail(
-                    "REAL_BUGS RB-1: on Linux the helper deadlocks in exit() "
-                    "while its stdin reader holds stdin's lock; app fix "
-                    "awaits Basti's decision. Last output: " + " | ".join(tail))
             raise AssertionError(
                 f"the helper did not exit within {timeout}s of being told to "
                 f"finish; its last output:\n" + "\n".join(tail)) from None
