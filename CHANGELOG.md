@@ -1,5 +1,15 @@
 # Changelog
 
+## v4.3.3-beta.10 (unreleased)
+
+### Fixed
+
+- **An instrument unplugged during a measurement no longer floods the log.** Knut's beta-8 logs held about 255,000 copies of `icoms_usb_transaction: ReadPipeAsync failed with 0xe00002c0` from one minute (Argyll's USB layer repeating itself until the run was stopped, and every line logged twice), which pushed the rest of the session out of the five log files. Identical lines are now collapsed where the tool's output enters ChromIQ: the line and its first three repeats are shown as before, the rest are counted, and a line such as `[ChromIQ: the line "…" came 127496 more times, not shown]` reports them, at most once every five seconds while it goes on and once when it stops. Engine events and lines that differ in any way (profile checks, progress) are never collapsed. The disconnection is reported exactly as before, because the first line still reaches everything that reacts to it. Replaying 127,500 such lines: 1.9 s and 29.3 MB (258,740 log lines) before, 0.08 s and 16 log lines after.
+
+### Changed
+
+- **The red and yellow help says exactly when a yellow outline holds.** A patch confirmed by a re-read is no longer "never forgotten": the help now says the confirmation is kept when you change the limits, and ends only when you read that patch once more and the new reading is not outlined or gives a different colour. The "learned from its colour range" rule now names, in the hover help and in Preferences alike, that the patch must be off in the same way as a confirmed patch of its range and must not stand out from its strip much more than that patch did. Translated in all 13 languages.
+
 ## v4.3.3-beta.9
 
 **Similar patches in different strips confirm each other, so a colour your printer cannot reach turns yellow without re-reading every strip; a colour range learns at three confirmations, however close; the outlines follow a changed limit at once; Check & Refine judges every patch through the profile, whatever its outline; the help explains red and yellow everywhere; and the Check & Refine window fits smaller screens.**

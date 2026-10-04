@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Callable
 
 from PyQt6.QtCore import QObject, QProcess, QProcessEnvironment, pyqtSignal
 
+from core.line_flood import RepeatGate
 from core.logger import get_logger
 from core.printtarg_env import is_printtarg, printtarg_env_additions
 from core.proc_text import decode_output
@@ -374,6 +375,7 @@ class ArgyllRunner(QObject):
         self._run_tool      = tool      # for the failed-to-start message
 
         self._partial_json = b""
+        self._line_gate = RepeatGate()
         self._process.readyReadStandardOutput.connect(self._on_ready_read)
         self._process.finished.connect(self._on_finished)
         # A PROCESS THAT NEVER STARTS MUST STILL REPORT BACK.
@@ -768,25 +770,14 @@ class ArgyllRunner(QObject):
         buf = b""
         FLUSH_AFTER = 0.15   # emit partial prompt lines after this silence
 
-        # Throttle repeated identical lines so a runaway process (e.g. USB
-        # error loop) cannot flood the Qt event queue and freeze the UI.
-        _last_line  = ""
-        _repeat_cnt = 0
-        _MAX_REPEAT = 4  # show a line up to this many times, then suppress
+        # Collapse a runaway stream of identical lines (a USB error loop) so
+        # it cannot flood the Qt event queue or the log (core/line_flood.py).
+        gate = RepeatGate()
 
         def _emit(line: str) -> None:
-            nonlocal _last_line, _repeat_cnt
-            if line == _last_line:
-                _repeat_cnt += 1
-                if _repeat_cnt == _MAX_REPEAT:
-                    self.line_received.emit("[…repeated output suppressed]")
-                if _repeat_cnt >= _MAX_REPEAT:
-                    return
-            else:
-                _last_line  = line
-                _repeat_cnt = 0
-            log.debug("[argyll-pty] %s", line)
-            self.line_received.emit(line)
+            for out in gate.feed(line):
+                log.debug("[argyll-pty] %s", out)
+                self.line_received.emit(out)
 
         while True:
             try:
@@ -826,7 +817,10 @@ class ArgyllRunner(QObject):
         if buf:
             line = _ANSI_RE.sub("", decode_output(buf, what="argyll")).rstrip("\r")
             if line:
-                self.line_received.emit(line)
+                _emit(line)
+        for out in gate.flush():
+            log.debug("[argyll-pty] %s", out)
+            self.line_received.emit(out)
 
         try:
             code = proc.wait(timeout=3)
@@ -855,23 +849,12 @@ class ArgyllRunner(QObject):
             self._pty_done.emit(0, gen)
             return
 
-        _last_line  = ""
-        _repeat_cnt = 0
-        _MAX_REPEAT = 4
+        gate = RepeatGate()     # see the PTY reader and core/line_flood.py
 
         def _emit(line: str) -> None:
-            nonlocal _last_line, _repeat_cnt
-            if line == _last_line:
-                _repeat_cnt += 1
-                if _repeat_cnt == _MAX_REPEAT:
-                    self.line_received.emit("[…repeated output suppressed]")
-                if _repeat_cnt >= _MAX_REPEAT:
-                    return
-            else:
-                _last_line  = line
-                _repeat_cnt = 0
-            log.debug("[argyll-pipe] %s", line)
-            self.line_received.emit(line)
+            for out in gate.feed(line):
+                log.debug("[argyll-pipe] %s", out)
+                self.line_received.emit(out)
 
         byte_q: queue.Queue[bytes | None] = queue.Queue()
 
@@ -917,7 +900,10 @@ class ArgyllRunner(QObject):
                 "", decode_output(buf, what="argyll")
             ).rstrip("\r")
             if line:
-                self.line_received.emit(line)
+                _emit(line)
+        for out in gate.flush():
+            log.debug("[argyll-pipe] %s", out)
+            self.line_received.emit(out)
 
         try:
             code = proc.wait(timeout=3)
@@ -978,12 +964,43 @@ class ArgyllRunner(QObject):
             return buf[:cut]
         return buf
 
+    def _gate(self) -> RepeatGate:
+        """This run's repeat gate (made on first use for a runner built
+        without `run`, as some tests do)."""
+        gate = self.__dict__.get("_line_gate")
+        if gate is None:
+            gate = self._line_gate = RepeatGate()
+        return gate
+
+    def _gated_lines(self, text: str):
+        """*text*'s lines through the repeat gate, in order.
+
+        A read ends wherever the pipe buffer did, so a flood arrives cut into
+        pieces, and every piece would pass the gate as a new line. A last piece
+        (no newline after it) that is the start of the line being collapsed
+        right now is held back for the next read, like a split engine event.
+        It is decided only once this read's whole lines have been fed, so the
+        gate knows about the flood by then."""
+        gate = self._gate()
+        lines = text.splitlines()
+        partial = bool(lines) and not text.endswith(("\n", "\r"))
+        for i, ln in enumerate(lines):
+            if (partial and i == len(lines) - 1
+                    and gate.is_flood_prefix(ln)):
+                self._partial_json = ln.encode("utf-8")
+                return
+            yield from gate.feed(ln)
+
     def _on_ready_read(self) -> None:
         if not self._process:
             return
         raw = self._take_complete(self._process.readAllStandardOutput().data())
         text = decode_output(raw, what="argyll")
-        for line in text.splitlines():
+        # A runaway stream of identical lines (Knut, beta 8: an unplugged
+        # instrument, ~255,000 log lines in a minute) is collapsed here, where
+        # it enters ChromIQ, so the log, the panel and the parsers all see the
+        # first lines and a count (core/line_flood.py).
+        for line in self._gated_lines(text):
             log.debug("[argyll] %s", line)
             self.line_received.emit(line)
             # A SLOT MAY HAVE ENDED THE RUN. Some of these lines open a modal
@@ -1032,11 +1049,15 @@ class ArgyllRunner(QObject):
             remaining = (getattr(self, "_partial_json", b"")
                          + self._process.readAllStandardOutput().data())
             self._partial_json = b""
+            gate = self._gate()
+            lines = []
             if remaining:
                 text = decode_output(remaining, what="argyll")
-                for line in text.splitlines():
-                    log.debug("[argyll] %s", line)
-                    self.line_received.emit(line)
+                lines = [out for ln in text.splitlines()
+                         for out in gate.feed(ln)]
+            for line in lines + gate.flush():
+                log.debug("[argyll] %s", line)
+                self.line_received.emit(line)
 
         # Capture per-run callbacks before they can be overwritten by a chained run()
         on_finish = self._run_on_finish
