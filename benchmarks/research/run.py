@@ -90,12 +90,18 @@ V3_SYNTH = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "X1", "X3", "X3m", "X5", "
 V3_SPARSE = ("S1", "S3", "X1", "X3", "XKH", "XKB")   # also targen 400 (one sheet or less)
 # Fast/Bit-exact identity re-builds (hard rule 1) on these typical targen-900
 # sets and every real set; Integrator 3's hash battery covers the rest
-V3_IDENTITY = ("S3", "X1", "X3", "X5")
-SEEDS3_PRINTERS = ["X1", "X3", "S3", "XKH", "X5"]
-SEEDS3_LEVELS = {"X1": ("typical",), "S3": ("typical",), "XKH": ("typical",), "X5": ("typical",)}
-# seeds per printer: 10 where the ramp rows must be confirmable (v2.1 A4),
-# 6 elsewhere (SD only), to fit a machine shared by five agents
-SEEDS3_K = {"X1": 10, "X3": 10, "S3": 6, "XKH": 6, "X5": 6}
+V3_IDENTITY = ("X3",)
+V3_IDENTITY_REAL = ("R-FOGRA39L", "R-Pro300-CanonSG")
+# the 7-ink real sets (4884 / 3534 patches) are Agent 14's; not in this freeze
+V3_REAL_SKIP = ("R-FOGRA55", "R-APTEC7C")
+SEEDS3_PRINTERS = ["X1", "X3", "X5"]
+SEEDS3_LEVELS = {"X1": ("typical",), "X5": ("typical",)}
+# seeds per printer and level: 10 where ramp rows must be confirmable (v2.1
+# A4), 6 elsewhere (SD only). Cut on 2026-10-05 01:05 to 3 build processes
+# (coordinator: machine 2x oversubscribed); classes without a measured SD
+# take the documented fallback (stats3.seed_sd)
+SEEDS3_K = {("X1", "typical"): 10, ("X3", "typical"): 10, ("X3", "pessimistic"): 6,
+            ("X5", "typical"): 6}
 LEVELS_V3 = [list(BENCH_LEVELS)]
 N_SEEDS3 = 10
 SEEDS_N = [N_SEEDS3]
@@ -104,8 +110,11 @@ NO_REAL = [False]
 V3_READERS = "argyll,lcms,colorsync,lcms-app,ghostscript,ghostscript-bpc"
 
 
+NO_SEPT = [False]
+
+
 def v3_charts(p) -> list[tuple[str, int]]:
-    out = [("targen", 900), ("september", 900)]
+    out = [("targen", 900)] + ([] if NO_SEPT[0] else [("september", 900)])
     if p.id in V3_SPARSE:
         out.append(("targen", 400))
     if p.n >= 5:
@@ -322,7 +331,7 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
                     specs.append({"ds": dsm.synthetic_chart(pid, work, kind, n, level=lvl,
                                                             printers=printers),
                                   "variant": f"{lvl}-{kind}{n}", "role": "development"})
-        for name in ([] if NO_REAL[0] else REAL_BASE):
+        for name in ([] if NO_REAL[0] else [r for r in REAL_BASE if r not in V3_REAL_SKIP]):
             if keep(name):
                 d = dsm.real(name, work / name)
                 if name in REAL_TAC:
@@ -335,7 +344,7 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
             if not keep(pid):
                 continue
             for lvl in SEEDS3_LEVELS.get(pid, BENCH_LEVELS):
-                for k in range(min(SEEDS_N[0], SEEDS3_K.get(pid, SEEDS_N[0]))):
+                for k in range(min(SEEDS_N[0], SEEDS3_K.get((pid, lvl), SEEDS_N[0]))):
                     specs.append({"ds": dsm.synthetic_chart(pid, work, "targen", 900, level=lvl,
                                                             seed=23 + k, printers=printers),
                                   "variant": f"seed{k}-{lvl}-targen900", "role": "development"})
@@ -386,7 +395,7 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         if suite == "repeat":
             jobs.append(dict(j, out=str(profdir / f"{tag}-{e}-again.icc"), role="repeat"))
     if (suite == "baseline" and spec["variant"] in ("typical", "base")) or \
-            (suite == "v3" and (spec["variant"] == "base" or (
+            (suite == "v3" and ((spec["variant"] == "base" and ds.name in V3_IDENTITY_REAL) or (
                 spec["variant"] == "typical-targen900" and ds.name in V3_IDENTITY))):
         for role in ("identity", "upstream"):
             if not trees.get(role):
@@ -465,6 +474,8 @@ def main(argv=None) -> int:
                     help="seeds3: number of noise seeds (protocol v3: 10)")
     ap.add_argument("--levels", default="", help="v3: noise levels (default both)")
     ap.add_argument("--no-real", action="store_true", help="v3: synthetic sets only")
+    ap.add_argument("--no-september", action="store_true",
+                    help="v3: leave out the robustness chart")
     ap.add_argument("--score-parallel", type=int, default=0,
                     help="scoring processes (default = --parallel)")
     args = ap.parse_args(argv)
@@ -472,6 +483,7 @@ def main(argv=None) -> int:
         SEALED_DIR[0] = Path(args.sealed_dir).expanduser()
     SEEDS_N[0] = args.seeds
     NO_REAL[0] = args.no_real
+    NO_SEPT[0] = args.no_september
     if args.levels:
         LEVELS_V3[0] = args.levels.split(",")
     if args.i1profiler_data:
