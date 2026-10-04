@@ -86,6 +86,27 @@ def candidates_from_env(env_value: str | None) -> frozenset:
                      if t.strip() in ENGINE_CANDIDATE_TOKENS)
 
 
+# Agent 3's GP forward model ("gpfwd", and "a2bfine", which only acts inside
+# its projection) is for ink devices of AT MOST 4 inks (integration 1,
+# 2026-10-04). On 5-7 inks it degrades the single-ink ramps (Agent 14
+# interim: X5 ramp A2B median 1.2-1.8 dE00 against 0.1-0.4 with the shipped
+# forward fit; the battery's multi-ink charts are 71-89 % all-inks-on patches,
+# so E1 did not see it), and on 7 inks its 5^7 lattice adds nothing to the
+# A2B and hurts the B2A (agent3-01 section 14). 5+ inks keep the shipped
+# forward fit; "b2a33s" does not depend on the GP and still applies.
+GP_FORWARD_MAX_INKS = 4
+
+
+def gp_forward_applies(candidates, *, is_additive: bool, n_channels: int,
+                       n_patches: int) -> bool:
+    """True when the "gpfwd" candidate replaces the forward fit: an ink
+    device (not RGB) of at most GP_FORWARD_MAX_INKS inks, with at least 75
+    patches per ink."""
+    return ("gpfwd" in candidates and not is_additive
+            and 0 < n_channels <= GP_FORWARD_MAX_INKS
+            and n_patches >= 75 * n_channels)
+
+
 def _fit_lambda(grid: int) -> float:
     if grid in _FIT_LAMBDA_BY_GRID:
         return _FIT_LAMBDA_BY_GRID[grid]
@@ -559,8 +580,11 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             positioning=((not meas.is_additive or "rgbpos" in candidates)
                          and curve_rounds > 0),
             additive=meas.is_additive)
-        if ("gpfwd" in candidates and not meas.is_additive
-                and len(meas.device) >= 75 * n):
+        if ("gpfwd" in candidates and not meas.is_additive and n > 4):
+            _emit(settings, "Gaussian process forward model: not used for "
+                            "5 or more inks (the forward fit is kept).")
+        if gp_forward_applies(candidates, is_additive=meas.is_additive,
+                              n_channels=n, n_patches=len(meas.device)):
             # Not below 75 patches per ink: at 150 patches on 4 inks the
             # marginal likelihood picks a near-interpolating optimum on 1 of
             # 3 S3 charts (p95 10.9 dE00 vs the grid's 2.4; agent 3, F0g/F0h,
