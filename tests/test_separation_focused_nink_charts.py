@@ -48,9 +48,14 @@ def test_pair_grids_are_grids_not_diagonals_and_keep_two_inks():
     out = ND.ink_pair_grids(INKS7, 3, ink_limit=320.0)
     assert len(out) == ND.ink_pair_grids_count(INKS7, 3)
     assert all(_on(p) == 2 for p in out)
+    # process pairs (C M Y) get levels + 2 = a 5 x 5 light-spaced grid
     cm = sorted((round(p[0]), round(p[1])) for p in out if p[0] > 0 and p[1] > 0)
-    assert (33, 100) in cm and (100, 33) in cm             # off the diagonal
-    assert len(cm) == 9
+    assert len(cm) == 25 and (9, 100) in cm and (100, 9) in cm   # off the diagonal
+    # an extra ink with a non-complementary process ink: 3 x 3
+    mo = [p for p in out if p[1] > 0 and p[4] > 0]
+    assert len(mo) == 9
+    # light-spaced: the lightest overprint level is under 20 %
+    assert min(v for p in out for v in p if v > 0) < 20.0
 
 
 def test_complementary_pairs_get_the_coarse_grid():
@@ -63,12 +68,21 @@ def test_complementary_pairs_get_the_coarse_grid():
     assert len(mo) == 9
 
 
-def test_light_ink_pairs_with_its_parent_get_a_finer_grid():
+def test_light_ink_and_its_parent_get_the_hand_over_grid():
     inks = ["c", "m", "y", "k", "lc", "lm"]
     out = ND.ink_pair_grids(inks, 3, ink_limit=300.0)
     c_lc = [p for p in out if p[0] > 0 and p[4] > 0]
+    assert len(c_lc) == 24
+    # the dark ink is sampled from 5 % under the light ink (the hand-over)
+    assert min(p[0] for p in c_lc) == 5.0 and max(p[4] for p in c_lc) == 100.0
     c_lm = [p for p in out if p[0] > 0 and p[5] > 0]
-    assert len(c_lc) == 16 and len(c_lm) == 9
+    assert len(c_lm) == 9
+
+
+def test_white_ink_is_left_out_of_grids_and_fill():
+    inks = ["c", "m", "y", "k", "w"]
+    assert all(p[4] == 0.0 for p in ND.ink_pair_grids(inks, 3, 300.0))
+    assert all(p[4] == 0.0 for p in ND.separation_fill_nd([], 80, inks, 300.0))
 
 
 @pytest.mark.parametrize("limit", [120.0, 150.0, 200.0, 320.0])
@@ -80,28 +94,46 @@ def test_pair_grids_scale_into_the_limit_and_keep_the_ink_count(limit):
 
 # --- separation fill ---------------------------------------------------------------
 
-def test_separation_fill_uses_three_and_four_inks_only():
-    seed = ND.per_ink_ramps(7, 8, 320.0)
-    add = ND.separation_fill_nd(seed, len(seed) + 400, INKS7, ink_limit=320.0)
-    assert len(add) == 400
-    counts = {k: sum(1 for p in add if _on(p) == k) for k in range(8)}
-    assert counts[3] + counts[4] == 400
-    assert 120 < counts[3] < 280                              # share3 = 0.5
-    assert all(sum(p) <= 320.0 + 1e-9 for p in add)
-    assert all(min(v for v in p if v > 0) >= 8.0 * 320.0 / 400.0 - 1e-9 for p in add)
+def test_separation_fill_is_mostly_three_and_four_inks():
+    seed = ND.per_ink_ramps(7, 8, 352.0)
+    add = ND.separation_fill_nd(seed, len(seed) + 600, INKS7, ink_limit=352.0)
+    assert len(add) == 600
+    k = [_on(p) for p in add]
+    big = sum(1 for x in k if x >= 5)
+    assert sum(1 for x in k if x in (3, 4)) + big == 600
+    assert 0.03 * 600 < big < 0.15 * 600                     # share5 = 8 %
+    assert all(sum(p) <= 352.0 + 1e-6 for p in add)
+    # some patches sit on the ink-limit face (the shadows of a separation)
+    assert sum(1 for p in add if sum(p) > 351.5) > 20
+    assert len({tuple(round(v, 3) for v in p) for p in add}) == 600
 
 
-def test_separation_fill_prefers_cmyk_and_avoids_complementary_pairs():
-    add = ND.separation_fill_nd([], 2000, INKS7, ink_limit=320.0, seed=3)
+def test_separation_fill_weights_cmyk_up_and_complementary_pairs_down():
+    add = ND.separation_fill_nd([], 2000, INKS7, ink_limit=320.0, seed=3, share5=0.0)
     act = [frozenset(i for i, v in enumerate(p) if v > 0) for p in add]
     cmyk = sum(1 for a in act if a <= {0, 1, 2, 3})
     comp = sum(1 for a in act if {0, 4} <= a or {1, 5} <= a or {2, 6} <= a)
-    # of the 35 three-ink + 35 four-ink subsets only 4 + 1 lie inside CMYK,
-    # so an unweighted draw would give about 7 %; the weights give more
-    assert cmyk / len(add) > 0.10
-    # complementary pairs: sampled (a full separation may use them) but rarer
-    # than in an unweighted draw (about 50 % of 3-4 ink subsets hold one)
-    assert 0 < comp / len(add) < 0.35
+    # 5 of the 70 three- and four-ink subsets lie inside CMYK (7 %)
+    assert cmyk / len(add) > 0.07
+    flat = ND.separation_fill_nd([], 2000, INKS7, ink_limit=320.0, seed=3, share5=0.0,
+                                 comp_weight=1.0)
+    act1 = [frozenset(i for i, v in enumerate(p) if v > 0) for p in flat]
+    comp1 = sum(1 for a in act1 if {0, 4} <= a or {1, 5} <= a or {2, 6} <= a)
+    # at weight 0.5 clearly fewer than unweighted, but still sampled
+    assert 0.15 * len(add) < comp < 0.85 * comp1
+
+
+def test_complementary_pairs_letters_and_measured_hues():
+    assert ND.complementary_pairs(INKS7) == {frozenset((0, 4)), frozenset((1, 5)),
+                                             frozenset((2, 6))}
+    # measured hues decide when known; process pairs (C M Y) never count
+    hues = {0: (218, 50), 1: (338, 70), 2: (89, 90), 4: (44, 90), 5: (149, 90), 6: (304, 60)}
+    got = ND.complementary_pairs(INKS7, hues)
+    assert frozenset((0, 4)) in got and frozenset((1, 5)) in got
+    assert frozenset((2, 6)) not in got                       # Y-V only 145 deg here
+    assert frozenset((5, 6)) in got                           # G-V 155 deg
+    assert not any(p <= {0, 1, 2} for p in got)
+    assert ND.complementary_pairs(["c", "m", "y", "k", "lc", "lm"]) == set()
 
 
 def test_separation_fill_is_deterministic_and_respects_existing():
@@ -121,9 +153,9 @@ def test_separation_fill_on_cmyk_and_on_three_inks():
 def test_subset_weight():
     assert ND.subset_weight(["c", "m", "y", "k"]) == 1.0
     assert ND.subset_weight(["m", "y", "k", "o"]) == 1.0      # O replaces C
-    assert ND.subset_weight(["c", "y", "o"]) == 0.25          # C with O
-    assert ND.subset_weight(["k", "o", "g"]) == 0.5           # two extra inks
-    assert ND.subset_weight(["c", "lc", "y"]) == 1.0          # light ink = parent
+    assert ND.subset_weight(["c", "y", "o"]) == 0.5           # C with O
+    assert ND.subset_weight(["k", "o", "g"]) == 1.0           # neighbours, no 0.5 (S5)
+    assert ND.subset_weight(["c", "lc", "y"]) == 1.0
 
 
 # --- fixes R3 / R4 -----------------------------------------------------------------
@@ -225,8 +257,8 @@ def test_new_switches_build_the_separation_focused_program(dlg):
     assert len(program) == 600
     assert all(sum(p) <= 320.0 + 1e-6 for p in program)
     k = [_on(p) for p in program]
-    assert sum(1 for x in k if x >= 5) == 0
-    assert sum(1 for x in k if x in (3, 4)) >= 600 - 84 - ND.ink_pair_grids_count(INKS7, 3)
+    assert sum(1 for x in k if x >= 5) < 0.1 * 600
+    assert sum(1 for x in k if x in (3, 4)) > 0.4 * 600
     # the count label agrees with what the row adds
     assert dlg._nch_pairs_patch_count() == ND.ink_pair_grids_count(INKS7, 3)
 
@@ -281,7 +313,8 @@ def test_the_multi_ink_setup_ticks_the_professional_layout(dlg):
     program = dlg._build_generated_program()
     assert len(program) == 900
     k = [_on(p) for p in program]
-    assert max(k) <= 4 and sum(1 for x in k if x in (3, 4)) / len(k) > 0.6
+    assert sum(1 for x in k if x >= 5) / len(k) < 0.1
+    assert sum(1 for x in k if x in (3, 4)) / len(k) > 0.5
     assert all(sum(p) <= 320.0 + 1e-6 for p in program)
 
 

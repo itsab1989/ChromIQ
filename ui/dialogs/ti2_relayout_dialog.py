@@ -3860,7 +3860,10 @@ class _NewChartDialog(QDialog):
         try:
             state = json.dumps(self._generator_build_state(), sort_keys=True,
                                default=str)
-            existing = tuple((float(p[0]), float(p[1]), float(p[2]))
+            # EVERY channel: an N-ink chart in the Add flow differs in its
+            # extra inks too, and keying only the first three served a stale
+            # fill (challenge M5, agent 18).
+            existing = tuple(tuple(float(v) for v in p)
                              for p in (self._existing_patches or []))
             return (type(self).__name__, state, self._nch_state(),
                     self._effective_fill_target(), existing,

@@ -81,7 +81,15 @@ def complementary_pairs(printer, min_angle: float = 150.0, min_chroma: float = 2
     nothing their parent does not."""
     h, c = solid_hues(printer)
     out = []
+    # two PROCESS inks are never "complementary": every separation mixes
+    # them (S5-S7 put C and Y 153 deg apart, which counted C+Y; agent 18 /
+    # challenge B1). Light inks (lower case) follow their parent.
+    fam = [l.upper() for l in printer.letters]
     for i, j in itertools.combinations(range(printer.n), 2):
+        if fam[i] in "CMY" and fam[j] in "CMY":
+            continue
+        if fam[i] == fam[j] or "K" in (fam[i], fam[j]):
+            continue
         if c[i] < min_chroma or c[j] < min_chroma:
             continue
         d = abs((h[i] - h[j] + 180.0) % 360.0 - 180.0)

@@ -430,8 +430,8 @@ def enforce_min_distance_nd(patches, min_dist: float = 2.0, existing=None,
     step stays a single-ink patch and a pair grid patch keeps its two inks,
     and with ``ink_limit`` every nudged patch is projected back into the
     limit (agent 18 R3: nudging along every axis switched inks on in 107 of
-    827 patches and left 77 over a 320 % limit). A patch with no ink on (paper
-    white) is never moved: its repeats are deliberate anchors."""
+    827 patches and left 77 over a 320 % limit). Paper white and single-ink
+    patches (ramp steps) are never moved: they are deliberate."""
     if not patches:
         return []
     if min_dist <= 0:
@@ -444,11 +444,14 @@ def enforce_min_distance_nd(patches, min_dist: float = 2.0, existing=None,
     out: list[tuple[float, ...]] = []
     for p in patches:
         q = tuple(_clamp(v) for v in p)
-        if _min_d2_brute(q, kept) >= md2:
+        on = {i for i, v in enumerate(q) if v > 0.0}
+        if len(on) <= 1 or _min_d2_brute(q, kept) >= md2:
+            # paper white and single-ink ramp steps are deliberate (the
+            # light-step ramps sit 1.4 / 4.0 / 7.4 % apart at 17 steps and
+            # must keep their values; challenge M6): never moved
             kept.append(q)
             out.append(q)
             continue
-        on = {i for i, v in enumerate(q) if v > 0.0}
         dirs = [d for d in dirs_all
                 if all(c == 0.0 or i in on for i, c in enumerate(d))]
         best_q, best_d2, found = q, _min_d2_brute(q, kept), None
@@ -576,7 +579,8 @@ def fill_gaps_nd(existing, total: int, n_channels: int | None = None,
 
 
 # ---------------------------------------------------------------------------
-# Separation-focused sets for 5+ inks (agent 18, D-16)
+# Separation-focused sets for 3+ inks (agent 18, D-16; design v2 after the
+# challenge, Validation/agent18-design-challenge.md)
 # ---------------------------------------------------------------------------
 #
 # Professional expanded-gamut (ECG) charts (IDEAlliance ECG 2019, X-Rite ECG
@@ -585,27 +589,71 @@ def fill_gaps_nd(existing, total: int, n_channels: int | None = None,
 # every two-ink overprint as a grid, CMYK as the main four-ink subset, then
 # the subsets in which an extra ink replaces its complementary process ink
 # (ISO/TS 21328), complementary pairs sampled about a third as densely, and
-# under 10 % of patches with 5+ inks. That is where a separation puts its
+# 5-10 % of patches with 5+ inks. That is where a separation puts its
 # colours, so that is where the profile needs measurements. The functions
-# below need the chart's ink CODES (ChromIQ codes, canonical order).
+# below take the chart's ink CODES (ChromIQ codes, canonical order).
+#
+# Ink FAMILIES: a light or medium ink belongs to its parent's family (c, lc
+# and mc are one hue channel), because a light-ink separation hands over from
+# the light to the dark ink along one hue; the "inks per patch" cap counts
+# families, not physical inks. White ink ("w") is not a colorant of a colour
+# separation and is left out of every set here.
 
 # an extra ink -> the process ink on the opposite side of the hue circle
+# (the default when no measured hues are known)
 _COMPLEMENT: dict[str, str] = {"o": "c", "r": "c", "g": "m", "v": "y", "b": "y"}
 # a light / medium ink -> its full-strength parent
 _LIGHT_PARENT: dict[str, str] = {
     "lc": "c", "lm": "m", "ly": "y", "lk": "k",
     "mc": "c", "mm": "m", "my": "y", "mk": "k", "llk": "k"}
+_PROCESS = ("c", "m", "y")
+_NOT_A_COLORANT = ("w",)
+
+
+def ink_family(code: str) -> str:
+    """The hue channel an ink belongs to (a light ink's parent)."""
+    return _LIGHT_PARENT.get(code, code)
+
+
+def complementary_pairs(inks, hues=None, min_angle: float = 150.0,
+                        min_chroma: float = 20.0) -> set:
+    """Index pairs of inks on opposite sides of the hue circle.
+
+    ``hues``: optional ``{index: (hue_deg, chroma)}`` of the measured solids
+    (a preconditioning profile, or the benchmark's truth printer); then the
+    rule is the referee's: both chromatic and at least ``min_angle`` apart.
+    Without it, ink letters decide (C+O, C+R, M+G, Y+V, Y+B). Either way
+    two PROCESS inks (C, M, Y) are never complementary: they are what every
+    separation mixes. Light inks follow their parent; K and white never pair."""
+    inks = list(inks)
+    fam = [ink_family(c) for c in inks]
+    out = set()
+    for i, j in itertools.combinations(range(len(inks)), 2):
+        a, b = fam[i], fam[j]
+        if a == b or "k" in (a, b) or a in _NOT_A_COLORANT or b in _NOT_A_COLORANT:
+            continue
+        if a in _PROCESS and b in _PROCESS:
+            continue
+        if hues is not None and i in hues and j in hues:
+            (hi, ci), (hj, cj) = hues[i], hues[j]
+            if ci < min_chroma or cj < min_chroma:
+                continue
+            if abs((hi - hj + 180.0) % 360.0 - 180.0) >= min_angle:
+                out.add(frozenset((i, j)))
+        elif _COMPLEMENT.get(a) == b or _COMPLEMENT.get(b) == a:
+            out.add(frozenset((i, j)))
+    return out
 
 
 def is_complementary(a: str, b: str) -> bool:
-    """True for an extra ink and the process ink opposite it (C+O, C+R,
-    M+G, Y+V, Y+B) in either order."""
+    """Letter rule only (see :func:`complementary_pairs` for measured hues)."""
+    a, b = ink_family(a), ink_family(b)
     return _COMPLEMENT.get(a) == b or _COMPLEMENT.get(b) == a
 
 
 def is_light_pair(a: str, b: str) -> bool:
     """True for a light/medium ink and its own parent (c+lc, k+lk, ...)."""
-    return _LIGHT_PARENT.get(a) == b or _LIGHT_PARENT.get(b) == a
+    return a != b and ink_family(a) == ink_family(b)
 
 
 def _scale_into_limit(row: list[float], limit: float) -> list[float]:
@@ -620,80 +668,157 @@ def _scale_into_limit(row: list[float], limit: float) -> list[float]:
 
 
 def pair_grid_levels(levels: int) -> list[float]:
-    """Per-ink values of an ``levels`` x ``levels`` pair grid: evenly spaced,
-    the solid included, no zero (2 -> 50 100; 3 -> 33 67 100; 4 -> 25 ... 100)."""
-    levels = max(1, int(levels))
-    return [100.0 * i / levels for i in range(1, levels + 1)]
+    """Per-ink values of a ``levels`` x ``levels`` pair grid, light-spaced like
+    the ramps (2 -> 35 100; 3 -> 19 54 100; 5 -> 9 25 46 72 100): light
+    two-ink overprints are sampled, the solid is included, no zero."""
+    return ramp_levels(max(1, int(levels)), 100.0, "light")
 
 
-def _pair_levels_for(a: str, b: str, levels: int) -> list[float]:
-    if is_complementary(a, b):
-        return pair_grid_levels(max(1, min(levels, 2)))      # coarse: 50 100
+# a light ink with its own dark parent: the hand-over region (dark ink
+# from 0 to 20 % under a light ink) is where a light-ink separation lives
+_HANDOVER_LIGHT = (25.0, 50.0, 75.0, 100.0)
+_HANDOVER_DARK = (5.0, 10.0, 20.0, 40.0, 70.0, 100.0)
+
+
+def _pair_values(i, j, inks, levels, comp):
+    a, b = inks[i], inks[j]
+    if frozenset((i, j)) in comp:
+        lv = pair_grid_levels(max(1, min(levels, 2)))      # coarse: 35 100
+        return [(x, y) for x in lv for y in lv]
     if is_light_pair(a, b):
-        return pair_grid_levels(levels + 1)                   # the light/dark split
-    return pair_grid_levels(levels)
+        light_first = a in _LIGHT_PARENT
+        out = []
+        for lv in _HANDOVER_LIGHT:
+            for dv in _HANDOVER_DARK:
+                out.append((lv, dv) if light_first else (dv, lv))
+        return out
+    if a in _PROCESS and b in _PROCESS:
+        lv = pair_grid_levels(levels + 2)                   # CM CY MY: densest
+    else:
+        lv = pair_grid_levels(levels)
+    return [(x, y) for x in lv for y in lv]
 
 
-def ink_pair_grids(inks, levels: int = 3,
-                   ink_limit: float = 300.0) -> list[tuple[float, ...]]:
+def ink_pair_grids(inks, levels: int = 3, ink_limit: float = 300.0,
+                   comp=None) -> list[tuple[float, ...]]:
     """Every pair of inks as a small two-ink GRID (not the diagonal that
-    :func:`ink_pair_overprints` samples): ``levels`` x ``levels`` values per
-    pair, complementary pairs on a 2 x 2 grid, a light ink with its own
-    parent on a ``levels+1`` grid. Grid points over the ink limit are scaled
-    down (both inks by the same factor), so every patch has exactly two inks.
-    ``inks``: the chart's ink codes in canonical order (``c m y k o g v``)."""
+    :func:`ink_pair_overprints` samples), light-spaced levels: ``levels`` per
+    ink, process pairs (C M Y) ``levels + 2`` like the ECG charts' 8 x 8,
+    complementary pairs 2 x 2, a light ink with its own parent the hand-over
+    grid (dark ink 5-100 % under the light ink). Grid points over the ink
+    limit are scaled down (both inks by the same factor), so every patch has
+    exactly two inks. ``comp``: :func:`complementary_pairs` (default: letters)."""
     inks = list(inks)
     n = len(inks)
     limit = float(ink_limit)
+    comp = complementary_pairs(inks) if comp is None else comp
     out: list[tuple[float, ...]] = []
     for i, j in itertools.combinations(range(n), 2):
-        lv = _pair_levels_for(inks[i], inks[j], levels)
-        for a in lv:
-            for b in lv:
-                row = [0.0] * n
-                row[i], row[j] = min(a, limit), min(b, limit)
-                out.append(tuple(_scale_into_limit(row, limit)))
+        if inks[i] in _NOT_A_COLORANT or inks[j] in _NOT_A_COLORANT:
+            continue
+        for a, b in _pair_values(i, j, inks, levels, comp):
+            row = [0.0] * n
+            row[i], row[j] = min(a, limit), min(b, limit)
+            out.append(tuple(_scale_into_limit(row, limit)))
     return out
 
 
-def ink_pair_grids_count(inks, levels: int = 3) -> int:
+def ink_pair_grids_count(inks, levels: int = 3, comp=None) -> int:
     inks = list(inks)
-    return sum(len(_pair_levels_for(a, b, levels)) ** 2
-               for a, b in itertools.combinations(inks, 2))
+    comp = complementary_pairs(inks) if comp is None else comp
+    return sum(len(_pair_values(i, j, inks, levels, comp))
+               for i, j in itertools.combinations(range(len(inks)), 2)
+               if inks[i] not in _NOT_A_COLORANT and inks[j] not in _NOT_A_COLORANT)
 
 
-def subset_weight(subset) -> float:
-    """How often :func:`separation_fill_nd` draws an ink subset (codes).
+def subset_weight(subset, inks=None, comp=None, comp_weight: float = 0.5) -> float:
+    """How often :func:`separation_fill_nd` draws an ink subset.
 
-    Subsets of CMYK weigh 1 (the core of every separation); a subset holding
-    an extra ink together with its complementary process ink 0.25 (sampled,
-    because full separations do use them, but less: the ECG charts sample
-    them about a third as densely); two or more extra (non-CMYK, non-light)
-    inks 0.5. A light ink counts as its parent."""
-    codes = [_LIGHT_PARENT.get(c, c) for c in subset]
-    w = 1.0
-    if any(is_complementary(a, b) for a, b in itertools.combinations(codes, 2)):
-        w *= 0.25
-    if sum(1 for c in set(codes) if c in _COMPLEMENT) >= 2:
-        w *= 0.5
-    return w
+    ``subset``: ink codes, or indices into ``inks``. A subset holding a
+    complementary pair (:func:`complementary_pairs`) weighs ``comp_weight``
+    (sampled, because full separations do use such pairs, but less: the ECG
+    charts sample them about a third as densely; ChromIQ's own engine puts
+    complementary inks together in 55-80 % of a hue circle, so 0.5 is the
+    default); every other subset 1."""
+    if inks is None:
+        codes = list(subset)
+        idx = list(range(len(codes)))
+        comp = complementary_pairs(codes) if comp is None else comp
+    else:
+        idx = list(subset)
+        comp = complementary_pairs(inks) if comp is None else comp
+    if any(frozenset(p) in comp for p in itertools.combinations(idx, 2)):
+        return float(comp_weight)
+    return 1.0
+
+
+def _family_subsets(inks, size):
+    """Ink-index subsets with ``size`` hue FAMILIES (white left out). A
+    family with a light ink contributes its dark ink, its light ink, or both
+    (the hand-over), so a CMYKcm chart gets 5-6 physical inks where a
+    light-ink separation lays them."""
+    fams: dict[str, list[int]] = {}
+    for i, c in enumerate(inks):
+        if c in _NOT_A_COLORANT:
+            continue
+        fams.setdefault(ink_family(c), []).append(i)
+    names = list(fams)
+    out = []
+    for combo in itertools.combinations(names, size):
+        choices = []
+        for f in combo:
+            members = fams[f]
+            opts = [(m,) for m in members]
+            if len(members) > 1:
+                opts.append(tuple(members))
+            choices.append(opts)
+        for pick in itertools.product(*choices):
+            out.append(tuple(sorted(i for part in pick for i in part)))
+    return out
+
+
+def _onto_face(cand, sub, lim):
+    """Raise the chosen inks by a common amount (each capped at 100 %) until
+    the total reaches ``lim``: a point on the ink-limit face with the same
+    inks on (the caller only asks when the inks can reach the limit)."""
+    import numpy as np
+    out = cand.copy()
+    for r in range(len(out)):
+        v = out[r, sub]
+        if v.sum() >= lim:
+            continue
+        lo_t, hi_t = 0.0, 100.0
+        for _ in range(40):
+            t = 0.5 * (lo_t + hi_t)
+            if np.minimum(v + t, 100.0).sum() < lim:
+                lo_t = t
+            else:
+                hi_t = t
+        out[r, sub] = np.minimum(v + hi_t, 100.0)
+    return out
 
 
 def separation_fill_nd(existing, total: int, inks,
                        ink_limit: float | None = None,
                        max_inks: int = 4, share3: float = 0.5,
-                       min_ink: float = 8.0, candidates: int = 12,
+                       share5: float = 0.08, comp=None,
+                       comp_weight: float = 0.5, face_share: float = 0.15,
+                       min_ink: float = 5.0, candidates: int = 12,
                        seed: int = 0) -> list[tuple[float, ...]]:
-    """Top the chart up to ``total`` patches with 3- and 4-ink patches, where
-    separations live, instead of :func:`fill_gaps_nd`'s all-ink cloud.
+    """Top the chart up to ``total`` patches where separations live, instead
+    of :func:`fill_gaps_nd`'s all-ink cloud.
 
-    For each new patch: a subset size (3 with probability ``share3``, else
-    ``max_inks``; never more inks than the chart has), an ink subset drawn by
+    For each new patch: a size in hue FAMILIES (3 with probability
+    ``share3``, else ``max_inks``; with ``share5`` of the fill, 5 or more
+    families, so the dense interior that deep saturated darks need is not
+    starved; never more than the chart has), an ink subset drawn by
     :func:`subset_weight`, ``candidates`` random points inside that subset
     (every chosen ink at least ``min_ink`` %, so the ink count is exact),
-    scaled into the ink limit; the candidate farthest from every patch so far
-    is kept (blue noise, as :func:`fill_gaps_nd`). Deterministic for a seed.
-    """
+    scaled into the ink limit, and ``face_share`` of the patches pushed onto
+    the ink-limit face (scaled UP to the limit where the inks allow it): the
+    shadows of a separation run along that face. The candidate farthest from
+    every patch so far is kept (blue noise, as :func:`fill_gaps_nd`).
+    Deterministic for a seed."""
     import numpy as np
 
     inks = list(inks)
@@ -703,26 +828,45 @@ def separation_fill_nd(existing, total: int, inks,
     n_add = total - len(pts)
     if n_add <= 0 or n < 2:
         return []
-    top = max(2, min(int(max_inks), n))
+    comp = complementary_pairs(inks) if comp is None else comp
+    n_fam = len({ink_family(c) for c in inks if c not in _NOT_A_COLORANT})
+    if n_fam < 2:
+        return []
+    top = max(2, min(int(max_inks), n_fam))
     sizes = sorted({min(3, top), top})
-    p_size = ([float(share3), 1.0 - float(share3)] if len(sizes) == 2 else [1.0])
-    subsets = {s: list(itertools.combinations(range(n), s)) for s in sizes}
-    weights = {}
-    for s in sizes:
-        w = np.array([subset_weight([inks[i] for i in sub]) for sub in subsets[s]])
-        weights[s] = w / w.sum()
+    p_size = [float(share3), 1.0 - float(share3)] if len(sizes) == 2 else [1.0]
+    big = list(range(top + 1, n_fam + 1))
+    s5 = float(share5) if big else 0.0
+    groups = [(sizes, [w * (1.0 - s5) for w in p_size])]
+    if s5 > 0:
+        groups.append((big, [s5 / len(big)] * len(big)))
+    all_sizes = [s for g in groups for s in g[0]]
+    all_p = np.array([w for g in groups for w in g[1]], float)
+    all_p = all_p / all_p.sum()
+    subsets, weights = {}, {}
+    for s in all_sizes:
+        subs = _family_subsets(inks, s)
+        w = np.array([subset_weight(sub, inks, comp, comp_weight) for sub in subs])
+        subsets[s], weights[s] = subs, w / w.sum()
     rng = np.random.default_rng(seed)
     arr = np.array(pts, dtype=float) if pts else np.empty((0, n))
     added: list[tuple[float, ...]] = []
     lo = float(min_ink)
     for _ in range(n_add):
-        s = sizes[int(rng.choice(len(sizes), p=p_size))]
+        s = all_sizes[int(rng.choice(len(all_sizes), p=all_p))]
         sub = subsets[s][int(rng.choice(len(subsets[s]), p=weights[s]))]
         cand = np.zeros((max(1, candidates), n))
         cand[:, list(sub)] = rng.uniform(lo, 100.0, size=(len(cand), len(sub)))
         if ink_limit is not None:
+            lim = float(ink_limit)
             tot = cand.sum(1, keepdims=True)
-            cand = np.where(tot > ink_limit, cand * (ink_limit / tot), cand)
+            # only subsets that can reach the limit go onto its face (three
+            # inks cannot reach 352 %; pushing them would just repeat the
+            # 3-ink solid overprint)
+            if 100.0 * len(sub) > lim and rng.uniform() < face_share:
+                cand = _onto_face(cand, list(sub), lim)
+                tot = cand.sum(1, keepdims=True)
+            cand = np.where(tot > lim, cand * (lim / tot), cand)
         if len(arr):
             d2 = ((cand[:, None, :] - arr[None, :, :]) ** 2).sum(2).min(axis=1)
             pick = cand[int(np.argmax(d2))]
