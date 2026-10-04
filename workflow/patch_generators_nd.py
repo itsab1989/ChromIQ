@@ -37,22 +37,41 @@ def _clamp(v: float) -> float:
 # N-native sets (state 2 — no profile needed)
 # ---------------------------------------------------------------------------
 
+def ramp_levels(steps: int, top: float = 100.0,
+                spacing: str = "linear") -> list[float]:
+    """The ``steps`` tone values of a single-ink ramp, ``top`` included.
+
+    ``"linear"``: ``i·top/steps`` (the original spacing). ``"light"``:
+    ``top·(i/steps)^1.5``, which puts about half the steps below 40 % like
+    the professional ECG / FOGRA55 ramps (1 2 3 5 10 20 30 40 48 55 …):
+    dot gain bends hardest in the light tones (agent 18, s1).
+    """
+    steps = int(steps)
+    top = float(top)
+    if spacing == "light":
+        return [top * (i / steps) ** 1.5 for i in range(1, steps + 1)]
+    return [i * top / steps for i in range(1, steps + 1)]
+
+
 def per_ink_ramps(n_inks: int, steps: int,
-                  ink_limit: float = 300.0) -> list[tuple[float, ...]]:
+                  ink_limit: float = 300.0,
+                  spacing: str = "linear") -> list[tuple[float, ...]]:
     """``steps`` tones of each ink alone: ``v_i = i·top/steps, i = 1…steps``
     with ``top = min(100, ink_limit)`` — the UI allows limits below 100 %,
     and a single-ink patch must honour them like every other set.
+    ``spacing="light"`` uses :func:`ramp_levels`' denser light tones.
 
     The top endpoint is deliberately included; the cross-set dedupe absorbs
     overlap with white/black and the pair-ramp ends (#72 appendix F).
     """
     n_inks, steps = int(n_inks), int(steps)
     top = min(100.0, float(ink_limit))
+    levels = ramp_levels(steps, top, spacing)
     out: list[tuple[float, ...]] = []
     for ink in range(n_inks):
-        for i in range(1, steps + 1):
+        for v in levels:
             row = [0.0] * n_inks
-            row[ink] = i * top / steps
+            row[ink] = v
             out.append(tuple(row))
     return out
 
@@ -251,8 +270,11 @@ def near_neutrals_device_recentred(steps: int, offset: float, rings: int,
                                           n_channels, 1e9)
         row = [_clamp(c + (nv - nc)) for c, nv, nc in
                zip(centre, naive, naive_centre)]
-        t = max(0.0, (sum(row) - float(ink_limit)) / max(1, len(row)))
-        out.append(tuple(max(0.0, v - t) for v in row))
+        # Into the limit by the simplex projection: the excess comes back
+        # from the inks that are ON. (Dividing it over every channel, as
+        # before, left 36 of 162 rings over the limit when the profile's
+        # neutral carried K and extra channels were 0; agent 18 R4.)
+        out.extend(project_ink_limit([row], float(ink_limit)))
     return out
 
 
@@ -397,11 +419,19 @@ def _nudge_dirs(n: int) -> list[tuple[float, ...]]:
     return dirs
 
 
-def enforce_min_distance_nd(patches, min_dist: float = 2.0, existing=None):
+def enforce_min_distance_nd(patches, min_dist: float = 2.0, existing=None,
+                            ink_limit: float | None = None):
     """N-D twin of ``patch_generators.enforce_min_distance`` (order and count
     preserved; earlier points never disturbed). Brute-force neighbour test —
     the generator panel's programs are a few thousand patches, well within
-    budget for the N-channel path."""
+    budget for the N-channel path.
+
+    A patch is only ever nudged along the inks it already has ON, so a ramp
+    step stays a single-ink patch and a pair grid patch keeps its two inks,
+    and with ``ink_limit`` every nudged patch is projected back into the
+    limit (agent 18 R3: nudging along every axis switched inks on in 107 of
+    827 patches and left 77 over a 320 % limit). A patch with no ink on (paper
+    white) is never moved: its repeats are deliberate anchors."""
     if not patches:
         return []
     if min_dist <= 0:
@@ -410,7 +440,7 @@ def enforce_min_distance_nd(patches, min_dist: float = 2.0, existing=None):
     kept: list[tuple[float, ...]] = [
         tuple(_clamp(v) for v in q) for q in (existing or [])]
     n = len(patches[0])
-    dirs = _nudge_dirs(n)
+    dirs_all = _nudge_dirs(n)
     out: list[tuple[float, ...]] = []
     for p in patches:
         q = tuple(_clamp(v) for v in p)
@@ -418,6 +448,9 @@ def enforce_min_distance_nd(patches, min_dist: float = 2.0, existing=None):
             kept.append(q)
             out.append(q)
             continue
+        on = {i for i, v in enumerate(q) if v > 0.0}
+        dirs = [d for d in dirs_all
+                if all(c == 0.0 or i in on for i, c in enumerate(d))]
         best_q, best_d2, found = q, _min_d2_brute(q, kept), None
         for rmul in (1.0, 1.5, 2.0, 2.6):
             radius = min_dist * rmul
@@ -425,6 +458,12 @@ def enforce_min_distance_nd(patches, min_dist: float = 2.0, existing=None):
                 ln = math.sqrt(sum(c * c for c in d))
                 cand = tuple(_clamp(q[i] + d[i] / ln * radius)
                              for i in range(n))
+                if any(cand[i] <= 0.0 for i in on):
+                    continue                    # never switch an ink off
+                if ink_limit is not None and sum(cand) > float(ink_limit):
+                    cand = project_ink_limit([cand], float(ink_limit))[0]
+                    if any(cand[i] <= 0.0 for i in on):
+                        continue
                 d2 = _min_d2_brute(cand, kept)
                 if d2 >= md2:
                     found = cand
@@ -534,3 +573,161 @@ def fill_gaps_nd(existing, total: int, n_channels: int | None = None,
                     added[j] = sel.mean(0)
 
     return [tuple(float(v) for v in row) for row in added]
+
+
+# ---------------------------------------------------------------------------
+# Separation-focused sets for 5+ inks (agent 18, D-16)
+# ---------------------------------------------------------------------------
+#
+# Professional expanded-gamut (ECG) charts (IDEAlliance ECG 2019, X-Rite ECG
+# 4200, Fogra ECG-7C = FOGRA55) are not a space-filling cloud: they are small
+# factorial grids on INK SUBSETS - single-ink ramps with dense light tones,
+# every two-ink overprint as a grid, CMYK as the main four-ink subset, then
+# the subsets in which an extra ink replaces its complementary process ink
+# (ISO/TS 21328), complementary pairs sampled about a third as densely, and
+# under 10 % of patches with 5+ inks. That is where a separation puts its
+# colours, so that is where the profile needs measurements. The functions
+# below need the chart's ink CODES (ChromIQ codes, canonical order).
+
+# an extra ink -> the process ink on the opposite side of the hue circle
+_COMPLEMENT: dict[str, str] = {"o": "c", "r": "c", "g": "m", "v": "y", "b": "y"}
+# a light / medium ink -> its full-strength parent
+_LIGHT_PARENT: dict[str, str] = {
+    "lc": "c", "lm": "m", "ly": "y", "lk": "k",
+    "mc": "c", "mm": "m", "my": "y", "mk": "k", "llk": "k"}
+
+
+def is_complementary(a: str, b: str) -> bool:
+    """True for an extra ink and the process ink opposite it (C+O, C+R,
+    M+G, Y+V, Y+B) in either order."""
+    return _COMPLEMENT.get(a) == b or _COMPLEMENT.get(b) == a
+
+
+def is_light_pair(a: str, b: str) -> bool:
+    """True for a light/medium ink and its own parent (c+lc, k+lk, ...)."""
+    return _LIGHT_PARENT.get(a) == b or _LIGHT_PARENT.get(b) == a
+
+
+def _scale_into_limit(row: list[float], limit: float) -> list[float]:
+    """Scale every ink by the same factor so the total meets ``limit``:
+    unlike the simplex projection this keeps the patch's ink COUNT (a
+    two-ink grid patch stays a two-ink patch)."""
+    tot = sum(row)
+    if tot <= limit or tot <= 0.0:
+        return row
+    f = limit / tot
+    return [v * f for v in row]
+
+
+def pair_grid_levels(levels: int) -> list[float]:
+    """Per-ink values of an ``levels`` x ``levels`` pair grid: evenly spaced,
+    the solid included, no zero (2 -> 50 100; 3 -> 33 67 100; 4 -> 25 ... 100)."""
+    levels = max(1, int(levels))
+    return [100.0 * i / levels for i in range(1, levels + 1)]
+
+
+def _pair_levels_for(a: str, b: str, levels: int) -> list[float]:
+    if is_complementary(a, b):
+        return pair_grid_levels(max(1, min(levels, 2)))      # coarse: 50 100
+    if is_light_pair(a, b):
+        return pair_grid_levels(levels + 1)                   # the light/dark split
+    return pair_grid_levels(levels)
+
+
+def ink_pair_grids(inks, levels: int = 3,
+                   ink_limit: float = 300.0) -> list[tuple[float, ...]]:
+    """Every pair of inks as a small two-ink GRID (not the diagonal that
+    :func:`ink_pair_overprints` samples): ``levels`` x ``levels`` values per
+    pair, complementary pairs on a 2 x 2 grid, a light ink with its own
+    parent on a ``levels+1`` grid. Grid points over the ink limit are scaled
+    down (both inks by the same factor), so every patch has exactly two inks.
+    ``inks``: the chart's ink codes in canonical order (``c m y k o g v``)."""
+    inks = list(inks)
+    n = len(inks)
+    limit = float(ink_limit)
+    out: list[tuple[float, ...]] = []
+    for i, j in itertools.combinations(range(n), 2):
+        lv = _pair_levels_for(inks[i], inks[j], levels)
+        for a in lv:
+            for b in lv:
+                row = [0.0] * n
+                row[i], row[j] = min(a, limit), min(b, limit)
+                out.append(tuple(_scale_into_limit(row, limit)))
+    return out
+
+
+def ink_pair_grids_count(inks, levels: int = 3) -> int:
+    inks = list(inks)
+    return sum(len(_pair_levels_for(a, b, levels)) ** 2
+               for a, b in itertools.combinations(inks, 2))
+
+
+def subset_weight(subset) -> float:
+    """How often :func:`separation_fill_nd` draws an ink subset (codes).
+
+    Subsets of CMYK weigh 1 (the core of every separation); a subset holding
+    an extra ink together with its complementary process ink 0.25 (sampled,
+    because full separations do use them, but less: the ECG charts sample
+    them about a third as densely); two or more extra (non-CMYK, non-light)
+    inks 0.5. A light ink counts as its parent."""
+    codes = [_LIGHT_PARENT.get(c, c) for c in subset]
+    w = 1.0
+    if any(is_complementary(a, b) for a, b in itertools.combinations(codes, 2)):
+        w *= 0.25
+    if sum(1 for c in set(codes) if c in _COMPLEMENT) >= 2:
+        w *= 0.5
+    return w
+
+
+def separation_fill_nd(existing, total: int, inks,
+                       ink_limit: float | None = None,
+                       max_inks: int = 4, share3: float = 0.5,
+                       min_ink: float = 8.0, candidates: int = 12,
+                       seed: int = 0) -> list[tuple[float, ...]]:
+    """Top the chart up to ``total`` patches with 3- and 4-ink patches, where
+    separations live, instead of :func:`fill_gaps_nd`'s all-ink cloud.
+
+    For each new patch: a subset size (3 with probability ``share3``, else
+    ``max_inks``; never more inks than the chart has), an ink subset drawn by
+    :func:`subset_weight`, ``candidates`` random points inside that subset
+    (every chosen ink at least ``min_ink`` %, so the ink count is exact),
+    scaled into the ink limit; the candidate farthest from every patch so far
+    is kept (blue noise, as :func:`fill_gaps_nd`). Deterministic for a seed.
+    """
+    import numpy as np
+
+    inks = list(inks)
+    n = len(inks)
+    total = int(total)
+    pts = [tuple(float(v) for v in p) for p in existing]
+    n_add = total - len(pts)
+    if n_add <= 0 or n < 2:
+        return []
+    top = max(2, min(int(max_inks), n))
+    sizes = sorted({min(3, top), top})
+    p_size = ([float(share3), 1.0 - float(share3)] if len(sizes) == 2 else [1.0])
+    subsets = {s: list(itertools.combinations(range(n), s)) for s in sizes}
+    weights = {}
+    for s in sizes:
+        w = np.array([subset_weight([inks[i] for i in sub]) for sub in subsets[s]])
+        weights[s] = w / w.sum()
+    rng = np.random.default_rng(seed)
+    arr = np.array(pts, dtype=float) if pts else np.empty((0, n))
+    added: list[tuple[float, ...]] = []
+    lo = float(min_ink)
+    for _ in range(n_add):
+        s = sizes[int(rng.choice(len(sizes), p=p_size))]
+        sub = subsets[s][int(rng.choice(len(subsets[s]), p=weights[s]))]
+        cand = np.zeros((max(1, candidates), n))
+        cand[:, list(sub)] = rng.uniform(lo, 100.0, size=(len(cand), len(sub)))
+        if ink_limit is not None:
+            tot = cand.sum(1, keepdims=True)
+            cand = np.where(tot > ink_limit, cand * (ink_limit / tot), cand)
+        if len(arr):
+            d2 = ((cand[:, None, :] - arr[None, :, :]) ** 2).sum(2).min(axis=1)
+            pick = cand[int(np.argmax(d2))]
+        else:
+            pick = cand[0]
+        added.append(tuple(float(v) for v in pick))
+        arr = np.vstack([arr, pick[None, :]])
+    return added

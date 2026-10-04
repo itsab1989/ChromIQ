@@ -314,6 +314,9 @@ def build_printers() -> dict[str, TruthPrinter]:
         ClapperYuleTruth("X7", "CMYKRGB", tac=340.0),
         ClapperYuleTruth("X8", "CMYKcm", tac=320.0,
                          light_inks=(("c", 0.30), ("m", 0.30))),
+        # agent 18: a 7-ink ECG (CMYKOGV) development printer, the ink set of
+        # FOGRA55 and of the owner's own 7-ink test; not in any baseline suite
+        ClapperYuleTruth("X9", "CMYKOGV", tac=320.0),
     ]
     out.update({p.id: p for p in x})
     return out

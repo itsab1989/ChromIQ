@@ -1666,7 +1666,13 @@ class _NewChartDialog(QDialog):
         codes = ["c", "m", "y", "k"]
         if self._device_type.currentData() == "cmykplus":
             codes += [c for c in self._extra_inks if c not in codes]
-        return codes
+        # Argyll's canonical colorant order, the order of the chart's own
+        # COLOR_REP and fields (R.color_rep_for_inks), of targen's output and
+        # of a preconditioning profile: an ink-specific set (pair grids,
+        # separation fill) must write each value into its ink's own column,
+        # whatever order the inks were added in (agent 18 R5).
+        order = {c: i for i, c in enumerate(R._INK_BIT_ORDER)}
+        return sorted(codes, key=lambda c: order.get(c, len(order)))
 
     def _nch_state(self) -> int:
         """1 = RGB (everything as today), 2 = multi-ink without a usable
@@ -2107,6 +2113,10 @@ class _NewChartDialog(QDialog):
                     "richblack": self._nch_richblack.isChecked(),
                     "richblack_n": self._nch_richblack_n.value(),
                     "richblack_k": self._nch_richblack_k.value(),
+                    # agent 18 (D-16); absent in older states = off
+                    "perink_light": self._nch_perink_light.isChecked(),
+                    "pairs_grid": self._nch_pairs_grid.isChecked(),
+                    "fill_sparse": self._gen_fill_sparse.isChecked(),
                 },
             }}
         return {
@@ -2222,6 +2232,9 @@ class _NewChartDialog(QDialog):
         self._nch_pairs.setChecked(bool(gen.get("pairs", True)))
         self._nch_triples.setChecked(bool(gen.get("triples", False)))
         self._nch_richblack.setChecked(bool(gen.get("richblack", False)))
+        self._nch_perink_light.setChecked(bool(gen.get("perink_light", False)))
+        self._nch_pairs_grid.setChecked(bool(gen.get("pairs_grid", False)))
+        self._gen_fill_sparse.setChecked(bool(gen.get("fill_sparse", False)))
         for key, spin, default in (("targen_n", self._nch_targen_n, 800),
                                    ("perink_n", self._nch_perink_n, 8),
                                    ("pairs_n", self._nch_pairs_n, 4),
@@ -2731,6 +2744,26 @@ class _NewChartDialog(QDialog):
         _fill_row.addWidget(QLabel(
             tr("patches in total") if self._existing_patches
             else tr("patches"), self._gen_panel))
+        # Multi-ink only (shown with the other multi-ink widgets): fill with
+        # 3- and 4-ink patches where separations live, instead of the
+        # all-inks cloud (agent 18, D-16).
+        self._gen_fill_sparse = QCheckBox(tr("3-4 inks per patch"),
+                                          self._gen_panel)
+        self._gen_fill_sparse.setChecked(False)
+        self._gen_fill_sparse.setToolTip(tr(
+            "Multi-ink printers only. Fills the chart with patches of three "
+            "or four inks, in the ink combinations a separation really "
+            "prints: CMYK first, then each extra ink with the process inks "
+            "beside it, and inks on opposite sides of the colour circle "
+            "(cyan with orange, magenta with green, yellow with violet) "
+            "less often.\n\n"
+            "Professional expanded-gamut charts (FOGRA55, the ECG charts) "
+            "are built this way: most of their patches have three or four "
+            "inks, under one in ten has five or more. Without this tick the "
+            "fill spreads patches evenly over all inks at once, where a "
+            "separation rarely goes."))
+        self._gen_fill_sparse.toggled.connect(self._update_gen_counts)
+        _fill_row.addWidget(self._gen_fill_sparse)
         _fill_row.addStretch()
         _fill_w = QWidget(self._gen_panel); _fill_w.setLayout(_fill_row)
         self._gen_fill_count = _count_label()
@@ -2836,6 +2869,7 @@ class _NewChartDialog(QDialog):
         # multi-ink devices. State-1 stays pixel-identical (hidden grid rows
         # collapse to zero height).
         self._nch_gen_widgets: list = []   # every widget of the 3 rows
+        self._nch_gen_widgets.append(self._gen_fill_sparse)
 
         def _nch_add(w, row: int, col: int):
             gg.addWidget(w, row, col)
@@ -2883,6 +2917,18 @@ class _NewChartDialog(QDialog):
         _nch_add(self._nch_perink, 1, 0)
         _nch_add(QLabel(tr("steps/ink:")), 1, 1)
         _nch_add(self._nch_perink_n, 1, 2)
+        self._nch_perink_light = QCheckBox(tr("more light steps"),
+                                           self._gen_panel)
+        self._nch_perink_light.setChecked(False)
+        self._nch_perink_light.setToolTip(tr(
+            "Places more of the ramp's steps in the light tones (for 11 "
+            "steps: 3, 8, 14, 22, 31, 40 % and on to 100 %) instead of "
+            "even steps. Inks change fastest in the light tones, and "
+            "professional multi-ink charts put about half their ramp steps "
+            "below 40 %."))
+        self._nch_perink_light.toggled.connect(self._update_gen_counts)
+        gg.addWidget(self._nch_perink_light, 1, 3, 1, 4)
+        self._nch_gen_widgets.append(self._nch_perink_light)
         _nch_add(self._nch_perink_count, 1, 7)
         self._nch_pairs = QCheckBox(tr("Ink-pair overprints"), self._gen_panel)
         self._nch_pairs.setChecked(True)
@@ -2905,6 +2951,19 @@ class _NewChartDialog(QDialog):
         _nch_add(self._nch_pairs, 2, 0)
         _nch_add(QLabel(tr("steps/pair:")), 2, 1)
         _nch_add(self._nch_pairs_n, 2, 2)
+        self._nch_pairs_grid = QCheckBox(tr("as grid"), self._gen_panel)
+        self._nch_pairs_grid.setChecked(False)
+        self._nch_pairs_grid.setToolTip(tr(
+            "Samples every ink pair as a small grid, both inks stepped on "
+            "their own (for 3: each ink at 33, 67 and 100 %, nine patches "
+            "per pair), instead of both inks at the same value. A grid "
+            "shows the profile the colours between the two inks, such as "
+            "full magenta with a little orange. Inks on opposite sides of "
+            "the colour circle get a 2 x 2 grid, a light ink with its own "
+            "dark ink one step more."))
+        self._nch_pairs_grid.toggled.connect(self._update_gen_counts)
+        gg.addWidget(self._nch_pairs_grid, 2, 3, 1, 4)
+        self._nch_gen_widgets.append(self._nch_pairs_grid)
         _nch_add(self._nch_pairs_count, 2, 7)
         self._nch_triples = QCheckBox(tr("Ink-triple overprints"),
                                       self._gen_panel)
@@ -3371,6 +3430,14 @@ class _NewChartDialog(QDialog):
         return G.white_black_count(self._gen_whiteblack_n.value(),
                                    have_w, have_b)
 
+    def _nch_pairs_patch_count(self) -> int:
+        """Patches the Ink-pair row adds: the diagonal, or the grid."""
+        if self._nch_pairs_grid.isChecked():
+            return NDG.ink_pair_grids_count(self._nch_ink_codes(),
+                                            self._nch_pairs_n.value())
+        return NDG.ink_pair_overprints_count(len(self._nch_ink_codes()),
+                                             self._nch_pairs_n.value())
+
     def _update_gen_counts(self, *_a) -> None:
         """Refresh each generator's patch count + the running total, and gate
         the per-row spin boxes on their checkbox."""
@@ -3385,8 +3452,7 @@ class _NewChartDialog(QDialog):
                  lambda: NDG.per_ink_ramps_count(
                      len(self._nch_ink_codes()), self._nch_perink_n.value())),
                 (self._nch_pairs, self._nch_pairs_n, self._nch_pairs_count,
-                 lambda: NDG.ink_pair_overprints_count(
-                     len(self._nch_ink_codes()), self._nch_pairs_n.value())),
+                 self._nch_pairs_patch_count),
                 (self._nch_triples, self._nch_triples_n,
                  self._nch_triples_count,
                  lambda: NDG.ink_triple_overprints_count(
@@ -3409,6 +3475,9 @@ class _NewChartDialog(QDialog):
                             if state != 1 else "")
                 _hint_count_inactive(lbl, cb.isChecked())
             self._nch_richblack_k.setEnabled(self._nch_richblack.isChecked())
+            self._nch_perink_light.setEnabled(self._nch_perink.isChecked())
+            self._nch_pairs_grid.setEnabled(self._nch_pairs.isChecked())
+            self._gen_fill_sparse.setEnabled(self._gen_fill.isChecked())
         # Grey each row's size control(s) when its set is unticked.
         for cb, spins in (
             (self._gen_cube, (self._gen_cube_n,)),
@@ -3500,8 +3569,7 @@ class _NewChartDialog(QDialog):
                 (self._nch_targen, lambda: self._nch_targen_n.value()),
                 (self._nch_perink, lambda: NDG.per_ink_ramps_count(
                     len(self._nch_ink_codes()), self._nch_perink_n.value())),
-                (self._nch_pairs, lambda: NDG.ink_pair_overprints_count(
-                    len(self._nch_ink_codes()), self._nch_pairs_n.value())),
+                (self._nch_pairs, self._nch_pairs_patch_count),
                 (self._nch_triples, lambda: NDG.ink_triple_overprints_count(
                     len(self._nch_ink_codes()),
                     self._nch_triples_n.value())),
@@ -3604,11 +3672,17 @@ class _NewChartDialog(QDialog):
                 self._bin_dir, self._nch_targen_n.value(), device="4",
                 extra_args=extra_args))
         if self._nch_perink.isChecked():
-            program.extend(NDG.per_ink_ramps(n, self._nch_perink_n.value(),
-                                             ink_limit=limit))
+            program.extend(NDG.per_ink_ramps(
+                n, self._nch_perink_n.value(), ink_limit=limit,
+                spacing=("light" if self._nch_perink_light.isChecked()
+                         else "linear")))
         if self._nch_pairs.isChecked():
-            program.extend(NDG.ink_pair_overprints(
-                n, self._nch_pairs_n.value(), ink_limit=limit))
+            if self._nch_pairs_grid.isChecked():
+                program.extend(NDG.ink_pair_grids(
+                    codes, self._nch_pairs_n.value(), ink_limit=limit))
+            else:
+                program.extend(NDG.ink_pair_overprints(
+                    n, self._nch_pairs_n.value(), ink_limit=limit))
         if self._nch_triples.isChecked():
             program.extend(NDG.ink_triple_overprints(
                 n, self._nch_triples_n.value(), ink_limit=limit))
@@ -3674,7 +3748,8 @@ class _NewChartDialog(QDialog):
                     steps, off, rings, n, ink_limit=limit))
         if self._gen_unique.isChecked():
             program = NDG.enforce_min_distance_nd(
-                program, _GEN_MIN_DIST, existing=self._existing_patches)
+                program, _GEN_MIN_DIST, existing=self._existing_patches,
+                ink_limit=limit)
         if self._gen_whiteblack.isChecked():
             have_w, have_b = NDG.count_white_black_device(
                 program, n, k_index=k_ix, ink_limit=limit)
@@ -3685,9 +3760,14 @@ class _NewChartDialog(QDialog):
             program.extend(anchors)
         if self._gen_fill.isChecked():
             seed = list(self._existing_patches) + program
-            topup = NDG.fill_gaps_nd(
-                seed, self._effective_fill_target(), n_channels=n,
-                ink_limit=limit)
+            if self._gen_fill_sparse.isChecked():
+                topup = NDG.separation_fill_nd(
+                    seed, self._effective_fill_target(), codes,
+                    ink_limit=limit)
+            else:
+                topup = NDG.fill_gaps_nd(
+                    seed, self._effective_fill_target(), n_channels=n,
+                    ink_limit=limit)
             self._built_row_counts["fill"] = len(topup)
             program.extend(topup)
         return program
