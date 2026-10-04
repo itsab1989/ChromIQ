@@ -1,6 +1,10 @@
 # Changelog
 
-## v4.3.3-beta.8 (unreleased)
+## v4.3.3-beta.8
+
+**A wrongly read strip is set aside until you read it again, ⌘Q / Ctrl+Q quits, the calibration help now says correctly when to use Apply Calibration, and a verification's progress bar no longer drops to 0 % when it is finished.** Fixes for Knut's beta-7 findings (#182) and for a forum report.
+
+**For ajaytanna (printerknowledge.com):** a calibration chart is always printed in order, on purpose: each ink's ramp sits on its own strip. The "Randomise patch order" box is now greyed out for a calibration chart, and its tooltip says why. Profiling charts still randomise. With **Apply & Embed (-K)** you also click **Apply Calibration** after Build Profile, because colprof never puts the calibration into the profile. Our help text said the opposite and is corrected.
 
 ### Fixed
 
