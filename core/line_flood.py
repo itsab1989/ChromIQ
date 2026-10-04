@@ -14,13 +14,13 @@ panel and every parser see the same thing:
 * a line is shown as before, and so are its first ``SHOW`` identical repeats
   inside one burst, so nothing that reacts to a line (the disconnection window,
   "asked again" counts) sees anything different from before;
-* later repeats in the burst are counted, not shown. A summary line names the
-  line and the count: at most one per ``SUMMARY_EVERY`` seconds while the burst
+* later repeats in the burst are counted, not shown. A summary line refers to the
+  line shown above and gives the count: at most one per ``SUMMARY_EVERY`` seconds while the burst
   goes on, so the flood is capped at a line every few seconds and the panel is
   never silent long enough for the keystroke watchdog to think the tool hung;
   and a last one when the burst ends (another line, ``BURST_GAP`` of quiet
-  via :meth:`RepeatGate.idle`, or the end of the run). The summary quotes
-  the line in an inert form no parser matches (:data:`INERT`), and a single
+  via :meth:`RepeatGate.idle`, or the end of the run). The summary does
+  not quote the line, so no parser counts it as one more of it, and a single
   hidden repeat is passed on as itself rather than as "1 more time";
 * a burst is identical lines less than ``BURST_GAP`` seconds apart. A line that
   comes back after a pause (a prompt asked again after the user pressed a key)
@@ -54,36 +54,30 @@ def is_engine_event(line: str) -> bool:
     return line.lstrip("\x07 \t").startswith("{")
 
 
-#: Put between every two characters of the line a summary quotes (U+2060
-#: WORD JOINER: zero width, invisible, no line break). The summary must not
-#: match what the line itself matches: every parser of tool output searches
-#: the lines it is handed (``measure_manager._USB_ERROR_RE`` looks for
-#: "ReadPipeAsync failed" anywhere in a line), so a summary quoting the line
-#: as it was counted as one more of it (beta-10 review). Joined like this, it
-#: reads the same on screen and no pattern of two characters or more finds
-#: it; ``plain_text`` gives the line back.
-INERT = "\u2060"
-#: Every summary starts with this.
-SUMMARY_MARK = "[ChromIQ: the line \""
-
-
-def inert(line: str) -> str:
-    return INERT.join(line)
-
-
-def plain_text(summary: str) -> str:
-    return summary.replace(INERT, "")
+#: Every summary starts with this and ends with :data:`SUMMARY_END`.
+SUMMARY_MARK = "[ChromIQ: the "
+SUMMARY_END = ", not shown]"
 
 
 def is_summary(line: str) -> bool:
-    return line.startswith(SUMMARY_MARK)
+    return line.startswith(SUMMARY_MARK) and line.endswith(SUMMARY_END)
 
 
-def summary_line(line: str, count: int) -> str:
-    """The line that stands for *count* (two or more) hidden repeats. A
-    single hidden repeat is passed on as the line itself instead (beta-10
-    review: "came 1 more time" was the first thing a flood showed)."""
-    return f"{SUMMARY_MARK}{inert(line)}\" came {count} more times, not shown]"
+def summary_line(count: int, lines: int = 1) -> str:
+    """The line that stands for *count* (two or more) hidden repeats of the
+    *lines* line(s) shown just before. It does NOT quote the line (beta-10
+    review): every parser of tool output searches the lines it is handed
+    (``measure_manager._USB_ERROR_RE`` looks for "ReadPipeAsync failed"
+    anywhere in a line), so a summary quoting it was counted as one more of
+    it; and hiding the quote from the parsers (a joiner between every two
+    characters) made the log unsearchable and put invisible characters into
+    every copy of it. The line itself was shown, word for word, ``SHOW``
+    times just above. A single hidden repeat is passed on as the line
+    itself instead ("came 1 more time" was the first thing a flood showed)."""
+    if lines == 1:
+        return f"{SUMMARY_MARK}line shown above came {count} more times{SUMMARY_END}"
+    return (f"{SUMMARY_MARK}{lines} lines shown above came {count} more times "
+            f"between them{SUMMARY_END}")
 
 
 class _Burst:
@@ -105,15 +99,19 @@ class RepeatGate:
         self.hidden_total = 0
 
     def _summaries(self, lines) -> "list[str]":
-        out = []
+        counted = []
         for line in lines:
             b = self._bursts.get(line)
             if b is not None and b.hidden:
-                # One hidden repeat is cheaper said as itself, and exact.
-                out.append(line if b.hidden == 1
-                           else summary_line(line, b.hidden))
+                counted.append((line, b.hidden))
                 b.hidden = 0
-        return out
+        if all(n == 1 for _ln, n in counted):
+            # One hidden repeat is cheaper said as itself, and exact.
+            return [ln for ln, _n in counted]
+        # Lines reported together (a flood alternating between two lines)
+        # share one summary: it cannot quote them, so it cannot tell them
+        # apart either.
+        return [summary_line(sum(n for _ln, n in counted), len(counted))]
 
     def _expire(self, now: float, keep: "str | None") -> "list[str]":
         gone = [ln for ln, b in self._bursts.items()

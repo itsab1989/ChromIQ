@@ -70,11 +70,11 @@ def test_knuts_flood_of_127500_lines_becomes_a_handful(runner):
     # The first occurrence and its first repeats are shown unchanged ...
     assert lines[2:2 + line_flood.SHOW] == [USB] * line_flood.SHOW
     # ... then one summary that counts every one of the rest ...
-    summaries = [ln for ln in lines if ln.startswith("[ChromIQ: the line")]
+    summaries = [ln for ln in lines if line_flood.is_summary(ln)]
     hidden = sum(int(s.split(" came ")[1].split()[0]) for s in summaries)
     assert line_flood.SHOW + hidden == 127_500
-    assert USB in line_flood.plain_text(summaries[0])
-    assert USB not in summaries[0]          # inert: no parser counts it again
+    assert summaries[0].startswith("[ChromIQ: the line shown above came ")
+    assert not any("ReadPipeAsync" in s for s in summaries)   # not quoted
     # ... and nothing after the flood is lost.
     assert lines[-1] == "the last line"
     assert len(lines) < 12, lines
@@ -263,20 +263,48 @@ FLOODERS = [
 ]
 
 
-def test_a_summary_matches_no_pattern_its_line_matches(qapp):
+def test_a_summary_matches_no_pattern_of_the_tool_output_parsers(qapp):
     """(a) A parser searching the lines it is handed must not count a
-    summary as one more of the line it stands for."""
+    summary as one more of the line it stands for, nor as anything else:
+    the summary quotes nothing, and no pattern finds its own words."""
     pats = _patterns()
     assert len(pats) > 50, "the census found too few patterns to mean much"
+    summaries = {line_flood.summary_line(109996),
+                 line_flood.summary_line(109996, 2)}
     for line in FLOODERS:
-        summary = line_flood.summary_line(line, 109996)
-        assert line_flood.plain_text(summary).count(line) == 1
-        # The summary's own words ("[ChromIQ: the line ...") are not the
-        # line: a pattern that finds them in any summary is left out.
-        frame = line_flood.summary_line("x", 109996)
-        for mod, name, pat in pats:
-            if pat.search(line) and not pat.search(frame):
-                assert not pat.search(summary), (mod, name, line)
+        gate = RepeatGate(clock=lambda: 0.0)
+        out = [o for _ in range(50) for o in gate.feed(line)] + gate.flush()
+        assert out[:line_flood.SHOW] == [line] * line_flood.SHOW
+        summaries |= set(out[line_flood.SHOW:])
+    assert all(line_flood.is_summary(s) for s in summaries), summaries
+    for mod, name, pat in pats:
+        if pat.search("[ChromIQ: a note]"):
+            continue        # punctuation alone (a file-name sanitiser)
+        for summary in summaries:
+            assert not pat.search(summary), (mod, name, summary)
+
+
+def test_a_summary_is_plain_text():
+    """(a) No invisible characters: the log stays searchable and a copy of
+    it carries nothing a reader cannot see (the U+2060 joiner of the first
+    beta-10 build did both)."""
+    import unicodedata
+    out = _through([USB] * 500 + ["Ready to read strip pass A"] * 500
+                   + ["a", "b"] * 500)
+    summaries = [o for o in out if line_flood.is_summary(o)]
+    assert len(summaries) == 3, out
+    for s in summaries:
+        assert s.isascii() and s.isprintable(), repr(s)
+        assert not any(unicodedata.category(c) in ("Cf", "Cc", "Zl", "Zp")
+                       for c in s)
+
+
+def test_two_alternating_lines_share_one_summary():
+    out = _through(["a", "b"] * 500 + ["next"])
+    assert out[:2 * line_flood.SHOW] == ["a", "b"] * line_flood.SHOW
+    assert out[2 * line_flood.SHOW:] == [
+        "[ChromIQ: the 2 lines shown above came 992 more times between "
+        "them, not shown]", "next"]
 
 
 def test_one_hidden_repeat_is_shown_as_itself():
@@ -297,7 +325,7 @@ def test_the_first_summary_comes_a_full_period_into_the_flood():
         clock.t += 0.0005
         out += gate.feed(USB)
     out += gate.flush()
-    counts = [int(line_flood.plain_text(s).split(" came ")[1].split()[0])
+    counts = [int(s.split(" came ")[1].split()[0])
               for s in out if line_flood.is_summary(s)]
     assert counts and min(counts) > 1, counts
     assert counts[0] >= 9000, counts
