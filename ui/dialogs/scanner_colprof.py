@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (QCheckBox, QDialog, QDialogButtonBox,
                              QLineEdit, QScrollArea, QVBoxLayout, QWidget)
 
 from core.i18n import tr
+from workflow.profile_builder import COLPROF_DARK_EMPHASIS_MAX
 from ui.styles import SPEC_GREEN
 from ui.tooltip_button import TooltipButton
 from ui.widgets import (NoScrollDoubleSpinBox, ValueWidthComboBox,
@@ -1254,7 +1255,8 @@ class ScannerAdvancedDialog(QDialog):
         drow = QHBoxLayout()
         drow.addWidget(QLabel(tr("Dark Region Emphasis (-V):"), grp))
         self._dark = NoScrollDoubleSpinBox(grp)
-        self._dark.setRange(1.0, 4.0)
+        # colprof's -V range (D-10): 4.0 was targen's and colprof refused it.
+        self._dark.setRange(1.0, COLPROF_DARK_EMPHASIS_MAX)
         self._dark.setSingleStep(0.1)
         self._dark.setDecimals(1)
         self._dark.setValue(1.0)

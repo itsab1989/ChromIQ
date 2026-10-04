@@ -554,6 +554,9 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr(_mm._CARD_RANGE_SAME).format(
                 locs=first_three(range_locs))))
 
+        def misfit_lines(misfit) -> "list[str]":
+            return card_misfit_lines(misfit)
+
         peer_locs = [str(v) for v in (info.get("peer_locs") or ())]
         if info.get("warn") and flag == "confirmed" and peer_locs:
             # YELLOW, CONFIRMED BY SIMILAR PATCHES (Knut, #182 5979886227):
@@ -571,6 +574,7 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("paper cannot reach, not a misread.")))
             rows.append((None, ""))
             rows.append((None, tr("Keep it for the profile.")))
+            rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
             if rng in _mm.RANGE_NAMES:
                 rows.append((None, ""))
                 add_range_line()
@@ -591,6 +595,7 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr("paper cannot reach, not a misread.")))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Keep it for the profile.")))
+            rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
             if rng in _mm.RANGE_NAMES:
                 # A confirmed patch stays yellow whether its range has
                 # learned or not; the card says how far the range has got.
@@ -619,6 +624,8 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_2)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_3)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_4)))
+            rows.append((None, ""))
+            rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
         elif info.get("warn"):
             rows.append((None, "─" * 30))
             # Not "likely misread" alone (Knut, #182 5956210745): a large
@@ -645,9 +652,15 @@ class _PatchInfoTile(QWidget):
                 rows.append((None, ""))
                 add_range_line()
                 if range_k >= 3:
-                    # Learned, and this one is not like its confirmed patches.
+                    # Learned, and this one is not like its confirmed patches:
+                    # which test ruled it out, and by how much (Knut, #182
+                    # 5982206917, answer 1).
                     rows.append((None, tr(_mm._CARD_RANGE_RED_LEARNED_1)))
-                    rows.append((None, tr(_mm._CARD_RANGE_RED_LEARNED_2)))
+                    misfit = list(info.get("misfit") or ())
+                    if misfit:
+                        rows.extend((None, t) for t in misfit_lines(misfit))
+                    else:
+                        rows.append((None, tr(_mm._CARD_RANGE_RED_LEARNED_2)))
                 elif range_k >= 1:
                     rows.append((None, tr(_mm._CARD_RANGE_SO_FAR).format(
                         k=range_k)))
@@ -655,6 +668,7 @@ class _PatchInfoTile(QWidget):
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Either a misread, or a colour")))
             rows.append((None, tr("this printer and paper cannot reach.")))
+            rows.append((None, tr(_mm._CARD_RED_READ_AGAIN)))   # Knut 5980576263
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Same value after a re-read:")))
             rows.append((None, tr("it is real, keep it for the profile.")))
@@ -5430,3 +5444,60 @@ class TiffPreview(QWidget):
                 f"QPixmap.fromImage failed for {img.size} {img.mode} image"
             )
         return px
+
+
+def _de_text(lo: float, hi: float, decimals: int) -> str:
+    """One ΔE value, or a span "75 to 92" when the two differ as shown."""
+    a, b = f"{lo:.{decimals}f}", f"{hi:.{decimals}f}"
+    if a == b:
+        return a
+    from workflow import measurement_messages as _mm
+    return tr(_mm._CARD_DE_SPAN).format(lo=a, hi=b)
+
+
+def card_misfit_lines(misfit) -> "list[str]":
+    """The card's lines for a red patch of a learned range, after "This range
+    has learned, but this" (Knut, #182 5982206917): each test that ruled it
+    out against the range's confirmed patches, with its numbers. *misfit* is
+    ``Verdict.misfit`` as ``TabMeasure._verdict_extra`` passes it: dicts with
+    ``test``, ``own`` / ``ref`` (lowest, highest), ``count`` and ``total``.
+
+    Whole ΔE numbers, as the example Knut approved; one decimal when the test
+    failed by less than ΔE 1 somewhere (``gap``), where whole numbers could
+    read as a pass (ΔE 10 sideways against "at most ΔE 10")."""
+    from workflow import measurement_messages as _mm
+    from workflow import patch_flags as pf
+    tol = pf.SHIFT_TOLERANCE_DE
+    margin = pf.STANDOUT_MARGIN_DE
+    lines: "list[str]" = []
+    for i, m in enumerate(misfit):
+        test = str(m.get("test", ""))
+        own_lo, own_hi = (float(v) for v in m.get("own", (0.0, 0.0)))
+        ref_lo, ref_hi = (float(v) for v in m.get("ref", (0.0, 0.0)))
+        some = int(m.get("count", 0)) < int(m.get("total", 0))
+        refs_line = _mm._CARD_MISFIT_REFS_SOME if some else _mm._CARD_MISFIT_REFS
+        first = i == 0
+        d = 0 if float(m.get("gap", 1.0)) >= 1.0 else 1
+        if test == pf.MISFIT_SMALLER:
+            lines.append(tr(_mm._CARD_MISFIT_SMALLER if first
+                            else _mm._CARD_MISFIT_SMALLER_NEXT).format(
+                own=_de_text(own_lo, own_hi, d)))
+            lines.append(tr(refs_line).format(ref=_de_text(ref_lo, ref_hi, d)))
+            lines.append(tr(_mm._CARD_MISFIT_SMALLER_LIMIT).format(
+                tol=f"{tol:.0f}"))
+        elif test == pf.MISFIT_SIDEWAYS:
+            lines.append(tr(_mm._CARD_MISFIT_SIDEWAYS if first
+                            else _mm._CARD_MISFIT_SIDEWAYS_NEXT))
+            lines.append(tr(_mm._CARD_MISFIT_SIDEWAYS_DE).format(
+                own=_de_text(own_lo, own_hi, d)))
+            lines.append(tr(_mm._CARD_MISFIT_SIDEWAYS_LIMIT).format(
+                tol=f"{tol:.0f}"))
+        elif test == pf.MISFIT_STANDOUT:
+            lines.append(tr(_mm._CARD_MISFIT_STANDOUT if first
+                            else _mm._CARD_MISFIT_STANDOUT_NEXT))
+            lines.append(tr(_mm._CARD_MISFIT_STANDOUT_DE).format(
+                own=_de_text(own_lo, own_hi, d)))
+            lines.append(tr(refs_line).format(ref=_de_text(ref_lo, ref_hi, d)))
+            lines.append(tr(_mm._CARD_MISFIT_STANDOUT_LIMIT).format(
+                tol=f"{margin:.0f}"))
+    return lines

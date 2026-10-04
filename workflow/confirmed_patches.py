@@ -3,7 +3,8 @@
 Knut, #182 5959352118: *"the information on which patches were re-measured
 and confirmed as not to be misreadings are remembered after a measurement is
 stopped, which must anyway be remembered for the Check & Refine function"*.
-Sebastian approved storing it (5959447807).
+Sebastian approved storing it (5959447807). On 2026-10-04 (5980560281) Knut
+ruled that Check & Refine is NOT influenced by it: see below.
 
 The yellow outlines of ``workflow/patch_flags.py`` used to live only in the
 Measure tab's memory, so they were gone the moment a session ended. This file
@@ -37,8 +38,14 @@ before it). ``learned`` entries are kept for the preview and for anyone reading
 the file; they are judged again from the references every time, so they are
 never loaded back as references. ``peer`` entries (Knut, #182 5979886227) are
 patches that similar patches of other strips confirmed, as the session judged
-them: written for the record and for Check & Refine, and never loaded back
-either, because they are worked out again from the readings and the limit.
+them: written for the record, and never loaded back either, because they are
+worked out again from the readings and the limit.
+
+CHECK & REFINE NEVER READS THIS FILE (Knut, #182 5980560281, 2026-10-04):
+it checks the measurement through the built profile, and every high error it
+finds feeds the refinement recommendations, whatever the Measure tab's red or
+yellow outlines say. The file is the Measure tab's memory only.
+`tests/test_check_refine_ignores_the_confirmed_patches_memory.py` keeps it so.
 """
 from __future__ import annotations
 
@@ -52,12 +59,6 @@ KIND_CONFIRMED = "confirmed"
 KIND_LEARNED = "learned"
 KIND_PEER = "peer"
 
-#: CHECK & REFINE LEAVES OUT PATCHES CONFIRMED BY SIMILAR PATCHES too, not only
-#: the ones a re-read confirmed (recommended with Knut 5979886227, *"without
-#: being forced to re-measure all the strips"*; his question is still open,
-#: his earlier 5963903650 said "re-read"). THE ONE SWITCH: set it to False to
-#: go back to re-read confirmations only.
-CHECK_REFINE_LEAVES_OUT_PEERS = True
 MODE_STRIP = "strip"
 MODE_PATCH = "patch"
 
@@ -189,21 +190,19 @@ def load(ti3_path: "str | Path") -> "dict | None":
 
 
 def confirmed_locations(ti3_path: "str | Path") -> "set[str]":
-    """The patch locations CONFIRMED for this measurement: by a re-read, and
-    by similar patches while ``CHECK_REFINE_LEAVES_OUT_PEERS`` is on.
+    """The patch locations the memory records as CONFIRMED for this
+    measurement: by a re-read, or by similar patches (``peer``). Never learned
+    ones.
 
     Validated against the file's hash: an empty set when there is no memory or
-    it belongs to a different version of the ``.ti3``. Never learned ones:
-    Check & Refine may leave out what two readings proved, not what a rule
-    guessed.
+    it belongs to a different version of the ``.ti3``. For reading the record
+    (tools, tests); Check & Refine must never call it (Knut, #182 5980560281).
     """
     data = load(ti3_path)
     if not data:
         return set()
-    kinds = ({KIND_CONFIRMED, KIND_PEER} if CHECK_REFINE_LEAVES_OUT_PEERS
-             else {KIND_CONFIRMED})
     return {loc for loc, e in data["patches"].items()
-            if e.get("kind") in kinds}
+            if e.get("kind") in (KIND_CONFIRMED, KIND_PEER)}
 
 
 def carry(src_ti3: "str | Path", before_sha: "str | None",
