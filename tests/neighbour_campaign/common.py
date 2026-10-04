@@ -5,11 +5,13 @@ charts (80 to more than 4000 patches) against simulated measurements with
 every conceivable misread, printer, paper, ink and laser fault, and watch the
 outlines turn red and yellow at the right time.
 
-TEST-ONLY CODE. Nothing here is imported by the app. The neighbour check
-itself (``workflow/neighbour_check.py``) lives on the branch
-``fix/4.3.3-beta11-neighbours``; :func:`neighbour_module` copies that file
-from origin into the campaign folder and imports it from there, for running
-only. It is never written into product code on this branch.
+TEST-ONLY CODE. Nothing here is imported by the app. Since the merge of
+fix/4.3.3-beta3 at 6e9de104 (the reviewed beta-11 neighbour check, Knut
+5984174575 and 5984277558) the campaign runs the REAL product modules of this
+tree: ``workflow/neighbour_check.py``, ``workflow/patch_flags.py``,
+``workflow/strip_read_twice.py`` and ``workflow/measurement_messages.py``.
+:func:`neighbour_module` imports the product module; the copied snapshot of
+the first run (357d3b23) is gone.
 
 Big outputs (charts, printer models, cases, results) live in the campaign
 folder on the Desktop, never in the repository (CLAUDE.md, disk hygiene).
@@ -33,12 +35,15 @@ CAMPAIGN = Path(os.environ.get(
     str(Path.home() / "Desktop/ChromIQ-work/2026-10-04_beta11/campaign")))
 CHARTS = CAMPAIGN / "fixtures" / "charts"
 PRINTERS = CAMPAIGN / "fixtures" / "printers"
-CASES = CAMPAIGN / "cases"
-RESULTS = CAMPAIGN / "results"
-RUNTIME = CAMPAIGN / "runtime"
+#: Where a run writes its cases and results (the second campaign run, against
+#: the final beta-11 code, keeps its own folder beside the first).
+RUN = Path(os.environ.get(
+    "CHROMIQ_NB_RUN",
+    str(Path.home() / "Desktop/ChromIQ-work/2026-10-04_beta11/campaign_run")))
+CASES = RUN / "cases"
+RESULTS = RUN / "results"
 
-#: The branch the neighbour check is built on.
-NB_BRANCH = "origin/fix/4.3.3-beta11-neighbours"
+
 NB_FILE = "workflow/neighbour_check.py"
 
 #: ArgyllCMS's icmD50 (the engine's L*a*b* white).
@@ -70,31 +75,25 @@ def run_tool(cmd, *, cwd=None, timeout=600, stdin_text=None) -> str:
     return r.stdout
 
 
-def neighbour_module(ref: str = NB_BRANCH):
-    """The neighbour check as origin's branch has it, imported from a copy in
-    the campaign's runtime folder (never from, and never into, product code).
-
-    Returns ``(module, commit)``. Set ``CHROMIQ_NB_MODULE`` to a file to use
-    that copy instead (for example a local worktree of the branch)."""
+def neighbour_module(ref: str = "HEAD"):
+    """The neighbour check: THE PRODUCT MODULE of this tree
+    (``workflow/neighbour_check.py``). Returns ``(module, commit)``, the commit
+    being this tree's HEAD (with ``+dirty`` when the module has local edits).
+    ``CHROMIQ_NB_MODULE`` may still name another file, for a comparison."""
     override = os.environ.get("CHROMIQ_NB_MODULE")
     if override:
-        path, commit = Path(override), "local:" + override
-    else:
-        commit = subprocess.run(["git", "rev-parse", ref], cwd=REPO,
-                                capture_output=True, text=True,
-                                check=True).stdout.strip()
-        src = subprocess.run(["git", "show", f"{commit}:{NB_FILE}"], cwd=REPO,
-                             capture_output=True, text=True, check=True).stdout
-        RUNTIME.mkdir(parents=True, exist_ok=True)
-        path = RUNTIME / f"neighbour_check_{commit[:10]}.py"
-        if not path.exists() or path.read_text() != src:
-            path.write_text(src)
-    spec = importlib.util.spec_from_file_location("nb_campaign_neighbour_check",
-                                                  path)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = mod          # dataclasses look their module up
-    spec.loader.exec_module(mod)
-    return mod, commit
+        spec = importlib.util.spec_from_file_location(
+            "nb_campaign_neighbour_check", override)
+        mod = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = mod
+        spec.loader.exec_module(mod)
+        return mod, "local:" + override
+    from workflow import neighbour_check as mod
+    commit = subprocess.run(["git", "rev-parse", ref], cwd=REPO,
+                            capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(["git", "status", "--porcelain", "--", NB_FILE],
+                           cwd=REPO, capture_output=True, text=True).stdout
+    return mod, commit + ("+dirty" if dirty.strip() else "")
 
 
 def xyz_to_lab(xyz100) -> tuple:

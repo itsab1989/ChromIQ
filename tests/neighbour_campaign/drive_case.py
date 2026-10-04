@@ -3,9 +3,9 @@
 
     # 1. the plan, from this tree (the emulator's expectations included)
     python -m tests.neighbour_campaign.plan i1-0200 laser_hp glitch
-    # 2. the app, from a tree that HAS the neighbour check (an archive of
-    #    origin/fix/4.3.3-beta11-neighbours with native/chromiq-chartread)
-    CHROMIQ_TREE=<app tree> .venv/bin/python tests/neighbour_campaign/drive_case.py \
+    # 2. the app: THIS tree (fix/4.3.3-beta3 at 6e9de104 or later merged in,
+    #    native/chromiq-chartread included), or CHROMIQ_TREE=<another tree>
+    .venv/bin/python tests/neighbour_campaign/drive_case.py \
         <case dir>/plan.json <out dir> [en|de]
     # 3. what the tab drew against what the emulator expected
     python -m tests.neighbour_campaign.plan --compare <out dir>
@@ -46,8 +46,7 @@ PLAN_PATH = Path(sys.argv[1]).resolve()
 OUT = Path(sys.argv[2]).resolve()
 LANG = sys.argv[3] if len(sys.argv) > 3 else "en"
 PLAN = json.loads(PLAN_PATH.read_text())
-APP = Path(os.environ.get("CHROMIQ_TREE") or (
-    Path.home() / "Desktop/ChromIQ-work/2026-10-04_beta11/campaign/app_tree_357d3b23"))
+APP = Path(os.environ.get("CHROMIQ_TREE") or HERE.parents[1])
 os.environ["CHROMIQ_TREE"] = str(APP)
 
 # ---- the sandbox, before anything of the app is imported --------------------
@@ -77,11 +76,36 @@ P = PLAN["project"]
 shutil.copytree(PLAN["project_dir"], d.work / P)
 for f in (d.work / P / "runs" / "run1").glob(f"{P}.ti3"):
     f.unlink()
+if PLAN.get("kind") == "verification":
+    # A VERIFICATION judged against the run's profile (Knut 5983470377: limit
+    # 10, no strip test, no neighbour check, no misread summary): the run has
+    # its measurement and its profile (the printer's run profile, older than
+    # the print), and the chart as its verification chart, printed raw by
+    # ChromIQ (the print record verify_expected reads).
+    run = d.work / P / "runs" / "run1"
+    shutil.copy2(PLAN["profiling_ti3"], run / f"{P}.ti3")
+    shutil.copy2(PLAN["run_profile"], run / f"{P}.icc")
+    old = time.time() - 3600
+    os.utime(run / f"{P}.icc", (old, old))
+    vd = run / "verifications"
+    vd.mkdir(exist_ok=True)
+    for ext in (".ti1", ".ti2", ".cht", ".ps", ".channels.json"):
+        if (run / f"{P}{ext}").exists():
+            shutil.copy2(run / f"{P}{ext}", vd / f"{P}-verify{ext}")
+    from datetime import datetime as _dt
+    (vd / f"{P}-verify.print.json").write_text(json.dumps({
+        "printed_at": _dt.now().isoformat(timespec="seconds"),
+        "colour": "raw", "intent": "", "route": "chromiq",
+        "source_profile": ""}, indent=2))
+    meta = json.loads((run / "meta.json").read_text())
+    meta["status"] = "complete"
+    (run / "meta.json").write_text(json.dumps(meta, indent=2))
 
 from PyQt6.QtCore import QPoint  # noqa: E402
 from PyQt6.QtWidgets import QAbstractButton  # noqa: E402
 
-state = {"n": 0, "handled": set(), "windows": [], "prefer": [], "steps": []}
+state = {"n": 0, "handled": set(), "windows": [], "prefer": [], "steps": [],
+         "closing": False}
 DEFAULTS = ("Start Calibration", "Calibrate", "Kalibrieren", "Continue",
             "Weiter", "Go to", "Zum", "OK", "Close", "Schließen")
 
@@ -110,7 +134,8 @@ def windows(secs):
         n = state["n"]
         title, text, btns = m.windowTitle(), d.modal_text(m), buttons(m)
         state["windows"].append({"title": title, "text": text, "buttons": btns,
-                                 "after_step": len(state["steps"])})
+                                 "after_step": len(state["steps"]),
+                                 "closing": state["closing"]})
         d.note(f"[window {n}] {title!r} buttons={btns} :: {text!r}")
         d.shot(m, f"{n:02d}-window-{LANG}")
         pick = None
@@ -139,17 +164,21 @@ def box_index():
 
 
 def outlines():
-    """``{"red": [...], "yellow": [...]}`` as the preview draws them now."""
+    """``{"red": [...], "yellow": [...], "green": [...]}`` as the preview
+    draws them now (green: a misread a re-read corrected, Knut 5984277558)."""
+    from workflow.patch_flags import is_corrected
     idx = box_index()
-    red, yellow = [], []
+    out = {"red": [], "yellow": [], "green": []}
     for page, items in tab()._preview._patch_overlay.items():
         for it in items:
             r, flag = it[0], it[3]
             loc = idx.get((page, r.x(), r.y(), r.width(), r.height()))
             if loc is None or flag is False or flag is None:
                 continue
-            (red if flag is True else yellow).append(loc)
-    return {"red": sorted(red), "yellow": sorted(yellow)}
+            key = ("red" if flag is True else "green" if is_corrected(flag)
+                   else "yellow")
+            out[key].append(loc)
+    return {k: sorted(v) for k, v in out.items()}
 
 
 def card(loc, name):
@@ -184,7 +213,8 @@ def script(d):
     d.settings.set("patch_neighbour_buffer_de", float(PLAN.get("buffer", 10.0)))
     d.open_project(P)
     yield 1500
-    d.later(lambda: d.set_bar(run="run1", run_type="Profiling"))
+    d.later(lambda: d.set_bar(run="run1", run_type=(
+        "Verification" if PLAN.get("kind") == "verification" else "Profiling")))
     yield 2500
     d.goto_tab("measure")
     yield 2500
@@ -196,8 +226,10 @@ def script(d):
         if box is not None and not box.isChecked():
             d.later(lambda b=box: b.setChecked(True))
     yield 600
-    d.note(f"case {PLAN['case']}; limit {t._patch_warn_limit()}; neighbour "
-           f"check applies {t._neighbour_check_applies()}")
+    d.note(f"case {PLAN['case']} ({PLAN.get('kind')}); limit "
+           f"{t._patch_warn_limit()} (plan {PLAN.get('limit')}); neighbour "
+           f"check applies {t._neighbour_check_applies()}; fence "
+           f"{t._use_outlier_fence()}; predicted {t._expected_is_predicted()}")
     d.later(t._start_btn.click)
     yield 1500
     t0 = time.monotonic()
@@ -222,19 +254,24 @@ def script(d):
         if step.get("as"):
             cmd["as"] = step["as"]
         mgr.send_command(cmd)
+        if k == last:
+            # The window this last strip opens closes the measurement.
+            state["closing"] = True
         yield from windows(1.5 if k < last else 2.5)
         o = outlines()
         state["steps"].append({"strip": step["strip"], "as": step.get("as"), **o})
         d.note(f"step {k} {step['strip']}{' again' if step.get('as') else ''}: "
-               f"red {o['red']} yellow {o['yellow']}")
+               f"red {o['red']} yellow {o['yellow']} green {o['green']}")
         for ph in photos.get(k, []):
             yield from card(ph["loc"], f"{k:03d}-{ph['name']}")
     summary = t.neighbour_summary_facts()
+    misread = t._misread_summary()
     d.note(f"summary facts {summary}")
-    d.note(f"misread summary: {t._misread_summary()!r}")
+    d.note(f"misread summary: {misread!r}")
     yield from windows(25)
     (OUT / "outlines.json").write_text(json.dumps(
-        {"steps": state["steps"], "summary": summary,
+        {"steps": state["steps"], "summary": summary, "lang": LANG,
+         "misread_summary": misread,
          "cards": state.get("cards", [])}, indent=1, ensure_ascii=False))
     (OUT / "windows.json").write_text(json.dumps(state["windows"], indent=1,
                                                  ensure_ascii=False))

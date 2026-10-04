@@ -67,11 +67,17 @@ def project_name(name: str) -> str:
     return "NC-" + name
 
 
-def build_one(name: str, force: bool = False) -> dict:
+def build_one(name: str, force: bool = False, *, plan=None,
+              precond_icc=None, printer: str = "") -> dict:
+    """One chart. With *precond_icc*, a chart MADE FROM A PROFILE: targen
+    ``-c <profile>`` as ChromIQ's pre-conditioning run passes it (the profile
+    copied into the run as ``preconditioning.icc``), which marks the chart
+    ``ACCURATE_EXPECTED_VALUES`` and gives it the profile's prediction as its
+    expected colours (Knut 5984174575: the neighbour check judges these too)."""
     from workflow.layout_engine.chart import build_chart
     from workflow.layout_engine.presets import LayoutRecipe
 
-    instrument, patches, hexagons = CHARTS_PLAN[name]
+    instrument, patches, hexagons = (plan or CHARTS_PLAN)[name]
     pname = project_name(name)
     proj = CHARTS / name / pname
     run = proj / "runs" / "run1"
@@ -82,8 +88,12 @@ def build_one(name: str, force: bool = False) -> dict:
         shutil.rmtree(CHARTS / name)
     run.mkdir(parents=True)
     t0 = time.monotonic()
+    extra = []
+    if precond_icc is not None:
+        shutil.copy2(precond_icc, run / "preconditioning.icc")
+        extra = ["-c", "preconditioning.icc"]
     run_tool([argyll("targen"), "-v0", "-d2", f"-f{patches}", "-e4", "-B4",
-              "-G", pname], cwd=run, timeout=1800)
+              "-G", *extra, pname], cwd=run, timeout=1800)
     t_targen = time.monotonic() - t0
     kw = guided_kwargs(instrument, hexagons)
     base = run / pname
@@ -114,6 +124,10 @@ def build_one(name: str, force: bool = False) -> dict:
             "slots": len(layout.get("patches", [])), "pages": len(pages),
             "strips": len({strip_of(p["loc"]) for p in layout.get("patches", [])}),
             "targen_s": round(t_targen, 1),
+            "kind": "accurate" if precond_icc is not None else "estimated",
+            "printer": printer,
+            "accurate_keyword": "ACCURATE_EXPECTED_VALUES" in (
+                run / f"{pname}.ti1").read_text(errors="replace"),
             "run_dir": str(run.relative_to(CHARTS)), "stem": pname}
     info_path.write_text(json.dumps(info, indent=1))
     return info
