@@ -22,6 +22,7 @@ import tifffile
 from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
 
 from core.logger import get_logger
+from core.pil_font import load_font
 from core.resource_path import resource_path
 
 from . import contrast, geometry, hexagon, permutation
@@ -119,7 +120,7 @@ def _system_font_map() -> dict[str, dict[str, str]]:
             if f.suffix.lower() not in (".ttf", ".otf", ".ttc"):
                 continue
             try:
-                fam, sub = ImageFont.truetype(str(f), 12).getname()
+                fam, sub = load_font(str(f), 12).getname()
             except Exception:
                 continue
             out.setdefault(fam, {}).setdefault(_style_key(sub or ""), str(f))
@@ -154,7 +155,7 @@ def font_supports(family: str) -> tuple[bool, bool]:
             return ("bold" in sf or "bolditalic" in sf,
                     "italic" in sf or "bolditalic" in sf)
         try:
-            f = ImageFont.truetype(resource_path(FONTS[family]), 12)
+            f = load_font(resource_path(FONTS[family]), 12)
             low = [(_n.decode() if isinstance(_n, bytes) else _n).replace(" ", "").lower()
                    for _n in f.get_variation_names()]
         except Exception:
@@ -173,7 +174,7 @@ def _font(px: int, family: str = DEFAULT_INDICATOR_FONT,
              else "italic" if italic else "regular")
     path = _font_path(family, style) or resource_path(FONTS[DEFAULT_INDICATOR_FONT])
     try:
-        f = ImageFont.truetype(path, max(6, px))
+        f = load_font(path, max(6, px))
     except Exception:  # pragma: no cover - font load fallback
         return ImageFont.load_default()
     if bold or italic:
