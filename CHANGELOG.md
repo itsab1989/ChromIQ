@@ -1,8 +1,8 @@
 # Changelog
 
-## v4.3.3-beta.9 (unreleased)
+## v4.3.3-beta.9
 
-**Similar patches in different strips confirm each other, so a colour your printer cannot reach turns yellow without re-reading every strip; a colour range learns at three confirmations, however close; and the outlines follow a changed limit at once.**
+**Similar patches in different strips confirm each other, so a colour your printer cannot reach turns yellow without re-reading every strip; a colour range learns at three confirmations, however close; the outlines follow a changed limit at once; Check & Refine judges every patch through the profile, whatever its outline; the help explains red and yellow everywhere; and the Check & Refine window fits smaller screens.**
 
 ### Changed
 
