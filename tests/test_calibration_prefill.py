@@ -8,6 +8,8 @@ preference hides — so a calibration went into the built chart invisibly (D6).
 """
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from core.argyll_runner import ArgyllRunner
@@ -126,7 +128,9 @@ def test_with_the_engine_the_offer_goes_to_the_engine_panel(cal_home, qapp):
     assert path is None or not apply_cal, (
         "with Mode on None the build must not apply the calibration")
     assert tab._cal_status_lbl.text() == M_CAL_FOUND_ENGINE.render(
-        name=tab._manual_layout_panel.cal_path_edit.text().rsplit("/", 1)[-1])[1]
+        # the file NAME (os.path.basename: "/" here, "\\" or "/" on Windows)
+        name=os.path.basename(
+            tab._manual_layout_panel.cal_path_edit.text()))[1]
 
 
 def test_with_the_engine_a_path_already_there_is_kept(cal_home, qapp):
