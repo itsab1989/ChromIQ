@@ -41,11 +41,23 @@ class GPForward:
         self.alpha = np.linalg.solve(Lc.T, np.linalg.solve(Lc, yn))
 
     def predict(self, z, chunk=8192):
+        """Same 8192-row blocks as before (so every GEMM has the same shape
+        and the same bits), the blocks on pool threads in an accurate
+        build (agent 8, D-06)."""
         z = np.atleast_2d(np.asarray(z, float))
         out = np.empty((len(z), self.alpha.shape[1]))
-        for s in range(0, len(z), chunk):
-            ks = _matern(_dists(z[s:s + chunk], self.x, self.ls), self.s2)
-            out[s:s + chunk] = ks @ self.alpha
+        starts = list(range(0, len(z), chunk))
+
+        def blocks(a, b):
+            for s in starts[a:b]:
+                ks = _matern(_dists(z[s:s + chunk], self.x, self.ls), self.s2)
+                out[s:s + chunk] = ks @ self.alpha
+        from workflow.profile_engine import parallel
+        if parallel.in_accurate_scope() and len(starts) > 1:
+            parallel.run_chunks(blocks, parallel.chunk_bounds(
+                len(starts), parallel.worker_count(), min_rows=1))
+        else:
+            blocks(0, len(starts))
         return out * self.ys + self.ym
 
 
@@ -67,7 +79,9 @@ def _nlml_grad(theta, x, yn):
     alpha = np.linalg.solve(Lc.T, np.linalg.solve(Lc, yn))
     nlml = 0.5 * (yn * alpha).sum() + m * np.log(np.diag(Lc)).sum() \
         + 0.5 * N * m * np.log(2 * np.pi)
-    Kinv = np.linalg.solve(Lc.T, np.linalg.solve(Lc, np.eye(N)))
+    # Agent 8 (wave 2): one LU of K instead of two of the triangular factor
+    # (S3: GP fit CPU 57.5 -> 40.2 s; projected nodes move <= 0.027 LSB).
+    Kinv = np.linalg.solve(K, np.eye(N))
     Q = alpha @ alpha.T - m * Kinv          # d nlml/dtheta = -0.5 tr(Q dK)
     g = np.empty_like(theta)
     base = s2 * 5.0 / 3.0 * (1.0 + _SQ5 * r) * e
@@ -94,10 +108,15 @@ def fit_hyper(x, y, iters=200, lr=0.05, max_points=1200, seed=0,
         idx = np.random.default_rng(seed).permutation(len(x))[:max_points]
         x, yn = x[idx], yn[idx]
     n = x.shape[1]
-    lo = np.concatenate([np.full(n, np.log(0.02)), [np.log(1e-3)], [np.log(1e-6)]])
+    # noise floor 1e-5 (standardised): caps cond(K) near 2e11; every optimum
+    # seen was >= 5e-5 (agent 3, N1-blas-sensitivity.txt, D-07)
+    lo = np.concatenate([np.full(n, np.log(0.02)), [np.log(1e-3)], [np.log(1e-5)]])
     hi = np.concatenate([np.full(n, np.log(100.0)), [np.log(1e4)], [np.log(1.0)]])
-    best = (np.inf, None)
-    for ls0 in starts:
+    def one_start(ls0, best):
+        """One Adam run. ``best`` is the (f, theta) the run starts from
+        (the serial code carries it across starts); returns the run's own
+        best and whether it ever needed ``best`` (a failed Cholesky)."""
+        used = False
         theta = np.concatenate([np.full(n, np.log(ls0)), [np.log(1.0)],
                                 [np.log(1e-2)]])
         mom = np.zeros_like(theta)
@@ -105,6 +124,7 @@ def fit_hyper(x, y, iters=200, lr=0.05, max_points=1200, seed=0,
         for t in range(1, iters + 1):
             f, g = _nlml_grad(theta, x, yn)
             if not np.isfinite(f):
+                used = True
                 theta = 0.5 * (theta + (best[1] if best[1] is not None
                                         else theta))
                 theta[n + 1] += 0.5
@@ -115,6 +135,28 @@ def fit_hyper(x, y, iters=200, lr=0.05, max_points=1200, seed=0,
             vel = 0.999 * vel + 0.001 * g * g
             step = lr * (mom / (1 - 0.9 ** t)) / (np.sqrt(vel / (1 - 0.999 ** t)) + 1e-8)
             theta = np.clip(theta - step, lo, hi)
+        return best, used
+
+    # Agent 8 (D-06): the starts are independent unless a Cholesky fails
+    # (then the serial code steps toward the best of EARLIER starts). Run
+    # them side by side from a clean slate; combining their bests in start
+    # order with the same strict "<" gives the serial answer. If any start
+    # needed the carried best, redo the whole search serially.
+    from workflow.profile_engine import parallel
+    best = (np.inf, None)
+    runs = None
+    if parallel.in_accurate_scope() and len(starts) > 1:
+        runs = parallel.run_tasks(
+            [(lambda s0=s0: one_start(s0, (np.inf, None))) for s0 in starts])
+        if any(u for _, u in runs):
+            runs = None
+    if runs is not None:
+        for (f_b, th_b), _ in runs:
+            if th_b is not None and f_b < best[0]:
+                best = (f_b, th_b)
+    else:
+        for ls0 in starts:
+            best, _ = one_start(ls0, best)
     th = best[1]
     return np.exp(th[:n]), float(np.exp(th[n])), float(np.exp(th[n + 1])), \
         float(-best[0])
@@ -295,25 +337,64 @@ def project_to_table(gp, base_model, base_lam, seed=2929, max_nodes=150_000,
     xs = rng.uniform(0.0, 1.0, (ns, n))
     ys = gp.predict(xs)
     w, cols = joint_weights(base_model.shape_device(xs), grid, n)
+    # Agent 8 (wave 2): Jacobi-preconditioned CG run to convergence; the
+    # plain CG stopped at 400 iterations up to 318 LSB from the solution.
     nodes = _cg_solve(w, cols, ys, grid, n, 1e-4 * base_lam, 400, nodes,
-                      rtol=1e-12)
+                      rtol=1e-16, precond=True)
     return ForwardModel(grid=grid, n_channels=n, nodes=nodes,
                         curves=curves)
 
 
-def _cg_solve(w, cols, y, grid, n, lam, iters, x0, rtol=1e-12):
+_LAST_ITERS = 0
+
+
+def _curv_diag(grid, n):
+    """Diagonal of sum_axis D2'D2 on the lattice: per axis 1 at the two end
+    nodes, 5 next to them, 6 inside (grid > 3)."""
+    i = np.arange(grid)
+    per = np.where((i == 0) | (i == grid - 1), 1.0,
+                   np.where((i == 1) | (i == grid - 2), 5.0, 6.0))
+    if grid <= 3:
+        per = np.array([1.0, 4.0, 1.0][:grid])
+    idx = np.indices((grid,) * n).reshape(n, -1)
+    return per[idx].sum(0)
+
+
+def _cg_solve(w, cols, y, grid, n, lam, iters, x0, rtol=1e-12,
+              precond=False):
     """forward_model._grid_solve's normal equations and CG, with
     np.bincount for W'r (np.add.at made a 6-ink projection take an hour)."""
     ng = grid ** n
     fc = cols.reshape(-1)
     shape = (grid,) * n + (-1,)
 
+    from workflow.profile_engine import parallel
+    par = parallel.in_accurate_scope() and parallel.worker_count() > 1 \
+        and len(w) >= 50_000
+    bounds = parallel.chunk_bounds(len(w), parallel.worker_count(),
+                                   min_rows=16384) if par else None
+
     def wmul(x):
-        return (w[:, :, None] * x[cols]).sum(1)
+        # Agent 8 (D-06): each row's sum over its own kernel weights, so row
+        # blocks on threads give the same bits.
+        if not par:
+            return (w[:, :, None] * x[cols]).sum(1)
+        out = np.empty((len(w), x.shape[1]))
+
+        def blk(a, b):
+            out[a:b] = (w[a:b, :, None] * x[cols[a:b]]).sum(1)
+        parallel.run_chunks(blk, bounds)
+        return out
 
     def wtmul(r):
-        return np.stack([np.bincount(fc, (w * r[:, c:c + 1]).reshape(-1),
-                                     minlength=ng) for c in range(r.shape[1])], 1)
+        # One Lab column per thread: each column's bincount is the same
+        # sequence of additions as before.
+        def col(c):
+            return lambda: np.bincount(fc, (w * r[:, c:c + 1]).reshape(-1),
+                                       minlength=ng)
+        if not par:
+            return np.stack([col(c)() for c in range(r.shape[1])], 1)
+        return np.stack(parallel.run_tasks([col(c) for c in range(r.shape[1])]), 1)
 
     def curv(x):
         x3 = x.reshape(shape)
@@ -331,13 +412,43 @@ def _cg_solve(w, cols, y, grid, n, lam, iters, x0, rtol=1e-12):
     def amul(x):
         return wtmul(wmul(x)) + lam * curv(x) + 1e-7 * x
 
+    global _LAST_ITERS
     b = wtmul(y)
     x = x0.copy()
     r = b - amul(x)
+    if precond:
+        # Agent 8 (wave 2): Jacobi preconditioner, diag(W'W) + lam diag(L'L)
+        # + 1e-7. Same normal equations and stopping rule; the shipped plain
+        # CG stopped at 400 iterations far from the solution on weakly
+        # determined nodes (S3: 129 nodes up to 318 LSB off the converged
+        # answer), this reaches the converged answer in ~75 iterations.
+        dinv = 1.0 / (np.bincount(fc, (w * w).reshape(-1), minlength=ng)
+                      + lam * _curv_diag(grid, n) + 1e-7)[:, None]
+        z = r * dinv
+        p = z.copy()
+        rz = (r * z).sum()
+        rs = (r * r).sum()
+        # No absolute 1e-9 floor here: it stopped PCG ~2 LSB short on S3.
+        stop = rtol * rs
+        k = 0
+        for k in range(iters):
+            ap = amul(p)
+            alpha = rz / max((p * ap).sum(), 1e-300)
+            x += alpha * p
+            r -= alpha * ap
+            if (r * r).sum() < stop:
+                break
+            z = r * dinv
+            rz2 = (r * z).sum()
+            p = z + (rz2 / rz) * p
+            rz = rz2
+        _LAST_ITERS = k + 1
+        return x
     p = r.copy()
     rs = (r * r).sum()
     stop = max(1e-9, rtol * rs)
-    for _ in range(iters):
+    k = 0
+    for k in range(iters):
         ap = amul(p)
         alpha = rs / max((p * ap).sum(), 1e-12)
         x += alpha * p
@@ -347,4 +458,5 @@ def _cg_solve(w, cols, y, grid, n, lam, iters, x0, rtol=1e-12):
             break
         p = r + (rs2 / rs) * p
         rs = rs2
+    _LAST_ITERS = k + 1
     return x
