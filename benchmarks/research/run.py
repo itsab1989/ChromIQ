@@ -260,6 +260,14 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
             if keep(pid):
                 specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers),
                               "variant": "physics"})
+    elif suite == "ecgchart":
+        # agent 14: the same printers and noise, charts composed like a
+        # professional ECG chart (datasets.make_chart_ecg), 900 and 600 patches
+        for pid, npat in (("X5", 900), ("X8", 900), ("X7", 900), ("X7", 600)):
+                if keep(pid):
+                    specs.append({"ds": dsm.synthetic(pid, work, npat, printers=printers,
+                                                      chart="ecg"),
+                                  "variant": f"ecg{npat}"})
     elif suite == "repeat":
         for pid in ["S3", "X5"]:
             if keep(pid):

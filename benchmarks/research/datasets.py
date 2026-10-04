@@ -64,6 +64,66 @@ def make_chart(printer: TruthPrinter, n_patches: int = 900, seed: int = 11
     return sept(_Shape(printer), n_patches, seed)
 
 
+def make_chart_ecg(printer: TruthPrinter, n_patches: int = 900, seed: int = 11
+                   ) -> np.ndarray:
+    """An N-colour chart composed like the professional ECG charts (agent 14;
+    IDEAlliance ECG CMYKOGV 2019, X-Rite ECG 4200 and Fogra ECG-7C are 80 %
+    3-4-ink patches, 5+ inks under 10 %, every two-ink overprint sampled,
+    complementary pairs sampled less): white/K endpoints, 11-step single-ink
+    ramps, a CMY grey, a 3 x 3 grid of every ink pair, a CMYK-only dark set,
+    then a quasi-random fill with 3 (55 %), 4 (35 %) or 5+ (10 %) inks on.
+    For <= 4 inks it is the September chart unchanged."""
+    n = printer.n
+    if n <= 4 or printer.is_additive:
+        return make_chart(printer, n_patches, seed)
+    from benchmarks.synthetic import halton
+    rng = np.random.default_rng(seed)
+    rows = [np.zeros((4, n))]
+    k = np.zeros((4, n)); k[:, 3] = 1.0
+    rows.append(k)
+    steps = np.linspace(0.0, 1.0, 11)
+    for c in range(n):
+        r = np.zeros((len(steps), n)); r[:, c] = steps
+        rows.append(r)
+    grey = np.zeros((len(steps), n)); grey[:, :3] = steps[:, None] * np.array([0.9, 0.75, 0.72])
+    rows.append(grey)
+    lv = np.array([0.25, 0.6, 1.0])
+    a, b = np.meshgrid(lv, lv, indexing="ij")
+    import itertools
+    for i, j in itertools.combinations(range(n), 2):
+        g = np.zeros((9, n)); g[:, i], g[:, j] = a.ravel(), b.ravel()
+        rows.append(g)
+    fixed = np.vstack(rows)
+    rest = max(n_patches - len(fixed), 0)
+    n_dark = rest // 10
+    dark = np.zeros((n_dark, n))
+    dark[:, :4] = 0.3 + 0.7 * halton(n_dark, 4, seed + 1)
+    # complementary pairs (solid hues >= 150 deg apart) are drawn half as often
+    lab = printer.lab_rel(np.eye(n))
+    hue = np.degrees(np.arctan2(lab[:, 2], lab[:, 1])) % 360
+    chroma = np.hypot(lab[:, 1], lab[:, 2])
+    comp = {(i, j) for i, j in itertools.combinations(range(n), 2)
+            if chroma[i] > 20 and chroma[j] > 20
+            and abs((hue[i] - hue[j] + 180) % 360 - 180) >= 150}
+    m = rest - n_dark
+    vals = halton(m, n, seed)
+    fill = np.zeros((m, n))
+    for r in range(m):
+        u = rng.uniform()
+        size = 3 if u < 0.55 else 4 if u < 0.90 else int(rng.integers(5, n + 1))
+        while True:
+            act = rng.choice(n, size, replace=False)
+            bad = any((min(i, j), max(i, j)) in comp for i, j in itertools.combinations(act, 2))
+            if not bad or rng.uniform() < 0.5:
+                break
+        fill[r, act] = vals[r, act]
+    chart = np.vstack([fixed, dark, fill])
+    if printer.tac is not None:
+        from workflow.profile_engine.b2a import project_tac
+        chart = project_tac(chart, printer.tac / 100.0)
+    return chart
+
+
 def write_ti3(path: Path, printer: TruthPrinter, device: np.ndarray,
               xyz: np.ndarray, spec10: np.ndarray | None) -> Path:
     letters = printer.letters
@@ -131,13 +191,14 @@ def role_of(name: str) -> str:
 
 def synthetic(pid: str, work: Path, n_patches: int = 900, level: str = "typical",
               seed: int = 23, chart_seed: int = 11, illuminant: str = "",
-              printers: dict | None = None) -> Dataset:
+              printers: dict | None = None, chart: str = "september") -> Dataset:
     printers = printers or build_printers()
     p = printers[pid]
-    chart = make_chart(p, n_patches, chart_seed)
+    chart_kind = chart
+    chart = (make_chart_ecg if chart_kind == "ecg" else make_chart)(p, n_patches, chart_seed)
     detail: dict = {}
     xyz, spec, mis = measure(p, chart, level=level, seed=seed, detail=detail)
-    tag = f"{pid}-{level}-s{seed}-c{chart_seed}-n{n_patches}"
+    tag = f"{pid}-{level}-s{seed}-c{chart_seed}-n{n_patches}" + ("-ecg" if chart_kind == "ecg" else "")
     ti3 = write_ti3(Path(work) / f"{tag}.ti3", p, chart, xyz, spec)
     name = pid if not illuminant else f"{pid}@{illuminant}"
     return Dataset(name=name,
@@ -145,7 +206,7 @@ def synthetic(pid: str, work: Path, n_patches: int = 900, level: str = "typical"
                    color_rep=p.color_rep, ink_limit=p.tac, printer=p,
                    misread_rows=mis, illuminant=illuminant,
                    info={"family": p.family, "noise": level, "seed": seed,
-                         "chart_seed": chart_seed, "patches": n_patches,
+                         "chart_seed": chart_seed, "patches": n_patches, "chart": chart_kind,
                          "misreads": int(len(mis)),
                          "isolated_misreads": int(len(detail.get("isolated", []))),
                          "strip_misreads": len(detail.get("strips", [])),

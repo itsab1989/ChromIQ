@@ -120,7 +120,7 @@ def nc1_ramps(prof, printer, reader, intent="r", steps: int = 33) -> dict:
 
 
 def nc2_overprints(prof, printer, reader, steps: int = 9, n_sparse: int = 4000,
-                   seed: int = 17) -> dict:
+                   seed: int = 17, intent: str | None = "r") -> dict:
     n, tac = printer.n, printer.tac
     g = np.linspace(0, 1, steps)
     a, b = np.meshgrid(g, g, indexing="ij")
@@ -142,8 +142,14 @@ def nc2_overprints(prof, printer, reader, steps: int = 9, n_sparse: int = 4000,
             keep = np.argsort(rng.uniform(size=dev.shape), axis=1) < k_on
             dev = dev * keep
         dev = gmq._scale_tac(dev, tac)
-        de = colour.de2000(cmm.a2b(prof, dev, reader), printer.lab_rel(dev))
+        lab = printer.lab_rel(dev)
+        de = colour.de2000(cmm.a2b(prof, dev, reader), lab)
         regions[f"max_{k_on}_inks"] = stats(de)
+        # the inverse for the same colours (all reachable): colorimetric
+        # B2A -> printed on the truth
+        if intent is not None:
+            pr = printer.lab_rel(_b2a(prof, lab, reader, intent))
+            regions[f"b2a_max_{k_on}_inks"] = stats(colour.de2000(pr, lab))
     worst = max(pairs, key=lambda k: pairs[k]["p95"])
     return {"pairs_all": stats(allde), "worst_pair": worst,
             "worst_pair_stats": pairs[worst], "regions": regions, "per_pair": pairs}
@@ -157,6 +163,12 @@ def _chroma_table(cloud: np.ndarray, l_bin: float = 2.5, h_bin: float = 5.0):
     hi = np.minimum((h / h_bin).astype(int), int(360 / h_bin) - 1)
     tab = np.zeros((int(100 / l_bin) + 1, int(360 / h_bin)))
     np.maximum.at(tab, (li, hi), c)
+    idx = np.arange(tab.shape[1])
+    for r in range(tab.shape[0]):            # empty hue bins: interpolate
+        good = tab[r] > 0
+        if good.sum() >= 2 and not good.all():
+            tab[r, ~good] = np.interp(idx[~good], idx[good], tab[r, good],
+                                      period=tab.shape[1])
     return tab, l_bin, h_bin
 
 
@@ -272,6 +284,10 @@ def nc4_extension(prof, printer, reader, intent="r", n: int = 30000, seed: int =
     cdev = rng.uniform(0, 1, (4 * n, k))
     cedge = (rng.uniform(0, 1, (2 * n, k)) > 0.5) * rng.uniform(0.3, 1, (2 * n, k))
     cdev = np.vstack([cdev, cedge])
+    # volumes from EQUAL sample counts (the dense CMYK cloud is for the gap)
+    vdev = dev.copy()
+    vdev[:, extra] = 0.0
+    vlab = printer.lab_rel(gmq._scale_tac(vdev, printer.tac))
     cdev[:, extra] = 0.0
     cdev = gmq._scale_tac(cdev, printer.tac)
     clab = printer.lab_rel(cdev)
@@ -287,7 +303,7 @@ def nc4_extension(prof, printer, reader, intent="r", n: int = 30000, seed: int =
     out = {"n_targets": int(ext.sum()), "share_of_gamut_samples": float(ext.mean())}
     vox = lambda L: len(np.unique(np.floor(L / 3.0).astype(int), axis=0))
     out["volume_voxels_all"] = vox(lab)
-    out["volume_voxels_cmyk"] = vox(clab)
+    out["volume_voxels_cmyk"] = vox(vlab)
     out["volume_gain"] = float(out["volume_voxels_all"] / max(out["volume_voxels_cmyk"], 1))
     if ext.sum():
         tgt = lab[ext]
@@ -349,7 +365,7 @@ def evaluate(profile, printer_id: str, reader: str = "argyll", intent: str = "r"
     if "1" in t:
         out["NC1"] = nc1_ramps(profile, printer, reader, intent)
     if "2" in t:
-        out["NC2"] = nc2_overprints(profile, printer, reader)
+        out["NC2"] = nc2_overprints(profile, printer, reader, intent=intent)
     if "3" in t:
         out["NC3"] = nc3_switching(profile, printer, reader, intent, cloud)
     if "4" in t:
@@ -375,8 +391,14 @@ def headline(r: dict) -> dict:
         h["NC2 pairs A2B p95"] = r["NC2"]["pairs_all"]["p95"]
         h["NC2 <=3 inks A2B med"] = r["NC2"]["regions"]["max_3_inks"]["median"]
         h["NC2 <=3 inks A2B p95"] = r["NC2"]["regions"]["max_3_inks"]["p95"]
-        h["NC2 all inks A2B med"] = r["NC2"]["regions"][[k for k in r["NC2"]["regions"]][-1]]["median"]
+        h["NC2 all inks A2B med"] = r["NC2"]["regions"][f"max_{len(r['letters'])}_inks"]["median"]
+        if "b2a_max_3_inks" in r["NC2"]["regions"]:
+            h["NC2 <=3 inks B2A med"] = r["NC2"]["regions"]["b2a_max_3_inks"]["median"]
+            h["NC2 <=3 inks B2A p95"] = r["NC2"]["regions"]["b2a_max_3_inks"]["p95"]
+            h["NC2 all inks B2A med"] = r["NC2"]["regions"][f"b2a_max_{len(r['letters'])}_inks"]["median"]
     if "NC3" in r:
+        h["NC3 hue-circle B2A med"] = r["NC3"]["de"]["median"]
+        h["NC3 hue-circle B2A p95"] = r["NC3"]["de"]["p95"]
         h["NC3 rise-fall excess"] = r["NC3"]["rise_fall_excess_total"]
         h["NC3 TV excess max"] = r["NC3"]["tv_excess_max"]
         h["NC3 jump/deg max"] = r["NC3"]["max_jump_per_deg"]
