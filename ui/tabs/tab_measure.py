@@ -1131,12 +1131,12 @@ LIMITS_PURPOSE_HELP = (
     "print, so even a good patch can be 30 to 50 ΔE off. The limit is"
     " as high as in ArgyllCMS's own chartread and catches only gross "
     "misreads; the strip check (“Only flag a patch that stands out "
-    "from its own strip”) and another check, which compares each "
-    "patch with its neighbours, do most of the misread hunting on "
+    "from its own strip”) and the neighbour check (“Flag a patch "
+    "that does not fit the patches nearest in colour by more "
+    "than”) do most of the misread hunting on "
     "these charts.\n"
-    "  • A chart made from a profile, default ΔE 20: ArgyllCMS marks "
-    "a chart made with a pre-conditioning profile "
-    "(ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
+    "  • A chart made with a pre-conditioning profile, default ΔE 20: "
+    "ArgyllCMS marks it (ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
     " what the printer should print, and a much smaller difference is"
     " already suspicious.\n"
     "  • A verification judged against its profile, default ΔE 10: a "
@@ -1145,6 +1145,18 @@ LIMITS_PURPOSE_HELP = (
     "closest of all. The strip check does not apply to it.\n"
     "The chart decides which limit applies when you measure, so you "
     "never have to choose.")
+
+#: THE GREEN OUTLINE (Knut, #182 5984277558, "Ok" to 5984237879): a misread
+#: a re-read corrected. One paragraph, the same in Preferences ▸ Measurement
+#: and in the Measure tab's overlay and hover help (one translation; a test
+#: keeps the copies equal).
+GREEN_OUTLINE_HELP = (
+    "A green outline marks a misread that was corrected: the patch was "
+    "outlined red (by the limit or by the neighbour check), and reading it "
+    "again gave a colour that fits. The new reading replaces the misread, "
+    "so there is nothing more to do. Green is kept with the measurement and "
+    "shown again when you open it; it ends when the patch is read once more "
+    "and the new reading is outlined again.")
 
 #: Knut, #182 5980576263: the overlay's help tells red and yellow apart, says
 #: what the limits do, and that Check & Refine judges on its own. The same
@@ -3012,6 +3024,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._overlay_tip = TooltipButton(
             tr("Show overlay from existing measurement"),
             tr(_OVERLAY_TIP_BODY) + "\n\n" + tr(_OVERLAY_TIP_COLOURS)
+            + "\n\n" + tr(GREEN_OUTLINE_HELP)
             + "\n\n" + tr(_OVERLAY_TIP_LIMITS), left)
         self._overlay_tip.setVisible(False)
         overlay_row.addWidget(self._overlay_tip)
@@ -3181,7 +3194,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "file are exact.)")
             # Knut, #182 5956210745: both help texts cover the red outline.
             # Knut, #182 5980576263: red and yellow told apart.
-            + "\n\n" + tr(_OVERLAY_TIP_COLOURS),
+            + "\n\n" + tr(_OVERLAY_TIP_COLOURS)
+            + "\n\n" + tr(GREEN_OUTLINE_HELP),
             row))
         show_row.addStretch(1)
         v.addLayout(show_row)
@@ -3292,6 +3306,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "Which patches were confirmed is kept with the measurement, so "
             "they stay yellow after it ends and when you resume it; a "
             "completely new read starts without yellow patches.")
+            + "\n\n" + tr(GREEN_OUTLINE_HELP)
             # Knut, #182 5980576263: what the limits do, and Check & Refine.
             + "\n\n" + tr(_OVERLAY_TIP_LIMITS),
             row)
@@ -3612,6 +3627,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._m_overlay_tip = TooltipButton(
             tr("Show overlay from existing measurement"),
             tr(_OVERLAY_TIP_BODY) + "\n\n" + tr(_OVERLAY_TIP_COLOURS)
+            + "\n\n" + tr(GREEN_OUTLINE_HELP)
             + "\n\n" + tr(_OVERLAY_TIP_LIMITS), left)
         self._m_overlay_tip.setVisible(False)
         m_overlay_row.addWidget(self._m_overlay_tip)
@@ -7071,6 +7087,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._instrument_fault_sounded = False
         import time as _t
         self._measure_started_at = _t.monotonic()
+        # What "Was a strip read twice?" asked during this measurement, for
+        # its closing window (#182 beta 11).
+        self._read_twice_log = []
 
         # #130 Hole 1: don't start a verification of a run that has no profile.
         block = self._verification_guard()
@@ -7836,7 +7855,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         if self._a_question_is_open():
             return              # that window's release asks again
-        mgr.answer_read_twice(self._strip_read_twice_window(*args))
+        choice = self._strip_read_twice_window(*args)
+        # Kept for the window that closes the measurement (#182 beta 11).
+        try:
+            self._read_twice_log = list(getattr(self, "_read_twice_log", []))
+            self._read_twice_log.append((str(args[0]), str(args[1]), choice))
+        except Exception:      # noqa: BLE001 — a summary never blocks a read
+            pass
+        mgr.answer_read_twice(choice)
+        # A reading set aside holds another strip's colours: the neighbour
+        # check forgets it now, not when the strip is next read (review of
+        # beta 11), so it is neither a suspect in the closing window nor a
+        # comparison for the patches of other strips.
+        self._neighbour_forget(self._set_aside_locs())
 
     def _strip_read_twice_window(self, strip: str, like: str) -> "str | None":
         """§M's M-STRIP-READ-TWICE, in the measurement frame.
@@ -11158,7 +11189,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
-        summary = self._measurement_summary()
+        summary = self._completion_summary()
         if summary:
             from PyQt6.QtWidgets import QLabel as _QL
             sum_lbl = _QL(summary, dlg)
@@ -11337,7 +11368,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
-        summary = self._measurement_summary()
+        summary = self._completion_summary()
         if summary:
             from PyQt6.QtWidgets import QLabel as _QL
             sum_lbl = _QL(summary, dlg)
@@ -14582,6 +14613,89 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 limit=strip_limit_fact(config, pace.patches))
         self._refresh_pace_panel(f"{verdict} · {measured}. {limit}", colour)
 
+    def _completion_summary(self) -> str:
+        """The reading-time summary and, under it, the suspected misreads
+        (#182 beta 11), for the window that closes a profiling or calibration
+        measurement. A verification's window shows the reading times only."""
+        parts = [self._measurement_summary(), self._misread_summary()]
+        return "\n".join(x for x in parts if x)
+
+    def _read_twice_was_active(self) -> bool:
+        """Did "Was a strip read twice?" watch this measurement? Strips read
+        with ChromIQ's engine, outside guided refinement
+        (``MeasureManager._check_read_twice``)."""
+        try:
+            return bool(self._manager.engine_active
+                        and not getattr(self, "_spot_session", False)
+                        and not getattr(self, "_session_whole_chart", False)
+                        and not getattr(self, "_guided_refinement_active", False))
+        except Exception:      # noqa: BLE001
+            return False
+
+    def _misread_summary(self) -> str:
+        """The suspected misreads of the measurement just finished (Knut,
+        #182 5983470377 item 5; wording M-MEASURED-SUSPECTS, §M-PROPOSED):
+        the neighbour check where it applies, and "Was a strip read twice?"
+        when it ran. Empty for a verification measurement."""
+        try:
+            if self._is_verification_run() or self._expected_is_predicted():
+                return ""
+            from workflow import measurement_messages as M
+            lines = []
+            facts = self.neighbour_summary_facts()
+            if facts is not None:
+                red, kept = facts["red"], facts["kept"]
+
+                def listed(locs) -> str:
+                    return ", ".join(locs[:10]) + ("…" if len(locs) > 10 else "")
+                if not red and not kept and not facts["checked"]:
+                    # Nothing found because nothing could be looked at.
+                    lines.append(tr(M._SUM_NB_NONE_CHECKED).format(
+                        total=facts["total"]))
+                elif not red:
+                    lines.append(tr(M._SUM_NB_NONE))
+                elif len(red) == 1:
+                    lines.append(tr(M._SUM_NB_RED_ONE).format(locs=red[0]))
+                else:
+                    lines.append(tr(M._SUM_NB_RED).format(
+                        n=len(red), locs=listed(red)))
+                if len(kept) == 1:
+                    lines.append(tr(M._SUM_NB_KEPT_ONE))
+                elif kept:
+                    lines.append(tr(M._SUM_NB_KEPT).format(n=len(kept)))
+                if 0 < facts["checked"] < facts["total"]:
+                    lines.append(tr(M._SUM_NB_PARTLY).format(
+                        checked=facts["checked"], total=facts["total"]))
+            # GREEN (Knut, #182 5984277558): misreads a re-read corrected,
+            # by the limit or the neighbour check, after the
+            # neighbour check's lines.
+            fixed = self.corrected_locs()
+            if len(fixed) == 1:
+                lines.append(tr(M._SUM_CORRECTED_ONE).format(locs=fixed[0]))
+            elif fixed:
+                lines.append(tr(M._SUM_CORRECTED).format(
+                    n=len(fixed), locs=", ".join(fixed[:10])
+                    + ("…" if len(fixed) > 10 else "")))
+            if self._read_twice_was_active():
+                log_ = list(getattr(self, "_read_twice_log", []) or [])
+                items = []
+                for strip, like, choice in log_:
+                    key = {"reread": M._SUM_TWICE_REREAD,
+                           "was_like": M._SUM_TWICE_WAS_LIKE}.get(
+                               choice, M._SUM_TWICE_KEPT)
+                    items.append(tr(key).format(strip=strip, like=like))
+                if not items:
+                    lines.append(tr(M._SUM_TWICE_NONE))
+                elif len(items) == 1:
+                    lines.append(tr(M._SUM_TWICE_ONE).format(list=items[0]))
+                else:
+                    lines.append(tr(M._SUM_TWICE).format(
+                        n=len(items), list=", ".join(items)))
+            return "\n".join(lines)
+        except Exception:      # noqa: BLE001 — a summary must never block a read
+            log.debug("could not sum up the suspected misreads", exc_info=True)
+            return ""
+
     def _measurement_summary(self) -> str:
         """How the whole chart went, for the window that closes a measurement
         (#131, Knut 2026-07-26). Empty when nothing was timed — with stock
@@ -15256,6 +15370,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         import statistics as _stats
         _median = _stats.median(_des) if _des else 0.0
         from workflow.icc_info import xyz_to_lab
+        # THE NEIGHBOUR CHECK (#182 beta 11): the strip's readings first, so
+        # each patch is judged with this strip's readings already counted.
+        nb_changed = self._neighbour_feed(patches)
         items = []
         info_items = []
         for p in patches:
@@ -15270,7 +15387,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             meas_rgb = _xyz_d50_to_srgb8(mxyz)
             exp_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3]))
             meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
-            flag, extra = self._judge_patch(
+            flag, extra = self._judge_with_neighbours(
                 str(p.get("loc", "")), exp_lab, meas_lab, de_p, warn,
                 standout=de_p - _median, live=True)
             items.append((box, _QC(*exp_rgb), _QC(*meas_rgb), flag))
@@ -15291,6 +15408,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if items:
             self._preview.set_patch_overlay(page, items)
             self._preview.set_patch_info(page, info_items)
+            # Patches read before whose neighbours this strip changed.
+            self._neighbour_rejudge(nb_changed,
+                                    {str(p.get("loc", "")) for p in patches})
             # The strip may have taught a colour range, or un-taught one.
             self._apply_flag_rejudge(live=True)
         self._update_engine_read_map()
@@ -15331,6 +15451,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 white=white, device_ranges=device_ranges)
         else:
             judge.reset(white=white, device_ranges=device_ranges)
+        # The neighbour check remembers the same readings, so it starts
+        # afresh with them (#182 beta 11).
+        self._neighbour_reset()
         return judge
 
     def _chart_flag_facts(self) -> "tuple[bool, tuple, dict | None]":
@@ -15484,7 +15607,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                               getattr(self, "_live_expected", None))
 
     def _judge_patch(self, loc, exp_lab, meas_lab, de, flagged, *,
-                     standout=None, live=True) -> "tuple[object, dict]":
+                     standout=None, live=True,
+                     reread_only=False) -> "tuple[object, dict]":
         """The outline for one patch and the hover card's extra facts.
 
         Returns ``(flag, extra)``: *flag* is what the preview draws (no
@@ -15514,7 +15638,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 strip = None
             v = self._flag_judge().judge(loc, exp_lab, meas_lab, de,
                                          bool(flagged), standout=standout,
-                                         live=live, strip=strip)
+                                         live=live, strip=strip,
+                                         reread_only=bool(reread_only))
         except Exception:          # noqa: BLE001 — never lose the red outline
             log.debug("could not judge patch %s", loc, exc_info=True)
             return bool(flagged), extra
@@ -15530,17 +15655,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         colour range with how many confirmations it has (#182 k10), and the
         similar patches that confirm it (Knut, #182 5979886227)."""
         from workflow.patch_flags import FLAG_CONFIRMED, FLAG_LEARNED, is_yellow
+        from workflow.patch_flags import is_corrected
         kind = ""
         if is_yellow(v.flag) and v.flag == FLAG_CONFIRMED:
             kind = "confirmed"
         elif is_yellow(v.flag) and v.flag == FLAG_LEARNED:
             kind = "learned"
+        elif is_corrected(v.flag):
+            kind = "corrected"            # green (Knut 5984277558)
         return {"flag": kind, "prev_de": v.prev_de, "like_loc": v.like_loc,
+                "corrected_by": str(getattr(v, "corrected_by", "") or ""),
                 "peer_locs": list(getattr(v, "peer_locs", ()) or ()),
                 "colour_range": v.colour_range, "range_k": int(v.range_k),
                 "range_locs": list(v.range_locs),
                 # Learned only by the size test's waiver (Knut 5982600086).
                 "landed": bool(getattr(v, "landed", False)),
+                # Red until its own re-read: a neighbour suspect (Knut,
+                # #182 5984174575).
+                "reread_only": bool(getattr(v, "reread_only", False)),
                 # Red in a learned range: why (Knut, #182 5982206917).
                 "misfit": [{"test": m.test, "own": tuple(m.own),
                             "ref": tuple(m.ref), "count": m.count,
@@ -15572,6 +15704,214 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 preview.update_patch_flags(page, mapping)
         if live:
             self._save_confirmed_memory_if_changed()
+
+    # ---- The neighbour check (#182 beta 11, Knut 5983470377 item 5) -------
+    #
+    # A patch whose reading does not fit the patches nearest to it in
+    # expected colour (read in other strips) is drawn red with its own reason
+    # on the card, even below the limit (workflow/neighbour_check.py). It is
+    # one more reason for the red rule's "flagged", and only its own re-read
+    # with the same colour turns it yellow: similar patches and a learned
+    # colour range apply to the limit alone (Knut, #182 5984174575; the
+    # judge's *reread_only*). Judged again after every strip and patch and
+    # when a measurement is painted from disk. Profiling charts, estimated or
+    # made with a pre-conditioning profile (5984174575): never a
+    # verification or a calibration chart.
+
+    def _neighbour_reset(self) -> None:
+        """Forget every reading the neighbour check holds."""
+        nc = getattr(self, "_nb_check", None)
+        if nc is not None:
+            nc.reset()
+        self._nb_inputs = {}
+
+    def _neighbour_check(self):
+        nc = getattr(self, "_nb_check", None)
+        if nc is None:
+            from workflow.neighbour_check import NeighbourCheck
+            nc = self._nb_check = NeighbourCheck()
+            self._nb_inputs = {}
+        return nc
+
+    def _neighbour_check_applies(self) -> bool:
+        """Is the chart on screen one the neighbour check judges? A profiling
+        chart, with estimated expected colours or made with a pre-conditioning
+        profile (Knut, #182 5984174575: "If so, yes"): not a verification (nor
+        any chart judged against a profile's prediction), not a calibration
+        chart."""
+        try:
+            ti1 = getattr(self, "_ti1_path", None)
+            if ti1 is None or Path(ti1).parent.name == "cal":
+                return False
+            return not (self._is_verification_run()
+                        or self._expected_is_predicted())
+        except Exception:      # noqa: BLE001 — a preview is never worth a crash
+            log.debug("could not tell whether the neighbour check applies",
+                      exc_info=True)
+            return False
+
+    def _neighbour_feed(self, patches) -> dict:
+        """Give the check a batch of readings and judge again; returns
+        ``{loc: finding}`` for each patch to judge and draw again
+        (:meth:`_neighbour_redraw_set`)."""
+        if not self._neighbour_check_applies():
+            return {}
+        try:
+            nc = self._neighbour_check()
+            # The user's buffer (Knut 5983725218); a new one judges every
+            # patch again.
+            from workflow.neighbour_check import buffer_from
+            nc.set_buffer(buffer_from(self._settings))
+            aside = self._set_aside_locs()
+            for p in patches or ():
+                loc = str(p.get("loc", "") or "")
+                if not loc:
+                    continue
+                if loc in aside:
+                    # Another strip's colours, filed here (read twice).
+                    nc.forget(loc)
+                    continue
+                try:
+                    strip = self._strip_of(loc)
+                except Exception:      # noqa: BLE001 — no strip: no comparison
+                    strip = ""
+                nc.set_reading(loc, p.get("exyz", [0, 0, 0]),
+                               p.get("xyz", [0, 0, 0]), strip)
+            return self._neighbour_redraw_set(nc)
+        except Exception:      # noqa: BLE001 — never lose the outlines
+            log.debug("the neighbour check failed", exc_info=True)
+            return {}
+
+    @staticmethod
+    def _neighbour_redraw_set(nc) -> dict:
+        """Evaluate, and return the patches to judge and draw again: every
+        one whose verdict changed, and every suspect whose comparisons or
+        figures changed, since its card shows them (review of beta 11: a
+        card kept the figures of the strip that first made it red)."""
+        changed = nc.evaluate()
+        for loc, f in nc.updated().items():
+            if f.suspect:
+                changed.setdefault(loc, f)
+        return changed
+
+    def _neighbour_forget(self, locs) -> None:
+        """These patches have no reading any more (set aside by "Was a strip
+        read twice?"): forget them and redraw the patches whose verdict that
+        changes, the forgotten ones included."""
+        nc = getattr(self, "_nb_check", None)
+        locs = [str(x) for x in (locs or ()) if x]
+        if nc is None or not locs or not self._neighbour_check_applies():
+            return
+        try:
+            for loc in locs:
+                nc.forget(loc)
+            self._neighbour_rejudge(self._neighbour_redraw_set(nc), set())
+            self._apply_flag_rejudge(live=False)
+        except Exception:      # noqa: BLE001 — never lose the outlines
+            log.debug("could not forget the set-aside readings", exc_info=True)
+
+    def _neighbour_suspect(self, loc):
+        """*loc*'s finding when the neighbour check suspects it, else None."""
+        nc = getattr(self, "_nb_check", None)
+        if nc is None or not self._neighbour_check_applies():
+            return None
+        f = nc.finding(str(loc))
+        return f if f is not None and f.suspect else None
+
+    def _neighbour_extra(self, f) -> dict:
+        """The hover card's facts about a neighbour suspect (None: not one),
+        with the buffer it was judged against."""
+        if f is None:
+            return {"neighbour": None}
+        nc = getattr(self, "_nb_check", None)
+        from workflow.neighbour_check import BUFFER_DE
+        return {"neighbour": {"n": len(f.compared), "locs": list(f.compared),
+                              "excess": float(f.excess),
+                              "buffer": float(getattr(nc, "buffer", BUFFER_DE)),
+                              "expected": float(f.expected_de),
+                              "measured": float(f.measured_de)}}
+
+    def _judge_with_neighbours(self, loc, exp_lab, meas_lab, de, warn, *,
+                               standout=None, live=True):
+        """:meth:`_judge_patch`, with the neighbour check's verdict added to
+        the red rule's *warn*, and remembered so the patch can be judged
+        again when a later reading changes its neighbours."""
+        loc = str(loc)
+        f = self._neighbour_suspect(loc)
+        if not hasattr(self, "_nb_inputs"):
+            self._nb_inputs = {}
+        self._nb_inputs[loc] = (exp_lab, meas_lab, float(de), bool(warn),
+                                standout)
+        flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de,
+                                        bool(warn) or f is not None,
+                                        standout=standout, live=live,
+                                        reread_only=f is not None)
+        extra.update(self._neighbour_extra(f))
+        return flag, extra
+
+    def _neighbour_rejudge(self, changed: dict, done) -> None:
+        """Judge again, and redraw, the patches outside the batch whose
+        neighbour verdict the batch changed. Not a reading of them, so it
+        cannot confirm anything (``live`` False)."""
+        if not changed:
+            return
+        per_page: "dict[int, dict]" = {}
+        inputs = getattr(self, "_nb_inputs", {})
+        for loc, f in changed.items():
+            if loc in done or loc not in inputs:
+                continue
+            exp_lab, meas_lab, de, warn, standout = inputs[loc]
+            flag, extra = self._judge_patch(
+                loc, exp_lab, meas_lab, de, warn or f.suspect,
+                standout=standout, live=False, reread_only=f.suspect)
+            extra.update(self._neighbour_extra(f if f.suspect else None))
+            page, box = self._locate_patch(loc)
+            if page < 0 or box is None:
+                continue
+            per_page.setdefault(page, {})[box] = (flag, extra)
+        preview = getattr(self, "_preview", None)
+        if preview is not None and hasattr(preview, "update_patch_flags"):
+            for page, mapping in per_page.items():
+                preview.update_patch_flags(page, mapping)
+
+    def corrected_locs(self) -> "list[str]":
+        """The patches drawn green (Knut 5984277558): red once, and a live
+        re-read fits now. In chart order."""
+        judge = getattr(self, "_patch_flag_judge", None)
+        if judge is None:
+            return []
+        from workflow.patch_flags import sorted_locs
+        last = getattr(judge, "_last", {})
+        return sorted_locs(loc for loc in judge.corrected
+                           if loc not in last or not last[loc].flagged)
+
+    def neighbour_summary_facts(self) -> "dict | None":
+        """What the neighbour check found in the measurement on screen, for
+        the window that closes a measurement; None when it does not apply.
+
+        ``red``: suspects still drawn red; ``kept``: suspects a re-read
+        confirmed (yellow); ``checked``/``total``: patches with enough
+        comparisons to be judged, of all read."""
+        if not self._neighbour_check_applies():
+            return None
+        nc = getattr(self, "_nb_check", None)
+        if nc is None or len(nc) == 0:
+            return None
+        from workflow.patch_flags import FLAG_CONFIRMED, FLAG_RED
+        judge = getattr(self, "_patch_flag_judge", None)
+        verdicts = getattr(judge, "_verdicts", {}) if judge is not None else {}
+        red, kept = [], []
+        for loc in nc.suspects():
+            flag = getattr(verdicts.get(loc), "flag", FLAG_RED)
+            if flag is FLAG_RED or flag is True:
+                red.append(loc)
+            elif (flag == FLAG_CONFIRMED
+                  and getattr(verdicts.get(loc), "prev_de", None) is not None):
+                kept.append(loc)
+        # In chart order, so the list reads the same live and from disk.
+        from workflow.patch_flags import sorted_locs
+        return {"red": sorted_locs(red), "kept": sorted_locs(kept),
+                "checked": nc.checked_count(), "total": len(nc)}
 
     # ---- #182 K4: the confirmed patches, kept with the measurement ---------
     #
@@ -15791,10 +16131,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # patch-by-patch explanations.
         exp_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in exyz[:3]))
         meas_lab = xyz_to_lab(tuple(float(v) / 100.0 for v in mxyz[:3]))
+        # The neighbour check (#182 beta 11) takes this reading first.
+        nb_changed = self._neighbour_feed([ev])
         # No strip here, so no stand-out figure: the learning rule's first two
         # conditions are the whole rule patch by patch (workflow/patch_flags.py).
-        flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de_p,
-                                        de_p >= warn_de, standout=None, live=True)
+        flag, extra = self._judge_with_neighbours(
+            loc, exp_lab, meas_lab, de_p, de_p >= warn_de, standout=None,
+            live=True)
         self._last_patch_flag = (loc, flag)
         item = (box, _QC(*exp_rgb), _QC(*meas_rgb), flag)
         info = (box, {
@@ -15811,6 +16154,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # re-reading a patch refreshes it rather than stacking).
         self._preview.set_patch_overlay(page, [item])
         self._preview.set_patch_info(page, [info])
+        self._neighbour_rejudge(nb_changed, {loc})
         # This patch may have taught its colour range, or un-taught it.
         self._apply_flag_rejudge(live=True)
         # …and the strip this patch belongs to is read once all of it is
@@ -15865,6 +16209,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             for letter, des in groups.items():
                 fences[letter] = _strip_outlier_fence(des) if use_fence else 0.0
                 medians[letter] = _stats.median(des) if des else 0.0
+        # The neighbour check (#182 beta 11): the whole batch first.
+        nb_changed = self._neighbour_feed(patches)
         items: dict[int, list] = {}
         infos: dict[int, list] = {}
         placed: list = []
@@ -15888,9 +16234,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             else:
                 fence, standout = 0.0, None
             warn = de_p >= warn_de and de_p >= fence
-            flag, extra = self._judge_patch(loc, exp_lab, meas_lab, de_p,
-                                            warn, standout=standout,
-                                            live=live)
+            flag, extra = self._judge_with_neighbours(
+                loc, exp_lab, meas_lab, de_p, warn, standout=standout,
+                live=live)
             items.setdefault(page, []).append(
                 (box, _QC(*exp_rgb), _QC(*meas_rgb), flag))
             infos.setdefault(page, []).append((box, {
@@ -15906,6 +16252,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         for page, its in items.items():
             self._preview.set_patch_overlay(page, its)
             self._preview.set_patch_info(page, infos[page])
+        self._neighbour_rejudge(nb_changed,
+                                {str(p.get("loc", "")) for p in patches})
         # Judged in file order, so a patch read before the confirmations of
         # its colour range is judged again now that they are all known.
         self._apply_flag_rejudge(live=live)

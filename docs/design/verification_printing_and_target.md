@@ -911,7 +911,7 @@ belongs to this document.
 
 | # | Sheet | Live expected colour while measuring | Limit |
 |---|---|---|---|
-| A21 | printed by ChromIQ raw, or through the profile with any intent, with a profile | the run profile's prediction of the ink values really printed | ΔE 30 (the limit for a chart made from a profile); the strip outlier setting is ignored |
+| A21 | printed by ChromIQ raw, or through the profile with any intent, with a profile | the run profile's prediction of the ink values really printed | ΔE 30 (the limit for a chart made with a pre-conditioning profile); the strip outlier setting is ignored |
 | A22 | printed outside ChromIQ, or a run with no profile | the chart's sRGB estimate, as before | ΔE 95, as before |
 | A23 | the profile was built with an illuminant other than D50, another observer, or FWA | the chart's sRGB estimate | ΔE 95 |
 
