@@ -6,15 +6,23 @@ insist the drawn geometry moves.
 They are written against what is DRAWN, not against the cache attribute, so a
 different caching scheme still has to pass them.
 """
+import math
+import os
+import sys
+
 import numpy as np
 import pytest
 from PyQt6.QtGui import QImage, QColor
 
 from ui.scan_grid_marquee import GridSpec, ScanGridMarquee
 
-CHT_A = "/Applications/Argyll/ref/SpyderChecker24.cht"
-CHT_B = "/Applications/Argyll/ref/ColorChecker.cht"
-CHT_C = "/Applications/Argyll/ref/it8Wolf.cht"
+# Argyll's ref/ wherever this system keeps it (CI points CHROMIQ_ARGYLL_REF at
+# /opt/argyll/ref on Linux and C:\\Program Files\\ArgyllCMS\\ref on Windows).
+from tests.argyll_env import argyll_ref_dir as _ref_dir  # noqa: E402
+_REF = str(_ref_dir() or "/Applications/Argyll/ref")
+CHT_A = os.path.join(_REF, "SpyderChecker24.cht")
+CHT_B = os.path.join(_REF, "ColorChecker.cht")
+CHT_C = os.path.join(_REF, "it8Wolf.cht")
 
 
 def _marquee(qapp, cht, frac=0.60):
@@ -80,7 +88,7 @@ def test_the_vectorised_transform_is_the_scalar_one(qapp):
     """`_map_cells` must be bit-identical to the per-point `apply_h` +
     `_to_widget` pair it replaced — not merely close."""
     from ui.scan_grid_marquee import apply_h, unit_quad_homography
-    for cht in (CHT_A, CHT_B, "/Applications/Argyll/ref/it8Wolf.cht"):
+    for cht in (CHT_A, CHT_B, CHT_C):
         m = _marquee(qapp, cht)
         for quad in ([(10, 20), (700, 30), (690, 500), (20, 490)],
                      [(300.5, 250.25), (620, 262), (615, 470), (295, 458)]):
@@ -90,7 +98,16 @@ def test_the_vectorised_transform_is_the_scalar_one(qapp):
             u, v, _ = m._cell_uv()
             for i in range(0, len(u), max(1, len(u) // 37)):
                 w = m._to_widget(*apply_h(h, u[i], v[i]))
-                assert w.x() == xs[i] and w.y() == ys[i], (cht, i, w.x(), xs[i])
+                if sys.platform == "darwin":
+                    assert w.x() == xs[i] and w.y() == ys[i], (cht, i, w.x(), xs[i])
+                else:
+                    # Bit-identity is the Mac's promise. numpy's vector loops
+                    # on Linux ARM64 contract to FMA, which rounds the last
+                    # bit differently from the scalar Python path (first
+                    # Linux arm64 CI run); a picture cannot tell 1e-12 apart.
+                    assert (math.isclose(w.x(), xs[i], rel_tol=1e-12)
+                            and math.isclose(w.y(), ys[i], rel_tol=1e-12)), (
+                        cht, i, w.x(), xs[i], w.y(), ys[i])
 
 
 def _render(m):

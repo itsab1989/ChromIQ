@@ -27,6 +27,7 @@ from __future__ import annotations
 import importlib.util
 import inspect
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -1051,6 +1052,14 @@ def test_the_build_refuses_a_set_this_chromiq_does_not_offer(gen, monkeypatch,
     MUTATION: delete the `unusable` block from `main` and this goes red.
     """
     monkeypatch.setattr(gen, "_selectable", lambda: {"chromiq_default"})
+    if os.name == "nt":
+        # The generator (a Mac dev tool) checks for `targen` with no `.exe`,
+        # so on Windows it stops at "ArgyllCMS is required" before the check
+        # this test is about. Give it the name it looks for; nothing is run.
+        fake = tmp_path / "argyll-bin"
+        fake.mkdir()
+        (fake / "targen").write_text("", encoding="utf-8")
+        monkeypatch.setattr(gen, "ARGYLL", fake)
     rc = gen.main([str(tmp_path)])
     out = capsys.readouterr().out
     assert rc == 2, "the build did not refuse"

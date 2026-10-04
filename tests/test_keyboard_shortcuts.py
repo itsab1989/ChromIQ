@@ -184,7 +184,9 @@ def test_the_card_documents_the_measurement_keys(qapp):
     measure_table = h.split("</table>")[1]
     # The keys a measurement actually listens for, including the two that
     # beta.139 gave a meaning to.
-    for token in ("Space", "Esc", "⇧F", "Click a strip"):
+    # ⇧F on the Mac; the card spells Shift out elsewhere (`_shift()`).
+    from ui.keyboard_help import _shift
+    for token in ("Space", "Esc", _shift() + "F", "Click a strip"):
         assert token in measure_table, f"missing measurement key {token}"
 
 

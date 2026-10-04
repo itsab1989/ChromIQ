@@ -62,6 +62,11 @@ def test_the_folder_holding_the_imported_file_is_a_self_collision(work, name):
     src = work / "Canon" / "runs" / "run1" / "x.txt"
     src.parent.mkdir(parents=True)
     src.write_text("x", encoding="utf-8")
+    if not (work / name).exists():
+        # A case-SENSITIVE file system (Linux, by default): `canon` really is
+        # another folder there, and replacing it destroys nothing of this one.
+        pytest.skip(f"{name!r} is a different folder on this case-sensitive "
+                    f"file system")
 
     assert dir_holds(work / name, src), (
         f"replacing {name!r} would destroy the file being imported")

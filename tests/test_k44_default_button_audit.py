@@ -35,6 +35,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 MODES = ("light", "dark", "neutral")
+#: Labels the app words differently off the Mac, mapped to the Mac wording the
+#: recorded baseline holds (`ui/tabs/tab_profile.py`, `is_macos()`).
+_MAC_WORDS = {} if sys.platform == "darwin" else {
+    "Install Profile": "Install on this Mac"}
 BEFORE = json.loads((ROOT / "tests" / "data" /
                      "k44_already_coloured_before.json").read_text("utf-8"))
 # The Check & Refine redesign (6de015eb) took the accent off "Use as
@@ -191,7 +195,11 @@ def test_a_window_already_coloured_is_exactly_as_before(audit, mode):
     bad = []
     for name in ALREADY_COLOURED:
         rows = audit[mode][name]
-        now = [[r["text"], r["fill"], r.get("fill_when_enabled")]
+        # The baseline was recorded on a Mac. `tab_profile` names the install
+        # button for the platform ("Install Profile" off the Mac); the fill
+        # is what this test is about, so the label is read back in Mac words.
+        now = [[_MAC_WORDS.get(r["text"], r["text"]), r["fill"],
+                r.get("fill_when_enabled")]
                for r in rows if r.get("filled") or r.get("filled_when_enabled")]
         if now != BEFORE[mode][name]:
             bad.append(f"{name}:\n  before {BEFORE[mode][name]}\n  now    {now}")

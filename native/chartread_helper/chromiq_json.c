@@ -12,6 +12,10 @@
 # include <pthread.h>
 # include <time.h>
 #endif
+#ifdef __linux__
+# include <errno.h>
+# include <unistd.h>
+#endif
 
 #include "chromiq_ext.h"
 
@@ -332,6 +336,40 @@ static void cq_handle_line(const char *line) {
 	cq_lock_give();
 }
 
+#if defined(__linux__)
+/* LINUX ONLY: RAW read(2), NOT fgets(stdin). This thread spends its life
+ * blocked inside a read of stdin; through stdio that means HOLDING stdin's
+ * FILE lock the whole time, and glibc's exit() takes every FILE's lock to
+ * unbuffer it. So on Linux the helper deadlocked in exit() after every
+ * session, saved or fatal, until its stdin was closed (first Linux CI run,
+ * 2026-10-04: ~65 tests timed out waiting for it to end; with this reader,
+ * none did). macOS and Windows keep the fgets reader below, unchanged.
+ * Same line semantics as fgets: up to 255 bytes, newline included. */
+static void *cq_reader(void *arg) {
+	char line[256];
+	size_t n = 0;
+	char c;
+	(void)arg;
+	for (;;) {
+		ssize_t r = read(0, &c, 1);
+		if (r < 0 && errno == EINTR)
+			continue;
+		if (r <= 0)
+			break;
+		line[n++] = c;
+		if (c == '\n' || n == sizeof(line) - 1) {
+			line[n] = '\0';
+			cq_handle_line(line);
+			n = 0;
+		}
+	}
+	if (n > 0) {
+		line[n] = '\0';
+		cq_handle_line(line);
+	}
+	return NULL;
+}
+#else
 #ifdef NT
 static unsigned __stdcall cq_reader(void *arg) {
 #else
@@ -347,6 +385,7 @@ static void *cq_reader(void *arg) {
 	return NULL;
 #endif
 }
+#endif
 
 void cq_cmd_start(void) {
 #ifdef NT

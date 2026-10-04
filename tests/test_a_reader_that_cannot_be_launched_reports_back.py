@@ -36,6 +36,8 @@ import inspect
 import pathlib
 import tempfile
 
+import os
+
 import pytest
 
 
@@ -109,7 +111,9 @@ def test_the_failed_tool_is_named_for_the_tab_that_asked(runner_with_no_argyll,
     runner_with_no_argyll.run(
         "chartread", ["-v"], tmp_path, on_finish=lambda c: None, use_pty=True)
     _pump(qapp)
-    assert runner_with_no_argyll.last_failed_to_start == "chartread"
+    # Named as it was looked for: "chartread.exe" on Windows.
+    assert runner_with_no_argyll.last_failed_to_start == (
+        "chartread.exe" if os.name == "nt" else "chartread")
 
 
 def test_the_run_output_says_why_before_the_ending_reads_it(
@@ -141,6 +145,8 @@ def test_the_reason_arrives_before_the_finish(runner_with_no_argyll, qapp,
         f"it: {order!r}")
 
 
+@pytest.mark.skipif(os.name == "nt", reason=(
+    "the pty launch path is POSIX-only; Windows starts tools behind a pipe"))
 def test_the_pty_is_not_leaked_when_the_launch_fails(runner_with_no_argyll,
                                                      qapp, tmp_path):
     """`pty.openpty()` runs BEFORE the Popen that raises. Both ends have to go

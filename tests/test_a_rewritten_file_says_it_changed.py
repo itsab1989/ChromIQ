@@ -40,6 +40,9 @@ def test_a_rewrite_moves_the_modification_time(tmp_path):
         "anything keyed on its mtime goes on serving the old contents")
 
 
+@pytest.mark.skipif(os.name == "nt", reason=(
+    "POSIX mode bits: Windows keeps only the read-only flag, so there is "
+    "no 0600/0640 for a rewrite to carry or lose"))
 def test_a_rewrite_still_carries_the_mode(tmp_path):
     """The reason `copystat` is there at all: a property the USER set on the
     file must survive a rewrite.

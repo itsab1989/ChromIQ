@@ -9,6 +9,7 @@ place) anything the guard refuses, even if a bug put it on the list.
 """
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -19,8 +20,20 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "scripts"))
 import session_cleanup as S  # noqa: E402
 
+#: `scripts/session_cleanup.py` is the SessionEnd hook of Basti's Mac
+#: (CLAUDE.md "DISK HYGIENE"): its roots and names are macOS ones, and it never
+#: runs anywhere else.
+pytestmark = pytest.mark.skipif(sys.platform != "darwin",
+                                reason="a macOS-only dev tool (the Mac's session hook)")
+
 HOME = Path.home()
 TMP = Path(tempfile.gettempdir())
+
+#: `os.utime` on Windows has no `follow_symlinks=False` (NotImplementedError);
+#: these fixtures hold no symlink for it to matter, so it is only asked for
+#: where the platform has it.
+_NO_FOLLOW = ({"follow_symlinks": False}
+              if os.utime in os.supports_follow_symlinks else {})
 
 
 @pytest.mark.parametrize("path", [
@@ -124,7 +137,7 @@ def repo_with_worktree(tmp_path, monkeypatch):
     _git("worktree", "add", "-q", "-b", "agent-x", str(wt), cwd=repo)
     old = time.time() - 7200
     for p in [wt, *wt.rglob("*")]:
-        os.utime(p, (old, old), follow_symlinks=False)
+        os.utime(p, (old, old), **_NO_FOLLOW)
     monkeypatch.setattr(S, "REPO", repo)
     return repo, wt
 
@@ -134,7 +147,7 @@ def _age(path):
     import time
     old = time.time() - 7200
     for p in [path, *path.rglob("*")]:
-        os.utime(p, (old, old), follow_symlinks=False)
+        os.utime(p, (old, old), **_NO_FOLLOW)
 
 
 def test_a_clean_merged_old_worktree_is_offered(repo_with_worktree):

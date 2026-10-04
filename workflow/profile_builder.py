@@ -581,7 +581,8 @@ class ProfileBuilder:
                     # made read-only must not come back writable, and a Finder
                     # comment or tag must survive a change to its name.
                     shutil.copystat(path, tmp)
-                    os.replace(tmp, path)
+                    from core.file_manager import replace_read_only_too
+                    replace_read_only_too(tmp, path)
                 finally:
                     try:
                         tmp.unlink()

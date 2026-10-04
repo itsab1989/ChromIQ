@@ -520,8 +520,10 @@ def test_the_message_renders_for_one_and_for_several(tmp_path):
     ti3, _ti2 = _project(tmp_path)
     rep = cal_repair.repair_embedded_cal(ti3, when=WHEN)
     t1, b1 = M.cal_table_repaired_texts([rep])
-    assert "Test_01/runs/run1/Test_01.ti3" in b1
-    assert "Test_01/runs/run1/old/2026-10-03_120000" in b1
+    # The path is shown in the system's own spelling (backslashes on Windows).
+    assert os.path.join("Test_01", "runs", "run1", "Test_01.ti3") in b1
+    assert os.path.join("Test_01", "runs", "run1", "old",
+                        "2026-10-03_120000") in b1
     t2, b2 = M.cal_table_repaired_texts([rep, rep])
     assert t1 != t2
     for text in (t1, b1, t2, b2):

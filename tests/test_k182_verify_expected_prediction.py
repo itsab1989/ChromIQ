@@ -150,8 +150,10 @@ def _project(tmp_path, *, colour="raw", printed_at=None, settings=None,
         (vdir / "proj-verify.print.json").write_text(json.dumps(rec), encoding="utf-8")
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
+    # Named as the app looks them up on this system (`.exe` on Windows).
+    ext = ".exe" if os.name == "nt" else ""
     for tool in ("xicclu", "cctiff"):
-        (bin_dir / tool).write_text("", encoding="utf-8")
+        (bin_dir / (tool + ext)).write_text("", encoding="utf-8")
     return _Run(run_dir, settings), ti2, vdir / "proj-verify.ti3", bin_dir
 
 
@@ -171,7 +173,7 @@ class _Tools:
     def __call__(self, cmd, **kw):
         import numpy as np
         import tifffile
-        name = Path(str(cmd[0])).name
+        name = Path(str(cmd[0])).name.removesuffix(".exe")
         self.calls.append([str(c) for c in cmd])
         if self.timeout:
             raise subprocess.TimeoutExpired(cmd, kw.get("timeout"))
@@ -212,9 +214,9 @@ def test_raw_predicts_the_charts_own_rgb(tmp_path):
     tools = _Tools()
     le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=tools)
     assert le.is_prediction, le.reason
-    assert not any(Path(c[0]).name == "cctiff" for c in tools.calls)
+    assert not any(Path(c[0]).stem == "cctiff" for c in tools.calls)
     assert _flat(tools.xicclu_rows[0]) == pytest.approx(_flat(_ti2_rgb01()), abs=1e-6)
-    xic = next(c for c in tools.calls if Path(c[0]).name == "xicclu")
+    xic = next(c for c in tools.calls if Path(c[0]).stem == "xicclu")
     assert "-ff" in xic and "-ia" in xic and "-pX" in xic       # absolute XYZ
     assert xic[-1] == str(run.built_profile_icc())
     assert le.expected_for("A2") == pytest.approx((0.0, 0.0, 100.0))
@@ -236,7 +238,7 @@ def test_through_predicts_what_cctiff_sent_never_the_ti2_rgb(tmp_path):
     tools = _Tools(sent=sent)
     le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=tools)
     assert le.is_prediction, le.reason
-    cct = next(c for c in tools.calls if Path(c[0]).name == "cctiff")
+    cct = next(c for c in tools.calls if Path(c[0]).stem == "cctiff")
     # The chain the print used: -i <intent> <source> -i <intent> <profile>.
     assert cct[cct.index("-i") + 1] == "r"
     assert cct[cct.index("-i") + 2] == str(tmp_path / "sRGB.icm")
@@ -252,7 +254,7 @@ def test_through_uses_the_recorded_intent(tmp_path):
                                       record_extra={"intent": "perceptual"})
     tools = _Tools(sent=[(1, 2, 3)] * len(PATCHES))
     assert ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=tools).is_prediction
-    cct = next(c for c in tools.calls if Path(c[0]).name == "cctiff")
+    cct = next(c for c in tools.calls if Path(c[0]).stem == "cctiff")
     assert [cct[i + 1] for i, a in enumerate(cct) if a == "-i"] == ["p", "p"]
 
 
@@ -283,7 +285,7 @@ def test_k_through_with_the_profiles_own_calibration_predicts_before_it(tmp_path
     tools = _Tools(sent=[(9, 9, 9)] * len(PATCHES))
     le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=tools)
     assert le.is_prediction, le.reason
-    cct = next(c for c in tools.calls if Path(c[0]).name == "cctiff")
+    cct = next(c for c in tools.calls if Path(c[0]).stem == "cctiff")
     assert not any(a.endswith(".cal") for a in cct), "predicted BEFORE the .cal"
     assert tools.xicclu_rows[0][0] == pytest.approx([9 / 255] * 3, abs=1e-6)
 
@@ -305,7 +307,7 @@ def test_k_through_with_another_calibration_predicts_the_values_sent(tmp_path):
     tools = _Tools(sent=[(9, 9, 9)] * len(PATCHES))
     le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=tools)
     assert le.is_prediction, le.reason
-    cct = next(c for c in tools.calls if Path(c[0]).name == "cctiff")
+    cct = next(c for c in tools.calls if Path(c[0]).stem == "cctiff")
     assert any(a.endswith(".cal") for a in cct), "the values sent carry the .cal"
 
 

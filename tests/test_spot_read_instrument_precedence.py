@@ -22,6 +22,8 @@ find — so every row is pinned, not just the one that was reported.
 """
 from __future__ import annotations
 
+import os
+
 import inspect
 from pathlib import Path
 
@@ -281,7 +283,10 @@ def test_the_linux_reading_is_sysfs_and_present_only(tmp_path):
     (dev / "idVendor").write_text("0765\n", encoding="utf-8")
     (dev / "idProduct").write_text("6008\n", encoding="utf-8")
     (dev / "product").write_text("i1Studio\n", encoding="utf-8")
-    iface = tmp_path / "1-1:1.0"      # an interface has no ids and is skipped
+    # An interface has no ids and is skipped. sysfs names it `1-1:1.0`; a
+    # colon is not legal in a Windows file name, and what is skipped is the
+    # missing ids, not the name, so the suite on Windows spells it without one.
+    iface = tmp_path / ("1-1:1.0" if os.name != "nt" else "1-1_1.0")
     iface.mkdir()
     assert _linux_usb_devices(str(tmp_path)) == (
         UsbDevice(0x0765, 0x6008, "i1Studio"),)

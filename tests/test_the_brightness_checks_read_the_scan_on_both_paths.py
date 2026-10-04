@@ -101,7 +101,7 @@ def test_the_values_pass_asks_for_only_the_image_and_the_cht():
                               corners=[(1, 2), (3, 4), (5, 6), (7, 8)])
     assert "-o" in args
     assert "-c" not in args and "-ca" not in args and "-r" not in args
-    assert args[-2:] == ["/s/scan.tif", "/s/p.cht"]
+    assert args[-2:] == [str(Path("/s/scan.tif")), str(Path("/s/p.cht"))]
     assert args[args.index("-F") + 1] == "1,2,3,4,5,6,7,8"
 
 

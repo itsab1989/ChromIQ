@@ -18,6 +18,15 @@ import pytest
 
 from ui.tooltip_button import InfoDialog
 
+_REPO = Path(__file__).resolve().parents[1]
+
+def _native(path: str) -> str:
+    """Qt answers a folder with "/" on every system; the expectations are
+    `str(Path)`, which is "\\" on Windows. Same string on the Mac."""
+    from PyQt6.QtCore import QDir
+    return QDir.toNativeSeparators(path)
+
+
 @pytest.fixture
 def settings(tmp_path):
     """A sandboxed AppSettings, pointed at a scratch working folder.
@@ -235,7 +244,7 @@ def test_g2_no_shortcut_is_hand_typed_into_a_translatable_string():
     """
     import ast
     bad = []
-    for p in sorted(Path("/Users/Basti/develop/ChromIQ/ui").rglob("*.py")):
+    for p in sorted((_REPO / "ui").rglob("*.py")):
         if p.name in _SHORTCUT_TEXT_ALLOWED:
             continue
         tree = ast.parse(p.read_text(encoding="utf-8"))
@@ -271,14 +280,14 @@ def test_g3_create_chart_help_does_not_send_you_to_the_reveal_folder_button(qapp
     in the header (top right)" for Open Project. That button moved to the
     masthead top LEFT in #130 — and a magenta folder button really is still in
     the Create Chart header top right: Reveal Folder."""
-    src = Path("/Users/Basti/develop/ChromIQ/ui/tabs/tab_chart.py").read_text(encoding="utf-8")
+    src = (_REPO / "ui" / "tabs" / "tab_chart.py").read_text(encoding="utf-8")
     assert "magenta folder button" not in src
     assert "use the folder icon to\n" not in src and \
            "use the folder icon to " not in src
 
 
 def test_g3_the_gear_is_not_at_the_top_left():
-    src = Path("/Users/Basti/develop/ChromIQ/ui/tabs/tab_profile.py").read_text(encoding="utf-8")
+    src = (_REPO / "ui" / "tabs" / "tab_profile.py").read_text(encoding="utf-8")
     assert "the gear at the top left" not in src, \
         "the settings gear is a top-RIGHT masthead child (masthead_header.py:96)"
 
@@ -295,7 +304,7 @@ def test_g4_a_dialog_with_no_start_dir_does_not_open_in_home(qapp, settings,
     root.mkdir(parents=True, exist_ok=True)
     seen = []
     monkeypatch.setattr(QFileDialog, "exec",
-                        lambda self: seen.append(self.directory().absolutePath())
+                        lambda self: seen.append(_native(self.directory().absolutePath()))
                         or QFileDialog.DialogCode.Rejected)
     W.open_file_dialog(None, "t", "TI2 files (*.ti2)", extra_path=str(root))
     assert seen and seen[0] != str(Path.home()), \
@@ -312,7 +321,7 @@ def test_g4_the_ti2_button_starts_in_the_chromiq_folder(qapp, settings,
     tab = TabMeasure(ArgyllRunner(settings), settings)
     seen = []
     monkeypatch.setattr(QFileDialog, "exec",
-                        lambda self: seen.append(self.directory().absolutePath())
+                        lambda self: seen.append(_native(self.directory().absolutePath()))
                         or QFileDialog.DialogCode.Rejected)
     tab._on_load_ti2()
     assert seen and seen[0] == str(root), \

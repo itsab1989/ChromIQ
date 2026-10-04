@@ -24,6 +24,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import os
+
 import pytest
 
 from core import proc_text
@@ -209,8 +211,12 @@ def test_decode_output_never_raises():
 # run_text
 # ---------------------------------------------------------------------------
 
+# The umlauts are ESCAPES in the child's source, so the command line itself is
+# ASCII: on Linux under LC_ALL=C (no UTF-8 mode) Python cannot even pass a
+# non-ASCII `-c` argument on ("Unable to decode the command"), which is not the
+# crash this file is about. What the child WRITES is still real UTF-8.
 _CHILD = (r"import sys;"
-          r"sys.stdout.buffer.write('Müller-Prüfdruck\n'.encode('utf-8'));"
+          r"sys.stdout.buffer.write('M\u00fcller-Pr\u00fcfdruck\n'.encode('utf-8'));"
           r"sys.stderr.buffer.write(b'warn\n')")
 
 
@@ -221,6 +227,9 @@ def test_run_text_decodes_what_the_child_wrote():
     assert r.returncode == 0
 
 
+@pytest.mark.skipif(os.name == "nt", reason=(
+    "LANG=C/LC_ALL=C is a POSIX locale; Windows takes its code page from "
+    "the system, not the environment, so the ASCII-only case cannot be made"))
 def test_run_text_survives_an_ascii_only_locale():
     """THE MEASURED CRASH.
 

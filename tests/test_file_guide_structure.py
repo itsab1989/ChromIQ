@@ -20,6 +20,8 @@ import os
 import pathlib
 import re
 
+import sys
+
 import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -97,7 +99,8 @@ def test_the_connectors_are_equal_width_in_the_faces_the_card_asks_for():
     from _fontcheck import skip_without_fonts
     skip_without_fonts()                  # no fonts here → none to measure
     checked = 0
-    for family in ("Menlo", "Monaco", "Courier New"):
+    for family in ("Menlo", "Monaco", "Courier New", "DejaVu Sans Mono",
+                   "Liberation Mono"):
         f = QFont(family)
         if QFontInfo(f).family().lower() != family.lower():
             continue                      # not installed here

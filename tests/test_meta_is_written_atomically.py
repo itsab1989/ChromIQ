@@ -12,6 +12,8 @@ loader would read the wreck as "this target has nothing stored".
 """
 import json
 
+import os
+
 import pytest
 
 from core.file_manager import Project, write_json_atomically
@@ -106,6 +108,9 @@ def test_the_write_goes_through_a_symlink_rather_than_replacing_it(tmp_path):
     assert os.path.realpath(link) == os.path.realpath(real)
 
 
+@pytest.mark.skipif(os.name == "nt", reason=(
+    "POSIX mode bits: Windows keeps only the read-only flag, so there is "
+    "no 0600/0640 for a rewrite to carry or lose"))
 def test_the_file_keeps_the_permissions_it_had(tmp_path):
     """A manifest the user (or a restore) made read-only came back writable,
     and one written 0600 came back 0644 — the new inode carries the process's
@@ -138,6 +143,9 @@ def test_a_volume_that_refuses_the_properties_still_gets_the_write(
     assert json.loads(target.read_text(encoding="utf-8")) == {"a": 2}
 
 
+@pytest.mark.skipif(os.name == "nt", reason=(
+    "POSIX mode bits: Windows keeps only the read-only flag, so there is "
+    "no 0600/0640 for a rewrite to carry or lose"))
 def test_the_project_manifest_gets_all_of_this_too(tmp_path):
     """`project.json` went through `write_json_atomically` in combined round 8,
     so it inherits the losses as well as the atomicity."""

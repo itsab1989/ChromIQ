@@ -41,6 +41,11 @@ pytest.importorskip("PyQt6")
 
 from workflow.native_print_macos import ChartIsNotRGB, print_frames  # noqa: E402
 
+#: The native print route is the macOS AppKit one; elsewhere `print_frames`
+#: stops at "PyObjC AppKit is not available" before the mode check is reached.
+pytestmark = pytest.mark.skipif(sys.platform != "darwin",
+                                reason="the native print route is macOS-only (AppKit)")
+
 
 class Reached(RuntimeError):
     """Raised by the fake AppKit: the mode check let this chart through."""

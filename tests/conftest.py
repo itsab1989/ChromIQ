@@ -1639,6 +1639,30 @@ def _leave_the_run_temp(passed: bool) -> None:
         print(f"\n[cleanup] removed this run's temp folders ({freed / 1e9:.2f} GB)")
 
 
+def _keep_child_processes_off_the_network() -> None:
+    """THE SUITE'S CHILD PROCESSES MAY NOT ASK GITHUB EITHER.
+
+    `_the_update_check_never_reaches_the_network` guards this process only.
+    Probes that build the real main window in a child of their own
+    (`scripts/audit_default_buttons.py` for test_k44_default_button_audit,
+    the appearance probe of test_the_patch_distribution_pulldown_matches_
+    create_chart) run the startup update check for real, and the day a
+    release newer than the tree's own version is published, the
+    UpdateAvailableDialog opens modally inside them and they hang until
+    their timeout: 34 errors and a 10-minute stall on 2026-10-04, the
+    afternoon beta 9 went out, on a tree still saying beta 8.
+
+    urllib honours the proxy variables, so every child is pointed at a proxy
+    that refuses at once (port 9, discard): the check fails as it does
+    offline, which the app already treats as "no update". Nothing in the
+    suite may use the network, so nothing else notices.
+    """
+    for var in ("https_proxy", "HTTPS_PROXY", "http_proxy", "HTTP_PROXY"):
+        os.environ[var] = "http://127.0.0.1:9"
+    for var in ("no_proxy", "NO_PROXY"):
+        os.environ.pop(var, None)
+
+
 def pytest_configure(config):
     import tempfile
 
@@ -1648,6 +1672,7 @@ def pytest_configure(config):
     # serial port whose open can hang for ever (core/argyll_env.py)
     from core.argyll_env import install_in_process_environment
     install_in_process_environment()
+    _keep_child_processes_off_the_network()
     _snapshot_the_modal_entry_points()
 
     from PyQt6.QtCore import QSettings

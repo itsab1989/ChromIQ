@@ -59,7 +59,16 @@ from core.file_manager import (
 
 #: Every character `fnmatch` treats as syntax, in a name a person could type
 #: into Finder. `]` is included even though it is only syntax after a `[`.
-METACHAR_NAMES = ["Chart [v2]", "Chart]v2[", "Chart*A", "Chart?A",
+#: `*` and `?` cannot be in a file name on Windows at all (NTFS refuses them,
+#: WinError 123), so a folder called that can never reach ChromIQ there and the
+#: cases that need one on disk are POSIX-only. The brackets are legal on every
+#: system and stay in on every system.
+_NTFS_REFUSES = pytest.mark.skipif(
+    os.name == "nt", reason="'*' and '?' are not legal in a Windows file name, "
+                            "so no folder can carry one there")
+METACHAR_NAMES = ["Chart [v2]", "Chart]v2[",
+                  pytest.param("Chart*A", marks=_NTFS_REFUSES),
+                  pytest.param("Chart?A", marks=_NTFS_REFUSES),
                   "Canon-Pro300 [test]", "Müller [2026]"]
 
 
@@ -106,6 +115,7 @@ def test_a_metacharacter_in_the_name_still_finds_the_chart(tmp_path, stem):
     assert len(found) == 4, found
 
 
+@_NTFS_REFUSES
 def test_an_asterisk_in_the_name_does_not_adopt_a_strangers_page(tmp_path):
     """`Chart*A` used to match `ChartXA_01.tif`, which belongs to a project with
     a different name. Whatever prints or archives that list then handles a page
@@ -117,6 +127,7 @@ def test_an_asterisk_in_the_name_does_not_adopt_a_strangers_page(tmp_path):
     assert len(found) == 2, found
 
 
+@_NTFS_REFUSES
 def test_a_question_mark_in_the_name_does_not_adopt_one_either(tmp_path):
     run = _chart_run(tmp_path / "Chart?A", "Chart?A", pages=2)
     (run.dir / "ChartZA_01.tif").write_text("x", encoding="utf-8")
@@ -125,6 +136,7 @@ def test_a_question_mark_in_the_name_does_not_adopt_one_either(tmp_path):
     assert len(found) == 2, found
 
 
+@_NTFS_REFUSES
 def test_the_duplicate_plan_copies_this_project_and_not_the_one_next_to_it(
         tmp_path):
     """`duplicate_run_plan` fills `{stem}` templates, so the folder name lands
@@ -144,6 +156,7 @@ def test_the_duplicate_plan_copies_this_project_and_not_the_one_next_to_it(
     assert "Chart*A_01.tif" in picked, picked
 
 
+@_NTFS_REFUSES
 def test_the_verify_guard_archives_this_charts_pages_and_no_others(tmp_path):
     """`_clear_verify_chart_files` ARCHIVES what it matches, so an over-match
     here moves somebody else's file out from under them."""
@@ -236,6 +249,7 @@ def test_the_windows_case_folding_branch_handles_an_escaped_literal(
     assert found == ["Chart [v2]_01.TIF", "Chart [v2]_02.tif"], found
 
 
+@_NTFS_REFUSES
 def test_the_windows_branch_does_not_over_match_on_an_asterisk(
         tmp_path, monkeypatch):
     monkeypatch.setattr(fm_mod, "_NAME_CASEFOLD", True)
@@ -377,6 +391,7 @@ def test_a_metacharacter_name_still_finds_its_verification_pages(tmp_path, stem)
     assert len(found) == 2, found
 
 
+@_NTFS_REFUSES
 def test_a_verification_chart_does_not_adopt_a_strangers_page(tmp_path):
     """The destructive half: whatever prints or ARCHIVES that list then
     handles a page belonging to a project with a different name."""
@@ -401,6 +416,7 @@ def test_a_metacharacter_name_still_finds_its_calibration_pages(tmp_path, stem):
     assert len(found) == 2, found
 
 
+@_NTFS_REFUSES
 def test_a_calibration_does_not_adopt_a_strangers_page(tmp_path):
     from core.file_manager import Calibration
     root = tmp_path / "Chart*A"
