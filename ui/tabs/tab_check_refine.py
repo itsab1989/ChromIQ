@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
@@ -125,8 +125,28 @@ def _mono_label(text: str, parent) -> QLabel:
     return lbl
 
 
+#: Room kept free between the window and the edges of the screen's usable
+#: area (menu bar and Dock already excluded): the title bar, and a little air.
+SCREEN_MARGIN = 48
+#: The scrolling part never shrinks below this, so a few rows always show.
+MIN_SCROLL_HEIGHT = 120
+
+
+def _screen_room(window):
+    """The usable area of the screen *window* opens on (QScreen.availableGeometry),
+    or None when there is no screen. ONE HOOK, so a test can ask the window to
+    fit a smaller screen than the one it runs on."""
+    from PyQt6.QtGui import QGuiApplication
+    scr = window.screen() if window is not None else None
+    if scr is None:
+        par = window.parentWidget() if window is not None else None
+        scr = par.screen() if par is not None else QGuiApplication.primaryScreen()
+    return scr.availableGeometry() if scr is not None else None
+
+
 class _FitsItsText(QObject):
-    """Keep a window wide enough for its widgets and tall enough for its text.
+    """Keep a window wide enough for its widgets and tall enough for its text,
+    but never taller than the screen it opens on.
 
     Two things Qt does not do for a top-level window on its own:
 
@@ -140,14 +160,24 @@ class _FitsItsText(QObject):
       four buttons need more than 640 px, the window could be made narrower
       than its button row and the buttons drew over each other.
 
+    **AND THE SCREEN (Basti, 2026-10-04).** With ~25 strips listed the text is
+    far taller than a 13" MacBook (956 points) or a 1366x768 laptop, and a
+    minimum height of the whole text meant the window could not be shrunk and
+    its buttons fell off the bottom of the screen. With *scroll* given (a
+    QScrollArea holding the long parts), the scroll area is as tall as its
+    text when the screen has room (no scrollbar, as before), and otherwise
+    only as tall as the screen allows, so the window, its headline and its
+    button row always fit (``_screen_room`` minus ``SCREEN_MARGIN``).
+
     Asked again whenever the window is shown, resized or re-laid out, so a
     narrower window grows taller instead of hiding text.
     """
 
-    def __init__(self, window, min_width: int = 0) -> None:
+    def __init__(self, window, min_width: int = 0, scroll=None) -> None:
         super().__init__(window)
         self._window = window
         self._min_width = min_width
+        self._scroll = scroll
         self._busy = False
         window.installEventFilter(self)
 
@@ -157,12 +187,33 @@ class _FitsItsText(QObject):
                 QEvent.Type.LayoutRequest):
             self._busy = True
             try:
-                self._fit()
+                self._fit(first=event.type() == QEvent.Type.Show)
             finally:
                 self._busy = False
         return False
 
-    def _fit(self) -> None:
+    def _cap(self) -> "int | None":
+        room = _screen_room(self._window)
+        if room is None or room.height() <= 0:
+            return None
+        return max(200, room.height() - SCREEN_MARGIN)
+
+    def _body_height(self, width: int) -> int:
+        """The height the scroll area's contents need at the window's width."""
+        body = self._scroll.widget()
+        bl = body.layout() if body is not None else None
+        if bl is None:
+            return 0
+        m = self._window.layout().contentsMargins()
+        w = max(1, width - m.left() - m.right())
+        vp = self._scroll.viewport().width()
+        if self._scroll.isVisible() and 0 < vp < w:
+            w = vp          # a vertical scrollbar takes its share
+        if bl.hasHeightForWidth():
+            return bl.totalHeightForWidth(w)
+        return bl.totalSizeHint().height()
+
+    def _fit(self, first: bool = False) -> None:
         win = self._window
         lay = win.layout()
         if lay is None:
@@ -172,12 +223,63 @@ class _FitsItsText(QObject):
             win.setMinimumWidth(need_w)
         if win.width() < need_w:
             win.resize(need_w, win.height())
+        cap = self._cap()
+        if self._scroll is not None:
+            # The scroll area as tall as its text, then less if the screen
+            # cannot hold the window.
+            want = self._body_height(win.width())
+            # The contents keep the height their wrapped text needs, so a
+            # short viewport scrolls instead of squeezing the labels.
+            body = self._scroll.widget()
+            if body is not None and want > 0 and body.minimumHeight() != want:
+                body.setMinimumHeight(want)
+            # Measured ONCE, without toggling the scroll area's minimum (a
+            # toggle re-lays the window out at the larger value first): the
+            # rest of the window is the total minus what the scroll area adds.
+            lay.invalidate()            # the layout caches heightForWidth
+            if lay.hasHeightForWidth():
+                sc = self._scroll
+                adds = max(sc.minimumHeight(), sc.minimumSizeHint().height())
+                rest = lay.totalHeightForWidth(win.width()) - adds
+                target = want
+                if cap is not None and rest + want > cap:
+                    target = max(MIN_SCROLL_HEIGHT, cap - rest)
+                if target != sc.minimumHeight():
+                    sc.setMinimumHeight(target)
+                    lay.invalidate()
         if lay.hasHeightForWidth():
             need_h = lay.totalHeightForWidth(win.width())
+            if cap is not None and self._scroll is not None:
+                need_h = min(need_h, cap)
             if need_h > 0 and need_h != win.minimumHeight():
                 win.setMinimumHeight(need_h)
             if win.height() < need_h:
                 win.resize(win.width(), need_h)
+            if cap is not None and self._scroll is not None and win.height() > cap:
+                win.resize(win.width(), max(need_h, cap))
+        if first and cap is not None and self._scroll is not None:
+            # AFTER QDialog has placed itself (beta-9 review): this filter
+            # sees the Show event BEFORE QDialog::showEvent centres the
+            # dialog over its parent, and a move() here, at the not yet
+            # placed (0, 0), set WA_Moved, so the dialog was never centred
+            # and opened in the top-left corner of the screen.
+            QTimer.singleShot(0, self._keep_on_screen)
+
+    def _keep_on_screen(self) -> None:
+        """Move the window so its frame lies inside the usable area. Asked
+        once the window is shown and placed; a window already inside it (the
+        usual case: QDialog centres itself within the screen) does not move."""
+        win = self._window
+        if not win.isVisible():
+            return
+        room = _screen_room(win)
+        if room is None:
+            return
+        fr = win.frameGeometry()
+        x = min(max(fr.x(), room.left()), max(room.left(), room.right() - fr.width()))
+        y = min(max(fr.y(), room.top()), max(room.top(), room.bottom() - fr.height()))
+        if (x, y) != (fr.x(), fr.y()):
+            win.move(x, y)
 
 
 _ILLUMINANTS = [
@@ -724,7 +826,15 @@ class TabCheckRefine(QWidget):
             "offenders only.\n\n"
             "The default of 2.0 is a good balance for most RGB printer profiles.\n"
             "Note: this does not affect the profcheck analysis itself — only which\n"
-            "strips appear in the re-measurement recommendation."),
+            "strips appear in the re-measurement recommendation.")
+            # THE PURPOSE (Knut, #182 5980560281): every high error counts,
+            # whatever the Measure tab's outlines say.
+            + "\n\n" + tr("Check & Refine checks your measurement through the profile built "
+            "from it. Every patch whose error is above this threshold counts "
+            "towards the recommendation, also a patch the Measure tab outlines "
+            "in yellow: those outlines compare a reading with the colour the "
+            "chart expects, while this check compares it with what the profile "
+            "predicts."),
             inner,
         ))
         og.addLayout(threshold_row)
@@ -1036,7 +1146,15 @@ class TabCheckRefine(QWidget):
             "offenders only.\n\n"
             "The default of 2.0 is a good balance for most RGB printer profiles.\n"
             "Note: this does not affect the profcheck analysis itself — only which\n"
-            "strips appear in the re-measurement recommendation."),
+            "strips appear in the re-measurement recommendation.")
+            # THE PURPOSE (Knut, #182 5980560281): every high error counts,
+            # whatever the Measure tab's outlines say.
+            + "\n\n" + tr("Check & Refine checks your measurement through the profile built "
+            "from it. Every patch whose error is above this threshold counts "
+            "towards the recommendation, also a patch the Measure tab outlines "
+            "in yellow: those outlines compare a reading with the colour the "
+            "chart expects, while this check compares it with what the profile "
+            "predicts."),
             inner,
         ))
         mog.addLayout(m_threshold_row)
@@ -1754,18 +1872,14 @@ class TabCheckRefine(QWidget):
     def _plan_for(self, result, threshold: float) -> RefinePlan:
         """What the result window offers (workflow/refine_plan.py).
 
-        A patch a re-read already CONFIRMED (the yellow ones) is not offered
-        again (Knut, #182 5963903650): the memory is believed only for the
-        exact .ti3 it was written for.
+        THE PURPOSE OF CHECK & REFINE (Knut, #182 5980560281, 2026-10-04): it
+        checks the measurement through the built profile, and every high error
+        it finds feeds the refinement recommendations, whatever the Measure
+        tab's red or yellow outlines say. So this never reads the
+        confirmed-patches memory (``<stem>.confirmed.json``); beta 7 to 9 left
+        confirmed patches out, which Knut ruled against.
+        ``tests/test_check_refine_ignores_the_confirmed_patches_memory.py``.
         """
-        confirmed: "set[str]" = set()
-        if self._ti3_path is not None:
-            try:
-                from workflow.confirmed_patches import confirmed_locations
-                confirmed = confirmed_locations(self._ti3_path)
-            except Exception:      # noqa: BLE001 — a hint, never a blocker
-                log.debug("no confirmed patches for %s", self._ti3_path,
-                          exc_info=True)
         de = de_name_for(result.raw_log,
                          getattr(self, "_last_de_formula", "-k"))
         # The chart's own labels (#182 5965589190): a chart numbered by strip
@@ -1774,7 +1888,7 @@ class TabCheckRefine(QWidget):
         labels = labels_for_measurement(self._ti3_path)
         return build_plan(parse_patches(result.raw_log, result.patch_errors,
                                         labels),
-                          threshold, confirmed, de, labels)
+                          threshold, de, labels)
 
     @staticmethod
     def _report_summary_text(result, plan: RefinePlan) -> str:
@@ -1802,8 +1916,6 @@ class TabCheckRefine(QWidget):
             rows = ["  " + "   ".join(t.rest_items[i:i + _REFINE_COLUMNS])
                     for i in range(0, len(t.rest_items), _REFINE_COLUMNS)]
             parts.append(_plain(t.rest_head) + "\n" + "\n".join(rows))
-        if t.confirmed:
-            parts.append(t.confirmed)
         if t.choice_first:
             parts.append(f"(•) {t.choice_first}\n( ) {t.choice_all}")
         if t.order:
@@ -1836,7 +1948,21 @@ class TabCheckRefine(QWidget):
         layout = QVBoxLayout(dlg)
         layout.setSpacing(14)
         layout.setContentsMargins(24, 20, 24, 20)
-        _FitsItsText(dlg, min_width=640)   # never narrower than 640 px
+        # THE LONG PARTS SCROLL (Basti, 2026-10-04): the headline and numbers
+        # above and the button row below always show; everything between is
+        # in `body`, inside a scroll area that is as tall as its text when the
+        # screen has room and scrolls when it has not (_FitsItsText).
+        scroll = QScrollArea(dlg)
+        scroll.setObjectName("cr_result_scroll")
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        body = QWidget()
+        body.setObjectName("cr_result_body")
+        body_lay = QVBoxLayout(body)
+        body_lay.setSpacing(14)
+        body_lay.setContentsMargins(0, 0, 0, 0)
+        _FitsItsText(dlg, min_width=640, scroll=scroll)   # never narrower than 640 px
 
         # Grade headline
         grade_lbl = QLabel(tr("Profile Quality: <b>{grade}</b>").format(
@@ -1857,7 +1983,7 @@ class TabCheckRefine(QWidget):
             result.avg_de, result.peak_de, plan.de_name), dlg)
         exp_lbl.setTextFormat(Qt.TextFormat.PlainText)
         exp_lbl.setWordWrap(True)
-        layout.addWidget(exp_lbl)
+        body_lay.addWidget(exp_lbl)
 
         if t.start_over:
             so = QLabel(t.start_over, dlg)
@@ -1865,12 +1991,12 @@ class TabCheckRefine(QWidget):
             so.setWordWrap(True)
             so.setStyleSheet("QLabel#start_over_note { border: 1px solid "
                              "#c98a2b; border-radius: 6px; padding: 8px; }")
-            layout.addWidget(so)
+            body_lay.addWidget(so)
 
         if t.first_rows:
             head = QLabel(t.first_head, dlg)
             head.setWordWrap(True)
-            layout.addWidget(head)
+            body_lay.addWidget(head)
             g = QGridLayout()
             g.setHorizontalSpacing(14)
             g.setVerticalSpacing(8)
@@ -1882,12 +2008,12 @@ class TabCheckRefine(QWidget):
                 r.setWordWrap(True)
                 g.addWidget(r, i, 1)
             g.setColumnStretch(1, 1)
-            layout.addLayout(g)
+            body_lay.addLayout(g)
 
         if t.rest_items:
             rest_head = QLabel(t.rest_head, dlg)
             rest_head.setWordWrap(True)
-            layout.addWidget(rest_head)
+            body_lay.addWidget(rest_head)
             # A GRID, ROW AFTER ROW, so every strip is on screen however many
             # there are (Basti, 2026-10-03: a one-line row ran off the edge).
             grid = QGridLayout()
@@ -1898,13 +2024,7 @@ class TabCheckRefine(QWidget):
                 grid.addWidget(_mono_label(item, dlg),
                                i // _REFINE_COLUMNS, i % _REFINE_COLUMNS)
             grid.setColumnStretch(_REFINE_COLUMNS, 1)
-            layout.addLayout(grid)
-
-        if t.confirmed:
-            cs = QLabel(t.confirmed, dlg)
-            cs.setTextFormat(Qt.TextFormat.PlainText)
-            cs.setWordWrap(True)
-            layout.addWidget(cs)
+            body_lay.addLayout(grid)
 
         first_rb = None
         if t.choice_first:
@@ -1916,15 +2036,15 @@ class TabCheckRefine(QWidget):
             grp = QButtonGroup(dlg)
             grp.addButton(first_rb)
             grp.addButton(all_rb)
-            layout.addWidget(first_rb)
-            layout.addWidget(all_rb)
+            body_lay.addWidget(first_rb)
+            body_lay.addWidget(all_rb)
         self._refine_choice_first = first_rb
 
         if t.order:
             order_lbl = QLabel(t.order, dlg)
             order_lbl.setTextFormat(Qt.TextFormat.PlainText)
             order_lbl.setWordWrap(True)
-            layout.addWidget(order_lbl)
+            body_lay.addWidget(order_lbl)
 
         # Pre-conditioning, as what targen -c does: patches spread evenly by
         # how colours look, not aimed at the colours that measured badly.
@@ -1933,7 +2053,7 @@ class TabCheckRefine(QWidget):
             precond_desc = QLabel(tr(mm._CR_PRECOND), dlg)
             precond_desc.setWordWrap(True)
             precond_desc.setStyleSheet("color: #b0b0b0; font-size: 11px;")
-            layout.addWidget(precond_desc)
+            body_lay.addWidget(precond_desc)
 
         # Scanner-target opt-in (engine/printtarg charts only) — same feature as
         # the measure tab's "All Strips Read" dialog. Ticking it (re)builds this
@@ -1956,7 +2076,7 @@ class TabCheckRefine(QWidget):
             scanner_row, scanner_cb = make_scanner_target_row(
                 dlg, scanner_run.load_meta().scanner_target_enabled,
                 accent=_TAB_COLOR, hint_light="#5a3fc0", hint_dark="#cabfff")
-            layout.addWidget(scanner_row)
+            body_lay.addWidget(scanner_row)
 
             # Weigh up the two ways to make a scanner target, so that right after
             # a printer profiling the user knows reuse is fine but a colour-managed
@@ -1975,7 +2095,7 @@ class TabCheckRefine(QWidget):
             scanner_tip.setWordWrap(True)
             scanner_tip.setStyleSheet(
                 f"color: {'#b8b8b8' if _dark else '#4a4a4a'}; font-size: 11px;")
-            layout.addWidget(scanner_tip)
+            body_lay.addWidget(scanner_tip)
 
         # Buttons — laid out individually with stretches between each so they
         # spread evenly across the dialog width regardless of how many are shown.
@@ -2041,6 +2161,11 @@ class TabCheckRefine(QWidget):
         for b in (guide_btn, precond_btn, install_btn):
             if b is not None:
                 buttons.append(b)
+
+        scroll.setWidget(body)
+        scroll.viewport().setAutoFillBackground(False)
+        body.setAutoFillBackground(False)
+        layout.addWidget(scroll, 1)
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)

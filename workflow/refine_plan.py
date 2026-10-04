@@ -20,8 +20,11 @@ The rules Knut approved on 2026-10-03 (#182 5963903650, on the pictures in
      and what the neighbour measured, an unsteady swipe);
   2. the remaining strips with a patch above the limit.
 
-* A patch a re-read already **confirmed** (the yellow ones, the run's
-  ``.confirmed.json``) is not offered again.
+* **Every patch above the limit counts, red or yellow on the Measure tab.**
+  Check & Refine checks the measurement through the built profile, and every
+  high error it finds feeds the recommendations (Knut, #182 5980560281,
+  reversing beta 7's "not offered again" for confirmed patches). Nothing here
+  knows about the Measure tab's confirmed-patches memory.
 * Re-reads are not judged against the previous profile (Knut 5963360295 Q2).
 
 The outlier bar is relative to each check, never a fixed number (Knut's
@@ -262,7 +265,7 @@ class StripAdvice:
     kind: str                 # OUTLIER | BLEND | OVER
     patch: str                # the patch the reason is about
     de: float                 # that patch's error
-    n_over: int               # this strip's patches above the limit (not confirmed)
+    n_over: int               # this strip's patches above the limit
     neighbour: str = ""       # for BLEND
 
 
@@ -276,7 +279,6 @@ class RefinePlan:
     de_name: str = "ΔE"
     first: "list[StripAdvice]" = field(default_factory=list)
     rest: "list[StripAdvice]" = field(default_factory=list)
-    confirmed_skipped: "list[str]" = field(default_factory=list)
     #: The chart's labels, for chart order (None: letters A, B ... AA).
     labels: object = None
 
@@ -310,7 +312,6 @@ def recommends_start_over(n_above: int, n_total: int) -> bool:
 
 
 def build_plan(patches: "list[Patch]", threshold: float,
-               confirmed: "set[str] | frozenset[str]" = frozenset(),
                de_name: str = "ΔE", labels=None) -> RefinePlan:
     """Decide what the result window offers. See the module docstring."""
     des = [p.de for p in patches]
@@ -324,9 +325,8 @@ def build_plan(patches: "list[Patch]", threshold: float,
     for p in patches:
         if p.de <= threshold:
             continue
-        if p.loc in confirmed:
-            plan.confirmed_skipped.append(p.loc)
-            continue
+        # NO "confirmed" EXCEPTION (Knut, #182 5980560281): a patch the
+        # Measure tab outlines yellow is offered like any other above the limit.
         strips.setdefault(p.strip, []).append(p)
     for strip, over in strips.items():
         over.sort(key=lambda p: p.de, reverse=True)
@@ -347,9 +347,6 @@ def build_plan(patches: "list[Patch]", threshold: float,
         (plan.rest if advice.kind == OVER else plan.first).append(advice)
     plan.first.sort(key=lambda a: (-a.de, _strip_number(a.strip, labels)))
     plan.rest.sort(key=lambda a: (-a.de, _strip_number(a.strip, labels)))
-    plan.confirmed_skipped.sort(
-        key=lambda loc: (_strip_number(_split_loc(loc, labels)[0], labels),
-                         _split_loc(loc, labels)[1] or 0))
     return plan
 
 
@@ -394,7 +391,6 @@ class PlanText:
     first_rows: "list[tuple[str, str]]" = field(default_factory=list)
     rest_head: str = ""
     rest_items: "list[str]" = field(default_factory=list)
-    confirmed: str = ""
     choice_first: str = ""
     choice_all: str = ""
     order: str = ""
@@ -450,10 +446,6 @@ def plan_text(plan: RefinePlan, avg: "float | None",
             head = mm._CR_REST_HEAD_ONE if n == 1 else mm._CR_REST_HEAD_MANY
         t.rest_head = tr(head).format(n=n, de=de, limit=limit)
         t.rest_items = [rest_item(a, de) for a in plan.rest]
-    if plan.confirmed_skipped:
-        key = (mm._CR_CONFIRMED_ONE if len(plan.confirmed_skipped) == 1
-               else mm._CR_CONFIRMED_MANY)
-        t.confirmed = tr(key).format(patches=", ".join(plan.confirmed_skipped))
     if plan.has_choice:
         n1 = len(plan.first)
         t.choice_first = (tr(mm._CR_CHOICE_FIRST_ONE) if n1 == 1 else

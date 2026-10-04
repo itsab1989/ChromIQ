@@ -17,7 +17,7 @@ being reproduced by the printer."* Built as variant B of the k22 challenge
   repaint at a higher limit;
 * Preferences OK and showing the tab judge the outlines again;
 * the memory file stores peers as ``peer``, never loaded back as references;
-  Check & Refine leaves them out too (one switch).
+  Check & Refine never reads them (Knut 5980560281).
 """
 from __future__ import annotations
 
@@ -233,17 +233,16 @@ def test_clean_entry_keeps_the_peer_kind():
     assert cp._clean_entry({"kind": "peer", "with": "B2"}) is None
 
 
-def test_check_and_refine_leaves_out_peers_behind_one_switch(tmp_path,
-                                                             monkeypatch):
+def test_the_record_names_peers_as_confirmed(tmp_path):
+    """The memory still records peers (10.7a); Check & Refine no longer reads
+    it at all (Knut 5980560281, the switch is gone)."""
     ti3 = tmp_path / "m.ti3"
     ti3.write_text("CTI3\n", encoding="utf-8")
     cp.write(ti3, {"A1": {"kind": "peer", "with": ["F1"]},
                    "F1": {"kind": "peer", "with": ["A1"]},
                    "C3": {"kind": "learned", "like": "A1"}}, "strip")
-    assert cp.CHECK_REFINE_LEAVES_OUT_PEERS is True
+    assert not hasattr(cp, "CHECK_REFINE_LEAVES_OUT_PEERS")
     assert cp.confirmed_locations(ti3) == {"A1", "F1"}
-    monkeypatch.setattr(cp, "CHECK_REFINE_LEAVES_OUT_PEERS", False)
-    assert cp.confirmed_locations(ti3) == set()
 
 
 # ---- on the fly: Preferences OK and showing the tab ------------------------------
@@ -311,11 +310,11 @@ def test_a_preferences_change_repaints_knuts_strips(qapp, tmp_path):
         k: v for k, v in at95.items() if v}
 
 
-def test_check_and_refine_reads_the_peers_of_the_current_limit(qapp, tmp_path):
-    """k22 review: Check & Refine leaves out what the memory file calls
-    confirmed, and its peers were worked out at the session's limit. After a
-    limit change the file follows the preview, so Check & Refine never offers
-    a patch the card says to keep, nor leaves out one it no longer confirms."""
+def test_the_memory_file_follows_the_current_limit(qapp, tmp_path):
+    """k22 review: the memory's peers were worked out at the session's limit.
+    After a limit change the file follows the preview, so the record never
+    names as confirmed a patch the preview no longer confirms (and Check &
+    Refine does not read it at all, Knut 5980560281)."""
     from tests.test_k182_k3_k4_overlay_and_memory import (
         _flags, _tab, _write_ti3)
     tab = _tab(tmp_path)

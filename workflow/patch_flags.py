@@ -704,8 +704,9 @@ class FlagJudge:
 
         Every re-read reference, shown at this limit or not (raising the
         limit does not lose a confirmation). Peers are written as ``peer``
-        for the record and for Check & Refine, and never loaded back as
-        references: they are worked out again from the readings."""
+        for the record (Check & Refine never reads it, Knut 5980560281), and
+        never loaded back as references: they are worked out again from the
+        readings."""
         out: dict = {}
         for loc, ref in self._refs.items():
             out[loc] = {"kind": "confirmed", "de": ref.de, "prev_de": ref.prev_de,

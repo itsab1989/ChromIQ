@@ -1849,6 +1849,11 @@ _CARD_RANGE_CONFIRMED_LEARNED = "This range has learned."
 #: gone with the spacing they explained.)
 _CARD_PEER_1 = "Yellow outline: confirmed by similar patches"
 _CARD_PEER_2 = "Read alike in other strips: {locs}"
+#: Knut, #182 5980576263: every card says what to do. A red card tells the
+#: user to read the patch again; every yellow card (re-read, similar patches,
+#: learned) that there is no need to.
+_CARD_RED_READ_AGAIN = "Read it again to find out."
+_CARD_YELLOW_NO_NEED = "No need to read it again."
 #: The thirteen ranges' names, as the post named them.
 _RANGE_GREY_DARK = "dark grey"
 _RANGE_GREY_MID = "mid grey"
@@ -1879,7 +1884,8 @@ M_PATCH_COLOUR_RANGE = _m(
                _CARD_RANGE_LEARNED_1, _CARD_RANGE_LEARNED_2,
                _CARD_RANGE_LEARNED_3, _CARD_RANGE_LEARNED_4,
                _CARD_RANGE_RED_LEARNED_1, _CARD_RANGE_RED_LEARNED_2,
-               _CARD_RANGE_CONFIRMED_LEARNED, _CARD_PEER_1, _CARD_PEER_2)),
+               _CARD_RANGE_CONFIRMED_LEARNED, _CARD_PEER_1, _CARD_PEER_2,
+               _CARD_RED_READ_AGAIN, _CARD_YELLOW_NO_NEED)),
     approved=False)
 
 # --- PROPOSED: the expected colour is the profile's prediction --------------
@@ -2020,10 +2026,6 @@ _CR_REST_HEAD_ONE = (
 _CR_REST_HEAD_MANY = (
     "<b>{n} strips have patches above {de} {limit:.1f}</b> "
     "(worst first; worst patch, and how many are above):")
-_CR_CONFIRMED_ONE = ("Not offered again, because it is already confirmed as "
-                     "real: {patches}.")
-_CR_CONFIRMED_MANY = ("Not offered again, because they are already confirmed "
-                      "as real: {patches}.")
 _CR_CHOICE_FIRST_ONE = "Re-measure the strip listed first"
 _CR_CHOICE_FIRST_MANY = "Re-measure the {n} strips listed first"
 _CR_CHOICE_ALL = "Re-measure all {n} strips above your limit"
@@ -2035,8 +2037,8 @@ M_CR_STRIPS = _m(
     "\n".join((_CR_NUMBERS, _CR_OVER_ONE, _CR_OVER_MANY, _CR_OVER_NONE,
                _CR_FIRST_HEAD, _CR_STRIP, _CR_WHY_OUTLIER, _CR_WHY_BLEND,
                _CR_N_IN_STRIP, _CR_REST_HEAD_MORE_ONE, _CR_REST_HEAD_MORE_MANY,
-               _CR_REST_HEAD_ONE, _CR_REST_HEAD_MANY, _CR_CONFIRMED_ONE,
-               _CR_CONFIRMED_MANY, _CR_CHOICE_FIRST_ONE, _CR_CHOICE_FIRST_MANY,
+               _CR_REST_HEAD_ONE, _CR_REST_HEAD_MANY, _CR_CHOICE_FIRST_ONE,
+               _CR_CHOICE_FIRST_MANY,
                _CR_CHOICE_ALL, _CR_ORDER)),
     approved=False)
 M_CR_START_OVER = _m(
