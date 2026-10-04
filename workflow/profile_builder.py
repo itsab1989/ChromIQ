@@ -39,6 +39,8 @@ log = get_logger(__name__)
 #: line in a log. ``tests/test_printtarg_argument_vocabulary.py`` now pins every
 #: letter the UI offers against this set.
 COLPROF_ALGORITHMS = frozenset("lLxXYgGsSm")
+#: colprof -V (dark region emphasis) accepts 1.0 to 3.0 (colprof.c 3.5.0).
+COLPROF_DARK_EMPHASIS_MAX = 3.0
 
 
 #: …and that set is only HALF the rule. The missing half is what beta 11 left
@@ -722,8 +724,13 @@ class ProfileBuilder:
             args.append(f"-b{p.b2a_quality}")
         if abs(p.smoothing - 0.5) > 0.01:
             args += [f"-r{p.smoothing:.2f}"]
-        if abs(p.dark_emphasis - 1.0) > 0.01:
-            args += [f"-V{p.dark_emphasis:.1f}"]
+        # colprof takes -V 1.0 to 3.0 and stops with its usage text outside
+        # it (colprof.c 3.5.0, D-10); a value stored when a spinner allowed
+        # 4.0 (targen's range) is clamped here, the one place every colprof
+        # build passes.
+        dark = min(max(float(p.dark_emphasis), 1.0), COLPROF_DARK_EMPHASIS_MAX)
+        if abs(dark - 1.0) > 0.01:
+            args += [f"-V{dark:.1f}"]
         if p.gamut_src:
             args += ["-s", p.gamut_src]
         if p.k_rule:

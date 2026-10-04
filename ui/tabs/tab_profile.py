@@ -50,7 +50,8 @@ from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
 from ui.spectrum_progress import SpectrumSegmentsBar
 from workflow.engine_builder import (EngineProfileBuilder, engine_support,
                                      is_multi_ink)
-from workflow.profile_builder import ProfileBuilder, ProfileParams
+from workflow.profile_builder import (COLPROF_DARK_EMPHASIS_MAX, ProfileBuilder,
+                                      ProfileParams)
 from workflow.ti3_merge import merge_preconditioning, Ti3MergeError
 from workflow.printcal_runner import PrintcalRunner, PrintcalParams, ChannelTarget
 from workflow.applycal_runner import ApplycalRunner
@@ -122,7 +123,7 @@ _ILLUMINANTS = [
 _RETIRED_ILLUMINANTS = {"D65M2": "D65"}
 #: colprof -V accepts 1.0 to 3.0 (colprof.c 3.5.0, lines 519-524: a usage
 #: error outside it). The spinners allowed 4.0, targen's -V range.
-DARK_EMPHASIS_MAX = 3.0
+DARK_EMPHASIS_MAX = COLPROF_DARK_EMPHASIS_MAX
 
 
 class _IlluminantCombo(NoScrollComboBox):

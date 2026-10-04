@@ -87,3 +87,46 @@ def test_the_build_profile_tab_uses_them():
     for name in ("_m_illum_combo", "_m_fwa_illum_combo", "_illum_combo",
                  "_fwa_illum_combo"):
         assert f"self.{name} = _IlluminantCombo(" in src, name
+
+
+# ---- review of beta 10 (2026-10-04) ------------------------------------------
+
+def test_the_scanner_profile_dialog_stops_at_colprofs_limit_too():
+    """Tools > scanner/printer profile from a chart runs colprof too, and its
+    -V spinner still went to 4.0 (targen's range)."""
+    import inspect
+    from ui.dialogs import scanner_colprof
+    src = inspect.getsource(scanner_colprof)
+    assert "setRange(1.0, 4.0)" not in src
+    assert "self._dark.setRange(1.0, COLPROF_DARK_EMPHASIS_MAX)" in src
+
+
+@pytest.mark.parametrize("stored, flag", [(4.0, "-V3.0"), (3.0, "-V3.0"),
+                                          (2.5, "-V2.5"), (1.0, None)])
+def test_every_colprof_build_clamps_a_stored_dark_emphasis(tmp_path, stored,
+                                                          flag):
+    from workflow.profile_builder import ProfileBuilder, ProfileParams
+    args = ProfileBuilder(None)._build_args(
+        ProfileParams(ti3_path=tmp_path / "x.ti3", dark_emphasis=stored))
+    got = [a for a in args if a.startswith("-V")]
+    assert got == ([flag] if flag else [])
+
+
+def test_targens_dark_emphasis_keeps_its_own_range():
+    """targen's -V is a different option and takes up to 4.0."""
+    import yaml
+    data = yaml.safe_load(Path("data/parameters.yaml").read_text("utf-8"))
+    found = {}
+
+    def walk(node, tool=None):
+        if isinstance(node, dict):
+            tool = node.get("tool", tool)
+            if node.get("flag") == "-V":
+                found[tool] = node.get("max")
+            for k, v in node.items():
+                walk(v, k if k in ("targen", "colprof") else tool)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v, tool)
+    walk(data)
+    assert found.get("targen") == 4.0 and found.get("colprof") == 3.0, found
