@@ -91,9 +91,11 @@ def highlight_device(n_channels: int, additive: bool, n: int, seed: int = 13
 class Truth:
     """Uniform access: a synthetic printer, or a proxy profile for real data."""
 
-    def __init__(self, printer=None, proxy_icc=None, illuminant: str = "D50"):
+    def __init__(self, printer=None, proxy_icc=None, illuminant: str = "D50",
+                 proxy_reader: str = "argyll"):
         self.printer = printer
         self.proxy = proxy_icc
+        self.proxy_reader = proxy_reader      # lcms for v4 mAB proxies icclu refuses
         self.illuminant = illuminant or "D50"
 
     @property
@@ -103,7 +105,7 @@ class Truth:
     def lab(self, device: np.ndarray) -> np.ndarray:
         if self.printer is not None:
             return self.printer.lab_rel(device, self.illuminant)
-        return cmm.a2b(self.proxy, device, "argyll")
+        return cmm.a2b(self.proxy, device, self.proxy_reader)
 
 
 def _separation(dev: np.ndarray, l_axis: np.ndarray) -> dict:

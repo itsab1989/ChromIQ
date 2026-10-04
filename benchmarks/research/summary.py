@@ -106,5 +106,6 @@ def write_summary(results: dict, path: Path) -> None:
         L.append("")
     L.append("Real datasets: A2B is scored at held-out patches (measured, noisy); "
              "B2A/neutral are printed through a PROXY printer (colprof -qh of all "
-             "patches), an estimate, not truth.")
+             "patches; for 5+ inks, which colprof refuses, the set's own published "
+             "reference profile, which saw every patch), an estimate, not truth.")
     Path(path).write_text("\n".join(L) + "\n", encoding="utf-8")
