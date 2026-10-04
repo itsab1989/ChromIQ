@@ -15494,10 +15494,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "peer_locs": list(getattr(v, "peer_locs", ()) or ()),
                 "colour_range": v.colour_range, "range_k": int(v.range_k),
                 "range_locs": list(v.range_locs),
+                # Learned only by the size test's waiver (Knut 5982600086).
+                "landed": bool(getattr(v, "landed", False)),
                 # Red in a learned range: why (Knut, #182 5982206917).
                 "misfit": [{"test": m.test, "own": tuple(m.own),
                             "ref": tuple(m.ref), "count": m.count,
-                            "total": m.total, "gap": m.gap}
+                            "total": m.total, "gap": m.gap,
+                            "land": tuple(getattr(m, "land", (0.0, 0.0)))}
                            for m in (getattr(v, "misfit", ()) or ())]}
 
     def _apply_flag_rejudge(self, *, live: bool = True) -> None:

@@ -54,5 +54,6 @@ def test_the_rule_the_help_describes_is_the_one_the_code_runs():
     assert "if live and self._refs.pop(loc, None) is not None:" in src
     # A different colour on a live re-read drops it too.
     assert "elif live and own is not None:" in src
-    like = inspect.getsource(patch_flags.FlagJudge._like)
+    # _like answers through _match since the landing waiver (5982600086).
+    like = inspect.getsource(patch_flags.FlagJudge._match)
     assert "standout > ref.standout + STANDOUT_MARGIN_DE" in like

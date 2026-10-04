@@ -72,7 +72,11 @@ def test_a_smaller_error_says_smaller_with_its_numbers():
     assert m.own[0] == pytest.approx(0.7 * n, abs=1e-6)
     assert m.ref == (pytest.approx(n), pytest.approx(n))
     assert (m.count, m.total) == (3, 3)
-    assert m.gap == pytest.approx(n - PF.SHIFT_TOLERANCE_DE - 0.7 * n)
+    # Its reading lands more than LANDING_DE from every confirmed reading
+    # (Knut 5982600086), or the size test would have been waived.
+    assert m.land[0] > PF.LANDING_DE
+    assert m.gap == pytest.approx(min(n - PF.SHIFT_TOLERANCE_DE - 0.7 * n,
+                                      m.land[0] - PF.LANDING_DE))
 
 
 def test_an_error_pointing_another_way_says_sideways():
@@ -173,18 +177,20 @@ def _card(qapp, misfit):
 def test_the_card_of_knuts_o7(qapp):
     rows = _card(qapp, [{"test": "smaller", "own": (63.9, 64.4),
                          "ref": (75.2, 91.8), "count": 11, "total": 11,
-                         "gap": 1.3}])
+                         "gap": 1.3, "land": (18.2, 31.4)}])
     i = rows.index("This range has learned, but this")
-    assert rows[i + 1:i + 4] == ["one's error is smaller: ΔE 64 here,",
+    assert rows[i + 1:i + 6] == ["one's error is smaller: ΔE 64 here,",
                                  "ΔE 75 to 92 on its confirmed patches",
-                                 "(at most ΔE 10 smaller allowed)."]
+                                 "(at most ΔE 10 smaller allowed),",
+                                 "and its reading did not land near theirs",
+                                 "(ΔE 18 to 31 away, at most ΔE 15)."]
     assert "one is off in a different way." not in rows
 
 
 def test_the_card_names_two_reasons_and_says_some(qapp):
     rows = _card(qapp, [
         {"test": "smaller", "own": (49.7, 51.2), "ref": (61.5, 106.0),
-         "count": 54, "total": 56, "gap": 0.48},
+         "count": 54, "total": 56, "gap": 0.48, "land": (15.4, 40.0)},
         {"test": "sideways", "own": (10.3, 15.4), "ref": (0.0, 0.0),
          "count": 9, "total": 56, "gap": 0.29}])
     text = "\n".join(rows)
@@ -215,7 +221,9 @@ def test_the_tab_hands_the_numbers_to_the_card():
     v = _judge(j, "O7", tuple(0.7 * s for s in SHIFT))
     x = TabMeasure._verdict_extra(v)
     assert [m["test"] for m in x["misfit"]] == ["smaller"]
-    assert set(x["misfit"][0]) == {"test", "own", "ref", "count", "total", "gap"}
+    assert set(x["misfit"][0]) == {"test", "own", "ref", "count", "total",
+                                   "gap", "land"}
+    assert x["landed"] is False
 
 
 def test_every_new_line_is_in_every_catalogue():
@@ -223,7 +231,8 @@ def test_every_new_line_is_in_every_catalogue():
     from pathlib import Path
     root = Path(__file__).resolve().parents[1] / "data" / "i18n"
     names = [n for n in dir(mm) if n.startswith("_CARD_MISFIT")] + ["_CARD_DE_SPAN"]
-    assert len(names) == 14
+    names += ["_CARD_RANGE_LANDED_1", "_CARD_RANGE_LANDED_2"]
+    assert len(names) == 18
     for f in sorted(root.glob("*.json")):
         d = json.loads(f.read_text(encoding="utf-8"))
         for n in names:

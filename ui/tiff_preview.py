@@ -622,6 +622,10 @@ class _PatchInfoTile(QWidget):
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_1)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_2)))
+            if info.get("landed"):
+                # Like it only by the size test's waiver (Knut 5982600086).
+                rows.append((None, tr(_mm._CARD_RANGE_LANDED_1)))
+                rows.append((None, tr(_mm._CARD_RANGE_LANDED_2)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_3)))
             rows.append((None, tr(_mm._CARD_RANGE_LEARNED_4)))
             rows.append((None, ""))
@@ -5460,7 +5464,8 @@ def card_misfit_lines(misfit) -> "list[str]":
     has learned, but this" (Knut, #182 5982206917): each test that ruled it
     out against the range's confirmed patches, with its numbers. *misfit* is
     ``Verdict.misfit`` as ``TabMeasure._verdict_extra`` passes it: dicts with
-    ``test``, ``own`` / ``ref`` (lowest, highest), ``count`` and ``total``.
+    ``test``, ``own`` / ``ref`` / ``land`` (lowest, highest), ``count`` and
+    ``total``.
 
     Whole ΔE numbers, as the example Knut approved; one decimal when the test
     failed by less than ΔE 1 somewhere (``gap``), where whole numbers could
@@ -5485,6 +5490,13 @@ def card_misfit_lines(misfit) -> "list[str]":
             lines.append(tr(refs_line).format(ref=_de_text(ref_lo, ref_hi, d)))
             lines.append(tr(_mm._CARD_MISFIT_SMALLER_LIMIT).format(
                 tol=f"{tol:.0f}"))
+            # ...and it did not land where they did, or the size test would
+            # have been waived (Knut 5982600086).
+            land_lo, land_hi = (float(v) for v in m.get("land", (0.0, 0.0)))
+            lines.append(tr(_mm._CARD_MISFIT_LANDED))
+            lines.append(tr(_mm._CARD_MISFIT_LANDED_DE).format(
+                own=_de_text(land_lo, land_hi, d),
+                tol=f"{pf.LANDING_DE:.0f}"))
         elif test == pf.MISFIT_SIDEWAYS:
             lines.append(tr(_mm._CARD_MISFIT_SIDEWAYS if first
                             else _mm._CARD_MISFIT_SIDEWAYS_NEXT))
