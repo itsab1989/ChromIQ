@@ -29,6 +29,21 @@ from core import path_budget as pb
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 
+@pytest.fixture(autouse=True)
+def _the_reference_root_on_windows(monkeypatch):
+    """Every number in this file is the REFERENCE budget (a 37-character
+    ``C:\\Users\\<20>\\ChromIQ``). On Windows `name_budget` uses the machine's
+    own output root instead, by design, and the suite's sandboxed root is a
+    deep temp folder, so the cap there came out at the floor and the
+    arithmetic below measured that folder rather than the rule. On Windows
+    the root is therefore pinned to one exactly as long as the reference;
+    elsewhere `name_budget` never asks for a root, so nothing changes."""
+    if os.name == "nt":
+        from pathlib import PureWindowsPath
+        monkeypatch.setattr(pb, "current_output_root", lambda: PureWindowsPath(
+            "C:/Users/" + "u" * 20 + "/ChromIQ"))
+
+
 # ---------------------------------------------------------------------------
 # The constant the whole budget rests on
 # ---------------------------------------------------------------------------
