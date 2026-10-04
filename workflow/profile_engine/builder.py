@@ -74,7 +74,7 @@ _CLUT_ONLY_MSG = ("Output profile can only be a cLUT algorithm — "
 # Issue #123 candidate tokens (dark-launched maximum-accuracy successors).
 # Unknown tokens in CHROMIQ_ENGINE_NEXT are ignored with a log line.
 ENGINE_CANDIDATE_TOKENS = frozenset(
-    {"ucs", "joint-sep", "gp", "spectral", "render2"})
+    {"ucs", "joint-sep", "gp", "spectral", "render2", "gpfwd", "b2a33", "b2a33s", "a2bfine", "rgbpos"})
 
 
 def candidates_from_env(env_value: str | None) -> frozenset:
@@ -384,6 +384,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         raise EngineError(_CLUT_ONLY_MSG)
     q = _QUALITY_INDEX[settings.quality]
     qb = _QUALITY_INDEX.get(settings.b2a_quality, q)
+    if (settings.gammap_mode == "accurate"
+            and ({"b2a33", "b2a33s"} & set(settings.engine_candidates))):
+        # Agent 3 candidate: the B2A table resolution, not the inversion,
+        # sets most of the B2A error (B1/bh-*: S3 B2A median 0.394 at grid
+        # 17 -> 0.171 at grid 33, same build otherwise). At least grid 33.
+        qb = max(qb, 2)
     # Accurate mode gets the shadow-resolving shaped XYZ-PCS layout; the
     # parity modes keep colprof's identity layout.
     codec = codec_for(settings.algorithm,
@@ -499,7 +505,28 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             row_weights=meas.row_weights,
             # Ink devices: shaper curves start from the chart's own
             # single-ink ramps (research agent5-03, item 1 cause D).
-            positioning=not meas.is_additive and curve_rounds > 0)
+            # Agent 3 "rgbpos": the same, mirrored, for RGB devices.
+            positioning=((not meas.is_additive or "rgbpos" in candidates)
+                         and curve_rounds > 0),
+            additive=meas.is_additive)
+        if ("gpfwd" in candidates and not meas.is_additive
+                and len(meas.device) >= 75 * n):
+            # Not below 75 patches per ink: at 150 patches on 4 inks the
+            # marginal likelihood picks a near-interpolating optimum on 1 of
+            # 3 S3 charts (p95 10.9 dE00 vs the grid's 2.4; agent 3, F0g/F0h,
+            # development set); at 300 it never did.
+            # Agent 3 candidate: GP forward model (ARD Matern 5/2, marginal
+            # likelihood, Huber), projected onto the same lattice and curves
+            # under the CMMs' kernels. Outlier naming stays the grid fit's.
+            from workflow.profile_engine import gpfwd
+            from workflow.profile_engine.metrics import delta_e_2000 as _de
+            _emit(settings, "Fitting the printer model: Gaussian process…")
+            gpm = gpfwd.fit_gp_forward(meas.device, meas.lab_relative, _de,
+                                       row_weights=meas.row_weights,
+                                       ref_pred=model.predict(meas.device))
+            model = gpfwd.project_to_table(gpm, model, lam,
+                                           fine="a2bfine" in candidates)
+            a2b_grid = model.grid
         if len(outliers):
             # Name the patches the way the SHEET names them (SAMPLE_LOC):
             # "rows 757, 811" only coincided with the printed IDs on a
@@ -655,7 +682,12 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             accurate=accurate, extra_hues=extra_hues, black_l=black_l,
             k_gen=k_gen, ucs=use_ucs, channel_max=channel_max,
             fixed_nodes=fixed_nodes,
-            progress=lambda m: _emit(settings, m))
+            progress=lambda m: _emit(settings, m),
+            # Agent 3 "b2a33s": keep the refit's exact inverse samples per
+            # B2A node constant (30,000 were sized for grid 17; at grid 33
+            # the n>3 path had 10,000 samples for 35,937 nodes).
+            **({"samples": int(30000 * (b2a_grid / 17.0) ** 3)}
+               if "b2a33s" in candidates else {}))
     if channel_max is not None:
         # The smooth refit is a least-squares field over samples that all
         # respect the ceiling; between them it can overshoot (measured: K
