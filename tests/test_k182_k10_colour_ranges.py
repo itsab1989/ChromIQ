@@ -374,7 +374,12 @@ def test_the_card_lines_are_the_proposed_messages():
              mm._CARD_MISFIT_STANDOUT_LIMIT, mm._CARD_MISFIT_REFS,
              mm._CARD_MISFIT_REFS_SOME, mm._CARD_DE_SPAN,
              mm._CARD_MISFIT_LANDED, mm._CARD_MISFIT_LANDED_DE,
-             mm._CARD_RANGE_LANDED_1, mm._CARD_RANGE_LANDED_2]
+             mm._CARD_RANGE_LANDED_1, mm._CARD_RANGE_LANDED_2,
+             mm._CARD_VERIFY_RED_1, mm._CARD_VERIFY_RED_2,
+             mm._CARD_VERIFY_RED_3, mm._CARD_VERIFY_SAME_1,
+             mm._CARD_VERIFY_SAME_2, mm._CARD_VERIFY_YELLOW_1,
+             mm._CARD_VERIFY_YELLOW_2, mm._CARD_VERIFY_YELLOW_3,
+             mm._CARD_VERIFY_YELLOW_4, mm._CARD_VERIFY_LEARNED]
     assert msg.body.split("\n") == lines
     assert msg.title == mm._CARD_RANGE
     for line in lines + [msg.title]:

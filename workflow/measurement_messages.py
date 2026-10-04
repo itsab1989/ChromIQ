@@ -1877,6 +1877,24 @@ _CARD_DE_SPAN = "{lo} to {hi}"
 #: "...of it were confirmed." and "This one is off in the same way,").
 _CARD_RANGE_LANDED_1 = "Its reading landed where its"
 _CARD_RANGE_LANDED_2 = "confirmed patches' readings did."
+#: A VERIFICATION judged against the run profile's prediction (Knut, #203
+#: 5982702169; proposed in 5982715730, these ten lines APPROVED by Knut in
+#: 5982788316, the message as a whole stays proposed): a large difference there does not
+#: mean a colour the printer cannot reach, it means the profile is inaccurate
+#: there (or the printer has changed), and a verification never goes into the
+#: profile. These replace the profiling card's "this printer and paper cannot
+#: reach" and "keep it for the profile" lines on such a card; the profiling
+#: cards are unchanged.
+_CARD_VERIFY_RED_1 = "Far from what the profile predicts."
+_CARD_VERIFY_RED_2 = "Either a misread, or a place where"
+_CARD_VERIFY_RED_3 = "the profile is inaccurate."
+_CARD_VERIFY_SAME_1 = "it is real, and counts against"
+_CARD_VERIFY_SAME_2 = "the profile's accuracy."
+_CARD_VERIFY_YELLOW_1 = "A real difference, not a misread:"
+_CARD_VERIFY_YELLOW_2 = "the profile does not predict this"
+_CARD_VERIFY_YELLOW_3 = "colour well here (or the printer has"
+_CARD_VERIFY_YELLOW_4 = "changed since the profile was made)."
+_CARD_VERIFY_LEARNED = "The profile is off in the same way here,"
 #: Beta 9 (Knut, #182 5979886227): a flagged patch confirmed by flagged
 #: patches of other strips that were expected nearly the same colour and are
 #: off in the same way. The card's counterpart of "Yellow outline: confirmed
@@ -1929,7 +1947,12 @@ M_PATCH_COLOUR_RANGE = _m(
                _CARD_MISFIT_STANDOUT_DE, _CARD_MISFIT_STANDOUT_LIMIT,
                _CARD_MISFIT_REFS, _CARD_MISFIT_REFS_SOME, _CARD_DE_SPAN,
                _CARD_MISFIT_LANDED, _CARD_MISFIT_LANDED_DE,
-               _CARD_RANGE_LANDED_1, _CARD_RANGE_LANDED_2)),
+               _CARD_RANGE_LANDED_1, _CARD_RANGE_LANDED_2,
+               _CARD_VERIFY_RED_1, _CARD_VERIFY_RED_2, _CARD_VERIFY_RED_3,
+               _CARD_VERIFY_SAME_1, _CARD_VERIFY_SAME_2,
+               _CARD_VERIFY_YELLOW_1, _CARD_VERIFY_YELLOW_2,
+               _CARD_VERIFY_YELLOW_3, _CARD_VERIFY_YELLOW_4,
+               _CARD_VERIFY_LEARNED)),
     approved=False)
 
 # --- PROPOSED: the expected colour is the profile's prediction --------------
