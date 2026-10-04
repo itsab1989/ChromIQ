@@ -6541,7 +6541,9 @@ What *does* transfer:
    targen `-c`. A FROM PROFILE GAMUT chart (written by ChromIQ, not targen)
    never carries it.
    **The term** (Knut, 2026-10-04, #182
-   [5984174575](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5984174575)):
+   [5984174575](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5984174575),
+   *"do you mean charts where a pre-conditioning profile is specified? you
+   should use proper terms for us to understand what you mean"*):
    these charts are called charts *made with a pre-conditioning profile*,
    in every user-facing text and in this document, never "made from a
    profile", which reads like FROM PROFILE GAMUT. Beta 11 corrected the
