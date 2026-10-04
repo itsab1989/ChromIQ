@@ -6521,15 +6521,15 @@ What *does* transfer:
    the red outline catches misreads and asks for a re-read; it does not mark
    colours the printer cannot reproduce (yellow answers that). 95 stays for
    estimated charts because their expected colours are far from any print,
-   with the strip check and another check (each patch against its
-   neighbours) doing most of the misread hunting there; 20 and 10 are low
+   with the strip check and the neighbour check (10.9) doing most of the
+   misread hunting there; 20 and 10 are low
    because the expected colours are close to what the printer should print.
    One paragraph (`LIMITS_PURPOSE_HELP`), the same in Preferences ▸
    Measurement and the Measure tab's hover help. The ruling is Knut's; the
-   words are ours. It names the strip check by its checkbox's own words,
-   and the "other check" is the neighbour check of the beta-11 branch
-   `fix/4.3.3-beta11-neighbours`: the paragraph is only true in a build
-   that has both.
+   words are ours. It names the strip check and the neighbour check by
+   their boxes' own words ("Only flag a patch that stands out from its own
+   strip", "Flag a patch that does not fit the patches nearest in colour by
+   more than").
 
 ### ⏳ Awaiting confirmation — two limits, and the yellow outline
 
