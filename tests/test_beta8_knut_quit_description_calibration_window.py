@@ -218,6 +218,58 @@ def test_the_header_tags_are_shared_too(ptab):
     assert w._copy_edit.text() == "(c) me"
 
 
+def _store_profile_settings(w, run, drop=(), **over):
+    """Write a target's stored Build Profile settings as a pre-beta-8 build
+    could have left them: Guided and Manual header fields independent."""
+    data = {**w._m_collect_preset_data(), **w._collect_guided_profile_fields()}
+    data.update(over)
+    for k in drop:
+        data.pop(k, None)
+    meta = run.load_meta()
+    meta.profile_settings = data
+    run.save_meta(meta)
+
+
+def test_a_manual_header_tag_stored_alone_survives_the_load(ptab):
+    """Review of beta 8: Manual's stored copyright must not be wiped by an
+    empty Guided one that is applied after it (and then saved over it)."""
+    w, run = ptab
+    _store_profile_settings(w, run, copy_enabled=True, copy="(c) Manual",
+                            g_copy_enabled=False, g_copy="")
+    assert w.load_target_settings()
+    assert w._m_copy_check.isChecked() and w._m_copy_edit.text() == "(c) Manual"
+    assert w._copy_check.isChecked() and w._copy_edit.text() == "(c) Manual"
+
+
+def test_a_guided_header_tag_stored_alone_survives_the_load(ptab):
+    w, run = ptab
+    _store_profile_settings(w, run, mfr_enabled=False, mfr="",
+                            g_mfr_enabled=True, g_mfr="Epson")
+    assert w.load_target_settings()
+    assert w._m_mfr_edit.text() == "Epson" and w._mfr_edit.text() == "Epson"
+    assert w._m_mfr_check.isChecked() and w._mfr_check.isChecked()
+
+
+def test_a_store_without_guided_keys_takes_manuals_value(ptab):
+    """A store older than Guided's own keys leaves Guided showing whatever
+    was on screen before; that must not override Manual's stored value."""
+    w, run = ptab
+    w._model_check.setChecked(True)
+    w._model_edit.setText("left over from another target")
+    _store_profile_settings(w, run, drop=("g_model", "g_model_enabled"),
+                            model_enabled=True, model="P900")
+    assert w.load_target_settings()
+    assert w._model_edit.text() == "P900" and w._m_model_edit.text() == "P900"
+
+
+def test_typing_after_a_load_is_mirrored_again(ptab):
+    w, run = ptab
+    _store_profile_settings(w, run, copy="(c) A", g_copy="(c) B")
+    assert w.load_target_settings()
+    w._m_copy_edit.setText("(c) typed")
+    assert w._copy_edit.text() == "(c) typed"
+
+
 # ---- 4. the Calibration complete window at the start ------------------------
 @pytest.fixture
 def mtab(qapp):

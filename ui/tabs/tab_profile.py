@@ -348,6 +348,7 @@ class TabProfile(QWidget):
         self._build_ui()
         self._restore_defaults()
         self._link_guided_and_manual_header_fields()
+        self._settle_linked_header_fields()
 
     # ------------------------------------------------------------------
     # Guided and Manual share the profile header fields (Knut, #182
@@ -390,6 +391,55 @@ class TabProfile(QWidget):
                 a.textChanged.connect(self._mirror_header_text)
                 b.textChanged.connect(self._mirror_header_text)
 
+    #: (check, text) groups of `_LINKED_HEADER_FIELDS`, Guided then Manual.
+    _LINKED_HEADER_GROUPS = (
+        ("_mfr_check", "_mfr_edit", "_m_mfr_check", "_m_mfr_edit"),
+        ("_model_check", "_model_edit", "_m_model_check", "_m_model_edit"),
+        ("_copy_check", "_copy_edit", "_m_copy_check", "_m_copy_edit"),
+    )
+
+    def _settle_linked_header_fields(self, stored: "dict | None" = None
+                                     ) -> None:
+        """After a bulk load, make each linked pair one value again.
+
+        A load fills Guided and Manual from SEPARATE keys (a target's stored
+        settings: "mfr" and "g_mfr"; the saved defaults: "manual2_colprof_mfr"
+        and "colprof_mfr"). Until beta 8 the two were independent, so a store
+        written before it can hold a manufacturer, model or copyright in one
+        mode and nothing in the other. Mirrored live, whichever was loaded
+        last won, and an empty Guided entry wiped the text a Manual user had
+        typed (then saved the wipe over it). So the mirror is paused during a
+        load and this decides once: a side that is in use (ticked or filled)
+        wins over one that is not; when both are, Guided wins, as before.
+        A target *stored* before Guided kept these fields ("g_mfr" absent)
+        left Guided showing the previous target's value, so Manual wins there.
+        """
+        self._header_mirror_paused = False
+        for gc_n, ge_n, mc_n, me_n in self._LINKED_HEADER_GROUPS:
+            gc, ge = getattr(self, gc_n, None), getattr(self, ge_n, None)
+            mc, me = getattr(self, mc_n, None), getattr(self, me_n, None)
+            if None in (gc, ge, mc, me):
+                continue
+            if (gc.isChecked(), ge.text()) == (mc.isChecked(), me.text()):
+                continue
+            g_key = "g_" + ge_n.removeprefix("_").removesuffix("_edit")
+            g_stale = stored is not None and g_key not in stored
+            g_used = (not g_stale) and (gc.isChecked()
+                                        or bool(ge.text().strip()))
+            m_used = mc.isChecked() or bool(me.text().strip())
+            src_c, src_e, dst_c, dst_e = ((gc, ge, mc, me)
+                                          if g_used or not (m_used or g_stale)
+                                          else (mc, me, gc, ge))
+            dst_e.setText(src_e.text())
+            dst_c.setChecked(src_c.isChecked())
+        g, m = (getattr(self, "_desc_edit", None),
+                getattr(self, "_m_desc_edit", None))
+        if g is not None and m is not None and g.text() != m.text():
+            if g.text().strip() or not m.text().strip():
+                m.setText(g.text())
+            else:
+                g.setText(m.text())
+
     def _header_twin(self, widget):
         for a_name, b_name in self._LINKED_HEADER_FIELDS:
             a = getattr(self, a_name, None)
@@ -406,12 +456,16 @@ class TabProfile(QWidget):
         # name before Qt delivers that same edit's `textChanged("")`, so the
         # argument is already stale and copying it emptied both fields again
         # (measured on screen, beta 8).
+        if getattr(self, "_header_mirror_paused", False):
+            return
         src = self.sender()
         twin = self._header_twin(src)
         if twin is not None and src is not None and twin.text() != src.text():
             twin.setText(src.text())
 
     def _mirror_header_check(self, on: bool) -> None:
+        if getattr(self, "_header_mirror_paused", False):
+            return
         twin = self._header_twin(self.sender())
         if twin is not None and twin.isChecked() != on:
             twin.setChecked(on)
@@ -2379,6 +2433,9 @@ class TabProfile(QWidget):
                         exc_info=True)
             return False
         self._loading_profile_settings = True
+        # Guided and Manual are filled from separate keys: settle the linked
+        # header fields once at the end, not mirror by mirror.
+        self._header_mirror_paused = True
         try:
             if not stored:
                 # §4 S4–S7 — and the fault the Measure tab had: returning here
@@ -2394,6 +2451,11 @@ class TabProfile(QWidget):
                         exc_info=True)
             return False
         finally:
+            try:
+                self._settle_linked_header_fields(stored or None)
+            except Exception:      # noqa: BLE001
+                self._header_mirror_paused = False
+                log.debug("linked header fields not settled", exc_info=True)
             self._loading_profile_settings = False
 
     # ------------------------------------------------------------------

@@ -2255,7 +2255,7 @@ M_NO_INSTRUMENT_NONE = _m(
     "so the measurement has not started.\n\n"
     "Connect your instrument with its USB cable, give the computer a moment "
     "to recognise it, and press Start again.\n\n"
-    "Nothing has been lost. The measurement you already had is kept exactly "
+    "Nothing has been lost: any measurement you already had is kept exactly "
     "as it was.",
     approved=False)
 
