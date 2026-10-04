@@ -6695,24 +6695,13 @@ challenge (`2026-10-04_beta9/k22_challenge/CHALLENGE.md` of that session's
 report). Two choices in it were ours and were put to Knut in [5980331169](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5980331169):
 **"different strips"** (not in his words), CONFIRMED by him and moved to the
 confirmed block below, and **Check & Refine leaving these patches out**
-(10.5a), which he answered NO.
+(10.5a), which he answered NO. The rule itself, 10.3a, was CONFIRMED by
+Knut in [5983752160](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983752160) and is in the confirmed block below; the rest of
+this block (10.4a apart from the spacing, 10.4b, 10.3b, 10.7a) still waits.
 
-**10.3a · Yellow, confirmed by similar patches** (adds to 10.3). Two FLAGGED
-patches (past the limit and, reading strips with the strip test on, outliers
-of their strip) confirm each other when:
-
-* they were read in **different strips** (confirmed by Knut, see the block
-  below);
-* their **expected colours** are less than ΔE\*ab 6 apart (D50, Knut's own
-  "<6 dE");
-* their **errors** (measured minus expected) are within ΔE\*ab 10 of each
-  other (the "off in the same way" tolerance of 10.4).
-
-Both are drawn in the same yellow as a re-read. The card says *"Yellow
-outline: confirmed by similar patches"* and *"Read alike in other strips:
-{locs}"* (M-PATCH-COLOUR-RANGE; these two lines CONFIRMED, see below). A re-read confirmation still exists beside
-it and is named first; it is the only route for a colour with no similar
-patch.
+**10.3a · Yellow, confirmed by similar patches** (adds to 10.3): CONFIRMED
+by Knut on 2026-10-04 (5983752160) and moved to the confirmed block *"similar
+patches confirm each other (10.3a)"* below.
 
 **10.4a · Learning without spacing** (replaces the spacing in 10.4). A range
 learns once **three** of its patches are confirmed, by a re-read or by
@@ -6771,6 +6760,27 @@ red / yellow confirmed / yellow learned):
 Simulated misreads (40 trials per fault): out of step, wrong strip and smudge
 were never confirmed by similar patches; the few that ended yellow were
 LEARNED through 10.4's existing test, at its measured rate.
+
+#### Confirmed behaviour — similar patches confirm each other (10.3a)
+
+**Confirmed by:** Knut, 2026-10-04, 5983752160 (#182 [5983752160](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983752160): *"Yes. Beta 10 seems to work nicely with that."*, answering our question after [5983725218](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983725218)). Only the rule below, as built; 10.4a (apart from the spacing, confirmed separately), 10.4b, 10.3b and 10.7a still await confirmation above.
+
+**10.3a · Yellow, confirmed by similar patches** (adds to 10.3). Two FLAGGED
+patches (past the limit and, reading strips with the strip test on, outliers
+of their strip) confirm each other when:
+
+* they were read in **different strips** (confirmed by Knut, see the block
+  below);
+* their **expected colours** are less than ΔE\*ab 6 apart (D50, Knut's own
+  "<6 dE");
+* their **errors** (measured minus expected) are within ΔE\*ab 10 of each
+  other (the "off in the same way" tolerance of 10.4).
+
+Both are drawn in the same yellow as a re-read. The card says *"Yellow
+outline: confirmed by similar patches"* and *"Read alike in other strips:
+{locs}"* (M-PATCH-COLOUR-RANGE; these two lines CONFIRMED, see below). A re-read confirmation still exists beside
+it and is named first; it is the only route for a colour with no similar
+patch.
 
 #### Confirmed behaviour: no ΔE 6 spacing between a range's confirmations (10.4a)
 
