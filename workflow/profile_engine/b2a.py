@@ -187,7 +187,47 @@ def _ucs_hue_weight_matrices(target_ucs: np.ndarray) -> np.ndarray:
     return w
 
 
-def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
+def _gauss_newton(model, target: np.ndarray, seed: np.ndarray,
+                  free: np.ndarray, *, iters: int, damping: float,
+                  ink_limit: float | None,
+                  prior: np.ndarray | None = None,
+                  prior_w: np.ndarray | None = None,
+                  boundary_fd: bool = False,
+                  tac_projection: bool = False,
+                  err_weights: np.ndarray | None = None,
+                  channel_max: np.ndarray | None = None,
+                  progress=None, progress_label: str = "") -> np.ndarray:
+    """Row-parallel front of :func:`_gauss_newton_rows` (D-06).
+
+    Every row of the batched Gauss-Newton is solved on its own (its own
+    Jacobian, its own k x k solve, its own clip and ink-limit projection),
+    so contiguous row chunks on pool threads give the same bytes as one
+    batch. Only the maximum-accuracy path (``boundary_fd``) is split; Fast
+    and Bit-exact keep the serial call untouched. Chunk 0 reports progress,
+    so the log carries exactly the serial run's lines."""
+    from workflow.profile_engine import parallel
+    kw = dict(iters=iters, damping=damping, ink_limit=ink_limit,
+              boundary_fd=boundary_fd, tac_projection=tac_projection,
+              channel_max=channel_max, progress_label=progress_label)
+    bounds = parallel.chunk_bounds(len(target), parallel.worker_count()) \
+        if boundary_fd else [(0, len(target))]
+    if len(bounds) <= 1:
+        return _gauss_newton_rows(model, target, seed, free, prior=prior,
+                                  prior_w=prior_w, err_weights=err_weights,
+                                  progress=progress, **kw)
+
+    def one(lo: int, hi: int) -> np.ndarray:
+        sl = slice(lo, hi)
+        return _gauss_newton_rows(
+            model, target[sl], seed[sl], free,
+            prior=None if prior is None else prior[sl],
+            prior_w=None if prior_w is None else prior_w[sl],
+            err_weights=None if err_weights is None else err_weights[sl],
+            progress=progress if lo == 0 else None, **kw)
+    return np.concatenate(parallel.run_chunks(one, bounds), axis=0)
+
+
+def _gauss_newton_rows(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
                   free: np.ndarray, *, iters: int, damping: float,
                   ink_limit: float | None,
                   prior: np.ndarray | None = None,
@@ -288,18 +328,33 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
 
 
 def _seed_nearest(model: ForwardModel, target: np.ndarray, seed_res: int,
-                  channel_max: np.ndarray | None = None) -> np.ndarray:
-    """Seed each target with the nearest point of a coarse device mesh."""
+                  channel_max: np.ndarray | None = None,
+                  threads: bool = False) -> np.ndarray:
+    """Seed each target with the nearest point of a coarse device mesh.
+
+    ``threads`` (Maximum accuracy, D-06): the rows are searched in parallel
+    blocks. Each row's distances are element-wise and summed over the
+    three Lab axes only, so a row's answer does not depend on which other
+    rows share its block."""
     n = model.n_channels
     top = np.ones(n) if channel_max is None else np.asarray(channel_max)
     axes = [np.linspace(0.0, float(top[c]), seed_res) for c in range(n)]
     mesh = np.stack(np.meshgrid(*axes, indexing="ij"), -1).reshape(-1, n)
     mesh_lab = model.predict(mesh)
     out = np.empty((len(target), n))
-    for lo in range(0, len(target), 4096):      # chunked distance search
-        chunk = target[lo:lo + 4096]
-        d2 = ((mesh_lab[None, :, :] - chunk[:, None, :]) ** 2).sum(2)
-        out[lo:lo + 4096] = mesh[np.argmin(d2, 1)]
+
+    def block(a: int, b: int) -> None:
+        for lo in range(a, b, 4096):            # chunked distance search
+            hi = min(lo + 4096, b)
+            chunk = target[lo:hi]
+            d2 = ((mesh_lab[None, :, :] - chunk[:, None, :]) ** 2).sum(2)
+            out[lo:hi] = mesh[np.argmin(d2, 1)]
+    if threads:
+        from workflow.profile_engine import parallel
+        parallel.run_chunks(block, parallel.chunk_bounds(
+            len(target), parallel.worker_count()))
+    else:
+        block(0, len(target))
     return out
 
 
@@ -493,7 +548,7 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
         gn_target = _space.lab_to_ucs(target)
     if seed is None:
         seed = _seed_nearest(gn_model, gn_target, seed_res if n <= 4 else 5,
-                             channel_max=channel_max)
+                             channel_max=channel_max, threads=accurate)
     d = seed.copy()
     if channel_max is not None:
         d = np.minimum(d, channel_max[None, :])
@@ -522,9 +577,8 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
     # dense-cloud nearest seed and keep whichever lands closer.
     retry = residual > 0.5
     if retry.any():
-        rng = np.random.default_rng(1234)
-        cloud = _device_cloud(n, limit, channel_max, rng)
-        cloud_lab = gn_model.predict(cloud)
+        cloud, cloud_lab = _cloud_and_lab(gn_model, model, n, limit,
+                                          channel_max, 1234, memo=accurate)
         sub = gn_target[retry]
         seeds2 = np.empty((len(sub), n))
         cl2 = (cloud_lab ** 2).sum(1)
@@ -559,9 +613,8 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
             # Seed every out-of-gamut node from a printable colour of the
             # SAME HUE (angle-gated), then polish under the hue-weighted
             # norm; a polish that drifts in hue or gains chroma is dropped.
-            rng2 = np.random.default_rng(4321)
-            cloud2 = _device_cloud(n, limit, channel_max, rng2)
-            cloud2_lab = model.predict(cloud2)
+            cloud2, cloud2_lab = _cloud_and_lab(model, model, n, limit,
+                                                channel_max, 4321, memo=True)
             seeds_h, found = _hue_gated_seeds(target[oog], cloud2, cloud2_lab)
             sub_idx = np.flatnonzero(oog)[found]
             if len(sub_idx):
@@ -895,6 +948,47 @@ def pin_black_node(dev_clut: np.ndarray, node_lab: np.ndarray,
     return out
 
 
+_CLOUD_CACHE: dict = {}
+_CLOUD_LOCK = __import__("threading").Lock()
+
+
+def _cloud_and_lab(view, model: ForwardModel, n: int, limit: float | None,
+                   channel_max: np.ndarray | None, seed: int,
+                   memo: bool = True):
+    """The retry / hue-clip device cloud and its predicted colours.
+
+    Every call rebuilt both from a fresh ``default_rng(seed)``: the same
+    numbers each time for the same model, and the prediction is the
+    expensive part (the neutral-axis walk asks for it once per step). D-06:
+    remembered per model CONTENT (nodes and curves hashed, so an in-place
+    change of the model can never hit a stale entry) and per limits; the
+    arrays returned are the ones a fresh computation gives, bit for bit."""
+    if not memo:                     # Fast / Bit-exact: the serial path
+        cloud = _device_cloud(n, limit, channel_max,
+                              np.random.default_rng(seed))
+        return cloud, view.predict(cloud)
+    import hashlib
+    h = hashlib.blake2b(digest_size=16)
+    h.update(np.ascontiguousarray(model.nodes).tobytes())
+    h.update(np.ascontiguousarray(model.curves).tobytes())
+    key = (h.hexdigest(), type(view).__name__, n, limit,
+           None if channel_max is None else tuple(np.asarray(channel_max,
+                                                             float)), seed)
+    with _CLOUD_LOCK:
+        hit = _CLOUD_CACHE.get(key)
+    if hit is not None:
+        return hit
+    cloud = _device_cloud(n, limit, channel_max, np.random.default_rng(seed))
+    val = (cloud, view.predict(cloud))
+    for a in val:                    # shared: nobody may write into them
+        a.flags.writeable = False
+    with _CLOUD_LOCK:
+        while len(_CLOUD_CACHE) >= 4:
+            _CLOUD_CACHE.pop(next(iter(_CLOUD_CACHE)))
+        _CLOUD_CACHE[key] = val
+    return val
+
+
 def _device_cloud(n: int, limit: float | None,
                   channel_max: np.ndarray | None,
                   rng: np.random.Generator) -> np.ndarray:
@@ -926,7 +1020,23 @@ def _hue_gated_seeds(target: np.ndarray, cloud: np.ndarray,
     c_h = np.degrees(np.arctan2(cloud_lab[:, 2], cloud_lab[:, 1]))
     t_l, t_c = target[:, 0], np.hypot(target[:, 1], target[:, 2])
     t_h = np.degrees(np.arctan2(target[:, 2], target[:, 1]))
-    for lo in range(0, n_t, 256):
+    # D-06: every row is scored and chosen on its own (element-wise maths,
+    # argmin along the cloud), so 256-row blocks run on pool threads with
+    # the same bits. Only the Maximum accuracy path calls this.
+    from workflow.profile_engine import parallel
+    blocks = list(range(0, n_t, 256))
+    groups = parallel.chunk_bounds(len(blocks), parallel.worker_count(),
+                                   min_rows=4)
+    parallel.run_chunks(
+        lambda a, b: _hue_gated_block(blocks[a:b], out, found, cloud,
+                                      c_l, c_c, c_h, t_l, t_c, t_h),
+        groups)
+    return out, found
+
+
+def _hue_gated_block(starts, out, found, cloud, c_l, c_c, c_h, t_l, t_c,
+                     t_h) -> None:
+    for lo in starts:
         sl = slice(lo, lo + 256)
         dh = np.abs((c_h[None, :] - t_h[sl, None] + 180.0) % 360.0 - 180.0)
         # Lightness is worth keeping more than chroma: score = (2·ΔL)² + ΔC²
@@ -946,7 +1056,6 @@ def _hue_gated_seeds(target: np.ndarray, cloud: np.ndarray,
         idx = np.flatnonzero(got) + lo
         out[idx] = cloud[chosen[got]]
         found[idx] = True
-    return out, found
 
 
 def inverse_curves(curves: np.ndarray, knots: int = 256) -> np.ndarray:

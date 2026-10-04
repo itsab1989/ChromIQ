@@ -562,10 +562,130 @@ def _oracle_cache_key(meas: Ti3Measurement, source_gamut, settings,
             node_key)
 
 
+def _oracle_args(colprof: Path, settings, source_gamut) -> list[str]:
+    """The oracle's colprof command line, without the output base name."""
+    q = settings.quality if settings.quality in ("l", "m", "h") else "h"
+    args = [str(colprof), f"-q{q}"]
+    # Same source/intent/viewing surface the engine build was asked for.
+    # -s = perceptual only (colprof aliases saturation to it), -S =
+    # both; -nP/-nS say which SOURCE gamut each uses and never collapse
+    # the saturation table into the perceptual one (A-12).
+    flag = "-S" if getattr(settings, "sat_gamut", True) else "-s"
+    args += [flag, str(source_gamut)]
+    if getattr(settings, "perc_intent", ""):
+        args.append(f"-t{settings.perc_intent}")
+    if getattr(settings, "sat_intent", ""):
+        args.append(f"-T{settings.sat_intent}")
+    if getattr(settings, "src_viewing", ""):
+        args.append(f"-c{settings.src_viewing}")
+    if getattr(settings, "dst_viewing", ""):
+        args.append(f"-d{settings.dst_viewing}")
+    if getattr(settings, "perc_src_colorimetric", False):
+        args.append("-nP")
+    if getattr(settings, "sat_src_colorimetric", False):
+        args.append("-nS")
+    if getattr(settings, "illuminant", ""):
+        args += ["-i", settings.illuminant]
+    if getattr(settings, "observer", ""):
+        args += ["-o", settings.observer]
+    if getattr(settings, "fwa", False):
+        args.append(f"-f{settings.fwa_illum}" if settings.fwa_illum
+                    else "-f")
+    args += _k_args(settings)
+    return args
+
+
+class OracleRun:
+    """One colprof oracle run, started as soon as its inputs are known
+    (D-06, agent 8). colprof reads only the .ti3 file and the settings, never
+    the engine's model, so the build can start it before the forward fit and
+    let it run beside the engine's own work instead of after it; the tables
+    it writes are the same bytes either way. The child is registered in
+    ``_LIVE_CHILDREN`` (a quit kills it) and :meth:`close` kills it and
+    removes its temp folder if the build ends early or never needs it."""
+
+    def __init__(self, key, args: list[str], ti3_path) -> None:
+        import shutil
+        import subprocess
+        import tempfile
+        import time
+        self.key = key
+        self._td = tempfile.TemporaryDirectory(prefix="chromiq-oracle-")
+        self.base = Path(self._td.name) / "oracle"
+        shutil.copy(ti3_path, self.base.with_suffix(".ti3"))
+        self._log = open(self.base.with_suffix(".log"), "wb")
+        self._t0 = time.monotonic()
+        self.proc = subprocess.Popen([str(c) for c in args] + [str(self.base)],
+                                     stdin=subprocess.DEVNULL,
+                                     stdout=self._log,
+                                     stderr=subprocess.STDOUT)
+        _LIVE_CHILDREN.add(self.proc)
+
+    def wait(self) -> Path:
+        """The finished profile, or :class:`OracleUnavailable`."""
+        import subprocess
+        import time
+        from core.proc_text import decode_output
+        left = COLPROF_TIMEOUT_S - (time.monotonic() - self._t0)
+        try:
+            self.proc.wait(timeout=max(1.0, left))
+        except subprocess.TimeoutExpired as exc:
+            self.proc.kill()
+            self.proc.wait()
+            raise OracleUnavailable(
+                f"colprof did not finish within "
+                f"{int(COLPROF_TIMEOUT_S) // 60} minutes") from exc
+        finally:
+            _LIVE_CHILDREN.discard(self.proc)
+        if self.proc.returncode < 0:
+            raise OracleUnavailable("colprof was stopped")
+        icc = self.base.with_suffix(".icc")
+        if self.proc.returncode != 0 or not icc.exists():
+            self._log.flush()
+            text = decode_output(self.base.with_suffix(".log").read_bytes(),
+                                 what="colprof")
+            raise OracleUnavailable(f"colprof oracle failed: {text[:200]}")
+        return icc
+
+    def close(self) -> None:
+        try:
+            if self.proc.poll() is None:
+                self.proc.kill()
+                self.proc.wait()
+        except OSError:
+            pass
+        _LIVE_CHILDREN.discard(self.proc)
+        try:
+            self._log.close()
+        finally:
+            self._td.cleanup()
+
+
+def start_colprof_oracle(meas: Ti3Measurement, source_gamut, settings,
+                         argyll_bin, node_lab: np.ndarray | None
+                         ) -> OracleRun | None:
+    """Start the oracle colprof now, if :func:`fit_colprof_mappers` will
+    need it later for exactly these inputs; None when it will not (cached,
+    no binaries, a device colprof cannot build)."""
+    bin_dir = Path(argyll_bin) if argyll_bin else Path(
+        "/Applications/Argyll/bin")
+    colprof = bin_dir / "colprof"
+    if not colprof.exists() or not (bin_dir / "xicclu").exists():
+        return None
+    if meas.device_rep not in ("RGB", "CMY", "CMYK"):
+        return None
+    key = _oracle_cache_key(meas, source_gamut, settings, node_lab)
+    if key is None or key in _ORACLE_CACHE:
+        return None
+    return OracleRun(key, _oracle_args(colprof, settings, source_gamut),
+                     meas.path)
+
+
 def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
                         settings, argyll_bin: Path | str | None,
                         progress=None,
-                        node_lab: np.ndarray | None = None) -> dict:
+                        node_lab: np.ndarray | None = None,
+                        pending: "OracleRun | None" = None) -> dict:
     """Colprof-matched perceptual/saturation mappers (arm's-length oracle).
 
     Runs Argyll colprof as a subprocess on the same measurement with the
@@ -604,42 +724,14 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
     if progress:
         progress("Saturation table: matching colprof's rendering "
                      "(this runs Argyll colprof once in the background)…")
-    with tempfile.TemporaryDirectory() as td:
-        base = Path(td) / "oracle"
-        shutil.copy(meas.path, base.with_suffix(".ti3"))
-        q = settings.quality if settings.quality in ("l", "m", "h") else "h"
-        args = [str(colprof), f"-q{q}"]
-        # Same source/intent/viewing surface the engine build was asked for.
-        # -s = perceptual only (colprof aliases saturation to it), -S =
-        # both; -nP/-nS say which SOURCE gamut each uses and never collapse
-        # the saturation table into the perceptual one (A-12).
-        flag = "-S" if getattr(settings, "sat_gamut", True) else "-s"
-        args += [flag, str(source_gamut)]
-        if getattr(settings, "perc_intent", ""):
-            args.append(f"-t{settings.perc_intent}")
-        if getattr(settings, "sat_intent", ""):
-            args.append(f"-T{settings.sat_intent}")
-        if getattr(settings, "src_viewing", ""):
-            args.append(f"-c{settings.src_viewing}")
-        if getattr(settings, "dst_viewing", ""):
-            args.append(f"-d{settings.dst_viewing}")
-        if getattr(settings, "perc_src_colorimetric", False):
-            args.append("-nP")
-        if getattr(settings, "sat_src_colorimetric", False):
-            args.append("-nS")
-        if getattr(settings, "illuminant", ""):
-            args += ["-i", settings.illuminant]
-        if getattr(settings, "observer", ""):
-            args += ["-o", settings.observer]
-        if getattr(settings, "fwa", False):
-            args.append(f"-f{settings.fwa_illum}" if settings.fwa_illum
-                        else "-f")
-        args += _k_args(settings)
-        r = _run_argyll(args + [str(base)], capture_output=True, timeout=COLPROF_TIMEOUT_S)
-        icc = base.with_suffix(".icc")
-        if r.returncode != 0 or not icc.exists():
-            raise OracleUnavailable(
-                f"colprof oracle failed: {(r.stderr or r.stdout)[:200]}")
+    run = pending if (pending is not None and cache_key is not None
+                      and pending.key == cache_key) else None
+    own = run is None
+    if own:
+        run = OracleRun(cache_key, _oracle_args(colprof, settings,
+                                                source_gamut), meas.path)
+    try:
+        icc = run.wait()
 
         # Real source colours: random source-device values through the
         # source profile (never random Lab — impossible colours), plus a
@@ -668,8 +760,15 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
 
         if progress:
             progress("Saturation table: fitting the matched rendering…")
-        out = {"B2A0": WarpMapper(train, realized("p")),
-               "B2A2": WarpMapper(train, realized("s"))}
+        if node_lab is not None:
+            # D-06 (agent 8): with exact node targets the warp only answers
+            # off-node queries (-nI); fit it on first use. Same inputs, same
+            # fit, same bytes; 2-3 s of CPU saved on every other build.
+            out = {"B2A0": _LazyWarp(train, realized("p")),
+                   "B2A2": _LazyWarp(train, realized("s"))}
+        else:
+            out = {"B2A0": WarpMapper(train, realized("p")),
+                   "B2A2": WarpMapper(train, realized("s"))}
         # Exact node targets: sample colprof's realized mapping AT the CLUT
         # nodes the profile will carry — the tables then reproduce colprof's
         # values up to quantisation, and the warp only serves smooth
@@ -684,6 +783,9 @@ def fit_colprof_mappers(meas: Ti3Measurement, source_gamut: Path | str,
                 _ORACLE_CACHE.pop(next(iter(_ORACLE_CACHE)))
             _ORACLE_CACHE[cache_key] = out
         return out
+    finally:
+        if own:
+            run.close()
 
 
 def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
@@ -701,6 +803,27 @@ def _realized_at(xicclu: Path, icc: Path, lab: np.ndarray, intent: str,
     if len(out) != len(lab):
         raise OracleUnavailable("node sampling failed")
     return out
+
+
+class _LazyWarp:
+    """A :class:`WarpMapper` fitted the first time it is asked anything."""
+
+    def __init__(self, train_lab: np.ndarray, target_lab: np.ndarray) -> None:
+        self._args = (train_lab, target_lab)
+        self._warp: WarpMapper | None = None
+
+    def _get(self) -> WarpMapper:
+        if self._warp is None:
+            self._warp = WarpMapper(*self._args)
+        return self._warp
+
+    def map_lab(self, lab: np.ndarray) -> np.ndarray:
+        return self._get().map_lab(lab)
+
+    def __getattr__(self, name):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return getattr(self._get(), name)
 
 
 class _ExactNodeMapper:
@@ -868,7 +991,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      a2b_grid: int | None = None,
                      a2b_entries: int | None = None,
                      anchor: dict | None = None,
-                     channel_max: np.ndarray | None = None) -> dict:
+                     channel_max: np.ndarray | None = None,
+                     oracle_run: "OracleRun | None" = None) -> dict:
     """Mapped tables per intent → dict of mft2 tags/aliases for the writer.
 
     Returns entries for ``B2A0``/``B2A2`` (bytes or the alias string
@@ -967,13 +1091,14 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             cp = fit_colprof_mappers(
                 meas, source_gamut, settings,
                 getattr(settings, "argyll_bin", None), progress,
-                node_lab=node_lab)
+                node_lab=node_lab, pending=oracle_run)
             for tag, m in cp.items():
                 oracle.setdefault(tag, m)
         except OracleUnavailable as exc:
             if progress:
                 progress(f"Using the engine's own rendering ({exc}).")
 
+    jobs: list[str] = []
     for tag, intent, s_int, default_kw in (
             ("B2A0", getattr(settings, "perc_intent", ""), perc_int, {}),
             ("B2A2", getattr(settings, "sat_intent", ""), sat_int,
@@ -995,13 +1120,21 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         elif mapper is None:
             src = source_surface_from_profile(source_gamut, intent=s_int)
             mapper = _mapper_for(intent, default_kw, src, dst, settings)
-            if anchor is not None and isinstance(mapper, GamutMapper):
+            anchor_v = anchor() if callable(anchor) else anchor
+            if anchor_v is not None and isinstance(mapper, GamutMapper):
                 # +N: colprof-anchored neutral rendering (CMYK proxy).
-                mapper.neutral_table = anchor
+                mapper.neutral_table = anchor_v
         if mapper is None:
             out[tag] = "B2A1"
             continue
         mappers[tag] = mapper
+        jobs.append(tag)
+
+    def _map_and_invert(tag: str):
+        """One intent's table: map the node targets, invert them. Each
+        intent reads only its own mapper and the (unchanged) model, so the
+        two intents can run side by side with the same bytes (D-06)."""
+        mapper = mappers[tag]
         if progress is not None and getattr(mapper, "expensive_map", False):
             # The helper rebuilds Argyll's new_gammap per call (~20 s).
             progress(f"Gamut mapping: matching source colours "
@@ -1035,6 +1168,18 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             out_tables=(np.tile(icw._identity_table(entries),
                                 (model.n_channels, 1)) if no_out_shaper
                         else icw.curves_to_tables(inv_curves, entries)))
+        return tag
+
+    from workflow.profile_engine import parallel
+    if accurate and len(jobs) > 1:
+        parallel.run_tasks([(lambda t=t: _map_and_invert(t)) for t in jobs])
+    else:
+        for t in jobs:
+            _map_and_invert(t)
+    # The tags in the serial order (B2A0 before B2A2), whichever intent
+    # finished first: the writer keeps insertion order.
+    out = {t: out[t] for t in ("B2A0", "B2A2") if t in out} | {
+        k: v for k, v in out.items() if k not in ("B2A0", "B2A2")}
 
     if getattr(settings, "inverse_gamut_a2b", False) and mappers \
             and a2b_grid is not None:
