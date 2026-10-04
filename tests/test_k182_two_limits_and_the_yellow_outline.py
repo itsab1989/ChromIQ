@@ -258,7 +258,7 @@ def test_a_profile_made_chart_is_judged_by_the_accurate_limit(tmp_path):
     tab = _tab(tmp_path, accurate=True)
     tab._on_strip_measured(_strip("A"))
     info = _info(tab, "A17")
-    assert info["warn_de"] == 30.0 and info["accurate"] is True
+    assert info["warn_de"] == 20.0 and info["accurate"] is True
     red = [l for l, f in _flags(tab).items() if f]
     assert "A17" in red and len(red) > 2
 

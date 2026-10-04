@@ -33,17 +33,20 @@ def _limits(s: AppSettings) -> "tuple[float, float]":
             float(s.get("patch_read_warn_de_accurate")))
 
 
-def test_the_defaults_are_argyllcms_own_thresholds():
+def test_the_defaults():
     assert DEFAULTS["patch_read_warn_de_estimated"] == 95.0     # WERR_TH
-    assert DEFAULTS["patch_read_warn_de_accurate"] == 30.0      # ACC_WERR_TH
+    # Beta 11 (Knut #182 5983470377): 20, no longer ACC_WERR_TH's 30, and a
+    # third limit for a verification judged against its profile.
+    assert DEFAULTS["patch_read_warn_de_accurate"] == 20.0
+    assert DEFAULTS["patch_read_warn_de_prediction"] == 10.0
     assert "patch_read_warn_de" not in DEFAULTS
-    assert SETTINGS_SCHEMA >= 25
+    assert SETTINGS_SCHEMA >= 26
 
 
 def test_a_changed_old_limit_becomes_the_estimated_limit(tmp_path):
     s = _settings(tmp_path, 40.0)
     dropped = s.migrate()
-    assert _limits(s) == (40.0, 30.0)
+    assert _limits(s) == (40.0, 20.0)
     assert s._qs.value("patch_read_warn_de", None) is None
     assert any("patch_read_warn_de" in d for d in dropped)
 
@@ -52,14 +55,14 @@ def test_a_raised_old_limit_is_kept_too(tmp_path):
     # Before schema 25 the floor migration would have thrown 70 away.
     s = _settings(tmp_path, 70.0)
     s.migrate()
-    assert _limits(s) == (70.0, 30.0)
+    assert _limits(s) == (70.0, 20.0)
 
 
 def test_the_old_default_gives_both_new_defaults(tmp_path):
     # Settings ▸ Save writes every key, so a stored 50 is simply the default.
     s = _settings(tmp_path, 50.0)
     s.migrate()
-    assert _limits(s) == (95.0, 30.0)
+    assert _limits(s) == (95.0, 20.0)
     assert s._qs.value("patch_read_warn_de", None) is None
     assert s._qs.value("patch_read_warn_de_estimated", None) is None
 
@@ -67,19 +70,19 @@ def test_the_old_default_gives_both_new_defaults(tmp_path):
 def test_an_echo_of_the_older_default_20_gives_the_new_defaults(tmp_path):
     s = _settings(tmp_path, 20.0, schema=7)
     s.migrate()
-    assert _limits(s) == (95.0, 30.0)
+    assert _limits(s) == (95.0, 20.0)
 
 
 def test_a_lowered_value_from_an_old_schema_is_kept(tmp_path):
     s = _settings(tmp_path, 10.0, schema=7)
     s.migrate()
-    assert _limits(s) == (10.0, 30.0)
+    assert _limits(s) == (10.0, 20.0)
 
 
 def test_nothing_stored_gives_the_new_defaults(tmp_path):
     s = _settings(tmp_path, None)
     assert s.migrate() is not None
-    assert _limits(s) == (95.0, 30.0)
+    assert _limits(s) == (95.0, 20.0)
 
 
 def test_it_runs_once(tmp_path):
@@ -87,4 +90,37 @@ def test_it_runs_once(tmp_path):
     s.migrate()
     s._qs.setValue("patch_read_warn_de_estimated", 60.0)   # the user moves on
     s.migrate()
-    assert _limits(s) == (60.0, 30.0)
+    assert _limits(s) == (60.0, 20.0)
+
+
+# ---- schema 26 (beta 11, Knut #182 5983470377) ----------------------------
+def _settings26(tmp_path: Path, **stored) -> AppSettings:
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s26.ini"), QSettings.Format.IniFormat)
+    s._qs.setValue("settings_schema", 25)
+    for k, v in stored.items():
+        s._qs.setValue(k, v)
+    return s
+
+
+def test_a_stored_echo_of_30_becomes_20(tmp_path):
+    # Preferences ▸ Save writes every key: a stored 30 is the old default.
+    s = _settings26(tmp_path, patch_read_warn_de_accurate=30.0)
+    s.migrate()
+    assert float(s.get("patch_read_warn_de_accurate")) == 20.0
+    assert s._qs.value("patch_read_warn_de_accurate", None) is None
+
+
+@pytest.mark.parametrize("own", [12.0, 25.0, 40.0])
+def test_a_limit_the_user_chose_is_kept(tmp_path, own):
+    s = _settings26(tmp_path, patch_read_warn_de_accurate=own)
+    s.migrate()
+    assert float(s.get("patch_read_warn_de_accurate")) == own
+
+
+def test_the_verification_limit_is_new_and_takes_nobodys_old_value(tmp_path):
+    s = _settings26(tmp_path, patch_read_warn_de_accurate=12.0,
+                    patch_read_warn_de_estimated=60.0)
+    s.migrate()
+    assert float(s.get("patch_read_warn_de_prediction")) == 10.0
+    assert s._qs.value("patch_read_warn_de_prediction", None) is None

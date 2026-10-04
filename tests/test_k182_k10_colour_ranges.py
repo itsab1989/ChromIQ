@@ -379,7 +379,12 @@ def test_the_card_lines_are_the_proposed_messages():
              mm._CARD_VERIFY_RED_3, mm._CARD_VERIFY_SAME_1,
              mm._CARD_VERIFY_SAME_2, mm._CARD_VERIFY_YELLOW_1,
              mm._CARD_VERIFY_YELLOW_2, mm._CARD_VERIFY_YELLOW_3,
-             mm._CARD_VERIFY_YELLOW_4, mm._CARD_VERIFY_LEARNED]
+             mm._CARD_VERIFY_YELLOW_4, mm._CARD_VERIFY_LEARNED,
+             mm._CARD_LATER_PROFILE_1, mm._CARD_LATER_PROFILE_2,
+             mm._CARD_LATER_PROFILE_3, mm._CARD_LATER_PROFILE_4,
+             mm._CARD_LATER_PROFILE_5, mm._CARD_LATER_PROFILE_6,
+             mm._CARD_LATER_PROFILE_SAME_1, mm._CARD_LATER_PROFILE_SAME_2,
+             mm._CARD_LATER_PROFILE_YELLOW_1, mm._CARD_LATER_PROFILE_YELLOW_2]
     assert msg.body.split("\n") == lines
     assert msg.title == mm._CARD_RANGE
     for line in lines + [msg.title]:

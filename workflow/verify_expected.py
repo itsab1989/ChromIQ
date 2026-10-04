@@ -6,7 +6,9 @@ Approved by Knut on #182 (questions of 5963902307, answered in 5964173774 and
 1. A verification chart ChromIQ printed is judged, patch by patch while it is
    read, against **the run profile's own prediction** of the ink values that
    were really sent to the printer (forward table, absolute colorimetric), at
-   the "chart made from a profile" limit (ΔE 30 by default). Today's sRGB
+   its own limit, "a verification judged against its profile" (ΔE 10 by
+   default since beta 11, Knut 5983470377; before, the "chart made from a
+   profile" limit, ΔE 30). Today's sRGB
    estimate at the other limit (ΔE 95) stays the fallback.
 2. The fallback is also taken for a profile built under another light: an
    illuminant other than D50 (colprof ``-i``), another observer (``-o``) or
@@ -398,8 +400,8 @@ def live_expected(ti2: "str | Path", record_ti3: "str | Path", run, *,
         result = estimate(f"the prediction failed: {exc}")
     if result.is_prediction:
         log.info("verification expected colours: the profile's prediction "
-                 "(%s; %d patches, limit for a chart made from a profile, "
-                 "strip outlier test off) for %s", result.reason,
+                 "(%s; %d patches, limit for a verification judged against its "
+                 "profile, strip outlier test off) for %s", result.reason,
                  len(result.by_loc), Path(ti2).name)
     else:
         log.info("verification expected colours: the chart's sRGB estimate "

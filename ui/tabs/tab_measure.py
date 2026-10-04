@@ -265,8 +265,9 @@ _ALL_DONE_SOUND_GAP_MS = 500
 # THE FLOOR IS TWO NUMBERS SINCE #182 (Sebastian 5956560815, Knut 5956552085):
 # one for a chart whose expected colours are ArgyllCMS's estimate (default 95)
 # and one for a chart made from a profile, ACCURATE_EXPECTED_VALUES (default
-# 30). The chart's own file decides which; see workflow/patch_flags.py and
-# TabMeasure._patch_warn_limit.
+# 30, 20 since beta 11). The chart's own file decides which; see
+# workflow/patch_flags.py and TabMeasure._patch_warn_limit. A third, default
+# 10, is for a verification judged against its profile's prediction (beta 11).
 
 #: The dark-reference threshold moved with the window that reads it, to
 #: ``ui/cr30_calibration.py``. One constant, wherever the calibration runs
@@ -15360,11 +15361,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         limit for a chart with estimated expected colours, or for a chart made
         from a profile, as the chart's own file says."""
         from workflow.patch_flags import warn_limit
-        # A verification chart judged against the profile's prediction takes
-        # the limit for accurate expected colours (Knut, #182 5964384250:
-        # "outline every patch above 30").
-        return warn_limit(self._settings, self._chart_expected_is_accurate()
-                          or self._expected_is_predicted())
+        # A verification chart judged against the profile's prediction has
+        # its own limit, default 10 (beta 11, Knut #182 5983470377: "yes, 10,
+        # and own threshold row"); before, it took the limit for a chart
+        # made from a profile (5964384250).
+        return warn_limit(self._settings, self._chart_expected_is_accurate(),
+                          predicted=self._expected_is_predicted())
 
     # ------------------------------------------------------------------
     # The expected colour of a verification patch (#182, Knut 5964173774)

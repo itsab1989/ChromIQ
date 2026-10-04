@@ -6458,6 +6458,31 @@ What *does* transfer:
 
 ## 10. The patch outline in the live preview: red, and yellow (#182)
 
+### Confirmed behaviour — three limits: a verification's own row, and 20 for a chart made from a profile (beta 11)
+
+**Confirmed by:** Knut, 2026-10-04, #182 [5983470377](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983470377), answers 1 and 2 to the questions of [5983075893](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983075893). Only these two points; they amend 10.1 and point 1 of 10.8.
+
+1. **A verification judged against its profile has its own limit** (answer 1:
+   *"yes, 10, and own threshold row for this in Preferences --> Measurements
+   "Flag a patch when..."*). A third row under *"Flag a patch when its colour
+   error reaches:"*, *on a verification judged against its profile*, default
+   **ΔE 10**. It applies exactly when the expected colours are the run
+   profile's prediction (10.8), whatever the chart file says; the strip
+   outlier test stays off for it (10.8 point 3). A new key
+   (`patch_read_warn_de_prediction`): nobody's earlier limit is carried into
+   it. A verification that falls back to the chart's estimate takes the limit
+   its chart file names, as before.
+2. **The limit for a chart made from a profile is ΔE 20** (answer 2: *"If your
+   tests indicate 20, then use it."*), no longer ArgyllCMS's 30. Settings
+   schema 26: a stored 30 is an echo of the old default (Preferences ▸ Save
+   writes every key) and falls through to 20; any other value is the user's
+   and is kept. Which charts this limit covers: those whose `.ti2` or `.ti1`
+   carries `ACCURATE_EXPECTED_VALUES "true"`, which only ArgyllCMS targen
+   writes, and only when it is given a pre-conditioning profile (`-c`):
+   a chart made after "Use as pre-conditioning profile", or with Manual
+   targen `-c`. A FROM PROFILE GAMUT chart (written by ChromIQ, not targen)
+   never carries it.
+
 ### ⏳ Awaiting confirmation — two limits, and the yellow outline
 
 **Confirmed by:** *nobody yet.*

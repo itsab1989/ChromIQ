@@ -10,7 +10,10 @@ profile of the printer) or, when targen was given a profile, accurate enough
 that targen marks the chart ``ACCURATE_EXPECTED_VALUES "true"``. ArgyllCMS's
 own chartread warns at ΔE 95 for the first kind and ΔE 30 for the second
 (``WERR_TH`` / ``ACC_WERR_TH``, ``native/chartread_helper/chromiq_chartread.c``),
-so those are the two defaults. The chart file decides which one applies.
+so those were the two defaults; beta 11 lowered the second to 20 (Knut
+5983470377). The chart file decides which one applies. A third limit, default
+10, is for a verification judged against its profile's prediction (beta 11,
+Knut 5983470377): it applies whatever the chart file says.
 
 **B. Yellow** (Sebastian 5956560815 approving proposal B; Knut 5956831467).
 A red patch that is read again and comes back with the same colour is not a
@@ -128,11 +131,21 @@ from pathlib import Path
 
 from workflow.icc_info import xyz_to_lab
 
-#: The ArgyllCMS thresholds the two defaults follow.
+#: The estimated-chart default is ArgyllCMS chartread's own WERR_TH. The
+#: made-from-a-profile default was its ACC_WERR_TH (30) until beta 11, when it
+#: became 20 (Knut, #182 5983470377, answer 2: "If your tests indicate 20,
+#: then use it"; the replay of 5983075893 recommended 20).
 ESTIMATED_DEFAULT_DE = 95.0
-ACCURATE_DEFAULT_DE = 30.0
+ACCURATE_DEFAULT_DE = 20.0
 ESTIMATED_KEY = "patch_read_warn_de_estimated"
 ACCURATE_KEY = "patch_read_warn_de_accurate"
+#: A VERIFICATION judged against the run profile's prediction
+#: (workflow/verify_expected.py) has its own limit, default ΔE 10 (Knut, #182
+#: 5983470377, answer 1: "yes, 10, and own threshold row"). Used exactly when
+#: the expected colours are the profile's prediction, whatever the chart file
+#: says; the strip outlier test stays off for it (5964384250).
+PREDICTION_DEFAULT_DE = 10.0
+PREDICTION_KEY = "patch_read_warn_de_prediction"
 
 #: Two readings of one patch this close (ΔE*ab between the two MEASURED
 #: colours) are the same reading. Stricter than comparing the two ΔE values,
@@ -245,10 +258,17 @@ def chart_has_accurate_expected_values(chart: "str | Path | None") -> bool:
     return bool(_ACCURATE_RE.search(_header(ti2.with_suffix(".ti1"))))
 
 
-def warn_limit(settings, accurate: bool) -> float:
-    """The user's limit for this kind of chart (Preferences ▸ Measurement)."""
-    key, default = ((ACCURATE_KEY, ACCURATE_DEFAULT_DE) if accurate
-                    else (ESTIMATED_KEY, ESTIMATED_DEFAULT_DE))
+def warn_limit(settings, accurate: bool, predicted: bool = False) -> float:
+    """The user's limit for this kind of chart (Preferences ▸ Measurement):
+    a verification judged against its profile's prediction (*predicted*)
+    first, then a chart made from a profile (*accurate*), else a chart with
+    estimated colours."""
+    if predicted:
+        key, default = PREDICTION_KEY, PREDICTION_DEFAULT_DE
+    elif accurate:
+        key, default = ACCURATE_KEY, ACCURATE_DEFAULT_DE
+    else:
+        key, default = ESTIMATED_KEY, ESTIMATED_DEFAULT_DE
     try:
         return float(settings.get(key, default))
     except (TypeError, ValueError):

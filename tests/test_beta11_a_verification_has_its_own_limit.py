@@ -1,0 +1,92 @@
+"""Three patch-read limits (beta 11, Knut #182 5983470377).
+
+Answer 1: *"yes, 10, and own threshold row for this in Preferences -->
+Measurements "Flag a patch when..."*: a verification judged against its
+profile's prediction has its own limit, default ΔE 10, used exactly when the
+expected colours are that prediction. Answer 2: the limit for a chart made
+from a profile is 20, no longer ArgyllCMS's 30.
+"""
+from __future__ import annotations
+
+import os
+
+import pytest
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from workflow import patch_flags as pf                       # noqa: E402
+from workflow import verify_expected as ve                   # noqa: E402
+
+
+@pytest.fixture(scope="module")
+def qapp():
+    from PyQt6.QtWidgets import QApplication
+    return QApplication.instance() or QApplication([])
+
+
+class _S(dict):
+    def get(self, k, default=None):
+        return super().get(k, default)
+
+
+def test_the_defaults():
+    assert pf.PREDICTION_DEFAULT_DE == 10.0
+    assert pf.ACCURATE_DEFAULT_DE == 20.0
+    assert pf.ESTIMATED_DEFAULT_DE == 95.0
+    assert pf.warn_limit(_S(), False) == 95.0
+    assert pf.warn_limit(_S(), True) == 20.0
+    assert pf.warn_limit(_S(), False, predicted=True) == 10.0
+
+
+@pytest.mark.parametrize("accurate", [False, True])
+def test_the_prediction_decides_whatever_the_chart_file_says(accurate):
+    s = _S(patch_read_warn_de_estimated=90.0, patch_read_warn_de_accurate=25.0,
+           patch_read_warn_de_prediction=7.5)
+    assert pf.warn_limit(s, accurate, predicted=True) == 7.5
+    assert pf.warn_limit(s, accurate) == (25.0 if accurate else 90.0)
+
+
+def test_the_tab_uses_the_verification_limit_only_for_a_prediction(qapp, tmp_path):
+    import test_k182_verify_expected_prediction as t
+    tab = t._tab(tmp_path, {"chartread_engine": "chromiq",
+                            "patch_warn_outlier_fence": True,
+                            "patch_read_warn_de_prediction": 12.0})
+    tab._live_expected = ve.LiveExpected(ve.SOURCE_PREDICTION, "t", t.PRED)
+    assert tab._patch_warn_limit() == 12.0
+    assert tab._use_outlier_fence() is False          # strip test stays off
+    tab._on_strip_measured(t._shifted_strip("A"))
+    assert t._info(tab, "A1")["warn_de"] == 12.0
+    # The fallbacks (no record, profile newer) take the chart's own limit.
+    for fallback in (ve.estimate("no record"),
+                     ve.estimate("newer", profile_newer=True), None):
+        tab._live_expected = fallback
+        assert tab._patch_warn_limit() == 95.0
+
+
+def test_preferences_show_and_save_the_third_row(qapp, monkeypatch):
+    from PyQt6.QtWidgets import QDialog, QLabel
+    from core.settings import AppSettings
+    from ui.dialogs.settings_dialog import SettingsDialog
+    monkeypatch.setattr(QDialog, "accept", lambda self: None)
+    s = AppSettings()
+    s.set("patch_read_warn_de_prediction", 14.0)
+    d = SettingsDialog(s, None)
+    try:
+        assert d._patch_warn_pred_spin.value() == 14.0
+        texts = {w.text() for w in d.findChildren(QLabel)}
+        assert "on a verification judged against its profile:" in texts
+        d._patch_warn_pred_spin.setValue(8.0)
+        d._save_and_close()
+        assert float(s.get("patch_read_warn_de_prediction")) == 8.0
+    finally:
+        d.deleteLater()
+
+
+def test_the_help_names_three_limits_and_the_new_defaults():
+    import inspect
+    from ui.dialogs import settings_dialog
+    src = inspect.getsource(settings_dialog)
+    assert "THREE LIMITS, FOR THREE KINDS OF CHART" in src
+    assert "TWO LIMITS" not in src
+    assert ("20 ΔE for a chart made \"\n            \"from a profile, 10 ΔE for a "
+            "verification") in src

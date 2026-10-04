@@ -520,23 +520,23 @@ def _info(tab, loc):
     raise AssertionError(loc)
 
 
-def test_the_fence_is_ignored_and_the_limit_is_30_on_a_predicted_chart(qapp, tmp_path):
+def test_the_fence_is_ignored_and_the_limit_is_10_on_a_predicted_chart(qapp, tmp_path):
     tab = _tab(tmp_path, {"chartread_engine": "chromiq",
                           "patch_warn_outlier_fence": True})
     tab._live_expected = ve.LiveExpected(ve.SOURCE_PREDICTION, "t", PRED)
     assert tab._use_outlier_fence() is False
-    assert tab._patch_warn_limit() == 30.0
+    assert tab._patch_warn_limit() == 10.0
     tab._on_strip_measured(_shifted_strip("A"))
     des = {loc: _info(tab, loc)["de"] for loc in ("A1", "A2", "A3", "A4")}
     for loc, d in des.items():
         want = engine_patch_de(PRED[loc], [v * 0.3 for v in PRED[loc]])
         assert d == pytest.approx(want, abs=0.01)            # against the prediction
     flagged = sorted(l for l, f in _flags(tab).items() if f)
-    assert flagged == sorted(l for l, d in des.items() if d >= 30.0)
+    assert flagged == sorted(l for l, d in des.items() if d >= 10.0)
     assert len(flagged) >= 3                                 # the whole strip is off
     assert _info(tab, "A2")["exp_lab"][2] == pytest.approx(
         _lab(PRED["A2"])[2], abs=0.01)
-    assert _info(tab, "A1")["fenced"] is False and _info(tab, "A1")["warn_de"] == 30.0
+    assert _info(tab, "A1")["fenced"] is False and _info(tab, "A1")["warn_de"] == 10.0
 
 
 def _lab(xyz):
@@ -573,8 +573,8 @@ def test_the_fence_still_rules_every_other_chart(qapp, tmp_path):
         p["exyz"] = list(PRED[p["loc"]])
         p["de"] = round(engine_patch_de(p["exyz"], p["xyz"]), 2)
     acc._on_strip_measured(ev)
-    assert acc._patch_warn_limit() == 30.0 and acc._use_outlier_fence() is True
-    over = [p["loc"] for p in ev["patches"] if p["de"] >= 30.0]
+    assert acc._patch_warn_limit() == 20.0 and acc._use_outlier_fence() is True
+    over = [p["loc"] for p in ev["patches"] if p["de"] >= 20.0]
     flagged = [l for l, f in _flags(acc).items() if f]
     assert len(over) >= 3 and len(flagged) < len(over)
 
