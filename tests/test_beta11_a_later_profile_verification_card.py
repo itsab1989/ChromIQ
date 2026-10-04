@@ -141,3 +141,15 @@ def test_the_lines_are_in_the_catalogue_short_and_translated():
         assert len(line) <= 44 and "—" not in line
         for cat in cats:
             assert line in cat
+
+
+def test_an_unreadable_print_date_is_not_called_a_later_profile(tmp_path):
+    """Review of beta 11: a raw print whose date cannot be read falls back to
+    the estimate, but nothing shows the profile was made after it, so the
+    card must not say so."""
+    import test_k182_verify_expected_prediction as t
+    run, ti2, ti3, bin_dir = t._project(tmp_path / "raw", colour="raw",
+                                        printed_at="not a date")
+    le = ve.live_expected(ti2, ti3, run, bin_dir=bin_dir, runner=t._Tools(),
+                          use_cache=False)
+    assert not le.is_prediction and not le.profile_newer

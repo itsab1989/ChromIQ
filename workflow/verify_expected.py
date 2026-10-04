@@ -445,7 +445,13 @@ def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
     else:
         printed = _parse_iso(rec.get("printed_at"))
         built = _parse_iso(_mtime_iso(profile))
-        if printed is None or built is None or built > printed:
+        if printed is None or built is None:
+            # Not known to be newer: the card must not say "the profile was
+            # made after this sheet was printed" (review of beta 11).
+            return estimate("the print or the profile has no readable date, "
+                            "so the profile cannot be shown to predate the "
+                            "print")
+        if built > printed:
             return estimate("the profile has changed since the sheet was "
                             "printed (it is newer than the print)",
                             profile_newer=True)
