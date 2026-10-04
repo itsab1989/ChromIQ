@@ -53,7 +53,6 @@ _NO_FOLLOW = ({"follow_symlinks": False}
     REPO / ".claude" / "worktrees" / "someone-elses",
     Path("/private/tmp") / "notours",
 ])
-
 def test_personal_and_foreign_places_are_refused(path):
     assert not S.is_ours(path)
 
