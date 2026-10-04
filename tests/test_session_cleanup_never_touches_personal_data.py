@@ -221,7 +221,7 @@ def test_a_dry_run_with_an_open_stdin_does_not_wait_for_it():
     script = Path(__file__).resolve().parents[1] / "scripts" / "session_cleanup.py"
     proc = subprocess.Popen([sys.executable, str(script), "--quiet"],
                             stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True)
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8")
     try:
         # Not communicate(): it closes stdin, which is exactly what an
         # agent's shell does not do. Keep it open and wait for the exit.
