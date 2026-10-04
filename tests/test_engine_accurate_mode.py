@@ -354,6 +354,14 @@ def test_accurate_rgb_build_end_to_end(tmp_path):
 # threshold is wrong is for the benchmark to decide, see
 # ~/Desktop/ProfileEngineResearch/Findings/F-00-*.md. Strict, so a change
 # either way turns this red.
+# Measured 2026-10-03 (Findings/agent5-03, item 4): NOT the B2A refit. With
+# the neutral column fixed by the continuation walk and anchored, the raw
+# step is still 0.58 (0.585 with the refit pinned to every per-node value);
+# with the -kr rule on the same chart it is 0.28 (printed 0.39 per 0.25 L*,
+# no reversal). The step is the default late-GCR K locus meeting this
+# fixture's ink-limit face (solid K prints L* 39), and it PRINTS (1.0 dE00
+# per 0.25 L*, 11 L* reversals), so the xfail stays: it is a real fault of
+# the default K rule on a weak-black printer, not of this threshold.
 @pytest.mark.xfail(strict=True, reason="research finding F-00: neutral-column "
                    "jump after the accurate CMYK black-depth fix (37357e92)")
 def test_accurate_cmyk_build_and_separation_smoothness(tmp_path):

@@ -237,8 +237,15 @@ def _gauss_newton(model: ForwardModel, target: np.ndarray, seed: np.ndarray,
             # other channels. Drop the outward-pointing pinned columns and
             # re-solve; channels wanting to move inward stay free (that is
             # the stall fix).
+            # A channel is pinned at ITS OWN ceiling, not at 1.0: under a
+            # black ink limit (-L) the K channel sits at e.g. 0.70 and an
+            # outward step there must leave the face constraint too, or
+            # the KKT step hands K ink the clip then removes and C/M/Y
+            # never receive the total-ink budget (research agent5-02 E6:
+            # S3 -L70 black L* 21.3 -> 14.3, X3 a green 18.0 -> 9.6).
             eps = 1e-9
-            bad = (((d[:, free] >= 1.0 - eps) & (step > 0))
+            top = 1.0 if channel_max is None else channel_max[free]
+            bad = (((d[:, free] >= top - eps) & (step > 0))
                    | ((d[:, free] <= eps) & (step < 0)))
             if bad.any():
                 jac_m = jac * (~bad)[:, None, :]
@@ -582,6 +589,87 @@ def invert_to_device(model: ForwardModel, target: np.ndarray, *,
     return d, residual
 
 
+def neutral_axis(model: ForwardModel, *, step: float = 0.5,
+                 **inv_kw) -> dict:
+    """The neutral axis of an ink device, solved once by continuation.
+
+    Walks a* = b* = 0 from paper white (device 0) down in ``step`` L*
+    increments; every solve is seeded with the previous solution, so the
+    separation changes continuously along the axis (no metameric jump
+    between neighbouring L*, whatever the channel count) and a light tint
+    is never seeded from a 25 % mesh point. The darkest L* that still
+    converges neutral (residual < 0.5 ΔE76, model C* < 1) is the device's
+    NEUTRAL BLACK under its limits: colprof's Lmin (xicc/xlut.c,
+    efv_wh_bk_points) where the engine used the darkest measured patch,
+    which is usually chromatic. ``inv_kw`` are :func:`invert_to_device`'s
+    keywords. Returns ``l`` (targets, light to dark), ``dev``, ``ok``,
+    ``l_black`` (model L* of the neutral black), ``black`` (its device
+    value). Research agent5-03 item 5.
+    """
+    n = model.n_channels
+    ls = np.arange(100.0, -1e-9, -step)
+    dev = np.zeros((len(ls), n))
+    res = np.zeros(len(ls))
+    cur = np.zeros((1, n))
+    kw = {k: v for k, v in inv_kw.items()
+          if k not in ("node_lab", "progress", "seed")}
+    for i, lv in enumerate(ls):
+        d, r = invert_to_device(model, np.array([[lv, 0.0, 0.0]]),
+                                seed=cur.copy(), **kw)
+        dev[i], res[i] = d[0], r[0]
+        cur = d
+    lab = model.predict(dev)
+    ok = (res < 0.5) & (np.hypot(lab[:, 1], lab[:, 2]) < 1.0)
+    if not ok.any():
+        return {"l": ls, "dev": dev, "ok": ok, "l_black": None,
+                "black": None}
+    last = int(np.flatnonzero(ok)[-1])
+    return {"l": ls, "dev": dev, "ok": ok, "l_black": float(lab[last, 0]),
+            "black": dev[last].copy()}
+
+
+def apply_neutral_axis(dev_clut: np.ndarray, node_lab: np.ndarray,
+                       axis: dict, model: ForwardModel,
+                       **inv_kw) -> np.ndarray:
+    """Put the continuation solution on the B2A neutral column.
+
+    Column nodes (C* < 1) at or above the neutral black take the walk's
+    device value at their L*; column nodes darker than it take the neutral
+    black itself, and near-neutral nodes (C* < 5) darker than it are
+    re-inverted at the neutral black's L* with their own a*, b*: the dark
+    end of the axis is clipped ALONG the axis instead of onto the nearest
+    (often chromatic) vertex of the ink-limit face (research agent5-01 P3:
+    X3 black L* 8.8 a* -12 -> 5.3 neutral). Returns the indices of the
+    nodes it set (the refit anchors them). The caller keeps the residual
+    measured against the original targets (gamt stays a distance).
+    """
+    if axis.get("black") is None:
+        return np.array([], dtype=int)
+    l_nb = axis["l_black"]
+    chroma = np.hypot(node_lab[:, 1], node_lab[:, 2])
+    col = np.flatnonzero(chroma < 1.0)
+    set_idx = []
+    for i in col:
+        lt = node_lab[i, 0]
+        if lt < l_nb:
+            dev_clut[i] = axis["black"]
+            set_idx.append(i)
+            continue
+        j = int(np.argmin(np.abs(axis["l"] - lt)))
+        if abs(axis["l"][j] - lt) <= 0.26 and axis["ok"][j]:
+            dev_clut[i] = axis["dev"][j]
+            set_idx.append(i)
+    below = np.flatnonzero((chroma >= 1.0) & (chroma < 5.0)
+                           & (node_lab[:, 0] < l_nb))
+    if len(below):
+        tgt = node_lab[below].copy()
+        tgt[:, 0] = l_nb
+        kw = {k: v for k, v in inv_kw.items()
+              if k not in ("node_lab", "progress", "seed")}
+        dev_clut[below] = invert_to_device(model, tgt, **kw)[0]
+    return np.array(set_idx, dtype=int)
+
+
 def build_b2a_clut(model: ForwardModel, grid: int, *,
                    channel_letters: list[str], is_additive: bool,
                    ink_limit: float | None = None,
@@ -625,8 +713,13 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
                     k_gen: dict | None = None,
                     ucs: bool = False,
                     channel_max: np.ndarray | None = None,
+                    fixed_nodes: np.ndarray | None = None,
                     progress=None) -> np.ndarray:
     """Refit the B2A CLUT as one smooth field over exact inverse samples.
+
+    ``fixed_nodes``: node indices whose value is already decided (the
+    neutral column of :func:`apply_neutral_axis`); they get the heavy
+    anchor weight, like the deep out-of-gamut clamps.
 
     Every random device point is an *exact* sample of the inverse function
     (its Lab comes from the forward model, its device value is known), so the
@@ -668,6 +761,15 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
         # Sample *reachable* Lab targets instead and invert them through the
         # same policy the per-node pass used; those pairs are consistent.
         probe_dev = rng.uniform(0.0, 1.0, (samples // 3, n))
+        if accurate:
+            # Uniform device points almost never print light: on a CMYK
+            # Clapper-Yule printer 3 of 10,000 landed above L* 80, on six
+            # inks none, so the highlight nodes were extrapolated from the
+            # midtones and the L* 93.75 neutral printed L* 58-88 (research
+            # agent5-03, item 1 cause A). Half the probes are scaled toward
+            # paper (coverage s², s ~ U(0, 1)) so light Lab is sampled too.
+            half = len(probe_dev) // 2
+            probe_dev[:half] *= rng.uniform(0.0, 1.0, (half, 1)) ** 2
         if channel_max is not None:
             probe_dev *= channel_max[None, :]
         if limit is not None:
@@ -698,6 +800,8 @@ def refine_b2a_clut(model: ForwardModel, dev_clut: np.ndarray,
     # out of gamut (their clamp IS the answer there), light anchors elsewhere
     # (keep the fit stable where samples are sparse, let data win).
     anchor_w = np.where(residual > deep_oog, 4.0, 0.05)
+    if fixed_nodes is not None and len(fixed_nodes):
+        anchor_w[fixed_nodes] = 4.0
     if node_lab is None:
         node_lab = lab_grid(grid)
     # Fit in *curve space* — the CLUT stores shaped device values (the output

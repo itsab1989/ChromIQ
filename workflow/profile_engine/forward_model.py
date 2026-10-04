@@ -153,6 +153,7 @@ def fit_forward_model(device: np.ndarray, lab: np.ndarray, *, grid: int,
                       curve_knots: int = 21, curve_rounds: int = 2,
                       weights: np.ndarray | None = None,
                       cg_rtol: float = 0.0,
+                      init_curves: np.ndarray | None = None,
                       ) -> ForwardModel:
     """Alternating curves ⇄ grid fit of device → Lab.
 
@@ -161,9 +162,15 @@ def fit_forward_model(device: np.ndarray, lab: np.ndarray, *, grid: int,
     current grid, then re-solves the grid with the shaped inputs.
     ``weights``: optional per-patch weights (robust IRLS in maximum-accuracy
     mode) — they scale the least-squares rows, not the smoothing.
+    ``init_curves``: (n, curve_knots) starting shaper curves (maximum
+    accuracy's ramp positioning, :func:`ramp_positioning_curves`); None =
+    the identity, as every other mode has always used.
     """
     npts, n = device.shape
-    curves = np.tile(np.linspace(0.0, 1.0, curve_knots), (n, 1))
+    if init_curves is None:
+        curves = np.tile(np.linspace(0.0, 1.0, curve_knots), (n, 1))
+    else:
+        curves = np.array(init_curves, float, copy=True)
     model = ForwardModel(grid=grid, n_channels=n,
                          nodes=np.zeros((grid ** n, 3)), curves=curves)
     sw = None if weights is None else np.sqrt(np.asarray(weights, float))
@@ -186,6 +193,63 @@ def fit_forward_model(device: np.ndarray, lab: np.ndarray, *, grid: int,
             _refit_curve(model, device, lab, c, xp, weights=weights)
         solve(model.nodes)
     return model
+
+
+def ramp_positioning_curves(device: np.ndarray, lab: np.ndarray, *,
+                            knots: int = 21, blend: float = 0.5,
+                            min_ramp: int = 3) -> np.ndarray:
+    """Shaper curves placed by the chart's own single-ink ramps (ink devices).
+
+    For each channel the patches that carry that ink alone, plus the paper,
+    give the visual distance travelled from paper (cumulative ΔE76 along the
+    ramp). The curve maps ink to that distance, normalised, blended half way
+    with the identity so every grid cell keeps some ink range. A printer's
+    dot gain makes the first few per cent of ink move the colour most; with
+    identity curves those few per cent share the first grid cell with paper
+    and the model read light tints as far too light (research agent5-03,
+    D6: Clapper-Yule CMYK neutral highlights 2.24 -> 0.36 ΔE00 model error).
+    A channel with fewer than ``min_ramp`` single-ink patches keeps the
+    identity. Curves are monotone, pinned at 0 and 1.
+    """
+    n = device.shape[1]
+    xp = np.linspace(0.0, 1.0, knots)
+    out = np.tile(xp, (n, 1))
+    inked = device > 1e-6
+    paper = ~inked.any(1)
+    if not paper.any():
+        return out
+    white = lab[paper].mean(0)
+    single = inked.sum(1) == 1
+    for c in range(n):
+        rows = single & inked[:, c]
+        if rows.sum() < min_ramp:
+            continue
+        x = np.concatenate([[0.0], device[rows, c]])
+        y = np.vstack([white, lab[rows]])
+        order = np.argsort(x, kind="stable")
+        x, y = x[order], y[order]
+        # duplicates of one ink value: their mean colour
+        ux, inv = np.unique(x, return_inverse=True)
+        uy = np.zeros((len(ux), 3))
+        np.add.at(uy, inv, y)
+        uy /= np.bincount(inv)[:, None]
+        if ux[-1] < 0.5:
+            continue
+        dist = np.concatenate(
+            [[0.0], np.cumsum(np.linalg.norm(np.diff(uy, axis=0), axis=1))])
+        if dist[-1] <= 1e-9:
+            continue
+        # beyond the last measured ink the ramp continues at its last slope
+        xs = np.append(ux, 1.0) if ux[-1] < 1.0 else ux
+        ds = dist if ux[-1] >= 1.0 else np.append(
+            dist, dist[-1] + (1.0 - ux[-1]) * (dist[-1] - dist[-2])
+            / max(ux[-1] - ux[-2], 1e-9))
+        pos = np.interp(xp, xs, ds / ds[-1])
+        cur = blend * pos + (1.0 - blend) * xp
+        cur = np.maximum.accumulate(cur)
+        cur = (cur - cur[0]) / max(cur[-1] - cur[0], 1e-9)
+        out[c] = cur
+    return out
 
 
 def _refit_curve(model: ForwardModel, device: np.ndarray, lab: np.ndarray,
