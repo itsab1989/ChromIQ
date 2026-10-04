@@ -206,10 +206,30 @@ class ArgyllHelperMapper:
 
     def map_lab(self, lab: np.ndarray) -> np.ndarray:
         jab = self._ap_src.lab_to_jab(np.atleast_2d(np.asarray(lab, float)))
-        out = run_gammap(jab, src_gam=self._src_gam, intent=self._intent,
-                         mapres=self._mapres, wp_jab=self._wp_jab,
-                         bp_jab=self._bp_jab, dst_gam=self._dst_gam,
-                         dst_cloud_jab=self._dst_cloud)
+        try:
+            out = run_gammap(jab, src_gam=self._src_gam, intent=self._intent,
+                             mapres=self._mapres, wp_jab=self._wp_jab,
+                             bp_jab=self._bp_jab, dst_gam=self._dst_gam,
+                             dst_cloud_jab=self._dst_cloud)
+        except HelperUnavailable as exc:
+            # F-03 (research agent9-01 section 4.1): Argyll's new_gammap
+            # aborts with "vector_isect failed" when the white-to-black line
+            # it aligns the grey axis to misses the destination shell (the
+            # black handed to it lies outside the shell). Retried ONLY on
+            # that failure, with the darkest near-neutral point OF the shell
+            # as the black: a call that succeeded never gets here, so every
+            # table that built before keeps its bytes.
+            if ("vector_isect" not in str(exc) or self._dst_cloud is None
+                    or self._wp_jab is None):
+                raise
+            cloud = np.asarray(self._dst_cloud, float)
+            c = np.hypot(cloud[:, 1], cloud[:, 2])
+            near = c < max(3.0, float(np.percentile(c, 1)))
+            bp = cloud[near][np.argmin(cloud[near][:, 0])]
+            out = run_gammap(jab, src_gam=self._src_gam, intent=self._intent,
+                             mapres=self._mapres, wp_jab=self._wp_jab,
+                             bp_jab=bp, dst_gam=self._dst_gam,
+                             dst_cloud_jab=self._dst_cloud)
         return self._ap_dst.jab_to_lab(out)
 
 
@@ -235,8 +255,13 @@ def _iccgamut_to(path: Path, work_icc: Path, bin_dir: Path,
 def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
                               settings, bin_dir: Path, progress=None, *,
                               is_additive: bool = True,
-                              ink_limit: float | None = None) -> dict:
+                              ink_limit: float | None = None,
+                              dst_black_lab: np.ndarray | None = None
+                              ) -> dict:
     """Bit-exact B2A0/B2A2 mappers backed by Argyll's real gamut mapper.
+
+    ``dst_black_lab`` (research a9-ownmap): the destination black point to
+    align the grey axis to; None = the model at full ink (shipped).
 
     <=4-ink: destination is the iccgamut ``.gam`` colprof itself would map
     (byte-identical). CMY+N: destination is Argyll's own ``expand`` of the
@@ -274,6 +299,8 @@ def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
     black_lab = model.predict(np.zeros((1, model.n_channels))
                               if is_additive
                               else np.ones((1, model.n_channels)))[0]
+    if dst_black_lab is not None:
+        black_lab = np.asarray(dst_black_lab, float)
     paper_xyz = lab_to_xyz(white_lab[None, :])[0]
     ap_dst = Appearance(paper_xyz)
     wp_jab = ap_dst.lab_to_jab(white_lab[None, :])[0]
@@ -291,9 +318,14 @@ def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
         dst_lab = destination_surface_lab(model, mesh=33, ink_limit=ink_limit,
                                           is_additive=is_additive,
                                           dense=dense)
-        if dense and meas is not None and hasattr(meas, "lab_relative"):
+        if dense and meas is not None and hasattr(meas, "lab_relative") \
+                and not ("a9-reach" in getattr(settings, "engine_candidates",
+                                               frozenset())):
             # Measured patches are ground truth — Argyll's expand() keeps
             # whichever points lie outermost.
+            # (research a9-reach leaves them out: a patch outside the
+            # model's own reach makes the mapper aim where the inversion
+            # must clamp.)
             dst_lab = np.vstack([dst_lab, meas.lab_relative])
         return ap_dst.lab_to_jab(dst_lab)
 
@@ -330,8 +362,8 @@ def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
     # For a .gam destination the iccgamut file already carries the profile's
     # white/black (exactly colprof's), so leave it untouched; only the cloud
     # path needs explicit wp/bp.
-    map_wp = None if dst_gam is not None else wp_jab
-    map_bp = None if dst_gam is not None else bp_jab
+    map_wp = None if dst_gam is not None and dst_black_lab is None else wp_jab
+    map_bp = None if dst_gam is not None and dst_black_lab is None else bp_jab
 
     def _mk(intent: str) -> ArgyllHelperMapper:
         return ArgyllHelperMapper(
@@ -345,7 +377,8 @@ def fit_gammap_argyll_mappers(model, meas, source_gamut: Path | str,
 def fit_gammap_port_mappers(model, meas, source_gamut: Path | str,
                             settings, argyll_bin: Path | str | None,
                             progress=None, *, is_additive: bool = True,
-                            ink_limit: float | None = None) -> dict:
+                            ink_limit: float | None = None,
+                            dst_black_lab: np.ndarray | None = None) -> dict:
     """The shipping mapper: ported gammap on Jab gamuts (B2A0).
 
     Currently covers the default perceptual intent (colprof "p" — the
@@ -372,7 +405,8 @@ def fit_gammap_port_mappers(model, meas, source_gamut: Path | str,
         try:
             return fit_gammap_argyll_mappers(
                 model, meas, source_gamut, settings, bin_dir, progress,
-                is_additive=is_additive, ink_limit=ink_limit)
+                is_additive=is_additive, ink_limit=ink_limit,
+                dst_black_lab=dst_black_lab)
         except HelperUnavailable as exc:
             if progress:
                 progress(f"Bit-exact Argyll helper unavailable ({exc}); "

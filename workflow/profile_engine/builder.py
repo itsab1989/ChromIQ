@@ -675,7 +675,14 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # Every table is the same computation as before, so the same bytes.
     mapped_bg = None
     anchor_box: dict = {}
-    if accurate and settings.source_gamut is not None:
+    # Research token "a9-ownmap" (agent9-01, with a9-blackpin) maps onto the
+    # colorimetric table's neutral black (axis["black"], device_black), which
+    # exists only after the colorimetric inversion below. Started early, the
+    # background build would not have it and would quietly recompute or skip
+    # it, so with that token the mapped tables are built afterwards, as on
+    # the branch where the token was measured (integration 1 decision).
+    if (accurate and settings.source_gamut is not None
+            and "a9-ownmap" not in candidates):
         import threading
         from workflow.profile_engine import parallel
         if parallel.worker_count() > 1:
@@ -709,7 +716,27 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             started.append(_Release())
             anchor_box["ready"] = anchor_ready
     anchor = None
-    if n >= 5 and settings.argyll_bin is not None:
+    # Research D-08 item (a), agent9-01 section 2: Maximum accuracy can
+    # replace the colprof proxy with the engine's own N-ink rule (tokens
+    # "a9-locus": no anchor, the 4-ink accurate rule for every ink count;
+    # "a9-kcurve": colprof's K target curve computed by the engine).
+    own_rule = accurate and n >= 5 and (
+        "a9-locus" in candidates or "a9-kcurve" in candidates)
+    if own_rule and "a9-kcurve" in candidates:
+        ls = np.linspace(0.0, 100.0, 201)
+        params = (settings.k_curve_params if settings.k_rule == "p"
+                  and settings.k_curve_params else
+                  b2a_mod.K_RULE_PARAMS.get(settings.k_rule or "r",
+                                            b2a_mod.K_RULE_PARAMS["r"]))
+        anchor = {"l_axis": ls, "k_curve": b2a_mod.argyll_k_curve(
+            ls, params=params,
+            l_min=max(float(black_l), 2.0) if black_l is not None else 5.0)}
+        _emit(settings, "Black generation: the engine's own N-ink rule "
+                        "(no colprof proxy).")
+    elif own_rule:
+        _emit(settings, "Black generation: the engine's own N-ink rule "
+                        "(no colprof proxy).")
+    if n >= 5 and settings.argyll_bin is not None and not own_rule:
         from workflow.profile_engine.gamut_map import (OracleUnavailable,
                                                        fit_multiink_anchor)
         try:
@@ -730,6 +757,51 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
     # agent5-03 item 5). The proxy anchor still shapes the perceptual and
     # saturation tables (build_mapped_b2a below). Costs ink: section 6.
     k_prior_col = None if accurate else anchor
+    if (accurate and not meas.is_additive and n >= 4
+            and ("a9-nramp" in candidates or "a9-nramps" in candidates)
+            and "K" in meas.channel_letters):
+        # Research agent9-01 6.2: colprof's default black rule (-kr ramp,
+        # engine port) as the K target for the NEUTRALS only, faded out with
+        # chroma; chromatic colours keep the late-GCR locus. The deep neutral
+        # black then needs no CMY-for-spot-ink swap at the ink limit (the
+        # P7 TV excess), without the proxy's global K prior that cost B2A
+        # accuracy (agent5-03 5.3).
+        _ls = np.linspace(0.0, 100.0, 201)
+        _params = (settings.k_curve_params if settings.k_rule == "p"
+                   and settings.k_curve_params else
+                   b2a_mod.K_RULE_PARAMS.get(settings.k_rule or "r",
+                                             b2a_mod.K_RULE_PARAMS["r"]))
+        if "a9-nramps" in candidates and not settings.k_rule:
+            # shadow-only ramp: no K above 40 % of the way to the black
+            # (light greys stay K-free, as the locus has them), full K at
+            # the black (colprof -kp 0 0.4 1 1 1).
+            _params = (0.0, 0.4, 1.0, 1.0, 1.0)
+        k_prior_col = {"l_axis": _ls, "k_curve": b2a_mod.argyll_k_curve(
+            _ls, params=_params,
+            l_min=max(float(black_l), 2.0) if black_l is not None else 5.0),
+            "neutral_only": True}
+    mono_axis = None
+    if (accurate and not meas.is_additive and n >= 4
+            and "a9-monok" in candidates and "K" in meas.channel_letters):
+        # Research agent9-01 6.2: walk the neutral axis first (forward to
+        # the neutral black, then back up with no ink allowed to rise and
+        # fall), and let its K curve steer the NEUTRAL part of every
+        # inversion so the column and its neighbours agree.
+        _emit(settings, "Inverting the model: a monotone neutral axis…")
+        _ax_kw = dict(channel_letters=meas.channel_letters,
+                      is_additive=meas.is_additive, ink_limit=ink_limit,
+                      accurate=accurate, extra_hues=extra_hues,
+                      black_l=black_l, k_gen=k_gen, ucs=use_ucs,
+                      channel_max=channel_max)
+        _fwd = b2a_mod.neutral_axis(model, **_ax_kw)
+        mono_axis = b2a_mod.monotone_neutral_axis(model, _fwd, **_ax_kw)
+        if mono_axis.get("black") is not None:
+            ki = meas.channel_letters.index("K")
+            _l = np.asarray(mono_axis["l"])[::-1]
+            _k = np.asarray(mono_axis["dev"])[::-1, ki].copy()
+            _k[_l < mono_axis["l_black"]] = mono_axis["black"][ki]
+            k_prior_col = {"l_axis": _l, "k_curve": _k,
+                           "neutral_only": True}
     dev_clut, residual = b2a_mod.build_b2a_clut(
         model, b2a_grid, channel_letters=meas.channel_letters,
         is_additive=meas.is_additive, ink_limit=ink_limit,
@@ -738,18 +810,21 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
         ucs=use_ucs, channel_max=channel_max,
         progress=lambda m: _emit(settings, m))
     fixed_nodes = None
+    axis = None
     if accurate and not meas.is_additive and n >= 4:
         # The neutral axis solved once by continuation from paper white,
         # put on the B2A neutral column, with everything darker than the
         # neutral black clipped along the axis (research agent5-03 item 5:
         # a neutral black, monotone neutral ramp, for any channel count).
         _emit(settings, "Inverting the model: following the neutral axis…")
-        axis = b2a_mod.neutral_axis(
+        axis = mono_axis if mono_axis is not None else b2a_mod.neutral_axis(
             model, channel_letters=meas.channel_letters,
             is_additive=meas.is_additive, ink_limit=ink_limit,
             k_prior=k_prior_col, accurate=accurate, extra_hues=extra_hues,
             black_l=black_l, k_gen=k_gen, ucs=use_ucs,
             channel_max=channel_max)
+        if "a9-monoblack" in candidates:
+            axis = b2a_mod.monotone_black(model, axis)
         fixed_nodes = b2a_mod.apply_neutral_axis(
             dev_clut, node_lab, axis, model,
             channel_letters=meas.channel_letters,
@@ -894,7 +969,9 @@ def _build_profile_impl(ti3_path: Path | str, out_path: Path | str,
             is_additive=meas.is_additive, ink_limit=ink_limit,
             entries=entries_b2a, codec=codec, settings=settings,
             a2b_grid=a2b_grid, a2b_entries=entries_a2b, anchor=anchor,
-            channel_max=channel_max, oracle_run=oracle_run)
+            channel_max=channel_max, oracle_run=oracle_run,
+            neutral_black_dev=(axis or {}).get("black"),
+            black_dev_shaped=model.shape_device(device_black[None, :])[0])
         luts.update(mapped)
         perceptual_distinct = "B2A0" in mapped
     if "B2A0" not in luts:

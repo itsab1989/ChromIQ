@@ -125,6 +125,7 @@ def environment(trees: dict) -> dict:
 
 def run_build(job: dict) -> dict:
     env = dict(os.environ, CHROMIQ_GAMMAP=GAMMAP, PYTHONHASHSEED="0")
+    t_start = time.time()
     Path(job["out"]).parent.mkdir(parents=True, exist_ok=True)
     try:
         r = subprocess.run([sys.executable, str(HERE / "build_worker.py"),
@@ -133,6 +134,22 @@ def run_build(job: dict) -> dict:
         line = [ln for ln in r.stdout.splitlines() if ln.startswith("RESULT ")]
         res = json.loads(line[-1][7:]) if line else {
             "ok": False, "error": (r.stderr or r.stdout)[-1500:]}
+        if not line:
+            # A worker that dies without a RESULT line (killed by a signal,
+            # crashed in C code) used to be recorded as ok=False with an
+            # EMPTY error and "0s" (agent9-01 6.4: five workers of three
+            # runs SIGKILLed at the same second, 2026-10-04 01:06:33). Say
+            # how it ended, and when.
+            import signal as _sig
+            rc = r.returncode
+            how = (f"killed by signal {_sig.Signals(-rc).name}" if rc < 0
+                   else f"exited with code {rc}")
+            res["returncode"] = rc
+            res["error"] = (f"worker {how} without a result after "
+                            f"{time.time() - t_start:.0f} s, ended "
+                            f"{time.strftime('%Y-%m-%d %H:%M:%S')}; "
+                            + (res["error"] or "no output"))
+            res["seconds"] = time.time() - t_start
     except subprocess.TimeoutExpired:
         res = {"ok": False, "error": f"did not finish in {job.get('timeout', 5400)} s"}
     res["job"] = {k: v for k, v in job.items() if k not in ("tree",)}

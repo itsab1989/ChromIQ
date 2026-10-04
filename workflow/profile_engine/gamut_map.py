@@ -966,6 +966,32 @@ def fit_multiink_anchor(model: ForwardModel, meas: Ti3Measurement,
         return {"l_axis": ls, "neutral_lab": neutral, "k_curve": k_curve}
 
 
+def _neutral_black_lab(model: ForwardModel, *, is_additive: bool,
+                       ink_limit: float | None, channel_letters,
+                       channel_max, neutral_black_dev, meas) -> np.ndarray:
+    """The destination black for gamut mapping: the darkest colour the
+    printer can make NEUTRAL under its limits (Argyll's colprof uses its
+    profile's black point the same way). Additive devices: device black."""
+    n = model.n_channels
+    if is_additive:
+        return model.predict(np.zeros((1, n)))[0]
+    if neutral_black_dev is None:
+        black_l = None
+        if meas is not None and hasattr(meas, "lab_relative"):
+            black_l = float(meas.lab_relative[meas.black_index, 0])
+        axis = b2a_mod.neutral_axis(
+            model, channel_letters=channel_letters, is_additive=False,
+            ink_limit=ink_limit, accurate=True, black_l=black_l,
+            channel_max=channel_max)
+        neutral_black_dev = axis.get("black")
+    if neutral_black_dev is None:
+        dev = np.ones((1, n))
+        if ink_limit is not None:
+            dev *= min(1.0, ink_limit / 100.0 / n)
+        return model.predict(dev)[0]
+    return model.predict(np.asarray(neutral_black_dev, float)[None, :])[0]
+
+
 def invert_mapping(mapper, mapped_lab: np.ndarray, iters: int = 20
                    ) -> np.ndarray:
     """Numeric inverse of a gamut map (colprof -nI: the perceptual A2B gets
@@ -992,7 +1018,9 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      a2b_entries: int | None = None,
                      anchor: dict | None = None,
                      channel_max: np.ndarray | None = None,
-                     oracle_run: "OracleRun | None" = None) -> dict:
+                     oracle_run: "OracleRun | None" = None,
+                     neutral_black_dev: np.ndarray | None = None,
+                     black_dev_shaped: np.ndarray | None = None) -> dict:
     """Mapped tables per intent → dict of mft2 tags/aliases for the writer.
 
     Returns entries for ``B2A0``/``B2A2`` (bytes or the alias string
@@ -1051,6 +1079,20 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
     _n = getattr(model, "n_channels", 0) if model is not None else 0
     _bitexact_le4 = (getattr(settings, "gammap_mode", "fast")
                      in ("argyll", "accurate") and 0 < _n <= 4)
+    # Research D-08 items (b)/(c), agent9-01 section 3: "a9-ownmap" maps
+    # every ink count with the compiled Argyll mapper on the engine's own
+    # destination (no background colprof build), with the destination black
+    # = the model's NEUTRAL black under the limits instead of all inks at
+    # 100 % (an extrapolation that tilts the grey axis and causes F-03).
+    ownmap = accurate and "a9-ownmap" in getattr(
+        settings, "engine_candidates", frozenset())
+    dst_black_lab = None
+    if ownmap:
+        _bitexact_le4 = False
+        dst_black_lab = _neutral_black_lab(
+            model, is_additive=is_additive, ink_limit=ink_limit,
+            channel_letters=channel_letters, channel_max=channel_max,
+            neutral_black_dev=neutral_black_dev, meas=meas)
     # #123 W5 (candidate "render2"): the bijective CAM16-UCS radial
     # mapper replaces the Argyll-matched rendering for the DEFAULT
     # perceptual/saturation intents — explicit -t/-T selections keep the
@@ -1074,7 +1116,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             oracle = fit_gammap_port_mappers(
                 model, meas, source_gamut, settings,
                 getattr(settings, "argyll_bin", None), progress,
-                is_additive=is_additive, ink_limit=ink_limit)
+                is_additive=is_additive, ink_limit=ink_limit,
+                **({"dst_black_lab": dst_black_lab} if ownmap else {}))
         except Exception as exc:                      # noqa: BLE001
             if progress:
                 progress(f"Ported gammap unavailable ({exc}) — "
@@ -1121,7 +1164,8 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
             src = source_surface_from_profile(source_gamut, intent=s_int)
             mapper = _mapper_for(intent, default_kw, src, dst, settings)
             anchor_v = anchor() if callable(anchor) else anchor
-            if anchor_v is not None and isinstance(mapper, GamutMapper):
+            if anchor_v is not None and isinstance(mapper, GamutMapper) \
+                    and "neutral_lab" in anchor_v:
                 # +N: colprof-anchored neutral rendering (CMYK proxy).
                 mapper.neutral_table = anchor_v
         if mapper is None:
@@ -1141,6 +1185,14 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
                      f"({'1' if tag == 'B2A0' else '2'}/2, Argyll's "
                      f"mapper)…")
         mapped = mapper.map_lab(node_lab)
+        if ownmap and "a9-warp" in getattr(settings, "engine_candidates",
+                                           frozenset()):
+            # Research a9-warp: colprof's realized map is smooth because it
+            # passes through colprof's own smooth B2A table; the raw node map
+            # of Argyll's mapper is not. A smooth displacement field fitted
+            # to it (the same warp that reproduces colprof's map to 0.23 dE)
+            # gives the inversion a smooth target field.
+            mapped = WarpMapper(node_lab, mapped).map_lab(node_lab)
         mapped_by_tag[tag] = mapped
         # Mapped targets land inside (or at) the gamut surface, so per-node
         # inversion converges everywhere — the boundary-cell kink that makes
@@ -1162,6 +1214,16 @@ def build_mapped_b2a(model: ForwardModel, meas: Ti3Measurement, grid: int,
         # (source white → destination white); the inversion of the mapped
         # target lands a fitted value there, so pin it (b2a.pin_white_node).
         shaped = b2a_mod.pin_white_node(shaped, node_lab, is_additive)
+        if ownmap and black_dev_shaped is not None and "a9-blackpin" in \
+                getattr(settings, "engine_candidates", frozenset()):
+            # Research agent9-01 6.3: source black -> the SAME device black
+            # as the colorimetric table (the neutral black under the limits),
+            # as B2A1's pin_black_node does; the gamut map's own black lands
+            # 0.1-0.5 L* lighter (mapres interpolation of the black point).
+            dev_b = np.asarray(black_dev_shaped, float)
+            if no_out_shaper:
+                dev_b = model.unshape_device(dev_b[None, :])[0]
+            shaped = b2a_mod.pin_black_node(shaped, node_lab, dev_b)
         out[tag] = icw.make_mft2(
             3, model.n_channels, grid, icw.device_to_u16(shaped),
             in_tables=codec.b2a_in_tables(entries),

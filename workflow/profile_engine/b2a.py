@@ -458,6 +458,14 @@ def ink_priors(target: np.ndarray, n: int, *,
     """
     prior = np.zeros((len(target), n))
     prior_w = np.zeros((len(target), n))
+    neutral_k = None
+    if k_prior is not None and k_prior.get("neutral_only"):
+        # Research agent9-01 6.2 ("a9-monok"): a K curve that applies to
+        # the NEUTRALS only (blended in with the accurate neutral weight
+        # below); chromatic colours keep the engine's own locus.
+        neutral_k = np.interp(target[:, 0], k_prior["l_axis"],
+                              k_prior["k_curve"])
+        k_prior = None
     if k_prior is not None:
         # colprof-calibrated K behaviour (CMYK proxy oracle) — a firmer
         # prior than the generic locus, matching how colprof separates.
@@ -495,6 +503,8 @@ def ink_priors(target: np.ndarray, n: int, *,
         chroma_t = np.hypot(target[:, 1], target[:, 2])
         neutral_w = np.exp(-(chroma_t / 25.0) ** 2)
         prior_w[:, 3] = np.maximum(prior_w[:, 3], 2.0 * neutral_w)
+        if neutral_k is not None:
+            prior[:, 3] = neutral_w * neutral_k + (1.0 - neutral_w) * prior[:, 3]
     hues = extra_hues or {}
     for ch in range(4, n):
         prior[:, ch] = extra_ink_amount(
@@ -684,6 +694,76 @@ def neutral_axis(model: ForwardModel, *, step: float = 0.5,
     last = int(np.flatnonzero(ok)[-1])
     return {"l": ls, "dev": dev, "ok": ok, "l_black": float(lab[last, 0]),
             "black": dev[last].copy()}
+
+
+def monotone_black(model: ForwardModel, axis: dict,
+                   tol: float = 0.02) -> dict:
+    """Research agent9-01 6.2 ("a9-monoblack"): end the neutral axis at
+    the darkest step reached WITHOUT any ink falling back (by more than
+    ``tol``) after it rose. Deeper neutrals on 5+ ink printers are bought
+    at the ink-limit face by swapping one ink for another (S6: M 0.66 ->
+    0.03 for V 0 -> 0.58 in the last 4 L*), which is the grey ramp's rise
+    and fall (P7 TV excess). The black is then that last monotone step."""
+    if axis.get("black") is None:
+        return axis
+    dev = np.asarray(axis["dev"], float)
+    ok = np.asarray(axis["ok"], bool).copy()
+    run_max = np.maximum.accumulate(dev, axis=0)
+    fell = (run_max - dev > tol).any(1)
+    if not fell.any():
+        return axis
+    first = int(np.argmax(fell))
+    good = np.flatnonzero(ok[:first])
+    if not len(good):
+        return axis
+    last = int(good[-1])
+    ok[last + 1:] = False
+    lab = model.predict(dev[last][None, :])[0]
+    return {"l": axis["l"], "dev": dev, "ok": ok, "l_black": float(lab[0]),
+            "black": dev[last].copy(), "monotone_black": True}
+
+
+def monotone_neutral_axis(model: ForwardModel, axis: dict, *,
+                          step: float = 0.5, **inv_kw) -> dict:
+    """Research agent9-01 6.2 ("a9-monok"): the neutral axis walked BACK
+    from the neutral black to paper white with every channel capped at its
+    value one step darker, so no ink rises and falls along the grey ramp
+    (P7 "TV excess"). The black is the forward walk's (same depth); the
+    caps force the K the black composition needs to enter early enough that
+    C/M/Y never exceed their amount in the black. Same return keys as
+    :func:`neutral_axis` (``l`` light to dark)."""
+    if axis.get("black") is None:
+        return axis
+    n = model.n_channels
+    l_nb = float(axis["l_black"])
+    base_max = inv_kw.pop("channel_max", None)
+    base_max = np.ones(n) if base_max is None else np.asarray(base_max, float)
+    kw = {k: v for k, v in inv_kw.items()
+          if k not in ("node_lab", "progress", "seed")}
+    ls_up = np.arange(l_nb, 100.0 + 1e-9, step)
+    cur = np.asarray(axis["black"], float)[None, :]
+    devs, ress = [], []
+    for lv in ls_up:
+        cap = np.minimum(base_max, cur[0] + 1e-9)
+        d, r = invert_to_device(model, np.array([[lv, 0.0, 0.0]]),
+                                seed=np.minimum(cur, cap), channel_max=cap,
+                                **kw)
+        d = np.minimum(d, cap)
+        devs.append(d[0]); ress.append(r[0]); cur = d
+    devs, ress = np.array(devs), np.array(ress)
+    # light to dark, on the forward walk's grid (targets above the black)
+    ls = np.asarray(axis["l"])
+    out_dev = np.array(axis["dev"], float).copy()
+    out_ok = np.array(axis["ok"]).copy()
+    for i, lv in enumerate(ls):
+        if lv < l_nb - 1e-9:
+            continue
+        j = int(np.argmin(np.abs(ls_up - lv)))
+        out_dev[i] = devs[j]
+        lab = model.predict(devs[j][None, :])[0]
+        out_ok[i] = ress[j] < 0.5 and np.hypot(lab[1], lab[2]) < 1.0
+    return {"l": ls, "dev": out_dev, "ok": out_ok, "l_black": axis["l_black"],
+            "black": axis["black"], "monotone": True}
 
 
 def apply_neutral_axis(dev_clut: np.ndarray, node_lab: np.ndarray,
