@@ -79,7 +79,7 @@ REAL_BASE = list(dsm.REAL_SOURCES)
 # their published TAC (330 / 320); the X-Rite sample chart has no stamp.
 REAL_TAC = {"R-FOGRA39L": 330.0, "R-GRACoL2006": 320.0,
             "R-CMYK-default-i1Pro": 300.0, "R-CMYK-default-i1iSis": 300.0,
-            "R-FOGRA55": 300.0}
+            "R-FOGRA55": 300.0, "R-APTEC7C": 300.0}
 
 
 def sh(cmd, **kw) -> str:
@@ -472,7 +472,9 @@ def main(argv=None) -> int:
                 # published reference profile (FOGRA55: ColorLogic CoPrA)
                 # stands in, labelled in results.json (agent 14)
                 pxy = proxy["job"]["out"] if proxy else ds.info.get("reference_icc")
-                truth = metrics.Truth(proxy_icc=pxy) if pxy else None
+                vers = Path(pxy).read_bytes()[8] if pxy else 2
+                truth = metrics.Truth(proxy_icc=pxy, proxy_reader="lcms" if vers >= 4 and not proxy
+                                      else "argyll") if pxy else None
             else:
                 truth = metrics.Truth(printer=ds.printer, illuminant=ds.illuminant or "D50")
             for b in mine:

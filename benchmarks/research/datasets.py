@@ -418,12 +418,20 @@ REAL_SOURCES = {
                   "FOGRA55 (Fogra with GMG, 2021): CMYKOGV ECG reference characterisation, "
                   "4884 patches (ECG-7C test form), Lab M1 D50/2, TAC 300; a designed exchange "
                   "data set (CMYK = FOGRA51), not one press run; noise-free averaged data"),
+    # Agent 14: a REAL measured 7-colour press run, public in the ICC
+    # registry ("may be copied, distributed, embedded, made, used, and sold
+    # without restriction", stated for the registered profile).
+    "R-APTEC7C": ("literature", "a14-icc-registry/APTEC_CMYKOGV_Coated_LinearCTV_2025_M1.txt",
+                  "cgats-lab",
+                  "APTEC (Hong Kong) CMYKOGV coated sheet-fed offset, linear CTV, per ISO/TS 21328, "
+                  "M1, 3534 rows (header says 1624), 169 duplicate groups; real measurement"),
 }
 
 # Commercial reference profiles made from a real set (in-sample for them),
 # and the proxy printer for sets colprof cannot profile (5+ inks).
 REFERENCE_ICC = {
     "R-FOGRA55": "a14-fogra55/Ref_FOGRA55/Ref-ECG-CMYKOGV_FOGRA55_TAC300.icc",
+    "R-APTEC7C": "a14-icc-registry/APTEC_CMYKOGV_Coated_LinearCTV_2025.icc",
 }
 LITERATURE = Path.home() / "develop" / "ProfileEngineResearch" / "Literature" / "web"
 LITERATURE_ENV = "CHROMIQ_RESEARCH_LITERATURE"
@@ -450,13 +458,24 @@ def cgats_lab_to_ti3(src: Path, out: Path) -> dict:
     fmt = re.search(r"BEGIN_DATA_FORMAT\s+(.*?)\s+END_DATA_FORMAT", text, re.S).group(1).split()
     rows = re.search(r"BEGIN_DATA\s+(.*?)\s+END_DATA", text, re.S).group(1).splitlines()
     rows = [r.split() for r in rows if r.strip()]
-    dcols = [i for i, f in enumerate(fmt) if re.match(r"PC\d+_\d+$", f)]
+    rows = [r for r in rows if len(r) >= len(fmt)]      # tolerate trailing tabs
+    dcols = [i for i, f in enumerate(fmt) if re.match(r"(PC\d+|\dCLR)_\d+$", f)]
     names = dict(re.findall(r'LGOMCCHANNEL(\d+)\s+"InkName\s*=\s*\'([^\']+)\'', text))
-    letters = [_PC_INK[names[f"{k + 1:02d}"].lower()] for k in range(len(dcols))]
+    if names:
+        letters = [_PC_INK[names[f"{k + 1:02d}"].lower()] for k in range(len(dcols))]
+    else:
+        # ink order from the descriptor (APTEC: "APTEC_CMYKOGV_..."); the
+        # PLUS_n_COLOR keywords of that file are stale (they name Red where
+        # channel 7 measures violet), so they are not used
+        m = re.search(r"DESCRIPTOR\s+\"?\S*?_(C?M?Y?K?[A-Z]*)_", text)
+        letters = list(m.group(1))[:len(dcols)]
     rep = "".join(letters)
     lab = np.array([[float(r[fmt.index(k)]) for k in ("LAB_L", "LAB_A", "LAB_B")] for r in rows])
     dev = np.array([[float(r[i]) for i in dcols] for r in rows])
-    xyz = colour.lab_to_xyz(lab)
+    if "XYZ_X" in fmt:
+        xyz = np.array([[float(r[fmt.index(k)]) for k in ("XYZ_X", "XYZ_Y", "XYZ_Z")] for r in rows])
+    else:
+        xyz = colour.lab_to_xyz(lab)
     m = re.search(r"TAC\s*(\d+)", Path(src).parent.name + " " + text[:4000])
     fields = [f"{rep}_{c}" for c in letters] + ["XYZ_X", "XYZ_Y", "XYZ_Z"]
     lines = ["CTI3", 'DESCRIPTOR "converted by benchmarks.research (read-only source)"',
