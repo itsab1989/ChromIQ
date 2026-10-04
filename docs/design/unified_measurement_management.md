@@ -6516,7 +6516,7 @@ What *does* transfer:
 
 ## 10. The patch outline in the live preview: red, and yellow (#182)
 
-### Confirmed behaviour — three limits: a verification's own row, and 20 for a chart made from a profile (beta 11)
+### Confirmed behaviour — three limits: a verification's own row, and 20 for a chart made with a pre-conditioning profile (beta 11)
 
 **Confirmed by:** Knut, 2026-10-04, #182 [5983470377](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983470377), answers 1 and 2 to the questions of [5983075893](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983075893), for points 1 and 2, which amend 10.1 and point 1 of 10.8; Knut, 2026-10-04, [5983733592](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983733592), for point 3, whose RULING (what the help must explain) is his and whose WORDS are ours and have not been put to him.
 
@@ -6530,7 +6530,7 @@ What *does* transfer:
    (`patch_read_warn_de_prediction`): nobody's earlier limit is carried into
    it. A verification that falls back to the chart's estimate takes the limit
    its chart file names, as before.
-2. **The limit for a chart made from a profile is ΔE 20** (answer 2: *"If your
+2. **The limit for a chart made with a pre-conditioning profile is ΔE 20** (answer 2: *"If your
    tests indicate 20, then use it."*), no longer ArgyllCMS's 30. Settings
    schema 26: a stored 30 is an echo of the old default (Preferences ▸ Save
    writes every key) and falls through to 20; any other value is the user's
@@ -6540,6 +6540,15 @@ What *does* transfer:
    a chart made after "Use as pre-conditioning profile", or with Manual
    targen `-c`. A FROM PROFILE GAMUT chart (written by ChromIQ, not targen)
    never carries it.
+   **The term** (Knut, 2026-10-04, #182
+   [5984174575](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5984174575),
+   *"do you mean charts where a pre-conditioning profile is specified? you
+   should use proper terms for us to understand what you mean"*):
+   these charts are called charts *made with a pre-conditioning profile*,
+   in every user-facing text and in this document, never "made from a
+   profile", which reads like FROM PROFILE GAMUT. Beta 11 corrected the
+   Preferences row, its tooltip, the limits help and the hover card; the
+   corrected words have not yet been put to Knut.
 3. **The help says what the limits are for** (Knut, 2026-10-04, #182
    [5983733592](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983733592),
    after 5983725218: *"The help text must explain the purpose properly"*):
@@ -6584,7 +6593,7 @@ What *does* transfer:
 
 **10.1 · Two limits.** Preferences ▸ Measurement, under *"Flag a patch when its
 colour error reaches:"*, holds two numbers: *on a chart with estimated colours
-(most charts)*, default **ΔE 95**, and *on a chart made from a profile*,
+(most charts)*, default **ΔE 95**, and *on a chart made with a pre-conditioning profile*,
 default **ΔE 30** (ArgyllCMS chartread's `WERR_TH` and `ACC_WERR_TH`). The
 chart decides: a `.ti2` with `ACCURATE_EXPECTED_VALUES "true"` uses the second.
 ChromIQ's layout engine does not copy that keyword from the `.ti1` into the
@@ -6621,7 +6630,7 @@ and confirmed by Knut
 below is the build of that rule and awaits confirmation as built.
 
 * **Thirteen colour ranges.** On an RGB chart (every chart whose `.ti2`
-  device columns are RGB, charts made from a profile included) from each
+  device columns are RGB, charts made with a pre-conditioning profile included) from each
   patch's RGB numbers read as sRGB, as the confirmed block below states. On
   any other chart (CMYK, grey, N-channel, or a `.ti2` without RGB columns)
   from each patch's EXPECTED colour classified against the chart's own white
@@ -6684,7 +6693,7 @@ from that chart's own.
 **Confirmed by:** Knut, 2026-10-03, #182 [5963411325](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963411325) (*"do the recommended for all three"*, answering the three questions of [5963152271](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5963152271)). Only these three points; the rest of 10.4 still awaits confirmation.
 
 1. **An RGB chart's ranges come from its RGB numbers read as sRGB**, for every
-   RGB chart including charts made from a profile; CMYK and other charts keep
+   RGB chart including charts made with a pre-conditioning profile; CMYK and other charts keep
    the expected-colour rule. As built: the device RGB of the `.ti2` goes
    through ArgyllCMS targen's own no-profile estimate (3.5.0,
    `xicc/xcolorants.c`: sRGB curve and primaries, normalised to Y = 1, a flat
@@ -7076,7 +7085,7 @@ a chart as the Measurement Report does? (b) *Answered* by Knut on 2026-10-04
 1. **The rule** (question 1, *"Yes."*). While a verification chart printed by
    ChromIQ is measured, each patch is compared with the run profile's
    prediction of the ink values that were really printed (raw or through the
-   profile, any intent), at ΔE 30, the limit for a chart made from a profile.
+   profile, any intent), at ΔE 30, the limit for a chart made with a pre-conditioning profile.
    Today's sRGB estimate at ΔE 95 is the fallback. Charts printed outside
    ChromIQ, and runs without a profile, keep today's rule.
 2. **Another light** (question 2, *"Yes."*). The fallback is also taken when

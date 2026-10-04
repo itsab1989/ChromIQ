@@ -88,8 +88,9 @@ def test_the_help_names_three_limits_and_the_new_defaults():
     src = inspect.getsource(settings_dialog)
     assert "TWO LIMITS" not in src and "THREE LIMITS" not in src
     assert "tr(LIMITS_PURPOSE_HELP)" in src
-    assert ("20 ΔE for a chart made \"\n            \"from a profile, 10 ΔE for a "
-            "verification") in src
+    # Term: "made with a pre-conditioning profile" (Knut, #182 5984174575).
+    assert ("20 ΔE for a chart made \"\n            \"with a pre-conditioning "
+            "profile, 10 ΔE for a verification") in src
 
 
 def test_the_limits_say_what_they_are_for_in_both_places():

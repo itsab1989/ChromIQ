@@ -1803,9 +1803,8 @@ LIMITS_PURPOSE_HELP = (
     "that does not fit the patches nearest in colour by more "
     "than”) do most of the misread hunting on "
     "these charts.\n"
-    "  • A chart made from a profile, default ΔE 20: ArgyllCMS marks "
-    "a chart made with a pre-conditioning profile "
-    "(ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
+    "  • A chart made with a pre-conditioning profile, default ΔE 20: "
+    "ArgyllCMS marks it (ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
     " what the printer should print, and a much smaller difference is"
     " already suspicious.\n"
     "  • A verification judged against its profile, default ΔE 10: a "
@@ -3003,14 +3002,14 @@ class SettingsDialog(QDialog):
             "it recommends re-measuring, whether it is outlined red, yellow or "
             "not at all here.")
             + "\n\n" + tr("**Default:** 95 ΔE for estimated colours, 20 ΔE for a chart made "
-            "from a profile, 10 ΔE for a verification judged against its "
+            "with a pre-conditioning profile, 10 ΔE for a verification judged against its "
             "profile"),
             self))
         _meas.addLayout(_pw_row)
         _lim_labels = [
             (QLabel(tr("on a chart with estimated colours (most charts):"), self),
              self._patch_warn_est_spin),
-            (QLabel(tr("on a chart made from a profile:"), self),
+            (QLabel(tr("on a chart made with a pre-conditioning profile:"), self),
              self._patch_warn_acc_spin),
             (QLabel(tr("on a verification judged against its profile:"), self),
              self._patch_warn_pred_spin)]

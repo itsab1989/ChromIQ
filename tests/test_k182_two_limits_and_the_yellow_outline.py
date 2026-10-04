@@ -275,7 +275,7 @@ def test_the_card_names_the_limit_it_used(qapp, tmp_path):
     tab = _tab(tmp_path, accurate=True)
     tab._on_strip_measured(_strip("A"))
     rows = _card(qapp, _info(tab, "A17"))
-    assert "(limit for a chart made from a profile)" in rows
+    assert "(limit for a chart made with a pre-conditioning profile)" in rows
     # Its own folder inside tmp_path, never tmp_path / "..": that is the
     # worker's shared basetemp, which later tests' files sit one level under.
     (tmp_path / "estimated").mkdir()
@@ -299,7 +299,7 @@ def test_preferences_show_and_save_both_limits(qapp, tmp_path, monkeypatch):
         assert d._patch_warn_est_spin.maximum() >= 110.0   # Knut's largest is 107
         texts = {w.text() for w in d.findChildren(QLabel)}
         assert "on a chart with estimated colours (most charts):" in texts
-        assert "on a chart made from a profile:" in texts
+        assert "on a chart made with a pre-conditioning profile:" in texts
         d._patch_warn_est_spin.setValue(101.0)
         d._patch_warn_acc_spin.setValue(27.0)
         d._save_and_close()

@@ -697,7 +697,8 @@ class _PatchInfoTile(QWidget):
                     rows.append((None, tr("(limit for a chart judged against "
                                           "its profile)")))
                 else:
-                    rows.append((None, tr("(limit for a chart made from a profile)")
+                    rows.append((None, tr("(limit for a chart made with a "
+                                          "pre-conditioning profile)")
                                  if info.get("accurate") else
                                  tr("(limit for a chart with estimated colours)")))
             if info.get("fenced"):
