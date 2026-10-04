@@ -1,0 +1,308 @@
+name: Test suite
+
+# The full test suite on GitHub runners, for a second opinion beside the
+# gates run on Basti's Mac (CLAUDE.md "Test"): Windows and Linux, each on x64
+# and ARM, and macOS on Apple Silicon and Intel.
+#
+# MANUAL ONLY (Basti, 2026-10-04): "for now i want the test runs to be
+# something that is only triggered manually by me or when i tell you though.
+# no runs everytime you cut a release". So there is deliberately no push,
+# tag or pull_request trigger here; do not add one without his word
+# (tests/test_ci_test_suite_runs_only_by_hand.py).
+#
+# A run tests the tests/ folder of the branch it is started on, so new tests
+# are picked up by themselves. The newest work is on the beta branch, not on
+# master. Start it from the Actions tab ("Test suite" > "Run workflow", pick
+# the branch), or:
+#   gh workflow run tests.yml --ref <branch> [-f systems=windows] [-f slow=false]
+on:
+  workflow_dispatch:
+    inputs:
+      systems:
+        description: 'Which systems to test on'
+        type: choice
+        default: all
+        options: [all, windows, linux, macos]
+      slow:
+        description: 'Include the slow end-to-end tests (--runslow, the release gate)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  QT_QPA_PLATFORM: offscreen
+  ARGYLL_VERSION: '3.5.0'
+
+jobs:
+  macos:
+    name: macOS (${{ matrix.arch }})
+    if: inputs.systems == 'all' || inputs.systems == 'macos'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: Apple Silicon
+            runner: macos-latest
+            tag: macos-arm64
+          - arch: Intel
+            runner: macos-15-intel
+            tag: macos-x86_64
+    env:
+      # The suite never reaches a real instrument; keep Argyll's serial scan
+      # off the runner's ports as on the dev machine.
+      ARGYLL_EXCLUDE_SERIAL_SCAN: /dev/cu.Bluetooth-Incoming-Port
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      # ArgyllCMS 3.5.0 from Homebrew, at the app's default path, exactly as
+      # on Basti's Mac (/Applications/Argyll -> the Homebrew keg).
+      - name: Install ArgyllCMS
+        run: |
+          set -euo pipefail
+          brew install argyll-cms
+          sudo ln -sfn "$(brew --prefix argyll-cms)" /Applications/Argyll
+          ls /Applications/Argyll/bin/colprof /Applications/Argyll/ref >/dev/null
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      # The two native helpers, built from this commit's sources so a test
+      # never runs against a stale engine (workflow/chartread_engine.py
+      # prefers native/chartread_helper/build over the checked-in binary).
+      - name: Build the native helpers
+        run: |
+          set -euo pipefail
+          cmake -S native/gammap_helper -B build/gammap -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/gammap -j3
+          cp build/gammap/chromiq-gammap native/chromiq-gammap
+          cmake -S native/chartread_helper -B native/chartread_helper/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/chartread_helper/build -j3
+
+      # pytest's own exit code decides the job (no pipe; CLAUDE.md).
+      - name: Run the test suite
+        run: |
+          set -uo pipefail
+          if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
+          python -m pytest $SLOW -n auto -q -p no:cacheprovider > pytest-output.txt 2>&1
+          rc=$?
+          tail -n 80 pytest-output.txt
+          echo "pytest exit code: $rc"
+          exit $rc
+
+      - name: Keep the full output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output-${{ matrix.tag }}
+          path: pytest-output.txt
+          retention-days: 14
+
+  linux:
+    name: Linux (${{ matrix.arch }})
+    if: inputs.systems == 'all' || inputs.systems == 'linux'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+
+      # The libraries Qt needs even offscreen, pycups' headers, a C toolchain
+      # for the native helpers (the list build-linux.yml uses), and on ARM
+      # what ArgyllCMS's own build needs (jam and the X11 headers).
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libcups2-dev libegl1 libgl1 libxkbcommon0 libxkbcommon-x11-0 \
+            libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xkb1 \
+            libdbus-1-3 libfontconfig1 libxrender1 cmake build-essential unzip
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            sudo apt-get install -y --no-install-recommends jam \
+              libx11-dev libxdmcp-dev libxext-dev libxxf86vm-dev \
+              libxinerama-dev libxrandr-dev libxss-dev
+          fi
+
+      # ArgyllCMS 3.5.0, not the distribution's older package. argyllcms.com
+      # ships Linux binaries for x86_64 only, so on ARM it is built from the
+      # official 3.5.0 source with its own build system (doc/Compiling.html).
+      # The app's Linux default is /usr/bin, so the tools are linked there.
+      - name: Install ArgyllCMS
+        run: |
+          set -euo pipefail
+          if [ "${{ matrix.arch }}" = "x86_64" ]; then
+            curl -fsSL -o argyll.tgz "https://www.argyllcms.com/Argyll_V${ARGYLL_VERSION}_linux_x86_64_bin.tgz"
+            sudo mkdir -p /opt/argyll
+            sudo tar -xzf argyll.tgz -C /opt/argyll --strip-components=1
+          else
+            curl -fsSL -o argyll-src.zip "https://www.argyllcms.com/Argyll_V${ARGYLL_VERSION}_src.zip"
+            unzip -q argyll-src.zip -d "$RUNNER_TEMP"
+            cd "$RUNNER_TEMP/Argyll_V${ARGYLL_VERSION}"
+            export JAM_NEW_GNU_AR_OPTIONS=true
+            sh makeall.sh > "$RUNNER_TEMP/argyll-build.log" 2>&1 || { tail -n 60 "$RUNNER_TEMP/argyll-build.log"; exit 1; }
+            sh makeinstall.sh > "$RUNNER_TEMP/argyll-install.log" 2>&1 || { tail -n 60 "$RUNNER_TEMP/argyll-install.log"; exit 1; }
+            sudo mkdir -p /opt/argyll
+            sudo cp -R bin ref /opt/argyll/
+          fi
+          sudo ln -sf /opt/argyll/bin/* /usr/bin/
+          echo "CHROMIQ_ARGYLL_BIN=/opt/argyll/bin" >> "$GITHUB_ENV"
+          echo "CHROMIQ_ARGYLL_REF=/opt/argyll/ref" >> "$GITHUB_ENV"
+          test -x /opt/argyll/bin/colprof
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+
+      - name: Build the native helpers
+        run: |
+          set -euo pipefail
+          cmake -S native/gammap_helper -B build/gammap -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/gammap -j"$(nproc)"
+          cp build/gammap/chromiq-gammap native/chromiq-gammap
+          cmake -S native/chartread_helper -B native/chartread_helper/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/chartread_helper/build -j"$(nproc)"
+
+      - name: Run the test suite
+        run: |
+          set -uo pipefail
+          if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
+          python -m pytest $SLOW -n auto -q -p no:cacheprovider > pytest-output.txt 2>&1
+          rc=$?
+          tail -n 80 pytest-output.txt
+          echo "pytest exit code: $rc"
+          exit $rc
+
+      - name: Keep the full output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output-linux-${{ matrix.arch }}
+          path: pytest-output.txt
+          retention-days: 14
+
+  windows:
+    name: Windows (${{ matrix.arch }})
+    if: inputs.systems == 'all' || inputs.systems == 'windows'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+            python_arch: x64
+            argyll_zip: win64
+          - arch: arm64
+            runner: windows-11-arm
+            python_arch: arm64
+            argyll_zip: win_arm64
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.14'
+          architecture: ${{ matrix.python_arch }}
+
+      # ArgyllCMS 3.5.0 (argyllcms.com ships x64 and ARM64 Windows builds) at
+      # the app's Windows default, C:\Program Files\ArgyllCMS\bin.
+      - name: Install ArgyllCMS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = "$env:RUNNER_TEMP\argyll.zip"
+          Invoke-WebRequest "https://www.argyllcms.com/Argyll_V$($env:ARGYLL_VERSION)_${{ matrix.argyll_zip }}_exe.zip" -OutFile $zip
+          Expand-Archive $zip -DestinationPath "$env:RUNNER_TEMP\argyll"
+          $src = Get-ChildItem "$env:RUNNER_TEMP\argyll" -Directory | Select-Object -First 1
+          New-Item -ItemType Directory -Force "C:\Program Files\ArgyllCMS" | Out-Null
+          Copy-Item "$($src.FullName)\*" "C:\Program Files\ArgyllCMS" -Recurse -Force
+          if (-not (Test-Path "C:\Program Files\ArgyllCMS\bin\colprof.exe")) { throw "colprof.exe missing" }
+          "CHROMIQ_ARGYLL_BIN=C:\Program Files\ArgyllCMS\bin" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "CHROMIQ_ARGYLL_REF=C:\Program Files\ArgyllCMS\ref" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+
+      # pycups is macOS/Linux-only; filtered out as build-windows.yml does.
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          grep -v 'pycups' requirements.txt > requirements-win.txt
+          pip install -r requirements-win.txt -r requirements-dev.txt
+
+      # The toolchains the Windows release build uses: mingw-w64 on x64,
+      # LLVM-mingw on ARM64 (mingw-w64 has no ARM64 host compiler).
+      - name: Build the native helpers (x64)
+        if: matrix.arch == 'x64'
+        run: |
+          set -euo pipefail
+          choco install mingw ninja -y --no-progress
+          cmake -S native/gammap_helper -B build/gammap -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
+          cmake --build build/gammap
+          cp build/gammap/chromiq-gammap.exe native/chromiq-gammap.exe
+          cmake -S native/chartread_helper -B native/chartread_helper/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc
+          cmake --build native/chartread_helper/build
+
+      - name: Build the native helpers (arm64)
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $llvmVer = '20250430'
+          Invoke-WebRequest "https://github.com/mstorsjo/llvm-mingw/releases/download/$llvmVer/llvm-mingw-$llvmVer-ucrt-aarch64.zip" -OutFile llvm.zip
+          Expand-Archive llvm.zip -DestinationPath "$env:RUNNER_TEMP\tools" -Force
+          $env:PATH = "$env:RUNNER_TEMP\tools\llvm-mingw-$llvmVer-ucrt-aarch64\bin;$env:PATH"
+          choco install ninja -y --no-progress
+          if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) {
+            choco install cmake -y --no-progress --installargs 'ADD_CMAKE_TO_PATH=System'
+            $env:PATH = "C:\Program Files\CMake\bin;$env:PATH"
+          }
+          cmake -S native/gammap_helper -B build/gammap -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=aarch64-w64-mingw32-clang
+          cmake --build build/gammap
+          Copy-Item build/gammap/chromiq-gammap.exe native/chromiq-gammap.exe -Force
+          cmake -S native/chartread_helper -B native/chartread_helper/build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=aarch64-w64-mingw32-clang
+          cmake --build native/chartread_helper/build
+
+      - name: Run the test suite
+        run: |
+          set -uo pipefail
+          if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
+          python -m pytest $SLOW -n auto -q -p no:cacheprovider > pytest-output.txt 2>&1
+          rc=$?
+          tail -n 80 pytest-output.txt
+          echo "pytest exit code: $rc"
+          exit $rc
+
+      - name: Keep the full output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output-windows-${{ matrix.arch }}
+          path: pytest-output.txt
+          retention-days: 14
