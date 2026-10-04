@@ -211,3 +211,24 @@ def test_a_worktree_never_plans_its_own_removal(tmp_path, monkeypatch):
     planned = [p for p, _b in S.merged_worktrees()]
     assert me not in planned
     assert other in planned
+
+
+def test_a_dry_run_with_an_open_stdin_does_not_wait_for_it():
+    """An agent's shell hands the script a stdin that is open and never ends.
+    Reading it waited for ever, so the dry run looked hung (2026-10-04)."""
+    import subprocess, sys
+    from pathlib import Path
+    script = Path(__file__).resolve().parents[1] / "scripts" / "session_cleanup.py"
+    proc = subprocess.Popen([sys.executable, str(script), "--quiet"],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True)
+    try:
+        # Not communicate(): it closes stdin, which is exactly what an
+        # agent's shell does not do. Keep it open and wait for the exit.
+        rc = proc.wait(timeout=120)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        raise AssertionError("the dry run waited on an open stdin")
+    finally:
+        proc.stdin.close()
+    assert rc == 0 and "systemMessage" in proc.stdout.read()
