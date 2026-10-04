@@ -105,6 +105,17 @@ class RepeatGate:
         if b is None:
             # Another line: the bursts it interrupts report what they hid.
             out += self._summaries(list(self._bursts))
+            # A NEW LINE ENDS EVERY REPEAT THAT IS NOT YET A FLOOD. Ordinary
+            # output repeats a few lines between new ones: colprof's blank
+            # lines, targen's "Re-seeding", chartread's strip menu reprinted
+            # for every 'f' of a quick navigation. Counted across the new
+            # lines, they were hidden after the fourth time in every normal
+            # run. A flood never prints new lines, so a line already past
+            # SHOW stays collapsed, and a flood of two alternating lines is
+            # still caught: after the second line, neither is new.
+            for other in self._bursts.values():
+                if other.seen <= SHOW:
+                    other.seen = 1
             self._bursts[line] = _Burst(now)
             while len(self._bursts) > TRACK:
                 old, _b = next(iter(self._bursts.items()))

@@ -172,3 +172,48 @@ def test_every_reader_goes_through_the_gate():
     assert "gate.flush()" in fin
     assert "self._line_gate = RepeatGate()" in inspect.getsource(
         ArgyllRunner.run)
+
+
+# Review of beta 10 (small): the burst of a line survived the different lines
+# between its repeats, so ordinary output lost lines in every normal run:
+# colprof -v's blank lines and targen's "Re-seeding" (measured on the real
+# tools: 3 and 2 lines hidden, each replaced by a "[ChromIQ: the line ...]"
+# summary), and stock chartread's strip menu, reprinted for every 'f' of a
+# quick navigation, lost its instructions and its "Press any other key to
+# start:" prompt from the fifth strip on.
+
+def _through(lines, clock=None):
+    gate = RepeatGate(clock=clock or (lambda: 0.0))
+    return [o for ln in lines for o in gate.feed(ln)] + gate.flush()
+
+
+def test_a_line_repeated_between_new_lines_is_never_hidden():
+    colprof = []
+    for i in range(40):
+        colprof += ["", f"Doing pass {i}", f"Max err {i}.0"]
+    assert _through(colprof) == colprof
+    targen = []
+    for i in range(30):
+        targen += [f"Added {i * 10} patches", "Re-seeding"]
+    assert _through(targen) == targen
+
+
+def test_a_quick_strip_navigation_shows_every_menu_and_prompt():
+    menu = []
+    for strip in "ABCDEFGHIJKLMNOP":
+        menu += [f"Ready to read strip pass {strip}",
+                 "Press 'f' to move forward, 'b' to move back, "
+                 "'n' for next unread,",
+                 " 'd' when done, Esc or 'q' to quit without saving.",
+                 "Press any other key to start:"]
+    assert _through(menu) == menu
+
+
+def test_a_flood_interrupted_by_one_line_stays_collapsed():
+    lines = [USB] * 1000 + ["usb: retrying"] + [USB] * 1000
+    out = _through(lines)
+    assert out.count(USB) == line_flood.SHOW
+    assert "usb: retrying" in out
+    hidden = sum(int(s.split(" came ")[1].split()[0])
+                 for s in out if s.startswith("[ChromIQ"))
+    assert hidden == 2000 - line_flood.SHOW
