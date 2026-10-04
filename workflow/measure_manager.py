@@ -1301,6 +1301,14 @@ class MeasureManager(QObject):
         if self._spot_mode != (mode == "patch"):
             return
         if all_done_news:
+            # Every strip has a reading, but one set aside by "Was a strip
+            # read twice?" still holds another strip's colours: the reader
+            # goes there, as the window said it would (review of bc038bc7).
+            aside = self.set_aside_strips() if mode == "strip" else []
+            if aside and not self._read_twice_pending and at != aside[0]:
+                log.info("every strip read; strip %s was set aside, so the "
+                         "reader goes there", aside[0])
+                self.goto_strip(aside[0])
             return
         if self._guided_state not in ("idle_done", "disabled"):
             return
@@ -1570,6 +1578,28 @@ class MeasureManager(QObject):
             self._suspect_strips.pop(strip, None)
             log.info("read twice: strip %s kept as read (%s)", strip,
                      choice or "dismissed")
+
+    def set_aside_locs(self) -> "set[str]":
+        """Patches whose reading was asked about and NOT kept, and that have
+        not been read again since (review of bc038bc7): they hold another
+        strip's colours, so they count as unread for the progress figure and
+        the completion check, and never reach the saved measurement."""
+        return {loc for loc in self._unread_locs
+                if self._loc_strip.get(loc) in self._suspect_strips}
+
+    def set_aside_strips(self) -> "list[str]":
+        """The strips of :meth:`set_aside_locs`, in reading order."""
+        held = {self._loc_strip.get(loc) for loc in self.set_aside_locs()}
+        labels = [str(s.get("strip", "")).strip()
+                  for s in (self._session_strips or [])]
+        return [x for x in labels if x and x in held]
+
+    def take_set_aside_locs(self) -> "set[str]":
+        """:meth:`set_aside_locs`, then forget them (the session has ended and
+        they are about to be removed from its file)."""
+        locs = self.set_aside_locs()
+        self._suspect_strips = {}
+        return locs
 
     def goto_strip(self, strip: str) -> None:
         """Jump the engine directly to `strip` (engine mode only)."""
