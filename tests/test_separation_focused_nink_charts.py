@@ -262,3 +262,32 @@ def test_new_switches_are_hidden_for_rgb(dlg):
     dlg._refresh_nch_state()
     for w in (dlg._nch_perink_light, dlg._nch_pairs_grid, dlg._gen_fill_sparse):
         assert w.isHidden()
+
+
+def test_the_multi_ink_setup_ticks_the_professional_layout(dlg):
+    from ui.dialogs.ti2_relayout_dialog import _MULTI_INK_SETUP_KEY
+    _seven_inks(dlg)
+    dlg._ink_limit.setValue(320)
+    dlg._gen_fill_to.setValue(900)
+    ix = dlg._preset_setup_combo.findData(_MULTI_INK_SETUP_KEY)
+    assert ix > 0
+    dlg._preset_setup_combo.setCurrentIndex(ix)
+    dlg._on_preset_setup_selected(ix)
+    assert not dlg._nch_targen.isChecked()
+    assert dlg._nch_perink_light.isChecked() and dlg._nch_pairs_grid.isChecked()
+    assert dlg._gen_fill_sparse.isChecked()
+    assert dlg._nch_ink_codes() == INKS7                   # inks kept
+    assert dlg._ink_limit.value() == 320                   # limit kept
+    program = dlg._build_generated_program()
+    assert len(program) == 900
+    k = [_on(p) for p in program]
+    assert max(k) <= 4 and sum(1 for x in k if x in (3, 4)) / len(k) > 0.6
+    assert all(sum(p) <= 320.0 + 1e-6 for p in program)
+
+
+def test_the_multi_ink_setup_turns_an_rgb_window_into_cmyk_plus(dlg):
+    from ui.dialogs.ti2_relayout_dialog import _MULTI_INK_SETUP_KEY
+    assert dlg._nch_state() == 1
+    ix = dlg._preset_setup_combo.findData(_MULTI_INK_SETUP_KEY)
+    dlg._on_preset_setup_selected(ix)
+    assert dlg._device_type.currentData() == "cmykplus"

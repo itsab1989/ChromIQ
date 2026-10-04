@@ -476,6 +476,13 @@ from workflow import patch_generators_nd as NDG
 log = get_logger(__name__)
 
 
+_MULTI_INK_SETUP_KEY = "__multi_ink_professional__"
+#: The rows "Multi-ink, professional layout" sets (agent 18, D-16): the
+#: composition of the professional ECG / FOGRA55 charts at a small budget.
+_MULTI_INK_SETUP = {"perink_n": 12, "pairs_n": 3, "richblack_n": 6,
+                    "richblack_k": 3, "neutral_n": 12}
+
+
 def _patches_label(n: int) -> str:
     """Count-bearing patch label with explicit singular / plural (no "(s)")."""
     return (tr("{n} patch") if n == 1 else tr("{n} patches")).format(n=n)
@@ -1073,6 +1080,11 @@ class _NewChartDialog(QDialog):
         self._preset_setup_combo.addItem(tr("None"), None)
         for pname in self._preset_recipes:
             self._preset_setup_combo.addItem(pname, pname)
+        # A built-in SETUP (not a Create Chart preset): ticks the multi-ink
+        # rows the way professional expanded-gamut charts are composed, and
+        # keeps the window's ink set, ink limit and fill size (agent 18, D-16).
+        self._preset_setup_combo.addItem(
+            "★ " + tr("Multi-ink, professional layout"), _MULTI_INK_SETUP_KEY)
         _as_compact(self._preset_setup_combo)
         self._preset_setup_combo.activated.connect(
             self._on_preset_setup_selected)
@@ -2301,8 +2313,45 @@ class _NewChartDialog(QDialog):
             pass
         return out
 
+    def _apply_multi_ink_setup(self) -> None:
+        """The "Multi-ink, professional layout" setup: ramps with more light
+        steps, every ink pair as a grid, the CMY grey and rich black, white
+        and black, unique colours, and a fill of 3- and 4-ink patches; even
+        coverage (targen) off. Ink set, ink limit and fill size are kept; an
+        RGB window switches to CMYK + extra inks first."""
+        if (self._nch_device_type() == "2"
+                and getattr(self, "_device_type", None) is not None):
+            ix = self._device_type.findData("cmykplus")
+            if ix >= 0:
+                self._device_type.setCurrentIndex(ix)
+        st = _MULTI_INK_SETUP
+        self._nch_targen.setChecked(False)
+        self._nch_perink.setChecked(True)
+        self._nch_perink_n.setValue(st["perink_n"])
+        self._nch_perink_light.setChecked(True)
+        self._nch_pairs.setChecked(True)
+        self._nch_pairs_n.setValue(st["pairs_n"])
+        self._nch_pairs_grid.setChecked(True)
+        self._nch_triples.setChecked(False)
+        self._nch_richblack.setChecked(True)
+        self._nch_richblack_n.setValue(st["richblack_n"])
+        self._nch_richblack_k.setValue(st["richblack_k"])
+        self._gen_neutral.setChecked(True)
+        self._gen_neutral_n.setValue(st["neutral_n"])
+        self._gen_nearneutral.setChecked(False)
+        self._gen_whiteblack.setChecked(True)
+        self._gen_unique.setChecked(True)
+        self._gen_fill.setChecked(True)
+        self._gen_fill_sparse.setChecked(True)
+        self._refresh_nch_state()
+        self._update_gen_counts()
+
     def _on_preset_setup_selected(self, idx: int) -> None:
         name = self._preset_setup_combo.itemData(idx)
+        if name == _MULTI_INK_SETUP_KEY:
+            self._apply_multi_ink_setup()
+            self._do_push_live_preview()
+            return
         rec = self._preset_recipes.get(name) if name else None
         if isinstance(rec, dict):
             self._apply_gen_state(rec)
