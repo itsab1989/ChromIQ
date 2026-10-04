@@ -1,0 +1,91 @@
+name: Test suite
+
+# The full test suite on a GitHub runner, for a second opinion beside the
+# gates run on Basti's Mac (CLAUDE.md "Test").
+#
+# MANUAL ONLY (Basti, 2026-10-04): "for now i want the test runs to be
+# something that is only triggered manually by me or when i tell you though.
+# no runs everytime you cut a release". So there is deliberately no push,
+# tag or pull_request trigger here; do not add one without his word.
+#
+# Start it from the Actions tab ("Test suite" > "Run workflow", pick the
+# branch), or:  gh workflow run tests.yml --ref <branch> [-f slow=false]
+on:
+  workflow_dispatch:
+    inputs:
+      slow:
+        description: 'Include the slow end-to-end tests (--runslow, the release gate)'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  macos:
+    name: macOS (Apple Silicon)
+    runs-on: macos-latest
+    timeout-minutes: 150
+    env:
+      QT_QPA_PLATFORM: offscreen
+      # The suite never reaches a real instrument; keep Argyll's serial scan
+      # off the runner's ports as on the dev machine.
+      ARGYLL_EXCLUDE_SERIAL_SCAN: /dev/cu.Bluetooth-Incoming-Port
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      # ArgyllCMS 3.5.0 from Homebrew, at the app's default path, exactly as
+      # on Basti's Mac (/Applications/Argyll -> the Homebrew keg). The suite
+      # also reads /Applications/Argyll/ref.
+      - name: Install ArgyllCMS
+        run: |
+          set -euo pipefail
+          brew install argyll-cms
+          sudo ln -sfn "$(brew --prefix argyll-cms)" /Applications/Argyll
+          /Applications/Argyll/bin/targen 2>&1 | head -2 || true
+
+      - name: Install Python dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      # The two native helpers, built from this commit's sources so a test
+      # never runs against a stale engine (workflow/chartread_engine.py
+      # prefers native/chartread_helper/build over the checked-in binary).
+      - name: Build the native helpers
+        run: |
+          set -euo pipefail
+          cmake -S native/gammap_helper -B build/gammap -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/gammap -j3
+          cp build/gammap/chromiq-gammap native/chromiq-gammap
+          cmake -S native/chartread_helper -B native/chartread_helper/build -DCMAKE_BUILD_TYPE=Release
+          cmake --build native/chartread_helper/build -j3
+
+      # pytest's own exit code decides the job (no pipe; CLAUDE.md).
+      - name: Run the test suite
+        run: |
+          set -uo pipefail
+          if [ "${{ inputs.slow }}" = "true" ]; then SLOW=--runslow; else SLOW=; fi
+          python -m pytest $SLOW -n auto -q -p no:cacheprovider > pytest-output.txt 2>&1
+          rc=$?
+          tail -n 60 pytest-output.txt
+          echo "pytest exit code: $rc"
+          exit $rc
+
+      - name: Keep the full output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-output-macos
+          path: pytest-output.txt
+          retention-days: 14
