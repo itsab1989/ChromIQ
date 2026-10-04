@@ -347,3 +347,81 @@ def test_judging_only_what_changed_gives_what_judging_all_gives():
         assert nc.suspects() == fresh.suspects()
         assert {k: v.compared for k, v in nc._findings.items()} == \
             {k: v.compared for k, v in fresh._findings.items()}
+
+
+# ---- review of beta 11: kept comparisons, judged again only where needed ---
+
+def _fresh_copy(nc):
+    fresh = NeighbourCheck(buffer=nc.buffer)
+    for loc, (e, m, s) in nc._rows.items():
+        fresh.set_reading_lab(loc, e, m, s)
+    fresh.evaluate()
+    return fresh
+
+
+@pytest.mark.parametrize("seed", range(4))
+def test_random_reads_rereads_and_forgets_end_as_a_fresh_judgement(seed):
+    """Any order of whole strips, re-reads (another colour), readings
+    forgotten and read again, and patches whose strip is unknown: after every
+    evaluation every finding is the one judging everything afresh gives,
+    comparisons, medians and verdicts."""
+    rng = random.Random(seed)
+    strips = [f"S{s}" for s in range(12)]
+    cube = {f"{s}-{p}": (rng.uniform(30, 60), rng.uniform(-20, 20),
+                         rng.uniform(-20, 20))
+            for s in strips for p in range(15)}
+    nc = NeighbourCheck(buffer=4.0)
+    for _ in range(60):
+        op = rng.random()
+        loc = rng.choice(sorted(cube))
+        strip = loc.split("-")[0]
+        if op < 0.6:
+            for loc2 in [x for x in cube if x.startswith(strip + "-")]:
+                e2 = cube[loc2]
+                m = tuple(v + rng.gauss(0, 3) for v in e2)
+                nc.set_reading_lab(loc2, e2, m, strip)
+        elif op < 0.8:
+            e = cube[loc]
+            m = tuple(v + rng.gauss(0, 12) for v in e)
+            nc.set_reading_lab(loc, e, m, strip if rng.random() < 0.9 else "")
+        else:
+            nc.forget(loc)
+        nc.evaluate()
+        fresh = _fresh_copy(nc)
+        assert nc.suspects() == fresh.suspects()
+        assert set(nc._findings) == set(fresh._findings)
+        for k, f in fresh._findings.items():
+            g = nc._findings[k]
+            assert g.compared == f.compared, k
+            assert g.excess == pytest.approx(f.excess, abs=1e-9)
+            assert g.measured_de == pytest.approx(f.measured_de, abs=1e-9)
+
+
+def test_a_strip_searches_all_readings_only_for_its_own_patches(monkeypatch):
+    """No square growth (review of beta 11): at the end of a 4,096-patch
+    chart a strip of 32 had every patch near it in colour search ALL the
+    readings again, 0.1 s a strip in the Measure tab and growing with the
+    square of the chart. Now only the strip's own patches search all the
+    readings; the others only weigh the arrivals."""
+    rng = random.Random(9)
+    nc = NeighbourCheck()
+    grid = [(lv, a, b) for lv in range(20, 95, 5) for a in range(-60, 61, 8)
+            for b in range(-60, 61, 8)][:4096]
+    rng.shuffle(grid)
+    for i, e in enumerate(grid[:-32]):
+        nc.set_reading_lab(f"S{i // 32}-{i % 32}", e, e, f"S{i // 32}")
+    nc.evaluate()
+    searched = []
+    real = NeighbourCheck._find_fresh
+
+    def spy(self, locs, exp, st, known, rows):
+        searched.extend(int(r) for r in rows)
+        return real(self, locs, exp, st, known, rows)
+    monkeypatch.setattr(NeighbourCheck, "_find_fresh", spy)
+    for i, e in enumerate(grid[-32:]):
+        nc.set_reading_lab(f"LAST-{i}", e, e, "LAST")
+    nc.evaluate()
+    assert len(searched) == 32
+    assert nc.suspects() == _fresh_copy(nc).suspects()
+    assert {k: v.compared for k, v in nc._findings.items()} == \
+        {k: v.compared for k, v in _fresh_copy(nc)._findings.items()}
