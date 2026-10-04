@@ -92,6 +92,7 @@ def neighbour_module(ref: str = NB_BRANCH):
     spec = importlib.util.spec_from_file_location("nb_campaign_neighbour_check",
                                                   path)
     mod = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = mod          # dataclasses look their module up
     spec.loader.exec_module(mod)
     return mod, commit
 
