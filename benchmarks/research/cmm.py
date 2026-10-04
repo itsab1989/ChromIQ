@@ -55,6 +55,23 @@ import numpy as np
 
 ICCLU = "/Applications/Argyll/bin/icclu"
 READERS = ("argyll", "lcms", "colorsync", "multilinear")
+# battery v3 (Agent 16): what applications and RIPs really do with a profile
+#   lcms-app        littleCMS with DEFAULT flags and 16-bit formats: the
+#                   transform is pre-calculated into lcms's own grid (17^4 for
+#                   CMYK input, 33^3 for 3 channels), as GIMP, Krita, Scribus,
+#                   darktable and most Linux/Windows software call it
+#                   (Agent 13, L1)
+#   ghostscript     Ghostscript as a RIP (its own lcms2mt fork): a 16-bit Lab
+#                   image in a PDF rendered to 16-bit device values through
+#                   the profile, relative colorimetric, black point
+#                   compensation OFF. B2A only (a RIP converts colour to ink)
+#   ghostscript-bpc the same with Ghostscript's default black point
+#                   compensation ON: reported separately, never pooled (it
+#                   lightens every profile that has perceptual tables by about
+#                   2.4 L*, Agent 13 G1; the cause is Agent 17's)
+READERS_V3 = ("argyll", "lcms", "colorsync", "lcms-app", "ghostscript", "ghostscript-bpc")
+B2A_ONLY = ("ghostscript", "ghostscript-bpc")
+GS = "gs"
 # Quartz Lab colour space a*/b* range. Symmetric, or white reads a*=b*=-0.5.
 QUARTZ_LAB_RANGE = [-127.5, 127.5, -127.5, 127.5]
 QUARTZ_LAB_RANGE_V1 = [-128, 127, -128, 127]       # v1, wrong; re-derivation only
@@ -173,6 +190,143 @@ def _lcms_run(path: Path, rows: np.ndarray, forward: bool) -> np.ndarray:
     return dst if forward else dst / dscale
 
 
+def _lcms_app(path: Path, rows: np.ndarray, forward: bool) -> np.ndarray:
+    """lcms as applications call it: 16-bit integer formats, default flags
+    (lcms pre-calculates the transform; it never does for float formats)."""
+    lib = _lcms()
+    n, additive = _profile_n(path)
+    pt = 4 if additive else (6 if n == 4 else (5 if n == 3 else 14 + n))
+    dfmt = (pt << 16) | (n << 3) | 2
+    lab_fmt = (10 << 16) | (3 << 3) | 2
+    hp = lib.cmsOpenProfileFromFile(str(path).encode(), b"r")
+    hl = lib.cmsCreateLab4Profile(None)
+    if forward:
+        t = lib.cmsCreateTransform(hp, dfmt, hl, lab_fmt, 1, 0)
+        dev = np.clip(rows, 0, 1)          # ink formats: 0 = no ink
+        src = np.ascontiguousarray(np.round(dev * 65535), dtype=np.uint16)
+        dst = np.zeros((len(rows), 3), dtype=np.uint16)
+    else:
+        t = lib.cmsCreateTransform(hl, lab_fmt, hp, dfmt, 1, 0)
+        enc = np.stack([rows[:, 0] * 655.35, (rows[:, 1] + 128) * 257,
+                        (rows[:, 2] + 128) * 257], 1)
+        src = np.ascontiguousarray(np.round(np.clip(enc, 0, 65535)), dtype=np.uint16)
+        dst = np.zeros((len(rows), n), dtype=np.uint16)
+    if not t:
+        lib.cmsCloseProfile(hp)
+        lib.cmsCloseProfile(hl)
+        raise RuntimeError(f"lcms could not build a transform for {path}")
+    lib.cmsDoTransform(t, src.ctypes.data, dst.ctypes.data, len(rows))
+    lib.cmsDeleteTransform(t)
+    lib.cmsCloseProfile(hp)
+    lib.cmsCloseProfile(hl)
+    if forward:
+        d = dst.astype(float)
+        return np.stack([d[:, 0] / 655.35, d[:, 1] / 257 - 128, d[:, 2] / 257 - 128], 1)
+    return dst.astype(float) / 65535
+
+
+# --- Ghostscript (a RIP) ---------------------------------------------------------
+class ReaderUnsupported(RuntimeError):
+    """This reader cannot read this profile or direction (reported, not a gate)."""
+
+
+def ghostscript_supported(path) -> bool:
+    n, additive = _profile_n(Path(path))
+    return additive or n == 4          # gs output devices: RGB and CMYK only
+
+
+def _lab_pdf(lab: np.ndarray, width: int) -> tuple[bytes, int, int]:
+    """A one-page PDF holding ``lab`` as a 16-bit /Lab image, one image
+    pixel per device pixel at 72 dpi."""
+    import zlib
+    n = len(lab)
+    h = -(-n // width)
+    img = np.zeros((h * width, 3))
+    img[:, 0] = 100.0
+    img[:n] = lab
+    L = np.clip(img[:, 0] / 100.0, 0, 1)
+    a = np.clip((img[:, 1] + 128.0) / 255.0, 0, 1)
+    b = np.clip((img[:, 2] + 128.0) / 255.0, 0, 1)
+    raw = np.round(np.stack([L, a, b], 1) * 65535).astype(">u2").tobytes()
+    data = zlib.compress(raw, 6)
+    content = f"q {width} 0 0 {h} 0 0 cm /Im0 Do Q".encode()
+    objs = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        (f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {h}] "
+         f"/Resources << /XObject << /Im0 5 0 R >> >> /Contents 4 0 R >>").encode(),
+        b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream",
+        (f"<< /Type /XObject /Subtype /Image /Width {width} /Height {h} "
+         f"/ColorSpace [/Lab << /WhitePoint [0.9642 1.0 0.8249] /Range [-128 127 -128 127] >>] "
+         f"/BitsPerComponent 16 /Interpolate false /Filter /FlateDecode "
+         f"/Length {len(data)} >>\nstream\n").encode() + data + b"\nendstream",
+    ]
+    out = bytearray(b"%PDF-1.5\n")
+    offs = []
+    for i, o in enumerate(objs, 1):
+        offs.append(len(out))
+        out += f"{i} 0 obj\n".encode() + o + b"\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objs) + 1}\n0000000000 65535 f \n".encode()
+    for o in offs:
+        out += f"{o:010d} 00000 n \n".encode()
+    out += (f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").encode()
+    return bytes(out), width, h
+
+
+def _read_tiff16(path: Path) -> np.ndarray:
+    """Minimal reader for Ghostscript's uncompressed 16-bit tiff48nc/tiff64nc
+    (one IFD, chunky, strips) -> (h, w, c) uint16."""
+    import struct
+    d = Path(path).read_bytes()
+    bo = "<" if d[:2] == b"II" else ">"
+    off = struct.unpack(bo + "I", d[4:8])[0]
+    cnt = struct.unpack(bo + "H", d[off:off + 2])[0]
+    tags = {}
+    for i in range(cnt):
+        e = d[off + 2 + 12 * i: off + 14 + 12 * i]
+        tag, typ, num = struct.unpack(bo + "HHI", e[:8])
+        if tag not in (256, 257, 258, 259, 273, 277, 279) or typ not in (3, 4):
+            continue
+        size = {3: 2, 4: 4}[typ]
+        if num * size <= 4:
+            vals = struct.unpack(bo + ("H" if typ == 3 else "I") * num, e[8:8 + num * size])
+        else:
+            p = struct.unpack(bo + "I", e[8:12])[0]
+            vals = struct.unpack(bo + ("H" if typ == 3 else "I") * num, d[p:p + num * size])
+        tags[tag] = vals
+    w, h, spp = tags[256][0], tags[257][0], tags[277][0]
+    if tags.get(259, (1,))[0] != 1 or tags[258][0] != 16:
+        raise RuntimeError("unexpected TIFF (compressed or not 16-bit)")
+    buf = b"".join(d[o:o + c] for o, c in zip(tags[273], tags[279]))
+    return np.frombuffer(buf, dtype=bo + "u2", count=w * h * spp).reshape(h, w, spp)
+
+
+def _ghostscript_b2a(path: Path, lab: np.ndarray, bpc: bool, width: int = 256) -> np.ndarray:
+    import tempfile
+    n, additive = _profile_n(path)
+    if not ghostscript_supported(path):
+        raise ReaderUnsupported("Ghostscript renders to RGB or CMYK devices only")
+    pdf, w, h = _lab_pdf(lab, width)
+    dev = "tiff48nc" if additive else "tiff64nc"
+    with tempfile.TemporaryDirectory(prefix="chromiq-gs-") as td:
+        td = Path(td)
+        (td / "in.pdf").write_bytes(pdf)
+        r = subprocess.run([GS, "-q", "-dSAFER", "-dBATCH", "-dNOPAUSE", f"-sDEVICE={dev}",
+                            "-r72", "-dNOINTERPOLATE", "-dUseFastColor=false",
+                            f"-sOutputICCProfile={path}", "-dRenderIntent=1",
+                            f"-dBlackPtComp={1 if bpc else 0}",
+                            f"-sOutputFile={td / 'out.tif'}", str(td / "in.pdf")],
+                           capture_output=True, text=True, encoding="utf-8", timeout=900)
+        if r.returncode != 0 or not (td / "out.tif").exists():
+            raise RuntimeError(f"ghostscript failed: {(r.stderr or r.stdout)[-300:]}")
+        img = _read_tiff16(td / "out.tif")
+    if img.shape[:2] != (h, w):
+        raise RuntimeError(f"ghostscript page {img.shape[:2]} != {(h, w)}")
+    # tiff48nc: RGB device values; tiff64nc: 0 = no ink, 1 = solid (CMYK)
+    return img.reshape(-1, img.shape[2])[:len(lab)].astype(float) / 65535.0
+
+
 # --- ColorSync ------------------------------------------------------------------
 @lru_cache(maxsize=None)
 def colorsync_supported(path: str) -> bool:
@@ -236,7 +390,23 @@ def a2b(path: Path | str, device01: np.ndarray, reader: str) -> np.ndarray:
     if reader == "multilinear":
         from benchmarks.iccread import IccProfile
         return IccProfile(path).a2b_lab(device01)
+    if reader == "lcms-app":
+        return _lcms_app(path, device01, True)
+    if reader in B2A_ONLY:
+        raise ReaderUnsupported(f"{reader} reads B2A only (a RIP converts colour to ink)")
     raise KeyError(reader)
+
+
+def supports(reader: str, direction: str, path=None) -> bool:
+    """Whether ``reader`` can read ``direction`` ("a2b" | "b2a") of the
+    profile at ``path`` (None: in general)."""
+    if direction == "a2b" and reader in B2A_ONLY:
+        return False
+    if reader in B2A_ONLY and path is not None:
+        return ghostscript_supported(path)
+    if reader in ("colorsync", "colorsync-v1range") and path is not None:
+        return colorsync_supported(str(path))
+    return True
 
 
 def b2a(path: Path | str, lab: np.ndarray, reader: str) -> np.ndarray:
@@ -254,4 +424,8 @@ def b2a(path: Path | str, lab: np.ndarray, reader: str) -> np.ndarray:
     if reader == "multilinear":
         from benchmarks.iccread import IccProfile
         return IccProfile(path).b2a_device(lab)
+    if reader == "lcms-app":
+        return np.clip(_lcms_app(path, lab, False), 0.0, 1.0)
+    if reader in B2A_ONLY:
+        return np.clip(_ghostscript_b2a(path, lab, bpc=reader == "ghostscript-bpc"), 0.0, 1.0)
     raise KeyError(reader)

@@ -126,13 +126,19 @@ def strip_rows(n: int, strip_len: int, first: int = 8) -> list[np.ndarray]:
 def measure(printer, device: np.ndarray, level: str = "reread", seed: int = 23,
             misread_prob: float | None = None, illuminant: str = "D50",
             strip_prob: float | None = None, strip_len: int | None = None,
-            noise_scale: float | None = None, detail: dict | None = None
+            noise_scale: float | None = None, detail: dict | None = None,
+            row_gain: np.ndarray | None = None
             ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """-> (xyz_measured, spec10_measured, misread_rows).
 
     ``misread_rows`` holds every row whose reading is grossly wrong (isolated
     misreads and strip misreads). ``detail`` (optional dict) receives
-    ``isolated`` and ``strips`` separately."""
+    ``isolated`` and ``strips`` separately.
+
+    ``row_gain`` (v3, optional): a multiplicative reflectance factor per
+    chart row, applied to the printed reflectance before the instrument
+    noise: print non-uniformity across the sheet (``zfamily.print_field``).
+    None leaves every earlier level bit-identical (no extra random draws)."""
     if level not in LEVELS:
         raise KeyError(level)
     rng = np.random.default_rng(seed)
@@ -140,6 +146,8 @@ def measure(printer, device: np.ndarray, level: str = "reread", seed: int = 23,
     n = len(device)
     refl = np.vstack([printer.reflectance(device[s:s + 2048], LAM_1NM)
                       for s in range(0, len(device), 2048)])
+    if row_gain is not None:
+        refl = refl * np.asarray(row_gain, float).reshape(-1, 1)
     if level == "none":
         return (colour.xyz_from_reflectance_1nm(refl, illuminant),
                 bandpass_10nm(refl), np.array([], int))
