@@ -9994,7 +9994,10 @@ class TabChart(QWidget):
         if old_root is None or not (old_root / "project.json").exists():
             return                                   # nothing created under the old name
         new_root = self._new_project_root_beside(old_root, new_name)
-        if new_root is None or new_root == old_root:
+        # Spelled, not `==`: WindowsPath equality ignores case, so a case-only
+        # rename ended here on Windows only (`same_spelling`).
+        from core.file_manager import same_spelling as _same_spelling
+        if new_root is None or _same_spelling(new_root, old_root):
             return                                   # unchanged / equivalent name
         # A finished profile can't be renamed — the embedded ICC description was
         # baked at build time. Refuse, explain, and restore the built name.
@@ -19070,7 +19073,10 @@ class TabChart(QWidget):
             return True
         # Same destination (e.g. only spacing/case-equivalent edit), or the old
         # target was never written to disk — nothing to reconcile.
-        if new_root == old_root or not (old_root / "project.json").exists():
+        # Spelled, not `==`: WindowsPath equality ignores case (`same_spelling`).
+        from core.file_manager import same_spelling as _same_spelling
+        if (_same_spelling(new_root, old_root)
+                or not (old_root / "project.json").exists()):
             return True
         # A project already occupying the new name is a different situation
         # (merge/overwrite) that this dialog doesn't cover — let the normal flow
