@@ -687,7 +687,7 @@ parameters:
       tooltip_title: "Aplicar calibración a los parches (-K)"
       tooltip_body: |-
         Úsalo cuando la impresora no tiene ningún sistema de calibración
-        integrado — es decir, el controlador o el RIP no puede aplicar
+        integrado, es decir, el controlador o el RIP no puede aplicar
         por sí mismo una curva de calibración.
 
         Primero ejecuta printcal de Argyll para producir un archivo .cal
@@ -695,21 +695,28 @@ parameters:
         printtarg recalcula cada valor de color de los parches a través
         de las curvas de calibración antes de generar la carta, de modo
         que el objetivo impreso ya refleja el comportamiento calibrado
-        del dispositivo.  El .cal también se incrusta en el archivo .ti2
-        para que colprof pueda consultarlo al crear el perfil ICC.
+        del dispositivo.  El .cal también queda registrado en la carta,
+        así los límites de tinta del perfil se calculan con las
+        cantidades de tinta reales.
+
+        **Después de crear el perfil, pulsa Aplicar calibración.**
+        colprof de ArgyllCMS no incorpora la calibración al perfil.
+        Aplicar calibración (applycal) sí lo hace, de modo que cada
+        impresión hecha a través del perfil calibrado sale calibrada
+        también.  Sin ello tus impresiones salen sin calibrar.
 
         **Uso típico:** inyecciones de escritorio sin linealización
         integrada, controladas directamente con un TIFF sin RIP
         intermedio.
 
-        Se excluye mutuamente con "Incrustar calibración" (-I) — solo una
+        Se excluye mutuamente con "Incrustar calibración" (-I): solo una
         opción de calibración puede estar activa a la vez.
     "-I":
       name: "Solo incrustar calibración"
       tooltip_title: "Incrustar calibración sin aplicarla (-I)"
       tooltip_body: |-
         Úsalo cuando la impresora o el RIP ya aplica una curva de
-        calibración de forma nativa — por ejemplo un RIP de inyección de
+        calibración de forma nativa, por ejemplo un RIP de inyección de
         producción con su propia LUT de linealización, o una impresora
         con calibración de densidad integrada.
 
@@ -718,11 +725,15 @@ parameters:
         calibración.  -I incrusta el archivo .cal en el .ti2 de salida
         solo como metadatos, dejando todos los valores intactos.
 
+        **No pulses Aplicar calibración en el perfil después.**
+        La impresora ya aplica la calibración, e incorporarla además
+        al perfil corregiría el color dos veces.
+
         **Uso típico:** RIP de inyección profesionales (p. ej. EFI Fiery,
         Wasatch, ColorBurst) o impresoras con linealización integrada
         activa durante la impresión de perfilado.
 
-        Se excluye mutuamente con "Aplicar calibración" (-K) — solo una
+        Se excluye mutuamente con "Aplicar calibración" (-K): solo una
         opción de calibración puede estar activa a la vez.
     "-C":
       name: "Desactivar compresión TIFF"

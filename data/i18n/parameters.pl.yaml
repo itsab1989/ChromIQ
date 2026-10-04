@@ -664,29 +664,35 @@ parameters:
       name: "Zastosuj plik kalibracji"
       tooltip_title: "Zastosuj kalibrację do pól (-K)"
       tooltip_body: |-
-        Użyj, gdy drukarka nie ma żadnego wbudowanego systemu kalibracji
-        — czyli sterownik lub RIP nie potrafi sam zastosować krzywej
+        Użyj, gdy drukarka nie ma żadnego wbudowanego systemu kalibracji,
+        czyli sterownik lub RIP nie potrafi sam zastosować krzywej
         kalibracji.
 
         Najpierw uruchom printcal Argylla, aby wytworzyć plik .cal
         opisujący, jak zlinearyzować drukarkę.  Potem przekaż go tutaj:
         printtarg przelicza każdą wartość koloru pól przez krzywe
-        kalibracji przed wygenerowaniem wzorca — wydrukowany wzorzec już
+        kalibracji przed wygenerowaniem wzorca, wydrukowany wzorzec już
         odzwierciedla skalibrowane zachowanie urządzenia.  Plik .cal jest
-        też osadzany w pliku .ti2, aby colprof mógł się do niego odwołać
-        przy budowie profilu ICC.
+        też zapisywany we wzorcu, aby limity atramentu profilu były
+        wyliczane na rzeczywistych ilościach atramentu.
+
+        **Po zbudowaniu profilu kliknij Zastosuj kalibrację.**
+        colprof z ArgyllCMS nie umieszcza kalibracji w profilu.  Robi to
+        Zastosuj kalibrację (applycal), dzięki czemu każdy wydruk
+        wykonany przez skalibrowany profil też jest skalibrowany.  Bez
+        tego Twoje wydruki wychodzą nieskalibrowane.
 
         **Typowe zastosowanie:** biurkowe atramentówki bez wbudowanej
         linearyzacji, sterowane bezpośrednio TIFF-em bez pośredniego RIP.
 
-        Wyklucza się wzajemnie z „Osadź kalibrację” (-I) — tylko jedna
+        Wyklucza się wzajemnie z „Osadź kalibrację” (-I): tylko jedna
         opcja kalibracji może być aktywna naraz.
     "-I":
       name: "Tylko osadź kalibrację"
       tooltip_title: "Osadź kalibrację bez stosowania (-I)"
       tooltip_body: |-
-        Użyj, gdy drukarka lub RIP już natywnie stosuje krzywą kalibracji
-        — na przykład produkcyjny RIP atramentowy z własną tablicą LUT
+        Użyj, gdy drukarka lub RIP już natywnie stosuje krzywą kalibracji,
+        na przykład produkcyjny RIP atramentowy z własną tablicą LUT
         linearyzacji albo drukarka z wbudowaną kalibracją gęstości.
 
         Wtedy nie chcesz, aby printtarg przeliczał wartości pól (robi to
@@ -694,11 +700,15 @@ parameters:
         osadza plik .cal w wyjściowym .ti2 wyłącznie jako metadane,
         zostawiając wszystkie wartości nietknięte.
 
+        **Nie klikaj potem Zastosuj kalibrację dla profilu.**
+        Drukarka już stosuje kalibrację, a umieszczenie jej także
+        w profilu skorygowałoby kolor dwa razy.
+
         **Typowe zastosowanie:** profesjonalne RIP-y atramentowe (np. EFI
         Fiery, Wasatch, ColorBurst) lub drukarki z aktywną wbudowaną
         linearyzacją podczas druku profilującego.
 
-        Wyklucza się wzajemnie z „Zastosuj kalibrację” (-K) — tylko jedna
+        Wyklucza się wzajemnie z „Zastosuj kalibrację” (-K): tylko jedna
         opcja kalibracji może być aktywna naraz.
     "-C":
       name: "Wyłącz kompresję TIFF"

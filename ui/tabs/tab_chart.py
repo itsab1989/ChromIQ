@@ -15743,6 +15743,25 @@ class TabChart(QWidget):
                     pw.reset_to_default()
         self._apply_instrument_default_margin()
 
+    def _sync_order_lock(self) -> None:
+        """Grey "Randomise patch order" and the printtarg -r row while Run
+        type is Calibration, with a note saying why (forum, ajaytanna, beta 7;
+        calibration_run_type.md §4.2). Nothing stored changes: the ticks are
+        the profiling runs' own, and the chart builders force the order for a
+        calibration chart whatever they say."""
+        locked = self._calibration_selected()
+        panel = getattr(self, "_manual_layout_panel", None)
+        if panel is not None and hasattr(panel, "set_order_locked"):
+            panel.set_order_locked(locked)
+        from ui.dialogs.layout_options_panel import LayoutOptionsPanel
+        for pw in self._manual_widgets.get("printtarg", []):
+            if pw.flag == "-r":
+                pw.setEnabled(not locked)
+                if locked:
+                    pw.setToolTip(LayoutOptionsPanel._order_lock_text())
+                else:
+                    pw.setToolTip("")
+
     def _set_manual_value(self, tool: str, flag: str, value: Any) -> None:
         """Set the value of a single manual ParameterWidget, if present."""
         for pw in self._manual_widgets.get(tool, []):
@@ -20311,6 +20330,9 @@ class TabChart(QWidget):
         #: (path, .ti2 mtime) of the chart on screen — see _chart_stamp.
         self._shown_chart_stamp: "tuple | None" = None
         controller.changed.connect(self._on_target_changed)
+        # After the chart of the selected target is shown: a calibration chart
+        # is always laid out in order, so its randomisation controls are greyed.
+        controller.changed.connect(self._sync_order_lock)
         # …and label the two text rows for the selection the bar STARTS on.
         # They were built before the controller existed, so without this the
         # opening selection — "New run", Profiling — wore whatever labels the

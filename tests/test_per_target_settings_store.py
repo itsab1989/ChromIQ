@@ -228,7 +228,7 @@ def test_w6_app_quit_counts_as_leaving_the_visible_tab():
     import inspect
 
     import ui.main_window as mw
-    assert "_save_settings_of_tab_left()" in inspect.getsource(mw.MainWindow.closeEvent)
+    assert "_save_settings_of_tab_left()" in (inspect.getsource(mw.MainWindow.closeEvent) + inspect.getsource(mw.MainWindow._close_down))
 
 
 def test_a_tab_out_of_scope_is_not_asked():

@@ -544,6 +544,10 @@ class MeasureManager(QObject):
         on_finish: Callable[[int], None],
     ) -> None:
         args = self._build_args(params)
+        #: The system port a refused start would have opened, or None. The
+        #: tab reads it to tell "no instrument is connected" (nothing was
+        #: asked of any instrument) from "the instrument did not answer".
+        self.start_refused_port: "str | None" = None
         try:
             from workflow.layout_engine.labels import labels_for_chart
             _t = Path(params.ti1_path)
@@ -776,8 +780,10 @@ class MeasureManager(QObject):
         (measured on screen: an emit here was wiped and no window came).
         """
         from core.instrument_port import refused_port
-        if refused_port(str(tool), args) is None:
+        found = refused_port(str(tool), args)
+        if found is None:
             return False
+        self.start_refused_port = found
         self._engine_active = False
         self._refused_finish = on_finish
         QTimer.singleShot(0, self._finish_refused_start)

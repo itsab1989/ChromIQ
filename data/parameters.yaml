@@ -916,8 +916,8 @@ parameters:
       expert_only: true
       tooltip_title: "Apply Calibration to Patches (-K)"
       tooltip_body: |
-        Use this when your printer has no built-in calibration system
-        — i.e. the printer driver or RIP cannot apply a calibration
+        Use this when your printer has no built-in calibration system,
+        that is, the printer driver or RIP cannot apply a calibration
         curve on its own.
 
         You first run Argyll's printcal to produce a .cal file that
@@ -925,14 +925,20 @@ parameters:
         .cal here: printtarg remaps every patch colour value through
         the calibration curves before generating the chart, so the
         printed target already reflects calibrated device behaviour.
-        The .cal is also embedded in the .ti2 file so that colprof
-        can reference it when building the ICC profile.
+        The .cal is also recorded in the chart, so the profile's ink
+        limits are worked out on the real ink amounts.
+
+        **After you build the profile, click Apply Calibration.**
+        ArgyllCMS's colprof does not put the calibration into the
+        profile.  Apply Calibration (applycal) does, so every print
+        made through the calibrated profile is calibrated too.
+        Without it your prints go out uncalibrated.
 
         **Typical use:** desktop inkjet printers without built-in
         linearisation, driven directly from a TIFF with no
         intervening RIP.
 
-        Mutually exclusive with "Include Calibration" (-I) — only
+        Mutually exclusive with "Include Calibration" (-I): only
         one calibration option can be active at a time.
 
     - flag: "-I"
@@ -946,7 +952,7 @@ parameters:
       tooltip_title: "Include Calibration Without Applying (-I)"
       tooltip_body: |
         Use this when your printer or RIP already applies a
-        calibration curve natively — for example, a production inkjet
+        calibration curve natively, for example a production inkjet
         RIP with its own linearisation LUT, or a printer with
         built-in density calibration.
 
@@ -956,11 +962,15 @@ parameters:
         file into the .ti2 output as metadata only, leaving all patch
         values untouched.
 
+        **Do not click Apply Calibration on the profile afterwards.**
+        The printer already applies the calibration, and putting it
+        into the profile as well would correct the colour twice.
+
         **Typical use:** professional inkjet RIPs (e.g. EFI Fiery,
         Wasatch, ColorBurst) or printers with built-in linearisation
         that is active during the profiling print run.
 
-        Mutually exclusive with "Apply Calibration" (-K) — only one
+        Mutually exclusive with "Apply Calibration" (-K): only one
         calibration option can be active at a time.
 
     - flag: "-C"

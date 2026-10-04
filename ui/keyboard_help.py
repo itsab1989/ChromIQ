@@ -72,6 +72,11 @@ BINDINGS: dict[str, str] = {
     "undo":               "Ctrl+Z",
     "redo":               "Ctrl+Shift+Z",
     "redo_alt":           "Ctrl+Y",
+    # Quit (Knut, #182 5973222284). ⌘Q on macOS, where it also stands behind
+    # the app menu's Quit item (QAction.MenuRole.QuitRole); Ctrl+Q on Linux
+    # and Windows. Windows' own Alt+F4 needs no binding: it closes the window,
+    # which is the same door (see `quit_keys`).
+    "quit":               "Ctrl+Q",
     **{f"tab_{i}": f"Ctrl+{i}" for i in range(1, 6)},
 }
 
@@ -99,6 +104,23 @@ def with_shortcut(tooltip: str, action: str) -> str:
 
 
 _IS_MAC = _sys.platform == "darwin"
+
+
+def quit_keys(platform: "str | None" = None) -> str:
+    """How to quit ChromIQ from the keyboard, in this platform's convention.
+
+    macOS: ⌘Q. Windows: Alt+F4, the system's own way to close a window,
+    and Ctrl+Q as well. Linux: Ctrl+Q. Every one of them goes through the
+    window's close, so a running measurement is asked about first.
+    """
+    plat = _sys.platform if platform is None else platform
+    q = keys_for("quit")
+    if plat.startswith("win"):
+        from PyQt6.QtGui import QKeySequence
+        alt_f4 = QKeySequence("Alt+F4").toString(
+            QKeySequence.SequenceFormat.NativeText)
+        return f"{alt_f4}  ·  {q}"
+    return q
 
 
 def _shift() -> str:
@@ -147,6 +169,8 @@ def _shortcuts() -> list[tuple[str, str]]:
                          first=keys_for("tab_1"), last=keys_for("tab_5"))),
         (f"F1  ·  {keys_for("help_alt")}", tr("Open Help (this window)")),
         (keys_for("preferences"), tr("Open Preferences (Settings)")),
+        (quit_keys(), tr("Quit ChromIQ (asks first if a measurement is "
+                         "running)")),
         (keys_for("tools"), tr("Open the Tools menu")),
         (f"{keys_for("redo")}  ·  {keys_for("redo_alt")}",
          tr("Redo — in the chart layout editor")),

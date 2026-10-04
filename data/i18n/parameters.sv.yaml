@@ -643,7 +643,7 @@ parameters:
       name: "Använd kalibreringsfil"
       tooltip_title: "Använd kalibrering på fälten (-K)"
       tooltip_body: |-
-        Använd detta när din skrivare saknar inbyggt kalibreringssystem —
+        Använd detta när din skrivare saknar inbyggt kalibreringssystem,
         dvs. skrivardrivrutinen eller RIP:en kan inte själv tillämpa en
         kalibreringskurva.
 
@@ -652,20 +652,26 @@ parameters:
         här: printtarg räknar varje fältfärgvärde genom kalibrerings-
         kurvorna innan diagrammet genereras, så att det utskrivna
         diagrammet redan återspeglar kalibrerat enhetsbeteende.
-        .cal-filen bäddas också in i .ti2-filen så att colprof kan
-        referera till den när ICC-profilen byggs.
+        .cal-filen registreras också i diagrammet, så att profilens
+        bläckgränser beräknas utifrån de verkliga bläckmängderna.
+
+        **När du har byggt profilen klickar du på Använd kalibrering.**
+        ArgyllCMS colprof för inte in kalibreringen i profilen.
+        Använd kalibrering (applycal) gör det, så att varje utskrift
+        genom den kalibrerade profilen också blir kalibrerad.  Utan det
+        går dina utskrifter ut okalibrerade.
 
         **Typisk användning:** skrivbordsbläckstråleskrivare utan inbyggd
         linearisering, styrda direkt från en TIFF utan mellanliggande RIP.
 
-        Utesluter "Bädda in kalibrering" (-I) — bara ett kalibrerings-
+        Utesluter "Bädda in kalibrering" (-I): bara ett kalibrerings-
         alternativ kan vara aktivt åt gången.
     "-I":
       name: "Bädda endast in kalibrering"
       tooltip_title: "Bädda in kalibrering utan att använda den (-I)"
       tooltip_body: |-
         Använd detta när din skrivare eller RIP redan tillämpar en
-        kalibreringskurva själv — till exempel en produktions-RIP med egen
+        kalibreringskurva själv, till exempel en produktions-RIP med egen
         lineariserings-LUT, eller en skrivare med inbyggd densitets-
         kalibrering.
 
@@ -674,11 +680,15 @@ parameters:
         kalibreringen.  -I bäddar in .cal-filen i .ti2-utdata enbart som
         metadata och lämnar alla fältvärden orörda.
 
+        **Klicka inte på Använd kalibrering för profilen efteråt.**
+        Skrivaren tillämpar redan kalibreringen, och att även föra in
+        den i profilen skulle korrigera färgen två gånger.
+
         **Typisk användning:** professionella bläckstråle-RIP:ar (t.ex. EFI
         Fiery, Wasatch, ColorBurst) eller skrivare med inbyggd
         linearisering som är aktiv under profileringsutskriften.
 
-        Utesluter "Använd kalibrering" (-K) — bara ett kalibrerings-
+        Utesluter "Använd kalibrering" (-K): bara ett kalibrerings-
         alternativ kan vara aktivt åt gången.
     "-C":
       name: "Stäng av TIFF-komprimering"

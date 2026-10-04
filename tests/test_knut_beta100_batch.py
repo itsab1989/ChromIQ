@@ -88,7 +88,8 @@ def test_settings_can_be_flushed_to_disk(tmp_path):
 
 def test_the_window_flushes_on_close():
     from ui.main_window import MainWindow
-    src = inspect.getsource(MainWindow.closeEvent)
+    src = (inspect.getsource(MainWindow.closeEvent)   # beta 8: the steps moved
+           + inspect.getsource(MainWindow._close_down))
     assert "self._settings.sync()" in src
     assert src.index('self._settings.set("active_tab"') < src.index("self._settings.sync()"), \
         "the flush must come after the writes"

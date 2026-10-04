@@ -134,7 +134,7 @@ def test_l1_and_w6_are_wired_once_in_main_window():
 
 def test_w6_quit_writes_the_visible_tab():
     import ui.main_window as mw
-    assert "_save_settings_of_tab_left()" in inspect.getsource(mw.MainWindow.closeEvent)
+    assert "_save_settings_of_tab_left()" in (inspect.getsource(mw.MainWindow.closeEvent) + inspect.getsource(mw.MainWindow._close_down))
 
 
 def test_the_target_change_trigger_reaches_every_tab():

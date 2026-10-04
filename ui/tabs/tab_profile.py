@@ -196,17 +196,27 @@ _TOOLTIP_BODY_CAL = (
     "here and click “Create Calibration File”. ChromIQ runs Argyll's "
     "printcal and saves a .cal file that describes how to even out each "
     "ink channel.\n\n"
-    "2. USE THE .cal FOR A NEW TARGET, OR LOAD IT INTO THE PRINTER   "
-    "(back on tab 1)\n"
+    # Knut/Basti, beta 8: step 2 and step 6 used to say that a chart made
+    # with -K needs no Apply Calibration afterwards. ArgyllCMS says the
+    # opposite (doc/Scenarios.html: with printtarg -K "colprof does NOT apply
+    # the calibration curves to the resulting ICC profile"; a printer that
+    # cannot calibrate gets them through applycal). -K: apply afterwards.
+    # -I: never, the printer already does it.
+    "2. USE THE .cal FOR THE PROFILING CHART   (back on tab 1)\n"
     "Now return to tab 1 and create your full, larger profiling chart. "
-    "There are two ways to put the calibration to work:\n"
-    "   • If your printer or RIP can apply a calibration itself, load the "
-    ".cal into it and just embed the file as a reference (the -I option). "
-    "ChromIQ leaves the patch values untouched and lets the printer do "
-    "the work.\n"
-    "   • If your printer has no calibration of its own, let ChromIQ bake "
-    "the curves straight into the chart's patch values (the -K option), so "
-    "the printed target already reflects the calibrated state.\n"
+    "There are two ways to put the calibration to work, and the right one "
+    "depends on your printer. Remember which one you chose, because it "
+    "decides step 6.\n"
+    "   • Your printer or RIP can apply a calibration itself. Load the .cal "
+    "into the printer or RIP, and in ChromIQ only include the file in the "
+    "chart (the -I option, “Include Calibration File”). ChromIQ leaves the "
+    "patch values untouched, and the printer corrects every print on its "
+    "own.\n"
+    "   • Your printer cannot apply a calibration. Then ChromIQ applies the "
+    "curves to the chart's patch values (the -K option, “Apply Calibration "
+    "File”), so the printed chart already shows the calibrated printer. "
+    "Later, in step 6, you give the same curves to the profile, so your "
+    "everyday prints are calibrated too.\n"
     "ChromIQ fills the calibration file in for you when it finds one in "
     "the project's “cal” folder, so usually you don't have to go looking "
     "for it by hand.\n\n"
@@ -220,17 +230,24 @@ _TOOLTIP_BODY_CAL = (
     "Come back to this tab and click Build Profile. ChromIQ runs Argyll's "
     "colprof to turn the calibrated measurements into the finished .icc "
     "colour profile.\n\n"
-    "6. APPLY THE CALIBRATION TO THE PROFILE, IF NEEDED   "
+    "6. APPLY THE CALIBRATION TO THE PROFILE, IF YOUR PRINTER CANNOT   "
     "(here · \"Apply Calibration\")\n"
-    "Finally, only if the calibration isn't already applied somewhere "
-    "else, click Apply Calibration. ChromIQ runs Argyll's applycal to "
-    "fold the .cal curves directly into the finished .icc. You do NOT need "
-    "this step if the printer or RIP already applies the calibration, or "
-    "if you baked it into the patch values back in step 2. Doing it twice "
-    "would double-correct the colour.\n\n"
+    "What you do now depends on the choice you made in step 2.\n"
+    "   • You chose -K (“Apply Calibration File”) because your printer "
+    "cannot calibrate itself: click Apply Calibration. The profile from "
+    "step 5 describes your calibrated printer, but it does not contain the "
+    "calibration itself (ArgyllCMS's colprof never adds it). ChromIQ runs "
+    "Argyll's applycal to put the .cal curves into the profile, so every "
+    "print made through that calibrated profile gets the calibration as "
+    "well. Print with the calibrated profile. Without this step your prints "
+    "would go out uncalibrated, and their colours would be off.\n"
+    "   • You chose -I (“Include Calibration File”) because your printer or "
+    "RIP applies the .cal itself: do NOT click Apply Calibration. The "
+    "printer already corrects every print, and putting the curves into the "
+    "profile as well would correct the colour twice.\n\n"
     "In short: make the calibration → use it when you print the real "
-    "chart → measure → build the profile → (optionally) fold the "
-    "calibration into the profile."
+    "chart → measure → build the profile → put the calibration into the "
+    "profile, but only if your printer cannot apply it itself."
 )
 
 
@@ -330,6 +347,74 @@ class TabProfile(QWidget):
 
         self._build_ui()
         self._restore_defaults()
+        self._link_guided_and_manual_header_fields()
+
+    # ------------------------------------------------------------------
+    # Guided and Manual share the profile header fields (Knut, #182
+    # 5973177088, beta 7)
+    # ------------------------------------------------------------------
+    #: (Guided widget, Manual widget) pairs that are ONE value shown twice.
+    #: Profile Description (-D) and the three header tags (-A, -M, -C) with
+    #: their switches describe the profile being built, not how it is built,
+    #: so which mode is on screen must not change them. They were separate
+    #: widgets filled separately: emptying Profile Description in Guided gave
+    #: the automatic name back there and left Manual showing the old text.
+    _LINKED_HEADER_FIELDS = (
+        ("_desc_edit", "_m_desc_edit"),
+        ("_mfr_edit", "_m_mfr_edit"),
+        ("_model_edit", "_m_model_edit"),
+        ("_copy_edit", "_m_copy_edit"),
+        ("_mfr_check", "_m_mfr_check"),
+        ("_model_check", "_m_model_check"),
+        ("_copy_check", "_m_copy_check"),
+    )
+
+    def _link_guided_and_manual_header_fields(self) -> None:
+        """Make each pair in `_LINKED_HEADER_FIELDS` follow the other.
+
+        Every change is mirrored, whatever made it (typing, a preset, a
+        per-target load, the automatic name), so the two cannot drift. The
+        equality check ends the echo: the mirrored widget's own signal finds
+        its twin already equal and does nothing.
+        """
+        from PyQt6.QtWidgets import QCheckBox
+        for a_name, b_name in self._LINKED_HEADER_FIELDS:
+            a = getattr(self, a_name, None)
+            b = getattr(self, b_name, None)
+            if a is None or b is None:
+                continue
+            if isinstance(a, QCheckBox):
+                a.toggled.connect(self._mirror_header_check)
+                b.toggled.connect(self._mirror_header_check)
+            else:
+                a.textChanged.connect(self._mirror_header_text)
+                b.textChanged.connect(self._mirror_header_text)
+
+    def _header_twin(self, widget):
+        for a_name, b_name in self._LINKED_HEADER_FIELDS:
+            a = getattr(self, a_name, None)
+            b = getattr(self, b_name, None)
+            if widget is a:
+                return b
+            if widget is b:
+                return a
+        return None
+
+    def _mirror_header_text(self, _text: str) -> None:
+        # The SENDER'S CURRENT text, never the signal's argument. When the
+        # user empties a field, `textEdited` refills it with the automatic
+        # name before Qt delivers that same edit's `textChanged("")`, so the
+        # argument is already stale and copying it emptied both fields again
+        # (measured on screen, beta 8).
+        src = self.sender()
+        twin = self._header_twin(src)
+        if twin is not None and src is not None and twin.text() != src.text():
+            twin.setText(src.text())
+
+    def _mirror_header_check(self, on: bool) -> None:
+        twin = self._header_twin(self.sender())
+        if twin is not None and twin.isChecked() != on:
+            twin.setChecked(on)
 
     # ------------------------------------------------------------------
     # Mode switching
@@ -1827,9 +1912,11 @@ class TabProfile(QWidget):
             tr("<b>-K &nbsp; Apply calibration to patches</b><br>"
             "<span style='color:#b0b0b0; font-size:11px'>"
             "printtarg remaps every patch value through the .cal curves before printing. "
-            "Use this when your printer has no built-in linearisation — the chart will "
-            "already reflect calibrated device behaviour. Recommended for most desktop "
-            "inkjet printers driven directly from a TIFF."
+            "Use this when your printer cannot apply a calibration itself, so the chart "
+            "already shows the calibrated printer. Recommended for most desktop inkjet "
+            "printers driven directly from a TIFF. After you build the profile, click "
+            "<b>Apply Calibration</b>: the profile does not contain the calibration until "
+            "you do, and your prints need it."
             "</span>"),
             dlg,
         )
@@ -1843,7 +1930,8 @@ class TabProfile(QWidget):
             "The .cal is embedded in the .ti2 as metadata only; patch values are left "
             "untouched. Use this when your printer or RIP already applies linearisation "
             "natively (e.g. EFI Fiery, Wasatch, or any RIP with its own LUT). "
-            "colprof will reference the .cal when building the profile."
+            "Do not apply the calibration to the profile afterwards: the printer "
+            "already applies it, and doing both would correct the colour twice."
             "</span>"),
             dlg,
         )
@@ -4968,20 +5056,23 @@ class TabProfile(QWidget):
         if edit is None:
             return
         store = self._description_store()
-        if store is None:
-            return
         typed = edit.text().strip()
         override = "" if typed == self._compose_profile_description() else typed
         try:
-            meta = store.load_meta()
-            if getattr(meta, "profile_description", "") == override:
-                return                      # nothing changed; leave the disk be
-            meta.profile_description = override
-            store.save_meta(meta)
+            meta = store.load_meta() if store is not None else None
+            if meta is not None \
+                    and getattr(meta, "profile_description", "") != override:
+                meta.profile_description = override
+                store.save_meta(meta)
         except Exception:      # noqa: BLE001 — never lose the tab over a write
             log.warning("Could not save the profile description", exc_info=True)
             return
-        if not override and not typed:
+        # NOT "only when the disk changed". Emptying a field whose run already
+        # had no override changed nothing on disk, and returning there left the
+        # box empty: Knut, #182 5973177088, cleared it in Manual and "the
+        # default naming did not come". The request is the empty box, so the
+        # answer follows it every time, with or without a run to store in.
+        if not typed:
             # EMPTIED — hand the name straight back, here and now.
             #
             # Clearing the box is how the user asks for the automatic name
@@ -5801,12 +5892,15 @@ class TabProfile(QWidget):
 
         if cal_mode:
             apply_desc = QLabel(
-                tr("<b>Apply Calibration</b> — bakes your calibration curves (.cal file) "
-                "directly into the ICC profile. This means every colour-managed app will "
-                "automatically apply the calibration without any extra steps. Use this "
-                "after you have created a calibration file in the "
-                "<i>Create Calibration File</i> module. The profile path is already "
-                "pre-filled — just select your .cal file and run."),
+                tr("<b>Apply Calibration</b> puts your calibration curves (.cal file) "
+                "into the ICC profile, so every colour-managed app applies the "
+                "calibration when it prints through the profile. Do this when the chart "
+                "was made with <b>Apply Calibration File</b> (-K), because your printer "
+                "cannot calibrate itself. Do NOT do it when the chart was made with "
+                "<b>Include Calibration File</b> (-I): your printer or RIP already "
+                "applies the calibration, and doing both would correct the colour "
+                "twice. The profile path is already pre-filled, so just select your "
+                ".cal file and run."),
                 dlg,
             )
             apply_desc.setWordWrap(True)

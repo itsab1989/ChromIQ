@@ -661,7 +661,7 @@ parameters:
       tooltip_title: "Kalibratie op meetvelden toepassen (-K)"
       tooltip_body: |-
         Gebruik dit wanneer je printer geen ingebouwd kalibratiesysteem
-        heeft — d.w.z. de printerdriver of RIP kan zelf geen
+        heeft, d.w.z. de printerdriver of RIP kan zelf geen
         kalibratiecurve toepassen.
 
         Je draait eerst Argylls printcal om een .cal-bestand te maken dat
@@ -669,21 +669,27 @@ parameters:
         hier op: printtarg rekent elke meetveldkleurwaarde door de
         kalibratiecurves heen vóór het genereren van de kaart, zodat de
         afgedrukte kaart het gekalibreerde apparaatgedrag al weerspiegelt.
-        De .cal wordt ook in het .ti2-bestand ingesloten, zodat colprof er
-        bij het bouwen van het ICC-profiel naar kan verwijzen.
+        De .cal wordt ook in de kaart vastgelegd, zodat de inktlimieten van
+        het profiel op de echte inkthoeveelheden worden berekend.
+
+        **Klik na het bouwen van het profiel op Kalibratie toepassen.**
+        colprof van ArgyllCMS zet de kalibratie niet in het profiel.
+        Kalibratie toepassen (applycal) doet dat wel, zodat elke afdruk
+        via het gekalibreerde profiel ook gekalibreerd is.  Zonder deze
+        stap gaan je afdrukken ongekalibreerd de deur uit.
 
         **Typisch gebruik:** desktop-inkjetprinters zonder ingebouwde
         linearisatie, rechtstreeks vanuit een TIFF aangestuurd zonder
         tussenliggende RIP.
 
-        Sluit elkaar uit met "Kalibratie insluiten" (-I) — er kan maar één
+        Sluit elkaar uit met "Kalibratie insluiten" (-I): er kan maar één
         kalibratie-optie tegelijk actief zijn.
     "-I":
       name: "Kalibratie alleen insluiten"
       tooltip_title: "Kalibratie insluiten zonder toepassen (-I)"
       tooltip_body: |-
         Gebruik dit wanneer je printer of RIP al zelf een kalibratiecurve
-        toepast — bijvoorbeeld een productie-inkjet-RIP met eigen
+        toepast, bijvoorbeeld een productie-inkjet-RIP met eigen
         linearisatie-LUT, of een printer met ingebouwde
         dichtheidskalibratie.
 
@@ -692,11 +698,15 @@ parameters:
         -I sluit het .cal-bestand alleen als metadata in de .ti2-uitvoer in
         en laat alle meetveldwaarden onaangeroerd.
 
+        **Klik daarna niet op Kalibratie toepassen voor het profiel.**
+        De printer past de kalibratie al toe, en haar ook nog in het
+        profiel zetten zou de kleur dubbel corrigeren.
+
         **Typisch gebruik:** professionele inkjet-RIP's (bijv. EFI Fiery,
         Wasatch, ColorBurst) of printers met ingebouwde linearisatie die
         tijdens de profileer-afdrukrun actief is.
 
-        Sluit elkaar uit met ".cal-bestand toepassen" (-K) — er kan maar één
+        Sluit elkaar uit met ".cal-bestand toepassen" (-K): er kan maar één
         kalibratie-optie tegelijk actief zijn.
     "-C":
       name: "TIFF-compressie uitschakelen"
