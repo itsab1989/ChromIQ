@@ -26,7 +26,10 @@ patches, -e0 -B0 unless stated:
 
 Measured failing: -d4 -l300 -g; -d4 -l100 -s; -d4 -l100/-l200 -m/-M/-b;
 -d4 -l300 -m2/-M2/-b2; -d2 and -d5 -l100 -s/-m/-M/-b and -l200 -m/-M/-b;
--d0 -l100 with anything. Measured passing: every one of those at limit + 0.1,
+-d0 -l100 with anything. Whether a given corner trips it also depends on the
+fill count: -d4 -l300 -m3/-M3/-b3 pass at -f60 and all fail at -f500, so the
+rule below covers every corner a fixed patch can reach, not only the ones that
+failed at one count. Measured passing: every one of those at limit + 0.1,
 and every limit that is not a multiple of 100 (250, 299, 320, ...).
 
 THE NUDGE GOES UP, NOT DOWN. With limit - 0.1 targen drops (or clips) the
