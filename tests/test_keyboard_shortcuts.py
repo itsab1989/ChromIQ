@@ -184,10 +184,10 @@ def test_the_card_documents_the_measurement_keys(qapp):
     measure_table = h.split("</table>")[1]
     # The keys a measurement actually listens for, including the two that
     # beta.139 gave a meaning to.
-    # ⇧F is how the Mac spells it; Qt's native text elsewhere is Shift+F.
-    for tokens in (("Space",), ("Esc",), ("⇧F", "Shift+F"), ("Click a strip",)):
-        assert any(t in measure_table for t in tokens), (
-            f"missing measurement key {tokens[0]}")
+    # ⇧F on the Mac; the card spells Shift out elsewhere (`_shift()`).
+    from ui.keyboard_help import _shift
+    for token in ("Space", "Esc", _shift() + "F", "Click a strip"):
+        assert token in measure_table, f"missing measurement key {token}"
 
 
 def test_the_card_says_which_engine_each_key_belongs_to(qapp):

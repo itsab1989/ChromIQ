@@ -6,7 +6,9 @@ insist the drawn geometry moves.
 They are written against what is DRAWN, not against the cache attribute, so a
 different caching scheme still has to pass them.
 """
+import math
 import os
+import sys
 
 import numpy as np
 import pytest
@@ -96,7 +98,16 @@ def test_the_vectorised_transform_is_the_scalar_one(qapp):
             u, v, _ = m._cell_uv()
             for i in range(0, len(u), max(1, len(u) // 37)):
                 w = m._to_widget(*apply_h(h, u[i], v[i]))
-                assert w.x() == xs[i] and w.y() == ys[i], (cht, i, w.x(), xs[i])
+                if sys.platform == "darwin":
+                    assert w.x() == xs[i] and w.y() == ys[i], (cht, i, w.x(), xs[i])
+                else:
+                    # Bit-identity is the Mac's promise. numpy's vector loops
+                    # on Linux ARM64 contract to FMA, which rounds the last
+                    # bit differently from the scalar Python path (first
+                    # Linux arm64 CI run); a picture cannot tell 1e-12 apart.
+                    assert (math.isclose(w.x(), xs[i], rel_tol=1e-12)
+                            and math.isclose(w.y(), ys[i], rel_tol=1e-12)), (
+                        cht, i, w.x(), xs[i], w.y(), ys[i])
 
 
 def _render(m):
