@@ -87,12 +87,20 @@ REAL_TAC = {"R-FOGRA39L": 330.0, "R-GRACoL2006": 320.0,
 # sealed Z family is the only confirmatory set), their charts, the seeds
 V3_SYNTH = ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "X1", "X3", "X3m", "X5", "X6",
             "X7", "X8", "XKH", "XKB"]
-V3_SPARSE = ("S1", "S2", "S3", "X1", "X3", "X3m", "XKH", "XKB")   # also targen 400
-SEEDS3_PRINTERS = ["S1", "X1", "S3", "X3", "XKH", "X5"]
-SEEDS3_LEVELS = {"S1": ("typical",), "S3": ("typical",), "XKH": ("typical",)}
+V3_SPARSE = ("S1", "S3", "X1", "X3", "XKH", "XKB")   # also targen 400 (one sheet or less)
+# Fast/Bit-exact identity re-builds (hard rule 1) on these typical targen-900
+# sets and every real set; Integrator 3's hash battery covers the rest
+V3_IDENTITY = ("S3", "X1", "X3", "X5")
+SEEDS3_PRINTERS = ["X1", "X3", "S3", "XKH", "X5"]
+SEEDS3_LEVELS = {"X1": ("typical",), "S3": ("typical",), "XKH": ("typical",), "X5": ("typical",)}
+# seeds per printer: 10 where the ramp rows must be confirmable (v2.1 A4),
+# 6 elsewhere (SD only), to fit a machine shared by five agents
+SEEDS3_K = {"X1": 10, "X3": 10, "S3": 6, "XKH": 6, "X5": 6}
+LEVELS_V3 = [list(BENCH_LEVELS)]
 N_SEEDS3 = 10
 SEEDS_N = [N_SEEDS3]
 SEALED_DIR = [None]
+NO_REAL = [False]
 V3_READERS = "argyll,lcms,colorsync,lcms-app,ghostscript,ghostscript-bpc"
 
 
@@ -306,7 +314,7 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
         # on the charts ChromIQ produces (targen at its defaults), the
         # robustness chart (september) and, for 5+ inks, the ECG chart; both
         # noise levels; plus every real held-out set
-        for lvl in BENCH_LEVELS:
+        for lvl in LEVELS_V3[0]:
             for pid in V3_SYNTH:
                 if not keep(pid):
                     continue
@@ -314,7 +322,7 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
                     specs.append({"ds": dsm.synthetic_chart(pid, work, kind, n, level=lvl,
                                                             printers=printers),
                                   "variant": f"{lvl}-{kind}{n}", "role": "development"})
-        for name in REAL_BASE:
+        for name in ([] if NO_REAL[0] else REAL_BASE):
             if keep(name):
                 d = dsm.real(name, work / name)
                 if name in REAL_TAC:
@@ -327,7 +335,7 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
             if not keep(pid):
                 continue
             for lvl in SEEDS3_LEVELS.get(pid, BENCH_LEVELS):
-                for k in range(SEEDS_N[0]):
+                for k in range(min(SEEDS_N[0], SEEDS3_K.get(pid, SEEDS_N[0]))):
                     specs.append({"ds": dsm.synthetic_chart(pid, work, "targen", 900, level=lvl,
                                                             seed=23 + k, printers=printers),
                                   "variant": f"seed{k}-{lvl}-targen900", "role": "development"})
@@ -378,7 +386,8 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         if suite == "repeat":
             jobs.append(dict(j, out=str(profdir / f"{tag}-{e}-again.icc"), role="repeat"))
     if (suite == "baseline" and spec["variant"] in ("typical", "base")) or \
-            (suite == "v3" and spec["variant"] in ("typical-targen900", "base")):
+            (suite == "v3" and (spec["variant"] == "base" or (
+                spec["variant"] == "typical-targen900" and ds.name in V3_IDENTITY))):
         for role in ("identity", "upstream"):
             if not trees.get(role):
                 continue
@@ -454,12 +463,17 @@ def main(argv=None) -> int:
                     help="v3 --suite sealed: the UNSEALED sealed directory")
     ap.add_argument("--seeds", type=int, default=N_SEEDS3,
                     help="seeds3: number of noise seeds (protocol v3: 10)")
+    ap.add_argument("--levels", default="", help="v3: noise levels (default both)")
+    ap.add_argument("--no-real", action="store_true", help="v3: synthetic sets only")
     ap.add_argument("--score-parallel", type=int, default=0,
                     help="scoring processes (default = --parallel)")
     args = ap.parse_args(argv)
     if args.sealed_dir:
         SEALED_DIR[0] = Path(args.sealed_dir).expanduser()
     SEEDS_N[0] = args.seeds
+    NO_REAL[0] = args.no_real
+    if args.levels:
+        LEVELS_V3[0] = args.levels.split(",")
     if args.i1profiler_data:
         os.environ[dsm.XRITE_ENV] = str(Path(args.i1profiler_data).expanduser())
     args.engines = [e for e in args.engines.split(",") if e]
