@@ -268,6 +268,16 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
                     specs.append({"ds": dsm.synthetic(pid, work, npat, printers=printers,
                                                       chart="ecg"),
                                   "variant": f"ecg{npat}"})
+    elif suite == "ncsep":
+        # agent 14: separation-policy candidates on the multi-ink printers
+        # (typical noise, September chart and the ECG chart)
+        for pid in ["X5", "X6", "X7"]:
+            if keep(pid):
+                specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers),
+                              "variant": "typical"})
+                specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers,
+                                                  chart="ecg"),
+                              "variant": "ecg900"})
     elif suite == "repeat":
         for pid in ["S3", "X5"]:
             if keep(pid):
