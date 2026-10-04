@@ -3951,7 +3951,7 @@ With more than one file, the headline is **ChromIQ repaired these measurement fi
 
 ### M-PATCH-COLOUR-RANGE · PROPOSED · the colour range on a flagged patch's hover card — Measure tab preview, #182 k10
 
-*New 2026-10-02. The rule was approved (Knut [5961180259](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5961180259), Sebastian, on [5961078418](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5961078418)); the post's one line of card text, "Blue: 2 of 3 spaced confirmations so far", is split so the range's name stands alone on a line of its own (a nominative every language can say), and the sentences below are ours. Nothing counts but the fixed 3, so no language needs plural forms. The card breaks its lines by hand, so each line below is one line on the card; the headline is the range line. `{range}` is one of: dark grey, mid grey, light grey, pink/rose, red, orange/brown, yellow, yellow-green, green, cyan/turquoise, blue, purple/violet, magenta. `{locs}` is the range's confirmed patches in reading order, the first three and then "…". Which lines a card shows: a red card, the headline and, with one or two confirmations, lines 1 and 2, or with three, lines 7 and 8; a confirmed (yellow) card, the headline and lines 1 and 2, or with three, line 9; a learned (yellow) card, the headline, line 2 and lines 3 to 6; a card confirmed by similar patches opens with lines 10 and 11 instead of "Yellow outline: confirmed by a re-read" and its two ΔE values.*
+*New 2026-10-02. The rule was approved (Knut [5961180259](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5961180259), Sebastian, on [5961078418](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5961078418)); the post's one line of card text, "Blue: 2 of 3 spaced confirmations so far", is split so the range's name stands alone on a line of its own (a nominative every language can say), and the sentences below are ours. Nothing counts but the fixed 3, so no language needs plural forms. The card breaks its lines by hand, so each line below is one line on the card; the headline is the range line. `{range}` is one of: dark grey, mid grey, light grey, pink/rose, red, orange/brown, yellow, yellow-green, green, cyan/turquoise, blue, magenta (purple/violet was merged into blue in beta 11, Knut [5983470377](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983470377), answer 4). `{locs}` is the range's confirmed patches in reading order, the first three and then "…". Which lines a card shows: a red card, the headline and, with one or two confirmations, lines 1 and 2, or with three, lines 7 and 8; a confirmed (yellow) card, the headline and lines 1 and 2, or with three, line 9; a learned (yellow) card, the headline, line 2 and lines 3 to 6; a card confirmed by similar patches opens with lines 10 and 11 instead of "Yellow outline: confirmed by a re-read" and its two ΔE values.*
 
 > **Colour range: {range}**
 >
@@ -6591,6 +6591,20 @@ A completely new read starts with no references; a read that resumes or
 refines a measurement, and the preview of a measurement on disk, take that
 measurement's stored references back (10.7). Loading another chart starts
 from that chart's own.
+
+#### Confirmed behaviour — purple merged into blue (beta 11)
+
+**Confirmed by:** Knut, 2026-10-04, #182 [5983470377](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5983470377), answer 4 (*"Merge purple into blue?: Answer: Yes"*). Only this point; it amends point 2 of the block below.
+
+* **There is no purple/violet range any more: blue runs from 240° to 325°.**
+  Magenta (325° to 345°) stays. Twelve ranges, not thirteen. Built:
+  `workflow/patch_flags.HUE_SECTORS`; the name "purple/violet" is gone from
+  the card and the catalogues. A stored confirmed patch is classified again
+  when it is loaded (10.7), so a former purple one counts for blue.
+  Re-measured on Knut's charts (copies; every red patch re-read in reading
+  order): 24 of 648, 82 of 1944 and 7 of 324 patches change range; at limit
+  50 the re-reads fall 16 → 14, 20 → 15 and 12 → 10, and no patch is left
+  red either way (`workflow/patch_flags.py` docstring).
 
 #### Confirmed behaviour — the colour ranges of an RGB chart, and the blue/purple edge (k10)
 

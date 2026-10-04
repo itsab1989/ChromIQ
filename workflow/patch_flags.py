@@ -26,7 +26,7 @@ then one should assume that these errors are not a misread and automatically
 flag these patches with yellow"*; the ranges and the count of three, #182 k10:
 posted in 5961078418, confirmed by Knut 5961180259 and by Sebastian).
 
-1. **The colour range.** Every patch belongs to one of 13 ranges: a grey
+1. **The colour range.** Every patch belongs to one of 12 ranges: a grey
    when its chroma is under 8 (dark under L* 35, mid to under 70, light from
    70), otherwise its hue sector (``HUE_SECTORS``), with pink/rose as what is
    left over. WHICH colour is classified is decided per chart (Knut
@@ -42,9 +42,11 @@ posted in 5961078418, confirmed by Knut 5961180259 and by Sebastian).
      ``.ti2``'s ``APPROX_WHITE_POINT``, D50 without one), so a chart's greys
      come out as greys.
 
-   The blue/purple edge is 315° (it was 310°: pure sRGB blue sits at 306°,
-   and its most saturated tints were split between blue and purple); the
-   yellow-green/green edge stays 130°.
+   Blue runs from 240° to 325°: purple/violet (315° to 325°) was merged
+   into it in beta 11 (Knut 5983470377, answer 4); before that the
+   blue/purple edge had moved from 310° to 315° (pure sRGB blue sits at
+   306°, and its most saturated tints were split between blue and purple).
+   Magenta (325° to 345°) stays. The yellow-green/green edge stays 130°.
 2. **Confirmed by similar patches** (Knut 5979886227, variant B of the
    k22 challenge; awaiting confirmation). Two FLAGGED patches confirm each
    other, as a re-read does, when they were read in DIFFERENT strips, their
@@ -104,19 +106,24 @@ references are saved beside the ``.ti3`` (``workflow/confirmed_patches.py``)
 and loaded back when that measurement is shown again or resumed; a FRESH read starts with
 none, because it replaces the readings they were confirmed against.
 
-MEASURED ON KNUT'S REAL CHART (beta 3 run1, 648 patches, i1Pro 2, estimated
-expected colours), replayed with every red patch re-read in reading order
-(``2026-10-03_srgb_ranges/knut_srgb_ranges_replay.py`` of that session's
-report; the earlier thresholds: ``AF_impl_flag_limits/flag_rule_knut_data.py``):
+MEASURED ON KNUT'S REAL CHARTS, re-measured for beta 11's merge of purple
+into blue (``2026-10-04_beta11/limits/purple_into_blue_replay.py`` and its
+``.out`` in that session's report; copies of his projects): every strip read
+once with the strip test on, then every patch still red re-read in reading
+order and coming back the same, the judge re-judging after each. Before
+(purple 315° to 325°) -> after (blue 240° to 325°), re-read / learned:
 
-* at the default 95, 10 patches are flagged, all ten blue by their RGB
-  numbers. O9 (RGB hue 311°) was purple under the 310° edge; now the triple
-  A23, O9, U4 teaches the blue range before U16 is reached, so 9 are re-read
-  and U16 is learned (before: 10 re-read, none learned);
-* at the old limit 50 (61 flagged with the strip test), 18 are re-read and 43
-  are learned (before: 19 and 42);
-* 18 of the chart's 648 patches change range against the old rule, most of
-  them purple to blue at the moved edge;
+* beta-3 run1, 648 patches (24 change range, purple to blue): limit 95, 10
+  red, 3 / 7 both ways; limit 60, 49 red, 14 / 35 -> 12 / 37; limit 50, 61
+  red, 16 / 45 -> 14 / 47;
+* beta-8 HP CLJ5550 run1, 1944 patches (82 change range): limit 95, 18 red,
+  3 / 15 both ways; limit 60, 109 red, 16 / 93 -> 12 / 97; limit 50, 129
+  red, 20 / 109 -> 15 / 114;
+* beta-8 run4, 324 patches (7 change range): limit 60, 23 red, 11 / 12 ->
+  9 / 14; limit 50, 31 red, 12 / 19 -> 10 / 21;
+* in every case no patch stays red at the end; the merge only saves
+  re-reads, because the former purple patches now learn from the blues
+  (the injected-misread trials were not run again for the merge);
 * the shift and stand-out conditions are the ones measured against simulated
   misreads before the ranges (0 of 430 flagged reached yellow at 95, 4 of
   1,449 at 50, against 32 without the stand-out condition).
@@ -188,8 +195,9 @@ HUE_SECTORS = (
     (110.0, 130.0, "yellow_green"),
     (130.0, 165.0, "green"),
     (165.0, 240.0, "cyan"),
-    (240.0, 315.0, "blue"),
-    (315.0, 325.0, "purple"),
+    # Purple/violet (315° to 325°) is merged into blue (beta 11, Knut #182
+    # 5983470377, answer 4: "Merge purple into blue?" "Yes"); magenta stays.
+    (240.0, 325.0, "blue"),
     (325.0, 345.0, "magenta"),
 )
 RANGES = ("grey_dark", "grey_mid", "grey_light", "pink") + tuple(

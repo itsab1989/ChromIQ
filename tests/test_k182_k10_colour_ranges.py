@@ -88,15 +88,18 @@ def _lch(L, C, h):
     (_lch(50, 40, 240.001), "blue"),
     (_lch(50, 40, 310.001), "blue"),          # 310 was the edge before 5963411325
     (_lch(50, 40, 314.999), "blue"),
-    (_lch(50, 40, 315.001), "purple"),        # Knut 5963411325: the edge is 315
-    (_lch(50, 40, 324.999), "purple"),
+    # Purple/violet (315 to 325) was merged into blue in beta 11 (Knut
+    # 5983470377, answer 4); the edge was 315 (5963411325).
+    (_lch(50, 40, 315.001), "blue"),
+    (_lch(50, 40, 324.999), "blue"),
     (_lch(50, 40, 325.001), "magenta"),
     (_lch(50, 40, 345.001), "pink"),
     ((50.0, 40.0, -1e-15), "pink"),           # -1e-17 % 360 == 360.0
 ])
-def test_the_thirteen_ranges_and_their_edges(lab, want):
+def test_the_twelve_ranges_and_their_edges(lab, want):
     assert pf.colour_range_of_lab(lab) == want
-    assert len(pf.RANGES) == 13 and want in pf.RANGES
+    assert len(pf.RANGES) == 12 and want in pf.RANGES
+    assert "purple" not in pf.RANGES
 
 
 def test_greys_are_greys_against_the_charts_own_white():
@@ -201,9 +204,9 @@ def test_another_range_never_learns_from_this_one():
     j = pf.FlagJudge()
     for n, e in enumerate(BLUES, 1):
         _confirm(j, f"X{n}", e)
-    purple = _lch(40, 60, 318)                    # purple, ΔE ~26 from X1
-    v = j.judge("P1", purple, _m(purple), 32.4, True)
-    assert v.colour_range == "purple" and v.flag is pf.FLAG_RED and v.range_k == 0
+    magenta = _lch(40, 60, 335)                   # magenta, not blue
+    v = j.judge("P1", magenta, _m(magenta), 32.4, True)
+    assert v.colour_range == "magenta" and v.flag is pf.FLAG_RED and v.range_k == 0
 
 
 def test_an_earlier_red_turns_yellow_and_back():
@@ -561,7 +564,7 @@ def _rgb_tab(tmp_path, rows):
 
 
 def test_the_tab_reads_the_ranges_once_per_chart(qapp, tmp_path):
-    """F1's expected colour is purple; its RGB numbers are blue, so on an RGB
+    """F1's expected colour is a violet (318 deg, blue since beta 11); its RGB numbers are blue, so on an RGB
     chart it learns from the confirmed blues. Another chart (no RGB) clears
     the map and the expected-colour rule is back."""
     rows = [("A1", (0, 0, 100)), ("A2", (10, 0, 100)), ("A3", (20, 0, 100)),
@@ -585,20 +588,22 @@ def test_the_tab_reads_the_ranges_once_per_chart(qapp, tmp_path):
     assert tab._chart_device_ranges() is None
     judge = tab._flag_judge()
     assert judge.device_ranges is None and judge.confirmed == []
-    assert judge.range_of("F1", purple) == "purple"
+    # The expected-colour rule again: a magenta expected colour is magenta
+    # (the chart's device map would have said blue).
+    assert judge.range_of("F1", _lch(40, 60, 335)) == "magenta"
 
 
 def test_stored_memories_are_classified_again(tmp_path):
     """No schema change: a stored confirmed patch carries its expected colour
     only, and is classified by the chart it is loaded under."""
     stored = {"X1": {"kind": "confirmed", "de": 32.4, "prev_de": 32.0,
-                     "exp_lab": list(_lch(40, 60, 318)),
-                     "meas_lab": list(_m(_lch(40, 60, 318))),
+                     "exp_lab": list(_lch(40, 60, 335)),
+                     "meas_lab": list(_m(_lch(40, 60, 335))),
                      "shift": list(SHORT), "standout": None}}
     old = pf.FlagJudge(white=pf.D50_WHITE)
     old.load(stored)
-    assert old.range_status("purple")[1] == ("X1",)
+    assert old.range_status("magenta")[1] == ("X1",)
     new = pf.FlagJudge(white=pf.D50_WHITE, device_ranges={"X1": "blue"})
     new.load(stored)
     assert new.range_status("blue")[1] == ("X1",)
-    assert new.range_status("purple")[1] == ()
+    assert new.range_status("magenta")[1] == ()

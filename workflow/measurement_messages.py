@@ -1927,7 +1927,8 @@ _CARD_PEER_2 = "Read alike in other strips: {locs}"
 #: learned) that there is no need to.
 _CARD_RED_READ_AGAIN = "Read it again to find out."
 _CARD_YELLOW_NO_NEED = "No need to read it again."
-#: The thirteen ranges' names, as the post named them.
+#: The twelve ranges' names, as the post named them (purple/violet was
+#: merged into blue in beta 11, Knut #182 5983470377).
 _RANGE_GREY_DARK = "dark grey"
 _RANGE_GREY_MID = "mid grey"
 _RANGE_GREY_LIGHT = "light grey"
@@ -1939,7 +1940,6 @@ _RANGE_YELLOW_GREEN = "yellow-green"
 _RANGE_GREEN = "green"
 _RANGE_CYAN = "cyan/turquoise"
 _RANGE_BLUE = "blue"
-_RANGE_PURPLE = "purple/violet"
 _RANGE_MAGENTA = "magenta"
 #: workflow.patch_flags.RANGES -> the name the card shows (through tr()).
 RANGE_NAMES = {
@@ -1947,7 +1947,7 @@ RANGE_NAMES = {
     "grey_light": _RANGE_GREY_LIGHT, "pink": _RANGE_PINK, "red": _RANGE_RED,
     "orange": _RANGE_ORANGE, "yellow": _RANGE_YELLOW,
     "yellow_green": _RANGE_YELLOW_GREEN, "green": _RANGE_GREEN,
-    "cyan": _RANGE_CYAN, "blue": _RANGE_BLUE, "purple": _RANGE_PURPLE,
+    "cyan": _RANGE_CYAN, "blue": _RANGE_BLUE,
     "magenta": _RANGE_MAGENTA,
 }
 M_PATCH_COLOUR_RANGE = _m(

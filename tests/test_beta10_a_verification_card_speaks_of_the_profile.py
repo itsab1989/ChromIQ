@@ -38,7 +38,7 @@ def _rows(info, verify):
     tile = _PatchInfoTile(None)
     base = {"loc": "D12", "exp_rgb": (90, 30, 200), "meas_rgb": (90, 80, 120),
             "exp_lab": (35, 60, -80), "meas_lab": (40, 20, -25), "de": 17.2,
-            "warn": True, "warn_de": 15.0, "colour_range": "purple",
+            "warn": True, "warn_de": 15.0, "colour_range": "blue",
             "range_k": 3, "range_locs": ["A1", "B2", "C3"], "accurate": True}
     if verify:
         base["expected_source"] = "prediction"
