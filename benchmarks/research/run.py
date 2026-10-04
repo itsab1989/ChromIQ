@@ -78,7 +78,8 @@ REAL_BASE = list(dsm.REAL_SOURCES)
 # Ink limits for the real CMYK sets (percent). FOGRA39 and GRACoL 2006 use
 # their published TAC (330 / 320); the X-Rite sample chart has no stamp.
 REAL_TAC = {"R-FOGRA39L": 330.0, "R-GRACoL2006": 320.0,
-            "R-CMYK-default-i1Pro": 300.0, "R-CMYK-default-i1iSis": 300.0}
+            "R-CMYK-default-i1Pro": 300.0, "R-CMYK-default-i1iSis": 300.0,
+            "R-FOGRA55": 300.0, "R-APTEC7C": 300.0}
 
 
 def sh(cmd, **kw) -> str:
@@ -259,6 +260,24 @@ def make_datasets(suite: str, work: Path, printers, only: list[str] | None,
             if keep(pid):
                 specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers),
                               "variant": "physics"})
+    elif suite == "ecgchart":
+        # agent 14: the same printers and noise, charts composed like a
+        # professional ECG chart (datasets.make_chart_ecg), 900 and 600 patches
+        for pid, npat in (("X5", 900), ("X8", 900), ("X7", 900), ("X7", 600)):
+                if keep(pid):
+                    specs.append({"ds": dsm.synthetic(pid, work, npat, printers=printers,
+                                                      chart="ecg"),
+                                  "variant": f"ecg{npat}"})
+    elif suite == "ncsep":
+        # agent 14: separation-policy candidates on the multi-ink printers
+        # (typical noise, September chart and the ECG chart)
+        for pid in ["X5", "X6", "X7"]:
+            if keep(pid):
+                specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers),
+                              "variant": "typical"})
+                specs.append({"ds": dsm.synthetic(pid, work, n_patches, printers=printers,
+                                                  chart="ecg"),
+                              "variant": "ecg900"})
     elif suite == "repeat":
         for pid in ["S3", "X5"]:
             if keep(pid):
@@ -317,7 +336,7 @@ def jobs_for(spec: dict, args, trees: dict, profdir: Path) -> list[dict]:
         jobs.append(dict(base, engine="accurate", tree=str(trees["f00"]),
                          out=str(profdir / f"{tag}-accurate-37357e92parent.icc"),
                          role="f00-parent"))
-    if ds.kind == "real":
+    if ds.kind == "real" and ds.n_channels <= 4:
         jobs.append(dict(base, engine="colprof", quality="h", source_gamut=None,
                          ti3=str(ds.full_ti3), tree=str(trees["branch"]),
                          out=str(profdir / f"{tag}-PROXY-colprof-qh-full.icc"),
@@ -459,7 +478,13 @@ def main(argv=None) -> int:
             mine = [b for b in builds if b["job"].get("spec_index") == i]
             proxy = next((b for b in mine if b["job"]["role"] == "proxy" and b.get("ok")), None)
             if ds.kind == "real":
-                truth = metrics.Truth(proxy_icc=proxy["job"]["out"]) if proxy else None
+                # 5+ inks: colprof cannot build the proxy; the set's own
+                # published reference profile (FOGRA55: ColorLogic CoPrA)
+                # stands in, labelled in results.json (agent 14)
+                pxy = proxy["job"]["out"] if proxy else ds.info.get("reference_icc")
+                vers = Path(pxy).read_bytes()[8] if pxy else 2
+                truth = metrics.Truth(proxy_icc=pxy, proxy_reader="lcms" if vers >= 4 and not proxy
+                                      else "argyll") if pxy else None
             else:
                 truth = metrics.Truth(printer=ds.printer, illuminant=ds.illuminant or "D50")
             for b in mine:
