@@ -39,3 +39,19 @@ BASIC_LAYOUT_REASON = (
     "Pillow lays text out with its BASIC engine here (no FriBiDi, so no "
     "libraqm): whole-pixel advances, as on the CI runners and on a Mac "
     "without Homebrew's fribidi")
+
+
+def _measured_with_coretext():
+    import sys
+
+    import pytest
+    return pytest.mark.skipif(sys.platform != "darwin", reason=(
+        "a page count or a fixture sized to spill by one line, measured with "
+        "macOS CoreText text metrics; FreeType (Linux, and Windows offscreen) "
+        "sets the same text in other widths, so the pinned number is a "
+        "different number there rather than a fault. The general rules "
+        "(no colophon-only sheet, no table straddling) still run everywhere"))
+
+
+#: Marks a test whose expected number IS a macOS measurement (CI round 2).
+MEASURED_WITH_CORETEXT = _measured_with_coretext()

@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 
 import pytest
+from tests.helpers.text_layout import MEASURED_WITH_CORETEXT  # noqa: E402
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PyQt6")
@@ -165,6 +166,7 @@ def test_no_help_card_prints_a_sheet_that_carries_only_the_colophon(qapp, tmp_pa
     assert not faults, "\n".join(faults)
 
 
+@MEASURED_WITH_CORETEXT
 def test_the_orphan_rule_is_what_is_saving_those_sheets(qapp, tmp_path,
                                                         monkeypatch):
     """THE CONTROL, and the reason the test above is worth having.
@@ -210,6 +212,7 @@ def test_the_orphan_rule_is_what_is_saving_those_sheets(qapp, tmp_path,
         f"longer needs the rule; re-measure before editing this: {found}")
 
 
+@MEASURED_WITH_CORETEXT
 @pytest.mark.parametrize("key,pages", [
     ("first_profile", 2), ("cmyk_n", 1), ("file_guide", 16),
 ])
