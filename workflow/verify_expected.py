@@ -101,6 +101,10 @@ class LiveExpected:
     reason: str
     by_loc: Mapping[str, tuple] = field(default_factory=dict)
     route: str = ""            # "raw" or "through-profile", for the log
+    #: The estimate because the run's profile was made (or changed) after
+    #: the sheet was printed. The hover card then says so instead of the
+    #: profiling card's "keep it for the profile" (Knut, #182 5983480953).
+    profile_newer: bool = False
 
     @property
     def is_prediction(self) -> bool:
@@ -112,9 +116,9 @@ class LiveExpected:
         return self.by_loc.get(str(loc))
 
 
-def estimate(reason: str) -> LiveExpected:
+def estimate(reason: str, *, profile_newer: bool = False) -> LiveExpected:
     """Today's rule: the chart's own expected colour, at the estimated limit."""
-    return LiveExpected(SOURCE_ESTIMATE, reason)
+    return LiveExpected(SOURCE_ESTIMATE, reason, profile_newer=profile_newer)
 
 
 # ---------------------------------------------------------------------------
@@ -434,13 +438,15 @@ def _decide(ti2: Path, record_ti3: Path, run, *, bin_dir, runner,
                             f"the run's profile is now {profile.name}")
         if str(rec.get("profile_mtime") or "") != _mtime_iso(profile):
             return estimate("the profile has changed since the sheet was "
-                            "printed (its modification time differs)")
+                            "printed (its modification time differs)",
+                            profile_newer=True)
     else:
         printed = _parse_iso(rec.get("printed_at"))
         built = _parse_iso(_mtime_iso(profile))
         if printed is None or built is None or built > printed:
             return estimate("the profile has changed since the sheet was "
-                            "printed (it is newer than the print)")
+                            "printed (it is newer than the print)",
+                            profile_newer=True)
     try:
         settings = getattr(run.load_meta(), "profile_settings", None)
     except Exception:      # noqa: BLE001

@@ -15459,6 +15459,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # The card says where "Expected" came from (Knut, #182
             # 5964173774, answer 4).
             extra["expected_source"] = "prediction"
+        elif bool(getattr(getattr(self, "_live_expected", None),
+                          "profile_newer", False)):
+            # A verification whose profile was made after the sheet was
+            # printed: judged against the chart's estimate, and the card
+            # says why (Knut, #182 5983480953).
+            extra["expected_source"] = "estimate_profile_newer"
         try:
             # THE STRIP, so patches read in different strips can confirm
             # each other (Knut, #182 5979886227). The same labels in every

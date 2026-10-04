@@ -1895,6 +1895,26 @@ _CARD_VERIFY_YELLOW_2 = "the profile does not predict this"
 _CARD_VERIFY_YELLOW_3 = "colour well here (or the printer has"
 _CARD_VERIFY_YELLOW_4 = "changed since the profile was made)."
 _CARD_VERIFY_LEARNED = "The profile is off in the same way here,"
+#: A VERIFICATION whose profile was made after the sheet was printed, so the
+#: card compares with the chart's own estimate instead of the profile's
+#: prediction (workflow/verify_expected.py, ``profile_newer``). The first six
+#: lines are Knut's sentence, APPROVED in #182 5983480953, broken for the
+#: card; they replace "Either a misread, or a colour / this printer and paper
+#: cannot reach." and "Read it again to find out." on a red card. The last
+#: four are ours and wait: two after "Same value after a re-read:" instead of
+#: "it is real, keep it for the profile.", two on a yellow card instead of
+#: "A real difference this printer and / paper cannot reach, not a
+#: misread." and "Keep it for the profile.".
+_CARD_LATER_PROFILE_1 = "Far from the chart's estimate."
+_CARD_LATER_PROFILE_2 = "The profile was made after this"
+_CARD_LATER_PROFILE_3 = "sheet was printed, so its"
+_CARD_LATER_PROFILE_4 = "prediction is not used."
+_CARD_LATER_PROFILE_5 = "Either a misread, or a real difference:"
+_CARD_LATER_PROFILE_6 = "read it again to find out."
+_CARD_LATER_PROFILE_SAME_1 = "it is real: the print differs from"
+_CARD_LATER_PROFILE_SAME_2 = "the chart's estimate here."
+_CARD_LATER_PROFILE_YELLOW_1 = "A real difference from the chart's"
+_CARD_LATER_PROFILE_YELLOW_2 = "estimate, not a misread."
 #: Beta 9 (Knut, #182 5979886227): a flagged patch confirmed by flagged
 #: patches of other strips that were expected nearly the same colour and are
 #: off in the same way. The card's counterpart of "Yellow outline: confirmed
@@ -1952,7 +1972,12 @@ M_PATCH_COLOUR_RANGE = _m(
                _CARD_VERIFY_SAME_1, _CARD_VERIFY_SAME_2,
                _CARD_VERIFY_YELLOW_1, _CARD_VERIFY_YELLOW_2,
                _CARD_VERIFY_YELLOW_3, _CARD_VERIFY_YELLOW_4,
-               _CARD_VERIFY_LEARNED)),
+               _CARD_VERIFY_LEARNED,
+               _CARD_LATER_PROFILE_1, _CARD_LATER_PROFILE_2,
+               _CARD_LATER_PROFILE_3, _CARD_LATER_PROFILE_4,
+               _CARD_LATER_PROFILE_5, _CARD_LATER_PROFILE_6,
+               _CARD_LATER_PROFILE_SAME_1, _CARD_LATER_PROFILE_SAME_2,
+               _CARD_LATER_PROFILE_YELLOW_1, _CARD_LATER_PROFILE_YELLOW_2)),
     approved=False)
 
 # --- PROPOSED: the expected colour is the profile's prediction --------------

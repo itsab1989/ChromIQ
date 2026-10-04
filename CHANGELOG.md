@@ -1,5 +1,11 @@
 # Changelog
 
+## v4.3.3-beta.11 (unreleased)
+
+### Changed
+
+- **A verification whose profile is newer than the print says so on its hover card** (#182, Knut 5983480953). When the run's profile was made, or changed, after the verification sheet was printed, ChromIQ cannot use the profile's prediction for that print and compares with the chart's own estimate instead, but the card still used the profiling wording that ends "keep it for the profile". Its red card now says "Far from the chart's estimate. The profile was made after this sheet was printed, so its prediction is not used. Either a misread, or a real difference: read it again to find out." (Knut's approved wording), and "Same value after a re-read: it is real: the print differs from the chart's estimate here."; a yellow card says "A real difference from the chart's estimate, not a misread." Translated in all 13 languages.
+
 ## v4.3.3-beta.10
 
 **Red cards say exactly why a patch stayed red, a colour whose reading lands where its confirmed patches' readings did turns yellow, a verification's card speaks of the profile's accuracy, an unplugged instrument no longer floods the log, Build Profile offers only what colprof accepts, and three Windows/Linux fixes from ChromIQ's new test runs on those systems.**
