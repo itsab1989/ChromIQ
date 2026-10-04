@@ -138,10 +138,26 @@ def test_the_photo_card_snapshot_holds_exactly_the_named_presets():
     assert set(BETA45_PHOTO_CARDS["presets"]) == set(PHOTO_CARDS)
 
 
+#: The same beta 44 snapshot as Pillow's BASIC text layout gives it (no
+#: FriBiDi, tests/helpers/text_layout.py): only the measured row-label width
+#: differs, generated from the v4.3.0-beta.44 tag as BETA44 was.
+BETA44_PILLOW_BASIC = json.loads(
+    (ROOT / "tests/data/b8_1590_builtin_geometry_beta44_pillow_basic_layout.json"
+     ).read_text(encoding="utf-8"))["presets"]
+
+
+def _beta44(key: str) -> dict:
+    from tests.helpers.text_layout import pillow_lays_out_with_raqm
+    want = dict(BETA44["presets"][key])
+    if not pillow_lays_out_with_raqm():
+        want.update(BETA44_PILLOW_BASIC.get(key, {}))
+    return want
+
+
 def test_every_other_built_in_preset_lays_out_as_in_beta_44(qapp):
     presets = _presets()
-    moved = sorted(k for k, want in BETA44["presets"].items()
-                   if k not in PHOTO_CARDS and _laid_out(presets[k]) != want)
+    moved = sorted(k for k in BETA44["presets"]
+                   if k not in PHOTO_CARDS and _laid_out(presets[k]) != _beta44(k))
     assert not moved, moved[:5]
 
 

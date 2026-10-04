@@ -1,0 +1,83 @@
+{
+ "_about": "The fields of b8_1590_builtin_geometry_beta44.json that come out differently when Pillow lays text out with its BASIC engine (no FriBiDi, so no libraqm: the GitHub runners, Windows, and a Mac without Homebrew's fribidi) instead of RAQM (the Mac the snapshot was taken on). Generated the same way, from the v4.3.0-beta.44 tag exported into a scratch folder, with ImageFont.truetype defaulting to Layout.BASIC; the same run with RAQM reproduces the beta 44 snapshot exactly. Only the row-label width (rlwi) differs: it is measured text.",
+ "presets": {
+  "__chromiq_knut_cr30_a4_1080p_3pages_portrait_w11_0mm__": {
+   "rlwi": 9.128
+  },
+  "__chromiq_knut_cr30_a4_1260p_3pages_portrait_w11_0mm_hexagonal__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_a4_1350p_3pages_portrait_w11_0mm_hexagonal_straight__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_a4_192p_1page_portrait_w11_0mm__": {
+   "rlwi": 9.128
+  },
+  "__chromiq_knut_cr30_a4_360p_1page_portrait_w11_0mm__": {
+   "rlwi": 9.128
+  },
+  "__chromiq_knut_cr30_a4_420p_1page_portrait_w11_0mm_hexagonal__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_a4_450p_1page_portrait_w11_0mm_hexagonal_straight__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_a4_720p_2pages_portrait_w11_0mm__": {
+   "rlwi": 9.128
+  },
+  "__chromiq_knut_cr30_a4_840p_2pages_portrait_w11_0mm_hexagonal__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_a4_900p_2pages_portrait_w11_0mm_hexagonal_straight__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_letter_1104p_3pages_portrait_w11_0mm__": {
+   "rlwi": 8.874
+  },
+  "__chromiq_knut_cr30_letter_1170p_3pages_portrait_w11_0mm_hexagonal__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_letter_1188p_3pages_portrait_w11_0mm_hexagonal_straight__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_letter_184p_1page_portrait_w11_0mm__": {
+   "rlwi": 8.874
+  },
+  "__chromiq_knut_cr30_letter_368p_1page_portrait_w11_0mm__": {
+   "rlwi": 8.874
+  },
+  "__chromiq_knut_cr30_letter_390p_1page_portrait_w11_0mm_hexagonal__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_letter_396p_1page_portrait_w11_0mm_hexagonal_straight__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_letter_736p_2pages_portrait_w11_0mm__": {
+   "rlwi": 8.874
+  },
+  "__chromiq_knut_cr30_letter_780p_2pages_portrait_w11_0mm_hexagonal__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_cr30_letter_792p_2pages_portrait_w11_0mm_hexagonal_straight__": {
+   "rlwi": 5.826
+  },
+  "__chromiq_knut_scanner_a4_10290p_3pages_landscape__": {
+   "rlwi": 3.8787
+  },
+  "__chromiq_knut_scanner_a4_3430p_1page_landscape__": {
+   "rlwi": 3.8787
+  },
+  "__chromiq_knut_scanner_a4_6860p_2pages_landscape__": {
+   "rlwi": 3.8787
+  },
+  "__chromiq_knut_scanner_letter_3250p_1page_landscape__": {
+   "rlwi": 3.8787
+  },
+  "__chromiq_knut_scanner_letter_6500p_2pages_landscape__": {
+   "rlwi": 3.8787
+  },
+  "__chromiq_knut_scanner_letter_9750p_3pages_landscape__": {
+   "rlwi": 3.8787
+  }
+ }
+}
