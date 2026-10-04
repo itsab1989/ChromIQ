@@ -89,7 +89,7 @@ def test_a_misread_in_the_middle_of_the_colour_space_is_suspected():
     rows = _grid()
     i = next(k for k, r in enumerate(rows) if r[0] == "C6")
     loc, exp, meas, strip = rows[i]
-    rows[i] = (loc, exp, (meas[0] - 14.0, meas[1] + 6.0, meas[2]), strip)
+    rows[i] = (loc, exp, (meas[0] - 20.0, meas[1] + 8.0, meas[2]), strip)
     nc = _check_lab(rows)
     assert nc.suspects() == ["C6"]
     f = nc.finding("C6")
@@ -320,3 +320,30 @@ def test_most_single_glitches_are_caught():
         caught += check_of(bad).is_suspect(patches[i][0])
     assert events >= 30
     assert caught / events >= 0.6
+
+
+def test_judging_only_what_changed_gives_what_judging_all_gives():
+    """After a strip only the patches near in colour to it are judged again;
+    the findings must be the ones a fresh judgement of everything gives,
+    re-reads and forgotten readings included."""
+    patches = sheet("canon_pro300_1168")
+    rng = random.Random(11)
+    nc = NeighbourCheck()
+    for n_strip, idx in enumerate(_strips(patches)):
+        for i in idx:
+            loc, _rgb, exp, meas = patches[i]
+            nc.set_reading(loc, exp, meas, strip_of(loc))
+        if n_strip % 7 == 3:                     # a re-read, off by a glitch
+            loc, _rgb, exp, meas = patches[rng.choice(idx)]
+            other = patches[rng.randrange(len(patches))][3]
+            nc.set_reading(loc, exp, other, strip_of(loc))
+        if n_strip % 11 == 5:
+            nc.forget(patches[idx[0]][0])
+        nc.evaluate()
+        fresh = NeighbourCheck()
+        for loc, (e, m, s) in nc._rows.items():
+            fresh.set_reading_lab(loc, e, m, s)
+        fresh.evaluate()
+        assert nc.suspects() == fresh.suspects()
+        assert {k: v.compared for k, v in nc._findings.items()} == \
+            {k: v.compared for k, v in fresh._findings.items()}

@@ -123,7 +123,10 @@ class NeighbourCheck:
         #: loc -> (expected Lab, measured Lab, strip), in the order first read.
         self._rows: "dict[str, tuple]" = {}
         self._findings: "dict[str, NeighbourFinding]" = {}
-        self._dirty = False
+        #: Readings changed since the last evaluation (None: judge them all),
+        #: and the expected colours of readings forgotten or moved since.
+        self._changed: "set[str] | None" = None
+        self._gone: "list[tuple]" = []
 
     def __len__(self) -> int:
         return len(self._rows)
@@ -138,62 +141,113 @@ class NeighbourCheck:
     def set_reading_lab(self, loc: str, exp_lab, meas_lab,
                         strip: "str | None") -> None:
         """:meth:`set_reading` for colours already in the engine's L*a*b*."""
-        self._rows[str(loc)] = (tuple(float(v) for v in exp_lab[:3]),
-                                tuple(float(v) for v in meas_lab[:3]),
-                                str(strip or ""))
-        self._dirty = True
+        loc = str(loc)
+        row = (tuple(float(v) for v in exp_lab[:3]),
+               tuple(float(v) for v in meas_lab[:3]), str(strip or ""))
+        old = self._rows.get(loc)
+        if old == row:
+            return
+        self._rows[loc] = row
+        self._touch(loc, old)
 
     def forget(self, loc: str) -> None:
         """*loc* has no reading any more (set aside, or removed)."""
-        if self._rows.pop(str(loc), None) is not None:
-            self._dirty = True
+        old = self._rows.pop(str(loc), None)
+        if old is not None:
+            self._touch(str(loc), old)
+
+    def _touch(self, loc: str, old) -> None:
+        """Note what the next evaluation must judge again: *loc*, and the
+        patches near its old expected colour when that has gone or moved."""
+        if self._changed is None:
+            return                    # everything is judged anyway
+        self._changed.add(loc)
+        if old is not None:
+            new = self._rows.get(loc)
+            if new is None or new[0] != old[0]:
+                self._gone.append(old[0])
 
     # ---- the verdicts ------------------------------------------------------
     def evaluate(self) -> "dict[str, NeighbourFinding]":
-        """Judge every patch afresh; ``{loc: finding}`` for every patch whose
-        suspect verdict CHANGED since the last evaluation."""
-        if not self._dirty and self._findings:
-            return {}
+        """Judge again every patch a new reading can have changed (all of
+        them the first time); ``{loc: finding}`` for every patch whose
+        suspect verdict CHANGED since the last evaluation.
+
+        A patch's finding depends only on its own reading and on those of the
+        patches expected within :data:`RADIUS_DE` of it, so after a strip only
+        the patches near in colour to what was read are judged again; the
+        result is the same as judging them all."""
         locs = list(self._rows)
-        before = self._findings
-        self._findings = {}
-        self._dirty = False
         n = len(locs)
-        if n == 0:
-            return {loc: NeighbourFinding(loc) for loc, f in before.items()
-                    if f.suspect}
-        exp = np.array([self._rows[x][0] for x in locs], dtype=float)
+        before = {loc: f.suspect for loc, f in self._findings.items()}
+        changed_locs = self._changed
+        gone = self._gone
+        self._changed, self._gone = set(), []
+        for loc in [x for x in self._findings if x not in self._rows]:
+            del self._findings[loc]
+        if changed_locs is not None and not changed_locs:
+            return {}
+        exp = (np.array([self._rows[x][0] for x in locs], dtype=float)
+               if n else np.zeros((0, 3)))
+        if changed_locs is None:
+            todo = np.arange(n)
+            self._findings = {}
+        else:
+            centres = [self._rows[x][0] for x in changed_locs if x in self._rows]
+            centres += gone
+            if n and centres:
+                c = np.array(centres, dtype=float)
+                near = np.zeros(n, dtype=bool)
+                for lo in range(0, len(c), _BLOCK):
+                    d = np.linalg.norm(exp[None, :, :] - c[lo:lo + _BLOCK, None, :],
+                                       axis=2)
+                    near |= (d <= self.radius).any(axis=0)
+                todo = np.nonzero(near)[0]
+            else:
+                todo = np.arange(0)
+        if n:
+            self._judge_rows(locs, exp, todo)
+        changed = {}
+        for loc in set(before) | {locs[i] for i in todo}:
+            now = self._findings.get(loc, NeighbourFinding(loc))
+            if before.get(loc, False) != now.suspect:
+                changed[loc] = now
+        return changed
+
+    def _judge_rows(self, locs, exp, todo) -> None:
+        n = len(locs)
         meas = np.array([self._rows[x][1] for x in locs], dtype=float)
         strip_names = [self._rows[x][2] for x in locs]
         codes = {s: i for i, s in enumerate(sorted(set(strip_names)))}
         st = np.array([codes[s] for s in strip_names])
         known = np.array([bool(s) for s in strip_names])
         k = max(1, min(self.k, n - 1)) if n > 1 else 1
-        for lo in range(0, n, _BLOCK):
-            hi = min(n, lo + _BLOCK)
-            d = np.linalg.norm(exp[lo:hi, None, :] - exp[None, :, :], axis=2)
-            bad = (st[lo:hi, None] == st[None, :]) | ~known[None, :] \
-                | ~known[lo:hi, None] | (d > self.radius)
+        for lo in range(0, len(todo), _BLOCK):
+            rows = todo[lo:lo + _BLOCK]
+            d = np.linalg.norm(exp[rows, None, :] - exp[None, :, :], axis=2)
+            bad = (st[rows, None] == st[None, :]) | ~known[None, :] \
+                | ~known[rows, None] | (d > self.radius)
             d[bad] = np.inf
+            # Equal distances go to the patch first read, whichever rows are
+            # judged together (a nudge far below any colour difference).
+            d += np.arange(n)[None, :] * 1e-9
             if n > k:
                 idx = np.argpartition(d, k - 1, axis=1)[:, :k]
             else:
-                idx = np.tile(np.arange(n), (hi - lo, 1))
+                idx = np.tile(np.arange(n), (len(rows), 1))
             dk = np.take_along_axis(d, idx, axis=1)
             order = np.argsort(dk, axis=1, kind="stable")
             idx = np.take_along_axis(idx, order, axis=1)
             dk = np.take_along_axis(dk, order, axis=1)
-            for r in range(hi - lo):
-                i = lo + r
+            for r, i in enumerate(rows):
                 ok = np.isfinite(dk[r])
                 nb = idx[r][ok]
                 if nb.size == 0:
                     self._findings[locs[i]] = NeighbourFinding(locs[i])
                     continue
-                de = dk[r][ok]
+                de = np.linalg.norm(exp[nb] - exp[i], axis=1)
                 dm = np.linalg.norm(meas[nb] - meas[i], axis=1)
                 ex = dm - de
-                checked = nb.size >= self.min_compared
                 med = float(np.median(ex))
                 self._findings[locs[i]] = NeighbourFinding(
                     loc=locs[i],
@@ -201,14 +255,8 @@ class NeighbourCheck:
                     excess=med,
                     expected_de=float(np.median(de)),
                     measured_de=float(np.median(dm)),
-                    suspect=bool(checked and med > self.buffer))
-        changed = {}
-        for loc in set(before) | set(self._findings):
-            was = before.get(loc)
-            now = self._findings.get(loc, NeighbourFinding(loc))
-            if bool(was and was.suspect) != now.suspect:
-                changed[loc] = now
-        return changed
+                    suspect=bool(nb.size >= self.min_compared
+                                 and med > self.buffer))
 
     def finding(self, loc: str) -> "NeighbourFinding | None":
         """The last evaluation's finding for *loc* (None: no reading then)."""
