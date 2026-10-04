@@ -642,28 +642,34 @@ parameters:
       tooltip_title: "Bruk kalibrering på feltene (-K)"
       tooltip_body: |-
         Bruk dette når skriveren din ikke har noe innebygd kalibrerings-
-        system — dvs. skriverdriveren eller RIP-en kan ikke selv bruke en
+        system, dvs. skriverdriveren eller RIP-en kan ikke selv bruke en
         kalibreringskurve.
 
         Du kjører først Argylls printcal for å lage en .cal-fil som
         beskriver hvordan skriveren lineariseres.  Den .cal-filen angir du
         her: printtarg regner hver feltfargeverdi gjennom kalibrerings-
         kurvene før kartet genereres, slik at det utskrevne kartet allerede
-        gjenspeiler kalibrert enhetsoppførsel.  .cal-filen bygges også inn
-        i .ti2-filen slik at colprof kan referere til den når ICC-profilen
-        bygges.
+        gjenspeiler kalibrert enhetsoppførsel.  .cal-filen registreres også
+        i kartet, slik at profilens blekkgrenser beregnes ut fra de faktiske
+        blekkmengdene.
+
+        **Når du har bygget profilen, klikker du Bruk kalibrering.**
+        ArgyllCMS' colprof legger ikke kalibreringen inn i profilen.
+        Bruk kalibrering (applycal) gjør det, slik at hver utskrift
+        gjennom den kalibrerte profilen også blir kalibrert.  Uten den
+        går utskriftene dine ut ukalibrert.
 
         **Typisk bruk:** skrivebords-blekkskrivere uten innebygd linearisering,
         styrt direkte fra en TIFF uten mellomliggende RIP.
 
-        Utelukker "Bygg inn kalibrering" (-I) — bare ett kalibreringsvalg
+        Utelukker "Bygg inn kalibrering" (-I): bare ett kalibreringsvalg
         kan være aktivt om gangen.
     "-I":
       name: "Bygg kun inn kalibrering"
       tooltip_title: "Bygg inn kalibrering uten å bruke den (-I)"
       tooltip_body: |-
         Bruk dette når skriveren eller RIP-en allerede bruker en
-        kalibreringskurve selv — for eksempel en produksjons-RIP med egen
+        kalibreringskurve selv, for eksempel en produksjons-RIP med egen
         lineariserings-LUT, eller en skriver med innebygd tetthets-
         kalibrering.
 
@@ -672,11 +678,15 @@ parameters:
         kalibreringen.  -I bygger .cal-filen inn i .ti2-utdataene kun som
         metadata og lar alle feltverdier være urørt.
 
+        **Ikke klikk Bruk kalibrering på profilen etterpå.**
+        Skriveren bruker allerede kalibreringen, og å legge den inn i
+        profilen i tillegg ville korrigere fargene to ganger.
+
         **Typisk bruk:** profesjonelle blekkskriver-RIP-er (f.eks. EFI Fiery,
         Wasatch, ColorBurst) eller skrivere med innebygd linearisering som
         er aktiv under profilerings-utskriften.
 
-        Utelukker "Bruk kalibrering" (-K) — bare ett kalibreringsvalg kan
+        Utelukker "Bruk kalibrering" (-K): bare ett kalibreringsvalg kan
         være aktivt om gangen.
     "-C":
       name: "Slå av TIFF-komprimering"

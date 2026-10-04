@@ -511,6 +511,64 @@ class MainWindow(QMainWindow):
         # ⌘Return / ⌘Enter — run the current tab's main action.
         sc("primary_action", self._trigger_primary_action)
         sc("primary_action_alt", self._trigger_primary_action)
+        # ⌘Q / Ctrl+Q — quit, through the window's own close (Knut, #182
+        # 5973222284).
+        self._install_quit_action()
+
+    def _install_quit_action(self) -> None:
+        """The platform's quit shortcut: ⌘Q on macOS, Ctrl+Q elsewhere.
+
+        Knut, #182 5973222284: *"The default short cut on macOS for closing an
+        app is Cmd+Q, which does not work."* ChromIQ had no quit binding of its
+        own, so ⌘Q was left to the app menu Qt makes up, which a key event can
+        only reach after every widget has had it. Now ChromIQ owns the key: an
+        APPLICATION shortcut, resolved by Qt before any widget sees the key.
+        Windows' Alt+F4 closes the window by itself and reaches the same
+        `closeEvent`.
+
+        THE APP MENU'S OWN "Quit" ITEM IS LEFT AS QT MAKES IT, deliberately.
+        Measured on screen (beta 8): bound to this action with QuitRole, the
+        menu item did nothing while any modal window was open, because Qt
+        blocks application shortcuts and actions behind a modal; Qt's own item
+        asks every window to close, the modal one first, and quits. While a
+        modal window is open the shortcut here stands down and ⌘Q falls
+        through to that item, so the key quits either way.
+
+        Every route ends in the window's close, so a running measurement is
+        asked about exactly as the close button asks.
+        """
+        from PyQt6.QtGui import QAction
+        from ui.keyboard_help import BINDINGS
+        act = QAction(tr("Quit ChromIQ"), self)
+        act.setObjectName("quit_action")
+        act.setMenuRole(QAction.MenuRole.NoRole)
+        act.setShortcut(QKeySequence(BINDINGS["quit"]))
+        act.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+        act.triggered.connect(self.request_quit)
+        self.addAction(act)
+        self._quit_action = act
+
+    def request_quit(self) -> None:
+        """Quit as the app menu's Quit does: every window is asked to close.
+
+        Deferred to the event loop so the shortcut's own dispatch has finished
+        first. `QApplication.closeAllWindows` closes an open question window
+        before the main window, so an unanswered window can never hold the
+        quit up in silence; and the main window's close is `closeEvent`, which
+        asks about a running measurement and may say no.
+        """
+        log.info("Quit requested (keyboard shortcut or app menu)")
+        QTimer.singleShot(0, self._quit_all_windows)
+
+    def _quit_all_windows(self) -> None:
+        app = QApplication.instance()
+        modal = app.activeModalWidget() if app is not None else None
+        if modal is not None:
+            log.info("quit: closing the open window %r first",
+                     modal.windowTitle())
+        QApplication.closeAllWindows()
+        if self.isVisible():
+            log.info("quit: the main window stayed open")
 
     # Each tab's main action button, for the ⌘Return shortcut. (The many other
     # objectName="primary" buttons live inside per-tab sub-dialogs.)
@@ -3104,14 +3162,42 @@ class MainWindow(QMainWindow):
         # below make possible — the ending window runs an exec(), and the wait
         # for the reader pumps events, so a second close can arrive while the
         # first is still deciding.
+        #
+        # EVERY REFUSAL IS LOGGED (Knut, #182 5973449121). He once could not
+        # close ChromIQ by the window's button or by quitting, and his log
+        # said nothing at all about it: not one of the ways out of this method
+        # wrote a line. Measured on screen since: a click on the close button
+        # while any modal window is open never reaches this method (Qt drops it
+        # for a blocked window), which is why the quit shortcut now closes
+        # that window first (request_quit) and why every modal window that
+        # opens is named in the log (ui.widgets.DialogFocusFilter).
+        log.info("Close requested (spontaneous=%s)", event.spontaneous())
         if getattr(self, "_closing", False):
+            log.info("close ignored: the window is already closing")
             event.ignore()
             return
         self._closing = True
-        if not self._ask_before_quitting_on_a_measurement():
+        try:
+            may_close = self._ask_before_quitting_on_a_measurement()
+        except Exception:              # noqa: BLE001 — never trap the user
+            log.warning("the quit question failed; closing anyway",
+                        exc_info=True)
+            may_close = True
+        if not may_close:
+            log.info("close cancelled: the measurement keeps running")
             self._closing = False      # the user is still working
             event.ignore()
             return
+        try:
+            self._close_down(event)
+        except Exception:              # noqa: BLE001 — a close always closes
+            log.warning("a step of closing down failed; closing anyway",
+                        exc_info=True)
+            super().closeEvent(event)
+        log.info("Main window closed")
+
+    def _close_down(self, event) -> None:
+        """Everything `closeEvent` does once the close has been agreed."""
         # §3 W6 — QUITTING COUNTS AS LEAVING THE VISIBLE TAB.
         #
         # Qt raises no tab-change for it, so without this the one tab the user

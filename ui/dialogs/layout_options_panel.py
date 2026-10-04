@@ -4634,7 +4634,37 @@ class LayoutOptionsPanel(QWidget):
             self, tr("Clip template exported"),
             tr("Wrote:\n{files}").format(files="\n".join(str(p) for p in paths)))
 
+    @staticmethod
+    def _order_lock_text() -> str:
+        return tr("Calibration charts are always printed in order, so each "
+                  "ink's ramp sits on its own strip. Randomising applies to "
+                  "profiling charts.")
+
+    def set_order_locked(self, locked: bool) -> None:
+        """Grey the randomisation controls while Run type is Calibration.
+
+        A calibration chart is always laid out in order, whatever this box
+        says (calibration_run_type.md §4.2; chart_creator._engine_kwargs and
+        _printtarg_keeps_order). The box still looked live, which confused a
+        forum user (ajaytanna, beta 7). The reason is the greyed controls'
+        tooltip, not a paragraph in the section (no section prints prose,
+        tests/test_the_notes_left_the_sections_for_the_tooltips.py). The
+        ticks are NOT changed: they are the profiling runs' own setting and
+        come back as they were.
+        """
+        self._order_locked = bool(locked)
+        self.randomize_cb.setEnabled(not locked)
+        tip = self._order_lock_text() if locked else ""
+        for w in (self.randomize_cb, self.fixed_seed_cb, self.seed_spin,
+                  self.new_seed_btn):
+            w.setToolTip(tip)
+        self._sync_seed_enabled()
+
     def _sync_seed_enabled(self) -> None:
+        if getattr(self, "_order_locked", False):
+            for w in (self.fixed_seed_cb, self.new_seed_btn, self.seed_spin):
+                w.setEnabled(False)
+            return
         on = self.randomize_cb.isChecked()
         self.fixed_seed_cb.setEnabled(on)
         self.new_seed_btn.setEnabled(on)

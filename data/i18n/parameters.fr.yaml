@@ -696,29 +696,37 @@ parameters:
       tooltip_title: "Appliquer la calibration aux plages (-K)"
       tooltip_body: |-
         Sers-t'en quand l'imprimante n'a aucun système de calibration
-        intégré — c'est-à-dire que le pilote ou le RIP ne peut pas
+        intégré, c'est-à-dire que le pilote ou le RIP ne peut pas
         appliquer lui-même une courbe de calibration.
 
         Lance d'abord printcal d'Argyll pour produire un fichier .cal
         décrivant comment linéariser l'imprimante.  Puis passe-le ici :
         printtarg recalcule chaque valeur de couleur des plages à travers
-        les courbes de calibration avant de générer la mire — la cible
+        les courbes de calibration avant de générer la mire, la cible
         imprimée reflète donc déjà le comportement calibré du
-        périphérique.  Le .cal est aussi incorporé dans le fichier .ti2
-        pour que colprof puisse s'y référer à la création du profil ICC.
+        périphérique.  Le .cal est aussi enregistré dans la mire, pour
+        que les limites d'encre du profil soient calculées sur les
+        quantités d'encre réelles.
+
+        **Après avoir créé le profil, clique sur Appliquer la calibration.**
+        colprof d'ArgyllCMS n'intègre pas la calibration dans le
+        profil.  Appliquer la calibration (applycal) le fait, pour que
+        chaque impression faite à travers le profil calibré soit
+        calibrée elle aussi.  Sans cela, tes impressions partent non
+        calibrées.
 
         **Usage typique :** jets d'encre de bureau sans linéarisation
         intégrée, pilotés directement depuis un TIFF sans RIP
         intermédiaire.
 
-        S'exclut mutuellement avec « Incorporer la calibration » (-I) —
+        S'exclut mutuellement avec « Incorporer la calibration » (-I):
         une seule option de calibration peut être active à la fois.
     "-I":
       name: "Incorporer la calib. seule"
       tooltip_title: "Incorporer la calibration sans l'appliquer (-I)"
       tooltip_body: |-
         Sers-t'en quand l'imprimante ou le RIP applique déjà une courbe
-        de calibration nativement — par exemple un RIP jet d'encre de
+        de calibration nativement, par exemple un RIP jet d'encre de
         production avec sa propre LUT de linéarisation, ou une imprimante
         à calibration de densité intégrée.
 
@@ -728,11 +736,15 @@ parameters:
         .ti2 de sortie comme simples métadonnées, en laissant toutes les
         valeurs intactes.
 
+        **Ne clique pas ensuite sur Appliquer la calibration pour le profil.**
+        L'imprimante applique déjà la calibration, et l'intégrer en plus
+        dans le profil corrigerait la couleur deux fois.
+
         **Usage typique :** RIP jet d'encre professionnels (p. ex. EFI Fiery,
         Wasatch, ColorBurst) ou imprimantes à linéarisation intégrée
         active pendant l'impression de profilage.
 
-        S'exclut mutuellement avec « Appliquer la calibration » (-K) —
+        S'exclut mutuellement avec « Appliquer la calibration » (-K):
         une seule option de calibration peut être active à la fois.
     "-C":
       name: "Désactiver compression TIFF"

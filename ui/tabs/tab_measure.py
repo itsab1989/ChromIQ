@@ -8246,15 +8246,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         from ui.widgets import (fit_message_box_buttons,
                                 order_message_box_buttons)
         from workflow.measurement_messages import (M_NO_INSTRUMENT,
-                                                   M_NO_INSTRUMENT_FAST)
+                                                   M_NO_INSTRUMENT_FAST,
+                                                   M_NO_INSTRUMENT_NONE)
 
+        # NOTHING IS CONNECTED AT ALL (Knut, #182 5969949735). The start was
+        # refused before any reader ran, because the only port there is the
+        # computer's own: no instrument was asked anything, so "has not replied
+        # for 5 seconds" was untrue, and the connection shortcut cannot be the
+        # cause. Say only what is true.
+        none = bool(getattr(self._manager, "start_refused_port", None))
         # While the "Faster instrument connection" shortcut is on it is the
         # likeliest cause on older hardware (Knut, 2026-08-13: his ColorMunki
         # was invisible on a 2019 MacBook until he switched it off), so that
         # case gets the variant naming it — and the switch itself, so nobody
         # has to go hunting through Preferences mid-measurement (Sebastian).
-        fast_on = bool(self._settings.get("fast_instrument_connect", True))
-        msg = M_NO_INSTRUMENT_FAST if fast_on else M_NO_INSTRUMENT
+        fast_on = (not none) and bool(
+            self._settings.get("fast_instrument_connect", True))
+        msg = (M_NO_INSTRUMENT_NONE if none
+               else M_NO_INSTRUMENT_FAST if fast_on else M_NO_INSTRUMENT)
         title, body = msg.render(n=self._NO_INSTRUMENT_DELAY_S)
         self._log.appendPlainText("\n" + title + "\n" + body)
         self._log.ensureCursorVisible()
@@ -10387,6 +10396,42 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         note.setStyleSheet(dim_style)
         layout.addWidget(note)
 
+    def _strip_key_rows(self) -> "list[tuple[str, str]]":
+        """The keys a strip measurement listens for, as a Calibration complete
+        window lists them. K only where it does something (the ChromIQ engine
+        on an instrument that can calibrate between reads)."""
+        return [
+            ("f", tr("Move to the next strip")),
+            ("b", tr("Move back to the previous strip")),
+            ("n", tr("Jump to the next unread strip")),
+            *((("K", tr("Calibrate the instrument again before the next "
+                        "strip")),)
+              if self._manager.can_calibrate_on_request() else ()),
+            ("d", tr("Finish and save when all strips are done")),
+            ("Esc / q", tr("Quit without saving")),
+        ]
+
+    def _strip_key_frame(self, dlg, frame_style: str, key_style: str,
+                         plain_style: str):
+        """`_strip_key_rows` as the boxed two-column list, in *dlg*."""
+        from PyQt6.QtWidgets import QFrame, QGridLayout, QLabel
+        key_frame = QFrame(dlg)
+        key_frame.setObjectName("calibration_key_list")
+        key_frame.setStyleSheet(frame_style)
+        kfl = QGridLayout(key_frame)
+        kfl.setContentsMargins(16, 12, 16, 12)
+        kfl.setHorizontalSpacing(20)
+        kfl.setVerticalSpacing(6)
+        kfl.setColumnStretch(1, 1)
+        for row, (key, desc) in enumerate(self._strip_key_rows()):
+            k = QLabel(key, key_frame)
+            k.setStyleSheet(key_style)
+            d = QLabel(desc, key_frame)
+            d.setStyleSheet(plain_style)
+            kfl.addWidget(k, row, 0, Qt.AlignmentFlag.AlignLeft)
+            kfl.addWidget(d, row, 1, Qt.AlignmentFlag.AlignLeft)
+        return key_frame
+
     def _show_requested_calibration_done(self) -> None:
         """M-CAL-REQUESTED-DONE: the short "carry on" Calibration complete."""
         from PyQt6.QtWidgets import (QDialog, QDialogButtonBox, QFrame,
@@ -10737,14 +10782,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 sfl.addWidget(t_lbl, row, 1)
             layout.addWidget(step_frame)
 
-            footnote = QLabel(
-                tr("<b>n</b> jumps to the next unread strip  —  <b>Esc / q</b> quits without saving."),
-                dlg,
-            )
-            footnote.setWordWrap(True)
-            footnote.setStyleSheet(_dim_style)
-            layout.addWidget(footnote)
-            self._add_calibrate_key_note(layout, dlg, _dim_style)
+            # THE SAME KEY LIST AS EVERY OTHER CALIBRATION COMPLETE WINDOW.
+            # This variant used to end on two loose dim lines (n and Esc / q in
+            # one, K in the other) that the dialog's spacing pushed far apart,
+            # while the window after a K calibration listed every key (Knut,
+            # #182 5971383600). One list, built from one place.
+            layout.addWidget(self._strip_key_frame(
+                dlg, _frame_style, _key_style, _plain_style))
 
         else:
             dlg.setWindowTitle(tr("Calibration Complete — How to Measure"))
@@ -10759,31 +10803,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             msg.setWordWrap(True)
             layout.addWidget(msg)
 
-            key_frame = QFrame(dlg)
-            key_frame.setStyleSheet(_frame_style)
-            kfl = QGridLayout(key_frame)
-            kfl.setContentsMargins(16, 12, 16, 12)
-            kfl.setHorizontalSpacing(20)
-            kfl.setVerticalSpacing(6)
-            kfl.setColumnStretch(1, 1)
-            key_rows = [
-                ("f", tr("Move to the next strip")),
-                ("b", tr("Move back to the previous strip")),
-                ("n", tr("Jump to the next unread strip")),
-                *((("K", tr("Calibrate the instrument again before the next "
-                            "strip")),)
-                  if self._manager.can_calibrate_on_request() else ()),
-                ("d", tr("Finish and save when all strips are done")),
-                ("Esc / q", tr("Quit without saving")),
-            ]
-            for row, (key, desc) in enumerate(key_rows):
-                k = QLabel(key)
-                k.setStyleSheet(_key_style)
-                d = QLabel(desc)
-                d.setStyleSheet(_plain_style)
-                kfl.addWidget(k, row, 0, Qt.AlignmentFlag.AlignLeft)
-                kfl.addWidget(d, row, 1, Qt.AlignmentFlag.AlignLeft)
-            layout.addWidget(key_frame)
+            layout.addWidget(self._strip_key_frame(
+                dlg, _frame_style, _key_style, _plain_style))
 
             footnote = QLabel(tr("These instructions are always visible in the output log below."), dlg)
             footnote.setWordWrap(True)
@@ -10797,6 +10818,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         _outer.addWidget(btn_box)
 
         tint_dialog_primary(dlg, _TAB_COLOR)
+        # NOTHING CLIPPED AT THE SMALLEST SIZE (Knut, #182 5971383600). The
+        # wrapped labels need more height the narrower the window is, and a
+        # plain minimum size does not know that, so the window could be made
+        # shorter than its own text (measured on screen, EN and DE).
+        _lay = dlg.layout()
+        if _lay is not None and _lay.hasHeightForWidth():
+            dlg.setMinimumHeight(_lay.totalHeightForWidth(dlg.minimumWidth()))
         self._exec_measurement_window(dlg)
         QApplication.instance().installEventFilter(self)
 

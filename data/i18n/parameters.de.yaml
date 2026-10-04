@@ -706,21 +706,28 @@ parameters:
       tooltip_title: "Kalibrierung auf Messfelder anwenden (-K)"
       tooltip_body: |
         Verwende dies, wenn dein Drucker kein eingebautes
-        Kalibrierungssystem hat — der Treiber oder RIP also keine
+        Kalibrierungssystem hat, der Treiber oder RIP also keine
         Kalibrierungskurve selbst anwenden kann.
 
         Du erzeugst zuerst mit Argylls printcal eine .cal-Datei, die
         beschreibt, wie der Drucker zu linearisieren ist.  Diese .cal
         gib hier an: printtarg rechnet jeden Feldfarbwert vor der
-        Chart-Erzeugung durch die Kalibrierungskurven um — das gedruckte
+        Chart-Erzeugung durch die Kalibrierungskurven um, das gedruckte
         Chart zeigt dann bereits das kalibrierte Druckerverhalten.
-        Die .cal wird außerdem in die .ti2 eingebettet, damit colprof sie
-        beim Erstellen des ICC-Profils berücksichtigen kann.
+        Die .cal wird außerdem im Chart vermerkt, damit die
+        Tintenlimits des Profils auf den echten Tintenmengen berechnet
+        werden.
+
+        **Klicke nach dem Erstellen des Profils auf „Kalibrierung anwenden“.**
+        colprof von ArgyllCMS bringt die Kalibrierung nicht ins Profil.
+        „Kalibrierung anwenden“ (applycal) tut das, damit jeder Druck
+        über das kalibrierte Profil ebenfalls kalibriert ist.  Ohne
+        diesen Schritt gehen deine Drucke unkalibriert hinaus.
 
         **Typische Verwendung:** Desktop-Tintenstrahler ohne eingebaute
         Linearisierung, direkt aus einem TIFF und ohne RIP angesteuert.
 
-        Schließt sich mit „Kalibrierung einbetten“ (-I) gegenseitig aus —
+        Schließt sich mit „Kalibrierung einbetten“ (-I) gegenseitig aus:
         nur eine Kalibrierungsoption kann gleichzeitig aktiv sein.
 
     "-I":
@@ -728,7 +735,7 @@ parameters:
       tooltip_title: "Kalibrierung einbetten, nicht anwenden (-I)"
       tooltip_body: |
         Verwende dies, wenn dein Drucker oder RIP bereits selbst eine
-        Kalibrierungskurve anwendet — etwa ein Produktions-RIP mit eigener
+        Kalibrierungskurve anwendet, etwa ein Produktions-RIP mit eigener
         Linearisierungs-LUT oder ein Drucker mit eingebauter
         Dichtekalibrierung.
 
@@ -737,11 +744,16 @@ parameters:
         Kalibrierung wissen.  -I bettet die .cal-Datei nur als Metadaten
         in die .ti2 ein und lässt alle Feldwerte unangetastet.
 
+        **Klicke danach NICHT auf „Kalibrierung anwenden“ für das Profil.**
+        Der Drucker wendet die Kalibrierung bereits an, und sie
+        zusätzlich ins Profil zu bringen, würde die Farbe doppelt
+        korrigieren.
+
         **Typische Verwendung:** professionelle Inkjet-RIPs (z. B. EFI Fiery,
         Wasatch, ColorBurst) oder Drucker mit eingebauter Linearisierung,
         die während des Profilierungs-Drucks aktiv ist.
 
-        Schließt sich mit „.cal-Datei anwenden“ (-K) gegenseitig aus —
+        Schließt sich mit „.cal-Datei anwenden“ (-K) gegenseitig aus:
         nur eine Kalibrierungsoption kann gleichzeitig aktiv sein.
 
     "-C":

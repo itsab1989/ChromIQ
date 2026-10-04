@@ -2237,6 +2237,28 @@ M_CHART_LEGACY_ENDED = _m(
     "What went wrong: {reason}",
     approved=False)
 
+# --- PROPOSED: no instrument is connected at all -------------------------
+#: Knut, #182 5969949735 (beta 7): when ChromIQ refuses to start because no
+#: instrument is attached (the only serial port is the computer's own, see
+#: core/instrument_port.py), the window came after about one second and still
+#: said the instrument "has not replied for 5 seconds" and suggested turning
+#: off "Faster instrument connection". Asked whether that case should be
+#: reworded, he answered "yes". Nothing was asked of an instrument here and
+#: the shortcut has nothing to do with it, so this variant says only what is
+#: true: none is connected, connect it, press Start again. M-NO-INSTRUMENT and
+#: M-NO-INSTRUMENT-FAST stay as they are for the case where a reader really
+#: did wait for an instrument that did not answer.
+M_NO_INSTRUMENT_NONE = _m(
+    "M-NO-INSTRUMENT-NONE",
+    "No Instrument Connected",
+    "ChromIQ cannot find a measuring instrument connected to this computer, "
+    "so the measurement has not started.\n\n"
+    "Connect your instrument with its USB cable, give the computer a moment "
+    "to recognise it, and press Start again.\n\n"
+    "Nothing has been lost: any measurement you already had is kept exactly "
+    "as it was.",
+    approved=False)
+
 M_NO_INSTRUMENT_FAST = _m(
     "M-NO-INSTRUMENT-FAST",
     "No Instrument Found",
@@ -4451,7 +4473,7 @@ CATALOGUE = {m.id: m for m in (
     M_IMPORT_DONE_PROFILING,
     M_IMPORT_DEVICE_FROM_CHART,
     M_VERIFY_SAVED, M_HOW_PRINTED,
-    M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,
+    M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST, M_NO_INSTRUMENT_NONE,
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
     M_UNREAD_NEXT_OR_JUMP_STRIP, M_UNREAD_NEXT_OR_JUMP_PATCH,
     M_STRIP_READ_TWICE,

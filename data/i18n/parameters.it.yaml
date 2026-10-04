@@ -678,7 +678,7 @@ parameters:
       tooltip_title: "Applica calibrazione ai tasselli (-K)"
       tooltip_body: |-
         Usalo quando la stampante non ha alcun sistema di calibrazione
-        integrato — cioè il driver o il RIP non può applicare da sé una
+        integrato, cioè il driver o il RIP non può applicare da sé una
         curva di calibrazione.
 
         Prima esegui printcal di Argyll per produrre un file .cal che
@@ -686,20 +686,28 @@ parameters:
         printtarg ricalcola ogni valore colore dei tasselli attraverso le
         curve di calibrazione prima di generare il grafico, così il target
         stampato riflette già il comportamento calibrato del dispositivo.
-        Il .cal viene anche incorporato nel file .ti2 così che colprof
-        possa farvi riferimento nella creazione del profilo ICC.
+        Il .cal viene anche registrato nel grafico, così i limiti
+        d'inchiostro del profilo vengono calcolati sulle quantità
+        d'inchiostro reali.
+
+        **Dopo aver creato il profilo, fai clic su Applica calibrazione.**
+        colprof di ArgyllCMS non inserisce la calibrazione nel
+        profilo.  Applica calibrazione (applycal) lo fa, così ogni
+        stampa fatta attraverso il profilo calibrato è calibrata
+        anch'essa.  Senza questo passo le tue stampe escono non
+        calibrate.
 
         **Uso tipico:** inkjet desktop senza linearizzazione integrata,
         pilotate direttamente da un TIFF senza RIP intermedio.
 
-        Si esclude a vicenda con \"Incorpora calibrazione\" (-I) — solo
+        Si esclude a vicenda con \"Incorpora calibrazione\" (-I): solo
         un'opzione di calibrazione può essere attiva alla volta.
     "-I":
       name: "Incorpora solo calibrazione"
       tooltip_title: "Incorpora calibrazione senza applicarla (-I)"
       tooltip_body: |-
         Usalo quando la stampante o il RIP applica già una curva di
-        calibrazione in modo nativo — per esempio un RIP inkjet di
+        calibrazione in modo nativo, per esempio un RIP inkjet di
         produzione con la sua LUT di linearizzazione, o una stampante con
         calibrazione di densità integrata.
 
@@ -708,11 +716,15 @@ parameters:
         calibrazione.  -I incorpora il file .cal nel .ti2 di output solo
         come metadati, lasciando tutti i valori intatti.
 
+        **Non fare poi clic su Applica calibrazione sul profilo.**
+        La stampante applica già la calibrazione, e inserirla anche nel
+        profilo correggerebbe il colore due volte.
+
         **Uso tipico:** RIP inkjet professionali (es. EFI Fiery, Wasatch,
         ColorBurst) o stampanti con linearizzazione integrata attiva
         durante la stampa di profilazione.
 
-        Si esclude a vicenda con \"Applica calibrazione\" (-K) — solo
+        Si esclude a vicenda con \"Applica calibrazione\" (-K): solo
         un'opzione di calibrazione può essere attiva alla volta.
     "-C":
       name: "Disattiva compressione TIFF"

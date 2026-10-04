@@ -3480,6 +3480,15 @@ class CompositeAppFilter(QObject):
         return False
 
 
+def _log_modal_window_shown(w) -> None:
+    """One INFO line naming a modal window as it opens. Never raises."""
+    try:
+        _log.info("modal window shown: %s %r", type(w).__name__,
+                  w.windowTitle())
+    except Exception:      # noqa: BLE001 — a log line is never worth a crash
+        pass
+
+
 class DialogFocusFilter(QObject):
     """Installs on QApplication. When any top-level window (a dialog) is shown,
     Qt hands the initial focus to its first focusable child — often a button, or
@@ -3493,6 +3502,12 @@ class DialogFocusFilter(QObject):
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:
         if (event.type() == QEvent.Type.Show
                 and isinstance(obj, QWidget) and obj.isWindow()):
+            # NAME EVERY MODAL WINDOW IN THE LOG (Knut, #182 5973449121).
+            # While one is open, Qt drops a click on the main window's close
+            # button without a trace, so "ChromIQ would not close" left a log
+            # that said nothing. Now it says which window was in the way.
+            if obj.isModal():
+                _log_modal_window_shown(obj)
             defer_clear_button_focus(obj)
             # K44: the default button is FILLED, so it must stop following the
             # focus (QDialog autoDefault). Queued AFTER the clears above, so no

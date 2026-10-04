@@ -734,7 +734,18 @@ WORKFLOWS: list[dict] = [
                   "once.")))),
             (4, tr("Carry on and build your profile exactly as usual. The "
                 "profile you get now describes a calibrated printer, which is "
-                "the point of the whole exercise.")),
+                "the point of the whole exercise."),
+             False,
+             ((tr("Then put the calibration into the profile, or leave it out"),
+               tr("If you chose “Apply Calibration File” (-K) because your "
+                  "printer cannot calibrate itself, click “Apply Calibration” "
+                  "on the Calibration & Profiling tab after the build. The "
+                  "profile does not contain the calibration until you do, and "
+                  "your prints need it: print with the calibrated profile it "
+                  "makes. If you chose “Include Calibration File” (-I) because "
+                  "your printer or RIP applies the calibration itself, leave "
+                  "the profile as it is. Applying the calibration there too "
+                  "would correct the colour twice.")),)),
             (4, tr("From now on, keep the two in step. Build a fresh profile "
                 "whenever you make a new calibration."),
              False,

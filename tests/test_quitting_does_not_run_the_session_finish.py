@@ -68,7 +68,8 @@ def test_quitting_silences_the_branch_that_warned():
 def test_the_window_says_so_before_it_kills_anything():
     """After `cleanup()` is too late: the handler has already run."""
     from ui.main_window import MainWindow
-    src = inspect.getsource(MainWindow.closeEvent)
+    src = (inspect.getsource(MainWindow.closeEvent)   # beta 8: the steps moved
+           + inspect.getsource(MainWindow._close_down))
     assert "note_app_quitting" in src, (
         "the session is never told the app is closing")
     assert src.index("note_app_quitting") < src.index("_runner.cleanup()"), (
@@ -103,7 +104,8 @@ def test_the_window_can_actually_REACH_its_manager(qtbot_free_window):
 def test_close_event_still_calls_it():
     """The extraction is only honest if closeEvent still drives it."""
     from ui.main_window import MainWindow
-    src = inspect.getsource(MainWindow.closeEvent)
+    src = (inspect.getsource(MainWindow.closeEvent)   # beta 8: the steps moved
+           + inspect.getsource(MainWindow._close_down))
     assert "_mark_quit_on_the_measurement()" in src
     assert (src.index("_mark_quit_on_the_measurement()")
             < src.index("_runner.cleanup()")), (
