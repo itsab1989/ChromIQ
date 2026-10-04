@@ -28,6 +28,8 @@ from __future__ import annotations
 
 import types
 
+import os
+
 import pytest
 
 pytest.importorskip("PyQt6")
@@ -35,8 +37,14 @@ pytest.importorskip("PyQt6")
 from ui.dialogs.measurement_report_dialog import MeasurementReportDialog as M  # noqa: E402
 
 
+#: A made-up measurement folder has to be an ABSOLUTE path on this system: on
+#: Windows "/nowhere/Demo" read back as "//nowhere/Demo" is a UNC share root,
+#: whose name is empty, so the project could not be named (first Windows
+#: ARM64 CI run). A drive letter makes it the same shape a real one has there.
+_ROOT = "C:" if os.name == "nt" else ""
+
 def _runs(*, verification: bool,
-          origin: str = "/p/Demo-Paper/runs/run3/verifications/2026-11-16_100000"):
+          origin: str = _ROOT + "/p/Demo-Paper/runs/run3/verifications/2026-11-16_100000"):
     """THE SHAPE A REPORT REALLY HAS (round 3B, F5). This fixture used to put
     a whole path in ``ti3``, which `build_report` never does (it writes the
     file NAME), so every test here passed while every real report said "built

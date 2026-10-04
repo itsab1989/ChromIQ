@@ -20,6 +20,13 @@ from ui.tooltip_button import InfoDialog
 
 _REPO = Path(__file__).resolve().parents[1]
 
+def _native(path: str) -> str:
+    """Qt answers a folder with "/" on every system; the expectations are
+    `str(Path)`, which is "\\" on Windows. Same string on the Mac."""
+    from PyQt6.QtCore import QDir
+    return QDir.toNativeSeparators(path)
+
+
 @pytest.fixture
 def settings(tmp_path):
     """A sandboxed AppSettings, pointed at a scratch working folder.
@@ -297,7 +304,7 @@ def test_g4_a_dialog_with_no_start_dir_does_not_open_in_home(qapp, settings,
     root.mkdir(parents=True, exist_ok=True)
     seen = []
     monkeypatch.setattr(QFileDialog, "exec",
-                        lambda self: seen.append(self.directory().absolutePath())
+                        lambda self: seen.append(_native(self.directory().absolutePath()))
                         or QFileDialog.DialogCode.Rejected)
     W.open_file_dialog(None, "t", "TI2 files (*.ti2)", extra_path=str(root))
     assert seen and seen[0] != str(Path.home()), \
@@ -314,7 +321,7 @@ def test_g4_the_ti2_button_starts_in_the_chromiq_folder(qapp, settings,
     tab = TabMeasure(ArgyllRunner(settings), settings)
     seen = []
     monkeypatch.setattr(QFileDialog, "exec",
-                        lambda self: seen.append(self.directory().absolutePath())
+                        lambda self: seen.append(_native(self.directory().absolutePath()))
                         or QFileDialog.DialogCode.Rejected)
     tab._on_load_ti2()
     assert seen and seen[0] == str(root), \

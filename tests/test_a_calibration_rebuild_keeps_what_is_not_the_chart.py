@@ -39,6 +39,8 @@ from __future__ import annotations
 import unicodedata as ud
 from pathlib import Path
 
+import os
+
 import pytest
 
 from core.file_manager import Calibration
@@ -266,7 +268,13 @@ def test_a_decomposed_chart_file_is_still_recognised_as_its_own(tmp_path):
     assert note not in cal.chart_files()
 
 
-@pytest.mark.parametrize("name", ["Canon-Pro300 [test]", "Chart*A", "Chart?A",
+_NTFS_REFUSES = pytest.mark.skipif(
+    os.name == "nt", reason="'*' and '?' are not legal in a Windows file name")
+
+
+@pytest.mark.parametrize("name", ["Canon-Pro300 [test]",
+                                  pytest.param("Chart*A", marks=_NTFS_REFUSES),
+                                  pytest.param("Chart?A", marks=_NTFS_REFUSES),
                                   "Chart]v2["])
 def test_a_name_holding_glob_syntax_is_a_name_not_a_pattern(tmp_path, name):
     """`is_ours` must never reach `fnmatch`: `Chart*A` would then adopt another

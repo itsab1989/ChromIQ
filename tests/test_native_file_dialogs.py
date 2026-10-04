@@ -12,6 +12,13 @@ from PyQt6.QtWidgets import QApplication, QFileDialog, QLabel  # noqa: E402
 import ui.widgets as widgets  # noqa: E402
 
 
+def _native(path: str) -> str:
+    """Qt answers a folder with "/" on every system; the expectations are
+    `str(Path)`, which is "\\" on Windows. Same string on the Mac."""
+    from PyQt6.QtCore import QDir
+    return QDir.toNativeSeparators(path)
+
+
 @pytest.fixture(scope="module")
 def qapp():
     return QApplication.instance() or QApplication([])
@@ -139,7 +146,7 @@ def test_save_dialog_keeps_the_widget_parent_for_a_file_path(
     parent = QLabel("owner")
     dlg = _captured_save_dialog(monkeypatch, parent, str(tmp_path / "card.pdf"))
     assert dlg.parent() is parent
-    assert dlg.directory().absolutePath() == str(tmp_path)
+    assert _native(dlg.directory().absolutePath()) == str(tmp_path)
 
 
 def test_save_dialog_keeps_the_widget_parent_for_a_directory(
@@ -168,7 +175,7 @@ def test_save_dialog_falls_back_when_the_folder_does_not_exist(
     missing = tmp_path / "nothing-here" / "readings.csv"
     dlg = _captured_save_dialog(monkeypatch, parent, str(missing))
     assert dlg.parent() is parent
-    assert dlg.directory().absolutePath() == str(tmp_path)
+    assert _native(dlg.directory().absolutePath()) == str(tmp_path)
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +217,7 @@ def test_the_save_panel_is_given_the_folder_not_just_the_name(
     # reads like a Qt fault and is a test holding nothing.
     owner = QLabel("owner")
     dlg = _captured_save_dialog(monkeypatch, owner, str(want))
-    assert dlg.directory().absolutePath() == str(home)
+    assert _native(dlg.directory().absolutePath()) == str(home)
     assert seen.get("selected") == str(want), (
         f"the panel was told {seen.get('selected')!r}, so a native dialog is "
         f"free to open wherever it was last")
@@ -231,5 +238,5 @@ def test_a_missing_folder_still_falls_back_to_a_bare_name(
     owner = QLabel("owner")
     missing = tmp_path / "nothing-here" / "readings.csv"
     dlg = _captured_save_dialog(monkeypatch, owner, str(missing))
-    assert dlg.directory().absolutePath() == str(tmp_path)
+    assert _native(dlg.directory().absolutePath()) == str(tmp_path)
     assert seen.get("selected") == "readings.csv"

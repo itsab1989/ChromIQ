@@ -159,6 +159,8 @@ class _Off:
         return False if key == "fast_instrument_connect" else default
 
 
+@pytest.mark.skipif(os.name == "nt", reason=(
+    "the pty launch path is POSIX-only; Windows starts tools behind a pipe"))
 def test_the_pty_launch_really_passes_it(qapp, darwin, monkeypatch, tmp_path):
     """Behaviour, not source: stock chartread's PTY launch, preference OFF,
     is handed the exclusion. MUTATION: drop ``env=_env`` from `_run_pty`."""

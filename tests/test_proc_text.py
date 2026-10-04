@@ -24,6 +24,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import os
+
 import pytest
 
 from core import proc_text
@@ -225,6 +227,9 @@ def test_run_text_decodes_what_the_child_wrote():
     assert r.returncode == 0
 
 
+@pytest.mark.skipif(os.name == "nt", reason=(
+    "LANG=C/LC_ALL=C is a POSIX locale; Windows takes its code page from "
+    "the system, not the environment, so the ASCII-only case cannot be made"))
 def test_run_text_survives_an_ascii_only_locale():
     """THE MEASURED CRASH.
 

@@ -40,6 +40,12 @@ from workflow import compliance_sets as CS                     # noqa: E402
 from workflow import measurement_messages as M                 # noqa: E402
 from workflow import measurement_report as MR                  # noqa: E402
 
+#: A made-up measurement folder has to be an ABSOLUTE path on this system: on
+#: Windows "/nowhere/Demo" read back as "//nowhere/Demo" is a UNC share root,
+#: whose name is empty, so the project could not be named (first Windows
+#: ARM64 CI run). A drive letter makes it the same shape a real one has there.
+_ROOT = "C:" if os.name == "nt" else ""
+
 ROOT = Path(__file__).resolve().parents[1]
 THREE = ("substrate_de00_max", "solids_de00_max", "cmy_solids_dhab_max")
 
@@ -344,7 +350,7 @@ def _sheet(colour, run="run3", when="2026-11-16_100000", **kw):
     rep = _raw_sheet(**kw)
     rep.update(printing={"colour": colour}, chart="Demo-verify",
                ti3="Demo-verify.ti3", created="2026-11-16T10:00:00",
-               _origin_dir=f"/nowhere/Demo/runs/{run}/verifications/{when}")
+               _origin_dir=f"{_ROOT}/nowhere/Demo/runs/{run}/verifications/{when}")
     return rep
 
 

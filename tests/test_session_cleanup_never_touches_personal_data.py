@@ -20,6 +20,12 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "scripts"))
 import session_cleanup as S  # noqa: E402
 
+#: `scripts/session_cleanup.py` is the SessionEnd hook of Basti's Mac
+#: (CLAUDE.md "DISK HYGIENE"): its roots and names are macOS ones, and it never
+#: runs anywhere else.
+pytestmark = pytest.mark.skipif(sys.platform != "darwin",
+                                reason="a macOS-only dev tool (the Mac's session hook)")
+
 HOME = Path.home()
 TMP = Path(tempfile.gettempdir())
 
