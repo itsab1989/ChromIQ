@@ -447,3 +447,63 @@ def test_the_reachable_black_is_found_on_a_printer_whose_dark_end_lightens(print
     # Agent 13: the darkest neutral under the limit is L* 7.2 near 226 %
     assert 6.0 <= r["darkest_neutral_L"] <= 7.6
     assert 200 <= r["darkest_neutral_ink_pct"] <= 260
+
+
+# ---------------------------------------------------------------------------
+# targets v2 and the commercial comparison
+# ---------------------------------------------------------------------------
+
+TARGETS = {"version": "test", "rows": [
+    {"endpoint": "A2B", "metric": [["a2b", "all", "mean"], ["a2b", "all", "p95"]],
+     "bands": {"excellent": [0.25, 0.75], "good": [0.5, 1.5], "acceptable": [1.0, 2.2]}},
+    {"endpoint": "BLACK", "kind": "black_depth", "synthetic_only": True,
+     "bands": {"excellent": [0.5, 1.0], "good": [1.5, 2.0], "acceptable": [3.0, 3.5]}}]}
+
+
+def _res(mean, p95, black_L, reach_L, kind="synthetic"):
+    key = "a2b_heldout" if kind == "real" else "a2b"
+    return {"datasets": [{"name": "X", "variant": "typical-targen900", "kind": kind,
+                          "profiles": {"accurate": {"scores": {"argyll": {
+                              key: {"all": {"mean": mean, "median": mean / 2, "p95": p95}},
+                              "black": {"printed_L": black_L, "printed_ab": [0.3, 0.4],
+                                        "reachable_L": {"darkest_neutral_L": reach_L}}}}}}}]}
+
+
+def test_bands_test_the_mean_not_the_median():
+    from benchmarks.research import targets
+    rows = targets.band_run(_res(0.6, 1.0, 7.0, 7.0), TARGETS)
+    assert rows[0]["band"] == "acceptable"          # median 0.3 would have read "good"
+
+
+def test_the_black_band_is_judged_against_the_truths_reachable_black():
+    from benchmarks.research import targets
+    rows = targets.band_run(_res(0.2, 0.5, 21.8, 7.2), TARGETS)   # Agent 13's XKB case
+    assert {r["endpoint"]: r["band"] for r in rows}["BLACK"] == "below"
+    rows = targets.band_run(_res(0.2, 0.5, 7.4, 7.2), TARGETS)
+    assert {r["endpoint"]: r["band"] for r in rows}["BLACK"] == "excellent"
+
+
+def test_a_real_set_reads_its_held_out_a2b_and_skips_synthetic_only_rows():
+    from benchmarks.research import targets
+    rows = targets.band_run(_res(0.2, 0.5, 7.0, 7.0, kind="real"), TARGETS)
+    assert [r["endpoint"] for r in rows] == ["A2B"] and rows[0]["band"] == "excellent"
+
+
+@pytest.mark.skipif(not ARGYLL.exists(), reason="ArgyllCMS not installed")
+def test_the_commercial_table_states_in_and_out_of_sample_and_gives_intervals(tmp_path):
+    from benchmarks.research import commercial, datasets as dsm
+    p = _smooth_profile(tmp_path)
+    rng = np.random.default_rng(3)
+    dev = rng.uniform(0, 0.6, (60, 4))
+    lab = commercial.absolute_lab(p, dev, "argyll") + rng.normal(0, 0.3, (60, 3))
+    ds = dsm.Dataset(name="R-test", kind="real", ti3=tmp_path / "x.ti3", n_channels=4,
+                     color_rep="CMYK_XYZ", ink_limit=300.0, holdout_device=dev,
+                     holdout_xyz=colour.lab_to_xyz(lab))
+    r = commercial.compare_one(ds, {"ours": p}, (p, "reference", "argyll"), n_boot=200)
+    assert "IN-SAMPLE" in r["reference_sample"] and "OUT-OF-SAMPLE" in r["ours_sample"]
+    d = r["ours"]["ours"]["diff_vs_reference"]
+    assert set(d) == {"median", "mean", "p95"}
+    assert d["mean"]["ours_minus_reference"] == pytest.approx(0.0, abs=1e-9)
+    assert d["mean"]["ci95"][0] <= 0.0 <= d["mean"]["ci95"][1]
+    md = commercial.table([r])
+    assert "in-sample" in md and "OUT-of-sample" in md and "95 % CI" in md

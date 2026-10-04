@@ -79,7 +79,8 @@ REAL_BASE = list(dsm.REAL_SOURCES)
 # their published TAC (330 / 320); the X-Rite sample chart has no stamp.
 REAL_TAC = {"R-FOGRA39L": 330.0, "R-GRACoL2006": 320.0,
             "R-CMYK-default-i1Pro": 300.0, "R-CMYK-default-i1iSis": 300.0,
-            "R-FOGRA55": 300.0, "R-APTEC7C": 300.0}
+            "R-FOGRA55": 300.0, "R-APTEC7C": 300.0,
+            "R-SWOP2006C3": 300.0, "R-SWOP2006C5": 300.0}
 
 
 # battery v3 (Agent 16): development printers (every known printer; the

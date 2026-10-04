@@ -141,6 +141,7 @@ def neutral_axis(prof, reader: str, truth: Truth, black_l: float, n_ch: int,
     dL = np.diff(P[:, 0])
     d2 = np.linalg.norm(np.diff(P, 2, axis=0), axis=1)
     out = {"from_L": float(Lp[0]), "de": stats(E), "chroma_max": float(chroma.max()),
+           "chroma_mean": float(chroma.mean()),
            "chroma_median": float(np.median(chroma)),
            "a_range": [float(P[:, 1].min()), float(P[:, 1].max())],
            "b_range": [float(P[:, 2].min()), float(P[:, 2].max())],
@@ -262,6 +263,10 @@ def score(prof, dataset, reader: str, truth: Truth, n_eval: int = 20000,
         rt = cmm.a2b(prof, ink, reader)
         sink["roundtrip"] = colour.de2000(rt, lab_t)
         out["roundtrip"] = stats(sink["roundtrip"])
+        # v3 (targets v2): ICC WP27 states its round-trip limit in dE*ab;
+        # dE00 can read a near-neutral a* error 1.5x LARGER, so it is not a
+        # conservative stand-in (Agent 13 7.3). Both are kept.
+        out["roundtrip_ab"] = stats(np.linalg.norm(rt - lab_t, axis=1))
     # black and the neutral ramp (E5, E6) are scored in light mode too:
     # protocol v2.1 decides ramp rows across noise seeds, so the seeds suite
     # must keep the ramp arrays (agent 6b, 2026-10-03)

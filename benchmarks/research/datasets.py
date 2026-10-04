@@ -435,6 +435,13 @@ REAL_SOURCES = {
                    "FOGRA39 characterization data (offset, coated), IT8.7/4 1617 patches, M0; averaged reference data"),
     "R-GRACoL2006": ("xrite", "ColorSpaceCMYK/Measurements/GRACoL2006_Coated1_TC1617.mxf", "mxf",
                      "IDEAlliance GRACoL 2006 Coated 1, 1617 patches, M1; averaged reference data"),
+    # battery v3 (Agent 16; Agent 11 used them for the commercial reference):
+    # SWOP 2006 Grade 3 and 5, the data Adobe's WebCoatedSWOP2006 profiles
+    # are built from
+    "R-SWOP2006C3": ("xrite", "ColorSpaceCMYK/Measurements/SWOP 2006 Coated 3.mxf", "mxf",
+                     "IDEAlliance SWOP 2006 Coated 3 (web offset, grade 3), averaged reference data"),
+    "R-SWOP2006C5": ("xrite", "ColorSpaceCMYK/Measurements/SWOP 2006 Coated 5.mxf", "mxf",
+                     "IDEAlliance SWOP 2006 Coated 5 (web offset, grade 5), averaged reference data"),
     "R-RGB-default-i1Pro": ("xrite", "ColorSpaceRGB/Measurements/RGB_default-i1Pro.mxf", "mxf",
                             "X-Rite i1Profiler sample RGB chart, i1Pro; printer unknown"),
     "R-Pro300-CanonSG": ("owner", "Canon-Pro300-CanonSG-i1Pro/Canon-Pro300-CanonSG-i1Pro.ti3", "ti3",
