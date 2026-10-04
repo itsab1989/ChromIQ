@@ -4057,7 +4057,6 @@
  "Strip recognition": "Розпізнавання смуги",
  "Strip recognition:": "Розпізнавання смуги:",
  "Strip {strip}": "Смуга {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Смуга {strip} дуже схожа на смугу {like}, яку ви вже виміряли. Ви прочитали смугу {like} ще раз?\n\n•  Перечитати смугу {strip}: позиція зчитування повертається до смуги {strip}. Прочитайте її ще раз, і нове читання замінить це.\n\n•  Залишити, це смуга {strip}: це читання залишається смугою {strip}, і вимірювання триває.",
  "Strip-indicator gap": "Смуга-індикатор розриву",
  "Strip-indicator gap:": "Розрив смуги-індикатора:",
  "Strips (columns)": "Смуги (стовпчики)",
@@ -6614,5 +6613,10 @@
  "Quit ChromIQ": "Вийти з ChromIQ",
  "Quit ChromIQ (asks first if a measurement is running)": "Вийти з ChromIQ (спершу запитує, якщо триває вимірювання)",
  "Then put the calibration into the profile, or leave it out": "Потім внесіть калібрування в профіль або не вносьте",
- "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Діаграми калібрування завжди друкуються по порядку, щоб шкала кожного чорнила займала власну смугу. Перемішування застосовується до діаграм профілювання."
+ "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Діаграми калібрування завжди друкуються по порядку, щоб шкала кожного чорнила займала власну смугу. Перемішування застосовується до діаграм профілювання.",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Смуга {strip} дуже схожа на смугу {like}, яку ви вже виміряли. Ви прочитали смугу {like} ще раз?\n\n•  Перечитати смугу {strip}: позиція зчитування повертається до смуги {strip}. Прочитайте її ще раз, і нове читання замінить це.\n\n•  Це була смуга {like}: позиція зчитування переходить до смуги {like}. Прочитайте її там ще раз, а потім смугу {strip}, яку ще треба виміряти.\n\n•  Залишити, це смуга {strip}: це читання залишається смугою {strip}, і вимірювання триває.",
+ "I read strip {like}": "Це була смуга {like}",
+ "Patches closer than ΔE 6 in colour": "Патчі, що відрізняються менш ніж на ΔE 6,",
+ "count as one confirmation, so the": "рахуються як одне підтвердження, тож",
+ "range needs more different colours.": "діапазону потрібно більше різних кольорів."
 }

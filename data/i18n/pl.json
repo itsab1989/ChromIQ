@@ -4057,7 +4057,6 @@
  "Strip recognition": "Rozpoznawanie pasków",
  "Strip recognition:": "Odczyt pasków:",
  "Strip {strip}": "Pasek {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Pasek {strip} jest bardzo podobny do paska {like}, który został już zmierzony. Czy pasek {like} został odczytany ponownie?\n\n•  Odczytaj ponownie pasek {strip}: pozycja odczytu wraca do paska {strip}. Odczytaj go jeszcze raz, a nowy odczyt zastąpi ten.\n\n•  Zachowaj, to pasek {strip}: ten odczyt zostaje jako pasek {strip}, a pomiar trwa dalej.",
  "Strip-indicator gap": "Odstęp wskaźnika paska",
  "Strip-indicator gap:": "Odstęp wskaźnika paska:",
  "Strips (columns)": "Paski (kolumny)",
@@ -6614,5 +6613,10 @@
  "Quit ChromIQ": "Zakończ ChromIQ",
  "Quit ChromIQ (asks first if a measurement is running)": "Zakończ ChromIQ (najpierw pyta, jeśli trwa pomiar)",
  "Then put the calibration into the profile, or leave it out": "Potem umieść kalibrację w profilu albo ją pomiń",
- "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Wzorce kalibracyjne są zawsze drukowane po kolei, aby rampa każdego atramentu leżała na własnym pasku. Losowanie kolejności dotyczy wzorców do profilowania."
+ "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Wzorce kalibracyjne są zawsze drukowane po kolei, aby rampa każdego atramentu leżała na własnym pasku. Losowanie kolejności dotyczy wzorców do profilowania.",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Pasek {strip} jest bardzo podobny do paska {like}, który został już zmierzony. Czy pasek {like} został odczytany ponownie?\n\n•  Odczytaj ponownie pasek {strip}: pozycja odczytu wraca do paska {strip}. Odczytaj go jeszcze raz, a nowy odczyt zastąpi ten.\n\n•  To był pasek {like}: pozycja odczytu przechodzi do paska {like}. Odczytaj go tam ponownie, a potem odczytaj pasek {strip}, który wciąż trzeba zmierzyć.\n\n•  Zachowaj, to pasek {strip}: ten odczyt zostaje jako pasek {strip}, a pomiar trwa dalej.",
+ "I read strip {like}": "To był pasek {like}",
+ "Patches closer than ΔE 6 in colour": "Pola różniące się o mniej niż ΔE 6",
+ "count as one confirmation, so the": "liczą się jako jedno potwierdzenie,",
+ "range needs more different colours.": "więc zakres potrzebuje więcej różnych kolorów."
 }

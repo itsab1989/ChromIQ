@@ -1840,6 +1840,13 @@ _CARD_RANGE_LEARNED_4 = "so it is taken as real too."
 _CARD_RANGE_RED_LEARNED_1 = "This range has learned, but this"
 _CARD_RANGE_RED_LEARNED_2 = "one is off in a different way."
 _CARD_RANGE_CONFIRMED_LEARNED = "This range has learned."
+#: Beta 8 (Knut, #182 5969949735 and 5973177088): three yellow blue patches
+#: showed "2 of 3", and four magenta ones "1 of 3", because confirmed patches
+#: of nearly the same colour count once (the approved spacing of ΔE 6). The
+#: card now lists them and says why, when some of them count as one.
+_CARD_RANGE_CLOSE_1 = "Patches closer than ΔE 6 in colour"
+_CARD_RANGE_CLOSE_2 = "count as one confirmation, so the"
+_CARD_RANGE_CLOSE_3 = "range needs more different colours."
 #: The thirteen ranges' names, as the post named them.
 _RANGE_GREY_DARK = "dark grey"
 _RANGE_GREY_MID = "mid grey"
@@ -1948,6 +1955,11 @@ M_OVERLAY_NO_MEASUREMENT = _m(
 #: in §M-PROPOSED. The check: workflow/strip_read_twice.py.
 _READ_TWICE_REREAD = "Re-read strip {strip}"
 _READ_TWICE_KEEP = "Keep, it is strip {strip}"
+#: The third answer, beta 8 (Knut, #182 5969949735: he read strip B on purpose
+#: with the reader on A, and the window had no way to say so). The engine
+#: cannot move a reading to another strip, so the reading is set aside and B
+#: is read again where it belongs; A counts as unread until it is read.
+_READ_TWICE_WAS = "I read strip {like}"
 M_STRIP_READ_TWICE = _m(
     "M-STRIP-READ-TWICE",
     "Was a strip read twice?",
@@ -1955,6 +1967,8 @@ M_STRIP_READ_TWICE = _m(
     "Did you read strip {like} again?\n\n"
     "•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it "
     "again and the new reading replaces this one.\n\n"
+    "•  I read strip {like}: the reader goes to strip {like}. Read it there "
+    "again, then read strip {strip}, which still has to be measured.\n\n"
     "•  Keep, it is strip {strip}: this reading stays as strip {strip}, and "
     "measuring goes on.",
     approved=False)

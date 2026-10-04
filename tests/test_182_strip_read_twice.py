@@ -357,6 +357,118 @@ def test_the_unread_question_comes_after_the_read_twice_question(tmp_path):
     assert unread == [(PER, "strip")]
 
 
+# ---- beta 8: Knut's sequence (#182 5969949735) ---------------------------------
+def test_knuts_sequence_never_asks_again_after_the_reread_of_b(tmp_path):
+    """Reader on A, strip B swiped: filed as A, the window asks (A like B).
+    "Re-read strip A"; Knut moved the reader to B instead and read B there.
+    Beta 7 compared that B with the reading still filed as A (which WAS B)
+    and asked "Strip B looks very like strip A", on every re-read of B."""
+    m, r, asked, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    _feed(m, _sread("A", like="B"))
+    assert asked == [("A", "B")]
+    m.answer_read_twice("reread")
+    assert _gotos(r) == ["A"]
+    m.goto_strip("B")                                 # the user's own click
+    _feed(m, _sready("B"), _sread("B"))
+    _feed(m, _sready("B"), _sread("B"))               # and once more
+    assert asked == [("A", "B")], "B on B was taken for A again"
+
+
+def test_the_set_aside_strip_counts_as_unread_until_it_is_read(tmp_path):
+    """A holds B's colours after the answer: it must be read before the chart
+    is complete, and reading it there clears that."""
+    m, _r, _a, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    assert m.unread_patch_count() == 0
+    _feed(m, _sread("A", like="B"))
+    m.answer_read_twice("reread")
+    assert m.unread_patch_count() == PER
+    _feed(m, _sready("A"), _sread("A"))
+    assert m.unread_patch_count() == 0
+
+
+def test_i_read_the_other_strip_sends_the_reader_there(tmp_path):
+    """The third answer: "I read strip B" goes to B, A waits to be read, and
+    B read on B asks nothing."""
+    m, r, asked, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    _feed(m, _sread("A", like="B"))
+    m.answer_read_twice("was_like")
+    assert _gotos(r) == ["B"]
+    assert m.unread_patch_count() == PER
+    _feed(m, _sready("B"), _sread("B"))
+    assert asked == [("A", "B")]
+
+
+def test_keep_still_compares_with_the_kept_reading(tmp_path):
+    """Keep says the reading IS strip A, so it is compared with as before."""
+    m, _r, asked, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    _feed(m, _sread("A", like="B"))
+    m.answer_read_twice("keep")
+    assert m.unread_patch_count() == 0
+    _feed(m, _sready("B"), _sread("B"))
+    assert asked == [("A", "B"), ("B", "A")]
+
+
+# ---- review of bc038bc7: a set-aside reading is never saved, never "complete" --
+def test_set_aside_locs_name_the_strip_until_it_is_read_again(tmp_path):
+    m, _r, _a, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    _feed(m, _sread("A", like="B"))
+    assert m.set_aside_locs() == set(), "set aside before the answer"
+    m.answer_read_twice("reread")
+    assert m.set_aside_locs() == {f"A{k}" for k in range(1, PER + 1)}
+    assert m.set_aside_strips() == ["A"]
+    _feed(m, _sready("A"), _sread("A"))
+    assert m.set_aside_locs() == set()
+
+
+def test_keep_and_a_dismissal_set_nothing_aside(tmp_path):
+    for choice in ("keep", None):
+        m, _r, _a, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+        _feed(m, _sread("A", like="B"))
+        m.answer_read_twice(choice)
+        assert m.set_aside_locs() == set()
+
+
+def test_take_set_aside_locs_forgets_them(tmp_path):
+    m, _r, _a, _u = _mgr(tmp_path, read=("A", "B", "C", "D"))
+    _feed(m, _sread("A", like="B"))
+    m.answer_read_twice("was_like")
+    assert len(m.take_set_aside_locs()) == PER
+    assert m.set_aside_locs() == set()
+
+
+def test_all_done_with_a_strip_set_aside_sends_the_reader_there(tmp_path):
+    """Knut's sequence without the re-read of A: every strip now has a
+    reading, but A holds B's colours, so the reader goes to A."""
+    m, r, _a, _u = _mgr(tmp_path)
+    m._is_resume = False
+    for s, nxt in zip(STRIPS[:3], STRIPS[1:4]):
+        _feed(m, _sread(s), _sready(nxt))
+    _feed(m, _sread("A", like="B"))
+    m.answer_read_twice("reread")
+    r.sent.clear()
+    _feed(m, _sready("A"), _sread("D"), _sready("A", all_done=True))
+    assert _gotos(r) == [] or _gotos(r)[-1] == "A"
+    _feed(m, _sread(STRIPS[-1]), _sready(STRIPS[-1], all_done=True))
+    assert _gotos(r)[-1] == "A"
+
+
+def test_drop_locations_removes_the_rows_and_corrects_the_count(tmp_path):
+    from workflow.measurement_state import drop_locations
+    ti3 = tmp_path / "m.ti3"
+    ti3.write_bytes(
+        b'CTI3\r\n\r\nORIGINATOR "x \xb5"\r\nNUMBER_OF_FIELDS 5\r\n'
+        b'BEGIN_DATA_FORMAT\r\nSAMPLE_ID SAMPLE_LOC XYZ_X XYZ_Y XYZ_Z\r\n'
+        b'END_DATA_FORMAT\r\n\r\nNUMBER_OF_SETS 3\r\nBEGIN_DATA\r\n'
+        b'1 "A1" 1 2 3\r\n2 "B1" 4 5 6\r\n3 "A2" 7 8 9\r\nEND_DATA\r\n'
+        b'\r\nCAL\r\nNUMBER_OF_SETS 9\r\n')
+    assert drop_locations(ti3, {"A1", "A2"}) == 2
+    out = ti3.read_bytes()
+    assert b'2 "B1" 4 5 6' in out and b'"A1"' not in out and b'"A2"' not in out
+    assert b"NUMBER_OF_SETS 1\r\n" in out and b"NUMBER_OF_SETS 9" in out
+    assert b"\xb5" in out
+    assert drop_locations(ti3, {"Z9"}) == 0
+
+
 # ---- the tab: the window and its order ----------------------------------------
 
 class _Settings:
@@ -403,7 +515,32 @@ def _sent_gotos(sent):
     return _gotos(r)
 
 
-@pytest.mark.parametrize("button, expected", [(0, ["D"]), (1, [])])
+def test_the_tab_never_counts_or_saves_a_set_aside_reading(
+        tab, tmp_path, monkeypatch):
+    """Review of bc038bc7: strip C read with strip B under the reader, and
+    "Re-read strip C" answered. While C is not read again its patches are not
+    counted, and a session ending there leaves them out of the file."""
+    from workflow.measurement_pairing import measurement_locations
+    mgr = tab._manager
+    ti3 = tmp_path / "chart.ti3"
+    assert ti3.is_file()
+    tab._ti1_path = ti3.with_suffix(".ti1")
+    _feed(mgr, _sread("C", like="B"))
+    mgr.answer_read_twice("reread")
+    c_locs = {f"C{k}" for k in range(1, PER + 1)}
+    assert tab._set_aside_locs() == c_locs
+    tab._progress_locs = set(c_locs)
+    assert tab._progress_measured() == 0
+    tab._session_live = False
+    assert tab._set_aside_locs() == set(), "counted outside the session"
+    monkeypatch.setattr(type(tab), "_session_wrote", lambda self, p: True)
+    tab._drop_set_aside_readings()
+    left = set(measurement_locations(ti3))
+    assert left and not (left & c_locs)
+    assert mgr.set_aside_locs() == set()
+
+
+@pytest.mark.parametrize("button, expected", [(0, ["D"]), (1, ["C"]), (2, [])])
 def test_the_window_asks_in_knuts_words_and_acts_on_the_answer(
         tab, qapp, monkeypatch, button, expected):
     from PyQt6.QtWidgets import QDialog, QLabel, QPushButton
@@ -426,7 +563,7 @@ def test_the_window_asks_in_knuts_words_and_acts_on_the_answer(
     assert ("Strip D looks very like strip C, which you already measured. "
             "Did you read strip C again?") in text
     assert [b.text() for b in dlg.findChildren(QPushButton)] == \
-        ["Re-read strip D", "Keep, it is strip D"]
+        ["Re-read strip D", "I read strip C", "Keep, it is strip D"]
     assert cues == ["INSTRUMENT_ERROR"]
     assert _sent_gotos(tab._sent) == expected
     assert tab._manager.read_twice_pending() is None

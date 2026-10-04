@@ -538,6 +538,21 @@ class _PatchInfoTile(QWidget):
             if name:
                 rows.append((None, tr(_mm._CARD_RANGE).format(range=tr(name))))
 
+        range_locs = [str(v) for v in (info.get("range_locs") or ())]
+
+        def add_confirmed_list() -> None:
+            """Which patches the range counts, and, when some of them count
+            as one, why (beta 8, Knut #182 5969949735 / 5973177088)."""
+            if not range_locs or range_k >= 3:
+                return
+            shown = (", ".join(range_locs[:3])
+                     + ("…" if len(range_locs) > 3 else ""))
+            rows.append((None, tr(_mm._CARD_RANGE_SAME).format(locs=shown)))
+            if len(range_locs) > range_k:
+                rows.append((None, tr(_mm._CARD_RANGE_CLOSE_1)))
+                rows.append((None, tr(_mm._CARD_RANGE_CLOSE_2)))
+                rows.append((None, tr(_mm._CARD_RANGE_CLOSE_3)))
+
         if info.get("warn") and flag == "confirmed":
             # YELLOW, CONFIRMED (#182 B, Sebastian 5956560815): read twice,
             # the same colour twice. Set apart at the bottom like the red text.
@@ -559,6 +574,7 @@ class _PatchInfoTile(QWidget):
                 rows.append((None, tr(_mm._CARD_RANGE_CONFIRMED_LEARNED)
                              if range_k >= 3 else
                              tr(_mm._CARD_RANGE_SO_FAR).format(k=range_k)))
+                add_confirmed_list()
         elif info.get("warn") and flag == "learned":
             # YELLOW, JUDGED LIKE A CONFIRMED PATCH OF ITS RANGE (#182 B2,
             # Knut 5956831467; k10).
@@ -612,6 +628,7 @@ class _PatchInfoTile(QWidget):
                 elif range_k >= 1:
                     rows.append((None, tr(_mm._CARD_RANGE_SO_FAR).format(
                         k=range_k)))
+                    add_confirmed_list()
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("Either a misread, or a colour")))
             rows.append((None, tr("this printer and paper cannot reach.")))

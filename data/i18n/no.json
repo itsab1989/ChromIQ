@@ -4057,7 +4057,6 @@
  "Strip recognition": "Stripegjenkjenning",
  "Strip recognition:": "Stripegjenkjenning:",
  "Strip {strip}": "Stripe {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Stripe {strip} ligner svært på stripe {like}, som du allerede har målt. Leste du stripe {like} en gang til?\n\n•  Les stripe {strip} på nytt: leseposisjonen går tilbake til stripe {strip}. Les den igjen, så erstatter den nye lesingen denne.\n\n•  Behold, det er stripe {strip}: denne lesingen blir stående som stripe {strip}, og målingen fortsetter.",
  "Strip-indicator gap": "Stripemerke-avstand",
  "Strip-indicator gap:": "Stripemerke-avstand:",
  "Strips (columns)": "Striper (kolonner)",
@@ -6614,5 +6613,10 @@
  "Quit ChromIQ": "Avslutt ChromIQ",
  "Quit ChromIQ (asks first if a measurement is running)": "Avslutt ChromIQ (spør først hvis en måling pågår)",
  "Then put the calibration into the profile, or leave it out": "Legg så kalibreringen inn i profilen, eller la den være ute",
- "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Kalibreringskart skrives alltid ut i rekkefølge, slik at hver blekks rampe ligger på sin egen stripe. Tilfeldig rekkefølge gjelder for profileringskart."
+ "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Kalibreringskart skrives alltid ut i rekkefølge, slik at hver blekks rampe ligger på sin egen stripe. Tilfeldig rekkefølge gjelder for profileringskart.",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Stripe {strip} ligner svært på stripe {like}, som du allerede har målt. Leste du stripe {like} en gang til?\n\n•  Les stripe {strip} på nytt: leseposisjonen går tilbake til stripe {strip}. Les den igjen, så erstatter den nye lesingen denne.\n\n•  Jeg leste stripe {like}: leseposisjonen går til stripe {like}. Les den på nytt der, og les deretter stripe {strip}, som fortsatt må måles.\n\n•  Behold, det er stripe {strip}: denne lesingen blir stående som stripe {strip}, og målingen fortsetter.",
+ "I read strip {like}": "Jeg leste stripe {like}",
+ "Patches closer than ΔE 6 in colour": "Felter med under ΔE 6 fargeavstand",
+ "count as one confirmation, so the": "teller som én bekreftelse, så",
+ "range needs more different colours.": "området trenger flere ulike farger."
 }

@@ -4057,7 +4057,6 @@
  "Strip recognition": "Reconnaissance des bandes",
  "Strip recognition:": "Lecture des bandes :",
  "Strip {strip}": "Bande {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "La bande {strip} ressemble beaucoup à la bande {like}, que tu as déjà mesurée. As-tu relu la bande {like} ?\n\n•  Relire la bande {strip} : la position de lecture revient à la bande {strip}. Lis-la de nouveau et la nouvelle lecture remplace celle-ci.\n\n•  Garder, c'est la bande {strip} : cette lecture reste la bande {strip}, et la mesure continue.",
  "Strip-indicator gap": "Écart du repère de bande",
  "Strip-indicator gap:": "Écart du repère de bande :",
  "Strips (columns)": "Bandes (colonnes)",
@@ -6614,5 +6613,10 @@
  "Quit ChromIQ": "Quitter ChromIQ",
  "Quit ChromIQ (asks first if a measurement is running)": "Quitter ChromIQ (demande d'abord si une mesure est en cours)",
  "Then put the calibration into the profile, or leave it out": "Ensuite, intégrer la calibration dans le profil, ou s'en passer",
- "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Les mires de calibration sont toujours imprimées dans l'ordre, pour que la rampe de chaque encre occupe sa propre bande. Le mélange aléatoire s'applique aux mires de profilage."
+ "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Les mires de calibration sont toujours imprimées dans l'ordre, pour que la rampe de chaque encre occupe sa propre bande. Le mélange aléatoire s'applique aux mires de profilage.",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "La bande {strip} ressemble beaucoup à la bande {like}, que tu as déjà mesurée. As-tu relu la bande {like} ?\n\n•  Relire la bande {strip} : la position de lecture revient à la bande {strip}. Lis-la de nouveau et la nouvelle lecture remplace celle-ci.\n\n•  J'ai lu la bande {like} : la position de lecture passe à la bande {like}. Relis-la à cet endroit, puis lis la bande {strip}, qui reste à mesurer.\n\n•  Garder, c'est la bande {strip} : cette lecture reste la bande {strip}, et la mesure continue.",
+ "I read strip {like}": "J'ai lu la bande {like}",
+ "Patches closer than ΔE 6 in colour": "Les plages à moins de ΔE 6 de couleur",
+ "count as one confirmation, so the": "comptent pour une confirmation, donc",
+ "range needs more different colours.": "la gamme a besoin de couleurs plus variées."
 }

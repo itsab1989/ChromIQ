@@ -423,6 +423,14 @@ class MeasureManager(QObject):
         #: (review of 6de015eb): an instrument reads while a window is open,
         #: so a second alarm waits its turn instead of taking over the answer.
         self._read_twice_pending: "list[tuple[str, str]]" = []
+        #: Strips whose latest reading was asked about and not kept, as
+        #: {strip: the strip it looked like}. Such a reading is very likely
+        #: ANOTHER strip's (Knut, #182 5969949735: strip B swiped with the
+        #: reader on A was filed as A), so it is never compared with again:
+        #: comparing with it made the re-read of B, on B, ask "Strip B looks
+        #: very like strip A" every time. Cleared when the strip is read
+        #: again or the reading is kept.
+        self._suspect_strips: "dict[str, str]" = {}
         self._wrong_strip_warned: bool = False
         #: Every chart location in reading order (strip, then place in the
         #: strip), the strip each one is on, the fill-up squares, and the
@@ -593,6 +601,7 @@ class MeasureManager(QObject):
         self._measured_strips = {}
         self._design_strips = {}
         self._read_twice_pending = []
+        self._suspect_strips = {}
         self._wrong_strip_warned = False
         # The engine now covers patch-by-patch (spot) mode too — the spot loop
         # speaks the same JSON protocol as the strip loop (#126 follow-up).
@@ -1298,6 +1307,14 @@ class MeasureManager(QObject):
         if self._spot_mode != (mode == "patch"):
             return
         if all_done_news:
+            # Every strip has a reading, but one set aside by "Was a strip
+            # read twice?" still holds another strip's colours: the reader
+            # goes there, as the window said it would (review of bc038bc7).
+            aside = self.set_aside_strips() if mode == "strip" else []
+            if aside and not self._read_twice_pending and at != aside[0]:
+                log.info("every strip read; strip %s was set aside, so the "
+                         "reader goes there", aside[0])
+                self.goto_strip(aside[0])
             return
         if self._guided_state not in ("idle_done", "disabled"):
             return
@@ -1429,6 +1446,7 @@ class MeasureManager(QObject):
         self._measured_strips = {}
         self._design_strips = {}
         self._read_twice_pending = []
+        self._suspect_strips = {}
         if not chart or not self._loc_strip:
             return
         from pathlib import Path as _P
@@ -1499,9 +1517,16 @@ class MeasureManager(QObject):
             if (self._engine_active and not self._spot_mode
                     and self._guided_state in ("idle_done", "disabled")
                     and not self._wrong_strip_warned):
-                found = looks_read_twice(strip, labs, self._measured_strips,
+                # A reading already asked about and not kept is another
+                # strip's, filed in the wrong place: never compare with it.
+                trusted = {k: v for k, v in self._measured_strips.items()
+                           if k not in self._suspect_strips}
+                found = looks_read_twice(strip, labs, trusted,
                                          self._design_strips.get)
             self._measured_strips[strip] = labs
+            self._suspect_strips.pop(strip, None)    # a new reading of it
+            if found is not None:
+                self._suspect_strips[strip] = found.like
         except Exception:      # noqa: BLE001 — never block a measurement
             log.warning("read-twice check failed for strip %s", strip,
                         exc_info=True)
@@ -1528,7 +1553,11 @@ class MeasureManager(QObject):
         """Record the answer to M-STRIP-READ-TWICE.
 
         ``"reread"`` sends the reader back to the strip, which also cancels
-        the held move after the read (any command does). ``"keep"`` and a
+        the held move after the read (any command does). ``"was_like"`` (the
+        reading was the other strip, read on purpose) sends it to that other
+        strip instead. Either way the strip's reading is set aside: it is
+        never compared with again and the strip counts as unread until it is
+        read again. ``"keep"`` and a
         dismissal (None) keep the reading; the held move is then made when the
         window's release comes, which may ask the unread question next.
         """
@@ -1537,12 +1566,46 @@ class MeasureManager(QObject):
         # Always the pair that was SHOWN: the oldest. Any later one waits and
         # is asked when this window's release comes.
         pending = self._read_twice_pending.pop(0)
-        if choice == "reread":
-            log.info("read twice: re-reading strip %s", pending[0])
-            self.goto_strip(pending[0])
+        strip, like = pending
+        if choice in ("reread", "was_like"):
+            # The reading filed under *strip* is not that strip's: until it
+            # is read again the strip counts as unread, so the read map steers
+            # back to it and the chart is not called complete while it holds
+            # another strip's colours (Knut 5969949735: "Re-read strip A",
+            # then strip B read instead, left B's readings saved as A).
+            self._unread_locs.update(
+                loc for loc, s in self._loc_strip.items()
+                if s == strip and loc not in self._padding_locs)
+            target = strip if choice == "reread" else like
+            log.info("read twice: strip %s's reading set aside; reader to "
+                     "strip %s (%s)", strip, target, choice)
+            self.goto_strip(target)
         else:
-            log.info("read twice: strip %s kept as read (%s)", pending[0],
+            self._suspect_strips.pop(strip, None)
+            log.info("read twice: strip %s kept as read (%s)", strip,
                      choice or "dismissed")
+
+    def set_aside_locs(self) -> "set[str]":
+        """Patches whose reading was asked about and NOT kept, and that have
+        not been read again since (review of bc038bc7): they hold another
+        strip's colours, so they count as unread for the progress figure and
+        the completion check, and never reach the saved measurement."""
+        return {loc for loc in self._unread_locs
+                if self._loc_strip.get(loc) in self._suspect_strips}
+
+    def set_aside_strips(self) -> "list[str]":
+        """The strips of :meth:`set_aside_locs`, in reading order."""
+        held = {self._loc_strip.get(loc) for loc in self.set_aside_locs()}
+        labels = [str(s.get("strip", "")).strip()
+                  for s in (self._session_strips or [])]
+        return [x for x in labels if x and x in held]
+
+    def take_set_aside_locs(self) -> "set[str]":
+        """:meth:`set_aside_locs`, then forget them (the session has ended and
+        they are about to be removed from its file)."""
+        locs = self.set_aside_locs()
+        self._suspect_strips = {}
+        return locs
 
     def goto_strip(self, strip: str) -> None:
         """Jump the engine directly to `strip` (engine mode only)."""

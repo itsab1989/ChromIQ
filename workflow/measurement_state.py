@@ -497,3 +497,56 @@ def progress_from_files(ti3_path: "Path | str | None",
     if facts.state not in PROGRESS_STATES:
         return None
     return progress_percent(facts.held, facts.expected)
+
+
+def drop_locations(ti3_path: "Path | str", locs) -> int:
+    """Remove the rows of *locs* (``SAMPLE_LOC``) from the measurement's first
+    table and correct its ``NUMBER_OF_SETS``. Returns how many rows went.
+
+    For a reading "Was a strip read twice?" set aside and never replaced
+    (review of bc038bc7): it holds another strip's colours, so the file must
+    say that strip is unread rather than carry them. Every other byte of the
+    file is kept as it was; nothing is written when no row matches.
+    """
+    want = {str(x).strip() for x in (locs or ()) if str(x).strip()}
+    if not want:
+        return 0
+    path = Path(ti3_path)
+    text = path.read_bytes().decode("latin-1")
+    fmt = re.search(r"^[ \t]*BEGIN_DATA_FORMAT[ \t]*\r?$(.*?)"
+                    r"^[ \t]*END_DATA_FORMAT[ \t]*\r?$",
+                    text, re.MULTILINE | re.DOTALL)
+    if fmt is None:
+        return 0
+    fields = fmt.group(1).split()
+    if "SAMPLE_LOC" not in fields:
+        return 0
+    li = fields.index("SAMPLE_LOC")
+    begin = re.compile(r"^[ \t]*BEGIN_DATA[ \t]*\r?$", re.MULTILINE).search(
+        text, fmt.end())
+    if begin is None:
+        return 0
+    end = re.compile(r"^[ \t]*END_DATA[ \t]*\r?$", re.MULTILINE).search(
+        text, begin.end())
+    if end is None:
+        return 0
+    body = text[begin.end():end.start()]
+    kept, dropped = [], 0
+    for ln in body.splitlines(keepends=True):
+        f = ln.split()
+        if len(f) > li and f[li].strip('"') in want:
+            dropped += 1
+            continue
+        kept.append(ln)
+    if not dropped:
+        return 0
+    head = text[:begin.end()]
+    # The table's own count: the last NUMBER_OF_SETS before its data.
+    sets = list(_SETS_RE.finditer(head))
+    if sets:
+        m = sets[-1]
+        n = max(0, int(m.group(1)) - dropped)
+        head = head[:m.start(1)] + str(n) + head[m.end(1):]
+    path.write_bytes((head + "".join(kept) + text[end.start():])
+                     .encode("latin-1"))
+    return dropped

@@ -4057,7 +4057,6 @@
  "Strip recognition": "ストリップ認識",
  "Strip recognition:": "ストリップ認識:",
  "Strip {strip}": "ストリップ {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "ストリップ {strip} は、既に測定したストリップ {like} とよく似ています。ストリップ {like} をもう一度読み取りましたか？\n\n•  ストリップ {strip} を読み直す：読み取り位置はストリップ {strip} に戻ります。もう一度読み取ると、新しい読み取りがこれに置き換わります。\n\n•  ストリップ {strip} として残す：この読み取りはストリップ {strip} として残り、測定が続きます。",
  "Strip-indicator gap": "ストリップ標識の間隔",
  "Strip-indicator gap:": "ストリップ標識の間隔:",
  "Strips (columns)": "ストリップ（列）",
@@ -6614,5 +6613,10 @@
  "Quit ChromIQ": "ChromIQ を終了",
  "Quit ChromIQ (asks first if a measurement is running)": "ChromIQ を終了（測定中の場合は先に確認します）",
  "Then put the calibration into the profile, or leave it out": "次に、キャリブレーションをプロファイルに組み込むか、組み込まないかを決める",
- "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "キャリブレーション用チャートは常に順番どおりに印刷され、各インクのランプがそれぞれ専用のストリップに並びます。ランダム化はプロファイル作成用チャートに適用されます。"
+ "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "キャリブレーション用チャートは常に順番どおりに印刷され、各インクのランプがそれぞれ専用のストリップに並びます。ランダム化はプロファイル作成用チャートに適用されます。",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "ストリップ {strip} は、既に測定したストリップ {like} とよく似ています。ストリップ {like} をもう一度読み取りましたか？\n\n•  ストリップ {strip} を読み直す：読み取り位置はストリップ {strip} に戻ります。もう一度読み取ると、新しい読み取りがこれに置き換わります。\n\n•  ストリップ {like} を読みました：読み取り位置がストリップ {like} に移ります。そこでもう一度読み、そのあとまだ測定が必要なストリップ {strip} を読んでください。\n\n•  ストリップ {strip} として残す：この読み取りはストリップ {strip} として残り、測定が続きます。",
+ "I read strip {like}": "ストリップ {like} を読みました",
+ "Patches closer than ΔE 6 in colour": "色の差が ΔE 6 未満のパッチは",
+ "count as one confirmation, so the": "1 件の確認として数えるため、",
+ "range needs more different colours.": "この範囲にはもっと違う色が必要です。"
 }

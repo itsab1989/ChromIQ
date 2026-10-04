@@ -4057,7 +4057,6 @@
  "Strip recognition": "Riconoscimento strisce",
  "Strip recognition:": "Lettura strisce:",
  "Strip {strip}": "Striscia {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "La striscia {strip} somiglia molto alla striscia {like}, che hai già misurato. Hai letto di nuovo la striscia {like}?\n\n•  Rileggi la striscia {strip}: la posizione di lettura torna alla striscia {strip}. Leggila di nuovo e la nuova lettura sostituisce questa.\n\n•  Mantieni, è la striscia {strip}: questa lettura resta la striscia {strip}, e la misurazione prosegue.",
  "Strip-indicator gap": "Distanza indicatore striscia",
  "Strip-indicator gap:": "Distanza indicatore striscia:",
  "Strips (columns)": "Strisce (colonne)",
@@ -6614,5 +6613,10 @@
  "Quit ChromIQ": "Esci da ChromIQ",
  "Quit ChromIQ (asks first if a measurement is running)": "Esci da ChromIQ (chiede prima se è in corso una misurazione)",
  "Then put the calibration into the profile, or leave it out": "Poi inserisci la calibrazione nel profilo, oppure lasciala fuori",
- "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "I grafici di calibrazione vengono sempre stampati in ordine, così la rampa di ogni inchiostro sta su una striscia propria. La disposizione casuale vale per i grafici di profilazione."
+ "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "I grafici di calibrazione vengono sempre stampati in ordine, così la rampa di ogni inchiostro sta su una striscia propria. La disposizione casuale vale per i grafici di profilazione.",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "La striscia {strip} somiglia molto alla striscia {like}, che hai già misurato. Hai letto di nuovo la striscia {like}?\n\n•  Rileggi la striscia {strip}: la posizione di lettura torna alla striscia {strip}. Leggila di nuovo e la nuova lettura sostituisce questa.\n\n•  Ho letto la striscia {like}: la posizione di lettura passa alla striscia {like}. Rileggila lì, poi leggi la striscia {strip}, che resta da misurare.\n\n•  Mantieni, è la striscia {strip}: questa lettura resta la striscia {strip}, e la misurazione prosegue.",
+ "I read strip {like}": "Ho letto la striscia {like}",
+ "Patches closer than ΔE 6 in colour": "I tasselli a meno di ΔE 6 di colore",
+ "count as one confirmation, so the": "contano come una conferma, quindi",
+ "range needs more different colours.": "la gamma ha bisogno di colori più diversi."
 }

@@ -7762,7 +7762,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _strip_read_twice_window(self, strip: str, like: str) -> "str | None":
         """§M's M-STRIP-READ-TWICE, in the measurement frame.
 
-        Returns ``"reread"``, ``"keep"``, or None when the window was closed
+        Returns ``"reread"``, ``"was_like"`` (beta 8: the user read strip
+        *like* on purpose), ``"keep"``, or None when the window was closed
         without an answer (the X, Escape, or the session ending under it),
         which keeps the reading as "Keep" does.
         """
@@ -7792,14 +7793,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         chosen: "list[str | None]" = [None]
         reread_btn = QPushButton(
             tr(M._READ_TWICE_REREAD).format(strip=strip), dlg)
+        was_btn = QPushButton(tr(M._READ_TWICE_WAS).format(like=like), dlg)
+        was_btn.setObjectName("strip_read_twice_was_like")
         keep_btn = QPushButton(tr(M._READ_TWICE_KEEP).format(strip=strip), dlg)
         reread_btn.setObjectName("primary")
         reread_btn.setDefault(True)
-        for b in (reread_btn, keep_btn):
+        for b in (reread_btn, was_btn, keep_btn):
             b.setFixedHeight(32)
 
         def _reread():
             chosen[0] = "reread"
+            dlg.accept()
+
+        def _was_like():
+            chosen[0] = "was_like"
             dlg.accept()
 
         def _keep():
@@ -7807,10 +7814,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             dlg.accept()
 
         reread_btn.clicked.connect(_reread)
+        was_btn.clicked.connect(_was_like)
         keep_btn.clicked.connect(_keep)
         row = QHBoxLayout()
         row.setSpacing(8)
         row.addWidget(reread_btn)
+        row.addWidget(was_btn)
         row.addWidget(keep_btn)
         row.addStretch()
         layout.addLayout(row)
@@ -10855,6 +10864,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # away from an unfinished measurement, and it was his own progress bar
         # that caught the contradiction on screen.
         unread = self._unread_patch_count()
+        if unread and unread == len(self._set_aside_locs()):
+            # Only strips set aside by "Was a strip read twice?" are left. The
+            # reader is sent there (MeasureManager._after_a_read), and the
+            # engine says "all done" again once they are read, which is when
+            # this window comes (review of bc038bc7).
+            return
         if unread:
             # Say nothing in a window. Knut's requirement is that the finished
             # message *"must come only when all patches are read"* — so the fix
@@ -11436,6 +11451,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         try:
             self._update_resume_availability()
             self._adopt_overlay_after_first_measurement()
+            # THE PROGRESS FIGURE FOLLOWS THE FILE TO ITS DATE (Knut, #182
+            # 5973177088: "after measurement was completed the progress still
+            # showed 0%"). `_on_measure_done` counted the bar from the files
+            # BEFORE this filing, when the readings had already left the
+            # working copy and had not yet reached the dated folder the bar
+            # selects, so it read nothing and stayed at 0 %. Counted again now
+            # the measurement is where the selection points, and the settled
+            # selection re-based so a later settle does not count it a change.
+            self._settled_selection = self._selection_key()
+            self._refresh_progress_from_files()
         except Exception:      # noqa: BLE001 — never break filing a result
             log.warning("could not refresh the options after filing the "
                         "verification", exc_info=True)
@@ -13041,6 +13066,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # refreshed itself from the file that was about to be replaced.
         self._session_live = False
         self._sync_calibrate_btn_visible()
+        # A reading "Was a strip read twice?" set aside, and never replaced,
+        # leaves the file before anything judges or counts it.
+        self._drop_set_aside_readings()
         self._finish_session_guard()
         # Superseded by the guard for any run it protects; still the only
         # handler for a session that never got one.
@@ -14969,14 +14997,51 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         live = {loc for loc in getattr(self, "_progress_locs", ())
                 if loc not in getattr(self, "_progress_padding", ())}
         file_locs = getattr(self, "_progress_file_locs", set())
+        _aside = getattr(self, "_set_aside_locs", None)
+        aside = _aside() if callable(_aside) else set()
         if file_locs:
-            measured = len((file_locs - getattr(self, "_progress_padding", set()))
-                           | live)
+            measured = len(((file_locs - getattr(self, "_progress_padding",
+                                                 set())) | live) - aside)
         else:
-            measured = getattr(self, "_progress_base", 0) + len(live)
+            measured = (getattr(self, "_progress_base", 0)
+                        + len(live - aside))
         if total:
             measured = min(int(measured), int(total))
         return int(measured)
+
+    def _set_aside_locs(self) -> set:
+        """Patches of the LIVE session whose reading "Was a strip read twice?"
+        set aside (review of bc038bc7): they hold another strip's colours, so
+        they are not counted as read. Empty outside a session, so another
+        chart with the same patch names is never touched."""
+        if not getattr(self, "_session_live", False):
+            return set()
+        try:
+            return set(self._manager.set_aside_locs())
+        except Exception:      # noqa: BLE001 — a readout must never break a read
+            return set()
+
+    def _drop_set_aside_readings(self) -> None:
+        """A set-aside reading never reaches the saved measurement (review of
+        bc038bc7): the session ended before the strip it was filed under was
+        read again, so its rows (another strip's colours) leave the file and
+        the strip stays unread, to be picked up by a resume."""
+        try:
+            locs = self._manager.take_set_aside_locs()
+        except Exception:      # noqa: BLE001
+            return
+        if not locs or self._ti1_path is None:
+            return
+        ti3 = Path(self._ti1_path).with_suffix(".ti3")
+        try:
+            if not self._session_wrote(ti3):
+                return
+            from workflow.measurement_state import drop_locations
+            n = drop_locations(ti3, locs)
+            log.info("set-aside readings removed from %s: %d patches", ti3, n)
+        except Exception:      # noqa: BLE001 — never break a session's ending
+            log.warning("could not remove the set-aside readings from %s",
+                        ti3, exc_info=True)
 
     def _progress_files(self):
         """``(ti3, ti2)`` for the chart on screen, or ``(None, None)``."""

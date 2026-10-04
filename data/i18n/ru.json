@@ -4057,7 +4057,6 @@
  "Strip recognition": "Распознавание полос",
  "Strip recognition:": "Чтение полос:",
  "Strip {strip}": "Полоса {strip}",
- "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Полоса {strip} очень похожа на полосу {like}, которую вы уже измерили. Вы прочитали полосу {like} ещё раз?\n\n•  Перечитать полосу {strip}: позиция чтения возвращается к полосе {strip}. Прочитайте её ещё раз, и новое чтение заменит это.\n\n•  Оставить, это полоса {strip}: это чтение остаётся полосой {strip}, и измерение продолжается.",
  "Strip-indicator gap": "Зазор указателя полосы",
  "Strip-indicator gap:": "Зазор указателя полосы:",
  "Strips (columns)": "Полосы (столбцы)",
@@ -6614,5 +6613,10 @@
  "Quit ChromIQ": "Выйти из ChromIQ",
  "Quit ChromIQ (asks first if a measurement is running)": "Выйти из ChromIQ (сначала спросит, если идёт измерение)",
  "Then put the calibration into the profile, or leave it out": "Затем добавьте калибровку в профиль или не добавляйте",
- "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Калибровочные мишени всегда печатаются по порядку, чтобы ступени каждого канала чернил шли на своей полосе. Перемешивание применяется к мишеням для профилирования."
+ "Calibration charts are always printed in order, so each ink's ramp sits on its own strip. Randomising applies to profiling charts.": "Калибровочные мишени всегда печатаются по порядку, чтобы ступени каждого канала чернил шли на своей полосе. Перемешивание применяется к мишеням для профилирования.",
+ "Strip {strip} looks very like strip {like}, which you already measured. Did you read strip {like} again?\n\n•  Re-read strip {strip}: the reader goes back to strip {strip}. Read it again and the new reading replaces this one.\n\n•  I read strip {like}: the reader goes to strip {like}. Read it there again, then read strip {strip}, which still has to be measured.\n\n•  Keep, it is strip {strip}: this reading stays as strip {strip}, and measuring goes on.": "Полоса {strip} очень похожа на полосу {like}, которую вы уже измерили. Вы прочитали полосу {like} ещё раз?\n\n•  Перечитать полосу {strip}: позиция чтения возвращается к полосе {strip}. Прочитайте её ещё раз, и новое чтение заменит это.\n\n•  Это была полоса {like}: позиция чтения переходит к полосе {like}. Прочитайте её там ещё раз, а затем полосу {strip}, которую ещё нужно измерить.\n\n•  Оставить, это полоса {strip}: это чтение остаётся полосой {strip}, и измерение продолжается.",
+ "I read strip {like}": "Это была полоса {like}",
+ "Patches closer than ΔE 6 in colour": "Патчи, отличающиеся меньше чем на ΔE 6,",
+ "count as one confirmation, so the": "считаются одним подтверждением, поэтому",
+ "range needs more different colours.": "диапазону нужно больше разных цветов."
 }
