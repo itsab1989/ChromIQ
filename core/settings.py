@@ -311,7 +311,13 @@ DEFAULTS: dict[str, Any] = {
     # defaults are ArgyllCMS chartread's own WERR_TH / ACC_WERR_TH. Replaces
     # the single "patch_read_warn_de" (schema 25, _migrate_patch_warn_two_limits).
     "patch_read_warn_de_estimated": 95.0,
-    "patch_read_warn_de_accurate":  30.0,
+    # 30 until beta 11 (schema 26, Knut #182 5983470377): see
+    # workflow/patch_flags.py ACCURATE_DEFAULT_DE.
+    "patch_read_warn_de_accurate":  20.0,
+    # A verification judged against its profile's prediction (beta 11, Knut
+    # #182 5983470377: "yes, 10, and own threshold row"). New in schema 26:
+    # nobody has a stored value, and no old limit is carried into it.
+    "patch_read_warn_de_prediction": 10.0,
     # Whether a patch must ALSO be unusual for its own strip to be flagged
     # (Knut's option (c), #131 2026-07-27). On = today's behaviour.
     "patch_warn_outlier_fence":  True,
@@ -947,7 +953,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 25
+SETTINGS_SCHEMA = 26
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -1028,6 +1034,11 @@ _SUPERSEDED_DEFAULTS: dict[str, tuple[float, ...]] = {
     # (Schema 25 split the key in two; a dropped echo then means both new
     # defaults, see _migrate_patch_warn_two_limits.)
     "patch_read_warn_de": (20.0,),
+    # schema 26 (beta 11, Knut #182 5983470377 answer 2): the limit for a
+    # chart made from a profile moved 30 → 20. A stored echo of 30 (Save in
+    # Preferences writes every key) falls through to 20; a value the user
+    # chose is kept.
+    "patch_read_warn_de_accurate": (30.0,),
     # schema 15 (#130, Knut 2026-07-29): the minimum readings per patch were
     # re-derived alongside the new per-instrument strip lengths. A stored echo
     # of a shipped default falls through to the new one; a number the user

@@ -1779,6 +1779,41 @@ def measurement_block_text(holder: "str | None") -> str:
     ])
 
 
+
+#: WHAT THE LIMITS ARE FOR (Knut, #182 5983733592, after 5983725218): the red
+#: outline catches misreads; yellow, not red, answers a colour the printer
+#: cannot reach. One paragraph, the same in Preferences ▸ Measurement and in
+#: the Measure tab's hover help (one translation; a test keeps them equal).
+LIMITS_PURPOSE_HELP = (
+    "WHAT THE LIMITS ARE FOR\n"
+    "The red outline is there to catch misreads while you measure, so"
+    " that you read the patch again at once. It is not a mark for "
+    "colours your printer cannot reproduce: when a re-read gives the "
+    "same colour, or similar patches agree, the outline turns yellow,"
+    " and yellow is the answer for such a colour. How low a limit can"
+    " go depends on how close the chart's expected colours are to "
+    "what your printer really prints:\n"
+    "  • A chart with estimated colours (most charts), default ΔE 95:"
+    " the expected colours are only ArgyllCMS's estimate, made "
+    "without a profile of your printer, and lie far from any real "
+    "print, so even a good patch can be 30 to 50 ΔE off. The limit is"
+    " as high as in ArgyllCMS's own chartread and catches only gross "
+    "misreads; the strip check (“Only flag a patch that stands out "
+    "from its own strip”) and another check, which compares each "
+    "patch with its neighbours, do most of the misread hunting on "
+    "these charts.\n"
+    "  • A chart made from a profile, default ΔE 20: ArgyllCMS marks "
+    "a chart made with a pre-conditioning profile "
+    "(ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
+    " what the printer should print, and a much smaller difference is"
+    " already suspicious.\n"
+    "  • A verification judged against its profile, default ΔE 10: a "
+    "verification chart ChromIQ printed is compared with what the "
+    "run's profile predicts for it, so its expected colours are the "
+    "closest of all. The strip check does not apply to it.\n"
+    "The chart decides which limit applies when you measure, so you "
+    "never have to choose.")
+
 class ContentHeightScrollArea(QScrollArea):
     """A QScrollArea that asks for the height its content actually wants.
 
@@ -2873,6 +2908,9 @@ class SettingsDialog(QDialog):
             return spin
         self._patch_warn_est_spin = _limit_spin()
         self._patch_warn_acc_spin = _limit_spin()
+        # A verification judged against its profile's prediction has its own
+        # row (beta 11, Knut #182 5983470377: "yes, 10, and own threshold row").
+        self._patch_warn_pred_spin = _limit_spin()
         _pw_row = QHBoxLayout()
         _pw_row.addWidget(QLabel(tr("Flag a patch when its colour error reaches:"), self))
         _pw_row.addStretch()
@@ -2900,18 +2938,12 @@ class SettingsDialog(QDialog):
             "patch you read is shown split against the colour the chart "
             "expects. A patch whose colour error (ΔE*ab) reaches the limit gets "
             "a red outline, so a likely misread (a smudge, a skipped row, a "
-            "strip swiped the wrong way) jumps out at you straight away.\n\n"
-            "TWO LIMITS, BECAUSE THERE ARE TWO KINDS OF CHART\n"
-            "  • Most charts: the expected colours are only ArgyllCMS's "
-            "estimate, made without a profile of your printer. Differences of "
-            "30 to 50 ΔE are normal on a good print, so this limit is high.\n"
-            "  • A chart made from a profile of your printer: ArgyllCMS marks "
-            "it in the chart file (ACCURATE_EXPECTED_VALUES), because its "
-            "expected colours are close to what the printer really prints. A "
-            "much smaller difference is already suspicious.\n"
-            "The chart decides which limit applies when you measure, so you "
-            "never have to choose. The two defaults are the ones ArgyllCMS's "
-            "own chartread uses for its “unexpected response” warning.\n\n"
+            "strip swiped the wrong way) jumps out at you straight away.")
+            # WHAT THE LIMITS ARE FOR (Knut, #182 5983733592): to catch
+            # misreads, not to mark colours the printer cannot reach. The
+            # same paragraph as the Measure tab's hover help.
+            + "\n\n" + tr(LIMITS_PURPOSE_HELP)
+            + "\n\n" + tr(
             "PATCH-BY-PATCH MODE IS DIFFERENT, ON PURPOSE\n"
             "Usually, when you read STRIPS with the option below on, a patch is "
             "flagged "
@@ -2920,7 +2952,7 @@ class SettingsDialog(QDialog):
             "to compare with, so there the limit is the whole rule, and more "
             "patches may be outlined: that comes from having no neighbours to "
             "compare with, not from the two modes disagreeing about your "
-            "print.\n\n")
+            "print.") + "\n\n"
             # Knut, #182 5980576263: red and yellow told apart, what the
             # limits do, and that Check & Refine judges on its own.
             + tr("RED AND YELLOW\n"
@@ -2955,15 +2987,18 @@ class SettingsDialog(QDialog):
             "measurement, and every large error it finds counts towards what "
             "it recommends re-measuring, whether it is outlined red, yellow or "
             "not at all here.")
-            + "\n\n" + tr("**Default:** 95 ΔE for estimated colours, 30 ΔE for a chart made "
-            "from a profile"),
+            + "\n\n" + tr("**Default:** 95 ΔE for estimated colours, 20 ΔE for a chart made "
+            "from a profile, 10 ΔE for a verification judged against its "
+            "profile"),
             self))
         _meas.addLayout(_pw_row)
         _lim_labels = [
             (QLabel(tr("on a chart with estimated colours (most charts):"), self),
              self._patch_warn_est_spin),
             (QLabel(tr("on a chart made from a profile:"), self),
-             self._patch_warn_acc_spin)]
+             self._patch_warn_acc_spin),
+            (QLabel(tr("on a verification judged against its profile:"), self),
+             self._patch_warn_pred_spin)]
         # The two boxes line up under each other, whatever the language.
         _lim_w = max(lbl.sizeHint().width() for lbl, _s in _lim_labels)
         for _lbl, _spin in _lim_labels:
@@ -5272,8 +5307,12 @@ class SettingsDialog(QDialog):
             bool(s.get("report_add_profile_name", True)))
         self._patch_warn_est_spin.setValue(
             float(s.get("patch_read_warn_de_estimated", 95.0)))
+        from workflow.patch_flags import (ACCURATE_DEFAULT_DE,
+                                          PREDICTION_DEFAULT_DE)
         self._patch_warn_acc_spin.setValue(
-            float(s.get("patch_read_warn_de_accurate", 30.0)))
+            float(s.get("patch_read_warn_de_accurate", ACCURATE_DEFAULT_DE)))
+        self._patch_warn_pred_spin.setValue(
+            float(s.get("patch_read_warn_de_prediction", PREDICTION_DEFAULT_DE)))
         self._patch_fence_check.setChecked(
             bool(s.get("patch_warn_outlier_fence", True)))
         self._cal_retries_spin.setValue(int(s.get("cal_auto_retries", 3)))
@@ -6450,6 +6489,8 @@ class SettingsDialog(QDialog):
               float(self._patch_warn_est_spin.value()))
         s.set("patch_read_warn_de_accurate",
               float(self._patch_warn_acc_spin.value()))
+        s.set("patch_read_warn_de_prediction",
+              float(self._patch_warn_pred_spin.value()))
         s.set("patch_warn_outlier_fence",
               bool(self._patch_fence_check.isChecked()))
         s.set("cal_auto_retries", int(self._cal_retries_spin.value()))

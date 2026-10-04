@@ -265,8 +265,9 @@ _ALL_DONE_SOUND_GAP_MS = 500
 # THE FLOOR IS TWO NUMBERS SINCE #182 (Sebastian 5956560815, Knut 5956552085):
 # one for a chart whose expected colours are ArgyllCMS's estimate (default 95)
 # and one for a chart made from a profile, ACCURATE_EXPECTED_VALUES (default
-# 30). The chart's own file decides which; see workflow/patch_flags.py and
-# TabMeasure._patch_warn_limit.
+# 30, 20 since beta 11). The chart's own file decides which; see
+# workflow/patch_flags.py and TabMeasure._patch_warn_limit. A third, default
+# 10, is for a verification judged against its profile's prediction (beta 11).
 
 #: The dark-reference threshold moved with the window that reads it, to
 #: ``ui/cr30_calibration.py``. One constant, wherever the calibration runs
@@ -1110,6 +1111,40 @@ _OVERLAY_TIP_BODY = (
     "chart. If the measurement came from a different chart (no matching patch "
     "layout), open it in Tools ▸ Inspect a measurement to see the numbers "
     "instead.")
+
+#: WHAT THE LIMITS ARE FOR (Knut, #182 5983733592, after 5983725218): the red
+#: outline catches misreads; yellow, not red, answers a colour the printer
+#: cannot reach. One paragraph, the same in Preferences ▸ Measurement and in
+#: the Measure tab's hover help (one translation; a test keeps them equal).
+LIMITS_PURPOSE_HELP = (
+    "WHAT THE LIMITS ARE FOR\n"
+    "The red outline is there to catch misreads while you measure, so"
+    " that you read the patch again at once. It is not a mark for "
+    "colours your printer cannot reproduce: when a re-read gives the "
+    "same colour, or similar patches agree, the outline turns yellow,"
+    " and yellow is the answer for such a colour. How low a limit can"
+    " go depends on how close the chart's expected colours are to "
+    "what your printer really prints:\n"
+    "  • A chart with estimated colours (most charts), default ΔE 95:"
+    " the expected colours are only ArgyllCMS's estimate, made "
+    "without a profile of your printer, and lie far from any real "
+    "print, so even a good patch can be 30 to 50 ΔE off. The limit is"
+    " as high as in ArgyllCMS's own chartread and catches only gross "
+    "misreads; the strip check (“Only flag a patch that stands out "
+    "from its own strip”) and another check, which compares each "
+    "patch with its neighbours, do most of the misread hunting on "
+    "these charts.\n"
+    "  • A chart made from a profile, default ΔE 20: ArgyllCMS marks "
+    "a chart made with a pre-conditioning profile "
+    "(ACCURATE_EXPECTED_VALUES), so its expected colours are close to"
+    " what the printer should print, and a much smaller difference is"
+    " already suspicious.\n"
+    "  • A verification judged against its profile, default ΔE 10: a "
+    "verification chart ChromIQ printed is compared with what the "
+    "run's profile predicts for it, so its expected colours are the "
+    "closest of all. The strip check does not apply to it.\n"
+    "The chart decides which limit applies when you measure, so you "
+    "never have to choose.")
 
 #: Knut, #182 5980576263: the overlay's help tells red and yellow apart, says
 #: what the limits do, and that Check & Refine judges on its own. The same
@@ -3232,6 +3267,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "you read its strip again, the reading is right: keep it and build "
             "the profile from it. The profile needs to know how far your "
             "printer falls short of such colours.")
+            # What the limits are for (Knut, #182 5983733592): the same
+            # paragraph as Preferences ▸ Measurement's help.
+            + "\n\n" + tr(LIMITS_PURPOSE_HELP)
             # #182 B/B2 (Sebastian 5956560815, Knut 5956831467): the yellow
             # outline, in its own paragraph so the one above keeps its
             # translations.
@@ -15360,11 +15398,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         limit for a chart with estimated expected colours, or for a chart made
         from a profile, as the chart's own file says."""
         from workflow.patch_flags import warn_limit
-        # A verification chart judged against the profile's prediction takes
-        # the limit for accurate expected colours (Knut, #182 5964384250:
-        # "outline every patch above 30").
-        return warn_limit(self._settings, self._chart_expected_is_accurate()
-                          or self._expected_is_predicted())
+        # A verification chart judged against the profile's prediction has
+        # its own limit, default 10 (beta 11, Knut #182 5983470377: "yes, 10,
+        # and own threshold row"); before, it took the limit for a chart
+        # made from a profile (5964384250).
+        return warn_limit(self._settings, self._chart_expected_is_accurate(),
+                          predicted=self._expected_is_predicted())
 
     # ------------------------------------------------------------------
     # The expected colour of a verification patch (#182, Knut 5964173774)
@@ -15459,6 +15498,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # The card says where "Expected" came from (Knut, #182
             # 5964173774, answer 4).
             extra["expected_source"] = "prediction"
+        elif bool(getattr(getattr(self, "_live_expected", None),
+                          "profile_newer", False)):
+            # A verification whose profile was made after the sheet was
+            # printed: judged against the chart's estimate, and the card
+            # says why (Knut, #182 5983480953).
+            extra["expected_source"] = "estimate_profile_newer"
         try:
             # THE STRIP, so patches read in different strips can confirm
             # each other (Knut, #182 5979886227). The same labels in every
