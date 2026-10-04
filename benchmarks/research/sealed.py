@@ -219,6 +219,10 @@ def plausibility(printer: Z.ZTruth) -> dict:
     return out
 
 
+def _cross2(u, v) -> float:
+    return float(u[0] * v[1] - u[1] * v[0])
+
+
 def hull_area(pts: np.ndarray) -> float:
     """Area of the 2-D convex hull (monotone chain), e.g. of a*b*."""
     P = np.unique(np.round(np.asarray(pts, float), 6), axis=0)
@@ -229,7 +233,7 @@ def hull_area(pts: np.ndarray) -> float:
     def half(points):
         h = []
         for q in points:
-            while len(h) >= 2 and np.cross(h[-1] - h[-2], q - h[-2]) <= 0:
+            while len(h) >= 2 and _cross2(h[-1] - h[-2], q - h[-2]) <= 0:
                 h.pop()
             h.append(q)
         return h
