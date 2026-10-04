@@ -222,11 +222,21 @@ FLAG_NONE = False
 FLAG_RED = True
 FLAG_CONFIRMED = 2
 FLAG_LEARNED = 3
+#: GREEN: a patch that was red (the limit or the neighbour check) and whose
+#: LIVE re-read fits now (Knut, #182 5984277558, "Ok" to 5984237879): the
+#: misread was corrected. Drawn green; never a reference for anything.
+FLAG_CORRECTED = 4
 
 _WHITE_RE = re.compile(r'^\s*APPROX_WHITE_POINT\s+"?([^"\n]*)"?\s*$',
                        re.IGNORECASE | re.MULTILINE)
 _ACCURATE_RE = re.compile(r'^\s*ACCURATE_EXPECTED_VALUES\s+"?\s*true\s*"?\s*$',
                           re.IGNORECASE | re.MULTILINE)
+
+
+def is_corrected(flag) -> bool:
+    """True for the green outline of a corrected misread."""
+    return (not isinstance(flag, bool) and isinstance(flag, int)
+            and flag == FLAG_CORRECTED)
 
 
 def is_yellow(flag) -> bool:
@@ -535,6 +545,10 @@ class Verdict:
     #: (Knut 5984174575), so similar patches and a learned range were not
     #: asked.
     reread_only: bool = False
+    #: CORRECTED (green): the rule that flagged the first reading,
+    #: "neighbour" (the neighbour check, alone or with the limit) or "limit";
+    #: its ΔE is *prev_de*.
+    corrected_by: str = ""
 
 
 def _sub(a, b):
@@ -648,6 +662,16 @@ class FlagJudge:
         #: range -> its flagged patches (None: built again when next asked).
         self._range_index: "dict[str, set] | None" = None
         self._indexed_as: "dict[str, str]" = {}
+        #: loc -> (ΔE of the reading that was red, "neighbour" | "limit"):
+        #: corrected by a live re-read that fits (Knut 5984277558). Never a
+        #: reference; a later live reading that is flagged again ends it.
+        self._corrected: "dict[str, tuple]" = {}
+
+    @property
+    def corrected(self) -> "dict[str, tuple]":
+        """``{loc: (first ΔE, "neighbour" | "limit")}``: misreads a re-read
+        corrected (green), whether shown now or not."""
+        return dict(self._corrected)
 
     @property
     def confirmed(self) -> "list[str]":
@@ -822,6 +846,12 @@ class FlagJudge:
             if (not isinstance(v.flag, bool) and v.flag == FLAG_LEARNED
                     and loc not in out and v.like_loc):
                 out[loc] = {"kind": "learned", "like": v.like_loc}
+        # GREEN (Knut 5984277558): remembered with the measurement and shown
+        # again when it is opened; never loaded as a reference.
+        for loc, (de, by) in self._corrected.items():
+            rd = self._last.get(loc)
+            if loc not in out and (rd is None or not rd.flagged):
+                out[loc] = {"kind": "corrected", "de": de, "by": by}
         return out
 
     def load(self, patches: dict) -> int:
@@ -836,6 +866,16 @@ class FlagJudge:
         """
         n = 0
         for loc, e in (patches or {}).items():
+            if isinstance(e, dict) and e.get("kind") == "corrected":
+                # Green again when the measurement is opened (5984277558);
+                # not a reference, so not counted.
+                try:
+                    self._corrected[str(loc)] = (
+                        float(e.get("de", 0.0)),
+                        "neighbour" if e.get("by") == "neighbour" else "limit")
+                except (TypeError, ValueError):
+                    pass
+                continue
             if not isinstance(e, dict) or e.get("kind") != "confirmed":
                 continue
             try:
@@ -1059,12 +1099,28 @@ class FlagJudge:
         self._set_reading(loc, rd, was)
         own = self._refs.get(loc)
         if not flagged:
+            # GREEN (Knut, #182 5984277558): it was red, and this LIVE
+            # reading fits. A repaint or a judgement from other readings is
+            # not a re-read, so it never makes one; it keeps one made before.
+            # A re-read that gives the SAME colour (within SAME_READING_DE)
+            # corrected nothing: the reading stands, only a limit moved.
+            if (live and prev is not None and prev.flagged
+                    and _norm(_sub(meas_lab, prev.meas_lab)) > SAME_READING_DE):
+                self._corrected[loc] = (
+                    float(prev.de), "neighbour" if prev.reread_only else "limit")
             # Read clean now, LIVE: whatever was confirmed about it no longer
             # holds. A repaint from the file only hides it (the limit).
             if live and self._refs.pop(loc, None) is not None:
                 self._refs_changed()
             self._verdicts.pop(loc, None)
+            corr = self._corrected.get(loc)
+            if corr is not None:
+                return Verdict(FLAG_CORRECTED, prev_de=corr[0],
+                               corrected_by=corr[1])
             return Verdict(FLAG_NONE)
+        if live:
+            # Flagged again by a live reading: no longer corrected.
+            self._corrected.pop(loc, None)
         if (own is not None
                 and _norm(_sub(meas_lab, own.meas_lab)) <= SAME_READING_DE):
             pass                          # the same colour once more: confirmed

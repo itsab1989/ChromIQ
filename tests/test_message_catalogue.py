@@ -644,6 +644,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # closing window's summary are our words.
                                  "M-PATCH-NEIGHBOUR",
                                  "M-MEASURED-SUSPECTS",
+                                 # Knut approved the green outline and its
+                                 # words (5984277558); the limit's middle line
+                                 # and the one-patch summary line are ours.
+                                 "M-PATCH-CORRECTED-VARIANTS",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:

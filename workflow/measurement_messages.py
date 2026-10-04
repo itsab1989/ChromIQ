@@ -2034,6 +2034,35 @@ M_PATCH_NEIGHBOUR = _m(
                _CARD_NB_REREAD_2)),
     approved=False)
 
+# --- APPROVED: the green outline of a misread a re-read corrected ----------
+#: Knut, #182 5984277558 ("Ok") to our 5984237879: "Green outline: corrected
+#: by a re-read. The first reading (ΔE 58 off) did not fit; the new one does.
+#: It replaces the misread." and "2 misreads corrected by a re-read: patches
+#: Y6, AE8." Approved line by line; the card breaks its lines by hand. {de}:
+#: the first reading's ΔE*ab from the expected colour, a whole number.
+_CARD_GREEN_HEAD = "Green outline: corrected by a re-read"
+_CARD_GREEN_1 = "The first reading (ΔE {de} off)"
+_CARD_GREEN_NB = "did not fit; the new one does."
+_CARD_GREEN_END = "It replaces the misread."
+_SUM_CORRECTED = "{n} misreads corrected by a re-read: patches {locs}."
+M_PATCH_CORRECTED = _m(
+    "M-PATCH-CORRECTED",
+    _CARD_GREEN_HEAD,
+    "\n".join((_CARD_GREEN_1, _CARD_GREEN_NB, _CARD_GREEN_END,
+               _SUM_CORRECTED)),
+    approved=True)
+# --- PROPOSED: its two variants -----------------------------------------------
+#: Not in Knut's example, so ours and waiting: the middle line when the LIMIT
+#: flagged the first reading (his line is the neighbour check's), and the
+#: closing window's line for one patch.
+_CARD_GREEN_LIMIT = "reached your limit; the new one is below it."
+_SUM_CORRECTED_ONE = "1 misread corrected by a re-read: patch {locs}."
+M_PATCH_CORRECTED_VARIANTS = _m(
+    "M-PATCH-CORRECTED-VARIANTS",
+    _CARD_GREEN_HEAD,
+    "\n".join((_CARD_GREEN_LIMIT, _SUM_CORRECTED_ONE)),
+    approved=False)
+
 # --- PROPOSED: the misread summary in the window that closes a measurement --
 #: #182 beta 11, Knut 5983470377 answer 5: "The Measurement Completed window,
 #: which today has a summary of some things (like the reading speeds) should
@@ -4666,6 +4695,7 @@ CATALOGUE = {m.id: m for m in (
     M_PATCH_COLOUR_RANGE,
     M_PATCH_EXPECTED_PREDICTED,
     M_PATCH_NEIGHBOUR, M_MEASURED_SUSPECTS,
+    M_PATCH_CORRECTED, M_PATCH_CORRECTED_VARIANTS,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_DONE_PROFILING,

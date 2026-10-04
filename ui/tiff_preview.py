@@ -152,14 +152,20 @@ _RING_RED = "#ff2b2b"
 #: yellow line on white is all but invisible on the light patches, which is
 #: where most of the gamut's real differences are.
 _RING_YELLOW = "#ffd400"
+#: A misread a re-read corrected (Knut, #182 5984277558). A clear green, on
+#: the yellow's dark halo so it reads on light and dark patches alike, in
+#: light and dark mode (the overlay is drawn on the chart, not the theme).
+_RING_GREEN = "#1fd65f"
 
 
 def _ring_colours(warn) -> "tuple[QColor, QColor]":
     """(ring, halo) for an overlay item's *warn* value: ``True`` red, one of
     workflow.patch_flags' two yellow values yellow."""
-    from workflow.patch_flags import is_yellow
+    from workflow.patch_flags import is_corrected, is_yellow
     if is_yellow(warn):
         return QColor(_RING_YELLOW), QColor(30, 30, 30, 215)
+    if is_corrected(warn):
+        return QColor(_RING_GREEN), QColor(30, 30, 30, 215)
     return QColor(_RING_RED), QColor(255, 255, 255, 235)
 
 
@@ -750,6 +756,18 @@ class _PatchInfoTile(QWidget):
                 rows.append((None, tr("it is real, keep it for the profile.")))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("(Preferences ▸ Measurement, “Flag a patch…”)")))
+        elif flag == "corrected":
+            # GREEN (Knut, #182 5984277558, "Ok" to 5984237879): it was red,
+            # and its re-read fits. Approved line by line, except the limit's
+            # middle line (M-PATCH-CORRECTED-LIMIT, proposed).
+            rows.append((None, "─" * 30))
+            rows.append((None, tr(_mm._CARD_GREEN_HEAD)))
+            rows.append((None, tr(_mm._CARD_GREEN_1).format(
+                de=f"{float(info.get('prev_de') or 0.0):.0f}")))
+            rows.append((None, tr(_mm._CARD_GREEN_NB
+                                  if info.get("corrected_by") == "neighbour"
+                                  else _mm._CARD_GREEN_LIMIT)))
+            rows.append((None, tr(_mm._CARD_GREEN_END)))
         elif nb:
             # RED, ONLY BY THE NEIGHBOUR CHECK (#182 beta 11): below the
             # limit, but its reading does not fit the patches nearest in

@@ -1815,6 +1815,19 @@ LIMITS_PURPOSE_HELP = (
     "The chart decides which limit applies when you measure, so you "
     "never have to choose.")
 
+#: THE GREEN OUTLINE (Knut, #182 5984277558, "Ok" to 5984237879): a misread
+#: a re-read corrected. One paragraph, the same in Preferences ▸ Measurement
+#: and in the Measure tab's overlay and hover help (one translation; a test
+#: keeps the copies equal).
+GREEN_OUTLINE_HELP = (
+    "A green outline marks a misread that was corrected: the patch was "
+    "outlined red (by the limit or by the neighbour check), and reading it "
+    "again gave a colour that fits. The new reading replaces the misread, "
+    "so there is nothing more to do. Green is kept with the measurement and "
+    "shown again when you open it; it ends when the patch is read once more "
+    "and the new reading is outlined again.")
+
+
 class ContentHeightScrollArea(QScrollArea):
     """A QScrollArea that asks for the height its content actually wants.
 
@@ -2971,6 +2984,7 @@ class SettingsDialog(QDialog):
             "confirmed patch of the range, as much or more, without standing "
             "out from its strip much more than that patch did.\n"
             "Which patches were confirmed is kept with the measurement.")
+            + "\n\n" + tr(GREEN_OUTLINE_HELP)
             + "\n\n" + tr("The outlines follow your limits in Preferences ▸ Measurement and "
             "are worked out again whenever something could change them: after "
             "every strip or patch you read, when a measurement ends, when you "

@@ -177,7 +177,8 @@ def test_a_good_reading_again_clears_it(qapp, tmp_path):
     tab = _tab(tmp_path)
     _read_all(tab, {"D6": 0.55})
     tab._on_strip_measured(_strip("D"))
-    assert _flags(tab)["D6"] is False
+    # Green: a misread a re-read corrected (Knut 5984277558).
+    assert _flags(tab)["D6"] == pf.FLAG_CORRECTED
     assert _info(tab, "D6")["neighbour"] is None
 
 

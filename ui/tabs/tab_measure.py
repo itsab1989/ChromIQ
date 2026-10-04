@@ -1147,6 +1147,18 @@ LIMITS_PURPOSE_HELP = (
     "The chart decides which limit applies when you measure, so you "
     "never have to choose.")
 
+#: THE GREEN OUTLINE (Knut, #182 5984277558, "Ok" to 5984237879): a misread
+#: a re-read corrected. One paragraph, the same in Preferences ▸ Measurement
+#: and in the Measure tab's overlay and hover help (one translation; a test
+#: keeps the copies equal).
+GREEN_OUTLINE_HELP = (
+    "A green outline marks a misread that was corrected: the patch was "
+    "outlined red (by the limit or by the neighbour check), and reading it "
+    "again gave a colour that fits. The new reading replaces the misread, "
+    "so there is nothing more to do. Green is kept with the measurement and "
+    "shown again when you open it; it ends when the patch is read once more "
+    "and the new reading is outlined again.")
+
 #: Knut, #182 5980576263: the overlay's help tells red and yellow apart, says
 #: what the limits do, and that Check & Refine judges on its own. The same
 #: words as the hover help's (one translation each).
@@ -3013,6 +3025,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._overlay_tip = TooltipButton(
             tr("Show overlay from existing measurement"),
             tr(_OVERLAY_TIP_BODY) + "\n\n" + tr(_OVERLAY_TIP_COLOURS)
+            + "\n\n" + tr(GREEN_OUTLINE_HELP)
             + "\n\n" + tr(_OVERLAY_TIP_LIMITS), left)
         self._overlay_tip.setVisible(False)
         overlay_row.addWidget(self._overlay_tip)
@@ -3182,7 +3195,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "file are exact.)")
             # Knut, #182 5956210745: both help texts cover the red outline.
             # Knut, #182 5980576263: red and yellow told apart.
-            + "\n\n" + tr(_OVERLAY_TIP_COLOURS),
+            + "\n\n" + tr(_OVERLAY_TIP_COLOURS)
+            + "\n\n" + tr(GREEN_OUTLINE_HELP),
             row))
         show_row.addStretch(1)
         v.addLayout(show_row)
@@ -3293,6 +3307,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "Which patches were confirmed is kept with the measurement, so "
             "they stay yellow after it ends and when you resume it; a "
             "completely new read starts without yellow patches.")
+            + "\n\n" + tr(GREEN_OUTLINE_HELP)
             # Knut, #182 5980576263: what the limits do, and Check & Refine.
             + "\n\n" + tr(_OVERLAY_TIP_LIMITS),
             row)
@@ -3613,6 +3628,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._m_overlay_tip = TooltipButton(
             tr("Show overlay from existing measurement"),
             tr(_OVERLAY_TIP_BODY) + "\n\n" + tr(_OVERLAY_TIP_COLOURS)
+            + "\n\n" + tr(GREEN_OUTLINE_HELP)
             + "\n\n" + tr(_OVERLAY_TIP_LIMITS), left)
         self._m_overlay_tip.setVisible(False)
         m_overlay_row.addWidget(self._m_overlay_tip)
@@ -14651,6 +14667,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 if 0 < facts["checked"] < facts["total"]:
                     lines.append(tr(M._SUM_NB_PARTLY).format(
                         checked=facts["checked"], total=facts["total"]))
+            # GREEN (Knut, #182 5984277558): misreads a re-read corrected,
+            # by the limit or the neighbour check, after the
+            # neighbour check's lines.
+            fixed = self.corrected_locs()
+            if len(fixed) == 1:
+                lines.append(tr(M._SUM_CORRECTED_ONE).format(locs=fixed[0]))
+            elif fixed:
+                lines.append(tr(M._SUM_CORRECTED).format(
+                    n=len(fixed), locs=", ".join(fixed[:10])
+                    + ("…" if len(fixed) > 10 else "")))
             if self._read_twice_was_active():
                 log_ = list(getattr(self, "_read_twice_log", []) or [])
                 items = []
@@ -15630,12 +15656,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         colour range with how many confirmations it has (#182 k10), and the
         similar patches that confirm it (Knut, #182 5979886227)."""
         from workflow.patch_flags import FLAG_CONFIRMED, FLAG_LEARNED, is_yellow
+        from workflow.patch_flags import is_corrected
         kind = ""
         if is_yellow(v.flag) and v.flag == FLAG_CONFIRMED:
             kind = "confirmed"
         elif is_yellow(v.flag) and v.flag == FLAG_LEARNED:
             kind = "learned"
+        elif is_corrected(v.flag):
+            kind = "corrected"            # green (Knut 5984277558)
         return {"flag": kind, "prev_de": v.prev_de, "like_loc": v.like_loc,
+                "corrected_by": str(getattr(v, "corrected_by", "") or ""),
                 "peer_locs": list(getattr(v, "peer_locs", ()) or ()),
                 "colour_range": v.colour_range, "range_k": int(v.range_k),
                 "range_locs": list(v.range_locs),
@@ -15844,6 +15874,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if preview is not None and hasattr(preview, "update_patch_flags"):
             for page, mapping in per_page.items():
                 preview.update_patch_flags(page, mapping)
+
+    def corrected_locs(self) -> "list[str]":
+        """The patches drawn green (Knut 5984277558): red once, and a live
+        re-read fits now. In chart order."""
+        judge = getattr(self, "_patch_flag_judge", None)
+        if judge is None:
+            return []
+        from workflow.patch_flags import sorted_locs
+        last = getattr(judge, "_last", {})
+        return sorted_locs(loc for loc in judge.corrected
+                           if loc not in last or not last[loc].flagged)
 
     def neighbour_summary_facts(self) -> "dict | None":
         """What the neighbour check found in the measurement on screen, for
