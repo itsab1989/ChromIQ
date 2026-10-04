@@ -122,3 +122,37 @@ def test_the_room_is_the_available_geometry_never_the_whole_screen():
     src = inspect.getsource(cr._screen_room)
     assert "availableGeometry()" in src
     assert ".geometry()" not in src
+
+
+def test_the_window_is_still_centred_over_its_parent(qapp, tmp_path,
+                                                      monkeypatch):
+    """Beta-9 review, measured on screen: the filter sees the Show event
+    BEFORE QDialog::showEvent centres the dialog over its parent, and moving
+    the not yet placed window there set WA_Moved, so QDialog never centred it
+    and it opened in the top-left corner of the screen (frame at 0,34 under a
+    main window at 0,34, where a208f069 put it at 251,91). Keeping it on
+    screen waits until QDialog has placed it."""
+    from PyQt6.QtCore import Qt
+    cr = _room(monkeypatch, 1470, 931)
+    _tab, dlg = _window(qapp, tmp_path, monkeypatch, "run3-2.0")
+    try:
+        dlg.show()
+        # Straight after show(): QDialog has centred it (and cleared the
+        # flag), nothing moved it by hand.
+        assert not dlg.testAttribute(Qt.WidgetAttribute.WA_Moved)
+        _settle()
+        # And the deferred check still keeps it inside the usable area.
+        room = cr._screen_room(dlg)
+        assert dlg.frameGeometry().top() >= room.top()
+        assert dlg.frameGeometry().left() >= room.left()
+    finally:
+        dlg.close()
+        dlg.deleteLater()
+
+
+def test_keeping_it_on_screen_never_moves_it_inside_the_show_event():
+    import inspect
+    import ui.tabs.tab_check_refine as cr
+    src = inspect.getsource(cr._FitsItsText._fit)
+    assert "QTimer.singleShot(0, self._keep_on_screen)" in src
+    assert "self._keep_on_screen()" not in src

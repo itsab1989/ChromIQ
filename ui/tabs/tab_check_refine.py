@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QEvent, QObject, Qt, pyqtSignal
+from PyQt6.QtCore import QEvent, QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
@@ -258,14 +258,23 @@ class _FitsItsText(QObject):
             if cap is not None and self._scroll is not None and win.height() > cap:
                 win.resize(win.width(), max(need_h, cap))
         if first and cap is not None and self._scroll is not None:
-            self._keep_on_screen()
+            # AFTER QDialog has placed itself (beta-9 review): this filter
+            # sees the Show event BEFORE QDialog::showEvent centres the
+            # dialog over its parent, and a move() here, at the not yet
+            # placed (0, 0), set WA_Moved, so the dialog was never centred
+            # and opened in the top-left corner of the screen.
+            QTimer.singleShot(0, self._keep_on_screen)
 
     def _keep_on_screen(self) -> None:
-        """Move the window so its frame lies inside the usable area."""
-        room = _screen_room(self._window)
+        """Move the window so its frame lies inside the usable area. Asked
+        once the window is shown and placed; a window already inside it (the
+        usual case: QDialog centres itself within the screen) does not move."""
+        win = self._window
+        if not win.isVisible():
+            return
+        room = _screen_room(win)
         if room is None:
             return
-        win = self._window
         fr = win.frameGeometry()
         x = min(max(fr.x(), room.left()), max(room.left(), room.right() - fr.width()))
         y = min(max(fr.y(), room.top()), max(room.top(), room.bottom() - fr.height()))
