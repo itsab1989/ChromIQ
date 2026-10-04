@@ -638,6 +638,12 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-VERIFY-EARLIER-PROFILE-NO-CHART",
                                  "M-VERIFY-CHART-EARLIER-PROFILE",
                                  "M-VERIFY-EARLIER-ARCHIVED-HERE",
+                                 # #182 beta 11: Knut approved the neighbour
+                                 # check (5983470377 answer 5) and its box
+                                 # (5983725218); the card lines and the
+                                 # closing window's summary are our words.
+                                 "M-PATCH-NEIGHBOUR",
+                                 "M-MEASURED-SUSPECTS",
                                  }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:

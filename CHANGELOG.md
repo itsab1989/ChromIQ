@@ -1,5 +1,13 @@
 # Changelog
 
+## v4.3.3-beta.11 (unreleased)
+
+### Added
+
+- **The neighbour check: a misread the limit cannot see is outlined red** (#182, Knut 5983470377 answer 5, and 5983725218). On a profiling chart with estimated colours, each patch is compared with the 3 or 4 patches nearest to it in expected colour that were read in other strips. When its reading is further from theirs than their expected colours are, by more than ΔE 10 (median), it is outlined red, even far below the limit, and its card says why with the numbers: "Its reading does not fit the 4 patches / nearest in colour, read in other strips: / they should read within ΔE 5 of it, / but it reads ΔE 16 away from them. / Probably a misread." Read it again: the same colour twice turns it yellow, as for any red patch. It is judged again after every strip and patch and when a measurement is opened, and never flags a patch for lack of comparisons. Not on a verification, a calibration chart or a chart made from a profile. On Knut's and two inkjet profiling charts (5,323 patches) it outlines 35 good patches (0.7 %) and catches most single glitches and every strip read out of step.
+- **Preferences ▸ Measurement: "Flag a patch that does not fit the patches nearest in colour by more than:"**, default ΔE 10 (Knut 5983725218). Changing it and pressing OK outlines the preview again.
+- **The closing window of a measurement sums up the suspected misreads** (Knut 5983470377): the patches the neighbour check still outlines red, those a re-read kept as real, and, when "Was a strip read twice?" ran, which strips it asked about and what you answered. Under the reading times, on profiling and calibration measurements; never on a verification.
+
 ## v4.3.3-beta.10
 
 **Red cards say exactly why a patch stayed red, a colour whose reading lands where its confirmed patches' readings did turns yellow, a verification's card speaks of the profile's accuracy, an unplugged instrument no longer floods the log, Build Profile offers only what colprof accepts, and three Windows/Linux fixes from ChromIQ's new test runs on those systems.**

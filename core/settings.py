@@ -315,6 +315,12 @@ DEFAULTS: dict[str, Any] = {
     # Whether a patch must ALSO be unusual for its own strip to be flagged
     # (Knut's option (c), #131 2026-07-27). On = today's behaviour.
     "patch_warn_outlier_fence":  True,
+    # The neighbour check's buffer (#182 beta 11, Knut 5983470377 item 5 and
+    # 5983725218): a patch whose reading is further from the patches nearest
+    # to it in colour than their expected colours are, by more than this
+    # (median over 3 or 4 of them, ΔE*ab), gets the red outline
+    # (workflow/neighbour_check.py).
+    "patch_neighbour_buffer_de": 10.0,
     # Measurement sound feedback (#131, Phase 1). Master switch lives on the
     # Measure tab; per-event choices and the optional user sounds folder on the
     # Preferences → Sounds / Paths tabs. Off by default (opt-in comfort feature).

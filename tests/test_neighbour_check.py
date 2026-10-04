@@ -28,7 +28,7 @@ def strip_of(loc: str) -> str:
 
 
 def sheet(name):
-    return json.loads((DATA / f"{name}.json").read_text())["patches"]
+    return json.loads((DATA / f"{name}.json").read_text(encoding="utf-8"))["patches"]
 
 
 def check_of(patches, buffer=N.BUFFER_DE):

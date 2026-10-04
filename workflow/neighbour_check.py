@@ -62,6 +62,23 @@ MAX_COMPARED = 4
 MIN_COMPARED = 3
 #: The median excess must be MORE than this for a suspect.
 BUFFER_DE = 10.0
+#: The user's buffer (Preferences ▸ Measurement, Knut #182 5983725218:
+#: "a defined input box ... so that the threshold for when this check
+#: triggers a red highlighted patch can be modified by user"), and its range.
+BUFFER_KEY = "patch_neighbour_buffer_de"
+BUFFER_MIN_DE = 1.0
+BUFFER_MAX_DE = 50.0
+
+
+def buffer_from(settings) -> float:
+    """The user's buffer, or the default, kept within its range."""
+    try:
+        v = float(settings.get(BUFFER_KEY, BUFFER_DE))
+    except (TypeError, ValueError, AttributeError):
+        return BUFFER_DE
+    if v != v:                      # NaN
+        return BUFFER_DE
+    return min(BUFFER_MAX_DE, max(BUFFER_MIN_DE, v))
 
 #: ArgyllCMS's icmD50, the white the engine's L*a*b* is computed against
 #: (``workflow.measurement_report._engine_lab``).
@@ -127,6 +144,14 @@ class NeighbourCheck:
         #: and the expected colours of readings forgotten or moved since.
         self._changed: "set[str] | None" = None
         self._gone: "list[tuple]" = []
+
+    def set_buffer(self, buffer: float) -> None:
+        """Take the user's buffer (Preferences ▸ Measurement); a new one
+        judges every patch again at the next evaluation."""
+        buffer = float(buffer)
+        if buffer != self.buffer:
+            self.buffer = buffer
+            self._changed = None
 
     def __len__(self) -> int:
         return len(self._rows)

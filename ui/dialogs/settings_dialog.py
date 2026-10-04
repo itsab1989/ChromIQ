@@ -3002,6 +3002,47 @@ class SettingsDialog(QDialog):
             self))
         _meas.addLayout(_fence_row)
 
+        # THE NEIGHBOUR CHECK'S BUFFER (#182 beta 11, Knut 5983470377 item 5;
+        # the box itself, Knut 5983725218: "a defined input box in
+        # preferences --> measurement so that the threshold for when this
+        # check triggers a red highlighted patch can be modified by user").
+        from workflow.neighbour_check import BUFFER_MAX_DE, BUFFER_MIN_DE
+        self._patch_neighbour_spin = NoScrollDoubleSpinBox(self)
+        self._patch_neighbour_spin.setObjectName("patch_neighbour_buffer")
+        self._patch_neighbour_spin.setRange(BUFFER_MIN_DE, BUFFER_MAX_DE)
+        self._patch_neighbour_spin.setSingleStep(1.0)
+        self._patch_neighbour_spin.setDecimals(1)
+        self._patch_neighbour_spin.setSuffix(" ΔE")
+        self._patch_neighbour_spin.setFixedWidth(110)
+        _nb_row = QHBoxLayout()
+        _nb_row.addWidget(QLabel(tr(
+            "Flag a patch that does not fit the patches nearest in colour by "
+            "more than:"), self))
+        _nb_row.addWidget(self._patch_neighbour_spin)
+        _nb_row.addStretch()
+        _nb_row.addWidget(TooltipButton(
+            tr("Neighbour check"),
+            tr("Patches that are expected to be close in colour should also "
+            "measure close to each other, even when the chart's expected "
+            "colours are only rough estimates. So every patch is compared "
+            "with the 3 or 4 patches nearest to it in expected colour (within "
+            "ΔE 15) that were read in other strips.\n\n"
+            "If its reading is further from theirs than their expected colours "
+            "are, by more than this value, it gets a red outline: probably a "
+            "misread, even when it is below the limit above. Read it again: "
+            "the same colour twice turns it yellow, a real difference to keep.\n\n"
+            "A patch with fewer than 3 such patches is not judged, so on a small "
+            "chart, and early in a measurement, few patches can be checked. "
+            "The check runs after every strip or patch you read and when you "
+            "open a measurement, on charts with estimated colours only (not on "
+            "a verification, a calibration chart or a chart made from a "
+            "profile).\n\n"
+            "A lower value finds more misreads and also outlines more real "
+            "differences; a higher value outlines fewer.")
+            + "\n\n" + tr("**Default:** 10 ΔE"),
+            self))
+        _meas.addLayout(_nb_row)
+
         # Automatic calibration retries (#126, mavtop): how many times a failed
         # instrument calibration is retried before giving up.
         self._cal_retries_spin = NoScrollSpinBox(self)
@@ -5274,6 +5315,8 @@ class SettingsDialog(QDialog):
             float(s.get("patch_read_warn_de_estimated", 95.0)))
         self._patch_warn_acc_spin.setValue(
             float(s.get("patch_read_warn_de_accurate", 30.0)))
+        from workflow.neighbour_check import buffer_from
+        self._patch_neighbour_spin.setValue(buffer_from(s))
         self._patch_fence_check.setChecked(
             bool(s.get("patch_warn_outlier_fence", True)))
         self._cal_retries_spin.setValue(int(s.get("cal_auto_retries", 3)))
@@ -6450,6 +6493,8 @@ class SettingsDialog(QDialog):
               float(self._patch_warn_est_spin.value()))
         s.set("patch_read_warn_de_accurate",
               float(self._patch_warn_acc_spin.value()))
+        from workflow.neighbour_check import BUFFER_KEY
+        s.set(BUFFER_KEY, float(self._patch_neighbour_spin.value()))
         s.set("patch_warn_outlier_fence",
               bool(self._patch_fence_check.isChecked()))
         s.set("cal_auto_retries", int(self._cal_retries_spin.value()))

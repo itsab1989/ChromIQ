@@ -578,7 +578,32 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr(_mm._CARD_YELLOW_NO_NEED)))   # Knut 5980576263
 
         peer_locs = [str(v) for v in (info.get("peer_locs") or ())]
-        if info.get("warn") and flag == "confirmed" and peer_locs:
+        # THE NEIGHBOUR CHECK (#182 beta 11, Knut 5983470377 item 5): a
+        # patch whose reading does not fit the patches nearest in colour is
+        # red even below the limit. *limit_hit*: the limit flagged it too.
+        nb = info.get("neighbour") or None
+        limit_hit = bool(info.get("warn"))
+        flagged = limit_hit or bool(nb)
+
+        def nb_lines(first: str) -> None:
+            rows.append((None, tr(first).format(n=int(nb.get("n", 0)))))
+            rows.append((None, tr(_mm._CARD_NB_2)))
+            rows.append((None, tr(_mm._CARD_NB_3).format(
+                expected=f"{float(nb.get('expected', 0.0)):.0f}")))
+            rows.append((None, tr(_mm._CARD_NB_4).format(
+                measured=f"{float(nb.get('measured', 0.0)):.0f}")))
+
+        def limit_line() -> None:
+            """"ΔE ... reached your limit", or, for a patch only the
+            neighbour check flagged, why it was red."""
+            if limit_hit:
+                rows.append((None, tr("ΔE*ab {de:.1f} reached your limit {limit:.1f}"
+                                      ).format(de=float(info.get("de", 0.0)),
+                                               limit=float(info.get("warn_de", 0.0)))))
+            else:
+                rows.append((None, tr(_mm._CARD_NB_YELLOW)))
+
+        if flagged and flag == "confirmed" and peer_locs:
             # YELLOW, CONFIRMED BY SIMILAR PATCHES (Knut, #182 5979886227):
             # patches of other strips, expected nearly the same colour, are
             # off in the same way. Set apart like the re-read card.
@@ -586,9 +611,7 @@ class _PatchInfoTile(QWidget):
             rows.append((None, tr(_mm._CARD_PEER_1)))
             rows.append((None, tr(_mm._CARD_PEER_2).format(
                 locs=first_three(peer_locs))))
-            rows.append((None, tr("ΔE*ab {de:.1f} reached your limit {limit:.1f}"
-                                  ).format(de=float(info.get("de", 0.0)),
-                                           limit=float(info.get("warn_de", 0.0)))))
+            limit_line()
             rows.append((None, ""))
             add_real_lines()
             if rng in _mm.RANGE_NAMES:
@@ -598,7 +621,7 @@ class _PatchInfoTile(QWidget):
                              if range_k >= 3 else
                              tr(_mm._CARD_RANGE_SO_FAR).format(k=range_k)))
                 add_confirmed_list()
-        elif info.get("warn") and flag == "confirmed":
+        elif flagged and flag == "confirmed":
             # YELLOW, CONFIRMED (#182 B, Sebastian 5956560815): read twice,
             # the same colour twice. Set apart at the bottom like the red text.
             rows.append((None, "─" * 30))
@@ -617,15 +640,13 @@ class _PatchInfoTile(QWidget):
                              if range_k >= 3 else
                              tr(_mm._CARD_RANGE_SO_FAR).format(k=range_k)))
                 add_confirmed_list()
-        elif info.get("warn") and flag == "learned":
+        elif flagged and flag == "learned":
             # YELLOW, JUDGED LIKE A CONFIRMED PATCH OF ITS RANGE (#182 B2,
             # Knut 5956831467; k10).
             rows.append((None, "─" * 30))
             rows.append((None, tr("Yellow outline: judged like patch {loc}"
                                   ).format(loc=str(info.get("like_loc", "")))))
-            rows.append((None, tr("ΔE*ab {de:.1f} reached your limit {limit:.1f}"
-                                  ).format(de=float(info.get("de", 0.0)),
-                                           limit=float(info.get("warn_de", 0.0)))))
+            limit_line()
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             add_range_line()
             if range_locs:
@@ -665,6 +686,8 @@ class _PatchInfoTile(QWidget):
                                  tr("(limit for a chart with estimated colours)")))
             if info.get("fenced"):
                 rows.append((None, tr("and stands out from its strip")))
+            if nb:
+                nb_lines(_mm._CARD_NB_1_ALSO)
             if rng in _mm.RANGE_NAMES:
                 rows.append((None, ""))
                 add_range_line()
@@ -700,6 +723,19 @@ class _PatchInfoTile(QWidget):
                 rows.append((None, tr("it is real, keep it for the profile.")))
             rows.append((None, ""))   # a blank line between sentences (Knut, #182 5960405382)
             rows.append((None, tr("(Preferences ▸ Measurement, “Flag a patch…”)")))
+        elif nb:
+            # RED, ONLY BY THE NEIGHBOUR CHECK (#182 beta 11): below the
+            # limit, but its reading does not fit the patches nearest in
+            # colour. Wording M-PATCH-NEIGHBOUR (§M-PROPOSED).
+            rows.append((None, "─" * 30))
+            rows.append((None, tr(_mm._CARD_NB_RED)))
+            nb_lines(_mm._CARD_NB_1)
+            rows.append((None, ""))
+            rows.append((None, tr(_mm._CARD_NB_5)))
+            rows.append((None, tr(_mm._CARD_RED_READ_AGAIN)))
+            rows.append((None, ""))
+            rows.append((None, tr("Same value after a re-read:")))
+            rows.append((None, tr("it is real, keep it for the profile.")))
 
         self._rows = rows
 

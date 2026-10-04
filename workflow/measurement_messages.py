@@ -1969,6 +1969,75 @@ M_PATCH_EXPECTED_PREDICTED = _m(
     _CARD_EXPECTED_PREDICTED,
     approved=True)
 
+# --- PROPOSED: the neighbour check on a patch's hover card ------------------
+#: #182 beta 11. Knut approved the check itself in 5983470377 (answer 5,
+#: "Build the neighbour check for profiling charts?" "Yes"), on section C of
+#: the beta 10 analysis: a patch whose reading does not fit the patches
+#: nearest to it in expected colour is drawn red, even below the limit
+#: (workflow/neighbour_check.py). The words are ours and wait here. The card
+#: breaks its lines by hand, so each line is one line on the card. {n} is 3 or
+#: 4 (never fewer: a patch with fewer comparisons is not judged), so no
+#: language needs a singular form. {expected} is the median distance between
+#: its expected colour and theirs, {measured} between its reading and theirs,
+#: whole numbers (ΔE*ab).
+_CARD_NB_RED = "Red outline: it does not fit its neighbours"
+_CARD_NB_1 = "Its reading does not fit the {n} patches"
+_CARD_NB_1_ALSO = "It also does not fit the {n} patches"
+_CARD_NB_2 = "nearest in colour, read in other strips:"
+_CARD_NB_3 = "they should read within ΔE {expected} of it,"
+_CARD_NB_4 = "but it reads ΔE {measured} away from them."
+_CARD_NB_5 = "Probably a misread."
+#: A yellow card (a re-read gave the same colour, similar patches, or a
+#: learned range) of a patch the limit did not flag: instead of "ΔE*ab ...
+#: reached your limit ...".
+_CARD_NB_YELLOW = "Red before: it did not fit its neighbours"
+M_PATCH_NEIGHBOUR = _m(
+    "M-PATCH-NEIGHBOUR",
+    _CARD_NB_RED,
+    "\n".join((_CARD_NB_1, _CARD_NB_1_ALSO, _CARD_NB_2, _CARD_NB_3,
+               _CARD_NB_4, _CARD_NB_5, _CARD_NB_YELLOW)),
+    approved=False)
+
+# --- PROPOSED: the misread summary in the window that closes a measurement --
+#: #182 beta 11, Knut 5983470377 answer 5: "The Measurement Completed window,
+#: which today has a summary of some things (like the reading speeds) should
+#: also hold a short summary of the detected suspected misreads from the
+#: neighbour-test method and (if active) the strip misreading test." Shown
+#: under the reading-time summary, on every profiling and calibration
+#: measurement's closing window, never on a verification's. The neighbour
+#: lines only where the check applies (a profiling chart with estimated
+#: expected colours); the strip lines only when "Was a strip read twice?" ran
+#: (strips read with ChromIQ's engine, outside guided refinement). {locs}:
+#: the patches in reading order, the first ten and then "…". {list}: the
+#: strips, each with its item line.
+#: The headline names the block in the model; the window shows its lines
+#: under the reading-time summary without it.
+_SUM_HEADLINE = "Suspected misreads"
+_SUM_NB_NONE = "Neighbour check: no suspected misreads."
+_SUM_NB_RED_ONE = ("Neighbour check: 1 suspected misread, patch {locs}. "
+                   "Read it again before you build the profile.")
+_SUM_NB_RED = ("Neighbour check: {n} suspected misreads, patches {locs}. "
+               "Read them again before you build the profile.")
+_SUM_NB_KEPT_ONE = ("1 more patch was read again with the same result, so "
+                    "it is taken as real.")
+_SUM_NB_KEPT = ("{n} more patches were read again with the same result, so "
+                "they are taken as real.")
+_SUM_NB_PARTLY = ("{checked} of {total} patches had enough patches near in "
+                  "colour to be checked.")
+_SUM_TWICE_NONE = "Strip read twice: none found."
+_SUM_TWICE_ONE = "Strip read twice: 1 strip looked like another, {list}."
+_SUM_TWICE = "Strip read twice: {n} strips looked like another, {list}."
+_SUM_TWICE_REREAD = "{strip} (like {like}, read again)"
+_SUM_TWICE_WAS_LIKE = "{strip} (like {like}, set aside)"
+_SUM_TWICE_KEPT = "{strip} (like {like}, kept)"
+M_MEASURED_SUSPECTS = _m(
+    "M-MEASURED-SUSPECTS",
+    _SUM_HEADLINE,
+    "\n".join((_SUM_NB_NONE, _SUM_NB_RED_ONE, _SUM_NB_RED, _SUM_NB_KEPT_ONE, _SUM_NB_KEPT,
+               _SUM_NB_PARTLY, _SUM_TWICE_NONE, _SUM_TWICE_ONE, _SUM_TWICE,
+               _SUM_TWICE_REREAD, _SUM_TWICE_WAS_LIKE, _SUM_TWICE_KEPT)),
+    approved=False)
+
 # ---------------------------------------------------------------------------
 #: Knut wrote this text himself (beta.150) to replace the original "No
 #: Instrument Found" bullet list, and asked for the window I had added at ten
@@ -4555,6 +4624,7 @@ CATALOGUE = {m.id: m for m in (
     M_PATCHSET_CAL_INKS, M_VIEW_RGB_ONLY,
     M_PATCH_COLOUR_RANGE,
     M_PATCH_EXPECTED_PREDICTED,
+    M_PATCH_NEIGHBOUR, M_MEASURED_SUSPECTS,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
     M_IMPORT_DONE_PROFILING,
