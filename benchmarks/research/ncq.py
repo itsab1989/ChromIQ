@@ -235,7 +235,11 @@ def nc3_switching(prof, printer, reader, intent="r", cloud=None,
             dev = _b2a(prof, lab, reader, intent)
             printed = printer.lab_rel(dev)
             de = colour.de2000(printed, lab)
+            inside = in_gamut(lab, cloud)
             p = _switch_props(dev, printer.letters, comp, extra, printer.tac, 1.0)
+            p["de_in_gamut"] = stats(de[inside])
+            p["in_gamut_share"] = float(inside.mean())
+            agg.setdefault("de_in", []).append(de[inside])
             # expected: each chromatic ink enters and leaves at most once per
             # circle; every further rise-and-fall is a switch
             exc = sum(max(0, v - 1) for v in p["rise_fall"].values())
@@ -266,7 +270,21 @@ def nc3_switching(prof, printer, reader, intent="r", cloud=None,
             "inks_on_max": int(agg["inks_on_max"]),
             "complementary_share_max": float(max(agg["complementary_share"])),
             "de": stats(np.concatenate(agg["de"])),
+            "de_in_gamut": stats(np.concatenate(agg["de_in"])),
             "grey": grey, "sweeps": sweeps}
+
+
+def in_gamut(lab: np.ndarray, cloud: np.ndarray, tol: float = 2.0) -> np.ndarray:
+    """True where a truth colour lies within ``tol`` dE76 of the target (the
+    truth cloud is 60,000 TAC-respecting prints: a sampled gamut, so a small
+    tolerance; colours deeper inside always have a neighbour)."""
+    _, first = np.unique(np.floor(cloud).astype(np.int64), axis=0, return_index=True)
+    thin = cloud[first]
+    out = np.zeros(len(lab), bool)
+    for s in range(0, len(lab), 256):
+        d = ((lab[s:s + 256, None, :] - thin[None, :, :]) ** 2).sum(2).min(1)
+        out[s:s + 256] = d <= tol * tol
+    return out
 
 
 # --- NC4: gamut extension -------------------------------------------------------
@@ -445,8 +463,9 @@ def headline(r: dict) -> dict:
             h["NC2 <=3 inks B2A p95"] = r["NC2"]["regions"]["b2a_max_3_inks"]["p95"]
             h["NC2 all inks B2A med"] = r["NC2"]["regions"][f"b2a_max_{len(r['letters'])}_inks"]["median"]
     if "NC3" in r:
-        h["NC3 hue-circle B2A med"] = r["NC3"]["de"]["median"]
-        h["NC3 hue-circle B2A p95"] = r["NC3"]["de"]["p95"]
+        d = r["NC3"].get("de_in_gamut", r["NC3"]["de"])
+        h["NC3 hue-circle B2A med"] = d["median"]
+        h["NC3 hue-circle B2A p95"] = d["p95"]
         h["NC3 rise-fall excess"] = r["NC3"]["rise_fall_excess_total"]
         h["NC3 TV excess max"] = r["NC3"]["tv_excess_max"]
         h["NC3 jump/deg max"] = r["NC3"]["max_jump_per_deg"]
