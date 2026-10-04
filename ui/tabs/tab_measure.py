@@ -14969,7 +14969,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         live = {loc for loc in getattr(self, "_progress_locs", ())
                 if loc not in getattr(self, "_progress_padding", ())}
         file_locs = getattr(self, "_progress_file_locs", set())
-        aside = self._set_aside_locs()
+        _aside = getattr(self, "_set_aside_locs", None)
+        aside = _aside() if callable(_aside) else set()
         if file_locs:
             measured = len(((file_locs - getattr(self, "_progress_padding",
                                                  set())) | live) - aside)
