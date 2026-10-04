@@ -85,9 +85,6 @@ def test_the_last_entry_at_each_level_closes_its_branch():
             f"row {name!r} draws {tail!r}"
 
 
-@pytest.mark.xfail(sys.platform.startswith("linux"), strict=False, reason=(
-    "REAL_BUGS RB-3: none of the families _MONO names exists on a stock "
-    "Linux, so the diagram is drawn crooked there; app fix awaits a decision"))
 def test_the_connectors_are_equal_width_in_the_faces_the_card_asks_for():
     """The alignment rests entirely on all four pieces having the same advance.
 
@@ -102,7 +99,8 @@ def test_the_connectors_are_equal_width_in_the_faces_the_card_asks_for():
     from _fontcheck import skip_without_fonts
     skip_without_fonts()                  # no fonts here → none to measure
     checked = 0
-    for family in ("Menlo", "Monaco", "Courier New"):
+    for family in ("Menlo", "Monaco", "Courier New", "DejaVu Sans Mono",
+                   "Liberation Mono"):
         f = QFont(family)
         if QFontInfo(f).family().lower() != family.lower():
             continue                      # not installed here
@@ -117,9 +115,6 @@ def test_the_connectors_are_equal_width_in_the_faces_the_card_asks_for():
     assert checked, "none of the named monospace families is available to check"
 
 
-@pytest.mark.xfail(sys.platform.startswith("linux"), strict=False, reason=(
-    "REAL_BUGS RB-3: none of the families _MONO names exists on a stock "
-    "Linux, so the diagram is drawn crooked there; app fix awaits a decision"))
 def test_the_diagram_asks_for_a_monospace_family_the_hard_way():
     """Measured, not assumed: Qt's rich text leaves ``<code>`` in the UI font,
     which draws "├─ " at 35 px and "   " at 19 and staggers every level. Only a
